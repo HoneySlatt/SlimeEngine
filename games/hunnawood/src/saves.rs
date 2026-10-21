@@ -15,10 +15,10 @@ use std::io::{self, Read as _, Write as _};
 use std::path::{Path, PathBuf};
 
 use slime_serialize::MAX_SIZE;
-use slime_world::{DocumentError, Light, Loaded, SceneLibrary, World};
+use slime_world::{DocumentError, Loaded, SceneLibrary, World};
 
 use crate::rules::Game;
-use crate::zone::{Flickers, Layout};
+use crate::zone::Layout;
 
 /// The game's directory in the user's data directory.
 const DIRECTORY: &str = "hunnawood";
@@ -72,15 +72,12 @@ pub fn start(scenes: &mut SceneLibrary) -> Result<(World, Game), String> {
 
 /// The save of the run in `world`, a game of `scenes`: what differs from a new game by day
 /// ([`start`]); the version of the game; and the layout of that new game's zone, as its scenes place
-/// it, whatever the run changed of it. The lights of the campfire are put back to the intensity
-/// they flicker around first, as the zone gives it, since the view makes them flicker at each frame
-/// and a save would hold each frame's.
+/// it, whatever the run changed of it.
 ///
 /// # Errors
 ///
 /// When the zone cannot be played, or the world cannot be saved ([`World::save`]).
-pub fn save(world: &mut World, scenes: &mut SceneLibrary) -> Result<String, String> {
-    unflicker(world);
+pub fn save(world: &World, scenes: &mut SceneLibrary) -> Result<String, String> {
     let (start, start_game) = start(scenes)?;
     let layout = start_game.zone().layout(&start).to_text();
     let about = BTreeMap::from([
@@ -119,7 +116,7 @@ pub enum NotResumed {
 /// # Errors
 ///
 /// In the order checked: [`NotResumed::Unreadable`] when it cannot be read; [`NotResumed::Later`]
-/// when it says a later version than this one ([`later`]); [`NotResumed::OtherLayout`] when it says
+/// when it says a later version than this one (`later`); [`NotResumed::OtherLayout`] when it says
 /// another layout of the zone than `start`'s ([`Layout::matches`]), or none;
 /// [`NotResumed::Unknown`] when loading it warned of what this version does not know;
 /// [`NotResumed::Unplayable`] when the run loaded cannot be played.
@@ -195,10 +192,9 @@ pub struct Reloaded {
 /// # Errors
 ///
 /// When the new game cannot be played, as [`start`] says, or the run cannot be carried into it, or
-/// played once carried. `world` is left as it was then, but for the campfire's light, put back to
-/// the intensity it flickers around.
+/// played once carried. `world` is left as it was then.
 pub fn reload(
-    world: &mut World,
+    world: &World,
     before: &(World, Game),
     scenes: &mut SceneLibrary,
     starts_at_night: bool,
@@ -215,7 +211,6 @@ pub fn reload(
             loaded: None,
         });
     }
-    unflicker(world);
     let (world, loaded) = world
         .carry(&before.0, after, scenes)
         .map_err(|error| slime_app::error_chain(&error))?;
@@ -227,17 +222,6 @@ pub fn reload(
         restarted: false,
         loaded: Some(loaded),
     })
-}
-
-/// Puts the campfire's lights of `world` back to the intensity that they flicker around, as the
-/// zone gives it: the view makes them flicker at each frame, and what is saved would hold each
-/// frame's.
-fn unflicker(world: &mut World) {
-    world.query_mut::<(&Flickers, &mut Light)>(|_, (flickers, mut light)| {
-        if let Light::Point { intensity, .. } = &mut *light {
-            *intensity = flickers.intensity;
-        }
-    });
 }
 
 /// A save's file, which this copy of the game holds, so that one copy at a time resumes and writes
@@ -561,7 +545,7 @@ mod runs {
         }
         // What the run changed of the layout, as the world panel changes it, does not make it another.
         world.query_mut::<&mut Collider>(|_, mut collider| collider.height = 3.5);
-        let text = save(&mut world, &mut scenes).expect("saved");
+        let text = save(&world, &mut scenes).expect("saved");
         let new = new_game(&mut scenes);
         let (resumed, resumed_game, loaded) = resume(&text, new, &mut scenes).expect("resumed");
         assert!(loaded.set_aside.is_empty() && loaded.scenes_changed.is_empty());
@@ -606,7 +590,7 @@ mod runs {
         let (mut world, game) = start(&mut scenes).expect("the zone can be played");
         game.step(&mut world, Vec2::X, 1.0 / 60.0);
         change(&mut world, &game);
-        (save(&mut world, &mut scenes).expect("saved"), scenes)
+        (save(&world, &mut scenes).expect("saved"), scenes)
     }
 
     #[test]

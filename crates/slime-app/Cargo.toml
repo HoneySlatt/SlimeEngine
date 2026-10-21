@@ -27,6 +27,8 @@ nu-ansi-term.workspace = true
 # The README's example and the windowed lifecycle test clear their targets to a color.
 [dev-dependencies]
 slime-color.workspace = true
+# The lifecycle test's commands carry reflected values.
+slime-reflect.workspace = true
 # The windowed lifecycle test makes a device invalid without telling the engine, as wgpu does
 # before it reports a driver reset, which no API of the engine does.
 slime-gfx = { workspace = true, features = ["wgpu"] }

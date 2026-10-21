@@ -273,7 +273,7 @@ fn ring_at(drawing: &mut Drawing, gpu: &Gpu, world: &World, fraction: f64) -> (f
     let light = frame
         .lights
         .iter()
-        .find_map(|light| match light {
+        .find_map(|(_, light)| match light {
             Light::Point(light) => Some(light.position),
             _ => None,
         })
@@ -345,7 +345,7 @@ fn a_hidden_subtree_and_its_lights_are_not_drawn() {
         let points = frame
             .lights
             .iter()
-            .filter(|light| matches!(light, Light::Point(_)))
+            .filter(|(_, light)| matches!(light, Light::Point(_)))
             .count();
         (frame.instances.len(), points)
     };

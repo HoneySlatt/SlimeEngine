@@ -18,14 +18,10 @@ fn main() {
 mod linux {
     use std::process::Command;
 
-    use slime_app::{App, AppConfig, RunError};
+    use slime_app::{AppConfig, RunError};
     use slime_platform::{PlatformError, WindowConfig};
 
     const CHILD_ENV: &str = "SLIME_APP_TEST_CHILD";
-
-    struct Nothing;
-
-    impl App for Nothing {}
 
     pub fn main() {
         if std::env::var_os(CHILD_ENV).is_some() {
@@ -62,7 +58,7 @@ mod linux {
             ..AppConfig::default()
         };
         for attempt in ["first", "second"] {
-            let error = slime_app::run(&mut Nothing, &config).expect_err("no windowing system");
+            let error = slime_app::run(&mut (), &mut (), &config).expect_err("no windowing system");
             let kind = match &error {
                 RunError::Platform(PlatformError::Connect(_)) => "Connect",
                 RunError::Platform(PlatformError::SecondEventLoop) => "SecondEventLoop",

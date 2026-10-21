@@ -23,11 +23,19 @@ pub const KEY: &str = "zone";
 /// The footprint of a collider on the ground, around its center.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Shape {
-    /// A rectangle of half the size `half_size` along its own axes, turned by `yaw` about the
-    /// vertical: its first axis lies along `Vec2::from_angle(yaw)`.
-    Box { half_size: Vec2, yaw: f32 },
+    /// A rectangle turned about the vertical.
+    Box {
+        /// Half its size along its own axes, in metres.
+        half_size: Vec2,
+        /// How far it is turned about the vertical, in radians: its first axis lies along
+        /// `Vec2::from_angle(yaw)`.
+        yaw: f32,
+    },
     /// A circle.
-    Cylinder { radius: f32 },
+    Cylinder {
+        /// Its radius, in metres.
+        radius: f32,
+    },
 }
 
 /// Where a collider stops the hero: a box turned about the vertical or a cylinder, standing on the
@@ -310,7 +318,7 @@ impl Layout {
 
     /// The layout as text, which a save holds (`crate::saves`) and [`Layout::from_text`] reads
     /// back: its numbers, separated by spaces, each the shortest that reads back as the same
-    /// `f32`. First the size of the ground and the places, x then z ([`Layout::places`]); then
+    /// `f32`. First the size of the ground and the places, x then z (`Layout::places`); then
     /// each list of colliders, the colliders then the door's, its length first, then each of its
     /// footprints, by seven numbers: its shape, 0 for a box and 1 for a cylinder; a box's half size
     /// and yaw, or a cylinder's radius and two zeros; its center; its height.
@@ -768,7 +776,7 @@ mod tests {
 /// The tests that read the cooked zone, which they need fetched and cooked
 /// (`scripts/check.sh` does both): `cargo test` leaves them out.
 #[cfg(test)]
-pub mod cooked {
+pub(crate) mod cooked {
     use std::collections::{HashMap, HashSet, VecDeque};
 
     use slime_assets::{AssetId, AssetKind, CookedAssets, CookedScene};

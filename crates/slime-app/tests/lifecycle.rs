@@ -1,63 +1,70 @@
-//! Tests of the application lifecycle driven by `slime_app::run` in headless mode. The windowed
-//! lifecycle is checked by `windowed_lifecycle.rs`, which `scripts/check.sh` runs in a headless
-//! compositor (ADR-0024), and the errors of a windowed run by `windowed_errors.rs`.
+//! Tests of the lifecycle of a game's simulation, driven by `slime_app::run` in headless mode, and
+//! of the phases of a frame, game time and commands, driven by a `Host`. The windowed lifecycle,
+//! with a presentation, is checked by `windowed_lifecycle.rs`, which `scripts/check.sh` runs in a
+//! headless compositor (ADR-0024), and the errors of a windowed run by `windowed_errors.rs`.
 
 use std::time::Duration;
 
-use slime_app::time::FrameTime;
-use slime_app::{App, AppConfig, AppError, Context, RunError, run};
-use slime_world::Transform;
+use slime_app::{AppConfig, AppError, Host, RunError, Simulation, SimulationContext, run};
+use slime_platform::KeyCode;
+use slime_reflect::Value;
+use slime_world::{Command, Entity, Transform, World};
 
 const STEP: Duration = Duration::from_millis(10);
 
 #[derive(Debug, PartialEq, Eq)]
 enum Call {
-    Init,
-    FixedUpdate(Duration),
+    Start,
+    FixedStep(Duration),
     Update {
         index: u64,
         delta: Duration,
         elapsed: Duration,
     },
-    Shutdown,
+    Stop,
 }
 
 /// Records every call it receives, and requests an exit or fails where it is told to.
 #[derive(Default)]
 struct Recorder {
     calls: Vec<Call>,
-    exit_in_init: bool,
-    fail_in_init: bool,
+    exit_in_start: bool,
+    fail_in_start: bool,
     exit_in_update_of_frame: Option<u64>,
     fail_in_update_of_frame: Option<u64>,
-    fail_in_shutdown: bool,
-    /// `Context::fixed_step_alpha` as each `update` reads it.
+    fail_in_stop: bool,
+    /// The fraction of a fixed step left to run, as each `update` reads it.
     alphas: Vec<f64>,
 }
 
-impl App for Recorder {
-    fn init(&mut self, ctx: &mut Context) -> Result<(), AppError> {
-        self.calls.push(Call::Init);
-        if self.fail_in_init {
+impl Simulation for Recorder {
+    fn start(
+        &mut self,
+        ctx: &mut SimulationContext<'_>,
+        _world: &mut World,
+    ) -> Result<(), AppError> {
+        self.calls.push(Call::Start);
+        if self.fail_in_start {
             return Err("no save file".into());
         }
-        if self.exit_in_init {
+        if self.exit_in_start {
             ctx.request_exit();
         }
         Ok(())
     }
 
-    fn fixed_update(&mut self, _ctx: &mut Context, step: Duration) {
-        self.calls.push(Call::FixedUpdate(step));
+    fn fixed_step(&mut self, ctx: &mut SimulationContext<'_>, _world: &mut World) {
+        self.calls.push(Call::FixedStep(ctx.time().game().step()));
     }
 
-    fn update(&mut self, ctx: &mut Context, frame: &FrameTime) {
+    fn update(&mut self, ctx: &mut SimulationContext<'_>, _world: &mut World) {
+        let frame = *ctx.time().real();
         self.calls.push(Call::Update {
             index: frame.index(),
             delta: frame.delta(),
             elapsed: frame.elapsed(),
         });
-        self.alphas.push(ctx.fixed_step_alpha());
+        self.alphas.push(ctx.time().game().alpha());
         if self.exit_in_update_of_frame == Some(frame.index()) {
             ctx.request_exit();
         }
@@ -68,9 +75,9 @@ impl App for Recorder {
         }
     }
 
-    fn shutdown(&mut self, ctx: &mut Context) {
-        self.calls.push(Call::Shutdown);
-        if self.fail_in_shutdown {
+    fn stop(&mut self, ctx: &mut SimulationContext<'_>, _world: &mut World) {
+        self.calls.push(Call::Stop);
+        if self.fail_in_stop {
             ctx.exit_with_error("cannot write the save file");
         }
     }
@@ -101,61 +108,61 @@ fn update(index: u64) -> Call {
 }
 
 #[test]
-fn runs_init_then_one_fixed_step_and_one_update_per_frame_then_shutdown() {
-    let mut app = Recorder::default();
-    run(&mut app, &config(Some(3))).expect("this application starts");
+fn runs_start_then_one_fixed_step_and_one_update_per_frame_then_stop() {
+    let mut game = Recorder::default();
+    run(&mut game, &mut (), &config(Some(3))).expect("this game starts");
     assert_eq!(
-        app.calls,
+        game.calls,
         [
-            Call::Init,
-            Call::FixedUpdate(STEP),
+            Call::Start,
+            Call::FixedStep(STEP),
             update(0),
-            Call::FixedUpdate(STEP),
+            Call::FixedStep(STEP),
             update(1),
-            Call::FixedUpdate(STEP),
+            Call::FixedStep(STEP),
             update(2),
-            Call::Shutdown,
+            Call::Stop,
         ]
     );
 }
 
 #[test]
 fn an_exit_request_lets_the_current_frame_finish_and_runs_no_other() {
-    let mut app = Recorder {
+    let mut game = Recorder {
         exit_in_update_of_frame: Some(1),
         ..Recorder::default()
     };
-    run(&mut app, &config(None)).expect("this application starts");
+    run(&mut game, &mut (), &config(None)).expect("this game starts");
     assert_eq!(
-        app.calls,
+        game.calls,
         [
-            Call::Init,
-            Call::FixedUpdate(STEP),
+            Call::Start,
+            Call::FixedStep(STEP),
             update(0),
-            Call::FixedUpdate(STEP),
+            Call::FixedStep(STEP),
             update(1),
-            Call::Shutdown,
+            Call::Stop,
         ]
     );
 }
 
 #[test]
-fn an_exit_requested_during_init_runs_no_frame() {
-    let mut app = Recorder {
-        exit_in_init: true,
+fn an_exit_requested_during_start_runs_no_frame() {
+    let mut game = Recorder {
+        exit_in_start: true,
         ..Recorder::default()
     };
-    run(&mut app, &config(None)).expect("this application starts");
-    assert_eq!(app.calls, [Call::Init, Call::Shutdown]);
+    run(&mut game, &mut (), &config(None)).expect("this game starts");
+    assert_eq!(game.calls, [Call::Start, Call::Stop]);
 }
 
 #[test]
-fn an_init_error_stops_the_run_without_frames_or_shutdown() {
-    let mut app = Recorder {
-        fail_in_init: true,
+fn a_start_error_stops_the_run_without_frames_or_stop() {
+    let mut game = Recorder {
+        fail_in_start: true,
         ..Recorder::default()
     };
-    let error = run(&mut app, &config(None)).expect_err("the init error is returned");
+    let error = run(&mut game, &mut (), &config(None)).expect_err("the start error is returned");
     assert!(
         matches!(error, RunError::Init(_)),
         "unexpected error: {error:?}"
@@ -164,22 +171,22 @@ fn an_init_error_stops_the_run_without_frames_or_shutdown() {
         std::error::Error::source(&error).map(ToString::to_string),
         Some("no save file".to_owned())
     );
-    assert_eq!(app.calls, [Call::Init]);
+    assert_eq!(game.calls, [Call::Start]);
 }
 
 #[test]
 fn a_frame_limit_of_zero_runs_no_frame() {
-    let mut app = Recorder::default();
-    run(&mut app, &config(Some(0))).expect("this application starts");
-    assert_eq!(app.calls, [Call::Init, Call::Shutdown]);
+    let mut game = Recorder::default();
+    run(&mut game, &mut (), &config(Some(0))).expect("this game starts");
+    assert_eq!(game.calls, [Call::Start, Call::Stop]);
 }
 
 #[test]
 fn headless_time_is_simulated_and_identical_between_runs() {
     let mut first = Recorder::default();
     let mut second = Recorder::default();
-    run(&mut first, &config(Some(600))).expect("this application starts");
-    run(&mut second, &config(Some(600))).expect("this application starts");
+    run(&mut first, &mut (), &config(Some(600))).expect("this game starts");
+    run(&mut second, &mut (), &config(Some(600))).expect("this game starts");
 
     assert_eq!(first.calls, second.calls);
     assert_eq!(first.calls.len(), 1 + 600 * 2 + 1);
@@ -188,131 +195,314 @@ fn headless_time_is_simulated_and_identical_between_runs() {
 
 #[test]
 fn update_reads_the_fraction_of_a_fixed_step_left_to_run() {
-    let mut app = Recorder::default();
+    let mut game = Recorder::default();
     // Frames limited to 4 ms of a 10 ms step run a step every two or three frames.
     let limited = AppConfig {
         max_frame_delta: Duration::from_millis(4),
         ..config(Some(5))
     };
-    run(&mut app, &limited).expect("this application starts");
-    assert_eq!(app.alphas, [0.4, 0.8, 0.2, 0.6, 0.0]);
+    run(&mut game, &mut (), &limited).expect("this game starts");
+    assert_eq!(game.alphas, [0.4, 0.8, 0.2, 0.6, 0.0]);
 
-    let mut app = Recorder::default();
-    run(&mut app, &config(Some(3))).expect("this application starts");
-    assert_eq!(app.alphas, [0.0, 0.0, 0.0]);
+    let mut game = Recorder::default();
+    run(&mut game, &mut (), &config(Some(3))).expect("this game starts");
+    assert_eq!(game.alphas, [0.0, 0.0, 0.0]);
 }
 
 /// The run's error, and the message of its source.
 fn app_error(result: Result<(), RunError>) -> String {
-    let error = result.expect_err("the application's error is returned");
+    let error = result.expect_err("the game's error is returned");
     assert!(
         matches!(error, RunError::App(_)),
         "unexpected error: {error:?}"
     );
     std::error::Error::source(&error)
-        .expect("the application's error is the source")
+        .expect("the game's error is the source")
         .to_string()
 }
 
 #[test]
-fn an_error_in_a_frame_lets_it_finish_runs_shutdown_and_is_returned() {
-    let mut app = Recorder {
+fn an_error_in_a_frame_lets_it_finish_runs_stop_and_is_returned() {
+    let mut game = Recorder {
         fail_in_update_of_frame: Some(1),
         ..Recorder::default()
     };
-    let result = run(&mut app, &config(None));
+    let result = run(&mut game, &mut (), &config(None));
     assert_eq!(app_error(result), "the save file is corrupt");
     assert_eq!(
-        app.calls,
+        game.calls,
         [
-            Call::Init,
-            Call::FixedUpdate(STEP),
+            Call::Start,
+            Call::FixedStep(STEP),
             update(0),
-            Call::FixedUpdate(STEP),
+            Call::FixedStep(STEP),
             update(1),
-            Call::Shutdown,
+            Call::Stop,
         ]
     );
 }
 
 #[test]
-fn an_error_in_shutdown_fails_a_run_that_ended_well() {
-    let mut app = Recorder {
-        fail_in_shutdown: true,
+fn an_error_in_stop_fails_a_run_that_ended_well() {
+    let mut game = Recorder {
+        fail_in_stop: true,
         ..Recorder::default()
     };
-    let result = run(&mut app, &config(Some(1)));
+    let result = run(&mut game, &mut (), &config(Some(1)));
     assert_eq!(app_error(result), "cannot write the save file");
 }
 
-/// Moves a hero 1 m along x at each fixed step and a marker in each `update`, and records where the
-/// world draws them in `update`, at the frame's fraction of a step.
+/// Moves a hero 1 m along x at each fixed step and a marker in each `update`; records, in each
+/// `update`, where the world draws the hero at the frame's fraction of a step, and the phases as
+/// they ran.
 #[derive(Default)]
 struct Mover {
-    hero: Option<slime_world::Entity>,
-    marker: Option<slime_world::Entity>,
+    hero: Option<Entity>,
+    marker: Option<Entity>,
     /// Where the world draws the hero in each `update`.
     drawn: Vec<f64>,
+    /// The phases as they ran: `step <x>` for a fixed step, `update <x>` for an update, with the
+    /// hero's x as each found it.
+    phases: Vec<String>,
 }
 
 impl Mover {
-    fn x(ctx: &Context, entity: Option<slime_world::Entity>) -> f64 {
-        ctx.world()
-            .interpolated_transform(entity.expect("spawned"), ctx.fixed_step_alpha())
+    fn x(world: &World, entity: Option<Entity>, alpha: f64) -> f64 {
+        world
+            .interpolated_transform(entity.expect("spawned"), alpha)
             .expect("placed")
             .translation
             .x
     }
 }
 
-impl App for Mover {
-    fn init(&mut self, ctx: &mut Context) -> Result<(), AppError> {
-        let world = ctx.world_mut();
-        for entity in [&mut self.hero, &mut self.marker] {
-            let spawned = world.spawn();
+impl Simulation for Mover {
+    fn start(
+        &mut self,
+        _ctx: &mut SimulationContext<'_>,
+        world: &mut World,
+    ) -> Result<(), AppError> {
+        for (key, entity) in [("hero", &mut self.hero), ("marker", &mut self.marker)] {
+            let spawned = world.spawn_keyed(key)?;
             world.insert(spawned, Transform::IDENTITY);
             *entity = Some(spawned);
         }
         Ok(())
     }
 
-    fn fixed_update(&mut self, ctx: &mut Context, _step: Duration) {
+    fn fixed_step(&mut self, _ctx: &mut SimulationContext<'_>, world: &mut World) {
         let hero = self.hero.expect("spawned");
-        ctx.world_mut()
-            .get_mut::<Transform>(hero)
-            .expect("placed")
-            .translation
-            .x += 1.0;
+        let mut transform = world.get_mut::<Transform>(hero).expect("placed");
+        self.phases
+            .push(format!("step {}", transform.translation.x));
+        transform.translation.x += 1.0;
     }
 
-    fn update(&mut self, ctx: &mut Context, frame: &FrameTime) {
-        self.drawn.push(Self::x(ctx, self.hero));
+    fn update(&mut self, ctx: &mut SimulationContext<'_>, world: &mut World) {
+        let alpha = ctx.time().game().alpha();
+        self.drawn.push(Self::x(world, self.hero, alpha));
+        let hero = world.get::<Transform>(self.hero.expect("spawned"));
+        let x = hero.expect("placed").translation.x;
+        self.phases.push(format!("update {x}"));
         // Moved outside a fixed step: drawn at once where it goes.
         let marker = self.marker.expect("spawned");
-        let x = frame.index() as f64 * 10.0;
-        ctx.world_mut()
+        let x = ctx.time().real().index() as f64 * 10.0;
+        world
             .get_mut::<Transform>(marker)
             .expect("placed")
             .translation
             .x = x;
-        assert_eq!(Self::x(ctx, self.marker), x);
+        assert_eq!(Self::x(world, self.marker, alpha), x);
     }
 }
 
 #[test]
 fn the_world_draws_what_moved_during_a_fixed_step_between_its_two_transforms() {
-    let mut app = Mover::default();
+    let mut game = Mover::default();
     // Frames limited to 4 ms of a 10 ms step: the fractions 0.4, 0.8, 0.2, 0.6 and 0.0, a step in
     // the third frame and in the fifth.
     let limited = AppConfig {
         max_frame_delta: Duration::from_millis(4),
         ..config(Some(5))
     };
-    run(&mut app, &limited).expect("this application starts");
+    run(&mut game, &mut (), &limited).expect("this game starts");
     // Not moved, not moved, 0.2 of the first step, 0.6 of it, then the second step's start.
     let expected = [0.0, 0.0, 0.2, 0.6, 1.0];
-    for (drawn, expected) in app.drawn.iter().zip(expected) {
-        assert!((drawn - expected).abs() < 1e-9, "{:?}", app.drawn);
+    for (drawn, expected) in game.drawn.iter().zip(expected) {
+        assert!((drawn - expected).abs() < 1e-9, "{:?}", game.drawn);
     }
-    assert_eq!(app.drawn.len(), 5);
+    assert_eq!(game.drawn.len(), 5);
+}
+
+/// A host of `game`, started, its fixed steps of `STEP`.
+fn host(game: &mut impl Simulation) -> Host {
+    let mut host = Host::new(&config(None));
+    host.start(game).expect("this game starts");
+    host
+}
+
+/// The command that sets the hero's x.
+fn place_hero(x: f64) -> Command {
+    Command::SetProperty {
+        entity: "hero".parse().expect("an identity"),
+        component: "Transform".to_owned(),
+        path: "translation.x".parse().expect("a path"),
+        value: Value::F64(x),
+    }
+}
+
+#[test]
+fn a_frame_applies_the_commands_then_runs_its_fixed_steps_then_its_update() {
+    let mut game = Mover::default();
+    let mut host = host(&mut game);
+    host.frame(&mut game, STEP * 2);
+    // Sent during the frame: applied at the next one's start, before its steps.
+    host.context_mut().send(place_hero(10.0));
+    assert_eq!(game.phases, ["step 0", "step 1", "update 2"]);
+    host.frame(&mut game, STEP);
+    assert!(host.context().refused().is_empty());
+    assert_eq!(game.phases[3..], ["step 10", "update 11"]);
+    // The transforms computed after the update.
+    let hero = game.hero.expect("spawned");
+    assert_eq!(
+        host.world()
+            .global_transform(hero)
+            .map(|at| at.translation.x),
+        Some(11.0)
+    );
+}
+
+#[test]
+fn a_refused_command_changes_nothing_and_is_handed_back_for_one_frame() {
+    let mut game = Mover::default();
+    let mut host = host(&mut game);
+    host.context_mut().pause();
+    let Command::SetProperty {
+        component,
+        path,
+        value,
+        ..
+    } = place_hero(3.0);
+    let nobody = Command::SetProperty {
+        entity: "nobody".parse().expect("an identity"),
+        component,
+        path,
+        value,
+    };
+    host.context_mut().send(nobody.clone());
+    host.context_mut().send(place_hero(4.0));
+    host.frame(&mut game, STEP);
+    let refused: Vec<&Command> = host.context().refused().iter().map(|(c, _)| c).collect();
+    assert_eq!(refused, [&nobody]);
+    assert_eq!(
+        game.phases,
+        ["update 4"],
+        "the next command is applied all the same"
+    );
+    host.frame(&mut game, STEP);
+    assert!(host.context().refused().is_empty());
+}
+
+#[test]
+fn at_a_quarter_of_the_speed_a_step_runs_at_every_fourth_frame_and_what_moves_is_drawn_between() {
+    let mut game = Mover::default();
+    let mut host = host(&mut game);
+    host.context_mut().set_speed(0.25);
+    for _ in 0..12 {
+        host.frame(&mut game, STEP);
+    }
+    let phases: Vec<&str> = game
+        .phases
+        .iter()
+        .map(|phase| phase.split(' ').next().expect("a phase"))
+        .collect();
+    let four = ["update", "update", "update", "step", "update"];
+    assert_eq!(phases, [four, four, four].concat());
+    // A quarter of a step further at each frame: the hero moves 1 m a step.
+    let expected = [
+        0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0,
+    ];
+    for (drawn, expected) in game.drawn.iter().zip(expected) {
+        assert!((drawn - expected).abs() < 1e-9, "{:?}", game.drawn);
+    }
+    assert_eq!(host.context().time().game().steps(), 3);
+}
+
+#[test]
+fn paused_no_step_runs_and_one_step_runs_exactly_one() {
+    let mut game = Mover::default();
+    let mut host = host(&mut game);
+    host.context_mut().pause();
+    for _ in 0..3 {
+        host.frame(&mut game, STEP);
+    }
+    assert_eq!(game.phases, ["update 0"; 3], "the update runs, no step");
+    host.context_mut().step();
+    host.frame(&mut game, STEP);
+    host.frame(&mut game, STEP);
+    assert_eq!(game.phases[3..], ["step 0", "update 1", "update 1"]);
+    assert_eq!(host.context().time().game().steps(), 1);
+    assert_eq!(host.context().time().game().delta(), Duration::ZERO);
+    host.context_mut().resume();
+    host.frame(&mut game, STEP);
+    assert_eq!(game.phases[6..], ["step 1", "update 2"]);
+}
+
+/// Records, at each update, whether E was put down in the frame and whether it is held.
+#[derive(Default)]
+struct Keys {
+    seen: Vec<(bool, bool)>,
+}
+
+impl Simulation for Keys {
+    fn update(&mut self, ctx: &mut SimulationContext<'_>, _world: &mut World) {
+        let keys = ctx.input().keys();
+        self.seen
+            .push((keys.pressed(KeyCode::KeyE), keys.held(KeyCode::KeyE)));
+    }
+}
+
+#[test]
+fn a_key_put_down_is_pressed_in_the_next_frame_alone_and_held_until_let_go() {
+    let mut game = Keys::default();
+    let mut host = host(&mut game);
+    host.input_mut().keys_mut().press(KeyCode::KeyE);
+    host.frame(&mut game, STEP);
+    host.frame(&mut game, STEP);
+    host.input_mut().keys_mut().release(KeyCode::KeyE);
+    host.frame(&mut game, STEP);
+    assert_eq!(game.seen, [(true, true), (false, true), (false, false)]);
+}
+
+#[test]
+fn at_60_hz_and_a_quarter_of_the_speed_what_moves_is_drawn_a_quarter_of_a_step_further_each_frame()
+{
+    let mut game = Mover::default();
+    let config = AppConfig::default();
+    let mut host = Host::new(&config);
+    host.start(&mut game).expect("this game starts");
+    host.context_mut().set_speed(0.25);
+    for _ in 0..8 {
+        host.frame(&mut game, config.fixed_step);
+    }
+    // A step at the fourth frame and the eighth, but for the nanosecond that rounding adds.
+    let expected = [0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0];
+    for (drawn, expected) in game.drawn.iter().zip(expected) {
+        assert!((drawn - expected).abs() < 1e-6, "{:?}", game.drawn);
+    }
+}
+
+#[test]
+fn the_commands_sent_after_the_last_frame_are_applied_before_the_simulation_stops() {
+    let mut game = Mover::default();
+    let mut host = host(&mut game);
+    host.frame(&mut game, STEP);
+    host.context_mut().send(place_hero(7.0));
+    host.stop(&mut game);
+    let hero = game.hero.expect("spawned");
+    let x = host
+        .world()
+        .get::<Transform>(hero)
+        .map(|at| at.translation.x);
+    assert_eq!(x, Some(7.0));
 }

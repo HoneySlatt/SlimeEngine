@@ -3,12 +3,14 @@
 mod error;
 mod event;
 mod event_loop;
+mod held;
 mod input;
 mod window;
 
 pub use error::PlatformError;
 pub use event::Event;
 pub use event_loop::{EventHandler, LoopControl, run_event_loop};
+pub use held::{Buttons, Input};
 pub use input::{
     ButtonState, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey, ScrollDelta,
 };
@@ -23,9 +25,10 @@ mod threads {
     fn send_and_sync<T: Send + Sync>() {}
 
     #[test]
-    fn windows_and_events_can_be_shared_between_threads() {
+    fn windows_events_and_input_can_be_shared_between_threads() {
         send_and_sync::<Window>();
         send_and_sync::<Event>();
+        send_and_sync::<Input>();
         send_and_sync::<PlatformError>();
     }
 }

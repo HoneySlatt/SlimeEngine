@@ -8,6 +8,22 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Game time (ADR-0107, ADR-0121): a game's simulation runs on a time of its own, which the host
+  slows down or hastens (`Context::set_speed`), pauses (`Context::pause`, `Context::resume`) and
+  steps while paused (`Context::step`), its fixed steps keeping their duration at every speed;
+  `slime_app::time::Time` gives each phase real time and game time (`GameTime`).
+- `slime_app::Host`, which owns a game's world, its two times, its input and its commands, and runs
+  the first phases of a frame (`Host::frame`): a test, or one day a server, runs a game's rules with
+  it, without a window or a GPU, pressing keys by script.
+- `slime_platform::Input`, the input as data: the keys and mouse buttons held, and those pressed
+  and released since the last frame, which the host keeps from the window's events.
+- `slime_world::Command`, a change of the world that names its entity by its persistent identity,
+  applied by `World::apply` (`WorldError::NotFound` when no entity has the identity); a
+  presentation sends them with `Context::send`, and the host applies them at the start of the next
+  frame (`Context::refused` hands back the refusals).
+- *Hunna Wood*'s dev overlay pauses game time and lets it run again on F3, runs one step of it on
+  F4 while it is paused, and sets its speed with a slider of the statistics (F1); the camera turns
+  while the game is paused.
 - Kinds of materials (ADR-0111): each material is of a kind, which gives the renderer the shader of
   its passes, its materials' group and its parameters' type, the physically based kind alone,
   which draws as before. `Material::kind` names it; `Material::parameters` and
@@ -67,6 +83,26 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- A game is a simulation and a presentation (ADR-0107, ADR-0121): `slime_app::App` gave way to
+  `Simulation`, a game's rules, whose `start`, `fixed_step`, `update` and `stop` receive the world
+  to change and a `SimulationContext` (the input, both times, the run's stop), and `Presentation`,
+  what the player sees, whose `start`, `extract` and `gpu_restored` receive the world as `&World`,
+  and `on_event`, `render`, `gpu_lost` and `stop` do not. `run(&mut simulation, &mut presentation,
+  &config)` runs both; `()` stands for the part a program lacks, and a headless run calls no method
+  of the presentation. `Presentation::on_event` returns whether the presentation takes the event,
+  which the simulation's input then does not see. The world is the host's: `Context::world`,
+  `Context::world_mut` and `Context::fixed_step_alpha` are gone, the fraction of a step is
+  `GameTime::alpha`, and the profiling span `fixed_update` is `fixed_step`, with `extract` before
+  `acquire`.
+- The dev overlay builds its panels with `Overlay::build(size, ui)`, as a presentation extracts its
+  frame, and draws them with `Overlay::render(gpu, target)`. The world panel returns commands
+  (`slime_world::Command`) in place of `Edit`, and finds the entity it shows again by its identity
+  when the world is replaced.
+- `slime_world_render::Frame::lights` pairs each light with its entity.
+- *Hunna Wood* is a library and its program (ADR-0110): its rules, `HunnaWood`, and what the player
+  sees, `Screen`. Where the player looks is a component of the hero's, `hunnawood::Look`, which its
+  saves hold; the fire flickers in the frame drawn, not in the world, and its saves no longer put
+  its light back; its game time stays paused until the zone is drawn.
 - A frame owns what it draws (ADR-0111): `Instance` holds clones of its mesh and material, counted
   references to the same GPU objects, and `Scene` and `slime_world_render::Frame` their instances,
   lights and environment, without lifetimes, so that a frame built on one thread is drawn on

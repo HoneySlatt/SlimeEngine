@@ -48,17 +48,16 @@ use std::collections::BTreeMap;
 use std::f64::consts::TAU;
 use std::path::PathBuf;
 use std::process::ExitCode;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-use slime_app::time::FrameTime;
-use slime_app::{App, AppConfig, AppError, Context};
+use slime_app::{AppConfig, AppError, Context, Presentation, Simulation, SimulationContext};
 use slime_assets::{CookedAssets, ManifestWatch};
 use slime_devui::{Overlay, WorldPanel};
 use slime_gfx::RenderTarget;
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
 use slime_render::glam::DVec3;
-use slime_render::{AssetCache, Camera, Renderer};
-use slime_world::{Entity, Light, PersistentId, SceneLibrary, Transform, World};
+use slime_render::{AssetCache, Camera, Renderer, Scene};
+use slime_world::{Entity, Light, PersistentId, SceneLibrary, Tick, Transform, World};
 use slime_world_render::FrameBuilder;
 
 use sample_scene::{BLOOM, EXPOSURE, SKY};
@@ -75,13 +74,27 @@ const FLOAT_PERIOD: f64 = 3.0;
 /// Radians per second at which the camera turns around the scene.
 const TURN_SPEED: f32 = 0.2;
 
-struct WorldExample {
+/// The example's rules: the yard spawned, its ring floating at the fixed step, and, with `--watch`,
+/// the run carried into the scenes that changed.
+struct Yard {
     /// The cooked data the yard in the world was spawned from: with `--watch`, the library goes
     /// back to it when the scenes that changed cannot be spawned, so that it holds the scenes of
     /// the world that runs.
     assets: CookedAssets,
     /// The scenes of the cooked data, the yard's and those it places.
     scenes: SceneLibrary,
+    /// The ring, and the height around which it floats, where the file puts it, if the scene has
+    /// one.
+    ring: Option<(Entity, f64)>,
+    /// The lowest and highest the ring floated.
+    floated: (f64, f64),
+    /// With `--watch`, what tells when the cooked data changes.
+    watch: Option<ManifestWatch>,
+}
+
+/// What the example shows of the yard: the renderer and its asset cache while there is a GPU, the
+/// camera turning around the yard, and the dev overlay's world panel.
+struct YardView {
     /// The renderer, while there is a GPU.
     renderer: Option<Renderer>,
     /// The dev overlay, while there is a GPU, and its world panel, shown with F2.
@@ -94,73 +107,41 @@ struct WorldExample {
     /// after a lost device loads from it.
     cached: CookedAssets,
     builder: FrameBuilder,
-    /// The ring, where the file puts it, if the scene has one.
-    ring: Option<(Entity, f64)>,
-    /// The time the fixed steps covered, in seconds.
-    time: f64,
-    /// The lowest and highest the ring floated.
-    floated: (f64, f64),
-    /// The point the camera looks at, and how far from it the scene reaches.
+    /// The frame that `extract` built, which `render` draws.
+    scene: Option<Scene>,
+    /// Whether that frame draws the whole world: every mesh it names held by the cache.
+    whole: bool,
+    /// The point the camera looks at, how far from it the yard reaches, and the world's structure
+    /// when the yard was framed, which framing it again waits for.
     framing: (DVec3, f32),
+    framed: Option<Tick>,
     /// How far the camera has turned around the scene, in radians.
     yaw: f32,
-    /// How many frames drew the whole world: every mesh it names held by the cache.
+    /// How many frames drew the whole world.
     drawn: u64,
-    /// With a window, the number of frames that draw the whole world after which the example
-    /// closes itself, if `--frames` gives one; a run that sets one fails if no frame did.
+    /// The number of frames that draw the whole world after which the example closes itself, if
+    /// `--frames` gives one; a run that sets one fails if no frame did.
     frame_limit: Option<u64>,
-    /// With `--watch`, what tells when the cooked data changes.
+    /// With `--watch`, what tells the cache when the cooked data changes.
     watch: Option<ManifestWatch>,
 }
 
-impl WorldExample {
-    /// With a window, makes the renderer and the overlay with the GPU device of `ctx`.
-    fn open(&mut self, ctx: &Context) -> Result<(), AppError> {
-        if let (Some(gpu), Some(format), Some(window)) =
-            (ctx.gpu(), ctx.surface_format(), ctx.window())
-        {
-            let renderer = Renderer::new(gpu, format)?;
-            self.cache = Some(AssetCache::new(&renderer, self.cached.clone()));
-            self.renderer = Some(renderer);
-            self.overlay = Some(Overlay::new(gpu, format, window.scale_factor())?);
-        }
-        Ok(())
-    }
-
+impl Yard {
     /// Spawns the yard in `world`, as [`start`] does, and finds its ring.
     fn spawn(&mut self, world: &mut World) -> Result<(), AppError> {
         start(world, &mut self.scenes)?;
-        let centre = ring(world).map(|(_, height)| height);
-        self.found(world, centre);
+        self.ring = ring(world);
         Ok(())
     }
 
-    /// Finds the ring of the yard in `world`, which floats around `centre`, where the world as the
-    /// example starts it puts the ring, and frames the world.
-    fn found(&mut self, world: &mut World, centre: Option<f64>) {
-        self.ring = ring(world)
-            .zip(centre)
-            .map(|((ring, _), centre)| (ring, centre));
-        world.update_transforms();
-        self.framing = framing(world);
-    }
-
-    /// With `--watch`, takes what changed in the cooked data, once nothing loads: the cache loads
-    /// again the meshes, materials and textures that changed, keeping the rest, and the library the
-    /// scenes that changed; then, if one did, the run is carried into the yard spawned anew from
-    /// them, as it was saved against the yard spawned before and loaded into the new one. If they
-    /// cannot be spawned, the library goes back to the scenes of the world that runs, which goes on.
-    fn watch(&mut self, ctx: &mut Context) {
+    /// With `--watch`, takes the scenes that changed in the cooked data: if one did, the run is
+    /// carried into the yard spawned anew from them, as it was saved against the yard spawned
+    /// before and loaded into the new one. If they cannot be spawned, the library goes back to the
+    /// scenes of the world that runs, which goes on.
+    fn watch(&mut self, world: &mut World) {
         let Some(watch) = &mut self.watch else {
             return;
         };
-        if self
-            .cache
-            .as_ref()
-            .is_some_and(|cache| cache.loading() > 0 || cache.reloading())
-        {
-            return;
-        }
         let assets = match watch.poll(Instant::now()) {
             Ok(Some(assets)) => assets,
             Ok(None) => return,
@@ -172,10 +153,6 @@ impl WorldExample {
                 return;
             }
         };
-        self.cached = assets.clone();
-        if let (Some(gpu), Some(cache)) = (ctx.gpu(), &mut self.cache) {
-            cache.reload(gpu, assets.clone());
-        }
         // The world as the example started it from the scenes before they changed, then after.
         let before = made(&mut self.scenes);
         let changed = self.scenes.reload(assets.clone());
@@ -186,11 +163,11 @@ impl WorldExample {
         let carried = before.and_then(|before| {
             let after = made(&mut self.scenes)?;
             let centre = ring(&after).map(|(_, height)| height);
-            let carried = ctx.world().carry(&before, after, &mut self.scenes)?;
+            let carried = world.carry(&before, after, &mut self.scenes)?;
             Ok((carried, centre))
         });
         match carried {
-            Ok(((world, loaded), centre)) => {
+            Ok(((carried, loaded), centre)) => {
                 self.assets = assets;
                 if !loaded.set_aside.is_empty() {
                     tracing::warn!(
@@ -198,10 +175,10 @@ impl WorldExample {
                         "the run set aside what the scenes no longer have"
                     );
                 }
-                *ctx.world_mut() = world;
-                self.found(ctx.world_mut(), centre);
-                // Its handles named the entities of the world before.
-                self.panel = WorldPanel::default();
+                *world = carried;
+                self.ring = ring(world)
+                    .zip(centre)
+                    .map(|((ring, _), centre)| (ring, centre));
                 tracing::info!(
                     scenes = changed.len(),
                     "the scenes that changed carried the run"
@@ -214,6 +191,38 @@ impl WorldExample {
                      the world it has"
                 );
             }
+        }
+    }
+}
+
+impl YardView {
+    /// Makes the renderer, its cache and the overlay with the GPU device of `ctx`.
+    fn open(&mut self, ctx: &Context) -> Result<(), AppError> {
+        if let (Some(gpu), Some(format), Some(window)) =
+            (ctx.gpu(), ctx.surface_format(), ctx.window())
+        {
+            let renderer = Renderer::new(gpu, format)?;
+            self.cache = Some(AssetCache::new(&renderer, self.cached.clone()));
+            self.renderer = Some(renderer);
+            self.overlay = Some(Overlay::new(gpu, format, window.scale_factor())?);
+        }
+        Ok(())
+    }
+
+    /// With `--watch`, once nothing loads, has the cache load again the meshes, materials and
+    /// textures that changed in the cooked data, keeping the rest.
+    fn watch(&mut self, ctx: &Context) {
+        let (Some(watch), Some(gpu), Some(cache)) = (&mut self.watch, ctx.gpu(), &mut self.cache)
+        else {
+            return;
+        };
+        if cache.loading() > 0 || cache.reloading() {
+            return;
+        }
+        // The yard's rules warn when the cooked data cannot be read.
+        if let Ok(Some(assets)) = watch.poll(Instant::now()) {
+            self.cached = assets.clone();
+            cache.reload(gpu, assets);
         }
     }
 }
@@ -305,9 +314,59 @@ fn framing(world: &World) -> (DVec3, f32) {
     )
 }
 
-impl App for WorldExample {
-    fn init(&mut self, ctx: &mut Context) -> Result<(), AppError> {
-        self.spawn(ctx.world_mut())?;
+impl Simulation for Yard {
+    fn start(
+        &mut self,
+        _ctx: &mut SimulationContext<'_>,
+        world: &mut World,
+    ) -> Result<(), AppError> {
+        self.spawn(world)
+    }
+
+    fn fixed_step(&mut self, ctx: &mut SimulationContext<'_>, world: &mut World) {
+        let Some((ring, base)) = self.ring else {
+            return;
+        };
+        // The game time once this step has run.
+        let game = ctx.time().game();
+        let time = (game.elapsed() + game.step()).as_secs_f64();
+        let height = base + FLOAT_HEIGHT * (TAU * time / FLOAT_PERIOD).sin();
+        if let Some(mut transform) = world.get_mut::<Transform>(ring) {
+            transform.translation.y = height;
+        }
+        self.floated = (self.floated.0.min(height), self.floated.1.max(height));
+    }
+
+    fn update(&mut self, _ctx: &mut SimulationContext<'_>, world: &mut World) {
+        // Without a window too, so that a run without one follows the cooked data.
+        self.watch(world);
+    }
+
+    fn stop(&mut self, ctx: &mut SimulationContext<'_>, world: &mut World) {
+        let time = ctx.time().game().elapsed().as_secs_f64();
+        tracing::info!(
+            entities = world.len(),
+            ring_lowest = self.floated.0,
+            ring_highest = self.floated.1,
+            "stop"
+        );
+        if self.ring.is_some() && time > FLOAT_PERIOD && self.floated.0 >= self.floated.1 {
+            ctx.exit_with_error("the ring did not float");
+        }
+        match round_trip(world, &mut self.scenes) {
+            Ok((save, file)) => tracing::info!(
+                save,
+                file,
+                "the world, saved and loaded, is the world saved, and the yard written back spawns \
+                 the world written"
+            ),
+            Err(error) => ctx.exit_with_error(error),
+        }
+    }
+}
+
+impl Presentation for YardView {
+    fn start(&mut self, ctx: &mut Context, _world: &World) -> Result<(), AppError> {
         self.open(ctx)?;
         if self.frame_limit == Some(0) {
             ctx.request_exit();
@@ -315,7 +374,7 @@ impl App for WorldExample {
         Ok(())
     }
 
-    fn on_event(&mut self, ctx: &mut Context, event: &Event) {
+    fn on_event(&mut self, ctx: &mut Context, event: &Event) -> bool {
         // Escape leaves a text field of the overlay, or closes a menu of it, rather than quit.
         let typing = self.overlay.as_ref().is_some_and(Overlay::wants_keyboard);
         if let Some(overlay) = &mut self.overlay {
@@ -334,30 +393,22 @@ impl App for WorldExample {
                 _ => {}
             }
         }
+        // The yard's rules read no input; the keys typed into the panel are its own.
+        typing
     }
 
-    fn fixed_update(&mut self, ctx: &mut Context, step: Duration) {
-        self.time += step.as_secs_f64();
-        let Some((ring, base)) = self.ring else {
-            return;
-        };
-        let height = base + FLOAT_HEIGHT * (TAU * self.time / FLOAT_PERIOD).sin();
-        if let Some(mut transform) = ctx.world_mut().get_mut::<Transform>(ring) {
-            transform.translation.y = height;
-        }
-        self.floated = (self.floated.0.min(height), self.floated.1.max(height));
-    }
-
-    fn update(&mut self, ctx: &mut Context, frame: &FrameTime) {
-        // Without a window too, so that a run without one follows the cooked data.
+    fn extract(&mut self, ctx: &mut Context, world: &World) {
         self.watch(ctx);
-        self.yaw += TURN_SPEED * frame.delta().as_secs_f32();
-    }
-
-    fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
-        let (Some(gpu), Some(renderer), Some(cache)) =
-            (ctx.gpu(), self.renderer.as_mut(), self.cache.as_mut())
-        else {
+        self.yaw += TURN_SPEED * ctx.time().real().delta().as_secs_f32();
+        // Framed again when the yard's structure moves, as when the run is carried into new scenes.
+        if self.framed != Some(world.structure()) {
+            self.framing = framing(world);
+            self.framed = Some(world.structure());
+        }
+        for (_, error) in ctx.refused() {
+            self.panel.refused(error);
+        }
+        let (Some(gpu), Some(cache)) = (ctx.gpu(), self.cache.as_mut()) else {
             return;
         };
         let (center, radius) = self.framing;
@@ -371,7 +422,7 @@ impl App for WorldExample {
         };
         let frame = match self
             .builder
-            .build(ctx.world(), cache, gpu, ctx.fixed_step_alpha())
+            .build(world, cache, gpu, ctx.time().game().alpha())
         {
             Ok(frame) => frame,
             Err(error) => {
@@ -379,34 +430,41 @@ impl App for WorldExample {
                 return;
             }
         };
-        let whole = frame.loading == 0;
+        self.whole = frame.loading == 0;
         let mut scene = frame.scene(camera);
         scene.exposure = EXPOSURE;
         scene.bloom = BLOOM;
+        self.scene = Some(scene);
+        let mut commands = Vec::new();
+        if let (Some(overlay), Some(window)) = (&mut self.overlay, ctx.window()) {
+            let (panel, shown) = (&mut self.panel, self.panel_shown);
+            // Built with no panel while hidden, so that egui still takes the events handed to it.
+            overlay.build(window.inner_size(), |egui| {
+                if shown {
+                    commands.extend(panel.show(egui, world));
+                }
+            });
+        }
+        // Applied by the host at the next frame's start: the next frame shows them.
+        for command in commands {
+            ctx.send(command);
+        }
+    }
+
+    fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
+        let (Some(gpu), Some(renderer), Some(scene)) =
+            (ctx.gpu(), self.renderer.as_mut(), self.scene.take())
+        else {
+            return;
+        };
         if let Err(error) = renderer.render(gpu, target, &scene) {
             ctx.exit_with_error(error);
             return;
         }
-        let mut edits = Vec::new();
         if let Some(overlay) = &mut self.overlay {
-            let (panel, shown, world) = (&mut self.panel, self.panel_shown, ctx.world());
-            // Drawn with no panel while hidden, so that egui still takes the events handed to it.
-            overlay.render(gpu, target, |egui| {
-                if shown {
-                    edits.extend(panel.show(egui, world));
-                }
-            });
+            overlay.render(gpu, target);
         }
-        // Applied once the frame is drawn: the next one shows them.
-        for edit in edits {
-            let world = ctx.world_mut();
-            if let Err(error) =
-                world.set_property(edit.entity, &edit.component, &edit.path, edit.value)
-            {
-                self.panel.refused(&error);
-            }
-        }
-        if whole {
+        if self.whole {
             self.drawn += 1;
         }
         if self.frame_limit.is_some_and(|limit| self.drawn >= limit) {
@@ -415,40 +473,22 @@ impl App for WorldExample {
     }
 
     fn gpu_lost(&mut self, _ctx: &mut Context) {
-        // Every GPU object goes; the world stays as it is.
+        // Every GPU object goes, the frame not drawn with them; the world stays as it is.
         self.renderer = None;
         self.overlay = None;
         self.cache = None;
+        self.scene = None;
         self.builder.release();
     }
 
-    fn gpu_restored(&mut self, ctx: &mut Context) -> Result<(), AppError> {
+    fn gpu_restored(&mut self, ctx: &mut Context, _world: &World) -> Result<(), AppError> {
         self.open(ctx)
     }
 
-    fn shutdown(&mut self, ctx: &mut Context) {
-        tracing::info!(
-            entities = ctx.world().len(),
-            drawn = self.drawn,
-            ring_lowest = self.floated.0,
-            ring_highest = self.floated.1,
-            "shutdown"
-        );
-        let windowed = ctx.window().is_some();
-        if windowed && self.frame_limit.is_some_and(|limit| limit > 0) && self.drawn == 0 {
+    fn stop(&mut self, ctx: &mut Context) {
+        tracing::info!(drawn = self.drawn, "the yard's frames");
+        if self.frame_limit.is_some_and(|limit| limit > 0) && self.drawn == 0 {
             ctx.exit_with_error("no frame drew the whole world");
-        }
-        if self.ring.is_some() && self.time > FLOAT_PERIOD && self.floated.0 >= self.floated.1 {
-            ctx.exit_with_error("the ring did not float");
-        }
-        match round_trip(ctx.world_mut(), &mut self.scenes) {
-            Ok((save, file)) => tracing::info!(
-                save,
-                file,
-                "the world, saved and loaded, is the world saved, and the yard written back spawns \
-                 the world written"
-            ),
-            Err(error) => ctx.exit_with_error(error),
         }
     }
 }
@@ -483,29 +523,37 @@ fn main() -> ExitCode {
         restore_lost_device: true,
         ..AppConfig::default()
     };
-    let watch = options
-        .watch
-        .then(|| ManifestWatch::new(&assets, Instant::now()));
-    let mut example = WorldExample {
-        cache: None,
-        cached: assets.clone(),
+    // Each half follows the cooked data: the rules its scenes, the view its meshes and materials.
+    let watch = || {
+        options
+            .watch
+            .then(|| ManifestWatch::new(&assets, Instant::now()))
+    };
+    let mut yard = Yard {
         scenes: SceneLibrary::of(assets.clone()),
-        assets,
+        assets: assets.clone(),
+        ring: None,
+        floated: (f64::INFINITY, f64::NEG_INFINITY),
+        watch: watch(),
+    };
+    let mut view = YardView {
         renderer: None,
         overlay: None,
         panel: WorldPanel::default(),
         panel_shown: false,
+        cache: None,
+        cached: assets.clone(),
         builder: FrameBuilder::new(Some(SKY)),
-        ring: None,
-        time: 0.0,
-        floated: (f64::INFINITY, f64::NEG_INFINITY),
+        scene: None,
+        whole: false,
         framing: (DVec3::ZERO, 1.0),
+        framed: None,
         yaw: 0.6,
         drawn: 0,
         frame_limit: options.frame_limit,
-        watch,
+        watch: watch(),
     };
-    match slime_app::run(&mut example, &config) {
+    match slime_app::run(&mut yard, &mut view, &config) {
         Ok(()) => ExitCode::SUCCESS,
         // `run` has logged the error with its causes.
         Err(_) => ExitCode::FAILURE,

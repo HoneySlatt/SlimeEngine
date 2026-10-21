@@ -5,7 +5,8 @@
   (the shape of the owned frame and of the kinds of materials),
   [0113](0113-asset-requests-residency-and-priorities.md) (after a lost device, the cache is made
   again rather than cleared) and [0114](0114-hardware-tiers-and-the-gpus-limits.md) (the floor's
-  figures)
+  figures); amended by [0121](0121-a-game-as-a-simulation-and-a-presentation.md) (the frame's
+  lights name their entities)
 - Date: 2026-10-21
 
 ## Context

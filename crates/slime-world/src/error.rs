@@ -11,6 +11,10 @@ pub enum WorldError {
     /// The entity is not alive in this world.
     #[error("{0:?} is not alive")]
     NotAlive(Entity),
+    /// No entity alive has this persistent identity, which a command names
+    /// ([`World::apply`](crate::World::apply)).
+    #[error("no entity alive has the persistent identity `{0}`")]
+    NotFound(PersistentId),
     /// The entity would become its own ancestor.
     #[error("{child:?} cannot become a child of {parent:?}, which is itself or its descendant")]
     Cycle {

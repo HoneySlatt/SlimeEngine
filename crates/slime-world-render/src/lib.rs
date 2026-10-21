@@ -66,9 +66,11 @@ pub struct FrameBuilder {
 pub struct Frame {
     /// The instances of the meshes that the world places and the cache holds.
     pub instances: Vec<Instance>,
-    /// The lights that the world places, the sky's sun first, then in the world's order, which
-    /// [`Frame::scene`] changes when they are more than the renderer draws.
-    pub lights: Vec<Light>,
+    /// The lights that the world places, each with its entity, the sky's sun first, then in the
+    /// world's order, which [`Frame::scene`] changes when they are more than the renderer draws.
+    /// A game's presentation may change them by their entities before it draws the frame, as a
+    /// fire that flickers in what is shown but not in the world.
+    pub lights: Vec<(Entity, Light)>,
     /// The sky's environment, if the game gave a sky.
     pub environment: Option<Environment>,
     /// How many meshes the cache was loading once the frame was built ([`AssetCache::loading`]):
@@ -101,7 +103,7 @@ impl Frame {
             nearest_first(&mut lights, sun, camera.eye);
         }
         let mut scene = Scene::new(camera, instances);
-        scene.lights = lights;
+        scene.lights = lights.into_iter().map(|(_, light)| light).collect();
         scene.environment = environment;
         scene
     }
@@ -131,7 +133,7 @@ impl FrameBuilder {
     }
 
     /// Builds what the renderer draws of `world` at `fraction` of the time from the last fixed step
-    /// to the next, as `slime-app`'s `Context::fixed_step_alpha` gives it, from the meshes that
+    /// to the next, as `slime-app`'s `GameTime::alpha` gives it, from the meshes that
     /// `cache` holds. It first takes the batches that the cache finished loading
     /// ([`AssetCache::poll`]), then asks it for the meshes it does not hold
     /// ([`AssetCache::request`]), which later frames draw.
@@ -237,9 +239,9 @@ impl FrameBuilder {
 /// matter most to the player: the sun stays first, then come the other directional lights, which
 /// reach everywhere, then the point and spot lights by their distance to `eye`, each group in the
 /// order it had for lights as near.
-fn nearest_first(lights: &mut [Light], sun: bool, eye: DVec3) {
+fn nearest_first(lights: &mut [(Entity, Light)], sun: bool, eye: DVec3) {
     let rest = &mut lights[usize::from(sun)..];
-    rest.sort_by(|a, b| {
+    rest.sort_by(|(_, a), (_, b)| {
         let key = |light: &Light| match light {
             Light::Directional(_) => (0, 0.0),
             Light::Point(point) => (1, point.position.distance_squared(eye)),
@@ -251,16 +253,16 @@ fn nearest_first(lights: &mut [Light], sun: bool, eye: DVec3) {
             .then(a_distance.total_cmp(&b_distance))
     });
 }
-
-/// Puts into `lights` the lights that `world` draws at `fraction` of a step, the sky's sun first, so
-/// that its shadows are the ones drawn when it casts any: the first directional light, in the
-/// world's order, that shows in the sky. Puts into `left_out` the entities whose lights the
-/// renderer would not draw, placed so, and why ([`Light::check`]). Returns the sun, if there is
+/// Puts into `lights` the lights that `world` draws at `fraction` of a step, with their entities,
+/// the sky's sun first, so that its shadows are the ones drawn when it casts any: the first
+/// directional light, in the world's order, that shows in the sky. Puts into `left_out` the
+/// entities whose lights the renderer would not draw, placed so, and why ([`Light::check`]).
+/// Returns the sun, if there is
 /// one, and how many lights show in the sky.
 fn world_lights(
     world: &World,
     fraction: f64,
-    lights: &mut Vec<Light>,
+    lights: &mut Vec<(Entity, Light)>,
     left_out: &mut Vec<(Entity, String)>,
 ) -> (Option<DirectionalLight>, usize) {
     lights.clear();
@@ -282,11 +284,11 @@ fn world_lights(
             suns += 1;
             if sun.is_none() {
                 sun = Some(directional);
-                lights.insert(0, light);
+                lights.insert(0, (entity, light));
                 continue;
             }
         }
-        lights.push(light);
+        lights.push((entity, light));
     }
     (sun, suns)
 }
@@ -403,7 +405,7 @@ mod tests {
         assert_eq!(suns, 1);
         assert_eq!(sun.map(|sun| sun.illuminance), Some(3.0));
         assert_eq!(lights.len(), 3);
-        assert!(matches!(lights[0], Light::Directional(light) if light.illuminance == 3.0));
+        assert!(matches!(lights[0].1, Light::Directional(light) if light.illuminance == 3.0));
     }
 
     /// A world of more lights than the renderer draws: its sun, then point lights placed farther
@@ -439,11 +441,11 @@ mod tests {
         let (sun, _) = world_lights(&world, 0.0, &mut lights, &mut Vec::new());
         assert_eq!(lights.len(), 32);
         nearest_first(&mut lights, sun.is_some(), DVec3::new(-0.5, 0.0, 0.0));
-        assert!(matches!(lights[0], Light::Directional(light) if light.illuminance == 1.0));
-        assert!(matches!(lights[1], Light::Directional(_)));
+        assert!(matches!(lights[0].1, Light::Directional(light) if light.illuminance == 1.0));
+        assert!(matches!(lights[1].1, Light::Directional(_)));
         let drawn: Vec<f32> = lights[2..MAX_LIGHTS]
             .iter()
-            .map(|light| match light {
+            .map(|(_, light)| match light {
                 Light::Point(point) => point.intensity,
                 other => panic!("a point light, not {other:?}"),
             })
@@ -503,7 +505,7 @@ mod tests {
         let (sun, suns) = world_lights(&world, 0.0, &mut lights, &mut left_out);
         assert_eq!(lights.len(), 2, "{lights:?}");
         assert!(
-            lights.iter().all(|light| light.check().is_ok()),
+            lights.iter().all(|(_, light)| light.check().is_ok()),
             "{lights:?}"
         );
         assert_eq!((sun.is_some(), suns), (true, 1));

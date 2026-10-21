@@ -8,7 +8,7 @@ use slime_assets::AssetId;
 use slime_color::LinearColor;
 use slime_reflect::{FieldInfo, Kind, Path, Range, Reflect, Registry, Value, VariantInfo};
 use slime_world::glam::{DVec3, EulerRot, Quat, Vec3};
-use slime_world::{Entity, Name, Tick, World};
+use slime_world::{Command, Entity, Name, PersistentId, Tick, World};
 
 /// The width the panel opens with, in points.
 const WIDTH: f32 = 380.0;
@@ -19,21 +19,6 @@ const HEIGHT: f32 = 640.0;
 /// The types whose values are edited whole, on one line: their parts are numbers that mean little
 /// alone, and a rotation's would not stay one if set one at a time.
 const WHOLE: [&str; 4] = ["Vec3", "DVec3", "Quat", "LinearColor"];
-
-/// A change that the world panel asks for, which the caller applies
-/// ([`World::set_property`]): the part of `entity`'s component that `path` leads to, set to
-/// `value`.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Edit {
-    /// The entity whose component changes.
-    pub entity: Entity,
-    /// The type of the component, by its stable name.
-    pub component: String,
-    /// The part of the component that changes; empty for the whole component.
-    pub path: Path,
-    /// The part's new value.
-    pub value: Value,
-}
 
 /// A panel of the overlay that lists the entities of a world by name, with a filter, and shows the
 /// one selected: its persistent identity, the prefab that it places if it is a placement's root
@@ -51,10 +36,16 @@ pub struct Edit {
 /// does not become a spot light here. A variant with a reference among its new fields cannot be
 /// taken.
 ///
-/// The panel changes nothing: it returns each change as an [`Edit`], which the caller applies
-/// to the world, which refuses a value out of its field's range or that breaks a rule of its type,
-/// and hands the refusal back ([`WorldPanel::refused`]) to show it. It does not undo, nor add,
-/// remove or save components.
+/// The panel changes nothing: it returns each change as a [`Command`], which names the entity by
+/// its persistent identity, and which the caller sends to its host (`slime_app::Context::send`),
+/// or applies ([`World::apply`]); the world refuses a value out of its field's range or that
+/// breaks a rule of its type, and the caller hands the refusal back ([`WorldPanel::refused`]) to
+/// show it. An entity without an identity, which a world has only while a scene spawns it, is
+/// shown and not edited. The panel does not undo, nor add, remove or save components.
+///
+/// It keeps the entity selected by its handle and its identity: when the handle no longer names
+/// the entity of that identity, as after a load or a hot reload replaced the world, it finds the
+/// entity again by its identity.
 ///
 /// It makes its list of entities again only when the world's structure moves
 /// ([`World::structure`]): a world of many entities costs a frame of the panel little while they
@@ -67,13 +58,17 @@ pub struct WorldPanel {
     list: Vec<(Entity, String, String)>,
     /// The world's structure, and its number of entities, when the list was made.
     listed: Option<(Tick, usize)>,
+    /// The entity selected, by its handle, which may be of a world replaced since, and its
+    /// identity, once the panel showed it.
     selected: Option<Entity>,
+    selected_id: Option<PersistentId>,
     /// Why the world refused the last edit, until the next one.
     refusal: Option<String>,
 }
 
 impl WorldPanel {
-    /// The entity whose components the panel shows, if one is selected, alive or not.
+    /// The entity whose components the panel shows, if one is selected, alive or not, by the
+    /// handle that it last found it under.
     pub fn selected(&self) -> Option<Entity> {
         self.selected
     }
@@ -81,7 +76,24 @@ impl WorldPanel {
     /// Shows the components of `entity`.
     pub fn select(&mut self, entity: Entity) {
         self.selected = Some(entity);
+        self.selected_id = None;
         self.refusal = None;
+    }
+
+    /// The entity selected in `world`: the handle while it names the entity of the identity seen,
+    /// or else the entity of that identity, found again.
+    fn find_selected(&mut self, world: &World) -> Option<Entity> {
+        let entity = self.selected?;
+        let Some(id) = &self.selected_id else {
+            self.selected_id = world.persistent_id(entity);
+            return world.contains(entity).then_some(entity);
+        };
+        if world.persistent_id(entity).as_ref() == Some(id) {
+            return Some(entity);
+        }
+        let found = world.find(id)?;
+        self.selected = Some(found);
+        Some(found)
     }
 
     /// Shows `error`, why the world refused an edit, until the panel asks for another one.
@@ -89,12 +101,12 @@ impl WorldPanel {
         self.refusal = Some(error.to_string());
     }
 
-    /// Builds the panel, a window of `ctx`, from `world`, and returns the edits that its widgets
-    /// ask for in this pass, in their order, for the caller to apply.
+    /// Builds the panel, a window of `ctx`, from `world`, and returns the commands that its widgets
+    /// ask for in this pass, in their order, for the caller to send.
     ///
-    /// egui may lay a frame out twice ([`Overlay::render`](crate::Overlay::render)): the caller
-    /// adds the edits of each call to those of the frame, rather than keep the last call's.
-    pub fn show(&mut self, ctx: &egui::Context, world: &World) -> Vec<Edit> {
+    /// egui may lay a frame out twice ([`Overlay::build`](crate::Overlay::build)): the caller adds
+    /// the commands of each call to those of the frame, rather than keep the last call's.
+    pub fn show(&mut self, ctx: &egui::Context, world: &World) -> Vec<Command> {
         let mut edits = Vec::new();
         let right = ctx.content_rect().right();
         egui::Window::new("World")
@@ -109,9 +121,11 @@ impl WorldPanel {
         edits
     }
 
-    fn contents(&mut self, ui: &mut egui::Ui, world: &World, edits: &mut Vec<Edit>) {
+    fn contents(&mut self, ui: &mut egui::Ui, world: &World, edits: &mut Vec<Command>) {
         ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text("filter by name"));
         let filter = self.filter.to_lowercase();
+        // Found again before the list shows which entity is selected.
+        let selected = self.find_selected(world);
         egui::ScrollArea::vertical()
             .id_salt("entities")
             .max_height(LIST_HEIGHT)
@@ -133,7 +147,7 @@ impl WorldPanel {
                 for (entity, name, lower) in &self.list {
                     if lower.contains(&filter)
                         && ui
-                            .selectable_label(self.selected == Some(*entity), name.as_str())
+                            .selectable_label(selected == Some(*entity), name.as_str())
                             .clicked()
                     {
                         clicked = Some(*entity);
@@ -144,15 +158,18 @@ impl WorldPanel {
                 }
             });
         ui.separator();
-        let Some(entity) = self.selected.filter(|&entity| world.contains(entity)) else {
+        // Again: a click on the list selects another.
+        let Some(entity) = self.find_selected(world) else {
             ui.label("Select an entity to see its components.");
             return;
         };
         ui.heading(name(world, entity));
         // What files and saves name it by, and what it places, if it is a placement's root.
-        if let Some(id) = world.persistent_id(entity) {
-            ui.label(format!("Identity: {id}"));
-        }
+        let id = world.persistent_id(entity);
+        match &id {
+            Some(id) => ui.label(format!("Identity: {id}")),
+            None => ui.weak("No identity yet: not edited"),
+        };
         if let Some(placement) = world.placement(entity) {
             let prefab = placement.prefab();
             ui.label(format!(
@@ -187,12 +204,15 @@ impl WorldPanel {
                     .header_response
                     .on_hover_text(&registration.info().doc);
             }
-            edits.extend(editor.edits.drain(..).map(|(path, value)| Edit {
-                entity,
-                component: component.to_owned(),
-                path,
-                value,
-            }));
+            let asked = editor.edits.drain(..);
+            if let Some(id) = &id {
+                edits.extend(asked.map(|(path, value)| Command::SetProperty {
+                    entity: id.clone(),
+                    component: component.to_owned(),
+                    path,
+                    value,
+                }));
+            }
         }
         if let Some(entity) = editor.select {
             self.select(entity);
@@ -801,8 +821,8 @@ mod tests {
     }
 
     /// Builds `panel` over `world` for a frame of a context without a window, and returns the
-    /// edits it asks for.
-    fn frame(ctx: &egui::Context, panel: &mut WorldPanel, world: &World) -> Vec<Edit> {
+    /// commands it asks for.
+    fn frame(ctx: &egui::Context, panel: &mut WorldPanel, world: &World) -> Vec<Command> {
         let mut edits = Vec::new();
         ctx.run_ui(egui::RawInput::default(), |ui| {
             edits.extend(panel.show(ui.ctx(), world));
@@ -907,6 +927,37 @@ mod tests {
         let ctx = egui::Context::default();
         assert_eq!(frame(&ctx, &mut panel, &world), []);
         assert_eq!(panel.selected(), Some(entities[0]), "kept, as a handle");
+    }
+
+    #[test]
+    fn the_entity_selected_is_found_again_by_its_identity_in_a_world_that_replaces_it() {
+        let lamp = Light::Point {
+            color: LinearColor::WHITE,
+            intensity: 30.0,
+            range: None,
+        };
+        let mut world = World::new();
+        let first = world.spawn_keyed("lamp").expect("a key");
+        world.insert(first, lamp);
+        let mut panel = WorldPanel::default();
+        panel.select(first);
+        let ctx = egui::Context::default();
+        frame(&ctx, &mut panel, &world);
+        // Another world, as a load makes, where the handle names another entity.
+        let mut replaced = World::new();
+        let post = replaced.spawn_keyed("post").expect("a key");
+        let found = replaced.spawn_keyed("lamp").expect("a key");
+        replaced.insert(found, lamp);
+        assert_eq!(post, first, "the handle names the post there");
+        frame(&ctx, &mut panel, &replaced);
+        assert_eq!(panel.selected(), Some(found));
+        replaced.despawn(found);
+        frame(&ctx, &mut panel, &replaced);
+        assert_eq!(
+            panel.selected(),
+            Some(found),
+            "kept while no entity has the identity"
+        );
     }
 
     #[test]

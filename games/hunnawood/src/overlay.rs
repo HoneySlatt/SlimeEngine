@@ -1,12 +1,15 @@
-//! The engine's dev overlay (`slime-devui`) over the game: what each frame costs, shown and hidden
-//! with F1, and the world's entities, whose components F2's panel edits. Tooling for whoever works
-//! on the game, not part of it.
+//! The engine's dev overlay (`slime-devui`) over the game: what each frame costs and the game's
+//! time, shown and hidden with F1, and the world's entities, whose components F2's panel edits.
+//! Tooling for whoever works on the game, not part of it.
 
-use slime_devui::{Edit, Overlay, WorldPanel, egui};
+use slime_devui::{Overlay, WorldPanel, egui};
 use slime_gfx::{GfxError, Gpu, RenderTarget, TextureFormat};
-use slime_platform::Event;
+use slime_platform::{Event, PhysicalSize};
 use slime_render::RenderStats;
-use slime_world::World;
+use slime_world::{Command, World};
+
+/// The slowest and the fastest that the statistics' slider sets game time to.
+const SPEEDS: std::ops::RangeInclusive<f64> = 0.1..=4.0;
 
 /// The overlay and what it shows.
 pub struct DevOverlay {
@@ -19,14 +22,26 @@ pub struct DevOverlay {
     frame_ms: f32,
 }
 
-/// What the overlay asks of the game once drawn.
+/// The speed of the game's time, as the overlay shows it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GameSpeed {
+    /// Whether it is paused.
+    pub paused: bool,
+    /// Its speed.
+    pub speed: f64,
+}
+
+/// What the overlay asks of the game once built.
 #[derive(Default)]
 pub struct Asked {
     /// Whether its button asks to lose the GPU device, which the game then does once the frame is
     /// drawn, to check by hand that it goes on with a new one.
     pub lose_device: bool,
-    /// The world panel's edits, which the game applies to its world.
-    pub edits: Vec<Edit>,
+    /// The world panel's changes, which the game sends to its host, to apply at the next frame's
+    /// start.
+    pub commands: Vec<Command>,
+    /// The speed of game time that its slider set, when it changed it.
+    pub speed: Option<f64>,
 }
 
 impl DevOverlay {
@@ -73,6 +88,12 @@ impl DevOverlay {
         self.overlay.as_ref().is_some_and(Overlay::wants_keyboard)
     }
 
+    /// Whether the cursor is over a panel shown ([`Overlay::wants_pointer`]).
+    pub fn wants_pointer(&self) -> bool {
+        (self.statistics_shown || self.panel_shown)
+            && self.overlay.as_ref().is_some_and(Overlay::wants_pointer)
+    }
+
     pub fn toggle_statistics(&mut self) {
         self.statistics_shown = !self.statistics_shown;
     }
@@ -86,37 +107,32 @@ impl DevOverlay {
         self.frame_ms = self.frame_ms * 0.9 + seconds * 1000.0 * 0.1;
     }
 
-    /// Shows in the world panel why the world refused one of its edits.
+    /// Shows in the world panel why the world refused one of its changes.
     pub fn refused(&mut self, error: &dyn std::fmt::Display) {
         self.panel.refused(error);
     }
 
-    /// Makes the world panel forget the entity it shows, and its filter: the handle of an entity
-    /// of a world that another replaces, which in the new one could name another entity.
-    pub fn forget_world(&mut self) {
-        self.panel = WorldPanel::default();
-    }
-
-    /// Draws the overlay over `target`, with `stats`, the last frame's, and the entities of
-    /// `world`, and returns what it asks of the game.
-    pub fn draw(
+    /// Builds the overlay for an image of `size`, with `stats`, the last frame's, the name of the
+    /// GPU's `adapter`, the game's `time`, and the entities of `world`, and returns what it asks
+    /// of the game. [`DevOverlay::render`] draws it.
+    pub fn build(
         &mut self,
-        gpu: &Gpu,
-        target: &RenderTarget,
+        size: PhysicalSize,
         stats: &RenderStats,
+        adapter: &str,
+        time: GameSpeed,
         world: &World,
     ) -> Asked {
-        let (frame_ms, adapter) = (self.frame_ms, gpu.adapter_name());
+        let frame_ms = self.frame_ms;
         let (statistics_shown, panel_shown) = (self.statistics_shown, self.panel_shown);
         let mut asked = Asked::default();
         let (Some(overlay), panel) = (&mut self.overlay, &mut self.panel) else {
             return asked;
         };
-        let size = (target.width(), target.height());
-        // Drawn with no panel while hidden, so that egui still takes the events handed to it.
-        overlay.render(gpu, target, |ctx| {
+        // Built with no panel while hidden, so that egui still takes the events handed to it.
+        overlay.build(size, |ctx| {
             if panel_shown {
-                asked.edits.extend(panel.show(ctx, world));
+                asked.commands.extend(panel.show(ctx, world));
             }
             if !statistics_shown {
                 return;
@@ -126,7 +142,7 @@ impl DevOverlay {
                 .resizable(false)
                 .show(ctx, |ui| {
                     ui.label(adapter);
-                    ui.label(format!("{} × {} pixels", size.0, size.1));
+                    ui.label(format!("{} × {} pixels", size.width, size.height));
                     ui.label(format!("frame: {frame_ms:.2} ms"));
                     ui.label(format!(
                         "render on the CPU: {:.2} ms",
@@ -154,11 +170,34 @@ impl DevOverlay {
                         stats.triangles,
                         stats.shadow_draw_calls + stats.spot_shadow_draw_calls
                     ));
+                    ui.separator();
+                    // Its value is shown as a label rather than in a field that takes the
+                    // keyboard, so that the game's keys keep their meaning.
+                    let mut speed = time.speed;
+                    let shown = if time.paused { "paused" } else { "running" };
+                    let label = format!("game time × {speed:.2}, {shown}");
+                    ui.add(
+                        egui::Slider::new(&mut speed, SPEEDS)
+                            .logarithmic(true)
+                            .show_value(false)
+                            .text(label),
+                    );
+                    if speed != time.speed {
+                        asked.speed = Some(speed);
+                    }
+                    ui.label("F3 pauses and runs game time, F4 runs one step of it while paused");
                     asked.lose_device |= ui.button("Lose the GPU device").clicked();
                     ui.label("F1 hides this");
                 });
         });
         asked
+    }
+
+    /// Draws over `target` what [`DevOverlay::build`] made.
+    pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget) {
+        if let Some(overlay) = &mut self.overlay {
+            overlay.render(gpu, target);
+        }
     }
 }
 
@@ -179,6 +218,7 @@ mod tests {
             "hunnawood::Key",
             "hunnawood::Door",
             "hunnawood::Clock",
+            "hunnawood::Look",
         ] {
             assert!(
                 entities
@@ -193,12 +233,12 @@ mod tests {
             panel.select(entity);
             // egui sizes the window on the first frame.
             for _ in 0..2 {
-                let mut edits = Vec::new();
+                let mut commands = Vec::new();
                 ctx.run_ui(egui::RawInput::default(), |ui| {
-                    edits.extend(panel.show(ui.ctx(), &world));
+                    commands.extend(panel.show(ui.ctx(), &world));
                 })
                 .drop_without_applying_deltas();
-                assert_eq!(edits, [], "nothing is touched");
+                assert_eq!(commands, [], "nothing is touched");
             }
         }
     }

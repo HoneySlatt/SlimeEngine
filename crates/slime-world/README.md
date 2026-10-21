@@ -131,14 +131,19 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   of its cooked mesh, lights at their entity's origin along its −Z axis, a directional one showing
   in the sky or not, and the subtrees left out; `World::is_hidden` says whether an entity is, by
   itself or through an ancestor.
-- `World::begin_fixed_step` and `World::end_fixed_step`, which `slime-app` calls around each fixed
-  step, keep the transforms before the step of what moves during it;
+- `World::begin_fixed_step` and `World::end_fixed_step`, which `slime-app`'s host calls around each
+  fixed step, keep the transforms before the step of what moves during it;
   `World::interpolated_transform(entity, fraction)` gives where it is drawn between the two, and
   `World::teleport` makes an entity be drawn at once where it goes.
 - `World::registry` holds the types of the components, the engine's and each type the world stored a
   component of, or `World::register` registered ahead. `World::entities`, `component_names`,
   `component_value`, `set_component_value` and `set_property` list the entities and reach their
   components by name and property path, without their types, within the ranges of their fields.
+- `Command` is a change of the world asked for outside the phases of a frame that may make it,
+  which names its entity by its persistent identity: `Command::SetProperty`, a value set at a
+  property path of a component. `World::apply` applies one, as `slime-app`'s host does at the start
+  of each frame with those queued since the last one
+  (`docs/adr/0121-a-game-as-a-simulation-and-a-presentation.md`).
 - `World::save(start, about)` writes what differs between the world and `start`, the world that the
   game makes at the start of a run from the same scenes: entities removed and created, components
   added, removed and changed, parents changed, references to entities as persistent identities, or

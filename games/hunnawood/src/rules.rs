@@ -11,6 +11,7 @@ use slime_reflect::Reflect;
 use slime_render::glam::{DVec3, Quat, Vec2, Vec3};
 use slime_world::{Component, Entity, Hidden, PersistentId, SceneLibrary, Transform, World};
 
+use crate::look::Look;
 use crate::zone::{Collider, Flickers, Footprint, Marker, TimeOfDay, Zone, colliders};
 
 /// The hero's radius, in metres: it moves as a circle on the ground.
@@ -183,9 +184,7 @@ impl Game {
     /// what is wrong.
     pub fn find(world: &World, starts_at_night: bool) -> Result<Self, String> {
         let zone = Zone::find_in(world)?;
-        let hero = world
-            .find(&PersistentId::new([HERO]))
-            .ok_or_else(|| format!("the world has no hero, `{HERO}`"))?;
+        let hero = hero_in(world).ok_or_else(|| format!("the world has no hero, `{HERO}`"))?;
         if world.get::<Transform>(hero).is_none() {
             return Err(format!("the hero, `{HERO}`, has no transform to place it"));
         }
@@ -217,6 +216,13 @@ impl Game {
         self.starts_at_night = night;
     }
 
+    /// Makes the player look where the hero faces ([`Look`]): what a new run, a run started again,
+    /// and a run of a save that holds no look start with.
+    pub fn look_along_hero(&self, world: &mut World) {
+        let heading = self.hero(world).heading;
+        world.insert(self.hero, Look::along(Vec2::from_angle(heading)));
+    }
+
     /// The zone's entities.
     pub fn zone(&self) -> &Zone {
         &self.zone
@@ -227,11 +233,14 @@ impl Game {
         self.hero
     }
 
-    /// Whether it is night, as the zone's [`Clock`] says.
+    /// Whether it is night, as the zone's [`Clock`] says ([`night`]).
     pub fn night(&self, world: &World) -> bool {
-        world
-            .get::<Clock>(self.zone.root)
-            .is_some_and(|clock| clock.time == TimeOfDay::Night)
+        night(world)
+    }
+
+    /// Whether a new game starts at night.
+    pub fn starts_at_night(&self) -> bool {
+        self.starts_at_night
     }
 
     /// Sets where the run stands, the key taken or not, the door open or not, by night or by day,
@@ -337,7 +346,7 @@ impl Game {
     /// not hidden and the zone's edge and sliding along them, and turns to face that direction.
     /// Then the hero takes the key once near it ([`REACH_ITEM`]), and with it opens the door once
     /// near it ([`REACH_DOOR`]); last, what the run hides follows where it stands
-    /// ([`Game::show_run`]).
+    /// (`Game::show_run`).
     pub fn step(&self, world: &mut World, direction: Vec2, step: f32) {
         let colliders = colliders(world);
         let inside = self.zone.half_size(world) - HERO_RADIUS;
@@ -372,6 +381,20 @@ impl Game {
     }
 }
 
+/// Whether it is night in `world`, as its [`Clock`] says, the zone's, a world that a game plays in
+/// holding one: what the view reads, which has the world and not the game.
+pub fn night(world: &World) -> bool {
+    world
+        .query::<&Clock>()
+        .any(|(_, clock)| clock.time == TimeOfDay::Night)
+}
+
+/// The root of the hero's scene in `world`, found by its persistent identity, `hero`: what the view
+/// reads, which has the world and not the game.
+pub fn hero_in(world: &World) -> Option<Entity> {
+    world.find(&PersistentId::new([HERO]))
+}
+
 /// Registers each of the game's components in `world`, before any entity holds one.
 pub(crate) fn register(world: &mut World) {
     world.register::<Collider>();
@@ -381,6 +404,7 @@ pub(crate) fn register(world: &mut World) {
     world.register::<Key>();
     world.register::<Door>();
     world.register::<Clock>();
+    world.register::<Look>();
 }
 
 /// `position` moved out of every collider that the circle of `radius` around it overlaps.
@@ -403,7 +427,7 @@ fn push_out(mut position: Vec2, radius: f32, colliders: &[Footprint]) -> Vec2 {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use slime_assets::{CookedScene, SceneLight, SceneNode};
     use slime_reflect::{Kind, Leaf, Range, Registry, Value};
     use slime_render::glam::Mat4;
@@ -1047,7 +1071,9 @@ pub mod tests {
             range: None,
         });
         scene.nodes.push(fire);
-        play(&mut library(scene), true)
+        let (mut world, game) = play(&mut library(scene), true);
+        game.look_along_hero(&mut world);
+        (world, game)
     }
 
     #[test]
@@ -1062,6 +1088,7 @@ pub mod tests {
             "hunnawood::Key",
             "hunnawood::Door",
             "hunnawood::Clock",
+            "hunnawood::Look",
         ] {
             assert!(world.registry().get(name).is_some(), "{name} is registered");
         }
@@ -1072,6 +1099,7 @@ pub mod tests {
         every_leaf_is_set_and_read_back::<Key>(&mut world);
         every_leaf_is_set_and_read_back::<Door>(&mut world);
         every_leaf_is_set_and_read_back::<Clock>(&mut world);
+        every_leaf_is_set_and_read_back::<Look>(&mut world);
         // A height below the ground is refused, and says where.
         let (entity, _) = world.query::<&Collider>().next().expect("a collider");
         let error = world
@@ -1582,7 +1610,7 @@ pub mod tests {
         let first = game.hero(&played);
         walk_to_the_portal_at_night(&game, &mut played);
         // Saved there, and resumed in a new game: the same run, which goes on.
-        let text = saves::save(&mut played, &mut scenes).expect("saved");
+        let text = saves::save(&played, &mut scenes).expect("saved");
         let start = saves::start(&mut scenes).expect("the zone is whole");
         let (mut world, game, loaded) = saves::resume(&text, start, &mut scenes).expect("resumed");
         assert!(
@@ -1654,7 +1682,7 @@ pub mod tests {
             )
             .expect("dimmed");
         played.insert(game.zone().item, Hidden);
-        let text = saves::save(&mut played, &mut scenes).expect("saved");
+        let text = saves::save(&played, &mut scenes).expect("saved");
         let start = saves::start(&mut scenes).expect("the zone is whole");
         let (mut resumed, resumed_game, loaded) =
             saves::resume(&text, start, &mut scenes).expect("resumed");
@@ -1665,7 +1693,7 @@ pub mod tests {
             "the oak is gone"
         );
         assert_eq!(played.first_difference(&resumed), None, "{text}");
-        let again = saves::save(&mut resumed, &mut scenes).expect("saved again");
+        let again = saves::save(&resumed, &mut scenes).expect("saved again");
         assert_eq!(again, text, "the same bytes");
         // The same input, step by step, gives both runs the same state.
         for index in 0..300u32 {

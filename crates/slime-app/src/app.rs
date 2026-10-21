@@ -1,131 +1,18 @@
-//! The application lifecycle: the `App` trait that a game implements, and `run`, which drives it.
+//! Running a game: [`run`], the host of a game's program, and how it runs ([`AppConfig`]).
 
 use std::time::Duration;
 
-use slime_gfx::{GfxError, Gpu, PresentMode, RenderTarget, Surface, TextureFormat};
-use slime_platform::{Event, Window, WindowConfig};
-use slime_world::World;
+use slime_gfx::{PresentMode, Surface};
+use slime_platform::WindowConfig;
 
 use crate::diagnostics::{error_chain, init_diagnostics};
-use crate::error::{AppError, RunError};
+use crate::error::RunError;
+use crate::game::{Presentation, Simulation};
+use crate::host::{Context, ExitReason, Host};
 use crate::signal;
-use crate::time::{FixedStep, FrameClock, FrameTime};
 use crate::windowed::run_windowed;
 
-/// An engine application: the code a game provides, which the engine's main loop calls.
-///
-/// Every method has a default implementation that does nothing, so an application implements
-/// only the ones it needs. During [`run`], the engine calls:
-///
-/// 1. [`init`](Self::init), once;
-/// 2. for each frame, [`fixed_update`](Self::fixed_update) once per fixed step due in that frame
-///    (zero or more times), then [`update`](Self::update) once, then, with a window,
-///    [`render`](Self::render) once if the window can show a new image;
-/// 3. [`shutdown`](Self::shutdown), once, after the last frame, if `init` succeeded.
-///
-/// With a window, [`on_event`](Self::on_event) is called between frames, as events arrive.
-///
-/// Only `init` and `gpu_restored` return an error. An application that hits an error it cannot
-/// handle in another method passes it to [`Context::exit_with_error`]: the run stops as after an
-/// exit request, and [`run`] returns the error.
-pub trait App {
-    /// Called once, before the first frame. With a window, the window and the GPU already exist
-    /// ([`Context::window`], [`Context::gpu`]): this is where an application creates its GPU
-    /// objects, for targets of [`Context::surface_format`].
-    ///
-    /// # Errors
-    ///
-    /// An application returns an error when it cannot start, for example because a shader does not
-    /// compile. The run then stops: no frame runs, [`shutdown`](Self::shutdown) is not called, and
-    /// [`run`] returns [`RunError::Init`] with this error as its source.
-    fn init(&mut self, ctx: &mut Context) -> Result<(), AppError> {
-        let _ = ctx;
-        Ok(())
-    }
-
-    /// Called for each event concerning the window, between frames. Headless runs have no
-    /// events.
-    ///
-    /// When the event is [`Event::CloseRequested`], the engine stops after this call, as if the
-    /// application had called [`Context::request_exit`].
-    fn on_event(&mut self, ctx: &mut Context, event: &Event) {
-        let _ = (ctx, event);
-    }
-
-    /// Called once per fixed step. `step` is the duration of a step; it is the same for the
-    /// whole run ([`AppConfig::fixed_step`]). What it moves in the world is drawn between where
-    /// it was before the step and where the step leaves it ([`Context::world`]).
-    fn fixed_update(&mut self, ctx: &mut Context, step: Duration) {
-        let _ = (ctx, step);
-    }
-
-    /// Called once per frame, after the frame's fixed steps. What it changes in the world is drawn
-    /// at once ([`Context::world`]).
-    fn update(&mut self, ctx: &mut Context, frame: &FrameTime) {
-        let _ = (ctx, frame);
-    }
-
-    /// Called once per frame, after [`update`](Self::update), to draw the frame into `target`, the
-    /// window's image, with the GPU of [`Context::gpu`]. The engine shows the image once this
-    /// method returns.
-    ///
-    /// Only windowed runs call it, and only in frames where the window can show a new image: not
-    /// while the window has a size of zero (minimized), nor when its next image is not ready in
-    /// time on Vulkan (see [`Surface::acquire`]; Direct3D 12 waits for it instead, and on Windows
-    /// with Vulkan, wgpu treats a wait of more than one second as a lost device, which stops the
-    /// run). The fixed steps and the update of such frames still run.
-    /// A frame that draws nothing into `target`, as this default does, shows it cleared to black.
-    fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
-        let _ = (ctx, target);
-    }
-
-    /// Called between frames when the GPU device was lost and the run is about to open a new one,
-    /// as an application asks with [`AppConfig::restore_lost_device`]: the application drops every
-    /// GPU object it made with the lost device, which [`Context::gpu`] still is, and every clone of
-    /// that `Gpu`, its loads in progress included, whatever their state. The run then releases its
-    /// own and opens the new device, which Direct3D 12 does only once nothing holds the lost one
-    /// (ADR-0075). Objects kept past this call make the new device open on another adapter, if
-    /// any, and panic if used with it. The default does nothing, which suits an application that
-    /// keeps no GPU object between frames.
-    fn gpu_lost(&mut self, ctx: &mut Context) {
-        let _ = ctx;
-    }
-
-    /// Called between frames once the run opened a new GPU device after [`gpu_lost`](Self::gpu_lost):
-    /// [`Context::gpu`] is the new device, and [`Context::surface_format`] the format of the
-    /// window's images, which another adapter may change. The application creates its GPU objects
-    /// again here, as in [`init`](Self::init). The default does nothing.
-    ///
-    /// The run does not restore, and stops as without the setting, once it has opened three devices
-    /// within five minutes, as a device lost again soon after each new one, when the device was
-    /// lost because memory ran out, when only a CPU adapter is left where the lost device was a
-    /// GPU's, or when no device opens ([`Surface::restore`]); nor when the run is stopping anyway,
-    /// or the window's surface was lost for good. When no device opens after `gpu_lost`,
-    /// [`Context::gpu`] is `None` from then on, [`App::shutdown`] included.
-    ///
-    /// # Errors
-    ///
-    /// An application returns an error when it cannot go on with the new device. The run then stops
-    /// as after [`Context::exit_with_error`], and [`run`] returns [`RunError::App`] with this error;
-    /// but for the loss of the new device, which the run handles as any other loss
-    /// (`exit_with_error` says how), opening another device within the limit above.
-    fn gpu_restored(&mut self, ctx: &mut Context) -> Result<(), AppError> {
-        let _ = ctx;
-        Ok(())
-    }
-
-    /// Called once, after the last frame, however the run stopped, unless [`init`](Self::init)
-    /// failed or the process ends before the run stops: on a second termination signal, when the
-    /// console closes or Windows logs off or shuts down (see [`run`](crate::run)), or when the
-    /// connection to the X server is lost. With a window, the window and the GPU still exist, but for
-    /// a GPU lost that no new one replaced after [`gpu_lost`](Self::gpu_lost); an application that
-    /// keeps a clone of the window should drop it here.
-    fn shutdown(&mut self, ctx: &mut Context) {
-        let _ = ctx;
-    }
-}
-
-/// How [`run`] runs an application.
+/// How [`run`] runs a game.
 ///
 /// The fields are public so that a configuration is written as a struct literal, starting from
 /// the defaults:
@@ -146,10 +33,11 @@ pub struct AppConfig {
     /// The window to open, or `None` to run headless. Default: `None`, so that the default
     /// configuration runs anywhere, including on machines without a display.
     pub window: Option<WindowConfig>,
-    /// Stop after this many frames. `None`, the default, runs until the application requests an
-    /// exit or, with a window, until the window is closed.
+    /// Stop after this many frames. `None`, the default, runs until the game requests an exit or,
+    /// with a window, until the window is closed.
     pub frame_limit: Option<u64>,
-    /// The duration of one fixed step. Default: 1/60 s, rounded to 16 666 667 ns.
+    /// The duration of one fixed step of game time, at every speed. Default: 1/60 s, rounded to
+    /// 16 666 667 ns.
     pub fixed_step: Duration,
     /// The largest number of fixed steps run in one frame; the rest is dropped. Default: 8.
     pub max_fixed_steps_per_frame: u32,
@@ -161,14 +49,14 @@ pub struct AppConfig {
     /// example while the window is being resized, and with [`PresentMode::Fifo`] the display can
     /// slow them down. Headless runs ignore it. Default: 60.
     pub max_frame_rate: u32,
-    /// With a window, how it shows the images drawn by [`App::render`]. Headless runs ignore it.
-    /// Default: [`PresentMode::Mailbox`], which never makes a frame wait for the display, and is
-    /// replaced by [`PresentMode::Fifo`] on windows that do not offer it.
+    /// With a window, how it shows the images drawn by [`Presentation::render`]. Headless runs
+    /// ignore it. Default: [`PresentMode::Mailbox`], which never makes a frame wait for the
+    /// display, and is replaced by [`PresentMode::Fifo`] on windows that do not offer it.
     pub present_mode: PresentMode,
     /// With a window, whether the run opens a new GPU device when it loses its own, and lets the
-    /// application create its GPU objects again ([`App::gpu_restored`]), rather than stopping
-    /// (ADR-0075). Headless runs ignore it: they open no GPU. Default: `false`, so that an
-    /// application that does not create its objects again stops cleanly, with
+    /// presentation create its GPU objects again ([`Presentation::gpu_restored`]), rather than
+    /// stopping (ADR-0075). Headless runs ignore it: they open no GPU. Default: `false`, so that a
+    /// game that does not create its objects again stops cleanly, with
     /// [`GfxError::DeviceLost`](slime_gfx::GfxError::DeviceLost).
     pub restore_lost_device: bool,
 }
@@ -188,216 +76,64 @@ impl Default for AppConfig {
     }
 }
 
-/// What an application can ask from the engine while it runs. Each [`App`] method receives it.
-#[derive(Debug, Default)]
-pub struct Context {
-    window: Option<Window>,
-    gpu: Option<Gpu>,
-    surface_format: Option<TextureFormat>,
-    exit: Option<ExitReason>,
-    /// The error passed to `exit_with_error`, which `run` returns.
-    error: Option<AppError>,
-    fixed_step_alpha: f64,
-    world: World,
-}
-
-impl Context {
-    /// Asks the engine to stop. The current frame finishes, then [`App::shutdown`] is called and
-    /// [`run`] returns. Asking more than once has no further effect.
-    pub fn request_exit(&mut self) {
-        self.exit_because(ExitReason::Requested);
-    }
-
-    /// Stops the run because of `error`, which [`run`] then returns as [`RunError::App`]: this is
-    /// how an application fails in a method that returns no error. The run stops as after
-    /// [`request_exit`](Self::request_exit): the current frame finishes, then [`App::shutdown`]
-    /// is called. `shutdown` can call it too, and so fail a run that stopped for another reason.
-    ///
-    /// Only the first error is returned; a later one is logged as an error. When the GPU device or
-    /// the window's surface is lost as well, `run` returns the application's error, and the loss is
-    /// in the log, where the engine writes it when it happens; but for an error that the loss
-    /// causes.
-    ///
-    /// An error that is, or is caused by, the loss of the GPU device ([`GfxError::DeviceLost`]),
-    /// once the device of [`Context::gpu`] is lost, does not stop the run: the loss is the run's to
-    /// handle, as when the engine finds it. It opens a new device, as
-    /// [`AppConfig::restore_lost_device`] asks, or stops with [`RunError::Gfx`]. The error is
-    /// logged at the `debug` level. An error that hides its cause, a message made of it, cannot be
-    /// told from another one: it stops the run.
-    pub fn exit_with_error(&mut self, error: impl Into<AppError>) {
-        let error = error.into();
-        if self.gpu().is_some_and(|gpu| gpu.check().is_err()) && is_device_lost(&*error) {
-            tracing::debug!(
-                "the application met the loss of the GPU device, which the run handles: {error}"
-            );
-            return;
-        }
-        if self.error.is_some() {
-            tracing::error!("the application failed again: {error}");
-        } else {
-            self.error = Some(error);
-        }
-        self.exit_because(ExitReason::Failed);
-    }
-
-    /// Whether the run is going to stop: the application requested an exit, the window was closed,
-    /// the process received a termination signal, the GPU device was lost and not replaced
-    /// ([`AppConfig::restore_lost_device`]), or the window's surface was lost for good.
-    ///
-    /// A termination signal shows here as soon as it is received, even during [`App::init`] or in
-    /// the middle of a frame, so that a long loading or a long update that checks it can stop
-    /// early. The loss of the GPU device or of the surface is noticed only between frames.
-    pub fn exit_requested(&self) -> bool {
-        self.exit.is_some() || signal::received()
-    }
-
-    /// The fraction of a fixed step that the frames so far accumulated but did not run, at least
-    /// 0.0 and below 1.0: the interpolation factor, [`FixedStep::alpha`] of the run's fixed step.
-    ///
-    /// What moves during [`App::fixed_update`] is drawn this fraction of the way from its state
-    /// before the last step to its state after it, so that motion looks smooth when the frame rate
-    /// and the step rate differ: the world does so for the transforms of its entities
-    /// ([`World::interpolated_transform`]). The value is set once per
-    /// frame, after the frame's time is added and before its fixed steps run: it is the same in
-    /// that frame's `fixed_update`, [`App::update`] and [`App::render`], and 0.0 before the first
-    /// frame. Headless frames each represent one fixed step and read 0.0, unless the step is
-    /// longer than [`AppConfig::max_frame_delta`].
-    pub fn fixed_step_alpha(&self) -> f64 {
-        self.fixed_step_alpha
-    }
-
-    /// The game's world: its entities, their components and their hierarchy
-    /// (`docs/adr/0084-what-the-world-draws.md`), empty when the run starts, headless runs
-    /// included; a game that built its world before the run gives it in [`App::init`], through
-    /// [`Context::world_mut`]. The engine tells it before and after each [`App::fixed_update`]
-    /// ([`World::begin_fixed_step`], [`World::end_fixed_step`]), so that what moves during a step
-    /// is drawn between its two transforms; a change made outside a step is drawn at once. It
-    /// computes the world's transforms after [`App::update`] ([`World::update_transforms`]), so that
-    /// [`App::render`] reads them at the cost of a lookup.
-    pub fn world(&self) -> &World {
-        &self.world
-    }
-
-    /// The game's world, to change: as [`Context::world`].
-    pub fn world_mut(&mut self) -> &mut World {
-        &mut self.world
-    }
-
-    /// The window of the application, or `None` when it runs headless.
-    pub fn window(&self) -> Option<&Window> {
-        self.window.as_ref()
-    }
-
-    /// The GPU that draws into the window, or `None` when the application runs headless: headless
-    /// runs open no GPU. An application that needs one there opens its own with [`Gpu::new`].
-    pub fn gpu(&self) -> Option<&Gpu> {
-        self.gpu.as_ref()
-    }
-
-    /// The format of the window's images, which [`App::render`] draws into, or `None` when the
-    /// application runs headless. Pipelines that draw into the window are created for it.
-    pub fn surface_format(&self) -> Option<TextureFormat> {
-        self.surface_format
-    }
-
-    pub(crate) fn set_window(&mut self, window: Option<Window>) {
-        self.window = window;
-    }
-
-    pub(crate) fn set_gpu(&mut self, gpu: Option<Gpu>, surface_format: Option<TextureFormat>) {
-        self.gpu = gpu;
-        self.surface_format = surface_format;
-    }
-
-    /// Takes the GPU out, with the format of the window's images.
-    pub(crate) fn take_gpu(&mut self) -> Option<Gpu> {
-        self.surface_format = None;
-        self.gpu.take()
-    }
-
-    /// The error passed to `exit_with_error`, if there is one.
-    pub(crate) fn take_error(&mut self) -> Option<AppError> {
-        self.error.take()
-    }
-
-    /// Records why the run stops; the first reason is kept.
-    pub(crate) fn exit_because(&mut self, reason: ExitReason) {
-        self.exit.get_or_insert(reason);
-    }
-}
-
-/// Whether `error`, or one of its causes, is the loss of a GPU device.
-fn is_device_lost(error: &(dyn std::error::Error + 'static)) -> bool {
-    std::iter::successors(Some(error), |error| error.source()).any(|error| {
-        matches!(
-            error.downcast_ref::<GfxError>(),
-            Some(GfxError::DeviceLost { .. })
-        )
-    })
-}
-
-/// Why a run stops before reaching its frame limit.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ExitReason {
-    Requested,
-    WindowClosed,
-    Signal,
-    DeviceLost,
-    SurfaceLost,
-    Failed,
-}
-
-/// Runs `app` until it stops, then returns.
+/// Runs a game, its `simulation` and its `presentation`, until it stops, then returns: the host of
+/// a game's program (`docs/adr/0107-the-execution-model.md`), which drives a [`Host`] with the
+/// window's events and draws its frames. A program with no rules passes `&mut ()` as its
+/// simulation, and one that shows nothing `&mut ()` as its presentation.
 ///
-/// It first calls [`init_diagnostics`], so logging works from the first line of `init`, and
-/// installs a handler for termination signals. It then calls [`App::init`], runs frames until the
-/// application requests an exit, the window is closed, the process receives a termination signal
-/// or [`AppConfig::frame_limit`] is reached, and calls [`App::shutdown`]. An exit requested during
-/// `init` runs no frame; an error returned by `init` runs no frame and no `shutdown`.
+/// It first calls [`init_diagnostics`], so logging works from the first line of a `start`, and
+/// installs a handler for termination signals. It then calls [`Simulation::start`] and, with a
+/// window, [`Presentation::start`], runs frames until the game requests an exit, the window is
+/// closed, the process receives a termination signal or [`AppConfig::frame_limit`] is reached,
+/// and calls [`Presentation::stop`] then [`Simulation::stop`]. An exit requested during a `start`
+/// runs no frame; an error returned by a `start` runs no frame and no `stop`.
 ///
 /// Termination signals are SIGINT (Ctrl+C in a terminal), SIGTERM (a service manager stopping the
 /// process) and SIGHUP (the terminal closing). The first one stops the run cleanly, like an exit
 /// request; a second one, half a second or more after the first, ends the process at once with exit
-/// code 130, for an application that no longer finishes its frames, while one that comes sooner, as
-/// when a closing terminal sends SIGHUP twice, is ignored. A signal received once stops every later
-/// run in the process too. The handler stays installed after `run` returns, and a signal then no
-/// longer ends the process by itself: if none was received yet, the first one only stops later
-/// runs; the next one, half a second or more later, ends the process with exit code 130. The
-/// handler replaces whatever the process had set for these signals, including another library's
-/// handlers and an inherited "ignore" (as under `nohup`). The only exception is a handler installed
-/// earlier through the `ctrlc` crate, for example by the game: it is kept, and signals then do not
-/// stop runs cleanly.
+/// code 130, for a game that no longer finishes its frames, while one that comes sooner, as when a
+/// closing terminal sends SIGHUP twice, is ignored. A signal received once stops every later run in
+/// the process too. The handler stays installed after `run` returns, and a signal then no longer
+/// ends the process by itself: if none was received yet, the first one only stops later runs; the
+/// next one, half a second or more later, ends the process with exit code 130. The handler
+/// replaces whatever the process had set for these signals, including another library's handlers
+/// and an inherited "ignore" (as under `nohup`). The only exception is a handler installed earlier
+/// through the `ctrlc` crate, for example by the game: it is kept, and signals then do not stop
+/// runs cleanly.
 ///
 /// On Windows, Ctrl+C and Ctrl+Break in a console stop the run the same way. Closing the console
-/// window ends the process at once, without `shutdown`. Logging off and shutting down end it
-/// without `shutdown` too: Windows tells a window of them with messages that the windowing library
+/// window ends the process at once, without the `stop` methods. Logging off and shutting down end
+/// it without them too: Windows tells a window of them with messages that the windowing library
 /// does not report.
 ///
 /// - **Headless** ([`AppConfig::window`] is `None`): frames run back to back, as fast as the
 ///   machine allows, with simulated time: each frame represents exactly one fixed step, so it runs
-///   exactly one fixed step, and every run gives the same times (as long as the fixed step is not
-///   longer than the maximum frame delta, which would limit it). The windowing system is never
-///   touched.
-/// - **With a window**: the window and the GPU that draws into it are opened before `init`.
-///   Frames represent the real time measured between them. The engine asks for a frame on
-///   average at most [`AppConfig::max_frame_rate`] times per second, and a frame runs each time
+///   exactly one fixed step at a speed of 1, and every run gives the same times (as long as the
+///   fixed step is not longer than the maximum frame delta, which would limit it). The windowing
+///   system is never touched, and the presentation never called.
+/// - **With a window**: the window and the GPU that draws into it are opened before the `start`
+///   methods. Frames represent the real time measured between them. The engine asks for a frame
+///   on average at most [`AppConfig::max_frame_rate`] times per second, and a frame runs each time
 ///   the windowing system lets the window draw: when the engine asked, and when the system asks
-///   on its own, for example while the window is being resized. Each frame ends with
-///   [`App::render`], whose image the engine then shows as [`AppConfig::present_mode`] says.
-///   Between frames, the loop sleeps until the next frame is due or an event arrives, and each
-///   event is passed to [`App::on_event`].
+///   on its own, for example while the window is being resized. Each frame runs the host's phases
+///   ([`Host::frame`]), then [`Presentation::extract`] and, when the window can show a new image,
+///   [`Presentation::render`], whose image the engine then shows as [`AppConfig::present_mode`]
+///   says. Between frames, the loop sleeps until the next frame is due
+///   or an event arrives; each event is passed to [`Presentation::on_event`], then to the host's
+///   input.
 ///
 /// Each frame is recorded as a `trace`-level profiling span named `frame`, containing one
-/// `fixed_update` span per fixed step, one `update` span and, with a window, an `acquire` span
-/// and, when the frame is drawn, a `render` span (containing `submit`, recorded by `slime-gfx`)
-/// and a `present` span.
+/// `fixed_step` span per fixed step, one `update` span and, with a window, an `extract` span, an
+/// `acquire` span and, when the frame is drawn, a `render` span (containing `submit`, recorded by
+/// `slime-gfx`) and a `present` span.
 ///
 /// # Errors
 ///
-/// - [`RunError::Init`] if [`App::init`] returns an error.
-/// - [`RunError::App`] if the application passed an error to [`Context::exit_with_error`], from
-///   any method; it is returned even when the GPU device or the window's surface was lost too, but
-///   for an error that the device's loss causes, which the run handles as its own loss.
+/// - [`RunError::Init`] if a `start` returns an error.
+/// - [`RunError::App`] if the game passed an error to [`Context::exit_with_error`] or
+///   [`SimulationContext::exit_with_error`](crate::SimulationContext::exit_with_error), from any
+///   method; it is returned even when the GPU device or the window's surface was lost too, but for
+///   an error that the device's loss causes, which the run handles as its own loss.
 /// - With a window, [`RunError::Platform`]: no windowing system can be reached, the window cannot
 ///   be created, a windowed run was already attempted in this process (the windowing library
 ///   allows one attempt per process, even a failed one), or the event loop fails.
@@ -406,16 +142,17 @@ pub(crate) enum ExitReason {
 ///   or it ran out of memory), or the window's surface was lost for good (`GfxError::SurfaceLost`:
 ///   it could not be created again after a loss, or was lost again each time). After a loss, the
 ///   run stops like after an exit request: the frame in progress finishes, without drawing, and
-///   `shutdown` is called. An application that sets [`AppConfig::restore_lost_device`] goes on
-///   with a new device instead ([`App::gpu_lost`], [`App::gpu_restored`]): its run returns
-///   `GfxError::DeviceLost` at a loss that comes after three new devices within five minutes, and
-///   `GfxError::CannotRestore`, or the error of opening a device, when none replaces the lost one.
+///   the `stop` methods are called. A game that sets [`AppConfig::restore_lost_device`] goes on
+///   with a new device instead ([`Presentation::gpu_lost`], [`Presentation::gpu_restored`]): its
+///   run returns `GfxError::DeviceLost` at a loss that comes after three new devices within five
+///   minutes, and `GfxError::CannotRestore`, or the error of opening a device, when none replaces
+///   the lost one.
 ///
-/// When the window or the GPU could not be opened, neither `init` nor `shutdown` is called.
-/// Headless runs fail only when the application does. A failed run is logged at the `error` level, with
-/// the message of each of the error's causes in turn, as [`error_chain`] gives them (`the run
-/// failed: cannot draw into the window: no GPU adapter is available: ...`), so that a caller only
-/// has to exit with a failure.
+/// When the window or the GPU could not be opened, neither `start` nor `stop` is called. Headless
+/// runs fail only when the game does. A failed run is logged at the `error` level, with the message
+/// of each of the error's causes in turn, as [`error_chain`] gives them (`the run failed: cannot
+/// draw into the window: no GPU adapter is available: ...`), so that a caller only has to exit with
+/// a failure.
 ///
 /// # Panics
 ///
@@ -425,12 +162,16 @@ pub(crate) enum ExitReason {
 /// called from the main thread. On Linux, also when the windowing library cannot load
 /// libxkbcommon, or libxkbcommon-x11 on X11 (see [`slime_platform::run_event_loop`]); on
 /// Wayland, this can happen during the run, when a keyboard first appears.
-pub fn run(app: &mut impl App, config: &AppConfig) -> Result<(), RunError> {
+pub fn run(
+    simulation: &mut impl Simulation,
+    presentation: &mut impl Presentation,
+    config: &AppConfig,
+) -> Result<(), RunError> {
     init_diagnostics();
     signal::install_handler();
     let result = match &config.window {
-        None => run_headless(app, config),
-        Some(window) => run_windowed(app, config, window),
+        None => run_headless(simulation, config),
+        Some(window) => run_windowed(simulation, presentation, config, window),
     };
     if let Err(error) = &result {
         tracing::error!("the run failed: {}", error_chain(error));
@@ -438,28 +179,27 @@ pub fn run(app: &mut impl App, config: &AppConfig) -> Result<(), RunError> {
     result
 }
 
-fn run_headless(app: &mut impl App, config: &AppConfig) -> Result<(), RunError> {
+fn run_headless(simulation: &mut impl Simulation, config: &AppConfig) -> Result<(), RunError> {
     let mut frames = Frames::new(config);
-    let mut ctx = Context::default();
+    let mut host = Host::new(config);
 
     tracing::debug!(?config, "running headless");
-    app.init(&mut ctx).map_err(RunError::Init)?;
+    host.start(simulation).map_err(RunError::Init)?;
     let reason = loop {
-        if let Some(reason) = frames.check_stop(&mut ctx, None, false) {
+        if let Some(reason) = frames.check_stop(&mut host.context, None, false) {
             break reason;
         }
-        frames.run_one(app, &mut ctx, config.fixed_step, None);
+        frames.run_one(&mut host, simulation, &mut (), config.fixed_step, None);
     };
     tracing::info!(frames = frames.count(), "stopping: {reason}");
-    app.shutdown(&mut ctx);
-    ctx.take_error()
+    host.stop(simulation);
+    host.context
+        .take_error()
         .map_or(Ok(()), |error| Err(RunError::App(error)))
 }
 
-/// The frame logic shared by every driver: timing, fixed steps, update, drawing, and when to stop.
+/// The frame logic shared by every driver: the frames counted, drawing, and when to stop.
 pub(crate) struct Frames {
-    clock: FrameClock,
-    fixed: FixedStep,
     count: u64,
     limit: Option<u64>,
 }
@@ -467,8 +207,6 @@ pub(crate) struct Frames {
 impl Frames {
     pub(crate) fn new(config: &AppConfig) -> Self {
         Self {
-            clock: FrameClock::new(config.max_frame_delta),
-            fixed: FixedStep::new(config.fixed_step, config.max_fixed_steps_per_frame),
             count: 0,
             limit: config.frame_limit,
         }
@@ -482,8 +220,8 @@ impl Frames {
     /// Why no further frame must run, if that is the case. A termination signal received since the
     /// last check, or the loss of the GPU or of the window's `surface`, is recorded in `ctx` first,
     /// as the reason the run stops; not the loss of the GPU when the run can still replace it, as
-    /// `restorable` says, which it does before the next frame. From then on, the application also
-    /// sees a loss as an exit request; it sees a signal as one as soon as it arrives
+    /// `restorable` says, which it does before the next frame. From then on, the game also sees a
+    /// loss as an exit request; it sees a signal as one as soon as it arrives
     /// (`Context::exit_requested`).
     pub(crate) fn check_stop(
         &self,
@@ -500,7 +238,7 @@ impl Frames {
         if surface.is_some_and(|surface| surface.check().is_err()) {
             ctx.exit_because(ExitReason::SurfaceLost);
         }
-        match ctx.exit {
+        match ctx.exit_reason() {
             Some(ExitReason::Requested) => Some("the application requested an exit"),
             Some(ExitReason::WindowClosed) => Some("the window was closed"),
             Some(ExitReason::Signal) => Some("a termination signal was received"),
@@ -514,42 +252,38 @@ impl Frames {
         }
     }
 
-    /// Runs one frame that represents `raw_delta` of time, and draws it into `surface` when there
-    /// is one and it can show a new image.
+    /// Runs one frame that represents `raw_delta` of time: the host's phases, then, with a
+    /// window's `surface`, the presentation's extraction and, when the surface can show a new
+    /// image, its rendering into it.
     pub(crate) fn run_one(
         &mut self,
-        app: &mut impl App,
-        ctx: &mut Context,
+        host: &mut Host,
+        simulation: &mut impl Simulation,
+        presentation: &mut impl Presentation,
         raw_delta: Duration,
         surface: Option<&mut Surface>,
     ) {
-        let frame = self.clock.advance(raw_delta);
-        let _frame_span = tracing::trace_span!("frame", index = frame.index()).entered();
-        let steps = self.fixed.advance(frame.delta());
-        ctx.fixed_step_alpha = self.fixed.alpha();
-        for _ in 0..steps {
-            let _span = tracing::trace_span!("fixed_update").entered();
-            ctx.world.begin_fixed_step();
-            app.fixed_update(ctx, self.fixed.step());
-            ctx.world.end_fixed_step();
-        }
-        {
-            let _span = tracing::trace_span!("update").entered();
-            app.update(ctx, &frame);
-            // So that `render` reads the transforms that `update` changed at the cost of a lookup.
-            ctx.world.update_transforms();
-        }
-        let image = surface.and_then(|surface| {
-            let _span = tracing::trace_span!("acquire").entered();
-            surface.acquire(&format!("window, frame {}", frame.index()))
-        });
-        if let Some(image) = image {
+        // The host's clock numbers its frames as this count does: one each.
+        let index = self.count;
+        let _frame_span = tracing::trace_span!("frame", index).entered();
+        host.frame(simulation, raw_delta);
+        if let Some(surface) = surface {
             {
-                let _span = tracing::trace_span!("render").entered();
-                app.render(ctx, image.target());
+                let _span = tracing::trace_span!("extract").entered();
+                presentation.extract(&mut host.context, &host.world);
             }
-            let _span = tracing::trace_span!("present").entered();
-            image.present();
+            let image = {
+                let _span = tracing::trace_span!("acquire").entered();
+                surface.acquire(&format!("window, frame {index}"))
+            };
+            if let Some(image) = image {
+                {
+                    let _span = tracing::trace_span!("render").entered();
+                    presentation.render(&mut host.context, image.target());
+                }
+                let _span = tracing::trace_span!("present").entered();
+                image.present();
+            }
         }
         self.count += 1;
     }

@@ -6,8 +6,10 @@ use std::time::{Duration, Instant};
 use slime_gfx::{Gpu, PresentMode, Surface};
 use slime_platform::{Event, EventHandler, LoopControl, Window, WindowConfig};
 
-use crate::app::{App, AppConfig, Context, ExitReason, Frames};
+use crate::app::{AppConfig, Frames};
 use crate::error::RunError;
+use crate::game::{Presentation, Simulation};
+use crate::host::{ExitReason, Host};
 
 /// How many devices the run opens to replace lost ones within `RESTORE_WINDOW`: at the next loss
 /// within it, it gives up, since a device lost again at once, or soon after each new one, will not
@@ -17,7 +19,8 @@ const MAX_RESTORES: usize = 3;
 const RESTORE_WINDOW: Duration = Duration::from_secs(5 * 60);
 
 pub(crate) fn run_windowed(
-    app: &mut impl App,
+    simulation: &mut impl Simulation,
+    presentation: &mut impl Presentation,
     config: &AppConfig,
     window: &WindowConfig,
 ) -> Result<(), RunError> {
@@ -27,8 +30,9 @@ pub(crate) fn run_windowed(
     );
     let now = Instant::now();
     let mut driver = WindowedDriver {
-        app,
-        ctx: Context::default(),
+        simulation,
+        presentation,
+        host: Host::new(config),
         frames: Frames::new(config),
         surface: None,
         present_mode: config.present_mode,
@@ -46,11 +50,12 @@ pub(crate) fn run_windowed(
     driver.error.map_or(Ok(()), Err)
 }
 
-struct WindowedDriver<'a, A> {
-    app: &'a mut A,
-    ctx: Context,
+struct WindowedDriver<'a, S, P> {
+    simulation: &'a mut S,
+    presentation: &'a mut P,
+    host: Host,
     frames: Frames,
-    /// The window's surface; the GPU that draws into it is in `ctx`.
+    /// The window's surface; the GPU that draws into it is in the host's context.
     surface: Option<Surface>,
     present_mode: PresentMode,
     /// Whether a lost device is replaced (`AppConfig::restore_lost_device`); cleared when the run
@@ -63,7 +68,7 @@ struct WindowedDriver<'a, A> {
     last_frame: Instant,
     /// When the next frame is due.
     next_frame: Instant,
-    /// Whether `App::init` succeeded, which makes `App::shutdown` due at the end.
+    /// Whether both `start` methods succeeded, which makes both `stop` methods due at the end.
     started: bool,
     /// Why the loop is ending, once it has been decided.
     stop: Option<&'static str>,
@@ -71,29 +76,33 @@ struct WindowedDriver<'a, A> {
     error: Option<RunError>,
 }
 
-impl<A: App> WindowedDriver<'_, A> {
-    /// Opens the GPU for the window, then initializes the application.
+impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
+    /// Opens the GPU for the window, then starts the simulation and the presentation.
     fn start(&mut self, window: &Window) -> Result<(), RunError> {
         let size = window.inner_size();
         let (gpu, surface) =
             Gpu::new_for_window(window.clone(), size.width, size.height, self.present_mode)?;
-        self.ctx.set_gpu(Some(gpu), Some(surface.format()));
+        self.host.context.set_gpu(Some(gpu), Some(surface.format()));
         self.surface = Some(surface);
-        self.app.init(&mut self.ctx).map_err(RunError::Init)
+        self.host.start(self.simulation).map_err(RunError::Init)?;
+        let host = &mut self.host;
+        self.presentation
+            .start(&mut host.context, &host.world)
+            .map_err(RunError::Init)
     }
 
-    /// When the GPU device is lost and the application chose to replace it, lets the application
-    /// drop its objects of the lost device (`App::gpu_lost`), releases the run's own, opens a new
-    /// device for the window and lets the application create its objects again
-    /// (`App::gpu_restored`), between frames. Does nothing when the run is stopping anyway, or the
-    /// window's surface was lost for good. Gives up, leaving the loss to stop the run, once
-    /// `MAX_RESTORES` devices were opened within `RESTORE_WINDOW`; and when no device opens, stops
-    /// the run with that error.
+    /// When the GPU device is lost and the game chose to replace it, lets the presentation drop its
+    /// objects of the lost device (`Presentation::gpu_lost`), releases the run's own, opens a new
+    /// device for the window and lets the presentation create its objects again
+    /// (`Presentation::gpu_restored`), between frames. Does nothing when the run is stopping
+    /// anyway, or the window's surface was lost for good. Gives up, leaving the loss to stop the
+    /// run, once `MAX_RESTORES` devices were opened within `RESTORE_WINDOW`; and when no device
+    /// opens, stops the run with that error.
     fn restore(&mut self) {
-        if !self.restore_lost_device || self.stop.is_some() || self.ctx.exit_requested() {
+        if !self.restore_lost_device || self.stop.is_some() || self.host.context.exit_requested() {
             return;
         }
-        let Some(Err(loss)) = self.ctx.gpu().map(Gpu::check) else {
+        let Some(Err(loss)) = self.host.context.gpu().map(Gpu::check) else {
             return;
         };
         if !self
@@ -118,19 +127,27 @@ impl<A: App> WindowedDriver<'_, A> {
         }
         // Nothing may hold the lost device when the new one opens: Direct3D 12 would not open it on
         // the same adapter (ADR-0075). The application drops its objects, then the run its own.
-        self.app.gpu_lost(&mut self.ctx);
-        let lost = self.ctx.take_gpu().expect("the device that was found lost");
+        self.presentation.gpu_lost(&mut self.host.context);
+        let lost = self
+            .host
+            .context
+            .take_gpu()
+            .expect("the device that was found lost");
         let surface = self.surface.take().expect("checked above");
         match surface.restore(lost) {
             Ok((gpu, surface)) => {
                 self.restores.push(now);
                 tracing::warn!(%loss, "the GPU device was lost; a new one replaces it");
-                self.ctx.set_gpu(Some(gpu), Some(surface.format()));
+                let host = &mut self.host;
+                host.context.set_gpu(Some(gpu), Some(surface.format()));
                 self.surface = Some(surface);
                 // A loss of the new device that it returns is handled as any other
                 // (`Context::exit_with_error`).
-                if let Err(error) = self.app.gpu_restored(&mut self.ctx) {
-                    self.ctx.exit_with_error(error);
+                if let Err(error) = self
+                    .presentation
+                    .gpu_restored(&mut host.context, &host.world)
+                {
+                    host.context.exit_with_error(error);
                 }
             }
             Err(error) => {
@@ -138,15 +155,15 @@ impl<A: App> WindowedDriver<'_, A> {
                 tracing::error!(%error, "no new GPU device replaces the lost one");
                 self.error.get_or_insert(RunError::Gfx(error));
                 self.restore_lost_device = false;
-                self.ctx.exit_because(ExitReason::DeviceLost);
+                self.host.context.exit_because(ExitReason::DeviceLost);
             }
         }
     }
 }
 
-impl<A: App> EventHandler for WindowedDriver<'_, A> {
+impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
     fn window_created(&mut self, window: &Window) {
-        self.ctx.set_window(Some(window.clone()));
+        self.host.context.set_window(Some(window.clone()));
         match self.start(window) {
             Ok(()) => {
                 self.started = true;
@@ -169,9 +186,10 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
         if let (Event::Resized(size), Some(surface)) = (&event, &mut self.surface) {
             surface.resize(size.width, size.height);
         }
-        self.app.on_event(&mut self.ctx, &event);
+        let taken = self.presentation.on_event(&mut self.host.context, &event);
+        self.host.input_mut().handle(&event, taken);
         if event == Event::CloseRequested {
-            self.ctx.exit_because(ExitReason::WindowClosed);
+            self.host.context.exit_because(ExitReason::WindowClosed);
         }
     }
 
@@ -184,7 +202,7 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
             || self
                 .frames
                 .check_stop(
-                    &mut self.ctx,
+                    &mut self.host.context,
                     self.surface.as_ref(),
                     self.restore_lost_device,
                 )
@@ -194,8 +212,9 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
         }
         let now = Instant::now();
         self.frames.run_one(
-            self.app,
-            &mut self.ctx,
+            &mut self.host,
+            self.simulation,
+            self.presentation,
             now - self.last_frame,
             self.surface.as_mut(),
         );
@@ -209,7 +228,7 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
         }
         if self.stop.is_none() {
             self.stop = self.frames.check_stop(
-                &mut self.ctx,
+                &mut self.host.context,
                 self.surface.as_ref(),
                 self.restore_lost_device,
             );
@@ -223,7 +242,7 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
         }
         // The frame runs when the redraw arrives, which also wakes the loop. The deadline only
         // bounds the wait if it does not come, so that signals are still noticed.
-        if let Some(window) = self.ctx.window() {
+        if let Some(window) = self.host.context.window() {
             window.request_redraw();
         }
         LoopControl::WaitUntil(now + self.frame_period)
@@ -233,16 +252,17 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
         if self.started {
             let reason = self.stop.unwrap_or("the event loop ended");
             tracing::info!(frames = self.frames.count(), "stopping: {reason}");
-            self.app.shutdown(&mut self.ctx);
+            self.presentation.stop(&mut self.host.context);
+            self.host.stop(self.simulation);
         }
-        // The application's error comes first, before the error of a restore that failed; not
-        // before the error of `init`, which `run` returns rather than any later one.
-        if let Some(error) = self.ctx.take_error()
+        // The game's error comes first, before the error of a restore that failed; not before the
+        // error of a `start`, which `run` returns rather than any later one.
+        if let Some(error) = self.host.context.take_error()
             && !matches!(self.error, Some(RunError::Init(_)))
         {
             self.error = Some(RunError::App(error));
         }
-        if let Some(Err(error)) = self.ctx.gpu().map(Gpu::check) {
+        if let Some(Err(error)) = self.host.context.gpu().map(Gpu::check) {
             self.error.get_or_insert(RunError::Gfx(error));
         }
         if let Some(Err(error)) = self.surface.as_ref().map(Surface::check) {
@@ -251,8 +271,8 @@ impl<A: App> EventHandler for WindowedDriver<'_, A> {
         // The surface keeps the window alive: release it, the GPU and the window while the
         // connection to the windowing system is still open.
         self.surface = None;
-        self.ctx.set_gpu(None, None);
-        self.ctx.set_window(None);
+        self.host.context.set_gpu(None, None);
+        self.host.context.set_window(None);
     }
 }
 

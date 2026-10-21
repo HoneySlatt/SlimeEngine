@@ -1,6 +1,7 @@
-//! Frame timing: how much time each frame represents, and how many fixed steps it contains.
+//! Frame timing: how much time each frame represents, and how many fixed steps it contains; and
+//! the two times that a frame gives the phases that run in it, real time and game time ([`Time`]).
 //!
-//! Both types are fed durations instead of reading the system clock, so the code that drives
+//! The clocks are fed durations instead of reading the system clock, so the code that drives
 //! them decides what time is: real time measured between frames, or a simulated, constant
 //! duration that makes a run deterministic. Durations are kept as [`Duration`]s, whole
 //! nanoseconds, so accumulating them never drifts the way floating-point seconds do.
@@ -22,8 +23,89 @@
 
 use std::time::Duration;
 
+/// The two times of a frame (`docs/adr/0107-the-execution-model.md`): *real time*, the time between
+/// frames, which the camera, the UI and the dev overlay run on, and *game time*, the simulation's,
+/// which pauses, slows down and steps. Each phase of a frame is given both, and reads the one it
+/// lives on. Before the first frame, both are zero.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Time {
+    pub(crate) real: FrameTime,
+    pub(crate) game: GameTime,
+}
+
+impl Time {
+    /// Real time: the frame's index, the time it represents and the sum of those times.
+    pub fn real(&self) -> &FrameTime {
+        &self.real
+    }
+
+    /// Game time: the fixed steps run, the time the frame added and the fraction of a step left.
+    pub fn game(&self) -> &GameTime {
+        &self.game
+    }
+}
+
+/// The time of a game's simulation, at a point of a frame (`docs/adr/0107-the-execution-model.md`).
+///
+/// It advances by the frames' real time times a speed, 1 by default, and not while it is paused
+/// ([`Context::set_speed`](crate::Context::set_speed), [`Context::pause`](crate::Context::pause));
+/// the fixed steps that it holds keep their duration at every speed, so that a simulation gives the
+/// same results at every speed. At a quarter of the speed, at 60 frames per second with steps of
+/// 1/60 s, a step runs at every fourth frame, and what moves is drawn between its last two steps, a
+/// quarter of a step further at each frame ([`GameTime::alpha`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GameTime {
+    pub(crate) step: Duration,
+    pub(crate) steps: u64,
+    pub(crate) delta: Duration,
+    pub(crate) alpha: f64,
+}
+
+impl GameTime {
+    /// The duration of a fixed step, the same for the whole run
+    /// ([`AppConfig::fixed_step`](crate::AppConfig::fixed_step)).
+    pub fn step(&self) -> Duration {
+        self.step
+    }
+
+    /// The fixed steps that ran before this point of the frame: in a fixed step, those before it,
+    /// its index from 0; once the frame's steps ran, all of them.
+    pub fn steps(&self) -> u64 {
+        self.steps
+    }
+
+    /// The game time that the [`steps`](Self::steps) covered: that many steps, saturating at
+    /// [`Duration::MAX`].
+    pub fn elapsed(&self) -> Duration {
+        let nanos = self.step.as_nanos().saturating_mul(u128::from(self.steps));
+        match u64::try_from(nanos / 1_000_000_000) {
+            // Below a second: it fits.
+            Ok(seconds) => Duration::new(seconds, (nanos % 1_000_000_000) as u32),
+            Err(_) => Duration::MAX,
+        }
+    }
+
+    /// The game time that the frame added, which its fixed steps ran from with what earlier frames
+    /// left: its real time times the speed, rounded to the nanosecond; none while game time is
+    /// paused.
+    pub fn delta(&self) -> Duration {
+        self.delta
+    }
+
+    /// The fraction of a fixed step that game time accumulated but did not run, at least 0.0 and
+    /// below 1.0: the interpolation factor ([`FixedStep::alpha`]), at which the world draws what
+    /// moved during the last step, between where it was before and after it
+    /// (`slime_world::World::interpolated_transform`). It is set once per frame, after the frame's
+    /// time is added and before its fixed steps run, and reads the same in its steps, its update
+    /// and its extraction. While game time is paused, it stays as it was, a step asked for
+    /// included: each step moves what is drawn by one step.
+    pub fn alpha(&self) -> f64 {
+        self.alpha
+    }
+}
+
 /// Timing information about one frame, produced by [`FrameClock::advance`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FrameTime {
     index: u64,
     delta: Duration,
@@ -179,6 +261,83 @@ impl FixedStep {
     }
 }
 
+/// The clock of game time: the fixed steps it holds, its speed, whether it is paused, and the steps
+/// asked for while it is. The host counts the steps run ([`GameTime::steps`]).
+#[derive(Clone, Debug)]
+pub(crate) struct GameClock {
+    fixed: FixedStep,
+    speed: f64,
+    paused: bool,
+    /// The steps asked for while paused, which the next frames run.
+    asked: u32,
+}
+
+impl GameClock {
+    pub(crate) fn new(fixed: FixedStep) -> Self {
+        Self {
+            fixed,
+            speed: 1.0,
+            paused: false,
+            asked: 0,
+        }
+    }
+
+    /// The duration of a fixed step.
+    pub(crate) fn step(&self) -> Duration {
+        self.fixed.step()
+    }
+
+    pub(crate) fn speed(&self) -> f64 {
+        self.speed
+    }
+
+    /// Sets the speed, a finite number above zero.
+    pub(crate) fn set_speed(&mut self, speed: f64) {
+        assert!(
+            speed.is_finite() && speed > 0.0,
+            "the speed of game time is a finite number above zero, not {speed}: pausing stops it"
+        );
+        self.speed = speed;
+    }
+
+    pub(crate) fn paused(&self) -> bool {
+        self.paused
+    }
+
+    /// Pauses game time, or lets it run again, which drops the steps asked for and not run.
+    pub(crate) fn set_paused(&mut self, paused: bool) {
+        self.paused = paused;
+        if !paused {
+            self.asked = 0;
+        }
+    }
+
+    /// Asks for one step, which the next frame runs, while game time is paused; nothing otherwise.
+    pub(crate) fn ask_step(&mut self) {
+        if self.paused {
+            self.asked = self.asked.saturating_add(1);
+        }
+    }
+
+    /// Adds a frame of `real` time, and returns how many fixed steps to run in it, the game time it
+    /// added, and the fraction of a step accumulated and not run ([`GameTime::alpha`]). Paused, the
+    /// frame runs the steps asked for, at most as many as a frame runs, and the rest wait for the
+    /// next ones.
+    pub(crate) fn advance(&mut self, real: Duration) -> (u32, Duration, f64) {
+        let (steps, delta) = if self.paused {
+            let steps = self.asked.min(self.fixed.max_steps_per_frame());
+            self.asked -= steps;
+            (steps, Duration::ZERO)
+        } else {
+            // Exact for a speed of 1, a delta being far below the 2^53 nanoseconds that f64 holds.
+            let nanos = (real.as_nanos() as f64 * self.speed).round();
+            let delta = Duration::from_nanos(nanos as u64);
+            (self.fixed.advance(delta), delta)
+        };
+        (steps, delta, self.fixed.alpha())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -295,5 +454,94 @@ mod tests {
     #[should_panic(expected = "at least one fixed step")]
     fn fixed_step_rejects_zero_steps_per_frame() {
         FixedStep::new(MS, 0);
+    }
+
+    /// A clock of steps of 10 ms, as long as the frames of [`run`].
+    fn clock() -> GameClock {
+        GameClock::new(FixedStep::new(10 * MS, 8))
+    }
+
+    /// Runs `frames` frames of 10 ms: how many steps each ran, and its fraction of a step.
+    fn run(clock: &mut GameClock, frames: usize) -> Vec<(u32, f64)> {
+        (0..frames)
+            .map(|_| {
+                let (steps, _, alpha) = clock.advance(10 * MS);
+                (steps, alpha)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn at_a_quarter_of_the_speed_a_step_runs_at_every_fourth_frame() {
+        let step = Duration::from_nanos(16_666_667);
+        let mut clock = GameClock::new(FixedStep::new(step, 8));
+        clock.set_speed(0.25);
+        let frames: Vec<(u32, f64)> = (0..12)
+            .map(|_| {
+                let (steps, _, alpha) = clock.advance(step);
+                (steps, alpha)
+            })
+            .collect();
+        let steps: Vec<u32> = frames.iter().map(|&(steps, _)| steps).collect();
+        assert_eq!(steps, [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]);
+        // A quarter of a step further at each frame, but for the nanosecond that rounding adds.
+        for (frame, &(_, alpha)) in frames.iter().enumerate() {
+            let expected = ((frame + 1) % 4) as f64 / 4.0;
+            assert!((alpha - expected).abs() < 1e-6, "{frame}: {alpha}");
+        }
+    }
+
+    #[test]
+    fn paused_no_step_runs_and_a_step_asked_for_runs_exactly_one() {
+        let mut clock = clock();
+        clock.set_speed(0.5);
+        run(&mut clock, 1);
+        clock.set_paused(true);
+        assert_eq!(
+            run(&mut clock, 3),
+            [(0, 0.5); 3],
+            "nothing runs, alpha stays"
+        );
+        clock.ask_step();
+        assert_eq!(run(&mut clock, 2), [(1, 0.5), (0, 0.5)]);
+        // Running again, at the speed it had.
+        clock.set_paused(false);
+        assert_eq!(run(&mut clock, 1), [(1, 0.0)]);
+    }
+
+    #[test]
+    fn a_step_asked_for_while_game_time_runs_changes_nothing() {
+        let mut clock = clock();
+        clock.ask_step();
+        assert_eq!(run(&mut clock, 2), [(1, 0.0); 2]);
+        clock.set_paused(true);
+        clock.ask_step();
+        clock.ask_step();
+        // Dropped when game time runs again.
+        clock.set_paused(false);
+        clock.set_paused(true);
+        assert_eq!(run(&mut clock, 1), [(0, 0.0)]);
+    }
+
+    #[test]
+    fn game_time_counts_the_steps_it_ran() {
+        let time = GameTime {
+            step: 10 * MS,
+            steps: 250,
+            ..GameTime::default()
+        };
+        assert_eq!(time.elapsed(), 2500 * MS);
+        let longest = GameTime {
+            step: Duration::MAX,
+            steps: u64::MAX,
+            ..GameTime::default()
+        };
+        assert_eq!(longest.elapsed(), Duration::MAX);
+    }
+
+    #[test]
+    #[should_panic(expected = "speed of game time")]
+    fn a_speed_of_zero_is_refused() {
+        clock().set_speed(0.0);
     }
 }

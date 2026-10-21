@@ -209,8 +209,8 @@ fn a_panic_payload_that_is_not_a_string_is_logged() {
 #[test]
 fn a_failed_run_is_logged_with_every_cause() {
     if is_child() {
-        /// An application whose `init` fails with an error that has a cause of its own.
-        struct FailingInit;
+        /// A game whose `start` fails with an error that has a cause of its own.
+        struct FailingStart;
 
         #[derive(Debug)]
         struct Missing;
@@ -238,13 +238,18 @@ fn a_failed_run_is_logged_with_every_cause() {
             }
         }
 
-        impl slime_app::App for FailingInit {
-            fn init(&mut self, _ctx: &mut slime_app::Context) -> Result<(), slime_app::AppError> {
+        impl slime_app::Simulation for FailingStart {
+            fn start(
+                &mut self,
+                _ctx: &mut slime_app::SimulationContext<'_>,
+                _world: &mut slime_world::World,
+            ) -> Result<(), slime_app::AppError> {
                 Err(Box::new(CannotLoad(Missing)))
             }
         }
 
-        let result = slime_app::run(&mut FailingInit, &slime_app::AppConfig::default());
+        let config = slime_app::AppConfig::default();
+        let result = slime_app::run(&mut FailingStart, &mut (), &config);
         assert!(result.is_err());
         return;
     }
@@ -266,12 +271,12 @@ fn a_trace_of_the_spans_is_written_when_asked_for() {
     let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("diagnostics-trace.json");
     if is_child() {
         struct Quiet;
-        impl slime_app::App for Quiet {}
+        impl slime_app::Simulation for Quiet {}
         let config = slime_app::AppConfig {
             frame_limit: Some(FRAMES),
             ..slime_app::AppConfig::default()
         };
-        slime_app::run(&mut Quiet, &config).expect("a headless run succeeds");
+        slime_app::run(&mut Quiet, &mut (), &config).expect("a headless run succeeds");
         return;
     }
 

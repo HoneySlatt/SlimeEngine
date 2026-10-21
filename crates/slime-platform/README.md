@@ -69,6 +69,10 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   make together (on Wayland and X11, `Unidentified` and no text when they do not combine) and its
   release does not, so a press and its release can have different logical values: track which keys
   are down by physical code. `MouseButton`, `ButtonState` and `ScrollDelta` describe the mouse.
+- `Input` is the input as data: the keys and the mouse buttons held, and those pressed and released
+  since the last frame (`Buttons`), which `Input::handle` follows from the events and
+  `Input::end_frame` ends, or that a test presses and releases itself. `slime-app`'s host keeps it
+  for a game's simulation (`docs/adr/0107-the-execution-model.md`).
 - `PlatformError` says why the event loop could not run: `Connect` (no windowing system can be
   reached), `SecondEventLoop` (one was already requested in this process), `CreateWindow` or
   `EventLoop`; winit's own error is its `source()`. When the window could not be created, no

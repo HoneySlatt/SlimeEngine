@@ -4,8 +4,11 @@
 //! window opens, and made again with a new GPU device; the world keeps the run meanwhile. The hero
 //! loads before the first frame, and the rest of the world in the background: the sky and the hero
 //! show at once, lit by the zone's lights, and the zone, whole, once it is loaded. The campfire
-//! flickers, its flames, its embers and its light together, and the key glows in pulses at night:
-//! the view changes their materials' values and the fire's light at each frame.
+//! flickers, its flames, its embers and its light together, and the key glows in pulses at night,
+//! on game time: the view changes their materials' values, and the fire's light in the frame it
+//! draws, not in the world, at each frame. The view builds each frame from the world when the
+//! presentation extracts it ([`View::extract`]), and draws it without the world
+//! ([`View::render`]), as `docs/adr/0111-the-frame-contract.md` says.
 
 use std::f64::consts::TAU;
 use std::fmt::Display;
@@ -17,7 +20,8 @@ use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::Vec3;
 use slime_render::{
-    AssetCache, Camera, MaterialValues, RenderError, RenderStats, Renderer, ShaderSources, Sky,
+    AssetCache, Camera, MaterialValues, RenderError, RenderStats, Renderer, Scene, ShaderSources,
+    Sky,
 };
 use slime_world::{Entity, Light, Meshes, Transform, World};
 use slime_world_render::FrameBuilder;
@@ -91,15 +95,18 @@ fn key_pulse(seconds: f64) -> f32 {
     (1.0 + (KEY_PULSE_PEAK - 1.0) * rise.powi(3)) as f32
 }
 
-/// Makes the lights of `world` that flicker ([`Flickers`]) shine as they do `seconds` after the
-/// start: around the intensity the zone gave them, by the fire's flicker.
-pub fn light_the_fire(world: &mut World, seconds: f64) {
+/// Makes the lights of a frame of `world` whose entities flicker ([`Flickers`]) shine as they do
+/// `seconds` of game time after the start: around the intensity the zone gave them, by the fire's
+/// flicker. The world's lights stay as the zone gave them.
+pub fn flicker_the_fire(world: &World, lights: &mut [(Entity, slime_render::Light)], seconds: f64) {
     let times = flicker(seconds);
-    world.query_mut::<(&Flickers, &mut Light)>(|_, (flickers, mut light)| {
-        if let Light::Point { intensity, .. } = &mut *light {
-            *intensity = flickers.intensity * times;
+    for (entity, light) in lights {
+        if let (Some(flickers), slime_render::Light::Point(point)) =
+            (world.get::<Flickers>(*entity), light)
+        {
+            point.intensity = flickers.intensity * times;
         }
-    });
+    }
 }
 
 /// A material that the view changes at each frame: its asset ID, and the strength of its emission
@@ -229,6 +236,8 @@ pub struct View {
     glow: Glow,
     /// Whether a frame drew every mesh that the world names: the zone, whole.
     zone_shown: bool,
+    /// The frame that `extract` built, which `render` draws.
+    scene: Option<Scene>,
 }
 
 impl View {
@@ -265,6 +274,7 @@ impl View {
             night: FrameBuilder::new(Some(NIGHT_SKY)),
             glow: Glow::find(assets),
             zone_shown: false,
+            scene: None,
         };
         let hero = meshes_below(world, hero);
         view.cache.request(gpu, hero.iter().copied());
@@ -331,32 +341,28 @@ impl View {
         self.zone_shown
     }
 
-    /// Draws `world` into `target` as `camera` sees it, by day or at night as `night` says, what
-    /// moves `alpha` of the way between its last two fixed steps (`Context::fixed_step_alpha`), the
-    /// materials that glow as they do `seconds` after the start: the sky, and what the world places
-    /// once the cache holds it. The campfire's flames and embers flicker with its light
-    /// ([`light_the_fire`]), and the key pulses at night.
+    /// Builds the frame of `world` that [`View::render`] draws, as `camera` sees it, by day or at
+    /// night as `night` says, what moves `alpha` of the way between its last two fixed steps
+    /// (`GameTime::alpha`), the materials that glow and the fire's light as they do `seconds` of
+    /// game time after the start: the sky, and what the world places once the cache holds it. The
+    /// campfire's flames and embers flicker with its light ([`flicker_the_fire`]), and the key
+    /// pulses at night.
     ///
     /// # Errors
     ///
-    /// As [`Renderer::render`], [`Material::set_values`](slime_render::Material::set_values) and
+    /// As [`Material::set_values`](slime_render::Material::set_values) and
     /// [`FrameBuilder::build`]; and when the meshes of the world cannot be loaded before the zone
     /// is first shown, with a message that says how to cook them. Once it is shown, meshes that
     /// fail to load are logged, and not drawn.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "what a frame of the game needs, from the engine, the world and the game"
-    )]
-    pub fn draw(
+    pub fn extract(
         &mut self,
         gpu: &Gpu,
-        target: &RenderTarget,
         world: &World,
         night: bool,
         alpha: f64,
         seconds: f64,
         camera: Camera,
-    ) -> Result<RenderStats, AppError> {
+    ) -> Result<(), AppError> {
         // The loads that finished first, so that the materials they bring glow from their first
         // frame: the frame builder, which takes them otherwise, holds the cache while its frame is.
         let taken = self.cache.poll();
@@ -381,7 +387,7 @@ impl View {
         } else {
             (&mut self.day, DAY_EXPOSURE)
         };
-        let frame = builder.build(world, &mut self.cache, gpu, alpha)?;
+        let mut frame = builder.build(world, &mut self.cache, gpu, alpha)?;
         if !self.zone_shown {
             if let Some(error) = taken.first().or(frame.errors.first()) {
                 // As in `View::new`: the loss itself, not a message that hides it.
@@ -390,10 +396,29 @@ impl View {
             }
             self.zone_shown = frame.loading == 0;
         }
+        flicker_the_fire(world, &mut frame.lights, seconds);
         let mut scene = frame.scene(camera);
         scene.exposure = exposure;
         scene.bloom = BLOOM;
-        Ok(self.renderer.render(gpu, target, &scene)?)
+        self.scene = Some(scene);
+        Ok(())
+    }
+
+    /// Draws into `target` the frame that [`View::extract`] built, and returns what it cost;
+    /// `None` when no frame was built since the last one drawn.
+    ///
+    /// # Errors
+    ///
+    /// As [`Renderer::render`].
+    pub fn render(
+        &mut self,
+        gpu: &Gpu,
+        target: &RenderTarget,
+    ) -> Result<Option<RenderStats>, RenderError> {
+        let Some(scene) = self.scene.take() else {
+            return Ok(None);
+        };
+        self.renderer.render(gpu, target, &scene).map(Some)
     }
 }
 
@@ -460,13 +485,29 @@ mod tests {
         world.insert(steady, point);
         world.insert(fire, point);
         world.insert(fire, Flickers { intensity: 20.0 });
-        let seconds = 0.4;
-        light_the_fire(&mut world, seconds);
-        assert_eq!(world.get::<Light>(steady), Some(&point));
-        let Some(&Light::Point { intensity, .. }) = world.get::<Light>(fire) else {
-            panic!("a point light");
+        let drawn = |intensity| {
+            slime_render::Light::Point(slime_render::PointLight {
+                position: slime_render::glam::DVec3::ZERO,
+                color: LinearColor::WHITE,
+                intensity,
+                range: None,
+            })
         };
-        assert_eq!(intensity, 20.0 * flicker(seconds));
+        let mut lights = [(steady, drawn(10.0)), (fire, drawn(10.0))];
+        let seconds = 0.4;
+        flicker_the_fire(&world, &mut lights, seconds);
+        assert_eq!(
+            lights,
+            [
+                (steady, drawn(10.0)),
+                (fire, drawn(20.0 * flicker(seconds)))
+            ]
+        );
+        assert_eq!(
+            world.get::<Light>(fire),
+            Some(&point),
+            "the world's light stays"
+        );
     }
 
     #[test]

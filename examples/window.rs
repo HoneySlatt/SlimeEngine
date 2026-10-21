@@ -1,7 +1,8 @@
 //! Opens a window, draws the samples' triangle in it with the GPU, and logs the events it receives
-//! (window, keyboard and mouse). Escape, closing the window or Ctrl+C quits; cursor motion is
-//! logged at the `debug` level. With `--headless`, the same program runs without a window and
-//! without a GPU, as automated checks run it.
+//! (window, keyboard and mouse): a presentation, with no rules (`slime_app::Presentation`). Escape,
+//! closing the window or Ctrl+C quits; cursor motion is logged at the `debug` level. With
+//! `--headless`, the same program runs its frames without a window and without a GPU, its
+//! presentation never called, as automated checks run it.
 //!
 //! ```sh
 //! cargo run --example window
@@ -18,9 +19,10 @@ mod triangle;
 use std::ffi::OsStr;
 use std::process::ExitCode;
 
-use slime_app::{App, AppConfig, AppError, Context};
+use slime_app::{AppConfig, AppError, Context, Presentation};
 use slime_gfx::{PresentMode, RenderPassDescriptor, RenderTarget};
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
+use slime_world::World;
 
 use triangle::{BACKGROUND, Triangle};
 
@@ -28,7 +30,7 @@ const USAGE: &str = "usage: window [--headless] [--frames <count>] [--present-mo
 
 #[derive(Default)]
 struct WindowExample {
-    /// The triangle's GPU objects; `None` when running headless.
+    /// The triangle's GPU objects, once the presentation started.
     triangle: Option<Triangle>,
     /// How many frames drew the triangle.
     drawn: u64,
@@ -37,15 +39,15 @@ struct WindowExample {
     must_draw: bool,
 }
 
-impl App for WindowExample {
-    fn init(&mut self, ctx: &mut Context) -> Result<(), AppError> {
+impl Presentation for WindowExample {
+    fn start(&mut self, ctx: &mut Context, _world: &World) -> Result<(), AppError> {
         if let (Some(gpu), Some(format)) = (ctx.gpu(), ctx.surface_format()) {
             self.triangle = Some(Triangle::new(gpu, format)?);
         }
         Ok(())
     }
 
-    fn on_event(&mut self, ctx: &mut Context, event: &Event) {
+    fn on_event(&mut self, ctx: &mut Context, event: &Event) -> bool {
         match event {
             Event::CursorMoved { .. } => tracing::debug!(?event, "event"),
             _ => tracing::info!(?event, "event"),
@@ -58,6 +60,7 @@ impl App for WindowExample {
         {
             ctx.request_exit();
         }
+        false
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
@@ -74,8 +77,8 @@ impl App for WindowExample {
         }
     }
 
-    fn shutdown(&mut self, ctx: &mut Context) {
-        tracing::info!(drawn = self.drawn, "shutdown");
+    fn stop(&mut self, ctx: &mut Context) {
+        tracing::info!(drawn = self.drawn, "stop");
         if self.must_draw && self.drawn == 0 {
             ctx.exit_with_error("no frame drew the triangle");
         }
@@ -105,7 +108,8 @@ fn main() -> ExitCode {
         must_draw: config.window.is_some() && options.frame_limit.is_some_and(|limit| limit > 0),
         ..WindowExample::default()
     };
-    match slime_app::run(&mut example, &config) {
+    // The example has no rules: it only draws.
+    match slime_app::run(&mut (), &mut example, &config) {
         Ok(()) => ExitCode::SUCCESS,
         // `run` has logged the error with its causes.
         Err(_) => ExitCode::FAILURE,

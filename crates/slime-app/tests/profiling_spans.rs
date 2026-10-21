@@ -1,19 +1,17 @@
 //! The profiling spans of a headless run, which `slime_app::run` documents: each frame is a `frame`
-//! span, containing a `fixed_update` span around each fixed step and an `update` span around the
-//! update. The spans of a windowed run (`acquire`, `render` with `submit`, `present`) are checked
-//! by `windowed_lifecycle.rs`.
+//! span, containing a `fixed_step` span around each fixed step and an `update` span around the
+//! update. The spans of a windowed run (`acquire`, `extract`, `render` with `submit`, `present`)
+//! are checked by `windowed_lifecycle.rs`.
 //!
 //! The spans are recorded by a subscriber set for the test's thread, on which a headless run calls
-//! the application. It is a test program of its own, so that no other test's run shares the
+//! the simulation. It is a test program of its own, so that no other test's run shares the
 //! process's subscribers with it.
 
 mod common;
 
+use slime_app::{AppConfig, Simulation, SimulationContext, run};
+use slime_world::World;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
-
-use slime_app::time::FrameTime;
-use slime_app::{App, AppConfig, Context, run};
 
 /// Adds a line to the log at each call, among those of the spans.
 struct Recorder(Arc<Mutex<Vec<String>>>);
@@ -24,12 +22,12 @@ impl Recorder {
     }
 }
 
-impl App for Recorder {
-    fn fixed_update(&mut self, _ctx: &mut Context, _step: Duration) {
-        self.log("call fixed_update");
+impl Simulation for Recorder {
+    fn fixed_step(&mut self, _ctx: &mut SimulationContext<'_>, _world: &mut World) {
+        self.log("call fixed_step");
     }
 
-    fn update(&mut self, _ctx: &mut Context, _frame: &FrameTime) {
+    fn update(&mut self, _ctx: &mut SimulationContext<'_>, _world: &mut World) {
         self.log("call update");
     }
 }
@@ -46,15 +44,15 @@ fn each_frame_is_a_span_containing_its_fixed_steps_and_its_update() {
         ..AppConfig::default()
     };
     tracing::subscriber::with_default(subscriber, || {
-        run(&mut Recorder(Arc::clone(&log)), &config).expect("this application starts");
+        run(&mut Recorder(Arc::clone(&log)), &mut (), &config).expect("this application starts");
     });
 
     // A headless frame represents exactly one fixed step, so it runs exactly one.
     let frame = [
         "enter frame",
-        "enter frame/fixed_update",
-        "call fixed_update",
-        "exit frame/fixed_update",
+        "enter frame/fixed_step",
+        "call fixed_step",
+        "exit frame/fixed_step",
         "enter frame/update",
         "call update",
         "exit frame/update",

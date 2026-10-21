@@ -114,10 +114,13 @@ crate depends on: the examples, the games, such as *Hunna Wood*, and the dev *ov
 (`slime-devui`).
 
 **Command.** A change of the world asked for outside the *phases* of a frame that may make it, by
-the editor, the dev *overlay*, a tool or a load: a value that names its entities by their
-*persistent identities*, queued, and applied at the start of the next frame
-([ADR-0107](adr/0107-the-execution-model.md), [ADR-0109](adr/0109-stable-references-and-undo.md)).
-The editor's commands are kept in its *journal*, which undo and redo read. Decided, not built yet.
+the editor, the dev *overlay*, a tool, a load or a *presentation*: a value that names its entities
+by their *persistent identities* (`slime_world::Command`), queued by the *host*, and applied at the
+start of the next frame ([ADR-0107](adr/0107-the-execution-model.md),
+[ADR-0109](adr/0109-stable-references-and-undo.md),
+[ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)): the first sets a property of a
+component. The editor's commands are to be kept in its *journal*, which undo and redo read; the
+journal is not built yet.
 
 **Comparison sampler.** A sampler that compares a reference depth with the depths stored in a
 *depth target* instead of reading them: each pixel read gives 1 where the comparison holds and 0
@@ -319,8 +322,10 @@ and disappear into it: any loss or gain of light shows.
 ([ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md)).
 
 **Game time.** The time of a game's *simulation*, apart from *real time*: it advances at a
-speed, 1 by default, less to slow the game down, 0 to pause it, and its fixed steps keep their
-duration at every speed ([ADR-0107](adr/0107-the-execution-model.md)). Decided, not built yet.
+speed, 1 by default, less to slow the game down, more to hasten it, and not at all while it is
+paused, when the *host* runs one fixed step at a time on demand; its fixed steps keep their
+duration at every speed (`slime_app::time::GameTime`, [ADR-0107](adr/0107-the-execution-model.md)).
+The frame's real time times the speed is what it advances by.
 
 **Gizmo.** A handle that an editor draws over a selection to move, turn or scale it with the mouse,
 in the scene or always on top of it ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)).
@@ -363,10 +368,11 @@ before it is mapped to the display's range by *tone mapping*. The engine draws t
 its tone-mapping pass reads.
 
 **Host.** What runs a game's *simulation*, and its *presentation* when it has one: it owns the loop,
-the world, *game time* and *real time*, the input and the decision to stop. The game's program,
-which the editor also starts as its child process and drives through the *development channel*, a
-test and a dedicated server are hosts ([ADR-0107](adr/0107-the-execution-model.md),
-[ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)). Decided, not built yet.
+the world, *game time* and *real time*, the input, the *commands* queued and the decision to stop
+(`slime_app::Host`). The game's program (`slime_app::run`), which the editor is to start as its
+child process and drive through the *development channel*, a test and one day a dedicated server
+are hosts ([ADR-0107](adr/0107-the-execution-model.md),
+[ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)).
 
 **Hot reload.** Replacing, in a running game, the *cooked data* or the shaders that changed on
 disk, without restarting the game. `slime-cook watch` cooks again the sources that change, and a
@@ -401,6 +407,10 @@ engine's types.
 **Index buffer.** A buffer of indices into a vertex buffer, so that the triangles of a mesh share
 vertices (`slime_gfx::IndexBuffer`).
 
+**Input (as data).** The keys and mouse buttons held, and those pressed and released since the last
+frame (`slime_platform::Input`), which the *host* keeps from the window's events, or a test from its
+script, and the *simulation* reads ([ADR-0107](adr/0107-the-execution-model.md)).
+
 **Instance (render).** One thing the renderer draws: a *mesh*, a *material* and a transform from
 the mesh's space to world space (`slime_render::Instance`). A render *scene* is a flat list of
 them, built for each frame.
@@ -414,8 +424,8 @@ the instances of one pipeline, material and mesh that it keeps (`slime_render::R
 **Interpolation factor.** The fraction of a fixed step accumulated but not yet run
 (`FixedStep::alpha`), between 0 and 1. Used to draw a state between the last two fixed steps:
 `World::interpolated_transform` draws what moved during the last one there
-([ADR-0084](adr/0084-what-the-world-draws.md)). Applications read it from
-`Context::fixed_step_alpha`.
+([ADR-0084](adr/0084-what-the-world-draws.md)). Games read it from
+`GameTime::alpha`.
 
 **Irradiance.** The light that reaches a surface from every direction of its hemisphere, each
 weighted by the cosine of its incidence, in *lux*: a matte surface of albedo c reflects
@@ -638,9 +648,11 @@ name the entities that they change by it, an entity's handle being a cache of it
 *depth bias* pushes the stored depths back, or the *normal offset* moves the point looked up: in
 the renderer, by up to 4.5 of the shadow map's texels.
 
-**Phase (frame).** One of the steps of a frame, in their order: start, fixed steps, update,
-transforms, extraction, render and present, each saying who may change the world
-([ADR-0107](adr/0107-the-execution-model.md)). Decided, not built yet.
+**Phase (frame).** One of the steps of a frame, in their order: start, where the *host* applies the
+*commands*, fixed steps and update, where the *simulation* changes the world, transforms,
+extraction, where the *presentation* reads it, render and present, where it draws without it
+([ADR-0107](adr/0107-the-execution-model.md),
+[ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)).
 
 **Physical key.** The position of a key on the keyboard, whatever the layout
 (`slime_platform::KeyCode`), named after the character it produces on a US keyboard: the first
@@ -686,8 +698,10 @@ never waits; with *FIFO*, every image is shown in order, one per refresh, and pr
 while earlier images are still to be shown ([ADR-0021](adr/0021-frame-pacing.md)).
 
 **Presentation.** The part of a game that shows it: the camera, the drawing, the dev overlay, later
-sound. It reads the world without writing it, on *real time*
-([ADR-0107](adr/0107-the-execution-model.md)). Decided, not built yet.
+sound (`slime_app::Presentation`). It reads the world, and nothing of the *simulation* but the
+world, without writing it, and asks for changes as *commands*
+([ADR-0107](adr/0107-the-execution-model.md),
+[ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)).
 
 **Property path.** Where a part of a reflected *value* is, as fields joined by `.` and indices in
 brackets: `color.r`, `ids[2]` (`slime_reflect::Path`). A field of an enum is one of the variant
@@ -756,9 +770,9 @@ is 0, where floating-point depths are finest, so that 32-bit depths keep a preci
 the distance, at any distance. Passes clear *depth targets* to 0, a depth test keeps the greater
 depth, and a *depth bias* is negative.
 
-**Run.** Two things. The running of an application by `slime_app::run`, from `init` to `shutdown`;
-and, in a game, a play from a new game on, which R starts again, a *save* holds and a resume goes on
-with.
+**Run.** Two things. The running of a game by `slime_app::run`, from its `start` methods to its
+`stop` methods; and, in a game, a play from a new game on, which R starts again, a *save* holds and
+a resume goes on with.
 
 **Sample.** What demonstrates the exit criterion of a stage: an example up to Stage 3b, the *sample
 game* from Stage 3c. Every stage ends with one.
@@ -842,9 +856,9 @@ passes do. The *render graph* is built again, and its GPU times start over, when
 **Simulated time.** Frame deltas supplied as a constant duration instead of being measured, so
 that a run gives the same results on every machine. Headless runs use it.
 
-**Simulation.** The part of a game that holds its rules: it changes the world on *game time*, from
-input given as data, without a GPU or a window, and asks its *host* to stop rather than ending the
-process ([ADR-0107](adr/0107-the-execution-model.md)). Decided, not built yet.
+**Simulation.** The part of a game that holds its rules (`slime_app::Simulation`): it changes the
+world on *game time*, from *input* given as data, without a GPU or a window, and asks its *host* to
+stop rather than ending the process ([ADR-0107](adr/0107-the-execution-model.md)).
 
 **Skeleton (crate).** A crate that exists with its documentation and inherits the workspace
 policies, but holds no code yet.
@@ -1045,6 +1059,6 @@ A game, a test or an editor holds as many worlds as it needs
 ([ADR-0079](adr/0079-the-engines-own-world.md)).
 
 **World panel.** The panel of the dev *overlay* that lists a *world*'s *entities* by name and
-edits the *components* of the one selected through *reflection*, returning each change for the
-application to apply (`slime_devui::WorldPanel`,
+edits the *components* of the one selected through *reflection*, returning each change as a
+*command*, which a *presentation* sends to its *host* (`slime_devui::WorldPanel`,
 [ADR-0081](adr/0081-stage-5a-the-world.md)); tooling, as the rest of the overlay.

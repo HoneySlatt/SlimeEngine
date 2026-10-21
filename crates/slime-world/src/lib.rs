@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 mod change;
+mod command;
 mod components;
 mod document;
 mod entity;
@@ -19,6 +20,7 @@ mod world;
 mod write_back;
 
 pub use change::{Mut, Removals, Tick, Ticks};
+pub use command::Command;
 pub use components::{Extras, Hidden, Light, Meshes, Name, Unsaved};
 pub use document::{DocumentError, Loaded, SetAside};
 pub use entity::Entity;
@@ -48,6 +50,7 @@ mod threads {
         send_and_sync::<World>();
         send_and_sync::<Entity>();
         send_and_sync::<PersistentId>();
+        send_and_sync::<Command>();
         send_and_sync::<WorldError>();
         send_and_sync::<SceneLibrary>();
         send_and_sync::<ResolvedScene>();

@@ -50,10 +50,11 @@ fn draw(
 
 - `FrameBuilder::new(sky)` draws a world around the game's `Sky`, without its sun, which the world
   gives; `FrameBuilder::build(world, cache, gpu, alpha)` gives a `Frame`, the instances, lights and
-  environment of one frame, which it owns, so that it can be drawn on another thread, and whose
-  `scene(camera)` is the renderer's `Scene`, its lights
-  the nearest to the camera first when they are more than the renderer draws, with how many meshes
-  still load and why the batches that finished failed.
+  environment of one frame, which it owns, so that it can be drawn on another thread, each light
+  with its entity, so that a game's presentation changes what it shows of one without the world,
+  and whose `scene(camera)` is the renderer's `Scene`, its lights the nearest to the camera first
+  when they are more than the renderer draws, with how many meshes still load and why the batches
+  that finished failed.
 - `FrameBuilder::set_sky` draws the world around another sky from the next frame on, and
   `FrameBuilder::release` drops the environment when the device is lost.
 

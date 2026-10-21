@@ -9,7 +9,11 @@
   decided before Stage 7's systems) and
   [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) (the time of a game, brought
   from Stage 7 to Stage 6); amended by [0118](0118-the-task-pool-and-the-copies-to-the-gpu.md) (the
-  loads' tasks two at a time, and a budget of copies that lasts a frame or a frame's time)
+  loads' tasks two at a time, and a budget of copies that lasts a frame or a frame's time) and
+  [0121](0121-a-game-as-a-simulation-and-a-presentation.md) (the shape of a game's two parts and
+  of its host, what the presentation reads, extraction before the window's image, the update while
+  game time is paused, the pause apart from the speed, and a game's cooked data that changed
+  applied by its own simulation until the editor's hot reload)
 - Date: 2026-10-20
 
 ## Context

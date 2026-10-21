@@ -1,21 +1,21 @@
-//! The lifecycle of a windowed run, checked in a Wayland compositor: what the application sees in
-//! `init`, the order of the calls, the stop conditions, the frame schedule after a burst of
-//! redraws, the time each frame represents, the profiling spans of each frame, the memory of a run
-//! whose frames draw nothing, a run whose GPU cannot open, a window larger than the GPU can draw
-//! into, a GPU device lost in the middle of a frame, replaced by a new one, lost again at every
-//! frame or soon after each new device until the run gives up, lost in the order a driver reports
-//! it, the device invalid before its loss is recorded, lost again while the application creates
-//! its objects anew, or lost where the application's own call finds it and stops the run with it,
-//! an application that stops the run with an error or panics after drawing, and a window resized
-//! during the run, alone or while another thread submits work to the GPU, as threads that load a
-//! scene do.
+//! The lifecycle of a windowed run, checked in a Wayland compositor: what the presentation sees in
+//! its `start`, the order of the calls of the simulation and of the presentation, the stop
+//! conditions, the frame schedule after a burst of redraws, the time each frame represents, the
+//! profiling spans of each frame, the memory of a run whose frames draw nothing, a run whose GPU
+//! cannot open, a window larger than the GPU can draw into, a GPU device lost in the middle of a
+//! frame, replaced by a new one, lost again at every frame or soon after each new device until the
+//! run gives up, lost in the order a driver reports it, the device invalid before its loss is
+//! recorded, lost again while the presentation creates its objects anew, or lost where the
+//! presentation's own call finds it and stops the run with it, a presentation that stops the run
+//! with an error or panics after drawing, and a window resized during the run, alone or while
+//! another thread submits work to the GPU, as threads that load a scene do.
 //! `scripts/check.sh` runs it in a headless Weston with lavapipe, then runs it again in a second
 //! one, at scale 2, for the resizes and the window larger than the GPU can draw into, which only
 //! the compositor that doubles a window makes wider than the largest window (ADR-0024). It is not
 //! in the default run of `cargo test` (`test = false` in Cargo.toml), since it needs a compositor,
 //! and it has no harness, since the windowing library needs the main thread.
 //!
-//! A process can run one windowed application, so each scenario runs in a child process: this
+//! A process can run one windowed game, so each scenario runs in a child process: this
 //! program runs itself again with `SLIME_APP_TEST_SCENARIO` set, and checks what the child prints.
 //!
 //! Linux only, and compiled out elsewhere (ADR-0015): the check needs a Wayland compositor, and
@@ -38,18 +38,20 @@ mod linux {
     use std::thread::{self, JoinHandle};
     use std::time::Instant;
 
-    use slime_app::time::FrameTime;
-    use slime_app::{App, AppConfig, AppError, Context, RunError};
+    use slime_app::{
+        AppConfig, AppError, Context, Presentation, RunError, Simulation, SimulationContext,
+    };
     use slime_color::LinearColor;
     use slime_gfx::{RenderPassDescriptor, RenderTarget, TextureFormat};
     use slime_platform::{Event, PlatformError, WindowConfig};
+    use slime_world::World;
 
     const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";
     const SCENARIOS: [&str; 15] = [
         "calls",
         "spans",
-        "init-error",
-        "exit-in-init",
+        "start-error",
+        "exit-in-start",
         "draws-nothing",
         "no-gpu",
         "device-lost",
@@ -76,12 +78,12 @@ mod linux {
     /// panics.
     const STOP_FRAME: u64 = 5;
 
-    /// Frames of the `calls` and `spans` scenarios, and those in which the application asks for an
+    /// Frames of the `calls` and `spans` scenarios, and those in which the presentation asks for an
     /// extra redraw.
     const FRAME_LIMIT: u64 = 50;
     const STORM: std::ops::Range<u64> = 10..40;
 
-    /// How far the time a frame represents can be from the time the application measures between
+    /// How far the time a frame represents can be from the time the simulation measures between
     /// its updates. The two measurements are a few microseconds apart, more when the process is
     /// preempted between them; a frame whose time did not come from the clock would be off by
     /// several milliseconds during the storm, where frames come less than 10 ms apart.
@@ -96,12 +98,54 @@ mod linux {
     const SETTLED: u64 = 300;
     const MAX_GROWTH_KIB: u64 = 30_000;
 
-    /// Prints every call it receives, with the time of each frame.
+    /// The simulation's half: prints its calls, with the time of each frame.
+    struct Rules {
+        scenario: &'static str,
+        /// When `start` returned, which the times of the frames count from.
+        start: Option<Instant>,
+    }
+
+    impl Simulation for Rules {
+        fn start(
+            &mut self,
+            _ctx: &mut SimulationContext<'_>,
+            _world: &mut World,
+        ) -> Result<(), AppError> {
+            println!("call start");
+            self.start = Some(Instant::now());
+            Ok(())
+        }
+
+        fn fixed_step(&mut self, _ctx: &mut SimulationContext<'_>, _world: &mut World) {
+            println!("call fixed_step");
+        }
+
+        fn update(&mut self, ctx: &mut SimulationContext<'_>, _world: &mut World) {
+            let now = Instant::now();
+            let start = self.start.expect("start returned before the first frame");
+            let frame = ctx.time().real();
+            println!(
+                "call update {} t={} delta={}",
+                frame.index(),
+                (now - start).as_micros(),
+                frame.delta().as_micros()
+            );
+            if self.scenario == "draws-nothing"
+                && [SETTLED, UNDRAWN_FRAMES - 1].contains(&frame.index())
+            {
+                println!("memory {} {}", frame.index(), resident_kib());
+            }
+        }
+
+        fn stop(&mut self, ctx: &mut SimulationContext<'_>, _world: &mut World) {
+            println!("call stop exit_requested={}", ctx.exit_requested());
+        }
+    }
+
+    /// The presentation's half: prints its calls, and draws, loses the device, fails or panics
+    /// where the scenario says.
     struct Recorder {
         scenario: &'static str,
-        /// When `init` returned, which the times of the frames count from.
-        start: Option<Instant>,
-        last_update: u64,
         /// How many times `gpu_restored` was called.
         restored: u32,
         /// In `resized-while-submitting`, the thread that submits work to the GPU while the run
@@ -109,17 +153,17 @@ mod linux {
         submitter: Option<(Arc<AtomicBool>, JoinHandle<()>)>,
     }
 
-    impl App for Recorder {
-        fn init(&mut self, ctx: &mut Context) -> Result<(), AppError> {
+    impl Presentation for Recorder {
+        fn start(&mut self, ctx: &mut Context, _world: &World) -> Result<(), AppError> {
             println!(
-                "call init window={} gpu={} format={:?}",
+                "call presentation_start window={} gpu={} format={:?}",
                 ctx.window().is_some(),
                 ctx.gpu().is_some(),
                 ctx.surface_format()
             );
             match self.scenario {
-                "init-error" => return Err("no save file".into()),
-                "exit-in-init" => ctx.request_exit(),
+                "start-error" => return Err("no save file".into()),
+                "exit-in-start" => ctx.request_exit(),
                 "resized-while-submitting" => {
                     let gpu = ctx.gpu().expect("windowed run").clone();
                     let stop = Arc::new(AtomicBool::new(false));
@@ -151,48 +195,34 @@ mod linux {
                 }
                 _ => {}
             }
-            self.start = Some(Instant::now());
             Ok(())
         }
 
-        fn on_event(&mut self, _ctx: &mut Context, event: &Event) {
+        fn on_event(&mut self, _ctx: &mut Context, event: &Event) -> bool {
             let name = format!("{event:?}");
             let name = name
                 .split(|c: char| !c.is_alphanumeric())
                 .next()
                 .unwrap_or("");
             println!("call event {name}");
+            false
         }
 
-        fn fixed_update(&mut self, _ctx: &mut Context, _step: std::time::Duration) {
-            println!("call fixed_update");
-        }
-
-        fn update(&mut self, ctx: &mut Context, frame: &FrameTime) {
-            let now = Instant::now();
-            let start = self.start.expect("init returned before the first frame");
-            self.last_update = frame.index();
-            println!(
-                "call update {} t={} delta={}",
-                frame.index(),
-                (now - start).as_micros(),
-                frame.delta().as_micros()
-            );
-            if STORM.contains(&frame.index()) {
+        fn extract(&mut self, ctx: &mut Context, _world: &World) {
+            let index = ctx.time().real().index();
+            println!("call extract {index}");
+            if STORM.contains(&index) {
                 ctx.window().expect("windowed run").request_redraw();
             }
-            if self.scenario == "draws-nothing"
-                && [SETTLED, UNDRAWN_FRAMES - 1].contains(&frame.index())
-            {
-                println!("memory {} {}", frame.index(), resident_kib());
-            }
-            if self.scenario == "lost-unrecorded" && frame.index() == STOP_FRAME + 1 {
-                // What wgpu's report of the loss does, a frame after the device became invalid.
+            if self.scenario == "lost-unrecorded" && index == STOP_FRAME + 1 {
+                // What wgpu's report of the loss does, a frame after the device became invalid,
+                // before the frame acquires the window's image.
                 ctx.gpu().expect("windowed run").lose();
             }
         }
 
         fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
+            let index = ctx.time().real().index();
             // In `draws-nothing`, the image is presented without anything drawn into it, as with
             // the default `render`.
             if self.scenario != "draws-nothing" {
@@ -207,12 +237,11 @@ mod linux {
                 let gpu = ctx.gpu().expect("windowed run");
                 let lost_here = match self.scenario {
                     "device-lost" | "device-restored" | "lost-in-gpu-restored" => {
-                        self.last_update == STOP_FRAME
+                        index == STOP_FRAME
                     }
-                    "lost-again" => self.last_update >= STOP_FRAME,
+                    "lost-again" => index >= STOP_FRAME,
                     "lost-soon-after-each-restore" => {
-                        self.last_update >= STOP_FRAME
-                            && (self.last_update - STOP_FRAME).is_multiple_of(2)
+                        index >= STOP_FRAME && (index - STOP_FRAME).is_multiple_of(2)
                     }
                     _ => false,
                 };
@@ -221,18 +250,18 @@ mod linux {
                     // frame's own submission would find, as a driver reset would.
                     gpu.lose();
                 }
-                // The application's own call finds the loss, and stops the run with it.
+                // The presentation's own call finds the loss, and stops the run with it.
                 let mut failed = None;
-                if self.scenario == "loss-returned-by-render" && self.last_update == STOP_FRAME {
+                if self.scenario == "loss-returned-by-render" && index == STOP_FRAME {
                     gpu.lose();
                     failed = gpu
                         .create_render_target("lost", 4, 4, TextureFormat::Rgba8Unorm)
                         .err();
                 }
                 gpu.render(&pass, |_pass| {});
-                if self.scenario == "lost-unrecorded" && self.last_update == STOP_FRAME {
+                if self.scenario == "lost-unrecorded" && index == STOP_FRAME {
                     // As a driver reset comes: wgpu holds the device invalid before it tells the
-                    // engine, here at the next frame's update, so that the engine presents the
+                    // engine, here at the next frame's extraction, so that the engine presents the
                     // image to a device it does not know is lost.
                     gpu.wgpu_device().destroy();
                 }
@@ -253,11 +282,11 @@ mod linux {
                     window.height
                 );
             }
-            println!("call render {}", self.last_update);
-            if self.scenario == "error-in-render" && self.last_update == STOP_FRAME {
+            println!("call render {index}");
+            if self.scenario == "error-in-render" && index == STOP_FRAME {
                 ctx.exit_with_error("the frame failed");
             }
-            if self.scenario == "panic-in-render" && self.last_update == STOP_FRAME {
+            if self.scenario == "panic-in-render" && index == STOP_FRAME {
                 panic!("the frame cannot be drawn");
             }
         }
@@ -269,7 +298,7 @@ mod linux {
             );
         }
 
-        fn gpu_restored(&mut self, ctx: &mut Context) -> Result<(), AppError> {
+        fn gpu_restored(&mut self, ctx: &mut Context, _world: &World) -> Result<(), AppError> {
             let gpu = ctx.gpu().expect("a new device");
             println!(
                 "call gpu_restored gpu={} format={:?}",
@@ -278,7 +307,7 @@ mod linux {
             );
             self.restored += 1;
             if self.scenario == "lost-in-gpu-restored" && self.restored == 1 {
-                // Lost again while the application creates its objects anew, which returns the
+                // Lost again while the presentation creates its objects anew, which returns the
                 // loss its creation finds.
                 gpu.lose();
                 gpu.create_render_target("restored", 4, 4, TextureFormat::Rgba8Unorm)?;
@@ -286,8 +315,11 @@ mod linux {
             Ok(())
         }
 
-        fn shutdown(&mut self, ctx: &mut Context) {
-            println!("call shutdown exit_requested={}", ctx.exit_requested());
+        fn stop(&mut self, ctx: &mut Context) {
+            println!(
+                "call presentation_stop exit_requested={}",
+                ctx.exit_requested()
+            );
             if let Some((stop, thread)) = self.submitter.take() {
                 stop.store(true, Ordering::Relaxed);
                 thread.join().expect("the submitting thread does not panic");
@@ -397,8 +429,8 @@ mod linux {
             match scenario {
                 "calls" => check_calls(&lines),
                 "spans" => check_spans(&lines),
-                "init-error" => check_init_error(&lines),
-                "exit-in-init" => check_exit_in_init(&lines),
+                "start-error" => check_start_error(&lines),
+                "exit-in-start" => check_exit_in_start(&lines),
                 "draws-nothing" => check_draws_nothing(&lines),
                 "no-gpu" => check_no_gpu(&lines),
                 "oversize" => check_oversize(&lines),
@@ -425,10 +457,12 @@ mod linux {
 
     /// Runs one scenario and prints its result; for `calls`, also tries a second windowed run.
     fn child(scenario: &'static str) {
-        let mut app = Recorder {
+        let mut rules = Rules {
             scenario,
             start: None,
-            last_update: 0,
+        };
+        let mut recorder = Recorder {
+            scenario,
             restored: 0,
             submitter: None,
         };
@@ -436,10 +470,10 @@ mod linux {
             // The event loop, and every frame with it, runs on this thread.
             let subscriber = crate::common::span_log(|line| println!("span {line}"));
             tracing::subscriber::with_default(subscriber, || {
-                slime_app::run(&mut app, &config(scenario))
+                slime_app::run(&mut rules, &mut recorder, &config(scenario))
             })
         } else {
-            slime_app::run(&mut app, &config(scenario))
+            slime_app::run(&mut rules, &mut recorder, &config(scenario))
         };
         match result {
             Ok(()) => println!("result Ok"),
@@ -448,7 +482,7 @@ mod linux {
             Err(error) => println!("result {error:?}"),
         }
         if scenario == "calls" {
-            match slime_app::run(&mut app, &config(scenario)) {
+            match slime_app::run(&mut rules, &mut recorder, &config(scenario)) {
                 Err(RunError::Platform(PlatformError::SecondEventLoop)) => {
                     println!("second SecondEventLoop");
                 }
@@ -467,34 +501,39 @@ mod linux {
 
     fn check_calls(lines: &[&str]) {
         let calls = calls(lines);
-        let first = calls.first().expect("at least one call");
         assert_eq!(
-            first[..3],
-            ["init", "window=true", "gpu=true"],
-            "init sees the window and the GPU: {first:?}"
+            calls[0],
+            ["start"],
+            "the simulation starts first: {calls:?}"
+        );
+        let shown = &calls[1];
+        assert_eq!(
+            shown[..3],
+            ["presentation_start", "window=true", "gpu=true"],
+            "the presentation starts next, and sees the window and the GPU: {shown:?}"
         );
         assert!(
-            first[3].starts_with("format=Some("),
-            "init sees the surface format: {first:?}"
+            shown[3].starts_with("format=Some("),
+            "the presentation sees the surface format: {shown:?}"
         );
         assert_eq!(
-            calls.last().map(|call| call[..2].to_vec()),
-            Some(vec!["shutdown", "exit_requested=false"]),
-            "shutdown comes last, with no exit requested"
+            calls[calls.len() - 2..],
+            [
+                ["presentation_stop", "exit_requested=false"],
+                ["stop", "exit_requested=false"]
+            ],
+            "the presentation stops, then the simulation, with no exit requested"
         );
-        assert_eq!(
-            calls.iter().filter(|call| call[0] == "init").count(),
-            1,
-            "init once"
-        );
-        assert_eq!(
-            calls.iter().filter(|call| call[0] == "shutdown").count(),
-            1,
-            "shutdown once"
-        );
+        for once in ["start", "presentation_start", "presentation_stop", "stop"] {
+            assert_eq!(
+                calls.iter().filter(|call| call[0] == once).count(),
+                1,
+                "{once} once"
+            );
+        }
 
-        // Within a frame: fixed steps, then the update, then the render of the same frame, with no
-        // event in between. Frames are counted by their updates.
+        // Within a frame: fixed steps, then the update, then the extraction, then the render of the
+        // same frame, with no event in between. Frames are counted by their updates.
         let mut frames = 0;
         let mut times = Vec::new();
         let mut deltas = Vec::new();
@@ -511,27 +550,31 @@ mod linux {
                     };
                     times.push(micros(call[2], "t="));
                     deltas.push(micros(call[3], "delta="));
-                    let next = calls.get(i + 1).map(|next| next[0]);
-                    assert!(
-                        matches!(
-                            next,
-                            Some("render" | "update" | "fixed_update" | "shutdown")
-                        ),
-                        "nothing but the next frame or the render follows an update: {next:?}"
+                    let next = calls.get(i + 1).map(|next| (next[0], next[1]));
+                    assert_eq!(
+                        next,
+                        Some(("extract", call[1])),
+                        "the extraction of the same frame follows an update"
                     );
                 }
                 "render" => {
                     let previous = &calls[i - 1];
                     assert_eq!(
                         (previous[0], previous[1]),
-                        ("update", call[1]),
-                        "render follows the update of the same frame: {previous:?}"
+                        ("extract", call[1]),
+                        "render follows the extraction of the same frame: {previous:?}"
                     );
                 }
                 _ => {}
             }
         }
         assert_eq!(frames, FRAME_LIMIT, "every frame runs an update");
+        let extracted = calls.iter().filter(|call| call[0] == "extract").count();
+        assert_eq!(
+            u64::try_from(extracted).expect("count"),
+            FRAME_LIMIT,
+            "every frame runs an extraction"
+        );
         let rendered = calls.iter().filter(|call| call[0] == "render").count();
         assert!(
             u64::try_from(rendered).expect("count") >= FRAME_LIMIT / 2,
@@ -567,13 +610,13 @@ mod linux {
         );
 
         // Each frame represents the time since the previous one, which the engine measures just
-        // before the frame's fixed steps, and the application here at the start of `update`: the
-        // two agree up to what runs in between. The first frame counts from the end of `init`, so
-        // it cannot represent more than what the application measured since; counting the opening
-        // of the window and the GPU as well would make it larger.
+        // before the frame's fixed steps, and the simulation here at the start of `update`: the two
+        // agree up to what runs in between. The first frame counts from the end of the starts, so
+        // it cannot represent more than what the simulation measured since the end of its own;
+        // counting the opening of the window and the GPU as well would make it larger.
         assert!(
             deltas[0] <= times[0],
-            "the first frame represents the time since init returned: {} µs, {} µs measured",
+            "the first frame represents the time since the starts returned: {} µs, {} µs measured",
             deltas[0],
             times[0]
         );
@@ -596,22 +639,25 @@ mod linux {
         );
     }
 
-    /// Each frame is a `frame` span containing, in order, a `fixed_update` span per fixed step, an
-    /// `update` span, an `acquire` span and, when the frame is drawn, a `render` span, which
-    /// contains `submit`, and a `present` span. A span that ends too early is exited before the
-    /// call it should contain, and a span moved out of `frame` loses `frame/` from its path. Nothing
-    /// of the application runs in `acquire`, `submit` or `present`, so for these only the place is
-    /// checked.
+    /// Each frame is a `frame` span containing, in order, a `fixed_step` span per fixed step, an
+    /// `update` span, an `extract` span, an `acquire` span and, when the frame is drawn, a `render`
+    /// span, which contains `submit`, and a `present` span. A span that ends too early is exited
+    /// before the call it should contain, and a span moved out of `frame` loses `frame/` from its
+    /// path. Nothing of the game runs in `acquire`, `submit` or `present`, so for these only the
+    /// place is checked.
     fn check_spans(lines: &[&str]) {
         const FIXED_STEP: [&str; 3] = [
-            "span enter frame/fixed_update",
-            "call fixed_update",
-            "span exit frame/fixed_update",
+            "span enter frame/fixed_step",
+            "call fixed_step",
+            "span exit frame/fixed_step",
         ];
-        const UPDATE_AND_ACQUIRE: [&str; 5] = [
+        const UPDATE_AND_ACQUIRE: [&str; 8] = [
             "span enter frame/update",
             "call update",
             "span exit frame/update",
+            "span enter frame/extract",
+            "call extract",
+            "span exit frame/extract",
             "span enter frame/acquire",
             "span exit frame/acquire",
         ];
@@ -639,7 +685,7 @@ mod linux {
         let mut drawn = 0;
         while let Some(event) = events.next() {
             if event.starts_with("call ") {
-                // Between frames: init, an event, shutdown.
+                // Between frames: the starts, an event, the stops.
                 continue;
             }
             assert_eq!(
@@ -654,9 +700,9 @@ mod linux {
             while let Some(after) = rest.strip_prefix(&FIXED_STEP) {
                 rest = after;
             }
-            let rest = rest
-                .strip_prefix(&UPDATE_AND_ACQUIRE)
-                .unwrap_or_else(|| panic!("frame {frames}: the update, then acquire: {frame:?}"));
+            let rest = rest.strip_prefix(&UPDATE_AND_ACQUIRE).unwrap_or_else(|| {
+                panic!("frame {frames}: the update, the extraction, then acquire: {frame:?}")
+            });
             match rest {
                 [] => {}
                 drawing if drawing == DRAWING => drawn += 1,
@@ -668,17 +714,18 @@ mod linux {
         assert!(drawn >= FRAME_LIMIT / 2, "most frames are drawn: {drawn}");
     }
 
-    fn check_init_error(lines: &[&str]) {
+    /// The presentation's `start` fails after the simulation's: no frame runs, nor either `stop`.
+    fn check_start_error(lines: &[&str]) {
         let calls = calls(lines);
-        assert_eq!(calls.len(), 1, "init only: {calls:?}");
-        assert_eq!(calls[0][0], "init");
+        let names: Vec<&str> = calls.iter().map(|call| call[0]).collect();
+        assert_eq!(names, ["start", "presentation_start"], "{calls:?}");
         assert!(
             lines.contains(&"result Init(no save file)"),
-            "the init error is returned: {lines:?}"
+            "the start error is returned: {lines:?}"
         );
     }
 
-    fn check_exit_in_init(lines: &[&str]) {
+    fn check_exit_in_start(lines: &[&str]) {
         let calls = calls(lines);
         // The window's first events (its size) can still arrive before the loop stops.
         let names: Vec<&str> = calls
@@ -688,10 +735,10 @@ mod linux {
             .collect();
         assert_eq!(
             names,
-            ["init", "shutdown"],
-            "an exit requested in init runs no frame: {calls:?}"
+            ["start", "presentation_start", "presentation_stop", "stop"],
+            "an exit requested in a start runs no frame: {calls:?}"
         );
-        assert_eq!(calls.last().expect("shutdown")[1], "exit_requested=true");
+        assert_eq!(calls.last().expect("stop")[1], "exit_requested=true");
         assert!(lines.contains(&"result Ok"), "{lines:?}");
     }
 
@@ -737,7 +784,7 @@ mod linux {
         let calls = calls(lines);
         assert!(
             calls.is_empty(),
-            "a run that cannot open a GPU calls neither init nor anything after: {calls:?}"
+            "a run that cannot open a GPU calls neither start nor anything after: {calls:?}"
         );
     }
 
@@ -797,7 +844,7 @@ mod linux {
         );
     }
 
-    /// The run opens a new device after the frame that lost the first, the application creates its
+    /// The run opens a new device after the frame that lost the first, the presentation creates its
     /// objects again once, and the frames after it are drawn up to the frame limit: `run` returns
     /// `Ok`.
     fn check_device_restored(lines: &[&str]) {
@@ -817,14 +864,14 @@ mod linux {
             "the run goes on to its end: {lines:?}"
         );
         assert_eq!(
-            calls.iter().filter(|call| call[0] == "shutdown").count(),
+            calls.iter().filter(|call| call[0] == "stop").count(),
             1,
             "{lines:?}"
         );
     }
 
     /// Where each new device comes among the calls: each `gpu_restored` right after a `gpu_lost`
-    /// that saw the lost device, which the application drops its objects of.
+    /// that saw the lost device, which the presentation drops its objects of.
     fn restores(lines: &[&str]) -> Vec<usize> {
         let calls = calls(lines);
         let restored: Vec<usize> = (0..calls.len())
@@ -833,13 +880,13 @@ mod linux {
         for &index in &restored {
             assert!(
                 index > 0 && calls[index - 1] == ["gpu_lost", "lost=true"],
-                "the application drops its objects of the lost device first: {lines:?}"
+                "the presentation drops its objects of the lost device first: {lines:?}"
             );
         }
         restored
     }
 
-    /// A device lost again while the application creates its objects anew, which `gpu_restored`
+    /// A device lost again while the presentation creates its objects anew, which `gpu_restored`
     /// returns, is replaced as any other: two new devices, and the run goes on to its end.
     fn check_lost_in_gpu_restored(lines: &[&str]) {
         assert_eq!(restores(lines).len(), 2, "two new devices: {lines:?}");
@@ -861,7 +908,7 @@ mod linux {
             "the run returns DeviceLost: {lines:?}"
         );
         assert_eq!(
-            calls.iter().filter(|call| call[0] == "shutdown").count(),
+            calls.iter().filter(|call| call[0] == "stop").count(),
             1,
             "{lines:?}"
         );
@@ -873,7 +920,7 @@ mod linux {
         check_stopped_after_frame(lines);
         assert!(
             lines.contains(&"result App(the frame failed)"),
-            "the run returns the application's error: {lines:?}"
+            "the run returns the presentation's error: {lines:?}"
         );
     }
 
@@ -888,7 +935,7 @@ mod linux {
         );
         assert!(
             stderr.contains("the frame cannot be drawn"),
-            "the panic is the application's: {stderr}"
+            "the panic is the presentation's: {stderr}"
         );
         assert!(
             !stderr.contains("aborting") && !stderr.contains("in use by a SurfaceTexture"),
@@ -896,8 +943,8 @@ mod linux {
         );
     }
 
-    /// The run stops after `STOP_FRAME`: that frame is drawn, no frame is drawn after it, and
-    /// `shutdown` is called once, with the exit requested.
+    /// The run stops after `STOP_FRAME`: that frame is drawn, no frame is drawn after it, and each
+    /// `stop` is called once, with the exit requested.
     fn check_stopped_after_frame(lines: &[&str]) {
         let calls = calls(lines);
         let rendered: Vec<u64> = calls
@@ -913,12 +960,17 @@ mod linux {
             rendered.iter().all(|&frame| frame <= STOP_FRAME),
             "no frame is drawn after it: {rendered:?}"
         );
-        let shutdowns: Vec<&Vec<&str>> =
-            calls.iter().filter(|call| call[0] == "shutdown").collect();
+        let stops: Vec<&Vec<&str>> = calls
+            .iter()
+            .filter(|call| call[0].ends_with("stop"))
+            .collect();
         assert_eq!(
-            shutdowns,
-            [&vec!["shutdown", "exit_requested=true"]],
-            "shutdown once, with the exit requested: {lines:?}"
+            stops,
+            [
+                &vec!["presentation_stop", "exit_requested=true"],
+                &vec!["stop", "exit_requested=true"]
+            ],
+            "each stop once, with the exit requested: {lines:?}"
         );
     }
 

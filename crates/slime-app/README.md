@@ -1,72 +1,79 @@
 # slime-app
 
-The application lifecycle: starting an engine application, running its main loop, and shutting it
-down.
+Running a game: its rules as a simulation and what the player sees as a presentation, run by a
+host through the phases of each frame, on real time and on game time; the main loop, starting and
+stopping.
 
 ## Status
 
-Applications run headless or with one window that receives keyboard and mouse input and that they
-draw into with the GPU; the main loop, frame timing, exit requests, errors at startup, clean
-shutdown on Ctrl+C and other termination signals, profiling spans and diagnostics work; a windowed
-run that asks for it goes on with a new GPU device after a lost one. What is missing is listed in
-`docs/PLAN.md` (known debt).
+Games run headless or with one window that receives keyboard and mouse input and that they draw
+into with the GPU; the phases of a frame, game time that pauses, slows down and steps, the input
+as data, commands applied at the start of a frame, the main loop, exit requests, errors at
+startup, clean shutdown on Ctrl+C and other termination signals, profiling spans and diagnostics
+work; a windowed run that asks for it goes on with a new GPU device after a lost one. What is
+missing is listed in `docs/PLAN.md` (known debt).
 
 ## Role
 
-- Starts an application, runs its frames, and shuts it down, with or without a window. Running
-  without a window (headless) is a normal configuration, which automated tests use, and dedicated
-  servers could.
-- With a window, opens the GPU that draws into it, and gives each frame an image of the window to
-  draw into, which it then shows.
-- Sets up the engine's diagnostics and owns frame timing.
-- Owns the game's world (`slime-world`), and tells it before and after each fixed step, so that
+- Runs a game as a *simulation*, its rules, and a *presentation*, what the player sees, through
+  the phases of a frame, each of which says who may change the world
+  (`docs/adr/0107-the-execution-model.md`): the simulation changes it, the presentation reads it,
+  and asks for changes as commands, which the host applies at the start of the next frame.
+- Owns the game's world (`slime-world`), its real time and its game time, its input and the
+  commands queued for it: the *host*. Tells the world before and after each fixed step, so that
   what moves during a step is drawn between its two transforms
   (`docs/adr/0084-what-the-world-draws.md`).
+- Runs with or without a window. Running without one (headless) is a normal configuration, which
+  automated tests use, and dedicated servers could; a test drives a host itself, without a GPU.
+- With a window, opens the GPU that draws into it, and gives each frame an image of the window to
+  draw into, which it then shows.
+- Sets up the engine's diagnostics.
 
 ## Entry points
 
-A game implements the `App` trait and hands it to `run`:
+A game implements `Simulation`, its rules, and hands it to `run` with its `Presentation`, or `()`
+for none:
 
 ```rust
-use std::time::Duration;
-use slime_app::time::FrameTime;
-use slime_app::{App, AppConfig, Context};
+use slime_app::{AppConfig, Simulation, SimulationContext};
+use slime_world::World;
 
 #[derive(Default)]
 struct Game {
     fixed_steps: u32,
 }
 
-impl App for Game {
-    fn fixed_update(&mut self, _ctx: &mut Context, _step: Duration) {
+impl Simulation for Game {
+    fn fixed_step(&mut self, _ctx: &mut SimulationContext<'_>, _world: &mut World) {
         self.fixed_steps += 1;
     }
 
-    fn update(&mut self, ctx: &mut Context, frame: &FrameTime) {
-        if frame.elapsed() >= Duration::from_secs(1) {
+    fn update(&mut self, ctx: &mut SimulationContext<'_>, _world: &mut World) {
+        if ctx.time().real().elapsed().as_secs() >= 1 {
             ctx.request_exit();
         }
     }
 }
 
 let mut game = Game::default();
-// The default configuration runs headless; set `window` to open one.
-slime_app::run(&mut game, &AppConfig::default()).expect("this application starts");
+// The default configuration runs headless, and never calls the presentation; set `window` to open
+// one.
+slime_app::run(&mut game, &mut (), &AppConfig::default()).expect("this game starts");
 assert_eq!(game.fixed_steps, 60);
 ```
 
-With a window, `render` draws each frame. This one clears the window to a color; the `window`
-example (`examples/window.rs`) also creates GPU objects in `init` and draws a triangle:
+With a window, the presentation draws each frame. This one clears the window to a color; the
+`window` example (`examples/window.rs`) also creates GPU objects in `start` and draws a triangle:
 
 ```rust,no_run
-use slime_app::{App, AppConfig, Context};
+use slime_app::{AppConfig, Context, Presentation};
 use slime_color::LinearColor;
 use slime_gfx::{RenderPassDescriptor, RenderTarget};
 use slime_platform::WindowConfig;
 
-struct Game;
+struct Sky;
 
-impl App for Game {
+impl Presentation for Sky {
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
         let gpu = ctx.gpu().expect("windowed runs have a GPU");
         let sky = LinearColor::rgb(0.1, 0.3, 0.8);
@@ -86,62 +93,79 @@ let config = AppConfig {
     ..AppConfig::default()
 };
 // A failed run has been logged, with each of its causes: the caller only reports the failure.
-if slime_app::run(&mut Game, &config).is_err() {
+if slime_app::run(&mut (), &mut Sky, &config).is_err() {
     std::process::exit(1);
 }
 ```
 
-- `App`: the methods the engine calls, in this order: `init` once; then for each frame,
-  `fixed_update` once per fixed step, `update` once and, with a window, `render` once; then
-  `shutdown` once. With a window, `on_event` receives each window event between frames. All have
-  defaults that do nothing.
-  - `init` can fail: it returns `Result<(), AppError>`, where `AppError` is any boxed error (`?`
-    converts errors into it). After a failed `init`, no frame runs, `shutdown` is not called and
+- `Simulation`: a game's rules, which change its world on game time from the input given as data,
+  without a GPU or a window: `start` once, then for each frame `fixed_step` once per fixed step
+  of game time due and `update` once, then `stop` once. Each receives the world, to change, and a
+  `SimulationContext`: the input (`slime_platform::Input`, the keys and mouse buttons held and
+  those pressed and released since the last frame), both times, and the run's stop: it asks to
+  stop (`request_exit`), or fails the run (`exit_with_error`), and its host decides what stopping
+  means.
+- `Presentation`: what the player sees, which reads the world and never writes it: every method
+  receives it as `&World` or not at all, so that a presentation that writes the world does not
+  compile. `start` once the window and the GPU are open; `on_event` for each event of the window,
+  which returns whether the presentation takes it for itself, as a dev overlay takes the keys
+  typed into a field: the simulation's input then does not see a key or a button put down, and
+  always sees one let go; for each frame, `extract`, which reads the world and makes what the
+  frame draws, then, when the window can show a new image, `render`, which draws it into the
+  window's image without the world (`docs/adr/0111-the-frame-contract.md`); `gpu_lost` and
+  `gpu_restored` when the run replaces a lost GPU device, which a game asks for with
+  `AppConfig::restore_lost_device`: it drops its GPU objects in the first, before the new device
+  opens, and creates them again in the second
+  (`docs/adr/0075-recovering-from-a-lost-gpu-device.md`); `stop` once. Only windowed runs call
+  it.
+  - A `start` can fail: it returns `Result<(), AppError>`, where `AppError` is any boxed error (`?`
+    converts errors into it). After a failed `start`, no frame runs, neither `stop` is called and
     `run` returns the error. `gpu_restored` can fail too, which stops the run with the error. The
-    other methods return nothing: one that hits an error it cannot handle passes it to `Context::exit_with_error`, which stops the run as an exit request does,
-    `shutdown` included, and makes `run` return it
-    (`docs/adr/0043-application-errors-during-a-run.md`).
-  - `render(ctx, target)` draws the frame into `target`, the window's image, with `ctx.gpu()`;
-    the engine shows the image afterwards. It is not called in frames where the window cannot
-    show a new image: while it is minimized, or when its next image is not ready in time on
-    Vulkan (on Direct3D 12, the engine waits up to one second for it, then draws the frame late;
-    on Windows with Vulkan, wgpu treats a wait of more than one second as a lost device, and the
-    run stops).
-  - `gpu_lost(ctx)` and `gpu_restored(ctx)` are called between frames when the GPU device was lost
-    and the run replaces it, which an application asks for with `AppConfig::restore_lost_device`:
-    it drops its GPU objects in the first, before the new device opens, and creates them again in
-    the second (`docs/adr/0075-recovering-from-a-lost-gpu-device.md`).
-- `run(&mut app, &config)`: sets up diagnostics and a handler for termination signals, then runs
-  the application until it calls `Context::request_exit`, the window is closed, the process
-  receives SIGINT (Ctrl+C), SIGTERM or SIGHUP, or `AppConfig::frame_limit` is reached. In every
-  case the frame in progress finishes and `shutdown` runs; a second signal, half a second or more
-  after the first, ends the process at once (exit code 130) for an application that no longer
-  finishes its frames; one that comes sooner, as when a closing terminal sends SIGHUP twice, is
-  ignored
+    other methods return nothing: one that hits an error it cannot handle passes it to
+    `exit_with_error`, which stops the run as an exit request does, both `stop` methods included,
+    and makes `run` return it (`docs/adr/0043-application-errors-during-a-run.md`).
+  - `render(ctx, target)` is not called in frames where the window cannot show a new image: while
+    it is minimized, or when its next image is not ready in time on Vulkan (on Direct3D 12, the
+    engine waits up to one second for it, then draws the frame late; on Windows with Vulkan, wgpu
+    treats a wait of more than one second as a lost device, and the run stops).
+- `Host`: what runs a simulation, and owns its world, real time and game time, its input and the
+  commands queued for it. `Host::frame(&mut simulation, real)` runs the first four phases of a
+  frame: the commands applied, in the order they came; the fixed steps that game time holds; the
+  update; the world's transforms. A test, or one day a dedicated server, drives it itself: it
+  presses and releases keys (`Host::input_mut`), pauses, slows down and steps game time and sends
+  commands (`Host::context_mut`), without a GPU.
+- `run(&mut simulation, &mut presentation, &config)`: the host of a game's program. It sets up
+  diagnostics and a handler for termination signals, then runs the game until it requests an exit,
+  the window is closed, the process receives SIGINT (Ctrl+C), SIGTERM or SIGHUP, or
+  `AppConfig::frame_limit` is reached. In every case the frame in progress finishes and both `stop`
+  methods run, the presentation's first; a second signal, half a second or more after the first,
+  ends the process at once (exit code 130) for a game that no longer finishes its frames; one that
+  comes sooner, as when a closing terminal sends SIGHUP twice, is ignored
   (`docs/adr/0012-clean-shutdown-on-termination-signals.md`).
   - Headless: frames run back to back with simulated time: each frame represents one fixed step,
-    so runs are deterministic. Neither the windowing system nor the GPU is touched.
+    so runs are deterministic. Neither the windowing system nor the GPU is touched, and the
+    presentation is not called.
   - With a window, `run` must be called from the main thread (it panics otherwise). The window and
-    the GPU exist before `init`. Frames represent the real time between them. The engine asks for
-    a frame on average at most `AppConfig::max_frame_rate` times per second (60 by default) and
-    sleeps in between; a frame runs each time the windowing system lets the window draw, which
-    also happens on its own initiative, for example during a resize
+    the GPU exist before the `start` methods. Frames represent the real time between them. The
+    engine asks for a frame on average at most `AppConfig::max_frame_rate` times per second (60 by
+    default) and sleeps in between; a frame runs each time the windowing system lets the window
+    draw, which also happens on its own initiative, for example during a resize
     (`docs/adr/0020-rendering-in-the-main-loop.md`). The images are shown as
     `AppConfig::present_mode` says: by default, each one replaces the image waiting to be shown,
     so the display never makes a frame wait, and the schedule alone paces the frames, hidden window
     included (`docs/adr/0021-frame-pacing.md`). With `PresentMode::Fifo`, every image is shown
     in step with the display, which can block a frame: up to one second when the compositor
     rarely shows a hidden window.
-  - It returns a `RunError`: `Init` when `init` fails, `App` when `gpu_restored` failed or the
-    application passed an error to `Context::exit_with_error`, `Platform` when the window cannot be opened (for example without
-    a display server) or its event loop fails, `Gfx` when no GPU can draw into the window or when
-    the GPU device or the window's surface is lost for good during the run. After a loss, the run
-    stops like after an exit request, `shutdown` included
+  - It returns a `RunError`: `Init` when a `start` fails, `App` when `gpu_restored` failed or the
+    game passed an error to `exit_with_error`, `Platform` when the window cannot be opened (for
+    example without a display server) or its event loop fails, `Gfx` when no GPU can draw into the
+    window or when the GPU device or the window's surface is lost for good during the run. After a
+    loss, the run stops like after an exit request, both `stop` methods included
     (`docs/adr/0022-losing-the-gpu-device.md`, `docs/adr/0025-giving-up-a-lost-surface.md`),
-    unless the application set `AppConfig::restore_lost_device`: the run then opens a new device
-    and goes on. It gives up at a loss that comes after three new devices within five minutes, and
-    when no device should or can replace the lost one; it does not try when it is stopping anyway.
-    A loss that the application meets, an error of a lost device that it passes to
+    unless the game set `AppConfig::restore_lost_device`: the run then opens a new device and goes
+    on. It gives up at a loss that comes after three new devices within five minutes, and when no
+    device should or can replace the lost one; it does not try when it is stopping anyway. A loss
+    that the presentation meets, an error of a lost device that it passes to
     `Context::exit_with_error` or returns from `gpu_restored`, is the run's to handle, as one the
     run found (`docs/adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md`). Only
     one windowed run, or attempt, is possible per process. A failed run is logged at the `error`
@@ -152,24 +176,29 @@ if slime_app::run(&mut Game, &config).is_err() {
     returns: a signal then no longer ends the process by itself, and only the second one received
     in the process ends it (exit code 130).
   - On Windows, Ctrl+C and Ctrl+Break in a console stop the run the same way; closing the console
-    window ends the process at once, without `shutdown`, and logging off and shutting down end it
-    without `shutdown` too.
+    window ends the process at once, without the `stop` methods, and logging off and shutting down
+    end it without them too.
 - `AppConfig`: the window (`None`, the default, runs headless), frame limit, fixed step
   (1/60 s), maximum fixed steps per frame (8), maximum frame delta (250 ms), maximum frame rate
   (60), present mode (`PresentMode::Mailbox`) and whether a windowed run replaces a lost GPU device
   (`restore_lost_device`, `false`). Write it as a struct literal ending with
   `..AppConfig::default()`.
-- `Context`: what an application can ask from the engine: the window (`Context::window`), the GPU
-  that draws into it (`Context::gpu`) and the format of its images (`Context::surface_format`),
-  all `None` when headless; the game's world (`Context::world`, `Context::world_mut`), headless
-  runs included; the interpolation factor (`Context::fixed_step_alpha`), the fraction of a fixed
-  step accumulated but not run, at which the world draws what `fixed_update` moved between its
-  last two transforms (`World::interpolated_transform`); stopping the run (`Context::request_exit`), or failing it (`Context::exit_with_error`);
-  and whether it is going to stop (`Context::exit_requested`), which reports a termination signal
-  as soon as it arrives, even during `init` or in the middle of a frame.
-- `time`: `FrameClock` turns the time between frames into a `FrameTime` (index, delta, elapsed
-  time) and limits how much time one frame can represent; `FixedStep` splits frame time into
-  steps of a fixed duration. Both take durations rather than reading a clock
+- `Context`: what the presentation, and whoever drives a host, can ask from the engine: the window
+  (`Context::window`), the GPU that draws into it (`Context::gpu`) and the format of its images
+  (`Context::surface_format`), all `None` when headless; both times (`Context::time`); game time's
+  speed, pause and one step (`set_speed`, `pause`, `resume`, `step`), applied from the next frame;
+  the commands (`Context::send`), and those that the world refused at this frame's start
+  (`Context::refused`); stopping the run (`request_exit`), or failing it (`exit_with_error`); and
+  whether it is going to stop (`exit_requested`), which reports a termination signal as soon as it
+  arrives, even during a `start` or in the middle of a frame.
+- `time`: `Time` holds a frame's real time, `FrameTime` (index, delta, elapsed time), and its game
+  time, `GameTime`: the fixed steps run, the game time the frame added, and the fraction of a step
+  accumulated but not run (`alpha`), at which the world draws what moved during the last step
+  between its last two transforms (`World::interpolated_transform`). Game time advances at a
+  speed, 1 by default, not at all while paused, and its fixed steps keep their duration at every
+  speed, so that a simulation gives the same results at every speed. `FrameClock` turns the time
+  between frames into a `FrameTime` and limits how much time one frame can represent; `FixedStep`
+  splits time into steps of a fixed duration. Both take durations rather than reading a clock
   (`docs/adr/0009-frame-timing.md`).
 - `init_diagnostics()`: installs the log subscriber (output on standard error, filtered by the
   `SLIME_LOG` environment variable; events that cannot be written because standard error is gone
@@ -190,15 +219,15 @@ if slime_app::run(&mut Game, &config).is_err() {
 
 Engine code and games log through the `tracing` macros. The conventions for errors, log levels and
 assertions are in `docs/adr/0008-errors-logging-and-assertions.md`; why the engine owns the main
-loop is in `docs/adr/0010-main-loop-ownership.md`. With
-`SLIME_LOG=slime_app=trace,slime_gfx=trace`, each frame's profiling spans are logged with the time
-spent in them: `frame`, containing `fixed_update`, `update`, and with a window `acquire` (waiting
-for the window's image), `render` (with `submit`, recorded by `slime-gfx`) and `present`. Each
-line is written to standard error when its span closes, while the enclosing span is still open, so
-a span's time includes writing the lines of the spans it contains; with `slime_gfx=trace`, the
-renderer's `RenderStats::cpu_time` likewise includes the `submit` lines of its submissions. Take
-timing baselines with `SLIME_LOG` unset, and use the span lines, or a trace (`SLIME_TRACE`), which
-writes no line, for where the time goes. A bare
+loop is in `docs/adr/0010-main-loop-ownership.md`. With `SLIME_LOG=slime_app=trace,slime_gfx=trace`,
+each frame's profiling spans are logged with the time spent in them: `frame`, containing
+`fixed_step`, `update`, and with a window `extract`, `acquire` (waiting for the window's image),
+`render` (with `submit`, recorded by `slime-gfx`) and `present`. Each line is written to standard
+error when its span closes, while the enclosing span is still open, so a span's time includes
+writing the lines of the spans it contains; with `slime_gfx=trace`, the renderer's
+`RenderStats::cpu_time` likewise includes the `submit` lines of its submissions. Take timing
+baselines with `SLIME_LOG` unset, and use the span lines, or a trace (`SLIME_TRACE`), which writes
+no line, for where the time goes. A bare
 `SLIME_LOG=trace` logs them too, but also turns on the trace logs of wgpu and of its shader
 compiler, among them a line for each command of each draw, written while a pass is encoded: they
 flood standard error, and the time spent writing them counts in the spans. In GPU capture tools
@@ -211,8 +240,8 @@ the name the graphics API gives it.
 - `ctrlc`: handles termination signals.
 - `nu-ansi-term`, on Windows only: turns on the colors of the log in the console.
 - `slime-gfx`: the GPU and the window's surface, for windowed runs.
-- `slime-platform`: the window and its events, for windowed runs.
-- `slime-world`: the game's world, which it owns.
+- `slime-platform`: the window and its events, for windowed runs, and the input as data.
+- `slime-world`: the game's world, which it owns, and its commands.
 - `thiserror`: derives `RunError`'s `Display` and `Error` implementations.
 - `tracing`: the logging macros and profiling spans.
 - `tracing-subscriber`: the subscriber that formats, filters and writes log events, including the

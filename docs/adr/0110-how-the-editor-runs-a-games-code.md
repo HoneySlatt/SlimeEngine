@@ -2,7 +2,9 @@
 
 - Status: Accepted; amends [0055](0055-games-in-the-workspace.md) (a game is a library, its program
   and its editor); amended by [0116](0116-stage-6-in-two-halves.md) (the development channel built
-  before play in the editor, with the MCP server)
+  before play in the editor, with the MCP server) and
+  [0121](0121-a-game-as-a-simulation-and-a-presentation.md) (a game's library holds its
+  presentation too)
 - Date: 2026-10-20
 
 ## Context

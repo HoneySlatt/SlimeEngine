@@ -35,26 +35,27 @@ of `WorldPanel`.
   `slime-platform`.
 - Lists a world's entities by name and edits the components of the one selected through the
   world's type registry, without knowing their types (`slime-world`, `slime-reflect`). Each change
-  is returned as an `Edit`, an entity, a component, a property path and a value, which the
-  application applies.
+  is returned as a command (`slime_world::Command`), which names the entity by its persistent
+  identity, and which the application sends to its host, to apply at the start of the next frame.
 
 ## Entry points
 
-An application creates an `Overlay` in `init`, for the window's format and scale factor, hands it
-every event, and draws its panels after its scene:
+A presentation creates an `Overlay` in `start`, for the window's format and scale factor, hands it
+every event, builds its panels as it extracts its frame, and draws them after its scene:
 
 ```rust,no_run
-use slime_app::{App, AppError, Context};
+use slime_app::{AppError, Context, Presentation};
 use slime_devui::{Overlay, egui};
 use slime_gfx::RenderTarget;
 use slime_platform::Event;
+use slime_world::World;
 
-struct Game {
+struct Statistics {
     overlay: Option<Overlay>,
 }
 
-impl App for Game {
-    fn init(&mut self, ctx: &mut Context) -> Result<(), AppError> {
+impl Presentation for Statistics {
+    fn start(&mut self, ctx: &mut Context, _world: &World) -> Result<(), AppError> {
         let (gpu, format, window) = (
             ctx.gpu().expect("windowed"),
             ctx.surface_format().expect("windowed"),
@@ -64,21 +65,33 @@ impl App for Game {
         Ok(())
     }
 
-    fn on_event(&mut self, _ctx: &mut Context, event: &Event) {
-        if let Some(overlay) = &mut self.overlay {
-            overlay.handle(event);
-        }
+    fn on_event(&mut self, _ctx: &mut Context, event: &Event) -> bool {
+        let Some(overlay) = &mut self.overlay else {
+            return false;
+        };
+        // Whether a field of the overlay has the keyboard, before the event: the game does not
+        // see the keys typed into it.
+        let typing = overlay.wants_keyboard();
+        overlay.handle(event);
+        typing && matches!(event, Event::Key(_))
+    }
+
+    fn extract(&mut self, ctx: &mut Context, _world: &World) {
+        let (Some(overlay), Some(window)) = (&mut self.overlay, ctx.window()) else {
+            return;
+        };
+        overlay.build(window.inner_size(), |ctx| {
+            egui::Window::new("Statistics").show(ctx, |ui| {
+                ui.label("60 frames per second");
+            });
+        });
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
         let gpu = ctx.gpu().expect("windowed");
         // ... draw the scene into `target` first ...
         if let Some(overlay) = &mut self.overlay {
-            overlay.render(gpu, target, |ctx| {
-                egui::Window::new("Statistics").show(ctx, |ui| {
-                    ui.label("60 frames per second");
-                });
-            });
+            overlay.render(gpu, target);
         }
     }
 }
@@ -89,23 +102,28 @@ impl App for Game {
   replaced it again while the application creates its objects.
 - `Overlay::handle(&event)`: every event of the window, before the application reads it;
   `Overlay::wants_pointer()` then says whether the cursor is over a panel, as of the last frame
-  drawn, so that the application leaves clicks and the wheel to the overlay, and
+  built, so that the application leaves clicks and the wheel to the overlay, and
   `Overlay::wants_keyboard()` whether a text field of the overlay has the keyboard or a menu of it
-  is open, so that keys typed into it, or Escape closing the menu, do not also play.
-- `Overlay::render(gpu, target, |ctx| ...)`: builds the panels with egui's `Context` and draws
-  them over the target; `slime_devui::egui` is the egui the overlay uses. egui sizes a window
-  on the first frame that shows it and draws it from the next one. egui may call the closure
-  twice in a frame, when it lays the frame out again (on the first frame of a grid or of a
-  window being resized), so the closure builds the same panels on every call. `render` is also
-  what hands egui the events given to `handle`, which the overlay keeps until then: to hide the
-  overlay, call `render` with no panel rather than not at all; such a frame submits no work to
-  the GPU.
-- `WorldPanel::show(ctx, &world)`, in the closure of `render`: the world panel's window, and the
-  edits its widgets ask for, which the application adds to those of the frame, since egui may
-  call the closure twice. Once the frame is drawn, it applies each with
-  `World::set_property(edit.entity, &edit.component, &edit.path, edit.value)`, and hands a
-  refusal back with `WorldPanel::refused`, which the panel shows. `games/hunnawood` and the
-  `world` example show it on F2.
+  is open, so that keys typed into it, or Escape closing the menu, do not also play: a
+  presentation takes such events for itself (`slime_app::Presentation::on_event`).
+- `Overlay::build(size, |ctx| ...)`: builds the panels with egui's `Context`, for an image of
+  `size` physical pixels, the window's, when the presentation extracts its frame, the panels
+  reading the world; `slime_devui::egui` is the egui the overlay uses. egui sizes a window on the
+  first frame that shows it and draws it from the next one. egui may call the closure twice in a
+  frame, when it lays the frame out again (on the first frame of a grid or of a window being
+  resized), so the closure builds the same panels on every call. `build` is also what hands egui
+  the events given to `handle`, which the overlay keeps until then: to hide the overlay, build it
+  with no panel rather than not at all.
+- `Overlay::render(gpu, target)`: draws the panels built over the target, without the world; a
+  frame with no panel submits no work to the GPU. Panels built in a frame that the window could not
+  show are replaced by the next ones, whose drawing makes the changes of egui's textures of both.
+- `WorldPanel::show(ctx, &world)`, in the closure of `build`: the world panel's window, and the
+  commands its widgets ask for, which the application adds to those of the frame, since egui may
+  call the closure twice, and sends to its host (`slime_app::Context::send`). The host applies
+  them at the start of the next frame, and hands each refusal back (`slime_app::Context::refused`),
+  which the application gives the panel with `WorldPanel::refused`, to show it. The panel keeps the
+  entity selected by its identity too, and finds it again when a load or a hot reload replaced the
+  world. `games/hunnawood` and the `world` example show it on F2.
 
 ## Dependencies
 

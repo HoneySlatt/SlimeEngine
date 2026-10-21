@@ -13,7 +13,7 @@ impl World {
     /// [`World::end_fixed_step`] are drawn between where they were before the step and where it
     /// leaves them ([`World::interpolated_transform`]). It computes the transforms in the world
     /// first, so that what changed since the last step is drawn at once, and forgets the transforms
-    /// kept from the step before. `slime-app` calls it before each `App::fixed_update`.
+    /// kept from the step before. `slime-app`'s host calls it before each `Simulation::fixed_step`.
     pub fn begin_fixed_step(&mut self) {
         self.update_transforms();
         for &(slot, _) in &self.changes.moved {
@@ -25,7 +25,7 @@ impl World {
 
     /// Ends the fixed step that [`World::begin_fixed_step`] started, and computes the transforms in
     /// the world: what changed during the step is drawn between its two transforms, but what was
-    /// teleported. `slime-app` calls it after each `App::fixed_update`.
+    /// teleported. `slime-app`'s host calls it after each `Simulation::fixed_step`.
     pub fn end_fixed_step(&mut self) {
         self.changes.in_step = false;
         self.update_transforms();
@@ -60,7 +60,7 @@ impl World {
     }
 
     /// Where `entity` is drawn at `fraction` of the time from the last fixed step to the next, from
-    /// 0 to 1, as `slime-app`'s `Context::fixed_step_alpha` gives it
+    /// 0 to 1, as `slime-app`'s `GameTime::alpha` gives it
     /// (`docs/adr/0084-what-the-world-draws.md`):
     ///
     /// - If its transform in the world changed during the last step, between where it was before

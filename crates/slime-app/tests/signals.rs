@@ -2,7 +2,7 @@
 //!
 //! Signal handlers are global to a process, so each test re-runs this test binary as a child
 //! process, restricted to that one test. The child runs a headless application that prints
-//! `ready` when it starts and `shutdown` when it stops; the parent sends it signals with the
+//! `ready` when it starts and `stop` when it stops; the parent sends it signals with the
 //! `kill` command and checks how it ended.
 //!
 //! Unix only: Windows has no signals to send, and a console Ctrl+C cannot be sent to a single
@@ -15,49 +15,54 @@ use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use slime_app::time::FrameTime;
-use slime_app::{App, AppConfig, AppError, Context, run};
+use slime_app::{AppConfig, AppError, Simulation, SimulationContext, run};
+use slime_world::World;
 
 const CHILD_ENV: &str = "SLIME_APP_TEST_CHILD";
 const TIMEOUT: Duration = Duration::from_secs(10);
 
-/// How long an `init` that waits for an exit request waits before giving up.
+/// How long a `start` that waits for an exit request waits before giving up.
 const INIT_WAIT: Duration = Duration::from_secs(5);
 
-/// Prints its lifecycle on standard output; optionally waits in `init` for an exit request, as a
+/// Prints its lifecycle on standard output; optionally waits in `start` for an exit request, as a
 /// long loading would check between files, blocks during the first frame, by sleeping or by logging
 /// without end, or sleeps in every frame so that a run lasts long enough to receive a signal.
 #[derive(Default)]
 struct Announcer {
-    wait_for_exit_in_init: bool,
+    wait_for_exit_in_start: bool,
     block_first_frame: bool,
     log_in_first_frame: bool,
     sleep_per_frame: Duration,
     frames: u64,
 }
 
-impl App for Announcer {
-    fn init(&mut self, ctx: &mut Context) -> Result<(), AppError> {
+impl Simulation for Announcer {
+    fn start(
+        &mut self,
+        ctx: &mut SimulationContext<'_>,
+        _world: &mut World,
+    ) -> Result<(), AppError> {
         println!("ready");
-        if self.wait_for_exit_in_init {
+        if self.wait_for_exit_in_start {
             let deadline = Instant::now() + INIT_WAIT;
             while !ctx.exit_requested() && Instant::now() < deadline {
                 thread::sleep(Duration::from_millis(10));
             }
             if ctx.exit_requested() {
-                println!("init cancelled");
+                println!("start cancelled");
             } else {
-                println!("init timed out");
+                println!("start timed out");
             }
         }
         Ok(())
     }
 
-    fn update(&mut self, _ctx: &mut Context, frame: &FrameTime) {
-        if self.block_first_frame && frame.index() == 0 {
+    fn update(&mut self, ctx: &mut SimulationContext<'_>, _world: &mut World) {
+        let first = ctx.time().real().index() == 0;
+        if self.block_first_frame && first {
             thread::sleep(Duration::from_secs(30));
         }
-        if self.log_in_first_frame && frame.index() == 0 {
+        if self.log_in_first_frame && first {
             // Blocks once standard error is full, when nobody reads it.
             loop {
                 tracing::info!("a line of the first frame");
@@ -67,8 +72,8 @@ impl App for Announcer {
         self.frames += 1;
     }
 
-    fn shutdown(&mut self, _ctx: &mut Context) {
-        println!("shutdown frames={}", self.frames);
+    fn stop(&mut self, _ctx: &mut SimulationContext<'_>, _world: &mut World) {
+        println!("stop frames={}", self.frames);
     }
 }
 
@@ -81,7 +86,7 @@ fn run_child_app(block_first_frame: bool) {
         block_first_frame,
         ..Announcer::default()
     };
-    run(&mut app, &AppConfig::default()).expect("this application starts");
+    run(&mut app, &mut (), &AppConfig::default()).expect("this application starts");
 }
 
 /// Starts the test named `test` in a child process and waits until its application is running.
@@ -176,8 +181,8 @@ fn assert_clean_stop_on(signal: &str, test: &str, sigint_ignored: bool) {
         "SIG{signal} must end the run cleanly: {status}"
     );
     assert!(
-        output.contains("shutdown"),
-        "App::shutdown must run after SIG{signal}; output: {output}"
+        output.contains("stop frames"),
+        "Simulation::stop must run after SIG{signal}; output: {output}"
     );
 }
 
@@ -229,8 +234,8 @@ fn a_second_signal_ends_a_stuck_process_at_once() {
         "a second signal must exit with code 130"
     );
     assert!(
-        !output.contains("shutdown"),
-        "a forced exit does not run App::shutdown; output: {output}"
+        !output.contains("stop frames"),
+        "a forced exit does not run Simulation::stop; output: {output}"
     );
 }
 
@@ -243,7 +248,7 @@ fn a_repeated_sighup_stops_the_run_cleanly() {
             sleep_per_frame: Duration::from_millis(50),
             ..Announcer::default()
         };
-        run(&mut app, &AppConfig::default()).expect("this application starts");
+        run(&mut app, &mut (), &AppConfig::default()).expect("this application starts");
         return;
     }
     let (child, lines) = spawn_child(
@@ -258,8 +263,8 @@ fn a_repeated_sighup_stops_the_run_cleanly() {
     let (status, output) = wait_for_end(child, &lines);
     assert!(status.success(), "{status}");
     assert!(
-        output.contains("shutdown"),
-        "App::shutdown must run; output: {output}"
+        output.contains("stop frames"),
+        "Simulation::stop must run; output: {output}"
     );
 }
 
@@ -273,7 +278,7 @@ fn a_second_signal_ends_a_process_whose_log_is_blocked() {
             log_in_first_frame: true,
             ..Announcer::default()
         };
-        run(&mut app, &AppConfig::default()).expect("this application starts");
+        run(&mut app, &mut (), &AppConfig::default()).expect("this application starts");
         return;
     }
     let (child, lines) = spawn_child(
@@ -295,25 +300,25 @@ fn a_second_signal_ends_a_process_whose_log_is_blocked() {
         "a second signal must exit with code 130"
     );
     assert!(
-        !output.contains("shutdown"),
-        "the frames were blocked, so App::shutdown cannot have run; output: {output}"
+        !output.contains("stop frames"),
+        "the frames were blocked, so Simulation::stop cannot have run; output: {output}"
     );
 }
 
-/// An application sees a signal through `Context::exit_requested` as soon as it arrives, even in a
-/// long `init`, which can then stop early: no frame runs and `shutdown` is called.
+/// A game sees a signal through `SimulationContext::exit_requested` as soon as it arrives, even in
+/// a long `start`, which can then stop early: no frame runs and `stop` is called.
 #[test]
-fn a_signal_received_during_init_is_seen_by_exit_requested() {
+fn a_signal_received_during_start_is_seen_by_exit_requested() {
     if is_child() {
         let mut app = Announcer {
-            wait_for_exit_in_init: true,
+            wait_for_exit_in_start: true,
             ..Announcer::default()
         };
-        run(&mut app, &AppConfig::default()).expect("this application starts");
+        run(&mut app, &mut (), &AppConfig::default()).expect("this application starts");
         return;
     }
     let (child, lines) = spawn_child(
-        "a_signal_received_during_init_is_seen_by_exit_requested",
+        "a_signal_received_during_start_is_seen_by_exit_requested",
         false,
         Stdio::null(),
         &[],
@@ -322,13 +327,13 @@ fn a_signal_received_during_init_is_seen_by_exit_requested() {
     let (status, output) = wait_for_end(child, &lines);
     assert!(status.success(), "{status}");
     assert!(
-        output.contains("init cancelled\nshutdown frames=0"),
-        "init must see the signal, then the run must stop before its first frame; output: {output}"
+        output.contains("start cancelled\nstop frames=0"),
+        "start must see the signal, then the run must stop before its first frame; output: {output}"
     );
 }
 
 /// A signal asks the whole process to stop: a later run stops before its first frame, after its
-/// `init` and with its `shutdown`.
+/// `start` and with its `stop`.
 #[test]
 fn a_signal_stops_every_later_run_in_the_process() {
     if is_child() {
@@ -338,7 +343,7 @@ fn a_signal_stops_every_later_run_in_the_process() {
             frame_limit: Some(100),
             ..AppConfig::default()
         };
-        run(&mut second, &config).expect("the second run starts");
+        run(&mut second, &mut (), &config).expect("the second run starts");
         println!("second run frames={}", second.frames);
         return;
     }
@@ -352,8 +357,8 @@ fn a_signal_stops_every_later_run_in_the_process() {
     let (status, output) = wait_for_end(child, &lines);
     assert!(status.success(), "{status}");
     assert!(
-        output.contains("ready\nshutdown frames=0\nsecond run frames=0"),
-        "a later run must run init and shutdown but no frame; output: {output}"
+        output.contains("ready\nstop frames=0\nsecond run frames=0"),
+        "a later run must run start and stop but no frame; output: {output}"
     );
 }
 
@@ -371,7 +376,7 @@ fn a_handler_installed_through_ctrlc_before_run_is_kept() {
             frame_limit: Some(40),
             ..AppConfig::default()
         };
-        run(&mut app, &config).expect("this application starts");
+        run(&mut app, &mut (), &config).expect("this application starts");
         return;
     }
     let (child, lines) = spawn_child(
@@ -388,7 +393,7 @@ fn a_handler_installed_through_ctrlc_before_run_is_kept() {
         "the game's handler receives the signal; output: {output}"
     );
     assert!(
-        output.contains("shutdown frames=40"),
+        output.contains("stop frames=40"),
         "the run goes on to its frame limit; output: {output}"
     );
 }
@@ -408,7 +413,7 @@ fn a_signal_thread_that_cannot_start_is_reported_with_its_cause() {
             frame_limit: Some(20),
             ..AppConfig::default()
         };
-        run(&mut app, &config).expect("this application starts");
+        run(&mut app, &mut (), &config).expect("this application starts");
         return;
     }
     // The test harness runs the child's test on its main thread when it cannot start one.
@@ -427,7 +432,7 @@ fn a_signal_thread_that_cannot_start_is_reported_with_its_cause() {
         .expect("the child's standard error");
     assert!(status.success(), "SIGTERM is ignored: {status}");
     assert!(
-        output.contains("shutdown frames=20"),
+        output.contains("stop frames=20"),
         "the run goes on to its frame limit; output: {output}"
     );
     let warning = log

@@ -1,6 +1,7 @@
 # 0057. What the first game asks of the next stages
 
-- Status: Accepted
+- Status: Accepted; amended by [0121](0121-a-game-as-a-simulation-and-a-presentation.md) (the keys
+  and buttons held, kept by the engine at Stage 6)
 - Date: 2026-10-15
 
 ## Context

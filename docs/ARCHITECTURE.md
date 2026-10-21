@@ -14,7 +14,7 @@ it is built this way.
 ├── Cargo.toml           virtual workspace: shared metadata, lints and dependency versions
 ├── Cargo.lock           the exact version of every dependency, checked in
 ├── crates/              engine crates, one directory per crate, named after the package
-│   ├── slime-app/       application lifecycle and main loop
+│   ├── slime-app/       a game run as a simulation and a presentation by a host: the main loop
 │   ├── slime-assets/    assets as games load them: asset IDs, cooked data, the manifest
 │   ├── slime-color/     the color type of every API: linear colors, the sRGB transfer function
 │   ├── slime-cook/      the asset pipeline's cooker, a library and its program
@@ -54,8 +54,8 @@ created only when code needs it.
 
 | Crate | Role | Depends on | Status |
 |---|---|---|---|
-| [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events |
-| [`slime-app`](../crates/slime-app/README.md) | Application lifecycle, main loop, frame timing, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `slime-world`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber`, `nu-ansi-term` (Windows only) | Headless runs, and windowed runs drawn by the GPU, which go on with a new device after a lost one when the application asks |
+| [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input, and that input as data, the keys and buttons held; the only crate that uses the windowing library (winit) | `winit`, `raw-window-handle`, `thiserror`, `tracing` | One window; window, keyboard and mouse events; the keys and mouse buttons held, pressed and released since the last frame |
+| [`slime-app`](../crates/slime-app/README.md) | A game run as a simulation, its rules, and a presentation, what the player sees, by a host that owns its world, real time and game time, its input and its commands, through the phases of each frame ([ADR-0107](adr/0107-the-execution-model.md), [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); the main loop, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `slime-world`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber`, `nu-ansi-term` (Windows only) | Headless runs, and windowed runs drawn by the GPU, which go on with a new device after a lost one when the game asks; game time that pauses, slows down and steps; commands applied at the start of a frame; a host that a test drives without a GPU |
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `slime-color`, `thiserror`, `tracing` | Opens a GPU device, and another in place of a lost one; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, half-precision floats and BC7 and BC5 blocks among their formats; storage buffers, buffers written by ranges, instanced draws from a base vertex; an uploader that submits the copies of what loads bring within a budget of bytes per frame, on a thread of its own |
 | [`slime-color`](../crates/slime-color/README.md) | The color type of every API of the engine, `LinearColor`, and the sRGB transfer function, below every crate that holds a color ([ADR-0045](adr/0045-one-linear-color-type.md), [ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-reflect` | Linear colors and their constructors, sRGB bytes decoded and encoded |
 | [`slime-tasks`](../crates/slime-tasks/README.md) | The engine's task pool: the threads on which the engine computes, with a priority for the work that a frame waits for ([ADR-0107](adr/0107-the-execution-model.md)); headless, on the standard library alone | none | One pool, the machine's logical cores but one; frame and background tasks, a thread always left for frame tasks; items computed in parallel, the calling thread taking its share |
@@ -63,14 +63,14 @@ created only when code needs it.
 | [`slime-reflect`](../crates/slime-reflect/README.md) | Reflection: types described at run time, their values as plain data, read and changed by property path through a registry, compared and their differences applied ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0085](adr/0085-reflection.md)); headless | `glam`, `slime-reflect-derive` | `Reflect` and its derive, with stable names, aliases, versions and their upgrades, default values, skipped and transient fields, ranges and units; one value type, references to assets and entities kinds of their own; descriptions of types; a registry, explicit and recursive, that holds types with no Rust type behind them, checks values, sets their parts by path within their fields' ranges and lists their leaves; the standard types, glam's `Vec3`, `DVec3` and `Quat`; no files: `slime-serialize` writes and reads them |
 | [`slime-reflect-derive`](../crates/slime-reflect-derive/README.md) | The derive macro of reflection, `#[derive(Reflect)]`, which `slime-reflect` re-exports | `proc-macro2`, `quote`, `syn` | Structs and enums, their doc comments and attributes; generic types, lifetimes, unions and types without a name refused |
 | [`slime-serialize`](../crates/slime-serialize/README.md) | Serialization: values of reflected types written to TOML documents by the engine's own writer and read back, from earlier versions of their types too, and the same documents in a binary encoding of the engine's own ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0086](adr/0086-serialization.md), [ADR-0094](adr/0094-the-binary-encoding-of-documents.md)); headless | `slime-reflect`, `toml_edit`, `thiserror` | Documents of any registered type's value, whole or in part; the same bytes for the same value; versions written past 1 and earlier values brought forward by their types' upgrades; strict and lenient reading, errors by line, column and path, limits on size and depth; documents of several values, references to entities written as the names that a world gives them, and to assets as a document names them, their IDs unless it says otherwise; a document's layout read and its errors placed by the program that reads it, as a world reads scene files; the binary encoding written from a text and read through the same reader, its errors by byte |
-| [`slime-world`](../crates/slime-world/README.md) | The world: a game's entities, their components and their hierarchy, kept by the engine ([ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `glam`, `thiserror`, `tracing` | Entities as handles of an index and a generation, the components attached to them stored by type, queries that read through an iterator or change through a closure ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)); every change stamped with the world's tick, written through guards, so that readers ask what was added, changed or removed since they last read, and whether the hierarchy moved ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md), [ADR-0119](adr/0119-the-worlds-ticks-blocks-and-log.md)); parents and children, transforms with `f64` translations, a uniform scale and a stretch, and where each entity is in the world, always current ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)); scenes spawned as entities with persistent identities, glTF scenes and scene files whose placements of prefabs carry overrides, resolved by a library of scenes, and written back as scene files that keep their placements ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0091](adr/0091-scene-documents-and-placements.md), [ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)); what is drawn, meshes by asset ID, lights and hidden subtrees, and the transforms before the last fixed step of what moved during it ([ADR-0084](adr/0084-what-the-world-draws.md)); every component reflected, and listed, read and set by name and property path through the world's registry ([ADR-0085](adr/0085-reflection.md)); saves of what differs from the world as a game makes it at the start of a run, what it spawned while it ran saved as its scenes, loaded back ([ADR-0087](adr/0087-the-worlds-documents.md), [ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)) |
-| [`slime-world-render`](../crates/slime-world-render/README.md) | The bridge from a world to the renderer: builds, at each frame, the instances, the lights and the sky's environment that a world draws, from the GPU objects of an asset cache ([ADR-0084](adr/0084-what-the-world-draws.md)); neither the world nor the renderer depends on it | `slime-world`, `slime-render`, `slime-gfx`, `tracing` | Meshes drawn where the world draws them between fixed steps, those the cache does not hold asked for; lights at their entities; hidden subtrees left out; the game's sky around the world's sun, given once |
+| [`slime-world`](../crates/slime-world/README.md) | The world: a game's entities, their components and their hierarchy, kept by the engine ([ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `glam`, `thiserror`, `tracing` | Entities as handles of an index and a generation, the components attached to them stored by type, queries that read through an iterator or change through a closure ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)); every change stamped with the world's tick, written through guards, so that readers ask what was added, changed or removed since they last read, and whether the hierarchy moved ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md), [ADR-0119](adr/0119-the-worlds-ticks-blocks-and-log.md)); parents and children, transforms with `f64` translations, a uniform scale and a stretch, and where each entity is in the world, always current ([ADR-0083](adr/0083-transforms-and-the-hierarchy.md)); scenes spawned as entities with persistent identities, glTF scenes and scene files whose placements of prefabs carry overrides, resolved by a library of scenes, and written back as scene files that keep their placements ([ADR-0089](adr/0089-scenes-and-prefabs.md), [ADR-0091](adr/0091-scene-documents-and-placements.md), [ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)); what is drawn, meshes by asset ID, lights and hidden subtrees, and the transforms before the last fixed step of what moved during it ([ADR-0084](adr/0084-what-the-world-draws.md)); every component reflected, and listed, read and set by name and property path through the world's registry ([ADR-0085](adr/0085-reflection.md)); saves of what differs from the world as a game makes it at the start of a run, what it spawned while it ran saved as its scenes, loaded back ([ADR-0087](adr/0087-the-worlds-documents.md), [ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md)); commands that name their entities by persistent identity, applied by a host at the start of a frame ([ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)) |
+| [`slime-world-render`](../crates/slime-world-render/README.md) | The bridge from a world to the renderer: builds, at each frame, the instances, the lights and the sky's environment that a world draws, from the GPU objects of an asset cache ([ADR-0084](adr/0084-what-the-world-draws.md)); neither the world nor the renderer depends on it | `slime-world`, `slime-render`, `slime-gfx`, `tracing` | Meshes drawn where the world draws them between fixed steps, those the cache does not hold asked for; lights at their entities, each named by its entity in the frame; hidden subtrees left out; the game's sky around the world's sun, given once |
 | [`slime-assets`](../crates/slime-assets/README.md) | The assets as games load them: asset IDs, cooked data and its manifest, read by ID from a directory of cooked data ([ADR-0069](adr/0069-the-asset-pipeline.md)); headless | `slime-reflect`, `ktx2`, `thiserror` | The asset ID and its text form, a UUID; cooked textures in KTX2 files ([ADR-0071](adr/0071-cooked-textures.md)), meshes, materials and scenes, their nodes' extras and typed components among them; cooked scene files, read as bytes ([ADR-0095](adr/0095-cooked-scene-files.md)); the manifest; reading them by ID; a watch of the manifest, for hot reload |
 | [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `slime-tasks`, `slime-world`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, read and written through `slime-serialize`, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; the typed properties of their nodes; scene files checked and cooked into the binary encoding of documents ([ADR-0095](adr/0095-cooked-scene-files.md)); a directory cooked again only where it changed, with its manifest, once or at each change |
-| [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events, and its world panel; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md), [ADR-0081](adr/0081-stage-5a-the-world.md)) | `egui`, `egui-wgpu`, `slime-assets`, `slime-color`, `slime-gfx` (with its `wgpu` feature), `slime-platform`, `slime-reflect`, `slime-world` | Panels over a frame; a world's entities listed by name and their components edited through reflection, each edit returned for the caller to apply; no clipboard or input methods |
+| [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events, and its world panel; tooling, removed once something does at least as well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md), [ADR-0081](adr/0081-stage-5a-the-world.md)) | `egui`, `egui-wgpu`, `slime-assets`, `slime-color`, `slime-gfx` (with its `wgpu` feature), `slime-platform`, `slime-reflect`, `slime-world` | Panels built when a frame is extracted and drawn over it when it is rendered; a world's entities listed by name and their components edited through reflection, each edit returned as a command for the caller to send; no clipboard or input methods |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-render`, `slime-world`, `slime-world-render`, `png`, `tracing`; for the tests, `slime-cook` and `gltf` | `hello`, `headless`, `window`, `offscreen`, `scene`, which draws a cooked scene, `world`, which spawns a yard of prefabs from a cooked scene file and draws it from a world; the reference image tests, and tests that cook glTF files and draw them |
 | [`slime-benches`](../benches/README.md) | The engine's benchmarks, a program whose figures [`measurements.md`](measurements.md) keeps; a client of the engine through its public API only, not part of the engine ([ADR-0104](adr/0104-the-build-ci-and-measurements.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-cook`, `slime-gfx`, `slime-render`, `slime-world`, `slime-world-render` | The scenarios that its README lists, of rendering, of the world and of loading |
-| [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-serialize`, `slime-world`, `slime-world-render`, `tracing` | A forest zone, a scene file that places the land and six lanterns of one prefab, and its hero, read from cooked data and spawned in the game's world, its colliders, markers and lights' times of day as the game's components, typed properties of their nodes, the camera behind the hero, the hero's movement and its collisions with boxes turned about the vertical and cylinders, a key that opens a door, a campfire that flickers, the zone drawn while it loads, the run kept after a lost GPU device, the run carried into the scenes changed on disk, and the shaders loaded again when their files change (`--watch`); the run saved on F5 and on quit, loaded on F9 and resumed on start, a save checked before it is resumed and held by one copy of the game at a time ([ADR-0088](adr/0088-saving-and-resuming-a-run.md), [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)) |
+| [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-serialize`, `slime-world`, `slime-world-render`, `tracing` | A library, its rules as a simulation and what the player sees as a presentation, and its program ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); a forest zone, a scene file that places the land and six lanterns of one prefab, and its hero, read from cooked data and spawned in the game's world, its colliders, markers and lights' times of day as the game's components, typed properties of their nodes, the camera behind the hero along where the player looks, the hero's movement and its collisions with boxes turned about the vertical and cylinders, a key that opens a door, a campfire that flickers, the zone drawn while it loads, game time held paused until the zone is drawn, and paused, slowed down and stepped from the dev overlay, the run kept after a lost GPU device, the run carried into the scenes changed on disk, and the shaders loaded again when their files change (`--watch`); the run saved on F5 and on quit, loaded on F9 and resumed on start, a save checked before it is resumed and held by one copy of the game at a time ([ADR-0088](adr/0088-saving-and-resuming-a-run.md), [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)) |
 
 ## Dependency rules
 
@@ -116,8 +116,9 @@ lists every dependency.
   depends on `slime-world`, since it owns the game's world
   ([ADR-0079](adr/0079-the-engines-own-world.md)).
 - `slime-render` depends on `slime-gfx` only and does not use wgpu
-  ([ADR-0027](adr/0027-the-render-crate.md)). `slime-app` does not depend on it: an application
-  creates its `Renderer` in `init`, from the GPU of its `Context`, and calls it in `render`.
+  ([ADR-0027](adr/0027-the-render-crate.md)). `slime-app` does not depend on it: a game's
+  presentation creates its `Renderer` in `start`, from the GPU of its `Context`, and calls it in
+  `extract` and `render`.
 - `slime-devui` is the one crate besides `slime-gfx` that reaches wgpu, through the `wgpu` feature
   of `slime-gfx`, to draw egui with egui's own renderer ([ADR-0031](adr/0031-dev-overlay-with-egui.md)).
   The engine's own tests may enable the feature too. `slime-devui` is tooling, a client of the
@@ -178,52 +179,74 @@ the phases of each frame among them, in a format that profilers open
 [`crates/slime-app/src/diagnostics.rs`](../crates/slime-app/src/diagnostics.rs); conventions:
 [ADR-0008](adr/0008-errors-logging-and-assertions.md).
 
-### Running an application
+### Running a game
 
-A game implements `slime_app::App` and calls `slime_app::run`, which owns the main loop
-([ADR-0010](adr/0010-main-loop-ownership.md)). A *driver* decides when frames run and what time
-they represent; every driver runs a frame the same way (`Frames::run_one` in
+A game is a *simulation*, its rules, and a *presentation*, what the player sees
+([ADR-0107](adr/0107-the-execution-model.md),
+[ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)):
+it implements `slime_app::Simulation` and `slime_app::Presentation`, and calls `slime_app::run`,
+which owns the main loop ([ADR-0010](adr/0010-main-loop-ownership.md)). The simulation changes
+the world, from the input as data, without a GPU or a window; the presentation reads the world,
+never writes it, and asks for changes as commands. A *host* owns the world, real time and game
+time, the input and the commands queued (`slime_app::Host`, in
+[`crates/slime-app/src/host.rs`](../crates/slime-app/src/host.rs)); `run` is the host of a game's
+program, and a test drives a host itself. A *driver* decides when frames run and what time they
+represent; every driver runs a frame the same way (`Frames::run_one` in
 [`crates/slime-app/src/app.rs`](../crates/slime-app/src/app.rs)):
 
 ```text
-frame                                span "frame", trace level
-├── FrameClock::advance(delta)       the time the frame represents, limited
-├── FixedStep::advance(delta)        how many fixed steps are due: n
-├── app.fixed_update(ctx, step)      n times, span "fixed_update", between
-│                                    world.begin_fixed_step() and world.end_fixed_step(): what
-│                                    moves is drawn between its two transforms (ADR-0084)
-├── app.update(ctx, &frame)          once, span "update": what it changes is drawn at once;
-│                                    then world.update_transforms(), so that render reads the
-│                                    transforms at the cost of a lookup
+frame                                     span "frame", trace level
+├── host.frame(simulation, delta)         phases 1 to 4 (Host::frame):
+│   ├── FrameClock::advance(delta)        real time: the time the frame represents, limited
+│   ├── world.apply(command), in order    1. the commands sent since the last frame
+│   │                                        (Context::send); each refusal logged, and handed
+│   │                                        back for the frame (Context::refused)
+│   ├── GameClock::advance(real delta)    game time: the delta times the speed, or none while
+│   │                                        paused; how many fixed steps are due: n
+│   ├── simulation.fixed_step             2. n times, span "fixed_step", between
+│   │                                        world.begin_fixed_step() and
+│   │                                        world.end_fixed_step(): what moves is drawn between
+│   │                                        its two transforms (ADR-0084)
+│   ├── simulation.update                 3. once, paused too, span "update": what it changes is
+│   │                                        drawn at once
+│   ├── world.update_transforms()         4. so that extraction reads them at the cost of a
+│   │                                        lookup
+│   └── input.end_frame()                 the keys pressed and released in the frame forgotten
 └── with a window:
-    ├── surface.acquire(label)       the window's image, its passes named "window, frame
-    │                                <index>", or none: skip drawing, after an empty submission
-    │                                that lets wgpu release the frame's writes; span "acquire"
-    ├── app.render(ctx, target)      draws into the image; span "render"
-    └── image.present()              hands it to the window; span "present"
+    ├── presentation.extract(ctx, &world) 5. reads the world and makes what the frame draws;
+    │                                        span "extract"
+    ├── surface.acquire(label)            the window's image, its passes named "window, frame
+    │                                     <index>", or none: skip drawing, after an empty
+    │                                     submission that lets wgpu release the frame's writes;
+    │                                     span "acquire"
+    ├── presentation.render(ctx, target)  6. draws into the image, without the world; span
+    │                                        "render"
+    └── image.present()                   hands it to the window; span "present"
 ```
 
-The run stops before the next frame once the application has called `ctx.request_exit()` or
-`ctx.exit_with_error(error)`, the window was closed, the process received a termination signal, or
-`config.frame_limit` frames have run. The frame in progress always finishes, and `app.shutdown` is
-always called after an `app.init` that succeeded; when `app.init` returns an error, the run stops
-at once and `run` returns it as `RunError::Init`, and an error passed to `exit_with_error` is
-returned as `RunError::App` once `app.shutdown` has run. The call order is checked by
-[`crates/slime-app/tests/lifecycle.rs`](../crates/slime-app/tests/lifecycle.rs) headless, and by
+The run stops before the next frame once the game has asked for it (`request_exit`) or failed it
+(`exit_with_error`), the window was closed, the process received a termination signal, or
+`config.frame_limit` frames have run. The frame in progress always finishes, and both `stop`
+methods, the presentation's then the simulation's, are always called after `start` methods that
+succeeded; when a `start` returns an error, the run stops at once and `run` returns it as
+`RunError::Init`, and an error passed to `exit_with_error` is returned as `RunError::App` once the
+`stop` methods have run. The call order is checked by
+[`crates/slime-app/tests/lifecycle.rs`](../crates/slime-app/tests/lifecycle.rs) headless, with the
+phases, game time and commands driven by a host, and by
 [`crates/slime-app/tests/windowed_lifecycle.rs`](../crates/slime-app/tests/windowed_lifecycle.rs)
 with a window, which the checks run in a headless Weston compositor (ADR-0024). The profiling
 spans of each frame are checked by
 [`crates/slime-app/tests/profiling_spans.rs`](../crates/slime-app/tests/profiling_spans.rs)
 headless, and by the `spans` scenario of `windowed_lifecycle.rs` with a window.
 
-**Headless driver** (`AppConfig::window` is `None`), in `app.rs`:
+**Headless driver** (`AppConfig::window` is `None`), in `app.rs`; the presentation is not called:
 
 ```text
 slime_app::run
 ├── init_diagnostics()
-├── app.init(ctx)
+├── simulation.start(ctx, &mut world)
 ├── loop: frame with delta = the fixed step (simulated time), back to back
-└── app.shutdown(ctx)
+└── simulation.stop(ctx, &mut world)
 ```
 
 **Windowed driver** (`AppConfig::window` is `Some`), in
@@ -237,17 +260,21 @@ slime_app::run
 └── slime_platform::run_event_loop(window config, driver)
     ├── winit "resumed"          create the window → driver.window_created
     │                            → Gpu::new_for_window: the GPU and the window's surface;
-    │                              ctx gets the window and the GPU; app.init(ctx)
+    │                              ctx gets the window and the GPU; simulation.start(ctx, &mut
+    │                              world), then presentation.start(ctx, &world)
     ├── winit "window_event"     Translator::translate (event.rs) → driver.event
-    │                            → Resized: surface.resize; app.on_event(ctx, &event);
-    │                              CloseRequested → stop
+    │                            → Resized: surface.resize; taken =
+    │                              presentation.on_event(ctx, &event); the host's input follows
+    │                              the event (Input::handle) unless the presentation took a key
+    │                              or a button put down; CloseRequested → stop
     ├── winit "window_event"     RedrawRequested → driver.redraw_requested → frame with the
     │                            measured delta
     ├── winit "about_to_wait"    → driver.about_to_wait
     │                            → if the next frame is due: window.request_redraw();
     │                              return WaitUntil(next frame) or Exit
-    └── winit "exiting"          → driver.exiting → app.shutdown(ctx); the surface, the GPU and
-                                   the window are released
+    └── winit "exiting"          → driver.exiting → presentation.stop(ctx), then
+                                   simulation.stop(ctx, &mut world); the surface, the GPU and the
+                                   window are released
 ```
 
 Frames run on redraw requests ([ADR-0020](adr/0020-rendering-in-the-main-loop.md)). The engine
@@ -567,10 +594,10 @@ exposed in the scene pass (ADR-0037), tone mapped (ADR-0034), then encoded by th
 ### Rendering in a window
 
 The same objects draw into a window. Each frame of a windowed run, `Frames::run_one` asks the
-surface for the window's image (`Surface::acquire`), lets the application draw into its target
-(`App::render`, usually with `Gpu::render`), then presents it (`SurfaceFrame::present`). The
-surface handles what the graphics API reports about the window, so that the application only sees
-whether there is an image to draw:
+surface for the window's image (`Surface::acquire`), lets the presentation draw into its target
+(`Presentation::render`, usually with `Gpu::render`), then presents it (`SurfaceFrame::present`).
+The surface handles what the graphics API reports about the window, so that the presentation only
+sees whether there is an image to draw:
 
 | Reported | Handled by |
 |---|---|
@@ -725,8 +752,8 @@ world.spawn_scene(key, &resolved_scene)             a root entity, then an entit
 └── world.update_transforms()                       each stale subtree computed once, from its top
 ```
 
-`slime-app` owns the game's world, in its `Context`, and calls it around each fixed step: what a
-step moves keeps its transform from before the step, and is drawn between the two
+`slime-app`'s host owns the game's world, and calls it around each fixed step: what a step moves
+keeps its transform from before the step, and is drawn between the two
 ([ADR-0084](adr/0084-what-the-world-draws.md)). The world holds no GPU object: its components name
 meshes by asset ID, and the GPU objects live in a `slime_render::AssetCache`, which loads them by
 itself. `slime-world-render` builds each frame from both, and neither `slime-world` nor
@@ -734,16 +761,16 @@ itself. `slime-world-render` builds each frame from both, and neither `slime-wor
 
 ```text
 frame
-├── world.begin_fixed_step()                        slime-app, before each fixed_update: the
+├── world.begin_fixed_step()                        slime-app, before each fixed step: the
 │                                                    transforms that change keep where they were
-├── app.fixed_update                                moves entities
+├── simulation.fixed_step                           moves entities
 ├── world.end_fixed_step()                          slime-app: the transforms computed again;
 │                                                    what was teleported forgets where it was
-├── app.update                                      what it changes is drawn at once
-├── world.update_transforms()                       slime-app: render reads lookups
-└── app.render
+├── simulation.update                               what it changes is drawn at once
+├── world.update_transforms()                       slime-app: extraction reads lookups
+└── presentation.extract, with the world as &World
     └── FrameBuilder::build(world, cache, gpu,       slime-world-render, which takes no renderer:
-        │                   fixed_step_alpha)        the cache keeps what it loads through
+        │                   GameTime::alpha)         the cache keeps what it loads through
         ├── cache.poll()                             the batches that finished loading, each whole
         ├── each entity with Meshes and a Transform, where the world draws it at the fraction of
         │   a step (world.interpolated_transform), not hidden by itself or an ancestor: an
@@ -757,7 +784,9 @@ frame
         ├── the sky's environment, made again when the game's sky or the sun changed: the first
         │   directional light that shows in the sky
         └── Frame { instances, lights, environment, loading, errors }, which owns what it
-            draws (ADR-0111) → frame.scene(camera) → renderer.render, on this thread or another
+            draws (ADR-0111), each light with its entity, so that the presentation changes
+            what it shows of one without the world (ADR-0121) → frame.scene(camera) →
+            renderer.render, at presentation.render, on this thread or another
 ```
 
 After a lost device, the game makes a new cache with the renderer that replaces the lost one, and
@@ -854,19 +883,27 @@ Serialization writes and reads the same values (below).
 
 The dev overlay's world panel ([`slime_devui::WorldPanel`](../crates/slime-devui/README.md),
 [ADR-0081](adr/0081-stage-5a-the-world.md)) is the first editor built on it. It reads a world and
-changes nothing: the application applies what it asks for, once its frame is drawn.
+changes nothing: the presentation sends what it asks for as commands, which the host applies at the
+start of the next frame ([ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)).
 
 ```text
-render
-├── overlay.render(gpu, target, |egui| panel.show(egui, world))
+extract
+├── overlay.build(size, |egui| panel.show(egui, world))
 │   ├── world.entities(), their Name                 the list, filtered by name
 │   └── world.component_names(selected)
 │       └── world.component_value(selected, name)    each component as a Value, shown through
 │                                                    its type's description in world.registry();
-│                                                    a widget changed gives an Edit: the entity,
-│                                                    the component's name, a path and a value
-└── for each Edit: world.set_property(...)           a refusal handed back to the panel
-                                                     (WorldPanel::refused), which shows it
+│                                                    a widget changed gives a command: the
+│                                                    entity's persistent identity, the
+│                                                    component's name, a path and a value
+└── for each command: ctx.send(command)
+render
+└── overlay.render(gpu, target)                      the panels built, drawn over the frame
+the next frame's start
+└── world.apply(command)                             the host: the entity found by its identity,
+                                                     then world.set_property(...); a refusal
+                                                     handed back (Context::refused), which the
+                                                     panel shows (WorldPanel::refused)
 ```
 
 ### Serialization
@@ -997,14 +1034,14 @@ since every use of the device fails, and creations return `GfxError::DeviceLost`
 (`LossKind`); `Gpu::lose` loses a device on purpose, for tests and tools. Before each frame, the
 windowed driver checks `Gpu::check()` with the other reasons to stop: after a loss, the run stops
 like after an exit request, and `run` returns `RunError::Gfx` with `GfxError::DeviceLost`
-([ADR-0022](adr/0022-losing-the-gpu-device.md)). An application that sets
+([ADR-0022](adr/0022-losing-the-gpu-device.md)). A game that sets
 `AppConfig::restore_lost_device` goes on instead
 ([ADR-0075](adr/0075-recovering-from-a-lost-gpu-device.md)):
 
 ```text
 between two frames, the device lost
 └── WindowedDriver::restore                          slime-app, before deciding to stop
-    ├── App::gpu_lost(ctx)                           the application drops its objects of the
+    ├── Presentation::gpu_lost(ctx)                  the presentation drops its objects of the
     │                                                lost device, and its clones of the Gpu
     ├── Context::take_gpu()                          the run's last reference but the surface's
     ├── Surface::restore(lost)                       slime-gfx: the lost device and its surface
@@ -1013,12 +1050,14 @@ between two frames, the device lost
     │   └── Gpu::open(instance, surface, lost)       a new device; refused after a loss to memory,
     │                                                or for a CPU adapter after a hardware one
     ├── Context::set_gpu(new, format)
-    └── App::gpu_restored(ctx)                       the application creates its objects again
+    └── Presentation::gpu_restored(ctx, &world)      the presentation creates its objects again
 ```
 
-A game that draws its world drops its renderer in `gpu_lost`, clears its `AssetCache` and releases
-its `FrameBuilder`'s environment; its world, in the `Context`, is untouched, and the cache loads
-what it names again from the new device ([ADR-0084](adr/0084-what-the-world-draws.md)).
+A game that draws its world drops its renderer and its `AssetCache` in `gpu_lost` and releases its
+`FrameBuilder`'s environment; its world, the host's, is untouched, and the cache that it makes with
+the new renderer in `gpu_restored` loads what the world names again
+([ADR-0084](adr/0084-what-the-world-draws.md),
+[ADR-0120](adr/0120-a-frame-that-owns-what-it-draws.md)).
 
 Nothing may hold the lost device when the new one opens: Direct3D 12 opens no device on an
 adapter while a removed one exists in the process. The run does not restore when it is stopping
@@ -1031,7 +1070,7 @@ A loss is found wherever the device is used: by the main thread's frame, by a lo
 creation, by the uploader's submission, by a wait. wgpu marks the device invalid before
 it reports the loss, which records it in the `Gpu` that every clone shares; `slime-gfx`
 returns `GfxError::DeviceLost` wherever it finds the loss, recording it if wgpu has not yet,
-and the application that meets it passes it to `Context::exit_with_error`, or returns it from
+and the presentation that meets it passes it to `Context::exit_with_error`, or returns it from
 `gpu_restored`, which leaves it to the run: the run restores between frames whatever found the loss
 ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)).
 
@@ -1046,7 +1085,7 @@ is lost again each time it is: `Surface::check` reports it, and the run stops th
 thread of its own: it sets a flag and hands its log line to another thread, so that a blocked
 standard error cannot keep a second signal from being handled; before each frame, the driver
 records the flag in the `Context` as an exit request, so the run stops like any other: the frame
-in progress finishes and `app.shutdown` runs. A second signal, half a second or more after the
+in progress finishes and the `stop` methods run. A second signal, half a second or more after the
 first, ends the process at once with exit code 130; one that comes sooner (a closing terminal sends
 SIGHUP twice) is ignored
 ([ADR-0012](adr/0012-clean-shutdown-on-termination-signals.md)).
@@ -1061,7 +1100,7 @@ frame (measured, or simulated in headless runs), gets a `FrameTime` back, and gi
 
 ### Threads
 
-`run` drives the application from the main thread, and the renderer records and submits its
+`run` drives the game from the main thread, and the renderer records and submits its
 passes on the thread that calls it. The renderer loads cooked scenes, and the asset cache its
 batches of meshes, in the background ([above](#cooking-and-loading-assets), ADR-0073): as
 background tasks of the engine's pool (`slime-tasks`, ADR-0107), whose threads, the machine's
@@ -1078,8 +1117,8 @@ tests):
   `Surface` and every GPU object it creates (targets, textures, samplers, buffers, bind groups and
   their layouts, shader modules, pipelines), its uploaders, images read back, meshes, materials,
   environments, cameras, lights, scenes and instances, loaded scenes and loads in progress, the
-  asset cache, statistics, windows, events, the application's `Context` and `AppConfig`, the dev
-  overlay, worlds and entity handles, scene libraries and resolved scenes, the frame builder of
+  asset cache, statistics, windows, events, the input, the host, its `Context` and `AppConfig`, the
+  dev overlay, worlds and entity handles, scene libraries and resolved scenes, the frame builder of
   `slime-world-render` and its frames, reflected values and registries, and the error types of those
   crates. Scenes, their instances and the frames of `slime-world-render` are also `'static`: they
   own what they draw, so that a frame built on one thread is drawn on another (ADR-0120). wgpu keeps

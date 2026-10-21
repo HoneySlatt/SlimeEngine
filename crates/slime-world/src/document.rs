@@ -513,7 +513,7 @@ impl World {
                 })
         };
         let (save, mut loaded) = read?;
-        self.apply(save, &mut loaded);
+        self.apply_save(save, &mut loaded);
         Ok(loaded)
     }
 
@@ -1044,7 +1044,7 @@ impl World {
     }
 
     /// Applies what a save holds, setting aside what cannot be.
-    fn apply(&mut self, save: Save, loaded: &mut Loaded) {
+    fn apply_save(&mut self, save: Save, loaded: &mut Loaded) {
         let mut aside = |entity: &str, component: Option<&str>, reason: &str| {
             loaded.set_aside.push(SetAside {
                 entity: entity.to_owned(),

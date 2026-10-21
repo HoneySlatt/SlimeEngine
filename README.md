@@ -101,8 +101,9 @@ slime-world-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = 
 opt-level = 3
 ```
 
-- `slime-app` runs the game (the `App` trait and `run`) and owns its world, `slime-platform` holds
-  the window's settings and the input events, `slime-gfx` the GPU's objects, `slime-color` the
+- `slime-app` runs the game, its rules as a `Simulation` and what the player sees as a
+  `Presentation`, through `run`, and owns its world; `slime-platform` holds the window's settings,
+  the input events and the keys held, `slime-gfx` the GPU's objects, `slime-color` the
   colors, `slime-render` the renderer, and `slime-assets` the cooked data that the renderer loads.
   `slime-world` keeps the game's entities and components and saves them, `slime-world-render` draws
   them, and `slime-reflect` describes the components, which derive `Reflect`. The cooker,

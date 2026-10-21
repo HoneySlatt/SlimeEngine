@@ -1,6 +1,7 @@
-//! Runs an application without a window, the way automated tests run it. Frames run back to back
-//! with simulated time: each frame represents one fixed step (1/60 s by default), whatever the
-//! speed of the machine. A dedicated server, which keeps to real time, is a later stage's work.
+//! Runs a game's rules, a simulation, without a window, the way automated tests run it. Frames run
+//! back to back with simulated time: each frame represents one fixed step (1/60 s by default),
+//! whatever the speed of the machine. A dedicated server, which keeps to real time, is a later
+//! stage's work.
 //!
 //! ```sh
 //! cargo run --example headless                        # 600 frames: 10 s of simulated time
@@ -11,8 +12,8 @@
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
-use slime_app::time::FrameTime;
-use slime_app::{App, AppConfig, AppError, Context};
+use slime_app::{AppConfig, AppError, Simulation, SimulationContext};
+use slime_world::World;
 
 /// Counts what the engine asks it to do.
 #[derive(Default)]
@@ -21,28 +22,33 @@ struct Counter {
     simulated: Duration,
 }
 
-impl App for Counter {
-    fn init(&mut self, _ctx: &mut Context) -> Result<(), AppError> {
-        tracing::info!("init");
+impl Simulation for Counter {
+    fn start(
+        &mut self,
+        _ctx: &mut SimulationContext<'_>,
+        _world: &mut World,
+    ) -> Result<(), AppError> {
+        tracing::info!("start");
         Ok(())
     }
 
-    fn fixed_update(&mut self, _ctx: &mut Context, _step: Duration) {
+    fn fixed_step(&mut self, _ctx: &mut SimulationContext<'_>, _world: &mut World) {
         self.fixed_steps += 1;
     }
 
-    fn update(&mut self, _ctx: &mut Context, frame: &FrameTime) {
+    fn update(&mut self, ctx: &mut SimulationContext<'_>, _world: &mut World) {
+        let frame = ctx.time().real();
         self.simulated = frame.elapsed();
         if frame.index().is_multiple_of(60) {
             tracing::debug!(index = frame.index(), elapsed = ?frame.elapsed(), "frame");
         }
     }
 
-    fn shutdown(&mut self, _ctx: &mut Context) {
+    fn stop(&mut self, _ctx: &mut SimulationContext<'_>, _world: &mut World) {
         tracing::info!(
             fixed_steps = self.fixed_steps,
             simulated = ?self.simulated,
-            "shutdown"
+            "stop"
         );
     }
 }
@@ -61,7 +67,7 @@ fn main() -> ExitCode {
         ..AppConfig::default()
     };
     let started = Instant::now();
-    slime_app::run(&mut Counter::default(), &config).expect("this application starts");
+    slime_app::run(&mut Counter::default(), &mut (), &config).expect("this game starts");
     tracing::info!(wall_clock = ?started.elapsed(), "done");
     ExitCode::SUCCESS
 }
