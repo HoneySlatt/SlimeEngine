@@ -55,8 +55,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   pool and the copies to the GPU within a budget
   ([ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)), and M6a.3, what the world
   knows of its changes ([ADR-0119](adr/0119-the-worlds-ticks-blocks-and-log.md)), and M6a.4, a
-  frame that owns what it draws ([ADR-0120](adr/0120-a-frame-that-owns-what-it-draws.md)). Next:
-  M6a.5.
+  frame that owns what it draws ([ADR-0120](adr/0120-a-frame-that-owns-what-it-draws.md)), and
+  M6a.5, a game as a simulation and a presentation
+  ([ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)). Next: M6a.6.
 
 ## Status
 
@@ -66,7 +67,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6a.2](#m6a2--the-engines-task-pool-and-copies-to-the-gpu-within-a-budget) | A load never slows the frames, and the engine's compute work runs on one task pool | Done |
 | [M6a.3](#m6a3--what-the-world-knows-of-its-changes) | Each reader of the world asks what changed since it last read; components clone | Done |
 | [M6a.4](#m6a4--a-frame-that-owns-what-it-draws) | A frame owns what it draws, and loading needs no renderer | Done |
-| [M6a.5](#m6a5--the-phases-of-a-frame-game-time-and-a-game-as-a-simulation-and-a-presentation) | Each phase of a frame says who may change the world; game time pauses and steps; a game's rules run without a GPU | Planned |
+| [M6a.5](#m6a5--the-phases-of-a-frame-game-time-and-a-game-as-a-simulation-and-a-presentation) | Each phase of a frame says who may change the world; game time pauses and steps; a game's rules run without a GPU | Done |
 | [M6a.6](#m6a6--the-development-channel-and-the-mcp-server) | An agent drives a running game without a person | Planned |
 | [M6a.7](#m6a7--identities-and-saves-per-scene) | A save holds what was changed and costs what changed; an entity outlives its level | Planned |
 | [M6a.8](#m6a8--views-apart-from-the-renderer) | One renderer draws several views, each with its own settings | Planned |
@@ -112,7 +113,7 @@ foundations pass. Where the engine stands at the start:
   ([ADR-0111](adr/0111-the-frame-contract.md)). M6a.4 changed the first; M6a.8 changes the second.
 - **A game is one block**: every method of `App` receives a `Context` that holds the world, the GPU
   and the window, and *Hunna Wood* changes its world while it draws; one time, without pause or
-  step (ADR-0107).
+  step (ADR-0107). M6a.5 changed it.
 - **Nothing links a running game to a tool**: agents reach it through tests, logs and captures of
   their own ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md),
   [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)).
@@ -120,7 +121,8 @@ foundations pass. Where the engine stands at the start:
   nothing outlives its scene; *Hunna Wood* puts its fire's intensity back before each save
   (`unflicker`); a created entity written into its level exists twice once carried
   ([ADR-0109](adr/0109-stable-references-and-undo.md),
-  [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)).
+  [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)). M6a.5 took the fire's flicker
+  out of the world, and `unflicker` with it.
 - **The asset cache keeps all it loaded**, until new cooked data or a lost device, and loads
   without priorities or cancellation
   ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)).
@@ -430,6 +432,46 @@ Risks:
 - **How to test.** `cargo test --workspace`; `scripts/check.sh`.
 - **By hand.** The owner plays the zone, pauses and steps it from the overlay, and finds it
   otherwise unchanged.
+- **Outcome.** Done on 2026-10-21. [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)
+  records the design, and amends ADR-0057, ADR-0107, ADR-0110 and ADR-0120. `App` gave way to two
+  traits, `Simulation`, given the world to change, the input as data and both times, without a GPU
+  or a window, and `Presentation`, given the world as `&World` or not at all, its extraction before
+  the window's image is acquired and its rendering without the world; `Host`, which a test drives,
+  owns the world, both times, the input and the commands, and `run` is the host of a game's program.
+  The owner chose on 2026-10-21 that the presentation reads the world alone, not its simulation.
+  Game time runs at a speed, pauses and steps; the update runs while paused. `slime_platform::Input`
+  keeps the keys and buttons held, and a presentation takes for itself the presses that its overlay
+  takes. `slime_world::Command::SetProperty`, applied by `World::apply` at the next frame's start,
+  is what the world panel returns, and the panel finds its entity again by identity; the dev overlay
+  builds at extraction and draws at rendering; a frame's lights name their entities. *Hunna Wood* is
+  a library and its program: `HunnaWood`, its rules, and `Screen`, what the player sees; where the
+  player looks is a component of the hero's, `hunnawood::Look`, turned on real time by the rules and
+  followed by the camera; the fire flickers in the frame, and `unflicker` is gone; the screen holds
+  game time paused until a frame draws the zone; F3 pauses and runs game time, F4 runs one step, and
+  the statistics' slider sets the speed. The owner chose on 2026-10-21 that the game applies its own
+  cooked data that changed, its rules in their update and its view on its own, until the editor's
+  hot reload, which the host will apply at phase 1, as ADR-0107 has it. The thirteen implementations
+  of `App` and the three examples of the READMEs moved. The tests: in `slime-app`'s
+  `tests/lifecycle.rs`, `a_frame_applies_the_commands_then_runs_its_fixed_steps_then_its_update`,
+  `a_refused_command_changes_nothing_and_is_handed_back_for_one_frame`,
+  `the_commands_sent_after_the_last_frame_are_applied_before_the_simulation_stops`,
+  `a_key_put_down_is_pressed_in_the_next_frame_alone_and_held_until_let_go`,
+  `at_60_hz_and_a_quarter_of_the_speed_what_moves_is_drawn_a_quarter_of_a_step_further_each_frame`,
+  `at_a_quarter_of_the_speed_a_step_runs_at_every_fourth_frame_and_what_moves_is_drawn_between` and
+  `paused_no_step_runs_and_one_step_runs_exactly_one`, with the game clock's own in `time.rs`; the
+  `compile_fail` example of `Presentation`; the `calls` and `spans` scenarios of
+  `windowed_lifecycle.rs`, in Weston, which check the order of both parts' calls, extraction
+  included, with every lifecycle and lost-device scenario; `World::apply`'s tests, and the input's,
+  `what_was_taken_is_not_put_down_and_always_let_go` among them;
+  `the_entity_selected_is_found_again_by_its_identity_in_a_world_that_replaces_it`;
+  `panels_built_and_not_drawn_hand_their_textures_to_the_next_drawing` and
+  `panels_built_for_a_minimized_window_of_no_size_are_kept_until_it_shows_again`; and in *Hunna
+  Wood*'s library, `the_rules_run_hundreds_of_steps_through_a_host_without_a_gpu`, 300 steps with W
+  held, then paused, one step, the look turned while paused, R and Escape. Nothing was measured: the
+  milestone claims no speed, and a frame's lights, as many as before, each carry their entity.
+  Retired: the camera's yaw not saved, now where the player looks, which saves hold. Left to M6a.7:
+  the mark of driven components that ADR-0108 decided had *Hunna Wood*'s fire as its first user,
+  which no longer writes its world.
 
 ### M6a.6 — The development channel and the MCP server
 
@@ -478,7 +520,8 @@ Risks:
   and the MCP server.
 - **Delivers.** As [ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md) decides: the mark of
   driven components, which saves, the overrides of prefabs and levels written back leave as their
-  author wrote them, in the place of *Hunna Wood*'s `unflicker`. As
+  author wrote them; *Hunna Wood*'s fire, for which it was planned in the place of `unflicker`,
+  flickers in the frame since M6a.5 and writes nothing in the world. As
   [ADR-0109](adr/0109-stable-references-and-undo.md) decides: what a start creates in code holds a
   key or is `Unsaved`, else saving refuses, naming the entities; a created entity that a scene
   written back holds is carried once, known by the ID that the world gave it. As
@@ -734,6 +777,9 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
 - **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
   slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
   `af512af` prints.
+- **M6a.5, on Linux.** The owner plays the zone, pauses it with F3 and steps it with F4 from the
+  overlay, slows it down with the statistics' slider (F1), turns the camera while it is paused, and
+  finds it otherwise unchanged, the fire flickering as before.
 
 ### P1 — Saves and identities that never mislead
 
@@ -1549,15 +1595,15 @@ GitHub issues, linked from their entry; this list stays the reference.
   input-method text, touch, touchpad gestures, gamepads, dropped files, the mouse's raw motion.
   The window cannot grab or hide the cursor, go fullscreen, or change its title once created.
 - **A compositor that stops answering blocks the engine.** Before the first frame, winit waits for
-  the window's first configuration without a timeout, so a termination signal is noticed only when
-  a second one ends the process; after `shutdown`, releasing the window or the surface can block
-  too (seen with a Weston stopped by SIGSTOP).
-- **Logging off or shutting down Windows ends a game without `App::shutdown`.** Windows tells a
-  window of it with end-session messages, which winit does not report, and sends no console event
-  to a process that has loaded `user32.dll`, as every engine process has
-  (`crates/slime-app/src/signal.rs`): what a game saves in `shutdown` is lost then. *Hunna Wood*
-  saves its run there since M5a.9: the run since the last F5 is lost when Windows ends the session
-  (ADR-0088). A fix needs a new dependency, which ADR-0081 leaves to a later decision.
+  the window's first configuration without a timeout, so a termination signal is noticed only when a
+  second one ends the process; after the `stop` methods, releasing the window or the surface can
+  block too (seen with a Weston stopped by SIGSTOP).
+- **Logging off or shutting down Windows ends a game without its `stop` methods.** Windows tells a
+  window of it with end-session messages, which winit does not report, and sends no console event to
+  a process that has loaded `user32.dll`, as every engine process has
+  (`crates/slime-app/src/signal.rs`): what a game saves in its simulation's `stop` is lost then.
+  *Hunna Wood* saves its run there since M5a.9: the run since the last F5 is lost when Windows ends
+  the session (ADR-0088). A fix needs a new dependency, which ADR-0081 leaves to a later decision.
 - **WARP's shader compiler crashes the process, now and then, when several threads compile
   shaders at once**, even on separate devices: an access violation (`STATUS_ACCESS_VIOLATION`)
   that other projects trace to `d3d10warp.dll`, and that no test can catch. Seen once in the
@@ -1608,8 +1654,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   faulty call (ADR-0033, ADR-0041). For the renderer's frame, the render graph refuses a pass that
   samples what it draws into before wgpu sees it.
 - **On X11, losing the connection to the X server ends the process** with exit status 1, inside
-  the X11 library (Xlib). `EventHandler::exiting`, `App::shutdown` and the return of `run` do not
-  happen, although ADR-0010 promises that `shutdown` is called once `init` has been. winit
+  the X11 library (Xlib). `EventHandler::exiting`, the `stop` methods and the return of `run` do not
+  happen, although ADR-0010 promises that they are called once the `start` methods have been. winit
   installs no IO error handler. Installing one (`XSetIOErrorExitHandler`, libX11 1.7 or later)
   would need a new direct dependency such as `x11-dl`. On Wayland, a compositor that dies ends the
   loop cleanly.
@@ -1625,12 +1671,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   `run`, for example under a service manager, which waits out its stop timeout. Ending the process
   at once when no run is active would amend ADR-0012.
 - **A window frame dropped without being presented keeps one of the window's images on Vulkan.**
-  wgpu 30 discards such a frame with wgpu-hal's `discard_texture`, which does nothing on Vulkan.
-  The image stays acquired until the surface is configured again, and once none is left,
-  `Surface::acquire` waits one second and returns `None`. `SurfaceFrame` documents this as a
-  misuse, and nothing reports it. The engine presents every frame it acquires, a panic in
-  `App::render` aside, whose frame the surface releases when it is dropped, as it releases an image
-  that a lost device refused to present
+  wgpu 30 discards such a frame with wgpu-hal's `discard_texture`, which does nothing on Vulkan. The
+  image stays acquired until the surface is configured again, and once none is left,
+  `Surface::acquire` waits one second and returns `None`. `SurfaceFrame` documents this as a misuse,
+  and nothing reports it. The engine presents every frame it acquires, a panic in
+  `Presentation::render` aside, whose frame the surface releases when it is dropped, as it releases
+  an image that a lost device refused to present
   ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)). A `Drop` that
   presents was rejected: it would show a black or half-drawn frame instead of skipping it, and
   present during unwinding.
@@ -1698,16 +1744,16 @@ GitHub issues, linked from their entry; this list stays the reference.
   `Key::Unidentified` with no text; when the keys combine, the press is the composed character and
   the release the plain one. winit exposes no better value; rebuilding one would need libxkbcommon
   called directly. Documented in `KeyEvent::logical`.
-- **A key pressed just after the window gains the focus can be swallowed on X11 and Windows.**
-  winit reads which keys are down when it handles the focus event, not when the focus changed. A
-  key pressed in between counts as held before the focus and is not reported until it is pressed
-  again; on X11 the gap covers `App::init` when the window manager focuses the window while it
+- **A key pressed just after the window gains the focus can be swallowed on X11 and Windows.** winit
+  reads which keys are down when it handles the focus event, not when the focus changed. A key
+  pressed in between counts as held before the focus and is not reported until it is pressed again;
+  on X11 the gap covers the `start` methods when the window manager focuses the window while it
   runs. The translator cannot tell such a press from X11's unmarked first auto-repeat. On Windows,
   trusting `KeyEvent::repeat` would close the gap, at the cost of a rule that differs between
   platforms; left as documented.
 - **No test covers the empty submission of frames without a window image.** When
   `Surface::acquire` gives no image, it submits an empty batch, so that wgpu releases the writes
-  an application makes outside `App::render`. Without it, 2000 frames of a surface resized to
+  a game makes outside `Presentation::render`. Without it, 2000 frames of a surface resized to
   zero, each writing 64 KiB to a uniform buffer, grew the process by about 120 MiB (lavapipe in a
   headless Weston, 2026-10-13), measured by a program kept out of the repository. The
   `draws-nothing` scenario of `crates/slime-app/tests/windowed_lifecycle.rs` checks the same for
@@ -1837,8 +1883,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   UV sphere orders its faces otherwise in each process. The hero kept on the mirror is the one the
   game reads. Running the scripts on one thread, with `--factory-startup` and a pinned version of
   Blender, and removing the PNG files' text, would make them reproducible.
-- **The camera's yaw is not saved** (ADR-0088). It is the game's, outside the world: a run resumed
-  or loaded puts the camera behind the hero.
 - **A save cut short may load in part** (ADR-0087). A save is a document of sections: one cut at the
   boundary of a section is still a document, and loads what it holds without an error. *Hunna Wood*
   writes its saves whole or not at all (ADR-0088), as every game that writes saves must.
