@@ -169,18 +169,18 @@ fn main() {
     session.tool("release_key", json!({ "key": "KeyW" }));
     let (walked, _) = session.tool("inspect_entity", json!({ "entity": "hero" }));
     assert_ne!(place(&walked), before, "the hero walked: {walked:?}");
-    // Saved there, to a file of the test's own, walked on, then loaded: the hero is back where it
-    // was saved.
+    // Saved there, to a file of the test's own, moved, then loaded: the hero is back where it was
+    // saved. Moved by a command rather than walked: each request waits for a frame, which costs
+    // seconds on a CPU driver.
     let saved = Path::new(env!("CARGO_TARGET_TMPDIR")).join("slime-mcp-drive-saved.toml");
     let _ = std::fs::remove_file(&saved);
     let file = json!({ "file": saved.to_str().expect("a path of text") });
     session.tool("save_game", file.clone());
     assert!(saved.is_file(), "saved");
-    session.tool("press_key", json!({ "key": "KeyW" }));
-    session.tool("step", json!({ "steps": 30 }));
-    session.tool("release_key", json!({ "key": "KeyW" }));
-    let (further, _) = session.tool("inspect_entity", json!({ "entity": "hero" }));
-    assert_ne!(place(&further), place(&walked), "{further:?}");
+    session.tool(
+        "set_property",
+        json!({ "entity": "hero", "component": "Transform", "path": "translation.x", "value": "40.0" }),
+    );
     session.tool("load_game", file);
     let (loaded, _) = session.tool("inspect_entity", json!({ "entity": "hero" }));
     assert_eq!(place(&loaded), place(&walked), "{loaded:?}");

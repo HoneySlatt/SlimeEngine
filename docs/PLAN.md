@@ -735,7 +735,7 @@ settles what a save and a level written back hold of each entity, the second
   `a_save_of_an_earlier_layout_is_refused_saying_so`. Hot reload carries a run as before: the
   tests of `World::carry` in `tests/saves.rs` and `tests/scenes.rs`, and the `world` example's.
   `slime-app`'s `tests/channel.rs` saves and loads a headless run through the channel, and the MCP
-  server's `tests/drive.rs` saves *Hunna Wood*'s run, walks on and loads it back. *Hunna Wood*'s
+  server's `tests/drive.rs` saves *Hunna Wood*'s run, moves the hero and loads it back. *Hunna Wood*'s
   tests of the zone pass, its new fixture resumed. `scripts/check.sh` passed, and the owner played
   it by hand on 2026-10-21: F5, F9, quit and resume.
 

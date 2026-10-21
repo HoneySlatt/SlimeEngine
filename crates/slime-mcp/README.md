@@ -65,7 +65,7 @@ The tools, each described to the agent by the server itself, with its parameters
 - `run_tests`: runs `cargo test` with the arguments given.
 
 `tests/drive.rs` plays an agent's session: it starts *Hunna Wood* through the server, pauses it,
-reads and changes the hero, walks it, saves the run, walks on and loads it back, captures its image
+reads and changes the hero, walks it, saves the run, moves it and loads it back, captures its image
 and reads its log. It needs a Wayland
 compositor and the game's zone cooked: `scripts/check.sh` runs it in a headless Weston.
 
