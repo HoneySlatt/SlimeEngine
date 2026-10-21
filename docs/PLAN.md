@@ -59,7 +59,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   M6a.5, a game as a simulation and a presentation
   ([ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)), and M6a.6, the development
   channel and the MCP server, through which an agent drives a running game
-  ([ADR-0122](adr/0122-the-development-channel.md)). Next: M6a.7.
+  ([ADR-0122](adr/0122-the-development-channel.md)), and M6a.7a, driven components, keys and
+  created entities written into levels
+  ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)). Next: M6a.7b.
 
 ## Status
 
@@ -71,7 +73,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6a.4](#m6a4--a-frame-that-owns-what-it-draws) | A frame owns what it draws, and loading needs no renderer | Done |
 | [M6a.5](#m6a5--the-phases-of-a-frame-game-time-and-a-game-as-a-simulation-and-a-presentation) | Each phase of a frame says who may change the world; game time pauses and steps; a game's rules run without a GPU | Done |
 | [M6a.6](#m6a6--the-development-channel-and-the-mcp-server) | An agent drives a running game without a person | Done |
-| [M6a.7](#m6a7--identities-and-saves-per-scene) | A save holds what was changed and costs what changed; an entity outlives its level | Planned |
+| [M6a.7a](#m6a7a--driven-components-keys-and-created-entities-written-into-levels) | A save and a level written back hold what was changed, and name for good what a start creates | Done |
+| [M6a.7b](#m6a7b--saves-per-scene-and-adoption) | A save costs what changed; an entity outlives its level | Planned |
 | [M6a.8](#m6a8--views-apart-from-the-renderer) | One renderer draws several views, each with its own settings | Planned |
 | [M6a.9](#m6a9--asset-requests) | What a view lacks loads first, and assets stay within a budget of memory | Planned |
 | [M6a.10](#m6a10--rendering-for-the-editor) | The renderer draws what an editor shows, and says what is under the cursor | Planned |
@@ -118,13 +121,14 @@ foundations pass. Where the engine stands at the start:
   step (ADR-0107). M6a.5 changed it.
 - **Nothing links a running game to a tool**: agents reach it through tests, logs and captures of
   their own ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md),
-  [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)).
+  [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)). M6a.6 changed it.
 - **A save is the difference from a start world that the game makes again whole**, at each save;
   nothing outlives its scene; *Hunna Wood* puts its fire's intensity back before each save
   (`unflicker`); a created entity written into its level exists twice once carried
   ([ADR-0109](adr/0109-stable-references-and-undo.md),
   [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)). M6a.5 took the fire's flicker
-  out of the world, and `unflicker` with it.
+  out of the world, and `unflicker` with it; M6a.7a carries a created entity written into its
+  level once.
 - **The asset cache keeps all it loaded**, until new cooked data or a lost device, and loads
   without priorities or cancellation
   ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)).
@@ -152,8 +156,8 @@ records its design in a new ADR, which amends the ADR that decided the part wher
 
 Risks:
 
-- **The size of the half.** Eleven milestones, most of them large; M6a.7 is split in two within
-  Stage 6a if it outgrows one.
+- **The size of the half.** Eleven milestones, most of them large; the owner split M6a.7 in two at
+  its start, M6a.7a and M6a.7b.
 - **Every program changes.** M6a.3 gives guards on mutable access, M6a.4 a frame without lifetimes
   and M6a.5 the split of `App`, which its thirteen implementations (eight tests of `slime-app`, four
   examples and *Hunna Wood*), the three examples of the crates' READMEs and the benchmarks follow.
@@ -165,8 +169,9 @@ Risks:
 - **A port that listens.** The development channel is local, guarded by a token and absent from
   shipped builds; M6a.6 extends [ADR-0096](adr/0096-the-files-the-engine-reads.md)'s threat model to
   it.
-- **Saves.** M6a.7 changes the layout of saves: the fixture is made again, and whether the saves of
-  layouts 2 and 3, those of 0.4 and those written since P1, are still read is decided and tested.
+- **Saves.** M6a.7b changes the layout of saves: the fixture is made again, and whether the saves of
+  layouts 2 to 4, those of 0.4, those written since P1 and those of M6a.7a, are still read is
+  decided and tested.
 - **One GPU.** Budgets are checked on the owner's RX 6900 XT only ([Known debt](#known-debt)).
 - **The cost of the checks.** CI's jobs stay under the owner's 20 minutes
   ([ADR-0104](adr/0104-the-build-ci-and-measurements.md),
@@ -475,7 +480,7 @@ Risks:
   Wood*'s library, `the_rules_run_hundreds_of_steps_through_a_host_without_a_gpu`, 300 steps with W
   held, then paused, one step, the look turned while paused, R and Escape. Nothing was measured: the
   milestone claims no speed, and a frame's lights, as many as before, each carry their entity.
-  Retired: the camera's yaw not saved, now where the player looks, which saves hold. Left to M6a.7:
+  Retired: the camera's yaw not saved, now where the player looks, which saves hold. Left to M6a.7a:
   the mark of driven components that ADR-0108 decided had *Hunna Wood*'s fire as its first user,
   which no longer writes its world.
 
@@ -569,46 +574,112 @@ Risks:
   seconds and `check (windowed)` 10 minutes 37 seconds, the agent's session 5 minutes 18 seconds of
   it; `windows` 13 minutes 36 seconds and `windows-release` 11 minutes 57 seconds.
 
-### M6a.7 — Identities and saves per scene
+### M6a.7a — Driven components, keys and created entities written into levels
 
-- **Goal.** A save, and a level written back, hold what an author or a player changed, no more; a
-  save costs what changed; an entity outlives its level.
+The owner split M6a.7 in two at its start, on 2026-10-21, as the plan allowed: this first half
+settles what a save and a level written back hold of each entity, the second
+([M6a.7b](#m6a7b--saves-per-scene-and-adoption)) how saves are made.
+
+- **Goal.** A save, and a level written back, hold what an author or a player changed, no more:
+  what a system computes again is left as its author wrote it, what a start creates is named for
+  good, and an entity written into its level is carried once.
 - **Findings.** The known debt: a created entity written into its level exists twice once carried,
   which the audit's test showed again on 2026-10-20; what a start creates without a key can take
-  another's saved changes; a key under which the world remembers a scene of which nothing lives;
-  P1's way round G02, a level that keeps something of the one before it under a key of its own.
-- **Crates.** `slime-world`, `slime-serialize`; *Hunna Wood*, the `world` example, the benchmarks
-  and the MCP server.
+  another's saved changes.
+- **Crates.** `slime-world`; the `world` example.
 - **Delivers.** As [ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md) decides: the mark of
   driven components, which saves, the overrides of prefabs and levels written back leave as their
-  author wrote them; *Hunna Wood*'s fire, for which it was planned in the place of `unflicker`,
-  flickers in the frame since M6a.5 and writes nothing in the world. As
-  [ADR-0109](adr/0109-stable-references-and-undo.md) decides: what a start creates in code holds a
-  key or is `Unsaved`, else saving refuses, naming the entities; a created entity that a scene
-  written back holds is carried once, known by the ID that the world gave it. As
-  [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md) decides: saves made of differences
-  per scene, each scene compared with its base, what it spawns and what the game adds when it spawns
-  it, without a start world made again; the differences of a scene unloaded kept, and applied again
-  when it loads; what persists, what resets and what is never saved, chosen per scene and per
-  entity; adoption, an entity taken out of its scene under a key of its own, its former identity
-  written, so that `World::spawn_scene` no longer refuses a level because something of the one
-  before it lives; a run carried through hot reload the same way; the cost of a save following the
-  ticks of M6a.3, and a benchmark of a save of 100 000 entities of which 1 % changed. A new layout
-  of saves, with whether the saves of layouts 2 and 3, those of 0.4 and those written since P1, are
-  still read decided, and *Hunna Wood*'s fixture made again
-  ([ADR-0100](adr/0100-updates-of-shipped-games.md)). Saving and loading a running game exposed to
-  the MCP server. The ADR of the design; the rustdoc, `docs/ARCHITECTURE.md`'s saves,
-  `benches/README.md`, `measurements.md`, the glossary, `CHANGELOG.md`, the game's README; the
-  known debt above retired. If it outgrows a milestone, it is split in two within Stage 6a: first
-  the driven mark, the keys and the carried entity, then saves per scene and adoption.
+  author wrote them. *Hunna Wood*'s fire, for which it was planned in the place of `unflicker`,
+  flickers in the frame since M6a.5 and writes nothing in the world: the owner chose on 2026-10-21
+  that the `world` example's ring, which floats at each step and whose place its save and its yard
+  written back held, is its first user. As [ADR-0109](adr/0109-stable-references-and-undo.md)
+  decides: what a start creates in code holds a key or is `Unsaved`, else saving refuses, naming
+  the entities; a created entity that a scene written back holds is carried once, known by the ID
+  that the world gave it. The ADR of the design; the rustdoc, `docs/ARCHITECTURE.md`, the glossary,
+  `CHANGELOG.md`, the examples' README; the known debt above retired.
 - **Done when.** The audit's test of the torch, moved into the repository, passes; tests: a driven
-  component is saved and written back as its author wrote it, and computed again after a load; a
-  start that creates an entity without a key refuses to save, naming it; a save of 100 000 entities
-  of which 1 % changed costs what changed, measured; a scene unloaded, then loaded again, gets back
-  its differences; a scene reset by a signal of the game forgets them, a persistent one keeps them;
-  an adopted entity outlives the level that replaced its own, with its references, through a save
-  and a load; hot reload carries a run as before; a test saves and loads a running game through
-  the MCP server; *Hunna Wood*'s tests pass on the zone and its fixture resumes; CI is green.
+  component is saved and written back as its author wrote it, and the example computes it again
+  after a load; a start that creates an entity without a key refuses to save, naming it; hot reload
+  carries a run as before; *Hunna Wood*'s tests pass on the zone and its fixture resumes; CI is
+  green.
+- **How to test.** `cargo test -p slime-world`; `cargo test -p hunnawood -- --ignored`; `cargo run
+  --example world -- --headless --frames 600`.
+- **By hand.** None: nothing that a player sees changes.
+- **Outcome.** Done on 2026-10-21.
+  [ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md) records the design,
+  and amends ADR-0087, ADR-0101, ADR-0108, ADR-0109 and ADR-0116. The mark is a component,
+  `Driven`, which lists the types of its entity's driven components: a save writes no change of
+  those that both the start, the author's mark, and the run mark, so that a mark that the run adds
+  or takes off hides nothing; a
+  scene file written back writes them as the scene's record, or the prefab and the scene's
+  override, gives them; `World::first_difference` leaves out their values; what no author wrote is
+  saved and written as it is. The `world` example's yard marks its ring's transform driven.
+  `World::save` refuses a start that created, without a key, entities that saves hold, a prefab
+  placed without a key included (`DocumentError::UnkeyedAtStart`); saves no longer write the
+  fingerprint of the start's creations, which loading still reads in the saves of layout 3.
+  `World::write_scene` remembers the identity that a created entity, or a placement made while the
+  world ran, takes in the file, and a save says it: loading, and carrying, looks for it once the
+  save's scenes are spawned, and the run's entity, or placement, becomes the file's, once; one not
+  found is created as before and keeps the identity; a placement found is set back to its prefab
+  before the save's differences apply. Saves take layout 4. An entity that the run created, wrote
+  into the level and destroyed since comes back from the file: [Known debt](#known-debt). The review found, and the
+  milestone fixed, the identity looked for before a level that the run changed to was spawned,
+  placements made while the world ran left out, the identity forgotten by a load that did not
+  find it, a placement found that kept the file's overrides, and a mark that the run took off
+  hiding what the run left. The tests, in `slime-world`'s `tests/saves.rs`:
+  `a_driven_component_is_saved_and_written_back_as_its_author_wrote_it`, a ring of the level and a
+  lamp of a prefab, each moved, saved and loaded where their author put them and written back so,
+  a spark that the run created and drives saved and written where it is, a crate whose mark the
+  run added and a barrel whose mark it took off saved where the run left them, and the lamp's light, whose aim the level added and whose
+  transform the prefab gives, both driven, written as their authors wrote them;
+  `a_start_that_created_entities_without_a_key_refuses_to_save_naming_them`; the audit's torch,
+  `a_created_entity_written_into_its_level_then_carried_exists_once`, once after carrying, under
+  the file's identity, with the run's move and the reference that the well holds to it, and created
+  again when the file was not cooked again;
+  `a_created_entity_written_into_a_level_that_the_run_changed_to_exists_once`, with a child that
+  the run created under it since;
+  `a_placement_made_while_running_written_into_its_level_then_carried_exists_once`, its glass taken
+  out, its light renamed and itself hidden before the file was written, then moved, its light
+  named back and itself shown again after: the run's values, without reports; and
+  `the_identity_that_a_file_gives_a_created_entity_outlives_a_load_before_the_file_is_cooked`, a
+  file written again the same after the load, and a component that the run removed since gone
+  from the file's entity. In `document.rs`,
+  `a_save_made_against_a_start_without_keys_sets_aside_what_another_start_numbers_otherwise` reads
+  a save of layout 3. The tests whose starts created entities without keys give them keys, or make
+  their saves through the writing without the check. The `world` example saves and writes back its
+  yard without the ring's place, and its test of a carried run finds the ring where the yard puts
+  it; that the example floats it again from there after a load is its code's, at each step, not a
+  test's. `scripts/check.sh` passed, *Hunna Wood*'s tests of the zone and its fixture's resume
+  among them. Nothing was measured: the milestone claims no speed.
+
+### M6a.7b — Saves per scene and adoption
+
+- **Goal.** A save costs what changed; an entity outlives its level.
+- **Findings.** The known debt: a key under which the world remembers a scene of which nothing
+  lives; P1's way round G02, a level that keeps something of the one before it under a key of its
+  own.
+- **Crates.** `slime-world`, `slime-serialize`; *Hunna Wood*, the `world` example, the benchmarks
+  and the MCP server.
+- **Delivers.** As [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md) decides: saves
+  made of differences per scene, each scene compared with its base, what it spawns and what the
+  game adds when it spawns it, without a start world made again; the differences of a scene
+  unloaded kept, and applied again when it loads; what persists, what resets and what is never
+  saved, chosen per scene and per entity; adoption, an entity taken out of its scene under a key of
+  its own, its former identity written, so that `World::spawn_scene` no longer refuses a level
+  because something of the one before it lives; a run carried through hot reload the same way; the
+  cost of a save following the ticks of M6a.3, and a benchmark of a save of 100 000 entities of
+  which 1 % changed. A new layout of saves, with whether the saves of layouts 2 to 4, those of 0.4,
+  those written since P1 and those of M6a.7a, are still read decided, and *Hunna Wood*'s fixture
+  made again ([ADR-0100](adr/0100-updates-of-shipped-games.md)). Saving and loading a running game
+  exposed to the MCP server. The ADR of the design; the rustdoc, `docs/ARCHITECTURE.md`'s saves,
+  `benches/README.md`, `measurements.md`, the glossary, `CHANGELOG.md`, the game's README; the
+  known debt above retired.
+- **Done when.** Tests: a save of 100 000 entities of which 1 % changed costs what changed,
+  measured; a scene unloaded, then loaded again, gets back its differences; a scene reset by a
+  signal of the game forgets them, a persistent one keeps them; an adopted entity outlives the
+  level that replaced its own, with its references, through a save and a load; hot reload carries
+  a run as before; a test saves and loads a running game through the MCP server; *Hunna Wood*'s
+  tests pass on the zone and its fixture resumes; CI is green.
 - **How to test.** `cargo test -p slime-world -p slime-serialize`; `cargo test -p hunnawood --
   --ignored`.
 - **By hand.** The owner plays: F5, F9, quit and resume.
@@ -1965,27 +2036,18 @@ GitHub issues, linked from their entry; this list stays the reference.
   `World::load` has the figures. *Hunna Wood*'s saves are far below the limit. The binary encoding
   exists since M5b.4, but saves stay text until a measurement asks (ADR-0089): a larger world needs
   saves in the binary encoding, or read in parts.
-- **What a start creates without a key, alike in its types and without a name, can take another's
-  saved changes** (ADR-0101). A save tells a start that created other entities outside scenes by a
-  fingerprint of their numbers, the types of their components and their names: a later version of
-  a game that creates two such entities in the other order is not told apart, and the save's
-  changes go to the entity of each number. A game names by a key what it creates at its start
-  (`World::spawn_keyed`). [ADR-0109](adr/0109-stable-references-and-undo.md) decides that saving
-  refuses a world whose start created an entity that has no key and is not `Unsaved`, built at
-  M6a.7.
-- **A created entity written into its level exists twice once the run is carried into it**
-  (ADR-0092, ADR-0093). An entity created in code under a scene's root keeps `created/<n>`, and
-  the file that `World::write_scene` writes holds it under an ID of its own, `zone/torch-0rdx`;
-  once the file is cooked again, `World::carry` gives the file's entity and the run's, without a
-  word. The audit's test showed it at 0.4, and again on 2026-10-20.
-  [ADR-0109](adr/0109-stable-references-and-undo.md) decides that carrying recognizes the entity
-  by the ID that the world gave it, built at M6a.7, before the editor writes levels.
+- **An entity that a run created, wrote into its level and destroyed since comes back when the run
+  is carried into the file cooked again**
+  ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)): the save no
+  longer names it, and the file holds it. A save that names the written identities of what the
+  run destroyed would settle it; the editor of Stage 6b writes levels through its commands, which
+  meet it first.
 - **`World::spawn_keyed` gives a key under which the world remembers a scene of which nothing
   lives** (ADR-0101): the entity created is then saved as that scene's root, and set aside with the
   scene when a save loads where the scene cannot be resolved. `World::spawn_scene` refuses a key
   whose scene has an entity alive; a key whose scene is gone whole is the world's to forget or
   refuse. [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md) decides adoption and
-  saves per scene, which settle it when they are built, at M6a.7.
+  saves per scene, which settle it when they are built, at M6a.7b.
 - **`Range::contains` stays public beside `Range::holds`**: two ways to check a number against a
   range, the first in `f64`, which only tests' helpers use. Every check of a field's range uses
   `Range::holds` (ADR-0101); the helpers can move to it, and `contains` go.
