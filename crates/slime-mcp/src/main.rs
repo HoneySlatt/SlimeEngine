@@ -25,8 +25,10 @@ use slime_channel::{Client, Reply, Request, Token, launch};
 
 /// How long a game is given to say where it listens, by default: `cargo run` may build it first.
 const START_TIMEOUT: Duration = Duration::from_secs(600);
-/// How long a game is given to end once asked to stop, before it is killed.
-const STOP_TIMEOUT: Duration = Duration::from_secs(30);
+/// How long a game is given to end once asked to stop, before it is killed: it ends once the frame
+/// that took the request is drawn, which takes tens of seconds for *Hunna Wood*'s zone on a CPU
+/// driver such as CI's lavapipe.
+const STOP_TIMEOUT: Duration = Duration::from_secs(120);
 /// How many bytes of the end of a game's log, or of a command's output, a failure shows.
 const TAIL: u64 = 4096;
 /// The server's version, the workspace's.

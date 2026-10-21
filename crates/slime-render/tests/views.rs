@@ -530,10 +530,11 @@ fn a_view_resized_gives_its_old_targets_back() {
     let first = held_after(&small);
     let resized = held_after(&large);
     assert!(resized > first, "larger targets: {first} then {resized}");
-    // But a few kilobytes that wgpu stages for the values written.
+    // But a few kilobytes that wgpu stages for the values written. Direct3D 12's allocator holds
+    // less then than after the first frame.
     let again = held_after(&small);
     assert!(
-        again.abs_diff(first) < MIB,
+        again < first + MIB,
         "nothing of the larger size kept: {first} bytes, then {again}"
     );
 }

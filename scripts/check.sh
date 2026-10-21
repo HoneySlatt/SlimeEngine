@@ -190,11 +190,12 @@ if runs windowed; then
     # And driven by an agent's session through the MCP server, which starts it with a token and
     # connects to its development channel: pauses it, steps it, reads and changes the hero, walks it
     # with a scripted key, saves its run and loads it back, captures its image and reads its log
-    # (ADR-0122, ADR-0125). The test needs a
-    # compositor, so it is outside the default test run, as the lifecycle test below is.
+    # (ADR-0122, ADR-0125). The test needs a compositor, so it is outside the default test run, as
+    # the lifecycle test below is. Each of its requests waits for a frame of the zone, 18 to 30 s on
+    # CI's runners: about 10 minutes on the slowest.
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
         VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
-        timeout -k 10 600 cargo test --locked -p slime-mcp --test drive ||
+        timeout -k 10 900 cargo test --locked -p slime-mcp --test drive ||
         { cat "$runtime/slime-check.log"; exit 1; }
     # The windowed lifecycle test needs the compositor too, so it is outside the default test run
     # (ADR-0024).
