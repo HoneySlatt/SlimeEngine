@@ -42,15 +42,14 @@ fn yard() -> ResolvedScene {
         .expect("resolved")
 }
 
-/// The world that a run starts from: the yard, a hero created under a key, and a stone created
-/// without one.
+/// The world that a run starts from: the yard, and a hero and a stone, each created under a key.
 fn start() -> World {
     let mut world = World::new();
     world.register::<Aim>();
     world.spawn_scene("yard", &yard()).expect("spawned");
     let hero = world.spawn_keyed("hero").expect("a key");
     world.insert(hero, Name("hero".to_owned()));
-    let stone = world.spawn();
+    let stone = world.spawn_keyed("stone").expect("a key");
     world.insert(stone, Transform::IDENTITY);
     world
 }
@@ -77,7 +76,7 @@ fn a_damaged_save_is_refused_or_loaded_never_a_panic() {
     run.insert(arrow, Aim { at: well });
     let spark = run.spawn();
     run.insert(spark, Unsaved);
-    run.despawn(find(&run, "created/1"));
+    run.despawn(find(&run, "stone"));
     let save = run
         .save(
             &start(),

@@ -470,6 +470,13 @@ fn a_lamp_cooked_again_reaches_every_lamp_but_where_the_yard_overrides_it() {
         .expect("placed")
         .translation
         .y = 1.25;
+    let lamp_3 = run
+        .find(&PersistentId::new(["yard", "lamp 3"]))
+        .expect("the third lamp");
+    run.get_mut::<Transform>(lamp_3)
+        .expect("placed")
+        .translation
+        .y = 0.5;
     // The lamp's light turns green, and its glass grows.
     let lamp = fs::read_to_string(sources.join("lamp.scene")).expect("the lamp is read");
     let changed = lamp
@@ -502,16 +509,25 @@ fn a_lamp_cooked_again_reaches_every_lamp_but_where_the_yard_overrides_it() {
             "{lamp}"
         );
     }
-    let ring = carried
-        .find(&PersistentId::new(["yard", "sample", "ring"]))
-        .expect("the ring");
-    assert_eq!(
-        carried
-            .get::<Transform>(ring)
+    let height = |world: &World, id: &[&str]| {
+        let entity = world
+            .find(&PersistentId::new(id.iter().copied()))
+            .expect("alive");
+        world
+            .get::<Transform>(entity)
             .expect("placed")
             .translation
-            .y,
-        1.25,
+            .y
+    };
+    assert_eq!(
+        height(&carried, &["yard", "lamp 3"]),
+        0.5,
         "what the run changed stays"
+    );
+    // The ring's transform is driven, as the yard marks it: where the yard puts it, which the
+    // example floats again from there.
+    assert_eq!(
+        height(&carried, &["yard", "sample", "ring"]),
+        height(&old_start, &["yard", "sample", "ring"]),
     );
 }

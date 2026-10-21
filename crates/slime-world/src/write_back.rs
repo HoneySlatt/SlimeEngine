@@ -126,6 +126,11 @@ impl World {
     ///   placed it wrote are kept: one that holds the prefab's value still, and one set aside, whose
     ///   entity or component the prefab no longer has, or that no longer fits it, while the value
     ///   is the prefab's; one whose entity or component the world removed since is not.
+    /// - A component that its entity marks driven ([`Driven`](crate::Driven)) is written as its
+    ///   author wrote it, never its value of the moment: as the scene's record of the entity holds
+    ///   it, or for a placement as the prefab gives it, with the override that the scene wrote for
+    ///   it, if it wrote one. One that no author wrote, on an entity created outside scenes or added
+    ///   to one, is written as it is.
     /// - [`Unsaved`], which leaves an entity out of saves, is written as any other component, for
     ///   the root, the scene's entities and its placements' alike. Entities created outside scenes
     ///   that hold it, or that are under an entity other than the root that holds it, are left
@@ -138,7 +143,9 @@ impl World {
     ///
     /// What the file cannot hold as the world has it is reported ([`Written::left_out`]). Entities
     /// created outside scenes keep their identities, `created/<number>`: the file gives them their
-    /// IDs when it is spawned. The comments of the file that the scene was read from are not kept.
+    /// IDs when it is spawned under the scene's key, which the world remembers and its saves say,
+    /// so that a run carried into the file cooked again finds each there, once ([`World::carry`]).
+    /// The comments of the file that the scene was read from are not kept.
     ///
     /// The cost is linear in the entities of the subtree, but that each entity created outside
     /// scenes looks for [`Unsaved`] among its ancestors below the root. Measured in a release build
@@ -175,6 +182,17 @@ impl World {
         let mut left_out = Vec::new();
         let walked = self.walk(root, namespace.as_deref(), &mut left_out);
         self.give_ids(&walked, namespace.as_deref(), &mut left_out);
+        if let Some(key) = namespace.as_deref() {
+            for &entity in &walked {
+                if matches!(
+                    self.nodes[entity.index() as usize].identity,
+                    Identity::Created(_)
+                ) {
+                    let id = PersistentId::new([key, &self.file_id(entity)]);
+                    self.nodes[entity.index() as usize].written_as = Some(id);
+                }
+            }
+        }
         let entries: Vec<Entry> = walked
             .into_iter()
             .map(|entity| Entry {
@@ -482,6 +500,18 @@ impl World {
                 });
             }
         }
+        // The records of the scene of `root`, by their paths, which give the driven components as
+        // their author wrote them.
+        let records: HashMap<&[String], &Record> = scene
+            .map(|(_, resolved)| {
+                resolved
+                    .0
+                    .records
+                    .iter()
+                    .map(|record| (record.path.as_slice(), record))
+                    .collect()
+            })
+            .unwrap_or_default();
         let held: HashMap<Entity, Vec<(String, Value)>> = std::iter::once(root)
             .chain(
                 entries
@@ -489,7 +519,10 @@ impl World {
                     .filter(|entry| entry.placement.is_none())
                     .map(|entry| entry.entity),
             )
-            .map(|entity| (entity, self.written_components(entity, entity == root)))
+            .map(|entity| {
+                let components = self.written_components(entity, entity == root, scene, &records);
+                (entity, components)
+            })
             .collect();
         // The assets that the file names: its prefabs, and those that its values hold.
         let mut used: Vec<AssetId> = Vec::new();
@@ -623,8 +656,17 @@ impl World {
     }
 
     /// The components that a scene file writes of `entity`, by their names, in their order: the
-    /// root's without the `Name` that spawning gives it and without the identity as its transform.
-    fn written_components(&self, entity: Entity, root: bool) -> Vec<(String, Value)> {
+    /// root's without the `Name` that spawning gives it and without the identity as its transform;
+    /// a component that `entity` marks driven as its record in `scene`, the scene of the file's
+    /// root, whose `records` are given by their paths, holds it, as its author wrote it, if the
+    /// record holds it.
+    fn written_components(
+        &self,
+        entity: Entity,
+        root: bool,
+        scene: Option<(&str, &ResolvedScene)>,
+        records: &HashMap<&[String], &Record>,
+    ) -> Vec<(String, Value)> {
         let spawned_name = match &self.nodes[entity.index() as usize].identity {
             Identity::Scene(id) => id.parts().last().cloned(),
             _ => None,
@@ -632,7 +674,12 @@ impl World {
         self.component_names_sorted(entity)
             .into_iter()
             .filter_map(|name| {
-                let value = self.component_value(entity, name)?;
+                let authored = if self.drives(entity, name) {
+                    self.authored_component(entity, name, scene, records)
+                } else {
+                    None
+                };
+                let value = authored.or_else(|| self.component_value(entity, name))?;
                 if root
                     && name == "Name"
                     && spawned_name
@@ -667,6 +714,48 @@ impl World {
             next = self.parent(entity);
         }
         false
+    }
+
+    /// Sets the entities of the placement of `root` back to what its prefab gives them: each
+    /// component of a record as the record holds it, the root named by its ID, and the components
+    /// that the record does not hold removed. Loading a save that describes the placement from its
+    /// prefab does it first, when the world has the placement from a scene file written since, with
+    /// its overrides (`World::load`).
+    pub(crate) fn reset_to_prefab(&mut self, root: Entity) {
+        let Some(placement) = self.nodes[root.index() as usize].placement.clone() else {
+            return;
+        };
+        let root_name = self.file_id(root);
+        let placed = self.placed(root, &placement);
+        let entities: Vec<Option<Entity>> = placed.iter().map(|(_, entity)| *entity).collect();
+        for (index, (record, entity)) in placed.iter().enumerate() {
+            let Some(entity) = *entity else {
+                continue;
+            };
+            let held: Vec<String> = self
+                .component_names(entity)
+                .into_iter()
+                .map(str::to_owned)
+                .collect();
+            for name in &held {
+                match expected(record, index, Some(&root_name), &entities, name) {
+                    Some(value) => {
+                        // A value that the prefab gives is one that its types accept.
+                        let _ = self.set_component_value(entity, name, value);
+                    }
+                    None => {
+                        self.remove_component_value(entity, name);
+                    }
+                }
+            }
+            for (name, _) in &record.components {
+                if !held.contains(name)
+                    && let Some(value) = expected(record, index, Some(&root_name), &entities, name)
+                {
+                    let _ = self.insert_component_value(entity, name, value);
+                }
+            }
+        }
     }
 
     /// The records of `placement`'s prefab, each with the entity of the world that has its identity
@@ -807,6 +896,8 @@ impl World {
                             .or_default()
                             .insert(name.clone());
                     }
+                    // As its author wrote it: the prefab's, or the scene's override, below.
+                    Some(_) if self.drives(entity, name) => {}
                     Some(value) => {
                         if let Some(part) = self
                             .registry
@@ -881,7 +972,12 @@ impl World {
                         && let Some(now) = self.component_value(entity, name)
                     {
                         differences.remove(&key);
-                        sections.added.insert(key, now);
+                        let value = if self.drives(entity, name) {
+                            self.authored(value, scene)
+                        } else {
+                            now
+                        };
+                        sections.added.insert(key, value);
                     }
                 }
             }
@@ -909,6 +1005,10 @@ impl World {
                 }
                 // Removed since, or added since whole: the removal or the addition says it.
                 (Some(_), None) | (None, Some(_)) => {}
+                // As its author wrote it.
+                (Some(_), Some(_)) if self.drives(entity, name) => {
+                    differences.insert(key, written);
+                }
                 (Some(base), Some(now)) => {
                     let mut overlaid = base.clone();
                     if self.registry.overlay(name, &mut overlaid, &written).is_ok() {
@@ -940,6 +1040,28 @@ impl World {
         }
         sections.changed.extend(differences);
         Ok(())
+    }
+
+    /// The value of `entity`'s component named `name` as its record in `scene`, the scene whose key
+    /// begins its identity, holds it, its references made references to the world's entities;
+    /// `None` if no record of it holds one: its author wrote none. `records` are the scene's, by
+    /// their paths.
+    fn authored_component(
+        &self,
+        entity: Entity,
+        name: &str,
+        scene: Option<(&str, &ResolvedScene)>,
+        records: &HashMap<&[String], &Record>,
+    ) -> Option<Value> {
+        let (key, _) = scene?;
+        let id = self.persistent_id(entity)?;
+        let (first, path) = id.parts().split_first()?;
+        if first != key {
+            return None;
+        }
+        let record = records.get(path)?;
+        let (_, value) = record.components.iter().find(|(held, _)| held == name)?;
+        Some(self.authored(value, scene))
     }
 
     /// `value`, an override as a scene file wrote it, its references to the records of the scene

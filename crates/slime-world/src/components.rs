@@ -49,6 +49,34 @@ pub struct Unsaved;
 
 impl Component for Unsaved {}
 
+/// The components of an entity that a system computes again, the game's rules, an animation or
+/// physics, by their types' names, `Transform`: their value at a given moment does not matter, so
+/// that a save, and a scene file written back, leave each as its author wrote it, never its value of
+/// the moment, which the system computes again after a load
+/// (`docs/adr/0108-what-the-world-knows-of-its-changes.md`,
+/// `docs/adr/0124-driven-components-keys-and-created-entities-in-levels.md`). A driven component
+/// that no author wrote, on an entity that a run created or added to one, is saved as it is:
+/// nothing else gives it.
+///
+/// The mark is authored, as a scene file holds it: a save leaves out the changes of a component that
+/// both the start and the run mark, so that a mark that the run adds, or takes off, hides nothing. It is not inherited: it marks its own entity's
+/// components only. A component is driven whole: a game keeps what a player changes, a lamp
+/// switched off, in another component than the one it drives, the lamp's flicker. It names the
+/// types as the world's registry names them, `Transform`, `hunnawood::Look`, not by their aliases;
+/// a name of no component that the entity holds marks nothing.
+#[derive(Clone, Debug, PartialEq, Eq, Reflect)]
+#[reflect(name = "Driven")]
+pub struct Driven(pub Vec<String>);
+
+impl Driven {
+    /// Whether it marks the component of the type named `name` driven.
+    pub fn holds(&self, name: &str) -> bool {
+        self.0.iter().any(|driven| driven == name)
+    }
+}
+
+impl Component for Driven {}
+
 /// The light an entity places: at its origin, along its −Z axis, whatever its scale; in the
 /// physical units of glTF's `KHR_lights_punctual`, as the renderer's lights are, by the same rule,
 /// [`SceneLight::check`], and with a shadow distance positive and finite.

@@ -11,9 +11,10 @@
   the world spawned while it ran, and is loaded through a scene library),
   [0101](0101-saves-and-identities-that-never-mislead.md) (the identities of what a game creates in
   code, saves of layout 3, references compared by the identity they name, and what loading warns
-  of), [0108](0108-what-the-world-knows-of-its-changes.md) (driven components) and
+  of), [0108](0108-what-the-world-knows-of-its-changes.md) (driven components),
   [0112](0112-levels-saves-and-worlds-for-open-worlds.md) (saves made of differences per scene, and
-  what persists)
+  what persists) and [0124](0124-driven-components-keys-and-created-entities-in-levels.md) (layout
+  4, which says where a scene file written back holds what the run created)
 - Date: 2026-10-16
 
 ## Context

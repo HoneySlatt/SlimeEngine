@@ -7,7 +7,8 @@
   and a created entity written into a scene is carried once) and
   [0101](0101-saves-and-identities-that-never-mislead.md) (what a start creates in code has a key);
   amended by [0116](0116-stage-6-in-two-halves.md) (a created entity carried once before the
-  editor's command system)
+  editor's command system) and [0124](0124-driven-components-keys-and-created-entities-in-levels.md)
+  (the identity that a level written back gives a created entity, which saves say)
 - Date: 2026-10-20
 
 ## Context

@@ -123,10 +123,12 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   the overrides of the scene that placed it that were set aside. `World::spawn_placement` places a
   prefab while the world runs, under `created/<number>`.
 - `World::write_scene` writes a subtree back as a scene file (`Written`): placements as placements
-  with what differs from their prefab, the overrides that the scene wrote kept, entities created
-  since given IDs that they keep, the same world in the same bytes; `World::placement_root` and
-  `World::differs_from_prefab` say which placement an entity belongs to, and whether a component of
-  it differs from the prefab's (`docs/adr/0092-a-world-written-back-as-a-scene.md`).
+  with what differs from their prefab, the overrides that the scene wrote kept, driven components
+  as their author wrote them, entities created since given IDs that they keep, and by which a run
+  carried into the file cooked again finds them, once, the same world in the same bytes;
+  `World::placement_root` and `World::differs_from_prefab` say which placement an entity belongs
+  to, and whether a component of it differs from the prefab's
+  (`docs/adr/0092-a-world-written-back-as-a-scene.md`).
 - `Meshes`, `Light` and `Hidden` say what is drawn: meshes by asset ID, each drawn with the material
   of its cooked mesh, lights at their entity's origin along its −Z axis, a directional one showing
   in the sky or not, and the subtrees left out; `World::is_hidden` says whether an entity is, by
@@ -148,8 +150,13 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   game makes at the start of a run from the same scenes: entities removed and created, components
   added, removed and changed, parents changed, references to entities as persistent identities, or
   `""` for no entity. Entities that hold `Unsaved`, with their descendants, and fields marked
-  transient are left out. The save begins with `about`, what the game says of it, keys and texts
-  that `World::about` reads without loading the save, and says what `start` created outside scenes.
+  transient are left out, and no change of the components that their entity marks driven
+  (`Driven`) is saved, their author's values kept, which their system computes again; a start
+  that created, without a key, entities that saves hold is refused
+  (`DocumentError::UnkeyedAtStart`,
+  `docs/adr/0124-driven-components-keys-and-created-entities-in-levels.md`). The save begins with
+  `about`, what the game says of it, keys and texts that `World::about` reads without loading the
+  save, and says how many entities `start` created outside scenes.
   What the world spawned while it ran, a scene under a key or a placement, is saved as its scene and
   what differs from it. `World::load` applies a save to such a world, spawning those scenes again
   through a `SceneLibrary`, what the run created numbered after the world's count, and says what it

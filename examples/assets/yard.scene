@@ -1,5 +1,7 @@
 # The yard of the `world` example: the sample scene, and four lamps around it, the second red and
-# the fourth without its light (`docs/adr/0089-scenes-and-prefabs.md`).
+# the fourth without its light (`docs/adr/0089-scenes-and-prefabs.md`). The sample's ring floats,
+# which the example computes at each step: its transform is driven, so that saves and the yard
+# written back keep it where this file puts it (`docs/adr/0108-what-the-world-knows-of-its-changes.md`).
 
 [assets]
 lamp = { id = "6647a9c8-d378-4f9a-89d7-3ec9fc2b172a", path = "lamp.scene" }
@@ -26,6 +28,9 @@ translation = { x = -3.5, z = -3.5 }
 
 [changed."lamp 4".Transform]
 translation = { x = 3.5, z = -3.5 }
+
+[added."sample/ring"]
+Driven = ["Transform"]
 
 [removed]
 entities = ["lamp 4/light"]

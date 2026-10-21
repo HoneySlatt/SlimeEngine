@@ -6,7 +6,8 @@
   [0098](0098-the-games-the-engine-aims-at.md) (Stage 9c's work ships with 0.11),
   [0109](0109-stable-references-and-undo.md) (a created entity carried once before the editor's
   command system) and [0110](0110-how-the-editor-runs-a-games-code.md) (the development channel
-  built before play in the editor, with the MCP server)
+  built before play in the editor, with the MCP server); amended by
+  [0124](0124-driven-components-keys-and-created-entities-in-levels.md) (M6a.7 in two milestones)
 - Date: 2026-10-20
 
 ## Context

@@ -10,10 +10,12 @@
 //! their components (`slime-devui`). Escape, closing the window or Ctrl+C quits.
 //!
 //! When it quits, it saves its world (`docs/adr/0087-the-worlds-documents.md`): what differs from
-//! the world as it spawns it at the start, the ring's place and what the panel changed. It loads
-//! the save into a world spawned anew, and the run fails if that world is not the one saved. It
-//! also writes the yard back as a scene file (`docs/adr/0092-a-world-written-back-as-a-scene.md`),
-//! spawns that file, and the run fails if the world spawned is not the one written.
+//! the world as it spawns it at the start, what the panel changed. The ring's transform is driven,
+//! as the yard marks it (`slime_world::Driven`): the save and the file leave the ring where the yard
+//! puts it, and the example would float it again from there. It loads the save into a world spawned
+//! anew, and the run fails if that world is not the one saved. It also writes the yard back as a
+//! scene file (`docs/adr/0092-a-world-written-back-as-a-scene.md`), spawns that file, and the run
+//! fails if the world spawned is not the one written.
 //! `SLIME_LOG=debug` shows the save and the file.
 //!
 //! It reads cooked data, which `slime-cook` makes first:

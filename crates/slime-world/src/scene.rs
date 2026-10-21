@@ -66,7 +66,8 @@ impl World {
     /// a manager or an enemy at a marker, named so that saves and hot reload find it whatever else
     /// the game creates, and in whichever order. An entity created with [`World::spawn`] is named
     /// by its rank of creation instead, which a later version of the game, or another order, gives
-    /// to another entity. Keys are shared with the scenes spawned under keys
+    /// to another entity: saving refuses a start that created one that saves hold
+    /// ([`World::save`]). Keys are shared with the scenes spawned under keys
     /// ([`World::spawn_scene`]).
     ///
     /// ```
@@ -146,10 +147,11 @@ impl World {
     /// identities are its own followed by their paths in the prefab, `created/7/light`. The world
     /// remembers its prefab, which [`World::placement`] gives while the root lives, and writes it as a
     /// placement in a scene file ([`World::write_scene`]); a save writes it as its prefab with what
-    /// differs from it while an entity of it lives ([`World::save`]). The root holds no [`Name`],
-    /// unlike a placement that a file makes, which spawning names by its ID: the world gives it an ID
-    /// when it first writes it, and a file written while it has no name says that its `Name` is
-    /// removed.
+    /// differs from it while an entity of it lives ([`World::save`]). Nothing can be saved against a
+    /// start that placed a prefab so, as for any entity that a start creates without a key: a start
+    /// places it under a key with [`World::spawn_scene`]. The root holds no [`Name`], unlike a
+    /// placement that a file makes, which spawning names by its ID: the world gives it an ID when it
+    /// first writes it, and a file written while it has no name says that its `Name` is removed.
     ///
     /// # Errors
     ///

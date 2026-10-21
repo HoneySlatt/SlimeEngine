@@ -8,6 +8,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Driven components (ADR-0108, ADR-0124): an entity marks with `slime_world::Driven` the
+  components that a system computes again, `Driven = ["Transform"]` in a scene file; saves and
+  scene files written back leave them as their author wrote them, and `World::first_difference`
+  leaves out their values. The `world` example's floating ring is marked so.
 - The development channel (ADR-0110, ADR-0122): a game built with `slime-app`'s `development`
   feature, on by default in *Hunna Wood* and in the examples, and started with a token in
   `SLIME_DEV_TOKEN`, listens on `127.0.0.1` and answers the tools that connect with the token: its
@@ -102,6 +106,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- Saving refuses a start that created, without a key, entities that saves hold
+  (`DocumentError::UnkeyedAtStart`, which names them; ADR-0109, ADR-0124): a start names what it
+  creates with `World::spawn_keyed`, a prefab with `World::spawn_scene`, or marks it `Unsaved`.
+  Saves take layout 4, without the fingerprint of the start's creations; those of layouts 1 to 3
+  are read as before.
 - A game is a simulation and a presentation (ADR-0107, ADR-0121): `slime_app::App` gave way to
   `Simulation`, a game's rules, whose `start`, `fixed_step`, `update` and `stop` receive the world
   to change and a `SimulationContext` (the input, both times, the run's stop), and `Presentation`,
@@ -222,6 +231,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- An entity that a run created, or a prefab that it placed, written into its level by
+  `World::write_scene`, exists once when the run is carried into the file cooked again
+  (`World::carry`), a level that the run changed to included, the file's entity given what the run
+  holds of it; it existed twice, the run's and the file's (ADR-0109, ADR-0124).
 - An alias of a field or a variant that is also the name, or an alias, of another field or variant
   beside it is refused: `#[derive(Reflect)]` fails to compile, `Registry::register_dynamic` returns
   an error, and `Registry::register` panics on a type described so by hand. Data that gave it read

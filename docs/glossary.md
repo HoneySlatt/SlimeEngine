@@ -212,7 +212,9 @@ reversed (glTF).
 **Driven (component).** A component that the game, an animation or physics computes again, so
 that its value of the moment does not matter: saves, the overrides of a *prefab* and a level
 written back leave it as its author wrote it. An entity marks which of its components are driven
-([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)). Decided, not built yet.
+with the `Driven` component, which lists their types (`slime_world::Driven`,
+[ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md),
+[ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)).
 
 **Driver.** The loop that decides when frames run and what time each one represents. `run` has a
 headless driver (frames back to back, simulated time) and a windowed driver, called back by the
@@ -800,11 +802,11 @@ edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
 **Save (game).** What differs between a *world* and its *start world*, written to a file: entities
 removed and created, components added, removed and changed, parents changed, entities named by
 their *persistent identities*; it begins with what the game says of it, such as what it was made
-on, which can be read alone, and what its start world created outside scenes, its count and a
-fingerprint of those entities. What the world spawned while it ran is saved as its scenes, with what
-differs from them. Loading spawns those scenes again, then applies the differences, to a start world
-spawned from the scenes as they are now, so that a game update that changes a scene reaches the
-saves made before; what the run created takes the numbers that follow that world's count
+on, which can be read alone, and how many entities its start world created outside scenes. What
+the world spawned while it ran is saved as its scenes, with what differs from them. Loading spawns
+those scenes again, then applies the differences, to a start world spawned from the scenes as they
+are now, so that a game update that changes a scene reaches the saves made before; what the run
+created takes the numbers that follow that world's count
 ([ADR-0079](adr/0079-the-engines-own-world.md),
 [ADR-0087](adr/0087-the-worlds-documents.md), [ADR-0088](adr/0088-saving-and-resuming-a-run.md),
 [ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md),

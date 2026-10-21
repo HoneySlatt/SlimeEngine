@@ -21,7 +21,7 @@ mod write_back;
 
 pub use change::{Mut, Removals, Tick, Ticks};
 pub use command::Command;
-pub use components::{Extras, Hidden, Light, Meshes, Name, Unsaved};
+pub use components::{Driven, Extras, Hidden, Light, Meshes, Name, Unsaved};
 pub use document::{DocumentError, Loaded, SetAside};
 pub use entity::Entity;
 pub use error::WorldError;

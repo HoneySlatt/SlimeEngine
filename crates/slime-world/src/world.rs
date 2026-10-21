@@ -9,7 +9,7 @@ use std::sync::Arc;
 use slime_reflect::{Reflect, Registry};
 
 use crate::change::{Log, Mut, Tick, TransformMarks};
-use crate::components::{Extras, Hidden, Light, Meshes, Name, Unsaved};
+use crate::components::{Driven, Extras, Hidden, Light, Meshes, Name, Unsaved};
 use crate::entity::{Entities, Entity};
 use crate::hierarchy::{children_of, leave_parent};
 use crate::identity::PersistentId;
@@ -166,6 +166,11 @@ pub(crate) struct Node {
     /// The ID that a scene file written from the world gave it, an entity created outside a scene,
     /// which it keeps when the world is written again.
     pub(crate) written_id: Option<Box<str>>,
+    /// The identity that it takes when the scene file written from the world under a scene's key is
+    /// spawned under that key, `zone/torch-0rdx`, for an entity created outside a scene: what a
+    /// save says of it, so that the run carried into the file cooked again finds it there
+    /// (`docs/adr/0109-stable-references-and-undo.md`).
+    pub(crate) written_as: Option<PersistentId>,
 }
 
 /// How files and saves name an entity.
@@ -383,7 +388,7 @@ impl Default for World {
 
 impl World {
     /// An empty world, whose registry holds the engine's components: [`Transform`], [`Name`],
-    /// [`Meshes`], [`Hidden`], [`Light`], [`Extras`] and [`Unsaved`].
+    /// [`Meshes`], [`Hidden`], [`Light`], [`Extras`], [`Unsaved`] and [`Driven`].
     pub fn new() -> Self {
         let mut world = Self {
             entities: Entities::default(),
@@ -412,6 +417,7 @@ impl World {
         world.register::<Light>();
         world.register::<Extras>();
         world.register::<Unsaved>();
+        world.register::<Driven>();
         // What saves hold besides components: names, lists of them, counts.
         world.registry.register::<Option<String>>();
         world.registry.register::<Vec<String>>();
@@ -422,16 +428,15 @@ impl World {
     /// A new entity, which holds no component and has no parent yet. Its persistent identity is
     /// `created/<number>`, the next number of the world's count of the entities it created outside
     /// scenes: a save holds it whole if the run created it, unless it or an ancestor holds
-    /// [`Unsaved`], and what changed of it if the start of the run did. A number names an entity by
-    /// its rank of creation, which a later version of the game, or another order, gives to another:
-    /// an entity that a game creates while it makes its start world is named by a key instead
-    /// ([`World::spawn_keyed`]). What the run created takes, when its save loads, the numbers that
-    /// follow the count of the world that it is loaded into. Of the start's numbered entities, a
-    /// save holds a fingerprint, their numbers, the types of their components and their [`Name`]s,
-    /// but not their values, and loading sets aside what the save holds of them when the start that
-    /// it is loaded into created others ([`World::load`]): a start that creates entities alike in
-    /// their types, and without names, in another order is not told apart, and the save's changes
-    /// go to the entity of each number.
+    /// [`Unsaved`]. A number names an entity by its rank of creation, which a later version of the
+    /// game, or another order, gives to another: an entity that a game creates while it makes its
+    /// start world is named by a key instead ([`World::spawn_keyed`]), or left out of saves, and
+    /// saving against a start that created others is refused ([`World::save`]). What the run
+    /// created takes, when its save loads, the numbers that follow the count of the world that it is
+    /// loaded into. Saves of layout 3, made before that refusal, hold a fingerprint of the start's
+    /// numbered entities, their numbers, the types of their components and their [`Name`]s, and
+    /// loading sets aside what they hold of them when the start that they are loaded into created
+    /// others ([`World::load`]).
     ///
     /// # Panics
     ///

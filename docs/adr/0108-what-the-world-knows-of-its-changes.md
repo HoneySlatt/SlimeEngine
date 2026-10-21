@@ -7,7 +7,9 @@
   [0092](0092-a-world-written-back-as-a-scene.md) (driven components, which saves and levels
   written back leave as their author wrote them); amended by
   [0119](0119-the-worlds-ticks-blocks-and-log.md) (a tick of 64 bits given at each operation, 16
-  bytes of ticks per value)
+  bytes of ticks per value) and
+  [0124](0124-driven-components-keys-and-created-entities-in-levels.md) (the driven mark a
+  component, `Driven`, and the `world` example's ring its first user)
 - Date: 2026-10-20
 
 ## Context

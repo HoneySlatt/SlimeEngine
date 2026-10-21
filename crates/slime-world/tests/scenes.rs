@@ -1914,7 +1914,7 @@ fn what_a_run_spawns_is_saved_as_its_scenes_and_loads_back_into_the_same_world()
         .save(&yard(&mut scenes), &Default::default())
         .expect("saved");
     for written in [
-        "layout = 3\n".to_owned(),
+        "layout = 4\n".to_owned(),
         format!("\"created/1\" = {{ scene = \"{LAMP}\", name = \"lamp\", content = "),
         format!("village = {{ scene = \"{VILLAGE}\", name = \"village\", content = "),
         "[changed.\"created/1/light\"]\n\"test::Glow\" = { intensity = 5.0 }\n".to_owned(),
@@ -2135,10 +2135,9 @@ fn a_save_that_spawns_under_an_identity_in_use_is_refused_or_set_aside() {
     assert!(value(&more, "created/2/light", "test::Glow").is_some());
     // A save of 0.4, which does not say what its start created, into such a world: refused,
     // unchanged.
-    let old = save.replace("layout = 3", "layout = 2").replace(
-        "start = { created = 1, content = \"cbf29ce484222325\" }\n",
-        "",
-    );
+    let old = save
+        .replace("layout = 4", "layout = 2")
+        .replace("start = { created = 1 }\n", "");
     assert_ne!(old, save);
     let mut taken = yard(&mut scenes);
     taken.spawn();
