@@ -53,7 +53,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   close and released as 0.6. M6a.1, frustum culling and instancing, is done
   ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)), and so is M6a.2, the engine's task
   pool and the copies to the GPU within a budget
-  ([ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)). Next: M6a.3.
+  ([ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)), and M6a.3, what the world
+  knows of its changes ([ADR-0119](adr/0119-the-worlds-ticks-blocks-and-log.md)). Next: M6a.4.
 
 ## Status
 
@@ -61,7 +62,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M6a.1](#m6a1--frustum-culling-and-instancing) | What the camera does not see is not drawn, and the instances of one mesh and one material are drawn together | Done |
 | [M6a.2](#m6a2--the-engines-task-pool-and-copies-to-the-gpu-within-a-budget) | A load never slows the frames, and the engine's compute work runs on one task pool | Done |
-| [M6a.3](#m6a3--what-the-world-knows-of-its-changes) | Each reader of the world asks what changed since it last read; components clone | Planned |
+| [M6a.3](#m6a3--what-the-world-knows-of-its-changes) | Each reader of the world asks what changed since it last read; components clone | Done |
 | [M6a.4](#m6a4--a-frame-that-owns-what-it-draws) | A frame owns what it draws, and loading needs no renderer | Planned |
 | [M6a.5](#m6a5--the-phases-of-a-frame-game-time-and-a-game-as-a-simulation-and-a-presentation) | Each phase of a frame says who may change the world; game time pauses and steps; a game's rules run without a GPU | Planned |
 | [M6a.6](#m6a6--the-development-channel-and-the-mcp-server) | An agent drives a running game without a person | Planned |
@@ -309,6 +310,32 @@ Risks:
   hidden flag follows `Hidden` and changes of parent; `world.frame.100k`, `world.transforms.100k`
   and a reader of 100 000 entities of which 1 % changed measured before and after; CI is green.
 - **How to test.** `cargo test -p slime-world`; `cargo run --release -p slime-benches -- world`.
+- **Outcome.** Done on 2026-10-21. [ADR-0119](adr/0119-the-worlds-ticks-blocks-and-log.md)
+  records the design, and amends ADR-0082 and ADR-0108: a tick of 64 bits given at each operation
+  that may change the world, so that a reader keeps `World::tick` and sees each write once, and no
+  tick wraps; 16 bytes of ticks per value, where ADR-0108 estimated 8; the guard `Mut`, which
+  stamps at its first write and marks a transform then, not when it is reached; blocks of 16
+  values, the size that finds spread changes fastest; a log of removals per storage and one of the
+  entities destroyed, which keep 65 536 entries then forget their older half; the structure
+  counter, a tick that the summary of the names' storage completes; the hidden flag in the
+  hierarchy. The world panel makes its list again when the world's structure or number of
+  entities moves. The tests:
+  `each_of_two_readers_sees_a_value_written_through_a_guard_once_at_its_own_pace`,
+  `a_value_set_equal_through_the_variant_is_not_stamped`,
+  `removed_components_and_destroyed_entities_are_in_the_log_with_their_ticks`,
+  `the_structure_moves_when_entities_come_go_move_or_are_renamed_and_only_then`,
+  `the_hidden_flag_follows_hidden_and_changes_of_parent` and
+  `a_log_forgets_its_older_half_and_says_so_to_the_readers_that_needed_it` in `slime-world`'s
+  `change.rs`; `a_reader_of_what_changed_skips_the_blocks_that_did_not_change` in `storage.rs`;
+  `only_the_subtrees_that_changed_are_computed_again`, a transform reached and not written
+  computed again no more; the hidden flag of a spawned scene in `tests/scenes.rs`. On the RX
+  6900 XT ([`measurements.md`](measurements.md), sections "M6a.3, before" and "M6a.3", two runs
+  each): a reader of 100 000 entities of which 1 000 changed, every hundredth, 17.4 to 18.2 µs
+  where comparing every light with a copy takes 3.3 to 3.4 ms, and 4.1 to 4.2 µs for 1 000 side
+  by side; 1 000 writes through guards 8.6 to 8.7 µs, where they took 10.0 to 10.7 µs through
+  `&mut T`; `world.frame.100k` 10.0 to 10.4 ms, where it took 11.4 ms; `world.transforms.100k`
+  3.44 to 3.45 ms, where it took 3.57 to 3.58 ms. Retired from the known debt: `is_hidden` from
+  G32.
 
 ### M6a.4 — A frame that owns what it draws
 

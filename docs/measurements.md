@@ -621,3 +621,53 @@ of the loads' tasks run at once and the budget of copies per frame.
 | `loading.zone` | frame while they load, built, drawn and waited for on the GPU, longest of 56 | 4.32 ms |
 | `loading.zone` | CPU of `Renderer::render` once they are loaded, median of 5 | 407.3 µs |
 | `loading.zone` | CPU of `Renderer::render` once they are loaded, 90th percentile of 5 | 810.6 µs |
+
+## M6a.3, before, RX 6900 XT
+
+Commit `09af9de`, on 2026-10-21: the world before it stamps its changes, with `world.changes.100k`,
+whose reader compares every light with a copy, as a reader does without change detection. The
+build is not measured in this section, nor in the next. A second run gave `FrameBuilder::build`
+11.39 ms at the median, `World::update_transforms` 3.58 ms, the 1 000 lights changed in 10.0 µs and
+found by the reader in 3.38 ms.
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `world.frame.100k` | `FrameBuilder::build`, median of 20 | 11.43 ms |
+| `world.frame.100k` | `FrameBuilder::build`, 90th percentile of 20 | 11.46 ms |
+| `world.frame.100k` | instances in a frame | 100000 |
+| `world.transforms.100k` | `World::update_transforms` after 1 000 parents moved, median of 20 | 3.57 ms |
+| `world.transforms.100k` | `World::update_transforms` after 1 000 parents moved, 90th percentile of 20 | 3.59 ms |
+| `world.changes.100k` | 1 000 lights changed through `World::get_mut`, median of 20 | 10.7 µs |
+| `world.changes.100k` | 1 000 lights changed through `World::get_mut`, 90th percentile of 20 | 22.5 µs |
+| `world.changes.100k` | a reader that compares each light with its copy, the 1 000 found, median of 20 | 3.41 ms |
+| `world.changes.100k` | a reader that compares each light with its copy, the 1 000 found, 90th percentile of 20 | 3.72 ms |
+
+## M6a.3, RX 6900 XT
+
+Commit `ad246f0`, on 2026-10-21, measured as the section above. A second run gave
+`FrameBuilder::build` 10.03 ms at the median, `World::update_transforms` 3.45 ms, the 1 000 lights
+changed in 8.7 µs, found by the reader that compares them with a copy in 3.29 ms and by the one
+that asks the world in 17.4 µs, and side by side in 4.1 µs. A frame of 100 000 entities is built
+faster: `World::is_hidden` reads a flag where it walked each entity's ancestors.
+[ADR-0119](adr/0119-the-worlds-ticks-blocks-and-log.md) gives the runs, on variants of the code,
+that chose the size of a block and the width of a tick.
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `world.frame.100k` | `FrameBuilder::build`, median of 20 | 10.37 ms |
+| `world.frame.100k` | `FrameBuilder::build`, 90th percentile of 20 | 10.60 ms |
+| `world.frame.100k` | instances in a frame | 100000 |
+| `world.transforms.100k` | `World::update_transforms` after 1 000 parents moved, median of 20 | 3.44 ms |
+| `world.transforms.100k` | `World::update_transforms` after 1 000 parents moved, 90th percentile of 20 | 3.46 ms |
+| `world.changes.100k` | 1 000 lights changed through `World::get_mut`, median of 40 | 8.6 µs |
+| `world.changes.100k` | 1 000 lights changed through `World::get_mut`, 90th percentile of 40 | 9.4 µs |
+| `world.changes.100k` | a reader that compares each light with its copy, the 1 000 found, median of 20 | 3.39 ms |
+| `world.changes.100k` | a reader that compares each light with its copy, the 1 000 found, 90th percentile of 20 | 3.40 ms |
+| `world.changes.100k` | a reader that asks for the lights changed since it last read, the 1 000 found, median of 20 | 18.2 µs |
+| `world.changes.100k` | a reader that asks for the lights changed since it last read, the 1 000 found, 90th percentile of 20 | 18.6 µs |
+| `world.changes.100k` | the same, the 1 000 side by side, median of 20 | 4.2 µs |
+| `world.changes.100k` | the same, the 1 000 side by side, 90th percentile of 20 | 4.2 µs |
