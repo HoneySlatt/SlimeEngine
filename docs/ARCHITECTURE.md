@@ -25,6 +25,7 @@ it is built this way.
 │   ├── slime-reflect-derive/  the derive macro of reflection, which slime-reflect re-exports
 │   ├── slime-serialize/ serialization: reflected values in TOML documents, or a binary encoding
 │   ├── slime-render/    renderer: meshes, PBR materials, camera, lights, shadows, HDR, tone mapping
+│   ├── slime-tasks/     the engine's task pool: the threads on which the engine computes
 │   ├── slime-world/     the world: a game's entities, their components and their hierarchy
 │   └── slime-world-render/  the bridge from a world to the renderer: what a world draws, each frame
 ├── deny.toml            dependency license, advisory and source rules
