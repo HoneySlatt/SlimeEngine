@@ -816,7 +816,8 @@ each view the settings that change its passes.
   server's `tests/views.rs` starts the `world` example, captures the whole image and each view, and
   checks that the map is the corner of the whole. The known debt of one renderer per output size is
   retired; a view whose size changes at every frame still waits for the GPU and loses its times
-  (M6a.8b). Not checked by hand yet: the owner's look at the `world` example's two views.
+  (M6a.8b). The owner looked at the `world` example's two views by hand on 2026-10-22: the yard
+  and its map in the top right corner, with its shadows.
 
 ### M6a.8b — The settings of a view
 
