@@ -30,8 +30,8 @@ use slime_gfx::{
 };
 use slime_render::glam::{DAffine3, DVec3, Mat4, Quat, Vec3, Vec4};
 use slime_render::{
-    AlphaMode, Camera, DirectionalLight, Instance, Light, Material, MaterialData, Mesh, MeshData,
-    Renderer, SampledTexture, Scene, Sky,
+    AlphaMode, Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData,
+    Mesh, MeshData, Renderer, SampledTexture, Scene, Sky,
 };
 
 use brdf::Surface;
@@ -128,7 +128,7 @@ impl Setup {
         (light, sky): Lighting,
         instances: &[(&Material, Mat4)],
     ) -> FloatImage {
-        let instances: Vec<Instance<'_>> = instances
+        let instances: Vec<Instance> = instances
             .iter()
             // `MeshData::square` is one unit wide: drawn two.
             .map(|&(material, transform)| {
@@ -142,22 +142,21 @@ impl Setup {
             .collect();
         let uniform = LinearColor::rgb(sky, sky, sky);
         let environment = (sky > 0.0).then(|| {
-            self.renderer
-                .create_environment(
-                    &self.gpu,
-                    &Sky {
-                        zenith: uniform,
-                        horizon: uniform,
-                        ground: uniform,
-                        sun: None,
-                    },
-                )
-                .expect("the GPU has memory for it")
+            Environment::new(
+                &self.gpu,
+                &Sky {
+                    zenith: uniform,
+                    horizon: uniform,
+                    ground: uniform,
+                    sun: None,
+                },
+            )
+            .expect("the GPU has memory for it")
         });
         let lights = [Light::Directional(light)];
-        let mut scene = Scene::new(camera, &instances);
-        scene.lights = &lights;
-        scene.environment = environment.as_ref();
+        let mut scene = Scene::new(camera, instances.clone());
+        scene.lights = lights.to_vec();
+        scene.environment = environment.clone();
         self.renderer
             .render(&self.gpu, &self.output, &scene)
             .expect("the frame is drawn");

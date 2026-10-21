@@ -14,8 +14,8 @@ use slime_color::LinearColor;
 use slime_gfx::{AddressMode, Filter, Gpu, Image, SamplerDescriptor, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
-    AlphaMode, Camera, DirectionalLight, Instance, Light, Material, MaterialData, MaterialValues,
-    MeshData, RenderError, Renderer, SampledTexture, Scene,
+    AlphaMode, Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData,
+    MaterialValues, MeshData, RenderError, Renderer, SampledTexture, Scene,
 };
 
 const SIZE: u32 = 16;
@@ -142,8 +142,8 @@ fn the_base_color_texture_is_read_at_the_texture_coordinates_and_tints_the_base_
             DAffine3::from_scale(DVec3::splat(2.0)),
         )];
         let lights = [light];
-        let mut scene = Scene::new(camera, &instances);
-        scene.lights = &lights;
+        let mut scene = Scene::new(camera, instances.clone());
+        scene.lights = lights.to_vec();
         renderer
             .render(&gpu, &target, &scene)
             .expect("the frame is drawn");
@@ -199,24 +199,23 @@ fn meshes_materials_and_environments_are_drawn_by_any_renderer_of_their_gpu() {
             },
         )
         .expect("the GPU has memory for it");
-    let sky = first
-        .create_environment(
-            &gpu,
-            &slime_render::Sky {
-                zenith: LinearColor::rgb(0.2, 0.3, 0.8),
-                horizon: LinearColor::rgb(0.6, 0.6, 0.6),
-                ground: LinearColor::rgb(0.1, 0.1, 0.1),
-                sun: None,
-            },
-        )
-        .expect("the GPU has memory for it");
+    let sky = Environment::new(
+        &gpu,
+        &slime_render::Sky {
+            zenith: LinearColor::rgb(0.2, 0.3, 0.8),
+            horizon: LinearColor::rgb(0.6, 0.6, 0.6),
+            ground: LinearColor::rgb(0.1, 0.1, 0.1),
+            sun: None,
+        },
+    )
+    .expect("the GPU has memory for it");
     let camera = Camera {
         eye: DVec3::new(0.0, 0.0, 3.0),
         ..Camera::default()
     };
     let instances = [Instance::new(&triangle, &red, DAffine3::IDENTITY)];
-    let mut scene = Scene::new(camera, &instances);
-    scene.environment = Some(&sky);
+    let mut scene = Scene::new(camera, instances.clone());
+    scene.environment = Some(sky.clone());
 
     let [by_first, by_second] = [&mut first, &mut second].map(|renderer| {
         renderer
@@ -343,8 +342,8 @@ fn a_material_changed_in_place_draws_as_one_made_with_the_new_values() {
             material,
             DAffine3::from_scale(DVec3::splat(2.0)),
         )];
-        let mut scene = Scene::new(camera, &instances);
-        scene.lights = &light;
+        let mut scene = Scene::new(camera, instances.clone());
+        scene.lights = light.to_vec();
         renderer
             .render(&gpu, &target, &scene)
             .expect("the frame is drawn");

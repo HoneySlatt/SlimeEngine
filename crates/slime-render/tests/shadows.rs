@@ -79,17 +79,16 @@ impl Setup {
             .create_material(&gpu, "white", &MaterialData::default())
             .expect("the GPU has memory for it");
         let uniform = LinearColor::rgb(SKY as f32, SKY as f32, SKY as f32);
-        let sky = renderer
-            .create_environment(
-                &gpu,
-                &Sky {
-                    zenith: uniform,
-                    horizon: uniform,
-                    ground: uniform,
-                    sun: None,
-                },
-            )
-            .expect("the GPU has memory for it");
+        let sky = Environment::new(
+            &gpu,
+            &Sky {
+                zenith: uniform,
+                horizon: uniform,
+                ground: uniform,
+                sun: None,
+            },
+        )
+        .expect("the GPU has memory for it");
         Self {
             sky,
             gpu,
@@ -123,7 +122,7 @@ impl Setup {
         lights: &[Light],
         squares: &[(&Material, Mat4, bool)],
     ) -> (FloatImage, RenderStats) {
-        let instances: Vec<Instance<'_>> = squares
+        let instances: Vec<Instance> = squares
             .iter()
             .map(|&(material, transform, casts_shadows)| {
                 // `MeshData::square` is one unit wide: drawn two.
@@ -137,9 +136,9 @@ impl Setup {
                 instance
             })
             .collect();
-        let mut scene = Scene::new(camera, &instances);
-        scene.lights = lights;
-        scene.environment = Some(&self.sky);
+        let mut scene = Scene::new(camera, instances.clone());
+        scene.lights = lights.to_vec();
+        scene.environment = Some(self.sky.clone());
         let stats = self
             .renderer
             .render(&self.gpu, &self.output, &scene)
@@ -840,9 +839,9 @@ fn a_lit_sphere_does_not_shadow_itself() {
             DAffine3::from_mat4(transform.as_dmat4()),
         )];
         let lights = [Light::Directional(light)];
-        let mut scene = Scene::new(camera, &instances);
-        scene.lights = &lights;
-        scene.environment = Some(&setup.sky);
+        let mut scene = Scene::new(camera, instances.clone());
+        scene.lights = lights.to_vec();
+        scene.environment = Some(setup.sky.clone());
         setup
             .renderer
             .render(&setup.gpu, &setup.output, &scene)

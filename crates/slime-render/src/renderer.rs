@@ -23,7 +23,7 @@ use slime_gfx::{
 use crate::bytes::{push_f32s, push_mat3, push_mat4, push_u32s};
 use crate::camera::{Camera, Frustum};
 use crate::cooked::upload_texture;
-use crate::environment::{Environment, Sky, brdf_table};
+use crate::environment::{Environment, brdf_table};
 use crate::error::RenderError;
 use crate::graph::{ColorId, Draws, Graph, Imported, PassDeclaration, scaled_side};
 use crate::light::{LIGHT_VALUES_SIZE, Light, MAX_LIGHTS, NO_TILE, SpotLight};
@@ -106,17 +106,19 @@ const UPLOAD_BYTES_PER_FRAME: u64 = 8 << 20;
 /// (`instance_capacity`).
 const INITIAL_INSTANCE_CAPACITY: usize = 64;
 
-/// One thing to draw: a mesh, its material, and where it is.
+/// One thing to draw: a mesh, its material, and where it is. It holds its mesh and its material as
+/// clones, counted references to the same GPU objects, so that a frame owns what it draws and can
+/// be drawn on another thread than the one that built it (ADR-0111).
 ///
 /// Made by [`Instance::new`], so that a field added later does not break the code that makes one
 /// (ADR-0046); the fields can then be changed.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
-pub struct Instance<'a> {
+pub struct Instance {
     /// What to draw.
-    pub mesh: &'a Mesh,
+    pub mesh: Mesh,
     /// How it looks.
-    pub material: &'a Material,
+    pub material: Material,
     /// From the mesh's space to world space, in metres, its translation in `f64` as positions in
     /// the world are (ADR-0079). A transform that mirrors the mesh (a negative
     /// determinant, beyond rounding) keeps the mesh's front faces, as glTF does: the renderer
@@ -131,13 +133,14 @@ pub struct Instance<'a> {
     pub casts_shadows: bool,
 }
 
-impl<'a> Instance<'a> {
-    /// `mesh` drawn with `material`, placed by `transform`, casting shadows.
+impl Instance {
+    /// `mesh` drawn with `material`, placed by `transform`, casting shadows: it holds clones of
+    /// the two.
     #[must_use]
-    pub fn new(mesh: &'a Mesh, material: &'a Material, transform: DAffine3) -> Self {
+    pub fn new(mesh: &Mesh, material: &Material, transform: DAffine3) -> Self {
         Self {
-            mesh,
-            material,
+            mesh: mesh.clone(),
+            material: material.clone(),
             transform,
             casts_shadows: true,
         }
@@ -158,32 +161,33 @@ impl<'a> Instance<'a> {
 /// camera is drawn as precisely 10 000 km from the origin as at it.
 ///
 /// Made by [`Scene::new`], so that a field added later does not break the code that makes one
-/// (ADR-0046), then filled in by changing the fields:
+/// (ADR-0046), then filled in by changing the fields. It owns what it draws: its instances hold
+/// their meshes and materials as counted references, so that a scene built on one thread is drawn
+/// on another (ADR-0111).
 ///
 /// ```
 /// # use slime_render::{Camera, DirectionalLight, Light, Scene};
-/// let sun = [Light::Directional(DirectionalLight::default())];
-/// let mut scene = Scene::new(Camera::default(), &[]);
-/// scene.lights = &sun;
+/// let mut scene = Scene::new(Camera::default(), Vec::new());
+/// scene.lights = vec![Light::Directional(DirectionalLight::default())];
 /// scene.exposure = 0.5;
 /// ```
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
-pub struct Scene<'a> {
+pub struct Scene {
     /// Where the scene is seen from.
     pub camera: Camera,
     /// What lights the surfaces. [`Renderer::render`] draws the first [`MAX_LIGHTS`] and leaves
     /// the others out, logging a warning the first time a renderer meets such a scene; it panics
     /// on a drawn light with a value outside the range its documentation gives.
-    pub lights: &'a [Light],
+    pub lights: Vec<Light>,
     /// What surrounds the scene (ADR-0039): its light reaches every surface, reflected as glTF's
     /// materials reflect it (image-based lighting, with the split sum and the light that rough
     /// surfaces scatter more than once, as the Khronos glTF Sample Viewer does: a white surface of
     /// any roughness, metal or not, inside a uniform sky shows the sky's radiance), and it shows
     /// where no surface is drawn, with its sun's disc. `None` is a black sky: only the lights and
     /// emission light surfaces, and the background is black. Created by
-    /// [`Renderer::create_environment`].
-    pub environment: Option<&'a Environment>,
+    /// [`Environment::new`].
+    pub environment: Option<Environment>,
     /// What the scene's light, the sky's included, is multiplied by before it is written
     /// into the high-dynamic-range target, then tone mapped (ADR-0034, ADR-0037): a linear factor,
     /// the inverse of the luminance, in nits, that shows as about 0.87 (sRGB 240). 2 is one
@@ -216,21 +220,22 @@ pub struct Scene<'a> {
     /// first stays, which this order alone does not decide. The shadow passes draw the instances
     /// of one mesh together whatever their materials, except those of masked materials, whose
     /// shadows the material cuts.
-    pub instances: &'a [Instance<'a>],
+    pub instances: Vec<Instance>,
 }
 
-impl<'a> Scene<'a> {
+impl Scene {
     /// `instances` seen from `camera`, without lights or environment, at an exposure of 1 and
-    /// without bloom: only the instances' emission lights the frame, as it is, on black.
+    /// without bloom: only the instances' emission lights the frame, as it is, on black. A slice
+    /// of instances is cloned into the scene.
     #[must_use]
-    pub fn new(camera: Camera, instances: &'a [Instance<'a>]) -> Self {
+    pub fn new(camera: Camera, instances: impl Into<Vec<Instance>>) -> Self {
         Self {
             camera,
-            lights: &[],
+            lights: Vec::new(),
             environment: None,
             exposure: 1.0,
             bloom: 0.0,
-            instances,
+            instances: instances.into(),
         }
     }
 }
@@ -856,31 +861,6 @@ impl Renderer {
         Ok(())
     }
 
-    /// Computes the environment of `sky` on the CPU and uploads it (ADR-0039): the sky drawn
-    /// into a cube map of 128 × 128 texels per face, each the average of 2 × 2 points of it,
-    /// then prefiltered for roughnesses 0.25, 0.5, 0.75 and 1 into faces of 64, 32, 16 and 8
-    /// texels, the last also the light that matte surfaces diffuse: 1.0 MiB of half-precision
-    /// floats. This takes tens of milliseconds in a release build, as frame tasks of the engine's
-    /// pool and on the calling thread (`slime_tasks`, ADR-0107), several times as long in a debug
-    /// build: create an environment once per sky, not per frame. A sky of one radiance in every
-    /// direction, without a sun, takes almost none. The environment is not tied to this renderer.
-    ///
-    /// # Errors
-    ///
-    /// [`RenderError::Gfx`] with [`GfxError::OutOfMemory`] when the GPU's memory cannot hold it,
-    /// or [`GfxError::DeviceLost`] once the device is lost: nothing is created then.
-    ///
-    /// # Panics
-    ///
-    /// If the zenith's, the horizon's or the ground's radiance is negative, not finite, or above
-    /// 65 504 nits, the largest value of the environment's half-precision texels, or if the sun is
-    /// not a light that the renderer draws ([`Light::check`], its shadow distance aside): this is a
-    /// bug in the caller. A clear sky stays below about 30 000 nits away from the sun. A sun whose
-    /// disc would be brighter than 10³⁰ nits is drawn that bright.
-    pub fn create_environment(&self, gpu: &Gpu, sky: &Sky) -> Result<Environment, RenderError> {
-        Ok(Environment::new(gpu, sky)?)
-    }
-
     /// Uploads a cooked texture, every level as the cooker made it, in the GPU format of its
     /// encoding: BC7 with or without sRGB, BC5, or 8-bit texels with or without sRGB. A game reads
     /// it from its cooked data with `slime_assets::CookedAssets::texture`, and gives it, with a
@@ -1044,7 +1024,7 @@ impl Renderer {
         &mut self,
         gpu: &Gpu,
         target: &RenderTarget,
-        scene: &Scene<'_>,
+        scene: &Scene,
     ) -> Result<RenderStats, RenderError> {
         let started = Instant::now();
         assert!(
@@ -1118,7 +1098,7 @@ impl Renderer {
         let origin = scene.camera.eye;
         let aspect = width as f32 / height as f32;
         let view_projection = scene.camera.projection(aspect) * scene.camera.view_from_eye();
-        let instances = scene.instances;
+        let instances = &scene.instances;
         let Scratch {
             models,
             passes,
@@ -1135,7 +1115,7 @@ impl Renderer {
                 .map(|instance| relative_to(origin, instance.transform)),
         );
         let boxed = |slot: usize| {
-            let mesh = instances[slot].mesh;
+            let mesh = &instances[slot].mesh;
             (models[slot], mesh.center, mesh.half_size)
         };
         // The scene pass draws what the camera sees.
@@ -1341,7 +1321,7 @@ impl Renderer {
                 0,
             ],
         );
-        let environment = scene.environment.unwrap_or(&self.no_environment);
+        let environment = scene.environment.as_ref().unwrap_or(&self.no_environment);
         let (to_sun, sun) = (environment.to_sun, environment.sun_radiance);
         push_f32s(&mut frame_bytes, &[to_sun.x, to_sun.y, to_sun.z, 0.0]);
         push_f32s(&mut frame_bytes, &[sun.x, sun.y, sun.z, 0.0]);
@@ -1495,7 +1475,7 @@ impl Renderer {
         &self,
         render_pass: &mut RenderPass<'_>,
         bound: &mut Bound<'a>,
-        instance: &Instance<'a>,
+        instance: &'a Instance,
         instances: Range<u32>,
     ) {
         let masked = instance.material.masked;
@@ -1523,7 +1503,7 @@ impl Renderer {
         render_pass: &mut RenderPass<'_>,
         group: Option<&BindGroup>,
         frame_group: &BindGroup,
-        scene: &Scene<'_>,
+        scene: &Scene,
         scene_draws: &[Batch],
         cascades: &[CascadeDraw],
         spot_draws: &[SpotDraw],
@@ -2316,7 +2296,7 @@ impl InstanceBuffers {
 fn draw<'a>(
     pass: &mut RenderPass<'_>,
     bound: &mut Bound<'a>,
-    instance: &Instance<'a>,
+    instance: &'a Instance,
     reads_material: bool,
     instances: Range<u32>,
 ) {
@@ -2325,7 +2305,7 @@ fn draw<'a>(
     });
     if !material_bound {
         pass.set_bind_group(1, &instance.material.group, &[]);
-        bound.material = Some(instance.material);
+        bound.material = Some(&instance.material);
     }
     let place = &instance.mesh.place;
     if !bound
@@ -2353,7 +2333,7 @@ struct Bound<'a> {
 }
 
 /// How the scene pass draws `instance`: the faces its pipeline culls.
-fn scene_pipeline(instance: &Instance<'_>) -> CullMode {
+fn scene_pipeline(instance: &Instance) -> CullMode {
     cull_mode(
         instance.material.double_sided,
         is_mirrored(linear(instance.transform)),
@@ -2414,7 +2394,7 @@ fn place_values(passes: &mut [u32], most: u32, values_of: &mut Vec<u32>) -> (u32
 /// whatever the others that the passes draw, so that two surfaces at the same depth are drawn the
 /// same way.
 fn draw_keys(
-    instances: &[Instance<'_>],
+    instances: &[Instance],
     passes: &[u32],
     scene: &mut Vec<u128>,
     shadows: &mut Vec<u128>,

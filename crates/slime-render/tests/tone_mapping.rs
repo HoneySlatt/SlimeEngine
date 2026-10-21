@@ -10,7 +10,9 @@ mod tone_curve;
 use slime_color::LinearColor;
 use slime_gfx::{FloatImage, Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::{DVec3, Vec3};
-use slime_render::{Camera, DirectionalLight, Light, RenderStats, Renderer, Scene, Sky};
+use slime_render::{
+    Camera, DirectionalLight, Environment, Light, RenderStats, Renderer, Scene, Sky,
+};
 
 /// Light, and what Khronos PBR Neutral makes of it, each derived by hand from the specification's
 /// equations (K_s = 0.76 where compression starts, K_d = 0.15, F90 = 0.04).
@@ -47,19 +49,18 @@ fn draw(
 ) -> RenderStats {
     let [r, g, b] = light;
     let uniform = LinearColor::rgb(r, g, b);
-    let environment = renderer
-        .create_environment(
-            gpu,
-            &Sky {
-                zenith: uniform,
-                horizon: uniform,
-                ground: uniform,
-                sun: None,
-            },
-        )
-        .expect("the GPU has memory for it");
-    let mut scene = Scene::new(Camera::default(), &[]);
-    scene.environment = Some(&environment);
+    let environment = Environment::new(
+        gpu,
+        &Sky {
+            zenith: uniform,
+            horizon: uniform,
+            ground: uniform,
+            sun: None,
+        },
+    )
+    .expect("the GPU has memory for it");
+    let mut scene = Scene::new(Camera::default(), Vec::new());
+    scene.environment = Some(environment.clone());
     scene.exposure = exposure;
     renderer
         .render(gpu, output, &scene)
@@ -176,17 +177,16 @@ fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_r
             illuminance: 100_000.0,
             ..DirectionalLight::default()
         };
-        let environment = renderer
-            .create_environment(
-                &gpu,
-                &Sky {
-                    zenith: LinearColor::BLACK,
-                    horizon: LinearColor::BLACK,
-                    ground: LinearColor::BLACK,
-                    sun: Some(sun),
-                },
-            )
-            .expect("the GPU has memory for it");
+        let environment = Environment::new(
+            &gpu,
+            &Sky {
+                zenith: LinearColor::BLACK,
+                horizon: LinearColor::BLACK,
+                ground: LinearColor::BLACK,
+                sun: Some(sun),
+            },
+        )
+        .expect("the GPU has memory for it");
         let narrow = Camera {
             eye: DVec3::ZERO,
             target: -direction.as_dvec3(),
@@ -194,9 +194,9 @@ fn the_sky_is_exposed_before_the_high_dynamic_range_target_and_kept_within_its_r
             ..Camera::default()
         };
         let lights = [Light::Directional(sun)];
-        let mut scene = Scene::new(narrow, &[]);
-        scene.lights = &lights;
-        scene.environment = Some(&environment);
+        let mut scene = Scene::new(narrow, Vec::new());
+        scene.lights = lights.to_vec();
+        scene.environment = Some(environment.clone());
         scene.exposure = exposure;
         renderer
             .render(&gpu, &output, &scene)

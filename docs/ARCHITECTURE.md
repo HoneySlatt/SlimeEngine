@@ -405,7 +405,7 @@ renderer = Renderer::new(&gpu, format)                 the output's format; four
 ├── set_shaders(&gpu, &ShaderSources)                  the ten pipelines made again from new
 │                                                      sources, all or none: on an error, the
 │                                                      ones it had stay (ADR-0077)
-├── create_environment(&gpu, &Sky)                     the sky drawn on the CPU into a 128-texel
+├── Environment::new(&gpu, &Sky)                      the sky drawn on the CPU into a 128-texel
 │                                                      cube, prefiltered into four levels by
 │                                                      frame tasks of the engine's pool and the
 │                                                      calling thread (environment.rs),
@@ -735,8 +735,8 @@ frame
 ├── app.update                                      what it changes is drawn at once
 ├── world.update_transforms()                       slime-app: render reads lookups
 └── app.render
-    └── FrameBuilder::build(world, cache, renderer,  slime-world-render
-        │                   gpu, fixed_step_alpha)
+    └── FrameBuilder::build(world, cache, gpu,       slime-world-render, which takes no renderer:
+        │                   fixed_step_alpha)        the cache keeps what it loads through
         ├── cache.poll()                             the batches that finished loading, each whole
         ├── each entity with Meshes and a Transform, where the world draws it at the fraction of
         │   a step (world.interpolated_transform), not hidden by itself or an ancestor: an
@@ -749,12 +749,12 @@ frame
         │   camera (ADR-0106)
         ├── the sky's environment, made again when the game's sky or the sun changed: the first
         │   directional light that shows in the sky
-        └── Frame { instances, lights, environment, loading, errors } → frame.scene(camera)
-                                                     → renderer.render
+        └── Frame { instances, lights, environment, loading, errors }, which owns what it
+            draws (ADR-0111) → frame.scene(camera) → renderer.render, on this thread or another
 ```
 
-After a lost device, the game clears the cache and drops the builder's environment; what the world
-names loads again by itself. With `--watch`, the game gives new cooked data to
+After a lost device, the game makes a new cache with the renderer that replaces the lost one, and
+drops the builder's environment; what the world names loads again by itself. With `--watch`, the game gives new cooked data to
 `AssetCache::reload`, which keeps what did not change and takes the rest at once.
 
 ### Scenes and prefabs

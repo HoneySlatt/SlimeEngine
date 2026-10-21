@@ -19,8 +19,8 @@ use slime_color::LinearColor;
 use slime_gfx::{Gpu, Image, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Mat4, Vec3, Vec4};
 use slime_render::{
-    Camera, DirectionalLight, Instance, Light, Material, MaterialData, Mesh, MeshData, RenderStats,
-    Renderer, Scene, Sky,
+    Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData, Mesh, MeshData,
+    RenderStats, Renderer, Scene, Sky,
 };
 
 use tone_curve::displayed;
@@ -94,7 +94,7 @@ impl Setup {
             eye: DVec3::new(0.0, 0.0, 3.0),
             ..Camera::default()
         };
-        let instances: Vec<Instance<'_>> = transforms
+        let instances: Vec<Instance> = transforms
             .iter()
             // `MeshData::square` is one unit wide: drawn two.
             .map(|&transform| {
@@ -108,22 +108,21 @@ impl Setup {
             .collect();
         let uniform = LinearColor::rgb(sky, sky, sky);
         let environment = (sky > 0.0).then(|| {
-            self.renderer
-                .create_environment(
-                    &self.gpu,
-                    &Sky {
-                        zenith: uniform,
-                        horizon: uniform,
-                        ground: uniform,
-                        sun: None,
-                    },
-                )
-                .expect("the GPU has memory for it")
+            Environment::new(
+                &self.gpu,
+                &Sky {
+                    zenith: uniform,
+                    horizon: uniform,
+                    ground: uniform,
+                    sun: None,
+                },
+            )
+            .expect("the GPU has memory for it")
         });
         let lights = [Light::Directional(light)];
-        let mut scene = Scene::new(camera, &instances);
-        scene.lights = &lights;
-        scene.environment = environment.as_ref();
+        let mut scene = Scene::new(camera, instances.clone());
+        scene.lights = lights.to_vec();
+        scene.environment = environment.clone();
         scene.exposure = exposure;
         let stats = self
             .renderer

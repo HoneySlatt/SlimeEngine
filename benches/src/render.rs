@@ -8,8 +8,8 @@ use slime_color::LinearColor;
 use slime_gfx::TextureFormat;
 use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
-    Camera, DirectionalLight, Instance, Light, Material, MaterialData, MeshData, RenderStats,
-    Renderer, Scene, ShaderSources, Sky,
+    Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData, MeshData,
+    RenderStats, Renderer, Scene, ShaderSources, Sky,
 };
 
 use crate::measure::{Context, Row, ms, percentile, timed};
@@ -115,12 +115,12 @@ pub fn instances(
         .collect::<Result<Vec<Material>, _>>()
         .map_err(error)?;
     let (sky, sun) = sky_and_sun();
-    let environment = renderer.create_environment(gpu, &sky).map_err(error)?;
+    let environment = Environment::new(gpu, &sky).map_err(error)?;
 
     let side = (count as f64).sqrt().ceil() as usize;
     let spacing = 3.0;
     let half = side as f64 * spacing / 2.0;
-    let instances: Vec<Instance<'_>> = (0..count)
+    let instances: Vec<Instance> = (0..count)
         .map(|index| {
             let (x, z) = ((index % side) as f64, (index / side) as f64);
             let at = DVec3::new(x * spacing - half, 0.5, z * spacing - half);
@@ -141,9 +141,9 @@ pub fn instances(
         },
     };
     let lights = [Light::Directional(sun)];
-    let mut scene = Scene::new(camera, &instances);
-    scene.lights = &lights;
-    scene.environment = Some(&environment);
+    let mut scene = Scene::new(camera, instances.clone());
+    scene.lights = lights.to_vec();
+    scene.environment = Some(environment.clone());
     scene.exposure = EXPOSURE;
     scene.bloom = 0.04;
 

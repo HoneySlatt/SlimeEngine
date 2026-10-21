@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use slime_assets::{AssetId, CookedAssets};
 use slime_gfx::{Gpu, Texture};
 
-use crate::cooked::{Batch, Load, MadeMesh, Reusable, SceneError, cooked_file};
+use crate::cooked::{Batch, Load, Loader, MadeMesh, Reusable, SceneError, cooked_file};
 use crate::material::Material;
 use crate::mesh::Mesh;
 use crate::renderer::Renderer;
@@ -31,16 +31,20 @@ use crate::renderer::Renderer;
 ///   (`docs/adr/0076-hot-reload-of-cooked-data.md`), and makes every material again; the cache
 ///   goes on giving what it holds until the reload finishes, then takes its result at once. A
 ///   mesh that the new data no longer lists is dropped.
-/// - **A lost device.** [`AssetCache::clear`] drops every GPU object it holds and cancels its
-///   loads; what a game draws afterwards loads again, from the GPU that replaced the lost one,
-///   those whose batch failed included.
+/// - **A lost device.** A cache loads through the renderer that it was made with, and for its
+///   device: a game drops it with that renderer, and makes a new one with the renderer that
+///   replaces it, which loads again what the game draws.
 /// - **Memory.** It keeps what it loaded until it is cleared: nothing is dropped when no one draws
 ///   it any more.
 ///
 /// It holds no GPU object of its own beyond those, needs no window, and can be moved to another
-/// thread, or shared for reading.
+/// thread, or shared for reading. It keeps, from its creation, what its loads take of the renderer:
+/// the parts of its materials, the pages of its meshes and its uploader, so that it loads without
+/// it (ADR-0111).
 pub struct AssetCache {
     assets: CookedAssets,
+    /// What its loads take of the renderer it was made with.
+    loader: Loader,
     /// The meshes held, each with the cooked file it was read from.
     meshes: HashMap<AssetId, (String, MadeMesh)>,
     /// The materials the meshes held are drawn with.
@@ -58,11 +62,12 @@ pub struct AssetCache {
 }
 
 impl AssetCache {
-    /// An empty cache, which loads from `assets`.
+    /// An empty cache, which loads from `assets` what `renderer` draws.
     #[must_use]
-    pub fn new(assets: CookedAssets) -> Self {
+    pub fn new(renderer: &Renderer, assets: CookedAssets) -> Self {
         Self {
             assets,
+            loader: renderer.loader(),
             meshes: HashMap::new(),
             materials: HashMap::new(),
             textures: HashMap::new(),
@@ -101,14 +106,9 @@ impl AssetCache {
     ///
     /// If the operating system cannot start the threads of the engine's pool, as
     /// [`Renderer::load_scene_in_background`] says; and when the batch's materials are made, if
-    /// the cache holds textures that another device than `gpu`'s made: a lost device was not
-    /// followed by [`AssetCache::clear`].
-    pub fn request(
-        &mut self,
-        renderer: &Renderer,
-        gpu: &Gpu,
-        ids: impl IntoIterator<Item = AssetId>,
-    ) {
+    /// the cache holds textures that another device than `gpu`'s made: the cache of a lost device
+    /// was kept, where a new one is made with the renderer that replaces it.
+    pub fn request(&mut self, gpu: &Gpu, ids: impl IntoIterator<Item = AssetId>) {
         let mut wanted = Vec::new();
         for id in ids {
             let known = self.meshes.contains_key(&id)
@@ -126,7 +126,9 @@ impl AssetCache {
             meshes: HashMap::new(),
             textures: self.textures.clone(),
         };
-        let load = renderer.start_batch(gpu, &self.assets, reuse, wanted.clone());
+        let load = self
+            .loader
+            .start_batch(gpu, &self.assets, reuse, wanted.clone());
         self.loads.push((wanted, load));
     }
 
@@ -216,7 +218,7 @@ impl AssetCache {
     /// # Panics
     ///
     /// As [`AssetCache::request`].
-    pub fn reload(&mut self, renderer: &Renderer, gpu: &Gpu, assets: CookedAssets) {
+    pub fn reload(&mut self, gpu: &Gpu, assets: CookedAssets) {
         self.assets = assets;
         self.failed.clear();
         self.loads.clear();
@@ -232,22 +234,7 @@ impl AssetCache {
             meshes: self.meshes.clone(),
             textures: self.textures.clone(),
         };
-        self.reload = Some(renderer.start_batch(gpu, &self.assets, reuse, ids));
-    }
-
-    /// Drops every GPU object the cache holds, and cancels its loads and its reload, as dropping a
-    /// [`SceneLoad`](crate::SceneLoad) cancels its own: once it returns, no thread of the cache
-    /// holds the `Gpu`; it waits, on the calling thread, for the loads' tasks that are running.
-    /// What a game draws afterwards loads again, the meshes whose batch failed included. A game
-    /// clears its cache when its device is lost (`App::gpu_lost` in `slime-app`).
-    pub fn clear(&mut self) {
-        self.loads.clear();
-        self.loading.clear();
-        self.reload = None;
-        self.meshes.clear();
-        self.materials.clear();
-        self.textures.clear();
-        self.failed.clear();
+        self.reload = Some(self.loader.start_batch(gpu, &self.assets, reuse, ids));
     }
 
     /// Takes what a batch made: in addition to what the cache holds, or, for a reload, in place of

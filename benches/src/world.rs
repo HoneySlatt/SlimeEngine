@@ -86,13 +86,12 @@ fn load_all(
     world: &World,
     builder: &mut FrameBuilder,
     cache: &mut AssetCache,
-    renderer: &Renderer,
     context: &Context,
 ) -> Result<usize, String> {
     let start = Instant::now();
     loop {
         let frame = builder
-            .build(world, cache, renderer, &context.gpu, 0.0)
+            .build(world, cache, &context.gpu, 0.0)
             .map_err(|error| error.to_string())?;
         if let Some(error) = frame.errors.first() {
             return Err(error.to_string());
@@ -114,13 +113,12 @@ pub fn frame(context: &mut Context) -> Result<Vec<Row>, String> {
     let assets = context.sample()?;
     let (world, _) = large_world(&meshes_of(&assets))?;
     let renderer = Renderer::new(&context.gpu, FORMAT).map_err(|error| error.to_string())?;
-    let mut cache = AssetCache::new(assets);
+    let mut cache = AssetCache::new(&renderer, assets);
     let mut builder = FrameBuilder::new(None);
-    let drawn = load_all(&world, &mut builder, &mut cache, &renderer, context)?;
+    let drawn = load_all(&world, &mut builder, &mut cache, context)?;
     let mut times = Vec::new();
     for _ in 0..20 {
-        let (frame, duration) =
-            timed(|| builder.build(&world, &mut cache, &renderer, &context.gpu, 0.0));
+        let (frame, duration) = timed(|| builder.build(&world, &mut cache, &context.gpu, 0.0));
         frame.map_err(|error| error.to_string())?;
         times.push(duration);
     }
@@ -228,10 +226,10 @@ pub fn sky(context: &mut Context) -> Result<Vec<Row>, String> {
     let (sun, at) = spawn_sun(&mut world);
     world.update_transforms();
     let renderer = Renderer::new(&context.gpu, FORMAT).map_err(|error| error.to_string())?;
-    let mut cache = AssetCache::new(assets);
+    let mut cache = AssetCache::new(&renderer, assets);
     let mut builder = FrameBuilder::new(Some(slime_render::Sky { sun: None, ..sky }));
     builder
-        .build(&world, &mut cache, &renderer, &context.gpu, 0.0)
+        .build(&world, &mut cache, &context.gpu, 0.0)
         .map_err(|error| error.to_string())?;
     let mut times = Vec::new();
     for frame in 1..=24 {
@@ -242,8 +240,7 @@ pub fn sky(context: &mut Context) -> Result<Vec<Row>, String> {
         world.end_fixed_step();
         world.update_transforms();
         let fraction = (f64::from(frame) * 60.0 / 144.0).fract();
-        let (built, duration) =
-            timed(|| builder.build(&world, &mut cache, &renderer, &context.gpu, fraction));
+        let (built, duration) = timed(|| builder.build(&world, &mut cache, &context.gpu, fraction));
         built.map_err(|error| error.to_string())?;
         times.push(duration);
     }

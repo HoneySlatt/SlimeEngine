@@ -16,6 +16,7 @@ use slime_color::LinearColor;
 use slime_gfx::{GfxError, Gpu, Texture, TextureFormat, f32_to_f16};
 use slime_tasks::Priority;
 
+use crate::error::RenderError;
 use crate::light::{DirectionalLight, LARGEST_LIGHT, Light, rgb, unit};
 
 /// The width of the faces of the environment's first level, in texels: 0.90° per texel at a face's
@@ -54,7 +55,7 @@ const LARGEST_HALF: f32 = 65_504.0;
 const SMALLEST_N_DOT_V: f32 = 1e-4;
 
 /// A procedural daytime sky: light from every direction around the scene, which lights surfaces
-/// through image-based lighting and shows behind them ([`Renderer::create_environment`]).
+/// through image-based lighting and shows behind them ([`Environment::new`]).
 /// Radiances are in nits (candelas per square metre), linear, like all the light of a [`Scene`]:
 /// the sky's light is exposed as the surfaces' is.
 ///
@@ -74,10 +75,9 @@ const SMALLEST_N_DOT_V: f32 = 1e-4;
 /// light reaches surfaces once, and a shadow keeps the sky's light, as outdoors.
 ///
 /// A sky's light in any direction, glow included, is at most 65 504 nits per channel, the largest
-/// value the environment's half-precision texels hold: [`Renderer::create_environment`] refuses
+/// value the environment's half-precision texels hold: [`Environment::new`] refuses
 /// brighter zenith, horizon or ground, and the glow is kept within it.
 ///
-/// [`Renderer::create_environment`]: crate::Renderer::create_environment
 /// [`Scene`]: crate::Scene
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Sky {
@@ -143,7 +143,7 @@ impl Sky {
 
 /// A sky made ready to light scenes and to be drawn behind them: its cube map, prefiltered into
 /// levels of increasing roughness, on the GPU, and its sun's disc. Created by
-/// [`Renderer::create_environment`](crate::Renderer::create_environment), and named by
+/// [`Environment::new`], and named by
 /// [`Scene::environment`](crate::Scene::environment). Any renderer of the same [`Gpu`] draws with
 /// it.
 ///
@@ -161,16 +161,28 @@ pub struct Environment {
 }
 
 impl Environment {
-    /// Computes the environment of `sky` and uploads it.
+    /// Computes the environment of `sky` on the CPU and uploads it (ADR-0039): the sky drawn
+    /// into a cube map of 128 × 128 texels per face, each the average of 2 × 2 points of it,
+    /// then prefiltered for roughnesses 0.25, 0.5, 0.75 and 1 into faces of 64, 32, 16 and 8
+    /// texels, the last also the light that matte surfaces diffuse: 1.0 MiB of half-precision
+    /// floats. This takes tens of milliseconds in a release build, as frame tasks of the engine's
+    /// pool and on the calling thread (`slime_tasks`, ADR-0107), several times as long in a debug
+    /// build: create an environment once per sky, not per frame. A sky of one radiance in every
+    /// direction, without a sun, takes almost none. The environment is not tied to a renderer.
     ///
     /// # Errors
     ///
-    /// As [`Gpu::create_cube_texture`].
+    /// [`RenderError::Gfx`] with [`GfxError::OutOfMemory`] when the GPU's memory cannot hold it,
+    /// or [`GfxError::DeviceLost`] once the device is lost: nothing is created then.
     ///
     /// # Panics
     ///
-    /// As [`environment_levels`].
-    pub(crate) fn new(gpu: &Gpu, sky: &Sky) -> Result<Self, GfxError> {
+    /// If the zenith's, the horizon's or the ground's radiance is negative, not finite, or above
+    /// 65 504 nits, the largest value of the environment's half-precision texels, or if the sun is
+    /// not a light that the renderer draws ([`Light::check`], its shadow distance aside): this is a
+    /// bug in the caller. A clear sky stays below about 30 000 nits away from the sun. A sun whose
+    /// disc would be brighter than 10³⁰ nits is drawn that bright.
+    pub fn new(gpu: &Gpu, sky: &Sky) -> Result<Self, RenderError> {
         let (to_sun, sun_radiance) = sky.sun_disc();
         Ok(Self {
             to_sun,

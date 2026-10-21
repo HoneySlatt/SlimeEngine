@@ -51,17 +51,16 @@ impl Setup {
                 },
             )
             .expect("the GPU has memory for it");
-        let environment = renderer
-            .create_environment(
-                &gpu,
-                &Sky {
-                    zenith: LinearColor::rgb(0.2, 0.3, 0.8),
-                    horizon: LinearColor::rgb(0.7, 0.7, 0.7),
-                    ground: LinearColor::rgb(0.1, 0.1, 0.1),
-                    sun: None,
-                },
-            )
-            .expect("the GPU has memory for it");
+        let environment = Environment::new(
+            &gpu,
+            &Sky {
+                zenith: LinearColor::rgb(0.2, 0.3, 0.8),
+                horizon: LinearColor::rgb(0.7, 0.7, 0.7),
+                ground: LinearColor::rgb(0.1, 0.1, 0.1),
+                sun: None,
+            },
+        )
+        .expect("the GPU has memory for it");
         Self {
             gpu,
             renderer,
@@ -88,9 +87,9 @@ impl Setup {
             eye: DVec3::new(0.0, 0.5, 2.5),
             ..Camera::default()
         };
-        let mut scene = Scene::new(camera, &instances);
-        scene.lights = &lights;
-        scene.environment = Some(&self.environment);
+        let mut scene = Scene::new(camera, instances.clone());
+        scene.lights = lights.to_vec();
+        scene.environment = Some(self.environment.clone());
         scene.bloom = 0.04;
         self.renderer
             .render(&self.gpu, &self.target, &scene)

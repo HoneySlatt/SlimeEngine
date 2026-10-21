@@ -56,11 +56,11 @@ pub fn batch(context: &mut Context) -> Result<Vec<Row>, String> {
     let renderer = Renderer::new(&context.gpu, FORMAT).map_err(|error| error.to_string())?;
     let mut rows = Vec::new();
     for count in [10_000, 100_000] {
-        let mut cache = AssetCache::new(large_manifest(count)?);
+        let mut cache = AssetCache::new(&renderer, large_manifest(count)?);
         let mut times = Vec::new();
         for mesh in 1..=5 {
             let ((), duration) = timed(|| {
-                cache.request(&renderer, &context.gpu, [AssetId::from_u128(mesh)]);
+                cache.request(&context.gpu, [AssetId::from_u128(mesh)]);
             });
             times.push(duration);
         }
@@ -245,7 +245,7 @@ fn drawn_while_loading(
     spawn_sun(&mut world);
     world.update_transforms();
     let middle = (side as f64 - 1.0) * spacing / 2.0;
-    let mut cache = AssetCache::new(assets);
+    let mut cache = AssetCache::new(&renderer, assets);
     let camera = Camera {
         eye: DVec3::new(middle, middle + 20.0, middle * 2.0 + 40.0),
         target: DVec3::new(middle, 0.0, middle),
@@ -255,8 +255,8 @@ fn drawn_while_loading(
     let mut first_whole = None;
     while after.len() < 5 {
         let frame_start = Instant::now();
-        let mut frame = builder
-            .build(&world, &mut cache, &renderer, gpu, 0.0)
+        let frame = builder
+            .build(&world, &mut cache, gpu, 0.0)
             .map_err(|error| error.to_string())?;
         if let Some(error) = frame.errors.first() {
             return Err(error.to_string());
@@ -329,16 +329,18 @@ fn warm_up(
         .map_err(error)?;
     let instances = [Instance::new(&cube, &white, DAffine3::IDENTITY)];
     let lights = [Light::Directional(sun)];
-    let mut scene = Scene::new(Camera::default(), &instances);
-    scene.lights = &lights;
+    let mut scene = Scene::new(Camera::default(), instances.clone());
+    scene.lights = lights.to_vec();
     renderer.render(gpu, target, &scene).map_err(error)?;
     let mut world = World::new();
     spawn_sun(&mut world);
     world.update_transforms();
-    let mut cache =
-        AssetCache::new(CookedAssets::open(directory).map_err(|error| error.to_string())?);
-    let mut frame = builder
-        .build(&world, &mut cache, renderer, gpu, 0.0)
+    let mut cache = AssetCache::new(
+        renderer,
+        CookedAssets::open(directory).map_err(|error| error.to_string())?,
+    );
+    let frame = builder
+        .build(&world, &mut cache, gpu, 0.0)
         .map_err(|error| error.to_string())?;
     renderer
         .render(gpu, target, &frame.scene(Camera::default()))

@@ -5,8 +5,8 @@
 //! in the background, and drawn through `slime-world-render`, its sun given once, to the sky and to
 //! the lights. The glowing ring floats up and down at the fixed step, its light with it, and each
 //! frame draws it between its last two places. The camera turns around the scene. After a lost GPU
-//! device, it goes on: the cache loads the world's meshes again, and the world is untouched. F2
-//! shows the dev overlay's world panel, which lists the entities by name and edits their
+//! device, it goes on: a new asset cache loads the world's meshes again, and the world is untouched.
+//! F2 shows the dev overlay's world panel, which lists the entities by name and edits their
 //! components (`slime-devui`). Escape, closing the window or Ctrl+C quits.
 //!
 //! When it quits, it saves its world (`docs/adr/0087-the-worlds-documents.md`): what differs from
@@ -88,7 +88,8 @@ struct WorldExample {
     overlay: Option<Overlay>,
     panel: WorldPanel,
     panel_shown: bool,
-    cache: AssetCache,
+    /// The renderer's asset cache, while there is a GPU.
+    cache: Option<AssetCache>,
     builder: FrameBuilder,
     /// The ring, where the file puts it, if the scene has one.
     ring: Option<(Entity, f64)>,
@@ -115,7 +116,9 @@ impl WorldExample {
         if let (Some(gpu), Some(format), Some(window)) =
             (ctx.gpu(), ctx.surface_format(), ctx.window())
         {
-            self.renderer = Some(Renderer::new(gpu, format)?);
+            let renderer = Renderer::new(gpu, format)?;
+            self.cache = Some(AssetCache::new(&renderer, self.assets.clone()));
+            self.renderer = Some(renderer);
             self.overlay = Some(Overlay::new(gpu, format, window.scale_factor())?);
         }
         Ok(())
@@ -148,7 +151,11 @@ impl WorldExample {
         let Some(watch) = &mut self.watch else {
             return;
         };
-        if self.cache.loading() > 0 || self.cache.reloading() {
+        if self
+            .cache
+            .as_ref()
+            .is_some_and(|cache| cache.loading() > 0 || cache.reloading())
+        {
             return;
         }
         let assets = match watch.poll(Instant::now()) {
@@ -162,8 +169,8 @@ impl WorldExample {
                 return;
             }
         };
-        if let (Some(gpu), Some(renderer)) = (ctx.gpu(), &self.renderer) {
-            self.cache.reload(renderer, gpu, assets.clone());
+        if let (Some(gpu), Some(cache)) = (ctx.gpu(), &mut self.cache) {
+            cache.reload(gpu, assets.clone());
         }
         // The world as the example started it from the scenes before they changed, then after.
         let before = made(&mut self.scenes);
@@ -344,7 +351,9 @@ impl App for WorldExample {
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
-        let (Some(gpu), Some(renderer)) = (ctx.gpu(), self.renderer.as_mut()) else {
+        let (Some(gpu), Some(renderer), Some(cache)) =
+            (ctx.gpu(), self.renderer.as_mut(), self.cache.as_mut())
+        else {
             return;
         };
         let (center, radius) = self.framing;
@@ -356,13 +365,10 @@ impl App for WorldExample {
             near: radius / 1000.0,
             ..Camera::default()
         };
-        let mut frame = match self.builder.build(
-            ctx.world(),
-            &mut self.cache,
-            renderer,
-            gpu,
-            ctx.fixed_step_alpha(),
-        ) {
+        let frame = match self
+            .builder
+            .build(ctx.world(), cache, gpu, ctx.fixed_step_alpha())
+        {
             Ok(frame) => frame,
             Err(error) => {
                 ctx.exit_with_error(error);
@@ -408,7 +414,7 @@ impl App for WorldExample {
         // Every GPU object goes; the world stays as it is.
         self.renderer = None;
         self.overlay = None;
-        self.cache.clear();
+        self.cache = None;
         self.builder.release();
     }
 
@@ -477,7 +483,7 @@ fn main() -> ExitCode {
         .watch
         .then(|| ManifestWatch::new(&assets, Instant::now()));
     let mut example = WorldExample {
-        cache: AssetCache::new(assets.clone()),
+        cache: None,
         scenes: SceneLibrary::of(assets.clone()),
         assets,
         renderer: None,

@@ -126,7 +126,7 @@ impl Shapes {
         });
         let [dielectrics, metals] = spheres;
         let spheres = [dielectrics?, metals?];
-        let environment = renderer.create_environment(gpu, &SKY)?;
+        let environment = Environment::new(gpu, &SKY)?;
         Ok(Self {
             environment,
             renderer,
@@ -204,9 +204,9 @@ impl Shapes {
             }
         }
         let lights = [Light::Directional(SUN)];
-        let mut scene = Scene::new(camera, &instances);
-        scene.lights = &lights;
-        scene.environment = Some(&self.environment);
+        let mut scene = Scene::new(camera, instances.clone());
+        scene.lights = lights.to_vec();
+        scene.environment = Some(self.environment.clone());
         scene.bloom = BLOOM;
         self.renderer.render(gpu, target, &scene)
     }

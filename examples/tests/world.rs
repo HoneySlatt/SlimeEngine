@@ -36,7 +36,7 @@ use cooked::sample;
 use sample_scene::{BLOOM, Bounds, EXPOSURE, SCENE, SKY};
 use slime_gfx::{Gpu, Image, RenderTarget, TextureFormat};
 use slime_render::glam::DAffine3;
-use slime_render::{AssetCache, Camera, Light, Mesh, RenderStats, Renderer};
+use slime_render::{AssetCache, Camera, Light, RenderStats, Renderer};
 use slime_world::{
     Entity, Hidden, Meshes, PersistentId, ResolvedScene, SceneLibrary, Transform, World,
 };
@@ -86,9 +86,10 @@ struct Drawing {
 
 impl Drawing {
     fn new(gpu: &Gpu) -> Self {
+        let renderer = Renderer::new(gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
         Self {
-            renderer: Renderer::new(gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer"),
-            cache: AssetCache::new(sample().clone()),
+            cache: AssetCache::new(&renderer, sample().clone()),
+            renderer,
             builder: FrameBuilder::new(Some(SKY)),
         }
     }
@@ -98,7 +99,7 @@ impl Drawing {
         for _ in 0..10_000 {
             let frame = self
                 .builder
-                .build(world, &mut self.cache, &self.renderer, gpu, 0.0)
+                .build(world, &mut self.cache, gpu, 0.0)
                 .expect("the frame is built");
             assert!(frame.errors.is_empty(), "{:?}", frame.errors);
             if self.cache.loading() == 0 {
@@ -119,9 +120,9 @@ impl Drawing {
         camera: Camera,
     ) -> (Image, RenderStats) {
         self.settle(gpu, world);
-        let mut frame = self
+        let frame = self
             .builder
-            .build(world, &mut self.cache, &self.renderer, gpu, 0.0)
+            .build(world, &mut self.cache, gpu, 0.0)
             .expect("the frame is built");
         let mut scene = frame.scene(camera);
         scene.exposure = EXPOSURE;
@@ -187,7 +188,7 @@ fn the_sample_drawn_from_a_world_is_the_sample_the_renderer_loads() {
     // The instances that the loaded scene gives, in the same order: its nodes', then their meshes'.
     let frame = drawing
         .builder
-        .build(&world, &mut drawing.cache, &drawing.renderer, &gpu, 0.0)
+        .build(&world, &mut drawing.cache, &gpu, 0.0)
         .expect("the frame is built");
     assert_eq!(frame.instances.len(), transforms.len());
     for (instance, expected) in frame.instances.iter().zip(&transforms) {
@@ -210,6 +211,39 @@ fn the_sample_drawn_from_a_world_is_the_sample_the_renderer_loads() {
     }
 }
 
+#[test]
+fn a_frame_built_on_one_thread_is_drawn_on_another_as_on_the_first() {
+    let gpu = gpu();
+    let (bounds, _) = loaded(&gpu);
+    let (camera, distance) = camera(&bounds, 0.6, 0.45);
+    let mut world = world();
+    reach(&mut world, distance);
+    let mut drawing = Drawing::new(&gpu);
+    let (here, _) = drawing.draw(&gpu, &target(&gpu), &world, camera);
+    let frame = drawing
+        .builder
+        .build(&world, &mut drawing.cache, &gpu, 0.0)
+        .expect("the frame is built");
+    // The frame owns what it draws: the cache and the builder go, the renderer goes with it.
+    let Drawing { mut renderer, .. } = drawing;
+    let there = std::thread::spawn({
+        let gpu = gpu.clone();
+        move || {
+            let target = target(&gpu);
+            let mut scene = frame.scene(camera);
+            scene.exposure = EXPOSURE;
+            scene.bloom = BLOOM;
+            renderer
+                .render(&gpu, &target, &scene)
+                .expect("the frame is drawn");
+            gpu.read_render_target(&target).expect("read back")
+        }
+    })
+    .join()
+    .expect("the other thread draws");
+    assert!(here.pixels == there.pixels, "the same image");
+}
+
 /// Where the frame at `fraction` draws the sample's ring, and its light.
 fn ring_at(drawing: &mut Drawing, gpu: &Gpu, world: &World, fraction: f64) -> (f64, f64) {
     let ring = entity(world, "ring");
@@ -219,15 +253,15 @@ fn ring_at(drawing: &mut Drawing, gpu: &Gpu, world: &World, fraction: f64) -> (f
         .ids[0];
     // The cache holds everything already: building the frame takes nothing in, and the mesh stays
     // where it is.
-    let ring_mesh: *const Mesh = drawing.cache.mesh(mesh).expect("held").0;
+    let ring_mesh = drawing.cache.mesh(mesh).expect("held").0.clone();
     let frame = drawing
         .builder
-        .build(world, &mut drawing.cache, &drawing.renderer, gpu, fraction)
+        .build(world, &mut drawing.cache, gpu, fraction)
         .expect("the frame is built");
     let instance = frame
         .instances
         .iter()
-        .find(|instance| std::ptr::eq(instance.mesh, ring_mesh))
+        .find(|instance| instance.mesh == ring_mesh)
         .expect("the ring is drawn");
     let light = frame
         .lights
@@ -299,7 +333,7 @@ fn a_hidden_subtree_and_its_lights_are_not_drawn() {
     let counted = |drawing: &mut Drawing, world: &World| {
         let frame = drawing
             .builder
-            .build(world, &mut drawing.cache, &drawing.renderer, &gpu, 0.0)
+            .build(world, &mut drawing.cache, &gpu, 0.0)
             .expect("the frame is built");
         let points = frame
             .lights
@@ -335,19 +369,20 @@ fn after_a_lost_device_the_cache_made_again_draws_the_same_world() {
 
     // What a game does when its device is lost: its GPU objects go, its world stays.
     gpu.lose();
-    drawing.cache.clear();
     drawing.builder.release();
     let Drawing {
         renderer,
         cache,
         builder,
     } = drawing;
-    // Nothing may hold the lost device when the new one opens (`Gpu::restore`).
-    drop(renderer);
+    // Nothing may hold the lost device when the new one opens (`Gpu::restore`): the renderer goes,
+    // with the cache that loads through it.
+    drop((renderer, cache));
     let gpu = gpu.restore().expect("a new device opens");
+    let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
     let mut drawing = Drawing {
-        renderer: Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer"),
-        cache,
+        cache: AssetCache::new(&renderer, sample().clone()),
+        renderer,
         builder,
     };
     let (after, _) = drawing.draw(&gpu, &target(&gpu), &world, camera);

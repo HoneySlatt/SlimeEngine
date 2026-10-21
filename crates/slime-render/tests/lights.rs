@@ -109,8 +109,8 @@ impl Setup {
             material.unwrap_or(&self.white),
             DAffine3::IDENTITY,
         )];
-        let mut scene = Scene::new(camera(), &instances);
-        scene.lights = lights;
+        let mut scene = Scene::new(camera(), instances.clone());
+        scene.lights = lights.to_vec();
         scene.exposure = exposure;
         self.renderer
             .render(&self.gpu, &self.output, &scene)

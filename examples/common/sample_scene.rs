@@ -100,7 +100,7 @@ impl SampleScene {
         loaded: LoadedScene,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let (bounds, sun) = framing(&loaded)?;
-        let (environment, environment_time) = sky(gpu, &renderer, sun)?;
+        let (environment, environment_time) = sky(gpu, sun)?;
         Ok(Self {
             renderer,
             loaded,
@@ -131,7 +131,7 @@ impl SampleScene {
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let (bounds, sun) = framing(&loaded)?;
         if sun != self.sun {
-            (self.environment, self.environment_time) = sky(gpu, &self.renderer, sun)?;
+            (self.environment, self.environment_time) = sky(gpu, sun)?;
             self.sun = sun;
         }
         self.bounds = bounds;
@@ -195,9 +195,9 @@ impl SampleScene {
                 other => other,
             })
             .collect();
-        let mut scene = Scene::new(camera, &instances);
-        scene.lights = &lights;
-        scene.environment = Some(&self.environment);
+        let mut scene = Scene::new(camera, instances.clone());
+        scene.lights = lights.to_vec();
+        scene.environment = Some(self.environment.clone());
         scene.exposure = exposure;
         scene.bloom = bloom;
         self.renderer.render(gpu, target, &scene)
@@ -230,18 +230,14 @@ fn framing(
     Ok((bounds, sun))
 }
 
-/// The environment of the sky around `sun`, which `renderer` computes, and the time the CPU took to.
+/// The environment of the sky around `sun`, and the time the CPU took to compute it.
 ///
 /// # Errors
 ///
-/// The renderer's error when the sky cannot be created.
-fn sky(
-    gpu: &Gpu,
-    renderer: &Renderer,
-    sun: Option<DirectionalLight>,
-) -> Result<(Environment, Duration), RenderError> {
+/// [`Environment::new`]'s error when the sky cannot be created.
+fn sky(gpu: &Gpu, sun: Option<DirectionalLight>) -> Result<(Environment, Duration), RenderError> {
     let started = Instant::now();
-    let environment = renderer.create_environment(gpu, &Sky { sun, ..SKY })?;
+    let environment = Environment::new(gpu, &Sky { sun, ..SKY })?;
     let environment_time = started.elapsed();
     tracing::info!(?environment_time, "the sky's environment is computed");
     Ok((environment, environment_time))

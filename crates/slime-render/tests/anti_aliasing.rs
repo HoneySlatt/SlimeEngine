@@ -73,7 +73,7 @@ fn draw(emission: f32) -> FloatImage {
         &emitter,
         DAffine3::from_mat4(transform.as_dmat4()),
     )];
-    let scene = Scene::new(camera(), &instances);
+    let scene = Scene::new(camera(), instances.clone());
     renderer
         .render(&gpu, &output, &scene)
         .expect("the frame is drawn");

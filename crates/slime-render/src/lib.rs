@@ -39,6 +39,8 @@ mod threads {
 
     fn send_and_sync<T: Send + Sync>() {}
     fn send<T: Send>() {}
+    /// Owns what it holds: it borrows nothing, so that it can outlive what it was made from.
+    fn owned<T: 'static>() {}
 
     #[test]
     fn what_a_scene_is_made_of_can_be_shared_between_threads_and_a_renderer_moved() {
@@ -51,11 +53,17 @@ mod threads {
         send_and_sync::<Environment>();
         send_and_sync::<Camera>();
         send_and_sync::<Light>();
-        send_and_sync::<Scene<'static>>();
-        send_and_sync::<Instance<'static>>();
+        send_and_sync::<Scene>();
+        send_and_sync::<Instance>();
         send_and_sync::<RenderStats>();
         send_and_sync::<RenderError>();
         // `render` takes the renderer mutably: one thread draws with it at a time.
         send::<Renderer>();
+    }
+
+    #[test]
+    fn a_scene_owns_what_it_draws() {
+        owned::<Scene>();
+        owned::<Instance>();
     }
 }

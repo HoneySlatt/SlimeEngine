@@ -301,6 +301,16 @@ pub struct Material {
     pub(crate) masked: bool,
 }
 
+impl PartialEq for Material {
+    /// Whether the two are one material: one is a clone of the other, and a change of values
+    /// through either changes both.
+    fn eq(&self, other: &Self) -> bool {
+        self.identity() == other.identity()
+    }
+}
+
+impl Eq for Material {}
+
 impl Material {
     /// What it and its clones share, by which the renderer tells materials apart: clones are one
     /// material, drawn together.

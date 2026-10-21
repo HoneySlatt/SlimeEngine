@@ -130,9 +130,7 @@ impl Setup {
     }
 
     fn environment(&self, sky: &Sky) -> Environment {
-        self.renderer
-            .create_environment(&self.gpu, sky)
-            .expect("the GPU has memory for it")
+        Environment::new(&self.gpu, sky).expect("the GPU has memory for it")
     }
 
     /// Draws the unit sphere at the origin with `material` (none when `None`), seen from `camera`,
@@ -144,7 +142,7 @@ impl Setup {
         material: Option<&Material>,
         exposure: f32,
     ) -> FloatImage {
-        let instances: Vec<Instance<'_>> = material
+        let instances: Vec<Instance> = material
             // `MeshData::sphere` is one metre across: drawn twice that, the unit sphere.
             .map(|material| {
                 Instance::new(
@@ -155,8 +153,8 @@ impl Setup {
             })
             .into_iter()
             .collect();
-        let mut scene = Scene::new(camera, &instances);
-        scene.environment = Some(environment);
+        let mut scene = Scene::new(camera, instances.clone());
+        scene.environment = Some(environment.clone());
         scene.exposure = exposure;
         self.renderer
             .render(&self.gpu, &self.output, &scene)
@@ -562,8 +560,8 @@ fn an_environment_draws_with_any_renderer_and_a_scene_without_one_is_black() {
         &material,
         DAffine3::from_scale(DVec3::splat(2.0)),
     )];
-    let mut scene = Scene::new(camera, &instances);
-    scene.environment = Some(&environment);
+    let mut scene = Scene::new(camera, instances.clone());
+    scene.environment = Some(environment.clone());
     other
         .render(&setup.gpu, &setup.output, &scene)
         .expect("the frame is drawn");

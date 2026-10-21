@@ -52,17 +52,16 @@ impl Setup {
             .create_material(&gpu, "white", &MaterialData::default())
             .expect("the GPU has memory for it");
         let uniform = LinearColor::rgb(SKY, SKY, SKY);
-        let sky = renderer
-            .create_environment(
-                &gpu,
-                &Sky {
-                    zenith: uniform,
-                    horizon: uniform,
-                    ground: uniform,
-                    sun: None,
-                },
-            )
-            .expect("the GPU has memory for it");
+        let sky = Environment::new(
+            &gpu,
+            &Sky {
+                zenith: uniform,
+                horizon: uniform,
+                ground: uniform,
+                sun: None,
+            },
+        )
+        .expect("the GPU has memory for it");
         Self {
             gpu,
             renderer,
@@ -82,7 +81,7 @@ impl Setup {
         lights: &[Light],
         squares: &[(Mat4, bool)],
     ) -> (FloatImage, RenderStats) {
-        let instances: Vec<Instance<'_>> = squares
+        let instances: Vec<Instance> = squares
             .iter()
             .map(|&(transform, casts_shadows)| {
                 let mut instance = Instance::new(
@@ -94,9 +93,9 @@ impl Setup {
                 instance
             })
             .collect();
-        let mut scene = Scene::new(camera, &instances);
-        scene.lights = lights;
-        scene.environment = Some(&self.sky);
+        let mut scene = Scene::new(camera, instances.clone());
+        scene.lights = lights.to_vec();
+        scene.environment = Some(self.sky.clone());
         let stats = self
             .renderer
             .render(&self.gpu, &self.output, &scene)
@@ -270,9 +269,9 @@ fn a_lit_floor_and_a_lit_sphere_do_not_shadow_themselves() {
         instance.casts_shadows = casts_shadows;
         let instances = [instance];
         let lights = [light];
-        let mut scene = Scene::new(camera, &instances);
-        scene.lights = &lights;
-        scene.environment = Some(&setup.sky);
+        let mut scene = Scene::new(camera, instances.clone());
+        scene.lights = lights.to_vec();
+        scene.environment = Some(setup.sky.clone());
         setup
             .renderer
             .render(&setup.gpu, &setup.output, &scene)
@@ -455,9 +454,9 @@ fn a_masked_material_casts_no_shadow_where_it_discards() {
         cut.casts_shadows = casts_shadows;
         instances.push(cut);
         let lights = [light];
-        let mut scene = Scene::new(camera, &instances);
-        scene.lights = &lights;
-        scene.environment = Some(&setup.sky);
+        let mut scene = Scene::new(camera, instances.clone());
+        scene.lights = lights.to_vec();
+        scene.environment = Some(setup.sky.clone());
         let stats = setup
             .renderer
             .render(&setup.gpu, &setup.output, &scene)

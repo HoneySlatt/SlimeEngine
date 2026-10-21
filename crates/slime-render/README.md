@@ -39,8 +39,8 @@ blend transparent surfaces.
   `docs/adr/0118-the-task-pool-and-the-copies-to-the-gpu.md`). It computes the sky's environment
   as frame tasks of the same pool.
 - Draws what it is given: a flat list of instances that the application builds for each frame.
-  It keeps no scene between frames and has no scene graph; `slime-world-render` builds such lists
-  from a world (`docs/adr/0084-what-the-world-draws.md`).
+  It has no scene graph; `slime-world-render` builds such lists from a world
+  (`docs/adr/0084-what-the-world-draws.md`).
 
 ## Entry points
 
@@ -86,12 +86,12 @@ fn main() -> Result<(), RenderError> {
         illuminance: 100_000.0,
         ..DirectionalLight::default()
     });
-    let instances = [Instance::new(&triangle, &red, DAffine3::IDENTITY)];
-    let lights = [sun];
+    let instances = vec![Instance::new(&triangle, &red, DAffine3::IDENTITY)];
     // A scene starts without lights, environment or bloom (which would spread a little of the
-    // triangle's light around its edges); its fields are then set.
-    let mut scene = Scene::new(camera, &instances);
-    scene.lights = &lights;
+    // triangle's light around its edges); its fields are then set. It owns what it draws, its
+    // instances holding clones of their meshes and materials.
+    let mut scene = Scene::new(camera, instances);
+    scene.lights = vec![sun];
     scene.exposure = PI / 100_000.0;
     let stats = renderer.render(&gpu, &target, &scene)?;
     assert_eq!((stats.draw_calls, stats.instances, stats.triangles), (1, 1, 1));
@@ -113,8 +113,8 @@ fn main() -> Result<(), RenderError> {
   sources, all or none, so that a game sees a shader change while it runs; `ShaderSources` holds
   the embedded sources or those of the shaders' files, and `ShaderWatch` tells a game when the
   files change (ADR-0077).
-- `Renderer::create_environment(gpu, &Sky)` computes, on the CPU, the `Environment` that lights a
-  scene and shows behind it: a procedural sky of a zenith, a horizon, a ground and an optional sun.
+- `Environment::new(gpu, &Sky)` computes, on the CPU, the `Environment` that lights a scene and
+  shows behind it, which any renderer draws with: a procedural sky of a zenith, a horizon, a ground and an optional sun.
   It is slow: create one per sky, not per frame.
 - `MeshData::cube()`, `MeshData::sphere(rings, segments)` and `MeshData::square()` make simple
   shapes in code, one metre across and centred on their origin, for an instance's transform to
@@ -142,19 +142,23 @@ fn main() -> Result<(), RenderError> {
   `Renderer::reload_scene_in_background(gpu, &CookedAssets, id, &previous)` loads a scene again
   once its cooked data changed, keeping the meshes and textures of the scene loaded before whose
   cooked file did not change (ADR-0076).
-- `AssetCache::new(CookedAssets)` keeps the meshes that a game draws by their asset IDs, with the
-  materials they are drawn with and the textures those read, so that a world names them by ID and
-  holds no GPU object (ADR-0084): `request(renderer, gpu, ids)` starts loading, as one batch in the
+- `AssetCache::new(&renderer, CookedAssets)` keeps the meshes that a game draws by their asset IDs,
+  with the materials they are drawn with and the textures those read, so that a world names them by
+  ID and holds no GPU object (ADR-0084). It keeps, from its creation, what its loads take of the
+  renderer, and loads without it (ADR-0111): `request(gpu, ids)` starts loading, as one batch in the
   background, the meshes it neither holds nor loads; `poll` takes the batches that finished, each
   whole, and gives the errors of those that failed; `mesh(id)` gives a mesh and its material once
   held, `material(id)` a material, `loading` how many meshes are on their way.
-  `reload(renderer, gpu, assets)` loads again what changed in new cooked data, keeping the rest,
-  `reloading` says whether it is under way, and `clear` drops everything after a lost device.
+  `reload(gpu, assets)` loads again what changed in new cooked data, keeping the rest, and
+  `reloading` says whether it is under way. After a lost device, a game makes a new cache with the
+  renderer that replaces the lost one.
 - `scene_lights(&CookedScene)` gives the lights that a cooked scene's nodes place, as a
   `LoadedScene` holds them, without loading the scene: a game knows its sun before its scene is
   loaded.
-- `Scene::new(camera, &instances)` and `Instance::new(mesh, material, transform)` make what a
-  frame draws; their other fields, such as the scene's `lights`, `environment`, `exposure` and
+- `Scene::new(camera, instances)` and `Instance::new(&mesh, &material, transform)` make what a
+  frame draws, which owns it: an instance holds clones of its mesh and its material, counted
+  references to the same GPU objects, and a scene its instances, lights and environment, so that
+  one built on a thread is drawn on another (ADR-0111); their other fields, such as the scene's `lights`, `environment`, `exposure` and
   `bloom`, or whether an instance casts shadows, are set once they are made (ADR-0046).
 - `Renderer::render(gpu, target, &scene)` draws a frame in passes (the directional light's shadows,
   the spot lights' shadows, scene, sky, resolve, bloom, tone mapping) and returns its `RenderStats`:

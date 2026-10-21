@@ -80,9 +80,9 @@ fn draw(offset: DVec3) -> FloatImage {
             near: 0.001,
             ..Camera::default()
         },
-        &instances,
+        instances.clone(),
     );
-    scene.lights = &lights;
+    scene.lights = lights.to_vec();
     renderer
         .render(&gpu, &output, &scene)
         .expect("the frame is drawn");

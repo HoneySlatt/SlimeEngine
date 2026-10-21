@@ -62,6 +62,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- A frame owns what it draws (ADR-0111): `Instance` holds clones of its mesh and material, counted
+  references to the same GPU objects, and `Scene` and `slime_world_render::Frame` their instances,
+  lights and environment, without lifetimes, so that a frame built on one thread is drawn on
+  another. `Scene::new` takes the instances (a slice is cloned), `scene.lights` is a `Vec`,
+  `scene.environment` an `Option<Environment>`, and `Frame::scene` takes the frame. Meshes and
+  materials compare equal when one is a clone of the other.
+- `AssetCache::new(&renderer, assets)` keeps what its loads take of the renderer, so that
+  `AssetCache::request(gpu, ids)`, `AssetCache::reload(gpu, assets)` and
+  `FrameBuilder::build(world, cache, gpu, fraction)` take no renderer. `AssetCache::clear` is gone:
+  after a lost device, a game makes a new cache with the renderer that replaces the lost one.
+- `Environment::new(gpu, &sky)` makes an environment without a renderer, in place of
+  `Renderer::create_environment`.
 - `slime_gfx::Gpu` opens its device with every limit that its adapter offers, where it asked for
   WebGPU's default limits, which are now the engine's floor: an adapter below it is refused with
   `GfxError::BelowFloor`, which names the limit, rather than failing later. A frame draws as many

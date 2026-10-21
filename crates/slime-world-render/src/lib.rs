@@ -6,7 +6,7 @@ use slime_gfx::Gpu;
 use slime_render::glam::{DVec3, Vec3};
 use slime_render::{
     AssetCache, Camera, DirectionalLight, Environment, Instance, Light, MAX_LIGHTS, PointLight,
-    RenderError, Renderer, Scene, SceneError, Sky, SpotLight,
+    RenderError, Scene, SceneError, Sky, SpotLight,
 };
 use slime_world::{Entity, Meshes, Transform, World};
 
@@ -45,15 +45,13 @@ use slime_world::{Entity, Meshes, Transform, World};
 /// cache; when anything moved during the last fixed step, it also walks the ancestors of each
 /// entity that did not move itself, to draw it with the nearest that did
 /// ([`World::interpolated_transform`]). Making the sky's environment again costs what
-/// [`Renderer::create_environment`] does, tens of milliseconds: a sun that moves at every frame
+/// [`Environment::new`] does, tens of milliseconds: a sun that moves at every frame
 /// makes it again at every frame.
 pub struct FrameBuilder {
     /// The sky the game gives, without its sun.
     sky: Option<Sky>,
     /// The environment made last, with the sky, its sun included, that it was made from.
     environment: Option<(Sky, Environment)>,
-    /// The lights of the frame built last.
-    lights: Vec<Light>,
     /// Whether the warning of several suns was logged, since the world last had one at most.
     warned: bool,
     /// The entities whose lights the frame built last left out: each is said when it is first
@@ -61,15 +59,18 @@ pub struct FrameBuilder {
     left_out: HashSet<Entity>,
 }
 
-/// What the renderer draws of a world in one frame, which [`FrameBuilder::build`] gives.
-pub struct Frame<'a> {
+/// What the renderer draws of a world in one frame, which [`FrameBuilder::build`] gives. It owns
+/// what it draws, its instances holding their meshes and materials as counted references, so that
+/// it outlives the cache and the builder, and is drawn on another thread than the one that built
+/// it (ADR-0111).
+pub struct Frame {
     /// The instances of the meshes that the world places and the cache holds.
-    pub instances: Vec<Instance<'a>>,
+    pub instances: Vec<Instance>,
     /// The lights that the world places, the sky's sun first, then in the world's order, which
     /// [`Frame::scene`] changes when they are more than the renderer draws.
-    pub lights: &'a mut [Light],
+    pub lights: Vec<Light>,
     /// The sky's environment, if the game gave a sky.
-    pub environment: Option<&'a Environment>,
+    pub environment: Option<Environment>,
     /// How many meshes the cache was loading once the frame was built ([`AssetCache::loading`]):
     /// 0 when the frame draws every mesh the world names, but those whose batch failed. A game
     /// that shows the world whole waits for 0.
@@ -82,19 +83,26 @@ pub struct Frame<'a> {
     sun: bool,
 }
 
-impl Frame<'_> {
-    /// The scene to draw, seen from `camera`, with the frame's instances, lights and environment;
-    /// its other fields, the exposure and the bloom, are the game's to set. When the frame has more
-    /// lights than the renderer draws, [`MAX_LIGHTS`], it orders them first, as
+impl Frame {
+    /// The scene to draw, seen from `camera`, with the frame's instances, lights and environment,
+    /// which it takes; its other fields, the exposure and the bloom, are the game's to set. When
+    /// the frame has more lights than the renderer draws, [`MAX_LIGHTS`], it orders them first, as
     /// [`FrameBuilder`] says: the sun, the other directional lights, then the others nearest
     /// `camera`'s eye first, in the world's order for those as near.
-    pub fn scene(&mut self, camera: Camera) -> Scene<'_> {
-        if self.lights.len() > MAX_LIGHTS {
-            nearest_first(self.lights, self.sun, camera.eye);
+    pub fn scene(self, camera: Camera) -> Scene {
+        let Self {
+            instances,
+            mut lights,
+            environment,
+            sun,
+            ..
+        } = self;
+        if lights.len() > MAX_LIGHTS {
+            nearest_first(&mut lights, sun, camera.eye);
         }
-        let mut scene = Scene::new(camera, &self.instances);
-        scene.lights = self.lights;
-        scene.environment = self.environment;
+        let mut scene = Scene::new(camera, instances);
+        scene.lights = lights;
+        scene.environment = environment;
         scene
     }
 }
@@ -106,7 +114,6 @@ impl FrameBuilder {
         Self {
             sky,
             environment: None,
-            lights: Vec::new(),
             warned: false,
             left_out: HashSet::new(),
         }
@@ -118,7 +125,7 @@ impl FrameBuilder {
     }
 
     /// Drops the sky's environment, a GPU object, which the next frame makes again: what a game does
-    /// when its device is lost, with [`AssetCache::clear`].
+    /// when its device is lost, with its asset cache and its renderer.
     pub fn release(&mut self) {
         self.environment = None;
     }
@@ -132,19 +139,18 @@ impl FrameBuilder {
     /// # Errors
     ///
     /// [`RenderError`] if the sky's environment had to be made again and could not be, as
-    /// [`Renderer::create_environment`] says.
+    /// [`Environment::new`] says.
     ///
     /// # Panics
     ///
     /// As [`AssetCache::poll`] and [`AssetCache::request`] do.
-    pub fn build<'a>(
-        &'a mut self,
+    pub fn build(
+        &mut self,
         world: &World,
-        cache: &'a mut AssetCache,
-        renderer: &Renderer,
+        cache: &mut AssetCache,
         gpu: &Gpu,
         fraction: f64,
-    ) -> Result<Frame<'a>, RenderError> {
+    ) -> Result<Frame, RenderError> {
         let errors = cache.poll();
         for error in &errors {
             tracing::error!("meshes of the world cannot be drawn: {error}");
@@ -162,9 +168,8 @@ impl FrameBuilder {
             missing.extend(meshes.ids.iter().filter(|&&id| cache.mesh(id).is_none()));
             placed.push((at.to_affine(transform.stretch), meshes));
         }
-        cache.request(renderer, gpu, missing);
+        cache.request(gpu, missing);
         let loading = cache.loading();
-        let cache: &'a AssetCache = cache;
         let mut instances = Vec::with_capacity(placed.len());
         for (transform, meshes) in placed {
             for &id in &meshes.ids {
@@ -177,7 +182,8 @@ impl FrameBuilder {
         }
 
         let mut left_out = Vec::new();
-        let (sun, suns) = world_lights(world, fraction, &mut self.lights, &mut left_out);
+        let mut lights = Vec::new();
+        let (sun, suns) = world_lights(world, fraction, &mut lights, &mut left_out);
         for (entity, reason) in &left_out {
             if !self.left_out.contains(entity) {
                 tracing::warn!(
@@ -208,18 +214,18 @@ impl FrameBuilder {
                 });
                 let wanted = Sky { sun, ..sky };
                 if self.environment.as_ref().map(|(made, _)| *made) != Some(wanted) {
-                    let environment = renderer.create_environment(gpu, &wanted)?;
+                    let environment = Environment::new(gpu, &wanted)?;
                     self.environment = Some((wanted, environment));
                 }
             }
         }
         Ok(Frame {
             instances,
-            lights: &mut self.lights,
+            lights,
             environment: self
                 .environment
                 .as_ref()
-                .map(|(_, environment)| environment),
+                .map(|(_, environment)| environment.clone()),
             loading,
             errors,
             sun: sun.is_some(),
@@ -351,11 +357,14 @@ mod threads {
     use super::*;
 
     fn send_and_sync<T: Send + Sync>() {}
+    /// Owns what it holds: it borrows nothing, so that it can outlive the builder and the cache.
+    fn owned<T: 'static>() {}
 
     #[test]
     fn a_frame_builder_and_its_frames_can_be_shared_between_threads() {
         send_and_sync::<FrameBuilder>();
-        send_and_sync::<Frame<'static>>();
+        send_and_sync::<Frame>();
+        owned::<Frame>();
     }
 }
 

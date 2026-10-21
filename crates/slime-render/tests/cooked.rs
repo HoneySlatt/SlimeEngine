@@ -265,7 +265,7 @@ fn palette(name: &str, width: u32) -> (PathBuf, AssetId) {
 
 /// The color of the center of what `renderer` draws of `instance`, seen from 2 m in front of it,
 /// lit by a light along −Z.
-fn center_of(gpu: &Gpu, renderer: &mut Renderer, instance: Instance<'_>) -> [u8; 3] {
+fn center_of(gpu: &Gpu, renderer: &mut Renderer, instance: Instance) -> [u8; 3] {
     let target = gpu
         .create_render_target("palette", 16, 16, TextureFormat::Rgba8UnormSrgb)
         .expect("the GPU has memory for it");
@@ -281,8 +281,8 @@ fn center_of(gpu: &Gpu, renderer: &mut Renderer, instance: Instance<'_>) -> [u8;
         ..DirectionalLight::default()
     })];
     let instances = [instance];
-    let mut scene = Scene::new(camera, &instances);
-    scene.lights = &lights;
+    let mut scene = Scene::new(camera, instances.clone());
+    scene.lights = lights.to_vec();
     scene.exposure = 0.5;
     renderer
         .render(gpu, &target, &scene)
@@ -300,16 +300,13 @@ fn check_palette(gpu: &Gpu, renderer: &mut Renderer, loaded: &LoadedScene) {
     for (index, instance) in instances.iter().enumerate() {
         assert_eq!(instance.transform.translation.x, 2.0 * index as f64);
         for (other, other_instance) in instances.iter().enumerate() {
+            assert_eq!(instance.mesh == other_instance.mesh, index == other);
             assert_eq!(
-                std::ptr::eq(instance.mesh, other_instance.mesh),
-                index == other
-            );
-            assert_eq!(
-                std::ptr::eq(instance.material, other_instance.material),
+                instance.material == other_instance.material,
                 index % 3 == other % 3
             );
         }
-        let [r, g, b] = center_of(gpu, renderer, *instance);
+        let [r, g, b] = center_of(gpu, renderer, instance.clone());
         let lit = [r, g, b].map(|channel| channel > 100);
         let expected = COLORS[index % 3].map(|channel| channel == 255);
         assert_eq!(
@@ -335,7 +332,7 @@ fn a_cooked_scene_is_placed_lit_and_drawn() {
     let instances = loaded.instances();
     // The square, loaded once, placed twice; the second by its parent's transform times its own.
     assert_eq!(instances.len(), 2);
-    assert!(std::ptr::eq(instances[0].mesh, instances[1].mesh));
+    assert_eq!(instances[0].mesh, instances[1].mesh);
     assert_eq!(instances[1].transform.translation.x, 2.0);
     assert_eq!(
         loaded.bounds,
@@ -361,8 +358,8 @@ fn a_cooked_scene_is_placed_lit_and_drawn() {
         target: DVec3::ZERO,
         ..Camera::default()
     };
-    let mut scene = Scene::new(camera, &instances);
-    scene.lights = &loaded.lights;
+    let mut scene = Scene::new(camera, instances.clone());
+    scene.lights = loaded.lights.to_vec();
     scene.exposure = 0.5;
     let mut renderer = renderer;
     renderer
@@ -456,8 +453,8 @@ fn a_load_on_a_lost_device_ends_with_the_loss_and_never_hangs() {
         "{error:?}"
     );
     // The asset cache's batches end the same way.
-    let mut cache = AssetCache::new(assets);
-    cache.request(&renderer, &gpu, palette_meshes());
+    let mut cache = AssetCache::new(&renderer, assets);
+    cache.request(&gpu, palette_meshes());
     let errors = settle(&mut cache);
     assert!(
         errors.iter().all(|error| matches!(
@@ -534,7 +531,7 @@ fn a_material_found_by_its_name_changes_every_square_drawn_with_it() {
     assert!(loaded.material("material 3").is_none());
     let green = loaded.material("material 1").expect("the second material");
     let instances = loaded.instances();
-    assert!(std::ptr::eq(green, instances[1].material));
+    assert_eq!(*green, instances[1].material);
     // Its green texture times a base color without green: the squares 1 and 4 turn black.
     let made = green.values();
     green
@@ -547,7 +544,7 @@ fn a_material_found_by_its_name_changes_every_square_drawn_with_it() {
         )
         .expect("valid values");
     for (index, instance) in instances.iter().enumerate() {
-        let [r, g, b] = center_of(&gpu, &mut renderer, *instance);
+        let [r, g, b] = center_of(&gpu, &mut renderer, instance.clone());
         let lit = r.max(g).max(b) > 100;
         assert_eq!(lit, index % 3 != 1, "{index}: {r} {g} {b}");
     }
@@ -576,7 +573,7 @@ fn a_reloaded_scene_draws_the_new_texture_and_keeps_what_did_not_change() {
         .wait()
         .expect("the scene loads again");
     for (index, instance) in reloaded.instances().iter().enumerate() {
-        let [r, g, b] = center_of(&gpu, &mut renderer, *instance);
+        let [r, g, b] = center_of(&gpu, &mut renderer, instance.clone());
         let lit = [r, g, b].map(|channel| channel > 100);
         let expected = match index % 3 {
             1 => [true; 3],
@@ -728,12 +725,15 @@ fn the_cache_loads_what_is_asked_for_once_and_shares_the_materials() {
     let gpu = gpu();
     let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
     let (directory, _) = palette("cache", 4);
-    let mut cache = AssetCache::new(CookedAssets::open(&directory).expect("the manifest is read"));
+    let mut cache = AssetCache::new(
+        &renderer,
+        CookedAssets::open(&directory).expect("the manifest is read"),
+    );
     let meshes = palette_meshes();
     assert!(cache.mesh(meshes[0]).is_none());
-    cache.request(&renderer, &gpu, meshes);
+    cache.request(&gpu, meshes);
     assert_eq!(cache.loading(), 6);
-    cache.request(&renderer, &gpu, meshes);
+    cache.request(&gpu, meshes);
     assert_eq!(cache.loading(), 6, "asked for twice, loaded once");
     assert!(settle(&mut cache).is_empty());
     // Squares 0 and 3 are drawn with the same material, which the cache holds once.
@@ -744,7 +744,7 @@ fn the_cache_loads_what_is_asked_for_once_and_shares_the_materials() {
         material(1),
         cache.material(AssetId::from_u128(201)).expect("held")
     ));
-    cache.request(&renderer, &gpu, meshes);
+    cache.request(&gpu, meshes);
     assert_eq!(cache.loading(), 0, "held already");
     check_cached(&gpu, &mut renderer, &cache, 0..6, |_| false);
 }
@@ -754,16 +754,19 @@ fn a_second_batch_keeps_the_textures_that_the_cache_holds() {
     let gpu = gpu();
     let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
     let (directory, _) = palette("cache-second", 4);
-    let mut cache = AssetCache::new(CookedAssets::open(&directory).expect("the manifest is read"));
+    let mut cache = AssetCache::new(
+        &renderer,
+        CookedAssets::open(&directory).expect("the manifest is read"),
+    );
     let meshes = palette_meshes();
-    cache.request(&renderer, &gpu, meshes[..3].iter().copied());
+    cache.request(&gpu, meshes[..3].iter().copied());
     assert!(settle(&mut cache).is_empty());
     // The last three squares are drawn with the same materials, whose textures the cache holds:
     // those are not read again.
     for index in 0..3 {
         fs::remove_file(directory.join(format!("{index}.ktx2"))).expect("removed");
     }
-    cache.request(&renderer, &gpu, meshes[3..].iter().copied());
+    cache.request(&gpu, meshes[3..].iter().copied());
     assert_eq!(cache.loading(), 3);
     assert!(settle(&mut cache).is_empty());
     check_cached(&gpu, &mut renderer, &cache, 0..6, |_| false);
@@ -774,12 +777,15 @@ fn a_mesh_that_cannot_be_read_is_reported_once_and_not_asked_for_again() {
     let gpu = gpu();
     let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
     let (directory, _) = palette("cache-missing", 4);
-    let mut cache = AssetCache::new(CookedAssets::open(&directory).expect("the manifest is read"));
+    let mut cache = AssetCache::new(
+        &renderer,
+        CookedAssets::open(&directory).expect("the manifest is read"),
+    );
     let missing = AssetId::from_u128(999);
-    cache.request(&renderer, &gpu, [missing]);
+    cache.request(&gpu, [missing]);
     let errors = settle(&mut cache);
     assert!(matches!(errors[..], [SceneError::Load(_)]), "{errors:?}");
-    cache.request(&renderer, &gpu, [missing]);
+    cache.request(&gpu, [missing]);
     assert_eq!(cache.loading(), 0);
     assert!(cache.poll().is_empty());
     assert!(cache.mesh(missing).is_none());
@@ -790,40 +796,43 @@ fn a_panic_while_the_cache_loads_leaves_it_loading_nothing() {
     let gpu = gpu();
     let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
     let (directory, _) = palette("cache-panic", 4);
-    let mut cache = AssetCache::new(CookedAssets::open(&directory).expect("the manifest is read"));
+    let mut cache = AssetCache::new(
+        &renderer,
+        CookedAssets::open(&directory).expect("the manifest is read"),
+    );
     let meshes = palette_meshes();
-    cache.request(&renderer, &gpu, [meshes[0]]);
+    cache.request(&gpu, [meshes[0]]);
     assert!(settle(&mut cache).is_empty());
     // Square 3 is drawn with square 0's material, which a batch makes again with the texture the
     // cache holds: on another device, which cannot read it, a bug of the caller's that panics.
     let other = self::gpu();
-    cache.request(&renderer, &other, [meshes[3]]);
+    cache.request(&other, [meshes[3]]);
     let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| settle(&mut cache)));
     assert!(panicked.is_err(), "the batch panicked");
     assert_eq!(cache.loading(), 0, "the batch is over");
     assert!(cache.mesh(meshes[3]).is_none());
     // Its mesh is not asked for again, as for a batch that failed.
-    cache.request(&renderer, &gpu, [meshes[3]]);
+    cache.request(&gpu, [meshes[3]]);
     assert_eq!(cache.loading(), 0);
 }
 
 #[test]
-fn a_cleared_cache_holds_nothing_and_loads_again_what_is_asked_for() {
+fn a_cache_loads_and_keeps_meshes_without_the_renderer_it_was_made_with() {
     let gpu = gpu();
-    let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
-    let (directory, _) = palette("cache-cleared", 4);
-    let mut cache = AssetCache::new(CookedAssets::open(&directory).expect("the manifest is read"));
+    let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
+    let (directory, _) = palette("cache-alone", 4);
+    let assets = CookedAssets::open(&directory).expect("the manifest is read");
+    // A cache dropped while a batch loads cancels it, as a game that loses its device does.
+    let mut dropped = AssetCache::new(&renderer, assets.clone());
+    dropped.request(&gpu, palette_meshes());
+    drop(dropped);
+    let mut cache = AssetCache::new(&renderer, assets);
+    drop(renderer);
     let meshes = palette_meshes();
-    cache.request(&renderer, &gpu, meshes);
+    cache.request(&gpu, meshes);
     assert!(settle(&mut cache).is_empty());
-    // Cleared while a batch loads, and once it holds everything.
-    cache.request(&renderer, &gpu, [AssetId::from_u128(999)]);
-    cache.clear();
-    assert_eq!(cache.loading(), 0);
-    assert!(cache.mesh(meshes[0]).is_none() && cache.material(AssetId::from_u128(200)).is_none());
-    assert!(cache.poll().is_empty());
-    cache.request(&renderer, &gpu, meshes);
-    assert!(settle(&mut cache).is_empty());
+    // Drawn by another renderer of the same device.
+    let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
     check_cached(&gpu, &mut renderer, &cache, 0..6, |_| false);
 }
 
@@ -832,13 +841,16 @@ fn a_reload_keeps_what_did_not_change_and_takes_the_rest_at_once() {
     let gpu = gpu();
     let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
     let (directory, _) = palette("cache-reload", 4);
-    let mut cache = AssetCache::new(CookedAssets::open(&directory).expect("the manifest is read"));
+    let mut cache = AssetCache::new(
+        &renderer,
+        CookedAssets::open(&directory).expect("the manifest is read"),
+    );
     let meshes = palette_meshes();
-    cache.request(&renderer, &gpu, meshes);
+    cache.request(&gpu, meshes);
     assert!(settle(&mut cache).is_empty());
     whiten_the_second_texture(&directory);
     let assets = CookedAssets::open(&directory).expect("the manifest is read");
-    cache.reload(&renderer, &gpu, assets);
+    cache.reload(&gpu, assets);
     // Until the reload finishes, the cache gives what it held.
     assert!(cache.reloading());
     check_cached(&gpu, &mut renderer, &cache, 0..6, |_| false);
@@ -852,9 +864,12 @@ fn a_reload_drops_the_meshes_that_the_new_data_no_longer_lists() {
     let gpu = gpu();
     let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
     let (directory, _) = palette("cache-removed", 4);
-    let mut cache = AssetCache::new(CookedAssets::open(&directory).expect("the manifest is read"));
+    let mut cache = AssetCache::new(
+        &renderer,
+        CookedAssets::open(&directory).expect("the manifest is read"),
+    );
     let meshes = palette_meshes();
-    cache.request(&renderer, &gpu, meshes);
+    cache.request(&gpu, meshes);
     assert!(settle(&mut cache).is_empty());
     // The last square is cooked no more: the new manifest does not list it.
     let path = directory.join(MANIFEST_FILE);
@@ -865,14 +880,14 @@ fn a_reload_drops_the_meshes_that_the_new_data_no_longer_lists() {
     }
     fs::write(&path, listed.to_bytes()).expect("written");
     let assets = CookedAssets::open(&directory).expect("the manifest is read");
-    cache.reload(&renderer, &gpu, assets);
+    cache.reload(&gpu, assets);
     assert!(cache.mesh(meshes[5]).is_none(), "dropped at once");
     assert!(settle(&mut cache).is_empty(), "the others are loaded again");
     check_cached(&gpu, &mut renderer, &cache, 0..5, |_| false);
     // The reloads after it go through.
     whiten_the_second_texture(&directory);
     let assets = CookedAssets::open(&directory).expect("the manifest is read");
-    cache.reload(&renderer, &gpu, assets);
+    cache.reload(&gpu, assets);
     assert!(settle(&mut cache).is_empty());
     check_cached(&gpu, &mut renderer, &cache, 0..5, |index| index % 3 == 1);
 }

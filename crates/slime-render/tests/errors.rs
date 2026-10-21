@@ -5,7 +5,7 @@
 
 use slime_color::LinearColor;
 use slime_gfx::{GfxError, Gpu, RenderTarget, TextureFormat};
-use slime_render::{Camera, MaterialData, RenderError, Renderer, Scene, Sky};
+use slime_render::{Camera, Environment, MaterialData, RenderError, Renderer, Scene, Sky};
 
 const FORMAT: TextureFormat = TextureFormat::Rgba8UnormSrgb;
 
@@ -24,7 +24,7 @@ fn creations_on_a_lost_device_return_the_loss() {
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
     let mut renderer = Renderer::new(&gpu, FORMAT).expect("the renderer is created");
     let (small, larger) = (target(&gpu, 32), target(&gpu, 64));
-    let mut scene = Scene::new(Camera::default(), &[]);
+    let mut scene = Scene::new(Camera::default(), Vec::new());
     scene.bloom = 0.5;
     renderer
         .render(&gpu, &small, &scene)
@@ -47,6 +47,6 @@ fn creations_on_a_lost_device_return_the_loss() {
         ground: LinearColor::rgb(1000.0, 1000.0, 1000.0),
         sun: None,
     };
-    let environment = renderer.create_environment(&gpu, &grey);
+    let environment = Environment::new(&gpu, &grey);
     assert!(is_lost(&environment), "{environment:?}");
 }

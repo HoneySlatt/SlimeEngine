@@ -1341,13 +1341,13 @@ pub mod cooked {
         world.update_transforms();
         let gpu = Gpu::new().expect("a GPU adapter must be available");
         let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
-        let mut cache = AssetCache::new(assets);
+        let mut cache = AssetCache::new(&renderer, assets);
         // Without a sky: its environment is made once, and is not what a frame costs.
         let mut builder = FrameBuilder::new(None);
         let started = Instant::now();
         loop {
             let frame = builder
-                .build(&world, &mut cache, &renderer, &gpu, 0.0)
+                .build(&world, &mut cache, &gpu, 0.0)
                 .expect("the frame is built");
             assert!(frame.errors.is_empty(), "{:?}", frame.errors);
             if frame.loading == 0 {
@@ -1364,7 +1364,7 @@ pub mod cooked {
             .map(|_| {
                 let started = Instant::now();
                 let frame = builder
-                    .build(&world, &mut cache, &renderer, &gpu, 0.5)
+                    .build(&world, &mut cache, &gpu, 0.5)
                     .expect("the frame is built");
                 std::hint::black_box((frame.instances.len(), frame.lights.len()));
                 started.elapsed()
@@ -1372,7 +1372,7 @@ pub mod cooked {
             .collect();
         times.sort_unstable();
         let frame = builder
-            .build(&world, &mut cache, &renderer, &gpu, 0.5)
+            .build(&world, &mut cache, &gpu, 0.5)
             .expect("the frame is built");
         eprintln!(
             "a frame of the zone's world, {} instances and {} lights: {:?} at best, {:?} at the median",

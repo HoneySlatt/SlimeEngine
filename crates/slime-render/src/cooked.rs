@@ -81,7 +81,7 @@ pub struct LoadedScene {
 
 impl LoadedScene {
     /// The instances to draw: one per mesh that a node places, casting shadows.
-    pub fn instances(&self) -> Vec<Instance<'_>> {
+    pub fn instances(&self) -> Vec<Instance> {
         self.placements
             .iter()
             .map(|placement| {
@@ -771,7 +771,7 @@ impl Renderer {
         id: AssetId,
         reuse: Reusable,
     ) -> SceneLoad {
-        let load = self.start_load(
+        let load = self.loader().start_load(
             gpu,
             assets,
             reuse,
@@ -802,6 +802,28 @@ impl Renderer {
         SceneLoad { load }
     }
 
+    /// What its loads, and an asset cache's, take of it: the parts of its materials, the pages of
+    /// its meshes and its uploader, which they share.
+    pub(crate) fn loader(&self) -> Loader {
+        Loader {
+            parts: self.material_parts.clone(),
+            meshes: self.meshes.clone(),
+            uploader: self.uploader.clone(),
+        }
+    }
+}
+
+/// What a load takes of the renderer that draws what it brings: the parts of its materials, the
+/// pages of its meshes and its uploader. An asset cache keeps one from its creation, so that it
+/// loads without the renderer (ADR-0111).
+#[derive(Clone)]
+pub(crate) struct Loader {
+    parts: MaterialParts,
+    meshes: MeshPages,
+    uploader: Uploader,
+}
+
+impl Loader {
     /// Starts loading the meshes `mesh_ids` from `assets`, each once, with the materials they are
     /// drawn with and the textures those read, as a scene's load does: a batch for the asset cache,
     /// which keeps what `reuse` holds whose cooked file the manifest still names.
@@ -844,7 +866,7 @@ impl Renderer {
             work: Mutex::new(Some(Work {
                 gpu: gpu.clone(),
                 assets: Arc::new(assets.clone()),
-                parts: self.material_parts.clone(),
+                parts: self.parts.clone(),
                 meshes: self.meshes.clone(),
                 uploader: self.uploader.clone(),
                 reuse,
@@ -1386,7 +1408,7 @@ mod tests {
         fs::write(directory.join(MANIFEST_FILE), Manifest::new().to_bytes()).expect("written");
         let assets = CookedAssets::open(&directory).expect("the manifest is read");
         // The upload's callback is dropped by the panic's unwinding, before the task records it.
-        let load = renderer.start_load(
+        let load = renderer.loader().start_load(
             &gpu,
             &assets,
             Reusable::default(),

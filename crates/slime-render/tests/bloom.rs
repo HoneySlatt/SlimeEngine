@@ -15,7 +15,8 @@ use slime_color::LinearColor;
 use slime_gfx::{FloatImage, Gpu, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Vec3};
 use slime_render::{
-    Camera, Instance, Material, MaterialData, Mesh, MeshData, RenderStats, Renderer, Scene, Sky,
+    Camera, Environment, Instance, Material, MaterialData, Mesh, MeshData, RenderStats, Renderer,
+    Scene, Sky,
 };
 
 fn gpu() -> Gpu {
@@ -107,7 +108,7 @@ impl Pixel {
             .create_mesh(&self.gpu, "pixel", &pixel_square(width, height, at))
             .expect("the square is valid");
         let instances = [Instance::new(&mesh, &self.emitter, DAffine3::IDENTITY)];
-        let mut scene = Scene::new(camera(), &instances);
+        let mut scene = Scene::new(camera(), instances.clone());
         scene.bloom = bloom;
         let stats = self
             .renderer
@@ -226,19 +227,18 @@ fn uniform(
     let output = gpu
         .create_render_target("output", width, height, TextureFormat::Rgba16Float)
         .expect("the GPU has memory for it");
-    let environment = renderer
-        .create_environment(
-            gpu,
-            &Sky {
-                zenith: LinearColor::rgb(light, light, light),
-                horizon: LinearColor::rgb(light, light, light),
-                ground: LinearColor::rgb(light, light, light),
-                sun: None,
-            },
-        )
-        .expect("the GPU has memory for it");
-    let mut scene = Scene::new(Camera::default(), &[]);
-    scene.environment = Some(&environment);
+    let environment = Environment::new(
+        gpu,
+        &Sky {
+            zenith: LinearColor::rgb(light, light, light),
+            horizon: LinearColor::rgb(light, light, light),
+            ground: LinearColor::rgb(light, light, light),
+            sun: None,
+        },
+    )
+    .expect("the GPU has memory for it");
+    let mut scene = Scene::new(Camera::default(), Vec::new());
+    scene.environment = Some(environment.clone());
     scene.bloom = bloom;
     let stats = renderer
         .render(gpu, &output, &scene)

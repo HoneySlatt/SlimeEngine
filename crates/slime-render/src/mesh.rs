@@ -160,6 +160,15 @@ pub struct Mesh {
     pub(crate) half_size: Vec3,
 }
 
+impl PartialEq for Mesh {
+    /// Whether the two are one mesh: one is a clone of the other, and they draw the same ranges.
+    fn eq(&self, other: &Self) -> bool {
+        self.identity() == other.identity()
+    }
+}
+
+impl Eq for Mesh {}
+
 impl Mesh {
     /// How many triangles the mesh has.
     pub fn triangle_count(&self) -> u32 {

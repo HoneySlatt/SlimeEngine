@@ -257,17 +257,17 @@ impl View {
         hero: Entity,
         night: bool,
     ) -> Result<Self, AppError> {
+        let renderer = Renderer::new(gpu, format)?;
         let mut view = Self {
-            renderer: Renderer::new(gpu, format)?,
-            cache: AssetCache::new(assets.clone()),
+            cache: AssetCache::new(&renderer, assets.clone()),
+            renderer,
             day: FrameBuilder::new(Some(OVERCAST)),
             night: FrameBuilder::new(Some(NIGHT_SKY)),
             glow: Glow::find(assets),
             zone_shown: false,
         };
         let hero = meshes_below(world, hero);
-        view.cache
-            .request(&view.renderer, gpu, hero.iter().copied());
+        view.cache.request(gpu, hero.iter().copied());
         // A frame of the world asks for what else it draws, in a batch of its own, and computes the
         // sky of the time the game is at; one of the other time's lights alone, that time's sky.
         let mut errors = Vec::new();
@@ -284,11 +284,7 @@ impl View {
             } else {
                 &mut view.day
             };
-            errors.extend(
-                builder
-                    .build(lit, &mut view.cache, &view.renderer, gpu, 1.0)?
-                    .errors,
-            );
+            errors.extend(builder.build(lit, &mut view.cache, gpu, 1.0)?.errors);
         }
         // Errors first: a batch that failed is held by none, and the first frames would not see
         // its error again.
@@ -312,7 +308,7 @@ impl View {
     /// it is loaded. A game calls it once the view is settled ([`View::settled`]).
     pub fn reload(&mut self, gpu: &Gpu, assets: CookedAssets) {
         self.glow = Glow::find(&assets);
-        self.cache.reload(&self.renderer, gpu, assets);
+        self.cache.reload(gpu, assets);
     }
 
     /// Makes the renderer's pipelines again from `sources` ([`Renderer::set_shaders`]): the frames
@@ -385,7 +381,7 @@ impl View {
         } else {
             (&mut self.day, DAY_EXPOSURE)
         };
-        let mut frame = builder.build(world, &mut self.cache, &self.renderer, gpu, alpha)?;
+        let frame = builder.build(world, &mut self.cache, gpu, alpha)?;
         if !self.zone_shown {
             if let Some(error) = taken.first().or(frame.errors.first()) {
                 // As in `View::new`: the loss itself, not a message that hides it.
