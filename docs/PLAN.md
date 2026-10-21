@@ -565,7 +565,9 @@ Risks:
   split the Linux checks in two jobs that run side by side, one for each of two parts of
   `scripts/check.sh`, `headless` and `windowed`
   ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md)), rather than shorten the session or
-  allow the job more time.
+  allow the job more time. On `0bb62c7`, the first run so, `check (headless)` took 9 minutes 55
+  seconds and `check (windowed)` 10 minutes 37 seconds, the agent's session 5 minutes 18 seconds of
+  it; `windows` 13 minutes 36 seconds and `windows-release` 11 minutes 57 seconds.
 
 ### M6a.7 — Identities and saves per scene
 
