@@ -432,19 +432,22 @@ Risks:
 - **How to test.** `cargo test --workspace`; `scripts/check.sh`.
 - **By hand.** The owner plays the zone, pauses and steps it from the overlay, and finds it
   otherwise unchanged.
-- **Outcome.** Done on 2026-10-21. [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)
-  records the design, and amends ADR-0057, ADR-0107, ADR-0110 and ADR-0120. `App` gave way to two
-  traits, `Simulation`, given the world to change, the input as data and both times, without a GPU
-  or a window, and `Presentation`, given the world as `&World` or not at all, its extraction before
-  the window's image is acquired and its rendering without the world; `Host`, which a test drives,
-  owns the world, both times, the input and the commands, and `run` is the host of a game's program.
-  The owner chose on 2026-10-21 that the presentation reads the world alone, not its simulation.
-  Game time runs at a speed, pauses and steps; the update runs while paused. `slime_platform::Input`
-  keeps the keys and buttons held, and a presentation takes for itself the presses that its overlay
-  takes. `slime_world::Command::SetProperty`, applied by `World::apply` at the next frame's start,
-  is what the world panel returns, and the panel finds its entity again by identity; the dev overlay
-  builds at extraction and draws at rendering; a frame's lights name their entities. *Hunna Wood* is
-  a library and its program: `HunnaWood`, its rules, and `Screen`, what the player sees; where the
+- **Outcome.** Done on 2026-10-21. The owner's check by hand, on Linux: the owner played the zone on
+  2026-10-21, paused it with F3, stepped it with F4, slowed it down with the statistics' slider,
+  turned the camera while it was paused, and found it otherwise unchanged.
+  [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md) records the design, and amends
+  ADR-0057, ADR-0107, ADR-0110 and ADR-0120. `App` gave way to two traits, `Simulation`, given the
+  world to change, the input as data and both times, without a GPU or a window, and `Presentation`,
+  given the world as `&World` or not at all, its extraction before the window's image is acquired
+  and its rendering without the world; `Host`, which a test drives, owns the world, both times, the
+  input and the commands, and `run` is the host of a game's program. The owner chose on 2026-10-21
+  that the presentation reads the world alone, not its simulation. Game time runs at a speed, pauses
+  and steps; the update runs while paused. `slime_platform::Input` keeps the keys and buttons held,
+  and a presentation takes for itself the presses that its overlay takes.
+  `slime_world::Command::SetProperty`, applied by `World::apply` at the next frame's start, is what
+  the world panel returns, and the panel finds its entity again by identity; the dev overlay builds
+  at extraction and draws at rendering; a frame's lights name their entities. *Hunna Wood* is a
+  library and its program: `HunnaWood`, its rules, and `Screen`, what the player sees; where the
   player looks is a component of the hero's, `hunnawood::Look`, turned on real time by the rules and
   followed by the camera; the fire flickers in the frame, and `unflicker` is gone; the screen holds
   game time paused until a frame draws the zone; F3 pauses and runs game time, F4 runs one step, and
@@ -777,9 +780,6 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
 - **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
   slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
   `af512af` prints.
-- **M6a.5, on Linux.** The owner plays the zone, pauses it with F3 and steps it with F4 from the
-  overlay, slows it down with the statistics' slider (F1), turns the camera while it is paused, and
-  finds it otherwise unchanged, the fire flickering as before.
 
 ### P1 — Saves and identities that never mislead
 
