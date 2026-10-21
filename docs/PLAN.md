@@ -253,8 +253,9 @@ Risks:
 - **How to test.** `cargo test --workspace`; `cargo run --release -p slime-benches -- loading
   loading.zone`; `scripts/check.sh`.
 - **By hand.** The owner starts the game, and sees the zone appear as before.
-- **Outcome.** Done on 2026-10-21. The owner's check by hand waits
-  ([the list](#checks-by-hand-waiting-for-the-owner)).
+- **Outcome.** Done on 2026-10-21. The owner's check by hand, on Linux: the owner started the
+  game on 2026-10-21, from `cargo run --release -p hunnawood -- --new --save <a file of its own>`,
+  and saw the zone appear as before.
   [ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md) records the design, and amends
   ADR-0107: the pool, `slime-tasks`, on the standard library alone, its tasks owning what they
   read, without `unsafe` code; the sky's environment and the table of the BRDF computed by frame
@@ -677,8 +678,6 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
 - **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
   slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
   `af512af` prints.
-- **M6a.2, on Linux.** The game started with `cargo run --release -p hunnawood -- --new --save <a
-  file of its own>`: the zone appears as before.
 
 ### P1 — Saves and identities that never mislead
 
