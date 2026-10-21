@@ -61,7 +61,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   channel and the MCP server, through which an agent drives a running game
   ([ADR-0122](adr/0122-the-development-channel.md)), and M6a.7a, driven components, keys and
   created entities written into levels
-  ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)). Next: M6a.7b.
+  ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)), and M6a.7b, saves
+  per scene, scenes unloaded and adoption ([ADR-0125](adr/0125-saves-per-scene.md)). Next: M6a.8.
 
 ## Status
 
@@ -74,7 +75,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6a.5](#m6a5--the-phases-of-a-frame-game-time-and-a-game-as-a-simulation-and-a-presentation) | Each phase of a frame says who may change the world; game time pauses and steps; a game's rules run without a GPU | Done |
 | [M6a.6](#m6a6--the-development-channel-and-the-mcp-server) | An agent drives a running game without a person | Done |
 | [M6a.7a](#m6a7a--driven-components-keys-and-created-entities-written-into-levels) | A save and a level written back hold what was changed, and name for good what a start creates | Done |
-| [M6a.7b](#m6a7b--saves-per-scene-and-adoption) | A save costs what changed; an entity outlives its level | Planned |
+| [M6a.7b](#m6a7b--saves-per-scene-and-adoption) | A save costs what changed; an entity outlives its level | Done |
 | [M6a.8](#m6a8--views-apart-from-the-renderer) | One renderer draws several views, each with its own settings | Planned |
 | [M6a.9](#m6a9--asset-requests) | What a view lacks loads first, and assets stay within a budget of memory | Planned |
 | [M6a.10](#m6a10--rendering-for-the-editor) | The renderer draws what an editor shows, and says what is under the cursor | Planned |
@@ -169,9 +170,9 @@ Risks:
 - **A port that listens.** The development channel is local, guarded by a token and absent from
   shipped builds; M6a.6 extends [ADR-0096](adr/0096-the-files-the-engine-reads.md)'s threat model to
   it.
-- **Saves.** M6a.7b changes the layout of saves: the fixture is made again, and whether the saves of
-  layouts 2 to 4, those of 0.4, those written since P1 and those of M6a.7a, are still read is
-  decided and tested.
+- **Saves.** M6a.7b changes the layout of saves: the fixture is made again, and the saves of layouts
+  1 to 4, those of 0.3, of 0.4, written since P1 and of M6a.7a, are refused
+  ([ADR-0125](adr/0125-saves-per-scene.md)).
 - **One GPU.** Budgets are checked on the owner's RX 6900 XT only ([Known debt](#known-debt)).
 - **The cost of the checks.** CI's jobs stay under the owner's 20 minutes
   ([ADR-0104](adr/0104-the-build-ci-and-measurements.md),
@@ -683,6 +684,60 @@ settles what a save and a level written back hold of each entity, the second
 - **How to test.** `cargo test -p slime-world -p slime-serialize`; `cargo test -p hunnawood --
   --ignored`.
 - **By hand.** The owner plays: F5, F9, quit and resume.
+- **Outcome.** Done on 2026-10-21. [ADR-0125](adr/0125-saves-per-scene.md) records the design and
+  the owner's four decisions of that day, and amends ADR-0087, ADR-0088, ADR-0093, ADR-0101,
+  ADR-0112, ADR-0122 and ADR-0124. A game settles its world once it made the start of a run, and
+  again once it prepared a scene that it spawned since (`World::settle`): the world then keeps a
+  copy of each value at its first change, in the storage of its type, the parent before an
+  entity's first move, and the identity of each entity settled that the run destroys, with the
+  `Persistence` that it held. `World::save(about)` writes, without a start world, layout 5: the
+  scenes under keys and the placements, what changed since the base, what the run created and
+  adopted whole, and what the world keeps of the scenes that it unloaded; it costs what changed.
+  `World::load` takes a callback that prepares the scenes that a save spawns, and `World::carry`
+  no longer takes the start of the scenes before they changed; the saves of layouts 1 to 4 are
+  refused (`DocumentError::Layout`, `World::about` too). `World::unload_scene` keeps what the run
+  changed of a scene, its references as identities, but what resets, and the world applies it when
+  the same scene is spawned again under its key and settled; `World::spawn_scene` under a key that
+  holds a scene unloads it, once it checked that the new one spawns (`WorldError::KeyInUse` is
+  gone), and `World::spawn_keyed` refuses a key that a scene holds. `World::adopt` takes an entity
+  of a scene, and the descendants under its identity, out of it under a key of its own, its former
+  identity and its scene kept: a save holds it whole, loading adopts the former entity again where
+  the world holds it, of the same scene, and a scene spawned again gives what refers to the record
+  adopted away, or is under it, to the entity adopted. `Simulation::save` and `Simulation::load`,
+  the development channel's `Save` and `Load`, at version 2 of the protocol, and the MCP server's
+  `save_game` and `load_game` save and load a running game. *Hunna Wood* settles its new game,
+  keeps its start's layout for its saves and its hot reload, sets a save of an earlier version of
+  the engine aside as `earlier-version`, and saves and loads for the channel; the fingerprint of
+  0.4 is gone, and its fixture was made again by the walk that its tests script to the portal at
+  night. `world.save.100k` saves about a hundred times faster, its load and its size unchanged
+  ([`docs/measurements.md`](measurements.md)). The review found, in three rounds, and the
+  milestone fixed: a later settle that took in the run's placements; references and children of
+  an adopted entity in its scene lost through a save, a scene spawned again, a load that spawns the
+  scene, or two levels spawned under one key; an adopted entity that the run destroyed brought
+  back by a load, and its key given out again; what an unloaded scene kept not renumbered on load;
+  and what a scene spawned again and not settled kept lost by a save. The tests, in
+  `slime-world`'s `tests/saves.rs`:
+  `a_scene_unloaded_then_spawned_again_gets_back_what_the_run_changed_but_what_resets`, through a
+  save too, and spawned again while loaded, as when the hero rests;
+  `a_scene_whose_root_resets_forgets_what_the_run_changed_but_of_what_persists`;
+  `a_save_made_with_a_scene_of_the_start_unloaded_unloads_it_and_keeps_what_the_run_kept`;
+  `an_adopted_entity_outlives_the_level_that_replaced_its_own_through_a_save_and_a_load`, with the
+  reference that the hero holds to it;
+  `what_its_scene_holds_of_an_adopted_entity_follows_it_through_a_save_and_back_in_its_level`;
+  `an_adopted_entity_that_the_run_destroyed_is_not_brought_back_by_a_load`;
+  `an_entity_adopted_out_of_a_level_that_a_load_spawns_stays_out_of_it`;
+  `entities_adopted_out_of_two_levels_spawned_under_one_key_are_told_apart`;
+  `the_key_of_an_adopted_entity_stays_its_own_once_it_is_gone`;
+  `what_the_run_did_to_its_placements_is_saved_after_the_game_settles_a_level`;
+  `what_a_level_unloaded_keeps_names_what_the_run_created_by_the_numbers_that_it_takes`;
+  `a_save_made_before_a_level_spawned_again_is_settled_gives_back_what_the_level_kept`;
+  `a_world_never_settled_is_not_saved`; and, in `document.rs`,
+  `a_save_of_an_earlier_layout_is_refused_saying_so`. Hot reload carries a run as before: the
+  tests of `World::carry` in `tests/saves.rs` and `tests/scenes.rs`, and the `world` example's.
+  `slime-app`'s `tests/channel.rs` saves and loads a headless run through the channel, and the MCP
+  server's `tests/drive.rs` saves *Hunna Wood*'s run, walks on and loads it back. *Hunna Wood*'s
+  tests of the zone pass, its new fixture resumed. `scripts/check.sh` passed. Not verified: the
+  owner's play by hand, F5, F9, quit and resume.
 
 ### M6a.8 — Views apart from the renderer
 
@@ -2042,19 +2097,20 @@ GitHub issues, linked from their entry; this list stays the reference.
   longer names it, and the file holds it. A save that names the written identities of what the
   run destroyed would settle it; the editor of Stage 6b writes levels through its commands, which
   meet it first.
-- **`World::spawn_keyed` gives a key under which the world remembers a scene of which nothing
-  lives** (ADR-0101): the entity created is then saved as that scene's root, and set aside with the
-  scene when a save loads where the scene cannot be resolved. `World::spawn_scene` refuses a key
-  whose scene has an entity alive; a key whose scene is gone whole is the world's to forget or
-  refuse. [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md) decides adoption and
-  saves per scene, which settle it when they are built, at M6a.7b.
+- **A game's preparation of a scene that a save spawns may change only the scene's entities**
+  ([ADR-0125](adr/0125-saves-per-scene.md)): what it creates, under a key or as a placement, is the
+  run's, which a save holds, and which loading the save creates before it prepares the scene, so
+  that a preparation that creates an entity under a key fails, and one that places a prefab places
+  it twice. *Hunna Wood* and the examples prepare without creating.
+- **What a run created under a scene's entities outlives the scene when it is unloaded**
+  ([ADR-0125](adr/0125-saves-per-scene.md)): it is taken out of them, at the world's root, rather
+  than kept with what the world keeps of the scene, as an item dropped in a level would be.
+- **What cannot be applied of what the world kept of a scene unloaded is logged, not reported**
+  (`World::settle`): as when the scene changed since it was unloaded, at the `warn` level, where a
+  save's load reports it to the game (`Loaded::set_aside`).
 - **`Range::contains` stays public beside `Range::holds`**: two ways to check a number against a
   range, the first in `f64`, which only tests' helpers use. Every check of a field's range uses
   `Range::holds` (ADR-0101); the helpers can move to it, and `contains` go.
-- ***Hunna Wood* compares the saves of 0.4 by the fingerprint of their layout** (ADR-0101), as 0.4
-  did, its fragility at the boundaries of its rounding included, until the save fixture is made
-  again: the owner decided to keep it until the game's first release, before which ADR-0100 allows
-  making it again. Later saves say their layout's numbers.
 - **Files stay beside *Hunna Wood*'s save**: `save.toml.lock`, which locks the save while a copy of
   the game runs, and `save.toml.<process id>.new`, when the game is killed while it writes. Neither
   is read again, nor removed.

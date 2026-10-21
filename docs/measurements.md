@@ -753,3 +753,33 @@ within the runs' spread; so do the passes on the GPU.
 | `world.frame.100k` | `FrameBuilder::build`, median of 20 | 14.41 ms |
 | `world.frame.100k` | `FrameBuilder::build`, 90th percentile of 20 | 14.61 ms |
 | `world.frame.100k` | instances in a frame | 100000 |
+
+## M6a.7b, before, RX 6900 XT
+
+Commit `09adade`, on 2026-10-21: the save that compares the world with a start world that the game
+makes again, with `world.save.100k`. The build is not measured in this section, nor in the next. A
+second run gave the save 655.03 ms at the median, its load 8.62 ms, its size 62 kB.
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `world.save.100k` | save of 100000 entities, 1000 moved, the level spawned again to compare with, as a game makes its start, median of 5 | 690.68 ms |
+| `world.save.100k` | its load, median of 5 | 9.33 ms |
+| `world.save.100k` | its size | 62 kB |
+
+## M6a.7b, RX 6900 XT
+
+Commit `7dffb22`, on 2026-10-21, measured as the section above: the level settled, the save
+without a start world ([ADR-0125](adr/0125-saves-per-scene.md)). A second run gave the save
+7.08 ms at the median, its load 9.80 ms. The save costs what changed: the values changed, read
+from the copies that the world kept of them, and one walk of the world's entities without their
+components; its size is the same, and so is its load, which applies what changed.
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `world.save.100k` | save of 100000 entities, 1000 moved, median of 5 | 6.82 ms |
+| `world.save.100k` | its load, median of 5 | 9.77 ms |
+| `world.save.100k` | its size | 62 kB |
