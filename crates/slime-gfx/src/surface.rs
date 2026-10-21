@@ -75,7 +75,7 @@ pub struct Surface {
     /// The present mode asked for, which a surface created again for a new device asks for too.
     present_mode: PresentMode,
     format: TextureFormat,
-    /// The largest width or height the device accepts for an image (8192 with the default limits).
+    /// The largest width or height the device accepts for an image (8192 at least: the engine's floor).
     max_dimension: u32,
     /// Whether the window is larger than that, so that its images are smaller than it.
     oversize: bool,
@@ -255,7 +255,7 @@ impl Surface {
     /// Sets the size of the window's images, in physical pixels; call it whenever the window is
     /// resized. The images change size from the next [`acquire`](Self::acquire). A size of zero,
     /// for example while the window is minimized, means there is nothing to draw. A width or
-    /// height above what the device accepts (8192 with the default limits) is limited to it, and
+    /// height above what the device accepts (8192 at least: the engine's floor) is limited to it, and
     /// the log says so once: the images are then smaller than the window.
     pub fn resize(&mut self, width: u32, height: u32) {
         let oversize = width > self.max_dimension || height > self.max_dimension;

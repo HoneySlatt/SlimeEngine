@@ -4,7 +4,7 @@ use slime_color::{linear_to_srgb8, srgb8_to_linear};
 use std::borrow::Cow;
 
 use crate::error::GfxError;
-use crate::gpu::{Gpu, submit};
+use crate::gpu::{Gpu, LARGEST_STAGING, submit};
 use crate::render_target::TextureFormat;
 use crate::upload::{Staged, StagedCopy};
 
@@ -66,8 +66,8 @@ impl Gpu {
     ///
     /// If `format` is `Rgba16Float` or block-compressed, whose textures take levels the caller
     /// gives ([`Gpu::create_texture_with_levels`]); if `width` or `height` is
-    /// zero or larger than the device allows ([`Gpu::max_texture_dimension`], 8192 with the
-    /// default limits); or if `pixels` does not hold `width * height * 4` bytes.
+    /// zero or larger than the device allows ([`Gpu::max_texture_dimension`], 8192 at least:
+    /// the engine's floor); or if `pixels` does not hold `width * height * 4` bytes.
     pub fn create_texture(
         &self,
         label: &str,
@@ -117,8 +117,8 @@ impl Gpu {
     /// blocks: a level of 2 × 1 texels is one block. Sampled like the textures of
     /// [`Gpu::create_texture`]; a sampler reads no level beyond the last given.
     ///
-    /// The levels reach the GPU through a buffer of the texture's own, which the CPU writes, and a
-    /// copy submitted at once: creating a texture costs a submission, and does not hold up the
+    /// The levels reach the GPU through buffers of the texture's own, of at most 256 MiB each,
+    /// which the CPU writes, and copies submitted at once: creating a texture costs a submission, and does not hold up the
     /// submissions of other threads while the texels are written (ADR-0074). Every texture of this
     /// crate is created so.
     ///
@@ -199,7 +199,7 @@ impl Gpu {
             (width, height, layers),
             format,
             levels,
-            self.max_buffer_size(),
+            LARGEST_STAGING,
             |size| {
                 Ok(self.device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some(label),

@@ -29,8 +29,8 @@ impl Gpu {
     /// # Panics
     ///
     /// If `size` is zero or not a multiple of 4 bytes, which GPU copies require, or if it is
-    /// larger than a shader can read at once ([`Gpu::max_storage_buffer_size`], 128 MiB with the
-    /// default limits).
+    /// larger than a shader can read at once ([`Gpu::max_storage_buffer_size`], 128 MiB at
+    /// least: the engine's floor).
     pub fn create_storage_buffer(&self, label: &str, size: u64) -> Result<StorageBuffer, GfxError> {
         assert!(
             size > 0 && size.is_multiple_of(4),

@@ -31,7 +31,7 @@ impl Gpu {
     /// # Panics
     ///
     /// If `contents` is empty (wgpu cannot bind an empty buffer), or larger than the device allows
-    /// ([`Gpu::max_buffer_size`], 256 MiB with the default limits).
+    /// ([`Gpu::max_buffer_size`], 256 MiB at least: the engine's floor).
     pub fn create_vertex_buffer(
         &self,
         label: &str,

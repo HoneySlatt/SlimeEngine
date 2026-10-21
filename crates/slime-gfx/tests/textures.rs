@@ -256,9 +256,10 @@ fn a_texture_that_another_thread_creates_through_a_clone_of_the_gpu_draws() {
 #[test]
 fn a_texture_larger_than_the_largest_buffer_draws() {
     let setup = Setup::new();
-    // As large as the device allows, with two levels: more bytes than the largest buffer holds
-    // (256 MiB with the default limits), so that its upload goes through several.
-    let side = setup.gpu.max_texture_dimension();
+    // As large as every device allows, the engine's floor, with two levels: more bytes than the
+    // largest buffer through which a texture is written, 256 MiB, so that its upload goes through
+    // several.
+    let side = 8192;
     let level = |side: u32| -> Vec<u8> {
         // The top half red, the bottom half green.
         let half = (side * side / 2) as usize;
@@ -266,9 +267,7 @@ fn a_texture_larger_than_the_largest_buffer_draws() {
     };
     let levels = [level(side), level(side / 2)];
     let levels: Vec<&[u8]> = levels.iter().map(Vec::as_slice).collect();
-    assert!(
-        levels.iter().map(|level| level.len() as u64).sum::<u64>() > setup.gpu.max_buffer_size()
-    );
+    assert!(levels.iter().map(|level| level.len() as u64).sum::<u64>() > 256 << 20);
     let texture = setup
         .gpu
         .create_texture_with_levels("large", side, side, TextureFormat::Rgba8UnormSrgb, &levels)

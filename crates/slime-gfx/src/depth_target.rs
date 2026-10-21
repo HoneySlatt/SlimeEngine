@@ -59,8 +59,8 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If `width` or `height` is zero or larger than the device allows (8192 with the default
-    /// limits).
+    /// If `width` or `height` is zero or larger than the device allows (8192 at
+    /// least: the engine's floor, [`Gpu::new`]).
     pub fn create_depth_target(
         &self,
         label: &str,

@@ -14,6 +14,23 @@ pub enum GfxError {
     /// The adapter refused to open a device.
     #[error("cannot open the GPU device")]
     RequestDevice(#[source] Source),
+    /// The adapter offers less than the engine needs of one of its limits, the floor that
+    /// [`Gpu::new`](crate::Gpu::new) gives: the engine does not open a device that it would fail
+    /// on later.
+    #[error(
+        "the GPU adapter {adapter} offers {offered} for its limit {limit}, where the engine needs \
+         {needed}"
+    )]
+    BelowFloor {
+        /// The adapter's name, as its driver gives it.
+        adapter: String,
+        /// The limit, by its name in WebGPU and wgpu, such as `max_bind_groups`.
+        limit: &'static str,
+        /// What the engine needs: the floor's value.
+        needed: u64,
+        /// What the adapter offers.
+        offered: u64,
+    },
     /// The graphics API cannot draw into the window.
     #[error("cannot create a surface for the window")]
     CreateSurface(#[source] Source),

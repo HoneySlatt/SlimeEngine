@@ -37,8 +37,8 @@ impl Gpu {
     /// # Panics
     ///
     /// If `indices` is empty (wgpu cannot bind an empty buffer), holds more than `u32::MAX`
-    /// indices, or is larger than the device allows ([`Gpu::max_buffer_size`], 256 MiB with the
-    /// default limits: 4 bytes per index).
+    /// indices, or is larger than the device allows ([`Gpu::max_buffer_size`], 256 MiB at
+    /// least, the engine's floor: 4 bytes per index).
     pub fn create_index_buffer(
         &self,
         label: &str,

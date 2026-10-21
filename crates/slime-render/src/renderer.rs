@@ -349,9 +349,10 @@ pub struct RenderStats {
 /// pipeline, material and mesh with one draw call (instancing), each instance's values read from a
 /// storage buffer by its number. Nothing is kept from one frame to the next: every instance of the
 /// scene costs CPU time at each frame, to place its box and test it, whether a pass draws it or
-/// not. A frame draws at most as many instances as the device's storage buffers hold values of,
-/// 1 048 576 with the default limits: the instances beyond, in the order of the scene's, are left
-/// out of every pass, with a warning the first time a renderer meets such a scene.
+/// not. A frame draws at most as many instances as the device's storage buffers hold values of:
+/// 1 048 576 at least, at the engine's floor of limits, and more on GPUs whose storage bindings
+/// are larger, 16 777 215 on the RX 6900 XT. The instances beyond, in the order of the scene's,
+/// are left out of every pass, with a warning the first time a renderer meets such a scene.
 ///
 /// It does not yet smooth the edges that a masked material cuts inside a triangle, or blend
 /// transparent surfaces.
@@ -897,8 +898,8 @@ impl Renderer {
     ///
     /// If `data`'s levels are not those of its size and encoding, or if it is larger than the
     /// device allows ([`Gpu::max_texture_dimension`]): a texture read from a cooked file has its
-    /// levels, and is no larger than `slime_assets::MAX_SIDE`, which the device's default limits
-    /// allow.
+    /// levels, and is no larger than `slime_assets::MAX_SIDE`, which every device allows at the
+    /// engine's floor of limits.
     pub fn create_texture(
         &self,
         gpu: &Gpu,
@@ -918,8 +919,8 @@ impl Renderer {
     /// tangents) of another length than the positions, no vertex, no triangle, a number of indices
     /// that is not a multiple of three, an index that names no vertex, a vertex value (position,
     /// normal, uv or tangent) that is not finite, or vertices or indices that need a buffer larger
-    /// than the device accepts ([`Gpu::max_buffer_size`], 256 MiB with the
-    /// default limits: 5 592 405 vertices, or 67 108 864 indices). [`RenderError::Gfx`] with
+    /// than the device accepts ([`Gpu::max_buffer_size`], 256 MiB at least,
+    /// the engine's floor: 5 592 405 vertices, or 67 108 864 indices). [`RenderError::Gfx`] with
     /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold the new page that the mesh
     /// needs, or with [`GfxError::DeviceLost`] once the device is lost.
     pub fn create_mesh(

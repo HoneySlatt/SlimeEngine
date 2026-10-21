@@ -44,15 +44,10 @@ fn no_graphics_api_means_no_adapter() {
 }
 
 #[test]
-fn the_largest_texture_is_that_of_the_default_limits_on_every_adapter() {
+fn the_largest_texture_and_buffer_are_the_adapter_s_at_least_the_floor_s() {
     let gpu = slime_gfx::Gpu::new()
         .expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    assert_eq!(gpu.max_texture_dimension(), 8192);
-}
-
-#[test]
-fn the_largest_buffer_is_that_of_the_default_limits_on_every_adapter() {
-    let gpu = slime_gfx::Gpu::new()
-        .expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
-    assert_eq!(gpu.max_buffer_size(), 256 << 20);
+    assert!(gpu.max_texture_dimension() >= 8192);
+    assert!(gpu.max_buffer_size() >= 256 << 20);
+    assert!(gpu.max_storage_buffer_size() >= 128 << 20);
 }

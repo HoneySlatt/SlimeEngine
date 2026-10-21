@@ -277,6 +277,11 @@ blinks as its coverage of the pixel changes from frame to frame. The renderer do
 **Fixed step.** A duration of time, constant for a run, in which code that must not depend on
 the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or more fixed steps.
 
+**Floor (of limits).** The least that the engine needs of a GPU adapter's limits, such as how many
+textures a shader reads or how large a buffer is: WebGPU's default limits. A device opens with
+every limit that its adapter offers, and an adapter below the floor is refused, the limit named
+(`slime_gfx::GfxError::BelowFloor`, [ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)).
+
 **Former identity.** What an entity was called before the editor moved it out of its file, which
 the file that holds it then writes, so that saves, overrides and references that named it find it
 ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)). Decided, not built yet.

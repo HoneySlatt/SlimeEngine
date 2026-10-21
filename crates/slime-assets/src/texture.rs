@@ -6,8 +6,8 @@ use ktx2::dfd;
 use crate::bytes::Reader;
 use crate::error::CookedError;
 
-/// The longest side of a texture, in texels: the largest that the GPU takes with the engine's
-/// default limits (`slime_gfx::Gpu::max_texture_dimension`). The cooker refuses a larger image, and
+/// The longest side of a texture, in texels: the largest that every GPU takes at the engine's
+/// floor (`slime_gfx::Gpu::max_texture_dimension`). The cooker refuses a larger image, and
 /// [`CookedTexture::from_ktx2`] a larger texture.
 pub const MAX_SIDE: u32 = 8192;
 

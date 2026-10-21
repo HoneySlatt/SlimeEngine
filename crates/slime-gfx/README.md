@@ -114,7 +114,9 @@ fn main() -> Result<(), GfxError> {
 
 - `Gpu::new()` opens the most capable GPU of the machine, without a window, and
   `Gpu::new_for_window(window, width, height, present_mode)` one that can draw into a window,
-  together with the window's `Surface` (ADR-0020). `Gpu::check()` says whether the device was lost;
+  together with the window's `Surface` (ADR-0020). The device has every limit that its adapter
+  offers, and an adapter below the engine's floor of limits is refused with `GfxError::BelowFloor`,
+  which names the limit (ADR-0114). `Gpu::check()` says whether the device was lost;
   once it is, the methods that return a `Result` return `GfxError::DeviceLost`, which says why
   (`LossKind`; ADR-0022), and so do they when they are the first to find the loss, on any thread,
   waits included: the engine never polls the device, on which wgpu panics (ADR-0103).

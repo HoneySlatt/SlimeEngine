@@ -62,6 +62,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `slime_gfx::Gpu` opens its device with every limit that its adapter offers, where it asked for
+  WebGPU's default limits, which are now the engine's floor: an adapter below it is refused with
+  `GfxError::BelowFloor`, which names the limit, rather than failing later. A frame draws as many
+  instances as the device's storage buffers hold, 16 777 215 on the RX 6900 XT where it drew
+  1 048 576; textures are still written, and images read back, through buffers of at most 256 MiB.
 - `World::get_mut` and `World::query_mut`'s `&mut T` give a guard, `slime_world::Mut`, rather than
   `&mut T`: it reads as the value, and its first write stamps it as changed. Code that wrote
   through `&mut T` mostly compiles as it was; a closure of `query_mut` that writes through a guard

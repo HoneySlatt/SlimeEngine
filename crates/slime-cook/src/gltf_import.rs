@@ -60,8 +60,8 @@ use crate::ids::{SubAssetKind, default_material_id, sub_asset_ids, texture_id};
 use crate::image::ImageKind;
 use crate::texture::TextureRole;
 
-/// The most vertices one mesh takes: those of 48 bytes that the GPU's largest buffer holds with
-/// the engine's default limits, 256 MiB.
+/// The most vertices one mesh takes: those of 48 bytes that the GPU's largest buffer holds at
+/// the engine's floor of limits, 256 MiB, as every GPU the engine opens does.
 pub const MAX_MESH_VERTICES: usize = 5_592_405;
 /// The most indices one mesh takes: those of 4 bytes that the same buffer holds.
 pub const MAX_MESH_INDICES: usize = 67_108_864;

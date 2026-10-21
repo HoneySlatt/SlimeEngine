@@ -10,7 +10,8 @@
 //! during the run, alone or while another thread submits work to the GPU, as threads that load a
 //! scene do.
 //! `scripts/check.sh` runs it in a headless Weston with lavapipe, then runs it again in a second
-//! one, at scale 2, for the resizes alone (ADR-0024). It is not in the default run of `cargo test`
+//! one, at scale 2, for the resizes and the window larger than the GPU can draw into, which only
+//! the compositor that doubles a window makes wider than the largest window (ADR-0024). It is not in the default run of `cargo test`
 //! (`test = false` in Cargo.toml), since it needs a compositor, and it has no harness, since the
 //! windowing library needs the main thread.
 //!
@@ -44,14 +45,13 @@ mod linux {
     use slime_platform::{Event, PlatformError, WindowConfig};
 
     const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";
-    const SCENARIOS: [&str; 16] = [
+    const SCENARIOS: [&str; 15] = [
         "calls",
         "spans",
         "init-error",
         "exit-in-init",
         "draws-nothing",
         "no-gpu",
-        "oversize",
         "device-lost",
         "device-restored",
         "lost-again",
@@ -67,7 +67,7 @@ mod linux {
     /// after the first frame, and the window then doubles in size; at scale 1, nothing resizes a
     /// window once it exists.
     const SCALED_ENV: &str = "SLIME_APP_TEST_SCALED";
-    const SCALED_SCENARIOS: [&str; 2] = ["resized", "resized-while-submitting"];
+    const SCALED_SCENARIOS: [&str; 3] = ["resized", "resized-while-submitting", "oversize"];
     /// The frame in whose `render` the `device-lost`, `device-restored`, `lost-in-gpu-restored` and
     /// `loss-returned-by-render` scenarios lose the GPU device and the `lost-unrecorded` scenario
     /// makes it invalid, from which the `lost-again` scenario loses it at every frame and the
@@ -324,11 +324,12 @@ mod linux {
                 config.frame_limit = Some(STOP_FRAME + 30);
             }
             "oversize" => {
-                // Wider than the largest image the device accepts (8192 pixels with the default
-                // limits); low, so that its images stay small for lavapipe.
+                // More than half as wide as the largest image the device accepts (LARGEST_IMAGE),
+                // which the compositor at scale 2 doubles past it, no window being as wide; low,
+                // so that its images stay small for lavapipe.
                 config.window = Some(WindowConfig {
                     title: "windowed lifecycle".to_owned(),
-                    width: 9000,
+                    width: LARGEST_IMAGE / 2 + 500,
                     height: 64,
                 });
                 config.frame_limit = Some(10);
@@ -758,21 +759,27 @@ mod linux {
             .collect()
     }
 
+    /// The largest width or height of an image that lavapipe, which the test runs on, accepts: the
+    /// device has every limit that its adapter offers.
+    const LARGEST_IMAGE: u32 = 16_384;
+
     fn check_oversize(lines: &[&str]) {
         // wgpu rejects a surface larger than the device's largest image, and its errors panic.
         assert!(lines.contains(&"result Ok"), "the run succeeds: {lines:?}");
         let sizes = image_sizes(lines);
         assert!(!sizes.is_empty(), "frames are drawn: {lines:?}");
+        assert!(
+            sizes.iter().any(|size| size[2] > LARGEST_IMAGE),
+            "the window grows wider than the device's largest image (is the compositor at scale \
+             2?): {sizes:?}"
+        );
         for size in sizes {
             let [width, height, window_width, window_height] = size;
-            assert!(
-                window_width > 8192,
-                "the compositor keeps the window wider than the device's largest image: {size:?}"
-            );
             assert_eq!(
                 (width, height),
-                (8192, window_height),
-                "the image is as wide as the device allows, and as high as the window"
+                (window_width.min(LARGEST_IMAGE), window_height),
+                "the image is as wide as the window or as the device allows, and as high as the \
+                 window"
             );
         }
     }

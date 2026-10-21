@@ -122,8 +122,13 @@ impl Gpu {
     /// `WGPU_DISCARD_HAL_LABELS=1` is set). The graphics API's own validation layers stay off
     /// unless `WGPU_VALIDATION=1` is set; wgpu always validates how the engine uses it, and a use
     /// it rejects is a bug that panics, except once the device is lost ([`Gpu::check`]). Memory
-    /// that runs out is not a bug: see [`GfxError::OutOfMemory`]. The device has the default
-    /// limits, and the optional features the adapter offers among those the engine uses:
+    /// that runs out is not a bug: see [`GfxError::OutOfMemory`]. The device has every limit that
+    /// its adapter offers (ADR-0114), which must reach the engine's floor, WebGPU's default limits
+    /// (wgpu's `Limits::default`): among them, 4 bind groups per pipeline, 16 sampled textures and
+    /// 8 storage buffers per shader stage, textures of 8192 texels a side, buffers of 256 MiB and
+    /// storage bindings of 128 MiB, offsets aligned on 256 bytes. The engine draws everything it
+    /// draws within them, and every desktop GPU of the last ten years offers more, as lavapipe and
+    /// WARP do. It has the optional features that the adapter offers among those the engine uses:
     /// timestamp queries ([`Gpu::can_time`]) and BC texture compression ([`Gpu::can_sample_bc`]).
     ///
     /// On Direct3D 12, shaders are compiled with DXC when its library, `dxcompiler.dll`, lies
@@ -147,9 +152,10 @@ impl Gpu {
     ///
     /// # Errors
     ///
-    /// [`GfxError::NoAdapter`] if no adapter of the graphics API is available, and
-    /// [`GfxError::RequestDevice`] if the adapter refuses to open a device, as when the memory
-    /// budget is too small for it.
+    /// [`GfxError::NoAdapter`] if no adapter of the graphics API is available;
+    /// [`GfxError::BelowFloor`] if the adapter offers less than the floor of one of its limits,
+    /// which it names; and [`GfxError::RequestDevice`] if the adapter refuses to open a device, as
+    /// when the memory budget is too small for it.
     pub fn new() -> Result<Self, GfxError> {
         Self::open(&create_instance(), None, None).map(|(gpu, _adapter)| gpu)
     }
@@ -233,9 +239,14 @@ impl Gpu {
         // compression, which only the asset pipeline's cooked textures need (ADR-0069).
         let required_features = adapter.features()
             & (wgpu::Features::TIMESTAMP_QUERY | wgpu::Features::TEXTURE_COMPRESSION_BC);
+        // Every limit the adapter offers, so that what the engine sizes by the device's limits,
+        // the instances a frame draws among them, grows with the GPU (ADR-0114).
+        let required_limits = adapter.limits();
+        check_floor(&info.name, &required_limits, &floor())?;
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("SlimeEngine device"),
             required_features,
+            required_limits,
             ..Default::default()
         }))
         .map_err(|error| GfxError::RequestDevice(Box::new(error)))?;
@@ -500,20 +511,21 @@ impl Gpu {
 
     /// The alignment, in bytes, of the offsets given to
     /// [`RenderPass::set_bind_group`](crate::RenderPass::set_bind_group) for bindings with a
-    /// dynamic offset (256 with the default limits): a uniform buffer that holds the values of
+    /// dynamic offset (256 at most: the engine's floor, [`Gpu::new`]): a uniform buffer that holds the values of
     /// many draws lays them out at multiples of it.
     pub fn uniform_offset_alignment(&self) -> usize {
         self.device.limits().min_uniform_buffer_offset_alignment as usize
     }
 
     /// The largest width or height, in pixels, of a texture, a render target, a depth target or a
-    /// window's image (8192 with the default limits). A caller that creates textures from files
-    /// checks their size against it: [`Gpu::create_texture`] panics on a larger one.
+    /// window's image: the adapter's, 8192 at least, the engine's floor. A caller that creates
+    /// textures from files checks their size against it: [`Gpu::create_texture`] panics on a larger one.
     pub fn max_texture_dimension(&self) -> u32 {
         self.device.limits().max_texture_dimension_2d
     }
 
-    /// The largest size, in bytes, of a buffer (256 MiB with the default limits). A caller that
+    /// The largest size, in bytes, of a buffer: the adapter's, 256 MiB at least, the engine's
+    /// floor. A caller that
     /// creates buffers from files checks their size against it: [`Gpu::create_vertex_buffer`] and
     /// [`Gpu::create_index_buffer`] panic on a larger one.
     pub fn max_buffer_size(&self) -> u64 {
@@ -522,7 +534,7 @@ impl Gpu {
 
     /// The largest storage buffer that a shader reads at once, in bytes: the size of the largest
     /// buffer the device creates or of the largest range it binds for storage, whichever is
-    /// smaller (128 MiB with the default limits).
+    /// smaller: the adapter's, 128 MiB at least, the engine's floor.
     pub fn max_storage_buffer_size(&self) -> u64 {
         let limits = self.device.limits();
         limits
@@ -614,6 +626,39 @@ pub(crate) fn create_instance() -> wgpu::Instance {
     wgpu::Instance::new(descriptor)
 }
 
+/// The least that the engine needs of a GPU adapter's limits, the *floor*, which [`Gpu::new`] checks
+/// and describes (ADR-0114).
+fn floor() -> wgpu::Limits {
+    wgpu::Limits::default()
+}
+
+/// The largest buffer through which a texture is written or an image is read back at once: the
+/// largest buffer at the floor, so that these cost as much memory on every GPU, however large the
+/// buffers that its adapter offers.
+pub(crate) const LARGEST_STAGING: u64 = 256 << 20;
+
+/// Refuses `offered`, the limits of the adapter named `adapter`, if one is below `floor`, naming
+/// the first such limit.
+fn check_floor(
+    adapter: &str,
+    offered: &wgpu::Limits,
+    floor: &wgpu::Limits,
+) -> Result<(), GfxError> {
+    let mut below = None;
+    floor.check_limits_with_fail_fn(offered, true, |limit, needed, offered| {
+        below = Some((limit, needed, offered));
+    });
+    match below {
+        Some((limit, needed, offered)) => Err(GfxError::BelowFloor {
+            adapter: adapter.to_owned(),
+            limit,
+            needed,
+            offered,
+        }),
+        None => Ok(()),
+    }
+}
+
 /// The environment variable that lowers the GPU memory that creations may use, to a percentage of
 /// what the driver allows the process (ADR-0044).
 pub const MEMORY_BUDGET_ENV_VAR: &str = "SLIME_GPU_MEMORY_BUDGET";
@@ -684,6 +729,48 @@ mod tests {
     use super::*;
     use crate::{RenderPassDescriptor, RenderTarget, TextureFormat};
     use slime_color::LinearColor;
+
+    #[test]
+    fn an_adapter_below_the_floor_is_refused_with_the_limit_it_lacks() {
+        let floor = floor();
+        let offered = wgpu::Limits {
+            max_bind_groups: 3,
+            ..floor.clone()
+        };
+        let error = check_floor("an old GPU", &offered, &floor).expect_err("refused");
+        assert!(
+            matches!(
+                &error,
+                GfxError::BelowFloor { adapter, limit: "max_bind_groups", needed: 4, offered: 3 }
+                    if adapter == "an old GPU"
+            ),
+            "{error:?}"
+        );
+        assert_eq!(
+            error.to_string(),
+            "the GPU adapter an old GPU offers 3 for its limit max_bind_groups, where the engine \
+             needs 4"
+        );
+        // An alignment is better the smaller it is.
+        let finer = wgpu::Limits {
+            min_uniform_buffer_offset_alignment: 64,
+            ..floor.clone()
+        };
+        assert!(check_floor("a GPU", &finer, &floor).is_ok());
+        assert_eq!(
+            LARGEST_STAGING, floor.max_buffer_size,
+            "the floor's largest buffer"
+        );
+    }
+
+    /// Prints the limits of the device, which CI's log shows for the drivers it runs on.
+    #[test]
+    fn the_device_has_its_adapter_s_limits_above_the_floor() {
+        let gpu = Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists them");
+        let limits = gpu.device.limits();
+        assert!(floor().check_limits(&limits), "{limits:#?}");
+        eprintln!("the limits of {}: {limits:#?}", gpu.adapter_name);
+    }
 
     #[test]
     fn direct3d_12_compiles_shaders_with_the_dxc_beside_the_program_unless_asked_otherwise() {

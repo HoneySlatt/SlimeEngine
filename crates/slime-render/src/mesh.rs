@@ -506,7 +506,7 @@ pub(crate) const VERTEX_LAYOUT: VertexLayout<'static> = VertexLayout {
 mod tests {
     use super::*;
 
-    /// The largest buffer of wgpu's default limits, which `Gpu::new` asks for.
+    /// The largest buffer of the engine's floor of limits, which `Gpu::new` checks.
     const MAX_BUFFER_SIZE: u64 = 256 << 20;
 
     fn triangle() -> MeshData {

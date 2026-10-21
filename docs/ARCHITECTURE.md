@@ -322,9 +322,10 @@ gpu = Gpu::new()
 ├── uniform_offset_alignment()                           the step of a bind group's dynamic
 │                                                        offsets into a uniform buffer
 ├── max_texture_dimension()                              the largest side of a texture or a
-│                                                        target (8192 with the default limits)
-├── max_buffer_size()                                    the largest buffer (256 MiB with the
-│                                                        default limits)
+│                                                        target: the adapter's, at least the
+│                                                        floor's, 8192 (ADR-0114)
+├── max_buffer_size()                                    the largest buffer: the adapter's, at
+│                                                        least the floor's, 256 MiB
 ├── create_timer(label, passes)                          a GpuTimer for up to `passes` passes of a
 │                                                        submission, when can_time() says the
 │                                                        adapter has timestamp queries
@@ -567,7 +568,7 @@ whether there is an image to draw:
 | Reported | Handled by |
 |---|---|
 | A new size (from `Event::Resized`) | `Surface::resize`; the surface is configured again before the next image |
-| A size above the largest image the device accepts (8192 pixels in a dimension with the default limits) | Limited to it, with a warning; the images are then smaller than the window |
+| A size above the largest image the device accepts (the adapter's, 8192 pixels in a dimension at least) | Limited to it, with a warning; the images are then smaller than the window |
 | A size of zero (minimized window) | No image; the frame runs without drawing |
 | Outdated configuration | Configured again, then one more try; no image this frame if still outdated |
 | Suboptimal image | Drawn and presented, then configured again |

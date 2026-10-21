@@ -178,8 +178,8 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If `width` or `height` is zero or larger than the device allows (8192 with the default
-    /// limits), or if `format` is block-compressed ([`TextureFormat::is_block_compressed`]).
+    /// If `width` or `height` is zero or larger than the device allows (8192 at
+    /// least: the engine's floor, [`Gpu::new`]), or if `format` is block-compressed ([`TextureFormat::is_block_compressed`]).
     pub fn create_render_target(
         &self,
         label: &str,

@@ -4,7 +4,7 @@ use std::sync::mpsc;
 
 use crate::error::GfxError;
 use crate::float16::f16_to_f32;
-use crate::gpu::{Gpu, submit};
+use crate::gpu::{Gpu, LARGEST_STAGING, submit};
 use crate::render_target::{RenderTarget, TextureFormat};
 
 /// An image in CPU memory: `width` × `height` pixels, rows from top to bottom, 4 bytes per pixel
@@ -111,12 +111,12 @@ impl Gpu {
         target: &RenderTarget,
         bytes_per_pixel: u32,
     ) -> Result<Vec<u8>, GfxError> {
-        self.read_texels_in_bands(target, bytes_per_pixel, self.max_buffer_size())
+        self.read_texels_in_bands(target, bytes_per_pixel, LARGEST_STAGING)
     }
 
     /// [`read_texels`](Self::read_texels), copying the rows in bands, each into a buffer of at
     /// most `largest_buffer` bytes, so that any target can be read back: a float target of
-    /// 8192 × 8192 pixels needs 512 MiB, twice the largest buffer of the default limits.
+    /// 8192 × 8192 pixels needs 512 MiB, twice the largest buffer of the engine's floor.
     fn read_texels_in_bands(
         &self,
         target: &RenderTarget,
