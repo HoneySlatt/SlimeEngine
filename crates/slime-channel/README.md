@@ -6,8 +6,8 @@ engine's MCP server, tests, and later the editor
 
 ## Status
 
-The protocol, version 6: the host's controls (pause, speed, one step, stop), commands that set a
-part of a component, questions on the world, captures of the game's image or of one of its views
+The protocol, version 6: the host's controls (pause, resume, speed, steps, stop), commands that set
+a part of a component, questions on the world, captures of the game's image or of one of its views
 (`docs/adr/0126-views-apart-from-the-renderer.md`), the settings of its views read and changed
 (`docs/adr/0127-the-settings-of-a-view.md`), its reports read (`docs/adr/0128-asset-requests.md`),
 the entity at a pixel of a view picked (`docs/adr/0130-picking.md`), scripted keys, the game's
@@ -17,8 +17,8 @@ listen; a build for shipping holds no channel.
 
 ## Role
 
-- A game started with a token in its environment, [`TOKEN_ENV_VAR`], listens on `127.0.0.1`, on a
-  port that the system chooses, which it writes on its standard output ([`ANNOUNCEMENT`]). It
+- A game started with a token in its environment, `TOKEN_ENV_VAR`, listens on `127.0.0.1`, on a
+  port that the system chooses, which it writes on its standard output (`ANNOUNCEMENT`). It
   accepts a connection only with the token and the same version of the protocol, and tells a
   connection that it refuses why.
 - Messages are reflected values in the engine's binary encoding (`slime-serialize`), each followed
@@ -57,7 +57,8 @@ game.join().expect("the game answered");
   a time that does not depend on where two tokens differ; its `Debug` form hides it.
 - `Listener::open(token, program)`: the game's end, which `slime-app`'s `run` opens when the
   environment gives a token; `Listener::next` gives a request that waits, which the game answers
-  with `Incoming::answer`.
+  with `Incoming::answer`, or with `Incoming::answer_with` when the reply carries an image's
+  pixels.
 - `launch(&mut command, timeout)`: starts a game with a new token, and waits for it to say where it
   listens; `Client::connect(address, &token)` then opens a connection, and `Client::request`
   sends a `Request` and waits for its `Reply`.

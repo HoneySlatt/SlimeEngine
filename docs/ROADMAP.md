@@ -471,7 +471,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 |---|---|
 | platform | no engine crate (ADR-0004) |
 | gfx | color only (ADR-0079); window handles through the `raw-window-handle` traits, not `platform` |
-| render | gfx, assets, color: it loads its own kinds of asset (ADR-0069), on a task pool of its own from Stage 4b (ADR-0072), the engine's from Stage 6 (ADR-0107). Not world: `slime-world-render`, a bridge between them, builds each frame from the world (ADR-0079) |
+| render | gfx, assets, color, reflect, tasks: it loads its own kinds of asset (ADR-0069), describes its materials' parameters by reflection (ADR-0111), on a task pool of its own from Stage 4b (ADR-0072), the engine's, `slime-tasks`, from Stage 6a (ADR-0107). Not world: `slime-world-render`, a bridge between them, builds each frame from the world (ADR-0079) |
 | assets | reflect only (ADR-0069, ADR-0080) |
 | color | reflect only (ADR-0079) |
 | reflect | its derive macro only (ADR-0080) |

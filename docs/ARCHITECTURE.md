@@ -31,7 +31,8 @@ it is built this way.
 │   ├── slime-world/     the world: a game's entities, their components and their hierarchy
 │   └── slime-world-render/  the bridge from a world to the renderer: what a world draws, each frame
 ├── deny.toml            dependency license, advisory and source rules
-├── docs/                roadmap, plan, decisions (adr/), glossary, dependencies, this file
+├── docs/                roadmap, plan, decisions (adr/), glossary, dependencies, measurements,
+│                        this file
 ├── examples/            runnable examples, one per feature, with their tests (`slime-examples`)
 ├── flake.nix            Nix development shell
 ├── flake.lock           pinned inputs of the development shell
@@ -84,8 +85,8 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
        │                       ├──▶ slime-gfx ──────▶ wgpu
        │                       ├──▶ slime-world (the game's world)
        │                       ├──▶ slime-reflect (the settings and reports of a presentation)
-       │                       └──▶ slime-channel (feature development) ──▶ getrandom, slime-reflect,
-       │                                                                    slime-serialize
+       │                       └──▶ slime-channel, slime-serialize (feature development)
+       │                            slime-channel ──▶ getrandom, slime-reflect, slime-serialize
        ├──▶ slime-render ──────────▶ slime-gfx
        ├──▶ slime-assets (cooked data); the tests: slime-cook (they cook first)
        ├──▶ slime-world-render ──▶ slime-world, slime-render (a world drawn)
@@ -319,7 +320,11 @@ system then runs its own loop, in which `about_to_wait` is not called.
 `slime_gfx::Gpu::new()` creates a wgpu instance limited to the platform's graphics API (Vulkan on
 Linux, Direct3D 12 on Windows), asks for the high-performance adapter, logs it, and opens its
 device and queue ([`crates/slime-gfx/src/gpu.rs`](../crates/slime-gfx/src/gpu.rs),
-[ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). Without a GPU, the adapter is a software one:
+[ADR-0016](adr/0016-gpu-layer-with-wgpu.md)). The device has every limit that its adapter offers,
+which must reach the engine's floor, WebGPU's default limits, or `GfxError::BelowFloor` names the
+one it misses ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)), and those of the
+optional features that the engine uses that the adapter offers: timestamp queries and BC texture
+compression. Without a GPU, the adapter is a software one:
 lavapipe on Linux, WARP on Windows; the checks force lavapipe on machines that have a GPU by
 restricting the Vulkan loader to it with `VK_DRIVER_FILES`. Headless runs never open the GPU.
 
@@ -338,8 +343,10 @@ do with the triangle of [`examples/common/triangle.rs`](../examples/common/trian
 
 ```text
 gpu = Gpu::new()
-├── create_render_target(label, width, height, format)   the image to draw into, 8-bit or
-│                                                        Rgba16Float; later passes can sample it
+├── create_render_target(label, width, height, format)   the image to draw into, 8-bit,
+│                                                        Rgba16Float, or Rg32Uint, two integers
+│                                                        per texel, which no pipeline blends;
+│                                                        later passes can sample the others
 ├── create_depth_target(label, width, height)            the depth of what is drawn, for passes
 │                                                        that test depth; later passes can sample
 │                                                        it (a shadow map)
@@ -350,7 +357,8 @@ gpu = Gpu::new()
 │                                                        a depth per sample, for the same passes
 ├── create_shader_module(label, wgsl)                    rejected → GfxError::Shader
 ├── create_bind_group_layout(label, entries)             what the shaders read: uniform buffers,
-│                                                        each of a declared size, textures and
+│                                                        each of a declared size, storage
+│                                                        buffers, textures and
 │                                                        render targets, depth targets, samplers,
 │                                                        comparison samplers
 ├── create_render_pipeline(&descriptor)                  rejected → GfxError::Pipeline (as when
@@ -359,11 +367,15 @@ gpu = Gpu::new()
 │                                                        its vertex layout (or none: vertices from
 │                                                        the vertex index), its fragment stage (or
 │                                                        none: depth only), its bind group layouts,
-│                                                        depth test and bias, culling, and whether
-│                                                        it draws into multisampled targets
+│                                                        depth test and bias, culling, whether
+│                                                        it draws into multisampled targets, and
+│                                                        whether it lays its colors over the
+│                                                        target's by their alpha (Blend::Alpha)
 ├── create_vertex_buffer(label, bytes)
 ├── create_index_buffer(label, indices)
 ├── create_uniform_buffer(label, bytes)                  written again with write_uniform_buffer
+├── create_storage_buffer(label, bytes)                  values that shaders read by index, written
+│                                                        by ranges
 ├── create_texture(label, width, height, format, pixels) an image that shaders sample, its levels
 │                                                        of detail computed from its 8-bit pixels
 ├── create_texture_with_levels(label, width, height, format, levels)
@@ -401,6 +413,9 @@ gpu = Gpu::new()
 │                                                        passes numbered in recording order
 ├── read_render_target(&target)                          copy into a buffer, wait for the GPU,
 │                                                        map it → Image (8-bit RGBA, top row first)
+├── read_render_target_later(&target)                    the copy started, without waiting: a
+│                                                        Readback, whose try_read gives the texels
+│                                                        once later work showed the copy done
 └── read_float_render_target(&target)                    an Rgba16Float target → FloatImage (f32)
 ```
 
@@ -464,7 +479,9 @@ renderer = Renderer::new(&gpu, format)                 the output's format; its 
 │                                                      of samples; the resolve's, the bloom's two
 │                                                      (down and up), the tone-mapping one (each
 │                                                      a fullscreen triangle) and the lines'
-│                                                      over the image; the BRDF
+│                                                      over the image; for each kind, three
+│                                                      for picking, one for each culling, into
+│                                                      an Rg32Uint target; the BRDF
 │                                                      table, computed once per process; a black
 │                                                      environment; a texel of depth bound in
 │                                                      the place of either shadow atlas until
@@ -614,14 +631,14 @@ renderer = Renderer::new(&gpu, format)                 the output's format; its 
     │   │   with Jimenez's 13 taps, then each averaged up with the coarser average through a 3 × 3
     │   │   tent, every level with the same weight, every read mirrored at the edges; no pass reads
     │   │   what it writes
-    │   └── the tone-mapping pass into the view's rectangle of the target (set_viewport), which it
-    │       clears when the rectangle covers the target and keeps otherwise: one triangle over the
-    │       rectangle reads the HDR target where each pixel's centre falls in it, its position less
-    │       the rectangle's corner times the targets' texels per pixel, bilinearly (the texel under
-    │       it at a scale of 1), mixes in the bloom's first average by the scene's strength,
-    │       multiplies by 64, applies Khronos PBR Neutral, but for a mode of debugging, dithers an
-    │       8-bit target with a triangular noise of one step hashed from the pixel's position
-    │       (ADR-0051), and writes it opaque; an sRGB target encodes it
+    │   ├── the tone-mapping pass into the view's rectangle of the target (set_viewport), which it
+    │   │   clears when the rectangle covers the target and keeps otherwise: one triangle over the
+    │   │   rectangle reads the HDR target where each pixel's centre falls in it, its position less
+    │   │   the rectangle's corner times the targets' texels per pixel, bilinearly (the texel under
+    │   │   it at a scale of 1), mixes in the bloom's first average by the scene's strength,
+    │   │   multiplies by 64, applies Khronos PBR Neutral, but for a mode of debugging, dithers an
+    │   │   8-bit target with a triangular noise of one step hashed from the pixel's position
+    │   │   (ADR-0051), and writes it opaque; an sRGB target encodes it
     │   └── when the client draws over the image: the pass of its lines into the view's
     │       rectangle of the target, as in the scene, but over everything, in the output's colors
     ├── when a picking was asked of the view: in a submission of its own, the instances that the
@@ -692,7 +709,8 @@ exposed in the scene pass (ADR-0037), tone mapped (ADR-0034), then encoded by th
 
 The same objects draw into a window. Each frame of a windowed run, `Frames::run_one` asks the
 surface for the window's image (`Surface::acquire`), lets the presentation draw into its target
-(`Presentation::render`, usually with `Gpu::render`), then presents it (`SurfaceFrame::present`).
+(`Presentation::render`, with `Renderer::render` through its views, or `Gpu::render`), then
+presents it (`SurfaceFrame::present`).
 The surface handles what the graphics API reports about the window, so that the presentation only
 sees whether there is an image to draw:
 
@@ -869,14 +887,17 @@ frame
     └── FrameBuilder::build(world, cache, gpu,       slime-world-render, which takes no renderer:
         │                   GameTime::alpha)         the cache keeps what it loads through
         ├── cache.poll(gpu)                          the batches that finished, each whole, each
-        │                                            mesh that failed returned alone (G16); each
-        │                                            load given the rank of its most urgent handle,
+        │                                            mesh that failed returned alone; each
+        │                                            load given the rank of its most urgent handle
+        │                                            (its priority's class, then the order in
+        │                                            which loads started: the lower, the sooner),
         │                                            those that nothing holds stopped; past the
         │                                            budgets, releasable pages and textures dropped,
         │                                            least recently held first (ADR-0128)
         ├── each entity with Meshes and a Transform, where the world draws it at the fraction of
         │   a step (world.interpolated_transform), not hidden by itself or an ancestor: an
-        │   instance of each mesh that the cache holds
+        │   instance of each mesh that the cache holds, numbered with its entity's handle
+        │   for picking (Entity::to_bits, which Entity::from_bits turns back, ADR-0130)
         ├── cache.request(missing, Priority::Now)    the meshes that it holds no handle of: one
         │                                            batch, loaded in the background by the
         │                                            engine's pool (ADR-0073, ADR-0107), its tasks
@@ -894,6 +915,10 @@ frame
             what it shows of one without the world (ADR-0121) → frame.scene(near) →
             renderer.render, at presentation.render, on this thread or another
 ```
+
+`Picker::cast` answers on the CPU the question that picking asks of the GPU: the entity whose mesh
+a ray meets first, against the boxes, then the triangles, of the meshes that the world places, read
+from the cooked data ([ADR-0130](adr/0130-picking.md)).
 
 After a lost device, the game gives the cache's requests back (`AssetCache::into_requests`), which
 drops its GPU objects, and makes a new cache with them and the renderer that replaces the lost one
@@ -1244,9 +1269,12 @@ SIGHUP twice) is ignored
 
 ### Frame timing
 
-`slime_app::time` has no clock of its own: the driver gives `FrameClock` the duration of each
-frame (measured, or simulated in headless runs), gets a `FrameTime` back, and gives its delta to
-`FixedStep`, which says how many fixed steps the frame must run. Source:
+`slime_app::time` has no clock of its own: the host gives `FrameClock` the duration of each frame
+(measured, or simulated in headless runs) and gets a `FrameTime` back, real time; its game clock
+scales that delta by game time's speed, or stands still while game time is paused or held, and
+gives it to `FixedStep`, which says how many fixed steps the frame must run, those asked for one
+by one while game time is paused (`Host::frame`,
+[ADR-0107](adr/0107-the-execution-model.md)). Source:
 [`crates/slime-app/src/time.rs`](../crates/slime-app/src/time.rs); rules:
 [ADR-0009](adr/0009-frame-timing.md).
 
@@ -1283,9 +1311,10 @@ Client::request(request) ──────────────────�
                                                  │   one whose PickAnswer it dropped: Failed
                                                  ├── each request queued, answered with the host's
                                                  │   world, clocks and input, a save or a load by
-                                                 │   the simulation, a view's settings by the
-                                                 │   presentation (presentation.views(),
-                                                 │   view_settings, set_view_settings), checked by
+                                                 │   the simulation, a view's settings and the
+                                                 │   reports by the presentation
+                                                 │   (presentation.views(), view_settings,
+                                                 │   set_view_settings, reports()), checked by
                                                  │   their reflection; a step once its steps have
                                                  │   run, over the next frames; a picking asked of
                                                  │   presentation.pick, at a pixel of a view or of
@@ -1325,21 +1354,22 @@ tests):
   `Surface` and every GPU object it creates (targets, textures, samplers, buffers, bind groups and
   their layouts, shader modules, pipelines), its uploaders, images read back, meshes, materials,
   environments, cameras, lights, scenes and instances, the renderer, loaded scenes and loads in
-  progress, the asset cache, its requests, handles and reports, statistics, windows, events, the
-  input, the host, its `Context` and `AppConfig`, the dev overlay, worlds and entity handles, scene
-  libraries and resolved scenes, the frame builder of `slime-world-render` and its frames, reflected
-  values and registries, the development channel's tokens, messages and clients, and the error types
-  of those crates. Scenes, their instances and the frames of `slime-world-render` are also
-  `'static`: they own what they draw, so that a frame built on one thread is drawn on another
-  (ADR-0120). wgpu keeps its error scopes per thread, so GPU objects can be created from several
-  threads.
-  wgpu fails to configure a window's surface when another thread submits work while it waits for
-  the GPU, as the uploader's thread does: the `Gpu`'s submissions, from any thread, wait while the
-  surface is configured.
+  progress, the asset cache, its requests, handles and reports, statistics, views' settings,
+  drawings, pickings and what they found, windows, events, the input, the host, its `Context` and
+  `AppConfig`, the dev overlay, worlds and entity handles, scene libraries and resolved scenes, the
+  frame builder of `slime-world-render`, its frames and its picker, reflected values and registries,
+  the development channel's tokens, messages and clients, and the error types of those crates.
+  Scenes, their instances and the frames of `slime-world-render` are also `'static`: they own what
+  they draw, so that a frame built on one thread is drawn on another (ADR-0120). wgpu keeps its
+  error scopes per thread, so GPU objects can be created from several threads. wgpu fails to
+  configure a window's surface when another thread submits work while it waits for the GPU, as the
+  uploader's thread does: the `Gpu`'s submissions, from any thread, wait while the surface is
+  configured.
 - **Moved between threads, used by one at a time** (`Send` only): a `GpuTimer`, which reads its
-  times back through a cell, and so the renderer's `View` that holds them; `Renderer::render`
-  takes it mutably anyway. The development channel's `Listener` and the requests it hands over,
-  `Incoming`, which answer through a channel of the standard library.
+  times back through a cell, and so the renderer's `View` that holds them; `Renderer::render` takes
+  it mutably anyway. A `Readback`, which keeps through a cell what wgpu said of its copy. The
+  development channel's `Listener` and the requests it hands over, `Incoming`, which answer through
+  a channel of the standard library.
 
 ## Platforms
 

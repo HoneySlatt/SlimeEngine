@@ -6,7 +6,7 @@ statistics and tooling over a running application.
 ## Status
 
 Tooling only (`docs/adr/0031-dev-overlay-with-egui.md`). It is removed once what replaces it, the
-editor of Stage 6 of `docs/ROADMAP.md`, does at least as well
+editor of Stage 6b of `docs/ROADMAP.md`, does at least as well
 (`docs/adr/0052-amend-roadmap-before-0-1.md`). It draws egui panels over a frame and feeds egui the
 window's events, the modifier keys held included; it does not report the clipboard, cursor icons or
 input methods. A key pressed while Ctrl is held types no text, so that a shortcut does not type its
@@ -17,7 +17,7 @@ Its world panel, `WorldPanel`, lists a world's entities, shows the persistent id
 selected and, for a placement, its prefab (`docs/adr/0090-stage-5b-scenes-and-prefabs.md`), and
 edits its components through reflection, for whoever works on a game, as
 `docs/adr/0081-stage-5a-the-world.md` decided. It does not undo, add, remove or save components,
-which the editor that `docs/ROADMAP.md` plans for Stage 6 is to do; the panel goes with the rest of
+which the editor that `docs/ROADMAP.md` plans for Stage 6b is to do; the panel goes with the rest of
 the overlay once that editor does at least as well. It makes its list of entities again only when
 the world's structure moves (`World::structure`). What it edits, and its limits, are in the rustdoc
 of `WorldPanel`. Its widgets edit a value outside a world too, as a view's settings
@@ -144,4 +144,4 @@ impl Presentation for Statistics {
 ## Must not
 
 - Be used by the engine's crates: it is a client of them, like the examples.
-- Outlive what replaces it: remove it once the editor of Stage 6 shows the same at least as well.
+- Outlive what replaces it: remove it once the editor of Stage 6b shows the same at least as well.

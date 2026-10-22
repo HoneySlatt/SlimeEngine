@@ -12,7 +12,9 @@ read and written through it as text, and the world reads and writes scene files 
 (`docs/adr/0091-scene-documents-and-placements.md`,
 `docs/adr/0092-a-world-written-back-as-a-scene.md`). The cooker writes scene files, and the typed
 properties of glTF nodes, in the binary encoding, which a world reads when it resolves them
-(`docs/adr/0095-cooked-scene-files.md`); saves stay text.
+(`docs/adr/0095-cooked-scene-files.md`); saves stay text. The development channel's messages are
+written in the binary encoding and read with `read_binary` (`crates/slime-channel`,
+`docs/adr/0122-the-development-channel.md`).
 
 ## Role
 

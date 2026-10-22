@@ -62,8 +62,8 @@ cargo run -p slime-cook -- cook <sources> target/cooked      # cooks the sources
 cargo run -p slime-cook -- watch <sources> target/cooked     # cooks them again at each change
 ```
 
-Cooking is slow in a debug build: `cargo run --release -p slime-cook` cooks a texture of 2048 ×
-2048 texels in about a second.
+Cooking is slow in a debug build: cook with `cargo run --release -p slime-cook`;
+`texture::cook_texture`'s documentation says what a texture costs.
 
 The library: `scan` (the module and its function) finds the source files of a directory and their
 IDs, and what is wrong with their metadata; `metadata` reads and writes metadata files, documents

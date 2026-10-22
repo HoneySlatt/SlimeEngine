@@ -119,6 +119,10 @@ opt-level = 3
   as [`games/hunnawood`](games/hunnawood/README.md) shows. Each crate's README shows its entry
   points, and [`examples/`](examples/README.md) holds programs to start from: `world` draws a world,
   `scene` drives the renderer by hand.
+- A game that tools and agents drive declares a `development` feature, on by default, which turns
+  on `slime-app/development`, and is built for shipping with `--no-default-features`, which leaves
+  the development channel out, as [`games/hunnawood`](games/hunnawood/Cargo.toml) does
+  ([`crates/slime-app/README.md`](crates/slime-app/README.md)).
 - Building needs Rust 1.99 or later and, on Linux, the libraries that
   [`CONTRIBUTING.md`](CONTRIBUTING.md#on-linux-without-nix) lists and a [Vulkan
   driver](CONTRIBUTING.md#gpu).
@@ -139,16 +143,19 @@ today has:
 - No text, game UI, audio, physics, animation or editor.
 - An asset pipeline that imports glTF scenes, scene files and PNG and JPEG images only: the cooker,
   `slime-cook`, makes them cooked data, which the renderer loads whole, in the background while the
-  game goes on (`Renderer::load_scene_in_background`), and again when it changes
-  (`slime-cook watch`), as the renderer's shaders are.
+  game goes on, as an asset cache's requests ask (`AssetCache::request`) or a scene at a time
+  (`Renderer::load_scene_in_background`), and again when it changes (`slime-cook watch`), as the
+  renderer's shaders are.
 - A world (`slime-world`) of entities, components and their hierarchy, drawn through
   `slime-world-render`, whose components are reflected and edited by name (`slime-reflect`), and
-  saved as what changed since the game settled it, at the cost of what changed; *Hunna Wood* saves
+  saved as what changed since the game settled it, the world that it made at the start of the
+  run, at the cost of what changed; *Hunna Wood* saves
   one run, in one file, and refuses the saves of the versions before 0.5. Scene
   files are cooked, and written by hand; a world is written back as a scene file through the API,
   and no editor writes them yet.
 - A renderer that leaves out what the camera does not see and draws the instances of one mesh and
-  one material together, without blended transparency; with a capped number of lights, and
+  one material together, with blended transparency for unlit materials only, unsorted, a physically
+  based material refusing it until Stage 9a; with a capped number of lights, and
   shadows from one directional light and from spot lights, none from point lights.
 - One window, which cannot go fullscreen, grab or hide the cursor, or report raw mouse motion; no
   gamepads, touch input or input methods.

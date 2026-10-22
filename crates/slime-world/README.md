@@ -89,7 +89,10 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
 
 - `World::spawn` gives a new `Entity`, whose persistent identity is `created/<number>`, from a count
   that saves keep; `World::despawn` destroys one with its descendants and drops their components;
-  the handle of a destroyed entity finds nothing afterwards.
+  the handle of a destroyed entity finds nothing afterwards. `Entity::to_bits` and
+  `Entity::from_bits` give a handle as one number and back, which means something only to the world
+  that gave it, while it runs: what picking by the GPU gives (`docs/adr/0130-picking.md`).
+  `World::persistent_id` gives an entity's persistent identity, which `World::find` takes back.
 - `World::insert`, `get`, `get_mut` and `remove` attach, read, change and detach one component of
   an entity. A component is a value of a type that threads can share, that reflection describes
   (`#[derive(Reflect)]`, `slime-reflect`), that clones, and that says it is one:
@@ -190,7 +193,7 @@ The rustdoc holds the contracts: what panics, what each query visits, what each 
 - `slime-serialize`: the text of saves and of scene files.
 - `thiserror`: derives `WorldError`'s `Display` and `Error` implementations.
 - `tracing`: the warnings of a scene spawned with nodes known by their index, or scaled unevenly or
-  mirrored.
+  mirrored, and of what a scene spawned again does not take back of what the world kept of it.
 
 ## Must not
 

@@ -50,9 +50,11 @@ derived from its file's ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
 **Asset request.** Asking the *asset cache* for assets, with a priority (*now*, *soon* or *later*),
 which returns a request handle: while a request handle lives, its assets stay in memory or keep
-loading; once none does, a load not done is cancelled and a loaded asset may be dropped, least
-recently used first, when the cache passes its budget of memory
-([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)). Decided, not built yet.
+loading; once none does, a load not done is cancelled and a loaded asset is *releasable*, dropped
+least recently held first once the cache passes its kind's budget
+(`slime_render::AssetCache::request`,
+[ADR-0113](adr/0113-asset-requests-residency-and-priorities.md),
+[ADR-0128](adr/0128-asset-requests.md)).
 
 **Attachment (bone).** A component that hangs an entity on a bone of another entity's skeleton,
 naming the entity and the bone; saves and scene files hold it as any reference
@@ -69,7 +71,8 @@ as it reads the text, and its errors name the byte (`slime_serialize::encode`,
 [ADR-0094](adr/0094-the-binary-encoding-of-documents.md)).
 
 **Bind group.** A set of GPU resources that a pipeline's shaders read together, bound at one
-`@group` index: uniform buffers, textures and samplers (`slime_gfx::BindGroup`). Its
+`@group` index: uniform and storage buffers, textures, render and depth targets, and samplers
+(`slime_gfx::BindGroup`). Its
 *bind group layout* says which bindings it has and what each holds (`slime_gfx::BindGroupLayout`,
 [ADR-0026](adr/0026-resource-binding-and-depth.md)).
 
@@ -78,6 +81,10 @@ it, as a pipeline of the GPU layer may (`slime_gfx::Blend`): glass, smoke, the s
 and lines. A material blends with the alpha mode `Blend`, which only *unlit materials* draw before
 Stage 9a sorts transparent surfaces by their depth
 ([ADR-0129](adr/0129-drawing-for-the-editor.md)).
+
+**Block (world).** Sixteen values of a component's storage side by side, whose summary, the latest
+tick at which one of them changed, lets a reader of what changed skip those that did not
+(`World::changed`, [ADR-0119](adr/0119-the-worlds-ticks-blocks-and-log.md)).
 
 **Block compression (BC).** GPU texture formats that store each block of 4 × 4 texels in a fixed
 number of bytes, which the GPU decodes as it samples: BC7, one byte per texel, for colour and other
@@ -124,14 +131,15 @@ with the finest cascade that holds it, which fades into the next across a band a
 ([ADR-0065](adr/0065-reading-the-cascades.md)).
 
 **Checks (the).** The automated checks of the *definition of done*, which `scripts/check.sh` runs
-and the Linux CI job runs unchanged: formatting, clippy (for Windows too), the build, the tests on
-lavapipe, rustdoc, the dependency rules, the source assets and their cooking, the samples without a
-display server and, with the sample game, in a headless Weston compositor, and the links between
-documents ([`CONTRIBUTING.md`](../CONTRIBUTING.md#checks)).
+and the two Linux CI jobs run unchanged, one for each of its parts, `headless` and `windowed`
+([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md)): formatting, clippy (for Windows too), the
+build, the tests on lavapipe, rustdoc, the dependency rules, the source assets and their cooking,
+the samples without a display server and, with the sample game, in a headless Weston compositor, and
+the links between documents ([`CONTRIBUTING.md`](../CONTRIBUTING.md#checks)).
 
 **Client of the engine.** A crate or program built on the engine's public API only, which no engine
-crate depends on: the examples, the games, such as *Hunna Wood*, and the dev *overlay*
-(`slime-devui`).
+crate depends on: the examples, the games, such as *Hunna Wood*, the dev *overlay*
+(`slime-devui`), and the benchmarks (`slime-benches`).
 
 **Command.** A change of the world asked for outside the *phases* of a frame that may make it, by
 the editor, the dev *overlay*, a tool, a load or a *presentation*: a value that names its entities
@@ -200,7 +208,9 @@ a *shadow map* is read. Depths are reversed (*reversed depth*).
 **Development channel.** The link between a running game and the tools that drive it: the *MCP*
 server, tests, and from Stage 6b the editor. A game started with a *token* in its environment
 listens on the machine's own address; through it, a tool pauses, steps and reads the game, changes
-its world, plays it with keys and captures its image (`slime-channel`,
+its world, plays it with keys, captures its image or one of its views, reads and changes its views'
+settings, reads its *reports*, picks the entity at a pixel, and saves and loads its run
+(`slime-channel`,
 [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md),
 [ADR-0122](adr/0122-the-development-channel.md)). A *build for shipping* has none.
 
@@ -327,7 +337,7 @@ the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
 **Frame contract.** What the world gives the renderer at each frame, and how: a frame that owns
 what it draws, built by `slime-world-render`, drawn in one or more *views*, each object naming a
 material of some *kind* ([ADR-0111](adr/0111-the-frame-contract.md)). The frame that owns what it
-draws, the kinds and the views are built; the settings of a view are not yet.
+draws, the kinds, the views and their settings are built.
 
 **Frame scheduler (frame limiter).** The part of the windowed driver that schedules frames and
 waits between them, so that the engine asks for at most `AppConfig::max_frame_rate` frames per
@@ -368,9 +378,10 @@ cooker, `slime-cook`, imports both ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
 **GPU time.** How long the GPU took to run a render pass, measured by timestamps written at its
 start and its end (`slime_gfx::GpuTimer`) and read back a few frames later; `None` on adapters
-without timestamp queries. A `GpuTimer` times the passes of one *submission*, each apart. The
-renderer's statistics report one per kind of pass (`scene_gpu_time`, `tone_mapping_gpu_time`,
-the bloom's passes summed) with the CPU time of the call (`slime_render::RenderStats`).
+without timestamp queries. A `GpuTimer` times the passes of one *submission*, each apart. Each
+*view*'s statistics report one per kind of pass (`scene_gpu_time`, `tone_mapping_gpu_time`, the
+bloom's passes summed) with the CPU time of its part of the call (`slime_render::RenderStats`,
+`View::stats`).
 
 **Graphics API.** The interface between programs and GPU drivers: Vulkan (the engine's choice on
 Linux) and Direct3D 12 (on Windows). wgpu translates the engine's calls into one of them.
@@ -395,8 +406,8 @@ configuration, used by automated tests and, later, by dedicated servers.
 
 **High dynamic range (HDR).** Colors not limited to 0 to 1, such as the light a scene reflects
 before it is mapped to the display's range by *tone mapping*. The engine draws them into
-`Rgba16Float` render targets: the renderer draws the scene into one at the output's size, which
-its tone-mapping pass reads.
+`Rgba16Float` render targets: the renderer draws the scene into one per *view*, at the size of the
+rectangle it draws into times its *render scale*, which its tone-mapping pass reads.
 
 **Hold (game time).** What a game sets while it is not ready to be played, a zone that loads: held
 and not paused, game time stands still, without touching the pause that the player and the tools
@@ -504,16 +515,18 @@ yet.
 
 **Layout (document).** How a *save* or a *scene file* lays out its sections and keys, which a
 reader reads before their values (`slime_world::outline` reads a scene file's); its `layout` key
-gives the version of that layout, `layout = 2` for the saves of 0.4, 3 for those that say what
-the start of their run created ([ADR-0091](adr/0091-scene-documents-and-placements.md),
+gives the version of that layout: `layout = 5` for the saves that hold each entity's differences
+from its *base*, the only layout of saves read, and 1 for scene files
+([ADR-0091](adr/0091-scene-documents-and-placements.md),
 [ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md),
-[ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)).
+[ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md),
+[ADR-0125](adr/0125-saves-per-scene.md)).
 
 **Layout (zone).** In *Hunna Wood*, what decides how the game plays in its zone: the size of its
 ground, its colliders, where the hero starts and the places of the key, the door, the campfire and
-the terrace. A save gives the numbers of the layout of the zone that it was made on, a save of 0.4
-its *fingerprint*, and one of another layout, a number further from the zone's than a small
-tolerance, is not resumed; *hot reload* starts the run again when the layout changes
+the terrace. A save gives the numbers of the layout of the zone that it was made on, and one of
+another layout, a number further from the zone's than a small tolerance, is not resumed; *hot
+reload* starts the run again when the layout changes
 ([ADR-0088](adr/0088-saving-and-resuming-a-run.md),
 [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)).
 
@@ -533,6 +546,11 @@ band that faces the camera, a width in the output's pixels wide, its edges smoot
 light adds and multiplies them as they are: twice the value is twice the light. Displays and
 image files store colors *sRGB-encoded* instead. Every color of the engine's API is linear, a
 `slime_color::LinearColor` ([ADR-0045](adr/0045-one-linear-color-type.md)).
+
+**Log (world).** The entities that left a component's storage, per storage, and those destroyed,
+for the world, each with its *tick* (`World::removed`, `World::destroyed`); past a limit, a log
+forgets its older half, and a reader older than what it holds is told to read the whole world
+again ([ADR-0119](adr/0119-the-worlds-ticks-blocks-and-log.md)).
 
 **Logical key.** What a key means with the current keyboard layout and modifiers
 (`slime_platform::Key`): on a French AZERTY keyboard, the first letter key of the top row gives
@@ -703,9 +721,9 @@ the numbers that follow the count of the world it is loaded into; and for an ent
 [ADR-0087](adr/0087-the-worlds-documents.md),
 [ADR-0091](adr/0091-scene-documents-and-placements.md),
 [ADR-0092](adr/0092-a-world-written-back-as-a-scene.md),
-[ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)). The editor's commands will
-name the entities that they change by it, an entity's handle being a cache of it there
-([ADR-0109](adr/0109-stable-references-and-undo.md); decided, not built yet).
+[ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)). *Commands* name the entities
+that they change by it (`slime_world::Command`); an entity's handle being a cache of it in the
+editor is decided, not built yet ([ADR-0109](adr/0109-stable-references-and-undo.md)).
 
 **Peter-panning.** A shadow that starts a little away from the object that casts it, because the
 *depth bias* pushes the stored depths back, or the *normal offset* moves the point looked up: in
@@ -908,8 +926,9 @@ spawned under a key or placed in a *scene file* as a *prefab*. A *save* names th
 world spawned ([ADR-0069](adr/0069-the-asset-pipeline.md),
 [ADR-0083](adr/0083-transforms-and-the-hierarchy.md), [ADR-0095](adr/0095-cooked-scene-files.md)).
 
-**Scene (render).** What the renderer draws in one frame: a camera, *punctual lights*, an
-*environment*, an *exposure* and *instances* (`slime_render::Scene`), which it owns. Not a scene
+**Scene (render).** What the renderer draws in one frame: *punctual lights*, an *environment*, an
+*exposure*, a *bloom* strength and *instances* (`slime_render::Scene`), which it owns, drawn
+through one or more *views*, each with its own camera. Not a scene
 graph: the renderer keeps no scene between frames; `slime-world-render` builds one from the *world*
 at each frame ([ADR-0084](adr/0084-what-the-world-draws.md)).
 
@@ -950,15 +969,18 @@ directional light ([ADR-0064](adr/0064-cascaded-shadow-maps.md)), each in an atl
 
 **Shadow map.** A *depth target* drawn from a light's point of view by a *depth-only pass*: a
 point is in shadow where something nearer to the light is stored at its place in the map. The
-renderer draws one each frame for each *cascade* of the first directional light that casts shadows,
-through an orthographic projection that covers the cascade's slice of what the camera sees, its
+renderer draws, for each *view*, one for each *cascade* of the first directional light that casts
+shadows, through an orthographic projection that covers the cascade's slice of what that view's
+camera sees, its
 texels on a grid fixed in the world ([ADR-0038](adr/0038-shadow-mapping.md),
-[ADR-0050](adr/0050-a-shadow-region-that-follows-the-camera.md)), and one for each spot light
-that casts shadows, in perspective.
+[ADR-0050](adr/0050-a-shadow-region-that-follows-the-camera.md)), and, once per frame, one for each
+spot light that casts shadows, in perspective.
 
-**Shape (of a frame).** What decides the renderer's passes and targets: the output's size, whether
-the sun's shadow pass runs, whether the spot lights' shadow pass does, and whether the bloom's
-passes do. The *render graph* is built again, and its GPU times start over, when it changes ([ADR-0041](adr/0041-render-graph.md)).
+**Shape (of a frame).** What decides a *view*'s passes and targets: the size of its targets, its
+anti-aliasing, whether the sun's and the spot lights' shadow passes, the sky and the bloom run,
+whether its rectangle covers its whole output, and whether anything is drawn after the sky or over
+the image. The *render graph* is built again, and its GPU times start over, when it changes
+([ADR-0041](adr/0041-render-graph.md)).
 
 **Simulated time.** Frame deltas supplied as a constant duration instead of being measured, so
 that a run gives the same results on every machine. Headless runs use it.
@@ -1113,10 +1135,11 @@ what a game computes again, such as a value that changes at every frame. It has 
 own, its struct's or its type's, which a save that leaves it out gives it
 ([ADR-0087](adr/0087-the-worlds-documents.md)).
 
-**Transient target.** A target of the *render graph* that it creates, at the output's size divided
-by a power of two, and whose content lives for one frame: the renderer's high-dynamic-range and
-depth targets and the bloom's levels. It is kept from frame to frame, and reused by the graph of the
-next *shape* that declares it at the same size ([ADR-0041](adr/0041-render-graph.md)).
+**Transient target.** A target of the *render graph* that it creates for a *view*, at the size of
+the view's targets divided by a power of two, and whose content lives for one frame: the renderer's
+high-dynamic-range and depth targets and the bloom's levels. It is kept from frame to frame, and
+reused by the graph of the next *shape* that declares it at the same size
+([ADR-0041](adr/0041-render-graph.md)).
 
 **Type registry.** The reflected types that a program describes, by *stable name* and alias, with
 what reads and sets their *values* (`slime_reflect::Registry`). Each *world* keeps one, which holds

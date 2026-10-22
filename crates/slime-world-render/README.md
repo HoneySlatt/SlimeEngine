@@ -89,5 +89,7 @@ The rustdoc holds the contracts: what is drawn, and what building a frame costs.
 
 ## Must not
 
-- Keep anything of a world between frames: the world is the source of truth.
+- Keep a copy of a world's state between frames: the world is the source of truth. What it keeps,
+  the sky's environment, the handles of the meshes that the world names, the entities whose lights
+  it warned of and the picker's meshes, holds none of the world's values.
 - Be a dependency of `slime-world` or `slime-render`: neither knows the other (ADR-0079).

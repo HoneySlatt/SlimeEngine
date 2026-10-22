@@ -17,10 +17,12 @@ missing is listed in `docs/PLAN.md` (known debt).
 
 ## Role
 
-- Runs a game as a *simulation*, its rules, and a *presentation*, what the player sees, through
-  the phases of a frame, each of which says who may change the world
-  (`docs/adr/0107-the-execution-model.md`): the simulation changes it, the presentation reads it,
-  and asks for changes as commands, which the host applies at the start of the next frame.
+- Runs a game as a *simulation*, its rules, and a *presentation*, what the player sees, through the
+  phases of a frame, each of which says who may change the world
+  (`docs/adr/0107-the-execution-model.md`,
+  `docs/adr/0121-a-game-as-a-simulation-and-a-presentation.md`): the simulation changes it, the
+  presentation reads it, and asks for changes as commands, which the host applies at the start of
+  the next frame.
 - Owns the game's world (`slime-world`), its real time and its game time, its input and the
   commands queued for it: the *host*. Tells the world before and after each fixed step, so that
   what moves during a step is drawn between its two transforms
@@ -143,11 +145,12 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
     engine waits up to one second for it, then draws the frame late; on Windows with Vulkan, wgpu
     treats a wait of more than one second as a lost device, and the run stops).
 - `Host`: what runs a simulation, and owns its world, real time and game time, its input and the
-  commands queued for it. `Host::frame(&mut simulation, real)` runs the first four phases of a
-  frame: the commands applied, in the order they came; the fixed steps that game time holds; the
-  update; the world's transforms. A test, or one day a dedicated server, drives it itself: it
-  presses and releases keys (`Host::input_mut`), pauses, slows down and steps game time and sends
-  commands (`Host::context_mut`), without a GPU.
+  commands queued for it. `Host::new(&config)` makes one around an empty world (`Host::world_mut`),
+  and `Host::start` and `Host::stop` call the simulation's. `Host::frame(&mut simulation, real)`
+  runs the first four phases of a frame: the commands applied, in the order they came; the fixed
+  steps that game time holds; the update; the world's transforms. A test, or one day a dedicated
+  server, drives it itself: it presses and releases keys (`Host::input_mut`), pauses, slows down and
+  steps game time and sends commands (`Host::context_mut`), without a GPU.
 - `run(&mut simulation, &mut presentation, &config)`: the host of a game's program. It sets up
   diagnostics and a handler for termination signals, then runs the game until it requests an exit,
   the window is closed, the process receives SIGINT (Ctrl+C), SIGTERM or SIGHUP, or
@@ -234,13 +237,15 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   use `run`, as the `offscreen` example, logs its errors with it.
 - The `development` feature: a run whose environment gives a token (`slime_channel::TOKEN_ENV_VAR`)
   listens on `127.0.0.1`, writes where on its standard output, and answers, at the start of each
-  frame, the requests of the tools that connect with the token: its state, the host's controls,
-  its world read and changed through reflection, keys put down and let go, its window's image,
-  copied after the frame is drawn and before it is shown, the last lines of its log
-  (`slime_channel::MAX_LOG_LINES`), which only such a run keeps, and its run saved to a file and
-  loaded from one, by the simulation's `save` and `load`. Without a token, it does not
-  listen. The `slime-channel` crate holds the protocol and its limits; `tests/channel.rs` drives a
-  headless run through it.
+  frame, the requests of the tools that connect with the token: its state, the host's controls, its
+  world read and changed through reflection, keys put down and let go, its window's image or the
+  part of it that one of its views draws, copied after the frame is drawn and before it is shown,
+  its views' settings read and changed, its reports read and the entity at a pixel of a view picked,
+  through the presentation's `views`, `view_settings`, `set_view_settings`, `reports` and `pick`,
+  the last lines of its log (`slime_channel::MAX_LOG_LINES`), which only such a run keeps, and its
+  run saved to a file and loaded from one, by the simulation's `save` and `load`. Without a token,
+  it does not listen. The `slime-channel` crate holds the protocol and its limits;
+  `tests/channel.rs` drives a headless run through it.
 
 Engine code and games log through the `tracing` macros. The conventions for errors, log levels and
 assertions are in `docs/adr/0008-errors-logging-and-assertions.md`; why the engine owns the main

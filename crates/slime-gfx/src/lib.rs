@@ -88,5 +88,7 @@ mod threads {
         // A timer reads its times back through a cell: it moves between threads, but one thread
         // uses it at a time.
         send::<GpuTimer>();
+        // A readback keeps what wgpu said of its copy in a cell.
+        send::<Readback>();
     }
 }

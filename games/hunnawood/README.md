@@ -389,7 +389,8 @@ resumed, from which the walk goes on to the terrace, and the fixture of 0.3, a s
 version of the engine; a run changed (an oak removed, a lantern dimmed, the key hidden), saved and
 resumed, which saves again to the same bytes and goes on the same for 300 steps; a walk to the door
 without the key, which it stops; and the hero kept out of every collider. In `src/view.rs`: the
-campfire's light, which flickers, and the materials that glow. In `src/simulation.rs`: the fixture
+campfire's light, which flickers, and the materials that glow; and the hero, asked for after the
+zone but at a higher priority, loaded before it. In `src/simulation.rs`: the fixture
 of 0.3, set aside, which leaves no run to resume. They need the cooked zone, so `cargo test` leaves
 them out: `scripts/check.sh` fetches and cooks it, then runs them, and after the commands above,
 `cargo test -p hunnawood -- --ignored` does. Two more are measurements: what reading, resolving and

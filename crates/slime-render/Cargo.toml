@@ -15,7 +15,8 @@ glam.workspace = true
 slime-assets.workspace = true
 slime-color.workspace = true
 slime-gfx.workspace = true
-# The parameters of each kind of material, described to an editor (ADR-0111).
+# The parameters of each kind of material, described to an editor (ADR-0111), and the views'
+# settings and statistics and the asset cache's report, to tools (ADR-0127, ADR-0128).
 slime-reflect.workspace = true
 # The engine's task pool, on which loads and the sky's environment run (ADR-0107).
 slime-tasks.workspace = true

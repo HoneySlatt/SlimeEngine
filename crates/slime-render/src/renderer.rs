@@ -744,13 +744,14 @@ impl<'a> ViewDraw<'a> {
 /// otherwise cover, and what a client draws in the scene ([`ViewDraw::drawings`]); after the
 /// tone-mapping pass, one draws what a client draws over the view's rectangle of its output.
 ///
-/// The renderer owns what every view shares: six shaders and twenty-nine pipelines. Each kind of
+/// The renderer owns what every view shares: six shaders and thirty-five pipelines. Each kind of
 /// material has three for the scene pass, which differ by the faces they cull and among which each
 /// draw chooses (ADR-0035), and the same three for targets of one sample per pixel; the physically
 /// based kind two for the shadow pass (the second discards what masked materials discard), the
 /// unlit kind, which casts no shadows, none, but six more for its blended materials. The sky pass
 /// has one for each number of samples, as the lines drawn in the scene do; the resolve pass, the
-/// bloom (down and up), the tone-mapping pass and the lines drawn over the image one each. It owns
+/// bloom (down and up), the tone-mapping pass and the lines drawn over the image one each; and each
+/// kind three for picking, one for each culling, into a target of integers. It owns
 /// too the table of the BRDF's scale and bias
 /// and a black environment for scenes without one; the cascades' atlas, 4096 × 4096 depths (64
 /// MiB), created by the first frame in which a directional light casts shadows, which each view

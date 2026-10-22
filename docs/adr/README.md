@@ -26,11 +26,12 @@ Do not write one for choices that are local to a function or a module and cheap 
 2. The project owner (the person who validates direction and architecture) decides.
 3. The ADR is written in the same change that first applies the decision, so that it describes
    a decision that is actually in effect.
-4. An accepted ADR is never edited to change its meaning. To change a decision, write a new ADR
-   that supersedes the old one, and set the old one's status to `Superseded by NNNN`. When a new
-   ADR changes only part of an older one, the older one's status becomes
-   `Accepted; amended by NNNN`. Fixing a typo, a broken link, or a factual error that leaves the
-   decision unchanged is fine; the commit message says what was corrected.
+4. An accepted ADR is never edited to change its meaning. To change a decision, write a new ADR that
+   supersedes the old one, and set the old one's status to `Superseded by NNNN`. When a new ADR
+   changes only part of an older one, the older one's status becomes `Accepted; amended by NNNN`,
+   and the new one's says what it changes of it, `Accepted; amends NNNN (what it changes)`. Fixing a
+   typo, a broken link, or a factual error that leaves the decision unchanged is fine; the commit
+   message says what was corrected.
 
 ## Format
 
@@ -39,7 +40,7 @@ File name: `NNNN-short-title.md`, numbered in order of acceptance, never reused.
 ```markdown
 # NNNN. Title in the imperative or as a noun phrase
 
-- Status: Accepted | Accepted; amended by NNNN | Superseded by NNNN
+- Status: Accepted | Accepted; amends NNNN (what) | Accepted; amended by NNNN | Superseded by NNNN
 - Date: YYYY-MM-DD
 
 ## Context

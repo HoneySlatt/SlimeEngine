@@ -2,7 +2,9 @@
 //! `docs/adr/0122-the-development-channel.md`): an agent, through the Model Context Protocol on this
 //! program's standard input and output, starts a game built with the engine, drives it through its
 //! development channel, pauses and steps it, reads and changes its world, plays it with scripted
-//! keys and sees its image, reads its log; and cooks assets and runs tests. `README.md` beside this
+//! keys, sees its image or one of its views and changes how a view draws, names the entity at a
+//! pixel, reads its reports and its log, saves its run and loads it; and cooks assets and runs
+//! tests. `README.md` beside this
 //! crate says how an agent is given it. Run it from the repository's root, where cooking and the
 //! tests run.
 
@@ -35,13 +37,15 @@ const TAIL: u64 = 4096;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// What the server tells an agent of its tools.
 const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its development channel. \
-     Start it with `start_game`; `pause` it, `step` it, `game_state` says where it stands; \
+     Start it with `start_game`; `pause` it, `step` it, `resume` it, `set_speed` changes the speed \
+     of its game time, `game_state` says where it stands, with its views and its reports; \
      `list_entities` and `inspect_entity` read its world, `set_property` changes it; `press_key` and \
      `release_key` play it; `capture` shows its image or one of its views, and \
      `set_view_settings` changes how a view draws, its scale, anti-aliasing, passes or a mode of \
      debugging that shows normals or shadows; `pick` names the entity drawn at a pixel of its \
      image or of a view; `read_report` reads its reports, as its asset cache's; \
-     `read_logs` reads its log; `stop_game` ends it. \
+     `read_logs` reads its log; `save_game` and `load_game` save its run to a file and load it; \
+     `stop_game` ends it. \
      `cook` and `run_tests` run in the repository's root, where the server runs.";
 
 /// The game that the server drives, if one runs.
@@ -553,7 +557,8 @@ impl Server {
 
     #[tool(
         description = "The game's state: its frame, whether game time is paused, the fixed steps run, \
-                       game time and real time, its frames' times, its entities."
+                       game time and real time, its frames' times, its entities, the views that \
+                       its last frame drew and the reports it gives."
     )]
     async fn game_state(&self) -> Result<CallToolResult, McpError> {
         self.ask(Request::State).await

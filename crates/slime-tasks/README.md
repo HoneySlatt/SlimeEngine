@@ -5,11 +5,12 @@ a frame waits for ([ADR-0107](../../docs/adr/0107-the-execution-model.md)).
 
 ## Status
 
-Partial. One pool of threads, started by the first task, as many as the machine's logical cores
-but one, at least one; tasks of two priorities, *frame* and *background*, a free thread taking a
-frame task first, background tasks never holding every thread; items computed in parallel, the
-calling thread taking its share. No dependencies between tasks, no loops split for the caller, no
-work stealing: Stage 7's job system grows them from this pool when a measurement asks for them.
+Partial. One pool of threads, started by the first task, as many as the machine's logical cores but
+one, at least one; tasks of two priorities, *frame* and *background*, a free thread taking a frame
+task first, background tasks never holding every thread of a pool of two or more; items computed in
+parallel, the calling thread taking its share. No dependencies between tasks, no loops split for the
+caller, no work stealing: Stage 7's job system grows them from this pool when a measurement asks for
+them.
 
 ## Role
 
@@ -17,7 +18,8 @@ work stealing: Stage 7's job system grows them from this pool when a measurement
   encoding. No crate of the engine starts threads that compute; one that only waits, as the thread
   that submits the copies to the GPU, says why in its rustdoc (ADR-0107).
 - Keeps a thread free for the work that the frame being made waits for, whatever the background
-  holds.
+  holds, in a pool of two threads or more: on a machine of one or two logical cores, the pool's one
+  thread runs both.
 
 ## Entry points
 

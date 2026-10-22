@@ -39,8 +39,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   new cache (`AssetCache::with_requests`): the handles stay valid. `slime-world-render`'s frame
   builder holds a handle of each mesh that the world names.
 - A game's reports (ADR-0128): `Presentation::reports` gives named values, described by reflection,
-  `assets` and `views` in the `world` example and *Hunna Wood*; version 5 of the development
-  channel's protocol lists and reads them (`Request::Report`), and the MCP server's `read_report`
+  `assets` and `views` in the `world` example and *Hunna Wood*; the development channel's protocol
+  lists and reads them (`Request::Report`), and the MCP server's `read_report`
   gives them. `RenderStats` and `std::time::Duration`, in seconds, are described by reflection.
 - `slime_gfx::UploadRank`: the uploader submits the copies of the lowest rank first, a rank changed
   while they wait included; `Texture::bytes` gives a texture's size.
@@ -85,13 +85,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   scene files written back leave them as their author wrote them, and `World::first_difference`
   leaves out their values. The `world` example's floating ring is marked so.
 - The development channel (ADR-0110, ADR-0122): a game built with `slime-app`'s `development`
-  feature, on by default in *Hunna Wood* and in the examples, and started with a token in
+  feature, on by default in *Hunna Wood*, always on in the examples, and started with a token in
   `SLIME_DEV_TOKEN`, listens on `127.0.0.1` and answers the tools that connect with the token: its
   state and its frames' times; pause, speed, steps and stop; its entities and their components,
   read and set by persistent identity through reflection; keys put down and let go; its window's
   image; the last lines of its log. Started without a token, it opens no port; built with
-  `--no-default-features`, it holds no channel. The new `slime-channel` crate holds the protocol
-  and both of its ends: `Listener` for the game, `launch` and `Client` for the tools.
+  `--no-default-features`, it holds no channel. The new `slime-channel` crate holds the protocol,
+  at version 6, and both of its ends: `Listener` for the game, `launch` and `Client` for the tools.
 - `slime-mcp`, the engine's MCP server: an agent starts a game through it and drives it through
   its development channel, sees its image as a PNG image, cooks assets and runs the tests
   ([`crates/slime-mcp/README.md`](crates/slime-mcp/README.md)).
@@ -161,6 +161,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The engine's benchmarks, `cargo run --release -p slime-benches`, and `scripts/measure.sh`, which
   times the build and runs them; `docs/measurements.md` keeps their figures from one milestone to
   the next.
+- `scripts/check.sh headless` and `scripts/check.sh windowed` run each part of the checks, the
+  checks that need no compositor and the runs in headless Weston compositors, which CI runs as two
+  jobs side by side (ADR-0123); without an argument, it runs both.
+- The programs that draw the dev overlay, the examples that have one and *Hunna Wood*, embed
+  egui's fonts, and travel with their licences, as the Ubuntu Font Licence and the Open Font
+  License ask: a game that ships the overlay ships them too (ADR-0105).
 - `Gpu::write_uniform_buffer_start` writes the start of a uniform buffer and leaves the rest as it
   is.
 - The renderer leaves out of the scene pass the instances whose boxes the camera does not see
@@ -178,18 +184,17 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
-- `Instance` has a `pick`; version 6 of the development channel's protocol, which asks for
-  pickings, refuses tools of version 5.
-- `FragmentState` has a `blend`; `ViewDraw` has `drawings`; `ShaderSources` holds `unlit.wgsl` and
+- `Instance` has a `pick`, the number that picking gives of it.
+- `FragmentState` has a `blend`; `ShaderSources` holds `unlit.wgsl` and
   `lines.wgsl`; `AlphaMode` has `Blend`, which a physically based material refuses until Stage 9a.
 - A mesh that the asset cache cannot read, or whose material or texture it cannot, fails alone: the
-  others asked for with it arrive (G16). `AssetCache::poll` takes the GPU and returns each failed
+  others asked for with it arrive. `AssetCache::poll` takes the GPU and returns each failed
   mesh with its error, as `Frame::errors` holds them; `AssetCache::request` takes a priority and
   returns the request to keep. The asset cache's meshes take pages of their own.
 - `Scene::new(instances)` takes no camera: a view gives it (`ViewDraw`), and every view draws the
   scene's lights, those that the renderer can draw from every view's camera.
-  `Camera::fov_y` is `Projection::Perspective { fov_y }`. `Renderer::render` returns nothing; the
-  statistics are each view's. `slime_world_render::Frame::scene` takes the point that the lights
+  `Camera::fov_y` is `Projection::Perspective { fov_y }`. `Renderer::render` returns no statistics:
+  they are each view's. `slime_world_render::Frame::scene` takes the point that the lights
   beyond those drawn are nearest to, rather than a camera.
 - A view whose size changes keeps drawing into its targets, its image stretched over its
   rectangle, until the new size has held still for `RESIZE_DELAY`, 200 ms; it then frees its old
@@ -198,20 +203,21 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   view without targets.
 - Saves per scene (ADR-0125): a game settles its world once it made the start of a run, and again
   once it prepared a scene that it spawned since (`World::settle`); `World::save(about)` writes what
-  the run changed since, without a start world, and costs what changed: about a hundred times
-  less for a level of 100 000 entities of which 1 % moved (`docs/measurements.md`). `World::load`
-  takes a callback that prepares the scenes that a save spawns, and `World::carry` no longer takes
-  the start of the scenes before they changed. Saves take layout 5: the saves of layouts 1 to 4,
-  those of 0.3, of 0.4 and of the versions since, are refused (`DocumentError::Layout`), and *Hunna
-  Wood* sets such a save aside as `save.toml.earlier-version` and starts a new run; its fixture is
-  made again.
-- `World::spawn_scene` under a key that holds a scene unloads that one first, rather than refusing
-  while an entity of it lives: `WorldError::KeyInUse` is gone, and a level that keeps something of
-  the one before adopts it.
+  the run changed since, without a start world, and costs what changed: about a hundred times less
+  for a level of 100 000 entities of which 1 % moved (`docs/measurements.md`). `World::load` takes a
+  callback that prepares the scenes that a save spawns, and `World::carry` no longer takes the start
+  of the scenes before they changed. What the run created outside scenes takes, when a save loads,
+  the numbers that follow the world's count, so that an update of the game that creates one more
+  entity at the start no longer makes a save refused, nor moves or destroys another entity. Saves
+  take layout 5: the saves of layouts 1 to 4, those of 0.3, of 0.4 and of the versions since, are
+  refused (`DocumentError::Layout`), and *Hunna Wood* sets such a save aside as
+  `save.toml.earlier-version` and starts a new run; its fixture is made again.
+- `World::spawn_scene` under a key that holds a scene unloads that one first, rather than refusing,
+  with `WorldError::IdentityInUse`, while an entity of it lives; a level that keeps something of the
+  one before adopts it.
 - Saving refuses a start that created, without a key, entities that saves hold
   (`DocumentError::UnkeyedAtStart`, which names them; ADR-0109, ADR-0124): a start names what it
   creates with `World::spawn_keyed`, a prefab with `World::spawn_scene`, or marks it `Unsaved`.
-  Saves no longer hold the fingerprint of the start's creations.
 - A game is a simulation and a presentation (ADR-0107, ADR-0121): `slime_app::App` gave way to
   `Simulation`, a game's rules, whose `start`, `fixed_step`, `update` and `stop` receive the world
   to change and a `SimulationContext` (the input, both times, the run's stop), and `Presentation`,
@@ -231,7 +237,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - *Hunna Wood* is a library and its program (ADR-0110): its rules, `HunnaWood`, and what the player
   sees, `Screen`. Where the player looks is a component of the hero's, `hunnawood::Look`, which its
   saves hold; the fire flickers in the frame drawn, not in the world, and its saves no longer put
-  its light back; its game time stays paused until the zone is drawn.
+  its light back; its game time is held (`Context::hold`) until the zone is drawn.
 - A frame owns what it draws (ADR-0111): `Instance` holds clones of its mesh and material, counted
   references to the same GPU objects, and `Scene` and `slime_world_render::Frame` their instances,
   lights and environment, without lifetimes, so that a frame built on one thread is drawn on
@@ -239,7 +245,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `scene.environment` an `Option<Environment>`, and `Frame::scene` takes the frame. Meshes and
   materials compare equal when one is a clone of the other.
 - `AssetCache::new(&renderer, assets)` keeps what its loads take of the renderer, so that
-  `AssetCache::request(gpu, ids)`, `AssetCache::reload(gpu, assets)` and
+  `AssetCache::request`, `AssetCache::reload(gpu, assets)` and
   `FrameBuilder::build(world, cache, gpu, fraction)` take no renderer. `AssetCache::clear` is gone:
   after a lost device, a game makes a new cache with the renderer that replaces the lost one.
 - `Environment::new(gpu, &sky)` makes an environment without a renderer, in place of
@@ -257,8 +263,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   written no longer marks where its entity is in the world to be computed again.
 - `Component` requires `Clone`: every component can be cloned, so that a world can be copied.
 - `World::is_hidden` reads a flag that adding or removing `Hidden`, and changing parent, keep,
-  rather than walking the entity's ancestors: a frame of 100 000 entities is built in 10.0 to
-  10.4 ms, where it took 11.4 ms.
+  rather than walking the entity's ancestors, which builds a frame of 100 000 entities about a tenth
+  faster.
 - The dev overlay's world panel makes its list of entities again only when the world's structure
   moves.
 - The loads of cooked scenes and of the asset cache's batches run as background tasks of the
@@ -278,21 +284,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - A renderer's meshes share its buffers: `Renderer::create_mesh` and the loads write a mesh's
   vertices and indices into the first of the renderer's pages that has room, and capture tools
   name the pages' buffers, not each mesh's.
-- Saves are of layout 3: they say what the start of the run created outside scenes, its count and a
-  fingerprint of those entities. What the run created takes, when the save loads, the numbers that
-  follow the world's count, so that an update of the game that creates one more entity at the start
-  no longer makes the save refused, nor moves or destroys another entity; what the save holds of
-  the start's numbered entities is set aside, and said, when the start that it is loaded into
-  created others, by a fingerprint of their numbers, the types of their components and their names,
-  not of their values. The saves of 0.4, of layout 2, load as they did; 0.4 does not read the saves
-  of layout 3.
 - `Problem::OutOfRange` carries the number out of range as a `Number`, in its own type, where it
   held an `f64`.
-- `World::spawn_scene` refuses, with `WorldError::KeyInUse`, a key under which the world spawned
-  another scene of which an entity lives still, as a companion that followed the hero out of the
-  level: its identity is under the key, as the new scene's would be, and the next save of the run
-  could not be loaded. A level that keeps something of the one before it is spawned under a key of
-  its own.
 - `GltfFile::open` takes the directory of sources, from inside which alone it reads a `.gltf`
   file's buffers.
 - The longest side of an image that the cooker takes is `slime_assets::MAX_SIDE`, the longest side
@@ -303,9 +296,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   five minutes, where it gave up after three in a row without a frame shown: a device lost again a
   few frames after each new one was replaced without end.
 - An error of a lost GPU device that the application passes to `Context::exit_with_error`, or
-  returns from `App::gpu_restored`, once the run's device is lost, leaves the loss to the run, which
-  replaces the device as for any loss, or stops with `RunError::Gfx`: it stopped the run as the
-  application's error. *Hunna Wood* and the examples skip the frame that a lost device failed.
+  returns from `Presentation::gpu_restored`, once the run's device is lost, leaves the loss to the
+  run, which replaces the device as for any loss, or stops with `RunError::Gfx`: it stopped the run
+  as the application's error. *Hunna Wood* and the examples skip the frame that a lost device
+  failed.
 - `Gpu::wait_idle` and the readbacks wait for the GPU without polling the device, waking up to 1 ms
   after it finishes; every creation of a GPU object asks wgpu whether the device is still valid,
   with a buffer of 4 bytes, a few microseconds more on lavapipe.
@@ -315,10 +309,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   third smaller.
 - `World::children` returns `Children`, an iterator over an entity's children in their order, read
   from either end, where it returned a slice: a child now leaves its parent in constant time.
-- `Frame::scene` takes the frame mutably, and `Frame::lights` is a mutable slice: when a world
-  places more lights than the renderer draws, the scene gives first the sun, then the other
-  directional lights, then the point and spot lights nearest the camera, where the lamps beyond the
-  first 16 in the world's order stayed dark.
+- When a world places more lights than the renderer draws, `Frame::scene` gives first the sun, then
+  the other directional lights, then the point and spot lights nearest the point that it is given,
+  where the lamps beyond the first 16 in the world's order stayed dark.
 - The cooker stretches an image whose sides are at least 4 texels but not multiples of 4 to the next
   multiples, and compresses it as any other, where it kept its 8-bit texels: a texture of
   2 048 × 2 043 texels takes a quarter of the memory. `TEXTURE_COOKER_VERSION` is 2: every texture
@@ -337,8 +330,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - When creating the spot lights' shadow atlas ran out of GPU memory after the cascades' atlas was
   created, the sun lost its shadows for good; the atlases' group is now made again whenever the
   atlases change.
-- A multisampled output made `Renderer::render` panic inside wgpu; the renderer refuses it with a
-  message of its own, which its documentation lists.
+- A multisampled output made `Renderer::render` panic inside wgpu; it panics with a message of the
+  renderer's own, which its documentation lists.
 - An entity that a run created, or a prefab that it placed, written into its level by
   `World::write_scene`, exists once when the run is carried into the file cooked again
   (`World::carry`), a level that the run changed to included, the file's entity given what the run
@@ -438,8 +431,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   does its hot reload: a fingerprint of the numbers rounded to ten-thousandths changed when one of
   the seven of them that lie within one unit in the last place of a rounding's boundary moved by
   that unit, as an update that does not change the zone may make it, and every save was set aside.
-  A save says its layout's numbers, under `zone`; the saves of 0.4, which say a fingerprint, are
-  compared by it, as 0.4 compared them.
+  A save says its layout's numbers, under `zone`.
 - *Hunna Wood* checks a save before it resumes it. It finds its zone and its hero again in the world
   loaded, by their identities, where it kept handles to entities that loading may have destroyed,
   so that a save edited to remove the key made it panic at its first step, at each launch. A save
@@ -455,7 +447,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   does not save, where both wrote the save and the last to quit wrote over the other's run. Each
   copy writes through a file of its own, `save.toml.<process id>.new`, where two saves at once could
   leave a file mixed from both.
-- A panic in `App::render` after the frame drew ends the process as a panic does, with exit
+- A panic in `Presentation::render` after the frame drew ends the process as a panic does, with exit
   status 101: on Vulkan, the window's surface, dropped while the panic unwound, panicked again in
   wgpu, which aborted the process. A lost device that wgpu refused to present the image to, the
   loss found by another thread after the engine's check, no longer makes `Surface::restore` or the
@@ -464,8 +456,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   creating a texture panicked in wgpu's unmap of its uploads, reading a target back in its mapping,
   and `Gpu::wait_idle` and the readbacks in `Device::poll`, which wgpu treats as fatal; a readback
   also failed as `GfxError::Readback`.
-- After a restore of the GPU device that failed, `run` returns the error that the application gave
-  in `shutdown`, as its rustdoc said, rather than the restore's.
+- After a restore of the GPU device that failed, `run` returns the error that the game passed to
+  `exit_with_error`, as its rustdoc says, rather than the restore's.
 - Emptying a parent of many children, by giving them other parents or none or by destroying them,
   took time quadratic in their number; resolving a scene file took time quadratic in its
   placements.

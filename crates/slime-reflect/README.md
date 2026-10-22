@@ -37,7 +37,9 @@ them.
 
 A crate that owns a value type implements reflection where the type is defined: `slime-assets`
 for `AssetId` and the custom values of nodes, `slime-color` for `LinearColor`, `slime-world` for
-its entities and components.
+its entities and components, `slime-render` for its materials' values, its views' settings and
+statistics and its asset cache's report, `slime-channel` for the development channel's messages,
+`slime-cook` for its metadata files.
 
 ## Entry points
 
@@ -78,7 +80,8 @@ re-exports. No other crate of the engine: those that own a value type depend on 
 
 ## Must not
 
-- Depend on another crate of the engine, or on a GPU, a window or a file format.
+- Depend on another crate of the engine than its derive macro, `slime-reflect-derive`, or on a GPU,
+  a window or a file format.
 - Name a type by its module path: names are stable, and files and saves hold them.
 - Register a type before `main` runs, by code that runs on its own: a program registers what it
   uses.

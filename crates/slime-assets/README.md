@@ -27,8 +27,8 @@ tasks of the engine's pool.
   code, and its `Display` and `FromStr` write and read its text form. It is reflected, as `Extra`
   is (`slime-reflect`), so that components hold them.
 - `CookedAssets::open(directory)` reads the manifest of a directory of cooked data;
-  `CookedAssets::texture(id)` reads a texture, which `slime_render::Renderer::create_texture`
-  uploads.
+  `CookedAssets::texture(id)` reads a texture, which `slime_render::AssetCache` loads with the
+  materials that read it, or `slime_render::Renderer::create_texture` uploads by hand.
 - `CookedAssets::mesh`, `material` and `scene` read the other kinds; a glTF file's default scene
   is read by the file's own ID. A `CookedScene`'s nodes carry the glTF `extras` they were given, as
   `Extra` values, and their typed components, the `slime:<type name>` ones, as the bytes of a

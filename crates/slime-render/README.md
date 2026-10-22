@@ -124,7 +124,8 @@ fn main() -> Result<(), RenderError> {
 
 - `Renderer::new(gpu, format)` creates a renderer for output targets of one format: the window's
   for a windowed application (`Context::surface_format` in `slime-app`). It holds what every view
-  shares: its pipelines, its meshes' pages, its uploader and the shadow atlases.
+  shares: its pipelines, its meshes' pages (the buffers that its meshes share), its uploader and
+  the shadow atlases.
 - `Renderer::create_view(gpu, label)` creates a `View`, which a game keeps for each image that it
   draws, the player's, each half of a split screen, a map in a corner: its targets, at the size
   it draws (`View::render_size`), and the statistics of its last frame (`View::stats`). Its
@@ -148,7 +149,9 @@ fn main() -> Result<(), RenderError> {
   &MaterialData)` creates a `Material` with glTF's metallic-roughness model, its textures given as
   `SampledTexture`s; values out of their ranges are returned as `RenderError::InvalidMaterial`.
   `Material::set_values(gpu, MaterialValues)` changes a material's values while a game runs, its
-  textures staying as made, for a fire that flickers; `Material::values` reads them.
+  textures staying as made, for a fire that flickers; `Material::values` reads them. Both are the
+  physically based kind's: an unlit material's values are `UnlitValues`, which
+  `Material::set_parameters` changes.
   `Renderer::create_unlit_material(gpu, label, &UnlitData)` creates an unlit `Material`, its color,
   times its texture, shown as it is whatever the light and the exposure, masked or blended
   (`AlphaMode::Blend`), casting no shadows
@@ -185,7 +188,9 @@ fn main() -> Result<(), RenderError> {
   neither holds nor loads start loading, as one batch in the background, at the rank of their
   `Priority` (ADR-0113, ADR-0128). `poll(gpu)`, at each frame, takes the batches that finished,
   gives each mesh that failed, stops the loads that nothing holds, and drops what nothing holds past
-  its `Budgets`; `mesh(id)` gives a mesh and its material once held, `material(id)` a material,
+  its `Budgets`, which `budgets` and `set_budgets` read and change; a handle's `state` says whether
+  its mesh loads, is ready, failed or is missing from the cooked data; `mesh(id)` gives a mesh and
+  its material once held, `material(id)` a material,
   `loading` how many meshes are on their way, `report` a `CacheReport` of what it holds and loads.
   `reload(gpu, assets)` loads again what handles hold and changed in new cooked data, keeping the
   rest, and `reloading` says whether it is under way. After a lost device, `into_requests` gives
@@ -201,7 +206,9 @@ fn main() -> Result<(), RenderError> {
   `lights`, `environment`, `exposure` and `bloom`, or whether an instance casts shadows, are set
   once they are made (ADR-0046).
 - `Renderer::render(gpu, &scene, &mut [ViewDraw])` draws a scene through each view, in passes (the
-  directional light's shadows, the spot lights' shadows, scene, sky, resolve, bloom, tone mapping),
+  directional light's shadows, the spot lights' shadows, scene, sky, after the sky the blended
+  surfaces and what a client draws in the scene, resolve, bloom, tone mapping, and over the image
+  what a client draws over it),
   and keeps in each view its `RenderStats`: draw calls, instances, triangles, and the CPU and GPU
   time of its passes. A `ViewDraw` gives a view its camera, its target and, as a `Viewport`, the
   rectangle of the target that it draws into, the whole target by default, and, as `Drawings`,
@@ -217,9 +224,9 @@ fn main() -> Result<(), RenderError> {
   camera's image, which picking by the CPU casts.
 - `Camera`: where a view sees the scene from, through a `Projection`, in perspective or
   orthographic, and the `ImagePart` of its image that it draws, the whole image or a part of it, for
-  a split screen or a magnifier. `Light`: one of glTF's punctual lights, a
-  `DirectionalLight`, of which the first that casts shadows casts the scene's through cascades, a
-  `PointLight` or a `SpotLight`, every one of which may cast shadows into a tile of the shadow
+  a split screen or a magnifier. `Light`: one of glTF's punctual lights, a `DirectionalLight`, of
+  which the first that casts shadows casts the scene's through cascades, a `PointLight`, which casts
+  none, or a `SpotLight`, every one of which may cast shadows into a tile of the spot lights' shadow
   atlas; a scene has at most `MAX_LIGHTS` of them drawn. `Light::check` says whether the renderer
   draws a light, by the rule of `slime_assets::SceneLight::check` for its values: `render` leaves
   out, with a warning, a light that it refuses, which a game's data may hold, and the shader bounds
@@ -252,7 +259,9 @@ errors.
 - `slime-gfx`: the GPU objects and the render passes.
 - `slime-color`: `LinearColor`, the colors of materials, lights and skies.
 - `slime-tasks`: the engine's task pool, which runs the loads and computes the sky's environment.
-- `slime-reflect`: describes the parameters of each kind of material to an editor (ADR-0111).
+- `slime-reflect`: describes the parameters of each kind of material to an editor (ADR-0111), and
+  a view's settings, its statistics and the asset cache's report to the tools that read and change
+  them (ADR-0127, ADR-0128).
 - `slime-assets`: the cooked data of the asset pipeline, which the renderer turns into its own GPU
   objects (ADR-0069).
 - `glam`: vectors, matrices and quaternions.

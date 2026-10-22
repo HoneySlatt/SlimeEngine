@@ -220,19 +220,18 @@ the temporary files of its cook: delete the directory to clean it.
 
 ### Driving a running game
 
-A game built with its default features holds the engine's development channel
+A game built with its default features holds the engine's development channel, when they turn on
+`slime-app`'s `development` feature, as *Hunna Wood*'s do
 ([ADR-0122](docs/adr/0122-the-development-channel.md)): started with a token in its environment, it
 listens on the machine's own address for the tools that drive it; started without one, it does not.
 The engine's MCP server, `slime-mcp`, starts a game so, and gives an agent the tools to pause and
 step it, read and change its world, play it with keys, save and load its run to files of the agent's
 own, capture its image or one of its views, change how a view draws, pick the entity at a pixel,
-read its reports and its log;
-its [README](crates/slime-mcp/README.md) says how to give it to an agent. The game opens its window
-on
-the display that the server's environment names: to keep it off your desktop, give the server the
-environment of a headless Weston, `XDG_RUNTIME_DIR` and `WAYLAND_DISPLAY`, with
-`VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"` so that lavapipe draws it, as `scripts/check.sh` runs the
-server's test.
+read its reports and its log; its [README](crates/slime-mcp/README.md) says how to give it to an
+agent. The game opens its window on the display that the server's environment names: to keep it off
+your desktop, give the server the environment of a headless Weston, `XDG_RUNTIME_DIR` and
+`WAYLAND_DISPLAY`, with `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"` so that lavapipe draws it, as
+`scripts/check.sh` runs the server's test.
 
 A build for shipping leaves the channel out: name the game alone, without its default features,
 `cargo build --release -p hunnawood --no-default-features`. A build of the whole workspace turns
@@ -300,14 +299,14 @@ pull request. Two Linux jobs run the same script side by side, each one of its t
 check that needs no compositor, and `scripts/check.sh windowed`, the runs in headless Weston
 compositors, which cooks first what they draw; without an argument, the script runs both, one after
 the other. Two Windows jobs run beside them
-([ADR-0104](docs/adr/0104-the-build-ci-and-measurements.md)). The first, `windows`, runs the
-tests, then the image tests, the GPU timing test, the multi-pass test and the test that makes the
-renderer's shaders again with `--nocapture` so that its log shows what they measured on WARP, then
-the headless samples, fetches and cooks the sample game's zone and runs the tests that read it.
-It runs the tests one at a time (`--test-threads=1`): WARP's shader compiler crashes the process,
-now and then, when several threads compile shaders at once. It does not stop at the first test
-program that fails, and when a step fails, it publishes the images that the failing image tests
-rendered on WARP, as an artifact named `image-test-failures-windows`. The second,
+([ADR-0104](docs/adr/0104-the-build-ci-and-measurements.md)). The first, `windows`, runs the tests,
+then the image tests, the GPU timing test, the multi-pass test, the test of the device's limits and
+the test that makes the renderer's shaders again with `--nocapture` so that its log shows what they
+measured on WARP, then the headless samples, fetches and cooks the sample game's zone and runs the
+tests that read it. It runs the tests one at a time (`--test-threads=1`): WARP's shader compiler
+crashes the process, now and then, when several threads compile shaders at once. It does not stop at
+the first test program that fails, and when a step fails, it publishes the images that the failing
+image tests rendered on WARP, as an artifact named `image-test-failures-windows`. The second,
 `windows-release`, runs clippy, builds in release and runs the headless samples, and publishes the
 `hello`, `headless`, `window`, `offscreen`, `scene` and `world` examples and the `hunnawood` game
 built for Windows, with the sample cooked for `scene` and `world` and the zone cooked for the game,

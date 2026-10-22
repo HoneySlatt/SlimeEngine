@@ -49,14 +49,15 @@ desktop, start the server with the environment of a headless Weston, and lavapip
 The tools, each described to the agent by the server itself, with its parameters:
 
 - `start_game`: starts a game as its `command` runs it, the program and its arguments, and connects
-  to it, waiting long enough for `cargo run` to build it first. Give a game a save of its own:
-  `["cargo", "run", "-p", "hunnawood", "--", "--new", "--save", "/tmp/agent-run.toml"]`.
-  `stop_game` asks it to stop, as closing its window would, and kills it if it does not. A game
-  that ended on its own is told at the next tool that asks it, and forgotten.
+  to it, waiting long enough for `cargo run` to build it first, or `timeout_seconds`. Give a game a
+  save of its own: `["cargo", "run", "-p", "hunnawood", "--", "--new", "--save",
+  "/tmp/agent-run.toml"]`. `stop_game` asks it to stop, as closing its window would, and kills it if
+  it does not. A game that ended on its own is told at the next tool that asks it, and forgotten.
 - `game_state`, `pause`, `resume`, `step` and `set_speed`: the host's controls of game time, and the
   views that the game's last frame drew, with their settings; a step answers once its steps have
   run.
-- `list_entities`, `inspect_entity` and `set_property`: the world, its entities named by their
+- `list_entities`, `inspect_entity` and `set_property`: the world, its entities, which
+  `list_entities` lists by a `filter` on their names and identities, empty for all, named by their
   persistent identities, `hero`, `zone/door`, its values written in the engine's notation, as a
   scene file holds them.
 - `press_key` and `release_key`: keys, named by their position on the keyboard, `KeyW`.
