@@ -871,7 +871,8 @@ each view the settings that change its passes.
   holds still (`tests/common/settled.rs`). `slime-app`'s channel reads and changes a view's settings
   in a unit test, and the MCP server's `tests/views.rs` sets the `world` example's map to its
   normals and finds the ground facing up. The known debt of a view that waits for the GPU at each
-  change of size is retired.
+  change of size is retired. The owner dragged the `world` example's window and looked at its views'
+  settings by hand on 2026-10-22.
 
 ### M6a.9 — Asset requests
 
