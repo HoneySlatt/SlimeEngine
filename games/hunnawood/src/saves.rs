@@ -565,16 +565,25 @@ mod tests {
         for earlier in ["0.0.1", "0.3.0", "0", "0.4"] {
             assert!(!later(earlier), "{earlier}");
         }
+        // Relative to this version, so that the test holds in every version.
+        let [major, minor]: [u64; 2] = [0, 1].map(|at| {
+            THIS_VERSION
+                .split('.')
+                .nth(at)
+                .and_then(|number| number.parse().ok())
+                .expect("numbers")
+        });
         for after in [
-            "99.0.0",
-            "0.10.0",
-            "1",
-            "0.4.0.1",
-            "0.4.0-dev",
-            "banana",
-            "",
+            "99.0.0".to_owned(),
+            // A minor version of one more digit: after as a number, not as text.
+            format!("{major}.{}.0", minor + 10),
+            format!("{}", major + 1),
+            format!("{THIS_VERSION}.1"),
+            format!("{THIS_VERSION}-dev"),
+            "banana".to_owned(),
+            String::new(),
         ] {
-            assert!(later(after), "{after}");
+            assert!(later(&after), "{after}");
         }
     }
 }
