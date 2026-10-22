@@ -333,6 +333,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `error_chain` no longer writes a cause that the error's message already holds, as a cooked file's
   errors write what is wrong with it after its path: "the mesh is not one the cooker writes: a text
   is not UTF-8" appeared twice.
+- The tooltips of the dev overlay's widgets show a value's documentation as plain text, its lines
+  joined into paragraphs and its links written as their text, where they showed its doc comments
+  as written, line breaks and Markdown included.
 - The lamps of the `world` example's yard have their light: the light of the lamp's prefab had no
   transform, which the frame builder needs to place a light, and was never drawn.
 - When creating the spot lights' shadow atlas ran out of GPU memory after the cascades' atlas was

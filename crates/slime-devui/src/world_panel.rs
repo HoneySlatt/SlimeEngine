@@ -204,7 +204,7 @@ impl WorldPanel {
             {
                 header
                     .header_response
-                    .on_hover_text(&registration.info().doc);
+                    .on_hover_text(plain(&registration.info().doc));
             }
             let asked = editor.edits.drain(..);
             if let Some(id) = &id {
@@ -462,7 +462,7 @@ impl Editor<'_> {
                     let item = egui::Button::selectable(selected, variant.name.as_str());
                     let mut response = ui.add_enabled(selected || value.is_some(), item);
                     if !variant.doc.is_empty() {
-                        response = response.on_hover_text(&variant.doc);
+                        response = response.on_hover_text(plain(&variant.doc));
                     }
                     if response.clicked() {
                         chosen = value;
@@ -668,7 +668,7 @@ fn described(response: egui::Response, field: Option<&FieldInfo>) {
     let Some(field) = field else {
         return;
     };
-    let mut text = field.doc.clone();
+    let mut text = plain(&field.doc);
     if let Some(range) = field.range {
         text.push_str(&format!("\nRange: {range}."));
     }
@@ -679,6 +679,56 @@ fn described(response: egui::Response, field: Option<&FieldInfo>) {
     if !text.is_empty() {
         response.on_hover_text(text);
     }
+}
+
+/// `doc`, documentation as doc comments write it, in Markdown, as the plain text of a tooltip: its
+/// lines joined into paragraphs, but for a list's items, each on a line of its own; a link written
+/// as its text, `[text](target)` and the intra-doc link of a code span, ``[`Name`]``; and code
+/// spans without their backticks.
+fn plain(doc: &str) -> String {
+    let mut joined = String::with_capacity(doc.len());
+    for (index, paragraph) in doc.split("\n\n").enumerate() {
+        if index > 0 {
+            joined.push_str("\n\n");
+        }
+        for (index, line) in paragraph.lines().map(str::trim).enumerate() {
+            if index > 0 {
+                joined.push(if line.starts_with("- ") { '\n' } else { ' ' });
+            }
+            joined.push_str(line);
+        }
+    }
+    let mut text = String::with_capacity(joined.len());
+    let mut rest = joined.as_str();
+    while let Some(open) = rest.find('[') {
+        text.push_str(&rest[..open]);
+        rest = &rest[open..];
+        let Some(close) = rest.find(']') else {
+            break;
+        };
+        let (inside, after) = (&rest[1..close], &rest[close + 1..]);
+        let target = after
+            .strip_prefix('(')
+            .and_then(|target| target.find(')').map(|end| &target[end + 1..]));
+        let code = inside.len() > 1 && inside.starts_with('`') && inside.ends_with('`');
+        match target {
+            Some(after_target) => {
+                text.push_str(inside);
+                rest = after_target;
+            }
+            None if code => {
+                text.push_str(inside);
+                rest = after;
+            }
+            // Brackets of prose, such as an interval.
+            None => {
+                text.push('[');
+                rest = &rest[1..];
+            }
+        }
+    }
+    text.push_str(rest);
+    text.replace('`', "")
 }
 
 /// A value of `variant`, whose fields are those of `values`, the variant that a value holds, of
@@ -757,6 +807,18 @@ mod tests {
     use slime_world::{Component, Extras, Hidden, Light, Meshes, Transform};
 
     use super::*;
+
+    #[test]
+    fn a_tooltip_shows_documentation_as_plain_text() {
+        let doc = "The scale of its targets, at most\n\
+                   [`Gpu::max_texture_dimension`](slime_gfx::Gpu::max_texture_dimension) on a side,\n\
+                   as [`View`] says.\n\nWithin [0, 1]:\n- `low`\n- [high](#high)";
+        assert_eq!(
+            plain(doc),
+            "The scale of its targets, at most Gpu::max_texture_dimension on a side, as View \
+             says.\n\nWithin [0, 1]:\n- low\n- high"
+        );
+    }
 
     /// A component that only derives, with a value of each kind the panel shows.
     #[derive(Clone, Debug, PartialEq, Reflect)]
