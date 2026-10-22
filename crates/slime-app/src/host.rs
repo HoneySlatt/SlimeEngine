@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use slime_gfx::{GfxError, Gpu, TextureFormat};
 use slime_platform::{Input, Window};
-use slime_world::{Command, World, WorldError};
+use slime_world::{Command, World};
 
 use crate::app::AppConfig;
 use crate::error::AppError;
@@ -105,7 +105,7 @@ impl Host {
     /// span named `fixed_step`, and the update with the transforms one named `update`.
     pub fn frame(&mut self, simulation: &mut impl Simulation, real: Duration) {
         self.context.time.real = self.clock.advance(real);
-        self.apply_commands();
+        self.apply_commands(simulation);
         let context = &mut self.context;
         let (steps, delta, alpha) = context.clock.advance(context.time.real.delta());
         let game = &mut context.time.game;
@@ -132,18 +132,19 @@ impl Host {
     /// Stops `simulation`: applies the commands queued since the last frame, which no frame will,
     /// then calls its [`Simulation::stop`], so that what it saves holds them.
     pub fn stop(&mut self, simulation: &mut impl Simulation) {
-        self.apply_commands();
+        self.apply_commands(simulation);
         let (mut ctx, world) = self.simulation_context();
         simulation.stop(&mut ctx, world);
     }
 
-    /// Applies the commands queued since the last frame, in their order, and keeps those that the
-    /// world refuses, with why, in place of the last frame's.
-    fn apply_commands(&mut self) {
+    /// Applies the commands queued since the last frame, in their order, through `simulation`
+    /// ([`Simulation::apply`]), and keeps those that it refuses, with why, in place of the last
+    /// frame's.
+    fn apply_commands(&mut self, simulation: &mut impl Simulation) {
         let context = &mut self.context;
         context.refused.clear();
         for command in std::mem::take(&mut context.commands) {
-            if let Err(error) = self.world.apply(&command) {
+            if let Err(error) = simulation.apply(&mut self.world, &command) {
                 tracing::warn!(?command, "a command is refused: {error}");
                 context.refused.push((command, error));
             }
@@ -210,8 +211,8 @@ pub struct Context {
     clock: GameClock,
     /// The commands sent since the last frame's start.
     commands: Vec<Command>,
-    /// The commands that the world refused at this frame's start, and why.
-    refused: Vec<(Command, WorldError)>,
+    /// The commands that the simulation refused at this frame's start, and why.
+    refused: Vec<(Command, AppError)>,
 }
 
 impl Context {
@@ -356,9 +357,9 @@ impl Context {
         self.commands.push(command);
     }
 
-    /// The commands that the world refused at this frame's start, and why, in their order: each is
-    /// logged as a warning too.
-    pub fn refused(&self) -> &[(Command, WorldError)] {
+    /// The commands that the simulation refused at this frame's start ([`Simulation::apply`]), and
+    /// why, in their order: each is logged as a warning too.
+    pub fn refused(&self) -> &[(Command, AppError)] {
         &self.refused
     }
 

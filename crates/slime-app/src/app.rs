@@ -1,6 +1,6 @@
 //! Running a game: [`run`], the host of a game's program, and how it runs ([`AppConfig`]).
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use slime_gfx::{PresentMode, Surface};
 use slime_platform::WindowConfig;
@@ -10,7 +10,7 @@ use crate::error::RunError;
 use crate::game::{Presentation, Simulation};
 use crate::host::{Context, ExitReason, Host};
 use crate::signal;
-use crate::windowed::run_windowed;
+use crate::windowed::{next_due, run_windowed};
 
 /// How [`run`] runs a game.
 ///
@@ -47,7 +47,8 @@ pub struct AppConfig {
     /// frames are scheduled at this rate and the loop sleeps between them. This schedule paces the
     /// frames (`docs/adr/0021-frame-pacing.md`); the windowing system can ask for more, for
     /// example while the window is being resized, and with [`PresentMode::Fifo`] the display can
-    /// slow them down. Headless runs ignore it. Default: 60.
+    /// slow them down. Headless runs ignore it, but those that [`AppConfig::pace_headless`] paces.
+    /// Default: 60.
     pub max_frame_rate: u32,
     /// With a window, how it shows the images drawn by [`Presentation::render`]. Headless runs
     /// ignore it. Default: [`PresentMode::Mailbox`], which never makes a frame wait for the
@@ -59,6 +60,12 @@ pub struct AppConfig {
     /// game that does not create its objects again stops cleanly, with
     /// [`GfxError::DeviceLost`](slime_gfx::GfxError::DeviceLost).
     pub restore_lost_device: bool,
+    /// Without a window, whether frames are scheduled at [`AppConfig::max_frame_rate`], the loop
+    /// sleeping between them, as a program that waits for tools does, an editor without a window
+    /// (`docs/adr/0134-the-editors-core.md`); each frame still represents one fixed step. Windowed
+    /// runs ignore it, which are paced anyway. Default: `false`, so that tests and benchmarks run
+    /// their frames back to back.
+    pub pace_headless: bool,
 }
 
 impl Default for AppConfig {
@@ -72,6 +79,7 @@ impl Default for AppConfig {
             max_frame_rate: 60,
             present_mode: PresentMode::default(),
             restore_lost_device: false,
+            pace_headless: false,
         }
     }
 }
@@ -107,7 +115,8 @@ impl Default for AppConfig {
 /// does not report.
 ///
 /// - **Headless** ([`AppConfig::window`] is `None`): frames run back to back, as fast as the
-///   machine allows, with simulated time: each frame represents exactly one fixed step, so it runs
+///   machine allows, or at [`AppConfig::max_frame_rate`] when [`AppConfig::pace_headless`] says,
+///   with simulated time: each frame represents exactly one fixed step, so it runs
 ///   exactly one fixed step at a speed of 1, and every run gives the same times (as long as the
 ///   fixed step is not longer than the maximum frame delta, which would limit it). The windowing
 ///   system is never touched, and the presentation never called.
@@ -161,11 +170,12 @@ impl Default for AppConfig {
 /// # Panics
 ///
 /// If `config.fixed_step`, `config.max_fixed_steps_per_frame` or `config.max_frame_delta` is
-/// zero. With a window, also if `config.max_frame_rate` is zero, if the window's width or height
-/// is zero or above 16 384 logical pixels, if its title contains a NUL byte, or if `run` is not
-/// called from the main thread. On Linux, also when the windowing library cannot load
-/// libxkbcommon, or libxkbcommon-x11 on X11 (see [`slime_platform::run_event_loop`]); on
-/// Wayland, this can happen during the run, when a keyboard first appears.
+/// zero. With a window, or [`AppConfig::pace_headless`], also if `config.max_frame_rate` is zero.
+/// With a window, also if the window's width or height is zero or above 16 384 logical pixels, if
+/// its title contains a NUL byte, or if `run` is not called from the main thread. On Linux, also
+/// when the windowing library cannot load libxkbcommon, or libxkbcommon-x11 on X11 (see
+/// [`slime_platform::run_event_loop`]); on Wayland, this can happen during the run, when a keyboard
+/// first appears.
 pub fn run(
     simulation: &mut impl Simulation,
     presentation: &mut impl Presentation,
@@ -187,11 +197,23 @@ fn run_headless(simulation: &mut impl Simulation, config: &AppConfig) -> Result<
     let mut frames = Frames::new(config);
     let mut host = Host::new(config);
 
+    let period = config.pace_headless.then(|| {
+        assert!(config.max_frame_rate > 0, "a paced run has a frame rate");
+        Duration::from_secs(1) / config.max_frame_rate
+    });
     tracing::debug!(?config, "running headless");
     host.start(simulation).map_err(RunError::Init)?;
+    let mut due = Instant::now();
     let reason = loop {
         if let Some(reason) = frames.check_stop(&mut host.context, None, false) {
             break reason;
+        }
+        if let Some(period) = period {
+            let now = Instant::now();
+            if now < due {
+                std::thread::sleep(due - now);
+            }
+            due = next_due(due, Instant::now(), period);
         }
         frames.run_one(&mut host, simulation, &mut (), config.fixed_step, None);
     };

@@ -259,7 +259,7 @@ impl DevChannel {
                 component,
                 path,
                 value,
-            } => set_property(host.world_mut(), entity, component, path, value)
+            } => set_property(simulation, host.world_mut(), entity, component, path, value)
                 .map_or_else(failed, |()| Reply::Done),
             Request::Press { key } | Request::Release { key } => {
                 let Some(code) = KeyCode::from_name(key) else {
@@ -306,6 +306,9 @@ impl DevChannel {
                     |error| failed(crate::error_chain(&*error)),
                     |()| Reply::Done,
                 ),
+            Request::Edit { edit } => simulation
+                .edit(host.world_mut(), edit)
+                .unwrap_or_else(|error| failed(crate::error_chain(&*error))),
         }
     }
 
@@ -598,8 +601,10 @@ fn entity_text(world: &World, identity: &str) -> Result<Reply, String> {
 }
 
 /// Sets the part at `path` of the component of `world`'s entity `identity` to `text`, a value in the
-/// engine's notation, as a command does at the start of a frame.
+/// engine's notation, as a command does at the start of a frame, through `simulation`
+/// ([`Simulation::apply`]).
 fn set_property(
+    simulation: &mut dyn Simulation,
     world: &mut World,
     identity: &str,
     component: &str,
@@ -628,10 +633,9 @@ fn set_property(
         path,
         value,
     };
-    world
-        .apply(&command)
-        .map(drop)
-        .map_err(|error| error.to_string())
+    simulation
+        .apply(world, &command)
+        .map_err(|error| crate::error_chain(&*error))
 }
 
 /// The value of the type named `ty` that `text`, in the engine's notation, writes. An option is

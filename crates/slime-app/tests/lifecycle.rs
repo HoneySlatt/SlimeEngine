@@ -407,6 +407,81 @@ fn a_refused_command_changes_nothing_and_is_handed_back_for_one_frame() {
 }
 
 #[test]
+fn a_paced_headless_run_waits_for_each_frame_and_still_steps_one_fixed_step_each() {
+    let mut game = Recorder::default();
+    let config = AppConfig {
+        max_frame_rate: 100,
+        pace_headless: true,
+        ..config(Some(6))
+    };
+    let started = std::time::Instant::now();
+    run(&mut game, &mut (), &config).expect("this game starts");
+    // Six frames, scheduled 10 ms apart: the last starts 50 ms after the first.
+    assert!(
+        started.elapsed() >= Duration::from_millis(50),
+        "{:?}",
+        started.elapsed()
+    );
+    let steps = game
+        .calls
+        .iter()
+        .filter(|call| matches!(call, Call::FixedStep(_)))
+        .count();
+    assert_eq!(
+        steps, 6,
+        "one fixed step per frame, as an unpaced headless run"
+    );
+}
+
+/// A simulation that keeps the commands sent to it rather than applying them to the world, as an
+/// editor makes steps of them, and refuses those that name no one.
+#[derive(Default)]
+struct Keeper {
+    kept: Vec<Command>,
+}
+
+impl Simulation for Keeper {
+    fn apply(&mut self, _: &mut World, command: &Command) -> Result<(), AppError> {
+        if command.entity().to_string() == "nobody" {
+            return Err("nobody is here".into());
+        }
+        self.kept.push(command.clone());
+        Ok(())
+    }
+}
+
+#[test]
+fn a_simulation_applies_the_commands_sent_to_it_its_own_way() {
+    let mut keeper = Keeper::default();
+    let mut host = host(&mut keeper);
+    let Command::SetProperty {
+        component,
+        path,
+        value,
+        ..
+    } = place_hero(3.0)
+    else {
+        unreachable!("`place_hero` sets a property");
+    };
+    host.context_mut().send(place_hero(3.0));
+    host.context_mut().send(Command::SetProperty {
+        entity: "nobody".parse().expect("an identity"),
+        component,
+        path,
+        value,
+    });
+    host.frame(&mut keeper, STEP);
+    assert_eq!(keeper.kept, [place_hero(3.0)]);
+    let refused: Vec<String> = host
+        .context()
+        .refused()
+        .iter()
+        .map(|(command, why)| format!("{}: {why}", command.entity()))
+        .collect();
+    assert_eq!(refused, ["nobody: nobody is here"]);
+}
+
+#[test]
 fn at_a_quarter_of_the_speed_a_step_runs_at_every_fourth_frame_and_what_moves_is_drawn_between() {
     let mut game = Mover::default();
     let mut host = host(&mut game);

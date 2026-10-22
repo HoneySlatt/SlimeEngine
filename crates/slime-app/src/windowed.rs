@@ -285,7 +285,7 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
 /// or the application did. Counting such a frame as the scheduled one would push the schedule one
 /// period further away at each of them, and the loop would then sleep until the schedule caught
 /// up, without running frames or noticing signals.
-fn next_due(due: Instant, started: Instant, period: Duration) -> Instant {
+pub(crate) fn next_due(due: Instant, started: Instant, period: Duration) -> Instant {
     let next = due + period;
     if started < due || next <= started {
         started + period

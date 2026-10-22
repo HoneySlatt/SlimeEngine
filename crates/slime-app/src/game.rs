@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use slime_gfx::RenderTarget;
 use slime_platform::Event;
 use slime_reflect::{Reflect, ReflectError, Registry, Value};
-use slime_world::{Entity, World};
+use slime_world::{Command, Entity, World};
 
 use crate::error::AppError;
 use crate::host::{Context, SimulationContext};
@@ -119,6 +119,35 @@ pub trait Simulation {
     fn load(&mut self, world: &mut World, file: &Path) -> Result<(), AppError> {
         let _ = (world, file);
         Err("the game does not save its runs".into())
+    }
+
+    /// Applies `command`, which the presentation, the dev overlay or a tool sent, at the start of a
+    /// frame, before the commands that follow it: by default, to the world ([`World::apply`]). An
+    /// editor makes it a step of its history, which undoes
+    /// (`docs/adr/0135-the-editors-program.md`).
+    ///
+    /// # Errors
+    ///
+    /// Why the command is refused, which leaves the world as it was: by default, the world's
+    /// refusal ([`WorldError`](slime_world::WorldError)).
+    fn apply(&mut self, world: &mut World, command: &Command) -> Result<(), AppError> {
+        world.apply(command).map(drop).map_err(Into::into)
+    }
+
+    /// Answers what a tool asks of an editor through the development channel, at the start of a
+    /// frame (`docs/adr/0135-the-editors-program.md`).
+    ///
+    /// # Errors
+    ///
+    /// Why it cannot answer: by default, that the program is not an editor.
+    #[cfg(feature = "development")]
+    fn edit(
+        &mut self,
+        world: &mut World,
+        edit: &slime_channel::Edit,
+    ) -> Result<slime_channel::Reply, AppError> {
+        let _ = (world, edit);
+        Err("the program is not an editor: it plays its level, and edits none".into())
     }
 }
 
@@ -439,5 +468,16 @@ mod tests {
             assert_eq!(refused.to_string(), "the game does not save its runs");
         }
         assert!(!file.exists(), "nothing written");
+    }
+
+    #[cfg(feature = "development")]
+    #[test]
+    fn a_simulation_that_is_not_an_editor_refuses_what_a_tool_asks_of_an_editor() {
+        let mut world = World::new();
+        let refused = ().edit(&mut world, &slime_channel::Edit::Undo).expect_err("refused");
+        assert_eq!(
+            refused.to_string(),
+            "the program is not an editor: it plays its level, and edits none"
+        );
     }
 }

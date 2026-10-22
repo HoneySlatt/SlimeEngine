@@ -23,7 +23,7 @@ use rmcp::{
     ErrorData as McpError, ServerHandler, ServiceExt, schemars, tool, tool_handler, tool_router,
 };
 use serde::Deserialize;
-use slime_channel::{Client, Reply, Request, Token, launch};
+use slime_channel::{Client, Edit, Reply, Request, Token, launch};
 
 /// How long a game is given to say where it listens, by default: `cargo run` may build it first.
 const START_TIMEOUT: Duration = Duration::from_secs(600);
@@ -45,7 +45,11 @@ const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its dev
      debugging that shows normals or shadows; `pick` names the entity drawn at a pixel of its \
      image or of a view; `read_report` reads its reports, as its asset cache's; \
      `read_logs` reads its log; `save_game` and `load_game` save its run to a file and load it; \
-     `stop_game` ends it. \
+     `stop_game` ends it. An editor, started as a game is (`cargo run --example editor -- --level \
+     <a copy of a level> --journal <a file of its own>`), edits its level: `edit` makes a step of \
+     commands, `undo` and `redo` undo and make it again, `select` selects entities, \
+     `editor_history` says its steps and selection, `editor_journal` gives its journal, and \
+     `write_level` writes the level back to its file. \
      `cook` and `run_tests` run in the repository's root, where the server runs.";
 
 /// The game that the server drives, if one runs.
@@ -70,11 +74,37 @@ struct Server {
 struct StartGame {
     /// The program and its arguments, as a shell would split them: for example `["cargo", "run",
     /// "-p", "hunnawood", "--", "--new", "--save", "/tmp/agent-run.toml"]`. Give a game a save of
-    /// its own, never the player's.
+    /// its own, never the player's, and an editor a copy of a level and a journal of its own.
     command: Vec<String>,
     /// How many seconds the game is given to start listening; 600 if left out, `cargo run` building
     /// it first.
     timeout_seconds: Option<u64>,
+}
+
+/// What `edit` takes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct EditStep {
+    /// The step's name, which the history shows: `Light the gate`.
+    label: String,
+    /// The commands, each as text in the engine's notation, applied in their order, each as the
+    /// world is when it comes: `[Create]\nentity = "yard/torch-0rdx"\nparent = "yard"\n\n
+    /// [Create.components]\nName = "torch"\n`, `[Delete]\nentity = "yard/lamp 4"\n`. A table named
+    /// after the command's kind: `SetProperty` (entity, component, path, value), `Create` (entity,
+    /// parent, rank, components), `Place` (entity, parent, rank, prefab, its asset ID), `Delete`
+    /// (entity), `Reparent` (entity, parent, rank), `Insert` (entity, component, value), `Remove`
+    /// (entity, component). An entity that a command creates is named under the level's key,
+    /// `yard/<a name and four letters or digits>`; entities are under the level's root.
+    commands: Vec<String>,
+    /// The entities to select after the step, by persistent identity; left out to keep the
+    /// selection.
+    selection: Option<Vec<String>>,
+}
+
+/// What `select` takes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct Select {
+    /// The entities to select, by persistent identity; empty for none.
+    selection: Vec<String>,
 }
 
 /// What `step` takes.
@@ -453,6 +483,34 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
             ]),
             Err(error) => failure(format!("the image cannot be written as PNG: {error}")),
         },
+        Reply::History { history } => {
+            let list = |labels: &[String]| {
+                if labels.is_empty() {
+                    "none".to_owned()
+                } else {
+                    format!("`{}`", labels.join("`, `"))
+                }
+            };
+            text(format!(
+                "level {}; steps done, the oldest first: {}; steps undone, the next to redo first: \
+                 {}; selected: {}; entries of a journal recovered at the start: {}; journal {}",
+                history.level,
+                list(&history.done),
+                list(&history.undone),
+                list(&history.selection),
+                history.recovered,
+                history.journal
+            ))
+        }
+        Reply::Journal { text: journal } => text(journal),
+        Reply::Written { left_out } => text(if left_out.is_empty() {
+            "the level is written, whole".to_owned()
+        } else {
+            format!(
+                "the level is written; its file could not hold:\n{}",
+                left_out.join("\n")
+            )
+        }),
         Reply::Welcome { .. } | Reply::Refused { .. } => {
             failure("the game answered as to a connection's start")
         }
@@ -464,7 +522,9 @@ impl Server {
     #[tool(
         description = "Starts a game built with SlimeEngine, as `command` runs it, with a secret \
                        token, and connects to its development channel. One game at a time; give it \
-                       a save of its own (`--new --save /tmp/agent-run.toml` for Hunna Wood)."
+                       a save of its own (`--new --save /tmp/agent-run.toml` for Hunna Wood), and \
+                       an editor a copy of a level and a journal of its own (`--level`, \
+                       `--journal`)."
     )]
     async fn start_game(
         &self,
@@ -742,6 +802,80 @@ impl Server {
         Parameters(SaveFile { file }): Parameters<SaveFile>,
     ) -> Result<CallToolResult, McpError> {
         self.ask(Request::Load { file }).await
+    }
+
+    #[tool(
+        description = "In an editor, makes a step of commands given as text, whole or not at all, at \
+                       the start of its next frame, and selects what the step gives to select."
+    )]
+    async fn edit(
+        &self,
+        Parameters(EditStep {
+            label,
+            commands,
+            selection,
+        }): Parameters<EditStep>,
+    ) -> Result<CallToolResult, McpError> {
+        let edit = Edit::Step {
+            label,
+            commands,
+            selection,
+        };
+        self.ask(Request::Edit { edit }).await
+    }
+
+    #[tool(description = "In an editor, undoes the last step done.")]
+    async fn undo(&self) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Edit { edit: Edit::Undo }).await
+    }
+
+    #[tool(description = "In an editor, does again the last step undone.")]
+    async fn redo(&self) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Edit { edit: Edit::Redo }).await
+    }
+
+    #[tool(
+        description = "In an editor, selects entities by their persistent identities, which is not \
+                       a step: undoing a step selects again what was selected before it."
+    )]
+    async fn select(
+        &self,
+        Parameters(Select { selection }): Parameters<Select>,
+    ) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Edit {
+            edit: Edit::Select { selection },
+        })
+        .await
+    }
+
+    #[tool(
+        description = "An editor's level, its steps done and undone, what is selected, and what it \
+                       recovered of a journal as it started."
+    )]
+    async fn editor_history(&self) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Edit {
+            edit: Edit::History,
+        })
+        .await
+    }
+
+    #[tool(
+        description = "An editor's journal, as text: the level as the journal started, then each \
+                       step made, undone and done again, each selection and each writing."
+    )]
+    async fn editor_journal(&self) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Edit {
+            edit: Edit::Journal,
+        })
+        .await
+    }
+
+    #[tool(
+        description = "Writes an editor's level back to its file, whole or not at all, its comments \
+                       kept, and says what the file could not hold."
+    )]
+    async fn write_level(&self) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Edit { edit: Edit::Write }).await
     }
 
     #[tool(

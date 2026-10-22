@@ -151,6 +151,45 @@ pub enum Request {
         /// The file, a path on the game's machine.
         file: String,
     },
+    /// Asks an editor, a program that edits a level rather than plays it
+    /// (`docs/adr/0135-the-editors-program.md`). It fails in a game, which is not an editor.
+    Edit {
+        /// What it asks.
+        edit: Edit,
+    },
+}
+
+/// What a tool asks an editor ([`Request::Edit`]). Entities are named by their persistent
+/// identities; commands are given as text, each a document of the engine's notation that
+/// `slime_world::Command::write` writes.
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "ChannelEdit")]
+pub enum Edit {
+    /// Makes a step of `commands`, whole or not at all, named `label`, and selects `selection`
+    /// after it, if it is given.
+    Step {
+        /// The step's name, which the history shows.
+        label: String,
+        /// The commands, as text, applied in their order.
+        commands: Vec<String>,
+        /// What to select after the step; none to keep what is selected.
+        selection: Option<Vec<String>>,
+    },
+    /// Undoes the last step done. It fails when no step is done.
+    Undo,
+    /// Does again the last step undone. It fails when no step is undone.
+    Redo,
+    /// The editor's level, history and selection: [`Reply::History`].
+    History,
+    /// The text of the editor's journal: [`Reply::Journal`].
+    Journal,
+    /// Selects entities, which is not a step.
+    Select {
+        /// The entities selected.
+        selection: Vec<String>,
+    },
+    /// Writes the level back to its file: [`Reply::Written`].
+    Write,
 }
 
 /// What a game answers to a [`Request`].
@@ -224,6 +263,41 @@ pub enum Reply {
         /// The lines, oldest first.
         lines: Vec<LogLine>,
     },
+    /// An editor's level, history and selection.
+    History {
+        /// The history.
+        history: EditorHistory,
+    },
+    /// The text of an editor's journal.
+    Journal {
+        /// The journal, as the editor wrote it.
+        text: String,
+    },
+    /// An editor's level written back to its file: what the file could not hold as the editor's
+    /// world holds it, each as a sentence; none when it holds all of it.
+    Written {
+        /// What was left out.
+        left_out: Vec<String>,
+    },
+}
+
+/// An editor's level, history and selection, as [`Reply::History`] gives them.
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "ChannelEditorHistory")]
+pub struct EditorHistory {
+    /// The level's file, a path on the editor's machine.
+    pub level: String,
+    /// The labels of the steps done, the oldest first.
+    pub done: Vec<String>,
+    /// The labels of the steps undone, the next to be done again first.
+    pub undone: Vec<String>,
+    /// What is selected, by persistent identity.
+    pub selection: Vec<String>,
+    /// How many entries of a journal that a crash, or a stop without writing, left the editor
+    /// played again as it started: what it recovered.
+    pub recovered: u64,
+    /// The editor's journal, a path on its machine.
+    pub journal: String,
 }
 
 /// A game's state, as a frame's start finds it.
@@ -392,6 +466,46 @@ mod tests {
             Request::Load {
                 file: text("/tmp/run.toml"),
             },
+            Request::Edit {
+                edit: Edit::Step {
+                    label: text("Move the door"),
+                    commands: vec![text("[Delete]\nentity = \"zone/door\"\n")],
+                    selection: Some(vec![text("zone")]),
+                },
+            },
+            Request::Edit {
+                edit: Edit::Step {
+                    label: text("Light the yard"),
+                    commands: Vec::new(),
+                    selection: None,
+                },
+            },
+            Request::Edit {
+                edit: Edit::Step {
+                    label: text("Select nothing"),
+                    commands: Vec::new(),
+                    selection: Some(Vec::new()),
+                },
+            },
+            Request::Edit { edit: Edit::Undo },
+            Request::Edit { edit: Edit::Redo },
+            Request::Edit {
+                edit: Edit::History,
+            },
+            Request::Edit {
+                edit: Edit::Journal,
+            },
+            Request::Edit {
+                edit: Edit::Select {
+                    selection: vec![text("zone/door"), text("zone/well")],
+                },
+            },
+            Request::Edit {
+                edit: Edit::Select {
+                    selection: Vec::new(),
+                },
+            },
+            Request::Edit { edit: Edit::Write },
         ];
         for request in requests {
             let bytes = encode(&request).expect("encoded");
@@ -463,6 +577,22 @@ mod tests {
                     number: 3,
                     text: text("INFO the zone is drawn"),
                 }],
+            },
+            Reply::History {
+                history: EditorHistory {
+                    level: text("/levels/yard.scene"),
+                    done: vec![text("Move the door")],
+                    undone: vec![text("Light the yard")],
+                    selection: vec![text("zone/door")],
+                    recovered: 4,
+                    journal: text("/data/yard.journal"),
+                },
+            },
+            Reply::Journal {
+                text: text("# do\n"),
+            },
+            Reply::Written {
+                left_out: vec![text("zone/door: a component of no known type")],
             },
         ];
         for reply in replies {
