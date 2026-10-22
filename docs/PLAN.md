@@ -65,7 +65,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   per scene, scenes unloaded and adoption ([ADR-0125](adr/0125-saves-per-scene.md)), and M6a.8a,
   views apart from the renderer ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)), and
   M6a.8b, the settings of a view ([ADR-0127](adr/0127-the-settings-of-a-view.md)), and M6a.9,
-  asset requests ([ADR-0128](adr/0128-asset-requests.md)). Next: M6a.10.
+  asset requests ([ADR-0128](adr/0128-asset-requests.md)), and M6a.10a, drawing for the editor
+  ([ADR-0129](adr/0129-drawing-for-the-editor.md)), M6a.10 cut in two. Next: M6a.10b.
 
 ## Status
 
@@ -82,7 +83,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6a.8a](#m6a8a--views-apart-from-the-renderer) | One renderer draws several views, and makes once what they share | Done |
 | [M6a.8b](#m6a8b--the-settings-of-a-view) | Each view chooses its scale, anti-aliasing, debugging and passes | Done |
 | [M6a.9](#m6a9--asset-requests) | What a view lacks loads first, and assets stay within a budget of memory | Done |
-| [M6a.10](#m6a10--rendering-for-the-editor) | The renderer draws what an editor shows, and says what is under the cursor | Planned |
+| [M6a.10a](#m6a10a--drawing-for-the-editor) | The renderer draws what an editor shows: lines, blended overlays and unlit icons | Done |
+| [M6a.10b](#m6a10b--picking) | The renderer says which object is under the cursor | Planned |
 | [M6a.11](#m6a11--windows-check-documentation-release-05) | Stage 6a is done and released as 0.5, with the audit pass and the foundations pass | Planned |
 | [P1](#p1--saves-and-identities-that-never-mislead) | A save, a scene file and a level written back hold what the world holds and name the entities they mean; a game resumes only a save it can play, and never loses one | Done |
 | [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | Done |
@@ -138,7 +140,8 @@ foundations pass. Where the engine stands at the start:
   without priorities or cancellation
   ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)). M6a.9 changed it.
 - **No blending, lines, integer targets or picking**, and the renderer's passes are a closed list
-  ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)).
+  ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). M6a.10a changed the first two and
+  the last.
 
 Out of scope: Stage 6b's work, the editor's commands beyond the dev overlay's edits, its journal,
 undo and redo, the UI framework, the editor's window, viewport, hierarchy, inspector, gizmos and
@@ -955,31 +958,78 @@ each view the settings that change its passes.
   the `world` example's two reports. The benchmarks `loading` and `loading.zone` run with the
   requests.
 
-### M6a.10 — Rendering for the editor
+### M6a.10a — Drawing for the editor
 
-- **Goal.** The renderer draws what an editor shows, lines, blended overlays and unlit icons, and
-  says which object is under the cursor.
-- **Crates.** `slime-gfx`, `slime-render`, `slime-world-render`; the examples and the MCP server.
-- **Delivers.** As [ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md) decides, in
-  `slime-gfx`: blending, lines, a render target of integers, a target read back without waiting, a
-  part of a texture written, a pass that resolves a depth of four samples into one, amending
-  ADR-0059. In `slime-render`: the unlit kind of material, the second kind; two points of each
-  view's graph where a client registers its draws, in the scene pass after the opaque instances,
-  and after tone mapping, amending ADR-0041. Picking by the GPU: an image of the instances'
-  numbers, at one sample per pixel, read back a frame or two later without holding up a frame,
-  given up without a panic on a lost device, each number mapped by the bridge to the persistent
-  identity of the entity drawn. Picking by the CPU: a ray against the instances' bounds, then against the triangles of the
-  meshes that it meets, kept in the CPU's memory for it. A view's image sampled by another pipeline
-  through `slime-gfx`, which Stage 6b's interface shows. The `world` example draws a grid at the
-  first point, and the box of what is clicked at the second. The entity under a pixel of a view
-  named through the MCP server. The ADR of the design; the rustdoc, `docs/ARCHITECTURE.md`, the
+- **Goal.** The renderer draws what an editor shows: lines, blended overlays and unlit icons.
+- **Crates.** `slime-gfx`, `slime-render`; the examples.
+- **Delivers.** As [ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md) decides, and
+  [ADR-0129](adr/0129-drawing-for-the-editor.md) shapes: blending in `slime-gfx`; the unlit kind of
+  material, the second; what a client draws into a view, lines a width in pixels wide and
+  instances, at two points of its graph, in the scene after its surfaces and its sky, and after
+  tone mapping, amending ADR-0041; a view's image sampled by another pipeline through `slime-gfx`,
+  which Stage 6b's interface shows. The `world` example draws a grid at the first point, and the box
+  of what is selected at the second. The ADR of the design; the rustdoc, `docs/ARCHITECTURE.md`, the
   glossary, `CHANGELOG.md`.
 - **Done when.** Image tests: lines; blending; an unlit material; a grid, drawn at the first point,
-  hidden by the objects in front of it; lines drawn at the second point over everything; picking by
-  the GPU and by the CPU name the same entity under a set of pixels of a scene without masked
-  materials, and the GPU's passes between the cut-out leaves of a masked one to what is behind; a
-  readback never holds up a frame; a device lost while picking gives no answer and no panic; a
-  test names the entity under a pixel through the MCP server; CI is green.
+  hidden by the objects in front of it; lines drawn at the second point over everything; a view's
+  image sampled by another pipeline; CI is green.
+- **How to test.** `cargo test -p slime-gfx -p slime-render`; `cargo run --example world`.
+- **By hand.** The owner looks at the `world` example's grid and icons, and selects objects with
+  Tab.
+- **Outcome.** Done on 2026-10-22. [ADR-0129](adr/0129-drawing-for-the-editor.md) records the
+  design and the owner's five decisions of 2026-10-22, among which M6a.10 cut in two, and amends
+  ADR-0041, ADR-0111 and ADR-0115. `slime-gfx` blends (`Blend::Alpha`, in `FragmentState::blend`)
+  and gains no primitive of lines. `Renderer::create_unlit_material` makes the unlit kind of
+  material from `UnlitData`, its color shown as it is whatever the exposure, casting no shadows,
+  its parameters `UnlitValues`; `AlphaMode::Blend`, which the physically based kind refuses, draws
+  an unlit material after the other surfaces and after the sky, laid over them without writing its
+  depth. `ViewDraw::drawings` gives a view `Drawings`: in the scene, a `DrawList` of `Line`s and
+  instances, drawn in the pass after the sky's, with the scene's depth and samples; over the image,
+  lines, drawn in a pass after the tone mapping's; each pass only in the frames that draw something
+  there (`RenderStats::after_sky_gpu_time`, `over_image_gpu_time`). A line is a band that faces
+  the camera, its width in the output's pixels at any render scale, cut at the near plane, its
+  edges and ends smoothed over a pixel, each pixel measured against its ends on the screen
+  (`lines.wgsl`). `Mesh::bounds` gives a mesh's box. The `world` example draws a grid on the ground and an icon above each
+  light in its yard's view, and the box of the entity that Tab selects over both views' images.
+  The tests: in `slime-gfx`'s `tests/drawing.rs`,
+  `a_blended_pipeline_lays_its_color_over_the_target_s_by_its_alpha`; in `slime-render`'s
+  `tests/unlit.rs`, `an_unlit_surface_shows_its_color_whatever_the_light_and_the_exposure`,
+  `an_unlit_surface_s_texture_multiplies_its_color_and_its_mask_cuts_it_out`,
+  `a_blended_unlit_surface_lies_over_what_is_behind_it_and_under_what_is_in_front`,
+  `a_blended_unlit_surface_lies_over_the_sky`,
+  `a_mirrored_unlit_surface_shows_its_normals_facing_the_camera`,
+  `an_unlit_surface_casts_no_shadow` and
+  `an_unlit_material_s_parameters_are_reflected_and_keep_its_alpha_mode`; in `tests/drawings.rs`,
+  `a_line_over_the_image_is_its_width_in_pixels_wide_in_its_color_over_everything`,
+  `a_line_in_the_scene_is_hidden_by_what_is_in_front_of_it_and_shown_through_the_tone_curve`, the
+  grid's case, `a_line_keeps_its_width_in_the_output_s_pixels_at_any_render_scale`,
+  `instances_drawn_in_the_scene_are_hidden_by_what_is_in_front_and_blend_over_what_is_behind`,
+  `a_line_on_the_ground_that_runs_away_from_the_camera_keeps_its_width_all_along`,
+  `a_view_drawn_into_a_rectangle_draws_its_lines_over_the_image_there`,
+  `a_line_that_runs_behind_the_camera_draws_its_part_in_front_of_it` and
+  `the_drawings_passes_run_only_in_the_views_that_have_drawings`; in `tests/views.rs`,
+  `a_view_s_image_is_sampled_by_another_pipeline`; and in `renderer.rs`, every shape of the frame
+  with and without each pass of drawings. The example's lamps, whose lights had no transform and
+  were never drawn since Stage 5b, are lit, which a test of the yard checks.
+
+### M6a.10b — Picking
+
+- **Goal.** The renderer says which object is under the cursor.
+- **Crates.** `slime-gfx`, `slime-render`, `slime-world-render`; the examples and the MCP server.
+- **Delivers.** As [ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md) decides, in
+  `slime-gfx`: a render target of integers, a target read back without waiting. Picking by the GPU:
+  an image of the instances' numbers, at one sample per pixel, read back a frame or two later
+  without holding up a frame, given up without a panic on a lost device, each number mapped by the
+  bridge to the persistent identity of the entity drawn. Picking by the CPU: a ray against the
+  instances' bounds, then against the triangles of the meshes that it meets, kept in the CPU's
+  memory for it. The `world` example draws the box of what is clicked. The entity under a pixel of a
+  view named through the MCP server. The ADR of the design; the rustdoc, `docs/ARCHITECTURE.md`, the
+  glossary, `CHANGELOG.md`.
+- **Done when.** Image tests: picking by the GPU and by the CPU name the same entity under a set of
+  pixels of a scene without masked materials, and the GPU's passes between the cut-out leaves of a
+  masked one to what is behind; a readback never holds up a frame; a device lost while picking
+  gives no answer and no panic; a test names the entity under a pixel through the MCP server; CI is
+  green.
 - **How to test.** `cargo test -p slime-gfx -p slime-render -p slime-world-render`; `cargo run
   --example world`.
 - **By hand.** The owner clicks objects in the `world` example.
@@ -2148,6 +2198,14 @@ GitHub issues, linked from their entry; this list stays the reference.
   instance of 100 000 cubes on the owner's machine (`render.instances.100k`,
   [`measurements.md`](measurements.md)). A render scene kept from one frame to the next, with
   stable keys, and culling and draws decided by the GPU come with Stage 9a (ADR-0097).
+- **What a client draws into a view is lines and instances in the scene, and lines over the image**
+  ([ADR-0129](adr/0129-drawing-for-the-editor.md)). Instances over the image, which need a depth of
+  their own, the scene's depth resolved for an outline or handles partly hidden, and a part of a
+  texture written come with the editor's handles and interface at Stage 6b. A line that lies on a
+  surface may be hidden by it in places; blended surfaces are drawn in no particular order until
+  Stage 9a sorts them. The `world` example selects with Tab from the keyboard alone: scripted keys
+  reach a game's input, which its simulation reads, not its presentation's events. How long
+  `Renderer::set_shaders` takes was measured before the unlit kind's pipelines and the lines'.
 - **A page of meshes keeps the ranges of dropped meshes until new ones fill them or it empties**
   ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)). Nothing moves a mesh to pack its
   page: a game that drops half its meshes keeps their pages' memory while one mesh stays in each.
@@ -2382,7 +2440,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   upscaling is the sharper way; a pass of a sharper filter was rejected.
 - **Two modes of debugging** ([ADR-0127](adr/0127-the-settings-of-a-view.md)): the normals and the
   shadows. The editor adds those it needs, base color, light alone or cascades, at Stage 6b; a
-  wireframe needs M6a.10's lines.
+  wireframe needs lines along a mesh's edges, which M6a.10a's drawings give a client to draw.
 - **Tiny, very bright sources blink in the bloom** (ADR-0040). Without a firefly filter (Karis's
   average dims the sun's halo and makes it flicker, measured), a highlight smaller than a pixel
   blooms as its coverage of the pixel changes from frame to frame. Temporal anti-aliasing, or a cap
