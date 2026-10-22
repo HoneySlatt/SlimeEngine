@@ -1,6 +1,6 @@
 //! The world's benchmarks: a frame built from many entities, their transforms, a reader of what
 //! changed among many, a large hierarchy changed, a scene file of many placements resolved, and
-//! frames built around a sun that does not move.
+//! frames built around a sun that does not move, and a subtree deleted then restored.
 
 use std::collections::HashMap;
 use std::thread;
@@ -10,7 +10,10 @@ use slime_assets::{AssetId, CookedScene, SceneNode};
 use slime_color::LinearColor;
 use slime_render::glam::{DVec3, Mat4, Quat, Vec3};
 use slime_render::{AssetCache, Renderer};
-use slime_world::{Entity, Light, Meshes, Name, ResolvedScene, SceneLibrary, Transform, World};
+use slime_world::{
+    Command, Entity, Light, Meshes, Name, PersistentId, ResolvedScene, SceneLibrary, Transform,
+    World,
+};
 use slime_world_render::FrameBuilder;
 
 use crate::measure::{Context, LOAD_LIMIT, Row, meshes_of, ms, percentile, timed};
@@ -382,10 +385,9 @@ pub fn changes(_context: &mut Context) -> Result<Vec<Row>, String> {
     Ok(rows)
 }
 
-/// A level of 100 000 entities, each with a name and a transform, spawned under the key `level`
-/// from a cooked scene and settled; 1 % of them moved by a run, then saved and loaded again, five
-/// times each: what a save costs when little changed.
-pub fn save(_context: &mut Context) -> Result<Vec<Row>, String> {
+/// A level of `READ_ENTITIES` entities, each with a name and a transform, resolved from a cooked
+/// scene.
+fn level() -> Result<ResolvedScene, String> {
     let nodes = (0..READ_ENTITIES)
         .map(|index| SceneNode {
             name: format!("n{index}"),
@@ -402,8 +404,15 @@ pub fn save(_context: &mut Context) -> Result<Vec<Row>, String> {
         nodes,
     };
     let registry = World::new();
-    let scene = ResolvedScene::from_cooked(AssetId::from_u128(1), &cooked, registry.registry())
-        .map_err(|error| error.to_string())?;
+    ResolvedScene::from_cooked(AssetId::from_u128(1), &cooked, registry.registry())
+        .map_err(|error| error.to_string())
+}
+
+/// A level of 100 000 entities, each with a name and a transform, spawned under the key `level`
+/// from a cooked scene and settled; 1 % of them moved by a run, then saved and loaded again, five
+/// times each: what a save costs when little changed.
+pub fn save(_context: &mut Context) -> Result<Vec<Row>, String> {
+    let scene = level()?;
     let start = || -> Result<World, String> {
         let mut world = World::new();
         world
@@ -446,5 +455,76 @@ pub fn save(_context: &mut Context) -> Result<Vec<Row>, String> {
         ),
         Row::new("its load, median of 5", ms(percentile(&loads, 0.5))),
         Row::new("its size", format!("{} kB", size / 1000)),
+    ])
+}
+
+/// The groups of the subtree that `undo` deletes and restores, and the entities of each.
+const GROUPS: usize = 9;
+const GROUP_ENTITIES: usize = 110;
+
+/// A level of 100 000 entities, and a subtree of 1 000 in it, a group of 9 groups of 110 entities,
+/// each with a name, a transform and a light: deleted by the world's command, then restored by the
+/// command that deleting gave back, twenty times (`docs/adr/0109-stable-references-and-undo.md`).
+pub fn undo(_context: &mut Context) -> Result<Vec<Row>, String> {
+    let mut world = World::new();
+    let level = world
+        .spawn_scene("level", &level()?)
+        .map_err(|error| error.to_string())?;
+    let id = |name: &str| PersistentId::new(["level", name]);
+    let add = |world: &mut World, name: &str, parent: Entity| -> Result<(), String> {
+        let entity = world
+            .spawn_as(&id(name))
+            .map_err(|error| error.to_string())?;
+        world.insert(entity, Name(name.to_owned()));
+        world.insert(entity, Transform::from_translation(DVec3::X));
+        world.insert(entity, point_light(10.0));
+        world
+            .set_parent(entity, Some(parent))
+            .map_err(|error| error.to_string())
+    };
+    add(&mut world, "group", level)?;
+    let group = world.find(&id("group")).ok_or("the group")?;
+    for index in 0..GROUPS {
+        let name = format!("group {index}");
+        add(&mut world, &name, group)?;
+        let parent = world.find(&id(&name)).ok_or("a group")?;
+        for leaf in 0..GROUP_ENTITIES {
+            add(&mut world, &format!("{name} entity {leaf}"), parent)?;
+        }
+    }
+    let count = 1 + GROUPS * (1 + GROUP_ENTITIES);
+    let delete = Command::Delete {
+        entity: id("group"),
+    };
+    let (mut deletes, mut restores, mut both) = (Vec::new(), Vec::new(), Vec::new());
+    for _ in 0..20 {
+        let (restore, deleted) = timed(|| world.apply(&delete));
+        let restore = restore.map_err(|error| error.to_string())?;
+        let (restored, restoring) = timed(|| world.apply(&restore));
+        restored.map_err(|error| error.to_string())?;
+        if world.len() != READ_ENTITIES + 1 + count {
+            return Err(format!("{} entities after the restoration", world.len()));
+        }
+        deletes.push(deleted);
+        restores.push(restoring);
+        both.push(deleted + restoring);
+    }
+    let row = |what: &str, times: &[Duration]| {
+        Row::new(
+            format!("{what}, median and 90th percentile of 20"),
+            format!(
+                "{} / {}",
+                ms(percentile(times, 0.5)),
+                ms(percentile(times, 0.9))
+            ),
+        )
+    };
+    Ok(vec![
+        row(
+            &format!("{count} entities deleted, in a level of {READ_ENTITIES}"),
+            &deletes,
+        ),
+        row("restored", &restores),
+        row("deleted then restored", &both),
     ])
 }

@@ -92,6 +92,12 @@ const BENCHMARKS: &[Benchmark] = &[
         run: world::save,
     },
     Benchmark {
+        name: "world.undo.1k",
+        about: "a subtree of 1 000 entities in a level of 100 000, deleted then restored",
+        on_request: false,
+        run: world::undo,
+    },
+    Benchmark {
         name: "world.sky",
         about: "frames built around a sun that does not move, between two fixed steps",
         on_request: false,
