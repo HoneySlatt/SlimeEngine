@@ -497,9 +497,10 @@ fn four_views_take_one_cascades_atlas_where_four_renderers_took_four() {
         four_views as f64 / MIB as f64,
         four_renderers as f64 / MIB as f64
     );
-    // Three cascades' atlases of 64 MiB each, at least.
+    // Three cascades' atlases of 64 MiB each, but a few MiB that the allocators keep differently in
+    // each case: lavapipe shows exactly three atlases more, Direct3D 12 on WARP 0.4 MiB less.
     assert!(
-        four_renderers >= four_views + 3 * 64 * MIB,
+        four_renderers + 4 * MIB >= four_views + 3 * 64 * MIB,
         "{four_views} bytes against {four_renderers}"
     );
 }
