@@ -118,6 +118,21 @@ impl Command {
             Self::Restore(_) => "Restore",
         }
     }
+
+    /// The entity that the command names first: the one it changes, creates, places, deletes or
+    /// moves, or the root of what a restoration creates again.
+    pub fn entity(&self) -> &PersistentId {
+        match self {
+            Self::SetProperty { entity, .. }
+            | Self::Create { entity, .. }
+            | Self::Place { entity, .. }
+            | Self::Delete { entity }
+            | Self::Reparent { entity, .. }
+            | Self::Insert { entity, .. }
+            | Self::Remove { entity, .. } => entity,
+            Self::Restore(deleted) => deleted.root(),
+        }
+    }
 }
 
 impl World {
