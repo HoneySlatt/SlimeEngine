@@ -63,8 +63,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   created entities written into levels
   ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)), and M6a.7b, saves
   per scene, scenes unloaded and adoption ([ADR-0125](adr/0125-saves-per-scene.md)), and M6a.8a,
-  views apart from the renderer ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)). Next:
-  M6a.8b.
+  views apart from the renderer ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)), and
+  M6a.8b, the settings of a view ([ADR-0127](adr/0127-the-settings-of-a-view.md)). Next: M6a.9.
 
 ## Status
 
@@ -79,7 +79,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6a.7a](#m6a7a--driven-components-keys-and-created-entities-written-into-levels) | A save and a level written back hold what was changed, and name for good what a start creates | Done |
 | [M6a.7b](#m6a7b--saves-per-scene-and-adoption) | A save costs what changed; an entity outlives its level | Done |
 | [M6a.8a](#m6a8a--views-apart-from-the-renderer) | One renderer draws several views, and makes once what they share | Done |
-| [M6a.8b](#m6a8b--the-settings-of-a-view) | Each view chooses its scale, anti-aliasing, debugging and passes | Planned |
+| [M6a.8b](#m6a8b--the-settings-of-a-view) | Each view chooses its scale, anti-aliasing, debugging and passes | Done |
 | [M6a.9](#m6a9--asset-requests) | What a view lacks loads first, and assets stay within a budget of memory | Planned |
 | [M6a.10](#m6a10--rendering-for-the-editor) | The renderer draws what an editor shows, and says what is under the cursor | Planned |
 | [M6a.11](#m6a11--windows-check-documentation-release-05) | Stage 6a is done and released as 0.5, with the audit pass and the foundations pass | Planned |
@@ -824,7 +824,9 @@ each view the settings that change its passes.
 - **Goal.** Each view chooses the scale it renders at, its anti-aliasing, a mode of debugging and
   the passes it runs; a view whose size changes keeps its targets until its size holds still.
 - **Findings.** None beyond M6a.8a's.
-- **Crates.** `slime-render`; the examples, *Hunna Wood*'s dev overlay and the MCP server.
+- **Crates.** `slime-render`; the examples, *Hunna Wood*'s dev overlay and the MCP server; at the
+  start, `slime-app`, `slime-channel` and `slime-devui` joined them, for the settings that a tool
+  and the dev overlay change ([ADR-0127](adr/0127-the-settings-of-a-view.md)).
 - **Delivers.** As [ADR-0111](adr/0111-the-frame-contract.md) decides: a view's render scale, its
   anti-aliasing, a mode of debugging that shows normals or shadows, the passes it runs; a view's
   targets made again once its size holds still, the image scaled to its output meanwhile. The ADR
@@ -834,6 +836,42 @@ each view the settings that change its passes.
   targets once, when it holds still; CI is green.
 - **How to test.** `cargo test -p slime-render`; `cargo run --example world`.
 - **By hand.** The owner drags the `world` example's window and looks at its views' settings.
+- **Outcome.** Done on 2026-10-22. [ADR-0127](adr/0127-the-settings-of-a-view.md) records the
+  design and the owner's seven decisions of 2026-10-22, and amends ADR-0056, ADR-0111, ADR-0122 and
+  ADR-0126. A `View` holds its `ViewSettings` (`View::set_settings`): its render scale, from 0.25 to
+  2; its `AntiAliasing`, none or four samples, for which the renderer makes the scene's and the
+  sky's pipelines at one sample too, fourteen in all; a `DebugMode`, the normals or the shadows,
+  which the scene shader writes as they are, without the sky, the bloom or the tone curve; and
+  whether it draws the shadows, the sky and the bloom, the first view of a call that draws shadows
+  drawing the spot lights' tiles. Its targets are its rectangle's size times its render scale
+  (`View::render_size`), and the tone-mapping pass reads the scene's light bilinearly where each
+  pixel's centre falls in them. A new size makes the view's targets once it has held still for
+  `RESIZE_DELAY`, the image stretched over the rectangle until then, the frame and its
+  timers kept; the old targets are still freed first. `slime-app`'s `ReflectedSettings` hands a
+  tool a view's settings through reflection (`Presentation::view_settings`,
+  `Presentation::set_view_settings`); version 4 of the development channel lists them in the game's
+  state and changes them (`Request::SetViewSettings`), and the MCP server's `set_view_settings`
+  tool. `slime_devui::edit_reflected` edits any reflected value with the world panel's widgets: the
+  `world` example's views panel, on F3, and *Hunna Wood*'s overlay, on F1, change their views'
+  settings with it, and *Hunna Wood* names its view `hero`. The rustdoc of `View` gives the memory
+  that a view takes at each setting, which `Gpu::memory_in_use` confirmed on the RX 6900 XT. The
+  render benchmarks draw each size through a view of its own. The tests, in `slime-render`'s `tests/settings.rs`:
+  `a_render_scale_draws_fewer_or_more_pixels_read_bilinearly`, at one half and at 2, against the
+  bilinear reading of the image drawn at a scale of 1;
+  `the_normals_mode_shows_each_surface_s_normal_as_a_color` and
+  `the_shadows_mode_shows_the_light_that_reaches_each_surface`, the sun's tinted by its cascade and
+  a spot light's; `a_view_draws_without_the_passes_that_it_leaves_out`, the shadows, the sky, the
+  bloom, and the spot lights' tiles drawn by the second view when the first draws no shadows;
+  `a_size_dragged_frame_after_frame_makes_the_view_s_targets_once_it_holds_still`, its targets,
+  its GPU memory and its times kept through fifteen sizes, then the image of a new view; in
+  `tests/anti_aliasing.rs`, `without_anti_aliasing_an_edge_shows_the_sample_at_each_pixel_s_centre`;
+  in `renderer.rs`, `a_view_makes_its_targets_at_a_new_size_once_it_holds_still`,
+  `a_render_scale_scales_each_side_rounded_within_what_the_gpu_holds` and every shape of the frame
+  with and without anti-aliasing and the sky. The tests that resize a view draw it once the size
+  holds still (`tests/common/settled.rs`). `slime-app`'s channel reads and changes a view's settings
+  in a unit test, and the MCP server's `tests/views.rs` sets the `world` example's map to its
+  normals and finds the ground facing up. The known debt of a view that waits for the GPU at each
+  change of size is retired.
 
 ### M6a.9 — Asset requests
 
@@ -2271,13 +2309,24 @@ GitHub issues, linked from their entry; this list stays the reference.
   `slime-world-render` keeps those nearest one point that the game gives, so that views far apart,
   as two players' halves of a split screen in two places, share the lamps of one of them. Stage 9a's
   method for many lights decides how a view gets its own.
-- **A view whose frame changes shape at every call reports no tone-mapping or bloom time, and
-  waits for the GPU at each change of size** (ADR-0041, ADR-0126; M6a.8b). Each change of shape
-  (the rectangle's size, the shadow pass or the bloom starting or stopping) builds the view's frame
-  again with new timers, and the last submission's times come back during the next call, by then
-  read from newer timers; a change of size frees the old targets first, once the GPU has finished
-  the frames that use them, which the call waits for. A window's edge dragged does both at every
-  frame. Use one view per size; M6a.8b makes a view's targets again once its size holds still.
+- **A view whose frame changes shape at every call reports no tone-mapping or bloom time**
+  (ADR-0041, ADR-0126, ADR-0127). Each change of shape (the size of its targets, its anti-aliasing,
+  a pass starting or stopping, by the scene or by its settings) builds the view's frame again with
+  new timers, and the last submission's times come back during the next call, by then read from
+  newer timers. A window's edge dragged no longer does it, its size held until it is let go, nor
+  does a view drawn into rectangles of two sizes in turn, which draws one of them stretched: use
+  one view per size.
+- **A view's new size waits for its next frame after `RESIZE_DELAY`**
+  ([ADR-0127](adr/0127-the-settings-of-a-view.md)): a view drawn only when something changes, as an
+  editor's viewport may be, keeps its image stretched until it is drawn again `RESIZE_DELAY` after
+  its size last changed. Stage 6b's viewports draw again then, or at every frame.
+- **A render scale reads the scene's light bilinearly**
+  ([ADR-0127](adr/0127-the-settings-of-a-view.md)): below 1 the image is blurred, and between 1 and
+  2 each pixel averages the four texels nearest its centre, missing others. Stage 9a's temporal
+  upscaling is the sharper way; a pass of a sharper filter was rejected.
+- **Two modes of debugging** ([ADR-0127](adr/0127-the-settings-of-a-view.md)): the normals and the
+  shadows. The editor adds those it needs, base color, light alone or cascades, at Stage 6b; a
+  wireframe needs M6a.10's lines.
 - **Tiny, very bright sources blink in the bloom** (ADR-0040). Without a firefly filter (Karis's
   average dims the sun's halo and makes it flicker, measured), a highlight smaller than a pixel
   blooms as its coverage of the pixel changes from frame to frame. Temporal anti-aliasing, or a cap
