@@ -7,8 +7,10 @@
   [0109](0109-stable-references-and-undo.md) (a created entity carried once before the editor's
   command system) and [0110](0110-how-the-editor-runs-a-games-code.md) (the development channel
   built before play in the editor, with the MCP server); amended by
-  [0124](0124-driven-components-keys-and-created-entities-in-levels.md) (M6a.7 in two milestones)
-  and [0126](0126-views-apart-from-the-renderer.md) (M6a.8 in two milestones)
+  [0124](0124-driven-components-keys-and-created-entities-in-levels.md) (M6a.7 in two milestones),
+  [0126](0126-views-apart-from-the-renderer.md) (M6a.8 in two milestones) and
+  [0131](0131-stage-6b-and-stage-6c.md) (Stage 6b split again, every later stage released one
+  version later)
 - Date: 2026-10-20
 
 ## Context

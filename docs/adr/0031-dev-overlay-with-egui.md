@@ -1,9 +1,10 @@
 # 0031. The dev overlay with egui, and wgpu for the engine's tooling
 
 - Status: Accepted; its rule on the `wgpu` feature is widened to the engine's own tests
-  (2026-10-13); amended by [0052](0052-amend-roadmap-before-0-1.md) (when the overlay is removed)
-  and [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) (egui's fonts ship in the programs that
-  draw the overlay)
+  (2026-10-13); amended by [0052](0052-amend-roadmap-before-0-1.md) (when the overlay is removed),
+  [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) (egui's fonts ship in the programs
+  that draw the overlay) and [0132](0132-the-engines-ui-framework.md) (the overlay rewritten on the
+  engine's UI framework, and egui removed, at Stage 6b)
 - Date: 2026-10-13
 
 ## Context

@@ -1,7 +1,8 @@
 # 0081. Stage 5a: the world
 
 - Status: Accepted; amended by [0109](0109-stable-references-and-undo.md) (the world panel's
-  edits name entities by identity)
+  edits name entities by identity) and [0132](0132-the-engines-ui-framework.md) (the world panel
+  rewritten on the engine's UI framework at Stage 6b, rather than removed)
 - Date: 2026-10-16
 
 ## Context

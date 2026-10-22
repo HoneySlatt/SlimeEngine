@@ -5,8 +5,9 @@
   [0064](0064-cascaded-shadow-maps.md) (Stage 9a's content),
   [0067](0067-hunna-wood-replaces-nightwatch.md) (the sample game replaced),
   [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) (culling and instancing
-  moved to Stage 6, and the release map), and [0098](0098-the-games-the-engine-aims-at.md) (the
-  editor's UI and the UI of games)
+  moved to Stage 6, and the release map), [0098](0098-the-games-the-engine-aims-at.md) (the
+  editor's UI and the UI of games) and [0132](0132-the-engines-ui-framework.md) (the dev overlay
+  rewritten on the engine's UI framework, and egui removed, at Stage 6b)
 - Date: 2026-10-14
 
 ## Context

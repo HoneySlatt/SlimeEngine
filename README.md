@@ -69,7 +69,8 @@ drawn at a pixel. A save costs what the run changed since the game settled its w
 that it made at the start of the run; a level unloaded keeps what the run changed of it, and an
 entity adopted, taken out of its level, outlives it. The `world` example draws its yard and a map
 of it from above in a corner, and selects what a click picks. [`docs/PLAN.md`](docs/PLAN.md) says
-what comes next, Stage 6b, the editor, and lists the known debt.
+what comes next, Stage 6b, the engine's interface: its UI framework, proven by the dev overlay,
+and the editor's core; then Stage 6c, the editor. It lists the known debt too.
 
 ## Getting started
 

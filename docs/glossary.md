@@ -122,6 +122,11 @@ origin as at it ([ADR-0048](adr/0048-rendering-relative-to-the-camera.md),
 **Candela (cd).** The unit of luminous intensity, lumens per steradian: the strength of a point or
 spot light (`intensity`). A surface facing such a light d metres away receives intensity / d² *lux*.
 
+**Canvas.** What the renderer draws in two dimensions, after the *views*, into any target: rounded
+rectangles with their borders and shadows, glyphs and images, each clipped. The engine's UI
+framework draws its *display list* through it ([ADR-0132](adr/0132-the-engines-ui-framework.md)).
+Decided, not built yet.
+
 **Cascade (cascaded shadow maps).** One of the *shadow maps* that together hold the shadows of a
 directional light: what the camera sees up to the light's shadow distance is split along its axis
 into slices, and each slice gets its own map, as many texels across for less ground near the camera,
@@ -206,7 +211,7 @@ which a render pass keeps the nearest surface whatever the order the surfaces ar
 a *shadow map* is read. Depths are reversed (*reversed depth*).
 
 **Development channel.** The link between a running game and the tools that drive it: the *MCP*
-server, tests, and from Stage 6b the editor. A game started with a *token* in its environment
+server, tests, and from Stage 6c the editor. A game started with a *token* in its environment
 listens on the machine's own address; through it, a tool pauses, steps and reads the game, changes
 its world, plays it with keys, captures its image or one of its views, reads and changes its views'
 settings, reads its *reports*, picks the entity at a pixel, and saves and loads its run
@@ -220,6 +225,10 @@ is reset, the GPU is removed, or it runs out of memory: its objects can then no 
 and the run stops ([ADR-0022](adr/0022-losing-the-gpu-device.md)), unless the application chose to
 go on with a new device, for which it creates its objects again
 ([ADR-0075](adr/0075-recovering-from-a-lost-gpu-device.md)).
+
+**Display list.** What an interface of the engine's UI framework draws in a frame, as data that the
+framework owns and hands over, which a bridge turns into the renderer's *canvas*
+([ADR-0132](adr/0132-the-engines-ui-framework.md)). Decided, not built yet.
 
 **Dithering.** Adding a little noise to values before they are rounded to the steps of an output,
 so that the rounding keeps their average and a slow gradient shows an even grain instead of bands
@@ -670,8 +679,8 @@ beyond which nothing is seen ([ADR-0126](adr/0126-views-apart-from-the-renderer.
 
 **Overlay (dev).** Panels drawn over the engine's frames with egui, to show statistics and
 tooling over a running application (`slime_devui::Overlay`,
-[ADR-0031](adr/0031-dev-overlay-with-egui.md)). Removed once what replaces it does at least as
-well ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md)).
+[ADR-0031](adr/0031-dev-overlay-with-egui.md)). Drawn with egui until Stage 6b rewrites it on the
+engine's UI framework and removes egui ([ADR-0132](adr/0132-the-engines-ui-framework.md)).
 
 **Override.** A value that a *placement* sets on its *prefab*: a value changed, a component added
 or removed, an entity of the prefab removed or one added, written by the scene that places it. It

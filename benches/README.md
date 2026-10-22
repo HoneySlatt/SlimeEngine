@@ -47,8 +47,9 @@ it is their whole name.
 | `loading.textures` | 16 squares, each drawn with a material of its own whose base color is a texture of 4096 × 4096 texels in BC7, every level of detail with it, 341 MiB in all, written once into `target/benches/textures` without the cooker, loaded and drawn as `loading.zone` is: the case of the audit's B4-F01 | B4-F01 |
 | `loading.zone` | The meshes of *Hunna Wood*'s zone, cooked in `target/cooked/hunnawood`, each placed once on a grid and drawn by day, under a sun that casts shadows, at 1280 × 720, while they load with their materials and textures, then once loaded, each frame waited for on the GPU, after frames that made the renderer's targets, its shadows' atlas and the sky, so that a load is not mixed with what a first frame costs: the time from the opening of the cooked zone until a frame draws them whole, the render CPU during the load and after, and the longest frame during the load, built, drawn and waited for. The zone's bytes, not its scene, whose components only the game registers. On request only, since it needs the zone fetched and cooked, as [*Hunna Wood*'s README](../games/hunnawood/README.md) says | B4-F01, B1-F06 |
 
-The last column names the findings of [`docs/PLAN.md`](../docs/PLAN.md), or the decision, whose
-changes the benchmark measures before and after.
+The last column names the findings of the audit of 0.4, described in `docs/PLAN.md` until 0.5
+(`git show v0.5.0:docs/PLAN.md`), or the decision, whose changes the benchmark measures before and
+after.
 
 ## Reading the figures
 

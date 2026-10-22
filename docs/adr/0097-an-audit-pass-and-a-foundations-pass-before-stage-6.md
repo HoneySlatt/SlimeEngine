@@ -8,8 +8,10 @@
   [0107](0107-the-execution-model.md) (the time of a game, brought from Stage 7 to Stage 6),
   [0112](0112-levels-saves-and-worlds-for-open-worlds.md) (saves that cost what changed, brought to
   Stage 6), [0114](0114-hardware-tiers-and-the-gpus-limits.md) (three hardware tiers rather than
-  a minimum and a target) and [0116](0116-stage-6-in-two-halves.md) (the passes ship with 0.5,
-  Stage 6a's release, and every later stage is released one version later)
+  a minimum and a target), [0116](0116-stage-6-in-two-halves.md) (the passes ship with 0.5,
+  Stage 6a's release, and every later stage is released one version later) and
+  [0131](0131-stage-6b-and-stage-6c.md) (every stage after Stage 6 released one version later
+  again)
 - Date: 2026-10-19
 
 ## Context

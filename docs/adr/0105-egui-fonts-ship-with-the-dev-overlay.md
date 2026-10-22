@@ -1,6 +1,8 @@
 # 0105. egui's fonts ship with the dev overlay
 
-- Status: Accepted; amends [0031](0031-dev-overlay-with-egui.md) (where egui's fonts go)
+- Status: Accepted; amends [0031](0031-dev-overlay-with-egui.md) (where egui's fonts go); amended by
+  [0132](0132-the-engines-ui-framework.md) (egui and its fonts leave with the overlay's rewriting, at
+  Stage 6b)
 - Date: 2026-10-19
 
 ## Context

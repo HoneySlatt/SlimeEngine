@@ -1,6 +1,6 @@
 [package]
 name = "slime-devui"
-description = "SlimeEngine's dev overlay: egui drawn over the engine's frames, tooling until the engine has a UI of its own."
+description = "SlimeEngine's dev overlay: panels drawn over the engine's frames, with egui until Stage 6b rewrites it on the engine's UI framework."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

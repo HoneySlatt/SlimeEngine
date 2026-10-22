@@ -13,7 +13,7 @@ captured, the settings of its views changed, its reports read, the entity at a p
 log and its frames' times read,
 its run saved and loaded, stopped. Assets cooked and tests run. No mouse in scripted input yet, and
 no editor: the editor's commands join the server with
-the editor, at Stage 6b.
+the editor's core, at Stage 6b.
 
 ## Role
 

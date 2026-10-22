@@ -5,22 +5,23 @@ statistics and tooling over a running application.
 
 ## Status
 
-Tooling only (`docs/adr/0031-dev-overlay-with-egui.md`). It is removed once what replaces it, the
-editor of Stage 6b of `docs/ROADMAP.md`, does at least as well
-(`docs/adr/0052-amend-roadmap-before-0-1.md`). It draws egui panels over a frame and feeds egui the
-window's events, the modifier keys held included; it does not report the clipboard, cursor icons or
-input methods. A key pressed while Ctrl is held types no text, so that a shortcut does not type its
-letter into a text field. egui warns once at startup that the framebuffer is sRGB, since it prefers
-a linear one for its blending: the panels look slightly lighter than egui's own demos.
+Tooling only (`docs/adr/0031-dev-overlay-with-egui.md`). Stage 6b of `docs/ROADMAP.md` rewrites it
+on the engine's UI framework, and removes egui, once the new overlay does at least as well
+(`docs/adr/0052-amend-roadmap-before-0-1.md`, `docs/adr/0132-the-engines-ui-framework.md`). It draws
+egui panels over a frame and feeds egui the window's events, the modifier keys held included; it
+does not report the clipboard, cursor icons or input methods. A key pressed while Ctrl is held types
+no text, so that a shortcut does not type its letter into a text field. egui warns once at startup
+that the framebuffer is sRGB, since it prefers a linear one for its blending: the panels look
+slightly lighter than egui's own demos.
 
 Its world panel, `WorldPanel`, lists a world's entities, shows the persistent identity of the one
 selected and, for a placement, its prefab (`docs/adr/0090-stage-5b-scenes-and-prefabs.md`), and
 edits its components through reflection, for whoever works on a game, as
 `docs/adr/0081-stage-5a-the-world.md` decided. It does not undo, add, remove or save components,
-which the editor that `docs/ROADMAP.md` plans for Stage 6b is to do; the panel goes with the rest of
-the overlay once that editor does at least as well. It makes its list of entities again only when
-the world's structure moves (`World::structure`). What it edits, and its limits, are in the rustdoc
-of `WorldPanel`. Its widgets edit a value outside a world too, as a view's settings
+which the editor that `docs/ROADMAP.md` plans for Stage 6c is to do; the panel is rewritten on the
+engine's UI framework with the rest of the overlay at Stage 6b. It makes its list of entities again
+only when the world's structure moves (`World::structure`). What it edits, and its limits, are in
+the rustdoc of `WorldPanel`. Its widgets edit a value outside a world too, as a view's settings
 (`docs/adr/0127-the-settings-of-a-view.md`).
 
 ## Role
@@ -148,4 +149,5 @@ impl Presentation for Statistics {
 ## Must not
 
 - Be used by the engine's crates: it is a client of them, like the examples.
-- Outlive what replaces it: remove it once the editor of Stage 6b shows the same at least as well.
+- Keep egui once the overlay, rewritten on the engine's UI framework at Stage 6b, shows the same at
+  least as well.

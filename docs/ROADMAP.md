@@ -41,7 +41,7 @@ Each style aims at the best rendering possible: realistic, anime, painted or han
 |---|---|---|
 | Games | Rust, C++, scripting, visual scripting, data | Public engine API |
 | SDK | C++ wrapper, plugin API, script bindings | Stable C ABI (promised from 1.0) |
-| Engine (Rust) | core, platform, gfx, render, assets, reflect, world, jobs, physics, audio, animation, net | Internal Rust API (unstable) |
+| Engine (Rust) | core, platform, gfx, render, ui, assets, reflect, world, jobs, physics, audio, animation, net | Internal Rust API (unstable) |
 | Foundation | OS, wgpu, then native backends (Vulkan / D3D12, Stage 9c), middleware | |
 
 The editor sits beside games, not inside the engine: it is a client of the engine's public systems and never reaches into internals.
@@ -70,7 +70,7 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 | GPU abstraction | wgpu, then native backends, Vulkan and Direct3D 12, at Stage 9c (ADR-0098). Their types stay inside the `gfx` and `render` crates, and the dev overlay, tooling (ADR-0031); the rest of the engine uses engine-owned handles. |
 | Shaders | WGSL to start |
 | First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS comes later. No mobile platform (ADR-0098). |
-| UI | One framework of the engine's own, GPU-rendered, for the editor and the UI of games; egui only for the dev overlay, tooling. No Qt or GTK. (ADR-0098) |
+| UI | One framework of the engine's own, GPU-rendered, for the editor and the UI of games: a retained tree of its own, on parley, taffy and AccessKit, drawn by the renderer's canvas (ADR-0098, ADR-0132). egui only for the dev overlay, tooling, until Stage 6b rewrites the overlay on the framework. No Qt or GTK. |
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
 | Windowing and input | winit, used only inside `platform`; its types never leave that crate (ADR-0011) |
 | Entity model | The engine's own: entities, components stored by type, and a transform hierarchy, with `f64` translations (ADR-0079) |
@@ -82,7 +82,7 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 
 | Topic | Candidates | Decide at |
 |---|---|---|
-| Design of the UI framework | Retained, immediate or hybrid; the crates it builds on for text, layout and accessibility (ADR-0098) | Stage 6b |
+| Notation of UI documents | The engine's notation laid out as scene files, a markup of its own, a subset of HTML and CSS (ADR-0132) | Stage 7 |
 | Physics backend | rapier3d, Jolt or other, behind an abstraction, against the needs of ADR-0098 | Stage 7 |
 | Audio backend | To evaluate, against the needs of ADR-0098 | Stage 7 |
 | Scripting language | Lua, C#, dedicated VM, other | Stage 8 |
@@ -272,7 +272,7 @@ The stage comes right after Stage 5a, and is released as 0.4 (ADR-0090).
 
 Between Stage 5b and Stage 6 come two passes, without a release of their own (ADR-0097): an audit pass, which fixes what an audit of 0.4 found in saves, identities, the readers of files (ADR-0096), the recovery from a lost GPU device, and measured quick wins, and puts the engine's measurements in CI; then a foundations pass, which decides as ADRs what the editor will freeze: the execution model, change detection, stable references and reversible operations, how the editor runs a game's code, the frame contract, a study of open worlds, an asset request API, hardware tiers, and what the GPU layer gives the editor, each weighed against the games of section 1 (ADR-0098) and against AI agents driving the engine (ADR-0099). `docs/PLAN.md` details both. What they deliver ships with 0.5, Stage 6a's release (ADR-0116).
 
-Stage 6 is split in two halves (ADR-0116): what the editor stands on, built and checked without the editor's interface, then the editor. A reference to Stage 6 means both.
+Stage 6 is split in three parts (ADR-0116, ADR-0131): what the editor stands on, built and checked without the editor's interface; the engine's interface, its UI framework, with the editor's core; then the editor. A reference to Stage 6 means all three; in an ADR older than ADR-0131, Stage 6b means the editor, now Stage 6b and Stage 6c.
 
 ### Stage 6a — What the editor stands on → 0.5
 
@@ -290,21 +290,32 @@ Stage 6 is split in two halves (ADR-0116): what the editor stands on, built and 
 
 **Exit.** *Hunna Wood* runs on what the editor stands on, on Linux and on Windows: what the camera does not see is not drawn and the rest is drawn by instances, measured at the hardware tiers' resolutions against their budgets; its zone loads without a frame missing its time; its game time pauses and steps; an agent drives it through the engine's MCP server, pausing and stepping it, reading and changing its world, capturing its image and playing it with scripted input; its saves are differences per scene, which cost what changed. The `world` example draws a frame in several views and picks the object under the cursor.
 
-### Stage 6b — The editor → 0.6
+### Stage 6b — The engine's interface → 0.6
 
-**Goal.** A real editor, built as a client of the engine.
+**Goal.** The engine's UI framework, built and proven by the dev overlay that games ship, and the editor's core without its interface.
 
 - The editor's core first, without its interface: a command and transaction system, every edit undoable, its entities named by their persistent identities, a deletion undone by creating its entities again under the same identities, the commands kept in a journal; what the editor creates named at once as its level's file names it (ADR-0109); the MCP server acts through the same commands (ADR-0099)
-- The engine's UI framework, as far as the editor needs it: text in several writing systems, layout, docking, widgets, input routing, focus, drag and drop, theming (ADR-0098)
+- The engine's UI framework (ADR-0098, ADR-0132): a retained tree of its own, built by code again when what it reads changes, its actions turned into commands; text in several writing systems; styles, and themes read from files; layout, and lists that lay out only what shows; input, focus and layers; text edited, with input methods and the clipboard; widgets; what it means, read by agents through the MCP server and by screen readers; drawn by the renderer's canvas
+- Shaped for the games of Stage 7 from its first line: transforms, clips and layers in what it draws, roots that are not a window, text that can be translated and written from right to left, actions to which gamepads will be mapped (ADR-0132)
+- The dev overlay rewritten on the framework, and egui removed (ADR-0132)
+- Font files under the SIL Open Font License (ADR-0133)
+
+**Exit.** The dev overlay of the game and of the `world` example runs on the engine's UI framework, on Linux and on Windows, its theme read from a file, and the framework draws text in several writing systems; an agent reads and drives the overlay's panels through the engine's MCP server, and a screen reader reads those of the `world` example; the list of a world of 100 000 entities stays within the budget that Stage 6b sets for it; egui is gone. The editor's core changes a level through commands, undone and redone, written back and opened again, driven by an agent.
+
+### Stage 6c — The editor → 0.7
+
+**Goal.** A real editor, built as a client of the engine, on its UI framework.
+
+- Docking, menu bars, dialogs, and drag and drop (ADR-0131)
 - Viewport, hierarchy, inspector (driven by reflection), gizmos, asset browser
 - Levels made of several scene files, former identities written when the editor moves an entity out of its file, and references to entities of other scenes, `EntityRef` (ADR-0112)
 - Play in the editor, the game running in a child process first (ADR-0097), in its own window, linked to the editor and to tools by the development channel; a change of the game's code starts it again where it was; a game's editor, a package beside its library and its program (ADR-0110)
 
-The stage is planned in detail at Stage 6a's close, with a study of the UI framework's design, and split again then if it needs to be (ADR-0116).
+The stage is planned in detail at Stage 6b's close (ADR-0131).
 
 **Exit.** A level of the game is built, saved and reloaded entirely in the editor, with undo/redo on every operation. The editor uses no private engine API.
 
-### Stage 7 — Runtime systems → 0.7
+### Stage 7 — Runtime systems → 0.8
 
 **Goal.** What a game needs beyond rendering, built on a proper concurrency model.
 
@@ -318,11 +329,11 @@ The stage is planned in detail at Stage 6a's close, with a study of the UI frame
 - Audio: sources, listener, spatialization, buses, mixing, streaming; the importer of audio files, moved from Stage 4 (ADR-0068); the backend chosen against sound placed precisely around the listener's head, reverberation per room and sounds muffled by walls (ADR-0098)
 - The core of skeletal animation: skeletons, skinning, clips, blending, moved from Stage 9b (ADR-0097); poses that are not entities, and bones that things are attached to (ADR-0108)
 - Input action mapping, on the keys and buttons held that Stage 6a keeps (ADR-0107)
-- UI of games: text, menus, HUD, on the engine's UI framework, grown with animation, transforms, masks, effects on text and three-dimensional elements (ADR-0098)
+- UI of games: text, menus, HUD, on the engine's UI framework, grown with animation and transitions, transforms, masks, effects on text, UI on surfaces in the world, focus driven by gamepads, screen readers, and UI documents, the games' screens as data (ADR-0098, ADR-0132)
 
 **Exit.** The game has an animated character in a physical level, with sound and a UI, and is profiled end to end.
 
-### Stage 8 — Extensibility → 0.8
+### Stage 8 — Extensibility → 0.9
 
 **Goal.** Others can extend the engine without modifying it.
 
@@ -336,7 +347,7 @@ The C ABI and the C++ SDK moved to Stage 11, derived from the API that the edito
 
 Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b needs a production renderer first.
 
-### Stage 9a — Production renderer → 0.9
+### Stage 9a — Production renderer → 0.10
 
 **Goal.** Render what a shipped game shows, beyond a simple scene.
 
@@ -354,7 +365,7 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 
 **Exit.** A level of the game, outdoors and indoors, with a day-night cycle, many lights, transparency and anti-aliasing, within the frame budgets tracked for the sample, covered by image tests.
 
-### Stage 9b — Content production → 0.10
+### Stage 9b — Content production → 0.11
 
 **Goal.** A team can produce a narrative game.
 
@@ -384,13 +395,13 @@ Stage 9c is added by ADR-0098: the rendering of the games of section 1, and cons
 - Whether wgpu stays: as a fallback, for debugging, or for macOS
 - The enthusiast hardware tier, at 4K with ray tracing (ADR-0114)
 
-Before this stage, a feature that wgpu blocks goes through wgpu's access to the API underneath it. The stage comes right after Stage 9b and has no release of its own; what it delivers is released with 0.11 (ADR-0116).
+Before this stage, a feature that wgpu blocks goes through wgpu's access to the API underneath it. The stage comes right after Stage 9b and has no release of its own; what it delivers is released with 0.12 (ADR-0131).
 
 **Exit.** The game runs on the native backends on Linux and on Windows, and the image tests pass on them as on wgpu.
 
 Stage 10 is split in two (ADR-0097): streaming, which an open world needs, does not wait for networking, which the first game does not need.
 
-### Stage 10a — Large worlds → 0.11
+### Stage 10a — Large worlds → 0.12
 
 **Goal.** Scale beyond a single level.
 
@@ -406,7 +417,7 @@ The stage is split in two halves when it is planned (ADR-0098).
 
 **Exit.** The game streams an open world.
 
-### Stage 10b — Networking → 0.12
+### Stage 10b — Networking → 0.13
 
 **Goal.** Scale beyond a single machine.
 
@@ -420,7 +431,7 @@ The stage is split in two halves when it is planned (ADR-0098).
 
 **Exit.** Several clients play the game connected to a dedicated server.
 
-### Stage 11 — Production readiness → 0.13, then 1.0
+### Stage 11 — Production readiness → 0.14, then 1.0
 
 **Goal.** External projects can rely on the engine.
 
@@ -434,7 +445,7 @@ The stage is split in two halves when it is planned (ADR-0098).
 - macOS as a supported platform
 - User, SDK and engine documentation
 
-**Exit for 0.13.** An external project is built without touching engine source.
+**Exit for 0.14.** An external project is built without touching engine source.
 **Exit for 1.0.** A compatibility promise can be made and kept. There is no deadline for this.
 
 ## 7. Continuous tracks
@@ -477,6 +488,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | reflect | its derive macro only (ADR-0080) |
 | serialization | reflect |
 | world | reflect, serialization, assets, color |
+| UI framework | reflect, serialization; headless; drawn by render's canvas through a bridge, `slime-ui-render`, as `slime-world-render` is between world and render (ADR-0132) |
 | editor | world, render, assets, UI framework |
 | UI of games | render, input action mapping, UI framework |
 | undo/redo | reflect, editor commands |
@@ -506,13 +518,14 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | 0.4 | 5b | Scenes and prefabs |
 | — | — | An audit pass and a foundations pass, released with 0.5 (ADR-0097, ADR-0116) |
 | 0.5 | 6a | What the editor stands on |
-| 0.6 | 6b | Editor |
-| 0.7 | 7 | Runtime systems |
-| 0.8 | 8 | Plugins, scripting |
-| 0.9 | 9a | Production renderer |
-| 0.10 | 9b | Content production |
-| — | 9c | Native GPU backends, released with 0.11 |
-| 0.11 | 10a | Large worlds |
-| 0.12 | 10b | Networking |
-| 0.13 | 11 | Usable by external projects |
+| 0.6 | 6b | The engine's interface: its UI framework, and the editor's core |
+| 0.7 | 6c | Editor |
+| 0.8 | 7 | Runtime systems |
+| 0.9 | 8 | Plugins, scripting |
+| 0.10 | 9a | Production renderer |
+| 0.11 | 9b | Content production |
+| — | 9c | Native GPU backends, released with 0.12 |
+| 0.12 | 10a | Large worlds |
+| 0.13 | 10b | Networking |
+| 0.14 | 11 | Usable by external projects |
 | 1.0 | 11 | Stable API and SDK |
