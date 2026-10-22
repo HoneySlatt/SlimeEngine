@@ -1,35 +1,49 @@
-//! The editor's journal: its entries written as text, and read back (`docs/adr/0134-the-editors-core.md`).
-//! [`Editor::keep_journal`](crate::Editor::keep_journal) says what each entry holds.
+//! The editor's journal: its entries written as text, and read back
+//! (`docs/adr/0134-the-editors-core.md`). [`Editor::keep_journal`](crate::Editor::keep_journal)
+//! says what each entry holds.
 
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
+use slime_app::HeldFile;
 use slime_reflect::{ReflectError, Value};
 use slime_serialize::{Composer, Document, Mode};
 use slime_world::{PersistentId, World};
 
 use crate::editor::EditError;
+use crate::level::Level;
 
-/// A journal being written, to a file.
+/// A journal being written, to a file that this editor holds, so that no other writes it.
 pub(crate) struct Journal {
-    path: PathBuf,
     file: File,
+    held: HeldFile,
 }
 
 impl Journal {
-    /// A journal written to `path`, which starts empty.
-    pub(crate) fn create(path: &Path) -> Result<Self, EditError> {
+    /// A journal written to the file `held`, which starts empty.
+    pub(crate) fn create(held: HeldFile) -> Result<Self, EditError> {
         let file = OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
+            .open(held.path())
+            .map_err(|error| failed(held.path(), &error))?;
+        Ok(Self { file, held })
+    }
+
+    /// The journal `text` going on in the file `held`: `text` is written there first, whole or not
+    /// at all, unless the file holds it already.
+    pub(crate) fn resume(held: HeldFile, text: &str) -> Result<Self, EditError> {
+        let path = held.path();
+        if fs::read(path).ok().as_deref() != Some(text.as_bytes()) {
+            slime_cook::write(path, text.as_bytes()).map_err(|error| failed(path, &error))?;
+        }
+        let file = OpenOptions::new()
+            .append(true)
             .open(path)
-            .map_err(|error| io(path, error))?;
-        Ok(Self {
-            path: path.to_owned(),
-            file,
-        })
+            .map_err(|error| failed(path, &error))?;
+        Ok(Self { file, held })
     }
 
     /// Adds `text`, entries whole, and hands it to the system at once: what a crash of the editor
@@ -38,25 +52,28 @@ impl Journal {
         self.file
             .write_all(text.as_bytes())
             .and_then(|()| self.file.flush())
-            .map_err(|error| io(&self.path, error))
+            .map_err(|error| failed(self.held.path(), &error))
     }
 }
 
-fn io(path: &Path, error: io::Error) -> EditError {
-    EditError::Io {
-        path: path.to_owned(),
-        error,
-    }
+/// The error of a journal's file that cannot be written.
+fn failed(path: &Path, error: &io::Error) -> EditError {
+    EditError::Journal(format!("{} cannot be written: {error}", path.display()))
 }
 
 fn journal(error: ReflectError) -> EditError {
     EditError::Journal(error.to_string())
 }
 
-/// The entry of the level of `key` whose file's text is `text`.
-pub(crate) fn level(world: &World, key: &str, text: &str) -> Result<String, EditError> {
+/// The entry of `level`: its key, its file by its whole path, and its file's text.
+pub(crate) fn level(world: &World, level: &Level) -> Result<String, EditError> {
     let mut composer = Composer::new(world.registry());
-    for (name, value) in [("key", key), ("text", text)] {
+    let file = level.whole.display().to_string();
+    for (name, value) in [
+        ("key", level.key.as_str()),
+        ("file", &file),
+        ("text", &level.text),
+    ] {
         composer
             .put(&[name], "String", &Value::Text(value.to_owned()))
             .map_err(journal)?;
@@ -102,11 +119,41 @@ fn identities(ids: &[PersistentId]) -> Value {
     Value::List(ids.iter().map(|id| Value::Text(id.to_string())).collect())
 }
 
+/// Whether `journal` holds a step made, undone or done again after the level was last written, or
+/// opened if it never was: what a crash, or a stop without writing, leaves.
+pub(crate) fn unwritten(journal: &str) -> bool {
+    let mut unwritten = false;
+    for line in journal.lines() {
+        match line.trim_end() {
+            "# do" | "# undo" | "# redo" => unwritten = true,
+            "# written" | "# level" => unwritten = false,
+            _ => {}
+        }
+    }
+    unwritten
+}
+
+/// The key and the file of the level that `journal` is the journal of, as its first entry says;
+/// `None` if it does not start with the level's entry, readable, whatever follows.
+pub(crate) fn level_of(world: &World, journal: &str) -> Option<(String, String)> {
+    // The first entry alone: the line that names the next one ends it.
+    let end = journal
+        .match_indices("\n# ")
+        .map(|(at, _)| at + 1)
+        .next()
+        .unwrap_or(journal.len());
+    match entries(world, &journal[..end]).ok()?.into_iter().next()? {
+        (_, Entry::Level { key, file, .. }) => Some((key, file)),
+        _ => None,
+    }
+}
+
 /// An entry of a journal read.
 pub(crate) enum Entry<'t> {
-    /// The level, by its key and its file's text.
+    /// The level, by its key, its file and its file's text.
     Level {
         key: String,
+        file: String,
         text: String,
     },
     /// A step, its label, the selection after it if it chose one, and its commands' texts.
@@ -193,6 +240,7 @@ pub(crate) fn entries<'t>(
             "written" => Entry::Written,
             "level" => Entry::Level {
                 key: text_at("key")?.ok_or_else(|| wrong(line, "the level has no `key`"))?,
+                file: text_at("file")?.ok_or_else(|| wrong(line, "the level has no `file`"))?,
                 text: text_at("text")?.ok_or_else(|| wrong(line, "the level has no `text`"))?,
             },
             "do" => Entry::Do {
@@ -206,4 +254,28 @@ pub(crate) fn entries<'t>(
         entries.push((line, entry));
     }
     Ok(entries)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_journal_holds_steps_unwritten_after_its_last_writing_or_its_start() {
+        for (journal, unwritten_steps) in [
+            ("", false),
+            ("# level\n", false),
+            ("# level\n# do\n# command\n", true),
+            ("# level\n# do\n# written\n", false),
+            ("# level\n# do\n# written\n# undo\n", true),
+            ("# level\n# do\n# written\n# redo\n", true),
+            (
+                "# level\n# do\n# written\n# select\nselection = []\n",
+                false,
+            ),
+            ("# level\r\n# do\r\n", true),
+        ] {
+            assert_eq!(unwritten(journal), unwritten_steps, "{journal:?}");
+        }
+    }
 }

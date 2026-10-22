@@ -396,7 +396,7 @@ pub fn hero_in(world: &World) -> Option<Entity> {
 }
 
 /// Registers each of the game's components in `world`, before any entity holds one.
-pub(crate) fn register(world: &mut World) {
+pub fn register(world: &mut World) {
     world.register::<Collider>();
     world.register::<Marker>();
     world.register::<TimeOfDay>();

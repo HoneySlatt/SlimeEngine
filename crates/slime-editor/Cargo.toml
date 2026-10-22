@@ -11,6 +11,11 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+# The editor's program is an application of the engine, which tools drive through the development
+# channel, and the cooked data whose scenes the level places (ADR-0135).
+slime-app = { workspace = true, features = ["development"] }
+slime-assets.workspace = true
+slime-channel.workspace = true
 # Levels are read through the cooker's metadata files, and written as it writes files, whole or not
 # at all (ADR-0134).
 slime-cook.workspace = true
@@ -20,6 +25,5 @@ slime-serialize.workspace = true
 # The world that the editor changes, its commands and its levels (ADR-0109).
 slime-world.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
 
-[dev-dependencies]
-slime-assets.workspace = true

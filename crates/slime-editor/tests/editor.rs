@@ -359,7 +359,8 @@ fn a_recovered_editor_holds_the_level_the_history_and_the_selection_of_the_one_t
     let yard = Yard::new("journal");
     let journal = yard.directory.join("journal");
     let (mut world, mut editor) = yard.open();
-    editor.keep_journal(&world, &journal).expect("kept");
+    let held = slime_app::HeldFile::hold(journal.clone()).expect("held");
+    editor.keep_journal(&world, held).expect("kept");
     editor.select(vec![id("yard/gate")]);
     let torch = light_the_well(&mut world, &mut editor);
     // A step whose second command names what its first created, by the identity it was given.
@@ -432,11 +433,14 @@ fn a_recovered_editor_holds_the_level_the_history_and_the_selection_of_the_one_t
     // A journal started after a step is refused, and so is a journal whose level's file changed
     // apart from the editor, or that undoes a step that it did not make.
     assert!(matches!(
-        editor.keep_journal(&world, &yard.directory.join("late")),
+        editor.keep_journal(
+            &world,
+            slime_app::HeldFile::hold(yard.directory.join("late")).expect("held")
+        ),
         Err(EditError::Journal(_))
     ));
     fs::write(yard.file(), YARD_FILE).expect("the file changed by hand");
-    assert!(matches!(yard.recover(&text), Err(EditError::Journal(_))));
+    assert!(matches!(yard.recover(&text), Err(EditError::Changed(_))));
     fs::write(yard.file(), &written).expect("written back");
     let wrong = format!("{text}# undo\n# undo\n# undo\n");
     assert!(

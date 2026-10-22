@@ -113,6 +113,8 @@ slime-tasks = { path = "crates/slime-tasks" }
 slime-render = { path = "crates/slime-render" }
 slime-world = { path = "crates/slime-world" }
 slime-world-render = { path = "crates/slime-world-render" }
+# The sample game's library, which its editor package links (ADR-0110).
+hunnawood = { path = "games/hunnawood" }
 
 # Each crate compiled once, and dependencies with their line tables only
 # (docs/adr/0104-the-build-ci-and-measurements.md). The workspace's procedural macro is built with

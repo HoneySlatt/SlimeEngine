@@ -22,6 +22,8 @@ slime-assets.workspace = true
 slime-color.workspace = true
 slime-cook.workspace = true
 slime-devui.workspace = true
+# The editor's program, which the `editor` example runs on the yard (ADR-0135).
+slime-editor.workspace = true
 slime-gfx.workspace = true
 slime-platform.workspace = true
 slime-render.workspace = true
@@ -52,3 +54,7 @@ path = "scene.rs"
 [[example]]
 name = "world"
 path = "world.rs"
+
+[[example]]
+name = "editor"
+path = "editor.rs"

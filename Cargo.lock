@@ -979,6 +979,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "hunnawood-editor"
+version = "0.5.0"
+dependencies = [
+ "hunnawood",
+ "slime-assets",
+ "slime-editor",
+ "slime-world",
+]
+
+[[package]]
 name = "iana-time-zone"
 version = "0.1.65"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2358,12 +2368,15 @@ dependencies = [
 name = "slime-editor"
 version = "0.5.0"
 dependencies = [
+ "slime-app",
  "slime-assets",
+ "slime-channel",
  "slime-cook",
  "slime-reflect",
  "slime-serialize",
  "slime-world",
  "thiserror 2.0.21",
+ "tracing",
 ]
 
 [[package]]
@@ -2377,6 +2390,7 @@ dependencies = [
  "slime-color",
  "slime-cook",
  "slime-devui",
+ "slime-editor",
  "slime-gfx",
  "slime-platform",
  "slime-render",

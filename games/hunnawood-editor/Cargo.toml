@@ -1,0 +1,22 @@
+[package]
+name = "hunnawood-editor"
+description = "Hunna Wood's editor: the engine's editor, which knows the game's types."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# The engine's editor and the game's library, through their public API only (ADR-0110): the game
+# never depends on its editor, so that a shipped game holds nothing of it.
+[dependencies]
+hunnawood.workspace = true
+slime-editor.workspace = true
+
+[dev-dependencies]
+# The zone's test: the cooked zone, the world it opens into, and the level written back.
+slime-assets.workspace = true
+slime-world.workspace = true

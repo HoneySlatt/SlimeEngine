@@ -9,10 +9,12 @@ use slime_world::{PersistentId, SceneLibrary, SetAside, World};
 
 use crate::editor::EditError;
 
-/// A level opened: its scene file, the key that its scene is spawned under, and the text of its
-/// file as the editor last read or wrote it, whose comments it keeps.
+/// A level opened: its scene file, by the path given and by its whole path, the key that its scene
+/// is spawned under, and the text of its file as the editor last read or wrote it, whose comments it
+/// keeps.
 pub(crate) struct Level {
     pub(crate) file: PathBuf,
+    pub(crate) whole: PathBuf,
     pub(crate) key: String,
     pub(crate) text: String,
 }
@@ -29,8 +31,9 @@ impl Level {
         Self::open_as(world, scenes, file, key, text)
     }
 
-    /// Opens the scene file `file` into `world` as if it held `text`, spawned under `key`, its asset
-    /// ID read from its metadata file, and the prefabs that it places resolved through `scenes`.
+    /// Opens the scene file `file` into `world` as if it held `text`, spawned under `key`, its
+    /// asset ID read from its metadata file, and the prefabs that it places resolved through
+    /// `scenes`.
     pub(crate) fn open_as(
         world: &mut World,
         scenes: &mut SceneLibrary,
@@ -57,6 +60,7 @@ impl Level {
             .map_err(|error| EditError::Spawn(Box::new(error)))?;
         Ok(Self {
             file: file.to_owned(),
+            whole: whole(file),
             key: key.to_owned(),
             text,
         })
@@ -72,8 +76,11 @@ impl Level {
     }
 
     /// Writes the level back to its file from `world`, whole or not at all, and returns what the
-    /// file could not hold.
+    /// file could not hold; refused if the file is not the text that the editor read or last wrote.
     pub(crate) fn write(&mut self, world: &mut World) -> Result<Vec<SetAside>, EditError> {
+        if read(&self.file)? != self.text {
+            return Err(EditError::Changed(self.file.clone()));
+        }
         let (text, left_out) = self.written(world)?;
         slime_cook::write(&self.file, text.as_bytes()).map_err(|error| EditError::Io {
             path: self.file.clone(),
@@ -82,6 +89,12 @@ impl Level {
         self.text = text;
         Ok(left_out)
     }
+}
+
+/// The whole path of the file `file`, without a link or a `..`, as a journal names its level; `file`
+/// itself if it cannot be found.
+pub(crate) fn whole(file: &Path) -> PathBuf {
+    fs::canonicalize(file).unwrap_or_else(|_| file.to_owned())
 }
 
 /// The text of the file `path`.

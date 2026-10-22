@@ -4,6 +4,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
+use slime_app::HeldFile;
 use slime_serialize::ReadError;
 use slime_world::{
     Command, CommandTextError, DocumentError, Entity, PersistentId, SceneError, SceneLibrary,
@@ -40,6 +41,8 @@ pub struct Editor {
     /// The selection as the journal last says it, so that one made apart from a step is journaled
     /// before the next entry.
     journaled: Vec<PersistentId>,
+    /// How many entries of a journal [`Editor::recover`] played.
+    recovered: usize,
 }
 
 impl Editor {
@@ -73,6 +76,7 @@ impl Editor {
             selection: Vec::new(),
             journal: None,
             journaled: Vec::new(),
+            recovered: 0,
         }
     }
 
@@ -104,17 +108,18 @@ impl Editor {
         &mut self.scenes
     }
 
-    /// Keeps a journal of the editor's steps in the file `file`, which starts anew: what
-    /// [`Editor::recover`] plays again, to recover an editor that crashed, or a session of tests or
-    /// of an agent. It starts from the level as it is, before any step, as the editor opened it or
-    /// last wrote it; each entry is handed to the system as it is made, so that a crash of the
-    /// editor loses none.
+    /// Keeps a journal of the editor's steps in `file`, a file that this program holds
+    /// ([`HeldFile`]), which starts anew: what [`Editor::recover`] plays again, to recover an editor
+    /// that crashed, or a session of tests or of an agent. It starts from the level as it is, before
+    /// any step, as the editor opened it or last wrote it; each entry is handed to the system as it
+    /// is made, so that a crash of the editor loses none.
     ///
     /// A journal is text: entries, each a line that names it, then a document of the engine's
     /// notation, empty for some. The engine's writer writes no comment, so that each line that
     /// starts with `#` starts an entry:
     ///
-    /// - `# level`, the first: the level's `key`, and the `text` of its file;
+    /// - `# level`, the first: the level's `key`, its `file`, by its whole path, and the `text`
+    ///   of the file;
     /// - `# do`: a step, its `label`, and the `selection` after it, if it chose one; then each of
     ///   its commands, a line `# command` and the command's text ([`Command::write`]);
     /// - `# undo` and `# redo`: the last step done undone, and the last step undone done again;
@@ -124,16 +129,15 @@ impl Editor {
     /// # Errors
     ///
     /// [`EditError::Journal`] if the editor made a step since it opened the level, which a journal
-    /// that starts from the level could not undo, or if the level's entry cannot be written;
-    /// [`EditError::Io`] if the file cannot be created or written.
-    pub fn keep_journal(&mut self, world: &World, file: &Path) -> Result<(), EditError> {
+    /// that starts from the level could not undo, or if the file cannot be written.
+    pub fn keep_journal(&mut self, world: &World, file: HeldFile) -> Result<(), EditError> {
         if !self.history.is_empty() {
             return Err(EditError::Journal(
                 "a journal starts from the level before any step, which it may undo".to_owned(),
             ));
         }
         let mut journal = Journal::create(file)?;
-        journal.add(&journal::level(world, &self.level.key, &self.level.text)?)?;
+        journal.add(&journal::level(world, &self.level)?)?;
         self.journal = Some(journal);
         self.journaled = Vec::new();
         Ok(())
@@ -200,7 +204,7 @@ impl Editor {
         world: &mut World,
         label: &str,
         selection: Option<Vec<PersistentId>>,
-        mut next: impl FnMut(&World, &mut SceneLibrary, usize) -> Option<Result<Command, EditError>>,
+        mut next: impl FnMut(&World, &mut SceneLibrary, usize) -> Option<Next>,
     ) -> Result<(), EditError> {
         let mut texts = Vec::new();
         let mut undo: Vec<Held> = Vec::new();
@@ -502,6 +506,12 @@ impl Editor {
         &self.selection
     }
 
+    /// How many entries of a journal the editor played again as it was recovered
+    /// ([`Editor::recover`]); 0 for an editor opened from its level's file.
+    pub fn recovered(&self) -> usize {
+        self.recovered
+    }
+
     /// The labels of the steps done, the oldest first: what [`Editor::undo`] undoes, from the last.
     pub fn done(&self) -> impl ExactSizeIterator<Item = &str> {
         self.history.done()
@@ -512,8 +522,9 @@ impl Editor {
         self.history.undone()
     }
 
-    /// Sets the bytes of memory that the history takes at most, [`HISTORY_BUDGET`](crate::HISTORY_BUDGET)
-    /// unless set, and forgets the steps that go past it, as `HISTORY_BUDGET` says.
+    /// Sets the bytes of memory that the history takes at most,
+    /// [`HISTORY_BUDGET`](crate::HISTORY_BUDGET) unless set, and forgets the steps that go past it,
+    /// as `HISTORY_BUDGET` says.
     pub fn set_history_budget(&mut self, bytes: usize) {
         self.history.set_budget(bytes);
     }
@@ -528,8 +539,10 @@ impl Editor {
     /// # Errors
     ///
     /// [`EditError::NoLevel`] if the level's root is not alive in `world`; [`EditError::Write`] if
-    /// the scene cannot be written; [`EditError::Io`] if the file cannot be written;
-    /// [`EditError::Journal`] if the journal cannot be written, once the level is.
+    /// the scene cannot be written; [`EditError::Changed`] if the file is not the text that the
+    /// editor read or last wrote, which another program changed since: the editor does not write
+    /// over it; [`EditError::Io`] if the file cannot be read or written; [`EditError::Journal`] if
+    /// the journal cannot be written, once the level is.
     pub fn write(&mut self, world: &mut World) -> Result<Vec<SetAside>, EditError> {
         let left_out = self.level.write(world)?;
         let selection = self.selection.clone();
@@ -538,24 +551,24 @@ impl Editor {
     }
 
     /// An editor of the level of the scene file `file`, spawned under `key`, recovered from
-    /// `journal`, a journal that an editor kept ([`Editor::keep_journal`]): the level opened into
-    /// `world` from the text that the journal's first entry holds, then each step made, undone and
-    /// done again, each selection and each writing of the level played again in their order,
-    /// without writing the file. What an editor that crashed had done since it started its journal
-    /// comes back so, with its history, and a session of tests or of an agent is played again.
-    /// With `keep`, the editor keeps a journal in that file from the start, which the entries
-    /// played fill again, as [`Editor::keep_journal`] does: it may be the journal's own file,
-    /// which `journal` holds already.
+    /// `journal`, a journal that an editor kept of that file ([`Editor::keep_journal`]): the level
+    /// opened into `world` from the text that the journal's first entry holds, then each step made,
+    /// undone and done again, each selection and each writing of the level played again in their
+    /// order, without writing the file. What an editor that crashed had done since it started its
+    /// journal comes back so, with its history, and a session of tests or of an agent is played
+    /// again. With `keep`, a file that this program holds, the editor goes on with the journal
+    /// there once every entry is played: `journal` is written there whole first, unless the file
+    /// holds it already, as the journal's own file does.
     ///
     /// # Errors
     ///
     /// [`EditError::Journal`] if `journal` is not a journal, does not start with the level's entry,
-    /// is the journal of another key, or if the level's file is not the text that the journal last
-    /// wrote, or opened if it wrote none: the file changed apart from the editor;
-    /// [`EditError::Replay`] for an entry that cannot be played, a step that the world refuses, an
-    /// undo or a redo of a step that the history does not hold; and the errors of
-    /// [`Editor::open`] and [`Editor::keep_journal`]. The world holds what was played then, and a
-    /// program that recovers starts again from a new world.
+    /// or is the journal of another key or of another file; [`EditError::Changed`] if the level's
+    /// file is not the text that the journal last wrote, or opened if it wrote none: the file
+    /// changed apart from the editor; [`EditError::Replay`] for an entry that cannot be played, a
+    /// step that the world refuses, an undo or a redo of a step that the history does not hold; and
+    /// the errors of [`Editor::open`]. The world holds what was played then, and a program that
+    /// recovers starts again from a new world; `keep` is not written to then.
     ///
     /// # Panics
     ///
@@ -566,10 +579,18 @@ impl Editor {
         file: &Path,
         key: &str,
         journal: &str,
-        keep: Option<&Path>,
+        keep: Option<HeldFile>,
     ) -> Result<Self, EditError> {
         let mut entries = journal::entries(world, journal)?.into_iter();
-        let Some((_, Entry::Level { key: kept, text })) = entries.next() else {
+        let Some((
+            _,
+            Entry::Level {
+                key: kept,
+                file: kept_file,
+                text,
+            },
+        )) = entries.next()
+        else {
             return Err(EditError::Journal(
                 "it does not start with the level's entry, `# level`".to_owned(),
             ));
@@ -579,12 +600,16 @@ impl Editor {
                 "it is the journal of the level `{kept}`, not `{key}`"
             )));
         }
+        let whole = level::whole(file);
+        if kept_file != whole.display().to_string() {
+            return Err(EditError::Journal(format!(
+                "it is the journal of {kept_file}, not of {}",
+                whole.display()
+            )));
+        }
         let on_disk = level::read(file)?;
         let level = Level::open_as(world, &mut scenes, file, key, text)?;
         let mut editor = Self::of(level, scenes);
-        if let Some(keep) = keep {
-            editor.keep_journal(world, keep)?;
-        }
         for (line, entry) in entries {
             editor
                 .play(world, entry)
@@ -592,13 +617,14 @@ impl Editor {
                     line,
                     error: Box::new(error),
                 })?;
+            editor.recovered += 1;
         }
         if editor.level.text != on_disk {
-            return Err(EditError::Journal(format!(
-                "{} is not the text that the journal last wrote, or opened: it changed apart from \
-                 the editor",
-                file.display()
-            )));
+            return Err(EditError::Changed(file.to_owned()));
+        }
+        if let Some(keep) = keep {
+            editor.journal = Some(Journal::resume(keep, journal)?);
+            editor.journaled.clone_from(&editor.selection);
         }
         Ok(editor)
     }
@@ -634,6 +660,9 @@ impl Editor {
     }
 }
 
+/// The next command of a step, or why it cannot be had.
+type Next = Result<Command, EditError>;
+
 /// `inverse` as the history holds it: as text, written as the world is now, or, for a restoration,
 /// as it is. The inverse is given back with the error when it cannot be written.
 fn held(world: &World, inverse: Command) -> Result<Held, Box<(Command, CommandTextError)>> {
@@ -661,8 +690,8 @@ fn text_error(index: usize, error: CommandTextError) -> EditError {
     }
 }
 
-/// Why the editor cannot open or write its level, make, undo or do again a step, or keep or play its
-/// journal.
+/// Why the editor cannot open or write its level, make, undo or do again a step, or keep or play
+/// its journal.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum EditError {
@@ -693,6 +722,13 @@ pub enum EditError {
     /// The level cannot be written as a scene file.
     #[error("the level cannot be written: {0}")]
     Write(#[source] DocumentError),
+    /// The level's file is not the text that the editor read or last wrote: another program
+    /// changed it since, and the editor does not write over it.
+    #[error(
+        "{} changed apart from the editor since it read or wrote it: it is not written over",
+        .0.display()
+    )]
+    Changed(PathBuf),
     /// The level's root is not alive in the world.
     #[error("the level's root `{0}` is not alive")]
     NoLevel(PersistentId),
