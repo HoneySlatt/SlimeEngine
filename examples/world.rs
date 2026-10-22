@@ -10,8 +10,10 @@
 //! device, it goes on: a new asset cache loads the world's meshes again, and the world is
 //! untouched. Besides the yard, the example draws into the yard's view a grid on the ground, hidden
 //! by what stands in front of it, and an icon above each light, facing the camera, through an unlit
-//! material; Tab selects the next entity that places meshes, whose box both views draw over their
-//! image (`docs/adr/0129-drawing-for-the-editor.md`). F2 shows the dev overlay's world panel, which
+//! material; a click selects the entity drawn under the cursor, picked by the GPU
+//! (`docs/adr/0130-picking.md`), and Tab the next entity that places meshes, whose box both views
+//! draw over their image (`docs/adr/0129-drawing-for-the-editor.md`); a tool picks in either view
+//! too. F2 shows the dev overlay's world panel, which
 //! lists the entities by name and edits their components (`slime-devui`); F3 its panel of the
 //! views, which shows the size each draws at and edits its settings: its render scale,
 //! anti-aliasing, a mode of debugging that shows normals or shadows, and its passes
@@ -62,18 +64,19 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 use slime_app::{
-    AppConfig, AppError, Context, Presentation, Reflected, ShownView, Simulation, SimulationContext,
+    AppConfig, AppError, Context, PickAnswer, Presentation, Reflected, ShownView, Simulation,
+    SimulationContext,
 };
 use slime_assets::{CookedAssets, ManifestWatch};
 use slime_color::LinearColor;
 use slime_devui::{Overlay, WorldPanel, edit_reflected, egui};
 use slime_gfx::{AddressMode, Filter, Gpu, RenderTarget, SamplerDescriptor, TextureFormat};
-use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
+use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, MouseButton, WindowConfig};
 use slime_render::glam::{DAffine3, DMat3, DQuat, DVec3, Vec3};
 use slime_render::{
     AlphaMode, AssetCache, AssetRequests, Camera, DrawList, Drawings, Instance, Line, Material,
-    Mesh, MeshData, Projection, RenderStats, Renderer, SampledTexture, Scene, UnlitData, View,
-    ViewDraw, ViewSettings, Viewport,
+    Mesh, MeshData, Pick, Projection, RenderStats, Renderer, SampledTexture, Scene, UnlitData,
+    View, ViewDraw, ViewSettings, Viewport,
 };
 use slime_world::{Entity, Light, Meshes, PersistentId, SceneLibrary, Tick, Transform, World};
 use slime_world_render::FrameBuilder;
@@ -179,6 +182,12 @@ struct YardView {
     /// The entity whose box both views draw over their image, and whether Tab asked for the next.
     selected: Option<Entity>,
     select_next: bool,
+    /// Where the cursor is over the window, in its pixels, and the picking of the last click, whose
+    /// answer selects what it found.
+    cursor: (f64, f64),
+    click: Option<Pick>,
+    /// The pickings that tools asked for, each with where its answer goes.
+    picks: Vec<(Pick, PickAnswer)>,
     /// What the example draws into each view besides the yard, built by `extract`: in the yard's, a
     /// grid on the ground and an icon above each light, facing the camera; in both, the box of the
     /// selected entity, over the image.
@@ -464,6 +473,15 @@ impl Presentation for YardView {
                 _ => {}
             }
         }
+        let pointed = self.overlay.as_ref().is_some_and(Overlay::wants_pointer);
+        match *event {
+            Event::CursorMoved { x, y } => self.cursor = (x, y),
+            Event::MouseButton {
+                button: MouseButton::Left,
+                state: ButtonState::Pressed,
+            } if !pointed => self.click = self.pick_at_cursor(),
+            _ => {}
+        }
         // The yard's rules read no input; the keys typed into the panel are its own.
         typing
     }
@@ -517,6 +535,23 @@ impl Presentation for YardView {
         if std::mem::take(&mut self.select_next) {
             self.selected = next_with_meshes(world, self.selected);
         }
+        // The pickings that came back: the click's selects what it found, or nothing; a tool's
+        // is given its entity. One that cannot answer, on a lost device, gives up.
+        if let Some(picked) = self.click.as_ref().and_then(|pick| pick.take(gpu)) {
+            self.click = None;
+            if let Ok(picked) = picked {
+                self.selected = Entity::from_bits(picked.at(0, 0));
+            }
+        }
+        let mut waiting = Vec::new();
+        for (pick, answer) in self.picks.drain(..) {
+            match pick.take(gpu) {
+                Some(Ok(picked)) => answer.give(Entity::from_bits(picked.at(0, 0))),
+                Some(Err(error)) => tracing::warn!("a tool's picking failed: {error}"),
+                None => waiting.push((pick, answer)),
+            }
+        }
+        self.picks = waiting;
         if self.selected.is_some_and(|entity| !world.contains(entity)) {
             self.selected = None;
         }
@@ -657,6 +692,24 @@ impl Presentation for YardView {
         self.shown.clone()
     }
 
+    fn pick(&mut self, view: &str, (x, y): (u32, u32), answer: PickAnswer) -> Result<(), String> {
+        let index = VIEWS
+            .iter()
+            .position(|name| *name == view)
+            .ok_or_else(|| format!("the example draws no view `{view}`"))?;
+        let views = self
+            .views
+            .as_mut()
+            .ok_or("the example has no GPU device to pick with")?;
+        let view = if index == 0 {
+            &mut views.0
+        } else {
+            &mut views.1
+        };
+        self.picks.push((view.pick(pixel(x, y)), answer));
+        Ok(())
+    }
+
     fn reports(&self) -> Vec<(String, Reflected)> {
         let mut reports = Vec::new();
         if let Some(cache) = &self.cache {
@@ -698,6 +751,9 @@ impl Presentation for YardView {
         self.builder.release();
         self.icon = None;
         self.drawings = Default::default();
+        // Their views are gone: no answer comes.
+        self.click = None;
+        self.picks.clear();
     }
 
     fn gpu_restored(&mut self, ctx: &mut Context, _world: &World) -> Result<(), AppError> {
@@ -709,6 +765,39 @@ impl Presentation for YardView {
         if self.frame_limit.is_some_and(|limit| limit > 0) && self.drawn == 0 {
             ctx.exit_with_error("no frame drew the whole world");
         }
+    }
+}
+
+impl YardView {
+    /// The picking of the pixel under the cursor in the last view that the last frame drew there;
+    /// none outside the views.
+    fn pick_at_cursor(&mut self) -> Option<Pick> {
+        let (x, y) = self.cursor;
+        if x < 0.0 || y < 0.0 {
+            return None;
+        }
+        let (x, y) = (x as u32, y as u32);
+        let shown = self.shown.iter().rev().find(|shown| {
+            (shown.x..shown.x + shown.width).contains(&x)
+                && (shown.y..shown.y + shown.height).contains(&y)
+        })?;
+        let views = self.views.as_mut()?;
+        let view = if shown.name == VIEWS[0] {
+            &mut views.0
+        } else {
+            &mut views.1
+        };
+        Some(view.pick(pixel(x - shown.x, y - shown.y)))
+    }
+}
+
+/// The area of the one pixel at `(x, y)` of a view's rectangle.
+fn pixel(x: u32, y: u32) -> Viewport {
+    Viewport {
+        x,
+        y,
+        width: 1,
+        height: 1,
     }
 }
 
@@ -917,6 +1006,9 @@ fn main() -> ExitCode {
         icon: None,
         selected: None,
         select_next: false,
+        cursor: (0.0, 0.0),
+        click: None,
+        picks: Vec::new(),
         drawings: Default::default(),
     };
     match slime_app::run(&mut yard, &mut view, &config) {

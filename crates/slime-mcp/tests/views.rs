@@ -4,9 +4,10 @@
 //! names of its views, captures the whole image and each view, and stops it. The map, whose camera
 //! does not move, is the part of the whole image that its rectangle covers. It then shows the map's
 //! normals, a setting of the view changed through the server
-//! (`docs/adr/0127-the-settings-of-a-view.md`): the ground, seen from above, faces up. And it reads
+//! (`docs/adr/0127-the-settings-of-a-view.md`): the ground, seen from above, faces up. It reads
 //! the example's reports, its asset cache's requests and memory and its views' statistics
-//! (`docs/adr/0128-asset-requests.md`).
+//! (`docs/adr/0128-asset-requests.md`). And it picks the entity drawn at a pixel of the map, given
+//! in the map or in the whole image, and nothing in the sky (`docs/adr/0130-picking.md`).
 //!
 //! It needs a Wayland compositor, the example built (`cargo build --example world`) and the
 //! examples' assets cooked, in the directory that its first argument names, or
@@ -134,6 +135,23 @@ fn main() {
     }
     let (views, _) = session.tool("read_report", json!({ "name": "views" }));
     assert!(views[0].contains("draw_calls"), "{views:?}");
+    // Picking, back to the map's colors: what the yard places at the map's middle; the same pixel
+    // given in the whole image, the map drawn over the yard there; nothing in the sky, in the
+    // image's top left corner.
+    let (said, _) = session.tool(
+        "set_view_settings",
+        json!({ "view": "map", "path": "debug", "value": "\"Off\"" }),
+    );
+    assert_eq!(said, ["done"]);
+    let middle = side / 2;
+    let (picked, _) = session.tool("pick", json!({ "view": "map", "x": middle, "y": middle }));
+    assert!(picked[0].starts_with("yard/"), "{picked:?}");
+    let (again, _) = session.tool("pick", json!({ "x": left + middle, "y": margin + middle }));
+    assert_eq!(again, picked);
+    let (sky, _) = session.tool("pick", json!({ "x": 0, "y": 0 }));
+    assert_eq!(sky, ["nothing is drawn there"]);
+    let (refused, result) = session.try_tool("pick", json!({ "view": "map", "x": side, "y": 0 }));
+    assert_eq!(result["isError"], json!(true), "{refused:?}");
     let (refused, result) = session.try_tool(
         "set_view_settings",
         json!({ "view": "map", "path": "render_scale", "value": "4.0" }),

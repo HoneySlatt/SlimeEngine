@@ -20,7 +20,6 @@ use crate::scene::{record_ids, storages_of, valid_key};
 use crate::scene_file::{LAYOUT, for_each_entity, table};
 use crate::unload::{Table, Unloaded};
 use crate::world::{Former, Identity, World};
-use crate::write_back::handle_bits;
 
 /// What the game says of the save: its keys and texts.
 const ABOUT: &str = "about";
@@ -1801,7 +1800,7 @@ struct ToSpawn {
 fn to_no_entity(mut value: Value, names: &Names) -> Value {
     for_each_entity(&mut value, &mut |bits| {
         if names.name(*bits).as_deref() == Some(NO_ENTITY) {
-            *bits = handle_bits(Entity::NONE);
+            *bits = Entity::NONE.to_bits();
         }
     });
     value

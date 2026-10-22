@@ -1,6 +1,6 @@
 //! The camera: where the scene is seen from, and how it is projected.
 
-use glam::{DMat4, DVec3, Mat4, Vec3, Vec4};
+use glam::{DMat4, DVec3, Mat4, Vec2, Vec3, Vec4};
 
 /// How a camera projects what it sees onto its image (ADR-0111).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -201,6 +201,31 @@ impl Camera {
     /// As [`view`](Self::view) and [`projection`](Self::projection) do.
     pub fn view_projection(&self, aspect: f32) -> DMat4 {
         self.projection(aspect).as_dmat4() * self.view()
+    }
+
+    /// The ray through `point` of the image that the camera draws into an output `aspect` times as
+    /// wide as it is high, its [`part`](Self::part) if it draws one: `point` runs from (0, 0), the
+    /// image's top left corner, to (1, 1), its bottom right, a pixel's centre at ((x + 0.5) /
+    /// width, (y + 0.5) / height). Returns where the ray starts, on the near plane, and its unit
+    /// direction, in world space: what picking by the CPU casts (ADR-0130). In perspective, every
+    /// ray starts near the eye; orthographic, they run side by side along the camera's axis. A
+    /// camera whose matrices draw nothing usable gives a ray that is not finite.
+    ///
+    /// # Panics
+    ///
+    /// As [`projection`](Self::projection) does.
+    #[must_use]
+    pub fn ray(&self, aspect: f32, point: Vec2) -> (DVec3, DVec3) {
+        // Relative to the eye, as the renderer draws (ADR-0048); depth reversed, the near plane at
+        // 1.
+        let inverse = (self.projection(aspect) * self.view_from_eye()).inverse();
+        let on_screen = Vec2::new(point.x * 2.0 - 1.0, 1.0 - point.y * 2.0);
+        let near = inverse.project_point3(on_screen.extend(1.0));
+        let farther = inverse.project_point3(on_screen.extend(0.5));
+        (
+            self.eye + near.as_dvec3(),
+            (farther - near).as_dvec3().normalize(),
+        )
     }
 
     /// The unit direction from what the camera sees towards it, the same everywhere, for an
@@ -517,5 +542,43 @@ mod tests {
                 "{value}"
             );
         }
+    }
+
+    /// The ray through the point of the image where a point of the world is drawn passes through
+    /// it, in perspective from near the eye, orthographic along the camera's axis.
+    #[test]
+    fn the_ray_through_a_point_of_the_image_passes_through_what_is_drawn_there() {
+        let perspective = Camera {
+            eye: DVec3::new(1000.0, 2.0, 5.0),
+            target: DVec3::new(1000.0, 0.0, 0.0),
+            ..Camera::default()
+        };
+        let orthographic = Camera {
+            projection: Projection::Orthographic {
+                height: 4.0,
+                far: 50.0,
+            },
+            ..perspective
+        };
+        for camera in [perspective, orthographic] {
+            for point in [
+                DVec3::new(1000.0, 0.0, 0.0),
+                DVec3::new(1001.0, 0.5, -0.5),
+                DVec3::new(999.2, -0.3, 1.0),
+            ] {
+                let drawn = project(&camera, point);
+                let on_image = Vec2::new(drawn.x as f32 + 1.0, 1.0 - drawn.y as f32) / 2.0;
+                let (origin, direction) = camera.ray(1.0, on_image);
+                assert!((direction.length() - 1.0).abs() < 1e-6);
+                let along = (point - origin).dot(direction);
+                let off = (origin + direction * along - point).length();
+                assert!(
+                    along > 0.0 && off < 1e-3,
+                    "{camera:?}: {point} is {off} off the ray"
+                );
+            }
+        }
+        let (_, axis) = orthographic.ray(1.0, Vec2::new(0.1, 0.9));
+        assert!(axis.abs_diff_eq((orthographic.target - orthographic.eye).normalize(), 1e-6));
     }
 }

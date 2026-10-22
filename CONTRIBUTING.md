@@ -225,7 +225,8 @@ A game built with its default features holds the engine's development channel
 listens on the machine's own address for the tools that drive it; started without one, it does not.
 The engine's MCP server, `slime-mcp`, starts a game so, and gives an agent the tools to pause and
 step it, read and change its world, play it with keys, save and load its run to files of the agent's
-own, capture its image or one of its views, change how a view draws, read its reports and its log;
+own, capture its image or one of its views, change how a view draws, pick the entity at a pixel,
+read its reports and its log;
 its [README](crates/slime-mcp/README.md) says how to give it to an agent. The game opens its window
 on
 the display that the server's environment names: to keep it off your desktop, give the server the
@@ -280,7 +281,8 @@ database, so it needs network access), the list of the sample game's source asse
 [ADR-0069](docs/adr/0069-the-asset-pipeline.md)), the sample's assets cooked twice and compared, the
 sample game's zone fetched and cooked, and the tests that read it, the samples with no display
 server available, the windowed samples, the `world` example's two views captured, the map's normals
-shown, and its reports read, by an agent's session through the MCP server, the `scene` example on a
+shown, its reports read and an entity picked at a pixel, by an agent's session through the MCP
+server, the `scene` example on a
 copy of the cooked sample with one byte changed, which must end with an error and not a panic, the
 game (its new runs, one resumed from a copy of its save fixture, and one driven by an agent's
 session through the MCP server, their saves kept apart from the user's) and the windowed lifecycle

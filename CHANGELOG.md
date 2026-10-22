@@ -8,6 +8,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Picking (ADR-0130): `View::pick(area)` returns a `Pick`, whose `take` gives, a frame or more
+  later, the number of the instance drawn nearest at each pixel of the area (`Picked`), each
+  instance's `Instance::pick`, which `slime-world-render`'s frame builder makes its entity's handle
+  (`Entity::to_bits`, `Entity::from_bits`). `slime_world_render::Picker` picks by the CPU, a ray
+  that `Camera::ray` gives against the meshes that a world places. A tool picks at a pixel of a
+  game's view (`Presentation::pick`, `PickAnswer`, `Request::Pick`), through the MCP server's `pick`
+  tool too; the `world` example selects what a click picks.
+- `TextureFormat::Rg32Uint`, render targets of integers, and `Gpu::read_render_target_later`, whose
+  `Readback` gives a target's texels without waiting for the GPU.
 - Unlit materials (ADR-0129): `Renderer::create_unlit_material` makes, from `UnlitData`, a material
   whose color, times its texture, shows as it is whatever the light and the exposure, masked or
   blended (`AlphaMode::Blend`), casting no shadows; its parameters are `UnlitValues`.
@@ -169,6 +178,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `Instance` has a `pick`; version 6 of the development channel's protocol, which asks for
+  pickings, refuses tools of version 5.
 - `FragmentState` has a `blend`; `ViewDraw` has `drawings`; `ShaderSources` holds `unlit.wgsl` and
   `lines.wgsl`; `AlphaMode` has `Blend`, which a physically based material refuses until Stage 9a.
 - A mesh that the asset cache cannot read, or whose material or texture it cannot, fails alone: the

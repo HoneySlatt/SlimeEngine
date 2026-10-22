@@ -8,7 +8,9 @@ the renderer (`slime-render`) from the GPU objects of an asset cache
 
 Started in M5a.3 (`docs/PLAN.md`). It draws the meshes and the lights of a world's entities where
 the world draws them between fixed steps, leaves out what is hidden and what the cache does not
-hold yet, and draws the game's sky around the world's sun.
+hold yet, and draws the game's sky around the world's sun. It numbers each instance with its
+entity, which picking by the GPU gives back, and picks by the CPU, a ray against the meshes that a
+world places (`docs/adr/0130-picking.md`).
 
 ## Role
 
@@ -20,10 +22,13 @@ hold yet, and draws the game's sky around the world's sun.
   composed, place them (`Light::check`), which it leaves out with a warning; and the sky's
   environment around the directional light that shows in the sky, given once to the sky and to
   the lights.
-- Keeps no world and no mesh: the world keeps what is drawn, the cache its GPU objects. It keeps the
-  sky's environment, which it makes again when the sky or its sun changes, and the handles of the
-  meshes the world names, which hold nothing of the GPU's; given a cache that did not issue them,
-  as one made again without the requests of a lost device's, it asks that cache again.
+- Keeps no world and no mesh on the GPU: the world keeps what is drawn, the cache its GPU objects.
+  It keeps the sky's environment, which it makes again when the sky or its sun changes, and the
+  handles of the meshes the world names, which hold nothing of the GPU's; given a cache that did not
+  issue them, as one made again without the requests of a lost device's, it asks that cache again.
+- Numbers each instance with its entity, for picking by the GPU, and picks by the CPU: its `Picker`
+  keeps in the CPU's memory the boxes and triangles of the meshes that the world names, read from
+  cooked data (`docs/adr/0130-picking.md`).
 
 ## Entry points
 
@@ -64,6 +69,12 @@ fn draw(
   mesh that failed since the last frame, with why.
 - `FrameBuilder::set_sky` draws the world around another sky from the next frame on, and
   `FrameBuilder::release` drops the environment when the device is lost.
+- Each instance of a frame is picked as its entity: its `Instance::pick` is the entity's handle,
+  which `Entity::from_bits` gives back from what a view's picking found.
+- `Picker::new(assets)` picks by the CPU, without a GPU: `cast(world, alpha, ray)` gives the entity
+  whose mesh a ray meets first (`Hit`), the ray that `Camera::ray` gives through a pixel, reading
+  the meshes from the cooked data at its first cast in a world that names them, and keeping their
+  boxes, and the triangles of those that rays meet, while the world names them.
 
 The rustdoc holds the contracts: what is drawn, and what building a frame costs.
 
@@ -72,7 +83,8 @@ The rustdoc holds the contracts: what is drawn, and what building a frame costs.
 - `slime-world`: the world it reads.
 - `slime-render`: the renderer's instances, lights and sky, and the asset cache.
 - `slime-gfx`: the GPU the cache loads onto and the environment is made on.
-- `slime-assets`: the IDs of the meshes that its handles hold.
+- `slime-assets`: the IDs of the meshes that its handles hold, and the cooked meshes that picking
+  by the CPU reads.
 - `tracing`: the errors of the meshes that cannot be loaded, and the warning of several suns.
 
 ## Must not

@@ -47,6 +47,13 @@ pub enum TextureFormat {
     /// each, compressed apart, which shaders read with blue 0 and alpha 1; the cooker stores the x
     /// and y of normal maps in them.
     Bc5RgUnorm,
+    /// Two unsigned 32-bit integers, red and green: numbers rather than colors, which shaders write
+    /// as `vec2<u32>`, as picking writes the numbers of what it draws
+    /// (`docs/adr/0130-picking.md`). Render targets only, of one sample per pixel, which no
+    /// pipeline blends and no sampler filters, read back by [`Gpu::read_render_target_later`];
+    /// a pass that clears one clears it to its clear color's red and green made integers, zeros
+    /// from black.
+    Rg32Uint,
 }
 
 impl TextureFormat {
@@ -56,6 +63,12 @@ impl TextureFormat {
             self,
             Self::Rgba8UnormSrgb | Self::Bgra8UnormSrgb | Self::Bc7RgbaUnormSrgb
         )
+    }
+
+    /// Whether the format holds integers rather than colors: `Rg32Uint`, which no pipeline blends,
+    /// no sampler filters and no target of several samples holds.
+    pub fn is_integer(self) -> bool {
+        self == Self::Rg32Uint
     }
 
     /// Whether the format stores blocks of 4 × 4 texels rather than texels: the BC formats, which
@@ -78,11 +91,11 @@ impl TextureFormat {
         }
     }
 
-    /// The size of a texel in bytes: 4, or 8 for `Rgba16Float`; the block-compressed formats have
-    /// none (see [`TextureFormat::rows`]).
+    /// The size of a texel in bytes: 4, or 8 for `Rgba16Float` and `Rg32Uint`; the
+    /// block-compressed formats have none (see [`TextureFormat::rows`]).
     pub(crate) fn texel_size(self) -> u32 {
         match self {
-            Self::Rgba16Float => 8,
+            Self::Rgba16Float | Self::Rg32Uint => 8,
             Self::Rgba8UnormSrgb | Self::Bgra8UnormSrgb | Self::Rgba8Unorm => 4,
             Self::Bc7RgbaUnormSrgb | Self::Bc7RgbaUnorm | Self::Bc5RgUnorm => {
                 unreachable!("{self:?} stores blocks of texels, not texels")
@@ -105,6 +118,7 @@ impl TextureFormat {
             Self::Bc7RgbaUnormSrgb => wgpu::TextureFormat::Bc7RgbaUnormSrgb,
             Self::Bc7RgbaUnorm => wgpu::TextureFormat::Bc7RgbaUnorm,
             Self::Bc5RgUnorm => wgpu::TextureFormat::Bc5RgUnorm,
+            Self::Rg32Uint => wgpu::TextureFormat::Rg32Uint,
         }
     }
 
@@ -233,7 +247,8 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// As [`Gpu::create_render_target`].
+    /// As [`Gpu::create_render_target`], and if `format` holds integers
+    /// ([`TextureFormat::is_integer`]).
     pub fn create_multisampled_render_target(
         &self,
         label: &str,
@@ -241,6 +256,11 @@ impl Gpu {
         height: u32,
         format: TextureFormat,
     ) -> Result<RenderTarget, GfxError> {
+        assert!(
+            !format.is_integer(),
+            "render target `{label}`: {format:?} holds integers, which no target of several \
+             samples holds"
+        );
         self.create_target(
             label,
             width,

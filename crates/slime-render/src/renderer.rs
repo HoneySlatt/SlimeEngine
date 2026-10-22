@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::Range;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use glam::{DAffine3, DMat4, DVec3, Mat3, Mat4, Vec3, Vec4};
@@ -16,11 +16,12 @@ use slime_assets::CookedTexture;
 use slime_gfx::{
     AddressMode, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
     BindingType, Blend, ComparisonSampler, CullMode, DepthBias, DepthCompare, DepthState,
-    DepthTarget, Filter, FragmentState, GfxError, Gpu, RenderPass, RenderPipeline,
-    RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor, ShaderModule, ShaderStages,
-    StorageBuffer, Texture, TextureFormat, UniformBuffer, Uploader,
+    DepthTarget, Filter, FragmentState, GfxError, Gpu, Readback, RenderPass, RenderPassDescriptor,
+    RenderPipeline, RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor,
+    ShaderModule, ShaderStages, StorageBuffer, Texture, TextureFormat, UniformBuffer, Uploader,
 };
 
+use slime_color::LinearColor;
 use slime_reflect::{Reflect, Registry};
 
 use crate::bytes::{push_f32s, push_mat3, push_mat4, push_u32s};
@@ -36,6 +37,7 @@ use crate::kind::{MaterialKind, PhysicallyBased, Unlit};
 use crate::light::{LIGHT_VALUES_SIZE, Light, MAX_LIGHTS, NO_TILE, SpotLight};
 use crate::material::{Material, MaterialData, MaterialParts, PHYSICALLY_BASED, UNLIT, UnlitData};
 use crate::mesh::{Mesh, MeshData, MeshPages, Page, VERTEX_LAYOUT};
+use crate::pick::{Pick, PickState, Picked, lock};
 use crate::shaders::ShaderSources;
 use crate::shadow::{
     CASCADE_ATLAS_SIZE, CASCADES, CascadeView, SHADOW_BIAS, SPOT_ATLAS_SIZE, ShadowTile, SpotView,
@@ -56,6 +58,8 @@ const BLOOM_SMALLEST_SIDE: u32 = 8;
 /// The format the scene pass draws into: half-precision floats, which keep light above 1
 /// (ADR-0034).
 const HDR_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
+/// The format a picking draws into: each pixel an instance's number, 64 bits (ADR-0130).
+const PICK_FORMAT: TextureFormat = TextureFormat::Rg32Uint;
 /// What the light in that target is divided by, which the tone-mapping pass multiplies it back by:
 /// `HEADROOM` in the shaders, which a unit test checks.
 const HEADROOM: f32 = 64.0;
@@ -75,9 +79,13 @@ const FRAME_VALUES_SIZE: usize = 2 * 64
 const SHADOW_TILE_VALUES_SIZE: usize = 64 + 16;
 /// The index of the shadowed light when the cascades shadow none: no light has it.
 const NO_SHADOWED_LIGHT: u32 = u32::MAX;
+/// The slot of a view's buffer of the shadow passes' views that holds the view of the area that a
+/// picking draws, after the cascades' and the spot lights' (ADR-0130).
+const PICK_SLOT: usize = CASCADES + MAX_LIGHTS;
 /// The size of the values of an instance in the buffer of the instances' values, `Instance` in
 /// `shader.wgsl`: its `mat4x4<f32>` transform, the `mat3x3<f32>` that transforms its normals (three
-/// columns padded to 16 bytes), and its handedness, padded to 16 bytes.
+/// columns padded to 16 bytes), its handedness, 4 bytes of padding, and its number for picking, a
+/// `vec2<u32>`.
 const INSTANCE_VALUES_SIZE: usize = 64 + 3 * 16 + 16;
 /// The bits of the passes that draw an instance in a frame: the scene pass's, then one for each
 /// cascade, from the nearest, then one for each tile of the spot lights' atlas.
@@ -150,11 +158,16 @@ pub struct Instance {
     /// dome that nothing needs to shade would otherwise stretch them, and coarsen the depths the
     /// cascade tells apart.
     pub casts_shadows: bool,
+    /// The number that picking gives where it is drawn ([`View::pick`], ADR-0130), which the
+    /// client chooses: `slime-world-render` gives each instance its entity's handle
+    /// (`Entity::to_bits`). 0, the default, is what picking gives where nothing is drawn: an
+    /// instance of 0 cannot be told from nothing.
+    pub pick: u64,
 }
 
 impl Instance {
-    /// `mesh` drawn with `material`, placed by `transform`, casting shadows: it holds clones of
-    /// the two.
+    /// `mesh` drawn with `material`, placed by `transform`, casting shadows, picked as nothing
+    /// (`pick` 0): it holds clones of the two.
     #[must_use]
     pub fn new(mesh: &Mesh, material: &Material, transform: DAffine3) -> Self {
         Self {
@@ -162,6 +175,7 @@ impl Instance {
             material: material.clone(),
             transform,
             casts_shadows: true,
+            pick: 0,
         }
     }
 }
@@ -394,7 +408,8 @@ pub struct View {
     resizing: Option<((u32, u32), Instant)>,
     /// The view of each tile that its shadow passes draw: the cascades' in the first [`CASCADES`]
     /// slots, then one per spot light that casts shadows, each slot
-    /// [`Renderer::shadow_view_stride`] bytes apart, written at every frame.
+    /// [`Renderer::shadow_view_stride`] bytes apart, then the view of the area that a picking
+    /// draws ([`PICK_SLOT`]), written at every frame.
     shadow_views: UniformBuffer,
     /// Those views, bound at group 3 of the shadow passes, at the offset of each.
     shadow_views_group: BindGroup,
@@ -403,6 +418,8 @@ pub struct View {
     /// through its curve, where the view's rectangle starts in its output and how many of the
     /// scene's texels make a pixel of it, written at every frame.
     tone_mapping_settings: UniformBuffer,
+    /// The pickings asked of it that it has not drawn yet, the oldest first ([`View::pick`]).
+    picks: Vec<Arc<Mutex<PickState>>>,
     /// The lines that a client draws into it, made by the first frame that draws one, and made
     /// again larger when a frame draws more than they hold.
     lines: Option<LineBuffers>,
@@ -457,6 +474,19 @@ impl View {
             settings.render_scale
         );
         self.settings = settings;
+    }
+
+    /// Asks which instances are drawn in `area` of its rectangle, in the output's pixels from the
+    /// rectangle's top left corner, cut to the rectangle (ADR-0130): the next frame that draws the
+    /// view draws, after its passes, the number of each instance ([`Instance::pick`]) where it is
+    /// drawn nearest, as its camera sees it, at one sample per pixel, and the returned [`Pick`]
+    /// gives them once they have come back, a frame or more later. Asking never waits for the GPU.
+    /// A frame draws one picking of a view, the oldest asked first; an area outside the rectangle
+    /// gives an empty answer.
+    pub fn pick(&mut self, area: Viewport) -> Pick {
+        let pick = Pick::new(area);
+        self.picks.push(Arc::clone(&pick.state));
+        pick
     }
 
     /// The size of its targets, in pixels: the size of the rectangle that it draws into times its
@@ -902,6 +932,8 @@ struct Prepared {
     /// out beyond what the device's storage buffers hold.
     lines: (u32, u32),
     lines_left_out: usize,
+    /// The picking that this frame draws, and its area of the view's rectangle.
+    pick: Option<(Arc<Mutex<PickState>>, Viewport)>,
     /// The cascades' draws; none without a shadowed light.
     cascades: Vec<CascadeDraw>,
     /// The spot lights' shadow pass's draws: those of the view that draws the atlas.
@@ -1272,10 +1304,10 @@ impl Renderer {
             INITIAL_INSTANCE_CAPACITY,
             INITIAL_INSTANCE_CAPACITY,
         )?;
-        // The views of the cascades, then one per tile of the spot lights' atlas.
+        // The views of the cascades, then one per tile of the spot lights' atlas, then a picking's.
         let shadow_views = gpu.create_uniform_buffer(
             "shadow views",
-            &vec![0; (CASCADES + MAX_LIGHTS) * self.shadow_view_stride],
+            &vec![0; (PICK_SLOT + 1) * self.shadow_view_stride],
         )?;
         let shadow_views_group = gpu.create_bind_group(
             "shadow views",
@@ -1302,6 +1334,7 @@ impl Renderer {
             shadow_views,
             shadow_views_group,
             tone_mapping_settings,
+            picks: Vec::new(),
             lines: None,
             stats: RenderStats::default(),
         })
@@ -2007,7 +2040,11 @@ impl Renderer {
             push_mat4(values, model);
             push_mat3(values, normal_matrix(linear));
             let handedness = if is_mirrored(linear) { -1.0 } else { 1.0 };
-            push_f32s(values, &[handedness, 0.0, 0.0, 0.0]);
+            push_f32s(values, &[handedness, 0.0]);
+            push_u32s(
+                values,
+                &[instance.pick as u32, (instance.pick >> 32) as u32],
+            );
         }
         let (drawn, left_out) = (drawn + extra_drawn, left_out + extra_left_out);
         let capacity = (
@@ -2155,8 +2192,9 @@ impl Renderer {
         frame_bytes.resize(FRAME_VALUES_SIZE, 0);
         gpu.write_uniform_buffer(&view.frame_uniform, &frame_bytes);
 
-        // The views of the shadow passes, each in its slot: the cascades', then the spot tiles'.
-        let slots = (CASCADES + MAX_LIGHTS) * self.shadow_view_stride;
+        // The views of the shadow passes, each in its slot: the cascades', then the spot tiles',
+        // then a picking's, below.
+        let slots = (PICK_SLOT + 1) * self.shadow_view_stride;
         let mut view_bytes = Vec::with_capacity(slots);
         let cascade_views = (0..CASCADES).map(|index| {
             cascades
@@ -2172,6 +2210,38 @@ impl Renderer {
                 0,
             );
         }
+        view_bytes.resize(PICK_SLOT * self.shadow_view_stride, 0);
+        // The oldest picking that a handle still waits for, cut to the rectangle: what the camera
+        // sees of that area, stretched over the picking's target. It leaves the list once drawn
+        // (`record_pick`), so that a frame that fails before keeps it.
+        view.picks.retain(|state| {
+            Arc::strong_count(state) > 1 && matches!(*lock(state), PickState::Asked(_))
+        });
+        // An area outside the rectangle is answered at once, empty, and leaves the frame to the
+        // next.
+        let pick = view.picks.iter().find_map(|state| {
+            let PickState::Asked(area) = *lock(state) else {
+                return None;
+            };
+            let (x, y) = (area.x.min(viewport.width), area.y.min(viewport.height));
+            let right = area.x.saturating_add(area.width).min(viewport.width);
+            let bottom = area.y.saturating_add(area.height).min(viewport.height);
+            if right <= x || bottom <= y {
+                *lock(state) = PickState::Answered(Some(Ok(Picked::default())));
+                return None;
+            }
+            let cut = Viewport {
+                x,
+                y,
+                width: right - x,
+                height: bottom - y,
+            };
+            Some((Arc::clone(state), cut))
+        });
+        let pick_view = pick.as_ref().map_or(Mat4::IDENTITY, |(_, area)| {
+            area_projection(*area, viewport) * view_projection
+        });
+        push_mat4(&mut view_bytes, pick_view);
         view_bytes.resize(slots, 0);
         gpu.write_uniform_buffer(&view.shadow_views, &view_bytes);
         if !view.frame_group.0.is(environment) {
@@ -2220,6 +2290,7 @@ impl Renderer {
             drawing_draws,
             lines,
             lines_left_out,
+            pick,
             cascades,
             spot_draws,
             instances: (drawn, left_out),
@@ -2273,6 +2344,18 @@ impl Renderer {
                 );
             },
         );
+        if let Some((state, area)) = prepared.pick.clone() {
+            view.picks.retain(|waiting| !Arc::ptr_eq(waiting, &state));
+            let answer = self.record_pick(gpu, area, &groups, scene, &prepared);
+            *lock(&state) = match answer {
+                Ok(readback) => PickState::Reading {
+                    readback,
+                    width: area.width,
+                    height: area.height,
+                },
+                Err(error) => PickState::Answered(Some(Err(error))),
+            };
+        }
         fold_gpu_times(
             frame
                 .graph
@@ -2314,10 +2397,69 @@ impl Renderer {
         draw(render_pass, bound, instance, masked, instances);
     }
 
-    /// Draws `batches` of `instances` in the scene pass, or in the pass of a client's drawings in
-    /// the scene, with the scene pass's pipelines for targets of several samples per pixel if
-    /// `multisampled`, and counts them in `stats`. The pass has bound the frame's, the instances'
-    /// and the atlases' groups.
+    /// Draws the picking of `area` of a view, whose values `groups` binds, as `prepared` worked it
+    /// out: the number of each instance that it draws, the scene's and the client's, into a target
+    /// of the area's size, with the depth test, at one sample per pixel; then starts copying it
+    /// back.
+    fn record_pick(
+        &self,
+        gpu: &Gpu,
+        area: Viewport,
+        groups: &ViewGroups<'_>,
+        scene: &Scene,
+        prepared: &Prepared,
+    ) -> Result<Readback, RenderError> {
+        let target = gpu.create_render_target("picking", area.width, area.height, PICK_FORMAT)?;
+        let depth = gpu.create_depth_target("picking depth", area.width, area.height)?;
+        let offset =
+            u32::try_from(PICK_SLOT * self.shadow_view_stride).expect("a few slots of a few bytes");
+        let extra = groups
+            .drawings
+            .map_or(&[][..], |drawings| &drawings.in_scene.instances[..]);
+        let pass = RenderPassDescriptor {
+            target: &target,
+            clear: Some(LinearColor::BLACK),
+            depth: Some(&depth),
+            timer: None,
+            resolve: None,
+        };
+        gpu.render(&pass, |render_pass| {
+            render_pass.set_bind_group(0, groups.frame, &[]);
+            render_pass.set_bind_group(2, groups.instances, &[]);
+            render_pass.set_bind_group(3, groups.shadow_views, &[offset]);
+            let mut bound = Bound::default();
+            let all = [
+                (&scene.instances[..], &prepared.scene_draws),
+                (&scene.instances[..], &prepared.blended_draws),
+                (extra, &prepared.drawing_draws),
+            ];
+            for (instances, batches) in all {
+                for batch in batches {
+                    let instance = &instances[batch.first];
+                    let cull = scene_cull(instance);
+                    let kind = instance.material.inner.kind;
+                    let pipeline = scene_pipeline(kind, cull, false);
+                    if bound.pipeline != Some(pipeline) {
+                        render_pass.set_pipeline(self.pipelines.kinds[kind].pick.get(cull));
+                        bound.pipeline = Some(pipeline);
+                    }
+                    draw(
+                        render_pass,
+                        &mut bound,
+                        instance,
+                        true,
+                        batch.instances.clone(),
+                    );
+                }
+            }
+        });
+        Ok(gpu.read_render_target_later(&target)?)
+    }
+
+    /// Draws `batches` of `instances` in the scene pass, or in the pass after the sky, with the
+    /// scene pass's pipelines for targets of several samples per pixel if `multisampled`, and
+    /// counts them in `stats`. The pass has bound the frame's, the instances' and the atlases'
+    /// groups.
     fn draw_instances(
         &self,
         render_pass: &mut RenderPass<'_>,
@@ -2822,6 +2964,23 @@ fn declare_frame(shape: Shape) -> Graph {
     graph
 }
 
+/// What moves clip space so that `area` of a view's `rectangle`, both in the output's pixels, fills
+/// it: a picking's target then holds what the camera sees of that area alone.
+fn area_projection(area: Viewport, rectangle: Viewport) -> Mat4 {
+    let (width, height) = (rectangle.width as f32, rectangle.height as f32);
+    // The area's centre in clip space, whose y runs up where the pixels' runs down, and how much
+    // larger the rectangle is.
+    let centre_x = (area.x as f32 + area.width as f32 / 2.0) / width * 2.0 - 1.0;
+    let centre_y = 1.0 - (area.y as f32 + area.height as f32 / 2.0) / height * 2.0;
+    let (scale_x, scale_y) = (width / area.width as f32, height / area.height as f32);
+    Mat4::from_cols(
+        Vec4::new(scale_x, 0.0, 0.0, 0.0),
+        Vec4::new(0.0, scale_y, 0.0, 0.0),
+        Vec4::Z,
+        Vec4::new(-scale_x * centre_x, -scale_y * centre_y, 0.0, 1.0),
+    )
+}
+
 /// How many levels the bloom's chain has in a frame of `shape`: none without the bloom.
 fn bloom_levels_of(shape: Shape) -> usize {
     if shape.bloom {
@@ -3018,6 +3177,9 @@ struct KindPipelines {
     /// The shadow passes'; none for a kind whose surfaces cast no shadows
     /// ([`MaterialKind::casts_shadows`]).
     shadows: Option<ShadowPipelines>,
+    /// A picking's: each instance's number into a target of integers, with the depth test
+    /// (ADR-0130).
+    pick: ScenePipelines,
 }
 
 /// The shadow passes' pipelines of a kind of material.
@@ -3297,10 +3459,41 @@ impl KindPipelines {
         } else {
             None
         };
+        let pick_pipeline = |label: &str, cull: CullMode| {
+            gpu.create_render_pipeline(&RenderPipelineDescriptor {
+                label,
+                shader: module,
+                vertex_entry_point: "vs_pick",
+                vertex_layout: Some(VERTEX_LAYOUT),
+                fragment: Some(FragmentState {
+                    entry_point: "fs_pick",
+                    target_format: Some(PICK_FORMAT),
+                    blend: None,
+                }),
+                bind_group_layouts: &[
+                    &layouts.frame,
+                    &kind.layout,
+                    &layouts.instance,
+                    &layouts.shadow_views,
+                ],
+                depth: Some(DepthState {
+                    compare: DepthCompare::Greater,
+                    write: true,
+                    bias: DepthBias::default(),
+                }),
+                cull,
+                multisampled: false,
+            })
+        };
         Ok(Self {
             scene: sampled(false)?,
             blended: kind.kind.blends().then(|| sampled(true)).transpose()?,
             shadows,
+            pick: ScenePipelines {
+                back_culled: pick_pipeline("pick, back faces culled", CullMode::Back)?,
+                front_culled: pick_pipeline("pick, front faces culled", CullMode::Front)?,
+                unculled: pick_pipeline("pick, no face culled", CullMode::None)?,
+            },
         })
     }
 }

@@ -39,7 +39,8 @@ const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its dev
      `list_entities` and `inspect_entity` read its world, `set_property` changes it; `press_key` and \
      `release_key` play it; `capture` shows its image or one of its views, and \
      `set_view_settings` changes how a view draws, its scale, anti-aliasing, passes or a mode of \
-     debugging that shows normals or shadows; `read_report` reads its reports, as its asset cache's; \
+     debugging that shows normals or shadows; `pick` names the entity drawn at a pixel of its \
+     image or of a view; `read_report` reads its reports, as its asset cache's; \
      `read_logs` reads its log; `stop_game` ends it. \
      `cook` and `run_tests` run in the repository's root, where the server runs.";
 
@@ -152,6 +153,18 @@ struct Capture {
     /// The view whose part of the image to give, by the name that `game_state` lists; the whole
     /// image if left out.
     view: Option<String>,
+}
+
+/// What `pick` takes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct Pick {
+    /// The view, by the name that `game_state` lists, whose pixel `x` and `y` count from its top
+    /// left corner; the whole image if left out, where the last view drawn at the pixel is picked.
+    view: Option<String>,
+    /// The pixel's column, from the left, as in the image that `capture` gives.
+    x: u32,
+    /// Its row, from the top.
+    y: u32,
 }
 
 /// What `read_logs` takes.
@@ -407,6 +420,18 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
             text(said)
         }
         Reply::Report { text: report } => text(report),
+        Reply::Picked { entity, found } => text(if !found {
+            "nothing is drawn there".to_owned()
+        } else if entity.identity.is_empty() {
+            format!(
+                "an entity without a persistent identity, named `{}`",
+                entity.name
+            )
+        } else if entity.name.is_empty() {
+            entity.identity
+        } else {
+            format!("{} ({})", entity.identity, entity.name)
+        }),
         Reply::Logs { lines } => text(
             lines
                 .into_iter()
@@ -634,6 +659,24 @@ impl Server {
     ) -> Result<CallToolResult, McpError> {
         self.ask(Request::Capture {
             view: view.unwrap_or_default(),
+        })
+        .await
+    }
+
+    #[tool(
+        description = "The entity drawn at a pixel of the game's image, or of one of its views, \
+                       counted as in the image that `capture` gives: by its persistent identity \
+                       and its name, as `list_entities` gives them, or nothing. The game picks it \
+                       on the GPU, exactly as it draws it, a frame or more later."
+    )]
+    async fn pick(
+        &self,
+        Parameters(Pick { view, x, y }): Parameters<Pick>,
+    ) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Pick {
+            view: view.unwrap_or_default(),
+            x,
+            y,
         })
         .await
     }

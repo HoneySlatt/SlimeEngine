@@ -50,12 +50,17 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If `target` is `Rgba16Float`, which [`Gpu::read_float_render_target`] reads, or is
-    /// multisampled.
+    /// If `target` is `Rgba16Float`, which [`Gpu::read_float_render_target`] reads, or
+    /// `Rg32Uint`, which [`Gpu::read_render_target_later`] reads, or is multisampled.
     pub fn read_render_target(&self, target: &RenderTarget) -> Result<Image, GfxError> {
         assert!(
             target.format() != TextureFormat::Rgba16Float,
             "render target `{}` is Rgba16Float: read it with Gpu::read_float_render_target",
+            target.label
+        );
+        assert!(
+            target.format() != TextureFormat::Rg32Uint,
+            "render target `{}` is Rg32Uint: read it with Gpu::read_render_target_later",
             target.label
         );
         assert!(

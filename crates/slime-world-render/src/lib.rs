@@ -12,6 +12,10 @@ use slime_render::{
 };
 use slime_world::{Entity, Meshes, Transform, World};
 
+mod picker;
+
+pub use picker::{Hit, Picker};
+
 /// Builds, at each frame, what the renderer draws of a world: the instances of the meshes its
 /// entities place, the lights they place, and the sky's environment around the sun among them
 /// (`docs/adr/0084-what-the-world-draws.md`). It keeps the environment, which it makes again only
@@ -29,6 +33,8 @@ use slime_world::{Entity, Meshes, Transform, World};
 ///   GPU's, and stay valid through a lost device, as the cache's requests do
 ///   ([`AssetCache::into_requests`]); given a cache that did not issue them, as one made again
 ///   without those requests, the builder asks it for the meshes again ([`AssetCache::issued`]).
+///   Each instance is picked as its entity: its [`Instance::pick`](slime_render::Instance::pick)
+///   is the entity's handle ([`Entity::to_bits`], `docs/adr/0130-picking.md`).
 /// - Each entity that holds a [`slime_world::Light`] and a `Transform` places its light at its
 ///   origin, along its −Z axis. A light that the renderer would not draw ([`Light::check`]), as one
 ///   placed so far that its position is not a finite number, through transforms each finite, is
@@ -198,7 +204,7 @@ impl FrameBuilder {
                     missing.push(id);
                 }
             }
-            placed.push((at.to_affine(transform.stretch), meshes));
+            placed.push((entity, at.to_affine(transform.stretch), meshes));
         }
         if !missing.is_empty() {
             let request = cache.request(gpu, missing, Priority::Now);
@@ -209,11 +215,13 @@ impl FrameBuilder {
         self.handles.retain(|id, _| named.contains(id));
         let loading = cache.loading();
         let mut instances = Vec::with_capacity(placed.len());
-        for (transform, meshes) in placed {
+        for (entity, transform, meshes) in placed {
             for &id in &meshes.ids {
                 if let Some((mesh, material)) = cache.mesh(id) {
                     let mut instance = Instance::new(mesh, material, transform);
                     instance.casts_shadows = meshes.casts_shadows;
+                    // Picked as its entity (ADR-0130): `Entity::from_bits` gives it back.
+                    instance.pick = entity.to_bits();
                     instances.push(instance);
                 }
             }
@@ -402,6 +410,7 @@ mod threads {
     fn a_frame_builder_and_its_frames_can_be_shared_between_threads() {
         send_and_sync::<FrameBuilder>();
         send_and_sync::<Frame>();
+        send_and_sync::<Picker>();
         owned::<Frame>();
     }
 }

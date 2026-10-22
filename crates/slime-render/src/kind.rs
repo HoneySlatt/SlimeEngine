@@ -24,7 +24,8 @@ pub(crate) trait MaterialKind: Send + Sync + std::fmt::Debug {
     fn name(&self) -> &'static str;
 
     /// The file among `sources` that holds its passes, and its source: the entry points `vs_main`
-    /// and `fs_main` draw it in the scene pass, and, for a kind that casts shadows, `vs_shadow` and
+    /// and `fs_main` draw it in the scene pass, `vs_pick` and `fs_pick` in a picking, writing the
+    /// instance's number (ADR-0130), and, for a kind that casts shadows, `vs_shadow` and
     /// `fs_shadow` in the shadow passes; they read the renderer's groups 0, 2 and 3, as
     /// `shader.wgsl` declares them, and the material's group at 1.
     fn shader<'s>(&self, sources: &'s ShaderSources) -> (&'static str, &'s str);

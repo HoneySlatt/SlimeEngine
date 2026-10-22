@@ -40,6 +40,7 @@ struct Instance {
     model: mat4x4<f32>,
     normal: mat3x3<f32>,
     handedness: f32,
+    pick: vec2<u32>,
 }
 @group(2) @binding(0) var<storage, read> instances: array<Instance>;
 @group(2) @binding(1) var<storage, read> drawn: array<u32>;
@@ -92,4 +93,38 @@ fn fs_main(
         return vec4<f32>(vec3<f32>(1.0 / HEADROOM), alpha);
     }
     return vec4<f32>(color.rgb / HEADROOM, alpha);
+}
+
+// Picking (ADR-0130), as in shader.wgsl: through the view of the picked area, which group 3 holds
+// at the binding of the shadow passes' views; a blended surface is picked where its alpha reaches
+// one half, as if it were masked there.
+struct ShadowView {
+    view_proj: mat4x4<f32>,
+}
+@group(3) @binding(3) var<uniform> shadow_view: ShadowView;
+
+struct PickVertex {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+    @location(1) @interpolate(flat) pick: vec2<u32>,
+}
+
+@vertex
+fn vs_pick(
+    @location(0) position: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+    @builtin(instance_index) index: u32,
+) -> PickVertex {
+    let instance = instances[drawn[index]];
+    let clip_position = shadow_view.view_proj * (instance.model * vec4<f32>(position, 1.0));
+    return PickVertex(clip_position, uv, instance.pick);
+}
+
+@fragment
+fn fs_pick(input: PickVertex) -> @location(0) vec2<u32> {
+    let alpha = (material.color * textureSample(color_texture, color_sampler, input.uv)).a;
+    if alpha < max(material.alpha_cutoff, material.blended * 0.5) {
+        discard;
+    }
+    return input.pick;
 }

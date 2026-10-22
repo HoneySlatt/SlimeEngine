@@ -112,6 +112,20 @@ pub enum Request {
         /// The new value, as text in the engine's notation, `"Normals"`.
         value: String,
     },
+    /// The entity drawn at a pixel of the game's image, or of one of its views: [`Reply::Picked`],
+    /// once the game has picked it, a frame or more later (`docs/adr/0130-picking.md`). It fails in
+    /// a run without a window, for a view that the frame does not draw, for a pixel outside the
+    /// image or the view, and in a game that does not pick, or that gives no answer, as one whose
+    /// GPU device was lost.
+    Pick {
+        /// The view, by the name that [`GameState::views`] gives; empty for the whole image, where
+        /// the pixel is the last view's that the frame drew there.
+        view: String,
+        /// The pixel's column, from the left of the image or the view.
+        x: u32,
+        /// Its row, from the top.
+        y: u32,
+    },
     /// One of the game's reports, by the name that [`GameState::reports`] gives: [`Reply::Report`].
     /// It fails for a name that the game gives no report under.
     Report {
@@ -191,6 +205,14 @@ pub enum Reply {
         width: u32,
         /// Height in pixels.
         height: u32,
+    },
+    /// What a picking found: the entity drawn at the pixel, by its persistent identity and its
+    /// name, both empty where none is, and its identity alone empty for an entity that has none.
+    Picked {
+        /// The entity, or nothing.
+        entity: EntitySummary,
+        /// Whether an entity is drawn there.
+        found: bool,
     },
     /// A report of the game's.
     Report {
@@ -353,6 +375,11 @@ mod tests {
             Request::Report {
                 name: text("assets"),
             },
+            Request::Pick {
+                view: text("yard"),
+                x: 12,
+                y: 34,
+            },
             Request::SetViewSettings {
                 view: text("map"),
                 path: text("debug"),
@@ -423,6 +450,13 @@ mod tests {
             },
             Reply::Report {
                 text: text("handles = [6, 0, 0]\n"),
+            },
+            Reply::Picked {
+                entity: EntitySummary {
+                    identity: text("yard/sample/crate"),
+                    name: text("crate"),
+                },
+                found: true,
             },
             Reply::Logs {
                 lines: vec![LogLine {

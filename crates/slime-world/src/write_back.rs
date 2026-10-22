@@ -70,7 +70,7 @@ struct WriteNames {
 impl References for WriteNames {
     /// An entity that the file does not hold is no entity, `""`.
     fn name(&self, entity: u64) -> Option<String> {
-        if entity == handle_bits(Entity::NONE) {
+        if entity == Entity::NONE.to_bits() {
             return Some(String::new());
         }
         Some(match self.paths.get(&entity) {
@@ -466,16 +466,16 @@ impl World {
     ) -> Result<Written, DocumentError> {
         let scene = namespace.and_then(|key| Some((key, &self.scenes.get(key)?.scene)));
         let mut paths: HashMap<u64, String> = HashMap::new();
-        paths.insert(handle_bits(root), ROOT_NAME.to_owned());
+        paths.insert(root.to_bits(), ROOT_NAME.to_owned());
         for entry in entries {
-            paths.insert(handle_bits(entry.entity), entry.id.clone());
+            paths.insert(entry.entity.to_bits(), entry.id.clone());
             if let Some(placement) = &entry.placement {
                 for (record, entity) in self.placed(entry.entity, placement) {
                     if let Some(entity) = entity
                         && !record.path.is_empty()
                     {
                         paths.insert(
-                            handle_bits(entity),
+                            entity.to_bits(),
                             format!("{}/{}", entry.id, record.path.join("/")),
                         );
                     }
@@ -587,7 +587,7 @@ impl World {
             if let Some(parent) = self.parent(entry.entity)
                 && parent != root
             {
-                let path = names.name(handle_bits(parent)).unwrap_or_default();
+                let path = names.name(parent.to_bits()).unwrap_or_default();
                 file.put(&[ENTITIES, id, PARENT], "String", &Value::Text(path))
                     .map_err(write)?;
             }
@@ -635,7 +635,7 @@ impl World {
         let text = file.finish().map_err(write)?;
         for bits in names.outside.take() {
             // A destroyed entity is no entity, as a save writes it: nothing to report.
-            let Ok(entity) = Entity::from_value(&Value::Entity(bits)) else {
+            let Some(entity) = Entity::from_bits(bits) else {
                 continue;
             };
             if !self.contains(entity) {
@@ -1077,7 +1077,7 @@ impl World {
                 );
                 self.find(&id)
             });
-            *bits = handle_bits(found.unwrap_or(Entity::NONE));
+            *bits = found.unwrap_or(Entity::NONE).to_bits();
         });
         value
     }
@@ -1101,14 +1101,6 @@ pub(crate) fn expected(
     }
 }
 
-/// The bits of `entity`'s handle, as a value holds them.
-pub(crate) fn handle_bits(entity: Entity) -> u64 {
-    match entity.to_value() {
-        Value::Entity(bits) => bits,
-        _ => 0,
-    }
-}
-
 /// `value`, a resolved scene's, its references to the scene's records made references to the
 /// entities that `entities` gives them, in the records' order, or to no entity.
 pub(crate) fn with_handles(value: &Value, entities: &[Option<Entity>]) -> Value {
@@ -1119,7 +1111,7 @@ pub(crate) fn with_handles(value: &Value, entities: &[Option<Entity>]) -> Value 
         } else {
             entities.get(*bits as usize).copied().flatten()
         };
-        *bits = handle_bits(entity.unwrap_or(Entity::NONE));
+        *bits = entity.unwrap_or(Entity::NONE).to_bits();
     });
     value
 }

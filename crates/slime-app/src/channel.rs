@@ -3,6 +3,7 @@
 
 use std::collections::VecDeque;
 use std::io::Write as _;
+use std::sync::{Arc, PoisonError};
 use std::time::Duration;
 
 use slime_channel::{
@@ -15,7 +16,7 @@ use slime_reflect::{Kind, Path, Reflect as _, Registry, Value};
 use slime_serialize::{Composer, Document, Mode, References};
 use slime_world::{Command, Entity, Name, PersistentId, World};
 
-use crate::game::{Presentation, Reflected, ShownView, Simulation};
+use crate::game::{PickAnswer, PickSlot, Presentation, Reflected, ShownView, Simulation};
 use crate::host::Host;
 use crate::log_lines;
 
@@ -27,6 +28,9 @@ pub(crate) struct DevChannel {
     listener: Listener,
     /// The captures asked for, which the next frame drawn answers.
     captures: Vec<Incoming>,
+    /// The pickings asked for, each with where the presentation gives its answer
+    /// ([`Presentation::pick`]): answered once it gives it, a frame or more later.
+    picks: Vec<(Incoming, PickSlot)>,
     /// The steps asked for, each with the count of steps run that answers it: answered once the
     /// frames have run them.
     steps: Vec<(Incoming, u64)>,
@@ -65,6 +69,7 @@ impl DevChannel {
         Some(Self {
             listener,
             captures: Vec::new(),
+            picks: Vec::new(),
             steps: Vec::new(),
             frames: VecDeque::new(),
         })
@@ -73,9 +78,11 @@ impl DevChannel {
     /// At the start of a frame that represents `real` time, after `frames` frames: answers the
     /// requests that arrived, which change the host as a frame's start may. A step is answered once
     /// the frames have run every step asked for, so that what the tool asks next comes after them;
-    /// a capture waits for the frame's image ([`DevChannel::capture`]); `windowed` says whether
-    /// the run has one. A save and a load are `simulation`'s ([`Simulation::save`]); the views
-    /// that the last frame drew, and their settings, `presentation`'s ([`Presentation::views`]).
+    /// a capture waits for the frame's image ([`DevChannel::capture`]), and a picking for the
+    /// answer that the presentation gives a frame or more later ([`Presentation::pick`]);
+    /// `windowed` says whether the run has one. A save and a load are `simulation`'s
+    /// ([`Simulation::save`]); the views that the last frame drew, and their settings,
+    /// `presentation`'s ([`Presentation::views`]).
     pub(crate) fn answer(
         &mut self,
         host: &mut Host,
@@ -108,9 +115,32 @@ impl DevChannel {
             }
         }
         self.steps = waiting;
+        let mut waiting = Vec::new();
+        for (incoming, slot) in self.picks.drain(..) {
+            // Counted before the answer is looked for: once the presentation let go of it, no
+            // answer can come after.
+            let alone = Arc::strong_count(&slot) == 1;
+            let answer = slot.lock().unwrap_or_else(PoisonError::into_inner).take();
+            match answer {
+                Some(entity) => incoming.answer(picked(host.world(), entity)),
+                // The presentation dropped it: no answer comes.
+                None if alone => incoming.answer(failed(
+                    "the game gave no answer: its GPU device was lost, or the view went away",
+                )),
+                None => waiting.push((incoming, slot)),
+            }
+        }
+        self.picks = waiting;
         while let Some(incoming) = self.listener.next() {
             if matches!(incoming.request(), Request::Capture { .. }) && windowed {
                 self.captures.push(incoming);
+                continue;
+            }
+            if let Request::Pick { view, x, y } = incoming.request() {
+                match pick(presentation, &views, view, (*x, *y), windowed) {
+                    Ok(slot) => self.picks.push((incoming, slot)),
+                    Err(message) => incoming.answer(failed(message)),
+                }
                 continue;
             }
             let reply = self.reply(
@@ -256,6 +286,7 @@ impl DevChannel {
                 debug_assert!(!windowed, "a windowed run's capture waits for its image");
                 failed("a run without a window shows no image")
             }
+            Request::Pick { .. } => unreachable!("`answer` asks the presentation to pick"),
             Request::Logs { after } => Reply::Logs {
                 lines: log_lines::after(*after)
                     .into_iter()
@@ -335,15 +366,20 @@ fn failed(why: impl ToString) -> Reply {
 
 /// Why a request that names `view` fails when the frame drew `views`, none of which is named so.
 fn no_view(view: &str, views: &[ShownView]) -> String {
-    let names: Vec<&str> = views.iter().map(|shown| shown.name.as_str()).collect();
     format!(
         "the frame draws no view `{view}`: it draws {}",
-        if names.is_empty() {
-            "none by name".to_owned()
-        } else {
-            format!("`{}`", names.join("`, `"))
-        }
+        named(views)
     )
+}
+
+/// The names of `views`, as a message gives them.
+fn named(views: &[ShownView]) -> String {
+    let names: Vec<&str> = views.iter().map(|shown| shown.name.as_str()).collect();
+    if names.is_empty() {
+        "none by name".to_owned()
+    } else {
+        format!("`{}`", names.join("`, `"))
+    }
 }
 
 /// `reflected` as a document in the engine's notation.
@@ -424,6 +460,67 @@ fn cropped(image: &Image, view: &ShownView) -> Option<(u32, u32, Vec<u8>)> {
         .copied()
         .collect();
     Some((right - view.x, bottom - view.y, pixels))
+}
+
+/// Asks `presentation` to pick at `(x, y)` of the view named `view` among `views`, or of the whole
+/// image when `view` is empty, where the last view drawn there is picked; returns where its answer
+/// comes, or why it cannot pick there.
+fn pick(
+    presentation: &mut dyn Presentation,
+    views: &[ShownView],
+    view: &str,
+    (x, y): (u32, u32),
+    windowed: bool,
+) -> Result<PickSlot, String> {
+    if !windowed {
+        return Err("a run without a window shows no image to pick in".to_owned());
+    }
+    let inside = |shown: &&ShownView| {
+        (shown.x..shown.x + shown.width).contains(&x)
+            && (shown.y..shown.y + shown.height).contains(&y)
+    };
+    let (name, at) = if view.is_empty() {
+        let shown = views.iter().rev().find(inside).ok_or_else(|| {
+            format!(
+                "no view of the game is drawn at ({x}, {y}): it draws {}",
+                named(views)
+            )
+        })?;
+        (&shown.name, (x - shown.x, y - shown.y))
+    } else {
+        let shown = views
+            .iter()
+            .find(|shown| shown.name == view)
+            .ok_or_else(|| no_view(view, views))?;
+        if x >= shown.width || y >= shown.height {
+            return Err(format!(
+                "({x}, {y}) lies outside the view `{view}`, of {} × {} pixels",
+                shown.width, shown.height
+            ));
+        }
+        (&shown.name, (x, y))
+    };
+    let (answer, slot) = PickAnswer::new();
+    presentation.pick(name, at, answer)?;
+    Ok(slot)
+}
+
+/// The reply that names `entity` of `world`, found by a picking, or nothing: an entity destroyed
+/// since it was drawn is nothing.
+fn picked(world: &World, entity: Option<Entity>) -> Reply {
+    match entity.filter(|&entity| world.contains(entity)) {
+        Some(entity) => Reply::Picked {
+            entity: summary(world, entity),
+            found: true,
+        },
+        None => Reply::Picked {
+            entity: EntitySummary {
+                identity: String::new(),
+                name: String::new(),
+            },
+            found: false,
+        },
+    }
 }
 
 /// The entity of `world` and its name, as a list of entities gives it.
@@ -719,5 +816,86 @@ mod tests {
         // A presentation that keeps the default refuses every change.
         let refused = set_view_settings(&world, &mut (), &views, "dial", "level", "0.5");
         assert!(refused.is_err());
+    }
+
+    /// A presentation that picks, keeping each picking asked for, which the test answers.
+    #[derive(Default)]
+    struct Clicks {
+        asked: Vec<(String, (u32, u32), PickAnswer)>,
+    }
+
+    impl Presentation for Clicks {
+        fn pick(&mut self, view: &str, at: (u32, u32), answer: PickAnswer) -> Result<(), String> {
+            self.asked.push((view.to_owned(), at, answer));
+            Ok(())
+        }
+    }
+
+    /// A tool picks at a pixel of a view, counted from its corner, or of the whole image, where the
+    /// last view drawn there is picked; the answer names the entity once the presentation gives
+    /// it, and nothing for an entity destroyed since; a pixel outside, a run without a window and a
+    /// game that does not pick are refused.
+    #[test]
+    fn a_tool_picks_at_a_pixel_of_a_view_or_of_the_image() {
+        let mut world = World::new();
+        let door = world.spawn();
+        world.insert(door, Name("door".to_owned()));
+        let views =
+            [("yard", 0, 0, 100, 50), ("map", 80, 0, 20, 20)].map(|(name, x, y, width, height)| {
+                ShownView {
+                    name: name.to_owned(),
+                    x,
+                    y,
+                    width,
+                    height,
+                }
+            });
+        let mut clicks = Clicks::default();
+        let in_map = pick(&mut clicks, &views, "", (85, 10), true).expect("picked");
+        let in_yard = pick(&mut clicks, &views, "yard", (85, 10), true).expect("picked");
+        let asked: Vec<(&str, (u32, u32))> = clicks
+            .asked
+            .iter()
+            .map(|(view, at, _)| (view.as_str(), *at))
+            .collect();
+        assert_eq!(asked, [("map", (5, 10)), ("yard", (85, 10))]);
+        let mut answers = std::mem::take(&mut clicks.asked)
+            .into_iter()
+            .map(|(_, _, answer)| answer);
+        answers.next().expect("asked").give(Some(door));
+        answers.next().expect("asked").give(None);
+        let given = |slot: &PickSlot| slot.lock().unwrap().expect("given");
+        let Reply::Picked { entity, found } = picked(&world, given(&in_map)) else {
+            panic!("a picking answers with what it found");
+        };
+        assert!(found);
+        assert_eq!(entity.name, "door");
+        assert_eq!(
+            picked(&world, given(&in_yard)),
+            Reply::Picked {
+                entity: EntitySummary {
+                    identity: String::new(),
+                    name: String::new()
+                },
+                found: false
+            }
+        );
+        world.despawn(door);
+        assert!(matches!(
+            picked(&world, Some(door)),
+            Reply::Picked { found: false, .. }
+        ));
+        for (view, at, windowed) in [
+            ("map", (20, 0), true),
+            ("", (100, 0), true),
+            ("minimap", (0, 0), true),
+            ("yard", (0, 0), false),
+        ] {
+            assert!(
+                pick(&mut clicks, &views, view, at, windowed).is_err(),
+                "{view} at {at:?}, windowed {windowed}"
+            );
+        }
+        assert!(pick(&mut (), &views, "yard", (0, 0), true).is_err());
     }
 }

@@ -13,6 +13,7 @@ mod light;
 mod loads;
 mod material;
 mod mesh;
+mod pick;
 mod renderer;
 mod shaders;
 mod shadow;
@@ -36,6 +37,7 @@ pub use material::{
     AlphaMode, Material, MaterialData, MaterialValues, SampledTexture, UnlitData, UnlitValues,
 };
 pub use mesh::{Mesh, MeshData};
+pub use pick::{Pick, Picked};
 pub use renderer::{
     AntiAliasing, DebugMode, Instance, RESIZE_DELAY, RenderStats, Renderer, Scene, View, ViewDraw,
     ViewSettings, Viewport,
@@ -71,6 +73,8 @@ mod threads {
         send_and_sync::<Scene>();
         send_and_sync::<Instance>();
         send_and_sync::<Drawings>();
+        send_and_sync::<Pick>();
+        send_and_sync::<Picked>();
         send_and_sync::<RenderStats>();
         send_and_sync::<ViewSettings>();
         send_and_sync::<RenderError>();

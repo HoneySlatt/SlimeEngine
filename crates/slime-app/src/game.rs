@@ -3,11 +3,12 @@
 
 use std::fmt;
 use std::path::Path;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use slime_gfx::RenderTarget;
 use slime_platform::Event;
 use slime_reflect::{Reflect, ReflectError, Registry, Value};
-use slime_world::World;
+use slime_world::{Entity, World};
 
 use crate::error::AppError;
 use crate::host::{Context, SimulationContext};
@@ -256,6 +257,21 @@ pub trait Presentation {
         Vec::new()
     }
 
+    /// Picks, for a tool, the entity drawn at pixel `(x, y)` of the view that the last
+    /// [`render`](Self::render) drew under `view`, one of [`views`](Self::views), counted from its
+    /// rectangle's top left corner, within it (the development channel's picking,
+    /// `docs/adr/0130-picking.md`): gives it to `answer` once it knows it, as a view of
+    /// `slime-render` answers its picking, a frame or more later. `answer` dropped without an
+    /// answer tells the tool that none came, as a lost GPU device leaves it.
+    ///
+    /// # Errors
+    ///
+    /// Why it cannot pick there, which the tool is told, as the default does for every view.
+    fn pick(&mut self, view: &str, (x, y): (u32, u32), answer: PickAnswer) -> Result<(), String> {
+        let _ = (x, y, answer);
+        Err(format!("the game does not pick in its view `{view}`"))
+    }
+
     /// Called between frames when the GPU device was lost and the run is about to open a new one,
     /// as a game asks with
     /// [`AppConfig::restore_lost_device`](crate::AppConfig::restore_lost_device): the presentation
@@ -321,6 +337,39 @@ pub struct ShownView {
     pub width: u32,
     /// Its height, at least 1.
     pub height: u32,
+}
+
+/// Where a presentation gives the answer of a picking that a tool asked for
+/// ([`Presentation::pick`]): the entity drawn at the pixel, or none, once the presentation knows
+/// it. Dropped without an answer, it tells the tool that none came.
+#[derive(Debug)]
+pub struct PickAnswer {
+    slot: PickSlot,
+}
+
+/// Where a [`PickAnswer`] puts its answer: `None` until given, then the entity found, or none.
+pub(crate) type PickSlot = Arc<Mutex<Option<Option<Entity>>>>;
+
+impl PickAnswer {
+    /// An answer to give, and where the development channel finds it once given.
+    #[cfg_attr(
+        not(feature = "development"),
+        expect(dead_code, reason = "only the development channel asks for pickings")
+    )]
+    pub(crate) fn new() -> (Self, PickSlot) {
+        let slot = Arc::new(Mutex::new(None));
+        (
+            Self {
+                slot: Arc::clone(&slot),
+            },
+            slot,
+        )
+    }
+
+    /// Gives `entity`, the one drawn at the pixel, or `None` where none is.
+    pub fn give(self, entity: Option<Entity>) {
+        *self.slot.lock().unwrap_or_else(PoisonError::into_inner) = Some(entity);
+    }
 }
 
 /// A value described by reflection, with the registry of its type: a view's settings

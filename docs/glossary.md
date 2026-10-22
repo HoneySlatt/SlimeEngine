@@ -724,10 +724,13 @@ letter key of the top row is `KeyQ` on every layout, whether it is labelled Q (Q
 
 **Physical pixel.** A pixel of the display. See *logical pixel*.
 
-**Picking.** Finding which object is under the mouse: by the GPU, from an image where each pixel
-holds the number of the instance drawn there, read back without holding up a frame; or by the CPU,
-a ray against the instances' bounds then their triangles, without a GPU
-([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). Decided, not built yet.
+**Picking.** Finding which object is under the mouse: by the GPU, from an image of an area of a
+*view* where each pixel holds the number that its client gave the instance drawn nearest there,
+read back a frame or more later without holding up a frame (`View::pick`); or by the CPU, a ray
+against the boxes of the meshes that a world places, then their triangles, without a GPU
+(`slime_world_render::Picker`). The bridge from the world numbers each instance with its entity's
+handle ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md),
+[ADR-0130](adr/0130-picking.md)).
 
 **Placement.** A *prefab* placed in a scene, under an ID of that scene, with its *overrides*, or
 while a world runs, under `created/<number>`; the entities of a placement are named through it, as
@@ -787,6 +790,11 @@ zero, smoothly.
 some types, with those components, `&T` to read one and `&mut T` to change it through a *guard*
 (`slime_world::Query`, `slime_world::QueryMut`,
 [ADR-0082](adr/0082-the-worlds-storage-and-handles.md)).
+
+**Readback.** A copy of a *render target*'s texels to the CPU. `Gpu::read_render_target` waits
+for the GPU to finish what was submitted before; `Gpu::read_render_target_later` starts the copy
+and returns at once, its texels given once wgpu has seen the copy done, a frame or more later
+([ADR-0130](adr/0130-picking.md)).
 
 **Real time.** The frames' deltas, limited after a pause, whose sum is *application time*: the UI,
 the camera, the editor and the dev overlay run on it whatever the *game time*

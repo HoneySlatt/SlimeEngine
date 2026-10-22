@@ -20,7 +20,6 @@ use crate::library::ResolvedScene;
 use crate::scene::{record_ids, valid_key};
 use crate::scene_file::for_each_entity;
 use crate::world::{Former, Identity, SpawnedScene, World};
-use crate::write_back::handle_bits;
 
 /// What a world keeps of a scene that it unloaded: what the run changed of it since the world
 /// settled it, but what saves leave out ([`Unsaved`](crate::Unsaved)) and what resets
@@ -84,7 +83,7 @@ impl References for Table {
         Some(
             self.numbers
                 .identity(name)
-                .map_or(handle_bits(Entity::NONE), |id| self.index(id)),
+                .map_or(Entity::NONE.to_bits(), |id| self.index(id)),
         )
     }
 }
@@ -171,7 +170,7 @@ impl World {
                 let id = Entity::from_value(&Value::Entity(*bits))
                     .ok()
                     .and_then(id_of);
-                *bits = id.map_or(handle_bits(Entity::NONE), |id| table.index(id));
+                *bits = id.map_or(Entity::NONE.to_bits(), |id| table.index(id));
             });
         };
         for value in differences
@@ -215,7 +214,7 @@ impl World {
             .iter()
             .map(|id| {
                 let entity = self.find(&self.adopted_as(id, key, asset));
-                handle_bits(entity.unwrap_or(Entity::NONE))
+                entity.unwrap_or(Entity::NONE).to_bits()
             })
             .collect();
         let resolve = |(id, name): (PersistentId, String), mut value: Value| {
@@ -224,7 +223,7 @@ impl World {
                     *bits = handles
                         .get(*bits as usize)
                         .copied()
-                        .unwrap_or(handle_bits(Entity::NONE));
+                        .unwrap_or(Entity::NONE.to_bits());
                 }
             });
             (id.to_string(), name, value)
@@ -373,7 +372,7 @@ impl World {
     /// Makes what refers to `from` among the components of `among` refer to `to`, and the children
     /// of `from` children of `to`.
     fn redirect(&mut self, from: Entity, to: Entity, among: &[Entity]) {
-        let (from_bits, to_bits) = (handle_bits(from), handle_bits(to));
+        let (from_bits, to_bits) = (from.to_bits(), to.to_bits());
         for &entity in among {
             let names: Vec<String> = self
                 .component_names(entity)

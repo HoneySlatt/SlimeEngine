@@ -5,9 +5,10 @@
   a view's graph), [0059](0059-multisampling-in-the-gpu-layer.md) (a depth resolved when a pass
   asks for it) and [0111](0111-the-frame-contract.md) (an unlit kind of material at Stage 6);
   amended by [0117](0117-frustum-culling-and-instancing.md) (each buffer's uses are those of its
-  type) and [0129](0129-drawing-for-the-editor.md) (lines drawn by the renderer; the first point
+  type), [0129](0129-drawing-for-the-editor.md) (lines drawn by the renderer; the first point
   after the sky; the scene's depth resolved and a part of a texture written wait for their first
-  user; the milestone in two)
+  user; the milestone in two) and [0130](0130-picking.md) (how picking by the GPU and by the CPU
+  are built)
 - Date: 2026-10-20
 
 ## Context

@@ -31,8 +31,11 @@ them back, and draws into a window:
   copies submitted by one thread of the uploader's, within a budget of bytes per frame, the lowest
   rank first.
 
-Not there yet: array textures, integer targets and targets read back without waiting, which
-picking brings (`docs/PLAN.md`, M6a.10b).
+- It draws into targets of integers (`TextureFormat::Rg32Uint`), and reads a target back without
+  waiting for the GPU (`Gpu::read_render_target_later`, `Readback`), as picking does
+  (`docs/adr/0130-picking.md`).
+
+Not there yet: array textures.
 
 ## Role
 
@@ -157,7 +160,9 @@ fn main() -> Result<(), GfxError> {
   pass's targets, so that one pass can draw several views side by side, as a shadow atlas holds
   them. `Gpu::read_render_target` and `Gpu::read_float_render_target` copy a target back to the
   CPU, a window's image too where the window's system allows it (`GfxError::NotReadable` otherwise,
-  ADR-0122): a tool captures what the player sees so.
+  ADR-0122): a tool captures what the player sees so. They wait for the GPU;
+  `Gpu::read_render_target_later` does not: its `Readback` gives the texels a frame or more later,
+  as picking reads its numbers back (ADR-0130).
 - `Gpu::create_multisampled_render_target` and `Gpu::create_multisampled_depth_target` create
   targets of `MULTISAMPLE_COUNT` samples per pixel, which pipelines built `multisampled` draw into;
   `RenderPassDescriptor::resolve` names the target of one sample that the pass averages them into

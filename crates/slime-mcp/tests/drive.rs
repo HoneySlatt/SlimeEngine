@@ -58,6 +58,7 @@ fn main() {
         "capture",
         "set_view_settings",
         "read_report",
+        "pick",
         "save_game",
         "load_game",
     ] {

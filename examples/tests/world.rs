@@ -1,14 +1,15 @@
 //! The examples' cooked scene drawn from a world (`docs/adr/0084-what-the-world-draws.md`): spawned
 //! in a `slime-world` world, its meshes loaded by a `slime-render` asset cache, and drawn through
-//! `slime-world-render`. It draws the instances that the scene loaded by the renderer gives, and the
-//! glTF test's reference images (`tests/reference/gltf-front.png` and `gltf-back.png`) within the
-//! same tolerance (`common/reference_image.rs`); what moves at fixed steps is drawn where the
+//! `slime-world-render`. It draws the instances that the scene loaded by the renderer gives, and
+//! the glTF test's reference images (`tests/reference/gltf-front.png` and `gltf-back.png`) within
+//! the same tolerance (`common/reference_image.rs`); what moves at fixed steps is drawn where the
 //! fraction of a step puts it; a hidden subtree is not drawn, nor its light; after a lost device,
 //! the cache made again draws the same world, which the loss left as it was; a frame built on one
-//! thread, once its cache and builder are dropped, is drawn on another as on the first. The cooked
-//! yard (`examples/assets/yard.scene`) spawns its lamps with their overrides, their lights placed
-//! in the world, and follows its lamp cooked again, without a GPU
-//! (`docs/adr/0095-cooked-scene-files.md`). Runs on whatever adapter the machine offers.
+//! thread, once its cache and builder are dropped, is drawn on another as on the first; picking by
+//! the GPU and by the CPU name the same entities (`docs/adr/0130-picking.md`). The cooked yard
+//! (`examples/assets/yard.scene`) spawns its lamps with their overrides, their lights placed in the
+//! world, and follows its lamp cooked again, without a GPU (`docs/adr/0095-cooked-scene-files.md`).
+//! Runs on whatever adapter the machine offers.
 
 #[path = "../common/cooked.rs"]
 mod cooked;
@@ -36,12 +37,12 @@ use std::time::Duration;
 use cooked::sample;
 use sample_scene::{BLOOM, Bounds, EXPOSURE, SCENE, SKY};
 use slime_gfx::{Gpu, Image, RenderTarget, TextureFormat};
-use slime_render::glam::DAffine3;
-use slime_render::{AssetCache, Camera, Light, RenderStats, Renderer, View, ViewDraw};
+use slime_render::glam::{DAffine3, Vec2};
+use slime_render::{AssetCache, Camera, Light, RenderStats, Renderer, View, ViewDraw, Viewport};
 use slime_world::{
     Entity, Hidden, Meshes, PersistentId, ResolvedScene, SceneLibrary, Transform, World,
 };
-use slime_world_render::FrameBuilder;
+use slime_world_render::{FrameBuilder, Picker};
 use yard::YARD;
 
 const SIZE: u32 = 256;
@@ -181,6 +182,54 @@ fn reach(world: &mut World, reach: f32) {
 fn target(gpu: &Gpu) -> RenderTarget {
     gpu.create_render_target("world", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)
         .expect("the GPU has memory for it")
+}
+
+/// Picking by the GPU, through the frame builder's numbers, and by the CPU, a ray through each
+/// pixel's centre, name the same entity on a grid of pixels over the sample, which no masked
+/// material cuts out (`docs/adr/0130-picking.md`): but a few pixels on the edges of what is drawn,
+/// where rounding takes a pixel's centre to one side or the other.
+#[test]
+fn picking_by_the_gpu_and_by_the_cpu_name_the_same_entities() {
+    let gpu = gpu();
+    let target = target(&gpu);
+    let (bounds, _) = loaded(&gpu);
+    let world = world();
+    let (camera, _) = camera(&bounds, 0.6, 0.45);
+    let mut drawing = Drawing::new(&gpu);
+    let pick = drawing.view.pick(Viewport::whole(&target));
+    let picked = (0..1000)
+        .find_map(|_| {
+            drawing.draw(&gpu, &target, &world, camera);
+            pick.take(&gpu)
+        })
+        .expect("the picking answers within a thousand frames")
+        .expect("the picking draws");
+    let mut picker = Picker::new(sample().clone());
+    let (mut named, mut differ, mut entities) = (0, Vec::new(), std::collections::HashSet::new());
+    for y in (0..SIZE).step_by(4) {
+        for x in (0..SIZE).step_by(4) {
+            let by_gpu = Entity::from_bits(picked.at(x, y));
+            let centre = Vec2::new(
+                (x as f32 + 0.5) / SIZE as f32,
+                (y as f32 + 0.5) / SIZE as f32,
+            );
+            let by_cpu = picker
+                .cast(&world, 0.0, camera.ray(1.0, centre))
+                .map(|hit| hit.entity);
+            entities.extend(by_gpu);
+            named += usize::from(by_gpu.is_some());
+            if by_gpu != by_cpu {
+                differ.push(((x, y), by_gpu, by_cpu));
+            }
+        }
+    }
+    assert!(entities.len() >= 4, "{} entities picked", entities.len());
+    assert!(named > 500, "{named} pixels on something");
+    assert!(
+        differ.len() * 100 <= named,
+        "{} of {named} differ: {differ:?}",
+        differ.len()
+    );
 }
 
 #[test]

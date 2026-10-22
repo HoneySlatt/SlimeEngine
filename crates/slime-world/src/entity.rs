@@ -31,6 +31,24 @@ impl Entity {
     pub(crate) fn index(self) -> u32 {
         self.index
     }
+
+    /// Its handle as one number, the generation in the high 32 bits and the index in the low ones:
+    /// never 0, since a generation is not. It means something only in the world that gave the
+    /// handle out, while it runs: a picked object's number (`docs/adr/0130-picking.md`), a
+    /// reference to an entity as reflection holds it.
+    pub fn to_bits(self) -> u64 {
+        u64::from(self.generation.get()) << 32 | u64::from(self.index)
+    }
+
+    /// The handle whose number is `bits` ([`Entity::to_bits`]); `None` for a number whose
+    /// generation is 0, which no handle has.
+    pub fn from_bits(bits: u64) -> Option<Self> {
+        let generation = NonZeroU32::new(u32::try_from(bits >> 32).ok()?)?;
+        Some(Self {
+            index: bits as u32,
+            generation,
+        })
+    }
 }
 
 /// A reference to an entity, a kind of value of its own: [`Value::Entity`](slime_reflect::Value),
@@ -54,22 +72,17 @@ impl slime_reflect::Reflect for Entity {
     fn register_dependencies(_: &mut slime_reflect::Registry) {}
 
     fn to_value(&self) -> slime_reflect::Value {
-        slime_reflect::Value::Entity(u64::from(self.generation.get()) << 32 | u64::from(self.index))
+        slime_reflect::Value::Entity(self.to_bits())
     }
 
     fn from_value(value: &slime_reflect::Value) -> Result<Self, slime_reflect::ReflectError> {
         let slime_reflect::Value::Entity(bits) = *value else {
             return Err(slime_reflect::support::wrong("Entity", value));
         };
-        let generation = u32::try_from(bits >> 32).ok().and_then(NonZeroU32::new);
-        let Some(generation) = generation else {
-            return Err(slime_reflect::ReflectError::new(
-                slime_reflect::Problem::Invalid("an entity handle has a generation".to_owned()),
-            ));
-        };
-        Ok(Self {
-            index: bits as u32,
-            generation,
+        Self::from_bits(bits).ok_or_else(|| {
+            slime_reflect::ReflectError::new(slime_reflect::Problem::Invalid(
+                "an entity handle has a generation".to_owned(),
+            ))
         })
     }
 }

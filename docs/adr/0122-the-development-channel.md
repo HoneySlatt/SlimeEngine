@@ -9,8 +9,9 @@
   game holds game time apart from the pause); amended by [0125](0125-saves-per-scene.md) (version 2
   of the protocol: saving and loading a running game), [0126](0126-views-apart-from-the-renderer.md)
   (version 3 of the protocol: a view captured), [0127](0127-the-settings-of-a-view.md) (version 4
-  of the protocol: a view's settings read and changed) and [0128](0128-asset-requests.md) (version
-  5 of the protocol: a game's reports)
+  of the protocol: a view's settings read and changed), [0128](0128-asset-requests.md) (version 5
+  of the protocol: a game's reports) and [0130](0130-picking.md) (version 6 of the protocol: a
+  picking)
 - Date: 2026-10-21
 
 ## Context

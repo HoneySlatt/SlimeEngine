@@ -125,7 +125,8 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   describes them (`Reflected`), and take them back changed
   (`docs/adr/0127-the-settings-of-a-view.md`), and `reports`, the named values, as described, that
   it gives tools, an asset cache's and its views' statistics
-  (`docs/adr/0128-asset-requests.md`);
+  (`docs/adr/0128-asset-requests.md`), and `pick`, which picks the entity at a pixel of a view for a
+  tool and gives it to a `PickAnswer` once it knows it (`docs/adr/0130-picking.md`);
   `gpu_lost` and `gpu_restored` when the run replaces a lost GPU device, which a game asks for with
   `AppConfig::restore_lost_device`: it drops its GPU objects in the first, before the new device
   opens, and creates them again in the second

@@ -188,6 +188,8 @@ struct Instance {
     // 1, or -1 for an instance whose transform mirrors it: its front faces wind clockwise on
     // screen, and the cross product that gives its bitangents turns the other way.
     handedness: f32,
+    // The number that picking writes where it is drawn, low 32 bits then high (ADR-0130).
+    pick: vec2<u32>,
 }
 // The values of the instances that the frame's passes draw, and, for each draw, where the values
 // of the instances it draws are: the instance of number n, `@builtin(instance_index)`, has its
@@ -297,6 +299,36 @@ fn fs_shadow(@location(0) uv: vec2<f32>) {
     if alpha < material.alpha_cutoff {
         discard;
     }
+}
+
+// Picking (ADR-0130): each instance's number where it is drawn, nearest first, through the view of
+// the picked area at group 3, as the shadow passes draw through their tiles'; what a mask cuts
+// out lets the picking through to what is behind.
+struct PickVertex {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+    @location(1) @interpolate(flat) pick: vec2<u32>,
+}
+
+@vertex
+fn vs_pick(
+    @location(0) position: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+    @builtin(instance_index) index: u32,
+) -> PickVertex {
+    let instance = instances[drawn[index]];
+    let clip_position = shadow_view.view_proj * (instance.model * vec4<f32>(position, 1.0));
+    return PickVertex(clip_position, uv, instance.pick);
+}
+
+@fragment
+fn fs_pick(input: PickVertex) -> @location(0) vec2<u32> {
+    let alpha = material.base_color.a
+        * textureSample(base_color_texture, base_color_sampler, input.uv).a;
+    if alpha < material.alpha_cutoff {
+        discard;
+    }
+    return input.pick;
 }
 
 @fragment

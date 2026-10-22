@@ -157,8 +157,9 @@ if runs windowed; then
         timeout -k 10 120 cargo run --locked --example world -- --assets "$cooked/first" --frames 120 ||
         { cat "$runtime/slime-check.log"; exit 1; }
     # An agent's session through the MCP server captures each of its two views, the yard and the map
-    # (ADR-0126), and shows the map's normals, a setting of the view (ADR-0127). The test needs a
-    # compositor, so it is outside the default test run.
+    # (ADR-0126), shows the map's normals, a setting of the view (ADR-0127), reads its reports
+    # (ADR-0128) and picks an entity at a pixel (ADR-0130). The test needs a compositor, so it is
+    # outside the default test run.
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
         VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 300 cargo test --locked -p slime-mcp --test views -- "$cooked/first" ||

@@ -73,7 +73,8 @@ impl Gpu {
     /// # Panics
     ///
     /// If `format` is `Rgba16Float` or block-compressed, whose textures take levels the caller
-    /// gives ([`Gpu::create_texture_with_levels`]); if `width` or `height` is
+    /// gives ([`Gpu::create_texture_with_levels`]), or holds integers, which only render targets
+    /// take ([`TextureFormat::is_integer`]); if `width` or `height` is
     /// zero or larger than the device allows ([`Gpu::max_texture_dimension`], 8192 at least:
     /// the engine's floor); or if `pixels` does not hold `width * height * 4` bytes.
     pub fn create_texture(
@@ -84,6 +85,10 @@ impl Gpu {
         format: TextureFormat,
         pixels: &[u8],
     ) -> Result<Texture, GfxError> {
+        assert!(
+            !format.is_integer(),
+            "texture `{label}`: {format:?} holds integers, which only render targets take"
+        );
         assert!(
             format != TextureFormat::Rgba16Float && !format.is_block_compressed(),
             "texture `{label}`: {format:?} textures take levels given by the caller \
@@ -141,8 +146,8 @@ impl Gpu {
     ///
     /// If `width` or `height` is zero or larger than the device allows
     /// ([`Gpu::max_texture_dimension`]), or, for a block-compressed format, not a multiple of 4; if
-    /// `levels` is empty or has more levels than down to one pixel; or if a level does not hold
-    /// exactly its bytes.
+    /// `format` holds integers, which only render targets take; if `levels` is empty or has more
+    /// levels than down to one pixel; or if a level does not hold exactly its bytes.
     pub fn create_texture_with_levels(
         &self,
         label: &str,
@@ -257,6 +262,10 @@ impl Gpu {
         assert!(
             width > 0 && height > 0,
             "texture `{label}` is {width}x{height}: a texture has at least one pixel"
+        );
+        assert!(
+            !format.is_integer(),
+            "texture `{label}`: {format:?} holds integers, which only render targets take"
         );
         let full_chain = u32::BITS - width.max(height).leading_zeros();
         assert!(

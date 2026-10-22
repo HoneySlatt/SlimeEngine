@@ -9,7 +9,8 @@ through which coding agents, Claude Code and Codex among them, call the tools of
 
 One game at a time, driven through its development channel (`slime-channel`): started, paused,
 stepped, its speed set, its world read and changed, its keys put down and let go, its image
-captured, the settings of its views changed, its reports read, its log and its frames' times read,
+captured, the settings of its views changed, its reports read, the entity at a pixel picked, its
+log and its frames' times read,
 its run saved and loaded, stopped. Assets cooked and tests run. No mouse in scripted input yet, and
 no editor: the editor's commands join the server with
 the editor, at Stage 6b.
@@ -67,6 +68,9 @@ The tools, each described to the agent by the server itself, with its parameters
 - `read_report`: one of the game's reports, as `game_state` lists them: `assets`, its asset cache's
   requests by priority and its memory against its budgets; `views`, its views' statistics
   (`docs/adr/0128-asset-requests.md`).
+- `pick`: the entity drawn at a pixel of the game's image, or of one of its views, counted as in
+  the image that `capture` gives, by its persistent identity and name, or nothing; the game picks it
+  on the GPU, exactly as it draws it, a frame or more later (`docs/adr/0130-picking.md`).
 - `read_logs`: the lines of the game's log after a given line.
 - `save_game` and `load_game`: the game's run saved to a file, and loaded from one in place of the
   run, as the game saves and resumes its own runs; a file of the agent's, never the player's save.
@@ -78,7 +82,8 @@ reads and changes the hero, walks it, saves the run, moves it and loads it back,
 and reads its log. It needs a Wayland
 compositor and the game's zone cooked: `scripts/check.sh` runs it in a headless Weston.
 `tests/views.rs` starts the `world` example, which draws the yard and a map in a corner, captures
-the whole image and each view, shows the map's normals, and reads the example's reports; it needs
+the whole image and each view, shows the map's normals, reads the example's reports, and picks the
+entity at a pixel of the map; it needs
 the examples' assets cooked, in the directory that its first argument names, and `scripts/check.sh`
 runs it there too.
 

@@ -22,7 +22,8 @@ cache, which requests of a priority ask for and their handles hold, within budge
 nothing holds them; a material's values change while a game runs, and so do the renderer's shaders.
 It leaves out of each pass what that pass does not see, and draws the instances of one mesh
 and one material together. It draws into a view what a client draws besides the scene, lines and
-instances, as an editor's grid, icons and the box of what is selected. It blends unlit surfaces
+instances, as an editor's grid, icons and the box of what is selected, and says which instance is
+drawn at each pixel of an area of a view, a frame or more later (picking). It blends unlit surfaces
 over the others, without sorting them by depth, and does not yet blend physically based ones.
 
 ## Role
@@ -209,6 +210,11 @@ fn main() -> Result<(), RenderError> {
   (ADR-0129). Each pass leaves out the instances that it does not see (frustum culling), and draws
   those of one mesh and one material that one pipeline draws together, with one draw call
   (instancing).
+- `View::pick(area)` asks which instance is drawn nearest at each pixel of an area of the view: the
+  next frame draws each instance's `Instance::pick`, a number that the client gives it, and the
+  returned `Pick` gives them (`Picked`) a frame or more later, never holding up a frame
+  ([ADR-0130](../../docs/adr/0130-picking.md)). `Camera::ray` gives the ray through a point of a
+  camera's image, which picking by the CPU casts.
 - `Camera`: where a view sees the scene from, through a `Projection`, in perspective or
   orthographic, and the `ImagePart` of its image that it draws, the whole image or a part of it, for
   a split screen or a magnifier. `Light`: one of glTF's punctual lights, a

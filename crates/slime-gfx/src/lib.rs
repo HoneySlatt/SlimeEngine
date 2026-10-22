@@ -15,6 +15,7 @@ mod image;
 mod index_buffer;
 mod pass;
 mod pipeline;
+mod readback;
 mod render_target;
 mod sampler;
 mod shader;
@@ -41,6 +42,7 @@ pub use pipeline::{
     Blend, CullMode, DepthBias, DepthCompare, DepthState, FragmentState, RenderPipeline,
     RenderPipelineDescriptor, VertexAttribute, VertexFormat, VertexLayout,
 };
+pub use readback::Readback;
 pub use render_target::{MULTISAMPLE_COUNT, RenderTarget, TextureFormat};
 pub use sampler::{AddressMode, ComparisonSampler, Filter, Sampler, SamplerDescriptor};
 pub use shader::ShaderModule;
