@@ -4,6 +4,7 @@ mod bytes;
 mod cache;
 mod camera;
 mod cooked;
+mod drawings;
 mod environment;
 mod error;
 mod graph;
@@ -27,10 +28,13 @@ pub use cache::{
 };
 pub use camera::{Camera, ImagePart, Projection};
 pub use cooked::{LoadedScene, SceneError, SceneLoad, scene_lights};
+pub use drawings::{DrawList, Drawings, Line};
 pub use environment::{Environment, Sky};
 pub use error::RenderError;
 pub use light::{DirectionalLight, Light, MAX_LIGHTS, PointLight, SpotLight};
-pub use material::{AlphaMode, Material, MaterialData, MaterialValues, SampledTexture};
+pub use material::{
+    AlphaMode, Material, MaterialData, MaterialValues, SampledTexture, UnlitData, UnlitValues,
+};
 pub use mesh::{Mesh, MeshData};
 pub use renderer::{
     AntiAliasing, DebugMode, Instance, RESIZE_DELAY, RenderStats, Renderer, Scene, View, ViewDraw,
@@ -66,6 +70,7 @@ mod threads {
         send_and_sync::<Light>();
         send_and_sync::<Scene>();
         send_and_sync::<Instance>();
+        send_and_sync::<Drawings>();
         send_and_sync::<RenderStats>();
         send_and_sync::<ViewSettings>();
         send_and_sync::<RenderError>();

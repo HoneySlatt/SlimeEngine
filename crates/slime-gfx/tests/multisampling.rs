@@ -75,6 +75,7 @@ fn pipeline(gpu: &Gpu, multisampled: bool, depth: Option<DepthState>) -> RenderP
         fragment: Some(FragmentState {
             entry_point: "fs_main",
             target_format: Some(TextureFormat::Rgba16Float),
+            blend: None,
         }),
         bind_group_layouts: &[],
         depth,
@@ -354,6 +355,7 @@ fn a_later_pass_reads_each_sample_of_a_multisampled_target() {
             fragment: Some(FragmentState {
                 entry_point: "fs_main",
                 target_format: Some(TextureFormat::Rgba16Float),
+                blend: None,
             }),
             bind_group_layouts: &[&layout],
             depth: None,

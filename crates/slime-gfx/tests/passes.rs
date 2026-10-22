@@ -51,6 +51,7 @@ fn fullscreen_pipeline(
         fragment: Some(FragmentState {
             entry_point: "fs_main",
             target_format: Some(target_format),
+            blend: None,
         }),
         bind_group_layouts: layouts,
         depth: None,
@@ -590,6 +591,7 @@ fn a_fragment_stage_without_a_render_target_discards_in_a_depth_only_pass() {
             fragment: Some(FragmentState {
                 entry_point: "fs_main",
                 target_format: None,
+                blend: None,
             }),
             bind_group_layouts: &[],
             depth: Some(DepthState {

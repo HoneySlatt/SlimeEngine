@@ -1,4 +1,5 @@
-//! Materials: how a surface looks, with glTF's metallic-roughness model (ADR-0035).
+//! Materials: how a surface looks, with glTF's metallic-roughness model (ADR-0035), or unlit, its
+//! color shown as it is (ADR-0129).
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -11,7 +12,7 @@ use slime_reflect::{Reflect, Value};
 
 use crate::bytes::push_f32s;
 use crate::error::RenderError;
-use crate::kind::{MaterialKind, PhysicallyBased};
+use crate::kind::{MaterialKind, PhysicallyBased, Unlit};
 
 /// The size of a material's values as `MaterialUniform` in `shader.wgsl` lays them out: the base
 /// color (16 bytes), the emission (12) and five numbers (20).
@@ -22,10 +23,18 @@ pub(crate) const MATERIAL_VALUES_SIZE: usize = 48;
 pub(crate) const MATERIAL_TEXTURE_SLOTS: u32 = 5;
 
 /// The index of the physically based kind among a renderer's kinds ([`MaterialKind`]): the kind of
-/// every material made by [`MaterialParts`].
+/// the materials that [`MaterialParts::create`] makes.
 ///
 /// [`MaterialKind`]: crate::kind::MaterialKind
 pub(crate) const PHYSICALLY_BASED: usize = 0;
+
+/// The index of the unlit kind among a renderer's kinds: the kind of the materials that
+/// [`MaterialParts::create_unlit`] makes.
+pub(crate) const UNLIT: usize = 1;
+
+/// The size of an unlit material's values as `MaterialUniform` in `unlit.wgsl` lays them out: the
+/// color (16 bytes), the alpha cutoff and whether it blends (8), and padding to a multiple of 16.
+pub(crate) const UNLIT_VALUES_SIZE: usize = 32;
 
 /// A texture and the sampler that reads it, made with
 /// [`Gpu::create_texture`](slime_gfx::Gpu::create_texture) and
@@ -38,8 +47,9 @@ pub struct SampledTexture<'a> {
     pub sampler: &'a Sampler,
 }
 
-/// How a material uses the alpha of its base color (the factor's times the texture's): glTF's
-/// alpha modes, but for blending (`BLEND`), which the renderer does not do.
+/// How a material uses the alpha of its color (the factor's times the texture's): glTF's alpha
+/// modes. The physically based kind refuses blending (`BLEND`) until Stage 9a sorts transparent
+/// surfaces by their depth; the unlit kind draws it (ADR-0129).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
 #[reflect(name = "AlphaMode")]
 pub enum AlphaMode {
@@ -53,6 +63,11 @@ pub enum AlphaMode {
         #[reflect(range(min = 0.0))]
         cutoff: f32,
     },
+    /// glTF's `BLEND`: the surface is laid over what is behind it by its alpha, and does not write
+    /// its depth, so that what is drawn after it behind it shows too. Blended surfaces are drawn
+    /// after the others, in no particular order among themselves: where two overlap, either may lie
+    /// over the other.
+    Blend,
 }
 
 /// The data of a material: glTF's metallic-roughness model (ADR-0035).
@@ -248,12 +263,16 @@ impl MaterialValues {
             ("emission's green", emissive.g),
             ("emission's blue", emissive.b),
         ];
+        if self.alpha_mode == AlphaMode::Blend {
+            return Some(
+                "its alpha mode is Blend, which only unlit materials draw until Stage 9a sorts \
+                 transparent surfaces"
+                    .to_owned(),
+            );
+        }
         let not_negative = [
             Some(("emissive strength", self.emissive_strength)),
-            match self.alpha_mode {
-                AlphaMode::Opaque => None,
-                AlphaMode::Mask { cutoff } => Some(("alpha cutoff", cutoff)),
-            },
+            cutoff_of(self.alpha_mode).map(|cutoff| ("alpha cutoff", cutoff)),
         ];
         // Comparisons with NaN are false: each test holds only for a number in its range.
         unit.into_iter()
@@ -290,10 +309,6 @@ impl MaterialValues {
         } else {
             0.0
         };
-        let alpha_cutoff = match self.alpha_mode {
-            AlphaMode::Opaque => 0.0,
-            AlphaMode::Mask { cutoff } => cutoff,
-        };
         push_f32s(
             &mut bytes,
             &[
@@ -301,15 +316,113 @@ impl MaterialValues {
                 self.roughness,
                 normal_scale,
                 self.occlusion_strength,
-                alpha_cutoff,
+                cutoff_of(self.alpha_mode).unwrap_or(0.0),
             ],
         );
         bytes
     }
 }
 
-/// A material on the GPU, created by [`Renderer::create_material`](crate::Renderer::create_material).
-/// It keeps its textures and samplers alive. Any renderer of the same `Gpu` draws with it.
+/// The cutoff of a masked alpha mode, below which nothing is drawn; `None` for the others, whose
+/// shaders compare the alpha with 0 and keep every fragment.
+fn cutoff_of(alpha_mode: AlphaMode) -> Option<f32> {
+    match alpha_mode {
+        AlphaMode::Mask { cutoff } => Some(cutoff),
+        AlphaMode::Opaque | AlphaMode::Blend => None,
+    }
+}
+
+/// The data of an unlit material (ADR-0129): a color shown as it is, whatever lights the scene and
+/// whatever its exposure, as an editor's icons and handles and a stylized game's surfaces are.
+///
+/// Its color is written into the scene unexposed, then mapped to the display's range by the tone
+/// curve as the scene's light is ([`Renderer::render`](crate::Renderer::render)): Khronos PBR
+/// Neutral keeps a color whose channels lie below 0.76, but lowers it by up to 0.04. Its surfaces
+/// cast no shadows. Its values must lie in the ranges that [`UnlitValues`] gives, or the material
+/// is refused.
+#[derive(Clone, Copy, Debug)]
+pub struct UnlitData<'a> {
+    /// The color shown, in linear values: red, green, blue and alpha each from 0 to 1. Alpha is
+    /// used as `alpha_mode` says.
+    pub color: LinearColor,
+    /// Multiplies `color`, alpha included. An sRGB format.
+    pub texture: Option<SampledTexture<'a>>,
+    /// How the alpha of the color is used.
+    pub alpha_mode: AlphaMode,
+    /// Whether the back faces are drawn too; when false they are culled.
+    pub double_sided: bool,
+}
+
+impl Default for UnlitData<'_> {
+    /// Opaque white, single-sided, without a texture.
+    fn default() -> Self {
+        Self {
+            color: LinearColor::WHITE,
+            texture: None,
+            alpha_mode: AlphaMode::Opaque,
+            double_sided: false,
+        }
+    }
+}
+
+/// The values of an unlit material that can change once it is made: all of [`UnlitData`] but its
+/// texture and its sidedness, each meaning what the field of the same name says there. The color's
+/// four channels lie from 0 to 1, and a cutoff of [`AlphaMode::Mask`] is not negative.
+///
+/// They are the parameters of the unlit kind of material, described by reflection
+/// ([`Material::parameters`]).
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(name = "UnlitValues", check = UnlitValues::check)]
+pub struct UnlitValues {
+    /// The color shown, times its texture, from 0 to 1.
+    pub color: LinearColor,
+    /// How the alpha of the color is used. A material keeps the mode it was made with: the cutoff
+    /// of a mask can change, but not the mode.
+    pub alpha_mode: AlphaMode,
+}
+
+impl UnlitValues {
+    /// Accepts the values if they lie in their ranges (`#[reflect(check)]`).
+    fn check(&self) -> Result<(), String> {
+        self.invalid().map_or(Ok(()), Err)
+    }
+
+    /// Which value is outside its range, if one is.
+    pub(crate) fn invalid(&self) -> Option<String> {
+        let LinearColor { r, g, b, a } = self.color;
+        [("red", r), ("green", g), ("blue", b), ("alpha", a)]
+            .into_iter()
+            .find(|(_, value)| !(0.0..=1.0).contains(value))
+            .map(|(name, value)| format!("its color's {name} {value} is not from 0 to 1"))
+            .or_else(|| {
+                cutoff_of(self.alpha_mode)
+                    .filter(|cutoff| !(cutoff.is_finite() && *cutoff >= 0.0))
+                    .map(|cutoff| format!("its alpha cutoff {cutoff} is negative or not finite"))
+            })
+    }
+
+    /// The values `unlit.wgsl` reads, packed as its `MaterialUniform` declares them.
+    pub(crate) fn bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(UNLIT_VALUES_SIZE);
+        let LinearColor { r, g, b, a } = self.color;
+        push_f32s(&mut bytes, &[r, g, b, a]);
+        let blended = if self.alpha_mode == AlphaMode::Blend {
+            1.0
+        } else {
+            0.0
+        };
+        push_f32s(
+            &mut bytes,
+            &[cutoff_of(self.alpha_mode).unwrap_or(0.0), blended, 0.0, 0.0],
+        );
+        bytes
+    }
+}
+
+/// A material on the GPU, created by
+/// [`Renderer::create_material`](crate::Renderer::create_material) or
+/// [`Renderer::create_unlit_material`](crate::Renderer::create_unlit_material). It keeps its
+/// textures and samplers alive. Any renderer of the same `Gpu` draws with it.
 ///
 /// Clones refer to the same material, through one counted reference: a change of values through
 /// one of them ([`Material::set_values`]) changes how every instance drawn with any of them looks.
@@ -335,6 +448,9 @@ pub(crate) struct MaterialInner {
     pub(crate) double_sided: bool,
     /// Whether its shadow is cut out where it discards fragments (ADR-0038).
     pub(crate) masked: bool,
+    /// Whether it is laid over what is behind it ([`AlphaMode::Blend`]): drawn after the others,
+    /// without writing its depth.
+    pub(crate) blended: bool,
     /// Its kind, and the kind's index among a renderer's kinds.
     of_kind: &'static dyn MaterialKind,
     pub(crate) kind: usize,
@@ -357,15 +473,15 @@ impl Material {
         Arc::as_ptr(&self.inner).cast()
     }
 
-    /// The name of its kind, the way it lights its surface (ADR-0111): `"physically based"`, the
-    /// only kind a renderer draws until Stage 9a.
+    /// The name of its kind, the way it lights its surface (ADR-0111): `"physically based"` or
+    /// `"unlit"` (ADR-0129).
     pub fn kind(&self) -> &'static str {
         self.inner.of_kind.name()
     }
 
     /// Its parameters, through reflection, as an editor shows them: a value of the type that its
     /// kind describes ([`Renderer::describe_materials`](crate::Renderer::describe_materials)),
-    /// [`MaterialValues`] for the physically based kind.
+    /// [`MaterialValues`] for the physically based kind, [`UnlitValues`] for the unlit one.
     pub fn parameters(&self) -> Value {
         self.inner
             .parameters
@@ -386,8 +502,8 @@ impl Material {
     ///
     /// [`RenderError::InvalidMaterial`] if its kind refuses `parameters`: a value that is not of
     /// its parameters' type, that holds a number out of its field's range or breaks a rule of the
-    /// type, or, for the physically based kind, an alpha mode that adds a cutoff to an opaque
-    /// material or removes the cutoff of a masked one. The material is not changed then.
+    /// type, or an alpha mode other than the one it was made with, but for a mask's cutoff. The
+    /// material is not changed then.
     ///
     /// # Panics
     ///
@@ -419,7 +535,8 @@ impl Material {
     ///
     /// # Panics
     ///
-    /// If it is not of the physically based kind, which no material is until Stage 9a.
+    /// If it is not of the physically based kind: an unlit material's parameters are
+    /// [`UnlitValues`].
     pub fn values(&self) -> MaterialValues {
         MaterialValues::from_value(&self.parameters())
             .expect("a physically based material's parameters are its values")
@@ -453,8 +570,11 @@ impl Material {
 /// to the threads that load scenes, so that they create materials too.
 #[derive(Clone, Debug)]
 pub(crate) struct MaterialParts {
-    /// The layout of a material's group, which the scene pass's pipelines read it through.
+    /// The layout of a physically based material's group, which the scene pass's pipelines read it
+    /// through.
     pub(crate) layout: BindGroupLayout,
+    /// The layout of an unlit material's group.
+    pub(crate) unlit_layout: BindGroupLayout,
     /// One white pixel, bound in every texture slot that a material leaves empty: every slot reads
     /// it as 1 in each channel, since sRGB's 255 decodes to exactly 1.
     pub(crate) white: Texture,
@@ -511,8 +631,74 @@ impl MaterialParts {
                 normal_texture,
                 double_sided: data.double_sided,
                 masked: matches!(data.alpha_mode, AlphaMode::Mask { .. }),
+                blended: false,
                 kind: PHYSICALLY_BASED,
                 of_kind: &PhysicallyBased,
+            }),
+        })
+    }
+
+    /// Creates an unlit material, as
+    /// [`Renderer::create_unlit_material`](crate::Renderer::create_unlit_material) says.
+    pub(crate) fn create_unlit(
+        &self,
+        gpu: &Gpu,
+        label: &str,
+        data: &UnlitData<'_>,
+    ) -> Result<Material, RenderError> {
+        let values = UnlitValues {
+            color: data.color,
+            alpha_mode: data.alpha_mode,
+        };
+        if let Some(reason) = values.invalid() {
+            return Err(RenderError::InvalidMaterial {
+                label: label.to_owned(),
+                reason,
+            });
+        }
+        let (texture, sampler) = match data.texture {
+            Some(sampled) => {
+                let format = sampled.texture.format();
+                assert!(
+                    format.is_srgb(),
+                    "material `{label}`: its texture is {format:?}, but an unlit material reads \
+                     colors, from an sRGB format"
+                );
+                (sampled.texture, sampled.sampler)
+            }
+            None => (&self.white, &self.sampler),
+        };
+        let uniform = gpu.create_uniform_buffer(label, &values.bytes())?;
+        let group = gpu.create_bind_group(
+            label,
+            &self.unlit_layout,
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::UniformBuffer(&uniform),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::Texture(texture),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: BindingResource::Sampler(sampler),
+                },
+            ],
+        )?;
+        Ok(Material {
+            inner: Arc::new(MaterialInner {
+                group,
+                uniform,
+                parameters: Mutex::new(values.to_value()),
+                label: label.into(),
+                normal_texture: false,
+                double_sided: data.double_sided,
+                masked: matches!(data.alpha_mode, AlphaMode::Mask { .. }),
+                blended: data.alpha_mode == AlphaMode::Blend,
+                kind: UNLIT,
+                of_kind: &Unlit,
             }),
         })
     }

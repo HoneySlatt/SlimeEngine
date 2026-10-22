@@ -255,6 +255,7 @@ mod tests {
                 fragment: Some(FragmentState {
                     entry_point: "fs_main",
                     target_format: Some(TextureFormat::Rgba16Float),
+                    blend: None,
                 }),
                 bind_group_layouts: &[],
                 depth: None,

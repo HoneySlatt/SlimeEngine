@@ -15,10 +15,10 @@ use glam::{DAffine3, DMat4, DVec3, Mat3, Mat4, Vec3, Vec4};
 use slime_assets::CookedTexture;
 use slime_gfx::{
     AddressMode, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
-    BindingType, ComparisonSampler, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget,
-    Filter, FragmentState, GfxError, Gpu, RenderPass, RenderPipeline, RenderPipelineDescriptor,
-    RenderTarget, Sampler, SamplerDescriptor, ShaderModule, ShaderStages, StorageBuffer, Texture,
-    TextureFormat, UniformBuffer, Uploader,
+    BindingType, Blend, ComparisonSampler, CullMode, DepthBias, DepthCompare, DepthState,
+    DepthTarget, Filter, FragmentState, GfxError, Gpu, RenderPass, RenderPipeline,
+    RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor, ShaderModule, ShaderStages,
+    StorageBuffer, Texture, TextureFormat, UniformBuffer, Uploader,
 };
 
 use slime_reflect::{Reflect, Registry};
@@ -26,12 +26,15 @@ use slime_reflect::{Reflect, Registry};
 use crate::bytes::{push_f32s, push_mat3, push_mat4, push_u32s};
 use crate::camera::{Camera, Frustum, Projection};
 use crate::cooked::upload_texture;
+use crate::drawings::{
+    Drawings, LINE_SETTINGS_SIZE, LineBuffers, SEGMENT_SIZE, line_settings, pack_lines,
+};
 use crate::environment::{Environment, brdf_table};
 use crate::error::RenderError;
 use crate::graph::{ColorId, Draws, Graph, Imported, PassDeclaration, scaled_side};
-use crate::kind::{MaterialKind, PhysicallyBased};
+use crate::kind::{MaterialKind, PhysicallyBased, Unlit};
 use crate::light::{LIGHT_VALUES_SIZE, Light, MAX_LIGHTS, NO_TILE, SpotLight};
-use crate::material::{Material, MaterialData, MaterialParts, PHYSICALLY_BASED};
+use crate::material::{Material, MaterialData, MaterialParts, PHYSICALLY_BASED, UNLIT, UnlitData};
 use crate::mesh::{Mesh, MeshData, MeshPages, Page, VERTEX_LAYOUT};
 use crate::shaders::ShaderSources;
 use crate::shadow::{
@@ -53,6 +56,9 @@ const BLOOM_SMALLEST_SIDE: u32 = 8;
 /// The format the scene pass draws into: half-precision floats, which keep light above 1
 /// (ADR-0034).
 const HDR_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
+/// What the light in that target is divided by, which the tone-mapping pass multiplies it back by:
+/// `HEADROOM` in the shaders, which a unit test checks.
+const HEADROOM: f32 = 64.0;
 /// The size of the values of a frame, as `FrameUniform` in `shader.wgsl` lays them out: the
 /// camera's two `mat4x4<f32>`; the exposure, the number of lights, the index of the light the
 /// cascades shadow and the mode of debugging (16 bytes); the direction towards an orthographic
@@ -116,7 +122,7 @@ pub const RESIZE_DELAY: Duration = Duration::from_millis(200);
 /// How many instances the buffer of the instances' values holds when the renderer is created, and
 /// how many entries the list of the instances that the draws draw does; each doubles whenever a
 /// frame needs more, and comes back down once a frame uses a quarter of it or less
-/// (`instance_capacity`).
+/// (`buffer_capacity`).
 const INITIAL_INSTANCE_CAPACITY: usize = 64;
 
 /// One thing to draw: a mesh, its material, and where it is. It holds its mesh and its material as
@@ -261,15 +267,17 @@ impl Scene {
 #[reflect(name = "RenderStats")]
 #[non_exhaustive]
 pub struct RenderStats {
-    /// Draw calls of the scene pass: one per group of instances of one pipeline, material and mesh
-    /// that it draws ([`Scene::instances`]). The draws of the sky, bloom and tone-mapping passes
-    /// are not counted.
+    /// Draw calls of the instances seen from the view: one per group of instances of one pipeline,
+    /// material and mesh, the scene's ([`Scene::instances`]) and those that a client draws in the
+    /// scene ([`DrawList::instances`](crate::DrawList::instances)), whether the scene pass draws
+    /// them or the pass after the sky, the blended ones. The draws of the sky, the lines, the bloom
+    /// and the tone mapping are not counted.
     pub draw_calls: u32,
-    /// Instances the scene pass drew: those whose box the view's camera sees, frustum culling
-    /// having left the others out.
+    /// Instances drawn: those whose box the view's camera sees, frustum culling having left the
+    /// others out.
     pub instances: u32,
-    /// Triangles the scene pass submitted to the GPU: those of the instances it drew, before the
-    /// GPU culls the faces turned away.
+    /// Triangles submitted to the GPU: those of the instances drawn, before the GPU culls the faces
+    /// turned away.
     pub triangles: u64,
     /// How long the view's part of [`Renderer::render`] took on the CPU: working out what it draws,
     /// packing its values, making its targets when they change, recording its passes and
@@ -329,6 +337,13 @@ pub struct RenderStats {
     /// of 0, targets smaller than 15 × 15, a view without bloom or that shows a mode of debugging),
     /// and until every pass's time has come back.
     pub bloom_gpu_time: Option<Duration>,
+    /// How long the GPU took to draw, after the sky, the scene's blended surfaces and what a client
+    /// draws in the scene ([`ViewDraw::drawings`]), under the same rules as `scene_gpu_time`;
+    /// `None` too for a frame that draws none of them.
+    pub after_sky_gpu_time: Option<Duration>,
+    /// How long the GPU took to draw what a client draws over the view's image, under the same
+    /// rules; `None` too for a frame that draws nothing there.
+    pub over_image_gpu_time: Option<Duration>,
 }
 
 /// What a camera's image drawn into an output keeps from one frame to the next: the values that its
@@ -388,6 +403,9 @@ pub struct View {
     /// through its curve, where the view's rectangle starts in its output and how many of the
     /// scene's texels make a pixel of it, written at every frame.
     tone_mapping_settings: UniformBuffer,
+    /// The lines that a client draws into it, made by the first frame that draws one, and made
+    /// again larger when a frame draws more than they hold.
+    lines: Option<LineBuffers>,
     /// What its last frame took.
     stats: RenderStats,
 }
@@ -644,6 +662,9 @@ pub struct ViewDraw<'a> {
     /// rectangle is the whole target, the pixels outside it keep what they held, which other views
     /// draw.
     pub viewport: Option<Viewport>,
+    /// What a client draws into the view besides the scene, in the scene and over its image
+    /// (ADR-0129); `None` for nothing.
+    pub drawings: Option<&'a Drawings>,
 }
 
 impl<'a> ViewDraw<'a> {
@@ -655,6 +676,7 @@ impl<'a> ViewDraw<'a> {
             camera,
             target,
             viewport: None,
+            drawings: None,
         }
     }
 
@@ -686,13 +708,20 @@ impl<'a> ViewDraw<'a> {
 /// each pixel of the view's rectangle, bilinearly between its texels when the view's targets are
 /// not the rectangle's size ([`ViewSettings::render_scale`]), mixes the blurred copy in by the
 /// scene's bloom strength and maps the light to the output's range with Khronos PBR Neutral, or
-/// writes a mode of debugging's colors as they are ([`DebugMode`]).
+/// writes a mode of debugging's colors as they are ([`DebugMode`]). Two passes more run only when
+/// they draw something (ADR-0129): after the sky pass, over the scene's targets and with its
+/// depth, one draws the scene's blended surfaces, which write no depth and which the sky would
+/// otherwise cover, and what a client draws in the scene ([`ViewDraw::drawings`]); after the
+/// tone-mapping pass, one draws what a client draws over the view's rectangle of its output.
 ///
-/// The renderer owns what every view shares: fourteen pipelines, two for the shadow pass (the
-/// second discards what masked materials discard), three for the scene pass, which differ by the
-/// faces they cull and among which each draw chooses (ADR-0035), the sky pass's, and the same four
-/// again for targets of one sample per pixel, the resolve pass's, the bloom's two (down and up)
-/// and the tone-mapping pass's; the table of the BRDF's scale and bias
+/// The renderer owns what every view shares: six shaders and twenty-nine pipelines. Each kind of
+/// material has three for the scene pass, which differ by the faces they cull and among which each
+/// draw chooses (ADR-0035), and the same three for targets of one sample per pixel; the physically
+/// based kind two for the shadow pass (the second discards what masked materials discard), the
+/// unlit kind, which casts no shadows, none, but six more for its blended materials. The sky pass
+/// has one for each number of samples, as the lines drawn in the scene do; the resolve pass, the
+/// bloom (down and up), the tone-mapping pass and the lines drawn over the image one each. It owns
+/// too the table of the BRDF's scale and bias
 /// and a black environment for scenes without one; the cascades' atlas, 4096 × 4096 depths (64
 /// MiB), created by the first frame in which a directional light casts shadows, which each view
 /// draws in turn for its own camera; the spot lights' shadow atlas, as large, created by the first
@@ -773,6 +802,8 @@ pub struct Renderer {
     /// Whether a frame left out instances beyond what the device's storage buffers hold: it is
     /// said once, not at every frame.
     warned_of_instances: bool,
+    /// The same for a client's lines.
+    warned_of_lines: bool,
 }
 
 /// What a frame works out about the scene's instances, one entry per instance, or per instance
@@ -797,6 +828,15 @@ struct Scratch {
     /// values of the instances it draws are, as the buffer of the list holds them: 32-bit
     /// numbers.
     list: Vec<u8>,
+    /// The same for the instances that a client draws in the scene ([`Drawings::in_scene`]),
+    /// whose values follow the scene's: their transforms, their passes, where their values are,
+    /// and their keys.
+    drawing_models: Vec<Mat4>,
+    drawing_passes: Vec<u32>,
+    drawing_values_of: Vec<u32>,
+    drawing_keys: Vec<u128>,
+    /// The segments of a client's lines, as the buffer of the view's lines holds them.
+    segments: Vec<u8>,
 }
 /// The passes of the renderer's frame (ADR-0041), as its graph names them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -810,6 +850,10 @@ pub(crate) enum Pass {
     Scene,
     /// The environment where no surface is.
     Sky,
+    /// Over the scene and its sky, with their depth: the instances that a client draws in the
+    /// scene ([`Drawings::in_scene`]), the scene's blended surfaces, which write no depth, so that
+    /// the sky does not cover them, and the client's lines.
+    AfterSky,
     /// The samples of the scene and the sky, weighed by their brightness, averaged into one pixel
     /// each, which the bloom and the tone mapping read.
     Resolve,
@@ -819,13 +863,16 @@ pub(crate) enum Pass {
     BloomUp(usize),
     /// The light mapped to the output's range, the bloom mixed in.
     ToneMapping,
+    /// What a client draws over the view's image ([`Drawings::over_image`]).
+    OverImage,
 }
 
 /// What decides the passes and targets of a view's frame: the size of its targets, whether the
 /// scene and the sky are drawn at four samples per pixel and resolved, whether the shadow pass
 /// runs, whether the spot lights' shadow pass does, whether the sky pass does, whether the bloom's
-/// passes do, and whether its rectangle is its whole output, which the tone-mapping pass then
-/// clears rather than keeps.
+/// passes do, whether its rectangle is its whole output, which the tone-mapping pass then clears
+/// rather than keeps, whether anything is drawn after the sky (the scene's blended surfaces, a
+/// client's drawings in the scene), and whether a client draws over the image.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Shape {
     width: u32,
@@ -836,14 +883,25 @@ struct Shape {
     sky: bool,
     bloom: bool,
     whole: bool,
+    after_sky: bool,
+    over_image: bool,
 }
 
 /// What [`Renderer::render`] worked out for one view before anything is recorded, which it then
 /// records.
 struct Prepared {
     shape: Shape,
-    /// The scene pass's draws.
+    /// The scene pass's draws, of its surfaces that are not blended.
     scene_draws: Vec<Batch>,
+    /// The draws of its blended surfaces, which the pass after the sky draws.
+    blended_draws: Vec<Batch>,
+    /// The draws of the instances that a client draws in the scene, each `first` an index in
+    /// those ([`Drawings::in_scene`]), those of blended materials last.
+    drawing_draws: Vec<Batch>,
+    /// How many of a client's lines it draws in the scene, and over the image, and how many it left
+    /// out beyond what the device's storage buffers hold.
+    lines: (u32, u32),
+    lines_left_out: usize,
     /// The cascades' draws; none without a shadowed light.
     cascades: Vec<CascadeDraw>,
     /// The spot lights' shadow pass's draws: those of the view that draws the atlas.
@@ -855,13 +913,15 @@ struct Prepared {
     cpu_time: Duration,
 }
 
-/// The groups of a view that its passes bind, and the rectangle of its output that it draws into
-/// when that is not the whole output.
+/// The groups of a view that its passes bind, the rectangle of its output that it draws into
+/// when that is not the whole output, and what a client draws into it, with its lines' buffers.
 struct ViewGroups<'a> {
     frame: &'a BindGroup,
     instances: &'a BindGroup,
     shadow_views: &'a BindGroup,
     viewport: Option<Viewport>,
+    drawings: Option<&'a Drawings>,
+    lines: Option<&'a LineBuffers>,
 }
 
 /// The frame's graph for one [`Shape`], with the groups that read its targets. Built again,
@@ -933,8 +993,8 @@ impl Renderer {
     ///
     /// # Errors
     ///
-    /// [`RenderError::Gfx`] if the graphics driver rejects one of the renderer's four shaders or
-    /// fourteen pipelines, made from the embedded sources ([`ShaderSources::embedded`]); with
+    /// [`RenderError::Gfx`] if the graphics driver rejects one of the renderer's shaders or
+    /// pipelines, made from the embedded sources ([`ShaderSources::embedded`]); with
     /// [`GfxError::OutOfMemory`] if the GPU's memory cannot hold the shadow map or the renderer's
     /// other objects; or with [`GfxError::DeviceLost`] if the device is lost.
     ///
@@ -973,8 +1033,9 @@ impl Renderer {
             ],
         )?;
         // The kinds of materials it draws, each with the layout of its materials' group: the
-        // physically based one at `PHYSICALLY_BASED`, the index that its materials hold.
-        let kinds = [&PhysicallyBased as &'static dyn MaterialKind]
+        // physically based one at `PHYSICALLY_BASED`, the unlit one at `UNLIT`, the indices that
+        // their materials hold.
+        let kinds = [&PhysicallyBased as &'static dyn MaterialKind, &Unlit]
             .into_iter()
             .map(|kind| {
                 let layout = gpu.create_bind_group_layout(kind.name(), &kind.bindings())?;
@@ -982,6 +1043,7 @@ impl Renderer {
             })
             .collect::<Result<Vec<_>, GfxError>>()?;
         debug_assert_eq!(kinds[PHYSICALLY_BASED].kind.name(), PhysicallyBased.name());
+        debug_assert_eq!(kinds[UNLIT].kind.name(), Unlit.name());
         // The instances' values, then the list of the instances that each draw draws, by the index
         // of their values: the vertex shader passes on what the fragment shader needs.
         let instance_layout = gpu.create_bind_group_layout(
@@ -1097,6 +1159,28 @@ impl Renderer {
             "resolve",
             &fragment_entries(&[BindingType::MultisampledTexture]),
         )?;
+        // The segments of a view's lines, and the settings of the point that draws them
+        // (`lines.wgsl`).
+        let lines_layout = gpu.create_bind_group_layout(
+            "lines",
+            &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visible_to: ShaderStages::Vertex,
+                    ty: BindingType::StorageBuffer {
+                        size: SEGMENT_SIZE as u64,
+                    },
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visible_to: ShaderStages::VertexAndFragment,
+                    ty: BindingType::UniformBuffer {
+                        dynamic_offset: false,
+                        size: LINE_SETTINGS_SIZE as u64,
+                    },
+                },
+            ],
+        )?;
         let layouts = Layouts {
             frame: frame_layout,
             instance: instance_layout,
@@ -1106,6 +1190,7 @@ impl Renderer {
             bloom_down: bloom_down_layout,
             bloom_up: bloom_up_layout,
             resolve: resolve_layout,
+            lines: lines_layout,
         };
         let pipelines = Pipelines::new(gpu, &ShaderSources::embedded(), &layouts, &kinds, format)?;
         let no_environment = Environment::black(gpu)?;
@@ -1130,6 +1215,7 @@ impl Renderer {
             tracing::info!("the adapter cannot time its work: the statistics have no GPU time");
         }
         let material_layout = kinds[PHYSICALLY_BASED].layout.clone();
+        let unlit_layout = kinds[UNLIT].layout.clone();
         Ok(Self {
             format,
             kinds,
@@ -1137,6 +1223,7 @@ impl Renderer {
             layouts,
             material_parts: MaterialParts {
                 layout: material_layout,
+                unlit_layout,
                 white,
                 sampler: default_sampler,
             },
@@ -1156,6 +1243,7 @@ impl Renderer {
             warned_of_lights: false,
             left_out_lights: Vec::new(),
             warned_of_instances: false,
+            warned_of_lines: false,
         })
     }
 
@@ -1214,6 +1302,7 @@ impl Renderer {
             shadow_views,
             shadow_views_group,
             tone_mapping_settings,
+            lines: None,
             stats: RenderStats::default(),
         })
     }
@@ -1223,18 +1312,19 @@ impl Renderer {
     /// draws on with them (ADR-0077). A game that hot-reloads gives it the sources of the shaders'
     /// files when they change ([`ShaderWatch`](crate::ShaderWatch)).
     ///
-    /// It compiles the four shaders and makes the fourteen pipelines on the calling thread, which
-    /// waits for the driver: the frame that calls it is late by that long. In a release build on an
-    /// RX 6900 XT (RADV), 6.3 ms from unchanged sources. When it made ten, before a view could draw
-    /// without anti-aliasing: there, 7 ms when the driver's cache held every shader already, as
-    /// when the sources come back to shaders that it compiled before, and 76 ms when it held none;
-    /// an edited shader is one that the cache does not hold (ADR-0104), which was not measured
-    /// there. On lavapipe in a release build, 45 ms from unchanged sources on a machine of 16
-    /// threads; on one of 4 logical CPUs, 55 to 60 ms from unchanged sources and 57 to 71 ms after
-    /// an edit of the scene's shader, over two runs. A debug build takes about twice as long, in
-    /// wgpu's own work. Direct3D 12 compiles the shaders again with DXC for each pipeline. The
-    /// benchmark `render.shaders` of `slime-benches` measures both cases on the machine that runs
-    /// it.
+    /// It compiles the shaders and makes the pipelines on the calling thread, which waits for the
+    /// driver: the frame that calls it is late by that long. When it made fourteen pipelines from
+    /// four shaders, before the unlit kind and the lines (ADR-0129), which were not measured since:
+    /// in a release build on an RX 6900 XT (RADV), 6.3 ms from unchanged sources. When it made ten,
+    /// before a view could draw without anti-aliasing: there, 7 ms when the driver's cache held
+    /// every shader already, as when the sources come back to shaders that it compiled before, and
+    /// 76 ms when it held none; an edited shader is one that the cache does not hold (ADR-0104),
+    /// which was not measured there. On lavapipe in a release build, 45 ms from unchanged sources
+    /// on a machine of 16 threads; on one of 4 logical CPUs, 55 to 60 ms from unchanged sources and
+    /// 57 to 71 ms after an edit of the scene's shader, over two runs. A debug build takes about
+    /// twice as long, in wgpu's own work. Direct3D 12 compiles the shaders again with DXC for each
+    /// pipeline. The benchmark `render.shaders` of `slime-benches` measures both cases on the
+    /// machine that runs it.
     ///
     /// # Errors
     ///
@@ -1310,14 +1400,16 @@ impl Renderer {
         Mesh::new(gpu, &self.meshes, label, data)
     }
 
-    /// Creates a material. `label` names it in error messages and in GPU capture tools. The
-    /// material keeps its textures and samplers alive; its values can change afterwards
+    /// Creates a physically based material. `label` names it in error messages and in GPU capture
+    /// tools. The material keeps its textures and samplers alive; its values can change afterwards
     /// ([`Material::set_values`]).
     ///
     /// # Errors
     ///
     /// [`RenderError::InvalidMaterial`] if a value of `data` is out of the range that
-    /// [`MaterialValues`](crate::MaterialValues) gives; [`RenderError::Gfx`] with
+    /// [`MaterialValues`](crate::MaterialValues) gives, or if it blends
+    /// ([`AlphaMode::Blend`](crate::AlphaMode::Blend), which only unlit materials draw until Stage
+    /// 9a); [`RenderError::Gfx`] with
     /// [`GfxError::OutOfMemory`] when the GPU's memory cannot hold it, or
     /// [`GfxError::DeviceLost`] once the device is lost. Nothing is created then.
     ///
@@ -1334,6 +1426,29 @@ impl Renderer {
         data: &MaterialData<'_>,
     ) -> Result<Material, RenderError> {
         self.material_parts.create(gpu, label, data)
+    }
+
+    /// Creates an unlit material from `data` (ADR-0129): its color shown as it is, whatever lights
+    /// the scene, which any renderer of the same `gpu` draws. `label` names it in error messages
+    /// and in GPU capture tools.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::InvalidMaterial`] if a value is out of the range that
+    /// [`UnlitValues`](crate::UnlitValues) gives; [`RenderError::Gfx`] with
+    /// [`GfxError::OutOfMemory`] when the GPU's memory cannot hold it, or
+    /// [`GfxError::DeviceLost`] once the device is lost. Nothing is created then.
+    ///
+    /// # Panics
+    ///
+    /// If its texture's format is not sRGB: it holds colors, which would be read wrong.
+    pub fn create_unlit_material(
+        &self,
+        gpu: &Gpu,
+        label: &str,
+        data: &UnlitData<'_>,
+    ) -> Result<Material, RenderError> {
+        self.material_parts.create_unlit(gpu, label, data)
     }
 
     /// Draws `scene` through each of `views`, in their order, each into its rectangle of its
@@ -1364,15 +1479,23 @@ impl Renderer {
     /// compared through a filter over 5 × 5 texels so that a shadow's edges fade smoothly over
     /// about six texels (ADR-0063); each surface is culled or not as its material and its transform
     /// ask (ADR-0035), the scene's environment reflected as its material reflects it (ADR-0039),
-    /// its light multiplied by the scene's exposure (ADR-0037). Each spot light that casts shadows
+    /// its light multiplied by the scene's exposure (ADR-0037); an unlit material's surface shows
+    /// its color as it is, whatever the light and the exposure; a blended one is left to the pass
+    /// after the sky (ADR-0129). Each spot light that casts shadows
     /// lights a point only where its tile holds nothing nearer to it, looked up off the triangle by
     /// up to 4.5 of the tile's texels and compared as the directional light's cascades are
     /// (ADR-0061, ADR-0062); point lights cast no shadows. In a mode of debugging, it writes each
     /// surface's normal, or the share of the shadowing lights' light that reaches it, instead
     /// ([`DebugMode`]). The sky pass draws the environment, exposed, where no surface was drawn,
-    /// with its sun's disc. With anti-aliasing, the resolve pass then averages the samples of each
-    /// pixel, each weighed by 1 / (1 + its brightest channel), which smooths the edges of what both
-    /// passes drew, the bright ones too (ADR-0056, ADR-0060). Unless `scene.bloom` is 0 or the
+    /// with its sun's disc. When the scene has blended surfaces, or when the view's client draws in
+    /// the scene ([`ViewDraw::drawings`]), a pass then draws the client's opaque and masked
+    /// instances, as the scene pass draws the scene's, then the blended surfaces, the scene's and the
+    /// client's, laid over what is drawn by their alpha without writing their depth, in no
+    /// particular order among themselves, then the client's lines, laid over what is drawn where
+    /// nothing nearer hides them ([`Drawings`]).
+    /// With anti-aliasing, the resolve pass then averages the samples of each pixel, each weighed
+    /// by 1 / (1 + its brightest channel), which smooths the edges of what these passes drew, the
+    /// bright ones too (ADR-0056, ADR-0060). Unless `scene.bloom` is 0 or the
     /// view's targets are smaller than 15 × 15, the bloom's passes
     /// filter that light down into levels of half the size of the one before, to a side of at least
     /// 8 texels, with Jimenez's 13-tap filter, then average them back up through 3 × 3 tents,
@@ -1386,7 +1509,8 @@ impl Renderer {
     /// channel, with noise of up to one step that keeps its average and leaves black and white as
     /// they are (ADR-0051), and writes it into the view's rectangle, opaque, a mode of debugging's
     /// colors as they are: a view that covers its
-    /// target clears it first, one that draws into a part of it leaves the rest as it was. A render
+    /// target clears it first, one that draws into a part of it leaves the rest as it was. When the
+    /// client draws over the image, a last pass lays its lines over the view's rectangle. A render
     /// graph orders each view's passes, and they are recorded in that order, four to a submission
     /// named after the view and its target (ADR-0041), one view after the other; the work runs on
     /// the GPU after this method returns.
@@ -1510,6 +1634,14 @@ impl Renderer {
         for (index, draw) in views.iter_mut().enumerate() {
             let spots = (tiles_drawn_by == Some(index)).then_some(&tiles[..]);
             let view = self.prepare(gpu, scene, lights, draw, &spot_lights, spots)?;
+            if view.lines_left_out > 0 && !self.warned_of_lines {
+                tracing::warn!(
+                    left_out = view.lines_left_out,
+                    "a client draws more lines than the device's storage buffers hold: the last \
+                     ones are left out (said once per renderer)"
+                );
+                self.warned_of_lines = true;
+            }
             let (drawn, left_out) = view.instances;
             if left_out > 0 && !self.warned_of_instances {
                 tracing::warn!(
@@ -1621,6 +1753,7 @@ impl Renderer {
     ) -> Result<Prepared, RenderError> {
         let started = Instant::now();
         let viewport = draw.viewport();
+        let drawings = draw.drawings;
         let camera = &draw.camera;
         let view = &mut *draw.view;
         let settings = view.settings;
@@ -1680,6 +1813,11 @@ impl Renderer {
             scene_keys,
             shadow_keys,
             list,
+            drawing_models,
+            drawing_passes,
+            drawing_values_of,
+            drawing_keys,
+            segments,
         } = &mut view.scratch;
         reuse(models, instances.len());
         models.extend(
@@ -1784,7 +1922,14 @@ impl Renderer {
         reuse(shadow_keys, instances.len());
         draw_keys(instances, passes, scene_keys, shadow_keys);
         list.clear();
-        let scene_draws = batches(scene_keys.iter().copied(), values_of, list);
+        let mut scene_draws = batches(scene_keys.iter().copied(), values_of, list);
+        // The blended surfaces, last in the order of the draws, go after the sky, which would
+        // cover them where no surface is behind them: they write no depth.
+        let first_blended = scene_draws
+            .iter()
+            .position(|batch| instances[batch.first].material.inner.blended)
+            .unwrap_or(scene_draws.len());
+        let blended_draws = scene_draws.split_off(first_blended);
         let (passes, shadow_keys): (&[u32], &[u128]) = (passes, shadow_keys);
         let in_pass = |pass: u32| {
             shadow_keys
@@ -1808,21 +1953,66 @@ impl Renderer {
                 draws: batches(in_pass(spot_pass(index)), values_of, list),
             })
             .collect();
-        // The values of the instances drawn, in the scene's order.
+        // The instances that a client draws in the scene, those that the camera sees, with the
+        // scene pass's pipelines and in its order of draws: their values follow the scene's in
+        // the buffer, as many as it has room for, and their draws follow the shadow passes' in the
+        // list.
+        let extra = drawings.map_or(&[][..], |drawings| &drawings.in_scene.instances[..]);
+        reuse(drawing_models, extra.len());
+        drawing_models.extend(
+            extra
+                .iter()
+                .map(|instance| relative_to(origin, instance.transform)),
+        );
+        reuse(drawing_passes, extra.len());
+        drawing_passes.extend(
+            extra
+                .iter()
+                .zip(drawing_models.iter())
+                .map(|(instance, &model)| {
+                    if frustum.holds((model, instance.mesh.center, instance.mesh.half_size)) {
+                        SCENE_PASS
+                    } else {
+                        0
+                    }
+                }),
+        );
+        reuse(drawing_values_of, extra.len());
+        let (extra_drawn, extra_left_out) =
+            place_values(drawing_passes, most - drawn, drawing_values_of);
+        for value in drawing_values_of.iter_mut() {
+            if *value != NOT_DRAWN {
+                *value += drawn;
+            }
+        }
+        reuse(drawing_keys, extra.len());
+        // No shadow pass draws them: their keys of the shadow passes stay empty.
+        draw_keys(extra, drawing_passes, drawing_keys, &mut Vec::new());
+        let drawing_draws = batches(drawing_keys.iter().copied(), drawing_values_of, list);
+        // The values of the instances drawn, in the scene's order, then the client's.
         values.clear();
-        for (slot, instance) in instances.iter().enumerate() {
-            if values_of[slot] == NOT_DRAWN {
+        let all = instances
+            .iter()
+            .zip(models.iter().zip(values_of.iter()))
+            .chain(
+                extra
+                    .iter()
+                    .zip(drawing_models.iter().zip(drawing_values_of.iter())),
+            );
+        for (instance, (&model, &value_of)) in all {
+            if value_of == NOT_DRAWN {
                 continue;
             }
             let linear = linear(instance.transform);
-            push_mat4(values, models[slot]);
+            push_mat4(values, model);
             push_mat3(values, normal_matrix(linear));
             let handedness = if is_mirrored(linear) { -1.0 } else { 1.0 };
             push_f32s(values, &[handedness, 0.0, 0.0, 0.0]);
         }
+        let (drawn, left_out) = (drawn + extra_drawn, left_out + extra_left_out);
         let capacity = (
-            instance_capacity(view.instances.capacity.0, drawn as usize).min(most as usize),
-            instance_capacity(view.instances.capacity.1, list.len() / 4)
+            buffer_capacity(view.instances.capacity.0, drawn as usize).min(most as usize),
+            buffer_capacity(view.instances.capacity.1, list.len() / 4)
                 .min((gpu.max_storage_buffer_size() / 4) as usize),
         );
         if capacity != view.instances.capacity {
@@ -1843,6 +2033,42 @@ impl Renderer {
         }
         if !list.is_empty() {
             gpu.write_storage_buffer(&view.instances.list, 0, list);
+        }
+        // A client's lines: those in the scene, then those over the image, in one buffer, at most
+        // as many as a storage buffer holds (G29), the last left out.
+        segments.clear();
+        let most_segments =
+            u32::try_from(gpu.max_storage_buffer_size() / SEGMENT_SIZE as u64).unwrap_or(u32::MAX);
+        let (lines, lines_left_out) = drawings.map_or(((0, 0), 0), |drawings| {
+            let (in_scene, left_out) =
+                pack_lines(&drawings.in_scene.lines, origin, segments, most_segments);
+            let (over_image, more_left_out) = pack_lines(
+                &drawings.over_image,
+                origin,
+                segments,
+                most_segments - in_scene,
+            );
+            ((in_scene, over_image), left_out + more_left_out)
+        });
+        let count = (lines.0 + lines.1) as usize;
+        let capacity = view.lines.as_ref().map_or(0, |buffers| buffers.capacity);
+        let wanted = buffer_capacity(capacity, count).min(most_segments as usize);
+        if count > 0 && wanted != capacity {
+            view.lines = Some(LineBuffers::new(gpu, &self.layouts.lines, wanted)?);
+        }
+        if let (Some(buffers), true) = (&view.lines, count > 0) {
+            gpu.write_storage_buffer(&buffers.segments, 0, segments);
+            // Both points' clip space spans the view's rectangle: in the scene, the whole of its
+            // targets, which hold light divided by HEADROOM; over the image, the rectangle itself.
+            let rectangle = (viewport.width, viewport.height);
+            gpu.write_uniform_buffer(
+                &buffers.settings[0],
+                &line_settings((0, 0), (width, height), rectangle, 1.0 / HEADROOM),
+            );
+            gpu.write_uniform_buffer(
+                &buffers.settings[1],
+                &line_settings((viewport.x, viewport.y), rectangle, rectangle, 1.0),
+            );
         }
 
         let mut frame_bytes = Vec::with_capacity(FRAME_VALUES_SIZE);
@@ -1969,6 +2195,8 @@ impl Renderer {
             sky: settings.sky && !debugging,
             bloom,
             whole: viewport == Viewport::whole(draw.target),
+            after_sky: !blended_draws.is_empty() || !drawing_draws.is_empty() || lines.0 > 0,
+            over_image: lines.1 > 0,
         };
         if view.frame.as_ref().is_none_or(|frame| frame.shape != shape) {
             tracing::debug!(?shape, view = view.label, "building the frame's graph");
@@ -1988,6 +2216,10 @@ impl Renderer {
         Ok(Prepared {
             shape,
             scene_draws,
+            blended_draws,
+            drawing_draws,
+            lines,
+            lines_left_out,
             cascades,
             spot_draws,
             instances: (drawn, left_out),
@@ -2019,6 +2251,8 @@ impl Renderer {
             instances: &view.instances.group,
             shadow_views: &view.shadow_views_group,
             viewport: (!prepared.shape.whole).then_some(viewport),
+            drawings: draw.drawings,
+            lines: view.lines.as_ref(),
         };
         // The submissions are named after the view and its output, so that capture tools show which
         // it drew.
@@ -2065,16 +2299,68 @@ impl Renderer {
         let masked = instance.material.inner.masked;
         let pipeline = shadow_pipeline(instance.material.inner.kind, masked);
         if bound.pipeline != Some(pipeline) {
-            let pipelines = &self.pipelines.kinds[instance.material.inner.kind];
+            let pipelines = self.pipelines.kinds[instance.material.inner.kind]
+                .shadows
+                .as_ref()
+                .expect("only the kinds that cast shadows reach the shadow passes");
             render_pass.set_pipeline(if masked {
-                &pipelines.masked_shadow
+                &pipelines.masked
             } else {
-                &pipelines.shadow
+                &pipelines.opaque
             });
             bound.pipeline = Some(pipeline);
         }
         // Only the masked materials' pipeline reads the material.
         draw(render_pass, bound, instance, masked, instances);
+    }
+
+    /// Draws `batches` of `instances` in the scene pass, or in the pass of a client's drawings in
+    /// the scene, with the scene pass's pipelines for targets of several samples per pixel if
+    /// `multisampled`, and counts them in `stats`. The pass has bound the frame's, the instances'
+    /// and the atlases' groups.
+    fn draw_instances(
+        &self,
+        render_pass: &mut RenderPass<'_>,
+        instances: &[Instance],
+        batches: &[Batch],
+        multisampled: bool,
+        stats: &mut RenderStats,
+    ) {
+        // A pipeline is set only when a draw needs another, which the draws' order makes rare.
+        let mut bound = Bound::default();
+        for batch in batches {
+            let instance = &instances[batch.first];
+            let cull = scene_cull(instance);
+            let (kind, blended) = (
+                instance.material.inner.kind,
+                instance.material.inner.blended,
+            );
+            let pipeline = scene_pipeline(kind, cull, blended);
+            if bound.pipeline != Some(pipeline) {
+                let pipelines = &self.pipelines.kinds[kind];
+                let scene = if blended {
+                    pipelines
+                        .blended
+                        .as_ref()
+                        .expect("only the kinds that blend make blended materials")
+                } else {
+                    &pipelines.scene
+                };
+                render_pass.set_pipeline(scene.get(multisampled).get(cull));
+                bound.pipeline = Some(pipeline);
+            }
+            draw(
+                render_pass,
+                &mut bound,
+                instance,
+                true,
+                batch.instances.clone(),
+            );
+            let count = batch.instances.end - batch.instances.start;
+            stats.draw_calls += 1;
+            stats.instances += count;
+            stats.triangles += u64::from(instance.mesh.triangle_count()) * u64::from(count);
+        }
     }
 
     /// Records `pass` of a view, which reads its transient targets through `group` and the view's
@@ -2145,32 +2431,68 @@ impl Renderer {
                 render_pass.set_bind_group(0, groups.frame, &[]);
                 render_pass.set_bind_group(2, groups.instances, &[]);
                 render_pass.set_bind_group(3, &self.shadow_group, &[]);
-                // A pipeline is set only when a draw needs another, which the draws' order makes
-                // rare.
-                let mut bound = Bound::default();
-                for batch in &prepared.scene_draws {
-                    let instance = &scene.instances[batch.first];
-                    let cull = scene_cull(instance);
-                    let pipeline = scene_pipeline(instance.material.inner.kind, cull);
-                    if bound.pipeline != Some(pipeline) {
-                        let pipelines = &self.pipelines.kinds[instance.material.inner.kind];
-                        let scene = pipelines.scene.get(prepared.shape.multisampled);
-                        render_pass.set_pipeline(scene.get(cull));
-                        bound.pipeline = Some(pipeline);
-                    }
-                    draw(
-                        render_pass,
-                        &mut bound,
-                        instance,
-                        true,
-                        batch.instances.clone(),
-                    );
-                    let count = batch.instances.end - batch.instances.start;
-                    stats.draw_calls += 1;
-                    stats.instances += count;
-                    stats.triangles += u64::from(instance.mesh.triangle_count()) * u64::from(count);
+                self.draw_instances(
+                    render_pass,
+                    &scene.instances,
+                    &prepared.scene_draws,
+                    prepared.shape.multisampled,
+                    stats,
+                );
+            }
+            Pass::AfterSky => {
+                render_pass.set_bind_group(0, groups.frame, &[]);
+                render_pass.set_bind_group(2, groups.instances, &[]);
+                render_pass.set_bind_group(3, &self.shadow_group, &[]);
+                // The client's opaque instances, then every blended surface, the scene's and the
+                // client's, so that what is opaque hides what lies behind it.
+                let extra = groups
+                    .drawings
+                    .map_or(&[][..], |drawings| &drawings.in_scene.instances[..]);
+                let first_blended = prepared
+                    .drawing_draws
+                    .iter()
+                    .position(|batch| extra[batch.first].material.inner.blended)
+                    .unwrap_or(prepared.drawing_draws.len());
+                let (opaque, blended) = prepared.drawing_draws.split_at(first_blended);
+                let multisampled = prepared.shape.multisampled;
+                self.draw_instances(render_pass, extra, opaque, multisampled, stats);
+                self.draw_instances(
+                    render_pass,
+                    &scene.instances,
+                    &prepared.blended_draws,
+                    multisampled,
+                    stats,
+                );
+                self.draw_instances(render_pass, extra, blended, multisampled, stats);
+                // Over the instances, at group 1, where they read their materials.
+                if prepared.lines.0 > 0 {
+                    let lines = groups
+                        .lines
+                        .expect("a view that draws lines has their buffers");
+                    render_pass.set_pipeline(self.pipelines.lines.get(prepared.shape.multisampled));
+                    render_pass.set_bind_group(1, &lines.groups[0], &[]);
+                    render_pass.draw(0..prepared.lines.0 * 6);
                 }
             }
+            Pass::OverImage => render_pass.debug_group("drawings over the image", |render_pass| {
+                if let Some(Viewport {
+                    x,
+                    y,
+                    width,
+                    height,
+                }) = groups.viewport
+                {
+                    render_pass.set_viewport(x, y, width, height);
+                }
+                let lines = groups
+                    .lines
+                    .expect("a view that draws lines has their buffers");
+                render_pass.set_pipeline(&self.pipelines.lines_over_image);
+                render_pass.set_bind_group(0, groups.frame, &[]);
+                render_pass.set_bind_group(1, &lines.groups[1], &[]);
+                let (in_scene, over_image) = prepared.lines;
+                render_pass.draw(in_scene * 6..(in_scene + over_image) * 6);
+            }),
             Pass::Sky => {
                 render_pass.set_pipeline(self.pipelines.sky.get(prepared.shape.multisampled));
                 render_pass.set_bind_group(0, groups.frame, &[]);
@@ -2232,7 +2554,12 @@ impl Renderer {
                 // The transient render target the pass declares at `slot` of its reads.
                 let read = |slot: usize| declaration.reads[slot].map(|target| graph.color(target));
                 let entries = match declaration.pass {
-                    Pass::Shadow | Pass::SpotShadows | Pass::Scene | Pass::Sky => return Ok(None),
+                    Pass::Shadow
+                    | Pass::SpotShadows
+                    | Pass::Scene
+                    | Pass::Sky
+                    | Pass::AfterSky
+                    | Pass::OverImage => return Ok(None),
                     Pass::Resolve => (
                         "resolve".to_owned(),
                         &self.layouts.resolve,
@@ -2324,6 +2651,7 @@ fn fold_gpu_times(
             Pass::Scene => stats.scene_gpu_time = time,
             Pass::Sky => stats.sky_gpu_time = time,
             Pass::Resolve => stats.resolve_gpu_time = time,
+            Pass::AfterSky => stats.after_sky_gpu_time = time,
             Pass::BloomDown(_) | Pass::BloomUp(_) => {
                 bloom = Some(match bloom {
                     None => time,
@@ -2331,6 +2659,7 @@ fn fold_gpu_times(
                 });
             }
             Pass::ToneMapping => stats.tone_mapping_gpu_time = time,
+            Pass::OverImage => stats.over_image_gpu_time = time,
         }
     }
     stats.bloom_gpu_time = bloom.flatten();
@@ -2403,6 +2732,21 @@ fn declare_frame(shape: Shape) -> Graph {
             [None, None],
         ));
     }
+    // A client's drawings in the scene, over its surfaces and its sky, so that what writes no depth
+    // is not covered by the sky; they read the atlases as the scene pass does, for instances of
+    // lit materials.
+    if shape.after_sky {
+        graph.add_pass(pass(
+            Pass::AfterSky,
+            Draws::Color {
+                target: samples,
+                depth: Some(depth),
+                clear: false,
+                resolve: None,
+            },
+            [cascade_atlas.map(Into::into), spot_atlas.map(Into::into)],
+        ));
+    }
     // The samples averaged, each weighed by its brightness (ADR-0060), into the target that the
     // later passes read.
     if shape.multisampled {
@@ -2462,6 +2806,19 @@ fn declare_frame(shape: Shape) -> Graph {
         },
         [Some(hdr.into()), blurred.map(Into::into)],
     ));
+    // Over the view's image, in its rectangle.
+    if shape.over_image {
+        graph.add_pass(pass(
+            Pass::OverImage,
+            Draws::Color {
+                target: output,
+                depth: None,
+                clear: false,
+                resolve: None,
+            },
+            [None, None],
+        ));
+    }
     graph
 }
 
@@ -2606,10 +2963,12 @@ struct Layouts {
     bloom_up: BindGroupLayout,
     /// The scene's samples, which the resolve pass reads one by one.
     resolve: BindGroupLayout,
+    /// A view's lines and the settings of one point (`LineBuffers`).
+    lines: BindGroupLayout,
 }
 
-/// The renderer's pipelines, made from the sources of its four shaders: those of the frame's
-/// passes, and those of each kind of material that it draws.
+/// The renderer's pipelines, made from the sources of its shaders: those of the frame's passes, and
+/// those of each kind of material that it draws.
 struct Pipelines {
     /// The scene and shadow passes' pipelines of each kind, in the order of the renderer's kinds.
     kinds: Vec<KindPipelines>,
@@ -2623,6 +2982,10 @@ struct Pipelines {
     bloom_up: RenderPipeline,
     /// Maps the light to the output's range, the bloom mixed in.
     tone_mapping: RenderPipeline,
+    /// Draws a client's lines in the scene, hidden by what is in front of them.
+    lines: Sampled<RenderPipeline>,
+    /// Draws a client's lines over the view's image.
+    lines_over_image: RenderPipeline,
 }
 
 /// A pipeline of the passes that draw at the view's anti-aliasing, the scene's and the sky's, made
@@ -2649,10 +3012,20 @@ impl<T> Sampled<T> {
 struct KindPipelines {
     /// The scene pass's.
     scene: Sampled<ScenePipelines>,
+    /// The scene pass's for blended materials, which lay them over what is behind them without
+    /// writing their depth; none for a kind that does not blend ([`MaterialKind::blends`]).
+    blended: Option<Sampled<ScenePipelines>>,
+    /// The shadow passes'; none for a kind whose surfaces cast no shadows
+    /// ([`MaterialKind::casts_shadows`]).
+    shadows: Option<ShadowPipelines>,
+}
+
+/// The shadow passes' pipelines of a kind of material.
+struct ShadowPipelines {
     /// Draws the instances' depths as the shadowed light sees them, culling no face.
-    shadow: RenderPipeline,
+    opaque: RenderPipeline,
     /// The same, discarding what masked materials discard.
-    masked_shadow: RenderPipeline,
+    masked: RenderPipeline,
 }
 
 impl Pipelines {
@@ -2683,6 +3056,7 @@ impl Pipelines {
         let resolve_shader = gpu.create_shader_module("resolve.wgsl", &sources.resolve)?;
         let tone_mapping_shader =
             gpu.create_shader_module("tone_mapping.wgsl", &sources.tone_mapping)?;
+        let lines_shader = gpu.create_shader_module("lines.wgsl", &sources.lines)?;
         let module = |file: &str| {
             &modules
                 .iter()
@@ -2704,6 +3078,7 @@ impl Pipelines {
                 fragment: Some(FragmentState {
                     entry_point: "fs_sky",
                     target_format: Some(HDR_FORMAT),
+                    blend: None,
                 }),
                 bind_group_layouts: &[&layouts.frame],
                 depth: Some(DepthState {
@@ -2719,6 +3094,34 @@ impl Pipelines {
             multisampled: sky("sky", true)?,
             single: sky("sky, one sample", false)?,
         };
+        // Laid over what is drawn, by their alpha and the share of each pixel they cover; in the
+        // scene, where they are as near as what is there or nearer, without writing their depth.
+        let lines = |label: &str, target_format: TextureFormat, in_scene: Option<bool>| {
+            gpu.create_render_pipeline(&RenderPipelineDescriptor {
+                label,
+                shader: &lines_shader,
+                vertex_entry_point: "vs_main",
+                vertex_layout: None,
+                fragment: Some(FragmentState {
+                    entry_point: "fs_main",
+                    target_format: Some(target_format),
+                    blend: Some(Blend::Alpha),
+                }),
+                bind_group_layouts: &[&layouts.frame, &layouts.lines],
+                depth: in_scene.map(|_| DepthState {
+                    compare: DepthCompare::GreaterEqual,
+                    write: false,
+                    bias: DepthBias::default(),
+                }),
+                cull: CullMode::None,
+                multisampled: in_scene.unwrap_or(false),
+            })
+        };
+        let lines_in_scene = Sampled {
+            multisampled: lines("lines", HDR_FORMAT, Some(true))?,
+            single: lines("lines, one sample", HDR_FORMAT, Some(false))?,
+        };
+        let lines_over_image = lines("lines over the image", format, None)?;
         // The passes that cover their target with one triangle, without depth.
         let fullscreen = |label: &str,
                           shader: &ShaderModule,
@@ -2733,6 +3136,7 @@ impl Pipelines {
                 fragment: Some(FragmentState {
                     entry_point,
                     target_format: Some(target_format),
+                    blend: None,
                 }),
                 bind_group_layouts: &[layout],
                 depth: None,
@@ -2771,6 +3175,8 @@ impl Pipelines {
                 &layouts.tone_mapping,
                 format,
             )?,
+            lines: lines_in_scene,
+            lines_over_image,
         })
     }
 }
@@ -2790,11 +3196,12 @@ impl KindPipelines {
         layouts: &Layouts,
         kind: &Kind,
     ) -> Result<Self, GfxError> {
-        let scene_pipeline = |label: &str, cull: CullMode, multisampled: bool| {
-            let label = if multisampled {
-                label.to_owned()
-            } else {
-                format!("{label}, one sample")
+        let scene_pipeline = |label: &str, cull: CullMode, multisampled: bool, blended: bool| {
+            let label = match (multisampled, blended) {
+                (true, false) => label.to_owned(),
+                (false, false) => format!("{label}, one sample"),
+                (true, true) => format!("{label}, blended"),
+                (false, true) => format!("{label}, blended, one sample"),
             };
             gpu.create_render_pipeline(&RenderPipelineDescriptor {
                 label: &label,
@@ -2804,6 +3211,7 @@ impl KindPipelines {
                 fragment: Some(FragmentState {
                     entry_point: "fs_main",
                     target_format: Some(HDR_FORMAT),
+                    blend: blended.then_some(Blend::Alpha),
                 }),
                 bind_group_layouts: &[
                     &layouts.frame,
@@ -2811,28 +3219,43 @@ impl KindPipelines {
                     &layouts.instance,
                     &layouts.shadow,
                 ],
+                // A blended surface is hidden by what is in front of it, and hides nothing.
                 depth: Some(DepthState {
                     compare: DepthCompare::Greater,
-                    write: true,
+                    write: !blended,
                     bias: DepthBias::default(),
                 }),
                 cull,
                 multisampled,
             })
         };
-        let scene_pipelines = |multisampled: bool| -> Result<ScenePipelines, GfxError> {
-            Ok(ScenePipelines {
-                back_culled: scene_pipeline(
-                    "scene, back faces culled",
-                    CullMode::Back,
-                    multisampled,
-                )?,
-                front_culled: scene_pipeline(
-                    "scene, front faces culled",
-                    CullMode::Front,
-                    multisampled,
-                )?,
-                unculled: scene_pipeline("scene, no face culled", CullMode::None, multisampled)?,
+        let scene_pipelines =
+            |multisampled: bool, blended: bool| -> Result<ScenePipelines, GfxError> {
+                Ok(ScenePipelines {
+                    back_culled: scene_pipeline(
+                        "scene, back faces culled",
+                        CullMode::Back,
+                        multisampled,
+                        blended,
+                    )?,
+                    front_culled: scene_pipeline(
+                        "scene, front faces culled",
+                        CullMode::Front,
+                        multisampled,
+                        blended,
+                    )?,
+                    unculled: scene_pipeline(
+                        "scene, no face culled",
+                        CullMode::None,
+                        multisampled,
+                        blended,
+                    )?,
+                })
+            };
+        let sampled = |blended: bool| -> Result<Sampled<ScenePipelines>, GfxError> {
+            Ok(Sampled {
+                multisampled: scene_pipelines(true, blended)?,
+                single: scene_pipelines(false, blended)?,
             })
         };
         // Every face casts, whichever way it faces the light: a single-sided surface stops light
@@ -2859,19 +3282,25 @@ impl KindPipelines {
                 multisampled: false,
             })
         };
+        let shadows = if kind.kind.casts_shadows() {
+            Some(ShadowPipelines {
+                opaque: shadow_pipeline("shadow", None)?,
+                masked: shadow_pipeline(
+                    "shadow, masked",
+                    Some(FragmentState {
+                        entry_point: "fs_shadow",
+                        target_format: None,
+                        blend: None,
+                    }),
+                )?,
+            })
+        } else {
+            None
+        };
         Ok(Self {
-            scene: Sampled {
-                multisampled: scene_pipelines(true)?,
-                single: scene_pipelines(false)?,
-            },
-            shadow: shadow_pipeline("shadow", None)?,
-            masked_shadow: shadow_pipeline(
-                "shadow, masked",
-                Some(FragmentState {
-                    entry_point: "fs_shadow",
-                    target_format: None,
-                }),
-            )?,
+            scene: sampled(false)?,
+            blended: kind.kind.blends().then(|| sampled(true)).transpose()?,
+            shadows,
         })
     }
 }
@@ -2922,7 +3351,7 @@ fn is_mirrored(linear: Mat3) -> bool {
 
 /// Empties `entries` for a frame that needs `needed` of them, and gives back their memory once a
 /// frame needs a quarter of it or less, down to [`INITIAL_INSTANCE_CAPACITY`], as the instances'
-/// buffers shrink (`instance_capacity`): a peak does not keep its memory for every later frame.
+/// buffers shrink (`buffer_capacity`): a peak does not keep its memory for every later frame.
 fn reuse<T>(entries: &mut Vec<T>, needed: usize) {
     entries.clear();
     if needed <= entries.capacity() / 4 && entries.capacity() > INITIAL_INSTANCE_CAPACITY {
@@ -2930,12 +3359,12 @@ fn reuse<T>(entries: &mut Vec<T>, needed: usize) {
     }
 }
 
-/// How many entries a buffer of the instances has for a frame that needs `instances` when it has
-/// `capacity`: twice as many as before until they fit, and back to the smallest such size from
+/// How many entries a buffer of a frame's values, its instances' or its lines', has for a frame
+/// that needs `instances` when it has `capacity`: twice as many as before until they fit, and back to the smallest such size from
 /// [`INITIAL_INSTANCE_CAPACITY`] once the frame uses a quarter or less, so that a peak (a
 /// loading screen, a burst of debris) does not keep its memory for every later frame, and a count
 /// that hovers around a size does not resize the buffer at every frame.
-fn instance_capacity(capacity: usize, instances: usize) -> usize {
+fn buffer_capacity(capacity: usize, instances: usize) -> usize {
     let fitting = |mut capacity: usize| {
         while capacity < instances {
             capacity *= 2;
@@ -3054,12 +3483,13 @@ fn scene_cull(instance: &Instance) -> CullMode {
     )
 }
 
-/// The number of the scene pass's pipeline of the kind numbered `kind` that culls `cull`, unique
-/// among the scene pass's pipelines: the draws are sorted by it, and a pipeline is set when it
-/// changes.
-fn scene_pipeline(kind: usize, cull: CullMode) -> u32 {
+/// The number of the scene pass's pipeline of the kind numbered `kind` that culls `cull`, for
+/// blended materials if `blended`, unique among the scene pass's pipelines: the draws are sorted by
+/// it, and a pipeline is set when it changes. Those of blended materials come after every other,
+/// so that they are laid over what the others draw.
+fn scene_pipeline(kind: usize, cull: CullMode, blended: bool) -> u32 {
     // A renderer has a few kinds.
-    kind as u32 * 4 + cull as u32
+    (u32::from(blended) << 16) | (kind as u32 * 4 + cull as u32)
 }
 
 /// The number of the shadow passes' pipeline of the kind numbered `kind`, of masked materials or
@@ -3133,7 +3563,11 @@ fn draw_keys(
             Draw {
                 // Worked out only for the instances drawn: it normalizes the transform's axes.
                 scene_pipeline: if in_scene {
-                    scene_pipeline(instance.material.inner.kind, scene_cull(instance))
+                    scene_pipeline(
+                        instance.material.inner.kind,
+                        scene_cull(instance),
+                        instance.material.inner.blended,
+                    )
                 } else {
                     0
                 },
@@ -3234,12 +3668,15 @@ mod tests {
     use super::*;
 
     /// The pipelines of the kinds are numbered apart: a pass sorts its draws by kind, then by
-    /// pipeline, and sets a pipeline only when the number changes.
+    /// pipeline, and sets a pipeline only when the number changes; the blended ones last.
     #[test]
     fn the_pipelines_of_each_kind_have_numbers_of_their_own() {
         let culls = [CullMode::None, CullMode::Back, CullMode::Front];
-        let mut scene: Vec<u32> = (0..3)
-            .flat_map(|kind| culls.map(|cull| scene_pipeline(kind, cull)))
+        let mut scene: Vec<u32> = [false, true]
+            .into_iter()
+            .flat_map(|blended| {
+                (0..3).flat_map(move |kind| culls.map(|cull| scene_pipeline(kind, cull, blended)))
+            })
             .collect();
         let mut shadows: Vec<u32> = (0..3)
             .flat_map(|kind| [false, true].map(|masked| shadow_pipeline(kind, masked)))
@@ -3248,7 +3685,10 @@ mod tests {
             let sorted = numbers.windows(2).all(|pair| pair[0] < pair[1]);
             assert!(sorted, "kind by kind, each apart: {numbers:?}");
         }
-        assert_eq!(scene_pipeline(0, CullMode::Back), CullMode::Back as u32);
+        assert_eq!(
+            scene_pipeline(0, CullMode::Back, false),
+            CullMode::Back as u32
+        );
         assert_eq!(shadow_pipeline(0, true), 1);
     }
 
@@ -3510,7 +3950,11 @@ mod tests {
             constant_of(&ShaderSources::embedded().resolve, "HEADROOM"),
             headroom
         );
-        assert_eq!(headroom, 64.0);
+        assert_eq!(
+            constant_of(&ShaderSources::embedded().unlit, "HEADROOM"),
+            headroom
+        );
+        assert_eq!(headroom, f64::from(HEADROOM));
     }
 
     #[test]
@@ -3693,7 +4137,7 @@ mod tests {
         let flags =
             |count: u32| (0..1_u32 << count).map(move |bits| move |bit: u32| bits >> bit & 1 == 1);
         for (width, height) in [(1920, 1080), (1280, 720), (15, 15), (14, 14), (1, 1)] {
-            for on in flags(5) {
+            for on in flags(7) {
                 let shape = Shape {
                     width,
                     height,
@@ -3703,6 +4147,8 @@ mod tests {
                     sky: on(3),
                     bloom: on(4) && bloom_levels(width, height) > 0,
                     whole: true,
+                    after_sky: on(5),
+                    over_image: on(6),
                 };
                 let mut graph = declare_frame(shape);
                 if let Err(error) = graph.compile() {
@@ -3724,12 +4170,18 @@ mod tests {
                 if shape.sky {
                     expected.push(Pass::Sky);
                 }
+                if shape.after_sky {
+                    expected.push(Pass::AfterSky);
+                }
                 if shape.multisampled {
                     expected.push(Pass::Resolve);
                 }
                 expected.extend((0..levels).map(Pass::BloomDown));
                 expected.extend((0..levels.saturating_sub(1)).rev().map(Pass::BloomUp));
                 expected.push(Pass::ToneMapping);
+                if shape.over_image {
+                    expected.push(Pass::OverImage);
+                }
                 let passes: Vec<Pass> = graph
                     .declarations()
                     .iter()
@@ -3820,6 +4272,8 @@ mod tests {
                 sky: true,
                 bloom: true,
                 whole,
+                after_sky: false,
+                over_image: false,
             };
             let graph = declare_frame(shape);
             let tone_mapping = graph
@@ -3847,21 +4301,21 @@ mod tests {
     #[test]
     fn the_instance_buffer_grows_to_fit_and_shrinks_back_after_a_peak() {
         let initial = INITIAL_INSTANCE_CAPACITY;
-        assert_eq!(instance_capacity(initial, 0), initial);
-        assert_eq!(instance_capacity(initial, initial), initial);
-        assert_eq!(instance_capacity(initial, initial + 1), 2 * initial);
+        assert_eq!(buffer_capacity(initial, 0), initial);
+        assert_eq!(buffer_capacity(initial, initial), initial);
+        assert_eq!(buffer_capacity(initial, initial + 1), 2 * initial);
         // A peak of 100 000 instances, then a frame of 10: back to the first size.
-        let peak = instance_capacity(initial, 100_000);
+        let peak = buffer_capacity(initial, 100_000);
         assert_eq!(peak, initial << 11);
-        assert_eq!(instance_capacity(peak, 10), initial);
+        assert_eq!(buffer_capacity(peak, 10), initial);
         // A frame using more than a quarter keeps the size; a quarter or less shrinks it to the
         // smallest size that fits, never below the first.
-        assert_eq!(instance_capacity(4 * initial, initial + 1), 4 * initial);
-        assert_eq!(instance_capacity(8 * initial, 2 * initial), 2 * initial);
-        assert_eq!(instance_capacity(8 * initial, 2 * initial + 1), 8 * initial);
+        assert_eq!(buffer_capacity(4 * initial, initial + 1), 4 * initial);
+        assert_eq!(buffer_capacity(8 * initial, 2 * initial), 2 * initial);
+        assert_eq!(buffer_capacity(8 * initial, 2 * initial + 1), 8 * initial);
         // A count hovering around a size does not resize the buffer back and forth.
-        let grown = instance_capacity(initial, initial + 1);
-        assert_eq!(instance_capacity(grown, initial), grown);
+        let grown = buffer_capacity(initial, initial + 1);
+        assert_eq!(buffer_capacity(grown, initial), grown);
     }
 
     #[test]

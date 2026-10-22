@@ -1,15 +1,15 @@
-//! Drawing with the resources a renderer needs: indexed draws, a uniform buffer read through a
-//! bind group, a pass that keeps the image and its depth, depth testing and face culling, instanced
-//! draws that read each instance's values from a storage buffer and a mesh from its base vertex in
-//! buffers written by ranges, checked by reading pixels back; a shader that reads more than a
-//! uniform binding holds, refused. The colors are pure, whose sRGB encoding every driver gets
-//! exactly. Runs on whatever adapter the machine offers, like `device.rs`.
+//! Drawing with the resources a renderer needs: indexed draws, a uniform buffer read through a bind
+//! group, a pass that keeps the image and its depth, depth testing and face culling, blending,
+//! instanced draws that read each instance's values from a storage buffer and a mesh from its base
+//! vertex in buffers written by ranges, checked by reading pixels back; a shader that reads more
+//! than a uniform binding holds, refused. The colors are pure, whose sRGB encoding every driver
+//! gets exactly. Runs on whatever adapter the machine offers, like `device.rs`.
 
 use slime_color::LinearColor;
 use slime_gfx::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BindingType,
-    CullMode, DepthBias, DepthCompare, DepthState, DepthTarget, FragmentState, GfxError, Gpu,
-    Image, RenderPass, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
+    Blend, CullMode, DepthBias, DepthCompare, DepthState, DepthTarget, FragmentState, GfxError,
+    Gpu, Image, RenderPass, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
     RenderTarget, ShaderStages, TextureFormat, UniformBuffer, VertexAttribute, VertexBuffer,
     VertexFormat, VertexLayout,
 };
@@ -37,6 +37,12 @@ fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec3<f32>) -> V
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     return vec4<f32>(input.color, 1.0);
+}
+
+// Its color at an alpha of one half.
+@fragment
+fn fs_half(input: VertexOutput) -> @location(0) vec4<f32> {
+    return vec4<f32>(input.color, 0.5);
 }
 ";
 
@@ -423,6 +429,23 @@ fn pipeline_for(
     try_pipeline_for(gpu, layout, format, depth, cull).expect("the pipeline is valid")
 }
 
+/// The layout of a [`Vertex`]: its position, then its color.
+const VERTEX_LAYOUT: VertexLayout<'static> = VertexLayout {
+    stride: 6 * 4,
+    attributes: &[
+        VertexAttribute {
+            location: 0,
+            offset: 0,
+            format: VertexFormat::Float32x3,
+        },
+        VertexAttribute {
+            location: 1,
+            offset: 3 * 4,
+            format: VertexFormat::Float32x3,
+        },
+    ],
+};
+
 /// The same, or why wgpu refuses it.
 fn try_pipeline_for(
     gpu: &Gpu,
@@ -438,30 +461,60 @@ fn try_pipeline_for(
         label: "drawing",
         shader: &shader,
         vertex_entry_point: "vs_main",
-        vertex_layout: Some(VertexLayout {
-            stride: 6 * 4,
-            attributes: &[
-                VertexAttribute {
-                    location: 0,
-                    offset: 0,
-                    format: VertexFormat::Float32x3,
-                },
-                VertexAttribute {
-                    location: 1,
-                    offset: 3 * 4,
-                    format: VertexFormat::Float32x3,
-                },
-            ],
-        }),
+        vertex_layout: Some(VERTEX_LAYOUT),
         fragment: Some(FragmentState {
             entry_point: "fs_main",
             target_format: Some(format),
+            blend: None,
         }),
         bind_group_layouts: &[layout],
         depth,
         cull,
         multisampled: false,
     })
+}
+
+#[test]
+fn a_blended_pipeline_lays_its_color_over_the_target_s_by_its_alpha() {
+    let scene = Scene::new();
+    let opaque = scene.pipeline(None, CullMode::None);
+    let module = scene
+        .gpu
+        .create_shader_module("drawing", SHADER)
+        .expect("the shader compiles");
+    let blended = scene
+        .gpu
+        .create_render_pipeline(&RenderPipelineDescriptor {
+            label: "blended",
+            shader: &module,
+            vertex_entry_point: "vs_main",
+            vertex_layout: Some(VERTEX_LAYOUT),
+            fragment: Some(FragmentState {
+                entry_point: "fs_half",
+                target_format: Some(scene.target.format()),
+                blend: Some(Blend::Alpha),
+            }),
+            bind_group_layouts: &[&scene.layout],
+            depth: None,
+            cull: CullMode::None,
+            multisampled: false,
+        })
+        .expect("the pipeline is valid");
+    let red = scene.vertices(&full_screen(0.5, RED));
+    let blue = scene.vertices(&full_screen(0.5, BLUE));
+    let image = scene.render(false, |pass| {
+        pass.set_pipeline(&opaque);
+        pass.set_vertex_buffer(0, &red);
+        pass.draw(0..3);
+        pass.set_pipeline(&blended);
+        pass.set_vertex_buffer(0, &blue);
+        pass.draw(0..3);
+    });
+    // Half of each, mixed in linear values, then encoded: 0.5 is sRGB's 188.
+    let mixed = pixel(&image, CENTER);
+    for (channel, expected) in mixed.into_iter().zip([188, 0, 188]) {
+        assert!(channel.abs_diff(expected) <= 1, "{mixed:?}");
+    }
 }
 
 #[test]
@@ -666,6 +719,7 @@ fn an_instanced_draw_reads_each_instance_s_values_and_a_mesh_from_its_base_verte
             fragment: Some(FragmentState {
                 entry_point: "fs_main",
                 target_format: Some(scene.target.format()),
+                blend: None,
             }),
             bind_group_layouts: &[&layout],
             depth: None,

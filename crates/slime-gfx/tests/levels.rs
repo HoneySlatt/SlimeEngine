@@ -98,6 +98,7 @@ fn sample(
             fragment: Some(FragmentState {
                 entry_point: "fs_main",
                 target_format: Some(target.format()),
+                blend: None,
             }),
             bind_group_layouts: &[&layout],
             depth: None,

@@ -5,8 +5,9 @@
   [0034](0034-hdr-rendering-and-tone-mapping.md), [0038](0038-shadow-mapping.md),
   [0039](0039-image-based-lighting-computed-on-the-cpu.md) and [0040](0040-bloom.md); amended by
   [0111](0111-the-frame-contract.md) (views apart from the renderer, a part of the graph each),
-  [0115](0115-what-the-gpu-layer-gives-the-editor.md) (points where a client inserts its draws) and
-  [0126](0126-views-apart-from-the-renderer.md) (a graph for each view)
+  [0115](0115-what-the-gpu-layer-gives-the-editor.md) (points where a client inserts its draws),
+  [0126](0126-views-apart-from-the-renderer.md) (a graph for each view) and
+  [0129](0129-drawing-for-the-editor.md) (the passes of a client's drawings)
 - Date: 2026-10-14
 
 ## Context

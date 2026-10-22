@@ -6,14 +6,15 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-/// The WGSL sources of the renderer's four shaders, which [`Renderer::set_shaders`] compiles:
+/// The WGSL sources of the renderer's shaders, which [`Renderer::set_shaders`] compiles:
 /// those embedded in the program by default ([`ShaderSources::embedded`]), or read from their
 /// files ([`ShaderSources::read`]), as a game that hot-reloads does ([`ShaderWatch`]).
 ///
 /// [`Renderer::set_shaders`]: crate::Renderer::set_shaders
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ShaderSources {
-    /// `shader.wgsl`: the shadow passes, the scene pass and the sky pass.
+    /// `shader.wgsl`: the physically based kind of material's passes, shadow and scene, and the sky
+    /// pass.
     pub scene: String,
     /// `tone_mapping.wgsl`: the tone-mapping pass.
     pub tone_mapping: String,
@@ -21,6 +22,10 @@ pub struct ShaderSources {
     pub bloom: String,
     /// `resolve.wgsl`: the resolve pass.
     pub resolve: String,
+    /// `unlit.wgsl`: the scene pass's unlit materials (ADR-0129).
+    pub unlit: String,
+    /// `lines.wgsl`: the lines that a client draws into a view (ADR-0129).
+    pub lines: String,
 }
 
 impl ShaderSources {
@@ -38,6 +43,8 @@ impl ShaderSources {
             tone_mapping: include_str!("tone_mapping.wgsl").to_owned(),
             bloom: include_str!("bloom.wgsl").to_owned(),
             resolve: include_str!("resolve.wgsl").to_owned(),
+            unlit: include_str!("unlit.wgsl").to_owned(),
+            lines: include_str!("lines.wgsl").to_owned(),
         }
     }
 
@@ -58,6 +65,8 @@ impl ShaderSources {
             tone_mapping: read("tone_mapping.wgsl")?,
             bloom: read("bloom.wgsl")?,
             resolve: read("resolve.wgsl")?,
+            unlit: read("unlit.wgsl")?,
+            lines: read("lines.wgsl")?,
         })
     }
 }
@@ -151,6 +160,8 @@ mod tests {
                 ("tone_mapping.wgsl", &sources.tone_mapping),
                 ("bloom.wgsl", &sources.bloom),
                 ("resolve.wgsl", &sources.resolve),
+                ("unlit.wgsl", &sources.unlit),
+                ("lines.wgsl", &sources.lines),
             ] {
                 fs::write(directory.join(name), text).expect("written");
             }

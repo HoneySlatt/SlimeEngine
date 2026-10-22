@@ -49,6 +49,7 @@ fn draw(gpu: &Gpu, target: &RenderTarget) -> Image {
             fragment: Some(FragmentState {
                 entry_point: "fs_main",
                 target_format: Some(target.format()),
+                blend: None,
             }),
             bind_group_layouts: &[],
             depth: None,

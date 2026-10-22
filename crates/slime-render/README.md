@@ -7,8 +7,9 @@ the GPU layer (`slime-gfx`).
 
 Partial (`docs/PLAN.md`). It draws instances of meshes from cameras in perspective or orthographic,
 through views, several a frame, each into an output or a rectangle of it, each instance with a
-material in glTF's metallic-roughness model, lit by directional, point and spot lights in physical
-units and by a procedural sky that surfaces reflect and that shows behind them, with the shadows of
+material in glTF's metallic-roughness model, or unlit, its color shown as it is, lit by directional,
+point and spot lights in physical units and by a procedural sky that surfaces reflect and that shows
+behind them, with the shadows of
 one directional light around each view's camera, drawn in four cascades, and of every spot light
 that casts them. It draws in high dynamic range, then exposes the light, spreads a bloom around it,
 tone maps it and dithers it into the output, and reports what each frame cost on the CPU and the
@@ -20,7 +21,9 @@ when their cooked data changes, and keeps the meshes that a game draws by their 
 cache, which requests of a priority ask for and their handles hold, within budgets of memory once
 nothing holds them; a material's values change while a game runs, and so do the renderer's shaders.
 It leaves out of each pass what that pass does not see, and draws the instances of one mesh
-and one material together. It does not yet blend transparent surfaces.
+and one material together. It draws into a view what a client draws besides the scene, lines and
+instances, as an editor's grid, icons and the box of what is selected. It blends unlit surfaces
+over the others, without sorting them by depth, and does not yet blend physically based ones.
 
 ## Role
 
@@ -144,13 +147,18 @@ fn main() -> Result<(), RenderError> {
   &MaterialData)` creates a `Material` with glTF's metallic-roughness model, its textures given as
   `SampledTexture`s; values out of their ranges are returned as `RenderError::InvalidMaterial`.
   `Material::set_values(gpu, MaterialValues)` changes a material's values while a game runs, its
-  textures staying as made, for a fire that flickers; `Material::values` reads them. Meshes,
-  materials and environments are shared by their clones.
+  textures staying as made, for a fire that flickers; `Material::values` reads them.
+  `Renderer::create_unlit_material(gpu, label, &UnlitData)` creates an unlit `Material`, its color,
+  times its texture, shown as it is whatever the light and the exposure, masked or blended
+  (`AlphaMode::Blend`), casting no shadows
+  ([ADR-0129](../../docs/adr/0129-drawing-for-the-editor.md)). `Mesh::bounds` gives a mesh's box.
+  Meshes, materials and environments are shared by their clones.
 - Each material is of a *kind*, a way of lighting a surface that the renderer knows by
   registration, which gives the shader of its passes, its materials' group and its parameters'
   type, and converts a material's parameters into what its shader reads: the physically based kind
-  alone until Stage 9a (ADR-0111, ADR-0120). `Material::kind` names it;
-  `Material::parameters` and `Material::set_parameters` read and change its parameters through
+  and the unlit one, until Stage 9a lets a game register its own (ADR-0111, ADR-0120, ADR-0129).
+  `Material::kind` names it; `Material::parameters` and `Material::set_parameters` read and change
+  its parameters through
   reflection, and `Renderer::describe_materials` registers their types, so that an editor shows
   those of any kind.
 - `Renderer::create_texture(gpu, label, &CookedTexture)` uploads a texture cooked by the asset
@@ -195,9 +203,12 @@ fn main() -> Result<(), RenderError> {
   directional light's shadows, the spot lights' shadows, scene, sky, resolve, bloom, tone mapping),
   and keeps in each view its `RenderStats`: draw calls, instances, triangles, and the CPU and GPU
   time of its passes. A `ViewDraw` gives a view its camera, its target and, as a `Viewport`, the
-  rectangle of the target that it draws into, the whole target by default. Each pass leaves out the
-  instances that it does not see (frustum culling), and draws those of one mesh and one material
-  that one pipeline draws together, with one draw call (instancing).
+  rectangle of the target that it draws into, the whole target by default, and, as `Drawings`,
+  what a client draws into it besides the scene: in the scene, `Line`s, each a width in pixels
+  wide, and instances, hidden by what is in front of them; over the image, lines, over everything
+  (ADR-0129). Each pass leaves out the instances that it does not see (frustum culling), and draws
+  those of one mesh and one material that one pipeline draws together, with one draw call
+  (instancing).
 - `Camera`: where a view sees the scene from, through a `Projection`, in perspective or
   orthographic, and the `ImagePart` of its image that it draws, the whole image or a part of it, for
   a split screen or a magnifier. `Light`: one of glTF's punctual lights, a

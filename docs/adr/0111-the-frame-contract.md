@@ -7,8 +7,8 @@
   that loads without the renderer); amended by [0115](0115-what-the-gpu-layer-gives-the-editor.md)
   (an unlit kind of material at Stage 6), [0120](0120-a-frame-that-owns-what-it-draws.md) (the shape
   of the owned frame and of the kinds of materials), [0126](0126-views-apart-from-the-renderer.md)
-  (how views are built) and [0127](0127-the-settings-of-a-view.md) (how a view's settings are
-  built)
+  (how views are built), [0127](0127-the-settings-of-a-view.md) (how a view's settings are
+  built) and [0129](0129-drawing-for-the-editor.md) (the unlit kind of material, built)
 - Date: 2026-10-20
 
 ## Context

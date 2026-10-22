@@ -38,7 +38,7 @@ pub use image::{FloatImage, Image};
 pub use index_buffer::IndexBuffer;
 pub use pass::{Commands, DepthPassDescriptor, RenderPass, RenderPassDescriptor};
 pub use pipeline::{
-    CullMode, DepthBias, DepthCompare, DepthState, FragmentState, RenderPipeline,
+    Blend, CullMode, DepthBias, DepthCompare, DepthState, FragmentState, RenderPipeline,
     RenderPipelineDescriptor, VertexAttribute, VertexFormat, VertexLayout,
 };
 pub use render_target::{MULTISAMPLE_COUNT, RenderTarget, TextureFormat};

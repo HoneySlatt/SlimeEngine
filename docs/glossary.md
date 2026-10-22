@@ -73,6 +73,12 @@ as it reads the text, and its errors name the byte (`slime_serialize::encode`,
 *bind group layout* says which bindings it has and what each holds (`slime_gfx::BindGroupLayout`,
 [ADR-0026](adr/0026-resource-binding-and-depth.md)).
 
+**Blending.** Laying a color over what a *render target* holds by its alpha, rather than replacing
+it, as a pipeline of the GPU layer may (`slime_gfx::Blend`): glass, smoke, the soft edges of icons
+and lines. A material blends with the alpha mode `Blend`, which only *unlit materials* draw before
+Stage 9a sorts transparent surfaces by their depth
+([ADR-0129](adr/0129-drawing-for-the-editor.md)).
+
 **Block compression (BC).** GPU texture formats that store each block of 4 × 4 texels in a fixed
 number of bytes, which the GPU decodes as it samples: BC7, one byte per texel, for colour and other
 data, and BC5, two channels, for normal maps. Cooked textures are compressed in them
@@ -218,6 +224,12 @@ encoding* ([ADR-0086](adr/0086-serialization.md)).
 
 **Double-sided material.** A material whose back faces are drawn too, shaded with their normals
 reversed (glTF).
+
+**Drawings (view).** What a client, an editor or a tool, draws into a *view* besides the scene, at
+two points of its frame (`slime_render::Drawings`): in the scene, lines and instances hidden by
+what is in front of them, as a grid or the icons of lights; over the image, lines over everything,
+as the box of what is selected ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md),
+[ADR-0129](adr/0129-drawing-for-the-editor.md)).
 
 **Driven (component).** A component that the game, an animation or physics computes again, so
 that its value of the moment does not matter: saves, the overrides of a *prefab* and a level
@@ -468,10 +480,11 @@ crashed replays it and a test replays an editing session
 
 **Kind (material).** A way of lighting a surface that the renderer knows by registration: its
 shaders, its parameters described by reflection, and the passes it draws in. The physically based
-material is the first kind, an unlit one for the editor's gizmos and icons the second, at Stage 6;
-games register theirs from Stage 9a ([ADR-0111](adr/0111-the-frame-contract.md),
-[ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). The physically based kind is built
-(`Material::kind`, `Renderer::describe_materials`); the unlit one is not yet.
+material is the first kind, an *unlit material* the second; games register theirs from Stage 9a
+([ADR-0111](adr/0111-the-frame-contract.md),
+[ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md),
+[ADR-0129](adr/0129-drawing-for-the-editor.md); `Material::kind`,
+`Renderer::describe_materials`).
 
 **KTX2.** The Khronos Group's file format for GPU textures, which holds every mipmap level of a
 texture in its GPU format: the format of cooked textures
@@ -512,6 +525,10 @@ would take.
 number, a boolean, a text, an option, a reference to an asset or an entity, an empty list, or an
 enum whose variant holds no data (`slime_reflect::Registry::leaves`).
 
+**Line (drawings).** A segment between two points of the world that a client draws into a view, as a
+band that faces the camera, a width in the output's pixels wide, its edges smoothed over a pixel
+(`slime_render::Line`, [ADR-0129](adr/0129-drawing-for-the-editor.md)).
+
 **Linear color.** A color whose values are proportional to the light they stand for, so that
 light adds and multiplies them as they are: twice the value is twice the light. Displays and
 image files store colors *sRGB-encoded* instead. Every color of the engine's API is linear, a
@@ -537,7 +554,8 @@ metallic and roughness, normal, occlusion and emissive textures each read with a
 alpha mode and double-sidedness (`slime_render::Material`, from `MaterialData`;
 [ADR-0035](adr/0035-physically-based-materials.md)). Its values can change while a game runs,
 but not its textures, its sidedness or the kind of its alpha mode (`Material::set_values`, or
-`Material::set_parameters` through reflection). It is of a *kind*, the physically based one.
+`Material::set_parameters` through reflection). It is of a *kind*, the physically based one; an
+*unlit material* is of the other.
 
 **MCP (Model Context Protocol).** An open protocol through which coding agents, such as Claude
 Code and Codex, call the tools of other programs. The engine's own server, `slime-mcp`, lets them
@@ -1105,6 +1123,11 @@ untyped `extras` ([ADR-0095](adr/0095-cooked-scene-files.md)).
 
 **Uniform buffer.** A buffer of values that a whole draw reads, such as a camera's matrices,
 declared `var<uniform>` in WGSL and read through a *bind group* (`slime_gfx::UniformBuffer`).
+
+**Unlit material.** A *material* of the second *kind*, which shows its color, times its texture, as
+it is, whatever lights the scene and whatever its exposure, and casts no shadows: an editor's icons
+and handles, a stylized game's surfaces (`Renderer::create_unlit_material`,
+[ADR-0129](adr/0129-drawing-for-the-editor.md)).
 
 **Unload (scene).** Destroy the entities of a scene spawned under a key and forget it, keeping what
 the run changed of it, but what *resets*, until the game spawns the same scene under the key again

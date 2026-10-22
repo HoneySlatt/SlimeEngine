@@ -176,6 +176,12 @@ impl Mesh {
         self.place.indices.len() as u32 / 3
     }
 
+    /// The smallest box around its positions, in its own space, with its axes: its center, and
+    /// half its size along each axis. An editor draws it around what is selected.
+    pub fn bounds(&self) -> (Vec3, Vec3) {
+        (self.center, self.half_size)
+    }
+
     /// What it and its clones share, by which the renderer tells meshes apart: clones are one mesh,
     /// drawn together.
     pub(crate) fn identity(&self) -> *const () {

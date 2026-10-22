@@ -482,7 +482,10 @@ fn a_material_is_of_a_kind_whose_parameters_reflection_describes_and_changes() {
     let mut registry = Registry::new();
     assert_eq!(
         renderer.describe_materials(&mut registry),
-        [("physically based", "MaterialValues".to_owned())]
+        [
+            ("physically based", "MaterialValues".to_owned()),
+            ("unlit", "UnlitValues".to_owned()),
+        ]
     );
     // A field changed by its name, within its range, as an editor does.
     let roughness: Path = "roughness".parse().expect("a path");

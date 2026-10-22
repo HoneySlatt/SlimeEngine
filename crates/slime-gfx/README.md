@@ -14,7 +14,8 @@ them back, and draws into a window:
 - Its shaders read uniform and storage buffers, textures, samplers and comparison samplers through
   bind groups, with a depth test, a depth bias and face culling.
 - It draws into 8-bit sRGB or linear images, into 16-bit floating-point ones (high dynamic range),
-  or into a depth target only.
+  or into a depth target only, replacing what they hold or laying its colors over it by their
+  alpha (`Blend`, `docs/adr/0129-drawing-for-the-editor.md`).
 - It draws into images of four samples per pixel, which a pass resolves into ordinary ones, or
   which later shaders read sample by sample, for multisample anti-aliasing.
 - Later passes sample the render and depth targets that earlier ones drew into. Several passes
@@ -30,7 +31,8 @@ them back, and draws into a window:
   copies submitted by one thread of the uploader's, within a budget of bytes per frame, the lowest
   rank first.
 
-Not there yet: blending and array textures.
+Not there yet: array textures, integer targets and targets read back without waiting, which
+picking brings (`docs/PLAN.md`, M6a.10b).
 
 ## Role
 
@@ -83,6 +85,7 @@ fn main() -> Result<(), GfxError> {
         fragment: Some(FragmentState {
             entry_point: "fs_main",
             target_format: Some(target.format()),
+            blend: None,
         }),
         bind_group_layouts: &[],
         depth: None,

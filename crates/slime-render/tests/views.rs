@@ -3,7 +3,8 @@
 //! draws what is farther as large; the parts of one image drawn side by side make the whole; a view
 //! drawn into a rectangle of its output leaves the rest; four views take one cascades' atlas where
 //! four renderers took four; a view resized gives its old targets back, and one whose new size does
-//! not fit keeps none; a multisampled output is refused. Runs on whatever adapter the machine
+//! not fit keeps none; a multisampled output is refused; a view's image is sampled by another
+//! pipeline, as an editor's panel shows it. Runs on whatever adapter the machine
 //! offers; what is measured in GPU memory, on those whose memory wgpu counts.
 
 #[path = "../../slime-gfx/tests/common/memory_budget.rs"]
@@ -14,7 +15,11 @@ mod settled;
 use memory_budget::{CHILD_ENV, run_out_of_memory_in_a_child};
 use settled::draw_settled;
 use slime_color::LinearColor;
-use slime_gfx::{FloatImage, GfxError, Gpu, MEMORY_BUDGET_ENV_VAR, RenderTarget, TextureFormat};
+use slime_gfx::{
+    AddressMode, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, CullMode,
+    Filter, FloatImage, FragmentState, GfxError, Gpu, MEMORY_BUDGET_ENV_VAR, RenderPassDescriptor,
+    RenderPipelineDescriptor, RenderTarget, SamplerDescriptor, ShaderStages, TextureFormat,
+};
 use slime_render::glam::{DAffine3, DQuat, DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Environment, ImagePart, Instance, Light, Material, MaterialData,
@@ -503,6 +508,137 @@ fn four_views_take_one_cascades_atlas_where_four_renderers_took_four() {
         four_renderers + 4 * MIB >= four_views + 3 * 64 * MIB,
         "{four_views} bytes against {four_renderers}"
     );
+}
+
+/// Reads the texel of an image under each pixel of a target of its size, as a panel of an editor's
+/// interface shows a view's image.
+const PANEL: &str = "
+@group(0) @binding(0) var image: texture_2d<f32>;
+@group(0) @binding(1) var nearest: sampler;
+
+@vertex
+fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
+    let corner = vec2<f32>(f32((index << 1u) & 2u), f32(index & 2u));
+    return vec4<f32>(corner * 2.0 - 1.0, 0.0, 1.0);
+}
+
+@fragment
+fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
+    return textureSample(image, nearest, position.xy / vec2<f32>(textureDimensions(image)));
+}
+";
+
+/// A view's image, drawn into an output of its own, is sampled by a pipeline of the GPU layer, as
+/// the editor's interface shows a viewport in a panel (ADR-0115): the panel shows what the view
+/// drew.
+#[test]
+fn a_view_s_image_is_sampled_by_another_pipeline() {
+    let gpu = gpu();
+    let mut renderer = Renderer::new(&gpu, FORMAT).expect("the renderer is created");
+    let things = Things::new(&gpu, &renderer);
+    let mut view = view(&gpu, &renderer);
+    let image = output(&gpu, 64, 48);
+    renderer
+        .render(
+            &gpu,
+            &things.yard(0.04),
+            &mut [ViewDraw::new(
+                &mut view,
+                looking_from(DVec3::new(4.0, 3.0, 6.0)),
+                &image,
+            )],
+        )
+        .expect("the frame is drawn");
+    let layout = gpu
+        .create_bind_group_layout(
+            "panel",
+            &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::Texture,
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visible_to: ShaderStages::Fragment,
+                    ty: BindingType::Sampler,
+                },
+            ],
+        )
+        .expect("the GPU has memory for it");
+    let sampler = gpu
+        .create_sampler(
+            "nearest",
+            &SamplerDescriptor {
+                mag_filter: Filter::Nearest,
+                min_filter: Filter::Nearest,
+                address_u: AddressMode::ClampToEdge,
+                address_v: AddressMode::ClampToEdge,
+            },
+        )
+        .expect("the GPU has memory for it");
+    let group = gpu
+        .create_bind_group(
+            "panel",
+            &layout,
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::RenderTarget(&image),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::Sampler(&sampler),
+                },
+            ],
+        )
+        .expect("the GPU has memory for it");
+    let shader = gpu
+        .create_shader_module("panel", PANEL)
+        .expect("the shader compiles");
+    let pipeline = gpu
+        .create_render_pipeline(&RenderPipelineDescriptor {
+            label: "panel",
+            shader: &shader,
+            vertex_entry_point: "vs_main",
+            vertex_layout: None,
+            fragment: Some(FragmentState {
+                entry_point: "fs_main",
+                target_format: Some(FORMAT),
+                blend: None,
+            }),
+            bind_group_layouts: &[&layout],
+            depth: None,
+            cull: CullMode::None,
+            multisampled: false,
+        })
+        .expect("the pipeline is valid");
+    let panel = output(&gpu, 64, 48);
+    gpu.render(
+        &RenderPassDescriptor {
+            target: &panel,
+            clear: Some(LinearColor::BLACK),
+            depth: None,
+            timer: None,
+            resolve: None,
+        },
+        |pass| {
+            pass.set_pipeline(&pipeline);
+            pass.set_bind_group(0, &group, &[]);
+            pass.draw(0..3);
+        },
+    );
+    let drawn = gpu
+        .read_float_render_target(&image)
+        .expect("the image is read back");
+    let shown = gpu
+        .read_float_render_target(&panel)
+        .expect("the image is read back");
+    assert!(
+        drawn.pixels.iter().any(|&value| value > 0.1),
+        "a yard drawn"
+    );
+    assert_eq!(shown.pixels, drawn.pixels);
 }
 
 /// A view resized gives its old targets back: drawn again at its first size, it holds what it held

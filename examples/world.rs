@@ -8,11 +8,15 @@
 //! view, orthographic, draws a map of it from above in the window's top right corner
 //! (`docs/adr/0126-views-apart-from-the-renderer.md`). After a lost GPU
 //! device, it goes on: a new asset cache loads the world's meshes again, and the world is
-//! untouched. F2 shows the dev overlay's world panel, which lists the entities by name and edits
-//! their components (`slime-devui`); F3 its panel of the views, which shows the size each draws at
-//! and edits its settings: its render scale, anti-aliasing, a mode of debugging that shows normals
-//! or shadows, and its passes (`docs/adr/0127-the-settings-of-a-view.md`), which a tool driving
-//! the example changes too. Escape, closing the window or Ctrl+C quits.
+//! untouched. Besides the yard, the example draws into the yard's view a grid on the ground, hidden
+//! by what stands in front of it, and an icon above each light, facing the camera, through an unlit
+//! material; Tab selects the next entity that places meshes, whose box both views draw over their
+//! image (`docs/adr/0129-drawing-for-the-editor.md`). F2 shows the dev overlay's world panel, which
+//! lists the entities by name and edits their components (`slime-devui`); F3 its panel of the
+//! views, which shows the size each draws at and edits its settings: its render scale,
+//! anti-aliasing, a mode of debugging that shows normals or shadows, and its passes
+//! (`docs/adr/0127-the-settings-of-a-view.md`), which a tool driving the example changes too.
+//! Escape, closing the window or Ctrl+C quits.
 //!
 //! When it quits, it saves its world (`docs/adr/0125-saves-per-scene.md`): what the run changed
 //! since the example settled the world that it spawns at the start, what the panel changed. The
@@ -61,15 +65,17 @@ use slime_app::{
     AppConfig, AppError, Context, Presentation, Reflected, ShownView, Simulation, SimulationContext,
 };
 use slime_assets::{CookedAssets, ManifestWatch};
+use slime_color::LinearColor;
 use slime_devui::{Overlay, WorldPanel, edit_reflected, egui};
-use slime_gfx::RenderTarget;
+use slime_gfx::{AddressMode, Filter, Gpu, RenderTarget, SamplerDescriptor, TextureFormat};
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
-use slime_render::glam::{DVec3, Vec3};
+use slime_render::glam::{DAffine3, DMat3, DQuat, DVec3, Vec3};
 use slime_render::{
-    AssetCache, AssetRequests, Camera, Projection, RenderStats, Renderer, Scene, View, ViewDraw,
-    ViewSettings, Viewport,
+    AlphaMode, AssetCache, AssetRequests, Camera, DrawList, Drawings, Instance, Line, Material,
+    Mesh, MeshData, Projection, RenderStats, Renderer, SampledTexture, Scene, UnlitData, View,
+    ViewDraw, ViewSettings, Viewport,
 };
-use slime_world::{Entity, Light, PersistentId, SceneLibrary, Tick, Transform, World};
+use slime_world::{Entity, Light, Meshes, PersistentId, SceneLibrary, Tick, Transform, World};
 use slime_world_render::FrameBuilder;
 
 use sample_scene::{BLOOM, EXPOSURE, SKY};
@@ -92,6 +98,18 @@ const MAP_MARGIN: f32 = 0.05;
 /// The names of the yard's view and of the map's, by which a tool captures them and changes their
 /// settings, in the order of `YardView::views` and `YardView::settings`.
 const VIEWS: [&str; 2] = ["yard", "map"];
+/// How high the grid lies above the ground, in metres, so that the ground does not hide it, its
+/// lines' color, and their width, in pixels.
+const GRID_HEIGHT: f64 = 0.01;
+const GRID_COLOR: LinearColor = LinearColor::rgba(0.8, 0.8, 0.8, 0.35);
+const GRID_WIDTH: f32 = 1.0;
+/// The side of a light's icon, in metres, which floats that high above its light, out of a lamp's
+/// bulb, and the side of its texture, in texels.
+const ICON_SIDE: f64 = 0.4;
+const ICON_TEXELS: u32 = 32;
+/// The color of the selected entity's box, and its width, in pixels.
+const SELECTED_COLOR: LinearColor = LinearColor::rgb(1.0, 0.75, 0.1);
+const SELECTED_WIDTH: f32 = 2.0;
 
 /// The example's rules: the yard spawned, its ring floating at the fixed step, and, with `--watch`,
 /// the run carried into the scenes that changed.
@@ -156,6 +174,15 @@ struct YardView {
     frame_limit: Option<u64>,
     /// With `--watch`, what tells the cache when the cooked data changes.
     watch: Option<ManifestWatch>,
+    /// The square and the material of the lights' icons, while there is a GPU.
+    icon: Option<(Mesh, Material)>,
+    /// The entity whose box both views draw over their image, and whether Tab asked for the next.
+    selected: Option<Entity>,
+    select_next: bool,
+    /// What the example draws into each view besides the yard, built by `extract`: in the yard's, a
+    /// grid on the ground and an icon above each light, facing the camera; in both, the box of the
+    /// selected entity, over the image.
+    drawings: [Drawings; 2],
 }
 
 impl Yard {
@@ -243,6 +270,7 @@ impl YardView {
                 self.cached.clone(),
                 requests,
             ));
+            self.icon = Some(icon(gpu, &renderer)?);
             self.renderer = Some(renderer);
             self.overlay = Some(Overlay::new(gpu, format, window.scale_factor())?);
         }
@@ -431,6 +459,7 @@ impl Presentation for YardView {
             match physical {
                 KeyCode::F2 => self.panel_shown = !self.panel_shown,
                 KeyCode::F3 => self.settings_shown = !self.settings_shown,
+                KeyCode::Tab if !typing => self.select_next = true,
                 KeyCode::Escape if !typing => ctx.request_exit(),
                 _ => {}
             }
@@ -485,6 +514,44 @@ impl Presentation for YardView {
             }
         };
         self.whole = frame.loading == 0;
+        if std::mem::take(&mut self.select_next) {
+            self.selected = next_with_meshes(world, self.selected);
+        }
+        if self.selected.is_some_and(|entity| !world.contains(entity)) {
+            self.selected = None;
+        }
+        let selected = self.selected.map_or_else(Vec::new, |entity| {
+            box_lines(world, cache, entity, ctx.time().game().alpha())
+        });
+        let lights = frame.lights.iter().filter_map(|(_, light)| match light {
+            slime_render::Light::Point(light) => Some(light.position),
+            slime_render::Light::Spot(light) => Some(light.position),
+            _ => None,
+        });
+        let icons = self
+            .icon
+            .as_ref()
+            .map_or_else(Vec::new, |(square, material)| {
+                lights
+                    .map(|light| {
+                        let above = light + DVec3::Y * ICON_SIDE;
+                        icon_facing(square, material, above, camera.eye)
+                    })
+                    .collect()
+            });
+        self.drawings = [
+            Drawings {
+                in_scene: DrawList {
+                    lines: grid(self.framing),
+                    instances: icons,
+                },
+                over_image: selected.clone(),
+            },
+            Drawings {
+                over_image: selected,
+                ..Drawings::default()
+            },
+        ];
         let mut scene = frame.scene(camera.eye);
         scene.exposure = EXPOSURE;
         scene.bloom = BLOOM;
@@ -540,6 +607,7 @@ impl Presentation for YardView {
         yard.set_settings(self.settings[0]);
         map.set_settings(self.settings[1]);
         let mut draws = vec![ViewDraw::new(yard, camera, target)];
+        draws[0].drawings = Some(&self.drawings[0]);
         let side = (target.width().min(target.height()) as f32 * MAP_SIDE) as u32;
         let margin = (side as f32 * MAP_MARGIN) as u32;
         // A window too small for a map draws none.
@@ -551,6 +619,7 @@ impl Presentation for YardView {
                 width: side,
                 height: side,
             });
+            corner.drawings = Some(&self.drawings[1]);
             draws.push(corner);
         }
         if let Err(error) = renderer.render(gpu, &scene, &mut draws) {
@@ -627,6 +696,8 @@ impl Presentation for YardView {
         self.requests = self.cache.take().map(AssetCache::into_requests);
         self.scene = None;
         self.builder.release();
+        self.icon = None;
+        self.drawings = Default::default();
     }
 
     fn gpu_restored(&mut self, ctx: &mut Context, _world: &World) -> Result<(), AppError> {
@@ -639,6 +710,144 @@ impl Presentation for YardView {
             ctx.exit_with_error("no frame drew the whole world");
         }
     }
+}
+
+/// A grid on the ground around the yard that `framing` gives, its point and its reach: a line each
+/// metre along each axis, as far as the yard reaches.
+fn grid((center, radius): (DVec3, f32)) -> Vec<Line> {
+    let reach = f64::from(radius.ceil());
+    let (x, z) = (center.x.round(), center.z.round());
+    let line = |from: DVec3, to: DVec3| Line {
+        from,
+        to,
+        color: GRID_COLOR,
+        width: GRID_WIDTH,
+    };
+    (-(reach as i32)..=reach as i32)
+        .flat_map(|step| {
+            let step = f64::from(step);
+            [
+                line(
+                    DVec3::new(x + step, GRID_HEIGHT, z - reach),
+                    DVec3::new(x + step, GRID_HEIGHT, z + reach),
+                ),
+                line(
+                    DVec3::new(x - reach, GRID_HEIGHT, z + step),
+                    DVec3::new(x + reach, GRID_HEIGHT, z + step),
+                ),
+            ]
+        })
+        .collect()
+}
+
+/// The square of a light's icon at `position`, turned to face a camera at `eye`, upright.
+fn icon_facing(square: &Mesh, material: &Material, position: DVec3, eye: DVec3) -> Instance {
+    // The square faces +Z: its +Z turned towards the camera, its +Y kept up.
+    let back = (eye - position).normalize_or(DVec3::Z);
+    let right = DVec3::Y.cross(back).normalize_or(DVec3::X);
+    let rotation = DQuat::from_mat3(&DMat3::from_cols(right, back.cross(right), back));
+    let mut instance = Instance::new(
+        square,
+        material,
+        DAffine3::from_scale_rotation_translation(DVec3::splat(ICON_SIDE), rotation, position),
+    );
+    instance.casts_shadows = false;
+    instance
+}
+
+/// The square of the lights' icons and its material, unlit and blended, a bright disc whose edge
+/// fades over a texel, drawn by `renderer`.
+fn icon(gpu: &Gpu, renderer: &Renderer) -> Result<(Mesh, Material), AppError> {
+    let middle = ICON_TEXELS as f32 / 2.0;
+    let texels: Vec<u8> = (0..ICON_TEXELS * ICON_TEXELS)
+        .flat_map(|index| {
+            let (x, y) = ((index % ICON_TEXELS) as f32, (index / ICON_TEXELS) as f32);
+            let distance = (x + 0.5 - middle).hypot(y + 0.5 - middle);
+            let alpha = (middle - 1.5 - distance + 0.5).clamp(0.0, 1.0);
+            // A white heart in a warm ring.
+            let warm = if distance < middle * 0.45 { 255 } else { 190 };
+            [255, 230, warm, (alpha * 255.0).round() as u8]
+        })
+        .collect();
+    let texture = gpu.create_texture(
+        "light icon",
+        ICON_TEXELS,
+        ICON_TEXELS,
+        TextureFormat::Rgba8UnormSrgb,
+        &texels,
+    )?;
+    let sampler = gpu.create_sampler(
+        "light icon",
+        &SamplerDescriptor {
+            mag_filter: Filter::Linear,
+            min_filter: Filter::Linear,
+            address_u: AddressMode::ClampToEdge,
+            address_v: AddressMode::ClampToEdge,
+        },
+    )?;
+    let material = renderer.create_unlit_material(
+        gpu,
+        "light icon",
+        &UnlitData {
+            texture: Some(SampledTexture {
+                texture: &texture,
+                sampler: &sampler,
+            }),
+            alpha_mode: AlphaMode::Blend,
+            double_sided: true,
+            ..UnlitData::default()
+        },
+    )?;
+    let square = renderer.create_mesh(gpu, "light icon", &MeshData::square())?;
+    Ok((square, material))
+}
+
+/// The entity after `selected` among those that place meshes, in the world's order, the first
+/// after the last; none in a world without them.
+fn next_with_meshes(world: &World, selected: Option<Entity>) -> Option<Entity> {
+    let placing: Vec<Entity> = world.query::<&Meshes>().map(|(entity, _)| entity).collect();
+    let after = selected
+        .and_then(|selected| placing.iter().position(|&entity| entity == selected))
+        .map_or(0, |index| index + 1);
+    placing.get(after).or(placing.first()).copied()
+}
+
+/// The edges of the box around each mesh of `entity` that `cache` holds, where the world draws it
+/// at `fraction` of a fixed step, as the frame builder places it.
+fn box_lines(world: &World, cache: &AssetCache, entity: Entity, fraction: f64) -> Vec<Line> {
+    let (Some(at), Some(transform), Some(meshes)) = (
+        world.interpolated_transform(entity, fraction),
+        world.get::<Transform>(entity),
+        world.get::<Meshes>(entity),
+    ) else {
+        return Vec::new();
+    };
+    let placed = at.to_affine(transform.stretch);
+    let mut lines = Vec::new();
+    for (mesh, _) in meshes.ids.iter().filter_map(|&id| cache.mesh(id)) {
+        let (center, half_size) = mesh.bounds();
+        // Corner i has bit 0 set at +x, bit 1 at +y, bit 2 at +z; an edge joins two corners that
+        // differ by one bit.
+        let corner = |index: usize| {
+            let sign = |bit: usize| if index >> bit & 1 == 1 { 1.0 } else { -1.0 };
+            placed.transform_point3(
+                (center + half_size * Vec3::new(sign(0), sign(1), sign(2))).as_dvec3(),
+            )
+        };
+        for index in 0..8 {
+            for bit in 0..3 {
+                if index >> bit & 1 == 0 {
+                    lines.push(Line {
+                        from: corner(index),
+                        to: corner(index | 1 << bit),
+                        color: SELECTED_COLOR,
+                        width: SELECTED_WIDTH,
+                    });
+                }
+            }
+        }
+    }
+    lines
 }
 
 fn main() -> ExitCode {
@@ -705,6 +914,10 @@ fn main() -> ExitCode {
         drawn: 0,
         frame_limit: options.frame_limit,
         watch: watch(),
+        icon: None,
+        selected: None,
+        select_next: false,
+        drawings: Default::default(),
     };
     match slime_app::run(&mut yard, &mut view, &config) {
         Ok(()) => ExitCode::SUCCESS,

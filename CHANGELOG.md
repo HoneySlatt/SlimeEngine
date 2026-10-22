@@ -8,6 +8,16 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Unlit materials (ADR-0129): `Renderer::create_unlit_material` makes, from `UnlitData`, a material
+  whose color, times its texture, shows as it is whatever the light and the exposure, masked or
+  blended (`AlphaMode::Blend`), casting no shadows; its parameters are `UnlitValues`.
+- What a client draws into a view besides the scene (ADR-0129): `ViewDraw::drawings` gives a view
+  `Drawings`, `Line`s a width in pixels wide and instances in the scene, hidden by what is in front
+  of them, and lines over the image; `RenderStats::after_sky_gpu_time` and `over_image_gpu_time`
+  time them. The `world` example draws a grid and the lights' icons, and the box of the entity that
+  Tab selects.
+- `slime_gfx::Blend`: a pipeline lays its colors over its target by their alpha. `Mesh::bounds`
+  gives a mesh's box.
 - Asset requests (ADR-0113, ADR-0128): `AssetCache::request(gpu, ids, priority)` returns a
   `Request`, whose meshes arrive together, and whose handles (`Request::into_handles`,
   `AssetHandle`) keep each mesh, or keep it loading, while they live, and say what became of it
@@ -159,6 +169,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `FragmentState` has a `blend`; `ViewDraw` has `drawings`; `ShaderSources` holds `unlit.wgsl` and
+  `lines.wgsl`; `AlphaMode` has `Blend`, which a physically based material refuses until Stage 9a.
 - A mesh that the asset cache cannot read, or whose material or texture it cannot, fails alone: the
   others asked for with it arrive (G16). `AssetCache::poll` takes the GPU and returns each failed
   mesh with its error, as `Frame::errors` holds them; `AssetCache::request` takes a priority and
@@ -309,6 +321,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- The lamps of the `world` example's yard have their light: the light of the lamp's prefab had no
+  transform, which the frame builder needs to place a light, and was never drawn.
 - When creating the spot lights' shadow atlas ran out of GPU memory after the cascades' atlas was
   created, the sun lost its shadows for good; the atlases' group is now made again whenever the
   atlases change.
@@ -321,8 +335,6 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - An alias of a field or a variant that is also the name, or an alias, of another field or variant
   beside it is refused: `#[derive(Reflect)]` fails to compile, `Registry::register_dynamic` returns
   an error, and `Registry::register` panics on a type described so by hand. Data that gave it read
-- The lamps of the `world` example's yard have their light: the light of the lamp's prefab had no
-  transform, which the frame builder needs to place a light, and was never drawn.
   back as the other field or variant, without a word.
 - A number on its field's bound is accepted: a range's bounds are compared with a 32-bit float
   rounded to the nearest 32-bit float, so that `range(min = 0.7)` holds `0.7_f32`, and with an

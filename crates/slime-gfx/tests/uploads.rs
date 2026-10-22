@@ -88,6 +88,7 @@ fn ranges_of_buffers_that_an_uploader_brings_draw_once_their_upload_is_done() {
             fragment: Some(FragmentState {
                 entry_point: "fs_main",
                 target_format: Some(target.format()),
+                blend: None,
             }),
             bind_group_layouts: &[],
             depth: None,

@@ -6,8 +6,8 @@ use slime_gfx::GfxError;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum RenderError {
-    /// The GPU layer failed: the graphics driver rejected one of the renderer's four shaders or
-    /// fourteen pipelines (see [`Renderer`](crate::Renderer)), the GPU's memory cannot hold an
+    /// The GPU layer failed: the graphics driver rejected one of the renderer's shaders or
+    /// pipelines (see [`Renderer`](crate::Renderer)), the GPU's memory cannot hold an
     /// object being created (`GfxError::OutOfMemory`), or the device was lost.
     #[error("the GPU layer failed")]
     Gfx(#[from] GfxError),

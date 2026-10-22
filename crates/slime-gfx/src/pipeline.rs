@@ -136,10 +136,29 @@ impl CullMode {
     }
 }
 
+/// How a pipeline's colors are mixed with those that its render target holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Blend {
+    /// The fragment's color laid over the target's by its alpha a, straight, not premultiplied:
+    /// color × a + held × (1 − a), and alpha a + held alpha × (1 − a). In a target of an sRGB
+    /// format, the GPU mixes the linear values, decoded, then encodes the result.
+    Alpha,
+}
+
+impl Blend {
+    fn to_wgpu(self) -> wgpu::BlendState {
+        match self {
+            Self::Alpha => wgpu::BlendState::ALPHA_BLENDING,
+        }
+    }
+}
+
 /// What [`Gpu::create_render_pipeline`] needs to build a pipeline.
 ///
-/// The pipeline draws lists of triangles, without blending, from at most one vertex buffer, into
-/// one render target of its fragment stage's format, or into a depth target only.
+/// The pipeline draws lists of triangles, from at most one vertex buffer, into one render target of
+/// its fragment stage's format, replacing what it holds or blended with it, or into a depth target
+/// only.
 #[derive(Clone, Copy, Debug)]
 pub struct RenderPipelineDescriptor<'a> {
     /// Names the pipeline in error messages and in GPU capture tools.
@@ -184,6 +203,9 @@ pub struct FragmentState<'a> {
     /// that writes no color and only discards fragments, in a pass without a render target
     /// ([`Gpu::render_depth`]).
     pub target_format: Option<TextureFormat>,
+    /// How its colors are mixed with what the render target holds, or `None` to replace it. Not
+    /// used without a render target.
+    pub blend: Option<Blend>,
 }
 
 /// A render pipeline, ready to be set in a [`RenderPass`](crate::RenderPass).
@@ -244,11 +266,11 @@ impl Gpu {
         let color_targets: Vec<Option<wgpu::ColorTargetState>> = descriptor
             .fragment
             .iter()
-            .filter_map(|fragment| fragment.target_format)
-            .map(|format| {
+            .filter_map(|fragment| Some((fragment.target_format?, fragment.blend)))
+            .map(|(format, blend)| {
                 Some(wgpu::ColorTargetState {
                     format: format.to_wgpu(),
-                    blend: None,
+                    blend: blend.map(Blend::to_wgpu),
                     write_mask: wgpu::ColorWrites::ALL,
                 })
             })
