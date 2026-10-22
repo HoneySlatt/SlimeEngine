@@ -50,8 +50,9 @@ manifest, as where CI ships it, and `target/cooked/hunnawood` otherwise.
 Built with its default features, the game holds the engine's development channel
 ([ADR-0122](../../docs/adr/0122-the-development-channel.md)): started with a token, as the engine's
 MCP server starts it ([`crates/slime-mcp`](../../crates/slime-mcp/README.md)), it listens on the
-machine's own address for the tools and the agents that drive it; started without one, as above, it
-does not. `cargo build -p hunnawood --no-default-features` builds it for shipping, without the
+machine's own address for the tools and the agents that drive it, which see its view, named
+`hero`, and change its settings ([ADR-0127](../../docs/adr/0127-the-settings-of-a-view.md)); started
+without one, as above, it does not. `cargo build -p hunnawood --no-default-features` builds it for shipping, without the
 channel.
 
 The window shows its first frame once the hero is loaded and the skies computed, while the zone
@@ -152,7 +153,7 @@ test sets it aside as a save of an earlier version of the engine, and a new run 
 | R | Start again: the hero at the start, the key in its place, the door closed, at the time the game started at |
 | F5 | Save the run |
 | F9 | Load the save, in place of the run |
-| F1 | Show or hide what each frame costs, in the engine's dev overlay, whose slider sets the speed of game time, from a tenth to four times, and whose button loses the GPU device on purpose |
+| F1 | Show or hide what each frame costs, in the engine's dev overlay, with the size the view draws at and its settings, which it changes (render scale, anti-aliasing, a mode of debugging that shows normals or shadows, and whether it draws the shadows, the sky and the bloom), whose slider sets the speed of game time, from a tenth to four times, and whose button loses the GPU device on purpose |
 | F2 | Show or hide the world panel of the dev overlay: the world's entities by name, with a filter, and the components of the one selected, whose values it changes ([`slime-devui`](../../crates/slime-devui/README.md)) |
 | F3 | Pause game time, or let it run again: the hero, the fire's flicker and the key's glow stop, and the camera still turns |
 | F4 | While game time is paused, run one step of it, 1/60 s |
@@ -214,7 +215,7 @@ identity.
 | `main.rs` | The program: the command line, the world built before the window opens, a new run or the save resumed, and the rules and the screen run with `slime_app::run` |
 | `lib.rs` | The library: its modules, and the two parts that a host runs |
 | `simulation.rs` | The rules as a simulation (`slime_app::Simulation`): the hero walked at each fixed step as the keys held ask, where the player looks turned on real time, rest, restart, saving with F5 and when the game stops, loading with F9, Escape, and with `--watch` the run carried into the scenes that changed; a save resumed from its file, or set aside |
-| `screen.rs` | What the player sees as a presentation (`slime_app::Presentation`): the view made when the window opens and again with a new GPU device, the camera, game time held until the zone is drawn, the dev overlay and its keys, F3 and F4, and with `--watch` the cooked data and the shaders loaded again |
+| `screen.rs` | What the player sees as a presentation (`slime_app::Presentation`): the view made when the window opens and again with a new GPU device, with its settings, which a tool reads and changes, the camera, game time held until the zone is drawn, the dev overlay and its keys, F3 and F4, and with `--watch` the cooked data and the shaders loaded again |
 | `assets.rs` | Where the cooked data is, and the IDs of the zone's scene file and the hero, from their metadata files |
 | `saves.rs` | The save: where its file is, held by one copy of the game at a time, what it holds and how it is read and written, and a run resumed from it once it is checked; a run carried into the scenes that changed on disk, or started again when the zone's layout changed |
 | `rules.rs` | The rules, as functions over the world and without the GPU: the hero's movement, its heading, and its collisions, as a circle on the ground against the colliders that are not hidden and the zone's edge; the key, the door, the campfire and the time of day |
@@ -223,7 +224,7 @@ identity.
 | `controls.rs` | What the keys held ask for, read from the engine's input (`slime_platform::Input`) |
 | `camera.rs` | The camera behind the hero along where the player looks, coming nearer when a collider would stand between them |
 | `view.rs` | What the player sees: the renderer, the asset cache (`slime_render::AssetCache`), which loads the hero's meshes before the first frame and the rest in the background, and a frame builder for each time of day (`slime_world_render::FrameBuilder`): by day, the overcast sky, the zone's sun behind its clouds; by night, a dark sky around the moon's disc, the zone's moon showing in the sky; the fire that flickers, its light in the frame and its materials, and the key that pulses at night, their materials found by name in the cooked data and changed at each frame (`Material::set_values`); each frame built from the world when the screen extracts, and drawn without it |
-| `overlay.rs` | The dev overlay: what each frame costs and the speed of game time, with a button that loses the GPU device on purpose, and the world panel, whose edits the screen sends to the host as commands |
+| `overlay.rs` | The dev overlay: what each frame costs, the settings of the view, and the speed of game time, with a button that loses the GPU device on purpose, and the world panel, whose edits the screen sends to the host as commands |
 
 The rules run at the engine's fixed step, 1/60 s of game time, so that a game plays the same on
 every machine and at every speed; the world draws the hero between its last two steps, by the share

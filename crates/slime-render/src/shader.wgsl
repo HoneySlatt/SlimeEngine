@@ -40,6 +40,10 @@ const DIRECTIONAL: u32 = 0u;
 // Light::tile of a light without a tile of the spot lights' shadow atlas: NO_TILE in light.rs, which
 // a unit test compares with it.
 const NO_TILE: u32 = 0xffffffffu;
+// FrameUniform::debug of the modes of debugging that show the normals and the shadows:
+// DebugMode::value in renderer.rs, which a unit test compares with them.
+const DEBUG_NORMALS: u32 = 1u;
+const DEBUG_SHADOWS: u32 = 2u;
 // The square of the distance, in square metres, within which a point or spot light gives what it
 // gives 1 cm away, as Filament and Bevy do: the inverse square of the distance would grow without
 // bound at the light.
@@ -118,6 +122,9 @@ struct FrameUniform {
     // The index in `lights` of the light that the cascades shadow, the scene's first directional
     // light that casts shadows; light_count or more when none is.
     shadowed_light: u32,
+    // What the view shows (DebugMode in renderer.rs): 0 the scene, lit; DEBUG_NORMALS or
+    // DEBUG_SHADOWS a mode of debugging, whose colors the tone-mapping pass writes as they are.
+    debug: u32,
     // For an orthographic camera, xyz the unit direction towards it, the same everywhere, and w 1;
     // 0 in perspective, where it lies at the frame's origin.
     orthographic: vec4<f32>,
@@ -326,6 +333,11 @@ fn fs_main(
         front_facing,
         input.handedness,
     );
+    // Written as it is, without exposure: the tone-mapping pass multiplies it by HEADROOM again,
+    // without its curve.
+    if frame.debug == DEBUG_NORMALS {
+        return vec4<f32>((normal * 0.5 + 0.5) / HEADROOM, 1.0);
+    }
     // A camera in perspective is at the origin of the frame's space.
     var to_camera = normalize(-input.position);
     if frame.orthographic.w > 0.0 {
@@ -334,13 +346,20 @@ fn fs_main(
     // Read once, outside the loop over the lights, whose bound the shader compiler of Direct3D 12
     // cannot unroll.
     var shadow = 1.0;
+    // The finest cascade that holds the fragment, which DEBUG_SHADOWS tints it by; CASCADES for
+    // none.
+    var cascade = CASCADES;
     if frame.shadowed_light < frame.light_count {
-        shadow = light_reaching(input.position, geometric);
+        let reaching = light_reaching(input.position, geometric);
+        shadow = reaching.lit;
+        cascade = reaching.cascade;
     }
     // The loop's bound and each light are the same for every fragment, and every light is
     // evaluated whatever lies around it; a spot light's shadow is read only where its light
     // reaches, at level 0, which control flow that differs between fragments allows.
     var direct = vec3<f32>(0.0);
+    // The share of the spot lights' light that their shadows let through, for DEBUG_SHADOWS.
+    var spots_lit = 1.0;
     for (var i = 0u; i < frame.light_count; i += 1u) {
         let light = frame.lights[i];
         var l = -light.direction;
@@ -366,11 +385,16 @@ fn fs_main(
             // A spot light's shadow, where its light reaches (ADR-0061).
             if light.tile != NO_TILE && attenuation > 0.0 {
                 let tile = frame.spot_tiles[light.tile];
-                attenuation *= spot_light_reaching(light, tile, input.position, geometric, l);
+                let lit = spot_light_reaching(light, tile, input.position, geometric, l);
+                attenuation *= lit;
+                spots_lit *= lit;
             }
         }
         direct += min(light.color * attenuation, vec3<f32>(LARGEST_LIGHT))
             * reflected(base.rgb, metallic, roughness, normal, l, to_camera);
+    }
+    if frame.debug == DEBUG_SHADOWS {
+        return vec4<f32>(shadow * spots_lit * cascade_tint(cascade) / HEADROOM, 1.0);
     }
     // The environment's light, which occlusion darkens, and it alone (glTF: indirect light). Its
     // level is read from the material's roughness itself: the shading's lower bound avoids 0 / 0
@@ -480,8 +504,13 @@ fn fs_sky(input: SkyVertex) -> @location(0) vec4<f32> {
 // band, it takes it in part, from all of it at the band's inner edge to none at its outer edge,
 // and the cascades after it, or beyond the last the light itself, give the rest: shadows fade from
 // one cascade into the next, and out at the edge of the last, beyond which nothing is shadowed
-// (ADR-0050).
-fn light_reaching(position: vec3<f32>, normal: vec3<f32>) -> f32 {
+// (ADR-0050). Also the finest cascade that holds the point, CASCADES for none.
+struct Reaching {
+    lit: f32,
+    cascade: u32,
+}
+
+fn light_reaching(position: vec3<f32>, normal: vec3<f32>) -> Reaching {
     let cosine = dot(normal, -frame.lights[frame.shadowed_light].direction);
     let sine = sqrt(max(1.0 - cosine * cosine, 0.0));
     // In texels of the cascade it is read from, on the side of the surface the light reaches.
@@ -490,13 +519,11 @@ fn light_reaching(position: vec3<f32>, normal: vec3<f32>) -> f32 {
     var lit = 0.0;
     // The share of the light that no cascade has given yet.
     var left = 1.0;
+    var finest = CASCADES;
     for (var i = 0u; i < CASCADES && left > 0.0; i += 1u) {
         let cascade = frame.cascades[i];
         let seen = (cascade.view_proj * vec4<f32>(position + offset * cascade.place.w, 1.0)).xyz;
-        // How far inside its square the point lies, in its clip space, 2 wide, where a texel is
-        // 2 / its tile's side in texels.
-        let margin = CASCADE_MARGIN_TEXELS * 2.0 * texel.x / cascade.place.z;
-        let held = saturate((1.0 - margin - max(abs(seen.x), abs(seen.y))) / CASCADE_BAND);
+        let held = held_by(cascade, seen.xy, texel.x);
         if held > 0.0 {
             // Beyond the far end of the cascade's depths, at depths below 0, a point lies behind
             // every caster that reaches the cascade, and is compared as if it were at that end
@@ -512,9 +539,36 @@ fn light_reaching(position: vec3<f32>, normal: vec3<f32>) -> f32 {
             );
             lit += left * held * share;
             left *= 1.0 - held;
+            finest = min(finest, i);
         }
     }
-    return lit + left;
+    return Reaching(lit + left, finest);
+}
+
+// How much of a point seen at `seen`, from -1 to 1 across the square of `cascade`, the cascade
+// gives its share of light: 1 deeper inside its square than CASCADE_BAND, 0 within
+// CASCADE_MARGIN_TEXELS of its edges and beyond, fading between; its texels are `texel` wide in
+// its atlas's texture coordinates.
+fn held_by(cascade: ShadowTile, seen: vec2<f32>, texel: f32) -> f32 {
+    // How far inside its square the point lies, in its clip space, 2 wide, where a texel is
+    // 2 / its tile's side in texels.
+    let margin = CASCADE_MARGIN_TEXELS * 2.0 * texel / cascade.place.z;
+    return saturate((1.0 - margin - max(abs(seen.x), abs(seen.y))) / CASCADE_BAND);
+}
+
+// For DEBUG_SHADOWS, the tint of `cascade`, from the nearest the camera: red, green, blue, then
+// yellow; white for CASCADES, beyond the last, or without a shadowed light.
+fn cascade_tint(cascade: u32) -> vec3<f32> {
+    var tints = array<vec3<f32>, CASCADES>(
+        vec3<f32>(1.0, 0.5, 0.5),
+        vec3<f32>(0.5, 1.0, 0.5),
+        vec3<f32>(0.5, 0.5, 1.0),
+        vec3<f32>(1.0, 1.0, 0.5),
+    );
+    if cascade >= CASCADES {
+        return vec3<f32>(1.0);
+    }
+    return tints[cascade];
 }
 
 // Where a point seen at `seen`, from -1 to 1 across a tile at `place` of an atlas whose texels are

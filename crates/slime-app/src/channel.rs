@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use slime_channel::{
     ANNOUNCEMENT, ComponentText, EntitySummary, GameState, Incoming, Listener, LogLine,
-    MAX_ENTITIES, MAX_LOG_LINES, Reply, Request, TOKEN_ENV_VAR, Token,
+    MAX_ENTITIES, MAX_LOG_LINES, Reply, Request, TOKEN_ENV_VAR, Token, ViewSummary,
 };
 use slime_gfx::{Gpu, Image, RenderTarget};
 use slime_platform::KeyCode;
@@ -15,7 +15,7 @@ use slime_reflect::{Kind, Path, Reflect as _, Registry, Value};
 use slime_serialize::{Composer, Document, Mode, References};
 use slime_world::{Command, Entity, Name, PersistentId, World};
 
-use crate::game::{ShownView, Simulation};
+use crate::game::{Presentation, ReflectedSettings, ShownView, Simulation};
 use crate::host::Host;
 use crate::log_lines;
 
@@ -74,17 +74,18 @@ impl DevChannel {
     /// requests that arrived, which change the host as a frame's start may. A step is answered once
     /// the frames have run every step asked for, so that what the tool asks next comes after them;
     /// a capture waits for the frame's image ([`DevChannel::capture`]); `windowed` says whether
-    /// the run has one, and `views` names the views that its last frame drew. A save and a load are
-    /// `simulation`'s ([`Simulation::save`]).
+    /// the run has one. A save and a load are `simulation`'s ([`Simulation::save`]); the views
+    /// that the last frame drew, and their settings, `presentation`'s ([`Presentation::views`]).
     pub(crate) fn answer(
         &mut self,
         host: &mut Host,
         simulation: &mut dyn Simulation,
-        views: &[ShownView],
+        presentation: &mut dyn Presentation,
         frames: u64,
         real: Duration,
         windowed: bool,
     ) {
+        let views = presentation.views();
         self.frames.push_back(real);
         if self.frames.len() > FRAMES_MEASURED {
             self.frames.pop_front();
@@ -115,7 +116,8 @@ impl DevChannel {
             let reply = self.reply(
                 host,
                 simulation,
-                views,
+                presentation,
+                &views,
                 frames,
                 incoming.request(),
                 windowed,
@@ -167,24 +169,21 @@ impl DevChannel {
                     ))),
                 }
             } else {
-                let names: Vec<&str> = views.iter().map(|shown| shown.name.as_str()).collect();
-                incoming.answer(failed(format!(
-                    "the frame draws no view `{view}`: it draws {}",
-                    if names.is_empty() {
-                        "none by name".to_owned()
-                    } else {
-                        format!("`{}`", names.join("`, `"))
-                    }
-                )));
+                incoming.answer(failed(no_view(&view, views)));
             }
         }
     }
 
     /// The reply to `request`.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "what the requests reach: the host, the game's two halves, and the frame's views"
+    )]
     fn reply(
         &self,
         host: &mut Host,
         simulation: &mut dyn Simulation,
+        presentation: &mut dyn Presentation,
         views: &[ShownView],
         frames: u64,
         request: &Request,
@@ -193,7 +192,7 @@ impl DevChannel {
         let ctx = host.context_mut();
         match request {
             Request::State => Reply::State {
-                state: self.state(host, views, frames),
+                state: self.state(host, presentation, views, frames),
             },
             Request::Pause => {
                 ctx.pause();
@@ -246,6 +245,10 @@ impl DevChannel {
                 }
                 Reply::Done
             }
+            Request::SetViewSettings { view, path, value } => {
+                set_view_settings(host.world(), presentation, views, view, path, value)
+                    .map_or_else(failed, |()| Reply::Done)
+            }
             Request::Capture { .. } => {
                 debug_assert!(!windowed, "a windowed run's capture waits for its image");
                 failed("a run without a window shows no image")
@@ -273,8 +276,14 @@ impl DevChannel {
     }
 
     /// The game's state at the start of a frame, after `frames` frames, the last of which drew
-    /// `views`.
-    fn state(&self, host: &Host, views: &[ShownView], frames: u64) -> GameState {
+    /// `views`, whose settings `presentation` gives.
+    fn state(
+        &self,
+        host: &Host,
+        presentation: &dyn Presentation,
+        views: &[ShownView],
+        frames: u64,
+    ) -> GameState {
         let ctx = host.context();
         let (real, game) = (ctx.time().real(), ctx.time().game());
         let milliseconds = |time: Duration| time.as_secs_f64() * 1000.0;
@@ -295,7 +304,16 @@ impl DevChannel {
                 .map(milliseconds)
                 .fold(0.0, f64::max),
             entities: host.world().len() as u64,
-            views: views.iter().map(|shown| shown.name.clone()).collect(),
+            views: views
+                .iter()
+                .map(|shown| ViewSummary {
+                    name: shown.name.clone(),
+                    settings: presentation
+                        .view_settings(&shown.name)
+                        .map(|settings| settings_text(&settings))
+                        .unwrap_or_default(),
+                })
+                .collect(),
         }
     }
 }
@@ -305,6 +323,60 @@ fn failed(why: impl ToString) -> Reply {
     Reply::Failed {
         message: why.to_string(),
     }
+}
+
+/// Why a request that names `view` fails when the frame drew `views`, none of which is named so.
+fn no_view(view: &str, views: &[ShownView]) -> String {
+    let names: Vec<&str> = views.iter().map(|shown| shown.name.as_str()).collect();
+    format!(
+        "the frame draws no view `{view}`: it draws {}",
+        if names.is_empty() {
+            "none by name".to_owned()
+        } else {
+            format!("`{}`", names.join("`, `"))
+        }
+    )
+}
+
+/// `settings` as a document in the engine's notation.
+fn settings_text(settings: &ReflectedSettings) -> String {
+    let mut composer = Composer::new(&settings.registry);
+    composer
+        .put(&[], &settings.ty, &settings.value)
+        .and_then(|()| composer.finish())
+        .unwrap_or_else(|error| format!("# cannot be written: {error}"))
+}
+
+/// Sets the part at `path` of the settings of `presentation`'s view `view`, one of `views`, to
+/// `text`, a value in the engine's notation, which the settings' reflection checks; `world` names
+/// the entities that a value may refer to.
+fn set_view_settings(
+    world: &World,
+    presentation: &mut dyn Presentation,
+    views: &[ShownView],
+    view: &str,
+    path: &str,
+    text: &str,
+) -> Result<(), String> {
+    if !views.iter().any(|shown| shown.name == view) {
+        return Err(no_view(view, views));
+    }
+    let mut settings = presentation
+        .view_settings(view)
+        .ok_or_else(|| format!("the game does not give the settings of its view `{view}`"))?;
+    let path: Path = path
+        .parse()
+        .map_err(|error| format!("`{path}` is no property path: {error}"))?;
+    let ty = settings
+        .registry
+        .type_at(&settings.ty, &settings.value, &path)
+        .map_err(|error| error.to_string())?;
+    let value = read_value(&settings.registry, &ty, text, &Identities(world))?;
+    settings
+        .registry
+        .set(&settings.ty, &mut settings.value, &path, value)
+        .map_err(|error| error.to_string())?;
+    presentation.set_view_settings(view, &settings)
 }
 
 /// The part of `image` that `view` covers, cut at the image's edges, as a presentation's views of
@@ -524,5 +596,93 @@ mod tests {
         assert_eq!((width, height, pixels), (1, 1, vec![3, 2, 0, 255]));
         assert_eq!(cropped(&image, &view(4, 0, 2, 2)), None);
         assert_eq!(cropped(&image, &view(0, 0, 0, 2)), None);
+    }
+
+    /// The settings of the view of [`Dials`], as reflection describes them.
+    #[derive(Clone, Copy, Debug, PartialEq, slime_reflect::Reflect)]
+    #[reflect(name = "test::Dial")]
+    struct Dial {
+        /// How far it is turned.
+        #[reflect(range(min = 0.0, max = 1.0))]
+        level: f32,
+        /// Whether it is on.
+        on: bool,
+    }
+
+    /// A presentation that names a view, `dial`, whose settings a tool reads and changes.
+    struct Dials {
+        dial: Dial,
+    }
+
+    impl Presentation for Dials {
+        fn view_settings(&self, name: &str) -> Option<ReflectedSettings> {
+            (name == "dial").then(|| ReflectedSettings::new(&self.dial))
+        }
+
+        fn set_view_settings(
+            &mut self,
+            name: &str,
+            settings: &ReflectedSettings,
+        ) -> Result<(), String> {
+            assert_eq!(
+                name, "dial",
+                "the channel names the views that the frame drew"
+            );
+            self.dial = settings.get().map_err(|error| error.to_string())?;
+            Ok(())
+        }
+    }
+
+    /// A tool reads a view's settings as text, and sets a part of them, or the whole, within the
+    /// ranges of their fields; a view that the frame did not draw, or whose settings the game does
+    /// not give, is refused.
+    #[test]
+    fn a_tool_reads_and_changes_the_settings_of_a_view() {
+        let world = World::new();
+        let mut dials = Dials {
+            dial: Dial {
+                level: 0.5,
+                on: false,
+            },
+        };
+        let views = ["dial", "map"].map(|name| ShownView {
+            name: name.to_owned(),
+            x: 0,
+            y: 0,
+            width: 1,
+            height: 1,
+        });
+        let text = settings_text(&dials.view_settings("dial").expect("given"));
+        assert!(text.contains("level = 0.5"), "{text}");
+        assert!(text.contains("on = false"), "{text}");
+        let mut set = |view: &str, path: &str, value: &str| {
+            set_view_settings(&world, &mut dials, &views, view, path, value)
+        };
+        assert_eq!(set("dial", "level", "0.25"), Ok(()));
+        assert_eq!(set("dial", "", "{ level = 1.0, on = true }"), Ok(()));
+        // Out of its range, of another type, a part it does not have.
+        for (path, value) in [("level", "1.5"), ("on", "\"yes\""), ("speed", "1.0")] {
+            assert!(set("dial", path, value).is_err(), "{path} = {value}");
+        }
+        let refused = set("map", "level", "0.5").expect_err("not given");
+        assert_eq!(
+            refused,
+            "the game does not give the settings of its view `map`"
+        );
+        let refused = set("yard", "level", "0.5").expect_err("not drawn");
+        assert_eq!(
+            refused,
+            "the frame draws no view `yard`: it draws `dial`, `map`"
+        );
+        assert_eq!(
+            dials.dial,
+            Dial {
+                level: 1.0,
+                on: true
+            }
+        );
+        // A presentation that keeps the default refuses every change.
+        let refused = set_view_settings(&world, &mut (), &views, "dial", "level", "0.5");
+        assert!(refused.is_err());
     }
 }

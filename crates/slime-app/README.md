@@ -120,7 +120,10 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   frame draws, then, when the window can show a new image, `render`, which draws it into the
   window's image without the world (`docs/adr/0111-the-frame-contract.md`), and `views`, which
   names the views that it drew there, each with its rectangle (`ShownView`), so that a tool
-  captures one through the development channel (`docs/adr/0126-views-apart-from-the-renderer.md`);
+  captures one through the development channel (`docs/adr/0126-views-apart-from-the-renderer.md`),
+  with `view_settings` and `set_view_settings`, which hand a tool a view's settings as reflection
+  describes them (`ReflectedSettings`), and take them back changed
+  (`docs/adr/0127-the-settings-of-a-view.md`);
   `gpu_lost` and `gpu_restored` when the run replaces a lost GPU device, which a game asks for with
   `AppConfig::restore_lost_device`: it drops its GPU objects in the first, before the new device
   opens, and creates them again in the second
@@ -261,9 +264,10 @@ the name the graphics API gives it.
 - `slime-gfx`: the GPU and the window's surface, for windowed runs.
 - `slime-platform`: the window and its events, for windowed runs, and the input as data.
 - `slime-world`: the game's world, which it owns, and its commands.
-- `slime-channel`, `slime-reflect` and `slime-serialize`, with the `development` feature only: the
-  development channel, and the reflection and the documents through which it reads and writes the
-  world's values as text.
+- `slime-reflect`: the settings of a presentation's views, described to the tools that change
+  them; the world depends on it in every build.
+- `slime-channel` and `slime-serialize`, with the `development` feature only: the development
+  channel, and the documents through which it reads and writes values as text.
 - `thiserror`: derives `RunError`'s `Display` and `Error` implementations.
 - `tracing`: the logging macros and profiling spans.
 - `tracing-subscriber`: the subscriber that formats, filters and writes log events, including the

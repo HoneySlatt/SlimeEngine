@@ -10,7 +10,8 @@
   [0106](0106-the-measured-quick-wins.md) (the lights nearest a point that the game gives first),
   [0111](0111-the-frame-contract.md) (how views are built), [0116](0116-stage-6-in-two-halves.md)
   (M6a.8 in two milestones) and [0122](0122-the-development-channel.md) (version 3 of the protocol:
-  a view captured)
+  a view captured); amended by [0127](0127-the-settings-of-a-view.md) (a view's targets made again
+  once its size holds still)
 - Date: 2026-10-22
 
 ## Context

@@ -280,7 +280,7 @@ impl Frames {
             channel.answer(
                 host,
                 simulation,
-                &presentation.views(),
+                presentation,
                 index,
                 raw_delta,
                 surface.is_some(),

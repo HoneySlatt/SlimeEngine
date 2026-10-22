@@ -1,10 +1,11 @@
-//! Multisample anti-aliasing (ADR-0056, ADR-0060), checked by reading back `Rgba16Float` outputs:
-//! an emissive square on the black of a scene without an environment, whose left edge lies a
-//! quarter of the way across a column of pixels. Of the four samples of each pixel of that column,
-//! at an eighth, three eighths, five eighths and seven eighths of its width (the standard pattern),
-//! three see the square, of light E, and one the black: the resolve weighs each by 1 / (1 + its
-//! brightest channel), so that the column shows 3E / (3 + (1 + E)) = 3E / (4 + E), where a plain
-//! average would show 3E / 4. Runs on whatever adapter the machine offers.
+//! Multisample anti-aliasing (ADR-0056, ADR-0060), and none (ADR-0127), checked by reading back
+//! `Rgba16Float` outputs: an emissive square on the black of a scene without an environment, whose
+//! left edge lies a quarter of the way across a column of pixels. Of the four samples of each pixel
+//! of that column, at an eighth, three eighths, five eighths and seven eighths of its width (the
+//! standard pattern), three see the square, of light E, and one the black: the resolve weighs each
+//! by 1 / (1 + its brightest channel), so that the column shows 3E / (3 + (1 + E)) = 3E / (4 + E),
+//! where a plain average would show 3E / 4. Without anti-aliasing, each pixel shows the sample at
+//! its centre alone: the column shows E. Runs on whatever adapter the machine offers.
 
 #[path = "common/tone_curve.rs"]
 #[expect(
@@ -17,7 +18,8 @@ use slime_color::LinearColor;
 use slime_gfx::{FloatImage, Gpu, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Mat4, Vec3};
 use slime_render::{
-    Camera, Instance, MaterialData, MeshData, Projection, Renderer, Scene, ViewDraw,
+    AntiAliasing, Camera, Instance, MaterialData, MeshData, Projection, Renderer, Scene, ViewDraw,
+    ViewSettings,
 };
 
 /// The output's side, in pixels; the square's left edge crosses its column `EDGE_COLUMN`.
@@ -40,8 +42,8 @@ fn camera() -> Camera {
 
 /// Draws the square, of light `emission`, from a quarter of the way across column `EDGE_COLUMN` to
 /// beyond the output's right edge, and beyond its top and bottom, at an exposure of 1 and without
-/// bloom.
-fn draw(emission: f32) -> FloatImage {
+/// bloom, with `anti_aliasing`.
+fn draw(emission: f32, anti_aliasing: AntiAliasing) -> FloatImage {
     let gpu =
         Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers");
     let mut renderer =
@@ -79,6 +81,9 @@ fn draw(emission: f32) -> FloatImage {
     let mut view = renderer
         .create_view(&gpu, "view")
         .expect("the view is created");
+    let mut settings = ViewSettings::default();
+    settings.anti_aliasing = anti_aliasing;
+    view.set_settings(settings);
     renderer
         .render(
             &gpu,
@@ -93,7 +98,7 @@ fn draw(emission: f32) -> FloatImage {
 #[test]
 fn an_edge_shows_its_samples_weighed_by_their_brightness() {
     for emission in [0.5, 4.0] {
-        let image = draw(emission);
+        let image = draw(emission, AntiAliasing::Msaa4);
         let shows = |light: f32| tone_curve::tone_map([light; 3])[0];
         let weighted = 3.0 * emission / (4.0 + emission);
         for y in 0..SIZE {
@@ -114,5 +119,30 @@ fn an_edge_shows_its_samples_weighed_by_their_brightness() {
         }
         // A plain average would show the edge brighter, by more than the tolerance.
         assert!(shows(0.75 * emission) - shows(weighted) > 1e-2);
+    }
+}
+
+#[test]
+fn without_anti_aliasing_an_edge_shows_the_sample_at_each_pixel_s_centre() {
+    for emission in [0.5, 4.0] {
+        let image = draw(emission, AntiAliasing::Off);
+        let shows = |light: f32| tone_curve::tone_map([light; 3])[0];
+        for y in 0..SIZE {
+            for x in 0..SIZE {
+                // The square starts a quarter of the way across its column: its centre sees it.
+                let expected = if x < EDGE_COLUMN {
+                    shows(0.0)
+                } else {
+                    shows(emission)
+                };
+                let start = ((y * SIZE + x) * 4) as usize;
+                for &channel in &image.pixels[start..start + 3] {
+                    assert!(
+                        (channel - expected).abs() < 2e-3,
+                        "light {emission}, pixel ({x}, {y}): {channel}, expected {expected}"
+                    );
+                }
+            }
+        }
     }
 }

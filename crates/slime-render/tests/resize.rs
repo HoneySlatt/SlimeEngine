@@ -5,13 +5,16 @@
 //! only; on a GPU whose memory is not the process's, it measures nothing, and says so.
 
 #[cfg(target_os = "linux")]
+#[path = "common/settled.rs"]
+mod settled;
+
+#[cfg(target_os = "linux")]
 #[test]
 fn a_view_resized_never_holds_the_targets_of_both_sizes() {
     use slime_gfx::{Gpu, RenderTarget, TextureFormat};
     use slime_render::glam::{DAffine3, DQuat, DVec3, Vec3};
     use slime_render::{
         Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, Renderer, Scene, View,
-        ViewDraw,
     };
 
     /// MiB of address space that the process holds now, and the most that it ever held.
@@ -65,10 +68,9 @@ fn a_view_resized_never_holds_the_targets_of_both_sizes() {
             .expect("the GPU has memory for it")
     };
     let (first, second) = (target(height), target(height - 8));
+    // Once the size has held still, when the view makes its targets at that size.
     let mut draw = |view: &mut View, target: &RenderTarget| {
-        renderer
-            .render(&gpu, &scene, &mut [ViewDraw::new(view, camera, target)])
-            .expect("the frame is drawn");
+        settled::draw_settled(&gpu, &mut renderer, &scene, view, camera, target);
         gpu.wait_idle().expect("the GPU finishes");
     };
 

@@ -1,16 +1,17 @@
-// The tone-mapping pass (ADR-0034, ADR-0037, ADR-0040): one triangle covers the view's rectangle
-// of the output, and each pixel reads the texel of the scene's high-dynamic-range target under it,
-// mixes it with the bloom chain's blurred copy of the scene by the scene's bloom strength, maps the
-// result to the range a display shows with Khronos PBR Neutral, dithers it for an 8-bit output
+// The tone-mapping pass (ADR-0034, ADR-0037, ADR-0040, ADR-0127): one triangle covers the view's
+// rectangle of the output, and each pixel reads the scene's high-dynamic-range target where its
+// centre falls, bilinearly between its texels, mixes it with the bloom chain's blurred copy of the
+// scene by the scene's bloom strength, maps the result to the range a display shows with Khronos
+// PBR Neutral, or leaves a mode of debugging's colors as they are, dithers it for an 8-bit output
 // (ADR-0051), and writes it opaque. The scene pass has applied the exposure. The output target's
 // format encodes the result (sRGB for a window).
 
 // The scene's exposed light divided by HEADROOM, drawn by the scene pass at the size of the view's
-// rectangle: linear, from 0 to 65504.
+// targets, the rectangle's times its render scale: linear, from 0 to 65504.
 @group(0) @binding(0) var scene_light: texture_2d<f32>;
-// The bloom chain's blurred copy of it, half the rectangle's size rounded to the nearest (the
-// scene's light itself, with a strength of 0, when the bloom does not run), and the linear
-// sampler, mirrored at the edges, that magnifies it.
+// The bloom chain's blurred copy of it, half the targets' size rounded to the nearest (the scene's
+// light itself, with a strength of 0, when the bloom does not run), and the linear sampler,
+// mirrored at the edges, that reads both between their texels.
 @group(0) @binding(1) var bloom_light: texture_2d<f32>;
 @group(0) @binding(2) var bloom_sampler: sampler;
 struct Settings {
@@ -23,9 +24,16 @@ struct Settings {
     // 1 when the output's format encodes sRGB, whose steps are even in encoded values, not in
     // light; 0 otherwise.
     srgb: f32,
+    // 1 to map the light through PBR Neutral; 0 for a mode of debugging, whose colors are written
+    // as they are.
+    tone_curve: f32,
     // The pixel of the output where the view's rectangle starts, its top left corner: the scene's
     // target holds the rectangle alone.
     origin: vec2<f32>,
+    // How many of the scene's texels make a pixel of the rectangle, along each side: the view's
+    // render scale, or, while the size of its rectangle changes, the size of its targets against
+    // the rectangle's.
+    scale: vec2<f32>,
 }
 @group(0) @binding(3) var<uniform> settings: Settings;
 
@@ -47,17 +55,19 @@ fn bloom_tap(at: vec2<f32>, offset: vec2<f32>, texel: vec2<f32>) -> vec3<f32> {
 
 @fragment
 fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
-    // A pixel's center is at (x + 0.5, y + 0.5): truncating its position in the view's rectangle
-    // gives its texel, since the scene's target has the rectangle's size.
-    let in_view = position.xy - settings.origin;
-    var light = textureLoad(scene_light, vec2<u32>(in_view), 0).rgb;
+    // A pixel's centre is at (x + 0.5, y + 0.5): where it falls in the scene's target, in its
+    // texels. At a scale of 1, the centre of the texel under it, which the sampler reads alone;
+    // otherwise between texels, which it reads bilinearly: four alike at a scale of 2.
+    let in_scene = (position.xy - settings.origin) * settings.scale;
+    let scene_size = vec2<f32>(textureDimensions(scene_light));
+    var light = textureSampleLevel(scene_light, bloom_sampler, in_scene / scene_size, 0.0).rgb;
     // A branch on a uniform: every pixel takes the same way, and a strength of 0 costs nothing.
     if settings.bloom > 0.0 {
-        // The chain's first level has twice the rectangle's pixels per texel: the pixel falls at
+        // The chain's first level has twice the targets' texels per texel: the pixel falls at
         // half its position, read through the same 3 x 3 tent as the chain's own averages, so that
         // the glow of a small, bright source stays round wherever it lies.
         let texel = 1.0 / vec2<f32>(textureDimensions(bloom_light));
-        let at = 0.5 * in_view * texel;
+        let at = 0.5 * in_scene * texel;
         let corners = bloom_tap(at, vec2<f32>(-1.0, -1.0), texel)
             + bloom_tap(at, vec2<f32>(1.0, -1.0), texel)
             + bloom_tap(at, vec2<f32>(-1.0, 1.0), texel)
@@ -72,7 +82,10 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
         // lands, before the curve, as light rather than display values.
         light = mix(light, blurred, settings.bloom);
     }
-    var color = pbr_neutral(light * HEADROOM);
+    var color = light * HEADROOM;
+    if settings.tone_curve > 0.0 {
+        color = pbr_neutral(color);
+    }
     if settings.step > 0.0 {
         color = dithered(color, vec2<u32>(position.xy));
     }

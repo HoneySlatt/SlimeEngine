@@ -12,7 +12,7 @@ use slime_platform::{Event, PhysicalSize};
 /// The UI library the overlay draws, re-exported so that callers build their panels with the
 /// same version.
 pub use egui;
-pub use world_panel::WorldPanel;
+pub use world_panel::{WorldPanel, edit_reflected};
 
 /// egui drawn over the engine's frames.
 ///

@@ -6,12 +6,12 @@
 
 use std::time::{Duration, Instant};
 
-use slime_app::{AppError, Context, Presentation};
+use slime_app::{AppError, Context, Presentation, ReflectedSettings, ShownView};
 use slime_assets::{CookedAssets, ManifestWatch};
 use slime_gfx::RenderTarget;
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent};
 use slime_render::glam::Vec2;
-use slime_render::{RenderStats, ShaderSources, ShaderWatch};
+use slime_render::{RenderStats, ShaderSources, ShaderWatch, ViewSettings};
 use slime_world::World;
 
 use crate::camera;
@@ -22,6 +22,9 @@ use crate::simulation::log_run;
 use crate::view::View;
 use crate::zone;
 
+/// The name of the hero's view, by which a tool captures it and changes its settings.
+const VIEW: &str = "hero";
+
 /// What the player sees of *Hunna Wood*: the view, made once the window is open and again with a
 /// new GPU device, and the dev overlay.
 pub struct Screen {
@@ -29,7 +32,12 @@ pub struct Screen {
     /// again with a new device.
     assets: CookedAssets,
     view: Option<View>,
-    /// The dev overlay: the statistics on F1, the world panel on F2.
+    /// How the hero's view draws, which the overlay and a tool change, and which the view takes at
+    /// each frame: one made again after a lost device keeps it.
+    settings: ViewSettings,
+    /// Where the last frame drew the hero's view, for a tool that captures it.
+    shown: Option<ShownView>,
+    /// The dev overlay: the statistics, and the view's settings, on F1, the world panel on F2.
     overlay: Option<DevOverlay>,
     /// What the last frame cost.
     stats: RenderStats,
@@ -93,6 +101,8 @@ impl Screen {
             shader_watch: watch.then(|| ShaderWatch::new(ShaderSources::DIRECTORY, Instant::now())),
             assets,
             view: None,
+            settings: ViewSettings::default(),
+            shown: None,
             overlay: None,
             stats: RenderStats::default(),
             drawn: 0,
@@ -280,11 +290,13 @@ impl Presentation for Screen {
             paused: ctx.paused(),
             speed: ctx.speed(),
         };
+        let render_size = view.render_size();
         let asked = overlay.build(
             window.inner_size(),
             &self.stats,
             gpu.adapter_name(),
             speed,
+            (&mut self.settings, render_size),
             world,
         );
         self.lose_asked |= asked.lose_device;
@@ -302,8 +314,18 @@ impl Presentation for Screen {
         let (Some(gpu), Some(view)) = (ctx.gpu().cloned(), &mut self.view) else {
             return;
         };
+        view.set_settings(self.settings);
         match view.render(&gpu, target) {
-            Ok(Some(stats)) => self.stats = stats,
+            Ok(Some(stats)) => {
+                self.stats = stats;
+                self.shown = Some(ShownView {
+                    name: VIEW.to_owned(),
+                    x: 0,
+                    y: 0,
+                    width: target.width(),
+                    height: target.height(),
+                });
+            }
             Ok(None) => return,
             // The GPU's memory cannot hold the targets of the window's new size: the game stops
             // with the error. The device lost, `exit_with_error` leaves the loss to the run.
@@ -338,10 +360,31 @@ impl Presentation for Screen {
         }
     }
 
+    fn views(&self) -> Vec<ShownView> {
+        self.shown.iter().cloned().collect()
+    }
+
+    fn view_settings(&self, name: &str) -> Option<ReflectedSettings> {
+        (name == VIEW).then(|| ReflectedSettings::new(&self.settings))
+    }
+
+    fn set_view_settings(
+        &mut self,
+        name: &str,
+        settings: &ReflectedSettings,
+    ) -> Result<(), String> {
+        if name != VIEW {
+            return Err(format!("Hunna Wood has no view `{name}`"));
+        }
+        self.settings = settings.get().map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
     fn gpu_lost(&mut self, _ctx: &mut Context) {
         // Every object of the lost device goes, the view's loads in progress with it, so that the
         // new device opens on the same adapter (ADR-0075). The world, and the run in it, are kept.
         self.view = None;
+        self.shown = None;
         if let Some(overlay) = &mut self.overlay {
             overlay.release();
         }

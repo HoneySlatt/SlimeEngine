@@ -7,8 +7,9 @@
   token's randomness, where the port is made known, values as text in the messages, builds for
   development and for shipping) and [0121](0121-a-game-as-a-simulation-and-a-presentation.md) (a
   game holds game time apart from the pause); amended by [0125](0125-saves-per-scene.md) (version 2
-  of the protocol: saving and loading a running game) and
-  [0126](0126-views-apart-from-the-renderer.md) (version 3 of the protocol: a view captured)
+  of the protocol: saving and loading a running game), [0126](0126-views-apart-from-the-renderer.md)
+  (version 3 of the protocol: a view captured) and [0127](0127-the-settings-of-a-view.md) (version 4
+  of the protocol: a view's settings read and changed)
 - Date: 2026-10-21
 
 ## Context

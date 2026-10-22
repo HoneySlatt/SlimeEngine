@@ -4,6 +4,8 @@
 //! skip the bloom's passes; the chain follows the output's size. Runs on whatever adapter the
 //! machine offers.
 
+#[path = "common/settled.rs"]
+mod settled;
 #[path = "common/tone_curve.rs"]
 #[expect(
     dead_code,
@@ -11,6 +13,7 @@
 )]
 mod tone_curve;
 
+use settled::draw_settled;
 use slime_color::LinearColor;
 use slime_gfx::{FloatImage, Gpu, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Vec3};
@@ -115,13 +118,14 @@ impl Pixel {
         let instances = [Instance::new(&mesh, &self.emitter, DAffine3::IDENTITY)];
         let mut scene = Scene::new(instances.clone());
         scene.bloom = bloom;
-        self.renderer
-            .render(
-                &self.gpu,
-                &scene,
-                &mut [ViewDraw::new(&mut self.view, camera(), &output)],
-            )
-            .expect("the frame is drawn");
+        draw_settled(
+            &self.gpu,
+            &mut self.renderer,
+            &scene,
+            &mut self.view,
+            camera(),
+            &output,
+        );
         let stats = self.view.stats();
         let image = self
             .gpu

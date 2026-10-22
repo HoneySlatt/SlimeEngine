@@ -2,7 +2,9 @@
 //! (`docs/adr/0126-views-apart-from-the-renderer.md`): it starts the `world` example, which draws
 //! the yard from a camera turning around it and a map from above in a corner, pauses it, reads the
 //! names of its views, captures the whole image and each view, and stops it. The map, whose camera
-//! does not move, is the part of the whole image that its rectangle covers.
+//! does not move, is the part of the whole image that its rectangle covers. It then shows the map's
+//! normals, a setting of the view changed through the server
+//! (`docs/adr/0127-the-settings-of-a-view.md`): the ground, seen from above, faces up.
 //!
 //! It needs a Wayland compositor, the example built (`cargo build --example world`) and the
 //! examples' assets cooked, in the directory that its first argument names, or
@@ -87,6 +89,39 @@ fn main() {
     // The yard seen from above, not a cleared image: many colors.
     let colors: std::collections::HashSet<&[u8]> = map.chunks(4).collect();
     assert!(colors.len() > 100, "{} colors", colors.len());
+    // The map's normals: the ground faces up, (0, 1, 0), which shows as (0.5, 1, 0.5), sRGB-encoded
+    // in the window's image, within the dithering's step.
+    let (said, _) = session.tool(
+        "set_view_settings",
+        json!({ "view": "map", "path": "debug", "value": "\"Normals\"" }),
+    );
+    assert_eq!(said, ["done"]);
+    let (state, _) = session.tool("game_state", json!({}));
+    assert!(
+        state[0].contains("view `map`, its settings:") && state[0].contains("debug = \"Normals\""),
+        "{state:?}"
+    );
+    let (_, captured) = session.tool("capture", json!({ "view": "map" }));
+    let (_, _, normals) = image(&captured);
+    let up = normals
+        .chunks(4)
+        .filter(|pixel| {
+            [188_u8, 255, 188]
+                .iter()
+                .zip(*pixel)
+                .all(|(&expected, &channel)| expected.abs_diff(channel) <= 2)
+        })
+        .count();
+    assert!(
+        up * 3 > normals.len() / 4,
+        "{up} of {} pixels face up",
+        normals.len() / 4
+    );
+    let (refused, result) = session.try_tool(
+        "set_view_settings",
+        json!({ "view": "map", "path": "render_scale", "value": "4.0" }),
+    );
+    assert_eq!(result["isError"], json!(true), "{refused:?}");
     let (refused, result) = session.try_tool("capture", json!({ "view": "minimap" }));
     assert_eq!(result["isError"], json!(true), "{refused:?}");
     assert!(

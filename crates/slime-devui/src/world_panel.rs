@@ -1,6 +1,8 @@
 //! The world panel: the entities of a world listed by name, and the one selected shown, its
 //! identity, its prefab and its components edited through reflection
-//! (`docs/adr/0081-stage-5a-the-world.md`, `docs/adr/0090-stage-5b-scenes-and-prefabs.md`).
+//! (`docs/adr/0081-stage-5a-the-world.md`, `docs/adr/0090-stage-5b-scenes-and-prefabs.md`); and
+//! the same widgets for a value outside a world, as a view's settings
+//! (`docs/adr/0127-the-settings-of-a-view.md`).
 
 use std::fmt;
 
@@ -183,7 +185,7 @@ impl WorldPanel {
         }
         let mut editor = Editor {
             registry: world.registry(),
-            world,
+            world: Some(world),
             edits: Vec::new(),
             select: None,
         };
@@ -228,10 +230,60 @@ fn name(world: &World, entity: Entity) -> String {
     }
 }
 
-/// Builds the widgets of a component's value, and collects the edits they ask for.
+/// The widgets of `value`, a value of a type that reflection describes, as the world panel shows a
+/// component's ([`WorldPanel`] says how each kind of value is edited), under `id`, which tells
+/// apart the widgets of values shown side by side: changes `value` as they ask, each change checked
+/// against its field's range, and returns whether they changed it. A change that the type refuses,
+/// as a number out of its field's range, leaves it as it is.
+///
+/// It describes the type at each call, which suits the few small values of an overlay's panel,
+/// such as a view's settings (`slime_render::ViewSettings`): not a value of many parts at each
+/// frame.
+pub fn edit_reflected<T: Reflect>(ui: &mut egui::Ui, id: &str, value: &mut T) -> bool {
+    let mut registry = Registry::new();
+    registry.register::<T>();
+    let reflected = value.to_value();
+    let mut editor = Editor {
+        registry: &registry,
+        world: None,
+        edits: Vec::new(),
+        select: None,
+    };
+    ui.push_id(id, |ui| {
+        editor.value(ui, &T::type_name(), &reflected, &Path::default(), None);
+    });
+    set_edits(&registry, value, reflected, editor.edits)
+}
+
+/// Sets each of `edits`, a part's path and its new value, in `reflected`, the value of `value`,
+/// whose type `registry` describes, and `value` to the result: returns whether one was set. One
+/// that the type refuses, as a number out of its field's range, is left out.
+fn set_edits<T: Reflect>(
+    registry: &Registry,
+    value: &mut T,
+    mut reflected: Value,
+    edits: Vec<(Path, Value)>,
+) -> bool {
+    let ty = T::type_name();
+    let mut changed = false;
+    for (path, part) in edits {
+        changed |= registry.set(&ty, &mut reflected, &path, part).is_ok();
+    }
+    match T::from_value(&reflected) {
+        Ok(new) if changed => {
+            *value = new;
+            true
+        }
+        _ => false,
+    }
+}
+
+/// Builds the widgets of a component's value, or of a value outside a world, and collects the
+/// edits they ask for.
 struct Editor<'a> {
     registry: &'a Registry,
-    world: &'a World,
+    /// The world whose entities a reference names; none for a value outside a world.
+    world: Option<&'a World>,
     /// The parts to set, by their paths from the component, and their new values.
     edits: Vec<(Path, Value)>,
     /// The entity of a reference clicked, which the panel selects.
@@ -459,18 +511,22 @@ impl Editor<'_> {
         }
     }
 
-    /// A reference to an entity: its name, which selects it when clicked, if it is alive.
+    /// A reference to an entity: its name, which selects it when clicked, if it is alive; its
+    /// handle outside a world.
     fn reference(&mut self, ui: &mut egui::Ui, value: &Value) {
-        match Entity::from_value(value) {
-            Ok(entity) if self.world.contains(entity) => {
-                if ui.link(name(self.world, entity)).clicked() {
+        match (Entity::from_value(value), self.world) {
+            (Ok(entity), Some(world)) if world.contains(entity) => {
+                if ui.link(name(world, entity)).clicked() {
                     self.select = Some(entity);
                 }
             }
-            Ok(entity) => {
+            (Ok(entity), Some(_)) => {
                 ui.weak(format!("{entity:?}, despawned"));
             }
-            Err(error) => {
+            (Ok(entity), None) => {
+                ui.weak(format!("{entity:?}"));
+            }
+            (Err(error), _) => {
                 ui.weak(error.to_string());
             }
         }
@@ -1104,7 +1160,7 @@ mod tests {
                 .run_ui(input, |ui| {
                     let mut editor = Editor {
                         registry: self.world.registry(),
-                        world: &self.world,
+                        world: Some(&self.world),
                         edits: Vec::new(),
                         select: None,
                     };
@@ -1226,5 +1282,49 @@ mod tests {
             bench.frame(Vec::new());
         }
         assert!(matches!(bench.value, Value::F32(number) if number.is_nan()));
+    }
+
+    /// Settings outside a world, as a view's.
+    #[derive(Clone, Debug, PartialEq, Reflect)]
+    #[reflect(name = "test::Knobs")]
+    struct Knobs {
+        /// How large.
+        #[reflect(range(min = 0.25, max = 2.0))]
+        scale: f32,
+        /// Whether it is lit.
+        lit: bool,
+    }
+
+    #[test]
+    fn a_value_outside_a_world_takes_the_edits_that_its_ranges_hold() {
+        let mut registry = Registry::new();
+        registry.register::<Knobs>();
+        let mut knobs = Knobs {
+            scale: 1.0,
+            lit: false,
+        };
+        let path = |text: &str| text.parse::<Path>().expect("a path");
+        let edits = vec![
+            (path("scale"), Value::F32(5.0)),
+            (path("lit"), Value::Bool(true)),
+        ];
+        let reflected = knobs.to_value();
+        assert!(set_edits(&registry, &mut knobs, reflected, edits));
+        assert_eq!(
+            knobs,
+            Knobs {
+                scale: 1.0,
+                lit: true
+            },
+            "the scale out of its range is left out"
+        );
+        let reflected = knobs.to_value();
+        let edits = vec![(path("scale"), Value::F32(0.1))];
+        assert!(!set_edits(&registry, &mut knobs, reflected, edits));
+        assert_eq!(knobs.scale, 1.0);
+        let reflected = knobs.to_value();
+        let edits = vec![(path("scale"), Value::F32(0.5))];
+        assert!(set_edits(&registry, &mut knobs, reflected, edits));
+        assert_eq!(knobs.scale, 0.5);
     }
 }

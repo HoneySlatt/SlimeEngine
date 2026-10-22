@@ -1,10 +1,12 @@
 //! A game as a simulation and a presentation (`docs/adr/0107-the-execution-model.md`): the two
 //! traits that a game implements, which a host runs.
 
+use std::fmt;
 use std::path::Path;
 
 use slime_gfx::RenderTarget;
 use slime_platform::Event;
+use slime_reflect::{Reflect, ReflectError, Registry, Value};
 use slime_world::World;
 
 use crate::error::AppError;
@@ -218,6 +220,37 @@ pub trait Presentation {
         Vec::new()
     }
 
+    /// The settings of the view that the last [`render`](Self::render) drew under `name`, one of
+    /// [`views`](Self::views), as reflection describes them: what a tool reads and changes through
+    /// the development channel, as the renderer's `ViewSettings` for a view of `slime-render`
+    /// (ADR-0127). `None` for a view whose settings a tool does not change, as the default gives
+    /// for every view.
+    fn view_settings(&self, name: &str) -> Option<ReflectedSettings> {
+        let _ = name;
+        None
+    }
+
+    /// Gives the view named `name` the settings that a tool changed: those that
+    /// [`view_settings`](Self::view_settings) gave, a part of them changed, which reflection
+    /// checked against their type and the ranges of their fields. The view draws with them from
+    /// the next frame, as its renderer applies them: `slime-render` makes a view's targets at a new
+    /// render scale once the size has held still.
+    ///
+    /// # Errors
+    ///
+    /// Why the presentation refuses them, which the tool is told, as the default does for every
+    /// view.
+    fn set_view_settings(
+        &mut self,
+        name: &str,
+        settings: &ReflectedSettings,
+    ) -> Result<(), String> {
+        let _ = settings;
+        Err(format!(
+            "the game does not change the settings of its view `{name}`"
+        ))
+    }
+
     /// Called between frames when the GPU device was lost and the run is about to open a new one,
     /// as a game asks with
     /// [`AppConfig::restore_lost_device`](crate::AppConfig::restore_lost_device): the presentation
@@ -283,6 +316,60 @@ pub struct ShownView {
     pub width: u32,
     /// Its height, at least 1.
     pub height: u32,
+}
+
+/// Settings described by reflection, with the registry of their type
+/// ([`Presentation::view_settings`]): through it, a tool reads and changes a view's settings
+/// without `slime-app` knowing their type, and its changes are checked against the type and the
+/// ranges of its fields before the presentation gets them back
+/// ([`Presentation::set_view_settings`]).
+pub struct ReflectedSettings {
+    /// Describes their type and the types it holds, through which the development channel reads
+    /// and changes them.
+    #[cfg_attr(
+        not(feature = "development"),
+        expect(
+            dead_code,
+            reason = "the development channel alone reads them through it"
+        )
+    )]
+    pub(crate) registry: Registry,
+    /// Their type's name.
+    pub(crate) ty: String,
+    /// Their value.
+    pub(crate) value: Value,
+}
+
+impl fmt::Debug for ReflectedSettings {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ReflectedSettings")
+            .field("ty", &self.ty)
+            .field("value", &self.value)
+            .finish_non_exhaustive()
+    }
+}
+
+impl ReflectedSettings {
+    /// `settings`, described by their type's reflection.
+    #[must_use]
+    pub fn new<T: Reflect>(settings: &T) -> Self {
+        let mut registry = Registry::new();
+        registry.register::<T>();
+        Self {
+            registry,
+            ty: T::type_name(),
+            value: settings.to_value(),
+        }
+    }
+
+    /// The settings, as a value of `T`.
+    ///
+    /// # Errors
+    ///
+    /// When they are not settings of type `T`, with the part at fault.
+    pub fn get<T: Reflect>(&self) -> Result<T, ReflectError> {
+        T::from_value(&self.value)
+    }
 }
 
 #[cfg(test)]

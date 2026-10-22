@@ -98,6 +98,20 @@ pub enum Request {
         /// The view, by the name that [`GameState::views`] gives; empty for the whole image.
         view: String,
     },
+    /// Sets a part of the settings of one of the game's views, as [`Request::SetProperty`] sets a
+    /// part of a component, from the game's next frame: its render scale, anti-aliasing, mode of
+    /// debugging or passes, which [`ViewSummary::settings`] gives; a new render scale once the
+    /// view's size has held still, as its renderer makes its targets. It fails for a view that the
+    /// last frame did not draw, or whose settings the game does not give, and for a value that its
+    /// type, or the range of its field, refuses.
+    SetViewSettings {
+        /// The view, by the name that [`GameState::views`] gives.
+        view: String,
+        /// The part, as a property path, `debug`; empty for the whole settings.
+        path: String,
+        /// The new value, as text in the engine's notation, `"Normals"`.
+        value: String,
+    },
     /// The lines of the game's log after the line numbered `after`: [`Reply::Logs`], at most
     /// [`MAX_LOG_LINES`](crate::MAX_LOG_LINES) of them.
     Logs {
@@ -205,9 +219,22 @@ pub struct GameState {
     pub longest_frame_ms: f64,
     /// The entities of the world.
     pub entities: u64,
-    /// The names of the views that the last frame drew into the window's image, which a capture
-    /// names ([`Request::Capture`]); none for a game that names none, or without a window.
-    pub views: Vec<String>,
+    /// The views that the last frame drew into the window's image, which a capture and a change
+    /// of settings name ([`Request::Capture`], [`Request::SetViewSettings`]); none for a game that
+    /// names none, or without a window.
+    pub views: Vec<ViewSummary>,
+}
+
+/// A view that a frame drew, as a game's state lists it.
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "ChannelView")]
+pub struct ViewSummary {
+    /// Its name, `map`.
+    pub name: String,
+    /// Its settings, as a document in the engine's notation (`slime_serialize::write`), the
+    /// renderer's `ViewSettings` for a view of `slime-render`; empty for a view whose settings the
+    /// game does not give.
+    pub settings: String,
 }
 
 /// An entity, as a list of entities names it.
@@ -309,6 +336,11 @@ mod tests {
             Request::Press { key: text("KeyW") },
             Request::Release { key: text("KeyW") },
             Request::Capture { view: text("map") },
+            Request::SetViewSettings {
+                view: text("map"),
+                path: text("debug"),
+                value: text("\"Normals\""),
+            },
             Request::Logs { after: 7 },
             Request::Save {
                 file: text("/tmp/run.toml"),
@@ -349,7 +381,10 @@ mod tests {
                     frame_ms: 16.7,
                     longest_frame_ms: 20.0,
                     entities: 400,
-                    views: vec![text("map")],
+                    views: vec![ViewSummary {
+                        name: text("map"),
+                        settings: text("render_scale = 0.5\n"),
+                    }],
                 },
             },
             Reply::Entities {

@@ -37,8 +37,10 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its development channel. \
      Start it with `start_game`; `pause` it, `step` it, `game_state` says where it stands; \
      `list_entities` and `inspect_entity` read its world, `set_property` changes it; `press_key` and \
-     `release_key` play it; `capture` shows its image; `read_logs` reads its log; `stop_game` ends \
-     it. `cook` and `run_tests` run in the repository's root, where the server runs.";
+     `release_key` play it; `capture` shows its image or one of its views, and \
+     `set_view_settings` changes how a view draws, its scale, anti-aliasing, passes or a mode of \
+     debugging that shows normals or shadows; `read_logs` reads its log; `stop_game` ends it. \
+     `cook` and `run_tests` run in the repository's root, where the server runs.";
 
 /// The game that the server drives, if one runs.
 struct Game {
@@ -110,6 +112,19 @@ struct SetProperty {
     path: String,
     /// The new value, in the engine's notation, as `inspect_entity` writes values: `12.5`, `true`,
     /// `"text"`, `{ x = 1.0, y = 0.0, z = 2.0 }`.
+    value: String,
+}
+
+/// What `set_view_settings` takes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct SetViewSettings {
+    /// The view, by the name that `game_state` lists.
+    view: String,
+    /// The part of its settings, as a property path, as `game_state` writes them: `render_scale`,
+    /// `anti_aliasing`, `debug`, `shadows`, `sky`, `bloom`; empty for the whole settings.
+    path: String,
+    /// The new value, in the engine's notation: `0.5`, `false`, `"Off"`, `"Msaa4"`, `"Normals"`,
+    /// `"Shadows"`.
     value: String,
 }
 
@@ -308,7 +323,7 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
         Reply::State { state } => text(format!(
             "frame {}, game time {}: {} fixed steps run, {:.3} s of game time, at a speed of {}; \
              {:.3} s of real time; frames of {:.2} ms on average, {:.2} ms at the longest, over the \
-             last ones; {} entities; {}",
+             last ones; {} entities; {}{}",
             state.frame,
             match (state.paused, state.held) {
                 (true, true) => "paused, and held by the game, as while it loads",
@@ -326,8 +341,22 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
             if state.views.is_empty() {
                 "no view named".to_owned()
             } else {
-                format!("views `{}`", state.views.join("`, `"))
+                let names: Vec<&str> = state.views.iter().map(|view| view.name.as_str()).collect();
+                format!("views `{}`", names.join("`, `"))
             },
+            state
+                .views
+                .iter()
+                .map(|view| if view.settings.is_empty() {
+                    format!("\n\nview `{}`: its settings are not given", view.name)
+                } else {
+                    format!(
+                        "\n\nview `{}`, its settings:\n{}",
+                        view.name,
+                        view.settings.trim_end()
+                    )
+                })
+                .collect::<String>(),
         )),
         Reply::Entities { entities, more } => {
             let mut lines: Vec<String> = entities
@@ -591,6 +620,20 @@ impl Server {
             view: view.unwrap_or_default(),
         })
         .await
+    }
+
+    #[tool(
+        description = "Changes a part of the settings of one of the game's views, from its next \
+                       frame: its render scale, anti-aliasing, mode of debugging or passes, as \
+                       `game_state` lists them, a new render scale once the view's size holds \
+                       still; the value is checked against their type and ranges."
+    )]
+    async fn set_view_settings(
+        &self,
+        Parameters(SetViewSettings { view, path, value }): Parameters<SetViewSettings>,
+    ) -> Result<CallToolResult, McpError> {
+        self.ask(Request::SetViewSettings { view, path, value })
+            .await
     }
 
     #[tool(description = "The lines of the game's log after a given line, oldest first.")]

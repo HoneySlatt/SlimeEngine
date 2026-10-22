@@ -6,8 +6,9 @@
   graph each) and [0084](0084-what-the-world-draws.md) (a frame that owns what it draws, and a cache
   that loads without the renderer); amended by [0115](0115-what-the-gpu-layer-gives-the-editor.md)
   (an unlit kind of material at Stage 6), [0120](0120-a-frame-that-owns-what-it-draws.md) (the shape
-  of the owned frame and of the kinds of materials) and
-  [0126](0126-views-apart-from-the-renderer.md) (how views are built)
+  of the owned frame and of the kinds of materials), [0126](0126-views-apart-from-the-renderer.md)
+  (how views are built) and [0127](0127-the-settings-of-a-view.md) (how a view's settings are
+  built)
 - Date: 2026-10-20
 
 ## Context

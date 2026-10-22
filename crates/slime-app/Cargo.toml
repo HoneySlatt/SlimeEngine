@@ -13,11 +13,12 @@ workspace = true
 [dependencies]
 ctrlc.workspace = true
 # The development channel, in programs built with the `development` feature (ADR-0122): its
-# protocol, and the reflection and documents through which it reads and writes the world's values
-# as text.
+# protocol, and the documents through which it reads and writes the world's values as text.
 slime-channel = { workspace = true, optional = true }
-slime-reflect = { workspace = true, optional = true }
 slime-serialize = { workspace = true, optional = true }
+# The settings of a presentation's views, described to the development channel (ADR-0127); the
+# world depends on it in every build.
+slime-reflect.workspace = true
 slime-gfx.workspace = true
 slime-platform.workspace = true
 slime-world.workspace = true
@@ -31,7 +32,7 @@ tracing-subscriber = { workspace = true, features = ["tracing-log"] }
 # The development channel: a program started with a token listens for the tools that drive it
 # (ADR-0110, ADR-0122). A game turns it on by default, and a build for shipping leaves it out
 # (`--no-default-features`).
-development = ["dep:slime-channel", "dep:slime-reflect", "dep:slime-serialize"]
+development = ["dep:slime-channel", "dep:slime-serialize"]
 
 [target.'cfg(windows)'.dependencies]
 nu-ansi-term.workspace = true
@@ -41,8 +42,6 @@ nu-ansi-term.workspace = true
 slime-color.workspace = true
 # The channel test is a tool that drives a run.
 slime-channel.workspace = true
-# The lifecycle test's commands carry reflected values.
-slime-reflect.workspace = true
 # The windowed lifecycle test makes a device invalid without telling the engine, as wgpu does
 # before it reports a driver reset, which no API of the engine does.
 slime-gfx = { workspace = true, features = ["wgpu"] }

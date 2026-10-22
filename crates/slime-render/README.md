@@ -12,7 +12,10 @@ units and by a procedural sky that surfaces reflect and that shows behind them, 
 one directional light around each view's camera, drawn in four cascades, and of every spot light
 that casts them. It draws in high dynamic range, then exposes the light, spreads a bloom around it,
 tone maps it and dithers it into the output, and reports what each frame cost on the CPU and the
-GPU. It smooths the edges of what it draws with four samples per pixel. It loads cooked scenes in
+GPU. It smooths the edges of what it draws with four samples per pixel, or not, as each view
+chooses, which also chooses the scale it renders at, a mode of debugging that shows normals or
+shadows, and whether it draws the shadows, the sky and the bloom; a view whose size changes makes
+its targets again once the size holds still. It loads cooked scenes in
 the background, and again when their cooked data changes, and keeps the meshes that a game draws by
 their asset IDs in a cache; a material's values change while a game runs, and so do the renderer's
 shaders. It leaves out of each pass what that pass does not see, and draws the instances of one mesh
@@ -29,7 +32,7 @@ and one material together. It does not yet blend transparent surfaces.
 - Orders and records each view's passes with a render graph (`src/graph.rs`, private;
   `docs/adr/0041-render-graph.md`): each pass declares the targets it draws into and the ones it
   samples, the graph orders the passes by them, creates the targets that live for one frame at the
-  size of the view's rectangle or a fraction of it, and records the passes in order, four to a
+  size the view draws at, or a fraction of it, and records the passes in order, four to a
   submission. The graph is the renderer's own: games that draw with `slime-gfx` order their passes
   themselves.
 - Is built on `slime-gfx`'s engine-owned types only: it does not use wgpu
@@ -119,7 +122,11 @@ fn main() -> Result<(), RenderError> {
   shares: its pipelines, its meshes' pages, its uploader and the shadow atlases.
 - `Renderer::create_view(gpu, label)` creates a `View`, which a game keeps for each image that it
   draws, the player's, each half of a split screen, a map in a corner: its targets, at the size
-  it draws, and the statistics of its last frame (`View::stats`).
+  it draws (`View::render_size`), and the statistics of its last frame (`View::stats`). Its
+  `ViewSettings` (`View::set_settings`) say how it draws: its render scale, its `AntiAliasing`, a
+  `DebugMode`, and whether it draws the shadows, the sky and the bloom
+  ([ADR-0127](../../docs/adr/0127-the-settings-of-a-view.md)); they are described by reflection,
+  for the tools that change them.
 - `Renderer::set_shaders(gpu, &ShaderSources)` makes the renderer's pipelines again from new WGSL
   sources, all or none, so that a game sees a shader change while it runs; `ShaderSources` holds
   the embedded sources or those of the shaders' files, and `ShaderWatch` tells a game when the

@@ -21,7 +21,7 @@ use slime_gfx::{Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::Vec3;
 use slime_render::{
     AssetCache, Camera, MaterialValues, RenderError, RenderStats, Renderer, Scene, ShaderSources,
-    Sky, ViewDraw,
+    Sky, ViewDraw, ViewSettings,
 };
 use slime_world::{Entity, Light, Meshes, Transform, World};
 use slime_world_render::FrameBuilder;
@@ -405,6 +405,17 @@ impl View {
         scene.bloom = BLOOM;
         self.scene = Some((scene, camera));
         Ok(())
+    }
+
+    /// Changes how the hero's camera is drawn, from the next frame
+    /// ([`slime_render::View::set_settings`]).
+    pub fn set_settings(&mut self, settings: ViewSettings) {
+        self.shown.set_settings(settings);
+    }
+
+    /// The size the hero's camera is drawn at ([`slime_render::View::render_size`]).
+    pub fn render_size(&self) -> Option<(u32, u32)> {
+        self.shown.render_size()
     }
 
     /// Draws into `target` the frame that [`View::extract`] built, and returns what it cost;

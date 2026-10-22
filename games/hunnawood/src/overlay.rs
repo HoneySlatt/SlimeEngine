@@ -1,11 +1,12 @@
-//! The engine's dev overlay (`slime-devui`) over the game: what each frame costs and the game's
-//! time, shown and hidden with F1, and the world's entities, whose components F2's panel edits.
+//! The engine's dev overlay (`slime-devui`) over the game: what each frame costs, the settings of
+//! the hero's view and the game's time, shown and hidden with F1, and the world's entities, whose
+//! components F2's panel edits.
 //! Tooling for whoever works on the game, not part of it.
 
-use slime_devui::{Overlay, WorldPanel, egui};
+use slime_devui::{Overlay, WorldPanel, edit_reflected, egui};
 use slime_gfx::{GfxError, Gpu, RenderTarget, TextureFormat};
 use slime_platform::{Event, PhysicalSize};
-use slime_render::RenderStats;
+use slime_render::{RenderStats, ViewSettings};
 use slime_world::{Command, World};
 
 /// The slowest and the fastest that the statistics' slider sets game time to.
@@ -113,7 +114,8 @@ impl DevOverlay {
     }
 
     /// Builds the overlay for an image of `size`, with `stats`, the last frame's, the name of the
-    /// GPU's `adapter`, the game's `time`, and the entities of `world`, and returns what it asks
+    /// GPU's `adapter`, the game's `time`, the settings of the hero's view, which its widgets
+    /// change, and the size it is drawn at, and the entities of `world`, and returns what it asks
     /// of the game. [`DevOverlay::render`] draws it.
     pub fn build(
         &mut self,
@@ -121,6 +123,7 @@ impl DevOverlay {
         stats: &RenderStats,
         adapter: &str,
         time: GameSpeed,
+        (settings, render_size): (&mut ViewSettings, Option<(u32, u32)>),
         world: &World,
     ) -> Asked {
         let frame_ms = self.frame_ms;
@@ -170,6 +173,11 @@ impl DevOverlay {
                         stats.triangles,
                         stats.shadow_draw_calls + stats.spot_shadow_draw_calls
                     ));
+                    ui.separator();
+                    if let Some((width, height)) = render_size {
+                        ui.label(format!("the view, drawn at {width} × {height} pixels"));
+                    }
+                    edit_reflected(ui, "view", settings);
                     ui.separator();
                     // Its value is shown as a label rather than in a field that takes the
                     // keyboard, so that the game's keys keep their meaning.

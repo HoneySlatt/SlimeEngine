@@ -29,7 +29,10 @@ pub use error::RenderError;
 pub use light::{DirectionalLight, Light, MAX_LIGHTS, PointLight, SpotLight};
 pub use material::{AlphaMode, Material, MaterialData, MaterialValues, SampledTexture};
 pub use mesh::{Mesh, MeshData};
-pub use renderer::{Instance, RenderStats, Renderer, Scene, View, ViewDraw, Viewport};
+pub use renderer::{
+    AntiAliasing, DebugMode, Instance, RESIZE_DELAY, RenderStats, Renderer, Scene, View, ViewDraw,
+    ViewSettings, Viewport,
+};
 pub use shaders::{ShaderSources, ShaderWatch};
 
 /// Which types may cross threads (`docs/ARCHITECTURE.md`, "Threads"): checked when the tests are
@@ -57,6 +60,7 @@ mod threads {
         send_and_sync::<Scene>();
         send_and_sync::<Instance>();
         send_and_sync::<RenderStats>();
+        send_and_sync::<ViewSettings>();
         send_and_sync::<RenderError>();
         send_and_sync::<Renderer>();
         // A view's timers read their times back through a cell; `render` takes the views mutably:

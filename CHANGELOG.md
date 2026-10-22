@@ -8,6 +8,17 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- The settings of a view (ADR-0127): `ViewSettings`, which `View::set_settings` changes, gives a
+  view its render scale, from 0.25 to 2, its anti-aliasing, none or four samples
+  (`AntiAliasing`), a mode of debugging that shows the normals or the shadows (`DebugMode`), and
+  whether it draws the shadows, the sky and the bloom. `View::render_size` gives the size it draws
+  at. The `world` example's views panel, on F3, and *Hunna Wood*'s dev overlay, on F1, change their
+  views' settings, with `slime_devui::edit_reflected`, which edits any reflected value.
+- A tool reads and changes a view's settings: `Presentation::view_settings` and
+  `Presentation::set_view_settings` hand them over as `ReflectedSettings`; version 4 of the
+  development channel's protocol lists each view of the game's state with its settings
+  (`ViewSummary`) and changes them (`Request::SetViewSettings`), and the MCP server's
+  `set_view_settings` tool changes them. *Hunna Wood* names its view `hero`.
 - Views apart from the renderer (ADR-0111, ADR-0126): `Renderer::create_view` makes a `View`, a
   camera's image drawn into an output, which a game holds from frame to frame, and
   `Renderer::render(gpu, &scene, &mut [ViewDraw])` draws a scene through several in a frame, each
@@ -22,8 +33,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `Gpu::memory_in_use`: the GPU memory that the device's objects take, as wgpu counts it on Vulkan
   and Direct3D 12.
 - A tool captures one view of a running game: `Presentation::views` names the views that a frame
-  drew, the development channel's protocol, at version 3, lists them in the game's state and
-  captures one by its name, and the MCP server's `capture` takes the view's name.
+  drew, the development channel's protocol lists them in the game's state and captures one by
+  its name, and the MCP server's `capture` takes the view's name.
 - Scenes unloaded and adoption (ADR-0112, ADR-0125): `World::unload_scene` destroys a scene and
   keeps what the run changed of it, which spawning the same scene under its key again and settling
   it applies; `slime_world::Persistence`, on a scene's root or on an entity, makes what the run
@@ -136,8 +147,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `Camera::fov_y` is `Projection::Perspective { fov_y }`. `Renderer::render` returns nothing; the
   statistics are each view's. `slime_world_render::Frame::scene` takes the point that the lights
   beyond those drawn are nearest to, rather than a camera.
-- A view whose size changes frees its old targets, once the GPU has finished the frames that use
-  them, before it makes new ones: the GPU never holds both, and a size that does not fit leaves the
+- A view whose size changes keeps drawing into its targets, its image stretched over its
+  rectangle, until the new size has held still for `RESIZE_DELAY`, 200 ms; it then frees its old
+  targets, once the GPU has finished the frames that use them, before it makes new ones: a window's
+  edge dragged makes them once, the GPU never holds both, and a size that does not fit leaves the
   view without targets.
 - Saves per scene (ADR-0125): a game settles its world once it made the start of a run, and again
   once it prepared a scene that it spawned since (`World::settle`); `World::save(about)` writes what

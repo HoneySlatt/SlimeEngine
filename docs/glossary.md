@@ -25,7 +25,8 @@ for the light of the surroundings until the *environment* replaced it
 
 **Anti-aliasing.** Smoothing the steps that an edge makes across the pixels: without it, a nearly
 horizontal edge steps by a whole pixel at long intervals. The renderer uses *multisample
-anti-aliasing* ([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)).
+anti-aliasing* ([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)), or none, as
+each *view* chooses ([ADR-0127](adr/0127-the-settings-of-a-view.md)).
 
 **Application time.** The sum of the deltas of all frames so far (`FrameTime::elapsed`). It
 falls behind wall-clock time when a frame delta is limited, for example after a pause.
@@ -567,6 +568,11 @@ minified texture does not alias. The engine computes them on the CPU when the te
 (`Gpu::create_texture`), in linear light for the sRGB formats, or takes them from the caller
 (`Gpu::create_texture_with_levels`, `Gpu::create_cube_texture`); linear filtering blends two levels.
 
+**Mode of debugging (render).** What a *view* shows in place of the lit scene, to see what the
+renderer computes (`slime_render::DebugMode`): the normal each surface is shaded with, or the share
+of the shadowing lights' light that reaches it, written as colors as they are, without the exposure,
+the bloom or the tone curve ([ADR-0127](adr/0127-the-settings-of-a-view.md)).
+
 **Mirror (source assets).** The copies of the sample game's downloaded *source assets*, attached to
 the releases of a GitHub repository of their own, from which `scripts/fetch-assets.sh` fetches
 them ([ADR-0070](adr/0070-the-sample-games-source-assets.md)).
@@ -784,6 +790,11 @@ draws into and the ones it samples (`crates/slime-render/src/graph.rs`, private)
 passes by those targets, creates the *transient targets*, records the passes, four to a
 *submission*, and gives each one's *GPU time* ([ADR-0041](adr/0041-render-graph.md)). It is built
 again when the frame's *shape* changes.
+
+**Render scale.** The size of a *view*'s targets against that of the rectangle it draws into,
+from 0.25 to 2 (`slime_render::ViewSettings::render_scale`): below 1 it draws fewer pixels, which
+the tone mapping stretches over the rectangle; above 1, more, which it averages
+([ADR-0127](adr/0127-the-settings-of-a-view.md)).
 
 **Render target.** An image the GPU draws into (`slime_gfx::RenderTarget`): an offscreen image,
 which can be read back to the CPU and sampled by later passes, or the image of a window for one
@@ -1100,8 +1111,15 @@ the game holds from frame to frame (`slime_render::View`): its targets at the si
 buffers, its part of the render graph and its statistics. A frame draws one or more, each with its
 own camera; what they share, the pipelines, the meshes, the spot lights' shadows and the sun's
 cascades' atlas, the renderer makes once ([ADR-0111](adr/0111-the-frame-contract.md),
-[ADR-0126](adr/0126-views-apart-from-the-renderer.md)). The settings of a view (render scale,
-anti-aliasing, debugging, passes) are not built yet.
+[ADR-0126](adr/0126-views-apart-from-the-renderer.md)). Each draws as its *view settings* say, and
+makes its targets at a new size once that size has held still for a moment, its image stretched
+until then ([ADR-0127](adr/0127-the-settings-of-a-view.md)).
+
+**View settings.** How a *view* draws, which it keeps from frame to frame
+(`slime_render::ViewSettings`): its *render scale*, its *anti-aliasing*, a *mode of debugging*, and
+whether it draws the shadows, the sky and the bloom. Described by reflection, through which the dev
+overlay and a tool driving a game read and change them
+([ADR-0127](adr/0127-the-settings-of-a-view.md)).
 
 **Visual target.** A reference image that a game sets for its look, on its target *hardware tier*
 at its frame rate: the gap between the game's image and its targets is the measured problem by

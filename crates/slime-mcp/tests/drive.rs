@@ -56,6 +56,7 @@ fn main() {
         "inspect_entity",
         "set_property",
         "capture",
+        "set_view_settings",
         "save_game",
         "load_game",
     ] {

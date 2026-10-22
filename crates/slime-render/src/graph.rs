@@ -377,6 +377,13 @@ impl Graph {
         DepthId(self.transient(label.into(), None, 0, true))
     }
 
+    /// Declares a transient depth target at the output's size, of one sample per pixel, for the
+    /// passes that draw into a render target of one sample, named `label` in error messages and
+    /// capture tools.
+    pub(crate) fn transient_depth(&mut self, label: impl Into<String>) -> DepthId {
+        DepthId(self.transient(label.into(), None, 0, false))
+    }
+
     fn transient(
         &mut self,
         label: String,

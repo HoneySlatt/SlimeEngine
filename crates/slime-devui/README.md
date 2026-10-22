@@ -20,7 +20,8 @@ edits its components through reflection, for whoever works on a game, as
 which the editor that `docs/ROADMAP.md` plans for Stage 6 is to do; the panel goes with the rest of
 the overlay once that editor does at least as well. It makes its list of entities again only when
 the world's structure moves (`World::structure`). What it edits, and its limits, are in the rustdoc
-of `WorldPanel`.
+of `WorldPanel`. Its widgets edit a value outside a world too, as a view's settings
+(`docs/adr/0127-the-settings-of-a-view.md`).
 
 ## Role
 
@@ -124,6 +125,10 @@ impl Presentation for Statistics {
   which the application gives the panel with `WorldPanel::refused`, to show it. The panel keeps the
   entity selected by its identity too, and finds it again when a load or a hot reload replaced the
   world. `games/hunnawood` and the `world` example show it on F2.
+- `edit_reflected(ui, id, &mut value)`, in a panel of the application's: the world panel's widgets
+  for any value that reflection describes, outside a world, which it changes within its fields'
+  ranges. `games/hunnawood`'s overlay, on F1, and the `world` example's views panel, on F3, edit
+  their views' settings (`slime_render::ViewSettings`) with it.
 
 ## Dependencies
 
@@ -132,7 +137,7 @@ impl Presentation for Statistics {
 - `slime-gfx`, with its `wgpu` feature: the GPU, the render pass and wgpu itself.
 - `slime-platform`: the events to translate.
 - `slime-world` and `slime-reflect`: the world that the world panel lists, and the reflection it
-  edits its components through.
+  edits its components and other values through.
 - `slime-assets` and `slime-color`: the asset IDs and the colors that the world panel shows as
   such.
 

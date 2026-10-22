@@ -9,7 +9,10 @@
 //! (`docs/adr/0126-views-apart-from-the-renderer.md`). After a lost GPU
 //! device, it goes on: a new asset cache loads the world's meshes again, and the world is
 //! untouched. F2 shows the dev overlay's world panel, which lists the entities by name and edits
-//! their components (`slime-devui`). Escape, closing the window or Ctrl+C quits.
+//! their components (`slime-devui`); F3 its panel of the views, which shows the size each draws at
+//! and edits its settings: its render scale, anti-aliasing, a mode of debugging that shows normals
+//! or shadows, and its passes (`docs/adr/0127-the-settings-of-a-view.md`), which a tool driving
+//! the example changes too. Escape, closing the window or Ctrl+C quits.
 //!
 //! When it quits, it saves its world (`docs/adr/0125-saves-per-scene.md`): what the run changed
 //! since the example settled the world that it spawns at the start, what the panel changed. The
@@ -55,14 +58,17 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 use slime_app::{
-    AppConfig, AppError, Context, Presentation, ShownView, Simulation, SimulationContext,
+    AppConfig, AppError, Context, Presentation, ReflectedSettings, ShownView, Simulation,
+    SimulationContext,
 };
 use slime_assets::{CookedAssets, ManifestWatch};
-use slime_devui::{Overlay, WorldPanel};
+use slime_devui::{Overlay, WorldPanel, edit_reflected, egui};
 use slime_gfx::RenderTarget;
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
 use slime_render::glam::{DVec3, Vec3};
-use slime_render::{AssetCache, Camera, Projection, Renderer, Scene, View, ViewDraw, Viewport};
+use slime_render::{
+    AssetCache, Camera, Projection, Renderer, Scene, View, ViewDraw, ViewSettings, Viewport,
+};
 use slime_world::{Entity, Light, PersistentId, SceneLibrary, Tick, Transform, World};
 use slime_world_render::FrameBuilder;
 
@@ -83,6 +89,9 @@ const TURN_SPEED: f32 = 0.2;
 /// edges, a fraction of its own side.
 const MAP_SIDE: f32 = 0.3;
 const MAP_MARGIN: f32 = 0.05;
+/// The names of the yard's view and of the map's, by which a tool captures them and changes their
+/// settings, in the order of `YardView::views` and `YardView::settings`.
+const VIEWS: [&str; 2] = ["yard", "map"];
 
 /// The example's rules: the yard spawned, its ring floating at the fixed step, and, with `--watch`,
 /// the run carried into the scenes that changed.
@@ -109,12 +118,17 @@ struct YardView {
     renderer: Option<Renderer>,
     /// The views of the camera turning around the yard and of the map, while there is a GPU.
     views: Option<(View, View)>,
+    /// Their settings, which the overlay and a tool change, and which their views take at each
+    /// frame: those made again after a lost device keep them.
+    settings: [ViewSettings; 2],
     /// Where the last frame drew them into the window's image, by their names.
     shown: Vec<ShownView>,
     /// The dev overlay, while there is a GPU, and its world panel, shown with F2.
     overlay: Option<Overlay>,
     panel: WorldPanel,
     panel_shown: bool,
+    /// Whether the overlay shows the views' settings, with F3.
+    settings_shown: bool,
     /// The renderer's asset cache, while there is a GPU.
     cache: Option<AssetCache>,
     /// The cooked data that the cache loads from, the last that the watch gave: a cache made
@@ -408,6 +422,7 @@ impl Presentation for YardView {
         {
             match physical {
                 KeyCode::F2 => self.panel_shown = !self.panel_shown,
+                KeyCode::F3 => self.settings_shown = !self.settings_shown,
                 KeyCode::Escape if !typing => ctx.request_exit(),
                 _ => {}
             }
@@ -469,10 +484,31 @@ impl Presentation for YardView {
         let mut commands = Vec::new();
         if let (Some(overlay), Some(window)) = (&mut self.overlay, ctx.window()) {
             let (panel, shown) = (&mut self.panel, self.panel_shown);
+            let (settings, views) = (&mut self.settings, &self.views);
+            let sizes = views.as_ref().map_or([None; 2], |(yard, map)| {
+                [yard.render_size(), map.render_size()]
+            });
+            let settings_shown = self.settings_shown;
             // Built with no panel while hidden, so that egui still takes the events handed to it.
-            overlay.build(window.inner_size(), |egui| {
+            overlay.build(window.inner_size(), |context| {
                 if shown {
-                    commands.extend(panel.show(egui, world));
+                    commands.extend(panel.show(context, world));
+                }
+                if settings_shown {
+                    egui::Window::new("Views")
+                        .default_pos(egui::pos2(12.0, 12.0))
+                        .resizable(false)
+                        .show(context, |ui| {
+                            for ((name, settings), size) in
+                                VIEWS.into_iter().zip(settings.iter_mut()).zip(sizes)
+                            {
+                                ui.heading(name);
+                                if let Some((width, height)) = size {
+                                    ui.label(format!("drawn at {width} × {height} pixels"));
+                                }
+                                edit_reflected(ui, name, settings);
+                            }
+                        });
                 }
             });
         }
@@ -493,6 +529,8 @@ impl Presentation for YardView {
         ) else {
             return;
         };
+        yard.set_settings(self.settings[0]);
+        map.set_settings(self.settings[1]);
         let mut draws = vec![ViewDraw::new(yard, camera, target)];
         let side = (target.width().min(target.height()) as f32 * MAP_SIDE) as u32;
         let margin = (side as f32 * MAP_MARGIN) as u32;
@@ -511,7 +549,7 @@ impl Presentation for YardView {
             ctx.exit_with_error(error);
             return;
         }
-        self.shown = ["yard", "map"]
+        self.shown = VIEWS
             .into_iter()
             .zip(&draws)
             .map(|(name, draw)| {
@@ -540,6 +578,24 @@ impl Presentation for YardView {
 
     fn views(&self) -> Vec<ShownView> {
         self.shown.clone()
+    }
+
+    fn view_settings(&self, name: &str) -> Option<ReflectedSettings> {
+        let index = VIEWS.iter().position(|&view| view == name)?;
+        Some(ReflectedSettings::new(&self.settings[index]))
+    }
+
+    fn set_view_settings(
+        &mut self,
+        name: &str,
+        settings: &ReflectedSettings,
+    ) -> Result<(), String> {
+        let index = VIEWS
+            .iter()
+            .position(|&view| view == name)
+            .ok_or_else(|| format!("the example has no view `{name}`"))?;
+        self.settings[index] = settings.get().map_err(|error| error.to_string())?;
+        Ok(())
     }
 
     fn gpu_lost(&mut self, _ctx: &mut Context) {
@@ -611,10 +667,12 @@ fn main() -> ExitCode {
     let mut view = YardView {
         renderer: None,
         views: None,
+        settings: [ViewSettings::default(); 2],
         shown: Vec::new(),
         overlay: None,
         panel: WorldPanel::default(),
         panel_shown: false,
+        settings_shown: false,
         cache: None,
         cached: assets.clone(),
         builder: FrameBuilder::new(Some(SKY)),

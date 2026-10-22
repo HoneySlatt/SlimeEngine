@@ -20,11 +20,12 @@ meshes with glTF's metallic-roughness materials, lit by directional, point and s
 lights in physical units (lux and candelas), with the shadows of a sun, in cascades around the
 camera, and of spot lights, and the light of a procedural sky that surfaces reflect and that
 shows behind them; it draws in high dynamic range, at four samples per pixel so that edges are
-smooth, relative to the camera and with reversed depth so that large scenes keep their precision,
-then exposes the light, spreads a bloom around it, tone maps it and dithers it, into a window
-or into offscreen images that image tests compare with references. The `scene` example draws a
-scene cooked from a glTF file, and its lights, under a camera driven by the mouse, with the CPU
-time and the GPU time of each pass in a dev overlay. The asset pipeline gives every source file an
+smooth, or at one and at another scale as each view's settings say, relative to the camera and with
+reversed depth so that large scenes keep their precision, then exposes the light, spreads a bloom
+around it, tone maps it and dithers it, into a window or into offscreen images that image tests
+compare with references. The `scene` example draws a scene cooked from a glTF file, and its lights,
+under a camera driven by the mouse, with the CPU time and the GPU time of each pass in a dev
+overlay. The asset pipeline gives every source file an
 ID that survives a move, and its cooker, `slime-cook`, turns glTF scenes and PNG and JPEG images
 into cooked data, meshes, materials, scenes and textures compressed in BC7 and BC5, which a game
 reads by ID ([ADR-0069](docs/adr/0069-the-asset-pipeline.md)). The

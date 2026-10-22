@@ -101,7 +101,7 @@ the ADR linking to it.
 | [0031](0031-dev-overlay-with-egui.md) | The dev overlay with egui, and wgpu for the engine's tooling | Accepted; widened on 2026-10-13; amended by 0052 and 0105 |
 | [0032](0032-mipmaps-computed-at-texture-creation.md) | Mipmaps computed by the engine when a texture is created | Accepted; amended by 0039 and 0071 |
 | [0033](0033-gpu-layer-for-multi-pass-rendering.md) | The GPU layer for multi-pass rendering | Accepted; amended by 0038, 0039, 0041, 0047, 0059 and 0122 |
-| [0034](0034-hdr-rendering-and-tone-mapping.md) | HDR rendering and tone mapping | Accepted; amended by 0035, 0037, 0039, 0040, 0041 and 0051 |
+| [0034](0034-hdr-rendering-and-tone-mapping.md) | HDR rendering and tone mapping | Accepted; amended by 0035, 0037, 0039, 0040, 0041, 0051 and 0127 |
 | [0035](0035-physically-based-materials.md) | Physically based materials | Accepted; amended by 0037, 0039, 0069 and 0111 |
 | [0036](0036-direct3d-12-shader-compiler.md) | The shader compiler of Direct3D 12 | Accepted; amended by 0066 |
 | [0037](0037-lights-in-physical-units-and-pre-exposure.md) | Lights in physical units, and pre-exposure | Accepted; amended by 0038, 0039, 0040 and 0042 |
@@ -123,7 +123,7 @@ the ADR linking to it.
 | [0053](0053-one-home-per-fact.md) | One home per fact in the documentation | Accepted |
 | [0054](0054-image-tests-allow-0-2-percent-on-other-drivers.md) | Image tests allow 0.2 % of the pixels to differ on other drivers | Accepted |
 | [0055](0055-games-in-the-workspace.md) | Games in the workspace | Accepted; amended by 0067 and 0110 |
-| [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) | Stage 3d: anti-aliasing and the shadows of spot lights | Accepted; amended by 0058 and 0064 |
+| [0056](0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) | Stage 3d: anti-aliasing and the shadows of spot lights | Accepted; amended by 0058, 0064 and 0127 |
 | [0057](0057-what-the-first-game-asks-of-the-next-stages.md) | What the first game asks of the next stages | Accepted; amended by 0121 |
 | [0058](0058-shadows-for-every-spot-light-in-one-atlas.md) | Shadows for every spot light, in one atlas | Accepted; amended by 0126 |
 | [0059](0059-multisampling-in-the-gpu-layer.md) | Multisampling in the GPU layer | Accepted; amended by 0060 and 0115 |
@@ -178,7 +178,7 @@ the ADR linking to it.
 | [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted; amended by 0119 and 0124 |
 | [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amended by 0116 and 0124 |
 | [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116, 0121 and 0122 |
-| [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115, 0120 and 0126 |
+| [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115, 0120, 0126 and 0127 |
 | [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted; amended by 0125 |
 | [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted; amended by 0120 |
 | [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amended by 0120 |
@@ -189,8 +189,9 @@ the ADR linking to it.
 | [0119](0119-the-worlds-ticks-blocks-and-log.md) | The world's ticks, blocks and log | Accepted |
 | [0120](0120-a-frame-that-owns-what-it-draws.md) | A frame that owns what it draws | Accepted; amended by 0121 |
 | [0121](0121-a-game-as-a-simulation-and-a-presentation.md) | A game as a simulation and a presentation | Accepted; amended by 0122 |
-| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125 and 0126 |
+| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125, 0126 and 0127 |
 | [0123](0123-the-linux-checks-in-two-jobs.md) | The Linux checks in two jobs | Accepted |
 | [0124](0124-driven-components-keys-and-created-entities-in-levels.md) | Driven components, start keys and created entities written into levels | Accepted; amended by 0125 |
 | [0125](0125-saves-per-scene.md) | Saves per scene, scenes unloaded and adoption | Accepted |
-| [0126](0126-views-apart-from-the-renderer.md) | Views apart from the renderer | Accepted |
+| [0126](0126-views-apart-from-the-renderer.md) | Views apart from the renderer | Accepted; amended by 0127 |
+| [0127](0127-the-settings-of-a-view.md) | The settings of a view | Accepted |

@@ -46,7 +46,7 @@ fn creations_on_a_lost_device_return_the_loss() {
     // A frame of the same size creates nothing, and is not drawn either.
     let frame = draw(&mut renderer, &mut view, &small);
     assert!(is_lost(&frame), "{frame:?}");
-    // A frame of a new size creates its targets: it is not drawn, and the renderer does not panic.
+    // A frame of a new size is not drawn either, and the renderer does not panic.
     let frame = draw(&mut renderer, &mut view, &larger);
     assert!(is_lost(&frame), "{frame:?}");
     let view = renderer.create_view(&gpu, "lost");

@@ -101,7 +101,6 @@ pub fn instances(
     let gpu = &context.gpu;
     let error = |error: slime_render::RenderError| error.to_string();
     let mut renderer = Renderer::new(gpu, FORMAT).map_err(error)?;
-    let mut render_view = renderer.create_view(gpu, "benchmark").map_err(error)?;
     let mesh = renderer.create_mesh(gpu, "cube", &cube()).map_err(error)?;
     let materials = (0..8)
         .map(|index| {
@@ -154,6 +153,9 @@ pub fn instances(
             .create_render_target("benchmark frame", width, height, FORMAT)
             .map_err(|error| error.to_string())?;
         let at = format!("at {width} × {height}");
+        // A view for each size: one view drawn at another size would draw into its first targets
+        // until the new size held still (ADR-0127), stretched.
+        let mut render_view = renderer.create_view(gpu, "benchmark").map_err(error)?;
         let (mut cpu, mut whole) = (Vec::new(), Vec::new());
         let (mut scene_gpu, mut passes_gpu) = (Vec::new(), Vec::new());
         let mut last = None;
@@ -174,6 +176,11 @@ pub fn instances(
             }
         }
         let stats = last.expect("at least one frame is measured");
+        assert_eq!(
+            render_view.render_size(),
+            Some((width, height)),
+            "the frames are drawn at the size of the target"
+        );
         rows.extend(Row::times(&format!("CPU of `Renderer::render` {at}"), &cpu));
         rows.extend(Row::times(
             &format!("frame, until the GPU finished it, {at}"),

@@ -8,15 +8,18 @@
 
 #[path = "../../slime-gfx/tests/common/memory_budget.rs"]
 mod memory_budget;
+#[path = "common/settled.rs"]
+mod settled;
 
 use memory_budget::{CHILD_ENV, run_out_of_memory_in_a_child};
+use settled::draw_settled;
 use slime_color::LinearColor;
 use slime_gfx::{FloatImage, GfxError, Gpu, MEMORY_BUDGET_ENV_VAR, RenderTarget, TextureFormat};
 use slime_render::glam::{DAffine3, DQuat, DVec3, Vec3};
 use slime_render::{
     Camera, DirectionalLight, Environment, ImagePart, Instance, Light, Material, MaterialData,
-    Mesh, MeshData, Projection, RenderError, Renderer, Scene, Sky, SpotLight, View, ViewDraw,
-    Viewport,
+    Mesh, MeshData, Projection, RESIZE_DELAY, RenderError, Renderer, Scene, Sky, SpotLight, View,
+    ViewDraw, Viewport,
 };
 
 const FORMAT: TextureFormat = TextureFormat::Rgba16Float;
@@ -517,13 +520,7 @@ fn a_view_resized_gives_its_old_targets_back() {
     let (small, large) = (output(&gpu, 256, 256), output(&gpu, 512, 512));
     let camera = looking_from(DVec3::new(4.0, 3.0, 5.0));
     let mut held_after = |target: &RenderTarget| {
-        renderer
-            .render(
-                &gpu,
-                &scene,
-                &mut [ViewDraw::new(&mut view, camera, target)],
-            )
-            .expect("the frame is drawn");
+        draw_settled(&gpu, &mut renderer, &scene, &mut view, camera, target);
         gpu.wait_idle().expect("the GPU finishes");
         gpu.memory_in_use().expect("counted")
     };
@@ -626,14 +623,18 @@ fn a_view_whose_new_size_does_not_fit_keeps_no_targets() {
         println!("no device");
         return;
     };
-    let mut draw = |renderer: &mut Renderer, target: &RenderTarget| {
+    // Again once the size has held still, when the view makes its targets at that size.
+    let mut draw = |renderer: &mut Renderer, target: &RenderTarget| loop {
         let drawn = renderer.render(
             &gpu,
             &Scene::new(Vec::new()),
             &mut [ViewDraw::new(&mut view, Camera::default(), target)],
         );
         gpu.wait_idle().expect("the device is not lost");
-        drawn
+        if drawn.is_err() || view.render_size() == Some((target.width(), target.height())) {
+            return drawn;
+        }
+        std::thread::sleep(RESIZE_DELAY);
     };
     let without_targets = gpu.memory_in_use().expect("counted");
     if !fits(draw(&mut renderer, &small)) {

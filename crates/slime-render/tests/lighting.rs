@@ -9,18 +9,21 @@
 //! out of view none, and the statistics give the GPU time of each pass, the shadow and sky passes'
 //! included. Runs on whatever adapter the machine offers.
 
+#[path = "common/settled.rs"]
+mod settled;
 #[path = "common/tone_curve.rs"]
 mod tone_curve;
 
 use std::f32::consts::PI;
 use std::time::Duration;
 
+use settled::draw_settled;
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, Image, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3, Mat4, Vec3, Vec4};
 use slime_render::{
     Camera, DirectionalLight, Environment, Instance, Light, Material, MaterialData, Mesh, MeshData,
-    RenderStats, Renderer, Scene, Sky, View, ViewDraw,
+    RenderStats, Renderer, Scene, Sky, View,
 };
 
 use tone_curve::displayed;
@@ -129,13 +132,14 @@ impl Setup {
         scene.lights = lights.to_vec();
         scene.environment = environment.clone();
         scene.exposure = exposure;
-        self.renderer
-            .render(
-                &self.gpu,
-                &scene,
-                &mut [ViewDraw::new(&mut self.view, camera, &target)],
-            )
-            .expect("the frame is drawn");
+        draw_settled(
+            &self.gpu,
+            &mut self.renderer,
+            &scene,
+            &mut self.view,
+            camera,
+            &target,
+        );
         let stats = self.view.stats();
         let image = self
             .gpu
@@ -285,10 +289,10 @@ fn the_exposure_multiplies_the_light_that_surfaces_reflect() {
 #[test]
 fn the_targets_follow_the_size_of_the_output() {
     let mut setup = Setup::new();
-    // Only the height changes, then only the width, then both. Each frame must be the one that a
-    // renderer drawing first at that size draws: a high-dynamic-range target kept from another
-    // size would frame the square differently, and a depth target of another size would make the
-    // pass panic.
+    // Only the height changes, then only the width, then both. Each frame, once the size has held
+    // still, must be the one that a renderer drawing first at that size draws: a high-dynamic-range
+    // target kept from another size would frame the square differently, and a depth target of
+    // another size would make the pass panic.
     for size in [(16, 16), (16, 8), (8, 8), (16, 16)] {
         let (image, _) = setup.draw(from_the_front(), 0.0, &[Mat4::IDENTITY], size, 1.0);
         let (expected, _) = Setup::new().draw(from_the_front(), 0.0, &[Mat4::IDENTITY], size, 1.0);

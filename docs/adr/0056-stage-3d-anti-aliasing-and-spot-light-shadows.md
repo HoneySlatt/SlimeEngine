@@ -1,8 +1,9 @@
 # 0056. Stage 3d: anti-aliasing and the shadows of spot lights
 
 - Status: Accepted; amends [0052](0052-amend-roadmap-before-0-1.md) (Stage 9a's content); amended by
-  [0058](0058-shadows-for-every-spot-light-in-one-atlas.md) (how many spot lights cast shadows) and
-  by [0064](0064-cascaded-shadow-maps.md) (cascades move into the stage)
+  [0058](0058-shadows-for-every-spot-light-in-one-atlas.md) (how many spot lights cast shadows), by
+  [0064](0064-cascaded-shadow-maps.md) (cascades move into the stage) and
+  [0127](0127-the-settings-of-a-view.md) (a view may draw without anti-aliasing)
 - Date: 2026-10-15
 
 ## Context

@@ -6,10 +6,11 @@ engine's MCP server, tests, and later the editor
 
 ## Status
 
-The protocol, version 3: the host's controls (pause, speed, one step, stop), commands that set a
+The protocol, version 4: the host's controls (pause, speed, one step, stop), commands that set a
 part of a component, questions on the world, captures of the game's image or of one of its views
-(`docs/adr/0126-views-apart-from-the-renderer.md`), scripted keys, the game's state, log and frame
-times, and its run saved to a file and loaded from one (`docs/adr/0125-saves-per-scene.md`). Only
+(`docs/adr/0126-views-apart-from-the-renderer.md`), the settings of its views read and changed
+(`docs/adr/0127-the-settings-of-a-view.md`), scripted keys, the game's state, log and frame times,
+and its run saved to a file and loaded from one (`docs/adr/0125-saves-per-scene.md`). Only
 programs built with `slime-app`'s `development` feature listen; a build for shipping holds no
 channel.
 
