@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 mod binary;
+mod comments;
 mod compose;
 mod document;
 mod error;
@@ -11,6 +12,7 @@ use std::io::Read as _;
 
 use slime_reflect::{Path, Reflect, ReflectError, Registry, Value};
 
+pub use crate::comments::keep_comments;
 pub use crate::compose::{Composer, Document};
 use crate::compose::{line_breaks, parsed, position, too_large};
 pub use crate::error::{ReadError, ReadProblem};

@@ -1,13 +1,14 @@
 //! Documents damaged (`docs/adr/0096-the-files-the-engine-reads.md`): a valid document, as a text
 //! and in the binary encoding, cut at every byte, its bytes changed and mutated at random, is
-//! refused or read, leniently and strictly, and never makes the reader panic.
+//! refused or read, leniently and strictly, and its comments kept, and never makes the reader
+//! panic.
 
 #[path = "../../slime-assets/tests/common/damage.rs"]
 mod damage;
 
 use damage::damage;
 use slime_reflect::{Reflect, Registry};
-use slime_serialize::{Composer, Document, Mode, encode, read, read_partial, write};
+use slime_serialize::{Composer, Document, Mode, encode, keep_comments, read, read_partial, write};
 
 /// A colour.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
@@ -65,6 +66,7 @@ fn a_damaged_document_is_refused_or_read_never_a_panic() {
         corners: [1, 65535],
     };
     let text = &write(&registry, "test::Lamp", &lamp.to_value()).expect("written");
+    let text_written = &format!("# A lamp.\n{text}");
     assert!(read(&registry, "test::Lamp", text, Mode::Strict).is_ok());
     damage(text.as_bytes(), |bytes| {
         let text = String::from_utf8_lossy(bytes);
@@ -72,6 +74,9 @@ fn a_damaged_document_is_refused_or_read_never_a_panic() {
             let _ = read(&registry, "test::Lamp", &text, mode);
             let _ = read_partial(&registry, "test::Lamp", &text, mode);
         }
+        // Its comments kept, as the editor keeps a level's, whatever the text before.
+        let _ = keep_comments(&text, text_written);
+        let _ = keep_comments(text_written, &text);
     });
     // A document of several values, as a save or a scene file is, in the binary encoding.
     let mut composer = Composer::new(&registry);
