@@ -114,7 +114,7 @@ jobs:
           scripts/fetch-assets.sh zone/
           cargo run --locked --release -p slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood
       - name: The tests that read the sample game's zone
-        run: cargo test --locked -p hunnawood -- --ignored
+        run: cargo test --locked -p hunnawood -p hunnawood-editor -- --ignored
       # An image test that fails writes the image it rendered in target/tmp (CARGO_TARGET_TMPDIR).
       # Only this job can show what WARP drew, and the runner is discarded with that image.
       - name: Publish the images rendered by the image tests that failed

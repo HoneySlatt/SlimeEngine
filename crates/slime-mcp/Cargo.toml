@@ -35,3 +35,17 @@ harness = false
 name = "views"
 test = false
 harness = false
+
+# Edits a copy of the examples' yard through the `editor` example, which has no window, and needs
+# the examples' cooked assets: `scripts/check.sh` runs it with the samples (ADR-0135).
+[[test]]
+name = "edit"
+test = false
+harness = false
+
+# Edits a copy of Hunna Wood's zone through its editor package, which has no window, and needs the
+# zone cooked: `scripts/check.sh` runs it with the tests that read the zone (ADR-0135).
+[[test]]
+name = "edit_zone"
+test = false
+harness = false

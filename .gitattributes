@@ -12,5 +12,8 @@
 # and field by field: a carriage return would end up in its last field.
 *.tsv text eol=lf
 # The engine's documents, which its writer gives the same bytes on every platform, LF endings
-# included (docs/adr/0086-serialization.md): a checkout keeps them as written.
+# included (docs/adr/0086-serialization.md): a checkout keeps them as written. A level written back
+# by the editor is so the file written by hand, byte for byte, when nothing in it changed
+# (docs/adr/0134-the-editors-core.md).
 *.toml text eol=lf
+*.scene text eol=lf

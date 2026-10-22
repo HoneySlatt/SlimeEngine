@@ -38,6 +38,8 @@ if runs headless; then
     cargo clippy --locked -p slime-app --test windowed_lifecycle -- -D warnings
     cargo clippy --locked -p slime-mcp --test drive -- -D warnings
     cargo clippy --locked -p slime-mcp --test views -- -D warnings
+    cargo clippy --locked -p slime-mcp --test edit -- -D warnings
+    cargo clippy --locked -p slime-mcp --test edit_zone -- -D warnings
     # The game built for shipping, without the development channel (ADR-0122): the code that stands in
     # for the channel is compiled only there.
     cargo clippy --locked -p hunnawood --no-default-features --all-targets -- -D warnings
@@ -47,6 +49,8 @@ if runs headless; then
     cargo clippy --locked -p slime-app --test windowed_lifecycle --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test drive --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test views --target x86_64-pc-windows-msvc -- -D warnings
+    cargo clippy --locked -p slime-mcp --test edit --target x86_64-pc-windows-msvc -- -D warnings
+    cargo clippy --locked -p slime-mcp --test edit_zone --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p hunnawood --no-default-features --all-targets --target x86_64-pc-windows-msvc -- -D warnings
 
     step "Build"
@@ -81,7 +85,12 @@ if runs headless; then
     # A release build: a debug build of the cooker takes minutes to compress the zone's textures.
     step "The sample game's zone, cooked, and the tests that read it"
     cargo run --locked --release -p slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood
-    VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test --locked -p hunnawood -- --ignored
+    # Its editor's too, which writes the zone back with its comments (ADR-0135).
+    VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test --locked -p hunnawood -p hunnawood-editor -- --ignored
+    # An agent's session through the MCP server edits a copy of the zone with the game's editor, which
+    # has no window: a component of the game changed, an entity created, undone, redone, written back.
+    cargo build --locked -p hunnawood-editor
+    env -u WAYLAND_DISPLAY -u DISPLAY timeout -k 10 300 cargo test --locked -p slime-mcp --test edit_zone
 
     step "Headless samples (no display server)"
     env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example headless -- --frames 600
@@ -91,6 +100,12 @@ if runs headless; then
         cargo run --locked --example world -- --assets "$cooked/first" --headless --frames 600
     env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         cargo run --locked --example offscreen -- --output target/triangle.png
+    # An agent's session through the MCP server edits a copy of the yard with the `editor` example,
+    # which has no window: steps made, undone and redone, the level written back and opened again,
+    # a step not written recovered from the journal (ADR-0135).
+    cargo build --locked --example editor
+    env -u WAYLAND_DISPLAY -u DISPLAY \
+        timeout -k 10 300 cargo test --locked -p slime-mcp --test edit -- "$cooked/first"
 fi
 
 if runs windowed; then
