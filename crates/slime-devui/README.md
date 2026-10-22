@@ -118,6 +118,10 @@ impl Presentation for Statistics {
 - `Overlay::render(gpu, target)`: draws the panels built over the target, without the world; a
   frame with no panel submits no work to the GPU. Panels built in a frame that the window could not
   show are replaced by the next ones, whose drawing makes the changes of egui's textures of both.
+- `Overlay::release()` and `Overlay::restore(gpu, format)`: when the GPU device is lost, the
+  presentation releases the overlay's GPU objects and keeps the overlay, then makes them again
+  with the device that replaces the lost one: its panels, what they hold and where the cursor is
+  stay as they were, so that a click before the cursor moves again lands where the cursor is.
 - `WorldPanel::show(ctx, &world)`, in the closure of `build`: the world panel's window, and the
   commands its widgets ask for, which the application adds to those of the frame, since egui may
   call the closure twice, and sends to its host (`slime_app::Context::send`). The host applies

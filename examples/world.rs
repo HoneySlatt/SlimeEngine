@@ -281,7 +281,12 @@ impl YardView {
             ));
             self.icon = Some(icon(gpu, &renderer)?);
             self.renderer = Some(renderer);
-            self.overlay = Some(Overlay::new(gpu, format, window.scale_factor())?);
+            match &mut self.overlay {
+                // Made again after a lost device, keeping what its panels show and where the
+                // cursor is.
+                Some(overlay) => overlay.restore(gpu, format)?,
+                None => self.overlay = Some(Overlay::new(gpu, format, window.scale_factor())?),
+            }
         }
         Ok(())
     }
@@ -745,7 +750,9 @@ impl Presentation for YardView {
         self.renderer = None;
         self.views = None;
         self.shown.clear();
-        self.overlay = None;
+        if let Some(overlay) = &mut self.overlay {
+            overlay.release();
+        }
         self.requests = self.cache.take().map(AssetCache::into_requests);
         self.scene = None;
         self.builder.release();

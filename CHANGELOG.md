@@ -325,6 +325,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- After a lost GPU device, a click on the dev overlay before the cursor moved again landed in the
+  window's corner, its overlay made again without knowing where the cursor was: `Overlay::release`
+  and `Overlay::restore` keep the overlay, its panels and the cursor's place, and make its GPU
+  objects again, egui's font texture uploaded whole. *Hunna Wood* and the `world` example keep
+  their overlay so.
 - `error_chain` no longer writes a cause that the error's message already holds, as a cooked file's
   errors write what is wrong with it after its path: "the mesh is not one the cooker writes: a text
   is not UTF-8" appeared twice.

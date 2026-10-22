@@ -403,13 +403,11 @@ impl Presentation for Screen {
 
     fn gpu_restored(&mut self, ctx: &mut Context, world: &World) -> Result<(), AppError> {
         self.open(ctx, world)?;
-        let (Some(gpu), Some(format), Some(window)) =
-            (ctx.gpu(), ctx.surface_format(), ctx.window())
-        else {
+        let (Some(gpu), Some(format)) = (ctx.gpu(), ctx.surface_format()) else {
             return Err("Hunna Wood needs a window".into());
         };
         if let Some(overlay) = &mut self.overlay {
-            overlay.restore(gpu, format, window.scale_factor())?;
+            overlay.restore(gpu, format)?;
         }
         self.loading = Some(Loading::default());
         // A reload in progress went with the lost device: the data it loaded is given again.

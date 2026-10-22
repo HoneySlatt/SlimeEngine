@@ -21,7 +21,8 @@ pub use world_panel::{WorldPanel, edit_reflected};
 /// the panels over it ([`render`](Self::render)).
 pub struct Overlay {
     context: egui::Context,
-    renderer: egui_wgpu::Renderer,
+    /// egui's renderer, its GPU objects; `None` once released, after a lost device, until restored.
+    renderer: Option<egui_wgpu::Renderer>,
     input: input::Input,
     started: Instant,
     /// The format of the targets egui's pipeline draws into.
@@ -61,24 +62,57 @@ impl Overlay {
     /// panics on a lost device, between the check and the creation.
     pub fn new(gpu: &Gpu, format: TextureFormat, scale_factor: f64) -> Result<Self, GfxError> {
         gpu.check()?;
-        let renderer = egui_wgpu::Renderer::new(
-            gpu.wgpu_device(),
-            format.wgpu_format(),
-            egui_wgpu::RendererOptions {
-                msaa_samples: 1,
-                depth_stencil_format: None,
-                dithering: true,
-                predictable_texture_filtering: false,
-            },
-        );
         Ok(Self {
             context: egui::Context::default(),
-            renderer,
+            renderer: Some(renderer(gpu, format)),
             input: input::Input::new(scale_factor),
             started: Instant::now(),
             format,
             built: None,
         })
+    }
+
+    /// Drops the overlay's GPU objects, once the GPU device is lost, and keeps the rest: its panels,
+    /// what they hold, the menus open and where the cursor is, so that a click after the overlay is
+    /// restored, without the cursor moving first, lands where the cursor is. It draws nothing until
+    /// [`restore`](Self::restore); it still takes events and builds its panels.
+    pub fn release(&mut self) {
+        self.renderer = None;
+    }
+
+    /// Makes the overlay's GPU objects again with `gpu`, a device that replaced a lost one, for
+    /// targets of `format`, after [`release`](Self::release): egui's font texture, the only texture
+    /// of its panels, is uploaded whole.
+    ///
+    /// # Errors
+    ///
+    /// [`GfxError::DeviceLost`] once `gpu` is lost too ([`Gpu::check`]): the overlay stays
+    /// released then.
+    ///
+    /// # Panics
+    ///
+    /// As [`Overlay::new`] does, if the device is lost between the check and the creation.
+    pub fn restore(&mut self, gpu: &Gpu, format: TextureFormat) -> Result<(), GfxError> {
+        gpu.check()?;
+        let mut renderer = renderer(gpu, format);
+        // egui hands its textures over as changes, which the lost renderer took: the next ones
+        // change a texture that the new renderer does not have. No font exists before the first
+        // frame built, whose changes give the whole texture.
+        if self.context.cumulative_pass_nr() > 0 {
+            let fonts = egui::epaint::ImageDelta::full(
+                self.context.fonts(|fonts| fonts.image()),
+                egui::epaint::TextureAtlas::texture_options(),
+            );
+            renderer.update_texture(
+                gpu.wgpu_device(),
+                gpu.wgpu_queue(),
+                egui::TextureId::default(),
+                &fonts,
+            );
+        }
+        self.renderer = Some(renderer);
+        self.format = format;
+        Ok(())
     }
 
     /// Gives the overlay an event of the window. It keeps what egui understands: the cursor, the
@@ -170,7 +204,8 @@ impl Overlay {
 
     /// Draws the panels that [`build`](Self::build) made over what `target` holds, in a pass that
     /// keeps it: the scene is drawn into the target first. Nothing is drawn when no panel was
-    /// built since the last call.
+    /// built since the last call, nor while the overlay is released: the panels wait for the next
+    /// call after it is restored.
     ///
     /// A frame with no panel, as while the application hides the overlay, submits no work to the
     /// GPU. A device lost before the overlay uploads the panels, for example when the scene's work
@@ -188,6 +223,9 @@ impl Overlay {
             target.label(),
             target.format()
         );
+        let Some(renderer) = &mut self.renderer else {
+            return;
+        };
         let Some(mut built) = self.built.take() else {
             return;
         };
@@ -204,7 +242,7 @@ impl Overlay {
         // The deltas are taken out: epaint checks that none is dropped unapplied.
         for (id, deltas) in std::mem::take(&mut textures.set) {
             for delta in deltas {
-                self.renderer.update_texture(device, queue, id, &delta);
+                renderer.update_texture(device, queue, id, &delta);
             }
         }
         // egui's renderer panics when it uploads its buffers to a lost device. A loss found
@@ -221,8 +259,7 @@ impl Overlay {
                 label: Some("dev overlay"),
             });
             let uploads =
-                self.renderer
-                    .update_buffers(device, queue, &mut encoder, &primitives, &screen);
+                renderer.update_buffers(device, queue, &mut encoder, &primitives, &screen);
             // Only egui's paint callbacks, which the overlay has none of, record into the encoder
             // or return command buffers. The buffer uploads are queued writes, which wgpu submits
             // ahead of the overlay's pass below: a submission of their own would be an empty one.
@@ -237,13 +274,27 @@ impl Overlay {
                 resolve: None,
             };
             gpu.render(&pass, |pass| {
-                self.renderer.render(pass.wgpu_pass(), &primitives, &screen);
+                renderer.render(pass.wgpu_pass(), &primitives, &screen);
             });
         }
         for id in std::mem::take(&mut textures.free) {
-            self.renderer.free_texture(&id);
+            renderer.free_texture(&id);
         }
     }
+}
+
+/// egui's renderer, for targets of `format`.
+fn renderer(gpu: &Gpu, format: TextureFormat) -> egui_wgpu::Renderer {
+    egui_wgpu::Renderer::new(
+        gpu.wgpu_device(),
+        format.wgpu_format(),
+        egui_wgpu::RendererOptions {
+            msaa_samples: 1,
+            depth_stencil_format: None,
+            dithering: true,
+            predictable_texture_filtering: false,
+        },
+    )
 }
 
 #[cfg(test)]
@@ -455,6 +506,59 @@ mod tests {
             [0, 0, 255, 255],
             "the scene is kept around it"
         );
+    }
+
+    #[test]
+    fn an_overlay_restored_on_a_new_device_draws_its_panels_and_knows_where_the_cursor_is() {
+        let blue = slime_color::LinearColor::rgb(0.0, 0.0, 1.0);
+        let panels = |ctx: &egui::Context| {
+            ctx.all_styles_mut(|style| style.animation_time = 0.0);
+            egui::Window::new("panel")
+                .default_pos(egui::pos2(10.0, 10.0))
+                .show(ctx, |ui| ui.label("text"));
+        };
+        let frame = |overlay: &mut Overlay, gpu: &Gpu, target: &RenderTarget| {
+            let scene = RenderPassDescriptor {
+                target,
+                clear: Some(blue),
+                depth: None,
+                timer: None,
+                resolve: None,
+            };
+            gpu.render(&scene, |_| {});
+            show(overlay, gpu, target, panels);
+        };
+        let lost = gpu();
+        let target = lost
+            .create_render_target("overlay target", 200, 200, FORMAT)
+            .expect("the GPU has memory for it");
+        let mut overlay = Overlay::new(&lost, FORMAT, 1.0).expect("the device is not lost");
+        overlay.handle(&Event::CursorMoved { x: 20.0, y: 20.0 });
+        for _ in 0..2 {
+            frame(&mut overlay, &lost, &target);
+        }
+        overlay.release();
+        drop(target);
+        lost.lose();
+
+        let gpu = gpu();
+        let target = gpu
+            .create_render_target("overlay target", 200, 200, FORMAT)
+            .expect("the GPU has memory for it");
+        overlay
+            .restore(&gpu, FORMAT)
+            .expect("the new device is not lost");
+        // A click before the cursor moves again: where the cursor was, over the window.
+        overlay.handle(&Event::MouseButton {
+            button: MouseButton::Left,
+            state: ButtonState::Pressed,
+        });
+        frame(&mut overlay, &gpu, &target);
+        assert!(overlay.wants_pointer(), "the click is over the window");
+        // Every shape that egui draws samples its font texture, which the new device was given.
+        let image = gpu.read_render_target(&target).expect("read the target");
+        let pixel = |x: usize, y: usize| &image.pixels[(y * 200 + x) * 4..][..4];
+        assert_ne!(pixel(20, 20), [0, 0, 255, 255], "the window is drawn");
     }
 
     #[test]

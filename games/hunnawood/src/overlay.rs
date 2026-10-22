@@ -14,8 +14,8 @@ const SPEEDS: std::ops::RangeInclusive<f64> = 0.1..=4.0;
 
 /// The overlay and what it shows.
 pub struct DevOverlay {
-    /// The overlay; `None` from the loss of the GPU device until a new one replaces it.
-    overlay: Option<Overlay>,
+    /// The overlay, released from the loss of the GPU device until a new one replaces it.
+    overlay: Overlay,
     statistics_shown: bool,
     panel: WorldPanel,
     panel_shown: bool,
@@ -50,7 +50,7 @@ impl DevOverlay {
     /// the GPU device is lost.
     pub fn new(gpu: &Gpu, format: TextureFormat, scale_factor: f64) -> Result<Self, GfxError> {
         Ok(Self {
-            overlay: Some(Overlay::new(gpu, format, scale_factor)?),
+            overlay: Overlay::new(gpu, format, scale_factor)?,
             statistics_shown: false,
             panel: WorldPanel::default(),
             panel_shown: false,
@@ -58,41 +58,32 @@ impl DevOverlay {
         })
     }
 
-    /// Drops the overlay's GPU objects, once the GPU device is lost; it draws nothing until
-    /// [`DevOverlay::restore`].
+    /// Drops the overlay's GPU objects, once the GPU device is lost, and keeps what it shows and
+    /// where the cursor is ([`Overlay::release`]); it draws nothing until [`DevOverlay::restore`].
     pub fn release(&mut self) {
-        self.overlay = None;
+        self.overlay.release();
     }
 
-    /// Makes the overlay again with `gpu`, a device that replaced a lost one, for targets of
-    /// `format` in a window of `scale_factor`: its panels shown or hidden as they were. An error
-    /// once that device is lost too.
-    pub fn restore(
-        &mut self,
-        gpu: &Gpu,
-        format: TextureFormat,
-        scale_factor: f64,
-    ) -> Result<(), GfxError> {
-        self.overlay = Some(Overlay::new(gpu, format, scale_factor)?);
-        Ok(())
+    /// Makes the overlay's GPU objects again with `gpu`, a device that replaced a lost one, for
+    /// targets of `format`: its panels shown or hidden as they were. An error once that device is
+    /// lost too.
+    pub fn restore(&mut self, gpu: &Gpu, format: TextureFormat) -> Result<(), GfxError> {
+        self.overlay.restore(gpu, format)
     }
 
     /// Hands `event` to the overlay, shown or not, so that it takes events as they come.
     pub fn handle(&mut self, event: &Event) {
-        if let Some(overlay) = &mut self.overlay {
-            overlay.handle(event);
-        }
+        self.overlay.handle(event);
     }
 
     /// Whether a text field of the overlay has the keyboard ([`Overlay::wants_keyboard`]).
     pub fn wants_keyboard(&self) -> bool {
-        self.overlay.as_ref().is_some_and(Overlay::wants_keyboard)
+        self.overlay.wants_keyboard()
     }
 
     /// Whether the cursor is over a panel shown ([`Overlay::wants_pointer`]).
     pub fn wants_pointer(&self) -> bool {
-        (self.statistics_shown || self.panel_shown)
-            && self.overlay.as_ref().is_some_and(Overlay::wants_pointer)
+        (self.statistics_shown || self.panel_shown) && self.overlay.wants_pointer()
     }
 
     pub fn toggle_statistics(&mut self) {
@@ -129,9 +120,7 @@ impl DevOverlay {
         let frame_ms = self.frame_ms;
         let (statistics_shown, panel_shown) = (self.statistics_shown, self.panel_shown);
         let mut asked = Asked::default();
-        let (Some(overlay), panel) = (&mut self.overlay, &mut self.panel) else {
-            return asked;
-        };
+        let (overlay, panel) = (&mut self.overlay, &mut self.panel);
         // Built with no panel while hidden, so that egui still takes the events handed to it.
         overlay.build(size, |ctx| {
             if panel_shown {
@@ -203,9 +192,7 @@ impl DevOverlay {
 
     /// Draws over `target` what [`DevOverlay::build`] made.
     pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget) {
-        if let Some(overlay) = &mut self.overlay {
-            overlay.render(gpu, target);
-        }
+        self.overlay.render(gpu, target);
     }
 }
 
