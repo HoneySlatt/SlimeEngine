@@ -179,7 +179,9 @@ simulation, `HunnaWood`, which changes the world on game time from the keys held
 window, and what the player sees as a presentation, `Screen`, which reads the world and never writes
 it. The program, `src/main.rs`, reads the command line, makes the run and runs both with
 `slime_app::run`. A test runs the rules through a host of its own for hundreds of steps, keys
-pressed by script, without a GPU.
+pressed by script, without a GPU. Its editor is a package beside it,
+[`games/hunnawood-editor`](../hunnawood-editor/README.md), which links the engine's editor and this
+library; the game does not depend on it, and a shipped game holds nothing of it.
 
 The game keeps its zone, its hero and its run in the engine's world (`slime-world`), which
 `slime-app`'s host owns and calls around each fixed step
@@ -199,7 +201,7 @@ the next frame, and which the game follows from the next step. The rules keep on
 they refer to and the time of day a new game starts at. Each of the game's components is reflected,
 under a name such as `hunnawood::Collider`, as every component is
 ([ADR-0085](../../docs/adr/0085-reflection.md)), and `Game::spawn` registers them all in the world
-before it spawns the zone.
+before it spawns the zone, through `rules::register`, which the game's editor calls too.
 
 Since the run is in the world, a save is the world's: what the run changed of the new game by day
 that the game made and settled, and a run resumed is a new game by day to which the save is applied

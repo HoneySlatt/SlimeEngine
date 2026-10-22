@@ -113,6 +113,10 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   stop (`request_exit`), or fails the run (`exit_with_error`), and its host decides what stopping
   means. A game that saves its runs implements `save` and `load` too, to a file given, which the
   development channel asks for (`docs/adr/0125-saves-per-scene.md`); by default they refuse.
+  `apply` applies each command that the host receives, from the presentation, the dev overlay or
+  a tool, at the start of a frame: by default to the world, while the editor makes steps of them;
+  `edit`, with the `development` feature, answers an editor's requests, which a game leaves to its
+  default refusal (`docs/adr/0135-the-editors-program.md`).
 - `Presentation`: what the player sees, which reads the world and never writes it: every method
   receives it as `&World` or not at all, so that a presentation that writes the world does not
   compile. `start` once the window and the GPU are open; `on_event` for each event of the window,
@@ -161,7 +165,9 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   (`docs/adr/0012-clean-shutdown-on-termination-signals.md`).
   - Headless: frames run back to back with simulated time: each frame represents one fixed step,
     so runs are deterministic. Neither the windowing system nor the GPU is touched, and the
-    presentation is not called.
+    presentation is not called. `AppConfig::pace_headless` schedules them at
+    `AppConfig::max_frame_rate` instead, the loop sleeping in between, as the editor's program,
+    which waits for its tools, asks (`docs/adr/0135-the-editors-program.md`).
   - With a window, `run` must be called from the main thread (it panics otherwise). The window and
     the GPU exist before the `start` methods. Frames represent the real time between them. The
     engine asks for a frame on average at most `AppConfig::max_frame_rate` times per second (60 by
@@ -235,6 +241,13 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
 - `error_chain(&error)`: an error's message followed by the message of each of its causes
   (`error: cause: cause of cause`), the line `run` logs for a failed run. A program that does not
   use `run`, as the `offscreen` example, logs its errors with it.
+- `data_directory()`: the user's data directory, where a program keeps the files that it writes for
+  the user, a game's saves or an editor's journals. `HeldFile::hold(path)` holds a file for this
+  program alone, through the lock of a file beside it, which the system lets go however the program
+  ends: one copy of a game writes its save, one editor its journal. `set_aside(file, why)` renames a
+  file that cannot be used, beside it, as `<file>.<why>`, or `<file>.<why>.2` and on, never over a
+  file set aside before: a save that a game cannot read, a journal that an editor discards
+  (`docs/adr/0135-the-editors-program.md`).
 - The `development` feature: a run whose environment gives a token (`slime_channel::TOKEN_ENV_VAR`)
   listens on `127.0.0.1`, writes where on its standard output, and answers, at the start of each
   frame, the requests of the tools that connect with the token: its state, the host's controls, its
@@ -243,7 +256,8 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   its views' settings read and changed, its reports read and the entity at a pixel of a view picked,
   through the presentation's `views`, `view_settings`, `set_view_settings`, `reports` and `pick`,
   the last lines of its log (`slime_channel::MAX_LOG_LINES`), which only such a run keeps, and its
-  run saved to a file and loaded from one, by the simulation's `save` and `load`. Without a token,
+  run saved to a file and loaded from one, by the simulation's `save` and `load`, and an editor's
+  requests, by the simulation's `edit`. Without a token,
   it does not listen. The `slime-channel` crate holds the protocol and its limits;
   `tests/channel.rs` drives a headless run through it.
 

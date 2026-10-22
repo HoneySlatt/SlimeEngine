@@ -9,7 +9,9 @@
   [0121](0121-a-game-as-a-simulation-and-a-presentation.md) (applying a command gives back the
   command that undoes it), [0122](0122-the-development-channel.md) (version 7 of the protocol: the
   editor's requests) and [0131](0131-stage-6b-and-stage-6c.md) (Stage 6b's first milestone in two,
-  and *Hunna Wood*'s editor package in it)
+  and *Hunna Wood*'s editor package in it); amended by [0135](0135-the-editors-program.md) (what the
+  program does with the journal that a crash leaves, the shape of the program, the level's file
+  named in its journal, and a level not written over once changed apart from the editor)
 - Date: 2026-10-22
 
 ## Context

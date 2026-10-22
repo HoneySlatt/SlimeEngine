@@ -8,6 +8,19 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- The editor's program (ADR-0135): `slime_editor::run`, an application of the engine without a
+  window, which opens a level, keeps its journal in the user's data directory, recovers by itself
+  what the journal holds that the level's file does not, as a crash or a stop without writing
+  leaves it, and answers the tools that edit the level through the development channel. The
+  example `editor` runs it on the examples' yard, and `games/hunnawood-editor`, *Hunna Wood*'s
+  editor package, on the game's zone. The development channel's protocol is at version 7, with the
+  editor's requests (`Request::Edit`); the MCP server gains `edit`, `undo`, `redo`, `select`,
+  `editor_history`, `editor_journal` and `write_level`.
+- `Simulation::apply`, through which a host applies the commands that it receives, and
+  `Simulation::edit`, which answers an editor's requests; `AppConfig::pace_headless`, which paces a
+  run without a window; `slime_app::data_directory`, `slime_app::HeldFile` and
+  `slime_app::set_aside`, the user's data directory, a file that one program at a time holds, and a
+  file set aside under a name that nothing has, which *Hunna Wood* had of its own.
 - The editor's core, without its interface (ADR-0134): `slime-editor`, a new crate.
   `Editor::open` opens a level, a scene file, into a world, under the key that the game spawns it
   under; `Editor::apply` and `apply_text` change it through steps of commands, given as values or
@@ -15,14 +28,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   bound of memory (`HISTORY_BUDGET`), and select again what was selected before or after them
   (`select`, `selection`); `keep_journal` writes the steps to a journal as they are made, from
   which `Editor::recover` recovers an editor that crashed, with its history; `write` writes the
-  level back, whole or not at all, its comments kept. The editor refuses a command that would
-  change what is not under its level's root.
+  level back, whole or not at all, its comments kept, never over a file changed apart from the
+  editor. The editor refuses a command that would change what is not under its level's root.
 - The world's commands are the editor's (ADR-0134): `Command::Create`, `Place`, `Delete`,
   `Reparent`, `Insert`, `Remove` and `Restore` beside `SetProperty`, each naming its entities by
   their persistent identities. A deletion records what it takes out (`Deleted`), its values
   referring to entities by identity, and `Restore` creates it again under the same identities, at
   the same places, the references of other entities pointing at it again. `Command::write` and
-  `Command::read` give a command's text, which `Identities` names entities in.
+  `Command::read` give a command's text, which `Identities` names entities in, and
+  `Command::entity` the entity that a command changes.
 - `World::spawn_as`, `World::place_as` and `World::new_id` create an entity, or place a prefab,
   under an identity of a scene, `zone/torch-0rdx`, as a scene file names what it holds;
   `World::set_parent_at` puts a child at a rank among its siblings, and `World::rank` gives it.
@@ -35,6 +49,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `World::apply` returns the command that undoes the one it applied.
 - `slime_cook::write`, which writes a file whole or not at all, is public.
 - A reference to an entity that a tool writes `""` in the development channel reads as no entity.
+- The commands that a host refuses are handed back with an `AppError` (`Context::refused`).
+- The commands that a host receives, from its presentation, the dev overlay or a tool's
+  `set_property`, go through `Simulation::apply`, so that a simulation that applies them its own
+  way, as the editor does, receives them all.
+- A tool of an earlier version of the development channel's protocol is refused by a game of this
+  one, and the reverse.
 
 ## [0.5.0] - 2026-10-22
 

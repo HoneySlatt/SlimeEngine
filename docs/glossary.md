@@ -219,7 +219,9 @@ its world, plays it with keys, captures its image or one of its views, reads and
 settings, reads its *reports*, picks the entity at a pixel, and saves and loads its run
 (`slime-channel`,
 [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md),
-[ADR-0122](adr/0122-the-development-channel.md)). A *build for shipping* has none.
+[ADR-0122](adr/0122-the-development-channel.md)). The *editor's program* listens the same way, and
+answers the editor's requests ([ADR-0135](adr/0135-the-editors-program.md)). A *build for
+shipping* has none.
 
 **Device (GPU).** The engine's connection to an adapter: it creates GPU resources, and its
 *queue* receives the work to execute (`slime_gfx::Gpu`). It is *lost* when the driver crashes or
@@ -275,6 +277,12 @@ as a multiple of `Gpu::uniform_offset_alignment`. One buffer and one group then 
 one range each: the views of the tiles that the renderer's shadow passes draw
 (`slime_render::Renderer`). The instances' values are in a *storage buffer* instead
 ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)).
+
+**Editor's program.** The editor's process, `slime_editor::run`: an application of the engine whose
+*simulation* is the editor's core, without a window until Stage 6c, which opens a level, keeps its
+*journal*, and answers through the *development channel* the tools and agents that edit the level;
+a game's editor package calls it with the game's types, the `editor` example with the engine's
+([ADR-0135](adr/0135-the-editors-program.md)).
 
 **Emission.** The light a surface gives off, added to the light it reflects: glTF's emissive
 factor, its strength (`KHR_materials_emissive_strength`) and its texture, in *nits*.
@@ -500,6 +508,9 @@ done again, each *command* naming entities by their *persistent identities*, aft
 level as it was when the journal started: an editor that crashed is recovered from it, with its
 history, and a test or an agent replays an editing session
 ([ADR-0109](adr/0109-stable-references-and-undo.md), [ADR-0134](adr/0134-the-editors-core.md)).
+The *editor's program* keeps one per level's file, and recovers by itself, as it starts, a journal
+that holds steps that the level's file does not, which a crash or a stop without writing leaves
+([ADR-0135](adr/0135-the-editors-program.md)).
 
 **Kind (material).** A way of lighting a surface that the renderer knows by registration: its
 shaders, its parameters described by reflection, and the passes it draws in. The physically based

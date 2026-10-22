@@ -10,9 +10,10 @@
   of the protocol: saving and loading a running game), [0126](0126-views-apart-from-the-renderer.md)
   (version 3 of the protocol: a view captured), [0127](0127-the-settings-of-a-view.md) (version 4 of
   the protocol: a view's settings read and changed), [0128](0128-asset-requests.md) (version 5 of
-  the protocol: a game's reports), [0130](0130-picking.md) (version 6 of the protocol: a picking)
-  and [0134](0134-the-editors-core.md) (version 7 of the protocol: the editor's requests; a
-  reference to an entity written `""` read as no entity)
+  the protocol: a game's reports), [0130](0130-picking.md) (version 6 of the protocol: a picking),
+  [0134](0134-the-editors-core.md) (version 7 of the protocol: the editor's requests; a reference to
+  an entity written `""` read as no entity) and [0135](0135-the-editors-program.md) (version 7 of
+  the protocol, as built)
 - Date: 2026-10-21
 
 ## Context

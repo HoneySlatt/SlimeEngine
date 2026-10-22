@@ -11,9 +11,10 @@ One game at a time, driven through its development channel (`slime-channel`): st
 stepped, its speed set, its world read and changed, its keys put down and let go, its image
 captured, the settings of its views changed, its reports read, the entity at a pixel picked, its
 log and its frames' times read,
-its run saved and loaded, stopped. Assets cooked and tests run. No mouse in scripted input yet, and
-no editor: the editor's commands join the server with
-the editor's core, at Stage 6b.
+its run saved and loaded, stopped. An editor too, started as a game is, its level edited through
+steps of commands, undone and redone, its history and journal read, its selection set and its
+level written back (`docs/adr/0135-the-editors-program.md`). Assets cooked and tests run. No mouse
+in scripted input yet.
 
 ## Role
 
@@ -75,6 +76,12 @@ The tools, each described to the agent by the server itself, with its parameters
 - `read_logs`: the lines of the game's log after a given line.
 - `save_game` and `load_game`: the game's run saved to a file, and loaded from one in place of the
   run, as the game saves and resumes its own runs; a file of the agent's, never the player's save.
+- `edit`, `undo`, `redo`, `select`, `editor_history`, `editor_journal` and `write_level`: an
+  editor's level, started with `start_game` as a game is, the `editor` example or a game's editor
+  package, on a copy of a level and with a journal of the agent's (`--level`, `--journal`): a step
+  of commands given as text, whole or not at all, undone and done again, entities selected, the
+  steps done and undone, the selection and what the editor recovered as it started, its journal,
+  and the level written back, with what its file could not hold.
 - `cook`: cooks a directory of source assets, which a game started with `--watch` loads again.
 - `run_tests`: runs `cargo test` with the arguments given.
 
@@ -86,7 +93,13 @@ compositor and the game's zone cooked: `scripts/check.sh` runs it in a headless 
 the whole image and each view, shows the map's normals, reads the example's reports, and picks the
 entity at a pixel of the map; it needs
 the examples' assets cooked, in the directory that its first argument names, and `scripts/check.sh`
-runs it there too.
+runs it there too. `tests/edit.rs` starts the `editor` example on a copy of the yard, writes it
+back unchanged, makes steps, undoes and redoes them, writes the level, finds again, as the editor
+starts again, what it did not write, and, the level written, opens it from its file; it needs no
+compositor, the examples' assets cooked. `tests/edit_zone.rs` starts `hunnawood-editor` on a copy
+of *Hunna Wood*'s zone, changes one of the game's components, creates an entity that holds
+another, undoes, redoes and writes the zone; it needs the zone cooked, and `scripts/check.sh` runs
+it with the tests that read the zone.
 
 ## Dependencies
 

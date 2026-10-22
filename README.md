@@ -71,9 +71,10 @@ entity adopted, taken out of its level, outlives it. The `world` example draws i
 of it from above in a corner, and selects what a click picks. Since 0.5, on `main`, the editor's
 core, a library without an interface (`slime-editor`), changes a level through commands that name
 its entities by their persistent identities, undoes and redoes them, journals them, and writes the
-level back with its comments. [`docs/PLAN.md`](docs/PLAN.md) says what comes next, the rest of
-Stage 6b, the engine's interface: its UI framework, proven by the dev overlay, and the editor's core
-driven by an agent; then Stage 6c, the editor. It lists the known debt too.
+level back with its comments; its program, without a window, which an agent drives through the MCP
+server, opens the examples' yard or *Hunna Wood*'s zone. [`docs/PLAN.md`](docs/PLAN.md) says what
+comes next, the rest of Stage 6b, the engine's interface: its UI framework, proven by the dev
+overlay; then Stage 6c, the editor. It lists the known debt too.
 
 ## Getting started
 
@@ -154,7 +155,8 @@ known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) lists the smaller gaps. 
 today has:
 
 - No text, game UI, audio, physics or animation, and of the editor only its core, a library
-  without an interface (`slime-editor`).
+  without an interface (`slime-editor`), and its program without a window, which agents drive
+  through the MCP server.
 - An asset pipeline that imports glTF scenes, scene files and PNG and JPEG images only: the cooker,
   `slime-cook`, makes them cooked data, which the renderer loads whole, in the background while the
   game goes on, as an asset cache's requests ask (`AssetCache::request`) or a scene at a time

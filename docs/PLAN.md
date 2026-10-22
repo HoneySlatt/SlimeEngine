@@ -34,14 +34,16 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0133](adr/0133-font-files-under-the-open-font-license.md)). Stage 6 is now in three parts:
   Stage 6c, the editor, is planned in detail at Stage 6b's close, and released as 0.7. M6b.1 was
   cut in two at its start ([ADR-0134](adr/0134-the-editors-core.md)): M6b.1a, the commands and
-  undo, is done. Next: M6b.1b.
+  undo, is done; M6b.1b, the editor driven by an agent
+  ([ADR-0135](adr/0135-the-editors-program.md)), is built and passes `scripts/check.sh`, and waits
+  for CI. Next: M6b.2.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M6b.1a](#m6b1a--the-commands-and-undo) | The world's commands name entities for good and undo themselves; the editor's core makes them into steps, undone, redone and journaled, and writes its level back with its comments | Done |
-| [M6b.1b](#m6b1b--the-editor-driven-by-an-agent) | An agent drives the editor's core through the MCP server, on a level of the examples and on *Hunna Wood*'s zone | Planned |
+| [M6b.1b](#m6b1b--the-editor-driven-by-an-agent) | An agent drives the editor's core through the MCP server, on a level of the examples and on *Hunna Wood*'s zone | Built; CI to run |
 | [M6b.2](#m6b2--text-in-several-writing-systems) | The engine lays text out in every writing system, without a GPU | Planned |
 | [M6b.3](#m6b3--drawing-the-interface) | The renderer draws an interface's boxes, text and images, crisp at every scale | Planned |
 | [M6b.4](#m6b4--elements-styles-and-layout) | An interface is a tree of elements, styled by themes read from files, laid out by flexbox and grid, and built again only where what it shows changed | Planned |
@@ -223,6 +225,53 @@ Risks:
   editor undo; CI is green, its jobs' times recorded.
 - **How to test.** `cargo test -p slime-editor -p slime-app -p slime-mcp`; the MCP server's session
   test; `cargo run --example editor`; `cargo run -p hunnawood-editor`.
+- **Outcome.** Built on 2026-10-23; `scripts/check.sh` passes, and CI runs once the milestone is
+  pushed, its jobs' times recorded here then. [ADR-0135](adr/0135-the-editors-program.md) records
+  the owner's decision of 2026-10-23, that a program recovers by itself the journal that a crash,
+  or a stop without writing, leaves, and the design that the owner validated the same day; it
+  amends ADR-0121, ADR-0122 and ADR-0134. `slime_editor::run` runs a `Program` on `slime-app`
+  without a window, its frames paced (`AppConfig::pace_headless`); its journal is
+  `slime-editor/<the level's asset ID>.journal` in the user's data directory
+  (`slime_app::data_directory`), or one of its own for a copy of the level, held by one editor at a
+  time (`slime_app::HeldFile`); a journal that cannot be read, played again or written stops the
+  program, and `--discard` sets it aside (`slime_app::set_aside`). *Hunna Wood* gave itself the
+  data directory, the lock and the setting aside before. `Simulation::apply` takes the commands that
+  the host receives, which the editor makes steps of, and `Simulation::edit` the editor's requests,
+  version 7 of the protocol (`Request::Edit`); the MCP server gains `edit`, `undo`, `redo`,
+  `select`, `editor_history`, `editor_journal` and `write_level`. The example `editor` opens the
+  examples' yard, and `games/hunnawood-editor` the game's zone, through
+  `hunnawood::rules::register`, now public. Run by hand, *Hunna Wood*'s editor opens the zone and
+  paces its frames at 60 a second. The zone written back keeps every comment above what it
+  describes; its formatting becomes the engine's writer's, rotations whole as ADR-0092 writes them.
+  A read-only review found nine defects, among which a recovery that failed half-way and emptied the
+  journal that it recovered, copies of a level that shared one journal, and a level written over
+  what another editor wrote, as well as gaps in the tests and the documents: each is fixed, and
+  each defect tested. The tests: in `slime-mcp`, `tests/edit.rs`, an agent's session through the
+  server, which writes the yard back unchanged, byte for byte, makes a step that creates, places,
+  changes and deletes, changes a value with `set_property`, which becomes a step, undoes it and
+  finds the value as it was, redoes, reads the history and the journal, writes the level, which
+  holds the changes, stops the editor and finds again, as it starts, the step done after the
+  writing and a step not written, then, the level written, opens it from its file; and
+  `tests/edit_zone.rs`, a session on a copy of *Hunna Wood*'s zone, which changes one of the game's
+  components, creates an entity that holds another, undoes, redoes and writes the zone; in
+  `games/hunnawood-editor`'s `tests/zone.rs`,
+  `the_zone_written_back_keeps_its_comments_and_opens_again_the_same`, with the cooked zone; in
+  `slime-app`'s `tests/lifecycle.rs`,
+  `a_paced_headless_run_waits_for_each_frame_and_still_steps_one_fixed_step_each` and
+  `a_simulation_applies_the_commands_sent_to_it_its_own_way`, in `data.rs`,
+  `one_program_at_a_time_holds_a_file` and `files_set_aside_keep_names_of_their_own`, moved from
+  the game, and in `game.rs`,
+  `a_simulation_that_is_not_an_editor_refuses_what_a_tool_asks_of_an_editor`; in `slime-channel`,
+  the editor's requests and replies in `every_kind_of_message_comes_back_from_its_encoding`; in
+  `slime-editor`'s `program.rs`,
+  `options_name_another_level_assets_and_journal_or_discard_the_journal`,
+  `a_session_recovers_what_its_journal_holds_that_the_file_does_not_and_only_that`,
+  `a_journal_that_cannot_be_played_again_stays_as_it_was_and_discard_sets_it_aside`,
+  `a_journal_that_is_not_text_stops_the_start_and_discard_sets_it_aside`,
+  `a_journal_whose_last_entry_is_torn_stops_the_start_and_stays_as_it_was`,
+  `one_editor_at_a_time_holds_a_journal_and_another_level_s_is_refused` and
+  `copies_of_a_level_take_journals_of_their_own`, and in `journal.rs`,
+  `a_journal_holds_steps_unwritten_after_its_last_writing_or_its_start`.
 
 ### M6b.2 — Text in several writing systems
 
@@ -562,7 +611,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   lower it, to measure with views of the zone.
 - **`cargo test` leaves out the tests of the cooked zone**: they need the zone fetched and cooked,
   so they are ignored (`#[ignore]`); `scripts/check.sh` and CI's `windows` job fetch and cook the
-  zone, then run them (`cargo test -p hunnawood -- --ignored`).
+  zone, then run them (`cargo test -p hunnawood -p hunnawood-editor -- --ignored`). The agents'
+  sessions of the editor through the MCP server, on the yard and on the zone, are tests apart
+  (`test = false`), which `scripts/check.sh` runs on Linux alone.
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue
   [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)). With Mailbox, the default, the
   schedule alone paces frames: on a 60 Hz display, an image is now and then shown twice while the
@@ -1150,6 +1201,20 @@ GitHub issues, linked from their entry; this list stays the reference.
   Hot reload in the editor comes with Stage 6c.
 - **A comment within a value written on several lines is lost** when the editor writes the level
   again, but for the end of the value's first line (`slime_serialize::keep_comments`).
+- **An editor's journal grows across recoveries** ([ADR-0135](adr/0135-the-editors-program.md)):
+  each recovery goes on with the journal that it recovered, which only a start with nothing
+  unwritten begins anew, and the history of steps outlives a stop only when something is
+  unwritten. `editor_journal` fails once the journal is larger than the channel's largest message
+  (`slime_serialize::MAX_SIZE`).
+- **A selection made just before a crash is lost** ([ADR-0134](adr/0134-the-editors-core.md)):
+  the journal writes a selection made apart from a step with the entry that follows it.
+- **A journal whose last entry a crash of the system tore is not recovered**
+  ([ADR-0135](adr/0135-the-editors-program.md)): the program stops, and `--discard` sets the
+  journal aside with every step that it holds, those before the tear included, which only a journal
+  mended by hand plays again.
+- **Two editors of one level, each with a journal of its own, do not see each other's changes**
+  ([ADR-0135](adr/0135-the-editors-program.md)): the second to write the level is refused, the file
+  changed apart from it, and its changes stay in its journal alone.
 
 ### Left by the audit of 0.4
 

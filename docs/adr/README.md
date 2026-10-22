@@ -189,8 +189,8 @@ the ADR linking to it.
 | [0118](0118-the-task-pool-and-the-copies-to-the-gpu.md) | The task pool and the copies to the GPU | Accepted |
 | [0119](0119-the-worlds-ticks-blocks-and-log.md) | The world's ticks, blocks and log | Accepted |
 | [0120](0120-a-frame-that-owns-what-it-draws.md) | A frame that owns what it draws | Accepted; amended by 0121 |
-| [0121](0121-a-game-as-a-simulation-and-a-presentation.md) | A game as a simulation and a presentation | Accepted; amended by 0122 and 0134 |
-| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125, 0126, 0127, 0128, 0130 and 0134 |
+| [0121](0121-a-game-as-a-simulation-and-a-presentation.md) | A game as a simulation and a presentation | Accepted; amended by 0122, 0134 and 0135 |
+| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125, 0126, 0127, 0128, 0130, 0134 and 0135 |
 | [0123](0123-the-linux-checks-in-two-jobs.md) | The Linux checks in two jobs | Accepted |
 | [0124](0124-driven-components-keys-and-created-entities-in-levels.md) | Driven components, start keys and created entities written into levels | Accepted; amended by 0125 |
 | [0125](0125-saves-per-scene.md) | Saves per scene, scenes unloaded and adoption | Accepted |
@@ -202,4 +202,5 @@ the ADR linking to it.
 | [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amended by 0134 |
 | [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted |
 | [0133](0133-font-files-under-the-open-font-license.md) | Font files under the SIL Open Font License | Accepted |
-| [0134](0134-the-editors-core.md) | The editor's core | Accepted |
+| [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 |
+| [0135](0135-the-editors-program.md) | The editor's program | Accepted |
