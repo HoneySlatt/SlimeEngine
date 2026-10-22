@@ -9,8 +9,9 @@ use std::collections::HashMap;
 ///
 /// A comment goes back before what it preceded in `before`, a header or a key, found in `after`
 /// by its path of keys, whichever way each text writes it: `[changed."lamp 1".Transform]` and a key
-/// `Transform` of the table `[changed."lamp 1"]` are one place. The comment of a key that `after`
-/// holds within a value written on its parent's line, `translation.x` within
+/// `Transform` of the table `[changed."lamp 1"]` are one place, and the comment goes before that
+/// key's line even when the header that holds it now comes right above. The comment of a key that
+/// `after` holds within a value written on its parent's line, `translation.x` within
 /// `translation = { x = 4.0 }`, goes before that line. The comments at the top of `before`, before
 /// a blank line and any key, stay at the top, and those at its end after every key, at the end. A
 /// comment at the end of a line goes back to the end of its key's line. The comments of what
@@ -518,6 +519,14 @@ translation = { x = 4.0 } # a step east
         ] {
             assert_eq!(keep_comments(before, after), kept, "{before}");
         }
+        // A header written as a key of a table under its own header: the comment stays by the key.
+        assert_eq!(
+            keep_comments(
+                "# The moon.\n[changed.moon.Light.Directional]\nin_sky = true\n",
+                "[changed.moon.Light]\nDirectional = { in_sky = true }\n"
+            ),
+            "[changed.moon.Light]\n# The moon.\nDirectional = { in_sky = true }\n"
+        );
     }
 
     #[test]
