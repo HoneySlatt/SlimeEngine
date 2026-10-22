@@ -2,6 +2,7 @@
 
 use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
+use std::hash::RandomState;
 use std::sync::Arc;
 
 use slime_reflect::{Registry, Value};
@@ -14,9 +15,10 @@ use crate::error::WorldError;
 use crate::identity::{CREATED, PersistentId};
 use crate::library::{Overrides, Placement, ResolvedScene};
 use crate::reflection::storage_in_registry;
+use crate::scene_file::valid_id;
 use crate::transform::Transform;
 use crate::world::{ComponentIds, Identity, SpawnedScene, World};
-use crate::write_back::with_handles;
+use crate::write_back::{id_base, random_id, with_handles};
 
 /// The identity of what is spawned under `key`, if it can be a key: not empty, without `/`, and not
 /// `created`, under which the world names the entities it creates outside scenes.
@@ -132,6 +134,118 @@ impl World {
         let entity = self.spawn_bare();
         self.identify(entity, id);
         Ok(entity)
+    }
+
+    /// A new entity of the scene spawned under the first part of `id`, which holds no component and
+    /// has no parent yet, and whose persistent identity is `id`, `zone/torch-0rdx`: what the editor
+    /// creates in a level, named at once as the level's file names it
+    /// (`docs/adr/0109-stable-references-and-undo.md`). A scene file written from the world holds
+    /// it under the ID that ends `id` ([`World::write_scene`]), which gives it the same identity
+    /// when the file is spawned under the scene's key. [`World::new_id`] gives an identity that no
+    /// entity has.
+    ///
+    /// ```
+    /// use slime_assets::AssetId;
+    /// use slime_world::{SceneLibrary, World};
+    ///
+    /// let mut scenes = SceneLibrary::new();
+    /// scenes.insert_file(AssetId::from_u128(1), "yard", "[entities.well.components]\nName = \"well\"\n");
+    /// let mut world = World::new();
+    /// let scene = scenes.resolve(world.registry(), AssetId::from_u128(1)).expect("a scene");
+    /// let yard = world.spawn_scene("yard", &scene).expect("spawned");
+    /// let id = world.new_id("yard", "torch");
+    /// let torch = world.spawn_as(&id).expect("a free identity of the yard");
+    /// world.set_parent(torch, Some(yard)).expect("both are alive");
+    /// assert!(world.write_scene(yard).expect("written").text.contains(id.parts()[1].as_str()));
+    /// assert!(world.spawn_as(&id).is_err(), "one entity per identity");
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// [`WorldError::NotInScene`] unless `id` is two parts, a key under which a scene is spawned and
+    /// an ID that a scene file can hold; [`WorldError::IdentityInUse`] if an entity has `id`
+    /// already.
+    ///
+    /// # Panics
+    ///
+    /// If the world runs out of slots ([`World::spawn`]).
+    pub fn spawn_as(&mut self, id: &PersistentId) -> Result<Entity, WorldError> {
+        self.check_in_scene(id)?;
+        let entity = self.spawn_bare();
+        self.identify(entity, id.clone());
+        Ok(entity)
+    }
+
+    /// Spawns `prefab` as a placement of the scene spawned under the first part of `id`, at the
+    /// world's root, and returns its root, whose persistent identity is `id`: what the editor
+    /// places in a level, named at once as [`World::spawn_as`] names what it creates. Its entities'
+    /// identities are `id` followed by their paths in the prefab, `zone/lantern-k3f9/light`, and
+    /// its root holds a [`Name`] of the ID that ends `id` unless the prefab names it, as a scene
+    /// file's placement does. A scene file written from the world holds it as a placement of
+    /// `prefab`, under that ID, with what differs from the prefab ([`World::write_scene`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`World::spawn_as`], for `id` and for the identities of the prefab's entities;
+    /// [`WorldError::UnknownComponent`] and [`WorldError::RefusedInScene`] as
+    /// [`World::spawn_scene`] says. Nothing is spawned then.
+    ///
+    /// # Panics
+    ///
+    /// If the world runs out of slots ([`World::spawn`]).
+    pub fn place_as(
+        &mut self,
+        id: &PersistentId,
+        prefab: &ResolvedScene,
+    ) -> Result<Entity, WorldError> {
+        self.check_in_scene(id)?;
+        let storages = storages_of(&self.registry, &self.component_ids, prefab)?;
+        let ids = record_ids(id, prefab);
+        let entities = self.spawn_records(prefab, &ids, None, &storages)?;
+        let root = entities[0];
+        if self.get::<Name>(root).is_none()
+            && let Some(own) = id.parts().last()
+        {
+            self.insert(root, Name(own.clone()));
+        }
+        self.nodes[root.index() as usize].placement = Some(Arc::new(Placement {
+            prefab: prefab.clone(),
+            overrides: Overrides::default(),
+            set_aside: Vec::new(),
+        }));
+        self.base_spawned(&entities);
+        Ok(root)
+    }
+
+    /// An identity that no entity has, for a new entity of the scene spawned under `key`: `key`,
+    /// then `name` made an ID that a scene file can hold, `/` replaced by `-` and trimmed, or
+    /// `entity` if it still cannot be one, then `-` and four random letters or digits:
+    /// `zone/torch-0rdx`, as a scene file written from the world names what it creates
+    /// ([`World::write_scene`]). It costs a lookup per four letters drawn, a draw in about 1.7
+    /// million but for a name that many entities of the scene share.
+    ///
+    /// # Panics
+    ///
+    /// If `key` cannot be a part of an identity: empty, or holding `/`.
+    pub fn new_id(&self, key: &str, name: &str) -> PersistentId {
+        let base = id_base(Some(name));
+        let random = RandomState::new();
+        (0..)
+            .map(|attempt| PersistentId::new([key, &random_id(&random, &base, 0, attempt)]))
+            .find(|id| !self.identities.contains_key(id))
+            .expect("an identity is free among 36⁴ for each name")
+    }
+
+    /// Accepts `id` as the identity of an entity of a scene that [`World::spawn_as`] creates.
+    fn check_in_scene(&self, id: &PersistentId) -> Result<(), WorldError> {
+        match id.parts() {
+            [key, own] if self.scenes.contains_key(key) && valid_id(own).is_ok() => {}
+            _ => return Err(WorldError::NotInScene(id.clone())),
+        }
+        if self.identities.contains_key(id) {
+            return Err(WorldError::IdentityInUse(id.clone()));
+        }
+        Ok(())
     }
 
     /// Spawns `scene` under `key` as [`World::spawn_scene`] does, the storages of its components

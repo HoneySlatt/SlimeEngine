@@ -12,9 +12,9 @@ use slime_channel::{
 };
 use slime_gfx::{Gpu, Image, RenderTarget};
 use slime_platform::KeyCode;
-use slime_reflect::{Kind, Path, Reflect as _, Registry, Value};
-use slime_serialize::{Composer, Document, Mode, References};
-use slime_world::{Command, Entity, Name, PersistentId, World};
+use slime_reflect::{Kind, Path, Registry, Value};
+use slime_serialize::{Composer, Document, Mode};
+use slime_world::{Command, Entity, Identities, Name, PersistentId, World};
 
 use crate::game::{PickAnswer, PickSlot, Presentation, Reflected, ShownView, Simulation};
 use crate::host::Host;
@@ -628,7 +628,10 @@ fn set_property(
         path,
         value,
     };
-    world.apply(&command).map_err(|error| error.to_string())
+    world
+        .apply(&command)
+        .map(drop)
+        .map_err(|error| error.to_string())
 }
 
 /// The value of the type named `ty` that `text`, in the engine's notation, writes. An option is
@@ -657,28 +660,6 @@ fn read_value(
         Some(inner) => read(ty, text)
             .or_else(|_| read(&inner, text).map(|value| Value::Option(Some(Box::new(value))))),
         None => read(ty, text),
-    }
-}
-
-/// The world's entities, named by their persistent identities, as the channel names them.
-struct Identities<'a>(&'a World);
-
-impl References for Identities<'_> {
-    /// An entity without a persistent identity, or no entity, is written `""`, as saves write no
-    /// entity: a component that refers to one is read whole, but cannot be written back.
-    fn name(&self, entity: u64) -> Option<String> {
-        let id = Entity::from_value(&Value::Entity(entity))
-            .ok()
-            .and_then(|entity| self.0.persistent_id(entity));
-        Some(id.map_or_else(String::new, |id| id.to_string()))
-    }
-
-    fn entity(&self, name: &str) -> Option<u64> {
-        let entity = self.0.find(&name.parse().ok()?)?;
-        match entity.to_value() {
-            Value::Entity(bits) => Some(bits),
-            _ => None,
-        }
     }
 }
 

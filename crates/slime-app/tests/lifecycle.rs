@@ -382,7 +382,10 @@ fn a_refused_command_changes_nothing_and_is_handed_back_for_one_frame() {
         path,
         value,
         ..
-    } = place_hero(3.0);
+    } = place_hero(3.0)
+    else {
+        unreachable!("`place_hero` sets a property");
+    };
     let nobody = Command::SetProperty {
         entity: "nobody".parse().expect("an identity"),
         component,

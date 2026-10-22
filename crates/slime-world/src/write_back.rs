@@ -95,6 +95,29 @@ impl References for WriteNames {
     }
 }
 
+/// What an ID that the world gives an entity of a scene file starts with: `name` with `/` replaced
+/// by `-` and trimmed, or `entity` if it is still not an ID that a file can hold, or there is no
+/// name.
+pub(crate) fn id_base(name: Option<&str>) -> String {
+    name.map(|name| name.replace('/', "-").trim().to_owned())
+        .filter(|name| valid_id(name).is_ok())
+        .unwrap_or_else(|| "entity".to_owned())
+}
+
+/// `base`, `-` and four letters or digits, `torch-k3f9`, drawn from `random` with `salt`, the slot
+/// of the entity named, and `attempt`, which another draw for the same entity counts up.
+pub(crate) fn random_id(random: &RandomState, base: &str, salt: u32, attempt: u64) -> String {
+    let mut bits = random.hash_one((salt, attempt));
+    let letters: String = (0..4)
+        .map(|_| {
+            let digit = (bits % 36) as u32;
+            bits /= 36;
+            char::from_digit(digit, 36).expect("a digit below 36")
+        })
+        .collect();
+    format!("{base}-{letters}")
+}
+
 /// The entity of a [`SetAside`] report: its persistent identity, or its handle if it has none.
 fn reported(world: &World, entity: Entity) -> String {
     world
@@ -402,33 +425,16 @@ impl World {
                 continue;
             }
             let node = &self.nodes[entity.index() as usize];
-            let base = self
-                .get::<Name>(entity)
-                .map(|Name(name)| name.clone())
-                .or_else(|| {
-                    node.placement
-                        .as_ref()
-                        .map(|placement| placement.prefab.name().to_owned())
-                })
-                .map(|name| name.replace('/', "-").trim().to_owned())
-                .filter(|name| valid_id(name).is_ok())
-                .unwrap_or_else(|| "entity".to_owned());
-            let mut attempt = 0_u64;
-            let id = loop {
-                let mut bits = random.hash_one((entity.index(), attempt));
-                let letters: String = (0..4)
-                    .map(|_| {
-                        let digit = (bits % 36) as u32;
-                        bits /= 36;
-                        char::from_digit(digit, 36).expect("a digit below 36")
-                    })
-                    .collect();
-                let id = format!("{base}-{letters}");
-                if free(self, &taken, &id) {
-                    break id;
-                }
-                attempt += 1;
-            };
+            let name = self.get::<Name>(entity).map(|Name(name)| name.as_str());
+            let prefab = node
+                .placement
+                .as_ref()
+                .map(|placement| placement.prefab.name());
+            let base = id_base(name.or(prefab));
+            let id = (0..)
+                .map(|attempt| random_id(&random, &base, entity.index(), attempt))
+                .find(|id| free(self, &taken, id))
+                .expect("an ID is free among 36⁴ for each name");
             if let Identity::Scene(own) = &node.identity {
                 left_out.push(SetAside {
                     entity: own.to_string(),

@@ -43,6 +43,14 @@ pub enum WorldError {
         /// The component's type, by the name it was given.
         component: String,
     },
+    /// An identity that is not one of an entity of a scene that the world creates
+    /// ([`World::spawn_as`](crate::World::spawn_as)): two parts, a key under which a scene is
+    /// spawned and an ID that a scene file can hold.
+    #[error(
+        "`{0}` cannot name an entity of a scene: it is not a key under which a scene is spawned, \
+         then an ID that a scene file can hold"
+    )]
+    NotInScene(PersistentId),
     /// A key that no scene or entity is spawned under: empty, holding `/`, or `created`, under
     /// which the world names the entities it creates outside scenes.
     #[error("`{0}` cannot be a key: it is empty, holds `/`, or is `created`")]

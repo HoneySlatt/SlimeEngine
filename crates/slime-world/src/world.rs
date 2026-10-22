@@ -160,9 +160,8 @@ pub struct World {
 #[derive(Debug, Default)]
 pub(crate) struct Node {
     pub(crate) parent: Option<Entity>,
-    /// Its first and last children, in the order they became its children, each child linked to
-    /// the siblings before and after it: a child leaves its parent without a walk among its
-    /// siblings (`crate::hierarchy`).
+    /// Its first and last children, in their order, each child linked to the siblings before and
+    /// after it: a child leaves its parent without a walk among its siblings (`crate::hierarchy`).
     pub(crate) first_child: Option<Entity>,
     pub(crate) last_child: Option<Entity>,
     /// How many children it has.

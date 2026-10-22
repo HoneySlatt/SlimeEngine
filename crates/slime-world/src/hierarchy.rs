@@ -9,8 +9,8 @@ use crate::error::WorldError;
 use crate::transform::{GlobalTransform, Transform};
 use crate::world::{Node, World, mark_stale, storage_in};
 
-/// The children of an entity, in the order they became its children: what [`World::children`]
-/// gives. It reads them from either end, and knows how many are left.
+/// The children of an entity, in their order: what [`World::children`] gives. It reads them from
+/// either end, and knows how many are left.
 #[derive(Clone)]
 pub struct Children<'w> {
     nodes: &'w [Node],
@@ -71,20 +71,28 @@ pub(crate) fn children_of(nodes: &[Node], slot: u32) -> Children<'_> {
     }
 }
 
-/// Makes `child`, which has no parent, the last child of `parent`.
-fn join_parent(nodes: &mut [Node], child: Entity, parent: Entity) {
-    let last = nodes[parent.index() as usize].last_child;
+/// Makes `child`, which has no parent, the child of `parent` at `rank` among its children, the
+/// first at 0, or its last child for `None` or a rank past its last.
+fn join_parent(nodes: &mut [Node], child: Entity, parent: Entity, rank: Option<usize>) {
+    // The sibling it goes before, found from the first: none to go last.
+    let next = rank.and_then(|rank| children_of(nodes, parent.index()).nth(rank));
+    let previous = match next {
+        Some(next) => nodes[next.index() as usize].previous_sibling,
+        None => nodes[parent.index() as usize].last_child,
+    };
     let node = &mut nodes[child.index() as usize];
     node.parent = Some(parent);
-    node.previous_sibling = last;
-    node.next_sibling = None;
-    match last {
-        Some(last) => nodes[last.index() as usize].next_sibling = Some(child),
+    node.previous_sibling = previous;
+    node.next_sibling = next;
+    match previous {
+        Some(previous) => nodes[previous.index() as usize].next_sibling = Some(child),
         None => nodes[parent.index() as usize].first_child = Some(child),
     }
-    let parent = &mut nodes[parent.index() as usize];
-    parent.last_child = Some(child);
-    parent.child_count += 1;
+    match next {
+        Some(next) => nodes[next.index() as usize].previous_sibling = Some(child),
+        None => nodes[parent.index() as usize].last_child = Some(child),
+    }
+    nodes[parent.index() as usize].child_count += 1;
 }
 
 /// Takes `child` out of its parent's children, its siblings linked to each other in its place,
@@ -117,6 +125,63 @@ impl World {
     /// [`WorldError::NotAlive`] for an entity that is not alive, and [`WorldError::Cycle`] if
     /// `parent` is `child` or one of its descendants.
     pub fn set_parent(&mut self, child: Entity, parent: Option<Entity>) -> Result<(), WorldError> {
+        self.place_child(child, parent, None)
+    }
+
+    /// Makes `parent` the parent of `child`, its child at `rank` among its children, the first at
+    /// 0, or its last for a rank past the others: what the editor's commands do, which put back an
+    /// entity where it was among its siblings (`docs/adr/0109-stable-references-and-undo.md`). The
+    /// child keeps its [`Transform`], as [`World::set_parent`] says. A child already at that rank
+    /// of that parent stays as it is, and the world's structure with it. Finding the place costs a
+    /// step per sibling before it.
+    ///
+    /// ```
+    /// use slime_world::World;
+    ///
+    /// let mut world = World::new();
+    /// let shelf = world.spawn();
+    /// let [jar, cup, bowl] = [world.spawn(), world.spawn(), world.spawn()];
+    /// for item in [jar, cup, bowl] {
+    ///     world.set_parent(item, Some(shelf)).expect("alive");
+    /// }
+    /// world.set_parent_at(bowl, shelf, 0).expect("alive");
+    /// assert_eq!(world.children(shelf).collect::<Vec<_>>(), [bowl, jar, cup]);
+    /// assert_eq!(world.rank(cup), Some(2));
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// As [`World::set_parent`].
+    pub fn set_parent_at(
+        &mut self,
+        child: Entity,
+        parent: Entity,
+        rank: usize,
+    ) -> Result<(), WorldError> {
+        self.place_child(child, Some(parent), Some(rank))
+    }
+
+    /// The entity's rank among its parent's children, the first at 0; `None` if it is not alive or
+    /// has no parent. It costs a step per sibling before it.
+    pub fn rank(&self, entity: Entity) -> Option<usize> {
+        self.parent(entity)?;
+        let mut rank = 0;
+        let mut previous = self.nodes[entity.index() as usize].previous_sibling;
+        while let Some(sibling) = previous {
+            rank += 1;
+            previous = self.nodes[sibling.index() as usize].previous_sibling;
+        }
+        Some(rank)
+    }
+
+    /// Puts `child` under `parent` at `rank`, or last for `None`, or at the root, as
+    /// [`World::set_parent`] and [`World::set_parent_at`] say.
+    fn place_child(
+        &mut self,
+        child: Entity,
+        parent: Option<Entity>,
+        rank: Option<usize>,
+    ) -> Result<(), WorldError> {
         for entity in [Some(child), parent].into_iter().flatten() {
             if !self.contains(entity) {
                 return Err(WorldError::NotAlive(entity));
@@ -132,12 +197,20 @@ impl World {
             }
         }
         // Already where it goes: nothing moves, and the structure stays as it is.
-        let at_end = match parent {
-            Some(parent) => self.nodes[parent.index() as usize].last_child == Some(child),
-            None => true,
-        };
-        if self.nodes[child.index() as usize].parent == parent && at_end {
-            return Ok(());
+        if self.nodes[child.index() as usize].parent == parent {
+            let there = match (parent, rank) {
+                (None, _) => true,
+                (Some(parent), None) => {
+                    self.nodes[parent.index() as usize].last_child == Some(child)
+                }
+                (Some(parent), Some(rank)) => {
+                    let others = self.nodes[parent.index() as usize].child_count as usize - 1;
+                    self.rank(child) == Some(rank.min(others))
+                }
+            };
+            if there {
+                return Ok(());
+            }
         }
         // The parent that it had when it was settled, which a save compares its parent with, kept
         // at its first change of parent after it.
@@ -149,7 +222,7 @@ impl World {
         self.structure = self.next_tick();
         leave_parent(&mut self.nodes, child);
         if let Some(parent) = parent {
-            join_parent(&mut self.nodes, child, parent);
+            join_parent(&mut self.nodes, child, parent, rank);
         }
         self.update_hidden(child.index());
         if self.nodes[child.index() as usize].stale {
@@ -169,7 +242,8 @@ impl World {
         self.nodes[entity.index() as usize].parent
     }
 
-    /// The entity's children, in the order they became its children; none if it is not alive.
+    /// The entity's children, in their order: the order they became its children, but where
+    /// [`World::set_parent_at`] put one at a rank. None if it is not alive.
     pub fn children(&self, entity: Entity) -> Children<'_> {
         if !self.contains(entity) {
             return Children {
@@ -369,6 +443,37 @@ mod tests {
         world.set_parent(grandchild, None).expect("alive");
         assert_eq!(world.parent(grandchild), None);
         assert_eq!(x_of(&world, grandchild), 1.0);
+    }
+
+    /// A child put at a rank among its siblings, by a parent of its own or another, goes there, and
+    /// a rank past the last puts it last.
+    #[test]
+    fn a_child_put_at_a_rank_goes_there_and_back_and_a_rank_past_the_last_puts_it_last() {
+        let mut world = World::new();
+        let shelf = world.spawn();
+        let items: Vec<Entity> = (0..4).map(|_| world.spawn()).collect();
+        for &item in &items {
+            world.set_parent(item, Some(shelf)).expect("alive");
+        }
+        let order = |world: &World| world.children(shelf).collect::<Vec<_>>();
+        world.set_parent_at(items[0], shelf, 2).expect("alive");
+        assert_eq!(order(&world), [items[1], items[2], items[0], items[3]]);
+        assert_eq!(world.rank(items[0]), Some(2));
+        world.set_parent_at(items[0], shelf, 0).expect("alive");
+        assert_eq!(order(&world), items);
+        let structure = world.structure();
+        world.set_parent_at(items[1], shelf, 1).expect("alive");
+        assert_eq!(world.structure(), structure, "already there: nothing moves");
+        world.set_parent_at(items[1], shelf, 99).expect("alive");
+        assert_eq!(order(&world), [items[0], items[2], items[3], items[1]]);
+        let other = world.spawn();
+        world.set_parent_at(items[2], other, 5).expect("alive");
+        assert_eq!(world.children(other).collect::<Vec<_>>(), [items[2]]);
+        assert_eq!((world.rank(items[2]), world.rank(shelf)), (Some(0), None));
+        assert!(matches!(
+            world.set_parent_at(shelf, items[0], 0),
+            Err(WorldError::Cycle { .. })
+        ));
     }
 
     /// Children that leave their parent from its first, its last and its middle, by a new parent,

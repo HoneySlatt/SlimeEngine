@@ -348,6 +348,14 @@ fn check_order(scene: &CookedScene) {
 #[derive(Clone, Debug)]
 pub struct ResolvedScene(pub(crate) Arc<Resolved>);
 
+/// The same scene, resolved from the same content: the same asset, and the same fingerprint, which
+/// another content gives but for a chance of one in 2⁶⁴.
+impl PartialEq for ResolvedScene {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.id == other.0.id && self.0.fingerprint == other.0.fingerprint
+    }
+}
+
 /// What a resolved scene holds.
 #[derive(Debug)]
 pub(crate) struct Resolved {
@@ -408,7 +416,7 @@ pub(crate) fn placed_size(scene: &ResolvedScene, under: &str) -> usize {
 }
 
 /// About the bytes that `value` takes in memory, what it holds included.
-fn value_size(value: &Value) -> usize {
+pub(crate) fn value_size(value: &Value) -> usize {
     let fields = |fields: &[(String, Value)]| -> usize {
         fields
             .iter()
