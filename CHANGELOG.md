@@ -321,6 +321,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - An alias of a field or a variant that is also the name, or an alias, of another field or variant
   beside it is refused: `#[derive(Reflect)]` fails to compile, `Registry::register_dynamic` returns
   an error, and `Registry::register` panics on a type described so by hand. Data that gave it read
+- The lamps of the `world` example's yard have their light: the light of the lamp's prefab had no
+  transform, which the frame builder needs to place a light, and was never drawn.
   back as the other field or variant, without a word.
 - A number on its field's bound is accepted: a range's bounds are compared with a 32-bit float
   rounded to the nearest 32-bit float, so that `range(min = 0.7)` holds `0.7_f32`, and with an

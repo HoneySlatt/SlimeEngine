@@ -17,6 +17,11 @@ Meshes = { ids = ["sphere"], casts_shadows = true }
 [entities.light]
 parent = "glass"
 
+# At the glass's middle: an entity without a transform has no place in the world, and its light
+# is not drawn.
+[entities.light.components]
+Transform = {}
+
 [entities.light.components.Light.Point]
 color = { r = 1.0, g = 0.75, b = 0.45, a = 1.0 }
 intensity = 3000.0

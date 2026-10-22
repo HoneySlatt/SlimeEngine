@@ -6,9 +6,9 @@
 //! fraction of a step puts it; a hidden subtree is not drawn, nor its light; after a lost device,
 //! the cache made again draws the same world, which the loss left as it was; a frame built on one
 //! thread, once its cache and builder are dropped, is drawn on another as on the first. The cooked
-//! yard (`examples/assets/yard.scene`) spawns its lamps with their overrides, and follows its lamp
-//! cooked again, without a GPU (`docs/adr/0095-cooked-scene-files.md`). Runs on whatever adapter
-//! the machine offers.
+//! yard (`examples/assets/yard.scene`) spawns its lamps with their overrides, their lights placed
+//! in the world, and follows its lamp cooked again, without a GPU
+//! (`docs/adr/0095-cooked-scene-files.md`). Runs on whatever adapter the machine offers.
 
 #[path = "../common/cooked.rs"]
 mod cooked;
@@ -460,6 +460,16 @@ fn the_cooked_yard_spawns_the_sample_and_four_lamps_with_their_overrides() {
     assert_eq!(lamp_color(&world, "lamp 2"), Some([1.0, 0.1, 0.05]), "red");
     assert_eq!(lamp_color(&world, "lamp 3"), warm);
     assert_eq!(lamp_color(&world, "lamp 4"), None, "without its light");
+    // Each light has a place in the world, where the frame builder draws it.
+    for lamp in ["lamp 1", "lamp 2", "lamp 3"] {
+        let light = world
+            .find(&PersistentId::new(["yard", lamp, "light"]))
+            .expect("a light");
+        assert!(
+            world.global_transform(light).is_some(),
+            "{lamp}'s light placed"
+        );
+    }
     let lamp = world
         .find(&PersistentId::new(["yard", "lamp 2"]))
         .expect("the second lamp");
