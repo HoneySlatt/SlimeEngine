@@ -1011,7 +1011,8 @@ each view the settings that change its passes.
   `the_drawings_passes_run_only_in_the_views_that_have_drawings`; in `tests/views.rs`,
   `a_view_s_image_is_sampled_by_another_pipeline`; and in `renderer.rs`, every shape of the frame
   with and without each pass of drawings. The example's lamps, whose lights had no transform and
-  were never drawn since Stage 5b, are lit, which a test of the yard checks.
+  were never drawn since Stage 5b, are lit, which a test of the yard checks. The owner looked at the
+  `world` example's grid and icons and selected objects by hand on 2026-10-22.
 
 ### M6a.10b — Picking
 
@@ -1065,7 +1066,8 @@ each view the settings that change its passes.
   same entity at each of the 689 pixels of its grid that showed one; in `slime-app`'s
   channel, `a_tool_picks_at_a_pixel_of_a_view_or_of_the_image`; and the MCP server's
   `tests/views.rs` picks at the map's middle, in the map and in the whole image, and nothing in the
-  sky.
+  sky. The owner clicked objects in the `world` example by hand on 2026-10-22: each click selected
+  what it was on.
 
 ### M6a.11 — Windows check, documentation, release 0.5
 
@@ -1196,9 +1198,6 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
 - **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
   slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
   `af512af` prints.
-- **M6a.10a and M6a.10b, on Linux.** `cargo run --example world`: the grid on the ground, hidden by
-  what stands in front of it, the icons above the lamps, the box of what Tab selects; a click on an
-  object selects it, its box drawn in both views, and a click on the sky selects nothing.
 - **M6a.6, in the Windows virtual machine.** `hunnawood.exe` of CI's artifact started with a token
   in its environment, from PowerShell: `$env:SLIME_DEV_TOKEN = "00112233445566778899aabbccddeeff"`,
   then `.\hunnawood.exe --new --save run.toml`. It writes `slime-dev-channel 127.0.0.1:<port>`, its
