@@ -21,7 +21,10 @@ mod shapes;
 /// callers use the same version (ADR-0027).
 pub use glam;
 
-pub use cache::AssetCache;
+pub use cache::{
+    AssetCache, AssetHandle, AssetRequests, AssetState, Budgets, CacheReport, DEFAULT_MESH_BUDGET,
+    DEFAULT_TEXTURE_BUDGET, KindReport, Priority, Request,
+};
 pub use camera::{Camera, ImagePart, Projection};
 pub use cooked::{LoadedScene, SceneError, SceneLoad, scene_lights};
 pub use environment::{Environment, Sky};
@@ -53,6 +56,10 @@ mod threads {
         send_and_sync::<Material>();
         send_and_sync::<LoadedScene>();
         send_and_sync::<AssetCache>();
+        send_and_sync::<AssetHandle>();
+        send_and_sync::<AssetRequests>();
+        send_and_sync::<Request>();
+        send_and_sync::<CacheReport>();
         send_and_sync::<SceneLoad>();
         send_and_sync::<Environment>();
         send_and_sync::<Camera>();

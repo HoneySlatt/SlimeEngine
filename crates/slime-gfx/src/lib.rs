@@ -49,7 +49,7 @@ pub use surface::{PresentMode, Surface, SurfaceFrame};
 pub use texture::Texture;
 pub use timer::GpuTimer;
 pub use uniform_buffer::UniformBuffer;
-pub use upload::{UploadTarget, Uploader};
+pub use upload::{UploadRank, UploadTarget, Uploader};
 pub use vertex_buffer::VertexBuffer;
 
 /// Which types may cross threads (`docs/ARCHITECTURE.md`, "Threads"): checked when the tests are

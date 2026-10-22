@@ -1,7 +1,7 @@
 //! Copies to the GPU within a budget of bytes per frame, submitted by one thread (ADR-0107).
 
-use std::collections::VecDeque;
 use std::panic::{self, AssertUnwindSafe};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError, Weak};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -48,6 +48,10 @@ const KEPT_BUDGETS: u64 = 4;
 /// callback says so; drawing from it before then draws what it held before, zeros for a new
 /// texture. Clones share the uploader; the last one dropped submits the copies still waiting,
 /// whatever the budget, and ends the thread, which then holds the `Gpu` no more.
+///
+/// Each upload has an [`UploadRank`]: of the copies that wait, those of the lowest rank go first,
+/// and those of one rank in the order they came (ADR-0113), so that what a frame lacks goes before
+/// what is fetched ahead.
 #[derive(Clone)]
 pub struct Uploader {
     owner: Arc<Owner>,
@@ -58,6 +62,32 @@ impl std::fmt::Debug for Uploader {
         f.debug_struct("Uploader")
             .field("bytes_per_frame", &self.owner.shared.budget)
             .finish_non_exhaustive()
+    }
+}
+
+/// Where an upload's copies stand among those that wait (ADR-0113): the uploader submits those of
+/// the lowest rank first, and those of one rank in the order they came. Clones share one rank,
+/// which can change while their copies wait, as when what was fetched ahead comes into view. The
+/// default is 0, before every other.
+#[derive(Clone, Debug, Default)]
+pub struct UploadRank(Arc<AtomicU64>);
+
+impl UploadRank {
+    /// A rank of `rank`.
+    #[must_use]
+    pub fn new(rank: u64) -> Self {
+        Self(Arc::new(AtomicU64::new(rank)))
+    }
+
+    /// Changes the rank of every upload given it, the copies that wait included.
+    pub fn set(&self, rank: u64) {
+        self.0.store(rank, Ordering::Relaxed);
+    }
+
+    /// The rank.
+    #[must_use]
+    pub fn get(&self) -> u64 {
+        self.0.load(Ordering::Relaxed)
     }
 }
 
@@ -102,8 +132,8 @@ struct Shared {
 }
 
 struct State {
-    /// The copies waiting, in the order they were given, one staging buffer each.
-    parts: VecDeque<Part>,
+    /// The copies waiting, one staging buffer each, in the order they were given.
+    parts: Vec<Part>,
     /// The bytes that may still be submitted before the budget is renewed.
     allowance: u64,
     /// When the budget was last renewed.
@@ -119,6 +149,8 @@ struct State {
 
 /// One staging buffer and the copies from it, submitted together.
 struct Part {
+    /// The rank of its upload.
+    rank: UploadRank,
     buffer: wgpu::Buffer,
     copies: Vec<StagedCopy>,
     /// The bytes that the copies bring.
@@ -225,7 +257,7 @@ impl Uploader {
             gpu: gpu.clone(),
             budget: bytes_per_frame,
             state: Mutex::new(State {
-                parts: VecDeque::new(),
+                parts: Vec::new(),
                 allowance: bytes_per_frame,
                 renewed: Instant::now(),
                 framed: None,
@@ -264,7 +296,7 @@ impl Uploader {
         shared.wake.notify_one();
     }
 
-    /// Creates a texture of `width` × `height` pixels whose levels `levels` gives, as
+    /// Creates a texture of `width` × `height` pixels, at `rank`, whose levels `levels` gives, as
     /// [`Gpu::create_texture_with_levels`] takes them, writes them into staging buffers on the
     /// calling thread, and leaves their copies to the uploader's thread, which calls `done` once
     /// it has submitted the last, or with the error that kept them from the GPU. `done` runs on the
@@ -284,8 +316,8 @@ impl Uploader {
     pub fn texture(
         &self,
         label: &str,
-        width: u32,
-        height: u32,
+        rank: &UploadRank,
+        (width, height): (u32, u32),
         format: TextureFormat,
         levels: &[&[u8]],
         done: impl FnOnce(Result<(), GfxError>) + Send + 'static,
@@ -302,6 +334,7 @@ impl Uploader {
         let parts = staged
             .into_iter()
             .map(|Staged { buffer, copies }| Part {
+                rank: rank.clone(),
                 bytes: copies.iter().map(StagedCopy::bytes).sum(),
                 buffer,
                 copies,
@@ -330,6 +363,7 @@ impl Uploader {
     pub fn buffers(
         &self,
         label: &str,
+        rank: &UploadRank,
         writes: &[(UploadTarget<'_>, u64, &[u8])],
         done: impl FnOnce(Result<(), GfxError>) + Send + 'static,
     ) -> Result<(), GfxError> {
@@ -394,6 +428,7 @@ impl Uploader {
             .into_iter()
             .zip(copies)
             .map(|(buffer, copies)| Part {
+                rank: rank.clone(),
                 bytes: copies.iter().map(StagedCopy::bytes).sum(),
                 buffer,
                 copies,
@@ -402,6 +437,14 @@ impl Uploader {
             .collect();
         shared.give(parts, Box::new(done));
         Ok(())
+    }
+}
+
+impl State {
+    /// The part to submit next: the first given of those of the lowest rank.
+    fn next(&self) -> Option<usize> {
+        // The first index of the lowest rank: `min_by_key` keeps the first of equal keys.
+        (0..self.parts.len()).min_by_key(|&index| self.parts[index].rank.get())
     }
 }
 
@@ -461,10 +504,9 @@ impl Shared {
                         .map(|framed| IDLE.saturating_sub(now.duration_since(framed)))
                         .filter(|left| !left.is_zero());
                     let unbounded = state.stop || until_idle.is_none();
-                    let fits = state
-                        .parts
-                        .front()
-                        .is_some_and(|part| unbounded || part.bytes <= state.allowance);
+                    let fits = state.next().is_some_and(|next| {
+                        unbounded || state.parts[next].bytes <= state.allowance
+                    });
                     if state.stop || fits {
                         break unbounded;
                     }
@@ -484,12 +526,13 @@ impl Shared {
                     };
                 };
                 let mut parts = Vec::new();
-                while let Some(part) = state.parts.front() {
-                    if !unbounded && part.bytes > state.allowance {
+                while let Some(next) = state.next() {
+                    let bytes = state.parts[next].bytes;
+                    if !unbounded && bytes > state.allowance {
                         break;
                     }
-                    state.allowance = state.allowance.saturating_sub(part.bytes);
-                    parts.extend(state.parts.pop_front());
+                    state.allowance = state.allowance.saturating_sub(bytes);
+                    parts.push(state.parts.remove(next));
                 }
                 (parts, state.stop)
             };

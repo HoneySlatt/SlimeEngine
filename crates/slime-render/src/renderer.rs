@@ -255,8 +255,10 @@ impl Scene {
     }
 }
 
-/// What drawing a scene through a view took ([`View::stats`]).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// What drawing a scene through a view took ([`View::stats`]). Described by reflection, its times
+/// in seconds, for the tools that read it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(name = "RenderStats")]
 #[non_exhaustive]
 pub struct RenderStats {
     /// Draw calls of the scene pass: one per group of instances of one pipeline, material and mesh

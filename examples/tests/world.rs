@@ -394,12 +394,14 @@ fn after_a_lost_device_the_cache_made_again_draws_the_same_world() {
         builder,
     } = drawing;
     // Nothing may hold the lost device when the new one opens (`Gpu::restore`): the renderer goes,
-    // with its view and the cache that loads through it.
-    drop((renderer, view, cache));
+    // with its view and the cache that loads through it, which gives back its requests, those that
+    // the builder's handles hold.
+    let requests = cache.into_requests();
+    drop((renderer, view));
     let gpu = gpu.restore().expect("a new device opens");
     let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
     let mut drawing = Drawing {
-        cache: AssetCache::new(&renderer, sample().clone()),
+        cache: AssetCache::with_requests(&renderer, sample().clone(), requests),
         view: renderer.create_view(&gpu, "world").expect("the view"),
         renderer,
         builder,
@@ -413,6 +415,13 @@ fn after_a_lost_device_the_cache_made_again_draws_the_same_world() {
     assert!(
         before.pixels == after.pixels,
         "the same image after the loss"
+    );
+    // A cache made again without those requests: the builder asks it for the meshes again.
+    drawing.cache = AssetCache::new(&drawing.renderer, sample().clone());
+    let (again, _) = drawing.draw(&gpu, &target(&gpu), &world, camera);
+    assert!(
+        before.pixels == again.pixels,
+        "the same image from a cache made without the requests"
     );
 }
 

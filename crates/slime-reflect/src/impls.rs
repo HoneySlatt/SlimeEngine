@@ -1,6 +1,8 @@
 //! Reflection for the standard types the engine uses, and for glam's: by hand, here, where the
 //! trait is.
 
+use std::time::Duration;
+
 use glam::{DVec3, Quat, Vec3};
 
 use crate::error::{Problem, ReflectError};
@@ -143,6 +145,43 @@ macro_rules! float {
 
 float!(f32, "f32", F32, "A 32-bit float.");
 float!(f64, "f64", F64, "A 64-bit float.");
+
+/// A span of time, as its seconds: a 64-bit float, which holds it to the nanosecond below a hundred
+/// days.
+impl Reflect for Duration {
+    fn type_name() -> String {
+        "Duration".to_owned()
+    }
+
+    fn type_info() -> TypeInfo {
+        described(
+            Self::type_name(),
+            "A span of time, in seconds, not negative.",
+            Kind::F64,
+        )
+    }
+
+    fn register_dependencies(_: &mut Registry) {}
+
+    fn to_value(&self) -> Value {
+        Value::F64(self.as_secs_f64())
+    }
+
+    fn from_value(value: &Value) -> Result<Self, ReflectError> {
+        match *value {
+            Value::F64(seconds) => Duration::try_from_secs_f64(seconds).map_err(|_| {
+                ReflectError::new(Problem::OutOfRange {
+                    value: Number::F64(seconds),
+                    range: Range {
+                        min: 0.0,
+                        ..Range::ALL
+                    },
+                })
+            }),
+            _ => Err(wrong("Duration", value)),
+        }
+    }
+}
 
 impl Reflect for String {
     fn type_name() -> String {
@@ -406,6 +445,19 @@ mod tests {
         round_trip(Vec3::new(1.0, 2.0, 3.0));
         round_trip(DVec3::new(1.0e7, 2.0, 3.0));
         round_trip(Quat::from_rotation_y(0.5));
+        round_trip(Duration::from_micros(1_234_567));
+    }
+
+    #[test]
+    fn a_duration_is_its_seconds_never_negative() {
+        assert_eq!(Duration::from_millis(1500).to_value(), Value::F64(1.5));
+        for seconds in [-1.0, f64::NAN, f64::INFINITY] {
+            let refused = Duration::from_value(&Value::F64(seconds)).expect_err("refused");
+            assert!(
+                matches!(refused.problem(), Problem::OutOfRange { .. }),
+                "{seconds}"
+            );
+        }
     }
 
     #[test]

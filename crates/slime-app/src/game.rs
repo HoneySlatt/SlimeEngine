@@ -225,7 +225,7 @@ pub trait Presentation {
     /// the development channel, as the renderer's `ViewSettings` for a view of `slime-render`
     /// (ADR-0127). `None` for a view whose settings a tool does not change, as the default gives
     /// for every view.
-    fn view_settings(&self, name: &str) -> Option<ReflectedSettings> {
+    fn view_settings(&self, name: &str) -> Option<Reflected> {
         let _ = name;
         None
     }
@@ -240,15 +240,20 @@ pub trait Presentation {
     ///
     /// Why the presentation refuses them, which the tool is told, as the default does for every
     /// view.
-    fn set_view_settings(
-        &mut self,
-        name: &str,
-        settings: &ReflectedSettings,
-    ) -> Result<(), String> {
+    fn set_view_settings(&mut self, name: &str, settings: &Reflected) -> Result<(), String> {
         let _ = settings;
         Err(format!(
             "the game does not change the settings of its view `{name}`"
         ))
+    }
+
+    /// The reports that the presentation gives tools, each by its name and described by
+    /// reflection, which the development channel lists in the game's state and reads one by one
+    /// (`docs/adr/0128-asset-requests.md`): as the renderer's `CacheReport` of an asset cache,
+    /// under `assets`, and its views' `RenderStats`, under `views`. They are made when a tool asks,
+    /// not at each frame. The default gives none.
+    fn reports(&self) -> Vec<(String, Reflected)> {
+        Vec::new()
     }
 
     /// Called between frames when the GPU device was lost and the run is about to open a new one,
@@ -318,14 +323,14 @@ pub struct ShownView {
     pub height: u32,
 }
 
-/// Settings described by reflection, with the registry of their type
-/// ([`Presentation::view_settings`]): through it, a tool reads and changes a view's settings
-/// without `slime-app` knowing their type, and its changes are checked against the type and the
-/// ranges of its fields before the presentation gets them back
-/// ([`Presentation::set_view_settings`]).
-pub struct ReflectedSettings {
-    /// Describes their type and the types it holds, through which the development channel reads
-    /// and changes them.
+/// A value described by reflection, with the registry of its type: a view's settings
+/// ([`Presentation::view_settings`]), or a report ([`Presentation::reports`]). Through it, a tool
+/// reads a presentation's values without `slime-app` knowing their types, and changes a view's
+/// settings, its changes checked against the type and the ranges of its fields before the
+/// presentation gets them back ([`Presentation::set_view_settings`]).
+pub struct Reflected {
+    /// Describes its type and the types it holds, through which the development channel reads and
+    /// changes it.
     #[cfg_attr(
         not(feature = "development"),
         expect(
@@ -334,39 +339,39 @@ pub struct ReflectedSettings {
         )
     )]
     pub(crate) registry: Registry,
-    /// Their type's name.
+    /// Its type's name.
     pub(crate) ty: String,
-    /// Their value.
+    /// The value.
     pub(crate) value: Value,
 }
 
-impl fmt::Debug for ReflectedSettings {
+impl fmt::Debug for Reflected {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ReflectedSettings")
+        f.debug_struct("Reflected")
             .field("ty", &self.ty)
             .field("value", &self.value)
             .finish_non_exhaustive()
     }
 }
 
-impl ReflectedSettings {
-    /// `settings`, described by their type's reflection.
+impl Reflected {
+    /// `value`, described by its type's reflection.
     #[must_use]
-    pub fn new<T: Reflect>(settings: &T) -> Self {
+    pub fn new<T: Reflect>(value: &T) -> Self {
         let mut registry = Registry::new();
         registry.register::<T>();
         Self {
             registry,
             ty: T::type_name(),
-            value: settings.to_value(),
+            value: value.to_value(),
         }
     }
 
-    /// The settings, as a value of `T`.
+    /// The value, as a value of `T`.
     ///
     /// # Errors
     ///
-    /// When they are not settings of type `T`, with the part at fault.
+    /// When it is not a value of type `T`, with the part at fault.
     pub fn get<T: Reflect>(&self) -> Result<T, ReflectError> {
         T::from_value(&self.value)
     }

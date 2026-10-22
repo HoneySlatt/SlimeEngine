@@ -3,14 +3,20 @@
 //! once, its lights in world space, and drawn; loads polled, side by side, one of them dropped, and
 //! a panic of a task of a load raised again; a texture of the wrong kind for its slot refused; a
 //! material found by its name, and changed; a scene loaded again, which keeps what did not change,
-//! and fails without harm to the scene before; the asset cache, which loads what is asked for once,
-//! in batches, keeps the textures it holds, does not ask again for what failed or panicked, loads
-//! and keeps meshes once the renderer it was made with is dropped, and reloads what changed. Runs
-//! on whatever adapter the machine offers.
+//! and fails without harm to the scene before. The asset cache is checked in `requests.rs`. Runs on
+//! whatever adapter the machine offers.
+
+#[path = "common/palette.rs"]
+mod palette;
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
+
+use palette::{
+    COLORS, Written, center_of, directory, palette, palette_meshes, placed, settle,
+    whiten_the_second_texture, write,
+};
 
 use slime_assets::{
     AssetId, AssetKind, CookedAssets, CookedMaterial, CookedMesh, CookedScene, CookedTexture,
@@ -19,22 +25,16 @@ use slime_assets::{
 };
 use slime_color::LinearColor;
 use slime_gfx::{GfxError, Gpu, TextureFormat};
-use slime_render::glam::{DAffine3, DVec3, Mat4, Vec3};
+use slime_render::glam::{DVec3, Vec3};
 use slime_render::{
-    AssetCache, Camera, DirectionalLight, Instance, Light, LoadedScene, MaterialValues, MeshData,
-    RenderError, Renderer, Scene, SceneError, ViewDraw, scene_lights,
+    AssetCache, Camera, Light, LoadedScene, MaterialValues, MeshData, Priority, RenderError,
+    Renderer, Scene, SceneError, ViewDraw, scene_lights,
 };
 
 const TEXTURE: AssetId = AssetId::from_u128(1);
 const MATERIAL: AssetId = AssetId::from_u128(2);
 const MESH: AssetId = AssetId::from_u128(3);
 const SCENE: AssetId = AssetId::from_u128(4);
-
-/// A transform, column after column, that moves by `x` along +X and scales by `scale`.
-fn placed(x: f32, scale: Vec3) -> [f32; 16] {
-    Mat4::from_scale_rotation_translation(scale, Default::default(), Vec3::new(x, 0.0, 0.0))
-        .to_cols_array()
-}
 
 /// Writes into a directory of its own, named `name`, a cooked scene: a square facing +Z, with a
 /// red texture, placed by a node at the origin and by its child 2 m along +X, and a directional
@@ -133,170 +133,6 @@ fn cooked(name: &str, light_scale: Vec3) -> PathBuf {
     ];
     write(&directory, assets);
     directory
-}
-
-/// An asset to write: its ID, kind, file name, bytes, and the IDs it needs.
-type Written = (AssetId, AssetKind, String, Vec<u8>, Vec<AssetId>);
-
-/// Writes `assets` into `directory`, and the manifest that lists them.
-fn write(directory: &Path, assets: Vec<Written>) {
-    let mut manifest = Manifest::new();
-    for (id, kind, file, bytes, needs) in assets {
-        fs::write(directory.join(&file), &bytes).expect("written");
-        manifest.insert(
-            id,
-            ManifestEntry {
-                kind,
-                file,
-                size: bytes.len() as u64,
-                needs,
-                source: "squares.gltf".to_owned(),
-            },
-        );
-    }
-    fs::write(directory.join(MANIFEST_FILE), manifest.to_bytes()).expect("written");
-}
-
-/// A new, empty directory for the cooked data named `name`.
-fn directory(name: &str) -> PathBuf {
-    let directory = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("slime-render-cooked")
-        .join(name);
-    if directory.exists() {
-        fs::remove_dir_all(&directory).expect("the old directory can be removed");
-    }
-    fs::create_dir_all(&directory).expect("the directory can be created");
-    directory
-}
-
-/// The colors of [`palette`]'s textures, one per material.
-const COLORS: [[u8; 4]; 3] = [[255, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255]];
-
-/// Writes into a directory of its own, named `name`, a cooked scene of six squares facing +Z, 2 m
-/// apart along +X, each a mesh of its own placed by a node of its own. Square `i` is drawn with
-/// material `i % 3`, which reads a texture of `COLORS[i % 3]`, `width` texels wide and one high.
-/// Returns the directory and the scene's ID.
-fn palette(name: &str, width: u32) -> (PathBuf, AssetId) {
-    let directory = directory(name);
-    let id = |kind: u128, index: usize| AssetId::from_u128(kind * 100 + index as u128);
-    let (texture, material, mesh, scene) = (1, 2, 3, 4);
-    let mut assets: Vec<Written> = Vec::new();
-    for (index, color) in COLORS.iter().enumerate() {
-        let cooked = CookedTexture {
-            width,
-            height: 1,
-            encoding: TextureEncoding::Rgba8Srgb,
-            levels: vec![color.repeat(width as usize)],
-        };
-        let sampler = TextureSampler {
-            mag_filter: TextureFilter::Nearest,
-            min_filter: TextureFilter::Nearest,
-            wrap_u: TextureWrap::ClampToEdge,
-            wrap_v: TextureWrap::ClampToEdge,
-        };
-        let cooked_material = CookedMaterial {
-            name: format!("material {index}"),
-            metallic: 0.0,
-            base_color_texture: Some(MaterialTexture {
-                texture: id(texture, index),
-                sampler,
-            }),
-            ..CookedMaterial::default()
-        };
-        assets.push((
-            id(texture, index),
-            AssetKind::Texture,
-            format!("{index}.ktx2"),
-            cooked.to_ktx2(),
-            vec![],
-        ));
-        assets.push((
-            id(material, index),
-            AssetKind::Material,
-            format!("{index}.material"),
-            cooked_material.to_bytes(),
-            vec![id(texture, index)],
-        ));
-    }
-    let square = MeshData::square();
-    let mut nodes = Vec::new();
-    for index in 0..6 {
-        let cooked = CookedMesh {
-            name: format!("square {index}"),
-            material: id(material, index % 3),
-            positions: square.positions.clone(),
-            normals: square.normals.clone(),
-            uvs: square.uvs.clone(),
-            tangents: square.tangents.clone(),
-            indices: square.indices.clone(),
-            bounds: [[-0.5, -0.5, 0.0], [0.5, 0.5, 0.0]],
-        };
-        assets.push((
-            id(mesh, index),
-            AssetKind::Mesh,
-            format!("{index}.mesh"),
-            cooked.to_bytes(),
-            vec![id(material, index % 3)],
-        ));
-        nodes.push(SceneNode {
-            name: format!("square {index}"),
-            parent: None,
-            transform: placed(2.0 * index as f32, Vec3::ONE),
-            meshes: vec![id(mesh, index)],
-            light: None,
-            extras: Vec::new(),
-            components: Vec::new(),
-        });
-    }
-    let cooked = CookedScene {
-        name: "palette".to_owned(),
-        nodes,
-    };
-    assets.push((
-        id(scene, 0),
-        AssetKind::Scene,
-        "palette.scene".to_owned(),
-        cooked.to_bytes(),
-        (0..6).map(|index| id(mesh, index)).collect(),
-    ));
-    write(&directory, assets);
-    (directory, id(scene, 0))
-}
-
-/// The color of the center of what `renderer` draws of `instance`, seen from 2 m in front of it,
-/// lit by a light along −Z.
-fn center_of(gpu: &Gpu, renderer: &mut Renderer, instance: Instance) -> [u8; 3] {
-    let target = gpu
-        .create_render_target("palette", 16, 16, TextureFormat::Rgba8UnormSrgb)
-        .expect("the GPU has memory for it");
-    let x = instance.transform.translation.x;
-    let camera = Camera {
-        eye: DVec3::new(x, 0.0, 2.0),
-        target: DVec3::new(x, 0.0, 0.0),
-        ..Camera::default()
-    };
-    let lights = [Light::Directional(DirectionalLight {
-        direction: Vec3::NEG_Z,
-        illuminance: 3.0,
-        ..DirectionalLight::default()
-    })];
-    let instances = [instance];
-    let mut scene = Scene::new(instances.clone());
-    scene.lights = lights.to_vec();
-    scene.exposure = 0.5;
-    let mut view = renderer
-        .create_view(gpu, "view")
-        .expect("the view is created");
-    renderer
-        .render(
-            gpu,
-            &scene,
-            &mut [ViewDraw::new(&mut view, camera, &target)],
-        )
-        .expect("the frame is drawn");
-    let image = gpu.read_render_target(&target).expect("read back");
-    let center = &image.pixels[(8 * 16 + 8) * 4..][..3];
-    [center[0], center[1], center[2]]
 }
 
 /// Checks that `loaded` is [`palette`]'s scene: six instances, each mesh its own, the materials
@@ -468,13 +304,14 @@ fn a_load_on_a_lost_device_ends_with_the_loss_and_never_hangs() {
     );
     // The asset cache's batches end the same way.
     let mut cache = AssetCache::new(&renderer, assets);
-    cache.request(&gpu, palette_meshes());
-    let errors = settle(&mut cache);
+    let _held = cache.request(&gpu, palette_meshes(), Priority::Now);
+    let errors = settle(&mut cache, &gpu);
     assert!(
-        errors.iter().all(|error| matches!(
-            error,
-            SceneError::Render(RenderError::Gfx(GfxError::DeviceLost { .. }))
-        )),
+        errors.len() == palette_meshes().len()
+            && errors.iter().all(|(_, error)| matches!(
+                &**error,
+                SceneError::Render(RenderError::Gfx(GfxError::DeviceLost { .. }))
+            )),
         "{errors:?}"
     );
     // The renderer and the cache go, and the uploader's thread with the last of them.
@@ -654,254 +491,4 @@ fn a_reload_that_fails_leaves_the_scene_before_whole() {
     };
     assert!(error.to_string().contains("1-gone.material"), "{error}");
     check_palette(&gpu, &mut renderer, &previous);
-}
-
-/// Cooks the texture of [`palette`]'s second material, green, again white, under a new name, as
-/// the cooker names a changed image; and removes the meshes and the other textures from the disk,
-/// so that what reads them fails.
-fn whiten_the_second_texture(directory: &Path) {
-    let texture = AssetId::from_u128(101);
-    let white = CookedTexture {
-        width: 4,
-        height: 1,
-        encoding: TextureEncoding::Rgba8Srgb,
-        levels: vec![[255; 4].repeat(4)],
-    }
-    .to_ktx2();
-    fs::write(directory.join("1-white.ktx2"), &white).expect("written");
-    let path = directory.join(MANIFEST_FILE);
-    let mut manifest = Manifest::from_bytes(&fs::read(&path).expect("read")).expect("a manifest");
-    let entry = manifest.get(texture).expect("listed").clone();
-    manifest.insert(
-        texture,
-        ManifestEntry {
-            file: "1-white.ktx2".to_owned(),
-            size: white.len() as u64,
-            ..entry
-        },
-    );
-    fs::write(&path, manifest.to_bytes()).expect("written");
-    for file in ["0.ktx2", "2.ktx2"]
-        .into_iter()
-        .map(str::to_owned)
-        .chain((0..6).map(|index| format!("{index}.mesh")))
-    {
-        fs::remove_file(directory.join(file)).expect("removed");
-    }
-}
-
-/// The meshes of [`palette`]'s squares, in their order.
-fn palette_meshes() -> [AssetId; 6] {
-    std::array::from_fn(|index| AssetId::from_u128(300 + index as u128))
-}
-
-/// Polls `cache` until it neither loads nor reloads, and returns the errors it gave.
-fn settle(cache: &mut AssetCache) -> Vec<SceneError> {
-    let mut errors = Vec::new();
-    for _ in 0..10_000 {
-        errors.extend(cache.poll());
-        if cache.loading() == 0 && !cache.reloading() {
-            return errors;
-        }
-        std::thread::sleep(Duration::from_millis(1));
-    }
-    panic!("the cache still loads after 10 s");
-}
-
-/// Checks that `cache` holds each of [`palette`]'s squares in `indices`, and that each is drawn in
-/// its material's color, or white where `white` says so.
-fn check_cached(
-    gpu: &Gpu,
-    renderer: &mut Renderer,
-    cache: &AssetCache,
-    indices: std::ops::Range<usize>,
-    white: impl Fn(usize) -> bool,
-) {
-    let meshes = palette_meshes();
-    for index in indices {
-        let (mesh, material) = cache.mesh(meshes[index]).expect("held");
-        let placed = DAffine3::from_translation(DVec3::new(2.0 * index as f64, 0.0, 0.0));
-        let [r, g, b] = center_of(gpu, renderer, Instance::new(mesh, material, placed));
-        let lit = [r, g, b].map(|channel| channel > 100);
-        let expected = if white(index) {
-            [true; 3]
-        } else {
-            COLORS[index % 3].map(|channel| channel == 255)[..3]
-                .try_into()
-                .expect("three channels")
-        };
-        assert_eq!(lit, expected, "{index}: {r} {g} {b}");
-    }
-}
-
-#[test]
-fn the_cache_loads_what_is_asked_for_once_and_shares_the_materials() {
-    let gpu = gpu();
-    let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
-    let (directory, _) = palette("cache", 4);
-    let mut cache = AssetCache::new(
-        &renderer,
-        CookedAssets::open(&directory).expect("the manifest is read"),
-    );
-    let meshes = palette_meshes();
-    assert!(cache.mesh(meshes[0]).is_none());
-    cache.request(&gpu, meshes);
-    assert_eq!(cache.loading(), 6);
-    cache.request(&gpu, meshes);
-    assert_eq!(cache.loading(), 6, "asked for twice, loaded once");
-    assert!(settle(&mut cache).is_empty());
-    // Squares 0 and 3 are drawn with the same material, which the cache holds once.
-    let material = |index: usize| cache.mesh(meshes[index]).expect("held").1;
-    assert!(std::ptr::eq(material(0), material(3)));
-    assert!(!std::ptr::eq(material(0), material(1)));
-    assert!(std::ptr::eq(
-        material(1),
-        cache.material(AssetId::from_u128(201)).expect("held")
-    ));
-    cache.request(&gpu, meshes);
-    assert_eq!(cache.loading(), 0, "held already");
-    check_cached(&gpu, &mut renderer, &cache, 0..6, |_| false);
-}
-
-#[test]
-fn a_second_batch_keeps_the_textures_that_the_cache_holds() {
-    let gpu = gpu();
-    let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
-    let (directory, _) = palette("cache-second", 4);
-    let mut cache = AssetCache::new(
-        &renderer,
-        CookedAssets::open(&directory).expect("the manifest is read"),
-    );
-    let meshes = palette_meshes();
-    cache.request(&gpu, meshes[..3].iter().copied());
-    assert!(settle(&mut cache).is_empty());
-    // The last three squares are drawn with the same materials, whose textures the cache holds:
-    // those are not read again.
-    for index in 0..3 {
-        fs::remove_file(directory.join(format!("{index}.ktx2"))).expect("removed");
-    }
-    cache.request(&gpu, meshes[3..].iter().copied());
-    assert_eq!(cache.loading(), 3);
-    assert!(settle(&mut cache).is_empty());
-    check_cached(&gpu, &mut renderer, &cache, 0..6, |_| false);
-}
-
-#[test]
-fn a_mesh_that_cannot_be_read_is_reported_once_and_not_asked_for_again() {
-    let gpu = gpu();
-    let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
-    let (directory, _) = palette("cache-missing", 4);
-    let mut cache = AssetCache::new(
-        &renderer,
-        CookedAssets::open(&directory).expect("the manifest is read"),
-    );
-    let missing = AssetId::from_u128(999);
-    cache.request(&gpu, [missing]);
-    let errors = settle(&mut cache);
-    assert!(matches!(errors[..], [SceneError::Load(_)]), "{errors:?}");
-    cache.request(&gpu, [missing]);
-    assert_eq!(cache.loading(), 0);
-    assert!(cache.poll().is_empty());
-    assert!(cache.mesh(missing).is_none());
-}
-
-#[test]
-fn a_panic_while_the_cache_loads_leaves_it_loading_nothing() {
-    let gpu = gpu();
-    let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
-    let (directory, _) = palette("cache-panic", 4);
-    let mut cache = AssetCache::new(
-        &renderer,
-        CookedAssets::open(&directory).expect("the manifest is read"),
-    );
-    let meshes = palette_meshes();
-    cache.request(&gpu, [meshes[0]]);
-    assert!(settle(&mut cache).is_empty());
-    // Square 3 is drawn with square 0's material, which a batch makes again with the texture the
-    // cache holds: on another device, which cannot read it, a bug of the caller's that panics.
-    let other = self::gpu();
-    cache.request(&other, [meshes[3]]);
-    let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| settle(&mut cache)));
-    assert!(panicked.is_err(), "the batch panicked");
-    assert_eq!(cache.loading(), 0, "the batch is over");
-    assert!(cache.mesh(meshes[3]).is_none());
-    // Its mesh is not asked for again, as for a batch that failed.
-    cache.request(&gpu, [meshes[3]]);
-    assert_eq!(cache.loading(), 0);
-}
-
-#[test]
-fn a_cache_loads_and_keeps_meshes_without_the_renderer_it_was_made_with() {
-    let gpu = gpu();
-    let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
-    let (directory, _) = palette("cache-alone", 4);
-    let assets = CookedAssets::open(&directory).expect("the manifest is read");
-    // A cache dropped while a batch loads cancels it, as a game that loses its device does.
-    let mut dropped = AssetCache::new(&renderer, assets.clone());
-    dropped.request(&gpu, palette_meshes());
-    drop(dropped);
-    let mut cache = AssetCache::new(&renderer, assets);
-    drop(renderer);
-    let meshes = palette_meshes();
-    cache.request(&gpu, meshes);
-    assert!(settle(&mut cache).is_empty());
-    // Drawn by another renderer of the same device.
-    let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
-    check_cached(&gpu, &mut renderer, &cache, 0..6, |_| false);
-}
-
-#[test]
-fn a_reload_keeps_what_did_not_change_and_takes_the_rest_at_once() {
-    let gpu = gpu();
-    let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
-    let (directory, _) = palette("cache-reload", 4);
-    let mut cache = AssetCache::new(
-        &renderer,
-        CookedAssets::open(&directory).expect("the manifest is read"),
-    );
-    let meshes = palette_meshes();
-    cache.request(&gpu, meshes);
-    assert!(settle(&mut cache).is_empty());
-    whiten_the_second_texture(&directory);
-    let assets = CookedAssets::open(&directory).expect("the manifest is read");
-    cache.reload(&gpu, assets);
-    // Until the reload finishes, the cache gives what it held.
-    assert!(cache.reloading());
-    check_cached(&gpu, &mut renderer, &cache, 0..6, |_| false);
-    // The meshes and the textures that did not change are kept: their files are gone.
-    assert!(settle(&mut cache).is_empty());
-    check_cached(&gpu, &mut renderer, &cache, 0..6, |index| index % 3 == 1);
-}
-
-#[test]
-fn a_reload_drops_the_meshes_that_the_new_data_no_longer_lists() {
-    let gpu = gpu();
-    let mut renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
-    let (directory, _) = palette("cache-removed", 4);
-    let mut cache = AssetCache::new(
-        &renderer,
-        CookedAssets::open(&directory).expect("the manifest is read"),
-    );
-    let meshes = palette_meshes();
-    cache.request(&gpu, meshes);
-    assert!(settle(&mut cache).is_empty());
-    // The last square is cooked no more: the new manifest does not list it.
-    let path = directory.join(MANIFEST_FILE);
-    let manifest = Manifest::from_bytes(&fs::read(&path).expect("read")).expect("a manifest");
-    let mut listed = Manifest::new();
-    for (id, entry) in manifest.iter().filter(|&(id, _)| id != meshes[5]) {
-        listed.insert(id, entry.clone());
-    }
-    fs::write(&path, listed.to_bytes()).expect("written");
-    let assets = CookedAssets::open(&directory).expect("the manifest is read");
-    cache.reload(&gpu, assets);
-    assert!(cache.mesh(meshes[5]).is_none(), "dropped at once");
-    assert!(settle(&mut cache).is_empty(), "the others are loaded again");
-    check_cached(&gpu, &mut renderer, &cache, 0..5, |_| false);
-    // The reloads after it go through.
-    whiten_the_second_texture(&directory);
-    let assets = CookedAssets::open(&directory).expect("the manifest is read");
-    cache.reload(&gpu, assets);
-    assert!(settle(&mut cache).is_empty());
-    check_cached(&gpu, &mut renderer, &cache, 0..5, |index| index % 3 == 1);
 }

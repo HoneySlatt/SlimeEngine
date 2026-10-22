@@ -11,6 +11,8 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+# The IDs of the meshes that its handles hold.
+slime-assets.workspace = true
 slime-gfx.workspace = true
 slime-render.workspace = true
 slime-world.workspace = true

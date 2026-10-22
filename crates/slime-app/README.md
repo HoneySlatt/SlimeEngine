@@ -122,8 +122,10 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   names the views that it drew there, each with its rectangle (`ShownView`), so that a tool
   captures one through the development channel (`docs/adr/0126-views-apart-from-the-renderer.md`),
   with `view_settings` and `set_view_settings`, which hand a tool a view's settings as reflection
-  describes them (`ReflectedSettings`), and take them back changed
-  (`docs/adr/0127-the-settings-of-a-view.md`);
+  describes them (`Reflected`), and take them back changed
+  (`docs/adr/0127-the-settings-of-a-view.md`), and `reports`, the named values, as described, that
+  it gives tools, an asset cache's and its views' statistics
+  (`docs/adr/0128-asset-requests.md`);
   `gpu_lost` and `gpu_restored` when the run replaces a lost GPU device, which a game asks for with
   `AppConfig::restore_lost_device`: it drops its GPU objects in the first, before the new device
   opens, and creates them again in the second
@@ -264,8 +266,8 @@ the name the graphics API gives it.
 - `slime-gfx`: the GPU and the window's surface, for windowed runs.
 - `slime-platform`: the window and its events, for windowed runs, and the input as data.
 - `slime-world`: the game's world, which it owns, and its commands.
-- `slime-reflect`: the settings of a presentation's views, described to the tools that change
-  them; the world depends on it in every build.
+- `slime-reflect`: the settings and the reports of a presentation, described to the tools that
+  read and change them; the world depends on it in every build.
 - `slime-channel` and `slime-serialize`, with the `development` feature only: the development
   channel, and the documents through which it reads and writes values as text.
 - `thiserror`: derives `RunError`'s `Display` and `Error` implementations.

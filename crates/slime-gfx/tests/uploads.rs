@@ -1,6 +1,7 @@
 //! The uploader (ADR-0107): ranges of vertex and index buffers that it brings, drawn once their
 //! upload is done; copies that wait for no budget before the first frame, nor long after the last;
-//! the copies still waiting submitted when it is dropped; an upload told of a lost device. Runs on
+//! the copies still waiting submitted when it is dropped; an upload told of a lost device; the
+//! copies of the lowest rank first, a rank changed while they wait included (ADR-0113). Runs on
 //! whatever adapter the machine offers, like `device.rs`.
 
 use std::sync::mpsc;
@@ -9,7 +10,7 @@ use std::time::{Duration, Instant};
 use slime_color::LinearColor;
 use slime_gfx::{
     CullMode, FragmentState, Gpu, RenderPassDescriptor, RenderPipelineDescriptor, TextureFormat,
-    UploadTarget, Uploader, VertexAttribute, VertexBuffer, VertexFormat, VertexLayout,
+    UploadRank, UploadTarget, Uploader, VertexAttribute, VertexBuffer, VertexFormat, VertexLayout,
 };
 
 /// White triangles from positions in clip space.
@@ -55,6 +56,7 @@ fn ranges_of_buffers_that_an_uploader_brings_draw_once_their_upload_is_done() {
     uploader
         .buffers(
             "triangle",
+            &UploadRank::default(),
             &[
                 (UploadTarget::Vertices(&vertices), 3 * 8, &quarter),
                 (UploadTarget::Indices(&indices), 3 * 4, &corners),
@@ -128,6 +130,7 @@ fn dropping_the_uploader_submits_the_copies_that_wait_whatever_the_budget() {
     uploader
         .buffers(
             "a megabyte",
+            &UploadRank::default(),
             &[(UploadTarget::Vertices(&vertices), 0, &vec![7; 1 << 20])],
             move |result| done.send(result.is_ok()).expect("the test waits"),
         )
@@ -152,6 +155,7 @@ fn an_upload_is_told_of_a_device_lost_before_its_copies() {
     uploader
         .buffers(
             "a megabyte",
+            &UploadRank::default(),
             &[(UploadTarget::Vertices(&vertices), 0, &vec![7; 1 << 20])],
             move |result| done.send(result.is_err()).expect("the test waits"),
         )
@@ -182,6 +186,7 @@ fn upload(uploader: &Uploader, vertices: &VertexBuffer, bytes: &[u8]) {
     uploader
         .buffers(
             "four megabytes",
+            &UploadRank::default(),
             &[(UploadTarget::Vertices(vertices), 0, bytes)],
             move |result| done.send(result.is_ok()).expect("the test waits"),
         )
@@ -214,5 +219,51 @@ fn copies_wait_for_no_budget_a_tenth_of_a_second_after_the_last_frame() {
     assert!(
         (Duration::from_millis(95)..Duration::from_millis(700)).contains(&took),
         "took {took:?}"
+    );
+}
+
+#[test]
+fn the_copies_of_the_lowest_rank_go_first_and_a_rank_changes_while_they_wait() {
+    let gpu = gpu();
+    let uploader = Uploader::new(&gpu, 64 << 10);
+    let vertices = gpu
+        .create_zeroed_vertex_buffer("vertices", 6 * (64 << 10))
+        .expect("the GPU has memory for it");
+    let budget = vec![7; 64 << 10];
+    let (done, order) = mpsc::channel();
+    // A budget each: once a frame is drawn, the first takes the budget, and the others wait for
+    // the next renewals, given before any.
+    uploader.frame();
+    let ranks = [0, 5, 1, 9, 8, 3].map(UploadRank::new);
+    for (slot, (name, rank)) in ["filler", "fifth", "first", "raised", "eighth", "third"]
+        .into_iter()
+        .zip(&ranks)
+        .enumerate()
+    {
+        let done = done.clone();
+        uploader
+            .buffers(
+                name,
+                rank,
+                &[(
+                    UploadTarget::Vertices(&vertices),
+                    slot as u64 * (64 << 10),
+                    &budget,
+                )],
+                move |result| {
+                    assert!(result.is_ok());
+                    done.send(name).expect("the test waits");
+                },
+            )
+            .expect("the GPU has memory for it");
+    }
+    // Raised from 9 to 0 while it waits.
+    ranks[3].set(0);
+    let names: Vec<&str> = (0..6)
+        .map(|_| order.recv_timeout(PATIENCE).expect("the uploads end"))
+        .collect();
+    assert_eq!(
+        names,
+        ["filler", "raised", "first", "third", "fifth", "eighth"]
     );
 }

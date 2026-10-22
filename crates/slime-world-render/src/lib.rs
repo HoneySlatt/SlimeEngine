@@ -1,12 +1,14 @@
 #![doc = include_str!("../README.md")]
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
+use slime_assets::AssetId;
 use slime_gfx::Gpu;
 use slime_render::glam::{DVec3, Vec3};
 use slime_render::{
-    AssetCache, DirectionalLight, Environment, Instance, Light, MAX_LIGHTS, PointLight,
-    RenderError, Scene, SceneError, Sky, SpotLight,
+    AssetCache, AssetHandle, DirectionalLight, Environment, Instance, Light, MAX_LIGHTS,
+    PointLight, Priority, RenderError, Scene, SceneError, Sky, SpotLight,
 };
 use slime_world::{Entity, Meshes, Transform, World};
 
@@ -19,7 +21,14 @@ use slime_world::{Entity, Meshes, Transform, World};
 ///
 /// - Each entity that holds [`Meshes`] and a [`Transform`] places its meshes where the world draws
 ///   it at the frame's fraction of a fixed step ([`World::interpolated_transform`]), its stretch
-///   included; a mesh that the [`AssetCache`] does not hold yet is left out, and asked for.
+///   included; a mesh that the [`AssetCache`] does not hold yet is left out, and asked for, at
+///   [`Priority::Now`]. The builder keeps a handle of each mesh that the world names
+///   ([`AssetHandle`]), and drops it once the world no longer names it, or hides what names it:
+///   the cache may then drop the mesh, once its budget has no room
+///   (`docs/adr/0113-asset-requests-residency-and-priorities.md`). Its handles hold nothing of the
+///   GPU's, and stay valid through a lost device, as the cache's requests do
+///   ([`AssetCache::into_requests`]); given a cache that did not issue them, as one made again
+///   without those requests, the builder asks it for the meshes again ([`AssetCache::issued`]).
 /// - Each entity that holds a [`slime_world::Light`] and a `Transform` places its light at its
 ///   origin, along its −Z axis. A light that the renderer would not draw ([`Light::check`]), as one
 ///   placed so far that its position is not a finite number, through transforms each finite, is
@@ -59,6 +68,8 @@ pub struct FrameBuilder {
     /// The entities whose lights the frame built last left out: each is said when it is first
     /// left out, not at every frame.
     left_out: HashSet<Entity>,
+    /// A handle of each mesh that the world named at the last frame.
+    handles: HashMap<AssetId, AssetHandle>,
 }
 
 /// What the renderer draws of a world in one frame, which [`FrameBuilder::build`] gives. It owns
@@ -75,14 +86,13 @@ pub struct Frame {
     pub lights: Vec<(Entity, Light)>,
     /// The sky's environment, if the game gave a sky.
     pub environment: Option<Environment>,
-    /// How many meshes the cache was loading once the frame was built ([`AssetCache::loading`]):
-    /// 0 when the frame draws every mesh the world names, but those whose batch failed. A game
-    /// that shows the world whole waits for 0.
+    /// How many meshes the cache was loading once the frame was built ([`AssetCache::loading`]),
+    /// for the world or for other requests: 0 when the frame draws every mesh the world names, but
+    /// those that failed. A game that shows the world whole waits for 0.
     pub loading: usize,
-    /// Why the batches of meshes that finished loading since the last frame failed, if any did:
-    /// those meshes are not drawn, nor asked for again until the cooked data changes
-    /// ([`AssetCache::poll`]). Each is logged too.
-    pub errors: Vec<SceneError>,
+    /// The meshes that failed since the last frame, each with why: they are not drawn, nor asked
+    /// for again until the cooked data changes ([`AssetCache::poll`]). Each is logged too.
+    pub errors: Vec<(AssetId, Arc<SceneError>)>,
     /// Whether `lights` starts with the sky's sun.
     sun: bool,
 }
@@ -121,6 +131,7 @@ impl FrameBuilder {
             environment: None,
             warned: false,
             left_out: HashSet::new(),
+            handles: HashMap::new(),
         }
     }
 
@@ -137,9 +148,10 @@ impl FrameBuilder {
 
     /// Builds what the renderer draws of `world` at `fraction` of the time from the last fixed step
     /// to the next, as `slime-app`'s `GameTime::alpha` gives it, from the meshes that
-    /// `cache` holds. It first takes the batches that the cache finished loading
-    /// ([`AssetCache::poll`]), then asks it for the meshes it does not hold
-    /// ([`AssetCache::request`]), which later frames draw.
+    /// `cache` holds. It first polls the cache ([`AssetCache::poll`]), then asks it for the meshes
+    /// that the world names and it holds no handle of, at [`Priority::Now`], which later frames
+    /// draw once they arrive ([`AssetCache::request`]), and drops the handles of those the world no
+    /// longer names.
     ///
     /// # Errors
     ///
@@ -156,12 +168,23 @@ impl FrameBuilder {
         gpu: &Gpu,
         fraction: f64,
     ) -> Result<Frame, RenderError> {
-        let errors = cache.poll();
-        for error in &errors {
-            tracing::error!("meshes of the world cannot be drawn: {error}");
+        let errors = cache.poll(gpu);
+        // A game that makes its cache again without the requests of the last one, after a lost
+        // device, would otherwise draw none of the meshes that its handles held there.
+        if self
+            .handles
+            .values()
+            .next()
+            .is_some_and(|handle| !cache.issued(handle))
+        {
+            self.handles.clear();
         }
-        // Where each entity that places meshes is drawn, and the meshes the cache does not hold.
+        for (id, error) in &errors {
+            tracing::error!(%id, "a mesh of the world cannot be drawn: {error}");
+        }
+        // Where each entity that places meshes is drawn, and the meshes it names.
         let mut placed = Vec::new();
+        let mut named = HashSet::new();
         let mut missing = Vec::new();
         for (entity, (meshes, transform)) in world.query::<(&Meshes, &Transform)>() {
             if world.is_hidden(entity) {
@@ -170,10 +193,20 @@ impl FrameBuilder {
             let Some(at) = world.interpolated_transform(entity, fraction) else {
                 continue;
             };
-            missing.extend(meshes.ids.iter().filter(|&&id| cache.mesh(id).is_none()));
+            for &id in &meshes.ids {
+                if named.insert(id) && !self.handles.contains_key(&id) {
+                    missing.push(id);
+                }
+            }
             placed.push((at.to_affine(transform.stretch), meshes));
         }
-        cache.request(gpu, missing);
+        if !missing.is_empty() {
+            let request = cache.request(gpu, missing, Priority::Now);
+            for handle in request.into_handles() {
+                self.handles.insert(handle.id(), handle);
+            }
+        }
+        self.handles.retain(|id, _| named.contains(id));
         let loading = cache.loading();
         let mut instances = Vec::with_capacity(placed.len());
         for (transform, meshes) in placed {

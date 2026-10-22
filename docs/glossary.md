@@ -37,10 +37,12 @@ scene. Each comes from a *source asset* and reaches the game as *cooked data*
 
 **Asset cache.** The GPU objects of the meshes that a game draws, with their materials and
 textures, kept by *asset ID* outside the *world* (`slime_render::AssetCache`): the world names
-assets by ID and holds no GPU object. It loads what is asked for in batches, in the background,
-each whole, and loads again what changed in new *cooked data*; when its *device* is lost, the game
-makes a new cache with the new renderer ([ADR-0084](adr/0084-what-the-world-draws.md),
-[ADR-0120](adr/0120-a-frame-that-owns-what-it-draws.md)).
+assets by ID and holds no GPU object. It loads what *requests* ask for in batches, in the
+background, each whole, keeps what their *request handles* hold, drops what is *releasable* past
+its budgets, and loads again what changed in new *cooked data*; when its *device* is lost, the game
+makes a new cache with the new renderer and the requests of the old one
+([ADR-0084](adr/0084-what-the-world-draws.md),
+[ADR-0120](adr/0120-a-frame-that-owns-what-it-draws.md), [ADR-0128](adr/0128-asset-requests.md)).
 
 **Asset ID.** The identity of an *asset*: a random 128-bit UUID kept in the *metadata file* beside
 its source, so that it stays the same when the file is moved or renamed. A *sub-asset*'s ID is
@@ -732,6 +734,12 @@ brings them ([ADR-0078](adr/0078-stage-5-in-two-halves.md),
 averaged under the reflection lobe of a growing roughness, so that one lookup gives what a rough
 surface reflects ([ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md)).
 
+**Priority (assets).** How urgently a *request* wants its assets, one of three classes
+(`slime_render::Priority`): *now*, what a view draws and lacks; *soon*, what a game fetches ahead;
+*later*, what is fetched far ahead and the editor's thumbnails. The loads' tasks and their copies to
+the GPU go class by class, then in the order the loads started
+([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)).
+
 **Present (an image).** Hand a drawn image to the window, which shows it at one of the display's
 next refreshes, as the *present mode* says.
 
@@ -785,6 +793,11 @@ compiled: list their properties, read and change them by name, write them to fil
 from `#[derive(Reflect)]`, under a *stable name*, and is registered in a *type registry*
 ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0085](adr/0085-reflection.md)).
 
+**Releasable (asset).** An asset that an *asset cache* holds and no *request handle* holds any
+more: kept while its kind's budget has room, so that what leaves the screen for a moment does not
+load again, and dropped, least recently held first, once it has none
+([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)).
+
 **Render graph.** The renderer's description of a frame as passes, each declaring the targets it
 draws into and the ones it samples (`crates/slime-render/src/graph.rs`, private): it orders the
 passes by those targets, creates the *transient targets*, records the passes, four to a
@@ -799,6 +812,19 @@ the tone mapping stretches over the rectangle; above 1, more, which it averages
 **Render target.** An image the GPU draws into (`slime_gfx::RenderTarget`): an offscreen image,
 which can be read back to the CPU and sampled by later passes, or the image of a window for one
 frame, which can be neither.
+
+**Report (development channel).** A named value that a game gives the tools that drive it, described
+by *reflection*: its *asset cache*'s requests and memory, its views' statistics
+(`slime_app::Presentation::reports`, [ADR-0128](adr/0128-asset-requests.md)).
+
+**Request (assets).** Assets asked of an *asset cache* together, at a *priority*, which arrive
+together (`slime_render::Request`); it holds each through a *request handle*
+([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)).
+
+**Request handle.** A hold on one asset of a *request* (`slime_render::AssetHandle`): while it
+lives, the cache keeps the asset, or keeps loading it; its last handle dropped stops the asset's
+load, or makes the asset *releasable*. It says what became of the asset, and stays valid through new
+*cooked data* and a lost *device* ([ADR-0128](adr/0128-asset-requests.md)).
 
 **Resolve (multisampling).** Averaging the *samples (multisampling)* of each pixel of a multisampled
 *render target* into an ordinary one, which later passes can read. The renderer weighs each sample

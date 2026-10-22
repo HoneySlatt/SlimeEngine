@@ -51,7 +51,9 @@ Built with its default features, the game holds the engine's development channel
 ([ADR-0122](../../docs/adr/0122-the-development-channel.md)): started with a token, as the engine's
 MCP server starts it ([`crates/slime-mcp`](../../crates/slime-mcp/README.md)), it listens on the
 machine's own address for the tools and the agents that drive it, which see its view, named
-`hero`, and change its settings ([ADR-0127](../../docs/adr/0127-the-settings-of-a-view.md)); started
+`hero`, change its settings ([ADR-0127](../../docs/adr/0127-the-settings-of-a-view.md)) and read
+its reports, `assets`, its asset cache's requests and memory, and `views`, its view's statistics
+([ADR-0128](../../docs/adr/0128-asset-requests.md)); started
 without one, as above, it does not. `cargo build -p hunnawood --no-default-features` builds it for shipping, without the
 channel.
 

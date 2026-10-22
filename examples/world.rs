@@ -58,8 +58,7 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 use slime_app::{
-    AppConfig, AppError, Context, Presentation, ReflectedSettings, ShownView, Simulation,
-    SimulationContext,
+    AppConfig, AppError, Context, Presentation, Reflected, ShownView, Simulation, SimulationContext,
 };
 use slime_assets::{CookedAssets, ManifestWatch};
 use slime_devui::{Overlay, WorldPanel, edit_reflected, egui};
@@ -67,7 +66,8 @@ use slime_gfx::RenderTarget;
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
 use slime_render::glam::{DVec3, Vec3};
 use slime_render::{
-    AssetCache, Camera, Projection, Renderer, Scene, View, ViewDraw, ViewSettings, Viewport,
+    AssetCache, AssetRequests, Camera, Projection, RenderStats, Renderer, Scene, View, ViewDraw,
+    ViewSettings, Viewport,
 };
 use slime_world::{Entity, Light, PersistentId, SceneLibrary, Tick, Transform, World};
 use slime_world_render::FrameBuilder;
@@ -131,6 +131,9 @@ struct YardView {
     settings_shown: bool,
     /// The renderer's asset cache, while there is a GPU.
     cache: Option<AssetCache>,
+    /// The requests of the cache of a lost device, which the frame builder's handles hold, for the
+    /// cache made with the new one to load again (`AssetCache::into_requests`).
+    requests: Option<AssetRequests>,
     /// The cooked data that the cache loads from, the last that the watch gave: a cache made
     /// after a lost device loads from it.
     cached: CookedAssets,
@@ -234,7 +237,12 @@ impl YardView {
                 renderer.create_view(gpu, "yard")?,
                 renderer.create_view(gpu, "map")?,
             ));
-            self.cache = Some(AssetCache::new(&renderer, self.cached.clone()));
+            let requests = self.requests.take().unwrap_or_default();
+            self.cache = Some(AssetCache::with_requests(
+                &renderer,
+                self.cached.clone(),
+                requests,
+            ));
             self.renderer = Some(renderer);
             self.overlay = Some(Overlay::new(gpu, format, window.scale_factor())?);
         }
@@ -580,16 +588,28 @@ impl Presentation for YardView {
         self.shown.clone()
     }
 
-    fn view_settings(&self, name: &str) -> Option<ReflectedSettings> {
-        let index = VIEWS.iter().position(|&view| view == name)?;
-        Some(ReflectedSettings::new(&self.settings[index]))
+    fn reports(&self) -> Vec<(String, Reflected)> {
+        let mut reports = Vec::new();
+        if let Some(cache) = &self.cache {
+            reports.push(("assets".to_owned(), Reflected::new(&cache.report())));
+        }
+        if let Some((yard, map)) = &self.views {
+            let stats: Vec<(String, RenderStats)> = VIEWS
+                .into_iter()
+                .map(str::to_owned)
+                .zip([yard.stats(), map.stats()])
+                .collect();
+            reports.push(("views".to_owned(), Reflected::new(&stats)));
+        }
+        reports
     }
 
-    fn set_view_settings(
-        &mut self,
-        name: &str,
-        settings: &ReflectedSettings,
-    ) -> Result<(), String> {
+    fn view_settings(&self, name: &str) -> Option<Reflected> {
+        let index = VIEWS.iter().position(|&view| view == name)?;
+        Some(Reflected::new(&self.settings[index]))
+    }
+
+    fn set_view_settings(&mut self, name: &str, settings: &Reflected) -> Result<(), String> {
         let index = VIEWS
             .iter()
             .position(|&view| view == name)
@@ -604,7 +624,7 @@ impl Presentation for YardView {
         self.views = None;
         self.shown.clear();
         self.overlay = None;
-        self.cache = None;
+        self.requests = self.cache.take().map(AssetCache::into_requests);
         self.scene = None;
         self.builder.release();
     }
@@ -674,6 +694,7 @@ fn main() -> ExitCode {
         panel_shown: false,
         settings_shown: false,
         cache: None,
+        requests: None,
         cached: assets.clone(),
         builder: FrameBuilder::new(Some(SKY)),
         scene: None,

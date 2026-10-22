@@ -10,7 +10,7 @@ use slime_gfx::{
     AddressMode, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource,
     BindingType, CullMode, Filter, FragmentState, Gpu, Image, RenderPassDescriptor, RenderPipeline,
     RenderPipelineDescriptor, RenderTarget, Sampler, SamplerDescriptor, ShaderStages, Texture,
-    TextureFormat, Uploader, VertexAttribute, VertexFormat, VertexLayout,
+    TextureFormat, UploadRank, Uploader, VertexAttribute, VertexFormat, VertexLayout,
 };
 
 /// Draws the texture at group 0 with the texture coordinates of the vertices.
@@ -451,8 +451,8 @@ fn a_texture_that_an_uploader_brings_draws_once_its_upload_is_done() {
     let texture = uploader
         .texture(
             "uploaded",
-            side,
-            side,
+            &UploadRank::default(),
+            (side, side),
             TextureFormat::Rgba8UnormSrgb,
             &[&level],
             move |result| done.send(result.is_ok()).expect("the test waits"),

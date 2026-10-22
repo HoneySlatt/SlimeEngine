@@ -2,8 +2,9 @@
 
 - Status: Accepted; amended by [0074](0074-uploading-textures-without-holding-up-frames.md) (what a
   load costs the frames), [0107](0107-the-execution-model.md) (the engine's task pool, and one owner
-  of the copies to the GPU) and [0113](0113-asset-requests-residency-and-priorities.md) (loads given
-  a priority, and cancelled)
+  of the copies to the GPU), [0113](0113-asset-requests-residency-and-priorities.md) (loads given
+  a priority, and cancelled) and [0128](0128-asset-requests.md) (loads of a rank, and stopped
+  without waiting)
 - Date: 2026-10-15
 
 ## Context

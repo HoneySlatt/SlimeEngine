@@ -14,8 +14,8 @@ use slime_assets::{
 use slime_render::glam::DAffine3;
 use slime_render::glam::DVec3;
 use slime_render::{
-    AssetCache, Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, Renderer, Scene,
-    Sky, View, ViewDraw,
+    AssetCache, Camera, DirectionalLight, Instance, Light, MaterialData, MeshData, Priority,
+    Renderer, Scene, Sky, View, ViewDraw,
 };
 use slime_world::{Meshes, Transform, World};
 use slime_world_render::FrameBuilder;
@@ -58,15 +58,16 @@ pub fn batch(context: &mut Context) -> Result<Vec<Row>, String> {
     for count in [10_000, 100_000] {
         let mut cache = AssetCache::new(&renderer, large_manifest(count)?);
         let mut times = Vec::new();
+        let mut requests = Vec::new();
         for mesh in 1..=5 {
-            let ((), duration) = timed(|| {
-                cache.request(&context.gpu, [AssetId::from_u128(mesh)]);
-            });
+            let (request, duration) =
+                timed(|| cache.request(&context.gpu, [AssetId::from_u128(mesh)], Priority::Now));
+            requests.push(request);
             times.push(duration);
         }
         // The loads fail, their files missing: their threads end before the next manifest.
         while cache.loading() > 0 {
-            let _ = cache.poll();
+            let _ = cache.poll(&context.gpu);
             thread::sleep(Duration::from_millis(1));
         }
         rows.push(Row::new(
@@ -269,7 +270,7 @@ fn drawn_while_loading(
         let frame = builder
             .build(&world, &mut cache, gpu, 0.0)
             .map_err(|error| error.to_string())?;
-        if let Some(error) = frame.errors.first() {
+        if let Some((_, error)) = frame.errors.first() {
             return Err(error.to_string());
         }
         let whole = frame.loading == 0;

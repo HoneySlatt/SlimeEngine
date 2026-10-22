@@ -18,7 +18,8 @@ them.
   the upgrade that brings earlier values to it, defaults, skipped and transient fields, ranges of
   finite numbers, units, and a check of the rules between fields, which refuses the values that
   break them. The standard types the engine
-  uses (booleans, integers, floats, `String`, `Option`, `Vec`, arrays, pairs) and glam's `Vec3`,
+  uses (booleans, integers, floats, `String`, `Option`, `Vec`, arrays, pairs, `Duration`, in
+  seconds) and glam's `Vec3`,
   `DVec3` and `Quat` are described here, by hand, with the helpers of `support`: the orphan rule
   allows it nowhere else.
 - `Value`, plain data, which passes between reflection, files, saves and the editors: references to

@@ -6,7 +6,7 @@
 
 use std::time::{Duration, Instant};
 
-use slime_app::{AppError, Context, Presentation, ReflectedSettings, ShownView};
+use slime_app::{AppError, Context, Presentation, Reflected, ShownView};
 use slime_assets::{CookedAssets, ManifestWatch};
 use slime_gfx::RenderTarget;
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent};
@@ -164,8 +164,8 @@ impl Screen {
 
     /// The cooked data loaded again by the view, with `--watch`, once it changed: once the zone is
     /// shown, so that the zone loads whole first, and once nothing loads, so that no load is
-    /// dropped half-way, which waits for its running tasks. The game's rules carry the run into
-    /// the scenes that changed.
+    /// stopped half-way, its work lost. The game's rules carry the run into the scenes that
+    /// changed.
     fn watch_assets(&mut self, ctx: &Context) {
         let (Some(watch), Some(gpu), Some(view)) = (&mut self.watch, ctx.gpu(), &mut self.view)
         else {
@@ -364,15 +364,21 @@ impl Presentation for Screen {
         self.shown.iter().cloned().collect()
     }
 
-    fn view_settings(&self, name: &str) -> Option<ReflectedSettings> {
-        (name == VIEW).then(|| ReflectedSettings::new(&self.settings))
+    fn reports(&self) -> Vec<(String, Reflected)> {
+        let mut reports = Vec::new();
+        if let Some(view) = &self.view {
+            reports.push(("assets".to_owned(), Reflected::new(&view.assets())));
+        }
+        let views = vec![(VIEW.to_owned(), self.stats)];
+        reports.push(("views".to_owned(), Reflected::new(&views)));
+        reports
     }
 
-    fn set_view_settings(
-        &mut self,
-        name: &str,
-        settings: &ReflectedSettings,
-    ) -> Result<(), String> {
+    fn view_settings(&self, name: &str) -> Option<Reflected> {
+        (name == VIEW).then(|| Reflected::new(&self.settings))
+    }
+
+    fn set_view_settings(&mut self, name: &str, settings: &Reflected) -> Result<(), String> {
         if name != VIEW {
             return Err(format!("Hunna Wood has no view `{name}`"));
         }

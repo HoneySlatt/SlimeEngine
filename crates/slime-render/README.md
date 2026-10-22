@@ -15,10 +15,11 @@ tone maps it and dithers it into the output, and reports what each frame cost on
 GPU. It smooths the edges of what it draws with four samples per pixel, or not, as each view
 chooses, which also chooses the scale it renders at, a mode of debugging that shows normals or
 shadows, and whether it draws the shadows, the sky and the bloom; a view whose size changes makes
-its targets again once the size holds still. It loads cooked scenes in
-the background, and again when their cooked data changes, and keeps the meshes that a game draws by
-their asset IDs in a cache; a material's values change while a game runs, and so do the renderer's
-shaders. It leaves out of each pass what that pass does not see, and draws the instances of one mesh
+its targets again once the size holds still. It loads cooked scenes in the background, and again
+when their cooked data changes, and keeps the meshes that a game draws by their asset IDs in a
+cache, which requests of a priority ask for and their handles hold, within budgets of memory once
+nothing holds them; a material's values change while a game runs, and so do the renderer's shaders.
+It leaves out of each pass what that pass does not see, and draws the instances of one mesh
 and one material together. It does not yet blend transparent surfaces.
 
 ## Role
@@ -170,13 +171,17 @@ fn main() -> Result<(), RenderError> {
 - `AssetCache::new(&renderer, CookedAssets)` keeps the meshes that a game draws by their asset IDs,
   with the materials they are drawn with and the textures those read, so that a world names them by
   ID and holds no GPU object (ADR-0084). It keeps, from its creation, what its loads take of the
-  renderer, and loads without it (ADR-0111): `request(gpu, ids)` starts loading, as one batch in the
-  background, the meshes it neither holds nor loads; `poll` takes the batches that finished, each
-  whole, and gives the errors of those that failed; `mesh(id)` gives a mesh and its material once
-  held, `material(id)` a material, `loading` how many meshes are on their way.
-  `reload(gpu, assets)` loads again what changed in new cooked data, keeping the rest, and
-  `reloading` says whether it is under way. After a lost device, a game makes a new cache with the
-  renderer that replaces the lost one.
+  renderer, and loads without it (ADR-0111). `request(gpu, ids, priority)` returns a `Request`
+  whose meshes arrive together, and whose `AssetHandle`s hold each while they live; the meshes it
+  neither holds nor loads start loading, as one batch in the background, at the rank of their
+  `Priority` (ADR-0113, ADR-0128). `poll(gpu)`, at each frame, takes the batches that finished,
+  gives each mesh that failed, stops the loads that nothing holds, and drops what nothing holds past
+  its `Budgets`; `mesh(id)` gives a mesh and its material once held, `material(id)` a material,
+  `loading` how many meshes are on their way, `report` a `CacheReport` of what it holds and loads.
+  `reload(gpu, assets)` loads again what handles hold and changed in new cooked data, keeping the
+  rest, and `reloading` says whether it is under way. After a lost device, `into_requests` gives
+  its requests back, and `with_requests` makes the cache of the new renderer with them, the handles
+  staying valid.
 - `scene_lights(&CookedScene)` gives the lights that a cooked scene's nodes place, as a
   `LoadedScene` holds them, without loading the scene: a game knows its sun before its scene is
   loaded.

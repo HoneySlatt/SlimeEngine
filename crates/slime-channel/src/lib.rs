@@ -17,7 +17,7 @@ pub use token::Token;
 
 /// The version of the protocol: a tool and a game of other versions refuse each other, rather
 /// than misread each other's messages.
-pub const PROTOCOL_VERSION: u32 = 4;
+pub const PROTOCOL_VERSION: u32 = 5;
 
 /// The environment variable that gives a game its token: a game started without it does not
 /// listen.

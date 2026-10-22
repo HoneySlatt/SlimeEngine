@@ -5,7 +5,8 @@
   (a view may draw without anti-aliasing), [0111](0111-the-frame-contract.md) (how a view's
   settings are built), [0122](0122-the-development-channel.md) (version 4 of the protocol: a view's
   settings read and changed) and [0126](0126-views-apart-from-the-renderer.md) (a view's targets
-  made again once its size holds still)
+  made again once its size holds still); amended by [0128](0128-asset-requests.md)
+  (`ReflectedSettings` becomes `Reflected`, which reports use too)
 - Date: 2026-10-22
 
 ## Context

@@ -15,7 +15,7 @@ use slime_reflect::{Kind, Path, Reflect as _, Registry, Value};
 use slime_serialize::{Composer, Document, Mode, References};
 use slime_world::{Command, Entity, Name, PersistentId, World};
 
-use crate::game::{Presentation, ReflectedSettings, ShownView, Simulation};
+use crate::game::{Presentation, Reflected, ShownView, Simulation};
 use crate::host::Host;
 use crate::log_lines;
 
@@ -245,6 +245,9 @@ impl DevChannel {
                 }
                 Reply::Done
             }
+            Request::Report { name } => {
+                report(presentation, name).map_or_else(failed, |text| Reply::Report { text })
+            }
             Request::SetViewSettings { view, path, value } => {
                 set_view_settings(host.world(), presentation, views, view, path, value)
                     .map_or_else(failed, |()| Reply::Done)
@@ -310,9 +313,14 @@ impl DevChannel {
                     name: shown.name.clone(),
                     settings: presentation
                         .view_settings(&shown.name)
-                        .map(|settings| settings_text(&settings))
+                        .map(|settings| reflected_text(&settings))
                         .unwrap_or_default(),
                 })
+                .collect(),
+            reports: presentation
+                .reports()
+                .into_iter()
+                .map(|(name, _)| name)
                 .collect(),
         }
     }
@@ -338,13 +346,32 @@ fn no_view(view: &str, views: &[ShownView]) -> String {
     )
 }
 
-/// `settings` as a document in the engine's notation.
-fn settings_text(settings: &ReflectedSettings) -> String {
-    let mut composer = Composer::new(&settings.registry);
+/// `reflected` as a document in the engine's notation.
+fn reflected_text(reflected: &Reflected) -> String {
+    let mut composer = Composer::new(&reflected.registry);
     composer
-        .put(&[], &settings.ty, &settings.value)
+        .put(&[], &reflected.ty, &reflected.value)
         .and_then(|()| composer.finish())
         .unwrap_or_else(|error| format!("# cannot be written: {error}"))
+}
+
+/// The report of `presentation`'s named `name`, as a document in the engine's notation.
+fn report(presentation: &dyn Presentation, name: &str) -> Result<String, String> {
+    let reports = presentation.reports();
+    match reports.iter().find(|(named, _)| named == name) {
+        Some((_, report)) => Ok(reflected_text(report)),
+        None => {
+            let names: Vec<&str> = reports.iter().map(|(named, _)| named.as_str()).collect();
+            Err(format!(
+                "the game gives no report `{name}`: it gives {}",
+                if names.is_empty() {
+                    "none".to_owned()
+                } else {
+                    format!("`{}`", names.join("`, `"))
+                }
+            ))
+        }
+    }
 }
 
 /// Sets the part at `path` of the settings of `presentation`'s view `view`, one of `views`, to
@@ -609,21 +636,22 @@ mod tests {
         on: bool,
     }
 
-    /// A presentation that names a view, `dial`, whose settings a tool reads and changes.
+    /// A presentation that names a view, `dial`, whose settings a tool reads and changes, and gives
+    /// them as a report too.
     struct Dials {
         dial: Dial,
     }
 
     impl Presentation for Dials {
-        fn view_settings(&self, name: &str) -> Option<ReflectedSettings> {
-            (name == "dial").then(|| ReflectedSettings::new(&self.dial))
+        fn reports(&self) -> Vec<(String, Reflected)> {
+            vec![("dial".to_owned(), Reflected::new(&self.dial))]
         }
 
-        fn set_view_settings(
-            &mut self,
-            name: &str,
-            settings: &ReflectedSettings,
-        ) -> Result<(), String> {
+        fn view_settings(&self, name: &str) -> Option<Reflected> {
+            (name == "dial").then(|| Reflected::new(&self.dial))
+        }
+
+        fn set_view_settings(&mut self, name: &str, settings: &Reflected) -> Result<(), String> {
             assert_eq!(
                 name, "dial",
                 "the channel names the views that the frame drew"
@@ -635,9 +663,9 @@ mod tests {
 
     /// A tool reads a view's settings as text, and sets a part of them, or the whole, within the
     /// ranges of their fields; a view that the frame did not draw, or whose settings the game does
-    /// not give, is refused.
+    /// not give, is refused. A report is read by its name.
     #[test]
-    fn a_tool_reads_and_changes_the_settings_of_a_view() {
+    fn a_tool_reads_and_changes_the_settings_of_a_view_and_reads_a_report() {
         let world = World::new();
         let mut dials = Dials {
             dial: Dial {
@@ -652,7 +680,7 @@ mod tests {
             width: 1,
             height: 1,
         });
-        let text = settings_text(&dials.view_settings("dial").expect("given"));
+        let text = reflected_text(&dials.view_settings("dial").expect("given"));
         assert!(text.contains("level = 0.5"), "{text}");
         assert!(text.contains("on = false"), "{text}");
         let mut set = |view: &str, path: &str, value: &str| {
@@ -680,6 +708,13 @@ mod tests {
                 level: 1.0,
                 on: true
             }
+        );
+        // Its report, read by name.
+        let text = report(&dials, "dial").expect("given");
+        assert!(text.contains("level = 1.0"), "{text}");
+        assert_eq!(
+            report(&dials, "assets").expect_err("not given"),
+            "the game gives no report `assets`: it gives `dial`"
         );
         // A presentation that keeps the default refuses every change.
         let refused = set_view_settings(&world, &mut (), &views, "dial", "level", "0.5");

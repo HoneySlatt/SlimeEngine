@@ -20,8 +20,8 @@ use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderTarget, TextureFormat};
 use slime_render::glam::Vec3;
 use slime_render::{
-    AssetCache, Camera, MaterialValues, RenderError, RenderStats, Renderer, Scene, ShaderSources,
-    Sky, ViewDraw, ViewSettings,
+    AssetCache, AssetHandle, CacheReport, Camera, MaterialValues, Priority, RenderError,
+    RenderStats, Renderer, Scene, ShaderSources, Sky, ViewDraw, ViewSettings,
 };
 use slime_world::{Entity, Light, Meshes, Transform, World};
 use slime_world_render::FrameBuilder;
@@ -231,6 +231,9 @@ pub struct View {
     /// What drawing the hero's camera into the window keeps from one frame to the next.
     shown: slime_render::View,
     cache: AssetCache,
+    /// The handles of the hero's meshes, which the cache keeps for the run, whatever the world
+    /// draws.
+    hero: Vec<AssetHandle>,
     /// What builds the frames by day, around the overcast sky, and at night, around the night sky
     /// and its moon: each keeps the environment of its sky, so that each is computed once.
     day: FrameBuilder,
@@ -271,6 +274,7 @@ impl View {
         let renderer = Renderer::new(gpu, format)?;
         let mut view = Self {
             cache: AssetCache::new(&renderer, assets.clone()),
+            hero: Vec::new(),
             shown: renderer.create_view(gpu, "hero")?,
             renderer,
             day: FrameBuilder::new(Some(OVERCAST)),
@@ -280,7 +284,11 @@ impl View {
             scene: None,
         };
         let hero = meshes_below(world, hero);
-        view.cache.request(gpu, hero.iter().copied());
+        // Held for the run, as the frame builders hold what the world names.
+        view.hero = view
+            .cache
+            .request(gpu, hero.iter().copied(), Priority::Now)
+            .into_handles();
         // A frame of the world asks for what else it draws, in a batch of its own, and computes the
         // sky of the time the game is at; one of the other time's lights alone, that time's sky.
         let mut errors = Vec::new();
@@ -299,10 +307,10 @@ impl View {
             };
             errors.extend(builder.build(lit, &mut view.cache, gpu, 1.0)?.errors);
         }
-        // Errors first: a batch that failed is held by none, and the first frames would not see
-        // its error again.
+        // Errors first: the cache gives each once (`AssetCache::poll`), and the first frames would
+        // not see them again.
         loop {
-            if let Some(error) = errors.first() {
+            if let Some((_, error)) = errors.first() {
                 // A load that a lost device failed misses no data: the loss is the run's to
                 // handle (`Context::exit_with_error`), which the message of `cannot_load` hides.
                 gpu.check()?;
@@ -312,7 +320,7 @@ impl View {
                 return Ok(view);
             }
             std::thread::sleep(Duration::from_millis(1));
-            errors = view.cache.poll();
+            errors = view.cache.poll(gpu);
         }
     }
 
@@ -334,7 +342,7 @@ impl View {
         self.renderer.set_shaders(gpu, sources)
     }
 
-    /// Whether nothing loads, nor loads again: a reload started then waits for no running task.
+    /// Whether nothing loads, nor loads again: a reload started then stops no load half-way.
     pub fn settled(&self) -> bool {
         self.cache.loading() == 0 && !self.cache.reloading()
     }
@@ -368,9 +376,9 @@ impl View {
     ) -> Result<(), AppError> {
         // The loads that finished first, so that the materials they bring glow from their first
         // frame: the frame builder, which takes them otherwise, holds the cache while its frame is.
-        let taken = self.cache.poll();
-        for error in &taken {
-            tracing::error!("meshes of the world cannot be drawn: {error}");
+        let taken = self.cache.poll(gpu);
+        for (id, error) in &taken {
+            tracing::error!(%id, "a mesh of the world cannot be drawn: {error}");
         }
         let flicker = flicker(seconds);
         // The embers glow steadier than the flames, with the same flicker.
@@ -392,7 +400,7 @@ impl View {
         };
         let mut frame = builder.build(world, &mut self.cache, gpu, alpha)?;
         if !self.zone_shown {
-            if let Some(error) = taken.first().or(frame.errors.first()) {
+            if let Some((_, error)) = taken.first().or(frame.errors.first()) {
                 // As in `View::new`: the loss itself, not a message that hides it.
                 gpu.check()?;
                 return Err(cannot_load("zone", error));
@@ -411,6 +419,11 @@ impl View {
     /// ([`slime_render::View::set_settings`]).
     pub fn set_settings(&mut self, settings: ViewSettings) {
         self.shown.set_settings(settings);
+    }
+
+    /// What its asset cache holds and loads ([`AssetCache::report`]).
+    pub fn assets(&self) -> CacheReport {
+        self.cache.report()
     }
 
     /// The size the hero's camera is drawn at ([`slime_render::View::render_size`]).
@@ -551,5 +564,46 @@ mod tests {
         ] {
             assert!(glowing.is_some(), "no material `{name}`");
         }
+    }
+
+    /// The hero, asked for at priority now after the rest of the world at priority soon, arrives
+    /// first: a request's class comes before its order, and the hero, which the first frame draws,
+    /// does not wait for the zone (`docs/adr/0113-asset-requests-residency-and-priorities.md`).
+    #[test]
+    #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
+    fn the_hero_arrives_before_the_zone_asked_for_before_it() {
+        use std::collections::HashSet;
+        use std::time::Instant;
+
+        let (assets, _) = zone();
+        let (world, game) = game();
+        let hero: Vec<AssetId> = meshes_below(&world, game.hero_entity());
+        let held: HashSet<AssetId> = hero.iter().copied().collect();
+        let mut rest = Vec::new();
+        for (_, meshes) in world.query::<&Meshes>() {
+            rest.extend(meshes.ids.iter().filter(|id| !held.contains(id)));
+        }
+        let gpu = Gpu::new().expect("a GPU adapter must be available");
+        let renderer = Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer");
+        let mut cache = AssetCache::new(&renderer, assets);
+        let zone = cache.request(&gpu, rest, Priority::Soon);
+        let hero = cache.request(&gpu, hero, Priority::Now);
+        let started = Instant::now();
+        while !hero.is_done() {
+            assert!(!zone.is_done(), "the zone arrived before the hero");
+            assert!(
+                started.elapsed() < Duration::from_secs(60),
+                "the hero still loads"
+            );
+            std::thread::sleep(Duration::from_millis(1));
+            let failed = cache.poll(&gpu);
+            assert!(failed.is_empty(), "{failed:?}");
+        }
+        assert!(!zone.is_done(), "the zone arrived with the hero");
+        eprintln!(
+            "the hero arrived in {:?}, the zone's {} meshes loading",
+            started.elapsed(),
+            cache.loading()
+        );
     }
 }

@@ -1,11 +1,12 @@
 //! Meshes: triangles, given as vertices and indices, uploaded to the GPU.
 
+use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use glam::Vec3;
 use slime_gfx::{
-    GfxError, Gpu, IndexBuffer, UploadTarget, Uploader, VertexAttribute, VertexBuffer,
+    GfxError, Gpu, IndexBuffer, UploadRank, UploadTarget, Uploader, VertexAttribute, VertexBuffer,
     VertexFormat, VertexLayout,
 };
 
@@ -209,6 +210,7 @@ impl Mesh {
         gpu: &Gpu,
         pages: &MeshPages,
         uploader: &Uploader,
+        rank: &UploadRank,
         label: &str,
         data: &MeshData,
         done: impl FnOnce(Result<(), GfxError>) + Send + 'static,
@@ -224,6 +226,7 @@ impl Mesh {
             .collect();
         uploader.buffers(
             label,
+            rank,
             &[
                 (
                     UploadTarget::Vertices(&place.page.vertices),
@@ -277,6 +280,8 @@ impl Mesh {
 pub(crate) struct Page {
     pub(crate) vertices: VertexBuffer,
     pub(crate) indices: IndexBuffer,
+    /// The bytes of both.
+    pub(crate) bytes: u64,
 }
 
 /// Where a mesh's vertices and indices are: a range of each of its page's buffers, counted in
@@ -380,6 +385,22 @@ impl MeshPages {
         }
     }
 
+    /// The bytes of the pages, which a page keeps until its last mesh, and the last frame that
+    /// draws it, are dropped.
+    pub(crate) fn bytes(&self) -> u64 {
+        self.lock().pages.iter().map(|space| space.page.bytes).sum()
+    }
+
+    /// How many meshes each page holds, by its address: every mesh that lives, those that a load
+    /// still places and those that a frame still draws included.
+    pub(crate) fn meshes(&self) -> HashMap<*const Page, usize> {
+        self.lock()
+            .pages
+            .iter()
+            .map(|space| (Arc::as_ptr(&space.page), space.meshes))
+            .collect()
+    }
+
     fn lock(&self) -> MutexGuard<'_, Pages> {
         // A panic while the pages are held leaves them whole: a page is added once created, and
         // ranges move between a page and its meshes in steps that cannot panic.
@@ -397,7 +418,9 @@ impl Pages {
         let vertex_capacity = shared.max(vertices);
         let index_capacity = (shared * INDICES_PER_VERTEX).max(indices);
         let name = self.next;
+        let bytes = u64::from(vertex_capacity) * VERTEX_STRIDE + u64::from(index_capacity) * 4;
         let page = Arc::new(Page {
+            bytes,
             vertices: gpu.create_zeroed_vertex_buffer(
                 &format!("meshes, page {name}, vertices"),
                 u64::from(vertex_capacity) * VERTEX_STRIDE,

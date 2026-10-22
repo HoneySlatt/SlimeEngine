@@ -57,6 +57,7 @@ fn main() {
         "set_property",
         "capture",
         "set_view_settings",
+        "read_report",
         "save_game",
         "load_game",
     ] {

@@ -13,13 +13,17 @@ hold yet, and draws the game's sky around the world's sun.
 ## Role
 
 - Builds, at each frame, the instances of the meshes that a world's entities place, from the GPU
-  objects of a `slime_render::AssetCache`, which it asks for the meshes it does not hold; the
+  objects of a `slime_render::AssetCache`, which it asks for the meshes it holds no handle of, at
+  priority now, keeping a handle of each mesh that the world names, until the world no longer
+  names it (`docs/adr/0128-asset-requests.md`); the
   lights they place, but those that the renderer would not draw where their entities' transforms,
   composed, place them (`Light::check`), which it leaves out with a warning; and the sky's
   environment around the directional light that shows in the sky, given once to the sky and to
   the lights.
 - Keeps no world and no mesh: the world keeps what is drawn, the cache its GPU objects. It keeps the
-  sky's environment, which it makes again when the sky or its sun changes.
+  sky's environment, which it makes again when the sky or its sun changes, and the handles of the
+  meshes the world names, which hold nothing of the GPU's; given a cache that did not issue them,
+  as one made again without the requests of a lost device's, it asks that cache again.
 
 ## Entry points
 
@@ -56,8 +60,8 @@ fn draw(
   environment of one frame, which it owns, so that it can be drawn on another thread, each light
   with its entity, so that a game's presentation changes what it shows of one without the world, and
   whose `scene(near)` is the renderer's `Scene`, its lights the nearest to a point that the game
-  gives first when they are more than the renderer draws, with how many meshes still load and why
-  the batches that finished failed.
+  gives first when they are more than the renderer draws, with how many meshes still load and each
+  mesh that failed since the last frame, with why.
 - `FrameBuilder::set_sky` draws the world around another sky from the next frame on, and
   `FrameBuilder::release` drops the environment when the device is lost.
 
@@ -68,6 +72,7 @@ The rustdoc holds the contracts: what is drawn, and what building a frame costs.
 - `slime-world`: the world it reads.
 - `slime-render`: the renderer's instances, lights and sky, and the asset cache.
 - `slime-gfx`: the GPU the cache loads onto and the environment is made on.
+- `slime-assets`: the IDs of the meshes that its handles hold.
 - `tracing`: the errors of the meshes that cannot be loaded, and the warning of several suns.
 
 ## Must not

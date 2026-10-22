@@ -17,7 +17,7 @@ mod windowed;
 pub use app::{AppConfig, run};
 pub use diagnostics::{DEFAULT_LOG_FILTER, LOG_ENV_VAR, error_chain, init_diagnostics};
 pub use error::{AppError, RunError};
-pub use game::{Presentation, ReflectedSettings, ShownView, Simulation};
+pub use game::{Presentation, Reflected, ShownView, Simulation};
 pub use host::{Context, Host, SimulationContext};
 pub use trace::TRACE_ENV_VAR;
 

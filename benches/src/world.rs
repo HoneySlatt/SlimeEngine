@@ -93,7 +93,7 @@ fn load_all(
         let frame = builder
             .build(world, cache, &context.gpu, 0.0)
             .map_err(|error| error.to_string())?;
-        if let Some(error) = frame.errors.first() {
+        if let Some((_, error)) = frame.errors.first() {
             return Err(error.to_string());
         }
         if frame.loading == 0 {

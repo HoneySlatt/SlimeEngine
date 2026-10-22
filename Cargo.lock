@@ -2471,6 +2471,7 @@ dependencies = [
 name = "slime-world-render"
 version = "0.4.0"
 dependencies = [
+ "slime-assets",
  "slime-color",
  "slime-gfx",
  "slime-render",

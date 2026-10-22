@@ -4,7 +4,9 @@
 //! names of its views, captures the whole image and each view, and stops it. The map, whose camera
 //! does not move, is the part of the whole image that its rectangle covers. It then shows the map's
 //! normals, a setting of the view changed through the server
-//! (`docs/adr/0127-the-settings-of-a-view.md`): the ground, seen from above, faces up.
+//! (`docs/adr/0127-the-settings-of-a-view.md`): the ground, seen from above, faces up. And it reads
+//! the example's reports, its asset cache's requests and memory and its views' statistics
+//! (`docs/adr/0128-asset-requests.md`).
 //!
 //! It needs a Wayland compositor, the example built (`cargo build --example world`) and the
 //! examples' assets cooked, in the directory that its first argument names, or
@@ -117,6 +119,21 @@ fn main() {
         "{up} of {} pixels face up",
         normals.len() / 4
     );
+    // The asset cache's report: the yard's meshes, held at priority now by the frame builder, within
+    // the default budgets; and the views' statistics.
+    assert!(state[0].contains("reports `assets`, `views`"), "{state:?}");
+    let (assets, _) = session.tool("read_report", json!({ "name": "assets" }));
+    for part in [
+        "handles = [",
+        "loading = [0, 0, 0]",
+        "meshes = { held = ",
+        "textures = { held = ",
+        "budget = ",
+    ] {
+        assert!(assets[0].contains(part), "{part}: {assets:?}");
+    }
+    let (views, _) = session.tool("read_report", json!({ "name": "views" }));
+    assert!(views[0].contains("draw_calls"), "{views:?}");
     let (refused, result) = session.try_tool(
         "set_view_settings",
         json!({ "view": "map", "path": "render_scale", "value": "4.0" }),

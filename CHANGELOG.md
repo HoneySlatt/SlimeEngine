@@ -8,6 +8,23 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Asset requests (ADR-0113, ADR-0128): `AssetCache::request(gpu, ids, priority)` returns a
+  `Request`, whose meshes arrive together, and whose handles (`Request::into_handles`,
+  `AssetHandle`) keep each mesh, or keep it loading, while they live, and say what became of it
+  (`AssetState`). The loads' tasks and their copies to the GPU go by class, `Priority::Now`, `Soon`
+  or `Later`, then in the order the loads started, and a handle's priority changes while it lives. A
+  load that nothing holds any more stops without waiting; a mesh that no handle holds stays while
+  its kind's budget has room (`Budgets`, by default the handheld tier's), and goes, least recently
+  held first, once it has none. `AssetCache::report` says what the cache holds, loads and drops
+  (`CacheReport`). After a lost device, the cache's requests (`AssetCache::into_requests`) go to the
+  new cache (`AssetCache::with_requests`): the handles stay valid. `slime-world-render`'s frame
+  builder holds a handle of each mesh that the world names.
+- A game's reports (ADR-0128): `Presentation::reports` gives named values, described by reflection,
+  `assets` and `views` in the `world` example and *Hunna Wood*; version 5 of the development
+  channel's protocol lists and reads them (`Request::Report`), and the MCP server's `read_report`
+  gives them. `RenderStats` and `std::time::Duration`, in seconds, are described by reflection.
+- `slime_gfx::UploadRank`: the uploader submits the copies of the lowest rank first, a rank changed
+  while they wait included; `Texture::bytes` gives a texture's size.
 - The settings of a view (ADR-0127): `ViewSettings`, which `View::set_settings` changes, gives a
   view its render scale, from 0.25 to 2, its anti-aliasing, none or four samples
   (`AntiAliasing`), a mode of debugging that shows the normals or the shadows (`DebugMode`), and
@@ -15,10 +32,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   at. The `world` example's views panel, on F3, and *Hunna Wood*'s dev overlay, on F1, change their
   views' settings, with `slime_devui::edit_reflected`, which edits any reflected value.
 - A tool reads and changes a view's settings: `Presentation::view_settings` and
-  `Presentation::set_view_settings` hand them over as `ReflectedSettings`; version 4 of the
-  development channel's protocol lists each view of the game's state with its settings
-  (`ViewSummary`) and changes them (`Request::SetViewSettings`), and the MCP server's
-  `set_view_settings` tool changes them. *Hunna Wood* names its view `hero`.
+  `Presentation::set_view_settings` hand them over as `Reflected`; the development channel's
+  protocol lists each view of the game's state with its settings (`ViewSummary`) and changes them
+  (`Request::SetViewSettings`), and the MCP server's `set_view_settings` tool changes them. *Hunna
+  Wood* names its view `hero`.
 - Views apart from the renderer (ADR-0111, ADR-0126): `Renderer::create_view` makes a `View`, a
   camera's image drawn into an output, which a game holds from frame to frame, and
   `Renderer::render(gpu, &scene, &mut [ViewDraw])` draws a scene through several in a frame, each
@@ -142,6 +159,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- A mesh that the asset cache cannot read, or whose material or texture it cannot, fails alone: the
+  others asked for with it arrive (G16). `AssetCache::poll` takes the GPU and returns each failed
+  mesh with its error, as `Frame::errors` holds them; `AssetCache::request` takes a priority and
+  returns the request to keep. The asset cache's meshes take pages of their own.
 - `Scene::new(instances)` takes no camera: a view gives it (`ViewDraw`), and every view draws the
   scene's lights, those that the renderer can draw from every view's camera.
   `Camera::fov_y` is `Projection::Perspective { fov_y }`. `Renderer::render` returns nothing; the

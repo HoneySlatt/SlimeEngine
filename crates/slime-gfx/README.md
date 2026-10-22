@@ -27,7 +27,8 @@ them back, and draws into a window:
   BC5 compression, which the asset pipeline's cooked textures use, and cube textures.
 - It brings what loads read to the GPU through an uploader: textures and ranges of buffers written
   into staging buffers by the threads that load, reused from one upload to the next, and their
-  copies submitted by one thread of the uploader's, within a budget of bytes per frame.
+  copies submitted by one thread of the uploader's, within a budget of bytes per frame, the lowest
+  rank first.
 
 Not there yet: blending and array textures.
 
@@ -143,8 +144,10 @@ fn main() -> Result<(), GfxError> {
 - `Uploader::new(gpu, bytes_per_frame)` makes the one owner of the copies of what loads bring
   (ADR-0107, ADR-0118): `Uploader::texture` and `Uploader::buffers` write a texture's levels or
   ranges of vertex and index buffers into staging buffers on the calling thread, and call back once
-  the uploader's thread has submitted their copies; `Uploader::frame` renews the budget, as a
-  renderer does after each frame.
+  the uploader's thread has submitted their copies, those of the lowest `UploadRank` first, a rank
+  that can change while they wait (`docs/adr/0128-asset-requests.md`); `Uploader::frame` renews
+  the budget, as a renderer does after each frame. `Texture::bytes` gives what a texture's levels
+  take of the GPU's memory.
 - `Gpu::render` and `Gpu::render_depth` run one pass, through a `RenderPass`, and `Gpu::submit`
   records several into one submission (ADR-0033). `RenderPass::draw_indexed` draws a range of
   instances, from a base vertex (ADR-0117). `RenderPass::set_viewport` draws into part of a

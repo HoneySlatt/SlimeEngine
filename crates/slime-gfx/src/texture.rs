@@ -27,9 +27,17 @@ pub struct Texture {
     width: u32,
     height: u32,
     format: TextureFormat,
+    /// The bytes of its levels.
+    bytes: u64,
 }
 
 impl Texture {
+    /// The bytes of its levels, every image of each: what it takes of the GPU's memory, before
+    /// what the driver adds to align it.
+    pub fn bytes(&self) -> u64 {
+        self.bytes
+    }
+
     /// The width in pixels.
     pub fn width(&self) -> u32 {
         self.width
@@ -364,6 +372,7 @@ impl Gpu {
             width,
             height,
             format,
+            bytes: levels.iter().map(|level| level.len() as u64).sum(),
         };
         Ok((texture, staged))
     }

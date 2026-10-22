@@ -112,6 +112,12 @@ pub enum Request {
         /// The new value, as text in the engine's notation, `"Normals"`.
         value: String,
     },
+    /// One of the game's reports, by the name that [`GameState::reports`] gives: [`Reply::Report`].
+    /// It fails for a name that the game gives no report under.
+    Report {
+        /// The report's name, `assets`.
+        name: String,
+    },
     /// The lines of the game's log after the line numbered `after`: [`Reply::Logs`], at most
     /// [`MAX_LOG_LINES`](crate::MAX_LOG_LINES) of them.
     Logs {
@@ -186,6 +192,11 @@ pub enum Reply {
         /// Height in pixels.
         height: u32,
     },
+    /// A report of the game's.
+    Report {
+        /// The report, as a document in the engine's notation (`slime_serialize::write`).
+        text: String,
+    },
     /// Lines of the game's log.
     Logs {
         /// The lines, oldest first.
@@ -223,6 +234,9 @@ pub struct GameState {
     /// of settings name ([`Request::Capture`], [`Request::SetViewSettings`]); none for a game that
     /// names none, or without a window.
     pub views: Vec<ViewSummary>,
+    /// The names of the reports that the game gives, which [`Request::Report`] reads: `assets`, its
+    /// asset cache's, `views`, its views' statistics; none for a game that gives none.
+    pub reports: Vec<String>,
 }
 
 /// A view that a frame drew, as a game's state lists it.
@@ -336,6 +350,9 @@ mod tests {
             Request::Press { key: text("KeyW") },
             Request::Release { key: text("KeyW") },
             Request::Capture { view: text("map") },
+            Request::Report {
+                name: text("assets"),
+            },
             Request::SetViewSettings {
                 view: text("map"),
                 path: text("debug"),
@@ -385,6 +402,7 @@ mod tests {
                         name: text("map"),
                         settings: text("render_scale = 0.5\n"),
                     }],
+                    reports: vec![text("assets")],
                 },
             },
             Reply::Entities {
@@ -402,6 +420,9 @@ mod tests {
             Reply::Image {
                 width: 4,
                 height: 2,
+            },
+            Reply::Report {
+                text: text("handles = [6, 0, 0]\n"),
             },
             Reply::Logs {
                 lines: vec![LogLine {

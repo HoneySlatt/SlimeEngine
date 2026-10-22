@@ -39,7 +39,8 @@ const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its dev
      `list_entities` and `inspect_entity` read its world, `set_property` changes it; `press_key` and \
      `release_key` play it; `capture` shows its image or one of its views, and \
      `set_view_settings` changes how a view draws, its scale, anti-aliasing, passes or a mode of \
-     debugging that shows normals or shadows; `read_logs` reads its log; `stop_game` ends it. \
+     debugging that shows normals or shadows; `read_report` reads its reports, as its asset cache's; \
+     `read_logs` reads its log; `stop_game` ends it. \
      `cook` and `run_tests` run in the repository's root, where the server runs.";
 
 /// The game that the server drives, if one runs.
@@ -126,6 +127,15 @@ struct SetViewSettings {
     /// The new value, in the engine's notation: `0.5`, `false`, `"Off"`, `"Msaa4"`, `"Normals"`,
     /// `"Shadows"`.
     value: String,
+}
+
+/// What `read_report` takes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ReadReport {
+    /// The report, by the name that `game_state` lists: `assets`, the asset cache's requests and
+    /// memory against its budgets; `views`, the statistics of each view's last frame, its times in
+    /// seconds.
+    name: String,
 }
 
 /// What `press_key` and `release_key` take.
@@ -323,7 +333,7 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
         Reply::State { state } => text(format!(
             "frame {}, game time {}: {} fixed steps run, {:.3} s of game time, at a speed of {}; \
              {:.3} s of real time; frames of {:.2} ms on average, {:.2} ms at the longest, over the \
-             last ones; {} entities; {}{}",
+             last ones; {} entities; {}; {}{}",
             state.frame,
             match (state.paused, state.held) {
                 (true, true) => "paused, and held by the game, as while it loads",
@@ -343,6 +353,11 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
             } else {
                 let names: Vec<&str> = state.views.iter().map(|view| view.name.as_str()).collect();
                 format!("views `{}`", names.join("`, `"))
+            },
+            if state.reports.is_empty() {
+                "no report".to_owned()
+            } else {
+                format!("reports `{}`", state.reports.join("`, `"))
             },
             state
                 .views
@@ -391,6 +406,7 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
             }
             text(said)
         }
+        Reply::Report { text: report } => text(report),
         Reply::Logs { lines } => text(
             lines
                 .into_iter()
@@ -634,6 +650,19 @@ impl Server {
     ) -> Result<CallToolResult, McpError> {
         self.ask(Request::SetViewSettings { view, path, value })
             .await
+    }
+
+    #[tool(
+        description = "One of the game's reports, as `game_state` lists them, written as the \
+                       engine's documents write values: `assets`, its asset cache's requests by \
+                       priority and its memory against its budgets; `views`, its views' \
+                       statistics."
+    )]
+    async fn read_report(
+        &self,
+        Parameters(ReadReport { name }): Parameters<ReadReport>,
+    ) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Report { name }).await
     }
 
     #[tool(description = "The lines of the game's log after a given line, oldest first.")]

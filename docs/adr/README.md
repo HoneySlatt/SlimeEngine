@@ -140,7 +140,7 @@ the ADR linking to it.
 | [0070](0070-the-sample-games-source-assets.md) | The sample game's source assets: free, listed, mirrored | Accepted |
 | [0071](0071-cooked-textures.md) | Cooked textures | Accepted; amended by 0102 and 0106 |
 | [0072](0072-stage-4b-live-assets.md) | Stage 4b: live assets | Accepted; amended by 0078, 0103 and 0107 |
-| [0073](0073-loading-scenes-in-the-background.md) | Loading scenes in the background | Accepted; amended by 0074, 0107 and 0113 |
+| [0073](0073-loading-scenes-in-the-background.md) | Loading scenes in the background | Accepted; amended by 0074, 0107, 0113 and 0128 |
 | [0074](0074-uploading-textures-without-holding-up-frames.md) | Uploading textures without holding up frames | Accepted; amended by 0107 |
 | [0075](0075-recovering-from-a-lost-gpu-device.md) | Recovering from a lost GPU device | Accepted; amended by 0103 |
 | [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted; amended by 0084 and 0102 |
@@ -151,7 +151,7 @@ the ADR linking to it.
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted; amended by 0109 |
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted; amended by 0119 |
 | [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087, 0106 and 0108 |
-| [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106, 0111, 0113, 0120 and 0126 |
+| [0084](0084-what-the-world-draws.md) | What the world draws | Accepted; amended by 0106, 0111, 0113, 0120, 0126 and 0128 |
 | [0085](0085-reflection.md) | Reflection | Accepted; amended by 0086, 0087, 0101 and 0108 |
 | [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087, 0091 and 0102 |
 | [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088, 0089, 0092, 0093, 0101, 0108, 0112, 0124 and 0125 |
@@ -180,18 +180,19 @@ the ADR linking to it.
 | [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116, 0121 and 0122 |
 | [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115, 0120, 0126 and 0127 |
 | [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted; amended by 0125 |
-| [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted; amended by 0120 |
+| [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted; amended by 0120 and 0128 |
 | [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amended by 0120 |
 | [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted; amended by 0117 |
 | [0116](0116-stage-6-in-two-halves.md) | Stage 6 in two halves | Accepted; amended by 0124 and 0126 |
-| [0117](0117-frustum-culling-and-instancing.md) | Frustum culling and instancing | Accepted |
+| [0117](0117-frustum-culling-and-instancing.md) | Frustum culling and instancing | Accepted; amended by 0128 |
 | [0118](0118-the-task-pool-and-the-copies-to-the-gpu.md) | The task pool and the copies to the GPU | Accepted |
 | [0119](0119-the-worlds-ticks-blocks-and-log.md) | The world's ticks, blocks and log | Accepted |
 | [0120](0120-a-frame-that-owns-what-it-draws.md) | A frame that owns what it draws | Accepted; amended by 0121 |
 | [0121](0121-a-game-as-a-simulation-and-a-presentation.md) | A game as a simulation and a presentation | Accepted; amended by 0122 |
-| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125, 0126 and 0127 |
+| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125, 0126, 0127 and 0128 |
 | [0123](0123-the-linux-checks-in-two-jobs.md) | The Linux checks in two jobs | Accepted |
 | [0124](0124-driven-components-keys-and-created-entities-in-levels.md) | Driven components, start keys and created entities written into levels | Accepted; amended by 0125 |
 | [0125](0125-saves-per-scene.md) | Saves per scene, scenes unloaded and adoption | Accepted |
 | [0126](0126-views-apart-from-the-renderer.md) | Views apart from the renderer | Accepted; amended by 0127 |
-| [0127](0127-the-settings-of-a-view.md) | The settings of a view | Accepted |
+| [0127](0127-the-settings-of-a-view.md) | The settings of a view | Accepted; amended by 0128 |
+| [0128](0128-asset-requests.md) | Asset requests | Accepted |

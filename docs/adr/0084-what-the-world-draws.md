@@ -6,8 +6,9 @@
   [0113](0113-asset-requests-residency-and-priorities.md) (assets requested through handles, by the
   bridge, the editor and games, and dropped when nothing holds them),
   [0120](0120-a-frame-that-owns-what-it-draws.md) (no `AssetCache::clear`: a cache is made again
-  with the renderer that replaces a lost one) and [0126](0126-views-apart-from-the-renderer.md) (a
-  frame's scene given a point rather than a camera)
+  with the renderer that replaces a lost one), [0126](0126-views-apart-from-the-renderer.md) (a
+  frame's scene given a point rather than a camera) and [0128](0128-asset-requests.md) (the bridge
+  holds a handle of each mesh that the world names)
 - Date: 2026-10-16
 
 ## Context

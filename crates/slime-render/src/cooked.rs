@@ -18,9 +18,10 @@ use slime_assets::{
 use slime_color::LinearColor;
 use slime_gfx::{
     AddressMode, Filter, GfxError, Gpu, Sampler, SamplerDescriptor, Texture, TextureFormat,
-    Uploader,
+    UploadRank, Uploader,
 };
 
+use crate::cache::Priority;
 use crate::error::RenderError;
 use crate::light::{DirectionalLight, Light, PointLight, SpotLight};
 use crate::loads;
@@ -40,6 +41,10 @@ pub enum SceneError {
     /// lost.
     #[error(transparent)]
     Render(#[from] RenderError),
+    /// A task of the load panicked: a bug, whose panic was raised where the load was taken. An
+    /// asset cache does not ask again for the meshes of such a load.
+    #[error("a task of the load panicked")]
+    Panicked,
     /// A node places a mesh or a light where nothing can be drawn: at a point that is not finite,
     /// or a light without a direction.
     #[error("scene `{scene}`, node {node}: {reason}")]
@@ -165,6 +170,36 @@ impl<T> Load<T> {
         progress.result.is_some() || progress.taken
     }
 
+    /// The rank of its tasks in the loads' lane and of its copies in the uploader's queue, which
+    /// can change while it loads.
+    pub(crate) fn rank(&self) -> &UploadRank {
+        &self.job.rank
+    }
+
+    /// Stops it without waiting: the tasks that start from then on do nothing, and what it made is
+    /// dropped once its running tasks end ([`Load::is_running`]); its result never comes. Dropping
+    /// it once nothing of it runs waits for nothing.
+    pub(crate) fn stop(&self) {
+        let mut progress = self.job.progress();
+        progress.dropped = true;
+        progress.stopped = true;
+    }
+
+    /// Whether a task of it runs with the GPU.
+    pub(crate) fn is_running(&self) -> bool {
+        self.job.progress().running > 0
+    }
+
+    /// Leaves the mesh `id` out of the batch that it loads, unless a task has started reading it:
+    /// that task then does nothing.
+    pub(crate) fn skip(&self, id: AssetId) {
+        self.job
+            .skipped
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(id);
+    }
+
     /// What the load gave, once it finished: `None` while it goes on, and once its result was
     /// taken. A panic of one of its tasks is raised again here.
     pub(crate) fn take(&mut self) -> Option<Result<T, SceneError>> {
@@ -225,8 +260,17 @@ fn finish<T>(result: thread::Result<Result<T, SceneError>>) -> Result<T, SceneEr
 
 /// One load: what it and its tasks share.
 struct Job<T> {
-    /// Its number in the loads' lane, which runs the tasks of the loads started first first.
-    number: u64,
+    /// Its rank in the loads' lane, which runs the tasks of the loads of the lowest rank first, and
+    /// in the uploader's queue.
+    rank: UploadRank,
+    /// Whether an asset that cannot be made fails alone, the others of the load made all the same,
+    /// as in an asset cache's batch; otherwise its error stops the load, as in a scene's.
+    alone: bool,
+    /// The first error of each asset that failed alone, by its ID: a mesh's, a material's or a
+    /// texture's.
+    failed: Mutex<HashMap<AssetId, Arc<SceneError>>>,
+    /// The meshes left out of the load ([`Load::skip`]).
+    skipped: Mutex<HashSet<AssetId>>,
     progress: Mutex<Progress<T>>,
     /// Told when the load finishes, and when a running task ends.
     changed: Condvar,
@@ -279,6 +323,10 @@ pub(crate) struct Work {
     /// The scene of a scene's load, once read.
     scene: Option<CookedScene>,
     made: Assembly,
+    /// Whether its assets fail alone ([`Job::alone`]), and those that failed, given it once the
+    /// load ends.
+    alone: bool,
+    failed: HashMap<AssetId, Arc<SceneError>>,
 }
 
 /// What a task works with: clones of the parts of [`Work`] that it reads.
@@ -287,6 +335,7 @@ struct Context {
     assets: Arc<CookedAssets>,
     meshes: MeshPages,
     uploader: Uploader,
+    rank: UploadRank,
 }
 
 /// A mesh that a task of a load made.
@@ -318,6 +367,12 @@ pub(crate) struct Batch {
     pub(crate) kept_meshes: usize,
     /// How many textures were kept rather than read.
     pub(crate) kept_textures: usize,
+    /// The meshes that could not be made, with why: the mesh's own error, or its material's or
+    /// one of its textures', which every mesh that needs it shares. Empty for a scene's load, which
+    /// fails whole.
+    pub(crate) failed: Vec<(AssetId, Arc<SceneError>)>,
+    /// The textures that each of its materials reads.
+    pub(crate) reads: HashMap<AssetId, Vec<AssetId>>,
 }
 
 /// What a load has made, or kept, so far.
@@ -355,7 +410,7 @@ impl<T: Send + 'static> Job<T> {
     ) {
         self.left.fetch_add(1, Ordering::AcqRel);
         let job = Arc::clone(self);
-        loads::run(self.number, move || {
+        loads::run(&self.rank, move || {
             if let Some(context) = job.start_running() {
                 match panic::catch_unwind(AssertUnwindSafe(|| task(&job, &context))) {
                     Ok(Ok(())) => {}
@@ -384,6 +439,7 @@ impl<T: Send + 'static> Job<T> {
             assets: Arc::clone(&work.assets),
             meshes: work.meshes.clone(),
             uploader: work.uploader.clone(),
+            rank: self.rank.clone(),
         });
         if context.is_none() {
             self.stop_running();
@@ -394,6 +450,20 @@ impl<T: Send + 'static> Job<T> {
     fn stop_running(&self) {
         self.progress().running -= 1;
         self.changed.notify_all();
+    }
+
+    /// The asset `id` failed with `error`: alone, in a load whose assets fail alone, which then
+    /// goes on; otherwise `error`, which stops the load.
+    fn asset_failed(&self, id: AssetId, error: SceneError) -> Result<(), SceneError> {
+        if !self.alone {
+            return Err(error);
+        }
+        self.failed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry(id)
+            .or_insert_with(|| Arc::new(error));
+        Ok(())
     }
 
     fn fail(&self, error: SceneError) {
@@ -417,10 +487,15 @@ impl<T: Send + 'static> Job<T> {
     /// hand-off returned an error, it ends the upload all the same; dropped by a panic, of its
     /// hand-off or of the uploader's thread, it also stops the load, which then raises the task's
     /// panic, or one of its own, where it is taken, so that the load still ends.
-    fn upload_done(self: &Arc<Self>) -> impl FnOnce(Result<(), GfxError>) + Send + 'static {
+    /// The error of the upload of the asset `id` fails it as [`Job::asset_failed`] says.
+    fn upload_done(
+        self: &Arc<Self>,
+        id: AssetId,
+    ) -> impl FnOnce(Result<(), GfxError>) + Send + 'static {
         self.left.fetch_add(1, Ordering::AcqRel);
         let end = UploadEnd {
             job: Some(Arc::clone(self)),
+            id,
         };
         move |result| end.call(result)
     }
@@ -471,7 +546,10 @@ impl<T: Send + 'static> Job<T> {
         let result = match (panic, failure, work, complete) {
             (Some(panic), ..) => Err(panic),
             (None, Some(error), ..) => Ok(Err(error)),
-            (None, None, Some(work), Some(complete)) => {
+            (None, None, Some(mut work), Some(complete)) => {
+                work.failed = std::mem::take(
+                    &mut *self.failed.lock().unwrap_or_else(PoisonError::into_inner),
+                );
                 panic::catch_unwind(AssertUnwindSafe(|| complete(work)))
             }
             // The load is completed once, and its work taken by the completion alone.
@@ -510,7 +588,10 @@ impl<T: Send + 'static> Job<T> {
         };
         for (index, (&id, held)) in mesh_ids.iter().zip(&held).enumerate() {
             if held.is_none() {
-                self.spawn(move |job, context| job.read_mesh(context, index, id));
+                self.spawn(move |job, context| {
+                    job.read_mesh(context, index, id)
+                        .or_else(|error| job.asset_failed(id, error))
+                });
             }
         }
         for (index, mesh) in held.into_iter().enumerate() {
@@ -529,6 +610,14 @@ impl<T: Send + 'static> Job<T> {
         index: usize,
         id: AssetId,
     ) -> Result<(), SceneError> {
+        if self
+            .skipped
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(&id)
+        {
+            return Ok(());
+        }
         let cooked = context.assets.mesh(id)?;
         let data = MeshData {
             positions: cooked.positions,
@@ -538,11 +627,12 @@ impl<T: Send + 'static> Job<T> {
             indices: cooked.indices,
         };
         // An upload that does not start ends with its callback, dropped uncalled.
-        let done = self.upload_done();
+        let done = self.upload_done(id);
         let mesh = Mesh::upload(
             &context.gpu,
             &context.meshes,
             &context.uploader,
+            &context.rank,
             &cooked.name,
             &data,
             done,
@@ -575,7 +665,10 @@ impl<T: Send + 'static> Job<T> {
         };
         // Read outside the lock, which the other tasks of the load take; two meshes of one
         // material may both read it, and the second keeps the first's.
-        let cooked = assets.material(material)?;
+        let cooked = match assets.material(material) {
+            Ok(cooked) => cooked,
+            Err(error) => return self.asset_failed(material, error.into()),
+        };
         let wanted = {
             let mut work = self.work();
             let Some(work) = work.as_mut() else {
@@ -607,7 +700,10 @@ impl<T: Send + 'static> Job<T> {
             wanted
         };
         for (id, label) in wanted {
-            self.spawn(move |job, context| job.read_texture(context, id, &label));
+            self.spawn(move |job, context| {
+                job.read_texture(context, id, &label)
+                    .or_else(|error| job.asset_failed(id, error))
+            });
         }
         Ok(())
     }
@@ -621,8 +717,8 @@ impl<T: Send + 'static> Job<T> {
     ) -> Result<(), SceneError> {
         let cooked = context.assets.texture(id)?;
         // As in `read_mesh`.
-        let done = self.upload_done();
-        let texture = queue_texture(&context.uploader, label, &cooked, done)?;
+        let done = self.upload_done(id);
+        let texture = queue_texture(&context.uploader, &context.rank, label, &cooked, done)?;
         if let Some(work) = self.work().as_mut() {
             work.made.textures.insert(id, Some(texture));
         }
@@ -634,6 +730,8 @@ impl<T: Send + 'static> Job<T> {
 struct UploadEnd<T: Send + 'static> {
     /// `None` once called.
     job: Option<Arc<Job<T>>>,
+    /// The asset that it uploads.
+    id: AssetId,
 }
 
 impl<T: Send + 'static> UploadEnd<T> {
@@ -642,15 +740,17 @@ impl<T: Send + 'static> UploadEnd<T> {
     /// others. Called on the uploader's thread, it does little there.
     fn call(mut self, result: Result<(), GfxError>) {
         let job = self.job.take().expect("an upload ends once");
-        if let Err(error) = result {
-            job.fail(RenderError::from(error).into());
+        if let Err(error) = result
+            && let Err(error) = job.asset_failed(self.id, RenderError::from(error).into())
+        {
+            job.fail(error);
         }
         Self::end(job);
     }
 
     fn end(job: Arc<Job<T>>) {
         if job.left.fetch_sub(1, Ordering::AcqRel) == 1 {
-            loads::run(0, move || job.complete());
+            loads::run(&loads::COMPLETION, move || job.complete());
         }
     }
 }
@@ -771,10 +871,13 @@ impl Renderer {
         id: AssetId,
         reuse: Reusable,
     ) -> SceneLoad {
+        // A scene's load is what a game draws next, as an asset cache's of priority now.
+        let rank = UploadRank::new(loads::rank(Priority::Now.class(), loads::number()));
         let load = self.loader().start_load(
             gpu,
             assets,
             reuse,
+            (rank, false),
             move |job, context| {
                 let scene = context.assets.scene(id)?;
                 // The meshes, each once, in the order in which the nodes first place them.
@@ -824,37 +927,65 @@ pub(crate) struct Loader {
 }
 
 impl Loader {
+    /// The same, which places its meshes in pages of its own, apart from the renderer's: an
+    /// asset cache's, which counts their bytes (ADR-0128).
+    pub(crate) fn apart(self) -> Self {
+        Self {
+            meshes: MeshPages::default(),
+            ..self
+        }
+    }
+
+    /// The bytes of the pages of its meshes.
+    pub(crate) fn page_bytes(&self) -> u64 {
+        self.meshes.bytes()
+    }
+
+    /// How many meshes each page of its meshes holds ([`MeshPages::meshes`]).
+    pub(crate) fn page_meshes(&self) -> HashMap<*const crate::mesh::Page, usize> {
+        self.meshes.meshes()
+    }
+
     /// Starts loading the meshes `mesh_ids` from `assets`, each once, with the materials they are
-    /// drawn with and the textures those read, as a scene's load does: a batch for the asset cache,
-    /// which keeps what `reuse` holds whose cooked file the manifest still names.
+    /// drawn with and the textures those read, as a scene's load does, at `rank`: a batch for the
+    /// asset cache, which keeps what `reuse` holds whose cooked file the manifest still names. A
+    /// mesh that cannot be made, or whose material or one of its textures cannot, fails alone: the
+    /// batch gives the others ([`Batch::failed`]).
     pub(crate) fn start_batch(
         &self,
         gpu: &Gpu,
         assets: &CookedAssets,
         reuse: Reusable,
         mesh_ids: Vec<AssetId>,
+        rank: UploadRank,
     ) -> Load<Batch> {
         self.start_load(
             gpu,
             assets,
             reuse,
+            (rank, true),
             move |job, _| job.ask(mesh_ids),
             Work::batch,
         )
     }
 
-    /// Starts a load whose first task, `begin`, asks for what it loads, and whose result
-    /// `complete` makes from what it made.
+    /// Starts a load at `rank`, whose assets fail alone if `alone` says so ([`Job::alone`]), whose
+    /// first task, `begin`, asks for what it loads, and whose result `complete` makes from what it
+    /// made.
     fn start_load<T: Send + 'static>(
         &self,
         gpu: &Gpu,
         assets: &CookedAssets,
         reuse: Reusable,
+        (rank, alone): (UploadRank, bool),
         begin: impl FnOnce(&Arc<Job<T>>, &Context) -> Result<(), SceneError> + Send + 'static,
         complete: impl FnOnce(Work) -> Result<T, SceneError> + Send + 'static,
     ) -> Load<T> {
         let job = Arc::new(Job {
-            number: loads::number(),
+            rank,
+            alone,
+            failed: Mutex::new(HashMap::new()),
+            skipped: Mutex::new(HashSet::new()),
             progress: Mutex::new(Progress {
                 result: None,
                 taken: false,
@@ -873,6 +1004,8 @@ impl Loader {
                 mesh_ids: Vec::new(),
                 scene: None,
                 made: Assembly::default(),
+                alone,
+                failed: HashMap::new(),
             })),
             left: AtomicUsize::new(0),
             failure: Mutex::new(None),
@@ -892,38 +1025,99 @@ impl Work {
         self.made_batch()
     }
 
+    /// The batch of what the load made. A load whose assets fail alone leaves out each mesh that
+    /// failed, was skipped, or whose material or one of its textures failed, or whose material
+    /// cannot be made; another load, which stops at its first error, made every one.
     fn made_batch(&mut self) -> Result<Batch, SceneError> {
         let made = std::mem::take(&mut self.made);
-        let meshes: Vec<(AssetId, MadeMesh)> = self
-            .mesh_ids
-            .iter()
-            .copied()
-            .zip(made.meshes)
-            .map(|(id, mesh)| (id, mesh.expect("every mesh is made when nothing failed")))
-            .collect();
+        let failed_assets = std::mem::take(&mut self.failed);
         let textures: HashMap<AssetId, Texture> = made
             .textures
             .into_iter()
-            .map(|(id, texture)| {
-                let texture = texture.expect("every texture is made when nothing failed");
-                (id, texture)
+            .filter_map(|(id, texture)| {
+                assert!(
+                    self.alone || texture.is_some(),
+                    "every texture is made when nothing failed"
+                );
+                Some((id, texture?))
             })
             .collect();
+        let mut failed = Vec::new();
+        let mut meshes = Vec::with_capacity(made.meshes.len());
+        for (&id, mesh) in self.mesh_ids.iter().zip(made.meshes) {
+            let Some(mesh) = mesh else {
+                assert!(self.alone, "every mesh is made when nothing failed");
+                // Skipped otherwise, which nothing is told.
+                if let Some(error) = failed_assets.get(&id) {
+                    failed.push((id, Arc::clone(error)));
+                }
+                continue;
+            };
+            // The first that failed of what it needs: its copy, its material, its textures.
+            let needed = failed_assets
+                .get(&id)
+                .or_else(|| failed_assets.get(&mesh.material))
+                .or_else(|| {
+                    made.materials
+                        .get(&mesh.material)?
+                        .textures()
+                        .into_iter()
+                        .flatten()
+                        .find_map(|slot| failed_assets.get(&slot.texture))
+                });
+            match needed {
+                Some(error) => failed.push((id, Arc::clone(error))),
+                None => meshes.push((id, mesh)),
+            }
+        }
         let mut samplers: HashMap<TextureSampler, Sampler> = HashMap::new();
         let mut materials = HashMap::with_capacity(made.materials.len());
         // In the order of the meshes that are drawn with them.
+        let mut refused: HashMap<AssetId, Arc<SceneError>> = HashMap::new();
         for (_, mesh) in &meshes {
-            if let Entry::Vacant(entry) = materials.entry(mesh.material) {
-                let cooked = &made.materials[&mesh.material];
-                entry.insert(self.create_material(cooked, &textures, &mut samplers)?);
+            if materials.contains_key(&mesh.material) || refused.contains_key(&mesh.material) {
+                continue;
+            }
+            let cooked = &made.materials[&mesh.material];
+            match self.create_material(cooked, &textures, &mut samplers) {
+                Ok(material) => {
+                    materials.insert(mesh.material, material);
+                }
+                Err(error) if self.alone => {
+                    refused.insert(mesh.material, Arc::new(error));
+                }
+                Err(error) => return Err(error),
             }
         }
+        let reads = materials
+            .keys()
+            .map(|&material| {
+                let slots = made.materials[&material].textures();
+                (
+                    material,
+                    slots
+                        .into_iter()
+                        .flatten()
+                        .map(|slot| slot.texture)
+                        .collect(),
+                )
+            })
+            .collect();
+        meshes.retain(|(id, mesh)| match refused.get(&mesh.material) {
+            Some(error) => {
+                failed.push((*id, Arc::clone(error)));
+                false
+            }
+            None => true,
+        });
         Ok(Batch {
             meshes,
             materials,
             textures,
             kept_meshes: made.kept_meshes,
             kept_textures: made.kept_textures,
+            failed,
+            reads,
         })
     }
 
@@ -1182,6 +1376,7 @@ pub(crate) fn upload_texture(
 /// submitted, as [`Uploader::texture`] says; the texture is returned at once, to be drawn then.
 fn queue_texture(
     uploader: &Uploader,
+    rank: &UploadRank,
     label: &str,
     data: &CookedTexture,
     done: impl FnOnce(Result<(), GfxError>) + Send + 'static,
@@ -1189,8 +1384,8 @@ fn queue_texture(
     let levels: Vec<&[u8]> = data.levels.iter().map(Vec::as_slice).collect();
     Ok(uploader.texture(
         label,
-        data.width,
-        data.height,
+        rank,
+        (data.width, data.height),
         texture_format(data.encoding),
         &levels,
         done,
@@ -1257,7 +1452,7 @@ fn grow(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::fs;
     use std::sync::Barrier;
     use std::sync::mpsc;
@@ -1272,7 +1467,7 @@ mod tests {
     /// A directory of cooked data, in the system's temporary directory, holding a scene of
     /// `count` squares, each a mesh of its own, all drawn with one material without textures.
     /// Returns the cooked data and the scene's ID.
-    fn squares(name: &str, count: u128) -> (CookedAssets, AssetId) {
+    pub(crate) fn squares(name: &str, count: u128) -> (CookedAssets, AssetId) {
         let directory = std::env::temp_dir()
             .join(format!("slime-render-{}", std::process::id()))
             .join(name);
@@ -1412,8 +1607,9 @@ mod tests {
             &gpu,
             &assets,
             Reusable::default(),
+            (UploadRank::default(), false),
             |job, _| {
-                let _done = job.upload_done();
+                let _done = job.upload_done(AssetId::from_u128(1));
                 panic!("the task's own panic");
             },
             |_| Ok(()),
