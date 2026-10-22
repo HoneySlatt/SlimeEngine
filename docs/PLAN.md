@@ -64,7 +64,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)), and M6a.7b, saves
   per scene, scenes unloaded and adoption ([ADR-0125](adr/0125-saves-per-scene.md)), and M6a.8a,
   views apart from the renderer ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)), and
-  M6a.8b, the settings of a view ([ADR-0127](adr/0127-the-settings-of-a-view.md)). Next: M6a.9.
+  M6a.8b, the settings of a view ([ADR-0127](adr/0127-the-settings-of-a-view.md)), and M6a.9,
+  asset requests ([ADR-0128](adr/0128-asset-requests.md)). Next: M6a.10.
 
 ## Status
 
@@ -80,7 +81,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6a.7b](#m6a7b--saves-per-scene-and-adoption) | A save costs what changed; an entity outlives its level | Done |
 | [M6a.8a](#m6a8a--views-apart-from-the-renderer) | One renderer draws several views, and makes once what they share | Done |
 | [M6a.8b](#m6a8b--the-settings-of-a-view) | Each view chooses its scale, anti-aliasing, debugging and passes | Done |
-| [M6a.9](#m6a9--asset-requests) | What a view lacks loads first, and assets stay within a budget of memory | Planned |
+| [M6a.9](#m6a9--asset-requests) | What a view lacks loads first, and assets stay within a budget of memory | Done |
 | [M6a.10](#m6a10--rendering-for-the-editor) | The renderer draws what an editor shows, and says what is under the cursor | Planned |
 | [M6a.11](#m6a11--windows-check-documentation-release-05) | Stage 6a is done and released as 0.5, with the audit pass and the foundations pass | Planned |
 | [P1](#p1--saves-and-identities-that-never-mislead) | A save, a scene file and a level written back hold what the world holds and name the entities they mean; a game resumes only a save it can play, and never loses one | Done |
@@ -135,7 +136,7 @@ foundations pass. Where the engine stands at the start:
   level once.
 - **The asset cache keeps all it loaded**, until new cooked data or a lost device, and loads
   without priorities or cancellation
-  ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)).
+  ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)). M6a.9 changed it.
 - **No blending, lines, integer targets or picking**, and the renderer's passes are a closed list
   ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)).
 
@@ -909,6 +910,50 @@ each view the settings that change its passes.
   cache's requests and memory through the MCP server; CI is green.
 - **How to test.** `cargo test -p slime-render -p slime-world-render`; `cargo run --release -p
   slime-benches -- loading loading.zone`.
+- **Outcome.** Done on 2026-10-22. [ADR-0128](adr/0128-asset-requests.md) records the design and
+  the owner's five decisions of 2026-10-22, and amends ADR-0073, ADR-0084, ADR-0113, ADR-0117,
+  ADR-0122 and ADR-0127. `AssetCache::request` takes a `Priority`, *now*, *soon* or *later*, and
+  returns a `Request`, whose meshes arrive together and which gives one `AssetHandle` per mesh
+  (`Request::into_handles`): the mesh is kept, or kept loading, while a handle holds it, its state
+  (`AssetState`) says whether it loads, is ready, failed or is missing, and its priority changes
+  while it lives. The handles live in `AssetRequests`, which holds no GPU object.
+  `slime-world-render`'s `FrameBuilder` holds a handle, at *now*, of each mesh that the world names,
+  and lets go of it once the world no longer names it. A load goes at the rank of its most urgent
+  handle: the lane of the loads' tasks runs the lowest rank first, and the uploader submits the
+  copies of the lowest rank first (`slime_gfx::UploadRank`). A load that nothing holds stops at the
+  next `AssetCache::poll`, kept until its running tasks end, so that no frame waits for them. A
+  mesh that cannot be read, or whose material or textures cannot, fails alone, with its error
+  (`SceneError::Panicked` for a load that panicked): G16, in part, is retired. The cache counts the
+  bytes of its textures (`Texture::bytes`) and of its meshes' pages, apart from the renderer's, and
+  past its `Budgets`, by default the handheld tier's (`AssetCache::set_budgets`), drops what is
+  releasable, least recently held first, and reports what it cannot drop. The cache
+  of a lost device gives its requests to the new one (`AssetCache::into_requests`,
+  `AssetCache::with_requests`), a frame builder given a cache made without them asking it again
+  (`AssetCache::issued`), and `AssetCache::reload` keeps them valid through new cooked data.
+  `slime-app`'s `Reflected`, renamed from `ReflectedSettings`, carries a presentation's named
+  reports (`Presentation::reports`), which version 5 of the development channel lists and reads
+  (`Request::Report`) and the MCP server's `read_report` tool gives: the `world` example and
+  *Hunna Wood* report `assets`, their cache's `CacheReport`, and `views`, their views'
+  `RenderStats`, which reflection now describes, with `Duration`, in seconds. *Hunna Wood* holds
+  its hero's handles for the run, asked for at *now* before the zone. The tests, in `slime-render`'s
+  `tests/requests.rs`: `a_request_s_meshes_stay_while_a_handle_holds_them`, whatever the budget,
+  then releasable and dropped; `past_its_budget_the_cache_drops_what_was_held_least_recently_first`,
+  never a texture that a held mesh reads nor a page that one shares;
+  `a_mesh_that_cannot_be_read_fails_alone_and_is_not_asked_for_again` (G16);
+  `a_reload_drops_what_the_new_data_no_longer_lists_and_what_nothing_holds`;
+  `handles_stay_valid_through_a_lost_device`;
+  `a_long_session_of_requests_and_releases_stays_within_the_budgets`; and the cache's tests that
+  `tests/cooked.rs` held. In `cache.rs`, `each_load_takes_the_rank_of_its_most_urgent_handle`, a
+  load raised from *soon* to *now* moving ahead, and
+  `a_load_that_nothing_holds_stops_and_a_mesh_let_go_of_is_left_out`; in `loads.rs`,
+  `two_tasks_of_loads_run_at_once_at_most_completions_first_then_by_rank`; in `slime-gfx`'s
+  `tests/uploads.rs`, `the_copies_of_the_lowest_rank_go_first_and_a_rank_changes_while_they_wait`.
+  *Hunna Wood*'s `the_hero_arrives_before_the_zone_asked_for_before_it`, on its cooked zone; the
+  examples' `after_a_lost_device_the_cache_made_again_draws_the_same_world`, from a cache made with
+  the lost one's requests, then from one made without them;
+  `slime-app`'s channel reads a report in a unit test, and the MCP server's `tests/views.rs` reads
+  the `world` example's two reports. The benchmarks `loading` and `loading.zone` run with the
+  requests.
 
 ### M6a.10 — Rendering for the editor
 
@@ -1792,7 +1837,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   ([ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)). The renderer's uploader sends
   at most a budget of bytes per frame, and nothing holds the loads back when they read faster: a
   load of many hundreds of megabytes keeps them in the CPU's memory while it lasts. The asset
-  requests of M6a.9 ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)) weigh it.
+  requests ([ADR-0128](adr/0128-asset-requests.md)) rank the loads and stop those that nothing
+  holds, but hold none back.
   How many of the loads' tasks run at once, and the budget, were measured on the owner's RX 6900 XT
   alone; each renderer has an uploader of its own, and two renderers send twice the budget.
 - **The development channel scripts keys only, and captures windowed runs only**
@@ -2105,9 +2151,18 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A page of meshes keeps the ranges of dropped meshes until new ones fill them or it empties**
   ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)). Nothing moves a mesh to pack its
   page: a game that drops half its meshes keeps their pages' memory while one mesh stays in each.
-  Dropping a mesh frees no GPU memory until its page empties: how the asset cache's budgets
-  (ADR-0113) count meshes in pages is M6a.9's to decide. Capture tools name a page's buffers, not
-  its meshes.
+  Dropping a mesh frees no GPU memory until its page empties: the asset cache counts its pages, and
+  a held mesh keeps the releasable meshes of its page ([ADR-0128](adr/0128-asset-requests.md)).
+  Capture tools name a page's buffers, not its meshes.
+- **The asset cache's requests leave work and memory behind**
+  ([ADR-0128](adr/0128-asset-requests.md)). Two batches loading at once that both read a texture the
+  cache does not hold yet upload it each, and the cache keeps the first. The copies that a stopped
+  load handed to the uploader still go to the GPU, at its rank. A texture is dropped whole, its
+  finest levels with its coarsest, until textures stream by their levels at Stage 10a
+  ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)). *Hunna Wood* has a frame
+  builder for each time of day, each with its sky's environment, and the one that does not draw
+  keeps the handles of its last frame until it draws again. The tests drop meshes from one page
+  only, which the squares that they load share: no test drops the least recently held of several.
 - **Cascades are fitted to spheres around slices of the view** (ADR-0064). Each covers its slice
   whichever way the camera looks, which keeps its texels steady, but a wide view makes the spheres
   large: in the first game, *Nightwatch* (deleted at M4a.7), with the single map's 30 m, the texels
@@ -2362,12 +2417,11 @@ fixes ([ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.m
 number, its rank on [ADR-0096](adr/0096-the-files-the-engine-reads.md)'s scale and the stage it
 waits for. A test that confirms each is kept outside the repository, and comes in with its fix.
 
-- **One unreadable file hides its whole batch of meshes** (G16, medium; M6a.9, and Stage 6b for
-  passing errors). The asset cache loads meshes in batches, all those a frame asks for in one, 430
-  for *Hunna Wood*'s zone: a batch that fails draws none of its meshes, and is not asked for again
-  until the cooked data changes (ADR-0084), a passing error such as GPU memory running out
-  included. M6a.9's requests fail asset by asset; trying a passing error again is to decide with
-  the editor's asset browser.
+- **A mesh that a passing error failed is not tried again** (G16, medium; Stage 6b). Since M6a.9,
+  a mesh of an asset cache's request fails alone ([ADR-0128](adr/0128-asset-requests.md)), and is
+  not asked for again until the cooked data changes, a passing error such as GPU memory running out
+  included; a scene's load still fails whole. Trying a passing error again is to decide with the
+  editor's asset browser.
 - **On Windows, a `.meta` whose name differs from its source's by case only takes a new ID at every
   cook** (G20, medium; Stage 6b), and `slime-cook watch` cooks again without end: the scan matches
   the two files by the file system's rule, which ignores case on NTFS, then looks the ID up by the
