@@ -66,7 +66,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   views apart from the renderer ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)), and
   M6a.8b, the settings of a view ([ADR-0127](adr/0127-the-settings-of-a-view.md)), and M6a.9,
   asset requests ([ADR-0128](adr/0128-asset-requests.md)), and M6a.10a, drawing for the editor
-  ([ADR-0129](adr/0129-drawing-for-the-editor.md)), M6a.10 cut in two. Next: M6a.10b.
+  ([ADR-0129](adr/0129-drawing-for-the-editor.md)), M6a.10 cut in two, and M6a.10b, picking
+  ([ADR-0130](adr/0130-picking.md)). Next: M6a.11.
 
 ## Status
 
@@ -84,7 +85,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6a.8b](#m6a8b--the-settings-of-a-view) | Each view chooses its scale, anti-aliasing, debugging and passes | Done |
 | [M6a.9](#m6a9--asset-requests) | What a view lacks loads first, and assets stay within a budget of memory | Done |
 | [M6a.10a](#m6a10a--drawing-for-the-editor) | The renderer draws what an editor shows: lines, blended overlays and unlit icons | Done |
-| [M6a.10b](#m6a10b--picking) | The renderer says which object is under the cursor | Planned |
+| [M6a.10b](#m6a10b--picking) | The renderer says which object is under the cursor | Done |
 | [M6a.11](#m6a11--windows-check-documentation-release-05) | Stage 6a is done and released as 0.5, with the audit pass and the foundations pass | Planned |
 | [P1](#p1--saves-and-identities-that-never-mislead) | A save, a scene file and a level written back hold what the world holds and name the entities they mean; a game resumes only a save it can play, and never loses one | Done |
 | [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | Done |
@@ -141,7 +142,7 @@ foundations pass. Where the engine stands at the start:
   ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)). M6a.9 changed it.
 - **No blending, lines, integer targets or picking**, and the renderer's passes are a closed list
   ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). M6a.10a changed the first two and
-  the last.
+  the last, M6a.10b the others.
 
 Out of scope: Stage 6b's work, the editor's commands beyond the dev overlay's edits, its journal,
 undo and redo, the UI framework, the editor's window, viewport, hierarchy, inspector, gizmos and
@@ -1033,6 +1034,38 @@ each view the settings that change its passes.
 - **How to test.** `cargo test -p slime-gfx -p slime-render -p slime-world-render`; `cargo run
   --example world`.
 - **By hand.** The owner clicks objects in the `world` example.
+- **Outcome.** Done on 2026-10-22. [ADR-0130](adr/0130-picking.md) records the design and the
+  owner's four decisions of 2026-10-22, and amends ADR-0115 and ADR-0122. `slime-gfx` gains
+  `TextureFormat::Rg32Uint`, a target of integers, and `Gpu::read_render_target_later`, whose
+  `Readback` gives the texels once wgpu has seen the copy done, never waiting nor polling.
+  `Instance::pick` is a 64-bit number that the client gives; `View::pick(area)` returns a `Pick`,
+  which the next frame draws after the view's passes, each kind of material through its `vs_pick`
+  and `fs_pick`, and `Pick::take` gives the area's numbers (`Picked`) a frame or more later, or the
+  loss of the device. `FrameBuilder` numbers each instance with its entity's handle
+  (`Entity::to_bits`, `Entity::from_bits`). `slime-world-render`'s `Picker` casts a ray, which
+  `Camera::ray` gives through a point of an image, against the meshes that a world places, read from
+  the cooked data at the first cast in a world that names them, their triangles kept for those that
+  rays meet, while the world names them.
+  `Presentation::pick` and `PickAnswer` let a tool pick in a game's view: version 6 of the
+  development channel asks it (`Request::Pick`) at a pixel of a view or of the whole image, and the
+  MCP server's `pick` tool gives the entity's persistent identity and name. The `world` example
+  selects what a click picks, and picks for tools. The tests: in `slime-gfx`'s
+  `tests/integers.rs`, `numbers_drawn_into_an_integer_target_come_back_later_without_waiting` and
+  `a_readback_on_a_lost_device_gives_the_loss`; in `slime-render`'s `tests/picking.rs`,
+  `a_picking_names_the_instance_drawn_nearest_at_each_pixel`,
+  `a_picking_passes_through_what_a_mask_cuts_out_and_takes_a_blend_from_one_half`,
+  `a_picking_off_the_middle_of_a_view_drawn_into_a_part_of_its_output_finds_what_is_there`,
+  `a_picking_comes_back_a_frame_or_more_later_and_never_at_once`,
+  `an_area_outside_the_view_gives_an_empty_answer_and_one_across_its_edge_is_cut` and
+  `a_device_lost_while_picking_gives_the_loss_and_no_panic`; in `camera.rs`,
+  `the_ray_through_a_point_of_the_image_passes_through_what_is_drawn_there`; in
+  `slime-world-render`, the box's and the triangle's tests of `picker.rs`; in the examples'
+  `tests/world.rs`, `picking_by_the_gpu_and_by_the_cpu_name_the_same_entities`, which allows
+  one pixel in a hundred to differ, on an edge, and which on lavapipe and the RX 6900 XT named the
+  same entity at each of the 689 pixels of its grid that showed one; in `slime-app`'s
+  channel, `a_tool_picks_at_a_pixel_of_a_view_or_of_the_image`; and the MCP server's
+  `tests/views.rs` picks at the map's middle, in the map and in the whole image, and nothing in the
+  sky.
 
 ### M6a.11 — Windows check, documentation, release 0.5
 
@@ -1163,6 +1196,9 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
 - **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
   slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
   `af512af` prints.
+- **M6a.10a and M6a.10b, on Linux.** `cargo run --example world`: the grid on the ground, hidden by
+  what stands in front of it, the icons above the lamps, the box of what Tab selects; a click on an
+  object selects it, its box drawn in both views, and a click on the sky selects nothing.
 - **M6a.6, in the Windows virtual machine.** `hunnawood.exe` of CI's artifact started with a token
   in its environment, from PowerShell: `$env:SLIME_DEV_TOKEN = "00112233445566778899aabbccddeeff"`,
   then `.\hunnawood.exe --new --save run.toml`. It writes `slime-dev-channel 127.0.0.1:<port>`, its
@@ -2198,6 +2234,21 @@ GitHub issues, linked from their entry; this list stays the reference.
   instance of 100 000 cubes on the owner's machine (`render.instances.100k`,
   [`measurements.md`](measurements.md)). A render scene kept from one frame to the next, with
   stable keys, and culling and draws decided by the GPU come with Stage 9a (ADR-0097).
+- **The tests that run out of GPU memory under a budget depend on the machine's memory in use**
+  (`slime_gfx::MEMORY_BUDGET_ENV_VAR`). On lavapipe, the budget is a share of the memory that the
+  whole machine uses: under a heavy load, the child process of
+  `a_view_whose_new_size_does_not_fit_keeps_no_targets` in `slime-render`'s `tests/views.rs` ran out
+  of memory in the driver itself on 2026-10-22, its device lost, twice in a dozen runs, and passed
+  when run again.
+- **A picking draws all that its view sees, and picking by the CPU ignores masks**
+  ([ADR-0130](adr/0130-picking.md)).
+  A picking's pass draws every instance that the view's scene pass draws, not those of its area
+  alone, in the frame that it is drawn; a view draws one picking per frame. Picking by the CPU
+  passes through nothing that a mask cuts out, reads each mesh whole, at its first cast in a world
+  that names it, to know its box, which a bounds-only read of the cooked data would spare, and reads
+  from the cooked data that its `Picker` was made with, not again when it changes. Lines are not
+  picked. *Hunna Wood* does not pick yet: a tool's picking in it is refused. Scripted input has no
+  mouse, so that an agent picks through the MCP server's `pick` tool, not by clicking.
 - **What a client draws into a view is lines and instances in the scene, and lines over the image**
   ([ADR-0129](adr/0129-drawing-for-the-editor.md)). Instances over the image, which need a depth of
   their own, the scene's depth resolved for an outline or handles partly hidden, and a part of a
