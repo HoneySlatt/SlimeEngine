@@ -77,8 +77,10 @@ pub fn init_diagnostics() {
 /// [`std::error::Error::source`] gives them, joined by `": "`: "error: cause: cause of cause".
 ///
 /// An error's own message is its most general one, and by convention does not repeat its causes,
-/// which often say what to do (no GPU adapter, a missing file). [`run`](crate::run) logs a failed
-/// run with this message; a program that does not use `run` logs its errors with it too.
+/// which often say what to do (no GPU adapter, a missing file). Some errors write their cause into
+/// their message all the same, as a cooked file's errors write what is wrong with it after its
+/// path: a cause that the chain already holds is not written again. [`run`](crate::run) logs a
+/// failed run with this message; a program that does not use `run` logs its errors with it too.
 ///
 /// ```
 /// use slime_app::{RunError, error_chain};
@@ -95,8 +97,11 @@ pub fn error_chain(error: &dyn std::error::Error) -> String {
     let mut chain = error.to_string();
     let mut source = error.source();
     while let Some(cause) = source {
-        chain.push_str(": ");
-        chain.push_str(&cause.to_string());
+        let message = cause.to_string();
+        if !chain.contains(&message) {
+            chain.push_str(": ");
+            chain.push_str(&message);
+        }
         source = cause.source();
     }
     chain
@@ -263,6 +268,29 @@ fn log_system_information() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::RunError;
+
+    /// An error that writes its cause into its own message too, as a cooked file's errors do.
+    #[derive(Debug, thiserror::Error)]
+    #[error("cooked/a.mesh: {source}")]
+    struct Damaged {
+        source: std::io::Error,
+    }
+
+    #[test]
+    fn a_cause_that_an_error_writes_into_its_message_is_not_written_again() {
+        let damaged = || Damaged {
+            source: std::io::Error::other("a text is not UTF-8"),
+        };
+        assert_eq!(
+            error_chain(&damaged()),
+            "cooked/a.mesh: a text is not UTF-8"
+        );
+        assert_eq!(
+            error_chain(&RunError::App(Box::new(damaged()))),
+            "the application stopped with an error: cooked/a.mesh: a text is not UTF-8"
+        );
+    }
 
     #[test]
     fn directives_without_a_bare_level_get_info_for_the_other_modules() {
