@@ -962,7 +962,7 @@ checksum = "e17592d60ebacc7d5e169f4663c5f84f9161cc90328abcfe8456f41e4dfcb284"
 
 [[package]]
 name = "hunnawood"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "slime-app",
  "slime-assets",
@@ -2261,7 +2261,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "slime-app"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "ctrlc",
  "nu-ansi-term",
@@ -2279,7 +2279,7 @@ dependencies = [
 
 [[package]]
 name = "slime-assets"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "ktx2",
  "slime-reflect",
@@ -2288,7 +2288,7 @@ dependencies = [
 
 [[package]]
 name = "slime-benches"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "slime-app",
  "slime-assets",
@@ -2302,7 +2302,7 @@ dependencies = [
 
 [[package]]
 name = "slime-channel"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "getrandom 0.4.3",
  "slime-reflect",
@@ -2313,14 +2313,14 @@ dependencies = [
 
 [[package]]
 name = "slime-color"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "slime-reflect",
 ]
 
 [[package]]
 name = "slime-cook"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_mikktspace",
  "blake3",
@@ -2341,7 +2341,7 @@ dependencies = [
 
 [[package]]
 name = "slime-devui"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "egui",
  "egui-wgpu",
@@ -2356,7 +2356,7 @@ dependencies = [
 
 [[package]]
 name = "slime-examples"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "gltf",
  "png",
@@ -2375,7 +2375,7 @@ dependencies = [
 
 [[package]]
 name = "slime-gfx"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "block_compression",
  "pollster",
@@ -2388,7 +2388,7 @@ dependencies = [
 
 [[package]]
 name = "slime-mcp"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "base64",
  "png",
@@ -2401,7 +2401,7 @@ dependencies = [
 
 [[package]]
 name = "slime-platform"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "raw-window-handle",
  "thiserror 2.0.21",
@@ -2411,7 +2411,7 @@ dependencies = [
 
 [[package]]
 name = "slime-reflect"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "glam",
  "slime-reflect-derive",
@@ -2419,7 +2419,7 @@ dependencies = [
 
 [[package]]
 name = "slime-reflect-derive"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2428,7 +2428,7 @@ dependencies = [
 
 [[package]]
 name = "slime-render"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "glam",
  "slime-assets",
@@ -2442,7 +2442,7 @@ dependencies = [
 
 [[package]]
 name = "slime-serialize"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "glam",
  "slime-reflect",
@@ -2452,11 +2452,11 @@ dependencies = [
 
 [[package]]
 name = "slime-tasks"
-version = "0.4.0"
+version = "0.5.0"
 
 [[package]]
 name = "slime-world"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "glam",
  "slime-assets",
@@ -2469,7 +2469,7 @@ dependencies = [
 
 [[package]]
 name = "slime-world-render"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "slime-assets",
  "slime-color",

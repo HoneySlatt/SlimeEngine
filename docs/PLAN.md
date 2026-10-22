@@ -67,7 +67,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   M6a.8b, the settings of a view ([ADR-0127](adr/0127-the-settings-of-a-view.md)), and M6a.9,
   asset requests ([ADR-0128](adr/0128-asset-requests.md)), and M6a.10a, drawing for the editor
   ([ADR-0129](adr/0129-drawing-for-the-editor.md)), M6a.10 cut in two, and M6a.10b, picking
-  ([ADR-0130](adr/0130-picking.md)). Next: M6a.11.
+  ([ADR-0130](adr/0130-picking.md)), and M6a.11, the Windows check, the documents reread and the
+  release. Stage 6a is done, and released as 0.5 on 2026-10-22 with both passes. Next: Stage 6b,
+  the editor, planned in detail with the owner.
 
 ## Status
 
@@ -86,7 +88,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6a.9](#m6a9--asset-requests) | What a view lacks loads first, and assets stay within a budget of memory | Done |
 | [M6a.10a](#m6a10a--drawing-for-the-editor) | The renderer draws what an editor shows: lines, blended overlays and unlit icons | Done |
 | [M6a.10b](#m6a10b--picking) | The renderer says which object is under the cursor | Done |
-| [M6a.11](#m6a11--windows-check-documentation-release-05) | Stage 6a is done and released as 0.5, with the audit pass and the foundations pass | Planned |
+| [M6a.11](#m6a11--windows-check-documentation-release-05) | Stage 6a is done and released as 0.5, with the audit pass and the foundations pass | Done |
 | [P1](#p1--saves-and-identities-that-never-mislead) | A save, a scene file and a level written back hold what the world holds and name the entities they mean; a game resumes only a save it can play, and never loses one | Done |
 | [P2](#p2--a-damaged-file-gives-an-error-never-a-crash) | No damaged or edited file makes the engine panic, hang or exhaust its memory (ADR-0096) | Done |
 | [P3](#p3--the-loss-of-the-gpu-device-and-the-main-loop) | A lost GPU device is recovered wherever the loss is found, and a panic in `render` stays an ordinary panic | Done |
@@ -581,7 +583,10 @@ Risks:
   ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md)), rather than shorten the session or
   allow the job more time. On `0bb62c7`, the first run so, `check (headless)` took 9 minutes 55
   seconds and `check (windowed)` 10 minutes 37 seconds, the agent's session 5 minutes 18 seconds of
-  it; `windows` 13 minutes 36 seconds and `windows-release` 11 minutes 57 seconds.
+  it; `windows` 13 minutes 36 seconds and `windows-release` 11 minutes 57 seconds. The owner's
+  check by hand, in the Windows virtual machine, on 2026-10-22: `hunnawood.exe` of CI's artifact,
+  started with a token in its environment, wrote `slime-dev-channel 127.0.0.1:<port>`, its log
+  said that the development channel listens, and the system's firewall asked nothing.
 
 ### M6a.7a — Driven components, keys and created entities written into levels
 
@@ -1083,6 +1088,26 @@ each view the settings that change its passes.
   with the Windows programs.
 - **By hand.** In the Windows virtual machine: *Hunna Wood* played, paused and stepped, saved and
   resumed; the `world` example's views and picking; the firewall, when the game listens (M6a.6).
+- **Outcome.** Done on 2026-10-22. The owner's check by hand, in the Windows virtual machine, of the
+  programs that CI built from `532f31a`: *Hunna Wood* played by day and at night, paused and
+  stepped, the settings of its view changed, saved, loaded and resumed, its window resized; the
+  `world` example's two views, its grid and icons, a click that picks in either view, Tab, its
+  panels and a resize; the firewall, which asked nothing while the game listened; and the checks by
+  hand of P2, P3 and M6a.6, whose results are in their outcomes. It found four defects, fixed before
+  the release: the dev overlay, made again after a lost device, did not know where the cursor was,
+  so that a click before the cursor moved landed in the window's corner, and it now keeps its state,
+  its GPU objects alone made again (`Overlay::release`, `Overlay::restore`); `error_chain` wrote
+  twice a cause that an error's message holds; the overlay's tooltips showed doc comments as
+  written; and the `world` example's ring sank into the ground. Four agents reread the documents
+  against the code, each a part of them, read-only, and found about ninety statements wrong, stale
+  or missing, corrected in one commit: the CHANGELOG's entries that later milestones had made wrong,
+  among them saves of layout 3 and `WorldError::KeyInUse`, never released; the glossary's entries of
+  the state before Stage 6a, and the world's blocks and log, which it did not define; the flows of
+  `docs/ARCHITECTURE.md` that Stage 6a changed; the crates' entry points that it added; and what the
+  MCP server tells agents of its tools. The test that runs out of GPU memory under a budget, which
+  failed in CI at M6a.10b, runs halfway through the window of budgets that probes find, alone in its
+  binary (see [Known debt](#known-debt)). CHANGELOG's section of 0.5 and the release are as
+  [Releasing](#releasing) says.
 
 ## Stage 6b — The editor
 
@@ -1184,25 +1209,15 @@ The checks by hand of the milestones done that the owner has not made yet. The o
 check leaves the list once made, its result written in its milestone's outcome. The game is run
 with `--new --save <a file of its own>`, so that the owner's save is left alone.
 
-- **P2, in the Windows virtual machine.** `scene.exe` of CI's artifact, on a copy of its `assets`
-  directory whose first mesh has one byte changed: an error that names the file, then status 1.
 - **G20, in the Windows virtual machine.** A source asset whose `.meta` differs from its own name
   by case only, cooked twice: whether its ID changes at each cook, and whether `slime-cook watch`
   cooks it again without end (see [Known debt](#left-by-the-audit-of-04)).
 - **P3, in the Windows virtual machine.** A timeout detection and recovery (TDR) forced while the
   zone loads, then a second while the game makes its GPU objects again: a new device each time,
-  the log saying "the GPU device was lost; a new one replaces it", and the game going on. The
-  windows of `hunnawood.exe` and `scene.exe` resized several times, maximized and restored: no
-  "ResizeBuffers failed", "cannot be configured" or "surface was lost" in the log, which only
-  Direct3D 12 can show. Optionally, the dev overlay's button that loses the device, four times
-  within five minutes: three new devices, then the game stops with an error of a lost device.
+  the log saying "the GPU device was lost; a new one replaces it", and the game going on.
 - **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
   slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
   `af512af` prints.
-- **M6a.6, in the Windows virtual machine.** `hunnawood.exe` of CI's artifact started with a token
-  in its environment, from PowerShell: `$env:SLIME_DEV_TOKEN = "00112233445566778899aabbccddeeff"`,
-  then `.\hunnawood.exe --new --save run.toml`. It writes `slime-dev-channel 127.0.0.1:<port>`, its
-  log says that the development channel listens, and the system's firewall asks nothing.
 
 ### P1 — Saves and identities that never mislead
 
@@ -1452,7 +1467,11 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
   [known debt](#known-debt): a cooked file damaged within its ranges, a save's capacity in values,
   the cost of checking what a cook reuses. The owner decided on 2026-10-19 not to report the
   `ktx2` crate's panic to its authors: the engine no longer reads with it. CI took 10 minutes 36
-  seconds on Linux and 16 minutes 11 seconds on Windows.
+  seconds on Linux and 16 minutes 11 seconds on Windows. The owner's check by hand, in the Windows
+  virtual machine, on 2026-10-22: `scene.exe` of CI's artifact, on a copy of its `assets` directory
+  whose first mesh had its byte 12 changed, ended with an error that named the file, then status
+  1; a byte changed in the middle of a mesh's data was not found, as the [known
+  debt](#known-debt) says of a cooked file damaged within its ranges.
 
 ### P3 — The loss of the GPU device and the main loop
 
@@ -1523,7 +1542,13 @@ with `--new --save <a file of its own>`, so that the owner's save is left alone.
   checks by hand in the Windows virtual machine, a TDR forced while the zone loads, then while the
   game restores its objects, are the owner's, and wait in the
   [list of checks by hand](#checks-by-hand-waiting-for-the-owner). CI took 14 minutes 19 seconds on
-  Linux and 16 minutes 22 seconds on Windows.
+  Linux and 16 minutes 22 seconds on Windows. The owner's check by hand, in the Windows virtual
+  machine, on 2026-10-22: the windows of `hunnawood.exe` resized, maximized and restored several
+  times, without "ResizeBuffers failed", "cannot be configured" or "surface was lost" in the log;
+  the dev overlay's button that loses the device, four times within two minutes: three new
+  devices, the run going on where it was, then the game saved its run and stopped with an error
+  of a lost device. The timeout detection and recovery forced while the zone loads waits in the
+  list.
 
 ### P5 — The build, CI, and measurements tracked from one commit to the next
 
@@ -1892,7 +1917,10 @@ cooked and the notice that credits its assets among them. 0.3 was released on 20
 Stages 4b and 5a: the tag `v0.3.0` is on the commit "Release 0.3.0", and its GitHub release carries
 the Windows programs that CI built from that commit, `world.exe` among them.
 Stage 5b was released as 0.4 on 2026-10-18: the tag `v0.4.0` is on the commit "Release 0.4.0", and
-its GitHub release carries the Windows programs that CI built from that commit.
+its GitHub release carries the Windows programs that CI built from that commit. Stage 6a was
+released as 0.5 on 2026-10-22, with the audit pass and the foundations pass: the tag `v0.5.0` is on
+the commit "Release 0.5.0", and its GitHub release carries the Windows programs that CI built from
+that commit.
 
 ## Completed stages
 

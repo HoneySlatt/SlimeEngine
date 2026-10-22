@@ -8,24 +8,28 @@ games first, then open-world games, then large online worlds.
 
 Pre-alpha. Stages 0 (*Foundations*), 1 (*Core and platform*), 2 (*GPU layer*), 3a (*First
 renderer*), 3b (*Physically based renderer*), 3c (*A first game*), 3d (*Anti-aliasing and the
-shadows of spot lights*), 4a (*Cooked assets*), 4b (*Live assets*), 5a (*The world*) and 5b (*Scenes
-and prefabs*) are done; the latest release is 0.4 (git tag `v0.4.0`), which released Stage 5b.
+shadows of spot lights*), 4a (*Cooked assets*), 4b (*Live assets*), 5a (*The world*), 5b (*Scenes
+and prefabs*) and 6a (*What the editor stands on*) are done; the latest release is 0.5 (git tag
+`v0.5.0`), which released Stage 6a, with the audit pass and the foundations pass before it.
 Applications run headless or with a window (Wayland or X11 on Linux, Win32 on Windows) that
 receives keyboard and mouse input, with a fixed-step main loop, logging, panic reporting and a clean shutdown on Ctrl+C. The
 engine opens the GPU (Vulkan on Linux, Direct3D 12 on Windows), paces frames with its own schedule
 and the Mailbox present mode by default, names its GPU work for capture tools, reports a GPU whose
 memory runs out as an error a game can handle, and, when the GPU device is lost, stops cleanly or,
-for a game that asks, goes on with a new one. Its renderer, `slime-render`, draws instances of
-meshes with glTF's metallic-roughness materials, lit by directional, point and spot
-lights in physical units (lux and candelas), with the shadows of a sun, in cascades around the
-camera, and of spot lights, and the light of a procedural sky that surfaces reflect and that
-shows behind them; it draws in high dynamic range, at four samples per pixel so that edges are
-smooth, or at one and at another scale as each view's settings say, relative to the camera and with
-reversed depth so that large scenes keep their precision, then exposes the light, spreads a bloom
-around it, tone maps it and dithers it, into a window or into offscreen images that image tests
-compare with references. The `scene` example draws a scene cooked from a glTF file, and its lights,
-under a camera driven by the mouse, with the CPU time and the GPU time of each pass in a dev
-overlay. The asset pipeline gives every source file an
+for a game that asks, goes on with a new one. Its renderer, `slime-render`, draws a scene through
+one or more views, each with its camera, its rectangle of the output and its settings, leaves out
+what a view does not see, and draws together the instances of one mesh and one material: meshes with
+glTF's metallic-roughness materials, or unlit ones, which may blend, lit by directional, point and
+spot lights in physical units (lux and candelas), with the shadows of a sun, in cascades around the
+camera, and of spot lights, and the light of a procedural sky that surfaces reflect and that shows
+behind them; it draws in high dynamic range, at four samples per pixel so that edges are smooth, or
+at one and at another scale as each view's settings say, relative to the camera and with reversed
+depth so that large scenes keep their precision, then exposes the light, spreads a bloom around it,
+tone maps it and dithers it, into a window or into offscreen images that image tests compare with
+references; for an editor, it draws lines in the scene and over the image, and says which object is
+drawn at a pixel, as the CPU does by casting a ray. The `scene` example draws a scene cooked from a
+glTF file, and its lights, under a camera driven by the mouse, with the CPU time and the GPU time of
+each pass in a dev overlay. The asset pipeline gives every source file an
 ID that survives a move, and its cooker, `slime-cook`, turns glTF scenes and PNG and JPEG images
 into cooked data, meshes, materials, scenes and textures compressed in BC7 and BC5, which a game
 reads by ID ([ADR-0069](docs/adr/0069-the-asset-pipeline.md)). The
@@ -50,17 +54,22 @@ while it runs is saved as its scenes; `slime-serialize` encodes documents in a b
 its own too, in which the cooker cooks scene files, and Blender's nodes carry typed components. The
 `world` example spawns a yard of prefabs from a scene file, and follows a prefab changed while it
 runs; *Hunna Wood*'s zone is a scene file that places its land and six lanterns of one prefab.
-Since 0.4, an audit pass fixed defects that an audit of 0.4 found in saves and identities, in the
+After 0.4, an audit pass fixed defects that an audit of 0.4 found in saves and identities, in the
 readers of files and in the recovery from a lost GPU device, and made the quick wins that it
-measured; a foundations pass decided as ADRs what the editor will freeze. Both ship with 0.5, with
-Stage 6a, what the editor stands on, under way: among what it gave so far, a game is a simulation,
-its rules, and a presentation, what the player sees, run through the phases of a frame on a game
-time that pauses and steps, and an AI agent drives a running game through its development channel
-and the engine's MCP server, `slime-mcp`, which starts it, pauses it, reads and changes its world,
-plays it, saves and loads it, and sees its image; a save costs what the run changed since the game
-settled its world, a level unloaded keeps what the run changed of it, and an entity adopted
-outlives its level. [`docs/PLAN.md`](docs/PLAN.md) says what Stage 6a has done and what
-comes next, then Stage 6b, the editor, and lists the known debt.
+measured; a foundations pass decided as ADRs what the editor will freeze; and Stage 6a built what
+the editor stands on. One task pool runs the engine's work (`slime-tasks`), and loads copy to the
+GPU within a budget of bytes per frame, so that they never slow the frames; assets are asked for
+by requests that carry a priority, and kept within budgets of memory; the world tells each reader
+what changed since it last read. A game is a simulation, its rules, and a presentation, what the
+player sees, run through the phases of a frame on a game time that pauses and steps. An AI agent
+drives a running game through its development channel and the engine's MCP server, `slime-mcp`,
+which starts it, pauses and steps it, reads and changes its world, plays it, saves and loads it,
+sees its image or one of its views, changes how a view draws, reads its reports and names what is
+drawn at a pixel. A save costs what the run changed since the game settled its world, the world
+that it made at the start of the run; a level unloaded keeps what the run changed of it, and an
+entity adopted, taken out of its level, outlives it. The `world` example draws its yard and a map
+of it from above in a corner, and selects what a click picks. [`docs/PLAN.md`](docs/PLAN.md) says
+what comes next, Stage 6b, the editor, and lists the known debt.
 
 ## Getting started
 
@@ -94,15 +103,15 @@ not move.
 
 ```toml
 [dependencies]
-slime-app = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
-slime-assets = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
-slime-color = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
-slime-gfx = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
-slime-platform = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
-slime-reflect = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
-slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
-slime-world = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
-slime-world-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.4.0" }
+slime-app = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
+slime-assets = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
+slime-color = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
+slime-gfx = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
+slime-platform = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
+slime-reflect = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
+slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
+slime-world = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
+slime-world-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
 
 # The renderer computes a sky's lighting on the CPU, several times slower without optimizations.
 [profile.dev.package.slime-render]

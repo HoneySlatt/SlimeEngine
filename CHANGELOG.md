@@ -4,7 +4,25 @@ Notable changes to SlimeEngine, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Releases are git tags (`v0.0.1`, ...);
 nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md)).
 
-## [Unreleased]
+## [0.5.0] - 2026-10-22
+
+The eighth release, which closes Stage 6a of the roadmap, what the editor stands on, with the two
+passes that came before it. An audit of 0.4 found defects in saves and identities, in the readers
+of files and in the recovery from a lost GPU device: the audit pass fixed them, made the quick wins
+that it measured and put the engine's measurements in CI, and the foundations pass decided as ADRs
+what the editor will freeze. Stage 6a built it. The renderer leaves out what the camera does not
+see and draws the instances of one mesh and one material together; one task pool runs the engine's
+work, and loads copy to the GPU within a budget, so that they no longer slow the frames; the world
+knows what changed since a reader last read; a frame owns what it draws. A game is a simulation,
+its rules, and a presentation, what the player sees, on a game time that pauses and steps, and an
+AI agent drives a running game through its development channel and the engine's MCP server. Saves
+hold what changed, scene by scene; a level unloaded keeps what the run changed of it, and an entity
+adopted outlives its level. One renderer draws several views, each with its settings; assets are
+asked for by requests that carry a priority, and kept within budgets of memory; the renderer draws
+lines and unlit materials, which may blend, and says which object is drawn at a pixel, as the CPU
+does by casting a ray. The saves of 0.4 are refused, and *Hunna Wood* sets them aside; every
+texture is cooked again once. The Windows programs that CI builds are attached to the release on
+GitHub.
 
 ### Added
 
@@ -477,6 +495,23 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - A sun set where it already is, at each fixed step, kept the sky's environment: interpolating two
   equal transforms gives them back exactly, where the frame builder made the sky again at most
   frames.
+
+### Known limitations
+
+See the known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) and what the engine does not do yet
+in the [`README.md`](README.md#what-it-does-not-do-yet). In short: no editor yet, which Stage 6b
+brings; a physically based material does not blend, and blended surfaces are not sorted by depth; a
+picking draws all that its view sees, and picking by the CPU passes through nothing that a mask cuts
+out; a client draws into a view lines and instances in the scene, and lines over the image only; the
+asset cache's requests leave work and memory behind, and a page of meshes keeps the ranges of
+dropped meshes until new ones fill them; every instance of a scene costs CPU time at each frame,
+whether a pass draws it or not; the development channel scripts keys only, and captures windowed
+runs only; the hardware tiers' budgets are checked on one GPU only. Limitations of 0.4 remain: a
+scene file written back loses its comments, a large scene spawns slower than as many entities
+spawned in code, a node renamed in Blender loses what saves held of it, saves stay text, of limited
+size, the world has no systems or schedule, at most 16 lights are drawn, point lights cast no
+shadow, frames are not synchronized with the display's refresh, and input methods, touch, gestures
+and gamepads are not reported.
 
 ## [0.4.0] - 2026-10-18
 
