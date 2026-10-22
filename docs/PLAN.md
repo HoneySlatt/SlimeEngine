@@ -2241,7 +2241,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   2026-10-22, `a_view_whose_new_size_does_not_fit_keeps_no_targets` failed twice locally and once in
   CI, run at the window's lower end. These tests now run halfway through the window, which probes
   find first (`slime-gfx`'s `tests/common/memory_budget.rs`), and that one alone in its binary,
-  `slime-render`'s `tests/oversize.rs`, in about 13 s; memory that moves by half the window while
+  `slime-render`'s `tests/oversize.rs`. Each probe of that test makes a renderer: it takes about
+  15 s on lavapipe, and a minute or more on WARP. Memory that moves by a third of the window while
   one runs still fails it.
 - **A picking draws all that its view sees, and picking by the CPU ignores masks**
   ([ADR-0130](adr/0130-picking.md)).

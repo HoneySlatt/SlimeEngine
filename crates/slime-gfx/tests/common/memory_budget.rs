@@ -24,9 +24,10 @@ pub const PROBE: &str = "probe";
 /// what is already used differently: lavapipe counts the whole machine's, which the creations of a
 /// test do not change, so that below a share that depends on what else runs, the device does not
 /// even open, and above it, nothing runs out. Probes look for the lowest share and the highest one
-/// at which the child prints neither, and the test runs halfway between: at either end, what else
-/// runs on the machine, moving by a few hundred megabytes, changes the outcome while the test runs.
-/// The search starts again, up to three times, when what else runs has moved the shares too far.
+/// at which the child prints neither, and the test runs halfway between, a third of the window or
+/// more from either end: at an end, what else runs on the machine, moving by a few hundred
+/// megabytes, changes the outcome while the test runs. The search starts again, up to three times,
+/// when what else runs has moved the shares too far.
 pub fn run_out_of_memory_in_a_child(name: &str) -> Option<String> {
     if child(name, PROBE, 1).contains("never ran out") {
         return None;
@@ -47,7 +48,9 @@ enum Fit {
 }
 
 /// One search of [`run_out_of_memory_in_a_child`]: a budget within, then the lowest and the
-/// highest, by halving the budgets between those known.
+/// highest, by halving the budgets between those known, until each is known to within a quarter of
+/// the window: to one share in a window a few shares wide, as lavapipe's, and with few probes in a
+/// wide one.
 fn search_budget(name: &str) -> Option<String> {
     let probe = |budget| {
         let stdout = child(name, PROBE, budget);
@@ -73,18 +76,22 @@ fn search_budget(name: &str) -> Option<String> {
         }
     };
     let (mut lowest, mut highest) = (within, within);
-    while lowest - small > 1 {
-        let budget = small + (lowest - small) / 2;
-        match probe(budget) {
-            Fit::TooSmall => small = budget,
-            _ => lowest = budget,
-        }
-    }
-    while large - highest > 1 {
-        let budget = highest + (large - highest) / 2;
-        match probe(budget) {
-            Fit::TooLarge => large = budget,
-            _ => highest = budget,
+    loop {
+        let slack = 1 + (highest - lowest) / 4;
+        if lowest - small > slack {
+            let budget = small + (lowest - small) / 2;
+            match probe(budget) {
+                Fit::TooSmall => small = budget,
+                _ => lowest = budget,
+            }
+        } else if large - highest > slack {
+            let budget = highest + (large - highest) / 2;
+            match probe(budget) {
+                Fit::TooLarge => large = budget,
+                _ => highest = budget,
+            }
+        } else {
+            break;
         }
     }
     let stdout = child(name, "run", lowest + (highest - lowest).div_ceil(2));

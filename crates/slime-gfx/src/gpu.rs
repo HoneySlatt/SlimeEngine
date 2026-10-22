@@ -744,7 +744,7 @@ mod memory_budget;
 
 #[cfg(test)]
 mod tests {
-    use super::memory_budget::{CHILD_ENV, run_out_of_memory_in_a_child};
+    use super::memory_budget::{CHILD_ENV, PROBE, run_out_of_memory_in_a_child};
     use super::*;
     use crate::{RenderPassDescriptor, RenderTarget, TextureFormat};
     use slime_color::LinearColor;
@@ -986,7 +986,7 @@ mod tests {
 
     #[test]
     fn a_creation_beyond_the_memory_fails_and_the_device_goes_on() {
-        if std::env::var_os(CHILD_ENV).is_none() {
+        let Ok(mode) = std::env::var(CHILD_ENV) else {
             let Some(stdout) = run_out_of_memory_in_a_child(
                 "gpu::tests::a_creation_beyond_the_memory_fails_and_the_device_goes_on",
             ) else {
@@ -995,7 +995,7 @@ mod tests {
             };
             assert!(stdout.contains("the device goes on"), "{stdout}");
             return;
-        }
+        };
         let Some(gpu) = child_gpu() else { return };
         let mut fillers = Vec::new();
         let error = loop {
@@ -1008,6 +1008,9 @@ mod tests {
                 Err(error) => break error,
             }
         };
+        if mode == PROBE {
+            return;
+        }
         println!("out of memory after {} targets of 512 MiB", fillers.len());
         assert!(
             matches!(&error, GfxError::OutOfMemory { label } if label == "filler"),
@@ -1042,7 +1045,7 @@ mod tests {
 
     #[test]
     fn memory_that_runs_out_where_no_caller_is_told_gives_the_device_up() {
-        if std::env::var_os(CHILD_ENV).is_none() {
+        let Ok(mode) = std::env::var(CHILD_ENV) else {
             let Some(stdout) = run_out_of_memory_in_a_child(
                 "gpu::tests::memory_that_runs_out_where_no_caller_is_told_gives_the_device_up",
             ) else {
@@ -1051,7 +1054,7 @@ mod tests {
             };
             assert!(stdout.contains("given up"), "{stdout}");
             return;
-        }
+        };
         let Some(gpu) = child_gpu() else { return };
         // A texture that a library built on wgpu creates itself, outside the engine's scopes.
         let mut textures = Vec::new();
@@ -1074,6 +1077,9 @@ mod tests {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[],
             }));
+        }
+        if mode == PROBE {
+            return;
         }
         let Err(GfxError::DeviceLost { kind, message }) = gpu.check() else {
             unreachable!("the loop ends on a loss");
