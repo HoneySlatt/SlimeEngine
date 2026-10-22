@@ -2355,6 +2355,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "slime-editor"
+version = "0.5.0"
+dependencies = [
+ "slime-assets",
+ "slime-cook",
+ "slime-reflect",
+ "slime-serialize",
+ "slime-world",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "slime-examples"
 version = "0.5.0"
 dependencies = [

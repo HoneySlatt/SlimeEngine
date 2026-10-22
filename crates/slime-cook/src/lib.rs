@@ -33,7 +33,13 @@ pub use scan::{Mode, Problem, Scan, ScanError, Source, scan};
 /// disk, then renamed to `path`: `path` holds what it held before or `bytes`, never a part of
 /// them, when the cooker is stopped or the power cut half-way, and two processes that write the
 /// same file at once each write a file of their own. The file beside it does not outlive an error.
-pub(crate) fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+/// The editor writes the levels that it changes so (`slime-editor`).
+///
+/// # Errors
+///
+/// The error of the file system, when the file beside it cannot be created, written, forced to the
+/// disk or renamed.
+pub fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let mut temporary = path.as_os_str().to_owned();
     temporary.push(format!(".{}.part", std::process::id()));
     let temporary = PathBuf::from(temporary);

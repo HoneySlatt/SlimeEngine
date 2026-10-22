@@ -103,6 +103,7 @@ slime-assets = { path = "crates/slime-assets" }
 slime-color = { path = "crates/slime-color" }
 slime-cook = { path = "crates/slime-cook" }
 slime-devui = { path = "crates/slime-devui" }
+slime-editor = { path = "crates/slime-editor" }
 slime-gfx = { path = "crates/slime-gfx" }
 slime-platform = { path = "crates/slime-platform" }
 slime-reflect = { path = "crates/slime-reflect" }

@@ -1,0 +1,25 @@
+[package]
+name = "slime-editor"
+description = "SlimeEngine's editor: its core, which changes a level through commands, undoes and redoes them, and journals them."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Levels are read through the cooker's metadata files, and written as it writes files, whole or not
+# at all (ADR-0134).
+slime-cook.workspace = true
+# The values that commands carry, and the comments of a level kept when it is written (ADR-0134).
+slime-reflect.workspace = true
+slime-serialize.workspace = true
+# The world that the editor changes, its commands and its levels (ADR-0109).
+slime-world.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+slime-assets.workspace = true
