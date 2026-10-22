@@ -5,24 +5,30 @@
 
 use super::MEMORY_BUDGET_ENV_VAR;
 
-/// Set in the processes that [`run_out_of_memory_in_a_child`] starts.
+/// Set in the processes that [`run_out_of_memory_in_a_child`] starts: to [`PROBE`] in those that
+/// look for a budget, where a test may stop once it knows whether its memory runs out, and to `run`
+/// in the one that runs the whole test.
 pub const CHILD_ENV: &str = "SLIME_MEMORY_BUDGET_TEST_CHILD";
 
+/// The value of [`CHILD_ENV`] in the processes that look for a budget.
+pub const PROBE: &str = "probe";
+
 /// Runs the test `name` again in processes of its own, with [`MEMORY_BUDGET_ENV_VAR`] set, and
-/// returns what the first one that ran out of memory printed; `None` when nothing runs out even at
-/// a budget of 1 %: wgpu does not read the driver's budget, as with RADV, whose budget wgpu 30
+/// returns what the one that ran the whole test printed; `None` when nothing runs out even at a
+/// budget of 1 %: wgpu does not read the driver's budget, as with RADV, whose budget wgpu 30
 /// ignores because of a driver bug, and no budget can make memory run out. A child prints
-/// `no device` when the budget is too small for it to start, and `never ran out` when it is too
-/// large for the memory to run out.
+/// `no device` when the budget is too small for it to open its device or hold what the test needs
+/// before its memory runs out, and `never ran out` when it is too large for the memory to run out.
 ///
 /// The budget is a share of the memory that the driver says the process may use, but drivers count
-/// what is already used differently: lavapipe counts the whole machine's memory, which the
-/// creations of a test do not change, so that below a share that depends on what else runs, the
-/// device does not even open, and above it, nothing runs out. A binary search looks for a share in
-/// between, where the child prints neither. What else runs on the machine moves that share; the
-/// search starts again, up to three times, when it has moved too far to be found.
+/// what is already used differently: lavapipe counts the whole machine's, which the creations of a
+/// test do not change, so that below a share that depends on what else runs, the device does not
+/// even open, and above it, nothing runs out. Probes look for the lowest share and the highest one
+/// at which the child prints neither, and the test runs halfway between: at either end, what else
+/// runs on the machine, moving by a few hundred megabytes, changes the outcome while the test runs.
+/// The search starts again, up to three times, when what else runs has moved the shares too far.
 pub fn run_out_of_memory_in_a_child(name: &str) -> Option<String> {
-    if child(name, 1).contains("never ran out") {
+    if child(name, PROBE, 1).contains("never ran out") {
         return None;
     }
     for _ in 0..3 {
@@ -33,29 +39,64 @@ pub fn run_out_of_memory_in_a_child(name: &str) -> Option<String> {
     panic!("no budget lets the device of `{name}` open and then its memory run out");
 }
 
-/// One binary search of [`run_out_of_memory_in_a_child`].
-fn search_budget(name: &str) -> Option<String> {
-    let (mut low, mut high) = (1_u8, 100_u8);
-    while low <= high {
-        let budget = low + (high - low) / 2;
-        let stdout = child(name, budget);
-        if stdout.contains("no device") {
-            low = budget + 1;
-        } else if stdout.contains("never ran out") {
-            high = budget - 1;
-        } else {
-            return Some(stdout);
-        }
-    }
-    None
+/// What a child said of its budget.
+enum Fit {
+    TooSmall,
+    Within,
+    TooLarge,
 }
 
-/// What the test `name` prints when it runs in a process of its own, with a memory budget of
-/// `budget` %.
-fn child(name: &str, budget: u8) -> String {
+/// One search of [`run_out_of_memory_in_a_child`]: a budget within, then the lowest and the
+/// highest, by halving the budgets between those known.
+fn search_budget(name: &str) -> Option<String> {
+    let probe = |budget| {
+        let stdout = child(name, PROBE, budget);
+        if stdout.contains("no device") {
+            Fit::TooSmall
+        } else if stdout.contains("never ran out") {
+            Fit::TooLarge
+        } else {
+            Fit::Within
+        }
+    };
+    // The largest budget known too small, and the smallest known too large.
+    let (mut small, mut large) = (0_u8, 101_u8);
+    let within = loop {
+        if large - small < 2 {
+            return None;
+        }
+        let budget = small + (large - small) / 2;
+        match probe(budget) {
+            Fit::TooSmall => small = budget,
+            Fit::TooLarge => large = budget,
+            Fit::Within => break budget,
+        }
+    };
+    let (mut lowest, mut highest) = (within, within);
+    while lowest - small > 1 {
+        let budget = small + (lowest - small) / 2;
+        match probe(budget) {
+            Fit::TooSmall => small = budget,
+            _ => lowest = budget,
+        }
+    }
+    while large - highest > 1 {
+        let budget = highest + (large - highest) / 2;
+        match probe(budget) {
+            Fit::TooLarge => large = budget,
+            _ => highest = budget,
+        }
+    }
+    let stdout = child(name, "run", lowest + (highest - lowest).div_ceil(2));
+    (!stdout.contains("no device") && !stdout.contains("never ran out")).then_some(stdout)
+}
+
+/// What the test `name` prints when it runs in a process of its own, with [`CHILD_ENV`] set to
+/// `mode` and a memory budget of `budget` %.
+fn child(name: &str, mode: &str, budget: u8) -> String {
     let output = std::process::Command::new(std::env::current_exe().expect("test binary path"))
         .args(["--exact", name, "--nocapture"])
-        .env(CHILD_ENV, "1")
+        .env(CHILD_ENV, mode)
         .env(MEMORY_BUDGET_ENV_VAR, budget.to_string())
         .output()
         .expect("child test process runs");

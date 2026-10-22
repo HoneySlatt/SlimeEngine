@@ -810,7 +810,8 @@ each view the settings that change its passes.
   `a_view_drawn_into_a_rectangle_leaves_the_rest_of_its_output`;
   `four_views_take_one_cascades_atlas_where_four_renderers_took_four`;
   `a_view_resized_gives_its_old_targets_back`;
-  `a_view_whose_new_size_does_not_fit_keeps_no_targets`, under a memory budget in a child process;
+  `a_view_whose_new_size_does_not_fit_keeps_no_targets`, under a memory budget in a child process,
+  since moved to `tests/oversize.rs`, alone in its binary;
   `a_multisampled_output_is_a_bug_of_the_caller` and
   `a_rectangle_beyond_its_output_is_a_bug_of_the_caller`; in `tests/resize.rs`, alone in its
   process, `a_view_resized_never_holds_the_targets_of_both_sizes`, from the peak of the process's
@@ -2235,10 +2236,13 @@ GitHub issues, linked from their entry; this list stays the reference.
   stable keys, and culling and draws decided by the GPU come with Stage 9a (ADR-0097).
 - **The tests that run out of GPU memory under a budget depend on the machine's memory in use**
   (`slime_gfx::MEMORY_BUDGET_ENV_VAR`). On lavapipe, the budget is a share of the memory that the
-  whole machine uses: under a heavy load, the child process of
-  `a_view_whose_new_size_does_not_fit_keeps_no_targets` in `slime-render`'s `tests/views.rs` ran out
-  of memory in the driver itself on 2026-10-22, its device lost, twice in a dozen runs, and passed
-  when run again.
+  whole machine uses, so that the shares at which such a test runs out of memory as it means to lie
+  in a window, a few shares wide, that what else runs moves by a share or two between runs. On
+  2026-10-22, `a_view_whose_new_size_does_not_fit_keeps_no_targets` failed twice locally and once in
+  CI, run at the window's lower end. These tests now run halfway through the window, which probes
+  find first (`slime-gfx`'s `tests/common/memory_budget.rs`), and that one alone in its binary,
+  `slime-render`'s `tests/oversize.rs`, in about 13 s; memory that moves by half the window while
+  one runs still fails it.
 - **A picking draws all that its view sees, and picking by the CPU ignores masks**
   ([ADR-0130](adr/0130-picking.md)).
   A picking's pass draws every instance that the view's scene pass draws, not those of its area
