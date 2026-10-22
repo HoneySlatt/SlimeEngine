@@ -3,7 +3,9 @@
 - Status: Accepted; amends [0116](0116-stage-6-in-two-halves.md) (Stage 6b split again, and every
   later stage released one version later), [0090](0090-stage-5b-scenes-and-prefabs.md) (the editor
   is released as 0.7), [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) (the
-  release map) and [0098](0098-the-games-the-engine-aims-at.md) (Stage 9c's work ships with 0.12)
+  release map) and [0098](0098-the-games-the-engine-aims-at.md) (Stage 9c's work ships with 0.12);
+  amended by [0134](0134-the-editors-core.md) (the first milestone in two, and *Hunna Wood*'s editor
+  package in it)
 - Date: 2026-10-22
 
 ## Context

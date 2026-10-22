@@ -3,9 +3,10 @@
 - Status: Accepted; amends [0087](0087-the-worlds-documents.md) (what a save holds of the scenes and
   prefabs spawned while a game runs, and of the prefabs that its scenes place); amended by
   [0101](0101-saves-and-identities-that-never-mislead.md) (`Unsaved` in a level written back, and
-  the numbers of what a run spawned) and [0112](0112-levels-saves-and-worlds-for-open-worlds.md)
+  the numbers of what a run spawned), [0112](0112-levels-saves-and-worlds-for-open-worlds.md)
   (references to entities of other scenes, former identities written by the editor, and hot reload
-  without a start world)
+  without a start world) and [0134](0134-the-editors-core.md) (the editor keeps the comments of a
+  level that it writes)
 - Date: 2026-10-17
 
 ## Context

@@ -813,3 +813,20 @@ test and a release build of the benchmark.
 | `render.instances.100k` | CPU of `Renderer::render` at 2560 × 1440, median of 8 | 20.91 ms |
 | `render.instances.100k` | frame, until the GPU finished it, at 2560 × 1440, median of 8 | 21.88 ms |
 | `render.instances.100k` | passes on the GPU, summed at 2560 × 1440, median of what 8 frames reported | 493.3 µs |
+
+## M6b.1a, RX 6900 XT
+
+Commit `643302a`, on 2026-10-22: the world's commands, which give back what undoes them
+([ADR-0134](adr/0134-the-editors-core.md)). The benchmark `world.undo.1k` is new: a subtree of
+1 000 entities, each with a name, a transform and a light, in a level of 100 000, deleted by the
+world's command, then restored by the command that deleting gave back, twenty times. The audit of
+0.4 estimated 10 to 15 ms for the two ([ADR-0109](adr/0109-stable-references-and-undo.md)). The
+build is not measured.
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `world.undo.1k` | 1000 entities deleted, in a level of 100000, median and 90th percentile of 20 | 1.37 ms / 1.82 ms |
+| `world.undo.1k` | restored, median and 90th percentile of 20 | 1.83 ms / 2.15 ms |
+| `world.undo.1k` | deleted then restored, median and 90th percentile of 20 | 3.24 ms / 4.00 ms |

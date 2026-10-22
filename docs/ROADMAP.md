@@ -294,7 +294,7 @@ Stage 6 is split in three parts (ADR-0116, ADR-0131): what the editor stands on,
 
 **Goal.** The engine's UI framework, built and proven by the dev overlay that games ship, and the editor's core without its interface.
 
-- The editor's core first, without its interface: a command and transaction system, every edit undoable, its entities named by their persistent identities, a deletion undone by creating its entities again under the same identities, the commands kept in a journal; what the editor creates named at once as its level's file names it (ADR-0109); the MCP server acts through the same commands (ADR-0099)
+- The editor's core first, without its interface: a command and transaction system, every edit undoable, its entities named by their persistent identities, a deletion undone by creating its entities again under the same identities, the commands kept in a journal; what the editor creates named at once as its level's file names it (ADR-0109); the MCP server acts through the same commands (ADR-0099); the editor's own program, without a window yet, and a game's editor package beside it, *Hunna Wood*'s (ADR-0110, ADR-0134)
 - The engine's UI framework (ADR-0098, ADR-0132): a retained tree of its own, built by code again when what it reads changes, its actions turned into commands; text in several writing systems; styles, and themes read from files; layout, and lists that lay out only what shows; input, focus and layers; text edited, with input methods and the clipboard; widgets; what it means, read by agents through the MCP server and by screen readers; drawn by the renderer's canvas
 - Shaped for the games of Stage 7 from its first line: transforms, clips and layers in what it draws, roots that are not a window, text that can be translated and written from right to left, actions to which gamepads will be mapped (ADR-0132)
 - The dev overlay rewritten on the framework, and egui removed (ADR-0132)
@@ -309,7 +309,7 @@ Stage 6 is split in three parts (ADR-0116, ADR-0131): what the editor stands on,
 - Docking, menu bars, dialogs, and drag and drop (ADR-0131)
 - Viewport, hierarchy, inspector (driven by reflection), gizmos, asset browser
 - Levels made of several scene files, former identities written when the editor moves an entity out of its file, and references to entities of other scenes, `EntityRef` (ADR-0112)
-- Play in the editor, the game running in a child process first (ADR-0097), in its own window, linked to the editor and to tools by the development channel; a change of the game's code starts it again where it was; a game's editor, a package beside its library and its program (ADR-0110)
+- Play in the editor, the game running in a child process first (ADR-0097), in its own window, linked to the editor and to tools by the development channel; a change of the game's code starts it again where it was
 
 The stage is planned in detail at Stage 6b's close (ADR-0131).
 
@@ -491,7 +491,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | UI framework | reflect, serialization; headless; drawn by render's canvas through a bridge, `slime-ui-render`, as `slime-world-render` is between world and render (ADR-0132) |
 | editor | world, render, assets, UI framework |
 | UI of games | render, input action mapping, UI framework |
-| undo/redo | reflect, editor commands |
+| undo/redo | the world's commands, serialization (ADR-0134) |
 | physics, audio, animation, navigation | world |
 | riding | physics, animation, input action mapping |
 | AI of characters | world, navigation |

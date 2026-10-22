@@ -143,17 +143,19 @@ the samples without a display server and, with the sample game, in a headless We
 the links between documents ([`CONTRIBUTING.md`](../CONTRIBUTING.md#checks)).
 
 **Client of the engine.** A crate or program built on the engine's public API only, which no engine
-crate depends on: the examples, the games, such as *Hunna Wood*, the dev *overlay*
-(`slime-devui`), and the benchmarks (`slime-benches`).
+crate depends on: the examples, the games, such as *Hunna Wood*, the editor (`slime-editor`), the
+dev *overlay* (`slime-devui`), and the benchmarks (`slime-benches`).
 
 **Command.** A change of the world asked for outside the *phases* of a frame that may make it, by
 the editor, the dev *overlay*, a tool, a load or a *presentation*: a value that names its entities
 by their *persistent identities* (`slime_world::Command`), queued by the *host*, and applied at the
 start of the next frame ([ADR-0107](adr/0107-the-execution-model.md),
 [ADR-0109](adr/0109-stable-references-and-undo.md),
-[ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)): the first sets a property of a
-component. The editor's commands are to be kept in its *journal*, which undo and redo read; the
-journal is not built yet.
+[ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md),
+[ADR-0134](adr/0134-the-editors-core.md)): a property set, an entity created, a prefab placed, an
+entity deleted, a parent and a *rank* given, a component attached or detached, and what a deletion
+took out restored. Applying one gives back the command that undoes it, which the editor's history
+keeps; it is written as text, which the editor's *journal* holds.
 
 **Comparison sampler.** A sampler that compares a reference depth with the depths stored in a
 *depth target* instead of reading them: each pixel read gives 1 where the comparison holds and 0
@@ -493,10 +495,11 @@ the instances of one pipeline, material and mesh that it keeps (`slime_render::R
 weighted by the cosine of its incidence, in *lux*: a matte surface of albedo c reflects
 c × irradiance / π. The roughest of the *prefiltered levels* holds the irradiance divided by π.
 
-**Journal (editor).** The editor's commands kept in order, each naming entities by their
-*persistent identities*: undo and redo read it, and it is written to disk, so that an editor that
-crashed replays it and a test replays an editing session
-([ADR-0109](adr/0109-stable-references-and-undo.md)). Decided, not built yet.
+**Journal (editor).** The editor's *steps*, as text, written to a file as they are made, undone and
+done again, each *command* naming entities by their *persistent identities*, after the text of the
+level as it was when the journal started: an editor that crashed is recovered from it, with its
+history, and a test or an agent replays an editing session
+([ADR-0109](adr/0109-stable-references-and-undo.md), [ADR-0134](adr/0134-the-editors-core.md)).
 
 **Kind (material).** A way of lighting a surface that the renderer knows by registration: its
 shaders, its parameters described by reflection, and the passes it draws in. The physically based
@@ -818,6 +821,10 @@ some types, with those components, `&T` to read one and `&mut T` to change it th
 (`slime_world::Query`, `slime_world::QueryMut`,
 [ADR-0082](adr/0082-the-worlds-storage-and-handles.md)).
 
+**Rank (hierarchy).** An entity's place among its parent's children, the first at 0: what a
+*command* that creates or moves an entity gives, and what a deletion records, so that undoing it
+puts each entity back where it was (`World::set_parent_at`, `World::rank`).
+
 **Readback.** A copy of a *render target*'s texels to the CPU. `Gpu::read_render_target` waits
 for the GPU to finish what was submitted before; `Gpu::read_render_target_later` starts the copy
 and returns at once, its texels given once wgpu has seen the copy done, a frame or more later
@@ -1043,6 +1050,10 @@ from one upload to the next.
 **Start world.** The *world* as a game makes it at the start of a run, from the scenes it spawns and
 as it prepares them, then *settles*: the *base* of its *saves*, and the world that a save is loaded
 into (`slime_world::World::load`, [ADR-0125](adr/0125-saves-per-scene.md)).
+
+**Step (editor).** What the editor undoes and redoes as one: a label and the *commands* made
+together, applied in their order, the whole step made or none of it, with what was selected before
+and after it (`slime_editor::Editor`, [ADR-0134](adr/0134-the-editors-core.md)).
 
 **Storage buffer.** A buffer that shaders read as an array they index, `var<storage, read>` in WGSL
 (`slime_gfx::StorageBuffer`): the renderer's instances find their values in one by their number

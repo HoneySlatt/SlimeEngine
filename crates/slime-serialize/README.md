@@ -15,6 +15,9 @@ properties of glTF nodes, in the binary encoding, which a world reads when it re
 (`docs/adr/0095-cooked-scene-files.md`); saves stay text. The development channel's messages are
 written in the binary encoding and read with `read_binary` (`crates/slime-channel`,
 `docs/adr/0122-the-development-channel.md`).
+The world's commands and the editor's journal are text documents of it, and the editor keeps the
+comments of the levels that it writes again (`crates/slime-editor`,
+`docs/adr/0134-the-editors-core.md`).
 
 ## Role
 
@@ -44,6 +47,9 @@ written in the binary encoding and read with `read_binary` (`crates/slime-channe
   as a cooker, and read through the same reader as text, strict and lenient alike; errors name the
   byte. `read_binary` reads the value of a registered type that such bytes hold, as `read` reads a
   text. The module `format` lays out its bytes.
+- `keep_comments`: the comments of a document written by hand, put back where they were in the
+  document that a program writes in its place, as the editor writes a level again
+  (`docs/adr/0134-the-editors-core.md`).
 
 ## Entry points
 

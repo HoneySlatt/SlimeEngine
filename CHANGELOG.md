@@ -4,6 +4,38 @@ Notable changes to SlimeEngine, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Releases are git tags (`v0.0.1`, ...);
 nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md)).
 
+## [Unreleased]
+
+### Added
+
+- The editor's core, without its interface (ADR-0134): `slime-editor`, a new crate.
+  `Editor::open` opens a level, a scene file, into a world, under the key that the game spawns it
+  under; `Editor::apply` and `apply_text` change it through steps of commands, given as values or
+  as text, each step made whole or not at all; `undo` and `redo` undo and make them again, within a
+  bound of memory (`HISTORY_BUDGET`), and select again what was selected before or after them
+  (`select`, `selection`); `keep_journal` writes the steps to a journal as they are made, from
+  which `Editor::recover` recovers an editor that crashed, with its history; `write` writes the
+  level back, whole or not at all, its comments kept. The editor refuses a command that would
+  change what is not under its level's root.
+- The world's commands are the editor's (ADR-0134): `Command::Create`, `Place`, `Delete`,
+  `Reparent`, `Insert`, `Remove` and `Restore` beside `SetProperty`, each naming its entities by
+  their persistent identities. A deletion records what it takes out (`Deleted`), its values
+  referring to entities by identity, and `Restore` creates it again under the same identities, at
+  the same places, the references of other entities pointing at it again. `Command::write` and
+  `Command::read` give a command's text, which `Identities` names entities in.
+- `World::spawn_as`, `World::place_as` and `World::new_id` create an entity, or place a prefab,
+  under an identity of a scene, `zone/torch-0rdx`, as a scene file names what it holds;
+  `World::set_parent_at` puts a child at a rank among its siblings, and `World::rank` gives it.
+- `slime_serialize::keep_comments` puts the comments of a document written by hand back into the
+  document written in its place.
+- The benchmark `world.undo.1k`: a subtree of 1 000 entities deleted then restored.
+
+### Changed
+
+- `World::apply` returns the command that undoes the one it applied.
+- `slime_cook::write`, which writes a file whole or not at all, is public.
+- A reference to an entity that a tool writes `""` in the development channel reads as no entity.
+
 ## [0.5.0] - 2026-10-22
 
 The eighth release, which closes Stage 6a of the roadmap, what the editor stands on, with the two

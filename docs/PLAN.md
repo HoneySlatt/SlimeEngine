@@ -32,13 +32,16 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   candidate crates, led to the owner's decisions on the framework
   ([ADR-0132](adr/0132-the-engines-ui-framework.md)) and on the fonts that the engine ships
   ([ADR-0133](adr/0133-font-files-under-the-open-font-license.md)). Stage 6 is now in three parts:
-  Stage 6c, the editor, is planned in detail at Stage 6b's close, and released as 0.7. Next: M6b.1.
+  Stage 6c, the editor, is planned in detail at Stage 6b's close, and released as 0.7. M6b.1 was
+  cut in two at its start ([ADR-0134](adr/0134-the-editors-core.md)): M6b.1a, the commands and
+  undo, is done. Next: M6b.1b.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M6b.1](#m6b1--the-editors-core-without-its-interface) | The editor changes a level through commands that name its entities for good, undoes and redoes them, and an agent does the same | Planned |
+| [M6b.1a](#m6b1a--the-commands-and-undo) | The world's commands name entities for good and undo themselves; the editor's core makes them into steps, undone, redone and journaled, and writes its level back with its comments | Done |
+| [M6b.1b](#m6b1b--the-editor-driven-by-an-agent) | An agent drives the editor's core through the MCP server, on a level of the examples and on *Hunna Wood*'s zone | Planned |
 | [M6b.2](#m6b2--text-in-several-writing-systems) | The engine lays text out in every writing system, without a GPU | Planned |
 | [M6b.3](#m6b3--drawing-the-interface) | The renderer draws an interface's boxes, text and images, crisp at every scale | Planned |
 | [M6b.4](#m6b4--elements-styles-and-layout) | An interface is a tree of elements, styled by themes read from files, laid out by flexbox and grid, and built again only where what it shows changed | Planned |
@@ -89,12 +92,11 @@ core, without its interface. Where the engine stands at the start:
   ([ADR-0122](adr/0122-the-development-channel.md)), nothing of an interface.
 
 Out of scope: Stage 6c's work, docking, menu bars, dialogs to open and save files, files dropped,
-drag and drop between panels, the editor's window and viewport, *Hunna Wood*'s editor package, play
-in the editor, the hierarchy, the inspector beyond the overlay's value editors, `EntityRef`, gizmos,
-levels of several files and the asset browser; several windows of the system (G34); Stage 7's UI for
-games, animation and transitions, layers with masks, effects on text through distance fields, UI
-documents and their bindings, UI on surfaces in the world, focus driven by gamepads; translation
-tables (Stage 9b).
+drag and drop between panels, the editor's window and viewport, play in the editor, the hierarchy,
+the inspector beyond the overlay's value editors, `EntityRef`, gizmos, levels of several files and
+the asset browser; several windows of the system (G34); Stage 7's UI for games, animation and
+transitions, layers with masks, effects on text through distance fields, UI documents and their
+bindings, UI on surfaces in the world, focus driven by gamepads; translation tables (Stage 9b).
 
 Decisions taken when the stage was planned, by the owner on 2026-10-22: Stage 6b split again, with
 its order and its releases, in [ADR-0131](adr/0131-stage-6b-and-stage-6c.md); the framework's
@@ -130,32 +132,97 @@ Risks:
   what it does today, and egui leaves only once the new one does all of it.
 - **One GPU.** Budgets are checked on the owner's RX 6900 XT only ([Known debt](#known-debt)).
 
-### M6b.1 — The editor's core, without its interface
+### M6b.1a — The commands and undo
 
-- **Goal.** The editor changes a level through commands that name its entities for good, undoes and
-  redoes them, and an agent does the same.
-- **Crates.** `slime-world`, a new `slime-editor`; `slime-app`, `slime-channel`, `slime-mcp`; the
-  examples.
-- **Delivers.** As [ADR-0109](adr/0109-stable-references-and-undo.md) decides: the world creates an
-  entity under a given identity nested in a scene's, refused if the identity is taken, and puts a
-  child at a given rank among its siblings. `slime-editor`, a library without an interface: the
-  editor's commands, values that `slime-serialize` writes, each naming its entities by their
-  persistent identities, create, delete, reparent, set a property, add and remove a component,
-  grouped into transactions; a deletion that records its subtree, the components as reflected
-  values, the ranks and the references that named it, undone by creating the subtree again under the
-  same identities; the journal, undo and redo; the selection, by identities; a level opened from its
-  scene file and written back, what the editor created named at once as the file names it. The MCP
-  server gains the editor's commands, undo, redo and the journal, through the development channel,
-  on a program that hosts the editor's core; which program, the `world` example or a program of the
-  editor's own without a window, is decided at the milestone's start. The ADR of the design.
+- **Goal.** The world's commands name entities for good and give back what undoes them; the
+  editor's core makes them into steps, undone, redone and journaled, and writes its level back with
+  its comments.
+- **Crates.** `slime-world`, `slime-serialize`, `slime-cook`, a new `slime-editor`; `slime-app`;
+  the benchmarks.
+- **Delivers.** As [ADR-0109](adr/0109-stable-references-and-undo.md) decides, and
+  [ADR-0134](adr/0134-the-editors-core.md) shapes: the world creates an entity under a given
+  identity nested in a scene's, refused if the identity is taken, places a prefab so, and puts a
+  child at a given rank among its siblings. The world's commands are the editor's: create, place a
+  prefab, delete, reparent, set a property, attach and detach a component, and restore what a
+  deletion recorded, its subtree, the components as reflected values, the ranks and the references
+  that named it; each gives back the command that undoes it, and is written and read as text, its
+  entities by their identities. `slime-editor`, a library without an interface: a level opened from
+  its scene file, changed through steps, made whole or not at all, undone and redone within a bound
+  of memory, the selection by identities, restored by undo and redo; the journal, as text, from
+  which an editor that crashed is recovered; the level written back, whole or not at all, with its
+  comments, what the editor created named at once as the file names it. The ADR of the design; the
+  rustdoc, `docs/ARCHITECTURE.md`, the glossary, `CHANGELOG.md`.
 - **Done when.** Tests: each command, done, undone and redone, leaves the level that the file writes
   as it was, identities, ranks and references included; a subtree deleted, which other entities
-  named, comes back named by them; a journal written, then played again on the level opened again,
-  gives the same level; a level opened, changed, written back and opened again holds the changes,
-  and what the editor created there has the identity that the file gives it; an agent's session
-  through the MCP server creates, changes, deletes, undoes and redoes; a benchmark of a thousand
+  named, comes back named by them; a step refused half-way leaves the level as it was; an editor
+  recovered from its journal holds the level, the history and the selection of the one that
+  crashed, a writing of the level and undoes across it included;
+  a level opened, changed, written back and opened again holds the changes and its comments, and
+  what the editor created there has the identity that the file gives it; a benchmark of a thousand
   entities deleted then restored (the audit estimated 10 to 15 ms); CI is green.
-- **How to test.** `cargo test -p slime-world -p slime-editor`; the MCP server's session test.
+- **How to test.** `cargo test -p slime-world -p slime-serialize -p slime-editor`;
+  `cargo run --release -p slime-benches -- world.undo`.
+- **Outcome.** Done on 2026-10-22. [ADR-0134](adr/0134-the-editors-core.md) records the owner's
+  eight decisions of 2026-10-22, among which M6b.1 cut in two, and amends ADR-0089, ADR-0092,
+  ADR-0109, ADR-0110, ADR-0121, ADR-0122 and ADR-0131. `slime_world::Command` gains `Create`,
+  `Place`, `Delete`, `Reparent`, `Insert`, `Remove` and `Restore`, and `World::apply` returns the
+  command that undoes the one it applied; `Delete` records its subtree in `Deleted`, its values
+  referring to entities by identity, which `Restore` creates again. `World::spawn_as`,
+  `World::place_as` and `World::new_id` create under an identity of a scene; `World::set_parent_at`
+  and `World::rank` place a child among its siblings. `Command::write` and `Command::read` give a
+  command's text; `slime_world::Identities` names entities by identity for it and for the
+  development channel, which used a copy of its own. `slime_serialize::keep_comments` puts the
+  comments of a document written by hand back into the one written again; `slime_cook::write`, which
+  writes a file whole or not at all, is public. `slime_editor::Editor` opens a level, makes steps of
+  commands given as values or as text, refusing those that would change what is not under the
+  level's root, undoes and redoes them (`HISTORY_BUDGET`), selects, keeps a journal, from which
+  `Editor::recover` recovers an editor that crashed, and writes its level back. The examples' yard
+  written back by the editor, unchanged, is the file written by hand, byte for byte, which a probe
+  checked and M6b.1b's tests check. The benchmark `world.undo.1k` deletes and restores a subtree of
+  1 000 entities in a level of 100 000 several times faster than the audit estimated
+  ([`docs/measurements.md`](measurements.md)). A read-only review found twelve defects, among which
+  a recovery that rebuilt another level when an undo crossed a writing, and entities left out of the
+  level without a word: each is fixed, and tested. The tests: in `slime-world`'s
+  `tests/commands.rs`, `each_command_done_undone_and_redone_leaves_the_file_as_it_was`,
+  `a_deleted_subtree_comes_back_named_by_what_named_it`,
+  `a_restoration_is_refused_while_an_identity_is_taken_and_changes_nothing`,
+  `a_command_refused_changes_nothing`, `commands_written_as_text_are_read_back_the_same`,
+  `text_that_is_not_a_command_is_refused_with_the_reason`,
+  `what_the_world_names_is_free_and_written_as_the_file_names_it` and
+  `a_prefab_placed_is_written_as_a_file_places_it`; in `hierarchy.rs`,
+  `a_child_put_at_a_rank_goes_there_and_back_and_a_rank_past_the_last_puts_it_last`; in
+  `slime-serialize`'s `comments.rs`, five tests, and its documents damaged, their comments kept; in
+  `slime-editor`'s `tests/editor.rs`,
+  `a_level_changed_written_and_opened_again_holds_the_changes_and_its_comments`,
+  `steps_undo_and_redo_whole_and_select_again_what_they_selected`,
+  `a_step_refused_half_way_leaves_the_level_as_it_was`,
+  `a_command_that_would_change_what_is_not_under_the_level_s_root_is_refused`,
+  `a_recovered_editor_holds_the_level_the_history_and_the_selection_of_the_one_that_crashed` and
+  `the_history_forgets_the_steps_undone_then_the_oldest_done_past_its_budget_but_the_last`.
+
+### M6b.1b — The editor driven by an agent
+
+- **Goal.** An agent drives the editor's core through the MCP server, on a level of the examples
+  and on *Hunna Wood*'s zone.
+- **Crates.** `slime-editor`, `slime-app`, `slime-channel`, `slime-mcp`; the examples;
+  `games/hunnawood` and a new `games/hunnawood-editor`.
+- **Delivers.** As [ADR-0134](adr/0134-the-editors-core.md) decides: the editor's program, an
+  application of `slime-app` whose simulation is the editor's core, without a window, its frames
+  paced; the editor's requests reaching it through methods of `Simulation`, and the commands that
+  the channel or the dev overlay send to it made steps of its history; version 7 of the
+  protocol, a step of commands as text, undo, redo, the history, the journal, the selection read
+  and set, and the level written back; the MCP server's tools for each. Two programs: the example
+  `editor`, on the examples' yard, and `games/hunnawood-editor`, *Hunna Wood*'s editor package, on
+  its zone, the game making public what registers its types. The journal kept in the editor's
+  directory of the user's data directory, unless `--journal` names another file; what a program
+  does with the journal that a crash left is decided at the milestone's start.
+- **Done when.** Tests: an agent's session through the MCP server opens the yard, creates, places,
+  changes, deletes, undoes and redoes, reads the history and the journal, writes the level back
+  and opens it again; the yard written back unchanged is the file written by hand, byte for byte;
+  *Hunna Wood*'s zone written back keeps its comments; the commands that the channel sends to the
+  editor undo; CI is green, its jobs' times recorded.
+- **How to test.** `cargo test -p slime-editor -p slime-app -p slime-mcp`; the MCP server's session
+  test; `cargo run --example editor`; `cargo run -p hunnawood-editor`.
 
 ### M6b.2 — Text in several writing systems
 
@@ -349,9 +416,9 @@ provisional until then:
    one place to another, their layout saved; a menu bar; dialogs to open and save, through rfd;
    drag and drop between panels; files dropped from the system on Windows and X11, and on Wayland
    once winit 0.31 is released.
-2. **The editor's window and its viewport**: *Hunna Wood*'s editor, the package
-   `games/hunnawood-editor` ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)); a level
-   opened; a view in a panel, drawn into a texture; its camera, with the raw motion of the mouse
+2. **The editor's window and its viewport**: the editor's program, and *Hunna Wood*'s editor
+   package, which M6b.1b makes ([ADR-0134](adr/0134-the-editors-core.md)), given a window; a view
+   in a panel, drawn into a texture; its camera, with the raw motion of the mouse
    and the cursor held; the grid and the icons of lights; a click that selects, and the selection
    outlined, which needs the scene's depth resolved, and handles drawn over the image with a depth
    of their own ([Known debt](#known-debt)); when a viewport draws again; the modes of debugging
@@ -472,9 +539,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   the mouse nor text; a run without a window has no image to capture; the measurements that the
   channel gives are the frames' times, not the renderer's statistics, which the presentation holds;
   an MCP server drives one game at a time; a component that refers to an entity without a
-  persistent identity is read, the reference written as no entity, and cannot be written back. A
-  window's image is created with the copy-source usage
-  wherever the system offers it, at every frame, whether or not a tool captures it: what that costs
+  persistent identity is read, the reference written as no entity, `""`, and written back so, no
+  longer naming it. A window's image is created with the copy-source usage wherever the system
+  offers it, at every frame, whether or not a tool captures it: what that costs
   a driver is not measured. Each later milestone exposes its system to the channel
   ([ADR-0116](adr/0116-stage-6-in-two-halves.md)).
 - **The first frame that draws shadows costs more, and more still while a scene loads**
@@ -911,7 +978,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   is carried into the file cooked again**
   ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)): the save no
   longer names it, and the file holds it. A save that names the written identities of what the run
-  destroyed would settle it; the editor writes levels through its commands from M6b.1, and play in
+  destroyed would settle it; the editor writes levels through its commands from M6b.1a, and play in
   the editor carries a run into them at Stage 6c, which meets it first.
 - **A game's preparation of a scene that a save spawns may change only the scene's entities**
   ([ADR-0125](adr/0125-saves-per-scene.md)): what it creates, under a key or as a placement, is the
@@ -1066,6 +1133,23 @@ GitHub issues, linked from their entry; this list stays the reference.
   minification filter and gives every texture mipmaps, so only `NEAREST_MIPMAP_NEAREST` and
   `LINEAR_MIPMAP_LINEAR` are exact (documented in the importer, `crates/slime-cook`). Revisit when
   an engine-side user needs a separate mipmap filter or a base-level-only read.
+- **A restored entity that had a base takes its values as its base**
+  ([ADR-0134](adr/0134-the-editors-core.md)), as every entity that a scene spawned has: what a run
+  changed of it before it was deleted is no longer told apart from what its scene gave it, and a
+  save made afterwards does not hold it. The editor never saves its world; a game that deletes and
+  restores such an entity through the world's commands loses that difference.
+- **The editor's journal is handed to the system at each step, not forced to the disk**
+  ([ADR-0134](adr/0134-the-editors-core.md)): a crash of the editor loses no step, a crash of the
+  system may lose the last ones.
+- **Undoing a deletion in the editor copies what it recorded**, and recording it reads every
+  component, of every entity of the world, of a type that may refer to an entity
+  ([ADR-0134](adr/0134-the-editors-core.md)): `world.undo.1k` measures the world's commands on a
+  subtree of 1 000 entities, of types that refer to none, not the editor's step.
+- **The editor does not follow the prefabs that change on disk while it edits**
+  ([ADR-0134](adr/0134-the-editors-core.md)): its library holds the cooked scenes as it opened them.
+  Hot reload in the editor comes with Stage 6c.
+- **A comment within a value written on several lines is lost** when the editor writes the level
+  again, but for the end of the value's first line (`slime_serialize::keep_comments`).
 
 ### Left by the audit of 0.4
 

@@ -1,13 +1,14 @@
 # 0121. A game as a simulation and a presentation
 
-- Status: Accepted; amends [0057](0057-what-the-first-game-asks-of-the-next-stages.md) (the keys
-  and buttons held, kept by the engine at Stage 6), [0107](0107-the-execution-model.md) (the shape
-  of a game's two parts and of its host, what the presentation reads, extraction before the
-  window's image, the update while game time is paused, the pause apart from the speed, and a
-  game's cooked data that changed applied by its own simulation until the editor's hot reload),
-  [0110](0110-how-the-editor-runs-a-games-code.md) (a game's library holds its presentation too)
-  and [0120](0120-a-frame-that-owns-what-it-draws.md) (the frame's lights name their entities);
-  amended by [0122](0122-the-development-channel.md) (a game holds game time apart from the pause)
+- Status: Accepted; amends [0057](0057-what-the-first-game-asks-of-the-next-stages.md) (the keys and
+  buttons held, kept by the engine at Stage 6), [0107](0107-the-execution-model.md) (the shape of a
+  game's two parts and of its host, what the presentation reads, extraction before the window's
+  image, the update while game time is paused, the pause apart from the speed, and a game's cooked
+  data that changed applied by its own simulation until the editor's hot reload),
+  [0110](0110-how-the-editor-runs-a-games-code.md) (a game's library holds its presentation too) and
+  [0120](0120-a-frame-that-owns-what-it-draws.md) (the frame's lights name their entities); amended
+  by [0122](0122-the-development-channel.md) (a game holds game time apart from the pause) and
+  [0134](0134-the-editors-core.md) (applying a command gives back the command that undoes it)
 - Date: 2026-10-21
 
 ## Context

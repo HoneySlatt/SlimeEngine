@@ -17,8 +17,10 @@ whether the hierarchy moved since they last read. It saves what a run changed si
 settled the world, as text, at the cost of what changed, keeps what a run changed of a scene that
 it unloads until the scene is spawned again, lets an entity outlive its scene under a key of its
 own, and loads a save back; it writes a world, or a subtree of it, back as a scene file that keeps
-its placements. Its
-library of scenes reads them from cooked data, the scene files in their binary encoding.
+its placements. Its library of scenes reads them from cooked data, the scene files in their binary
+encoding. Its commands, which name entities by their persistent identities, are the editor's too:
+each gives back the command that undoes it, a deletion restored under the same identities
+(`docs/adr/0134-the-editors-core.md`).
 
 ## Role
 
@@ -107,7 +109,8 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   which entities last came, went, changed parent or name; `World::ticks`, a component's ticks.
 - `World::set_parent`, `parent` and `children` keep the hierarchy, `children` an iterator over an
   entity's children in their order, each linked to its siblings, so that one leaves its parent in
-  constant time (`docs/adr/0106-the-measured-quick-wins.md`). `Transform` places an entity
+  constant time (`docs/adr/0106-the-measured-quick-wins.md`); `World::set_parent_at` puts a child
+  at a rank among its siblings, and `World::rank` gives an entity's. `Transform` places an entity
   relative to its parent: an `f64` translation, a rotation, a uniform scale that children inherit
   and a stretch that they do not. `World::global_transform` gives where it is in the world, a
   `GlobalTransform`, always current; `World::update_transforms` computes again what changed, so that
@@ -132,7 +135,10 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   its start, which saves find whatever else it creates; `World::find` gives the entity of a
   `PersistentId`; `World::placement` says what the world remembers of a placement: its prefab, and
   the overrides of the scene that placed it that were set aside. `World::spawn_placement` places a
-  prefab while the world runs, under `created/<number>`.
+  prefab while the world runs, under `created/<number>`. `World::spawn_as` and `World::place_as`
+  create an entity, or place a prefab, under an identity of a scene, `zone/torch-0rdx`, as the
+  editor names what it creates, and `World::new_id` gives one that no entity has
+  (`docs/adr/0109-stable-references-and-undo.md`).
 - `World::write_scene` writes a subtree back as a scene file (`Written`): placements as placements
   with what differs from their prefab, the overrides that the scene wrote kept, driven components
   as their author wrote them, entities created since given IDs that they keep, and by which a run
@@ -153,10 +159,16 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   `component_value`, `set_component_value` and `set_property` list the entities and reach their
   components by name and property path, without their types, within the ranges of their fields.
 - `Command` is a change of the world asked for outside the phases of a frame that may make it,
-  which names its entity by its persistent identity: `Command::SetProperty`, a value set at a
-  property path of a component. `World::apply` applies one, as `slime-app`'s host does at the start
-  of each frame with those queued since the last one
-  (`docs/adr/0121-a-game-as-a-simulation-and-a-presentation.md`).
+  which names its entities by their persistent identities: a value set at a property path of a
+  component, an entity created, a prefab placed, an entity deleted with its descendants, a parent
+  and a rank given, a component attached or detached, and what a deletion took out restored.
+  `World::apply` applies one, as `slime-app`'s host does at the start of each frame with those
+  queued since the last one, and as the editor does, and gives back the command that undoes it:
+  a deletion gives back `Command::Restore`, which holds what it took out (`Deleted`), its values
+  referring to entities by identity. `Command::write` and `Command::read` give a command's text,
+  its entities by their identities (`Identities`)
+  (`docs/adr/0121-a-game-as-a-simulation-and-a-presentation.md`,
+  `docs/adr/0134-the-editors-core.md`).
 - `World::settle` makes what the world holds the base that its saves compare it with: a game
   settles it once it made the start of a run, and again once it prepared a scene that it spawned
   since. `World::save(about)` writes what the run changed since: the scenes under keys and the

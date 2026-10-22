@@ -68,9 +68,12 @@ sees its image or one of its views, changes how a view draws, reads its reports 
 drawn at a pixel. A save costs what the run changed since the game settled its world, the world
 that it made at the start of the run; a level unloaded keeps what the run changed of it, and an
 entity adopted, taken out of its level, outlives it. The `world` example draws its yard and a map
-of it from above in a corner, and selects what a click picks. [`docs/PLAN.md`](docs/PLAN.md) says
-what comes next, Stage 6b, the engine's interface: its UI framework, proven by the dev overlay,
-and the editor's core; then Stage 6c, the editor. It lists the known debt too.
+of it from above in a corner, and selects what a click picks. Since 0.5, on `main`, the editor's
+core, a library without an interface (`slime-editor`), changes a level through commands that name
+its entities by their persistent identities, undoes and redoes them, journals them, and writes the
+level back with its comments. [`docs/PLAN.md`](docs/PLAN.md) says what comes next, the rest of
+Stage 6b, the engine's interface: its UI framework, proven by the dev overlay, and the editor's core
+driven by an agent; then Stage 6c, the editor. It lists the known debt too.
 
 ## Getting started
 
@@ -150,7 +153,8 @@ The engine is young; [`docs/ROADMAP.md`](docs/ROADMAP.md) says which stage bring
 known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) lists the smaller gaps. A game made with it
 today has:
 
-- No text, game UI, audio, physics, animation or editor.
+- No text, game UI, audio, physics or animation, and of the editor only its core, a library
+  without an interface (`slime-editor`).
 - An asset pipeline that imports glTF scenes, scene files and PNG and JPEG images only: the cooker,
   `slime-cook`, makes them cooked data, which the renderer loads whole, in the background while the
   game goes on, as an asset cache's requests ask (`AssetCache::request`) or a scene at a time
@@ -162,7 +166,7 @@ today has:
   run, at the cost of what changed; *Hunna Wood* saves
   one run, in one file, and refuses the saves of the versions before 0.5. Scene
   files are cooked, and written by hand; a world is written back as a scene file through the API,
-  and no editor writes them yet.
+  and the editor's core writes a level back with its comments.
 - A renderer that leaves out what the camera does not see and draws the instances of one mesh and
   one material together, with blended transparency for unlit materials only, unsorted, a physically
   based material refusing it until Stage 9a; with a capped number of lights, and
