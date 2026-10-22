@@ -336,6 +336,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The tooltips of the dev overlay's widgets show a value's documentation as plain text, its lines
   joined into paragraphs and its links written as their text, where they showed its doc comments
   as written, line breaks and Markdown included.
+- The ring of the `world` example rises from where it rests and falls back, where it sank into the
+  ground for half of each rise and fall.
 - The lamps of the `world` example's yard have their light: the light of the lamp's prefab had no
   transform, which the frame builder needs to place a light, and was never drawn.
 - When creating the spot lights' shadow atlas ran out of GPU memory after the cascades' atlas was

@@ -3,10 +3,10 @@
 //! without its light (`docs/adr/0095-cooked-scene-files.md`). It is spawned in the world that
 //! `slime-app` keeps, through a library of the cooked scenes, its meshes loaded by an asset cache
 //! in the background, and drawn through `slime-world-render`, its sun given once, to the sky and to
-//! the lights. The glowing ring floats up and down at the fixed step, its light with it, and each
-//! frame draws it between its last two places. The camera turns around the scene, and a second
-//! view, orthographic, draws a map of it from above in the window's top right corner
-//! (`docs/adr/0126-views-apart-from-the-renderer.md`). After a lost GPU
+//! the lights. The glowing ring rises from where it rests and falls back at the fixed step, its
+//! light with it, and each frame draws it between its last two places. The camera turns around the
+//! scene, and a second view, orthographic, draws a map of it from above in the window's top right
+//! corner (`docs/adr/0126-views-apart-from-the-renderer.md`). After a lost GPU
 //! device, it goes on: a new asset cache loads the world's meshes again, and the world is
 //! untouched. Besides the yard, the example draws into the yard's view a grid on the ground, hidden
 //! by what stands in front of it, and an icon above each light, facing the camera, through an unlit
@@ -88,8 +88,9 @@ const USAGE: &str = "usage: world [--assets <directory>] [--frames <count>] [--h
 
 /// The key the yard is spawned under: its entities' identities start with it.
 const KEY: &str = "yard";
-/// How high the ring floats above and below where the file puts it, in metres.
-const FLOAT_HEIGHT: f64 = 0.3;
+/// How high the ring rises above where the file puts it, in metres: never below, where it rests
+/// on the ground.
+const FLOAT_HEIGHT: f64 = 0.6;
 /// How long the ring takes to rise and fall back.
 const FLOAT_PERIOD: f64 = 3.0;
 /// Radians per second at which the camera turns around the scene.
@@ -413,7 +414,7 @@ impl Simulation for Yard {
         // The game time once this step has run.
         let game = ctx.time().game();
         let time = (game.elapsed() + game.step()).as_secs_f64();
-        let height = base + FLOAT_HEIGHT * (TAU * time / FLOAT_PERIOD).sin();
+        let height = base + FLOAT_HEIGHT * (1.0 - (TAU * time / FLOAT_PERIOD).cos()) / 2.0;
         if let Some(mut transform) = world.get_mut::<Transform>(ring) {
             transform.translation.y = height;
         }

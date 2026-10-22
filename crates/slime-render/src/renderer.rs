@@ -123,9 +123,9 @@ const LOWEST_RENDER_SCALE: f32 = 0.25;
 const HIGHEST_RENDER_SCALE: f32 = 2.0;
 /// How long the size that a view's rectangle and render scale ask of its targets must stay the same
 /// before the view makes its targets at that size (ADR-0127): 200 ms, whatever the frame rate, so
-/// that the edge of a window dragged, which changes the size at every frame, makes them once, when
-/// it is let go. Until then the view draws into the targets it has, whose image its tone mapping
-/// stretches over its rectangle.
+/// that the edge of a window dragged, which changes the size at every frame, makes them once it
+/// holds still, as when it is let go. Until then the view draws into the targets it has, whose
+/// image its tone mapping stretches over its rectangle.
 pub const RESIZE_DELAY: Duration = Duration::from_millis(200);
 /// How many instances the buffer of the instances' values holds when the renderer is created, and
 /// how many entries the list of the instances that the draws draw does; each doubles whenever a
@@ -372,12 +372,12 @@ pub struct RenderStats {
 ///
 /// Its targets are the size of the rectangle it draws into times its render scale
 /// ([`View::render_size`]). Its first frame creates them; when that size changes, the view keeps
-/// drawing into the targets it has, its image stretched over its rectangle, until the size has
-/// held still for [`RESIZE_DELAY`], so that a window's edge dragged makes them once, when it is let
-/// go (ADR-0127). It then frees the old ones first, so that the GPU never holds both: the call that
-/// makes them waits for the GPU to finish the frames that use the old ones (G18). A view draws best
-/// into rectangles of one size: one drawn into rectangles of two sizes in turn draws one of them
-/// stretched, at every frame; use one view per size.
+/// drawing into the targets it has, its image stretched over its rectangle, until the size has held
+/// still for [`RESIZE_DELAY`], so that a window's edge dragged makes them once it holds still, as
+/// when it is let go (ADR-0127). It then frees the old ones first, so that the GPU never holds
+/// both: the call that makes them waits for the GPU to finish the frames that use the old ones
+/// (G18). A view draws best into rectangles of one size: one drawn into rectangles of two sizes in
+/// turn draws one of them stretched, at every frame; use one view per size.
 /// At 1920 × 1080 with the bloom, a view with anti-aliasing holds about 122 MiB of GPU memory: 111
 /// for the high-dynamic-range and depth targets, 95 of them for their four samples per pixel, and
 /// 10.5 for the bloom's levels; at 1280 × 720, about 54 MiB; at 3840 × 2160, about 485 MiB.
