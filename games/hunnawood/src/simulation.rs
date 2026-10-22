@@ -9,7 +9,7 @@ use std::io;
 use std::path::Path;
 use std::time::Instant;
 
-use slime_app::{AppError, Simulation, SimulationContext};
+use slime_app::{AppError, HeldFile, Simulation, SimulationContext};
 use slime_assets::{CookedAssets, ManifestWatch};
 use slime_platform::KeyCode;
 use slime_world::{Loaded, SceneLibrary, World};
@@ -17,7 +17,7 @@ use slime_world::{Loaded, SceneLibrary, World};
 use crate::controls;
 use crate::look::Look;
 use crate::rules::Game;
-use crate::saves::{self, SaveFile};
+use crate::saves;
 use crate::zone::Layout;
 
 /// *Hunna Wood*'s rules, which a host runs: the game in its world, the scenes it is a game of, and
@@ -36,7 +36,7 @@ pub struct HunnaWood {
     /// The save's file, which this copy of the game holds, or why the run is not saved: the
     /// environment gives no data directory and `--save` names no file, another copy of the game
     /// holds the file, or the save there can be neither read nor set aside.
-    save_file: Result<SaveFile, String>,
+    save_file: Result<HeldFile, String>,
     /// With `--watch`, what tells when the cooked data changes, and the cooked data that the
     /// scenes of the run come from, which the library goes back to when the scenes that changed
     /// cannot be played.
@@ -51,7 +51,7 @@ impl HunnaWood {
         (world, game): (World, Game),
         layout: Layout,
         scenes: SceneLibrary,
-        save_file: Result<SaveFile, String>,
+        save_file: Result<HeldFile, String>,
         watch: Option<(ManifestWatch, CookedAssets)>,
     ) -> Self {
         Self {
@@ -293,8 +293,8 @@ pub enum Resume {
 
 /// The run of the save in `file`, resumed in a new game of `scenes`, if the file holds one that can
 /// be resumed ([`saves::resume`]); logged either way. A save that is not resumed is set aside
-/// ([`saves::set_aside`]), so that the next save does not write over it, under a name that says why
-/// ([`saves::NotResumed::aside`]): `unreadable`, `earlier-version`, `later-version`,
+/// (`slime_app::set_aside`), so that the next save does not write over it, under a name that says
+/// why ([`saves::NotResumed::aside`]): `unreadable`, `earlier-version`, `later-version`,
 /// `other-layout`, `unknown-content`, `unplayable`. What is not a file, a directory or a pipe, is
 /// neither read nor moved.
 pub fn resume_from(file: &Path, scenes: &mut SceneLibrary) -> Resume {
@@ -351,7 +351,7 @@ fn log_loaded(loaded: &Loaded) {
 /// Sets aside the save in `file`, which is not resumed for `why`, under a name that ends in `what`,
 /// and logs it: [`Resume::Nothing`] once it is, [`Resume::Keep`] if it cannot be.
 fn set_aside(file: &Path, what: &str, why: &str) -> Resume {
-    match saves::set_aside(file, what) {
+    match slime_app::set_aside(file, what) {
         Ok(aside) => {
             tracing::warn!(
                 "the save in {} is not resumed: {why}; it is set aside as {}",

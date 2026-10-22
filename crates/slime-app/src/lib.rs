@@ -3,6 +3,7 @@
 mod app;
 #[cfg(feature = "development")]
 mod channel;
+mod data;
 mod diagnostics;
 mod error;
 mod game;
@@ -15,6 +16,7 @@ mod trace;
 mod windowed;
 
 pub use app::{AppConfig, run};
+pub use data::{HeldFile, data_directory, set_aside};
 pub use diagnostics::{DEFAULT_LOG_FILTER, LOG_ENV_VAR, error_chain, init_diagnostics};
 pub use error::{AppError, RunError};
 pub use game::{PickAnswer, Presentation, Reflected, ShownView, Simulation};

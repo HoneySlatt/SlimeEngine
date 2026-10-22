@@ -27,10 +27,10 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Instant;
 
-use hunnawood::saves::{self, SaveFile};
+use hunnawood::saves;
 use hunnawood::simulation::{Resume, kept, log_run, resume_from};
 use hunnawood::{HunnaWood, Screen, assets};
-use slime_app::AppConfig;
+use slime_app::{AppConfig, HeldFile};
 use slime_assets::{CookedAssets, ManifestWatch};
 use slime_platform::WindowConfig;
 use slime_world::SceneLibrary;
@@ -82,7 +82,7 @@ fn main() -> ExitCode {
         .ok_or_else(|| {
             "the environment gives no data directory, and --save names no file".to_owned()
         })
-        .and_then(SaveFile::hold);
+        .and_then(HeldFile::hold);
     let resumed = match &save_file {
         Ok(file) if !options.new => resume_from(file.path(), &mut scenes),
         Ok(_) => Resume::Nothing,
