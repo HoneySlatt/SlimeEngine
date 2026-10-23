@@ -5,7 +5,8 @@
   together, their values in a storage buffer), [0106](0106-the-measured-quick-wins.md) (the shadow
   passes group what they draw by mesh, the material only for masked materials) and
   [0115](0115-what-the-gpu-layer-gives-the-editor.md) (each buffer's uses are those of its type);
-  amended by [0128](0128-asset-requests.md) (an asset cache's meshes in pages of its own)
+  amended by [0128](0128-asset-requests.md) (an asset cache's meshes in pages of its own) and
+  [0138](0138-the-high-tier-at-3840-2160.md) (the high tier measured at 3840 × 2160)
 - Date: 2026-10-20
 
 ## Context

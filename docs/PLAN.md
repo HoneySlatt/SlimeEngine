@@ -36,7 +36,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   cut in two at its start ([ADR-0134](adr/0134-the-editors-core.md)): M6b.1a, the commands and
   undo, and M6b.1b, the editor driven by an agent ([ADR-0135](adr/0135-the-editors-program.md)),
   are done, and so is M6b.2, text in several writing systems
-  ([ADR-0136](adr/0136-the-interfaces-text.md)). Next: M6b.3.
+  ([ADR-0136](adr/0136-the-interfaces-text.md)). M6b.3 was cut in two at its start
+  ([ADR-0137](adr/0137-the-canvas.md)): M6b.3a, the canvas, is done, and the high hardware tier now
+  draws at 3840 × 2160 ([ADR-0138](adr/0138-the-high-tier-at-3840-2160.md)). Next: M6b.3b, the
+  interface's text drawn.
 
 ## Status
 
@@ -45,7 +48,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.1a](#m6b1a--the-commands-and-undo) | The world's commands name entities for good and undo themselves; the editor's core makes them into steps, undone, redone and journaled, and writes its level back with its comments | Done |
 | [M6b.1b](#m6b1b--the-editor-driven-by-an-agent) | An agent drives the editor's core through the MCP server, on a level of the examples and on *Hunna Wood*'s zone | Done |
 | [M6b.2](#m6b2--text-in-several-writing-systems) | The engine lays text out in every writing system, without a GPU | Done |
-| [M6b.3](#m6b3--drawing-the-interface) | The renderer draws an interface's boxes, text and images, crisp at every scale | Planned |
+| [M6b.3a](#m6b3a--the-canvas) | The renderer draws an interface's boxes, shadows and images over any target, within its share of a frame on each tier | Done |
+| [M6b.3b](#m6b3b--text-drawn-and-the-display-list) | The renderer draws an interface's text in every writing system, crisp at every scale, from a display list | Planned |
 | [M6b.4](#m6b4--elements-styles-and-layout) | An interface is a tree of elements, styled by themes read from files, laid out by flexbox and grid, and built again only where what it shows changed | Planned |
 | [M6b.5](#m6b5--input-focus-and-what-agents-see) | A person and an agent use the interface through the same actions, and an agent reads what it shows | Planned |
 | [M6b.6](#m6b6--text-edited-and-what-the-platform-lacks) | Text is typed, selected, copied and composed in every writing system, and screen readers read the interface | Planned |
@@ -126,8 +130,8 @@ Risks:
 - **What only a person checks.** The look of text, input methods on Wayland and on Windows, the
   clipboard on Wayland's compositors and screen readers cannot be checked in a headless Weston: each
   milestone gives its checks by hand to [the list](#checks-by-hand-waiting-for-the-owner), but for
-  the choices that it needs from the owner to go on, the blending and the font of M6b.3, made during
-  it.
+  the choices that it needs from the owner to go on, the blending of M6b.3a and the font of
+  M6b.3b, made during them.
 - **Wayland.** arboard reaches Wayland's clipboard through the data-control protocol, which niri and
   Hyprland offer and not every compositor does; winit 0.30.13 drops no file on Wayland (Stage 6c).
 - **The overlay rewritten.** Games and their checks by hand use it: M6b.8 writes a checklist of
@@ -339,33 +343,91 @@ Risks:
   `a_text_is_cut_into_pieces_by_writing_system_its_spaces_and_marks_with_them`; in `cache.rs`,
   `the_text_used_least_recently_leaves_first`; the module's doc test.
 
-### M6b.3 — Drawing the interface
+### M6b.3a — The canvas
 
-- **Goal.** The renderer draws an interface's boxes, text and images, crisp at every scale.
-- **Crates.** `slime-gfx`, `slime-render`, `slime-ui`, a new `slime-ui-render`; the examples.
-- **Delivers.** In `slime-gfx`: a texture of one channel, writing a part of a texture, a scissor
-  apart from the viewport, and, if the owner chooses to blend in sRGB's encoding, a view of the
-  window's image without it, and blending of premultiplied colors if the canvas needs it. In
-  `slime-render`, the canvas: rounded rectangles with their borders and shadows, glyphs, images and
-  a view's target as an image, each clipped, with the indices of a transform and a layer that stay
-  the identity and the root's until Stage 7; drawn after the views into any target, its GPU time in
-  the statistics, its shader loaded again when it changes, made again after a lost device. In
-  `slime-ui`, the display list. `slime-ui-render`, the bridge: a display list into a canvas, the
-  glyphs' atlas pages, placed by etagere, within a budget, the least recently used leaving first,
-  rasterized again after a lost device; images through the asset cache. An example draws paragraphs
-  in several writing systems, boxes and a view in a panel, at scales 1 and 2, from a display list
-  made by hand; CI builds it for Windows with the other programs. Whether the interface blends in
-  linear space or in sRGB's encoding, chosen by the owner from pairs of images; the font of the
-  editor's and the overlay's text, chosen by the owner (ADR-0133). The dependency etagere. A
-  benchmark of the canvas's GPU time at the hardware tiers' resolutions
-  ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)). The ADR of the design, which sets
-  the interface's share of a frame on each tier.
-- **Done when.** Image tests: corners, borders and shadows; clips; glyphs of each writing system; an
-  image, and a view drawn into a panel; scale 2; text drawn again after a lost device. The benchmark
-  within the share of a frame that the ADR sets on each tier; CI is green.
+- **Goal.** The renderer draws an interface's boxes, shadows and images over any target, within its
+  share of a frame on each tier.
+- **Crates.** `slime-gfx`, `slime-color`, `slime-render`; the examples and the benchmarks.
+- **Delivers.** As [ADR-0137](adr/0137-the-canvas.md) decides. In `slime-gfx`: a texture of one
+  channel; the blending of colors multiplied by their alpha; an sRGB target, a window's image
+  included, seen without its encoding. In `slime-render`, the canvas: boxes with rounded corners and
+  borders, their shadows, images of colors and of coverage, and a view's target as an image, each
+  clipped, with the indices of a transform and a layer that stay the identity and the root's until
+  Stage 7; drawn after the views into any target of the renderer's format, its GPU time in its
+  statistics, its shader loaded again when it changes, made again after a lost device. Whether the
+  interface blends in linear space or in sRGB's encoding, chosen by the owner from pairs of images.
+  A benchmark of the canvas's GPU time at the hardware tiers' resolutions
+  ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)). An example that draws boxes,
+  shadows, images and a view in a panel, over a window or into an image; CI builds it for Windows
+  with the other programs. The ADR of the design, which sets the interface's share of a frame on
+  each tier.
+- **Done when.** Image tests: corners, borders and shadows; clips; images, and a view drawn into a
+  panel; scale 2; the blending chosen; the shader replaced; a lost device. The benchmark within the
+  share of a frame that the ADR sets on each tier; CI is green.
+- **How to test.** `cargo test -p slime-gfx -p slime-render`; `cargo run --example interface`;
+  `cargo run --release -p slime-benches -- render.canvas`.
+- **By hand.** The owner chooses how the interface blends.
+- **Outcome.** Done on 2026-10-23. The owner decided that day to cut M6b.3 in two; that the
+  interface takes at most 0.5 ms of GPU on each tier's reference machine, the plan's 1 ms halved;
+  that the handheld tier's benchmark draws a game's menu, the editor's screen bounded at the two
+  others; that the interface blends in sRGB's encoding, from pairs of images; and that the high tier
+  draws at 3840 × 2160, natively ([ADR-0138](adr/0138-the-high-tier-at-3840-2160.md)).
+  [ADR-0137](adr/0137-the-canvas.md) records the design that the owner validated. `slime-gfx` gains
+  `TextureFormat::R8Unorm`, for textures, `Blend::Premultiplied`, `TextureFormat::Bgra8Unorm` and
+  `RenderTarget::without_srgb`, which every sRGB target and every window's image allow, a window
+  that cannot being refused (`GfxError::SurfaceWithoutEncoding`); `slime-color` gains
+  `linear_to_srgb`. `slime-render` gains the canvas: `Canvas`, its items, `CanvasBox`,
+  `CanvasShadow` and `ImageQuad`, and its images, and `Renderer::draw_canvas`, one pipeline that
+  reads the items from a storage buffer, its shader `canvas.wgsl` reloaded with the others. Shadows
+  are Raph Levien's approximation, its constants computed on the CPU, within a few hundredths of the
+  box blurred exactly; items are cut to their clip on the CPU, those it leaves nothing of left out;
+  into an sRGB target, colors are encoded once per item on the CPU, and an image's texels in the
+  shader. The approximation, which replaced shadows integrated over four rows, and the items cut to
+  their clip took some 30 % off the canvas's time on the GPU, and encoding colors on the CPU rather
+  than for each pixel made the blending in sRGB's encoding cost nothing measurable; both screens
+  hold the budget, wherever it bounds them, with room to spare
+  ([`docs/measurements.md`](measurements.md), M6b.3a). The scissor apart from the viewport that
+  ADR-0132 planned is not made: clips are cut in the shader. Writing a part of a texture moves to
+  M6b.3b, the glyphs' atlas being its first user. The example `interface` draws a list that scrolls
+  in its clip, buttons, images, a translucent card and the image tests' shapes in a panel, over a
+  window or into a PNG file; `scripts/check.sh` runs it in both ways, and CI on Windows too. The
+  tests: in `slime-gfx`'s `tests/drawing.rs`,
+  `a_blended_pipeline_lays_its_color_over_the_target_s_by_its_alpha`, now with premultiplied colors
+  too, and `an_srgb_target_seen_without_its_encoding_stores_and_blends_values_as_they_are`; in
+  `tests/textures.rs`, `a_texture_of_one_channel_is_read_as_its_red_its_rows_of_any_width`; in
+  `slime-render`'s `tests/canvas.rs`,
+  `a_box_fills_inside_its_rounded_corners_and_its_border_inside_its_edges`,
+  `a_shadow_fades_from_under_its_box_where_its_offset_puts_it`,
+  `a_shadow_is_its_box_blurred_by_a_gaussian_within_a_few_hundredths`,
+  `into_an_srgb_target_colors_mix_as_srgb_values_and_into_another_as_linear_ones`,
+  `a_clip_cuts_what_lies_outside_it`, `an_image_is_drawn_in_a_color_or_as_it_is`,
+  `a_target_that_a_view_drew_is_drawn_as_an_image_into_a_panel`,
+  `items_are_drawn_in_their_order_few_draws_for_many`,
+  `shapes_drawn_at_twice_the_scale_keep_their_place`,
+  `the_canvas_s_shader_is_replaced_with_the_others_and_a_broken_one_refused`,
+  `a_lost_device_stops_the_canvas_and_a_new_renderer_draws_it_again` and
+  `the_canvas_s_time_on_the_gpu_comes_back_where_the_adapter_times`; `slime-color`'s doc test of
+  `linear_to_srgb`.
+
+### M6b.3b — Text drawn, and the display list
+
+- **Goal.** The renderer draws an interface's text in every writing system, crisp at every scale,
+  from a display list.
+- **Crates.** `slime-gfx`, `slime-ui`, a new `slime-ui-render`; the examples.
+- **Delivers.** In `slime-gfx`: writing a part of a texture. In `slime-ui`, the display list.
+  `slime-ui-render`, the bridge: a display list into a canvas, the glyphs' atlas pages, placed by
+  etagere, within a budget, the least recently used leaving first, rasterized again after a lost
+  device; images through the asset cache. The example `interface` draws paragraphs in several
+  writing systems too, at scales 1 and 2, from a display list made by hand. The font of the editor's
+  and the overlay's text, chosen by the owner (ADR-0133), and whether glyphs are hinted, judged by
+  the owner on images ([ADR-0136](adr/0136-the-interfaces-text.md)). The dependency etagere. The
+  ADR of the design.
+- **Done when.** Image tests: glyphs of each writing system; text at scale 2; text drawn again after
+  a lost device. The canvas's benchmark, with text, within the share of a frame that
+  [ADR-0137](adr/0137-the-canvas.md) sets on each tier; CI is green.
 - **How to test.** `cargo test -p slime-gfx -p slime-render -p slime-ui-render`; the example.
-- **By hand.** The owner chooses how the interface blends and the font of its text, and judges the
-  text at scales 1 and 2.
+- **By hand.** The owner chooses the font of the interface's text, and judges the text at scales 1
+  and 2, hinted or not.
 
 ### M6b.4 — Elements, styles and layout
 
@@ -557,6 +619,10 @@ The game is run with `--new --save <a file of its own>`, so that the owner's sav
 - **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
   slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
   `af512af` prints.
+- **M6b.3a, in the Windows virtual machine.** `interface.exe` of the `slime-examples-windows`
+  artifact, in its window, on Direct3D 12: the interface drawn as `--output` draws it, its list
+  scrolling, the window's images seen without their sRGB encoding, which no check of CI draws in a
+  window ([ADR-0137](adr/0137-the-canvas.md)).
 
 ## Releasing
 
@@ -962,7 +1028,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   ([ADR-0129](adr/0129-drawing-for-the-editor.md)). Instances over the image, which need a depth of
   their own, and the scene's depth resolved for an outline or handles partly hidden, come with the
   editor's handles at Stage 6c; a part of a texture written comes with the interface's glyphs at
-  M6b.3. A line that lies on a surface may be hidden by it in places; blended surfaces are drawn in
+  M6b.3b. A line that lies on a surface may be hidden by it in places; blended surfaces are drawn in
   no particular order until Stage 9a sorts them. The `world` example selects with Tab from the
   keyboard alone: scripted keys reach a game's input, which its simulation reads, not its
   presentation's events. How long `Renderer::set_shaders` takes was measured before the unlit kind's
@@ -1023,7 +1089,11 @@ GitHub issues, linked from their entry; this list stays the reference.
   are untried, and stay so for now, the owner having no other machine (ADR-0097). The ratios that
   scale the hardware tiers' budgets to the RX 6900 XT are estimates from public benchmarks until
   the tiers' machines are measured ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)):
-  a GPU rented in the cloud, a Steam Deck, or contributors would end it.
+  a GPU rented in the cloud, a Steam Deck, or contributors would end it. The handheld's ratio, a
+  tenth, may be generous for the interface's canvas, whose cost lies more in writing pixels than in
+  computing them, the Steam Deck writing them about twenty times slower than the RX 6900 XT
+  ([ADR-0137](adr/0137-the-canvas.md)). The RX 6900 XT also draws the owner's desktop, whose work
+  moves its figures ([`benches/README.md`](../benches/README.md#reading-the-figures)).
 - **The environment is computed on the CPU, in every process that draws a sky** (ADR-0039): 23 ms
   in a release build on the owner's 16 threads, 162 ms on one core, and the BRDF table once (15
   ms); about eight times longer in a debug build, which every test that draws a sky with a gradient
@@ -1245,10 +1315,21 @@ GitHub issues, linked from their entry; this list stays the reference.
   Hot reload in the editor comes with Stage 6c.
 - **A comment within a value written on several lines is lost** when the editor writes the level
   again, but for the end of the value's first line (`slime_serialize::keep_comments`).
+- **The canvas draws no text, and nothing turned or scaled** ([ADR-0137](adr/0137-the-canvas.md)):
+  text comes with M6b.3b, and the items' transforms, whose place they keep, with Stage 7. An image
+  is read at its first level, so that one drawn much smaller than it is shows steps, and its edges
+  are neither rounded nor smoothed between two pixels; an image of colors darkens where an opaque
+  texel meets a transparent one of another color, its texels filtered before they are multiplied by
+  their alpha. A shadow is an approximation, a few hundredths of its alpha from the box blurred
+  exactly. A canvas holds at most `MAX_CANVAS_ITEMS` items. `PixelRect` gives a rectangle by its
+  corner and its size, and `slime-ui`'s text by its edges: M6b.3b's bridge converts them, or makes
+  them one. The interface's budget is checked on the RX 6900 XT alone, through ADR-0114's ratios.
+  Writing a canvas's items into its buffer costs the CPU in proportion to their number, item by item
+  ([`docs/measurements.md`](measurements.md), M6b.3a).
 - **The interface's text has one style per text, and is not edited yet**
   ([ADR-0136](adr/0136-the-interfaces-text.md)): spans of several styles in one text come with their
   first user, and editing, input methods included, at M6b.6. Whether glyphs are hinted is judged on
-  images at M6b.3. An italic or a weight that a family lacks is drawn with its closest face, its
+  images at M6b.3b. An italic or a weight that a family lacks is drawn with its closest face, its
   slant or boldness not made up. A face whose colors are only of `COLR`'s second version, as some
   emoji fonts of systems, draws no color, swash drawing the first version alone. A word wider than
   its box, on a line before the last one shown, overflows the box rather than being cut. The cache's

@@ -7,7 +7,8 @@
   [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) (the dev overlay and its world panel rewritten
   on the framework, and egui and its fonts removed, at Stage 6b) and
   [0115](0115-what-the-gpu-layer-gives-the-editor.md) (a texture of one channel, and a scissor apart
-  from the viewport)
+  from the viewport); amended by [0137](0137-the-canvas.md) (no scissor apart from the viewport; the
+  interface blends in sRGB's encoding)
 - Date: 2026-10-22
 
 ## Context

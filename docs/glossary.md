@@ -122,10 +122,12 @@ origin as at it ([ADR-0048](adr/0048-rendering-relative-to-the-camera.md),
 **Candela (cd).** The unit of luminous intensity, lumens per steradian: the strength of a point or
 spot light (`intensity`). A surface facing such a light d metres away receives intensity / d² *lux*.
 
-**Canvas.** What the renderer draws in two dimensions, after the *views*, into any target: rounded
-rectangles with their borders and shadows, glyphs and images, each clipped. The engine's UI
-framework draws its *display list* through it ([ADR-0132](adr/0132-the-engines-ui-framework.md)).
-Decided, not built yet.
+**Canvas.** What the renderer draws in two dimensions, after the *views*, into any target: boxes
+with rounded corners and borders, their shadows, and images, each clipped, in the order given
+(`slime_render::Canvas`, `Renderer::draw_canvas`). Into an sRGB target, its colors mix as their
+*sRGB encoding*'s values do, as design tools mix them ([ADR-0137](adr/0137-the-canvas.md)). The
+engine's UI framework draws its *display list* through it, glyphs as images of coverage, from M6b.3b
+([ADR-0132](adr/0132-the-engines-ui-framework.md)).
 
 **Cascade (cascaded shadow maps).** One of the *shadow maps* that together hold the shadows of a
 directional light: what the camera sees up to the light's shadow distance is split along its axis
@@ -436,8 +438,10 @@ values up to ±65 504. The channels of `Rgba16Float` render targets, which the e
 **Hardware tier.** A class of computers that the engine runs on, from handheld PCs and modest
 computers at high frame rates to high-end ones: a game picks the lowest it supports, and each
 technique of the renderer belongs to a tier ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)).
-Three are named, each by a reference machine and budgets: handheld, modest and high; an enthusiast
-tier comes with ray tracing ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)).
+Three are named, each by a reference machine and budgets: handheld at 1280 × 800, modest at 1920 ×
+1080 and high at 3840 × 2160; an enthusiast tier comes with ray tracing
+([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md),
+[ADR-0138](adr/0138-the-high-tier-at-3840-2160.md)).
 
 **Headless.** Running the engine without a window, renderer or audio output. It is a normal
 configuration, used by automated tests and, later, by dedicated servers.
@@ -815,6 +819,12 @@ brings them ([ADR-0078](adr/0078-stage-5-in-two-halves.md),
 averaged under the reflection lobe of a growing roughness, so that one lookup gives what a rough
 surface reflects ([ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md)).
 
+**Premultiplied (color).** A color whose red, green and blue are already multiplied by its alpha, as
+`slime_gfx::Blend::Premultiplied` lays it over a target: a shape that covers a pixel in part
+multiplies its color and its alpha alike, and an image whose texels are so before they are filtered
+mixes without the dark fringes that a transparent texel's color leaves otherwise. The *canvas*'s
+colors are ([ADR-0137](adr/0137-the-canvas.md)).
+
 **Priority (assets).** How urgently a *request* wants its assets, one of three classes
 (`slime_render::Priority`): *now*, what a view draws and lacks; *soon*, what a game fetches ahead;
 *later*, what is fetched far ahead and the editor's thumbnails. The loads' tasks and their copies to
@@ -1066,7 +1076,9 @@ steps per frame and dropping the rest.
 of a byte's 256 values on dark colors than on bright ones, as the eye distinguishes them: the
 values of displays, image files, color pickers and web colors. A *linear color* of 0.216 is
 encoded as 128 out of 255. The GPU decodes the texels of sRGB textures and encodes what it writes
-into sRGB targets; `LinearColor::from_srgb8` decodes bytes on the CPU.
+into sRGB targets; `LinearColor::from_srgb8` decodes bytes on the CPU. Seen without its encoding
+(`RenderTarget::without_srgb`), an sRGB target stores what is written as it is, so that the
+*canvas* mixes encoded values.
 
 **Stable name.** The name a reflected type is known by in a *type registry*, in files and in saves:
 bare for the engine's types (`Transform`), `<crate>::<Type>` for a game's (`hunnawood::Collider`),

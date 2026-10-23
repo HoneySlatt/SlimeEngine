@@ -182,10 +182,10 @@ the ADR linking to it.
 | [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115, 0120, 0126, 0127 and 0129 |
 | [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted; amended by 0125 |
 | [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted; amended by 0120 and 0128 |
-| [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amended by 0120 |
+| [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amended by 0120 and 0138 |
 | [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted; amended by 0117, 0129, 0130 and 0132 |
 | [0116](0116-stage-6-in-two-halves.md) | Stage 6 in two halves | Accepted; amended by 0124, 0126 and 0131 |
-| [0117](0117-frustum-culling-and-instancing.md) | Frustum culling and instancing | Accepted; amended by 0128 |
+| [0117](0117-frustum-culling-and-instancing.md) | Frustum culling and instancing | Accepted; amended by 0128 and 0138 |
 | [0118](0118-the-task-pool-and-the-copies-to-the-gpu.md) | The task pool and the copies to the GPU | Accepted |
 | [0119](0119-the-worlds-ticks-blocks-and-log.md) | The world's ticks, blocks and log | Accepted |
 | [0120](0120-a-frame-that-owns-what-it-draws.md) | A frame that owns what it draws | Accepted; amended by 0121 |
@@ -199,9 +199,11 @@ the ADR linking to it.
 | [0128](0128-asset-requests.md) | Asset requests | Accepted |
 | [0129](0129-drawing-for-the-editor.md) | Drawing for the editor | Accepted |
 | [0130](0130-picking.md) | Picking | Accepted |
-| [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amended by 0134 |
-| [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted |
+| [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amended by 0134 and 0137 |
+| [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted; amended by 0137 |
 | [0133](0133-font-files-under-the-open-font-license.md) | Font files under the SIL Open Font License | Accepted |
 | [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 |
 | [0135](0135-the-editors-program.md) | The editor's program | Accepted |
 | [0136](0136-the-interfaces-text.md) | The interface's text | Accepted |
+| [0137](0137-the-canvas.md) | The canvas | Accepted |
+| [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted |

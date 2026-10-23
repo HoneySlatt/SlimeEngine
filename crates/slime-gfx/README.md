@@ -15,7 +15,9 @@ them back, and draws into a window:
   bind groups, with a depth test, a depth bias and face culling.
 - It draws into 8-bit sRGB or linear images, into 16-bit floating-point ones (high dynamic range),
   or into a depth target only, replacing what they hold or laying its colors over it by their
-  alpha (`Blend`, `docs/adr/0129-drawing-for-the-editor.md`).
+  alpha, straight or already multiplied by it (`Blend`, `docs/adr/0129-drawing-for-the-editor.md`,
+  `docs/adr/0137-the-canvas.md`). It draws into an sRGB image, a window's included, through a
+  view without its encoding too, which stores what shaders write as it is.
 - It draws into images of four samples per pixel, which a pass resolves into ordinary ones, or
   which later shaders read sample by sample, for multisample anti-aliasing.
 - Later passes sample the render and depth targets that earlier ones drew into. Several passes
@@ -24,8 +26,9 @@ them back, and draws into a window:
 - It opens a new device in place of a lost one, with or without a window, for a program that
   creates its GPU objects again.
 - It creates textures from the CPU: two-dimensional ones whose levels of detail it computes, or
-  whose levels the caller gives, in 8-bit or half-precision float formats, or in blocks of BC7 and
-  BC5 compression, which the asset pipeline's cooked textures use, and cube textures.
+  whose levels the caller gives, in 8-bit or half-precision float formats, of one channel or of
+  four, or in blocks of BC7 and BC5 compression, which the asset pipeline's cooked textures use, and
+  cube textures.
 - It brings what loads read to the GPU through an uploader: textures and ranges of buffers written
   into staging buffers by the threads that load, reused from one upload to the next, and their
   copies submitted by one thread of the uploader's, within a budget of bytes per frame, the lowest
@@ -169,6 +172,11 @@ fn main() -> Result<(), GfxError> {
   as it ends (ADR-0059); a later pass's shader can also read them sample by sample, at a
   `BindingType::MultisampledTexture` binding (ADR-0060). `RenderTarget::is_multisampled` tells them
   from targets of one sample.
+- `RenderTarget::without_srgb` gives an sRGB target, a window's image included, seen through the
+  format without the encoding (`TextureFormat::without_srgb`): a pass that draws into it stores
+  and blends what its shaders write as it is, already encoded, as the interface's canvas blends in
+  sRGB's encoding (ADR-0137). A window whose images do not allow it is refused
+  (`GfxError::SurfaceWithoutEncoding`).
 - `Surface::acquire` gives the `SurfaceFrame` to draw a window's next image into, and
   `SurfaceFrame::present` shows it, as its `PresentMode` says (ADR-0021). The surface releases the
   last image when it is dropped or restored, so that an image that a panic or a lost device left

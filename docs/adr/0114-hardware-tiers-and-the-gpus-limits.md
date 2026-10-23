@@ -6,7 +6,8 @@
   than a minimum and a target), [0098](0098-the-games-the-engine-aims-at.md) (a handheld tier below
   the modest one) and [0104](0104-the-build-ci-and-measurements.md) (benchmarks measured at the
   tiers' resolutions and compared with their budgets); amended by
-  [0120](0120-a-frame-that-owns-what-it-draws.md) (the floor's figures: WebGPU's default limits)
+  [0120](0120-a-frame-that-owns-what-it-draws.md) (the floor's figures: WebGPU's default limits) and
+  [0138](0138-the-high-tier-at-3840-2160.md) (the high tier at 3840 × 2160)
 - Date: 2026-10-20
 
 ## Context

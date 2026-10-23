@@ -8,6 +8,19 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- The interface's canvas (ADR-0137): `slime_render::Canvas`, which a client fills each frame with
+  boxes, their corners rounded and their borders inside their edges (`CanvasBox`), the shadows that
+  boxes cast (`CanvasShadow`), and parts of images (`ImageQuad`), textures of colors, textures of
+  coverage drawn in a color, or the target that a view drew, each item clipped; and
+  `Renderer::draw_canvas`, which draws it over a target after the views and reports its items, its
+  draws and its GPU time (`CanvasStats`). Into an sRGB target, its colors mix as their sRGB values
+  do, as design tools mix them. The example `interface` draws one over a window or into a PNG file,
+  a view's image in a panel; the benchmark `render.canvas` draws an editor's screen and a game's
+  menu at the hardware tiers' resolutions.
+- `TextureFormat::R8Unorm`, a texture of one channel; `Blend::Premultiplied`, which lays colors
+  already multiplied by their alpha over a target; `TextureFormat::Bgra8Unorm`,
+  `TextureFormat::without_srgb` and `RenderTarget::without_srgb`, an sRGB target, a window's image
+  included, seen without its encoding; `slime_color::linear_to_srgb`.
 - The interface's text, without a GPU (ADR-0136): `slime-ui`, a new crate, holds it, the UI
   framework's first part. `slime_ui::text::Fonts` registers fonts from their bytes, which a style
   names in a stack, and falls back on the system's where a program asks for them
@@ -58,6 +71,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- The high hardware tier draws at 3840 × 2160 (ADR-0138), and the render benchmarks measure it
+  there, rather than at 2560 × 1440.
+- A window whose images cannot be seen without their sRGB encoding, Vulkan without
+  `VK_KHR_swapchain_mutable_format`, is refused (`GfxError::SurfaceWithoutEncoding`).
 - `World::apply` returns the command that undoes the one it applied.
 - `slime_cook::write`, which writes a file whole or not at all, is public.
 - A reference to an entity that a tool writes `""` in the development channel reads as no entity.

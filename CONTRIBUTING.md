@@ -315,10 +315,10 @@ crashes the process, now and then, when several threads compile shaders at once.
 the first test program that fails, and when a step fails, it publishes the images that the failing
 image tests rendered on WARP, as an artifact named `image-test-failures-windows`. The second,
 `windows-release`, runs clippy, builds in release and runs the headless samples, and publishes the
-`hello`, `headless`, `window`, `offscreen`, `scene` and `world` examples and the `hunnawood` game
-built for Windows, with the sample cooked for `scene` and `world` and the zone cooked for the game,
-as an artifact named `slime-examples-windows`, to run by hand on a Windows machine. Each job keeps
-the cooked zone in its cache, keyed on what makes its bytes.
+`hello`, `headless`, `window`, `offscreen`, `interface`, `scene` and `world` examples and the
+`hunnawood` game built for Windows, with the sample cooked for `scene` and `world` and the zone
+cooked for the game, as an artifact named `slime-examples-windows`, to run by hand on a Windows
+machine. Each job keeps the cooked zone in its cache, keyed on what makes its bytes.
 [ADR-0007](docs/adr/0007-documentation-tooling-and-ci.md) and
 [ADR-0015](docs/adr/0015-platforms-and-ci.md) explain the setup.
 

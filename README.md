@@ -74,9 +74,11 @@ its entities by their persistent identities, undoes and redoes them, journals th
 level back with its comments; its program, without a window, which an agent drives through the MCP
 server, opens the examples' yard or *Hunna Wood*'s zone. The UI framework, `slime-ui`, lays text out
 in every writing system and rasterizes its glyphs on the CPU, which the `text` example writes to an
-image; the renderer does not draw it yet. [`docs/PLAN.md`](docs/PLAN.md) says what comes next, the
-rest of Stage 6b, the engine's interface: its UI framework, proven by the dev overlay; then Stage
-6c, the editor. It lists the known debt too.
+image; the renderer draws an interface's canvas, boxes with rounded corners and borders, their
+shadows and images, clipped, over a window or a view's image, its colors mixed as design tools mix
+them, which the `interface` example shows, but not text yet. [`docs/PLAN.md`](docs/PLAN.md) says
+what comes next, the rest of Stage 6b, the engine's interface: its UI framework, proven by the dev
+overlay; then Stage 6c, the editor. It lists the known debt too.
 
 ## Getting started
 
@@ -94,8 +96,8 @@ scripts/check.sh             # every check, exactly as CI runs them (Linux only)
 cargo run --quiet -p slime-mcp  # the MCP server through which an agent drives a game: crates/slime-mcp
 ```
 
-Each CI run on GitHub also publishes the `hello`, `headless`, `window`, `offscreen`, `scene` and
-`world` examples and the `hunnawood` game built for Windows, to try without a toolchain;
+Each CI run on GitHub also publishes the `hello`, `headless`, `window`, `offscreen`, `interface`,
+`scene` and `world` examples and the `hunnawood` game built for Windows, to try without a toolchain;
 the GitHub release of each version since 0.1 carries what that version had.
 
 The tests run on your own GPU; CI runs them on drivers that render on the CPU, lavapipe on Linux and

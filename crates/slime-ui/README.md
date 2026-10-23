@@ -26,7 +26,7 @@ tree of elements, their styles and their layout come with the next milestones of
 parley, fontique and swash, whose types stay inside the crate
 (`docs/adr/0132-the-engines-ui-framework.md`); icu_properties, for the writing system of a
 character; thiserror and tracing. No engine crate: text is laid out
-and rasterized on the CPU, and the renderer draws it (Stage 6b's third milestone).
+and rasterized on the CPU, and the renderer's canvas draws it from Stage 6b's milestone M6b.3b.
 
 ## Must not
 

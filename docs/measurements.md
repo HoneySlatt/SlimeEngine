@@ -893,3 +893,128 @@ figures: 3 KiB, 50 bytes per byte of text, 16 per glyph and some 400 per run.
 | Chinese, 2 003 characters | 6 009 | 2 003 | 72 | 355 495 B | 367 106 B | +3 % |
 | English with emoji, 20 characters | 22 | 20 | 3 | 5 201 B | 5 742 B | +10 % |
 | English with emoji, 2 069 characters | 2 873 | 1 913 | 349 | 362 388 B | 320 208 B | −12 % |
+
+## M6b.3a, RX 6900 XT
+
+Commit `6fc0c78`, on 2026-10-23: the interface's canvas ([ADR-0137](adr/0137-the-canvas.md)), and
+the high tier at 3840 × 2160 ([ADR-0138](adr/0138-the-high-tier-at-3840-2160.md)). The render
+benchmarks measure the high tier at 3840 × 2160, where the sections before measured 2560 × 1440;
+`render.canvas` is new. ADR-0137 bounds the interface's GPU time on each tier: the game's menu holds
+it at every tier, and the editor's screen at the modest and high tiers, with room to spare. Writing
+the canvas's items costs the CPU about a third of a microsecond each. The machine was otherwise
+idle. The build is not measured.
+
+How the canvas came to its figures, measured during the milestone on the working tree, each pair of
+runs one right after the other, the versions before not kept. The GPU also draws the owner's
+desktop, whose work moved the figures by a fifth over the afternoon: only the figures of one row
+compare. The editor's screen, its colors mixed linearly unless a row says otherwise:
+
+| Change | Measure | Before | After |
+|---|---|---|---|
+| The item read again by the fragment shader, rather than handed on as values of the vertices | GPU at 1280 × 800 | 101.2 µs | 76.3 µs |
+| An experiment, not kept: the fragment shader returning the item's color alone, what writing the canvas's pixels costs | GPU at 1280 × 800 | 76.3 µs | 40.7 µs |
+| Raph Levien's shadows and the items cut to their clip, rather than shadows integrated over four rows | GPU at 1280 × 800, 1920 × 1080 and 2560 × 1440 | 62.7, 110.3 and 192.2 µs | 44.3, 75.7 and 128.9 µs |
+| Colors mixed as sRGB values, encoded once per item on the CPU, against not encoded, in turn three times | GPU at 1280 × 800 | 53.9, 53.2 and 53.0 µs | 50.3, 53.4 and 54.0 µs |
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `render.instances.10k` | CPU of `Renderer::render` at 1280 × 800, median of 30 | 2.28 ms |
+| `render.instances.10k` | CPU of `Renderer::render` at 1280 × 800, 90th percentile of 30 | 3.04 ms |
+| `render.instances.10k` | frame, until the GPU finished it, at 1280 × 800, median of 30 | 2.65 ms |
+| `render.instances.10k` | frame, until the GPU finished it, at 1280 × 800, 90th percentile of 30 | 3.59 ms |
+| `render.instances.10k` | scene pass on the GPU at 1280 × 800, median of what 30 frames reported | 39.8 µs |
+| `render.instances.10k` | passes on the GPU, summed at 1280 × 800, median of what 30 frames reported | 151.6 µs |
+| `render.instances.10k` | draw calls at 1280 × 800: scene, shadow cascades | 8, 3 |
+| `render.instances.10k` | instances that the scene pass drew at 1280 × 800 | 9343 |
+| `render.instances.10k` | CPU of `Renderer::render` at 1920 × 1080, median of 30 | 2.23 ms |
+| `render.instances.10k` | CPU of `Renderer::render` at 1920 × 1080, 90th percentile of 30 | 2.54 ms |
+| `render.instances.10k` | frame, until the GPU finished it, at 1920 × 1080, median of 30 | 2.62 ms |
+| `render.instances.10k` | frame, until the GPU finished it, at 1920 × 1080, 90th percentile of 30 | 2.82 ms |
+| `render.instances.10k` | scene pass on the GPU at 1920 × 1080, median of what 30 frames reported | 53.2 µs |
+| `render.instances.10k` | passes on the GPU, summed at 1920 × 1080, median of what 30 frames reported | 220.5 µs |
+| `render.instances.10k` | draw calls at 1920 × 1080: scene, shadow cascades | 8, 3 |
+| `render.instances.10k` | instances that the scene pass drew at 1920 × 1080 | 9517 |
+| `render.instances.10k` | CPU of `Renderer::render` at 3840 × 2160, median of 30 | 2.40 ms |
+| `render.instances.10k` | CPU of `Renderer::render` at 3840 × 2160, 90th percentile of 30 | 2.57 ms |
+| `render.instances.10k` | frame, until the GPU finished it, at 3840 × 2160, median of 30 | 3.23 ms |
+| `render.instances.10k` | frame, until the GPU finished it, at 3840 × 2160, 90th percentile of 30 | 3.44 ms |
+| `render.instances.10k` | scene pass on the GPU at 3840 × 2160, median of what 30 frames reported | 129.3 µs |
+| `render.instances.10k` | passes on the GPU, summed at 3840 × 2160, median of what 30 frames reported | 637.0 µs |
+| `render.instances.10k` | draw calls at 3840 × 2160: scene, shadow cascades | 8, 3 |
+| `render.instances.10k` | instances that the scene pass drew at 3840 × 2160 | 9517 |
+| `render.unseen.10k` | CPU of `Renderer::render` at 1280 × 800, median of 30 | 1.65 ms |
+| `render.unseen.10k` | CPU of `Renderer::render` at 1280 × 800, 90th percentile of 30 | 2.12 ms |
+| `render.unseen.10k` | frame, until the GPU finished it, at 1280 × 800, median of 30 | 1.80 ms |
+| `render.unseen.10k` | frame, until the GPU finished it, at 1280 × 800, 90th percentile of 30 | 2.33 ms |
+| `render.unseen.10k` | scene pass on the GPU at 1280 × 800, median of what 30 frames reported | 2.3 µs |
+| `render.unseen.10k` | passes on the GPU, summed at 1280 × 800, median of what 30 frames reported | 113.5 µs |
+| `render.unseen.10k` | draw calls at 1280 × 800: scene, shadow cascades | 0, 4 |
+| `render.unseen.10k` | instances that the scene pass drew at 1280 × 800 | 0 |
+| `render.unseen.10k` | CPU of `Renderer::render` at 1920 × 1080, median of 30 | 1.34 ms |
+| `render.unseen.10k` | CPU of `Renderer::render` at 1920 × 1080, 90th percentile of 30 | 1.40 ms |
+| `render.unseen.10k` | frame, until the GPU finished it, at 1920 × 1080, median of 30 | 1.51 ms |
+| `render.unseen.10k` | frame, until the GPU finished it, at 1920 × 1080, 90th percentile of 30 | 1.58 ms |
+| `render.unseen.10k` | scene pass on the GPU at 1920 × 1080, median of what 30 frames reported | 2.4 µs |
+| `render.unseen.10k` | passes on the GPU, summed at 1920 × 1080, median of what 30 frames reported | 168.3 µs |
+| `render.unseen.10k` | draw calls at 1920 × 1080: scene, shadow cascades | 0, 4 |
+| `render.unseen.10k` | instances that the scene pass drew at 1920 × 1080 | 0 |
+| `render.unseen.10k` | CPU of `Renderer::render` at 3840 × 2160, median of 30 | 1.42 ms |
+| `render.unseen.10k` | CPU of `Renderer::render` at 3840 × 2160, 90th percentile of 30 | 1.48 ms |
+| `render.unseen.10k` | frame, until the GPU finished it, at 3840 × 2160, median of 30 | 2.06 ms |
+| `render.unseen.10k` | frame, until the GPU finished it, at 3840 × 2160, 90th percentile of 30 | 2.12 ms |
+| `render.unseen.10k` | scene pass on the GPU at 3840 × 2160, median of what 30 frames reported | 2.8 µs |
+| `render.unseen.10k` | passes on the GPU, summed at 3840 × 2160, median of what 30 frames reported | 480.3 µs |
+| `render.unseen.10k` | draw calls at 3840 × 2160: scene, shadow cascades | 0, 4 |
+| `render.unseen.10k` | instances that the scene pass drew at 3840 × 2160 | 0 |
+| `render.instances.100k` | CPU of `Renderer::render` at 1280 × 800, median of 8 | 19.14 ms |
+| `render.instances.100k` | CPU of `Renderer::render` at 1280 × 800, 90th percentile of 8 | 19.60 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 1280 × 800, median of 8 | 19.85 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 1280 × 800, 90th percentile of 8 | 20.79 ms |
+| `render.instances.100k` | scene pass on the GPU at 1280 × 800, median of what 8 frames reported | 146.3 µs |
+| `render.instances.100k` | passes on the GPU, summed at 1280 × 800, median of what 8 frames reported | 268.3 µs |
+| `render.instances.100k` | draw calls at 1280 × 800: scene, shadow cascades | 8, 2 |
+| `render.instances.100k` | instances that the scene pass drew at 1280 × 800 | 93539 |
+| `render.instances.100k` | CPU of `Renderer::render` at 1920 × 1080, median of 8 | 21.34 ms |
+| `render.instances.100k` | CPU of `Renderer::render` at 1920 × 1080, 90th percentile of 8 | 21.60 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 1920 × 1080, median of 8 | 22.09 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 1920 × 1080, 90th percentile of 8 | 22.35 ms |
+| `render.instances.100k` | scene pass on the GPU at 1920 × 1080, median of what 8 frames reported | 167.9 µs |
+| `render.instances.100k` | passes on the GPU, summed at 1920 × 1080, median of what 8 frames reported | 359.3 µs |
+| `render.instances.100k` | draw calls at 1920 × 1080: scene, shadow cascades | 8, 2 |
+| `render.instances.100k` | instances that the scene pass drew at 1920 × 1080 | 95310 |
+| `render.instances.100k` | CPU of `Renderer::render` at 3840 × 2160, median of 8 | 21.42 ms |
+| `render.instances.100k` | CPU of `Renderer::render` at 3840 × 2160, 90th percentile of 8 | 21.72 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 3840 × 2160, median of 8 | 23.30 ms |
+| `render.instances.100k` | frame, until the GPU finished it, at 3840 × 2160, 90th percentile of 8 | 23.72 ms |
+| `render.instances.100k` | scene pass on the GPU at 3840 × 2160, median of what 8 frames reported | 289.5 µs |
+| `render.instances.100k` | passes on the GPU, summed at 3840 × 2160, median of what 8 frames reported | 941.7 µs |
+| `render.instances.100k` | draw calls at 3840 × 2160: scene, shadow cascades | 8, 2 |
+| `render.instances.100k` | instances that the scene pass drew at 3840 × 2160 | 95310 |
+| `render.shaders` | pipelines made again, shaders unchanged, median of 5 | 11.92 ms |
+| `render.shaders` | pipelines made again after an edit of the scene's shader, median of 5 | 11.67 ms |
+| `render.canvas` | CPU of `Renderer::draw_canvas`, the editor's screen at 1280 × 800, median of 30 | 659.6 µs |
+| `render.canvas` | CPU of `Renderer::draw_canvas`, the editor's screen at 1280 × 800, 90th percentile of 30 | 704.1 µs |
+| `render.canvas` | canvas on the GPU, the editor's screen at 1280 × 800, median of what 30 frames reported | 44.5 µs |
+| `render.canvas` | items and draws, the editor's screen at 1280 × 800 | 19475, 17 |
+| `render.canvas` | CPU of `Renderer::draw_canvas`, the game's menu at 1280 × 800, median of 30 | 207.5 µs |
+| `render.canvas` | CPU of `Renderer::draw_canvas`, the game's menu at 1280 × 800, 90th percentile of 30 | 214.3 µs |
+| `render.canvas` | canvas on the GPU, the game's menu at 1280 × 800, median of what 30 frames reported | 30.7 µs |
+| `render.canvas` | items and draws, the game's menu at 1280 × 800 | 4155, 3 |
+| `render.canvas` | CPU of `Renderer::draw_canvas`, the editor's screen at 1920 × 1080, median of 30 | 646.8 µs |
+| `render.canvas` | CPU of `Renderer::draw_canvas`, the editor's screen at 1920 × 1080, 90th percentile of 30 | 654.9 µs |
+| `render.canvas` | canvas on the GPU, the editor's screen at 1920 × 1080, median of what 30 frames reported | 76.0 µs |
+| `render.canvas` | items and draws, the editor's screen at 1920 × 1080 | 19377, 17 |
+| `render.canvas` | CPU of `Renderer::draw_canvas`, the game's menu at 1920 × 1080, median of 30 | 198.8 µs |
+| `render.canvas` | CPU of `Renderer::draw_canvas`, the game's menu at 1920 × 1080, 90th percentile of 30 | 203.8 µs |
+| `render.canvas` | canvas on the GPU, the game's menu at 1920 × 1080, median of what 30 frames reported | 60.1 µs |
+| `render.canvas` | items and draws, the game's menu at 1920 × 1080 | 4155, 3 |
+| `render.canvas` | CPU of `Renderer::draw_canvas`, the editor's screen at 3840 × 2160, median of 30 | 647.5 µs |
+| `render.canvas` | CPU of `Renderer::draw_canvas`, the editor's screen at 3840 × 2160, 90th percentile of 30 | 664.3 µs |
+| `render.canvas` | canvas on the GPU, the editor's screen at 3840 × 2160, median of what 30 frames reported | 274.7 µs |
+| `render.canvas` | items and draws, the editor's screen at 3840 × 2160 | 19377, 17 |
+| `render.canvas` | CPU of `Renderer::draw_canvas`, the game's menu at 3840 × 2160, median of 30 | 204.0 µs |
+| `render.canvas` | CPU of `Renderer::draw_canvas`, the game's menu at 3840 × 2160, 90th percentile of 30 | 214.1 µs |
+| `render.canvas` | canvas on the GPU, the game's menu at 3840 × 2160, median of what 30 frames reported | 223.7 µs |
+| `render.canvas` | items and draws, the game's menu at 3840 × 2160 | 4155, 3 |

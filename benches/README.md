@@ -32,9 +32,10 @@ it is their whole name.
 
 | Name | What it measures | For |
 |---|---|---|
-| `render.instances.10k` | 10 000 cubes of one mesh and eight materials, in turn, lit by a sun that casts shadows, under a sky with bloom, drawn at the screens of the hardware tiers of [ADR-0114](../docs/adr/0114-hardware-tiers-and-the-gpus-limits.md), 1280 × 800, 1920 × 1080 and 2560 × 1440: at each, the CPU of `Renderer::render`, the frame until the GPU finished it, the scene pass on the GPU, the passes on the GPU summed, which the tier's budget of GPU time is compared with, the draw calls, and the instances that the scene pass drew | B3-F02, B3-F05 |
+| `render.instances.10k` | 10 000 cubes of one mesh and eight materials, in turn, lit by a sun that casts shadows, under a sky with bloom, drawn at the screens of the hardware tiers of [ADR-0114](../docs/adr/0114-hardware-tiers-and-the-gpus-limits.md), 1280 × 800, 1920 × 1080 and 3840 × 2160 ([ADR-0138](../docs/adr/0138-the-high-tier-at-3840-2160.md); 2560 × 1440 before it): at each, the CPU of `Renderer::render`, the frame until the GPU finished it, the scene pass on the GPU, the passes on the GPU summed, which the tier's budget of GPU time is compared with, the draw calls, and the instances that the scene pass drew | B3-F02, B3-F05 |
 | `render.unseen.10k` | The same 10 000 cubes, with the camera looking at the sky above them: none is in view, so that the scene pass draws none, and the frame's time is that of the instances culled and of the shadows they cast below | B3-F02, B3-F05 |
 | `render.instances.100k` | The same with 100 000 cubes | B3-F02, B3-F05 |
+| `render.canvas` | Two screens drawn by the canvas ([ADR-0137](../docs/adr/0137-the-canvas.md)) at the hardware tiers' resolutions, each laid out for 1920 × 1080: an editor's, scaled to the tier's height, its columns spread over its width, a background, 100 panels' shadows, 2 000 boxes as rows of lists, a quarter of them bordered, 20 000 glyphs of an atlas of one channel and 16 images, half the boxes and glyphs clipped; and a game's menu over its image, scaled to fit the screen, its image dimmed, 20 panels with their shadows, some 290 boxes, 3 900 glyphs, a part clipped, and 50 icons of an atlas of colors. At each, the CPU of `Renderer::draw_canvas`, the canvas on the GPU, which ADR-0137 bounds, the game's menu at every tier and the editor's screen at the two larger, and the items and draws | [ADR-0137](../docs/adr/0137-the-canvas.md) |
 | `render.shaders` | The renderer's pipelines made again from its shaders unchanged, then after an edit of the scene's shader that the driver's cache cannot hold | C7-08 |
 | `world.frame.100k` | `FrameBuilder::build` over 100 000 entities that place one of the sample's meshes each, under 1 000 parents, once the cache holds them, and the frame dropped | B2-F06 |
 | `world.transforms.100k` | `World::update_transforms` after the 1 000 parents of 100 000 entities moved | B2-F06 |
@@ -73,6 +74,11 @@ after.
   back from the GPU, a few frames old. Their sum leaves out the gaps between the frame's
   submissions, in which the GPU waits: it is the GPU's work for the frame, not a frame time
   ([`GpuTimer`](../crates/slime-gfx/src/timer.rs)).
+- `render.canvas`'s GPU time compares with the interface's budget on each tier, scaled to the RX
+  6900 XT by ADR-0114's ratios, which [ADR-0137](../docs/adr/0137-the-canvas.md) sets. Its target is
+  8-bit sRGB, as a window's image is, so that the colors mix as sRGB values.
+- A GPU that also draws a desktop gives figures that move with what the desktop draws: a change is
+  compared with runs made just before it, in turn.
 - The figures of lavapipe are not those of a GPU: the gains of the renderer are measured on a GPU,
   in a section of its own.
 - A figure compares with a figure of the same machine, driver and build only.
