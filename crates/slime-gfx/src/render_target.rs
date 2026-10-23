@@ -23,9 +23,17 @@ pub enum TextureFormat {
     /// The same channels and encoding in another byte order: blue, green, red, then alpha. Most
     /// windows use it.
     Bgra8UnormSrgb,
+    /// The byte order of `Bgra8UnormSrgb`, without its encoding: a window's image seen through
+    /// [`RenderTarget::without_srgb`], which stores what shaders write as it is.
+    Bgra8Unorm,
     /// Red, green, blue and alpha, 8 bits each, linear: for data that is not a color, such as a
     /// normal map, which shaders read as it is.
     Rgba8Unorm,
+    /// One channel, red, 8 bits, linear: how much of each texel a shape covers, as the glyphs of a
+    /// text in an atlas (`docs/adr/0137-the-canvas.md`), which shaders read as a red from 0 to 1,
+    /// green and blue 0 and alpha 1. Textures only, from levels the caller gives
+    /// ([`Gpu::create_texture_with_levels`]), one byte per texel.
+    R8Unorm,
     /// Red, green, blue and alpha, each a 16-bit (half-precision) floating-point number, linear:
     /// values beyond 0 to 1, up to ±65 504 with 11 significant bits, such as the light of a scene
     /// before tone mapping (high dynamic range); a shader that writes more gets ±65 504 or an
@@ -65,6 +73,17 @@ impl TextureFormat {
         )
     }
 
+    /// The format of the same texels without sRGB's encoding, which stores what shaders write as it
+    /// is: `Rgba8Unorm` for `Rgba8UnormSrgb`, `Bgra8Unorm` for `Bgra8UnormSrgb`; none for the other
+    /// formats, those without the encoding and `Bc7RgbaUnormSrgb`, a texture's only.
+    pub fn without_srgb(self) -> Option<Self> {
+        match self {
+            Self::Rgba8UnormSrgb => Some(Self::Rgba8Unorm),
+            Self::Bgra8UnormSrgb => Some(Self::Bgra8Unorm),
+            _ => None,
+        }
+    }
+
     /// Whether the format holds integers rather than colors: `Rg32Uint`, which no pipeline blends,
     /// no sampler filters and no target of several samples holds.
     pub fn is_integer(self) -> bool {
@@ -91,12 +110,13 @@ impl TextureFormat {
         }
     }
 
-    /// The size of a texel in bytes: 4, or 8 for `Rgba16Float` and `Rg32Uint`; the
+    /// The size of a texel in bytes: 1 for `R8Unorm`, 4, or 8 for `Rgba16Float` and `Rg32Uint`; the
     /// block-compressed formats have none (see [`TextureFormat::rows`]).
     pub(crate) fn texel_size(self) -> u32 {
         match self {
+            Self::R8Unorm => 1,
             Self::Rgba16Float | Self::Rg32Uint => 8,
-            Self::Rgba8UnormSrgb | Self::Bgra8UnormSrgb | Self::Rgba8Unorm => 4,
+            Self::Rgba8UnormSrgb | Self::Bgra8UnormSrgb | Self::Bgra8Unorm | Self::Rgba8Unorm => 4,
             Self::Bc7RgbaUnormSrgb | Self::Bc7RgbaUnorm | Self::Bc5RgUnorm => {
                 unreachable!("{self:?} stores blocks of texels, not texels")
             }
@@ -113,7 +133,9 @@ impl TextureFormat {
         match self {
             Self::Rgba8UnormSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,
             Self::Bgra8UnormSrgb => wgpu::TextureFormat::Bgra8UnormSrgb,
+            Self::Bgra8Unorm => wgpu::TextureFormat::Bgra8Unorm,
             Self::Rgba8Unorm => wgpu::TextureFormat::Rgba8Unorm,
+            Self::R8Unorm => wgpu::TextureFormat::R8Unorm,
             Self::Rgba16Float => wgpu::TextureFormat::Rgba16Float,
             Self::Bc7RgbaUnormSrgb => wgpu::TextureFormat::Bc7RgbaUnormSrgb,
             Self::Bc7RgbaUnorm => wgpu::TextureFormat::Bc7RgbaUnorm,
@@ -179,6 +201,26 @@ impl RenderTarget {
         self.texture.usage().contains(wgpu::TextureUsages::COPY_SRC)
     }
 
+    /// The same pixels, seen through the format without sRGB's encoding
+    /// ([`TextureFormat::without_srgb`]): a pass that draws into it stores the values that its
+    /// shaders give as they are, and blends them so, already encoded, as the interface's canvas
+    /// blends in sRGB's encoding (`docs/adr/0137-the-canvas.md`). Each call makes a view; the
+    /// target returned shares the texture, and whether a pass drew into it. None for a target of
+    /// a format without the encoding.
+    pub fn without_srgb(&self) -> Option<RenderTarget> {
+        let format = self.format.without_srgb()?;
+        Some(RenderTarget {
+            texture: self.texture.clone(),
+            view: self.texture.create_view(&wgpu::TextureViewDescriptor {
+                format: Some(format.to_wgpu()),
+                ..wgpu::TextureViewDescriptor::default()
+            }),
+            label: self.label.clone(),
+            format,
+            drawn: Arc::clone(&self.drawn),
+        })
+    }
+
     /// The label given at creation. It names the target in error messages and, in GPU capture
     /// tools, the render passes drawn into it and their command buffers, and also the texture of a
     /// target from [`Gpu::create_render_target`], but not a window's image.
@@ -205,7 +247,7 @@ impl Gpu {
     ///
     /// If `width` or `height` is zero or larger than the device allows (8192 at least: the engine's
     /// floor, [`Gpu::new`]), or if `format` is block-compressed
-    /// ([`TextureFormat::is_block_compressed`]).
+    /// ([`TextureFormat::is_block_compressed`]) or `R8Unorm`, which only textures take.
     pub fn create_render_target(
         &self,
         label: &str,
@@ -285,6 +327,13 @@ impl Gpu {
             !format.is_block_compressed(),
             "render target `{label}`: {format:?} stores blocks of texels, which only textures take"
         );
+        assert!(
+            format != TextureFormat::R8Unorm,
+            "render target `{label}`: {format:?} holds the coverage of an atlas, which only \
+             textures take"
+        );
+        // A target of an sRGB format can be seen without its encoding (`RenderTarget::without_srgb`).
+        let unencoded = format.without_srgb().map(TextureFormat::to_wgpu);
         let texture = self.create(label, || {
             self.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some(label),
@@ -298,7 +347,7 @@ impl Gpu {
                 dimension: wgpu::TextureDimension::D2,
                 format: format.to_wgpu(),
                 usage,
-                view_formats: &[],
+                view_formats: unencoded.as_slice(),
             })
         })?;
         Ok(RenderTarget::new(texture, label, format))

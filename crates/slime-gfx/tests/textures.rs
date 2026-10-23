@@ -408,6 +408,29 @@ fn srgb_textures_are_decoded_and_linear_ones_are_read_as_they_are() {
 }
 
 #[test]
+fn a_texture_of_one_channel_is_read_as_its_red_its_rows_of_any_width() {
+    let setup = Setup::new();
+    let sampler = setup.sampler(Filter::Nearest, AddressMode::ClampToEdge);
+    // Three texels a row, three bytes, which a copy to a texture pads to its rows' alignment.
+    let coverage = [0, 128, 255, 255, 128, 0];
+    let texture = setup
+        .gpu
+        .create_texture_with_levels("coverage", 3, 2, TextureFormat::R8Unorm, &[&coverage])
+        .expect("the GPU has memory for it");
+    let image = setup.draw(&texture, &sampler, [1.0, 1.0]);
+    // The linear value 0.502, encoded by the sRGB target: 188; green and blue 0.
+    for ((x, y), red) in [
+        ((1, 1), 0),
+        ((4, 1), 188),
+        ((7, 1), 255),
+        ((1, 6), 255),
+        ((7, 6), 0),
+    ] {
+        assert_eq!(pixel(&image, (x, y)), [red, 0, 0], "at ({x}, {y})");
+    }
+}
+
+#[test]
 fn minified_textures_are_read_from_their_smaller_levels() {
     let setup = Setup::new();
     // Black and white pixels alternating, in a linear format: every level but the first is grey,

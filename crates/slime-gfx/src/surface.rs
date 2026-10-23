@@ -115,6 +115,8 @@ impl Gpu {
     ///   [`GfxError::RequestDevice`] if the adapter refuses to open a device.
     /// - [`GfxError::CreateSurface`] if the graphics API cannot draw into this window.
     /// - [`GfxError::SurfaceFormat`] if the window offers no sRGB format that the engine supports.
+    /// - [`GfxError::SurfaceWithoutEncoding`] if the window's images cannot be seen without their
+    ///   sRGB encoding ([`RenderTarget::without_srgb`](crate::RenderTarget::without_srgb)).
     pub fn new_for_window<W>(
         window: W,
         width: u32,
@@ -206,6 +208,15 @@ impl Surface {
             .ok_or_else(|| GfxError::SurfaceFormat {
                 offered: format!("{:?}", capabilities.formats),
             })?;
+        // The canvas blends through the view of a window's image without its encoding: Direct3D 12
+        // always allows it, Vulkan with `VK_KHR_swapchain_mutable_format`.
+        if !adapter
+            .get_downlevel_capabilities()
+            .flags
+            .contains(wgpu::DownlevelFlags::SURFACE_VIEW_FORMATS)
+        {
+            return Err(GfxError::SurfaceWithoutEncoding);
+        }
         let chosen_mode = choose_present_mode(present_mode, &capabilities.present_modes);
         tracing::info!(?format, present_mode = ?chosen_mode, width, height, "window surface");
         if present_mode == PresentMode::Mailbox && chosen_mode != wgpu::PresentMode::Mailbox {
@@ -229,7 +240,11 @@ impl Surface {
             present_mode: chosen_mode,
             desired_maximum_frame_latency: 2,
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
-            view_formats: Vec::new(),
+            view_formats: format
+                .without_srgb()
+                .map(TextureFormat::to_wgpu)
+                .into_iter()
+                .collect(),
         };
         let mut surface = Surface {
             surface,

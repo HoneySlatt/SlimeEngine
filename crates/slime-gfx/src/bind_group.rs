@@ -331,7 +331,7 @@ mod tests {
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
             usage: crate::surface::WINDOW_IMAGE_USAGE,
-            view_formats: &[],
+            view_formats: &[wgpu::TextureFormat::Bgra8Unorm],
         });
         RenderTarget::new(texture, "window, frame 1", TextureFormat::Bgra8UnormSrgb)
     }

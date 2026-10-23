@@ -40,6 +40,14 @@ pub enum GfxError {
         /// The formats the window offers, as wgpu names them.
         offered: String,
     },
+    /// The window's images cannot be drawn into without their sRGB encoding, through which the
+    /// interface's canvas blends (`docs/adr/0137-the-canvas.md`): Vulkan without
+    /// `VK_KHR_swapchain_mutable_format`, which the desktop drivers have.
+    #[error(
+        "the window's images cannot be drawn into without their sRGB encoding (Vulkan lacks \
+         VK_KHR_swapchain_mutable_format)"
+    )]
+    SurfaceWithoutEncoding,
     /// The GPU device was lost: the driver crashed or was reset, the GPU was removed, it ran out of
     /// memory where wgpu cannot recover (see [`OutOfMemory`](Self::OutOfMemory)), or the program
     /// lost it on purpose ([`Gpu::lose`](crate::Gpu::lose)). Objects created from the device can no

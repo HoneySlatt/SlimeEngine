@@ -74,7 +74,10 @@ impl Gpu {
             });
         }
         let mut pixels = self.read_texels(target, 4)?;
-        if target.format() == TextureFormat::Bgra8UnormSrgb {
+        if matches!(
+            target.format(),
+            TextureFormat::Bgra8UnormSrgb | TextureFormat::Bgra8Unorm
+        ) {
             for pixel in pixels.as_chunks_mut::<4>().0 {
                 pixel.swap(0, 2);
             }

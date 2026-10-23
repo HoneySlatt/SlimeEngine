@@ -144,12 +144,20 @@ pub enum Blend {
     /// color × a + held × (1 − a), and alpha a + held alpha × (1 − a). In a target of an sRGB
     /// format, the GPU mixes the linear values, decoded, then encodes the result.
     Alpha,
+    /// The fragment's color laid over the target's as it is, already multiplied by its alpha a
+    /// (premultiplied): color + held × (1 − a), and alpha a + held alpha × (1 − a). A shape that
+    /// covers a share of a pixel multiplies its color and its alpha alike by that share; an image
+    /// whose texels are multiplied by their alpha before they are filtered mixes without the dark
+    /// fringes that a transparent texel's color leaves otherwise. In a target of an sRGB format,
+    /// the GPU mixes the linear values, as for [`Blend::Alpha`].
+    Premultiplied,
 }
 
 impl Blend {
     fn to_wgpu(self) -> wgpu::BlendState {
         match self {
             Self::Alpha => wgpu::BlendState::ALPHA_BLENDING,
+            Self::Premultiplied => wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING,
         }
     }
 }

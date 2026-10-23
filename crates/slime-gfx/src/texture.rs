@@ -72,9 +72,9 @@ impl Gpu {
     ///
     /// # Panics
     ///
-    /// If `format` is `Rgba16Float` or block-compressed, whose textures take levels the caller
-    /// gives ([`Gpu::create_texture_with_levels`]), or holds integers, which only render targets
-    /// take ([`TextureFormat::is_integer`]); if `width` or `height` is
+    /// If `format` is `Rgba16Float`, `R8Unorm` or block-compressed, whose textures take levels the
+    /// caller gives ([`Gpu::create_texture_with_levels`]), or holds integers, which only render
+    /// targets take ([`TextureFormat::is_integer`]); if `width` or `height` is
     /// zero or larger than the device allows ([`Gpu::max_texture_dimension`], 8192 at least:
     /// the engine's floor); or if `pixels` does not hold `width * height * 4` bytes.
     pub fn create_texture(
@@ -90,7 +90,9 @@ impl Gpu {
             "texture `{label}`: {format:?} holds integers, which only render targets take"
         );
         assert!(
-            format != TextureFormat::Rgba16Float && !format.is_block_compressed(),
+            format != TextureFormat::Rgba16Float
+                && format != TextureFormat::R8Unorm
+                && !format.is_block_compressed(),
             "texture `{label}`: {format:?} textures take levels given by the caller \
              (Gpu::create_texture_with_levels)"
         );
@@ -123,7 +125,8 @@ impl Gpu {
     /// caller gives: `levels[0]` is the full-size image, each next one half the size of the one
     /// before, rounded down, and at least one pixel, as wgpu sizes levels; there may be fewer
     /// levels than down to one pixel, but at least one. Each level holds its rows from top to
-    /// bottom, in the byte order of `format`: 4 bytes per pixel for the 8-bit formats, 8 for
+    /// bottom, in the byte order of `format`: 1 byte per texel for `R8Unorm`, 4 for the other 8-bit
+    /// formats, 8 for
     /// `Rgba16Float`, whose channels are half-precision floats, little-endian, as
     /// [`f32_to_f16`](crate::f32_to_f16) gives them. A block-compressed format holds rows of blocks
     /// of 4 × 4 texels instead, 16 bytes each, a level's width and height rounded up to whole
