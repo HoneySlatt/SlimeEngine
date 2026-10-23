@@ -2560,6 +2560,7 @@ dependencies = [
  "slime-cook",
  "slime-gfx",
  "slime-render",
+ "slime-ui",
  "slime-world",
  "slime-world-render",
 ]

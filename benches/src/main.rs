@@ -13,6 +13,7 @@
 mod loading;
 mod measure;
 mod render;
+mod ui;
 mod world;
 
 use std::process::ExitCode;
@@ -102,6 +103,24 @@ const BENCHMARKS: &[Benchmark] = &[
         about: "frames built around a sun that does not move, between two fixed steps",
         on_request: false,
         run: world::sky,
+    },
+    Benchmark {
+        name: "ui.text.labels.1k",
+        about: "1 000 labels of 12 to 30 letters laid out, each on a line of its own",
+        on_request: false,
+        run: ui::labels_1k,
+    },
+    Benchmark {
+        name: "ui.text.paragraphs",
+        about: "paragraphs of 2 000 characters in seven writing systems laid out, then broken again",
+        on_request: false,
+        run: ui::paragraphs,
+    },
+    Benchmark {
+        name: "ui.text.raster",
+        about: "Latin letters, Chinese characters and emoji rasterized at 14, 32 and 64 pixels",
+        on_request: false,
+        run: ui::raster,
     },
     Benchmark {
         name: "loading.batch",

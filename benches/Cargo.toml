@@ -19,5 +19,7 @@ slime-color.workspace = true
 slime-cook.workspace = true
 slime-gfx.workspace = true
 slime-render.workspace = true
+# The interface's text (ADR-0136).
+slime-ui.workspace = true
 slime-world.workspace = true
 slime-world-render.workspace = true
