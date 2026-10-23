@@ -57,6 +57,12 @@ const BENCHMARKS: &[Benchmark] = &[
         run: render::shaders,
     },
     Benchmark {
+        name: "render.canvas",
+        about: "two screens drawn by the canvas: an editor's, 2 000 boxes, 100 shadows, 20 000 glyphs and 16 images, and a game's menu, 290 boxes, 20 shadows, 3 900 glyphs and 50 icons",
+        on_request: false,
+        run: render::canvas,
+    },
+    Benchmark {
         name: "world.frame.100k",
         about: "a frame built from 100 000 entities that place a mesh each, under 1 000 parents",
         on_request: false,
