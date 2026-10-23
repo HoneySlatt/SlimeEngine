@@ -34,16 +34,15 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0133](adr/0133-font-files-under-the-open-font-license.md)). Stage 6 is now in three parts:
   Stage 6c, the editor, is planned in detail at Stage 6b's close, and released as 0.7. M6b.1 was
   cut in two at its start ([ADR-0134](adr/0134-the-editors-core.md)): M6b.1a, the commands and
-  undo, is done; M6b.1b, the editor driven by an agent
-  ([ADR-0135](adr/0135-the-editors-program.md)), is built and passes `scripts/check.sh`, and waits
-  for CI. Next: M6b.2.
+  undo, and M6b.1b, the editor driven by an agent ([ADR-0135](adr/0135-the-editors-program.md)),
+  are done. Next: M6b.2.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M6b.1a](#m6b1a--the-commands-and-undo) | The world's commands name entities for good and undo themselves; the editor's core makes them into steps, undone, redone and journaled, and writes its level back with its comments | Done |
-| [M6b.1b](#m6b1b--the-editor-driven-by-an-agent) | An agent drives the editor's core through the MCP server, on a level of the examples and on *Hunna Wood*'s zone | Built; CI to run |
+| [M6b.1b](#m6b1b--the-editor-driven-by-an-agent) | An agent drives the editor's core through the MCP server, on a level of the examples and on *Hunna Wood*'s zone | Done |
 | [M6b.2](#m6b2--text-in-several-writing-systems) | The engine lays text out in every writing system, without a GPU | Planned |
 | [M6b.3](#m6b3--drawing-the-interface) | The renderer draws an interface's boxes, text and images, crisp at every scale | Planned |
 | [M6b.4](#m6b4--elements-styles-and-layout) | An interface is a tree of elements, styled by themes read from files, laid out by flexbox and grid, and built again only where what it shows changed | Planned |
@@ -225,8 +224,9 @@ Risks:
   editor undo; CI is green, its jobs' times recorded.
 - **How to test.** `cargo test -p slime-editor -p slime-app -p slime-mcp`; the MCP server's session
   test; `cargo run --example editor`; `cargo run -p hunnawood-editor`.
-- **Outcome.** Built on 2026-10-23; `scripts/check.sh` passes, and CI runs once the milestone is
-  pushed, its jobs' times recorded here then. [ADR-0135](adr/0135-the-editors-program.md) records
+- **Outcome.** Done on 2026-10-23. CI is green on its last commit, 54cb416: `check (headless)` took
+  15 minutes 28 seconds, `check (windowed)` 15 minutes 48 seconds, `windows` 16 minutes 49 seconds
+  and `windows-release` 12 minutes 34 seconds. [ADR-0135](adr/0135-the-editors-program.md) records
   the owner's decision of 2026-10-23, that a program recovers by itself the journal that a crash,
   or a stop without writing, leaves, and the design that the owner validated the same day; it
   amends ADR-0121, ADR-0122 and ADR-0134. `slime_editor::run` runs a `Program` on `slime-app`
