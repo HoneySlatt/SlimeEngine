@@ -367,7 +367,17 @@ Risks:
 - **How to test.** `cargo test -p slime-gfx -p slime-render`; `cargo run --example interface`;
   `cargo run --release -p slime-benches -- render.canvas`.
 - **By hand.** The owner chooses how the interface blends.
-- **Outcome.** Done on 2026-10-23. The owner decided that day to cut M6b.3 in two; that the
+- **Outcome.** Done on 2026-10-23. CI is green on its last commit, 485d9f8. Its first run, on
+  1b26a1b, cooked the zone again in each job, the lock and `slime-color` having changed (see the
+  known debt): `check (headless)` took 17 minutes 19 seconds, `check (windowed)` 22 minutes 59
+  seconds, past the limit of 20, and `windows-release` 16 minutes 22 seconds; `windows` failed, and
+  failed again run anew: on Direct3D 12 on WARP, a view drawn again at its first size held 1.3 MiB
+  more than then, past its test's margin of 1 MiB, Vulkan's figures unchanged by the milestone; the
+  margin is now 2 MiB, less than any target of the larger size. The next run, its caches warm, took
+  13 minutes 56 seconds, 16 minutes 55 seconds, 17 minutes 54 seconds for `windows` and 8 minutes
+  44 seconds. `cargo deny` found an advisory against tokio 1.53.2, which `slime-mcp` reaches through
+  rmcp, RUSTSEC-2026-0386: tokio is at 1.53.3, the release that fixes it. The owner decided that day
+  to cut M6b.3 in two; that the
   interface takes at most 0.5 ms of GPU on each tier's reference machine, the plan's 1 ms halved;
   that the handheld tier's benchmark draws a game's menu, the editor's screen bounded at the two
   others; that the interface blends in sRGB's encoding, from pairs of images; and that the high tier
@@ -1339,8 +1349,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   the cooked zone is keyed by the whole `Cargo.lock` and root `Cargo.toml`, among the cooker's
   sources, so a milestone that adds a dependency, even one that the cooker does not use, cooks the
   zone again in each job. At M6b.2, that took the `windows` and `check (windowed)` jobs past their
-  limit of 20 minutes, by under a minute, on the first run; a key of the cooker's own dependencies
-  would avoid it.
+  limit of 20 minutes, by under a minute, on the first run, and at M6b.3a, `check (windowed)` by 3
+  minutes; a key of the cooker's own dependencies would avoid it.
 - **The system's fallback is checked only where the system has fonts**
   ([ADR-0136](adr/0136-the-interfaces-text.md)): its test checks nothing, and says so, on a machine
   whose fontconfig, or whose lack of it, gives no font for Greek or Japanese, as CI's Linux runners
