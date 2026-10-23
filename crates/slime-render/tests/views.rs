@@ -660,11 +660,13 @@ fn a_view_resized_gives_its_old_targets_back() {
     let first = held_after(&small);
     let resized = held_after(&large);
     assert!(resized > first, "larger targets: {first} then {resized}");
-    // But a few kilobytes that wgpu stages for the values written. Direct3D 12's allocator holds
-    // less then than after the first frame.
+    // Less than the smallest of the view's images at the larger size, its high-dynamic-range one of
+    // 2 MiB: the allocators keep a little differently from one frame to the next, a few kilobytes
+    // on Vulkan, and 1.3 MiB more on Direct3D 12 on WARP once the canvas's objects joined the
+    // renderer, where Vulkan's figures did not change.
     let again = held_after(&small);
     assert!(
-        again < first + MIB,
+        again < first + 2 * MIB,
         "nothing of the larger size kept: {first} bytes, then {again}"
     );
 }
