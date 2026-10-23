@@ -27,6 +27,8 @@ slime-editor.workspace = true
 slime-gfx.workspace = true
 slime-platform.workspace = true
 slime-render.workspace = true
+# The interface's text, which the `text` example lays out and rasterizes (ADR-0136).
+slime-ui.workspace = true
 slime-world.workspace = true
 slime-world-render.workspace = true
 tracing.workspace = true
@@ -58,3 +60,7 @@ path = "world.rs"
 [[example]]
 name = "editor"
 path = "editor.rs"
+
+[[example]]
+name = "text"
+path = "text.rs"

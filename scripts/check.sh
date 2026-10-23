@@ -103,6 +103,8 @@ if runs headless; then
         cargo run --locked --example world -- --assets "$cooked/first" --headless --frames 600
     env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         cargo run --locked --example offscreen -- --output target/triangle.png
+    # The interface's text, laid out and rasterized by the CPU into an image (ADR-0136).
+    cargo run --locked --example text -- --output target/text.png
     # An agent's session through the MCP server edits a copy of the yard with the `editor` example,
     # which has no window: steps made, undone and redone, the level written back and opened again,
     # a step not written recovered from the journal (ADR-0135).

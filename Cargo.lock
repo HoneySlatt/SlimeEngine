@@ -2649,6 +2649,7 @@ dependencies = [
  "slime-gfx",
  "slime-platform",
  "slime-render",
+ "slime-ui",
  "slime-world",
  "slime-world-render",
  "tracing",
