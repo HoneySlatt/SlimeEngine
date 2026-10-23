@@ -10,6 +10,9 @@ cd "$(dirname "$0")/.."
 # The Nix development shell sets this variable (flake.nix). Without the shell, the GPU tests and the
 # samples would fail only after minutes of other checks.
 : "${SLIME_LAVAPIPE_ICD:?run this script inside nix develop}"
+# The checks render on lavapipe, which VK_DRIVER_FILES names: a choice of drivers that the user's
+# environment makes, as `VK_LOADER_DRIVERS_SELECT=*radeon*`, would hide it from the Vulkan loader.
+unset VK_LOADER_DRIVERS_SELECT VK_LOADER_DRIVERS_DISABLE
 
 part=${1:-all}
 case "$part" in

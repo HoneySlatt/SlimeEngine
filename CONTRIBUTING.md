@@ -86,7 +86,10 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
 - `scripts/check.sh` runs the tests and the samples on lavapipe, Mesa's Vulkan driver that renders
   on the CPU, so that they give the same results on every machine and in CI. To run the GPU tests
   on your own GPU, run `cargo test` without `VK_DRIVER_FILES`; to reproduce the checks, run
-  `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test` inside `nix develop`. Without Nix, install
+  `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test` inside `nix develop`. If your environment
+  chooses Vulkan drivers, with `VK_LOADER_DRIVERS_SELECT` or `VK_LOADER_DRIVERS_DISABLE`, that
+  choice hides lavapipe from the Vulkan loader: unset them, as the script does
+  (`env -u VK_LOADER_DRIVERS_SELECT -u VK_LOADER_DRIVERS_DISABLE ...`). Without Nix, install
   Mesa's Vulkan drivers (on Debian and Ubuntu, `mesa-vulkan-drivers`) and point `VK_DRIVER_FILES`
   at their `lvp_icd.x86_64.json` file.
 - `WGPU_BACKEND` chooses another graphics API that the build supports (`WGPU_BACKEND=vulkan` on
