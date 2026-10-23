@@ -92,12 +92,23 @@ pub fn srgb8_to_linear(encoded: u8) -> f32 {
 /// the nearest byte, a value below 0 or above 1 clamped to it.
 #[must_use]
 pub fn linear_to_srgb8(linear: f32) -> u8 {
-    let encoded = if linear <= 0.003_130_8 {
+    (linear_to_srgb(linear).clamp(0.0, 1.0) * 255.0).round() as u8
+}
+
+/// The sRGB encoding of a linear value from 0 to 1, not rounded: a straight segment up to
+/// 0.0031308, then `1.055 c^(1/2.4) − 0.055`.
+///
+/// ```
+/// // Half the light is sRGB's 188 of 255.
+/// assert!((slime_color::linear_to_srgb(0.5) * 255.0 - 187.5).abs() < 0.1);
+/// ```
+#[must_use]
+pub fn linear_to_srgb(linear: f32) -> f32 {
+    if linear <= 0.003_130_8 {
         linear * 12.92
     } else {
         1.055 * linear.powf(1.0 / 2.4) - 0.055
-    };
-    (encoded.clamp(0.0, 1.0) * 255.0).round() as u8
+    }
 }
 
 #[cfg(test)]
