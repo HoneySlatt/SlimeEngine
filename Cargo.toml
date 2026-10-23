@@ -95,6 +95,18 @@ wgpu = { version = "30.0.1", default-features = false, features = ["std", "parki
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita-notitle"] }
 # The asset pipeline's cooker only: decodes JPEG images (ADR-0069).
 zune-jpeg = "0.5.15"
+# The text of the engine's interface, in slime-ui (ADR-0132, ADR-0136): parley shapes, orders, breaks
+# and lays out text, through HarfRust, Skrifa and ICU4X, with the dictionaries that break the lines
+# of the scripts that put no space between their words (`complex-scripts`); fontique, parley's,
+# finds fonts, the system's through fontconfig loaded at run time rather than linked
+# (`fontconfig-dlopen`); swash rasterizes glyphs, with the Skrifa that parley uses.
+fontique = { version = "0.12.0", features = ["fontconfig-dlopen"] }
+parley = { version = "0.12.0", features = ["complex-scripts"] }
+swash = "0.2.10"
+# slime-ui's text only: the Unicode writing system of each character, by which the system's font
+# found for a writing system is named for its characters (ADR-0136). Already built for parley, with
+# its data.
+icu_properties = "2.4.0"
 
 # Workspace crates.
 slime-app = { path = "crates/slime-app" }
@@ -110,6 +122,7 @@ slime-reflect = { path = "crates/slime-reflect" }
 slime-reflect-derive = { path = "crates/slime-reflect-derive" }
 slime-serialize = { path = "crates/slime-serialize" }
 slime-tasks = { path = "crates/slime-tasks" }
+slime-ui = { path = "crates/slime-ui" }
 slime-render = { path = "crates/slime-render" }
 slime-world = { path = "crates/slime-world" }
 slime-world-render = { path = "crates/slime-world-render" }

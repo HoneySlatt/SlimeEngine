@@ -8,6 +8,12 @@
 *.jpg binary
 *.jpeg binary
 *.meta text eol=lf
+# The fonts of slime-ui's tests, which hold binary tables.
+*.ttf binary
+*.otf binary
+# The texts of slime-ui's tests, which the tests break into lines: a carriage return would be a
+# line break of its own.
+crates/slime-ui/tests/texts/*.txt text eol=lf
 # The list of the sample game's source assets, which scripts/fetch-assets.sh reads line by line
 # and field by field: a carriage return would end up in its last field.
 *.tsv text eol=lf

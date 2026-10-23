@@ -1,0 +1,5 @@
+The build passed ✅ and the tests are green 🟢 on every machine 💻🖥️.
+Family emoji with joiners 👨‍👩‍👧‍👦 and 👩🏽‍💻 should each be one glyph.
+Flags such as 🇫🇷 🇯🇵 🇧🇷 🇮🇳 are pairs of regional indicators.
+Skin tones 👍🏻 👍🏿 and keycaps 1️⃣ 2️⃣ #️⃣ are sequences too.
+Hearts ❤️ 💙 💚, food 🍣 🍕 🌮, animals 🐱 🐶 🦊 and weather ☀️ 🌧️ ❄️ appear in chat messages 💬.

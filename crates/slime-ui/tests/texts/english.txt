@@ -1,0 +1,8 @@
+The editor shows a hierarchy of entities on the left, an inspector on the right, and the view of the world in the middle.
+Every panel can be docked, undocked, resized, or grouped into tabs, and the layout is saved with the project.
+Text in the interface is shaped with the same engine that games use for their menus, so that a translation tested in the editor looks the same in the game.
+Long names are wrapped at word boundaries, and a name that does not fit on one line is broken at the last opportunity before the edge.
+Numbers such as 3.14159, 1,024 and 65,536 keep their precision when they are edited.
+Screen readers receive a tree of nodes with roles, names and bounds, updated as the interface changes.
+A quick brown fox jumps over the lazy dog while twelve wizards box five jumping quails.
+A label too long for its box ends with an ellipsis… where it is cut.

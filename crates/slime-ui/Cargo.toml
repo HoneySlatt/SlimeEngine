@@ -1,0 +1,24 @@
+[package]
+name = "slime-ui"
+description = "SlimeEngine's UI framework, without a GPU: today its text, laid out in every writing system and rasterized."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Text shaped, ordered, broken into lines and laid out, the fonts found by fontique, which parley
+# re-exports; fontique named for its feature that loads fontconfig at run time (ADR-0136).
+fontique.workspace = true
+parley.workspace = true
+# The writing system of each character, by which the system's font found for it is named.
+icu_properties.workspace = true
+# Glyphs rasterized into coverage or color (ADR-0136).
+swash.workspace = true
+thiserror.workspace = true
+# A warning when a stack names a family that the fonts lack (ADR-0008).
+tracing.workspace = true
