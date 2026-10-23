@@ -16,7 +16,7 @@ use crate::measure::{Context, Row, ms, percentile, timed};
 
 /// The sizes of the frames drawn: the screens of the hardware tiers of ADR-0114, handheld, modest
 /// and high, whose budgets `docs/measurements.md` compares the figures with.
-const TIERS: [(u32, u32); 3] = [(1280, 800), (1920, 1080), (2560, 1440)];
+const TIERS: [(u32, u32); 3] = [(1280, 800), (1920, 1080), (3840, 2160)];
 /// The format of the frames drawn, an 8-bit sRGB one, as a window's.
 pub const FORMAT: TextureFormat = TextureFormat::Rgba8UnormSrgb;
 /// Frames drawn before the times are taken: the first ones create the renderer's targets and its
