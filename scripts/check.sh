@@ -103,6 +103,9 @@ if runs headless; then
         cargo run --locked --example world -- --assets "$cooked/first" --headless --frames 600
     env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         cargo run --locked --example offscreen -- --output target/triangle.png
+    # The interface's canvas, drawn into an image (docs/adr/0137-the-canvas.md).
+    env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        cargo run --locked --example interface -- --output target/interface.png
     # The interface's text, laid out and rasterized by the CPU into an image (ADR-0136).
     cargo run --locked --example text -- --output target/text.png
     # An agent's session through the MCP server edits a copy of the yard with the `editor` example,
@@ -151,6 +154,10 @@ if runs windowed; then
     # cleanly, then SIGKILL if that is not enough, and the failure then prints Weston's log.
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 120 cargo run --locked --example window -- --frames 120 ||
+        { cat "$runtime/slime-check.log"; exit 1; }
+    # The interface's canvas over the window, which it draws into without its sRGB encoding.
+    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        timeout -k 10 120 cargo run --locked --example interface -- --frames 120 ||
         { cat "$runtime/slime-check.log"; exit 1; }
     # The scene example draws the sample cooked above.
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \

@@ -64,3 +64,7 @@ path = "editor.rs"
 [[example]]
 name = "text"
 path = "text.rs"
+
+[[example]]
+name = "interface"
+path = "interface.rs"

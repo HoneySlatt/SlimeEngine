@@ -144,6 +144,12 @@ impl Shapes {
         })
     }
 
+    /// The renderer that draws the shapes, which the `interface` example draws its canvas with too.
+    #[allow(dead_code, reason = "the image test does not draw a canvas")]
+    pub fn renderer(&mut self) -> &mut Renderer {
+        &mut self.renderer
+    }
+
     /// Draws the shapes into `target` as the camera sees them `time` seconds after the start: it
     /// has orbited them by then.
     ///
