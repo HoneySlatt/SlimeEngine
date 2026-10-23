@@ -35,9 +35,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   Stage 6c, the editor, is planned in detail at Stage 6b's close, and released as 0.7. M6b.1 was
   cut in two at its start ([ADR-0134](adr/0134-the-editors-core.md)): M6b.1a, the commands and
   undo, and M6b.1b, the editor driven by an agent ([ADR-0135](adr/0135-the-editors-program.md)),
-  are done. M6b.2, text in several writing systems
-  ([ADR-0136](adr/0136-the-interfaces-text.md)), is built and passes `scripts/check.sh`, and waits
-  for CI. Next: M6b.3.
+  are done, and so is M6b.2, text in several writing systems
+  ([ADR-0136](adr/0136-the-interfaces-text.md)). Next: M6b.3.
 
 ## Status
 
@@ -45,7 +44,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M6b.1a](#m6b1a--the-commands-and-undo) | The world's commands name entities for good and undo themselves; the editor's core makes them into steps, undone, redone and journaled, and writes its level back with its comments | Done |
 | [M6b.1b](#m6b1b--the-editor-driven-by-an-agent) | An agent drives the editor's core through the MCP server, on a level of the examples and on *Hunna Wood*'s zone | Done |
-| [M6b.2](#m6b2--text-in-several-writing-systems) | The engine lays text out in every writing system, without a GPU | Built; CI to run |
+| [M6b.2](#m6b2--text-in-several-writing-systems) | The engine lays text out in every writing system, without a GPU | Done |
 | [M6b.3](#m6b3--drawing-the-interface) | The renderer draws an interface's boxes, text and images, crisp at every scale | Planned |
 | [M6b.4](#m6b4--elements-styles-and-layout) | An interface is a tree of elements, styled by themes read from files, laid out by flexbox and grid, and built again only where what it shows changed | Planned |
 | [M6b.5](#m6b5--input-focus-and-what-agents-see) | A person and an agent use the interface through the same actions, and an agent reads what it shows | Planned |
@@ -296,20 +295,24 @@ Risks:
   stay within 20 % of the study's figures that [ADR-0132](adr/0132-the-engines-ui-framework.md)
   records, or the milestone says why; CI's jobs, timed, stay under their limit; CI is green.
 - **How to test.** `cargo test -p slime-ui`; `cargo run --release -p slime-benches -- ui`.
-- **Outcome.** Built on 2026-10-23; `scripts/check.sh` passes, and CI runs once the milestone is
-  pushed, its jobs' times recorded here then. [ADR-0136](adr/0136-the-interfaces-text.md) records
-  the owner's decisions of 2026-10-23, that the tests' fonts are parts of the Noto releases that the
-  development machine holds, nothing downloaded, and that the font that the system's fallback finds
-  is remembered for a writing system, through `icu_properties`, and the design that the owner
-  validated the same day. `slime-ui` is created, holding its text module: `Fonts`, which registers
-  fonts from their bytes and, where a program asks, falls back on the system's, the family found for
-  a writing system named for its characters from then on; `Fonts::lay_out`, which shapes, orders,
-  breaks and aligns text with parley and cuts it with an ellipsis of the engine's own, parley 0.12
-  having none; the `TextLayout`'s lines and glyph runs, the cluster under a point, the position
-  nearest it, carets and selections; `GlyphRasterizer`, which draws a glyph without hinting, from a
-  key that holds a position between two pixels; and `TextCache`, within a budget of memory that an
-  estimate counts, fitted to a counting allocator's measurement. The dev shell loads fontconfig. The
-  fonts of the tests, some 700 KiB, are made by `scripts/subset-fonts.sh`. The benchmarks
+- **Outcome.** Done on 2026-10-23. CI is green on its last commit, 0b35c5f. Its first run, the
+  caches cold since the lock changed, took `check (headless)` 13 minutes 30 seconds, `check
+  (windowed)` 20 minutes 13 seconds, `windows` 20 minutes 38 seconds and `windows-release` 15
+  minutes 5 seconds: two jobs past the limit of 20, by cooking the zone again (see the known debt).
+  Run again, the caches warm, they took 13 minutes 45 seconds, 9 minutes 53 seconds, 14 minutes 44
+  seconds and 10 minutes 54 seconds. [ADR-0136](adr/0136-the-interfaces-text.md) records the owner's
+  decisions of 2026-10-23, that the tests' fonts are parts of the Noto releases that the development
+  machine holds, nothing downloaded, and that the font that the system's fallback finds is
+  remembered for a writing system, through `icu_properties`, and the design that the owner validated
+  the same day. `slime-ui` is created, holding its text module: `Fonts`, which registers fonts from
+  their bytes and, where a program asks, falls back on the system's, the family found for a writing
+  system named for its characters from then on; `Fonts::lay_out`, which shapes, orders, breaks and
+  aligns text with parley and cuts it with an ellipsis of the engine's own, parley 0.12 having none;
+  the `TextLayout`'s lines and glyph runs, the cluster under a point, the position nearest it,
+  carets and selections; `GlyphRasterizer`, which draws a glyph without hinting, from a key that
+  holds a position between two pixels; and `TextCache`, within a budget of memory that an estimate
+  counts, fitted to a counting allocator's measurement. The dev shell loads fontconfig. The fonts of
+  the tests, some 700 KiB, are made by `scripts/subset-fonts.sh`. The benchmarks
   `ui.text.labels.1k`, `ui.text.paragraphs` and `ui.text.raster` stay within 20 % of the study's
   figures, or under them, but for lines broken again in another width, which also gathers the glyphs
   again for drawing: breaking alone costs what the study measured
@@ -1251,6 +1254,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   its box, on a line before the last one shown, overflows the box rather than being cut. The cache's
   memory is an estimate fitted once to a measurement, of texts not cut; a hit copies its key; and
   fonts registered are never let go.
+- **CI cooks the zone again whenever the lock or the workspace's manifest changes**: the cache of
+  the cooked zone is keyed by the whole `Cargo.lock` and root `Cargo.toml`, among the cooker's
+  sources, so a milestone that adds a dependency, even one that the cooker does not use, cooks the
+  zone again in each job. At M6b.2, that took the `windows` and `check (windowed)` jobs past their
+  limit of 20 minutes, by under a minute, on the first run; a key of the cooker's own dependencies
+  would avoid it.
 - **The system's fallback is checked only where the system has fonts**
   ([ADR-0136](adr/0136-the-interfaces-text.md)): its test checks nothing, and says so, on a machine
   whose fontconfig, or whose lack of it, gives no font for Greek or Japanese, as CI's Linux runners
