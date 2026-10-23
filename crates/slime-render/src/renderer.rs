@@ -26,6 +26,7 @@ use slime_reflect::{Reflect, Registry};
 
 use crate::bytes::{push_f32s, push_mat3, push_mat4, push_u32s};
 use crate::camera::{Camera, Frustum, Projection};
+use crate::canvas::{Canvas, CanvasRenderer, CanvasStats};
 use crate::cooked::upload_texture;
 use crate::drawings::{
     Drawings, LINE_SETTINGS_SIZE, LineBuffers, SEGMENT_SIZE, line_settings, pack_lines,
@@ -835,6 +836,8 @@ pub struct Renderer {
     warned_of_instances: bool,
     /// The same for a client's lines.
     warned_of_lines: bool,
+    /// What draws canvases (`docs/adr/0137-the-canvas.md`).
+    canvas: CanvasRenderer,
 }
 
 /// What a frame works out about the scene's instances, one entry per instance, or per instance
@@ -1225,7 +1228,13 @@ impl Renderer {
             resolve: resolve_layout,
             lines: lines_layout,
         };
-        let pipelines = Pipelines::new(gpu, &ShaderSources::embedded(), &layouts, &kinds, format)?;
+        let sources = ShaderSources::embedded();
+        let pipelines = Pipelines::new(gpu, &sources, &layouts, &kinds, format)?;
+        let canvas = CanvasRenderer::new(
+            gpu,
+            &gpu.create_shader_module("canvas.wgsl", &sources.canvas)?,
+            format,
+        )?;
         let no_environment = Environment::black(gpu)?;
         let brdf_table = brdf_table(gpu)?;
         let environment_sampler = gpu.create_sampler(
@@ -1277,6 +1286,7 @@ impl Renderer {
             left_out_lights: Vec::new(),
             warned_of_instances: false,
             warned_of_lines: false,
+            canvas,
         })
     }
 
@@ -1368,8 +1378,38 @@ impl Renderer {
     /// renderer gives it at a uniform binding, or, on Direct3D 12, when the shader compiler
     /// rejects one; with [`GfxError::DeviceLost`] once the device is lost.
     pub fn set_shaders(&mut self, gpu: &Gpu, sources: &ShaderSources) -> Result<(), RenderError> {
-        self.pipelines = Pipelines::new(gpu, sources, &self.layouts, &self.kinds, self.format)?;
+        let pipelines = Pipelines::new(gpu, sources, &self.layouts, &self.kinds, self.format)?;
+        let canvas = gpu.create_shader_module("canvas.wgsl", &sources.canvas)?;
+        self.canvas.set_shader(gpu, &canvas)?;
+        self.pipelines = pipelines;
         Ok(())
+    }
+
+    /// Draws `canvas` over what `target` holds, in a pass of its own, submitted at once: after
+    /// the frame's views, the interface over them (`docs/adr/0137-the-canvas.md`). The target is
+    /// any of the renderer's format: the window's image, or one that a panel shows. Into a target
+    /// of an sRGB format, the canvas's colors mix as their sRGB values do, as design tools mix
+    /// them: it draws through the target's view without the encoding
+    /// ([`RenderTarget::without_srgb`]), its colors encoded first; into one of another format,
+    /// `Rgba16Float`, they mix linearly. Returns what it drew and the GPU time of an earlier canvas,
+    /// the latest that came back.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::Gfx`] with [`GfxError::OutOfMemory`] if the GPU cannot hold the canvas's
+    /// items, and [`GfxError::DeviceLost`] once the device is lost: nothing is drawn then.
+    ///
+    /// # Panics
+    ///
+    /// If `target` does not have the renderer's format, or holds several samples per pixel. A
+    /// canvas that draws its own target as an image is refused by the GPU's validation.
+    pub fn draw_canvas(
+        &mut self,
+        gpu: &Gpu,
+        canvas: &Canvas<'_>,
+        target: &RenderTarget,
+    ) -> Result<CanvasStats, RenderError> {
+        self.canvas.draw(gpu, canvas, target)
     }
 
     /// Registers in `registry` the type of the parameters of each kind of material that it draws
