@@ -51,6 +51,8 @@ cargo run -p hunnawood -- --new --save <file>             # play a new run, save
 cargo build -p hunnawood --no-default-features           # the game built for shipping, without the development channel (ADR-0122)
 cargo run --example editor -- --level <a copy of a level> --journal <file>  # the editor's program on the examples' yard (ADR-0135)
 cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>  # the game's editor on its zone (games/hunnawood-editor/README.md)
+cargo run --example text -- --output <file.png>           # the interface's text in several writing systems, rasterized by the CPU (ADR-0136)
+scripts/subset-fonts.sh <noto> <noto-cjk> <noto-emoji>    # make the fonts of slime-ui's tests again (crates/slime-ui/tests/fonts/README.md)
 cargo run --quiet -p slime-mcp                            # the engine's MCP server, through which an agent drives a game (crates/slime-mcp/README.md)
 ```
 

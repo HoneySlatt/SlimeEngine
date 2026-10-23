@@ -44,6 +44,9 @@ it is their whole name.
 | `world.save.100k` | A level of 100 000 entities, each with a name and a transform, spawned from a cooked scene and settled, of which a run moves 1 000: saved and loaded again five times, the time of a save, of a load into a level spawned and settled, and the save's size: a save costs what changed | [ADR-0112](../docs/adr/0112-levels-saves-and-worlds-for-open-worlds.md), [ADR-0125](../docs/adr/0125-saves-per-scene.md) |
 | `world.undo.1k` | A level of 100 000 entities, each with a name and a transform, and in it a subtree of 1 000, a group of nine groups of 110 entities, each with a name, a transform and a light: deleted by the world's command, then restored by the command that deleting gave back, twenty times; the median and the 90th percentile of the deletion, of the restoration and of both. The editor's step, which copies what the deletion recorded when it undoes, is not measured | [ADR-0109](../docs/adr/0109-stable-references-and-undo.md), [ADR-0134](../docs/adr/0134-the-editors-core.md) |
 | `world.sky` | Frames built around a sun that does not move, the sun set where it is at each fixed step, at the fractions of a step at which a display of 144 Hz shows a game stepping at 60 Hz, after a first frame that makes the sky's environment: the frames that made it again | G13 |
+| `ui.text.labels.1k` | 1 000 labels of 12 to 30 letters, names of entities and components, laid out each on a line of its own, with the Noto Sans of slime-ui's tests ([`crates/slime-ui/tests/fonts`](../crates/slime-ui/tests/fonts/README.md)), at 14 pixels | [ADR-0132](../docs/adr/0132-the-engines-ui-framework.md), [ADR-0136](../docs/adr/0136-the-interfaces-text.md) |
+| `ui.text.paragraphs` | A paragraph of some 2 000 characters of each of seven writing systems, English, Arabic with Latin words and numbers, Hindi, Thai, Japanese, Chinese and English with emoji, the sentences of slime-ui's tests repeated, laid out 400 pixels wide, each font named in its stack; then the English paragraph's lines broken again in another width, which gathers its glyphs again too | [ADR-0132](../docs/adr/0132-the-engines-ui-framework.md), [ADR-0136](../docs/adr/0136-the-interfaces-text.md) |
+| `ui.text.raster` | The glyphs of Latin letters, Chinese characters and emoji rasterized at 14, 32 and 64 pixels, without hinting, by one rasterizer: the median of the time per glyph | [ADR-0132](../docs/adr/0132-the-engines-ui-framework.md), [ADR-0136](../docs/adr/0136-the-interfaces-text.md) |
 | `loading.batch` | A load of meshes started, on the calling thread, with a manifest of 10 000, then 100 000 assets | G25, B4-F03 |
 | `loading.textures` | 16 squares, each drawn with a material of its own whose base color is a texture of 4096 × 4096 texels in BC7, every level of detail with it, 341 MiB in all, written once into `target/benches/textures` without the cooker, loaded and drawn as `loading.zone` is: the case of the audit's B4-F01 | B4-F01 |
 | `loading.zone` | The meshes of *Hunna Wood*'s zone, cooked in `target/cooked/hunnawood`, each placed once on a grid and drawn by day, under a sun that casts shadows, at 1280 × 720, while they load with their materials and textures, then once loaded, each frame waited for on the GPU, after frames that made the renderer's targets, its shadows' atlas and the sky, so that a load is not mixed with what a first frame costs: the time from the opening of the cooked zone until a frame draws them whole, the render CPU during the load and after, and the longest frame during the load, built, drawn and waited for. The zone's bytes, not its scene, whose components only the game registers. On request only, since it needs the zone fetched and cooked, as [*Hunna Wood*'s README](../games/hunnawood/README.md) says | B4-F01, B1-F06 |
@@ -58,8 +61,12 @@ after.
   frame's earlier submissions, which lavapipe runs one after the other
   ([`RenderStats::cpu_time`](../crates/slime-render/src/renderer.rs)): it is not a CPU time
   there. `world.transforms.100k`, `world.changes.100k`, `world.children`, `world.placements`,
-  `world.save.100k`, `world.undo.1k` and `loading.batch` do not touch the GPU; the others draw, or
-  make objects on the GPU.
+  `world.save.100k`, `world.undo.1k`, the `ui.text` benchmarks and `loading.batch` do not touch the
+  GPU; the others draw, or make objects on the GPU.
+- The `ui.text` benchmarks measure what the study of the UI framework measured
+  ([ADR-0132](../docs/adr/0132-the-engines-ui-framework.md)), with fonts named rather than found by
+  the system's fallback, as the engine lays text out: a figure within 20 % of the study's, or
+  under it, is as the study found.
 - A frame "until the GPU finished it" includes the wait of `Gpu::wait_idle`, which wakes up to 1 ms
   after the GPU finished: on a GPU whose frames take a few milliseconds, the times of the passes
   on the GPU are the figures to compare. Each frame reports the latest time of each pass that came

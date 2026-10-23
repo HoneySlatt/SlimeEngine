@@ -53,8 +53,8 @@ the versions pinned by `flake.lock`. To open windows, the examples need the wind
 libraries, which are loaded at run time: libxkbcommon for both windowing systems;
 libwayland-client for Wayland; libX11, libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11
 for X11. Without libxkbcommon, or libxkbcommon-x11 on X11, the examples panic instead of
-reporting that the windowing system cannot be reached. Most desktop distributions install them
-already.
+reporting that the windowing system cannot be reached. A program that asks for the system's fonts
+loads libfontconfig, and finds none without it. Most desktop distributions install them already.
 
 ### On Windows
 

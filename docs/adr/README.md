@@ -204,3 +204,4 @@ the ADR linking to it.
 | [0133](0133-font-files-under-the-open-font-license.md) | Font files under the SIL Open Font License | Accepted |
 | [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 |
 | [0135](0135-the-editors-program.md) | The editor's program | Accepted |
+| [0136](0136-the-interfaces-text.md) | The interface's text | Accepted |

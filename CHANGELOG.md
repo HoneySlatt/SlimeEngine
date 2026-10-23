@@ -8,6 +8,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- The interface's text, without a GPU (ADR-0136): `slime-ui`, a new crate, holds it, the UI
+  framework's first part. `slime_ui::text::Fonts` registers fonts from their bytes, which a style
+  names in a stack, and falls back on the system's where a program asks for them
+  (`Fonts::with_system_fonts`), the font found for a writing system named for it from then on;
+  `Fonts::lay_out` shapes, orders, breaks and aligns a text in every writing system, with parley,
+  and cuts it with an ellipsis to its box (`TextBounds`); the `TextLayout` gives its lines, its
+  glyph runs, the cluster under a point, the position nearest it, carets and selections;
+  `GlyphRasterizer` draws each glyph's image, coverage or color, from its `GlyphKey`, with swash;
+  `TextCache` keeps laid-out text within a budget of memory. The example `text` writes a sentence of
+  eight writing systems to an image. The benchmarks `ui.text.labels.1k`, `ui.text.paragraphs` and
+  `ui.text.raster`. The fonts of the tests, parts of Noto fonts under the SIL Open Font License, and
+  `scripts/subset-fonts.sh`, which makes them.
 - The editor's program (ADR-0135): `slime_editor::run`, an application of the engine without a
   window, which opens a level, keeps its journal in the user's data directory, recovers by itself
   what the journal holds that the level's file does not, as a crash or a stop without writing

@@ -72,9 +72,11 @@ of it from above in a corner, and selects what a click picks. Since 0.5, on `mai
 core, a library without an interface (`slime-editor`), changes a level through commands that name
 its entities by their persistent identities, undoes and redoes them, journals them, and writes the
 level back with its comments; its program, without a window, which an agent drives through the MCP
-server, opens the examples' yard or *Hunna Wood*'s zone. [`docs/PLAN.md`](docs/PLAN.md) says what
-comes next, the rest of Stage 6b, the engine's interface: its UI framework, proven by the dev
-overlay; then Stage 6c, the editor. It lists the known debt too.
+server, opens the examples' yard or *Hunna Wood*'s zone. The UI framework, `slime-ui`, lays text out
+in every writing system and rasterizes its glyphs on the CPU, which the `text` example writes to an
+image; the renderer does not draw it yet. [`docs/PLAN.md`](docs/PLAN.md) says what comes next, the
+rest of Stage 6b, the engine's interface: its UI framework, proven by the dev overlay; then Stage
+6c, the editor. It lists the known debt too.
 
 ## Getting started
 
@@ -154,9 +156,9 @@ The engine is young; [`docs/ROADMAP.md`](docs/ROADMAP.md) says which stage bring
 known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) lists the smaller gaps. A game made with it
 today has:
 
-- No text, game UI, audio, physics or animation, and of the editor only its core, a library
-  without an interface (`slime-editor`), and its program without a window, which agents drive
-  through the MCP server.
+- No game UI, audio, physics or animation; text laid out and rasterized (`slime-ui`), but not drawn
+  by the renderer; and of the editor only its core, a library without an interface
+  (`slime-editor`), and its program without a window, which agents drive through the MCP server.
 - An asset pipeline that imports glTF scenes, scene files and PNG and JPEG images only: the cooker,
   `slime-cook`, makes them cooked data, which the renderer loads whole, in the background while the
   game goes on, as an asset cache's requests ask (`AssetCache::request`) or a scene at a time

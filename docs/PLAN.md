@@ -35,7 +35,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   Stage 6c, the editor, is planned in detail at Stage 6b's close, and released as 0.7. M6b.1 was
   cut in two at its start ([ADR-0134](adr/0134-the-editors-core.md)): M6b.1a, the commands and
   undo, and M6b.1b, the editor driven by an agent ([ADR-0135](adr/0135-the-editors-program.md)),
-  are done. Next: M6b.2.
+  are done. M6b.2, text in several writing systems
+  ([ADR-0136](adr/0136-the-interfaces-text.md)), is built and passes `scripts/check.sh`, and waits
+  for CI. Next: M6b.3.
 
 ## Status
 
@@ -43,7 +45,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M6b.1a](#m6b1a--the-commands-and-undo) | The world's commands name entities for good and undo themselves; the editor's core makes them into steps, undone, redone and journaled, and writes its level back with its comments | Done |
 | [M6b.1b](#m6b1b--the-editor-driven-by-an-agent) | An agent drives the editor's core through the MCP server, on a level of the examples and on *Hunna Wood*'s zone | Done |
-| [M6b.2](#m6b2--text-in-several-writing-systems) | The engine lays text out in every writing system, without a GPU | Planned |
+| [M6b.2](#m6b2--text-in-several-writing-systems) | The engine lays text out in every writing system, without a GPU | Built; CI to run |
 | [M6b.3](#m6b3--drawing-the-interface) | The renderer draws an interface's boxes, text and images, crisp at every scale | Planned |
 | [M6b.4](#m6b4--elements-styles-and-layout) | An interface is a tree of elements, styled by themes read from files, laid out by flexbox and grid, and built again only where what it shows changed | Planned |
 | [M6b.5](#m6b5--input-focus-and-what-agents-see) | A person and an agent use the interface through the same actions, and an agent reads what it shows | Planned |
@@ -294,6 +296,45 @@ Risks:
   stay within 20 % of the study's figures that [ADR-0132](adr/0132-the-engines-ui-framework.md)
   records, or the milestone says why; CI's jobs, timed, stay under their limit; CI is green.
 - **How to test.** `cargo test -p slime-ui`; `cargo run --release -p slime-benches -- ui`.
+- **Outcome.** Built on 2026-10-23; `scripts/check.sh` passes, and CI runs once the milestone is
+  pushed, its jobs' times recorded here then. [ADR-0136](adr/0136-the-interfaces-text.md) records
+  the owner's decisions of 2026-10-23, that the tests' fonts are parts of the Noto releases that the
+  development machine holds, nothing downloaded, and that the font that the system's fallback finds
+  is remembered for a writing system, through `icu_properties`, and the design that the owner
+  validated the same day. `slime-ui` is created, holding its text module: `Fonts`, which registers
+  fonts from their bytes and, where a program asks, falls back on the system's, the family found for
+  a writing system named for its characters from then on; `Fonts::lay_out`, which shapes, orders,
+  breaks and aligns text with parley and cuts it with an ellipsis of the engine's own, parley 0.12
+  having none; the `TextLayout`'s lines and glyph runs, the cluster under a point, the position
+  nearest it, carets and selections; `GlyphRasterizer`, which draws a glyph without hinting, from a
+  key that holds a position between two pixels; and `TextCache`, within a budget of memory that an
+  estimate counts, fitted to a counting allocator's measurement. The dev shell loads fontconfig. The
+  fonts of the tests, some 700 KiB, are made by `scripts/subset-fonts.sh`. The benchmarks
+  `ui.text.labels.1k`, `ui.text.paragraphs` and `ui.text.raster` stay within 20 % of the study's
+  figures, or under them, but for lines broken again in another width, which also gathers the glyphs
+  again for drawing: breaking alone costs what the study measured
+  ([`docs/measurements.md`](measurements.md), M6b.2). The example `text` writes a sentence of eight
+  writing systems, and a label cut, to an image drawn by the CPU. A read-only review found that the
+  fallback, as first built, remembered its fonts for a stack, so that the order of texts changed the
+  font of a writing system, and that the measurements were not recorded, with smaller defects, among
+  which a stack of unknown families that drew nothing without a word, and the Hebrew font's family
+  named by the subset's legacy name: each is fixed, and tested where a test can. The tests: in
+  `slime-ui`'s `tests/text.rs`, `the_test_fonts_are_registered_under_their_families`,
+  `arabic_is_joined_and_laid_out_right_to_left_with_latin_words_and_numbers_in_it`,
+  `hebrew_is_laid_out_right_to_left`, `devanagari_letters_and_their_signs_make_one_cluster`,
+  `thai_breaks_between_its_words`, `japanese_and_chinese_break_between_characters`,
+  `an_emoji_sequence_is_one_color_glyph`, `no_glyph_is_missing_from_the_test_texts`,
+  `a_text_too_long_for_its_box_ends_with_an_ellipsis`, `a_box_that_changes_breaks_the_lines_again`,
+  `carets_and_the_cluster_under_a_point_follow_the_text_s_direction`,
+  `a_style_s_weight_alignment_and_direction_change_the_layout`,
+  `a_scale_multiplies_sizes_and_positions`,
+  `glyphs_are_rasterized_at_their_positions_between_pixels`, `an_emoji_is_rasterized_in_color` and
+  `a_text_cache_keeps_its_texts_within_its_budget_least_recently_used_first`; in `layout.rs`,
+  `without_the_system_s_fonts_what_no_font_has_is_missing`,
+  `a_stack_of_families_that_the_fonts_lack_draws_nothing` and
+  `the_system_s_font_for_a_writing_system_is_found_once_whatever_came_before`; in `fonts.rs`,
+  `a_text_is_cut_into_pieces_by_writing_system_its_spaces_and_marks_with_them`; in `cache.rs`,
+  `the_text_used_least_recently_leaves_first`; the module's doc test.
 
 ### M6b.3 — Drawing the interface
 
@@ -1201,6 +1242,19 @@ GitHub issues, linked from their entry; this list stays the reference.
   Hot reload in the editor comes with Stage 6c.
 - **A comment within a value written on several lines is lost** when the editor writes the level
   again, but for the end of the value's first line (`slime_serialize::keep_comments`).
+- **The interface's text has one style per text, and is not edited yet**
+  ([ADR-0136](adr/0136-the-interfaces-text.md)): spans of several styles in one text come with their
+  first user, and editing, input methods included, at M6b.6. Whether glyphs are hinted is judged on
+  images at M6b.3. An italic or a weight that a family lacks is drawn with its closest face, its
+  slant or boldness not made up. A face whose colors are only of `COLR`'s second version, as some
+  emoji fonts of systems, draws no color, swash drawing the first version alone. A word wider than
+  its box, on a line before the last one shown, overflows the box rather than being cut. The cache's
+  memory is an estimate fitted once to a measurement, of texts not cut; a hit copies its key; and
+  fonts registered are never let go.
+- **The system's fallback is checked only where the system has fonts**
+  ([ADR-0136](adr/0136-the-interfaces-text.md)): its test checks nothing, and says so, on a machine
+  whose fontconfig, or whose lack of it, gives no font for Greek or Japanese, as CI's Linux runners
+  may.
 - **An editor's journal grows across recoveries** ([ADR-0135](adr/0135-the-editors-program.md)):
   each recovery goes on with the journal that it recovered, which only a start with nothing
   unwritten begins anew, and the history of steps outlives a stop only when something is

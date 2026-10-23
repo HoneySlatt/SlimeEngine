@@ -830,3 +830,66 @@ build is not measured.
 | `world.undo.1k` | 1000 entities deleted, in a level of 100000, median and 90th percentile of 20 | 1.37 ms / 1.82 ms |
 | `world.undo.1k` | restored, median and 90th percentile of 20 | 1.83 ms / 2.15 ms |
 | `world.undo.1k` | deleted then restored, median and 90th percentile of 20 | 3.24 ms / 4.00 ms |
+
+## M6b.2, RX 6900 XT
+
+Commit `97a0815`, on 2026-10-23: the interface's text ([ADR-0136](adr/0136-the-interfaces-text.md)).
+The benchmarks `ui.text.labels.1k`, `ui.text.paragraphs` and `ui.text.raster` are new, and measure
+what the study of the UI framework measured on this machine
+([ADR-0132](adr/0132-the-engines-ui-framework.md)), with the fonts of slime-ui's tests named in
+their stacks where the study let fontconfig's fallback find most of them. The milestone asks that
+they stay within 20 % of the study's figures. They do, or are under them: 1 000 labels take 7.45 ms
+against the study's 7.0 ms; every paragraph that the study measured takes less than it did, the
+study counting the system's fallback, Arabic most of all; glyphs rasterize within the study's
+figures. One figure is above: a paragraph's lines broken again in another width, 71.4 µs against the
+study's 20 to 45 µs, because `TextLayout::set_bounds` also gathers the glyphs again for drawing,
+which the study did not. Timed once inside it, in a build instrumented for that and not kept,
+breaking the lines took 21 µs, aligning them 70 ns and gathering the glyphs 48 µs. The build is not
+measured.
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `ui.text.labels.1k` | 1 000 labels laid out, median of 15 | 7.45 ms |
+| `ui.text.labels.1k` | 1 000 labels laid out, 90th percentile of 15 | 7.53 ms |
+| `ui.text.paragraphs` | a paragraph of 2123 characters of english laid out, median of 15 | 357.9 µs |
+| `ui.text.paragraphs` | a paragraph of 2025 characters of arabic laid out, median of 15 | 810.0 µs |
+| `ui.text.paragraphs` | a paragraph of 2102 characters of hindi laid out, median of 15 | 868.9 µs |
+| `ui.text.paragraphs` | a paragraph of 2028 characters of thai laid out, median of 15 | 576.6 µs |
+| `ui.text.paragraphs` | a paragraph of 2026 characters of japanese laid out, median of 15 | 1.16 ms |
+| `ui.text.paragraphs` | a paragraph of 2003 characters of chinese laid out, median of 15 | 490.1 µs |
+| `ui.text.paragraphs` | a paragraph of 2069 characters of emoji laid out, median of 15 | 621.9 µs |
+| `ui.text.paragraphs` | the English paragraph's lines broken again in another width, median of 15 | 71.4 µs |
+| `ui.text.raster` | a Latin letter rasterized at 14 pixels, median of 15 | 1.2 µs |
+| `ui.text.raster` | a Latin letter rasterized at 32 pixels, median of 15 | 1.9 µs |
+| `ui.text.raster` | a Latin letter rasterized at 64 pixels, median of 15 | 3.1 µs |
+| `ui.text.raster` | a Chinese character rasterized at 14 pixels, median of 15 | 4.0 µs |
+| `ui.text.raster` | a Chinese character rasterized at 32 pixels, median of 15 | 6.7 µs |
+| `ui.text.raster` | a Chinese character rasterized at 64 pixels, median of 15 | 10.9 µs |
+| `ui.text.raster` | an emoji rasterized at 14 pixels, median of 15 | 201.6 µs |
+| `ui.text.raster` | an emoji rasterized at 32 pixels, median of 15 | 262.9 µs |
+| `ui.text.raster` | an emoji rasterized at 64 pixels, median of 15 | 377.2 µs |
+
+The memory that a laid-out text holds, which `TextLayout::memory` estimates for `TextCache`'s
+budget, was measured with an allocator that counts the bytes it hands out, in a program outside the
+repository, since the engine's code holds no `unsafe`: 100 layouts kept of each text, of 20
+characters and of some 2 000, laid out 400 pixels wide, none cut. The estimate is fitted to these
+figures: 3 KiB, 50 bytes per byte of text, 16 per glyph and some 400 per run.
+
+| Text | Bytes of text | Glyphs | Runs | Measured per layout | Estimated | Estimate against measure |
+|---|---|---|---|---|---|---|
+| English, 20 characters | 20 | 20 | 1 | 5 000 B | 4 830 B | −3 % |
+| English, 2 123 characters | 2 127 | 2 119 | 37 | 150 291 B | 159 532 B | +6 % |
+| Arabic, 20 characters | 37 | 26 | 1 | 5 840 B | 5 776 B | −1 % |
+| Arabic, 2 025 characters | 3 443 | 2 534 | 156 | 302 834 B | 280 126 B | −7 % |
+| Hindi, 20 characters | 54 | 20 | 1 | 6 677 B | 6 530 B | −2 % |
+| Hindi, 2 102 characters | 5 396 | 1 916 | 28 | 315 475 B | 315 792 B | 0 % |
+| Thai, 20 characters | 60 | 21 | 1 | 6 965 B | 6 846 B | −2 % |
+| Thai, 2 028 characters | 6 034 | 2 044 | 33 | 345 195 B | 351 930 B | +2 % |
+| Japanese, 20 characters | 60 | 20 | 7 | 8 359 B | 9 266 B | +11 % |
+| Japanese, 2 026 characters | 6 078 | 2 026 | 894 | 710 761 B | 704 688 B | −1 % |
+| Chinese, 20 characters | 60 | 20 | 1 | 6 970 B | 6 830 B | −2 % |
+| Chinese, 2 003 characters | 6 009 | 2 003 | 72 | 355 495 B | 367 106 B | +3 % |
+| English with emoji, 20 characters | 22 | 20 | 3 | 5 201 B | 5 742 B | +10 % |
+| English with emoji, 2 069 characters | 2 873 | 1 913 | 349 | 362 388 B | 320 208 B | −12 % |

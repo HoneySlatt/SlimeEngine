@@ -146,6 +146,10 @@ the links between documents ([`CONTRIBUTING.md`](../CONTRIBUTING.md#checks)).
 crate depends on: the examples, the games, such as *Hunna Wood*, the editor (`slime-editor`), the
 dev *overlay* (`slime-devui`), and the benchmarks (`slime-benches`).
 
+**Cluster (text).** The characters that one or more *glyphs* draw together, and that a caret
+never splits: a letter and its marks, a conjunct of Devanagari, a ligature, an emoji sequence
+([ADR-0136](adr/0136-the-interfaces-text.md)).
+
 **Command.** A change of the world asked for outside the *phases* of a frame that may make it, by
 the editor, the dev *overlay*, a tool, a load or a *presentation*: a value that names its entities
 by their *persistent identities* (`slime_world::Command`), queued by the *host*, and applied at the
@@ -320,6 +324,9 @@ one stop darker. About 15 for direct sunlight, 7 for a lit room. Its exposure is
 1 / (1.2 × 2^EV100), the convention of Frostbite and Filament; the `scene` example's slider moves in
 it.
 
+**Face (font).** One font of a font file, at one point of its variations, a variable font's
+weight among them: what draws a run of *glyphs* ([ADR-0136](adr/0136-the-interfaces-text.md)).
+
 **Filtered importance sampling.** Reading each sample of a Monte Carlo integral of a texture from
 a blurred level of it whose texels cover the solid angle the sample stands for, which removes the
 noise of sharp features with few samples (Křivánek and Colbert); the *prefiltered levels* are
@@ -343,6 +350,11 @@ the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or mor
 textures a shader reads or how large a buffer is: WebGPU's default limits. A device opens with
 every limit that its adapter offers, and an adapter below the floor is refused, the limit named
 (`slime_gfx::GfxError::BelowFloor`, [ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)).
+
+**Font stack.** The font families that a text's style names, in order of preference: a character
+takes the first font that has it. Without the system's fonts, a character that no font of the
+stack has is missing; with them, the system's fallback finds a font, which is named for the
+characters of that writing system from then on ([ADR-0136](adr/0136-the-interfaces-text.md)).
 
 **Former identity.** What an entity was called before it left its scene: before a game *adopted* it,
 which the world keeps and saves write, so that references written before find it
@@ -394,6 +406,13 @@ Decided, not built yet.
 **glTF.** The Khronos Group's format for 3D scenes: meshes, materials, textures and a node
 hierarchy, as a JSON file with binary buffers, or as one GLB file with everything embedded. The
 cooker, `slime-cook`, imports both ([ADR-0069](adr/0069-the-asset-pipeline.md)).
+
+**Glyph.** A shape that a font draws: a letter, a form that a letter takes when it joins its
+neighbours, a ligature of several, a mark, an emoji. *Shaping* turns text into glyphs.
+
+**Glyph key.** What names a *glyph*'s image: its *face*, its index there, its size, the *subpixel
+position* of its origin, and its representation, coverage or color. Equal keys share one image
+([ADR-0136](adr/0136-the-interfaces-text.md)).
 
 **GPU time.** How long the GPU took to run a render pass, measured by timestamps written at its
 start and its end (`slime_gfx::GpuTimer`) and read back a few frames later; `None` on adapters
@@ -1009,6 +1028,10 @@ whether its rectangle covers its whole output, and whether anything is drawn aft
 the image. The *render graph* is built again, and its GPU times start over, when it changes
 ([ADR-0041](adr/0041-render-graph.md)).
 
+**Shaping.** Turning a run of text into the *glyphs* that draw it and their positions: the forms
+that a script's letters take beside each other, ligatures, marks placed on their letters. parley
+shapes the engine's text ([ADR-0136](adr/0136-the-interfaces-text.md)).
+
 **Simulated time.** Frame deltas supplied as a constant duration instead of being measured, so
 that a run gives the same results on every machine. Headless runs use it.
 
@@ -1093,6 +1116,10 @@ file, whose ID is derived from the file's ID, its kind and its name
 pass of `Gpu::render`): one call into the driver, and a unit of synchronization on the GPU. Each
 costs CPU time, so the renderer records its passes four to a submission
 ([ADR-0041](adr/0041-render-graph.md)).
+
+**Subpixel position.** One of the positions between two pixels at which a *glyph*'s origin is
+rasterized, across the line, so that glyphs are spaced as their advances say rather than rounded
+to whole pixels ([ADR-0136](adr/0136-the-interfaces-text.md)).
 
 **Sun's disc.** The disc of the sun's apparent size, 0.533°, that the *sky pass* draws, whose
 radiance gives a surface facing it the sun's illuminance; it lights nothing, the scene's
