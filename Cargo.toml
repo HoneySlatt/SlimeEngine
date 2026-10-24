@@ -111,6 +111,10 @@ icu_properties = "2.4.0"
 # page by shelves, and frees it alone, as the least recently used glyphs leave. Brings euclid, its
 # sizes and rectangles, already built for egui.
 etagere = "0.3.0"
+# The layout of slime-ui's tree of elements (ADR-0132): CSS's flexbox and grid, run through taffy's
+# traits on the framework's own arena, without taffy's tree of its own (`taffy_tree`) nor its
+# parser of CSS.
+taffy = { version = "0.15.0", default-features = false, features = ["std", "flexbox", "grid", "content_size"] }
 
 # Workspace crates.
 slime-app = { path = "crates/slime-app" }

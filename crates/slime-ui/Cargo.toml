@@ -21,6 +21,8 @@ icu_properties.workspace = true
 slime-color.workspace = true
 # Glyphs rasterized into coverage or color (ADR-0136).
 swash.workspace = true
+# The layout of the tree of elements: flexbox and grid (ADR-0132).
+taffy.workspace = true
 thiserror.workspace = true
 # A warning when a stack names a family that the fonts lack (ADR-0008).
 tracing.workspace = true
