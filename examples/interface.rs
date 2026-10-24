@@ -1,10 +1,15 @@
-//! The interface's canvas (`docs/adr/0137-the-canvas.md`), drawn by the renderer over a window or
-//! into a PNG file: panels with rounded corners, borders and shadows; a list that scrolls, cut by
-//! its panel's clip; buttons; images of colors, and images of coverage drawn in a color, as glyphs
-//! will be; a translucent card over the rest; and, in a panel, the shapes of the image tests, which
-//! the renderer draws into a target of its own each frame, the panel showing that target as an
-//! image, as the editor's viewport will. Colors mix as sRGB values, as design tools mix them. Text
-//! comes with Stage 6b's next milestone.
+//! An interface drawn by the engine over a window or into a PNG file, from a display list made by
+//! hand (`docs/adr/0139-text-drawn-and-the-display-list.md`), which `slime-ui-render` draws through
+//! the renderer's canvas (`docs/adr/0137-the-canvas.md`): panels with rounded corners, borders and
+//! shadows; a list that scrolls, cut by its panel's clip, its rows named; buttons with their
+//! labels; a sentence of each writing system of slime-ui's tests, Arabic and Hebrew from right to
+//! left, Hindi, Thai, Japanese, Chinese and emoji, its glyphs kept in the bridge's atlas; images
+//! of colors, and images of coverage drawn in a color; a translucent card over the rest; and, in a
+//! panel, the shapes of the image tests, which the renderer draws into a target of its own each
+//! frame, the panel showing that target as an image, as the editor's viewport will. Colors mix as
+//! sRGB values, as design tools mix them. The fonts are those of slime-ui's tests, parts of Noto
+//! fonts that hold the characters of its texts alone (`crates/slime-ui/tests/fonts/README.md`),
+//! built into the program.
 //!
 //! ```sh
 //! cargo run --example interface                            # in a window; Escape quits
@@ -25,10 +30,13 @@ use slime_app::{AppConfig, AppError, Context, Presentation};
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderTarget, Texture, TextureFormat};
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
-use slime_render::{
-    Canvas, CanvasBox, CanvasImage, CanvasShadow, ImageKind, ImagePart, ImageQuad, PixelRect,
-    RenderError,
+use slime_render::{CanvasImage, RenderError};
+use slime_ui::Rect;
+use slime_ui::display::{
+    BoxPrimitive, DisplayList, ImageKey, ImageKind, ImagePrimitive, ShadowPrimitive, TextPrimitive,
 };
+use slime_ui::text::{Alignment, Fonts, TEXT_CACHE_BUDGET, TextBounds, TextCache, TextStyle};
+use slime_ui_render::UiRenderer;
 use slime_world::World;
 
 use shapes::Shapes;
@@ -40,27 +48,99 @@ const IMAGE_TIME: f32 = 0.7;
 /// The side of an icon of the atlas of colors, and of the image of coverage, in texels.
 const ICON: u32 = 32;
 const MASK: u32 = 64;
+/// The keys by which the display list names its images.
+const ICONS: ImageKey = ImageKey(1);
+const TICK: ImageKey = ImageKey(2);
+const VIEW: ImageKey = ImageKey(3);
+/// The width of the panel of writing systems, in logical pixels.
+const TEXTS_WIDTH: f32 = 360.0;
+
+/// The fonts of slime-ui's tests, built into the program so that it runs anywhere.
+const FONTS: &[&[u8]] = &[
+    include_bytes!("../crates/slime-ui/tests/fonts/NotoSans.ttf"),
+    include_bytes!("../crates/slime-ui/tests/fonts/NotoSansArabic.ttf"),
+    include_bytes!("../crates/slime-ui/tests/fonts/NotoSansHebrew.ttf"),
+    include_bytes!("../crates/slime-ui/tests/fonts/NotoSansDevanagari.ttf"),
+    include_bytes!("../crates/slime-ui/tests/fonts/NotoSansThai.ttf"),
+    include_bytes!("../crates/slime-ui/tests/fonts/NotoSansCJKjp.otf"),
+    include_bytes!("../crates/slime-ui/tests/fonts/NotoSansCJKsc.otf"),
+    include_bytes!("../crates/slime-ui/tests/fonts/NotoColorEmoji.ttf"),
+];
+
+/// Each writing system: the first sentence of its test text, its stack and its language.
+const SCRIPTS: &[(&str, [&str; 2], &str)] = &[
+    (
+        include_str!("../crates/slime-ui/tests/texts/english.txt"),
+        ["Noto Sans", "Noto Sans"],
+        "en",
+    ),
+    (
+        include_str!("../crates/slime-ui/tests/texts/arabic.txt"),
+        ["Noto Sans Arabic", "Noto Sans"],
+        "ar",
+    ),
+    (
+        include_str!("../crates/slime-ui/tests/texts/hebrew.txt"),
+        ["Noto Sans Hebrew", "Noto Sans"],
+        "he",
+    ),
+    (
+        include_str!("../crates/slime-ui/tests/texts/hindi.txt"),
+        ["Noto Sans Devanagari", "Noto Sans"],
+        "hi",
+    ),
+    (
+        include_str!("../crates/slime-ui/tests/texts/thai.txt"),
+        ["Noto Sans Thai", "Noto Sans"],
+        "th",
+    ),
+    (
+        include_str!("../crates/slime-ui/tests/texts/japanese.txt"),
+        ["Noto Sans CJK JP", "Noto Sans"],
+        "ja",
+    ),
+    (
+        include_str!("../crates/slime-ui/tests/texts/chinese.txt"),
+        ["Noto Sans CJK SC", "Noto Sans"],
+        "zh-CN",
+    ),
+    (
+        include_str!("../crates/slime-ui/tests/texts/emoji.txt"),
+        ["Noto Sans", "Noto Color Emoji"],
+        "en",
+    ),
+];
 
 /// What the interface draws with: the renderer, which the shapes hold, the target their view is
-/// drawn into, and the images.
+/// drawn into, the images, the fonts and their laid-out texts, and the bridge with its atlas.
 struct Interface {
     shapes: Shapes,
     viewport: Option<RenderTarget>,
     /// Sixteen icons of 32 × 32 texels in colors, four by four.
     icons: Texture,
     /// A ring and a tick, how much of each texel they cover.
-    mask: Texture,
+    tick: Texture,
+    fonts: Fonts,
+    texts: TextCache,
+    ui: UiRenderer,
+    /// The words that name the list's rows and the buttons, those of the English test text, which
+    /// its fonts hold.
+    words: Vec<String>,
 }
 
 impl Interface {
-    fn new(gpu: &Gpu, format: TextureFormat) -> Result<Self, RenderError> {
+    fn new(
+        gpu: &Gpu,
+        format: TextureFormat,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let side = ICON * 4;
         let icons: Vec<u8> = (0..side * side)
             .flat_map(|texel| {
                 let (x, y) = (texel % side, texel / side);
                 let (column, row) = (x / ICON, y / ICON);
                 let (u, v) = ((x % ICON) as f32 + 0.5, (y % ICON) as f32 + 0.5);
-                // A disc of each icon's color, fading to its edge, on nothing.
+                // A disc of each icon's color, fading to its edge, on its color, transparent, so
+                // that filtering at its edge darkens nothing.
                 let distance = ((u - 16.0).powi(2) + (v - 16.0).powi(2)).sqrt();
                 let alpha = (14.0 - distance).clamp(0.0, 1.0);
                 [
@@ -73,7 +153,7 @@ impl Interface {
             .collect();
         let icons =
             gpu.create_texture("icons", side, side, TextureFormat::Rgba8UnormSrgb, &icons)?;
-        let mask: Vec<u8> = (0..MASK * MASK)
+        let tick: Vec<u8> = (0..MASK * MASK)
             .map(|texel| {
                 let (x, y) = ((texel % MASK) as f32 + 0.5, (texel / MASK) as f32 + 0.5);
                 let ring = ((x - 32.0).powi(2) + (y - 32.0).powi(2)).sqrt();
@@ -91,18 +171,33 @@ impl Interface {
                 (ring.max(tick) * 255.0) as u8
             })
             .collect();
-        let mask =
-            gpu.create_texture_with_levels("mask", MASK, MASK, TextureFormat::R8Unorm, &[&mask])?;
+        let tick =
+            gpu.create_texture_with_levels("tick", MASK, MASK, TextureFormat::R8Unorm, &[&tick])?;
+        let mut fonts = Fonts::new();
+        for font in FONTS {
+            fonts.register(font.to_vec())?;
+        }
+        let words = SCRIPTS[0]
+            .0
+            .split_whitespace()
+            .map(|word| word.trim_matches(|c: char| !c.is_alphanumeric()))
+            .filter(|word| word.len() > 3)
+            .map(str::to_owned)
+            .collect();
         Ok(Self {
             shapes: Shapes::new(gpu, format)?,
             viewport: None,
             icons,
-            mask,
+            tick,
+            fonts,
+            texts: TextCache::new(TEXT_CACHE_BUDGET),
+            ui: UiRenderer::default(),
+            words,
         })
     }
 
     /// Draws the interface over `target`, `time` seconds after the start, at `scale` pixels per
-    /// logical pixel: first the shapes into the viewport's target, then the canvas.
+    /// logical pixel: first the shapes into the viewport's target, then the display list.
     fn draw(
         &mut self,
         gpu: &Gpu,
@@ -112,27 +207,32 @@ impl Interface {
     ) -> Result<(), RenderError> {
         let (width, height) = (target.width() as f32, target.height() as f32);
         // A rectangle in logical pixels, on the target.
-        let at = |x: f32, y: f32, w: f32, h: f32| {
-            PixelRect::new(x * scale, y * scale, w * scale, h * scale)
-        };
+        let at =
+            |x: f32, y: f32, w: f32, h: f32| Rect::new(x * scale, y * scale, w * scale, h * scale);
         let (logical_width, logical_height) = (width / scale, height / scale);
-        let list = at(12.0, 52.0, 260.0, logical_height - 64.0);
+        let list_panel = at(12.0, 52.0, 260.0, logical_height - 64.0);
+        let texts_panel = at(
+            logical_width - TEXTS_WIDTH - 12.0,
+            52.0,
+            TEXTS_WIDTH,
+            logical_height - 64.0,
+        );
         let view = at(
             284.0,
             52.0,
-            (logical_width - 296.0).max(1.0),
+            (logical_width - 296.0 - TEXTS_WIDTH - 12.0).max(1.0),
             (logical_height - 204.0).max(1.0),
         );
         let shelf_top = logical_height - 140.0;
 
         // The view, drawn into its own target at the size of its panel, less a border.
-        let inside = PixelRect::new(
+        let inside = Rect::new(
             view.x + 6.0 * scale,
             view.y + 6.0 * scale,
-            view.width - 12.0 * scale,
-            view.height - 12.0 * scale,
+            (view.width - 12.0 * scale).max(1.0),
+            (view.height - 12.0 * scale).max(1.0),
         );
-        let size = (inside.width.max(1.0) as u32, inside.height.max(1.0) as u32);
+        let size = (inside.width as u32, inside.height as u32);
         if self
             .viewport
             .as_ref()
@@ -144,222 +244,298 @@ impl Interface {
         let viewport = self.viewport.as_ref().expect("made above");
         self.shapes.render(gpu, viewport, time)?;
 
-        let mut canvas = Canvas::new();
-        let icons = canvas.add_image(CanvasImage::Texture(&self.icons));
-        let mask = canvas.add_image(CanvasImage::Texture(&self.mask));
-        let shown = canvas.add_image(CanvasImage::Target(viewport));
-        let plain = |rect: PixelRect, radius: f32, fill: LinearColor| CanvasBox {
+        let Self {
+            shapes,
+            viewport,
+            icons,
+            tick,
+            fonts,
+            texts,
+            ui,
+            words,
+        } = self;
+        let mut list = DisplayList::new();
+        let plain = |rect: Rect, radius: f32, fill: LinearColor| BoxPrimitive {
             rect,
             radii: [radius * scale; 4],
             fill,
             border_width: 0.0,
             border: LinearColor::BLACK,
-            clip: None,
         };
-        let panel = |canvas: &mut Canvas<'_>, rect: PixelRect| {
-            canvas.draw_shadow(&CanvasShadow {
-                rect,
-                radii: [8.0 * scale; 4],
-                color: LinearColor::rgba(0.0, 0.0, 0.0, 0.45),
-                offset: [0.0, 4.0 * scale],
-                blur: 18.0 * scale,
-                spread: 0.0,
-                clip: None,
-            });
-            canvas.draw_box(&CanvasBox {
-                border_width: scale,
-                border: srgb(0x3A3D43),
-                ..plain(rect, 8.0, srgb(0x26282C))
-            });
+        let panel = |list: &mut DisplayList, rect: Rect| {
+            list.push(
+                ShadowPrimitive {
+                    rect,
+                    radii: [8.0 * scale; 4],
+                    color: LinearColor::rgba(0.0, 0.0, 0.0, 0.45),
+                    offset: [0.0, 4.0 * scale],
+                    blur: 18.0 * scale,
+                    spread: 0.0,
+                },
+                None,
+            );
+            list.push(
+                BoxPrimitive {
+                    border_width: scale,
+                    border: srgb(0x3A3D43),
+                    ..plain(rect, 8.0, srgb(0x26282C))
+                },
+                None,
+            );
+        };
+        // A text laid out at the screen's scale, kept from frame to frame.
+        let mut lay_out = |text: &str, style: &TextStyle, bounds: TextBounds| {
+            texts.get(fonts, text, style, scale, bounds).clone()
+        };
+        // The style of the labels, in the English test text's font.
+        let label = |size: f32| TextStyle {
+            fonts: vec!["Noto Sans".to_owned()],
+            size,
+            ..TextStyle::default()
+        };
+        let text = |layout, origin: [f32; 2], color| TextPrimitive {
+            origin,
+            layout,
+            color,
         };
 
-        canvas.draw_box(&plain(
-            PixelRect::new(0.0, 0.0, width, height),
-            0.0,
-            srgb(0x1B1C1F),
-        ));
+        list.push(
+            plain(Rect::new(0.0, 0.0, width, height), 0.0, srgb(0x1B1C1F)),
+            None,
+        );
         // The bar and its buttons, the second pressed.
-        canvas.draw_box(&plain(
-            at(0.0, 0.0, logical_width, 40.0),
-            0.0,
-            srgb(0x2B2D31),
-        ));
+        list.push(
+            plain(at(0.0, 0.0, logical_width, 40.0), 0.0, srgb(0x2B2D31)),
+            None,
+        );
         for index in 0..5 {
             let pressed = index == 1;
-            canvas.draw_box(&CanvasBox {
-                border_width: scale,
-                border: if pressed {
-                    srgb(0x6C8CFF)
-                } else {
-                    srgb(0x4E525A)
-                },
-                ..plain(
-                    at(12.0 + index as f32 * 96.0, 6.0, 88.0, 28.0),
-                    6.0,
-                    if pressed {
-                        srgb(0x4C6EF5)
+            let button = at(12.0 + index as f32 * 96.0, 6.0, 88.0, 28.0);
+            list.push(
+                BoxPrimitive {
+                    border_width: scale,
+                    border: if pressed {
+                        srgb(0x6C8CFF)
                     } else {
-                        srgb(0x3A3D43)
+                        srgb(0x4E525A)
                     },
-                )
-            });
+                    ..plain(
+                        button,
+                        6.0,
+                        if pressed {
+                            srgb(0x4C6EF5)
+                        } else {
+                            srgb(0x3A3D43)
+                        },
+                    )
+                },
+                None,
+            );
+            let name = lay_out(&words[index * 7], &label(13.0), TextBounds::line(80.0));
+            let origin = [
+                button.x + (button.width - name.width()) / 2.0,
+                button.y + (button.height - name.height()) / 2.0,
+            ];
+            list.push(text(name, origin, srgb(0xE3E5E8)), None);
         }
 
         // The list: rows that scroll up, cut at the inside of their panel.
-        panel(&mut canvas, list);
-        let clip = Some(PixelRect::new(
-            list.x + scale,
-            list.y + 8.0 * scale,
-            list.width - 2.0 * scale,
-            list.height - 16.0 * scale,
+        panel(&mut list, list_panel);
+        let clip = Some(Rect::new(
+            list_panel.x + scale,
+            list_panel.y + 8.0 * scale,
+            list_panel.width - 2.0 * scale,
+            list_panel.height - 16.0 * scale,
         ));
         let scroll = (time * 24.0) % (28.0 * 16.0);
         for row in 0..48 {
             let y = 60.0 + row as f32 * 28.0 - scroll;
             let selected = row == 5;
-            canvas.draw_box(&CanvasBox {
-                clip,
-                ..plain(
-                    at(20.0, y, 244.0, 24.0),
-                    4.0,
-                    if selected {
-                        srgb(0x3B5BDB)
-                    } else if row % 2 == 0 {
-                        srgb(0x2E3035)
-                    } else {
-                        srgb(0x292B30)
-                    },
-                )
-            });
+            let fill = if selected {
+                srgb(0x3B5BDB)
+            } else if row % 2 == 0 {
+                srgb(0x2E3035)
+            } else {
+                srgb(0x292B30)
+            };
+            list.push(plain(at(20.0, y, 244.0, 24.0), 4.0, fill), clip);
             let icon = row % 16;
-            let (u, v) = ((icon % 4) as f32 / 4.0, (icon / 4) as f32 / 4.0);
-            canvas.draw_image(&ImageQuad {
-                rect: at(26.0, y + 4.0, 16.0, 16.0),
-                image: icons,
-                part: ImagePart {
-                    x: u,
-                    y: v,
-                    width: 0.25,
-                    height: 0.25,
+            list.push(
+                ImagePrimitive {
+                    rect: at(26.0, y + 4.0, 16.0, 16.0),
+                    image: ICONS,
+                    part: Rect::new((icon % 4) as f32 / 4.0, (icon / 4) as f32 / 4.0, 0.25, 0.25),
+                    kind: ImageKind::Color,
+                    color: LinearColor::WHITE,
                 },
-                kind: ImageKind::Color,
-                color: LinearColor::WHITE,
                 clip,
-            });
-            // Where a row's name will be: a bar of its length.
-            canvas.draw_box(&CanvasBox {
-                clip,
-                ..plain(
-                    at(50.0, y + 9.0, 60.0 + (row * 37 % 120) as f32, 6.0),
-                    3.0,
-                    if selected {
-                        srgb(0xDDE4FF)
-                    } else {
-                        srgb(0x8A8F98)
-                    },
-                )
-            });
+            );
+            let name = lay_out(
+                &words[row % words.len()],
+                &label(13.0),
+                TextBounds::line(200.0),
+            );
+            let origin = [50.0 * scale, (y + 12.0) * scale - name.height() / 2.0];
+            let color = if selected {
+                srgb(0xFFFFFF)
+            } else {
+                srgb(0xC9CDD4)
+            };
+            list.push(text(name, origin, color), clip);
+        }
+
+        // A sentence of each writing system, laid out across the panel, from its start: from the
+        // right for Arabic and Hebrew.
+        panel(&mut list, texts_panel);
+        let texts_clip = Some(texts_panel);
+        let mut y = texts_panel.y + 12.0 * scale;
+        for &(script, stack, locale) in SCRIPTS {
+            let style = TextStyle {
+                fonts: stack.iter().map(|&family| family.to_owned()).collect(),
+                size: 14.0,
+                alignment: Alignment::Start,
+                locale: Some(locale.to_owned()),
+                ..TextStyle::default()
+            };
+            let sentence = script.lines().next().unwrap_or_default();
+            let layout = lay_out(sentence, &style, TextBounds::width(TEXTS_WIDTH - 24.0));
+            let height = layout.height();
+            list.push(
+                text(layout, [texts_panel.x + 12.0 * scale, y], srgb(0xE3E5E8)),
+                texts_clip,
+            );
+            y += height + 10.0 * scale;
         }
 
         // The view in its panel, and a translucent card over it.
-        panel(&mut canvas, view);
-        canvas.draw_image(&ImageQuad {
-            rect: inside,
-            image: shown,
-            part: ImagePart::WHOLE,
-            kind: ImageKind::Color,
-            color: LinearColor::WHITE,
-            clip: None,
-        });
-        let card = PixelRect::new(
+        panel(&mut list, view);
+        list.push(
+            ImagePrimitive {
+                rect: inside,
+                image: VIEW,
+                part: Rect::new(0.0, 0.0, 1.0, 1.0),
+                kind: ImageKind::Color,
+                color: LinearColor::WHITE,
+            },
+            None,
+        );
+        let card = Rect::new(
             inside.x + 16.0 * scale,
             inside.y + 16.0 * scale,
             220.0 * scale,
             96.0 * scale,
         );
-        canvas.draw_shadow(&CanvasShadow {
-            rect: card,
-            radii: [10.0 * scale; 4],
-            color: LinearColor::rgba(0.0, 0.0, 0.0, 0.5),
-            offset: [0.0, 6.0 * scale],
-            blur: 24.0 * scale,
-            spread: 0.0,
-            clip: None,
-        });
-        canvas.draw_box(&CanvasBox {
-            border_width: scale,
-            border: LinearColor {
-                a: 0.6,
-                ..srgb(0x5F6368)
+        list.push(
+            ShadowPrimitive {
+                rect: card,
+                radii: [10.0 * scale; 4],
+                color: LinearColor::rgba(0.0, 0.0, 0.0, 0.5),
+                offset: [0.0, 6.0 * scale],
+                blur: 24.0 * scale,
+                spread: 0.0,
             },
-            ..plain(
-                card,
-                10.0,
-                LinearColor {
-                    a: 0.8,
-                    ..srgb(0x202226)
+            None,
+        );
+        list.push(
+            BoxPrimitive {
+                border_width: scale,
+                border: LinearColor {
+                    a: 0.6,
+                    ..srgb(0x5F6368)
                 },
-            )
-        });
-        canvas.draw_image(&ImageQuad {
-            rect: PixelRect::new(
-                card.x + 16.0 * scale,
-                card.y + 16.0 * scale,
-                64.0 * scale,
-                64.0 * scale,
-            ),
-            image: mask,
-            part: ImagePart::WHOLE,
-            kind: ImageKind::Coverage,
-            color: srgb(0x51CF66),
-            clip: None,
-        });
+                ..plain(
+                    card,
+                    10.0,
+                    LinearColor {
+                        a: 0.8,
+                        ..srgb(0x202226)
+                    },
+                )
+            },
+            None,
+        );
+        list.push(
+            ImagePrimitive {
+                rect: Rect::new(
+                    card.x + 16.0 * scale,
+                    card.y + 16.0 * scale,
+                    64.0 * scale,
+                    64.0 * scale,
+                ),
+                image: TICK,
+                part: Rect::new(0.0, 0.0, 1.0, 1.0),
+                kind: ImageKind::Coverage,
+                color: srgb(0x51CF66),
+            },
+            None,
+        );
+        let caption = lay_out(&words[3], &label(16.0), TextBounds::line(120.0));
+        let origin = [
+            card.x + 92.0 * scale,
+            card.y + card.height / 2.0 - caption.height() / 2.0,
+        ];
+        list.push(text(caption, origin, srgb(0xE3E5E8)), None);
 
         // The shelf: cards of icons and of coverage in colors.
         for index in 0..8 {
             let card = at(284.0 + index as f32 * 112.0, shelf_top, 100.0, 128.0);
-            panel(&mut canvas, card);
+            if card.x + card.width > texts_panel.x {
+                break;
+            }
+            panel(&mut list, card);
             let icon = (index * 5) % 16;
-            let (u, v) = ((icon % 4) as f32 / 4.0, (icon / 4) as f32 / 4.0);
-            canvas.draw_image(&ImageQuad {
-                rect: PixelRect::new(
-                    card.x + 18.0 * scale,
-                    card.y + 12.0 * scale,
-                    64.0 * scale,
-                    64.0 * scale,
-                ),
-                image: icons,
-                part: ImagePart {
-                    x: u,
-                    y: v,
-                    width: 0.25,
-                    height: 0.25,
+            list.push(
+                ImagePrimitive {
+                    rect: Rect::new(
+                        card.x + 18.0 * scale,
+                        card.y + 12.0 * scale,
+                        64.0 * scale,
+                        64.0 * scale,
+                    ),
+                    image: ICONS,
+                    part: Rect::new((icon % 4) as f32 / 4.0, (icon / 4) as f32 / 4.0, 0.25, 0.25),
+                    kind: ImageKind::Color,
+                    color: LinearColor::WHITE,
                 },
-                kind: ImageKind::Color,
-                color: LinearColor::WHITE,
-                clip: None,
-            });
+                None,
+            );
             let tint = [
                 srgb(0xFF6B6B),
                 srgb(0xFCC419),
                 srgb(0x51CF66),
                 srgb(0x339AF0),
             ][index % 4];
-            canvas.draw_image(&ImageQuad {
-                rect: PixelRect::new(
-                    card.x + 34.0 * scale,
-                    card.y + 84.0 * scale,
-                    32.0 * scale,
-                    32.0 * scale,
-                ),
-                image: mask,
-                part: ImagePart::WHOLE,
-                kind: ImageKind::Coverage,
-                color: tint,
-                clip: None,
-            });
+            list.push(
+                ImagePrimitive {
+                    rect: Rect::new(
+                        card.x + 34.0 * scale,
+                        card.y + 84.0 * scale,
+                        32.0 * scale,
+                        32.0 * scale,
+                    ),
+                    image: TICK,
+                    part: Rect::new(0.0, 0.0, 1.0, 1.0),
+                    kind: ImageKind::Coverage,
+                    color: tint,
+                },
+                None,
+            );
         }
-        self.shapes.renderer().draw_canvas(gpu, &canvas, target)?;
+
+        let viewport = viewport.as_ref().expect("made above");
+        ui.draw(
+            gpu,
+            shapes.renderer(),
+            fonts,
+            &list,
+            |key| match key {
+                ICONS => Some(CanvasImage::Texture(icons)),
+                TICK => Some(CanvasImage::Texture(tick)),
+                VIEW => Some(CanvasImage::Target(viewport)),
+                _ => None,
+            },
+            target,
+        )?;
         Ok(())
     }
 }
@@ -460,7 +636,7 @@ fn main() -> ExitCode {
 }
 
 /// Draws one frame of the interface, without a window, into an image written to `output`.
-fn write_image(output: &Path, scale: f32) -> Result<(), Box<dyn std::error::Error>> {
+fn write_image(output: &Path, scale: f32) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let gpu = Gpu::new()?;
     let (width, height) = (
         (IMAGE_SIZE.0 as f32 * scale).round() as u32,

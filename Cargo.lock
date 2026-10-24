@@ -2659,6 +2659,7 @@ dependencies = [
  "slime-platform",
  "slime-render",
  "slime-ui",
+ "slime-ui-render",
  "slime-world",
  "slime-world-render",
  "tracing",

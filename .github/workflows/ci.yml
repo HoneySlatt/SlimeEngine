@@ -176,6 +176,8 @@ jobs:
         run: |
           mkdir -p target/windows
           cp target/release/examples/{hello,headless,window,offscreen,interface,scene,world}.exe target/windows/
+          # The licenses of the parts of Noto fonts that interface.exe embeds (ADR-0133).
+          cp crates/slime-ui/tests/fonts/*.OFL.txt target/windows/
           cp target/release/hunnawood.exe target/windows/
           scripts/fetch-dxc.sh target/windows
           cargo run --locked --release -p slime-cook -- cook examples/assets target/windows/assets

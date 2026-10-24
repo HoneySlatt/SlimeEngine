@@ -29,6 +29,9 @@ slime-platform.workspace = true
 slime-render.workspace = true
 # The interface's text, which the `text` example lays out and rasterizes (ADR-0136).
 slime-ui.workspace = true
+# The bridge that draws the `interface` example's display list through the renderer's canvas
+# (ADR-0139).
+slime-ui-render.workspace = true
 slime-world.workspace = true
 slime-world-render.workspace = true
 tracing.workspace = true
