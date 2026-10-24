@@ -1,4 +1,4 @@
-| slime-ui's and slime-ui-render's tests, the text benchmarks, the `text` example, and the `interface` example, which embeds them;# Dependencies
+# Dependencies
 
 Every third-party dependency of the project, with the reason it is used. The policy that admits
 dependencies is [ADR-0006](adr/0006-dependency-policy.md); [`deny.toml`](../deny.toml) enforces its
@@ -77,7 +77,7 @@ it. No tool checks a font's license: the change that adds a font records it here
 
 | Font | Used by | Source | License |
 |---|---|---|---|
-| Parts of Noto Sans, Noto Sans Arabic, Hebrew, Devanagari and Thai, Noto Sans CJK JP and SC, and Noto Color Emoji, in [`crates/slime-ui/tests/fonts`](../crates/slime-ui/tests/fonts/README.md) | slime-ui's tests, the text benchmarks, the `text` example, and the `interface` example, which embeds them; shipped with `interface.exe` of the Windows artifact, their licenses beside it | The Noto releases of 2026-10-01 (Noto Sans), 2.004 (Noto CJK) and 2.051 (Noto Emoji), cut down to the characters of the tests' texts by `scripts/subset-fonts.sh` (M6b.2) | OFL-1.1, one license file per font |
+| Parts of Noto Sans, Noto Sans Arabic, Hebrew, Devanagari and Thai, Noto Sans CJK JP and SC, and Noto Color Emoji, in [`crates/slime-ui/tests/fonts`](../crates/slime-ui/tests/fonts/README.md) | slime-ui's and slime-ui-render's tests, the text benchmarks, the `text` example, and the `interface` example, which embeds them; shipped with `interface.exe` of the Windows artifact, their licenses beside it | The Noto releases of 2026-10-01 (Noto Sans), 2.004 (Noto CJK) and 2.051 (Noto Emoji), cut down to the characters of the tests' texts by `scripts/subset-fonts.sh` (M6b.2) | OFL-1.1, one license file per font |
 
 ## Shipped with the Windows programs
 
