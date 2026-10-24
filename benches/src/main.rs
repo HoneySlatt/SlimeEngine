@@ -135,6 +135,18 @@ const BENCHMARKS: &[Benchmark] = &[
         run: ui::menu,
     },
     Benchmark {
+        name: "ui.tree.editor",
+        about: "a tree of the editor's size, 12 500 elements: first built, one value changed, still",
+        on_request: false,
+        run: ui::tree,
+    },
+    Benchmark {
+        name: "ui.tree.list.100k",
+        about: "a list of 100 000 rows, of which only those that show are built: scrolled, still",
+        on_request: false,
+        run: ui::list,
+    },
+    Benchmark {
         name: "loading.batch",
         about: "a load of meshes started with a manifest of 10 000, then 100 000 assets",
         on_request: false,

@@ -5,7 +5,11 @@
 use std::hint::black_box;
 use std::time::Duration;
 
+use slime_color::LinearColor;
+use slime_ui::display::ImageKey;
+use slime_ui::style::{Dimension, Display, FlexDirection, Justify, Sides, Style, TextLook, Track};
 use slime_ui::text::{Fonts, GlyphKey, GlyphRasterizer, TextBounds, TextStyle};
+use slime_ui::tree::{ButtonStates, Element, ElementId, LayoutDirection, RootSettings, Ui};
 
 use crate::measure::{Context, Row, ms, percentile, timed};
 
@@ -307,7 +311,6 @@ pub fn raster(_: &mut Context) -> Result<Vec<Row>, String> {
 pub fn menu(context: &mut Context) -> Result<Vec<Row>, String> {
     use std::sync::Arc;
 
-    use slime_color::LinearColor;
     use slime_render::Renderer;
     use slime_ui::Rect;
     use slime_ui::display::{BoxPrimitive, DisplayList, ShadowPrimitive, TextPrimitive};
@@ -515,5 +518,246 @@ pub fn menu(context: &mut Context) -> Result<Vec<Row>, String> {
             ),
         ));
     }
+    Ok(rows)
+}
+
+/// The Latin font of slime-ui's tests alone.
+fn latin() -> Result<Fonts, String> {
+    let path = Context::root().join("crates/slime-ui/tests/fonts/NotoSans.ttf");
+    let bytes = std::fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+    let mut fonts = Fonts::new();
+    fonts
+        .register(bytes)
+        .map_err(|error| format!("{}: {error}", path.display()))?;
+    Ok(fonts)
+}
+
+/// The style of a text of the tree's benchmarks.
+fn look() -> Style {
+    Style {
+        text: TextLook {
+            style: style(&SCRIPTS[0]),
+            color: LinearColor::WHITE,
+        },
+        ..Style::default()
+    }
+}
+
+/// A style that lays its children out in a column.
+fn column() -> Style {
+    let mut style = Style::default();
+    style.layout.direction = FlexDirection::Column;
+    style
+}
+
+/// A style of `width` by `height` logical pixels.
+fn sized(width: f32, height: f32) -> Style {
+    let mut style = Style::default();
+    style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(height)];
+    style
+}
+
+/// A root of 1920 × 1080 logical pixels at scale 1.
+const SCREEN: RootSettings = RootSettings {
+    size: [1920.0, 1080.0],
+    scale: 1.0,
+    direction: LayoutDirection::LeftToRight,
+};
+
+/// An editor's window: a toolbar, a hierarchy, a viewport, an inspector and a browser of assets,
+/// each panel a slot built by its own revision: for each of its labels, a row of the hierarchy
+/// and of the browser, and a field of the inspector, a name and a value, in a component of ten.
+struct Editor {
+    ui: Ui,
+    labels: Vec<String>,
+    panels: [ElementId; 4],
+    /// The value that the inspector shows in its first field, which a change moves.
+    value: u64,
+}
+
+impl Editor {
+    fn new(fonts: Fonts, labels: Vec<String>) -> Self {
+        let mut ui = Ui::new(fonts);
+        let root = ui.add_root(SCREEN, column());
+        let mut panels = Vec::new();
+        ui.build(root, 0, |children| {
+            let mut toolbar = Style::default();
+            toolbar.layout.gap = [0.0, 4.0];
+            panels.push(children.add_slot("toolbar", Element::container(toolbar)));
+            let mut main = Style::default();
+            main.layout.grow = 1.0;
+            main.layout.min_size[1] = Dimension::Pixels(0.0);
+            children.add("main", Element::container(main), |children| {
+                let panel = |width: f32| {
+                    let mut style = column();
+                    style.layout.size[0] = Dimension::Pixels(width);
+                    style.layout.padding = Sides::all(4.0);
+                    Element::scroll(style)
+                };
+                panels.push(children.add_slot("hierarchy", panel(300.0)));
+                let mut viewport = Style::default();
+                viewport.layout.grow = 1.0;
+                children.add("viewport", Element::container(viewport), |_| {});
+                panels.push(children.add_slot("inspector", panel(400.0)));
+                panels.push(children.add_slot("assets", panel(300.0)));
+            });
+        });
+        let mut editor = Self {
+            ui,
+            labels,
+            panels: [panels[0], panels[1], panels[2], panels[3]],
+            value: 0,
+        };
+        editor.build(0);
+        editor
+    }
+
+    /// Builds the panels whose revision moved: all of them at first, then the inspector alone,
+    /// which reads `revision`.
+    fn build(&mut self, revision: u64) {
+        let [toolbar, hierarchy, inspector, assets] = self.panels;
+        let labels = &self.labels;
+        let button = |label: String| Element::button(label, look(), ButtonStates::default());
+        self.ui.build(toolbar, 0, |children| {
+            for index in 0..30_usize {
+                children.add(index, button(format!("Tool {index}")), |_| {});
+            }
+        });
+        self.ui.build(hierarchy, 0, |children| {
+            for (index, label) in labels.iter().enumerate() {
+                let mut row = Style::default();
+                row.layout.padding.start = (index % 4) as f32 * 12.0;
+                row.layout.gap = [0.0, 4.0];
+                children.add(index, Element::container(row), |children| {
+                    children.add("name", Element::label(label.as_str(), look()), |_| {});
+                    children.add("shown", button("o".to_owned()), |_| {});
+                });
+            }
+        });
+        let value = self.value;
+        // A component's fields in a grid of names and values, ten to a component.
+        self.ui.build(inspector, revision, |children| {
+            let mut grid = Style::default();
+            grid.layout.display = Display::Grid;
+            grid.layout.columns = vec![Track::Pixels(160.0), Track::Fraction(1.0)];
+            grid.layout.gap = [2.0, 8.0];
+            for (component, fields) in labels.chunks(10).enumerate() {
+                children.add(component, Element::container(column()), |children| {
+                    let header = Element::label(fields[0].as_str(), look());
+                    children.add("header", header, |_| {});
+                    children.add("fields", Element::container(grid.clone()), |children| {
+                        for (index, label) in fields.iter().enumerate() {
+                            let name = Element::label(label.as_str(), look());
+                            children.add(format!("{index} name"), name, |_| {});
+                            let first = component == 0 && index == 0;
+                            let shown = if first { value } else { index as u64 };
+                            let value = Element::label(format!("{shown}.25"), look());
+                            children.add(format!("{index} value"), value, |_| {});
+                        }
+                    });
+                });
+            }
+        });
+        self.ui.build(assets, 0, |children| {
+            for (index, label) in labels.iter().enumerate() {
+                let mut row = Style::default();
+                row.layout.gap = [0.0, 4.0];
+                children.add(index, Element::container(row), |children| {
+                    let icon = Element::image(ImageKey(index as u64 % 16), sized(16.0, 16.0));
+                    children.add("icon", icon, |_| {});
+                    children.add("name", Element::label(label.as_str(), look()), |_| {});
+                });
+            }
+        });
+    }
+}
+
+/// A tree of the editor's size, some 12 500 elements: its first frame, which lays out its texts;
+/// a frame after one value of the inspector changed; a frame with nothing changed.
+pub fn tree(_: &mut Context) -> Result<Vec<Row>, String> {
+    let labels = labels(1_500);
+    let mut firsts = Vec::new();
+    for _ in 0..RUNS {
+        let (fonts, labels) = (latin()?, labels.clone());
+        let (mut editor, built) = timed(|| Editor::new(fonts, labels));
+        let (_, framed) = timed(|| black_box(editor.ui.frame()));
+        firsts.push(built + framed);
+    }
+    let mut editor = Editor::new(latin()?, labels);
+    let (list, stats) = editor.ui.frame();
+    let mut revision = 0;
+    let changed = times(|| {
+        revision += 1;
+        editor.value = revision;
+        editor.build(revision);
+        black_box(editor.ui.frame());
+    });
+    let still = times(|| {
+        editor.build(revision);
+        black_box(editor.ui.frame());
+    });
+    let mut rows = vec![
+        Row::new("elements", stats.elements.to_string()),
+        Row::new("items of the display list", list.len().to_string()),
+    ];
+    rows.extend(Row::times(
+        "the first frame: built, its texts and its tree laid out, drawn",
+        &firsts,
+    ));
+    rows.extend(Row::times(
+        "a frame after one value of the inspector changed",
+        &changed,
+    ));
+    rows.extend(Row::times("a frame with nothing changed", &still));
+    Ok(rows)
+}
+
+/// A list of 100 000 rows, a name and a value in each, on a screen of 1080 logical pixels: frames
+/// while it scrolls by 7 pixels each, which shows other rows every third, then while it stands
+/// still.
+pub fn list(_: &mut Context) -> Result<Vec<Row>, String> {
+    const ROWS: usize = 100_000;
+    let labels = labels(1_000);
+    let mut ui = Ui::new(latin()?);
+    let root = ui.add_root(SCREEN, column());
+    let mut list = None;
+    let mut build = |ui: &mut Ui| {
+        ui.build(root, 0, |children| {
+            let mut style = Style::default();
+            style.layout.grow = 1.0;
+            let element = Element::list(ROWS, 20.0, style);
+            list = Some(children.add("list", element, |rows| {
+                for row in rows.rows() {
+                    let mut style = Style::default();
+                    style.layout.justify = Justify::SpaceBetween;
+                    rows.add(row, Element::container(style), |children| {
+                        let name = labels[row % labels.len()].as_str();
+                        children.add("name", Element::label(name, look()), |_| {});
+                        let value = Element::label(format!("{row}"), look());
+                        children.add("value", value, |_| {});
+                    });
+                }
+            }));
+        });
+        list.unwrap()
+    };
+    let list = build(&mut ui);
+    ui.frame();
+    build(&mut ui);
+    let (_, stats) = ui.frame();
+    let mut offset = 0.0;
+    let scrolled = times(|| {
+        offset += 7.0;
+        ui.scroll_to(list, [0.0, offset]);
+        build(&mut ui);
+        black_box(ui.frame());
+    });
+    let still = times(|| {
+        build(&mut ui);
+        black_box(ui.frame());
+    });
+    let mut rows = vec![Row::new("elements", stats.elements.to_string())];
+    rows.extend(Row::times("a frame scrolled by 7 pixels", &scrolled));
+    rows.extend(Row::times("a frame standing still", &still));
     Ok(rows)
 }
