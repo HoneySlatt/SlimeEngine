@@ -460,8 +460,8 @@ Risks:
   `tests/textures.rs`, `a_part_of_a_texture_is_written_and_the_rest_kept` and
   `a_part_beyond_the_texture_is_refused`; in `slime-ui`, `a_display_list_is_sent_to_another_thread`,
   `a_text_held_elsewhere_is_given_again_as_it_is_and_copied_only_for_another_box` and the display
-  list's doc test; in `slime-ui-render`'s `tests/drawing.rs`, each comparing the
-  pixels drawn with the same glyphs laid over black by the CPU,
+  list's doc test; in `slime-ui-render`'s `tests/drawing.rs`, each comparing the pixels drawn with
+  the same glyphs laid over black by the CPU,
   `the_text_of_each_writing_system_is_drawn_where_its_layout_places_its_glyphs`, at scales 1 and 2,
   `a_glyph_drawn_again_is_read_from_the_atlas_not_rasterized_again`,
   `past_its_budget_the_atlas_lets_go_of_the_glyphs_that_no_draw_asked_for_the_longest`,
@@ -470,12 +470,16 @@ Risks:
   `a_text_cut_by_its_clip_is_drawn_inside_it_alone`,
   `each_image_is_asked_for_once_a_draw_and_a_glyph_larger_than_a_page_is_left_out` and
   `a_page_whose_glyphs_a_draw_does_not_draw_makes_room_for_a_page_of_another_kind`. A read-only
-  review found the architecture document's title broken by an edit; the text cache copying a
-  layout that a display list held at every hit, even in the same box; one kind of atlas page able
-  to keep the other out for good, the pages never let go; stale passages, the README's and the test
-  fonts', which did not say that `interface.exe` ships them; and smaller defects, among which glyphs
-  left out rasterized again at each of their occurrences, and the bridge's lifetime tying the
-  images to its own borrow: each is fixed, and tested where a test can.
+  review found the architecture document's title broken by an edit; the text cache copying a layout
+  that a display list held at every hit, even in the same box; one kind of atlas page able to keep
+  the other out for good, the pages never let go; stale passages, the README's and the test fonts',
+  which did not say that `interface.exe` ships them; and smaller defects, among which glyphs left
+  out rasterized again at each of their occurrences, and the bridge's lifetime tying the images to
+  its own borrow: each is fixed, and tested where a test can. CI is green on d795b56. Its run cooked
+  the zone again in each job, the lock having changed (see the known debt): `check (headless)` took
+  16 minutes 32 seconds, `check (windowed)` 20 minutes 44 seconds, past the limit of 20, `windows`
+  14 minutes 25 seconds and `windows-release` 10 minutes 23 seconds; `check (windowed)`, run again
+  with its caches warm, took 17 minutes 33 seconds.
 
 ### M6b.4 — Elements, styles and layout
 
@@ -1392,8 +1396,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   the cooked zone is keyed by the whole `Cargo.lock` and root `Cargo.toml`, among the cooker's
   sources, so a milestone that adds a dependency, even one that the cooker does not use, cooks the
   zone again in each job. At M6b.2, that took the `windows` and `check (windowed)` jobs past their
-  limit of 20 minutes, by under a minute, on the first run, and at M6b.3a, `check (windowed)` by 3
-  minutes; a key of the cooker's own dependencies would avoid it.
+  limit of 20 minutes, by under a minute, on the first run, at M6b.3a, `check (windowed)` by 3
+  minutes, and at M6b.3b by under a minute; a key of the cooker's own dependencies would avoid it.
 - **The system's fallback is checked only where the system has fonts**
   ([ADR-0136](adr/0136-the-interfaces-text.md)): its test checks nothing, and says so, on a machine
   whose fontconfig, or whose lack of it, gives no font for Greek or Japanese, as CI's Linux runners
