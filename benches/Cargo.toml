@@ -21,5 +21,7 @@ slime-gfx.workspace = true
 slime-render.workspace = true
 # The interface's text (ADR-0136).
 slime-ui.workspace = true
+# The interface drawn from a display list (ADR-0139).
+slime-ui-render.workspace = true
 slime-world.workspace = true
 slime-world-render.workspace = true

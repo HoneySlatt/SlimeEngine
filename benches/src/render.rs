@@ -17,7 +17,7 @@ use crate::measure::{Context, Row, ms, percentile, timed};
 
 /// The sizes of the frames drawn: the screens of the hardware tiers of ADR-0114, handheld, modest
 /// and high, whose budgets `docs/measurements.md` compares the figures with.
-const TIERS: [(u32, u32); 3] = [(1280, 800), (1920, 1080), (3840, 2160)];
+pub const TIERS: [(u32, u32); 3] = [(1280, 800), (1920, 1080), (3840, 2160)];
 /// The format of the frames drawn, an 8-bit sRGB one, as a window's.
 pub const FORMAT: TextureFormat = TextureFormat::Rgba8UnormSrgb;
 /// Frames drawn before the times are taken: the first ones create the renderer's targets and its
@@ -365,19 +365,11 @@ fn measure_canvas(
     target: &RenderTarget,
     what: &str,
 ) -> Result<Vec<Row>, String> {
-    let (mut cpu, mut gpu_times) = (Vec::new(), Vec::new());
-    let mut last = None;
-    for frame in 0..WARM_UP + 30 {
-        let (stats, duration) = timed(|| renderer.draw_canvas(gpu, canvas, target));
-        let stats = stats.map_err(|error| error.to_string())?;
-        gpu.wait_idle().map_err(|error| error.to_string())?;
-        if frame >= WARM_UP {
-            cpu.push(duration);
-            gpu_times.extend(stats.gpu_time);
-            last = Some(stats);
-        }
-    }
-    let stats = last.expect("frames were measured");
+    let (cpu, gpu_times, stats) = canvas_frames(
+        gpu,
+        || renderer.draw_canvas(gpu, canvas, target),
+        |stats| stats.gpu_time,
+    )?;
     let mut rows = Vec::from(Row::times(
         &format!("CPU of `Renderer::draw_canvas`, {what}"),
         &cpu,
@@ -396,6 +388,29 @@ fn measure_canvas(
         format!("{}, {}", stats.items, stats.draws),
     ));
     Ok(rows)
+}
+
+/// Draws a canvas 30 times with `draw`, after `WARM_UP` times that are not measured, each frame
+/// waited for on the GPU: the CPU time of each, the GPU times that came back, as `gpu_time` reads
+/// them from what `draw` returned, and what the last returned.
+pub fn canvas_frames<T>(
+    gpu: &Gpu,
+    mut draw: impl FnMut() -> Result<T, slime_render::RenderError>,
+    gpu_time: impl Fn(&T) -> Option<Duration>,
+) -> Result<(Vec<Duration>, Vec<Duration>, T), String> {
+    let (mut cpu, mut gpu_times) = (Vec::new(), Vec::new());
+    let mut last = None;
+    for frame in 0..WARM_UP + 30 {
+        let (stats, duration) = timed(&mut draw);
+        let stats = stats.map_err(|error| error.to_string())?;
+        gpu.wait_idle().map_err(|error| error.to_string())?;
+        if frame >= WARM_UP {
+            cpu.push(duration);
+            gpu_times.extend(gpu_time(&stats));
+            last = Some(stats);
+        }
+    }
+    Ok((cpu, gpu_times, last.expect("frames were measured")))
 }
 
 /// An editor's screen, laid out for 1920 × 1080, scaled to `height` and its columns spread over

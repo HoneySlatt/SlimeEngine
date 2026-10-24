@@ -129,6 +129,12 @@ const BENCHMARKS: &[Benchmark] = &[
         run: ui::raster,
     },
     Benchmark {
+        name: "ui.draw.menu",
+        about: "a game's menu drawn from a display list, its real text's glyphs from the atlas",
+        on_request: false,
+        run: ui::menu,
+    },
+    Benchmark {
         name: "loading.batch",
         about: "a load of meshes started with a manifest of 10 000, then 100 000 assets",
         on_request: false,
