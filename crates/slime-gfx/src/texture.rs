@@ -23,6 +23,7 @@ use crate::upload::{Staged, StagedCopy};
 /// longer uses it.
 #[derive(Clone, Debug)]
 pub struct Texture {
+    texture: wgpu::Texture,
     pub(crate) view: wgpu::TextureView,
     width: u32,
     height: u32,
@@ -378,8 +379,8 @@ impl Gpu {
             }),
             ..wgpu::TextureViewDescriptor::default()
         });
-        // The view keeps the texture alive.
         let texture = Texture {
+            texture,
             view,
             width,
             height,
@@ -391,6 +392,75 @@ impl Gpu {
 }
 
 impl Gpu {
+    /// Writes `pixels` over the rectangle of `width` × `height` texels whose top left texel is
+    /// (`x`, `y`), in the first level of `texture`: its rows from top to bottom, each of `width`
+    /// texels of the texture's format, one after the other. A glyph rasterized into an atlas is
+    /// written so. The GPU writes them before the work submitted after this call, and after the
+    /// work submitted before it; the levels below the first keep what they held. A rectangle of no
+    /// texel writes nothing. Once the device is lost, nothing is written. It goes through wgpu's
+    /// queue, which copies the texels while it holds the lock that every submission takes: it
+    /// suits small writes on the thread that draws, where loads go through the
+    /// [`Uploader`](crate::Uploader) (ADR-0074, ADR-0118).
+    ///
+    /// # Panics
+    ///
+    /// If `texture` is a cube texture or of a block-compressed format, if the rectangle reaches
+    /// beyond it, or if `pixels` does not hold exactly the rectangle's bytes.
+    pub fn write_texture(
+        &self,
+        texture: &Texture,
+        (x, y): (u32, u32),
+        (width, height): (u32, u32),
+        pixels: &[u8],
+    ) {
+        assert!(
+            texture.texture.depth_or_array_layers() == 1 && !texture.format.is_block_compressed(),
+            "a part of a texture of one image, not of blocks, is written, not of {:?}, {} images",
+            texture.format,
+            texture.texture.depth_or_array_layers()
+        );
+        assert!(
+            x.checked_add(width)
+                .is_some_and(|right| right <= texture.width)
+                && y.checked_add(height)
+                    .is_some_and(|bottom| bottom <= texture.height),
+            "the rectangle of {width} × {height} texels at ({x}, {y}) reaches beyond the texture of \
+             {} × {}",
+            texture.width,
+            texture.height
+        );
+        let row = width * texture.format.texel_size();
+        assert_eq!(
+            pixels.len(),
+            row as usize * height as usize,
+            "{width} × {height} texels of {:?} take {} bytes",
+            texture.format,
+            row * height
+        );
+        if width == 0 || height == 0 {
+            return;
+        }
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x, y, z: 0 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(row),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+    }
+
     /// Whether the GPU can sample textures of the block-compressed formats
     /// ([`TextureFormat::is_block_compressed`]): whether it has BC texture compression. Every
     /// desktop GPU of Linux and Windows has it, and lavapipe and WARP too;

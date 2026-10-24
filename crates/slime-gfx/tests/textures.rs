@@ -431,6 +431,45 @@ fn a_texture_of_one_channel_is_read_as_its_red_its_rows_of_any_width() {
 }
 
 #[test]
+fn a_part_of_a_texture_is_written_and_the_rest_kept() {
+    let setup = Setup::new();
+    let sampler = setup.sampler(Filter::Nearest, AddressMode::ClampToEdge);
+    let texture = setup
+        .gpu
+        .create_texture_with_levels(
+            "atlas",
+            SIZE,
+            SIZE,
+            TextureFormat::R8Unorm,
+            &[&[0; (SIZE * SIZE) as usize]],
+        )
+        .expect("the GPU has memory for it");
+    // Three texels by two at (5, 4), then one of them written again, the later write over the
+    // earlier.
+    setup.gpu.write_texture(&texture, (5, 4), (3, 2), &[255; 6]);
+    setup.gpu.write_texture(&texture, (6, 5), (1, 1), &[0]);
+    let image = setup.draw(&texture, &sampler, [1.0, 1.0]);
+    for y in 0..SIZE {
+        for x in 0..SIZE {
+            let written = (5..8).contains(&x) && (4..6).contains(&y) && (x, y) != (6, 5);
+            let red = if written { 255 } else { 0 };
+            assert_eq!(pixel(&image, (x, y)), [red, 0, 0], "at ({x}, {y})");
+        }
+    }
+}
+
+#[test]
+#[should_panic(expected = "reaches beyond the texture")]
+fn a_part_beyond_the_texture_is_refused() {
+    let setup = Setup::new();
+    let texture = setup
+        .gpu
+        .create_texture_with_levels("atlas", 4, 4, TextureFormat::R8Unorm, &[&[0; 16]])
+        .expect("the GPU has memory for it");
+    setup.gpu.write_texture(&texture, (3, 0), (2, 1), &[255; 2]);
+}
+
+#[test]
 fn minified_textures_are_read_from_their_smaller_levels() {
     let setup = Setup::new();
     // Black and white pixels alternating, in a linear format: every level but the first is grey,
