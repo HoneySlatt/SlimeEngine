@@ -1048,3 +1048,32 @@ machine was otherwise idle. The build is not measured.
 | `ui.draw.menu` | CPU of `UiRenderer::draw` at 3840 × 2160, 90th percentile of 30 | 366.2 µs |
 | `ui.draw.menu` | canvas on the GPU at 3840 × 2160, median of what 30 frames reported | 199.8 µs |
 | `ui.draw.menu` | glyphs drawn, items, and the atlas's memory at 3840 × 2160 | 2440, 2645, 1 MiB |
+
+## M6b.4, RX 6900 XT
+
+The interface's tree of elements, before its style sheets and themes
+([ADR-0140](adr/0140-the-tree-of-elements.md)), on 2026-10-24. The benchmarks `ui.tree.editor` and
+`ui.tree.list.100k` are new; they use the CPU alone, an AMD Ryzen 7 5800X. A frame of the list of
+100 000 rows holds the budget that ADR-0140 sets, 0.5 ms at its 90th percentile, scrolled or
+standing still: the frames that build new rows, one in three, are those of that percentile. A tree
+of the editor's size takes 2.4 ms after one value of its inspector changed, its panel built again,
+and 0.28 ms with nothing changed, which gathers the display list from what its elements drew before.
+The machine was otherwise idle. The build is not measured.
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `ui.tree.editor` | elements | 12487 |
+| `ui.tree.editor` | items of the display list | 9180 |
+| `ui.tree.editor` | the first frame: built, its texts and its tree laid out, drawn, median of 15 | 133.98 ms |
+| `ui.tree.editor` | the first frame: built, its texts and its tree laid out, drawn, 90th percentile of 15 | 143.64 ms |
+| `ui.tree.editor` | a frame after one value of the inspector changed, median of 15 | 2.36 ms |
+| `ui.tree.editor` | a frame after one value of the inspector changed, 90th percentile of 15 | 2.40 ms |
+| `ui.tree.editor` | a frame with nothing changed, median of 15 | 280.0 µs |
+| `ui.tree.editor` | a frame with nothing changed, 90th percentile of 15 | 303.8 µs |
+| `ui.tree.list.100k` | elements | 164 |
+| `ui.tree.list.100k` | a frame scrolled by 7 pixels, median of 15 | 58.8 µs |
+| `ui.tree.list.100k` | a frame scrolled by 7 pixels, 90th percentile of 15 | 142.9 µs |
+| `ui.tree.list.100k` | a frame standing still, median of 15 | 3.1 µs |
+| `ui.tree.list.100k` | a frame standing still, 90th percentile of 15 | 3.2 µs |

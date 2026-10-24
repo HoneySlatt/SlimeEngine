@@ -49,6 +49,8 @@ it is their whole name.
 | `ui.text.paragraphs` | A paragraph of some 2 000 characters of each of seven writing systems, English, Arabic with Latin words and numbers, Hindi, Thai, Japanese, Chinese and English with emoji, the sentences of slime-ui's tests repeated, laid out 400 pixels wide, each font named in its stack; then the English paragraph's lines broken again in another width, which gathers its glyphs again too | [ADR-0132](../docs/adr/0132-the-engines-ui-framework.md), [ADR-0136](../docs/adr/0136-the-interfaces-text.md) |
 | `ui.text.raster` | The glyphs of Latin letters, Chinese characters and emoji rasterized at 14, 32 and 64 pixels, without hinting, by one rasterizer: the median of the time per glyph | [ADR-0132](../docs/adr/0132-the-engines-ui-framework.md), [ADR-0136](../docs/adr/0136-the-interfaces-text.md) |
 | `ui.draw.menu` | A game's menu drawn from a display list through `slime-ui-render`, at the hardware tiers' resolutions: the panels, slots, rows and buttons of `render.canvas`'s menu, without its icons, laid out for 1920 × 1080 and scaled to fit, and real texts, laid out with the fonts of slime-ui's tests at the screen's scale, some 2 400 glyphs in all. At each, the first draw, which rasterizes its glyphs into the atlas, the renderer warmed before it; the CPU of `UiRenderer::draw` once they are there; the canvas's GPU time, which ADR-0137 bounds as `render.canvas`'s; the glyphs, the items and the atlas's memory | [ADR-0139](../docs/adr/0139-text-drawn-and-the-display-list.md) |
+| `ui.tree.editor` | A tree of the editor's size, some 12 500 elements, in a root of 1920 × 1080 at scale 1: a toolbar of 30 buttons, and a hierarchy, an inspector and a browser of assets, each a panel that scrolls, built in a slot by its own revision, with a row, a field of a component of ten and a row for each of 1 500 labels of `ui.text.labels.1k`'s kind, laid out with the Noto Sans of slime-ui's tests. Its first frame, built, its texts laid out, laid out and drawn into a display list, a new tree each time; a frame after one value of the inspector changed, the inspector's builder run again; a frame with nothing changed | [ADR-0132](../docs/adr/0132-the-engines-ui-framework.md), [ADR-0140](../docs/adr/0140-the-tree-of-elements.md) |
+| `ui.tree.list.100k` | A list of 100 000 rows of 20 logical pixels in the same root, each row a name and a number, of which only those that show are built: frames, each built and drawn into a display list, while it scrolls by 7 pixels a frame, which shows other rows every third frame, then while it stands still | [ADR-0140](../docs/adr/0140-the-tree-of-elements.md) |
 | `loading.batch` | A load of meshes started, on the calling thread, with a manifest of 10 000, then 100 000 assets | G25, B4-F03 |
 | `loading.textures` | 16 squares, each drawn with a material of its own whose base color is a texture of 4096 × 4096 texels in BC7, every level of detail with it, 341 MiB in all, written once into `target/benches/textures` without the cooker, loaded and drawn as `loading.zone` is: the case of the audit's B4-F01 | B4-F01 |
 | `loading.zone` | The meshes of *Hunna Wood*'s zone, cooked in `target/cooked/hunnawood`, each placed once on a grid and drawn by day, under a sun that casts shadows, at 1280 × 720, while they load with their materials and textures, then once loaded, each frame waited for on the GPU, after frames that made the renderer's targets, its shadows' atlas and the sky, so that a load is not mixed with what a first frame costs: the time from the opening of the cooked zone until a frame draws them whole, the render CPU during the load and after, and the longest frame during the load, built, drawn and waited for. The zone's bytes, not its scene, whose components only the game registers. On request only, since it needs the zone fetched and cooked, as [*Hunna Wood*'s README](../games/hunnawood/README.md) says | B4-F01, B1-F06 |
@@ -63,12 +65,16 @@ after.
   frame's earlier submissions, which lavapipe runs one after the other
   ([`RenderStats::cpu_time`](../crates/slime-render/src/renderer.rs)): it is not a CPU time
   there. `world.transforms.100k`, `world.changes.100k`, `world.children`, `world.placements`,
-  `world.save.100k`, `world.undo.1k`, the `ui.text` benchmarks and `loading.batch` do not touch the
-  GPU; the others draw, or make objects on the GPU.
+  `world.save.100k`, `world.undo.1k`, the `ui.text` and `ui.tree` benchmarks and `loading.batch` do
+  not touch the GPU; the others draw, or make objects on the GPU.
 - The `ui.text` benchmarks measure what the study of the UI framework measured
   ([ADR-0132](../docs/adr/0132-the-engines-ui-framework.md)), with fonts named rather than found by
   the system's fallback, as the engine lays text out: a figure within 20 % of the study's, or
   under it, is as the study found.
+- `ui.tree.list.100k`'s 90th percentile compares with the budget of a list's frame that
+  [ADR-0140](../docs/adr/0140-the-tree-of-elements.md) sets on the development machine, an AMD
+  Ryzen 7 5800X: scrolled by 7 pixels a frame over rows of 20, one frame in three builds rows,
+  and the median measures those that only move them.
 - A frame "until the GPU finished it" includes the wait of `Gpu::wait_idle`, which wakes up to 1 ms
   after the GPU finished: on a GPU whose frames take a few milliseconds, the times of the passes
   on the GPU are the figures to compare. Each frame reports the latest time of each pass that came

@@ -40,7 +40,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0137](adr/0137-the-canvas.md)): M6b.3a, the canvas, and M6b.3b, the text drawn from a
   display list ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)), are done, and the high
   hardware tier now draws at 3840 × 2160 ([ADR-0138](adr/0138-the-high-tier-at-3840-2160.md)).
-  Next: M6b.4.
+  M6b.4 is under way: its tree of elements, their typed styles, their layout and the display list
+  made from them are built ([ADR-0140](adr/0140-the-tree-of-elements.md), proposed to the owner);
+  its style sheets and themes remain.
 
 ## Status
 
@@ -51,7 +53,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.2](#m6b2--text-in-several-writing-systems) | The engine lays text out in every writing system, without a GPU | Done |
 | [M6b.3a](#m6b3a--the-canvas) | The renderer draws an interface's boxes, shadows and images over any target, within its share of a frame on each tier | Done |
 | [M6b.3b](#m6b3b--text-drawn-and-the-display-list) | The renderer draws an interface's text in every writing system, crisp at every scale, from a display list | Done |
-| [M6b.4](#m6b4--elements-styles-and-layout) | An interface is a tree of elements, styled by themes read from files, laid out by flexbox and grid, and built again only where what it shows changed | Planned |
+| [M6b.4](#m6b4--elements-styles-and-layout) | An interface is a tree of elements, styled by themes read from files, laid out by flexbox and grid, and built again only where what it shows changed | In progress |
 | [M6b.5](#m6b5--input-focus-and-what-agents-see) | A person and an agent use the interface through the same actions, and an agent reads what it shows | Planned |
 | [M6b.6](#m6b6--text-edited-and-what-the-platform-lacks) | Text is typed, selected, copied and composed in every writing system, and screen readers read the interface | Planned |
 | [M6b.7](#m6b7--widgets-and-layers) | The framework has the widgets that the dev overlay and the editor are made of | Planned |
@@ -507,6 +509,29 @@ Risks:
   example; image tests; CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-ui-render`; the example, its theme changed while
   it runs.
+- **Progress.** On 2026-10-24, the tree of elements, without its style sheets and themes:
+  [ADR-0140](adr/0140-the-tree-of-elements.md), proposed to the owner, records its design and the
+  budget of a list's frame, 0.5 ms of the CPU. `slime-ui` gains `tree`, the interface's roots and
+  elements in an arena, built by code when a revision moves and matched by keys, laid out by taffy's
+  flexbox and grid through its traits on the arena, mirrored for a root laid out from right to left,
+  its lists building and laying out only the rows that show, and `style`, its typed styles; the
+  dependency taffy. The example `interface` builds its interface as a tree, its list of 100 000
+  rows, and mirrors it with `--right-to-left`. The benchmarks `ui.tree.editor` and
+  `ui.tree.list.100k`: a frame of the list takes some 0.06 ms scrolled, 0.14 ms at its 90th
+  percentile, when it builds new rows, and 0.003 ms standing still, within the budget; a tree of the
+  editor's size, 12 500 elements, 2.4 ms after one value changed and 0.28 ms with nothing changed
+  ([`docs/measurements.md`](measurements.md), M6b.4). The tests: `slime-ui`'s `tests/tree.rs`,
+  layouts by flexbox and grid mirrored from right to left, labels measured by their text, elements
+  and their states kept by their keys, panels built by their own revision, frames that lay out and
+  draw nothing when nothing changed, the list of 100 000 rows and a box that scrolls, and the
+  display list; in `slime-ui-render`, a tree drawn where its layout places it, from left to right
+  and mirrored. A read-only review found a list in a slot never asked to build its rows; a list in
+  the rows of another left empty once the other scrolled; rows keeping their height when their
+  list's changed; what an element whose display is none holds laid out at full size; a root turned
+  to the other direction leaving some corners unmirrored; a scale of 0 panicking without a word;
+  scrolled content cut outside its border; a row's margins ignored; and smaller defects in the
+  documents: each is fixed, and tested where a test can. Remain: style sheets and themes, cooked and
+  loaded again when they change, and the example restyled by a theme changed on disk.
 
 ### M6b.5 — Input, focus, and what agents see
 
@@ -1398,6 +1423,13 @@ GitHub issues, linked from their entry; this list stays the reference.
   zone again in each job. At M6b.2, that took the `windows` and `check (windowed)` jobs past their
   limit of 20 minutes, by under a minute, on the first run, at M6b.3a, `check (windowed)` by 3
   minutes, and at M6b.3b by under a minute; a key of the cooker's own dependencies would avoid it.
+- **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)): a frame walks every
+  element of its roots, to find what to draw again and to gather the display list, even when
+  nothing changed. A list shows the rows of a new range one frame late, when it first shows or when
+  it scrolls after its builder ran. A text in a root laid out from right to left keeps its own
+  direction, a Latin paragraph starting at its box's left. No element is placed out of its
+  parent's flow. The marks of what changed hold an element's layout and paint, not yet its style
+  and its meaning.
 - **The system's fallback is checked only where the system has fonts**
   ([ADR-0136](adr/0136-the-interfaces-text.md)): its test checks nothing, and says so, on a machine
   whose fontconfig, or whose lack of it, gives no font for Greek or Japanese, as CI's Linux runners

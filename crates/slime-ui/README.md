@@ -2,12 +2,24 @@
 
 SlimeEngine's UI framework, for the editor and for the interface of games
 (`docs/adr/0132-the-engines-ui-framework.md`). It runs without a GPU or a window: what it draws
-leaves it as data. Today it holds its text (`docs/adr/0136-the-interfaces-text.md`) and its display
-list (`docs/adr/0139-text-drawn-and-the-display-list.md`); the tree of elements, their styles and
-their layout come with the next milestones of Stage 6b (`docs/PLAN.md`).
+leaves it as data. Today it holds its text (`docs/adr/0136-the-interfaces-text.md`), its display
+list (`docs/adr/0139-text-drawn-and-the-display-list.md`), and the tree of elements, their typed
+styles and their layout (`docs/adr/0140-the-tree-of-elements.md`); style sheets and themes, input,
+focus and the tree's meaning come with the next milestones of Stage 6b (`docs/PLAN.md`).
 
 ## Role
 
+- `tree::Ui` is an interface: its roots, each a surface of a size, a scale and a direction, and
+  their trees of elements, kept from one frame to the next in an arena. `Ui::build` runs a
+  builder when the revision that it reads moved, and matches the elements it adds with those
+  before by their keys, so that their state and scroll survive; `Ui::frame` lays out by flexbox
+  and grid the roots where something changed, mirrored for a root laid out from right to left,
+  draws again what changed or moved, and gives the display list. Its elements
+  (`tree::Element`) are boxes, labels, parts of images, buttons that show their states, boxes
+  that scroll, and lists that build and lay out only the rows that show.
+- `style::Style` is an element's style, typed, in logical pixels: its layout, CSS's flexbox and
+  grid properties with start and end sides, its paint, a box's fill, border, corners and shadow,
+  and its text.
 - `text::Fonts` holds the fonts that text is laid out with: those registered from their bytes,
   named by their families in a style's stack, and the system's where a program asks for them, as
   the editor will, the font found for a writing system named for it from then on. A game draws
@@ -31,10 +43,11 @@ their layout come with the next milestones of Stage 6b (`docs/PLAN.md`).
 
 ## Depends on
 
-parley, fontique and swash, whose types stay inside the crate
-(`docs/adr/0132-the-engines-ui-framework.md`); icu_properties, for the writing system of a
-character; `slime-color`, the display list's colors; thiserror and tracing. No other engine crate:
-text is laid out and rasterized on the CPU, and `slime-ui-render` draws the display list.
+parley, fontique and swash, the text; taffy, the tree's flexbox and grid, run through its traits on
+the tree's arena; their types stay inside the crate (`docs/adr/0132-the-engines-ui-framework.md`).
+icu_properties, for the writing system of a character; `slime-color`, the colors of the styles and
+the display list; thiserror and tracing. No other engine crate: text is laid out and rasterized on
+the CPU, and `slime-ui-render` draws the display list.
 
 ## Must not
 
@@ -42,4 +55,4 @@ text is laid out and rasterized on the CPU, and `slime-ui-render` draws the disp
   servers, and what it draws leaves it as data.
 - Find a font by fallback where a stack can name it: the system's fallback costs up to a hundred
   times more than a font named (`docs/adr/0133-font-files-under-the-open-font-license.md`).
-- Show parley's, fontique's or swash's types in its API.
+- Show parley's, fontique's, swash's or taffy's types in its API.

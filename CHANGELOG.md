@@ -8,6 +8,17 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- The interface's tree of elements (ADR-0140): `slime_ui::tree::Ui` keeps an interface's roots, each
+  of a size, a scale and a direction, and their elements from one frame to the next. `Ui::build`
+  runs a builder when the revision it reads moved, matching the elements it adds with those before
+  by their keys (`Children::add`, `Children::add_slot` for a panel built by its own revision);
+  `Ui::frame` lays out by flexbox and grid, with taffy, the roots where something changed, mirrored
+  for a root laid out from right to left, draws again what changed or moved, and gives the display
+  list. Its elements are boxes, labels, images, buttons that show their states, boxes that scroll and
+  lists that build only the rows that show; their styles are typed, in logical pixels, with start
+  and end sides (`slime_ui::style`). The example `interface` builds its interface as a tree, with a
+  list of 100 000 rows, and lays it out from right to left with `--right-to-left`; the benchmarks
+  `ui.tree.editor` and `ui.tree.list.100k` measure a tree of the editor's size and the list.
 - The interface's text drawn by the GPU (ADR-0139): `slime_ui::display::DisplayList`, what an
   interface draws in a frame as data, boxes, shadows, texts laid out and images named by keys, each
   with its clip; and `slime-ui-render`, a new crate, whose `UiRenderer` draws a display list

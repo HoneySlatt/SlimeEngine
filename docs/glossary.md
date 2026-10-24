@@ -292,6 +292,11 @@ one range each: the views of the tiles that the renderer's shadow passes draw
 a game's editor package calls it with the game's types, the `editor` example with the engine's
 ([ADR-0135](adr/0135-the-editors-program.md)).
 
+**Element (interface).** A part of an interface of the engine's UI framework, in its tree: a box, a
+label, an image, a button, a box that scrolls or a list, with its typed style
+(`slime_ui::tree::Element`). It lasts from one frame to the next, named among its siblings by its
+*key* ([ADR-0140](adr/0140-the-tree-of-elements.md)).
+
 **Emission.** The light a surface gives off, added to the light it reflects: glTF's emissive
 factor, its strength (`KHR_materials_emissive_strength`) and its texture, in *nits*.
 
@@ -542,6 +547,10 @@ history, and a test or an agent replays an editing session
 The *editor's program* keeps one per level's file, and recovers by itself, as it starts, a journal
 that holds steps that the level's file does not, which a crash or a stop without writing leaves
 ([ADR-0135](adr/0135-the-editors-program.md)).
+
+**Key (element).** What names an *element* among its siblings, a name or a number, given by the code
+that builds it (`slime_ui::tree::Key`); the keys from below its *root* down to it are its path,
+which names it for agents, tests and saved layouts ([ADR-0140](adr/0140-the-tree-of-elements.md)).
 
 **Kind (material).** A way of lighting a surface that the renderer knows by registration: its
 shaders, its parameters described by reflection, and the passes it draws in. The physically based
@@ -953,6 +962,15 @@ is 0, where floating-point depths are finest, so that 32-bit depths keep a preci
 the distance, at any distance. Passes clear *depth targets* to 0, a depth test keeps the greater
 depth, and a *depth bias* is negative.
 
+**Revision (interface).** A number that the code building a panel of an interface reads and moves
+when what the panel shows changes: `Ui::build` runs the builder only when it moved
+([ADR-0140](adr/0140-the-tree-of-elements.md)).
+
+**Root (interface).** A surface that an interface lays its *elements* out on, a window or any
+target, with its size in *logical pixels*, its scale and the direction of its lines
+(`slime_ui::tree::RootSettings`); a root laid out from right to left is mirrored
+([ADR-0140](adr/0140-the-tree-of-elements.md)).
+
 **Run.** Two things. The running of a game by `slime_app::run`, from its `start` methods to its
 `stop` methods; and, in a game, a play from a new game on, which R starts again, a *save* holds and
 a resume goes on with.
@@ -1067,6 +1085,10 @@ drawn by the *sky pass*, not held.
 
 **Sky pass.** The render pass that draws the *environment* and the *sun's disc* where no surface
 was drawn, after the scene pass.
+
+**Slot (element).** An *element* whose children its own builder gives, by its own *revision*, kept as
+they are when its parent is built again (`Children::add_slot`): a panel
+([ADR-0140](adr/0140-the-tree-of-elements.md)).
 
 **Source asset.** A file that people make or download and that *cooking* imports: a glTF scene, a
 PNG or JPEG image, or a *scene file*. Its *metadata file* is committed beside it; the file itself
