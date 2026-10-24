@@ -26,8 +26,8 @@ instances, as an editor's grid, icons and the box of what is selected, and says 
 drawn at each pixel of an area of a view, a frame or more later (picking). It blends unlit surfaces
 over the others, without sorting them by depth, and does not yet blend physically based ones. It
 draws an interface's canvas over any of its targets: boxes with rounded corners and borders, their
-shadows, and images, each clipped, their colors mixed as sRGB values; it draws no text yet, which
-M6b.3b brings.
+shadows, and images, each clipped, their colors mixed as sRGB values; text reaches it as images of
+the glyphs' atlas that `slime-ui-render` keeps.
 
 ## Role
 
@@ -55,7 +55,7 @@ M6b.3b brings.
 - Draws an interface's *canvas*, after the views, in a pass of its own: the items that a client adds
   to a `Canvas` each frame, in their order, from a storage buffer, with one pipeline and its shader,
   `canvas.wgsl` ([ADR-0137](../../docs/adr/0137-the-canvas.md)). The interface's framework,
-  `slime-ui`, knows no GPU: the bridge that turns its display list into a canvas comes at M6b.3b.
+  `slime-ui`, knows no GPU: `slime-ui-render`, the bridge, turns its display list into a canvas.
 - Draws what it is given: a flat list of instances that the application builds for each frame.
   It has no scene graph; `slime-world-render` builds such lists from a world
   (`docs/adr/0084-what-the-world-draws.md`).

@@ -172,6 +172,8 @@ fn main() -> Result<(), GfxError> {
   as it ends (ADR-0059); a later pass's shader can also read them sample by sample, at a
   `BindingType::MultisampledTexture` binding (ADR-0060). `RenderTarget::is_multisampled` tells them
   from targets of one sample.
+- `Gpu::write_texture` writes a part of a texture's first level, as the interface's atlas writes
+  each glyph into its page ([ADR-0139](../../docs/adr/0139-text-drawn-and-the-display-list.md)).
 - `RenderTarget::without_srgb` gives an sRGB target, a window's image included, seen through the
   format without the encoding (`TextureFormat::without_srgb`): a pass that draws into it stores
   and blends what its shaders write as it is, already encoded, as the interface's canvas blends in

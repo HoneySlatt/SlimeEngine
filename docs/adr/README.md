@@ -201,9 +201,10 @@ the ADR linking to it.
 | [0130](0130-picking.md) | Picking | Accepted |
 | [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amended by 0134 and 0137 |
 | [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted; amended by 0137 |
-| [0133](0133-font-files-under-the-open-font-license.md) | Font files under the SIL Open Font License | Accepted |
+| [0133](0133-font-files-under-the-open-font-license.md) | Font files under the SIL Open Font License | Accepted; amended by 0139 |
 | [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 |
 | [0135](0135-the-editors-program.md) | The editor's program | Accepted |
 | [0136](0136-the-interfaces-text.md) | The interface's text | Accepted |
 | [0137](0137-the-canvas.md) | The canvas | Accepted |
 | [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted |
+| [0139](0139-text-drawn-and-the-display-list.md) | Text drawn, and the display list | Accepted |

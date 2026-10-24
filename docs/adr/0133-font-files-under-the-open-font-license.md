@@ -1,6 +1,8 @@
 # 0133. Font files under the SIL Open Font License
 
-- Status: Accepted; amends [0006](0006-dependency-policy.md) (a license allowed for font files)
+- Status: Accepted; amends [0006](0006-dependency-policy.md) (a license allowed for font files);
+  amended by [0139](0139-text-drawn-and-the-display-list.md) (the editor's and the overlay's font:
+  Geist)
 - Date: 2026-10-22
 
 ## Context

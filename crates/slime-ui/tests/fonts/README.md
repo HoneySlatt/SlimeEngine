@@ -3,9 +3,10 @@
 Parts of Noto fonts, under the SIL Open Font License 1.1
 ([ADR-0133](../../../../docs/adr/0133-font-files-under-the-open-font-license.md)), that hold the
 characters of the texts in [`../texts`](../texts) and what their layout tables reach from them, and
-no more: some 700 KiB in all, where the whole fonts take some 45 MiB. slime-ui's tests, the
-benchmarks of text (`benches/README.md`) and the `text` example lay text out with them, so that
-their results are the same on every machine, whatever fonts it has.
+no more: some 700 KiB in all, where the whole fonts take some 45 MiB. slime-ui's and
+slime-ui-render's tests, the benchmarks of text (`benches/README.md`) and the `text` and
+`interface` examples lay text out with them, so that their results are the same on every machine,
+whatever fonts it has.
 
 [`scripts/subset-fonts.sh`](../../../../scripts/subset-fonts.sh) makes them again: after a text of
 `../texts` changes, so that the fonts hold its characters. It checks that its sources are the
@@ -33,5 +34,6 @@ Each license file holds the font's copyright, as its `name` table gives it, and 
 these licenses reserves the name of the font, but Noto CJK's, which reserves `Source`, a name that
 Noto Sans CJK does not take: each part keeps its family's name (ADR-0133).
 
-A program that ships these fonts ships their license files beside them. The tests, the benchmarks
-and the examples ship nowhere.
+A program that ships these fonts ships their license files beside them. The `interface` example
+builds them into its program, which the Windows artifact of CI and the releases carry: their license
+files lie beside it there. The tests, the benchmarks and the other examples ship nowhere.

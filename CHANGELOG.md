@@ -8,6 +8,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- The interface's text drawn by the GPU (ADR-0139): `slime_ui::display::DisplayList`, what an
+  interface draws in a frame as data, boxes, shadows, texts laid out and images named by keys, each
+  with its clip; and `slime-ui-render`, a new crate, whose `UiRenderer` draws a display list
+  through the renderer's canvas, the glyphs of its texts kept in an atlas within a budget
+  (`GLYPH_ATLAS_BUDGET`), the least recently used leaving first. `Gpu::write_texture`, which writes
+  a part of a texture. The example `interface` draws from a display list, with a sentence of each
+  of eight writing systems; the benchmark `ui.draw.menu` draws a game's menu of real text.
 - The interface's canvas (ADR-0137): `slime_render::Canvas`, which a client fills each frame with
   boxes, their corners rounded and their borders inside their edges (`CanvasBox`), the shadows that
   boxes cast (`CanvasShadow`), and parts of images (`ImageQuad`), textures of colors, textures of
@@ -71,6 +78,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `slime_ui::Rect`, at the crate's root, gives a rectangle by its top left corner and its size, as
+  the canvas does: the text's carets and selections give it so, where they gave edges.
+- `TextCache::get` gives its texts shared, as `Arc<TextLayout>`; `TextLayout` can be cloned.
 - The high hardware tier draws at 3840 × 2160 (ADR-0138), and the render benchmarks measure it
   there, rather than at 2560 × 1440.
 - A window whose images cannot be seen without their sRGB encoding, Vulkan without

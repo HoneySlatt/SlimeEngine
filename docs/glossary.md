@@ -126,8 +126,8 @@ spot light (`intensity`). A surface facing such a light d metres away receives i
 with rounded corners and borders, their shadows, and images, each clipped, in the order given
 (`slime_render::Canvas`, `Renderer::draw_canvas`). Into an sRGB target, its colors mix as their
 *sRGB encoding*'s values do, as design tools mix them ([ADR-0137](adr/0137-the-canvas.md)). The
-engine's UI framework draws its *display list* through it, glyphs as images of coverage, from M6b.3b
-([ADR-0132](adr/0132-the-engines-ui-framework.md)).
+engine's UI framework draws its *display list* through it, glyphs as images of the *glyph atlas*,
+from M6b.3b ([ADR-0132](adr/0132-the-engines-ui-framework.md)).
 
 **Cascade (cascaded shadow maps).** One of the *shadow maps* that together hold the shadows of a
 directional light: what the camera sees up to the light's shadow distance is split along its axis
@@ -237,8 +237,10 @@ go on with a new device, for which it creates its objects again
 ([ADR-0075](adr/0075-recovering-from-a-lost-gpu-device.md)).
 
 **Display list.** What an interface of the engine's UI framework draws in a frame, as data that the
-framework owns and hands over, which a bridge turns into the renderer's *canvas*
-([ADR-0132](adr/0132-the-engines-ui-framework.md)). Decided, not built yet.
+framework owns and hands over: boxes, shadows, texts laid out and parts of images, each with its
+clip (`slime_ui::display::DisplayList`). `slime-ui-render` turns it into the renderer's *canvas*,
+its texts' glyphs read from the *glyph atlas* ([ADR-0132](adr/0132-the-engines-ui-framework.md),
+[ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
 
 **Dithering.** Adding a little noise to values before they are rounded to the steps of an output,
 so that the rounding keeps their average and a slow gradient shows an even grain instead of bands
@@ -411,6 +413,12 @@ cooker, `slime-cook`, imports both ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
 **Glyph.** A shape that a font draws: a letter, a form that a letter takes when it joins its
 neighbours, a ligature of several, a mark, an emoji. *Shaping* turns text into glyphs.
+
+**Glyph atlas.** Textures that hold each *glyph*'s image once, for every text that draws it, in
+pages of coverage for letters and of colors for emoji (`slime_ui_render::UiRenderer`): a glyph is
+rasterized the first time a draw asks for it, and the glyphs that no draw asked for the longest
+leave first once the atlas holds its budget
+([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
 
 **Glyph key.** What names a *glyph*'s image: its *face*, its index there, its size, the *subpixel
 position* of its origin, and its representation, coverage or color. Equal keys share one image

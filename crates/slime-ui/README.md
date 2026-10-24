@@ -2,9 +2,9 @@
 
 SlimeEngine's UI framework, for the editor and for the interface of games
 (`docs/adr/0132-the-engines-ui-framework.md`). It runs without a GPU or a window: what it draws
-leaves it as data. Today it holds its text alone (`docs/adr/0136-the-interfaces-text.md`); the
-tree of elements, their styles and their layout come with the next milestones of Stage 6b
-(`docs/PLAN.md`).
+leaves it as data. Today it holds its text (`docs/adr/0136-the-interfaces-text.md`) and its display
+list (`docs/adr/0139-text-drawn-and-the-display-list.md`); the tree of elements, their styles and
+their layout come with the next milestones of Stage 6b (`docs/PLAN.md`).
 
 ## Role
 
@@ -19,14 +19,22 @@ tree of elements, their styles and their layout come with the next milestones of
   selection.
 - `text::GlyphRasterizer` draws a glyph's image, coverage or color, from the `text::GlyphKey` that
   a placed glyph carries: its face, size and position between two pixels.
-- `text::TextCache` keeps laid-out text from one frame to the next within a budget of memory.
+- `text::TextCache` keeps laid-out text from one frame to the next within a budget of memory, and
+  gives it shared, `Arc<TextLayout>`, so that a display list holds it without copying it.
+- `display::DisplayList` is what an interface draws in a frame, as owned data: boxes, the shadows
+  that boxes cast, texts laid out and parts of images, which it names by keys
+  (`display::ImageKey`) that the program drawing it resolves, each with its clip, its transform
+  and its layer, the identity and the root's until Stage 7. `slime-ui-render` draws it through the
+  renderer's canvas.
+- `Rect` is the rectangle the framework speaks in, by its top left corner and its size, as the
+  renderer's canvas gives its own.
 
 ## Depends on
 
 parley, fontique and swash, whose types stay inside the crate
 (`docs/adr/0132-the-engines-ui-framework.md`); icu_properties, for the writing system of a
-character; thiserror and tracing. No engine crate: text is laid out
-and rasterized on the CPU, and the renderer's canvas draws it from Stage 6b's milestone M6b.3b.
+character; `slime-color`, the display list's colors; thiserror and tracing. No other engine crate:
+text is laid out and rasterized on the CPU, and `slime-ui-render` draws the display list.
 
 ## Must not
 

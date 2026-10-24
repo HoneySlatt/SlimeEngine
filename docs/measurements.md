@@ -1018,3 +1018,33 @@ compare. The editor's screen, its colors mixed linearly unless a row says otherw
 | `render.canvas` | CPU of `Renderer::draw_canvas`, the game's menu at 3840 × 2160, 90th percentile of 30 | 214.1 µs |
 | `render.canvas` | canvas on the GPU, the game's menu at 3840 × 2160, median of what 30 frames reported | 223.7 µs |
 | `render.canvas` | items and draws, the game's menu at 3840 × 2160 | 4155, 3 |
+
+## M6b.3b, RX 6900 XT
+
+Commit `30fcdad`, on 2026-10-24: the interface's text drawn from a display list through
+`slime-ui-render` ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)). The benchmark
+`ui.draw.menu` is new: a game's menu of real text, some 2 400 glyphs, drawn through the bridge at
+the hardware tiers' resolutions. Its canvas holds the interface's budget at every tier, as
+[ADR-0137](adr/0137-the-canvas.md) sets it; its first draw, which rasterizes some 250 glyphs into
+the atlas, takes a little over 2 ms, then the bridge takes some 0.36 ms of the CPU a frame. The
+machine was otherwise idle. The build is not measured.
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `ui.draw.menu` | the first draw at 1280 × 800, its 254 glyphs rasterized into the atlas | 2.35 ms |
+| `ui.draw.menu` | CPU of `UiRenderer::draw` at 1280 × 800, median of 30 | 362.5 µs |
+| `ui.draw.menu` | CPU of `UiRenderer::draw` at 1280 × 800, 90th percentile of 30 | 370.5 µs |
+| `ui.draw.menu` | canvas on the GPU at 1280 × 800, median of what 30 frames reported | 27.7 µs |
+| `ui.draw.menu` | glyphs drawn, items, and the atlas's memory at 1280 × 800 | 2440, 2645, 1 MiB |
+| `ui.draw.menu` | the first draw at 1920 × 1080, its 258 glyphs rasterized into the atlas | 2.10 ms |
+| `ui.draw.menu` | CPU of `UiRenderer::draw` at 1920 × 1080, median of 30 | 359.2 µs |
+| `ui.draw.menu` | CPU of `UiRenderer::draw` at 1920 × 1080, 90th percentile of 30 | 366.6 µs |
+| `ui.draw.menu` | canvas on the GPU at 1920 × 1080, median of what 30 frames reported | 53.6 µs |
+| `ui.draw.menu` | glyphs drawn, items, and the atlas's memory at 1920 × 1080 | 2440, 2645, 1 MiB |
+| `ui.draw.menu` | the first draw at 3840 × 2160, its 256 glyphs rasterized into the atlas | 2.22 ms |
+| `ui.draw.menu` | CPU of `UiRenderer::draw` at 3840 × 2160, median of 30 | 358.9 µs |
+| `ui.draw.menu` | CPU of `UiRenderer::draw` at 3840 × 2160, 90th percentile of 30 | 366.2 µs |
+| `ui.draw.menu` | canvas on the GPU at 3840 × 2160, median of what 30 frames reported | 199.8 µs |
+| `ui.draw.menu` | glyphs drawn, items, and the atlas's memory at 3840 × 2160 | 2440, 2645, 1 MiB |

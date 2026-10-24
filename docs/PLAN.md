@@ -37,9 +37,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   undo, and M6b.1b, the editor driven by an agent ([ADR-0135](adr/0135-the-editors-program.md)),
   are done, and so is M6b.2, text in several writing systems
   ([ADR-0136](adr/0136-the-interfaces-text.md)). M6b.3 was cut in two at its start
-  ([ADR-0137](adr/0137-the-canvas.md)): M6b.3a, the canvas, is done, and the high hardware tier now
-  draws at 3840 × 2160 ([ADR-0138](adr/0138-the-high-tier-at-3840-2160.md)). Next: M6b.3b, the
-  interface's text drawn.
+  ([ADR-0137](adr/0137-the-canvas.md)): M6b.3a, the canvas, and M6b.3b, the text drawn from a
+  display list ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)), are done, and the high
+  hardware tier now draws at 3840 × 2160 ([ADR-0138](adr/0138-the-high-tier-at-3840-2160.md)).
+  Next: M6b.4.
 
 ## Status
 
@@ -49,7 +50,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.1b](#m6b1b--the-editor-driven-by-an-agent) | An agent drives the editor's core through the MCP server, on a level of the examples and on *Hunna Wood*'s zone | Done |
 | [M6b.2](#m6b2--text-in-several-writing-systems) | The engine lays text out in every writing system, without a GPU | Done |
 | [M6b.3a](#m6b3a--the-canvas) | The renderer draws an interface's boxes, shadows and images over any target, within its share of a frame on each tier | Done |
-| [M6b.3b](#m6b3b--text-drawn-and-the-display-list) | The renderer draws an interface's text in every writing system, crisp at every scale, from a display list | Planned |
+| [M6b.3b](#m6b3b--text-drawn-and-the-display-list) | The renderer draws an interface's text in every writing system, crisp at every scale, from a display list | Done |
 | [M6b.4](#m6b4--elements-styles-and-layout) | An interface is a tree of elements, styled by themes read from files, laid out by flexbox and grid, and built again only where what it shows changed | Planned |
 | [M6b.5](#m6b5--input-focus-and-what-agents-see) | A person and an agent use the interface through the same actions, and an agent reads what it shows | Planned |
 | [M6b.6](#m6b6--text-edited-and-what-the-platform-lacks) | Text is typed, selected, copied and composed in every writing system, and screen readers read the interface | Planned |
@@ -427,17 +428,54 @@ Risks:
 - **Delivers.** In `slime-gfx`: writing a part of a texture. In `slime-ui`, the display list.
   `slime-ui-render`, the bridge: a display list into a canvas, the glyphs' atlas pages, placed by
   etagere, within a budget, the least recently used leaving first, rasterized again after a lost
-  device; images through the asset cache. The example `interface` draws paragraphs in several
-  writing systems too, at scales 1 and 2, from a display list made by hand. The font of the editor's
-  and the overlay's text, chosen by the owner (ADR-0133), and whether glyphs are hinted, judged by
-  the owner on images ([ADR-0136](adr/0136-the-interfaces-text.md)). The dependency etagere. The
-  ADR of the design.
+  device; images through the asset cache, which the owner moved to their first user. The example
+  `interface` draws paragraphs in several writing systems too, at scales 1 and 2, from a display
+  list made by hand. The font of the editor's and the overlay's text, chosen by the owner
+  (ADR-0133), and whether glyphs are hinted, judged by the owner on images
+  ([ADR-0136](adr/0136-the-interfaces-text.md)). The dependency etagere. The ADR of the design.
 - **Done when.** Image tests: glyphs of each writing system; text at scale 2; text drawn again after
   a lost device. The canvas's benchmark, with text, within the share of a frame that
   [ADR-0137](adr/0137-the-canvas.md) sets on each tier; CI is green.
 - **How to test.** `cargo test -p slime-gfx -p slime-render -p slime-ui-render`; the example.
 - **By hand.** The owner chooses the font of the interface's text, and judges the text at scales 1
   and 2, hinted or not.
+- **Outcome.** Done on 2026-10-24. [ADR-0139](adr/0139-text-drawn-and-the-display-list.md) records
+  the owner's decisions: on 2026-10-23, that the interface's images come through the asset cache
+  with their first user, a display list naming them by keys that the program resolves, and that a
+  rectangle is given by its corner and its size everywhere; the design, validated the same day; and
+  on 2026-10-24, from images of the text that the engine drew, Geist as the font of the editor's and
+  the overlay's text, rather than Noto Sans, its file to come with its first user, and glyphs left
+  unhinted. `slime-gfx` gains `Gpu::write_texture`, which writes a part of a texture. `slime-ui`
+  gains its display list, `display::DisplayList`, owned data that holds boxes, shadows, texts and
+  images, each with its clip, its transform and its layer, and `Rect`, at its root, which its text's
+  carets and selections now give; `TextCache` gives its texts shared, as `Arc<TextLayout>`, and
+  `slime-ui` depends on `slime-color`. A new crate, `slime-ui-render`, draws a display list through
+  the canvas: `UiRenderer` keeps the glyphs' atlas, pages of coverage and of colors that etagere
+  fills, within a budget, the glyphs that no draw asked for the longest leaving first. The example
+  `interface` draws its interface from a display list, with a sentence of each of the eight writing
+  systems of slime-ui's tests, its list's rows and buttons named, at scales 1 and 2; its fonts and
+  texts are built into the program. The benchmark `ui.draw.menu` draws a game's menu of real text
+  through the bridge, within the interface's budget at every tier, the first draw rasterizing its
+  glyphs ([`docs/measurements.md`](measurements.md), M6b.3b). The tests: in `slime-gfx`'s
+  `tests/textures.rs`, `a_part_of_a_texture_is_written_and_the_rest_kept` and
+  `a_part_beyond_the_texture_is_refused`; in `slime-ui`, `a_display_list_is_sent_to_another_thread`,
+  `a_text_held_elsewhere_is_given_again_as_it_is_and_copied_only_for_another_box` and the display
+  list's doc test; in `slime-ui-render`'s `tests/drawing.rs`, each comparing the
+  pixels drawn with the same glyphs laid over black by the CPU,
+  `the_text_of_each_writing_system_is_drawn_where_its_layout_places_its_glyphs`, at scales 1 and 2,
+  `a_glyph_drawn_again_is_read_from_the_atlas_not_rasterized_again`,
+  `past_its_budget_the_atlas_lets_go_of_the_glyphs_that_no_draw_asked_for_the_longest`,
+  `an_image_is_drawn_as_the_program_gives_it_and_one_it_does_not_give_is_left_out`,
+  `a_lost_device_stops_the_drawing_and_a_new_renderer_draws_the_text_again`,
+  `a_text_cut_by_its_clip_is_drawn_inside_it_alone`,
+  `each_image_is_asked_for_once_a_draw_and_a_glyph_larger_than_a_page_is_left_out` and
+  `a_page_whose_glyphs_a_draw_does_not_draw_makes_room_for_a_page_of_another_kind`. A read-only
+  review found the architecture document's title broken by an edit; the text cache copying a
+  layout that a display list held at every hit, even in the same box; one kind of atlas page able
+  to keep the other out for good, the pages never let go; stale passages, the README's and the test
+  fonts', which did not say that `interface.exe` ships them; and smaller defects, among which glyphs
+  left out rasterized again at each of their occurrences, and the bridge's lifetime tying the
+  images to its own borrow: each is fixed, and tested where a test can.
 
 ### M6b.4 — Elements, styles and layout
 
@@ -630,9 +668,10 @@ The game is run with `--new --save <a file of its own>`, so that the owner's sav
   slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
   `af512af` prints.
 - **M6b.3a, in the Windows virtual machine.** `interface.exe` of the `slime-examples-windows`
-  artifact, in its window, on Direct3D 12: the interface drawn as `--output` draws it, its list
-  scrolling, the window's images seen without their sRGB encoding, which no check of CI draws in a
-  window ([ADR-0137](adr/0137-the-canvas.md)).
+  artifact, in its window, on Direct3D 12: the interface drawn as `--output` draws it, its texts in
+  eight writing systems, its list scrolling, the window's images seen without their sRGB encoding,
+  which no check of CI draws in a window ([ADR-0137](adr/0137-the-canvas.md),
+  [ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
 
 ## Releasing
 
@@ -647,10 +686,11 @@ A release is an annotated git tag on a commit whose CI run is green on Linux and
    `git tag -a v<version> -m "SlimeEngine <version>" <commit>`.
 4. From 0.1 on, create the GitHub release of the tag, its `CHANGELOG.md` section as its notes,
    with the `slime-examples-windows` artifact of that commit's CI run attached as
-   `slime-examples-windows-<version>.zip`, holding beside the programs, and DXC's library and
-   licence that CI puts with them, `LICENSE.txt`, a `NOTICE.txt` and the licenses of the egui fonts
-   that `scene.exe`, `world.exe` and `hunnawood.exe` embed in their dev overlay, which the Ubuntu
-   Font Licence asks to travel with them: CI keeps its artifacts 14 days, a release keeps them.
+   `slime-examples-windows-<version>.zip`: CI keeps its artifacts 14 days, a release keeps them.
+   CI puts beside the programs DXC's library and its licence, and the licenses of the parts of Noto
+   fonts that `interface.exe` embeds; add `LICENSE.txt`, a `NOTICE.txt` and the licenses of the egui
+   fonts that `scene.exe`, `world.exe` and `hunnawood.exe` embed in their dev overlay, which the
+   Ubuntu Font Licence asks to travel with them.
 
 0.0.1 was released on 2026-10-12, before Windows joined CI: the tag `v0.0.1` is on the commit
 "Release 0.0.1". 0.0.2 was released the same way on 2026-10-12: the tag `v0.0.2` is on the
@@ -1037,12 +1077,11 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **What a client draws into a view is lines and instances in the scene, and lines over the image**
   ([ADR-0129](adr/0129-drawing-for-the-editor.md)). Instances over the image, which need a depth of
   their own, and the scene's depth resolved for an outline or handles partly hidden, come with the
-  editor's handles at Stage 6c; a part of a texture written comes with the interface's glyphs at
-  M6b.3b. A line that lies on a surface may be hidden by it in places; blended surfaces are drawn in
-  no particular order until Stage 9a sorts them. The `world` example selects with Tab from the
-  keyboard alone: scripted keys reach a game's input, which its simulation reads, not its
-  presentation's events. How long `Renderer::set_shaders` takes was measured before the unlit kind's
-  pipelines and the lines'.
+  editor's handles at Stage 6c. A line that lies on a surface may be hidden by it in places; blended
+  surfaces are drawn in no particular order until Stage 9a sorts them. The `world` example selects
+  with Tab from the keyboard alone: scripted keys reach a game's input, which its simulation reads,
+  not its presentation's events. How long `Renderer::set_shaders` takes was measured before the
+  unlit kind's pipelines and the lines'.
 - **A page of meshes keeps the ranges of dropped meshes until new ones fill them or it empties**
   ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)). Nothing moves a mesh to pack its
   page: a game that drops half its meshes keeps their pages' memory while one mesh stays in each.
@@ -1325,26 +1364,30 @@ GitHub issues, linked from their entry; this list stays the reference.
   Hot reload in the editor comes with Stage 6c.
 - **A comment within a value written on several lines is lost** when the editor writes the level
   again, but for the end of the value's first line (`slime_serialize::keep_comments`).
-- **The canvas draws no text, and nothing turned or scaled** ([ADR-0137](adr/0137-the-canvas.md)):
-  text comes with M6b.3b, and the items' transforms, whose place they keep, with Stage 7. An image
-  is read at its first level, so that one drawn much smaller than it is shows steps, and its edges
-  are neither rounded nor smoothed between two pixels; an image of colors darkens where an opaque
-  texel meets a transparent one of another color, its texels filtered before they are multiplied by
-  their alpha. A shadow is an approximation, a few hundredths of its alpha from the box blurred
-  exactly. A canvas holds at most `MAX_CANVAS_ITEMS` items. `PixelRect` gives a rectangle by its
-  corner and its size, and `slime-ui`'s text by its edges: M6b.3b's bridge converts them, or makes
-  them one. The interface's budget is checked on the RX 6900 XT alone, through ADR-0114's ratios.
-  Writing a canvas's items into its buffer costs the CPU in proportion to their number, item by item
-  ([`docs/measurements.md`](measurements.md), M6b.3a).
+- **The canvas draws nothing turned or scaled** ([ADR-0137](adr/0137-the-canvas.md)): the items'
+  transforms, whose place they keep, come with Stage 7. An image is read at its first level, so that
+  one drawn much smaller than it is shows steps, and its edges are neither rounded nor smoothed
+  between two pixels; an image of colors darkens where an opaque texel meets a transparent one of
+  another color, its texels filtered before they are multiplied by their alpha. A shadow is an
+  approximation, a few hundredths of its alpha from the box blurred exactly. A canvas holds at most
+  `MAX_CANVAS_ITEMS` items. The interface's budget is checked on the RX 6900 XT alone, through
+  ADR-0114's ratios. Writing a canvas's items into its buffer costs the CPU in proportion to their
+  number, item by item ([`docs/measurements.md`](measurements.md), M6b.3a).
+- **The interface's images are textures that the program gives** for the keys of its display list
+  ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)): cooked images that the asset cache
+  holds come with the first program that draws them, the editor or a game's screens. The editor's
+  font, Geist, is chosen, not yet in the repository. A draw that asks for more glyphs than the
+  atlas's budget holds leaves some out, and a glyph larger than a page is never drawn; one that
+  meets glyphs no draw has asked for rasterizes them on the thread that draws, a few milliseconds
+  for a menu's first draw ([`docs/measurements.md`](measurements.md), M6b.3b).
 - **The interface's text has one style per text, and is not edited yet**
   ([ADR-0136](adr/0136-the-interfaces-text.md)): spans of several styles in one text come with their
-  first user, and editing, input methods included, at M6b.6. Whether glyphs are hinted is judged on
-  images at M6b.3b. An italic or a weight that a family lacks is drawn with its closest face, its
-  slant or boldness not made up. A face whose colors are only of `COLR`'s second version, as some
-  emoji fonts of systems, draws no color, swash drawing the first version alone. A word wider than
-  its box, on a line before the last one shown, overflows the box rather than being cut. The cache's
-  memory is an estimate fitted once to a measurement, of texts not cut; a hit copies its key; and
-  fonts registered are never let go.
+  first user, and editing, input methods included, at M6b.6. An italic or a weight that a family
+  lacks is drawn with its closest face, its slant or boldness not made up. A face whose colors are
+  only of `COLR`'s second version, as some emoji fonts of systems, draws no color, swash drawing the
+  first version alone. A word wider than its box, on a line before the last one shown, overflows the
+  box rather than being cut. The cache's memory is an estimate fitted once to a measurement, of
+  texts not cut; a hit copies its key; and fonts registered are never let go.
 - **CI cooks the zone again whenever the lock or the workspace's manifest changes**: the cache of
   the cooked zone is keyed by the whole `Cargo.lock` and root `Cargo.toml`, among the cooker's
   sources, so a milestone that adds a dependency, even one that the cooker does not use, cooks the
