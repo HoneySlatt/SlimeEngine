@@ -1,0 +1,23 @@
+[package]
+name = "slime-ui-render"
+description = "SlimeEngine's bridge between the interface's display list and the renderer's canvas, with the glyphs' atlas."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Places the glyphs' images in the atlas's pages, and frees them one by one (ADR-0132, ADR-0139).
+etagere.workspace = true
+slime-gfx.workspace = true
+slime-render.workspace = true
+slime-ui.workspace = true
+# A warning when a frame's glyphs do not fit the atlas's budget (ADR-0008).
+tracing.workspace = true
+
+[dev-dependencies]
+slime-color.workspace = true

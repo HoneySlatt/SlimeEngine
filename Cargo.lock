@@ -637,6 +637,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "etagere"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ecb5c40d5683a270e077688f53a99eac51c1cb1ae5ba63b55590370cb3536bf"
+dependencies = [
+ "euclid",
+]
+
+[[package]]
 name = "euclid"
 version = "0.22.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2746,6 +2755,18 @@ dependencies = [
  "slime-color",
  "swash",
  "thiserror 2.0.21",
+ "tracing",
+]
+
+[[package]]
+name = "slime-ui-render"
+version = "0.5.0"
+dependencies = [
+ "etagere",
+ "slime-color",
+ "slime-gfx",
+ "slime-render",
+ "slime-ui",
  "tracing",
 ]
 

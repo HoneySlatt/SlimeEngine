@@ -107,6 +107,10 @@ swash = "0.2.10"
 # found for a writing system is named for its characters (ADR-0136). Already built for parley, with
 # its data.
 icu_properties = "2.4.0"
+# The glyphs' atlas of slime-ui-render (ADR-0132, ADR-0139): places each glyph's image in an atlas
+# page by shelves, and frees it alone, as the least recently used glyphs leave. Brings euclid, its
+# sizes and rectangles, already built for egui.
+etagere = "0.3.0"
 
 # Workspace crates.
 slime-app = { path = "crates/slime-app" }
@@ -123,6 +127,7 @@ slime-reflect-derive = { path = "crates/slime-reflect-derive" }
 slime-serialize = { path = "crates/slime-serialize" }
 slime-tasks = { path = "crates/slime-tasks" }
 slime-ui = { path = "crates/slime-ui" }
+slime-ui-render = { path = "crates/slime-ui-render" }
 slime-render = { path = "crates/slime-render" }
 slime-world = { path = "crates/slime-world" }
 slime-world-render = { path = "crates/slime-world-render" }
