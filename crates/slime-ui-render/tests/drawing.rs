@@ -2,7 +2,8 @@
 //! same glyphs rasterized and laid over black by the CPU: the text of each writing system of
 //! slime-ui's tests, at scales 1 and 2; an atlas within its budget, its glyphs that no draw asked
 //! for the longest leaving first; images as the program gives them; a lost device, after which a
-//! new renderer draws the text again. Runs on whatever adapter the machine offers.
+//! new renderer draws the text again; and a tree of elements drawn where its layout places it. Runs
+//! on whatever adapter the machine offers.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -14,7 +15,9 @@ use slime_ui::Rect;
 use slime_ui::display::{
     BoxPrimitive, DisplayList, ImageKey, ImageKind, ImagePrimitive, TextPrimitive,
 };
+use slime_ui::style::{Align, Dimension, Style};
 use slime_ui::text::{Fonts, GlyphPixels, GlyphRasterizer, TextBounds, TextLayout, TextStyle};
+use slime_ui::tree::{Element, LayoutDirection, RootSettings, Ui};
 use slime_ui_render::{ATLAS_PAGE_SIZE, UiRenderer};
 
 const FORMAT: TextureFormat = TextureFormat::Rgba16Float;
@@ -515,4 +518,66 @@ fn a_page_whose_glyphs_a_draw_does_not_draw_makes_room_for_a_page_of_another_kin
     assert_eq!(drawn.atlas_bytes, 4 << 20);
     let (difference, at) = worst(&image, &reference(&fonts, &emoji, [0, 0]));
     assert!(difference < 0.01, "{difference} at {at:?}");
+}
+
+#[test]
+fn a_tree_of_elements_is_drawn_where_its_layout_places_it_and_mirrored_from_right_to_left() {
+    let mut setup = Setup::new(slime_ui_render::GLYPH_ATLAS_BUDGET);
+    let colors = [
+        LinearColor::rgba(1.0, 0.0, 0.0, 1.0),
+        LinearColor::rgba(0.0, 1.0, 0.0, 1.0),
+        LinearColor::rgba(0.0, 0.0, 1.0, 1.0),
+    ];
+    for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
+        let mut ui = Ui::new(fonts());
+        let mut row = Style::default();
+        row.layout.padding.start = 10.0;
+        row.layout.gap = [0.0, 10.0];
+        row.layout.align_items = Align::Start;
+        let settings = RootSettings {
+            size: [WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0],
+            scale: 2.0,
+            direction,
+        };
+        let root = ui.add_root(settings, row);
+        let mut ids = Vec::new();
+        ui.build(root, 0, |children| {
+            for (index, (color, width)) in colors
+                .into_iter()
+                .zip([Some(40.0), Some(60.0), None])
+                .enumerate()
+            {
+                let mut style = Style::default();
+                style.layout.size[1] = Dimension::Pixels(30.0);
+                match width {
+                    Some(width) => style.layout.size[0] = Dimension::Pixels(width),
+                    None => style.layout.grow = 1.0,
+                }
+                style.paint.background = color;
+                ids.push(children.add(index, Element::container(style), |_| {}));
+            }
+        });
+        let (list, _) = ui.frame();
+        let (image, _) = setup.draw(ui.fonts(), &list);
+        let pixel = |x: f32, y: f32| {
+            let index = (y as usize * WIDTH as usize + x as usize) * 4;
+            [0, 1, 2].map(|channel| image.pixels[index + channel])
+        };
+        let first = ui.rect(ids[0]).expect("laid out");
+        let expected = match direction {
+            LayoutDirection::LeftToRight => 20.0,
+            LayoutDirection::RightToLeft => WIDTH as f32 - 20.0 - 80.0,
+        };
+        assert_eq!((first.x, first.width), (expected, 80.0), "{direction:?}");
+        for (&id, color) in ids.iter().zip(colors) {
+            let rect = ui.rect(id).expect("laid out");
+            let inside = pixel(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0);
+            assert_eq!(
+                inside,
+                [color.r, color.g, color.b],
+                "{direction:?} {rect:?}"
+            );
+            assert_eq!(pixel(rect.x + 1.0, rect.y + rect.height + 1.0), [0.0; 3]);
+        }
+    }
 }
