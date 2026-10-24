@@ -17,6 +17,8 @@ fontique.workspace = true
 parley.workspace = true
 # The writing system of each character, by which the system's font found for it is named.
 icu_properties.workspace = true
+# The colors of what a display list draws, as every crate that holds a color names them (ADR-0045).
+slime-color.workspace = true
 # Glyphs rasterized into coverage or color (ADR-0136).
 swash.workspace = true
 thiserror.workspace = true

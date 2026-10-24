@@ -37,9 +37,7 @@ mod style;
 
 pub use cache::{TEXT_CACHE_BUDGET, TextCache};
 pub use fonts::{FontError, FontId, Fonts};
-pub use layout::{
-    Affinity, Glyph, GlyphRun, PlacedGlyph, Rect, TextLayout, TextLine, TextPosition,
-};
+pub use layout::{Affinity, Glyph, GlyphRun, PlacedGlyph, TextLayout, TextLine, TextPosition};
 pub use raster::{
     GlyphImage, GlyphKey, GlyphPixels, GlyphRasterizer, Representation, SUBPIXEL_POSITIONS,
 };

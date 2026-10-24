@@ -2743,6 +2743,7 @@ dependencies = [
  "fontique",
  "icu_properties",
  "parley",
+ "slime-color",
  "swash",
  "thiserror 2.0.21",
  "tracing",

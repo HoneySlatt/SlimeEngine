@@ -65,7 +65,7 @@ fn caret_x(layout: &TextLayout, index: usize) -> f32 {
             index,
             affinity: Affinity::Downstream,
         })
-        .x0
+        .x
 }
 
 /// The glyphs' ids, in the order drawn.
@@ -370,7 +370,7 @@ fn a_text_too_long_for_its_box_ends_with_an_ellipsis() {
         "{}",
         caret_x(&cut, 0)
     );
-    let left = cut.caret(end).x0;
+    let left = cut.caret(end).x;
     assert!(
         shown
             .char_indices()
@@ -411,7 +411,7 @@ fn carets_and_the_cluster_under_a_point_follow_the_text_s_direction() {
     assert_eq!(latin.position_at(latin.width() + 5.0, middle).index, 6);
     let selected = latin.selection(0..6);
     assert_eq!(selected.len(), 1);
-    assert!((selected[0].x1 - selected[0].x0 - latin.width()).abs() < 0.5);
+    assert!((selected[0].width - latin.width()).abs() < 0.5);
 
     let text = "מסך";
     let hebrew = line(&mut fonts, text, &style(&[HEBREW, LATIN], Some("he")));

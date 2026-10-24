@@ -1,6 +1,7 @@
 //! Laid-out text kept from one frame to the next, within a budget.
 
 use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
 
 use super::fonts::Fonts;
 use super::layout::TextLayout;
@@ -14,7 +15,9 @@ pub const TEXT_CACHE_BUDGET: usize = 32 << 20;
 /// Laid-out texts, kept by their text, style and scale within a budget of memory: those used
 /// least recently leave first. A text asked for again in another box keeps its shaping: its lines
 /// are broken again, and, if that box cuts it, its start laid out again with the ellipsis
-/// ([`TextLayout::set_bounds`]). It is to be used with the same [`Fonts`] each time.
+/// ([`TextLayout::set_bounds`]). It is to be used with the same [`Fonts`] each time. It gives its
+/// texts shared, so that a display list holds them without copying them; a text that one still
+/// holds is copied before it is laid out again in another box.
 pub struct TextCache {
     budget: usize,
     used: usize,
@@ -38,7 +41,7 @@ struct Key {
 }
 
 struct Entry {
-    layout: TextLayout,
+    layout: Arc<TextLayout>,
     memory: usize,
     used: u64,
 }
@@ -66,7 +69,7 @@ impl TextCache {
         style: &TextStyle,
         scale: f32,
         bounds: TextBounds,
-    ) -> &TextLayout {
+    ) -> &Arc<TextLayout> {
         let key = Key {
             text: text.to_owned(),
             fonts: style.fonts.clone(),
@@ -87,12 +90,15 @@ impl TextCache {
             self.uses.remove(&entry.used);
             entry.used = clock;
             self.uses.insert(clock, key.clone());
-            let before = entry.memory;
-            entry.layout.set_bounds(fonts, bounds);
-            entry.memory = entry.layout.memory();
-            self.used = self.used - before + entry.memory;
+            // A layout that a display list holds is copied only to be laid out in another box.
+            if entry.layout.bounds() != bounds {
+                let before = entry.memory;
+                Arc::make_mut(&mut entry.layout).set_bounds(fonts, bounds);
+                entry.memory = entry.layout.memory();
+                self.used = self.used - before + entry.memory;
+            }
         } else {
-            let layout = fonts.lay_out(text, style, scale, bounds);
+            let layout = Arc::new(fonts.lay_out(text, style, scale, bounds));
             let memory = layout.memory();
             self.used += memory;
             self.uses.insert(clock, key.clone());
@@ -182,5 +188,27 @@ mod tests {
                 .map(|entry| entry.memory)
                 .sum::<usize>()
         );
+    }
+
+    #[test]
+    fn a_text_held_elsewhere_is_given_again_as_it_is_and_copied_only_for_another_box() {
+        let mut fonts = Fonts::new();
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fonts/NotoSans.ttf");
+        fonts
+            .register(std::fs::read(path).expect("a test font"))
+            .expect("a font");
+        let style = TextStyle {
+            fonts: vec!["Noto Sans".to_owned()],
+            ..TextStyle::default()
+        };
+        let text = "Every panel can be docked";
+        let mut cache = TextCache::new(TEXT_CACHE_BUDGET);
+        let held = Arc::clone(cache.get(&mut fonts, text, &style, 1.0, TextBounds::default()));
+        let again = cache.get(&mut fonts, text, &style, 1.0, TextBounds::default());
+        assert!(Arc::ptr_eq(&held, again));
+        let narrow = Arc::clone(cache.get(&mut fonts, text, &style, 1.0, TextBounds::width(60.0)));
+        assert!(!Arc::ptr_eq(&held, &narrow));
+        assert_eq!(held.bounds(), TextBounds::default());
+        assert!(narrow.lines().len() > held.lines().len());
     }
 }

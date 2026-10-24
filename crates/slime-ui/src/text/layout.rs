@@ -10,6 +10,8 @@ use parley::{
     Layout, LineHeight, PositionedLayoutItem, Selection, StyleProperty,
 };
 
+use crate::Rect;
+
 use super::fonts::{FontId, Fonts};
 use super::raster::{GlyphKey, Representation};
 use super::style::{Alignment, Direction, TextBounds, TextStyle};
@@ -37,6 +39,7 @@ const SLACK: f32 = 0.01;
 ///
 /// A text that its box cuts shows its start and an ellipsis ([`TextLayout::shown`]): the lines,
 /// the glyphs and every position that the layout gives or takes are those of the text shown.
+#[derive(Clone)]
 pub struct TextLayout {
     text: String,
     style: TextStyle,
@@ -51,6 +54,7 @@ pub struct TextLayout {
 }
 
 /// A text cut to its box.
+#[derive(Clone)]
 struct Cut {
     /// The byte of the whole text where it is cut: the ellipsis replaces it and what follows, the
     /// spaces before it included.
@@ -152,19 +156,6 @@ pub enum Affinity {
     Upstream,
 }
 
-/// A rectangle, in pixels of the screen.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct Rect {
-    /// Its left.
-    pub x0: f32,
-    /// Its top.
-    pub y0: f32,
-    /// Its right.
-    pub x1: f32,
-    /// Its bottom.
-    pub y1: f32,
-}
-
 impl Fonts {
     /// Lays out `text` in the style `style`, at `scale` pixels of the screen per logical pixel,
     /// in the box `bounds`.
@@ -238,6 +229,18 @@ impl Fonts {
             builder.push_default(StyleProperty::Locale(Language::parse(locale).ok()));
         }
         builder.build(text)
+    }
+}
+
+/// The text shown, its scale and its box: its shaping is parley's, which says nothing readable.
+impl std::fmt::Debug for TextLayout {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TextLayout")
+            .field("shown", &self.shown())
+            .field("scale", &self.scale)
+            .field("bounds", &self.bounds)
+            .finish_non_exhaustive()
     }
 }
 
@@ -560,12 +563,12 @@ fn cursor(layout: &Layout<()>, position: TextPosition) -> Cursor {
 }
 
 fn rect(bounds: BoundingBox) -> Rect {
-    Rect {
-        x0: bounds.x0 as f32,
-        y0: bounds.y0 as f32,
-        x1: bounds.x1 as f32,
-        y1: bounds.y1 as f32,
-    }
+    Rect::new(
+        bounds.x0 as f32,
+        bounds.y0 as f32,
+        (bounds.x1 - bounds.x0) as f32,
+        (bounds.y1 - bounds.y0) as f32,
+    )
 }
 
 fn alignment(alignment: Alignment) -> ParleyAlignment {
