@@ -11,7 +11,7 @@ pub use error::PlatformError;
 pub use event::Event;
 pub use event_loop::{EventHandler, LoopControl, run_event_loop};
 pub use held::{Buttons, Input};
-pub use input::{
+pub use slime_input::{
     ButtonState, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey, ScrollDelta,
 };
 pub use window::{PhysicalSize, Window, WindowConfig};

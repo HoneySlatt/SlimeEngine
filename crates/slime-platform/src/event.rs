@@ -3,7 +3,9 @@
 use winit::event::WindowEvent;
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use crate::input::{self, ButtonState, KeyEvent, Modifiers, MouseButton, ScrollDelta};
+use slime_input::{ButtonState, KeyEvent, Modifiers, MouseButton, ScrollDelta};
+
+use crate::input;
 use crate::window::PhysicalSize;
 
 /// Something that happened to the window, or input it received.
@@ -306,7 +308,7 @@ mod tests {
     use winit::keyboard::{KeyCode as WinitKeyCode, ModifiersState, NativeKeyCode};
 
     use super::*;
-    use crate::input::{Key, KeyCode, NamedKey};
+    use slime_input::{Key, KeyCode, NamedKey};
 
     /// Translates `event` with a translator that has seen nothing before, which gives at most one
     /// event.
@@ -621,11 +623,10 @@ mod tests {
     }
 
     fn held(shift: bool, control: bool) -> Event {
-        Event::ModifiersChanged(Modifiers {
-            shift,
-            control,
-            ..Modifiers::default()
-        })
+        let mut modifiers = Modifiers::default();
+        modifiers.shift = shift;
+        modifiers.control = control;
+        Event::ModifiersChanged(modifiers)
     }
 
     #[test]

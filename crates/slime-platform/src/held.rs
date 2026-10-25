@@ -2,7 +2,7 @@
 //! last frame (`docs/adr/0107-the-execution-model.md`).
 
 use crate::event::Event;
-use crate::input::{ButtonState, KeyCode, MouseButton};
+use slime_input::{ButtonState, KeyCode, MouseButton};
 
 /// The keys and mouse buttons held, and those pressed and released since the last frame: what a
 /// game's simulation reads of the player's hands, as data, whether they come from the keyboard and
@@ -148,7 +148,7 @@ impl<B: Copy + PartialEq> Buttons<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::input::{Key, KeyEvent};
+    use slime_input::{Key, KeyEvent};
 
     fn key(physical: KeyCode, state: ButtonState, repeat: bool) -> Event {
         Event::Key(KeyEvent {

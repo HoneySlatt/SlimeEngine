@@ -12,6 +12,8 @@ workspace = true
 
 [dependencies]
 raw-window-handle.workspace = true
+# The engine's vocabulary of input, which the platform translates winit's events into (ADR-0142).
+slime-input.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 winit.workspace = true

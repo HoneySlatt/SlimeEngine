@@ -2680,6 +2680,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "slime-input"
+version = "0.5.0"
+
+[[package]]
 name = "slime-mcp"
 version = "0.5.0"
 dependencies = [
@@ -2697,6 +2701,7 @@ name = "slime-platform"
 version = "0.5.0"
 dependencies = [
  "raw-window-handle",
+ "slime-input",
  "thiserror 2.0.21",
  "tracing",
  "winit",

@@ -125,6 +125,7 @@ slime-cook = { path = "crates/slime-cook" }
 slime-devui = { path = "crates/slime-devui" }
 slime-editor = { path = "crates/slime-editor" }
 slime-gfx = { path = "crates/slime-gfx" }
+slime-input = { path = "crates/slime-input" }
 slime-platform = { path = "crates/slime-platform" }
 slime-reflect = { path = "crates/slime-reflect" }
 slime-reflect-derive = { path = "crates/slime-reflect-derive" }
