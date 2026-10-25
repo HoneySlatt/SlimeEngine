@@ -10,13 +10,18 @@ use std::sync::Arc;
 use slime_color::LinearColor;
 use slime_reflect::{Reflect, Registry, Value};
 
+use crate::DocumentError;
 use crate::Rect;
 use crate::display::{DisplayList, ImageKey, ImageKind, Primitive};
 use crate::layout;
 use crate::paint;
 use crate::style::Style;
 use crate::text::{Fonts, TEXT_CACHE_BUDGET, TextCache};
-use crate::theme::{self, KindName, Rule, StateName, StyleError, StyleSheet, Theme};
+use crate::theme::{self, KindName, Rule, StateName, StyleSheet, Theme};
+
+mod interact;
+
+use interact::Interaction;
 
 /// An element of a [`Ui`]: the place it holds in the tree's arena, and the generation of that
 /// place, so that the id of an element removed names no other that takes its place.
@@ -121,7 +126,9 @@ pub enum Kind {
 }
 
 /// The state of an element that its builder does not give: whether the pointer is over it, it is
-/// pressed or disabled. The program sets it ([`Ui::set_state`]); rules select elements by it.
+/// pressed, disabled or holds the focus. The interface's input sets whether it is hovered, pressed
+/// and focused, and the program whether it is disabled ([`Ui::set_state`]); rules select elements
+/// by it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ElementState {
     /// The pointer is over it.
@@ -130,6 +137,8 @@ pub struct ElementState {
     pub pressed: bool,
     /// It takes no input.
     pub disabled: bool,
+    /// It holds the focus: the keys reach it first. The interface sets it ([`Ui::set_focus`]).
+    pub focused: bool,
 }
 
 /// An element as a builder describes it: what it is, its classes and its style. The tree keeps
@@ -221,6 +230,10 @@ pub enum LayoutDirection {
 
 /// A root of the tree: the surface it lays out on, a window or any target that the program draws
 /// its display list into.
+///
+/// Roots are stacked in the order they are added, the last on top: drawn last, and taking the
+/// pointer first. A popup, a menu or a dialog is a root of its own, over the window's, at the place
+/// that the program gives it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RootSettings {
     /// Its width and height, in logical pixels.
@@ -229,6 +242,13 @@ pub struct RootSettings {
     pub scale: f32,
     /// The direction of its lines.
     pub direction: LayoutDirection,
+    /// Where its top left corner lies on its surface, in logical pixels: `[0.0, 0.0]` for a root
+    /// that fills a window, a popup's place otherwise.
+    pub origin: [f32; 2],
+    /// Whether it is modal, as the root is added: while it is there, the roots below it take no
+    /// input, and the focus stays among its elements, given back to the element that held it when
+    /// it is removed.
+    pub modal: bool,
 }
 
 /// What changed in an element since it was last laid out and drawn.
@@ -312,6 +332,11 @@ struct Slot {
 /// Lengths are logical pixels in styles and pixels of the screen, logical pixels times the root's
 /// scale, in what a frame gives: boxes, clips and the display list.
 ///
+/// A person's input reaches it as the window gives it, the pointer's moves and buttons, the wheel,
+/// the modifiers and the keys ([`Ui::pointer_moved`], [`Ui::pointer_button`], [`Ui::wheel`],
+/// [`Ui::modifiers`], [`Ui::key`]), which become *actions*; an agent sends actions themselves
+/// ([`Ui::act`]). The program reads them from a queue ([`Ui::take_actions`]).
+///
 /// ```
 /// use slime_ui::Rect;
 /// use slime_ui::style::{Dimension, Style};
@@ -323,6 +348,8 @@ struct Slot {
 ///     size: [400.0, 300.0],
 ///     scale: 2.0,
 ///     direction: LayoutDirection::RightToLeft,
+///     origin: [0.0; 2],
+///     modal: false,
 /// };
 /// let root = ui.add_root(settings, Style::default());
 /// let mut style = Style::default();
@@ -354,6 +381,8 @@ pub struct Ui {
     restyled: Vec<ElementId>,
     /// The rules of the style sheets that style the elements, their theme's values in them.
     rules: Vec<Rule>,
+    /// What a person's input reached, and the actions that wait for the program.
+    interaction: Interaction,
     /// The types that style sheets hold, and the default style as reflection holds it.
     registry: Registry,
     default_style: Value,
@@ -375,6 +404,7 @@ impl Ui {
             relaid: Vec::new(),
             scrolled: Vec::new(),
             restyled: Vec::new(),
+            interaction: Interaction::default(),
             rules: Vec::new(),
             registry: theme::registry(),
             default_style: Style::default().to_value(),
@@ -409,6 +439,9 @@ impl Ui {
         let id = self.insert(node);
         self.roots.push(id);
         self.restyled.push(id);
+        if settings.modal {
+            self.opened_modal(id);
+        }
         id
     }
 
@@ -449,6 +482,7 @@ impl Ui {
         }
         self.roots.retain(|&root| root != id);
         self.free_subtree(id);
+        self.forget(id);
     }
 
     /// Builds the children of `parent` with `build`, unless they were built for `revision`
@@ -490,10 +524,10 @@ impl Ui {
     ///
     /// # Errors
     ///
-    /// [`StyleError`] if a style sheet or the theme is not a document of their types, or names a
+    /// [`DocumentError`] if a style sheet or the theme is not a document of their types, or names a
     /// value that the theme does not have or holds of another type: the interface keeps the style
     /// it had.
-    pub fn set_style(&mut self, sheets: &[StyleSheet], theme: &Theme) -> Result<(), StyleError> {
+    pub fn set_style(&mut self, sheets: &[StyleSheet], theme: &Theme) -> Result<(), DocumentError> {
         self.rules = theme::rules(&self.registry, sheets, theme)?;
         self.styles.clear();
         for root in self.roots.clone() {
@@ -502,12 +536,19 @@ impl Ui {
         Ok(())
     }
 
-    /// Sets the state of `id`, which rules select elements by: its style is made again. Nothing
-    /// happens for an id that names nothing.
+    /// Sets the state of `id`, which rules select elements by: its style is made again. Whether it
+    /// holds the focus stays as it was, the focus's ([`Ui::set_focus`]); whether it is hovered or
+    /// pressed, which the input sets too, holds until the input next changes it. A disabled element
+    /// loses the focus at the next [`Ui::frame`]. Nothing happens for an id that names nothing.
     pub fn set_state(&mut self, id: ElementId, state: ElementState) {
-        if let Some(node) = self.node_mut(id)
-            && node.state != state
-        {
+        if let Some(node) = self.node_mut(id) {
+            let state = ElementState {
+                focused: node.state.focused,
+                ..state
+            };
+            if node.state == state {
+                return;
+            }
             node.state = state;
             self.mark_style(id);
         }
@@ -618,12 +659,11 @@ impl Ui {
             elements: self.len(),
             ..FrameStats::default()
         };
-        // Styles first: a style that changed lays its element out again.
-        for id in std::mem::take(&mut self.restyled) {
-            if self.restyle(id) {
-                stats.styled += 1;
-            }
-        }
+        // Styles first: a style that changed lays its element out again. The input's states follow
+        // what they made, a focus hidden or disabled dropped, and are styled in turn.
+        stats.styled += self.restyle_marked();
+        self.settle_input();
+        stats.styled += self.restyle_marked();
         let mut laid_out = Vec::new();
         let mut lists = Vec::new();
         for root in self.roots.clone() {
@@ -647,6 +687,9 @@ impl Ui {
         for id in std::mem::take(&mut self.scrolled) {
             layout::place_below(self, id);
             lists.push(id);
+        }
+        if stats.layouts + stats.lists > 0 || !lists.is_empty() {
+            self.moved();
         }
         for list in lists {
             self.update_rows(list);
@@ -722,6 +765,12 @@ impl Ui {
         for child in node.children {
             self.free_subtree(child);
         }
+    }
+
+    /// Makes again the styles marked to be, and counts those that it made.
+    fn restyle_marked(&mut self) -> usize {
+        let marked = std::mem::take(&mut self.restyled);
+        marked.into_iter().filter(|&id| self.restyle(id)).count()
     }
 
     /// Marks the style of `id` made again at the next frame.
@@ -840,6 +889,7 @@ impl Ui {
                 StateName::Hovered => node.state.hovered,
                 StateName::Pressed => node.state.pressed,
                 StateName::Disabled => node.state.disabled,
+                StateName::Focused => node.state.focused,
             })
         {
             return false;
@@ -1113,6 +1163,7 @@ impl<'a> Children<'a> {
             });
             if !same {
                 self.ui.free_subtree(before);
+                self.ui.forget(before);
             }
             same.then_some(before)
         });
@@ -1169,6 +1220,7 @@ impl<'a> Children<'a> {
         let removed = !before.is_empty();
         for (_, child) in before {
             ui.free_subtree(child);
+            ui.forget(child);
         }
         let node = ui.node_mut(parent).expect("the parent is there");
         if removed || node.children != given {

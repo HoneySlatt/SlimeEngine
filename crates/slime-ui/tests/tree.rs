@@ -28,6 +28,8 @@ fn root(width: f32, height: f32, scale: f32, direction: LayoutDirection) -> Root
         size: [width, height],
         scale,
         direction,
+        origin: [0.0; 2],
+        modal: false,
     }
 }
 

@@ -41,7 +41,8 @@ pub(crate) fn lay_out(ui: &mut Ui, root: ElementId) {
     for list in ui.lists(root) {
         lay_out_rows(ui, list, settings);
     }
-    place(ui, (root, 0.0, 0.0, None), settings);
+    let origin = settings.origin.map(|at| at * scale);
+    place(ui, (root, origin[0], origin[1], None), settings);
 }
 
 /// Lays out the rows of the list `list` again, with the rows of the lists that they hold, and
@@ -148,14 +149,15 @@ pub(crate) fn place_below(ui: &mut Ui, id: ElementId) {
     let Some(settings) = ui.root_settings(id) else {
         return;
     };
-    let width = settings.size[0] * settings.scale;
+    // A mirror across the root's box, at its place on the surface.
+    let across = 2.0 * settings.origin[0] * settings.scale + settings.size[0] * settings.scale;
     let Some(node) = ui.node(id) else {
         return;
     };
     // Where its parent's content starts, before the mirror.
     let left = match settings.direction {
         LayoutDirection::LeftToRight => node.rect.x,
-        LayoutDirection::RightToLeft => width - node.rect.x - node.rect.width,
+        LayoutDirection::RightToLeft => across - node.rect.x - node.rect.width,
     };
     let start = (
         id,
@@ -174,7 +176,8 @@ pub(crate) fn place_below(ui: &mut Ui, id: ElementId) {
 /// box or cut moves is drawn again.
 fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: RootSettings) {
     let (scale, direction) = (settings.scale, settings.direction);
-    let width = settings.size[0] * scale;
+    // A mirror across the root's box, at its place on the surface.
+    let across = 2.0 * settings.origin[0] * scale + settings.size[0] * scale;
     let mut stack = vec![start];
     while let Some((id, x, y, clip)) = stack.pop() {
         let Some(node) = ui.node_mut(id) else {
@@ -185,7 +188,7 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
         let (left, top) = (x + layout.location.x, y + layout.location.y);
         let mut rect = Rect::new(left, top, layout.size.width, layout.size.height);
         if direction == LayoutDirection::RightToLeft {
-            rect.x = width - rect.x - rect.width;
+            rect.x = across - rect.x - rect.width;
         }
         if node.rect != rect || node.clip != clip {
             node.rect = rect;

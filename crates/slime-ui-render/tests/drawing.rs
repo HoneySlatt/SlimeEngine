@@ -538,6 +538,8 @@ fn a_tree_of_elements_is_drawn_where_its_layout_places_it_and_mirrored_from_righ
             size: [WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0],
             scale: 2.0,
             direction,
+            origin: [0.0; 2],
+            modal: false,
         };
         let root = ui.add_root(settings, row);
         let mut ids = Vec::new();

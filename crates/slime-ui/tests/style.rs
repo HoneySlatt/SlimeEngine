@@ -16,6 +16,8 @@ fn ui() -> (Ui, ElementId) {
         size: [400.0, 300.0],
         scale: 1.0,
         direction: LayoutDirection::LeftToRight,
+        origin: [0.0; 2],
+        modal: false,
     };
     let root = ui.add_root(settings, Style::default());
     (ui, root)

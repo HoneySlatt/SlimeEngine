@@ -1,0 +1,7 @@
+# The shortcuts of the `interface` example (docs/adr/0142-input-and-focus.md): each table is a
+# scope, `global` or the class of an element that holds the focus, and each key a chord of the
+# keys' meaning, which names a command that the example does.
+
+[global]
+T = "switch-theme"
+"Ctrl+O" = "open"

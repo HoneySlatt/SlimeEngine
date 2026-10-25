@@ -3,15 +3,21 @@
 //! theme (`docs/adr/0141-style-sheets-and-themes.md`), gives the display list that
 //! `slime-ui-render` draws through the renderer's canvas (`docs/adr/0137-the-canvas.md`): panels
 //! with rounded corners, borders and shadows; a list of 100 000 rows that scrolls with time, of
-//! which only those that show are built, cut by its panel; buttons with their labels, one shown
-//! pressed; a sentence of each writing system of slime-ui's tests, Arabic and Hebrew from right to
-//! left, Hindi, Thai, Japanese, Chinese and emoji, its glyphs kept in the bridge's atlas; images
-//! of colors, and images of coverage drawn in a color; and, in a panel, the shapes of the image
-//! tests, which the renderer draws into a target of its own each frame, the panel showing that
-//! target as an image, as the editor's viewport will, a translucent card over it in the same cell
-//! of a grid. Colors mix as sRGB values, as design tools mix them. The fonts are those of
-//! slime-ui's tests, parts of Noto fonts that hold the characters of its texts alone
-//! (`crates/slime-ui/tests/fonts/README.md`), built into the program.
+//! which only those that show are built, cut by its panel; buttons with their labels; a sentence of
+//! each writing system of slime-ui's tests, Arabic and Hebrew from right to left, Hindi, Thai,
+//! Japanese, Chinese and emoji, its glyphs kept in the bridge's atlas; images of colors, and images
+//! of coverage drawn in a color; and, in a panel, the shapes of the image tests, which the renderer
+//! draws into a target of its own each frame, the panel showing that target as an image, as the
+//! editor's viewport will, a translucent card over it in the same cell of a grid. Colors mix as
+//! sRGB values, as design tools mix them. The fonts are those of slime-ui's tests, parts of Noto
+//! fonts that hold the characters of its texts alone (`crates/slime-ui/tests/fonts/README.md`),
+//! built into the program.
+//!
+//! It is used with the pointer and the keyboard (`docs/adr/0142-input-and-focus.md`): the buttons
+//! are hovered, pressed and focused, Tab and the arrows move the focus, and Enter and Space press
+//! the one that holds it. The first button, or Ctrl+O, opens a modal dialog, which Escape or its
+//! button "close" closes; the bar shows what the last action did. The shortcuts are those of
+//! `examples/assets/ui/interface.keys`. The list scrolls with time, not with the wheel.
 //!
 //! The code gives the elements their layout and their classes; the style sheet
 //! `examples/assets/ui/interface.style` gives the rest, with the values of a dark or a light theme,
@@ -49,23 +55,23 @@ use slime_app::{AppConfig, AppError, Context, Presentation};
 use slime_assets::{AssetId, CookedAssets, ManifestWatch};
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderTarget, Texture, TextureFormat};
-use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, WindowConfig};
+use slime_platform::{Event, WindowConfig};
 use slime_render::{CanvasImage, RenderError};
 use slime_ui::Rect;
+use slime_ui::action::{ActionKind, Intent};
 use slime_ui::display::{ImageKey, ImageKind};
-use slime_ui::style::{Align, Dimension, Display, FlexDirection, Sides, Style, Track};
+use slime_ui::shortcuts::Shortcuts;
+use slime_ui::style::{Align, Dimension, Display, FlexDirection, Justify, Sides, Style, Track};
 use slime_ui::text::Fonts;
 use slime_ui::theme::{StyleSheet, Theme};
-use slime_ui::tree::{
-    Children, Element, ElementId, ElementState, Kind, LayoutDirection, RootSettings, Ui,
-};
+use slime_ui::tree::{Children, Element, ElementId, Kind, LayoutDirection, RootSettings, Ui};
 use slime_ui_render::UiRenderer;
 use slime_world::World;
 
 use shapes::Shapes;
 
 const USAGE: &str = "usage: interface [--assets <directory>] [--theme dark|light] [--right-to-left] \
-                     [[--frames <count>] [--watch] | --output <file.png> [--scale <factor>]]";
+                     [--dialog] [[--frames <count>] [--watch] | --output <file.png> [--scale <factor>]]";
 /// The size of the image that `--output` writes, in logical pixels, and the moment it shows.
 const IMAGE_SIZE: (u32, u32) = (1280, 800);
 const IMAGE_TIME: f32 = 0.7;
@@ -78,10 +84,12 @@ const TICK: ImageKey = ImageKey(2);
 const VIEW: ImageKey = ImageKey(3);
 /// The width of the panel of writing systems, in logical pixels.
 const TEXTS_WIDTH: f32 = 360.0;
-/// The IDs of the style sheet and the themes, in their metadata files in `examples/assets/ui`.
+/// The IDs of the style sheet, the themes and the shortcuts, in their metadata files in
+/// `examples/assets/ui`.
 const STYLE: AssetId = AssetId::from_u128(0xa3a6260c_7bc3_4e47_aa2b_d700551d3749);
 const DARK: AssetId = AssetId::from_u128(0x4d72297f_3eb0_4a03_87d3_3f75543e0662);
 const LIGHT: AssetId = AssetId::from_u128(0xb882b333_a611_4f74_adc7_d0a845e5cdf1);
+const KEYS: AssetId = AssetId::from_u128(0x54f39057_371c_4c06_b5d1_c20fbeaf2a46);
 
 /// The fonts of slime-ui's tests, built into the program so that it runs anywhere.
 const FONTS: &[&[u8]] = &[
@@ -156,10 +164,16 @@ struct Interface {
     /// its fonts hold.
     words: Vec<String>,
     /// The elements that the program reads or changes: the list, which scrolls with time; the
-    /// image of the view, whose box sizes the view's target; the button shown pressed.
+    /// image of the view, whose box sizes the view's target; the bar's buttons, the first of which
+    /// opens the dialog.
     list: Option<ElementId>,
     view: Option<ElementId>,
-    pressed: Option<ElementId>,
+    bar: Vec<ElementId>,
+    /// The dialog, a modal root, while it is open, and its button that closes it.
+    dialog: Option<(ElementId, ElementId)>,
+    /// What the last action did, which the bar shows, and the revision of what the bar shows.
+    last: String,
+    revision: u64,
     /// The cooked data that holds the style sheet and the themes, and the theme shown.
     assets: CookedAssets,
     theme: ThemeName,
@@ -237,6 +251,8 @@ impl Interface {
             size: [1.0, 1.0],
             scale: 1.0,
             direction,
+            origin: [0.0; 2],
+            modal: false,
         };
         let root = ui.add_root(settings, column());
         let mut interface = Self {
@@ -251,20 +267,24 @@ impl Interface {
             words,
             list: None,
             view: None,
-            pressed: None,
+            bar: Vec::new(),
+            dialog: None,
+            last: "tab and the arrows move, enter presses, t switches the theme".to_owned(),
+            revision: 0,
             assets,
             theme,
         };
-        interface.style()?;
+        interface.read_documents()?;
         Ok(interface)
     }
 
-    /// Styles the interface with its style sheet and its theme, as its cooked data holds them.
+    /// Styles the interface with its style sheet and its theme, and gives it its shortcuts, as its
+    /// cooked data holds them.
     ///
     /// # Errors
     ///
-    /// If the cooked data lacks them, or they cannot style it: it keeps the style it had.
-    fn style(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+    /// If the cooked data lacks them, or they cannot be taken: the interface keeps what it had.
+    fn read_documents(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
         let theme = match self.theme {
             ThemeName::Dark => DARK,
             ThemeName::Light => LIGHT,
@@ -279,7 +299,116 @@ impl Interface {
         let sheet = StyleSheet::from_binary(name(STYLE), self.assets.style_sheet(STYLE)?);
         let theme = Theme::from_binary(name(theme), self.assets.theme(theme)?);
         self.ui.set_style(&[sheet], &theme)?;
+        let keys = Shortcuts::from_binary(name(KEYS), self.assets.shortcuts(KEYS)?);
+        self.ui.set_shortcuts(&[keys])?;
         Ok(())
+    }
+
+    /// Does what the actions that the interface queued ask: a button of the bar pressed, the
+    /// dialog opened or closed, the theme switched. Gives whether the program is asked to stop:
+    /// Escape, nothing open.
+    fn handle_actions(&mut self) -> bool {
+        let mut stop = false;
+        for action in self.ui.take_actions() {
+            let close = self.dialog.map(|(_, close)| close);
+            match action.kind {
+                ActionKind::Press if action.element.is_some() && action.element == close => {
+                    self.close_dialog();
+                }
+                ActionKind::Press if action.element == self.bar.first().copied() => {
+                    self.open_dialog();
+                }
+                ActionKind::Press => {
+                    let label = action
+                        .element
+                        .and_then(|id| match &self.ui.element(id)?.kind {
+                            Kind::Button { label } => Some(label.clone()),
+                            _ => None,
+                        });
+                    self.tell(format!("pressed {}", label.unwrap_or_default()));
+                }
+                ActionKind::Intent(Intent::Cancel) if self.dialog.is_some() => self.close_dialog(),
+                ActionKind::Intent(Intent::Cancel) => stop = true,
+                ActionKind::Intent(_) => {}
+                ActionKind::Command(command) if command == "open" => self.open_dialog(),
+                ActionKind::Command(command) if command == "switch-theme" => {
+                    let before = self.theme;
+                    self.theme = match before {
+                        ThemeName::Dark => ThemeName::Light,
+                        ThemeName::Light => ThemeName::Dark,
+                    };
+                    match self.read_documents() {
+                        Ok(()) => self.tell(format!("theme {:?}", self.theme)),
+                        Err(error) => {
+                            self.theme = before;
+                            tracing::warn!("the theme cannot change: {error}");
+                        }
+                    }
+                }
+                ActionKind::Command(command) => self.tell(format!("command {command}")),
+            }
+        }
+        stop
+    }
+
+    /// Shows `what` in the bar, as the last thing done.
+    fn tell(&mut self, what: String) {
+        tracing::info!("{what}");
+        self.last = what;
+        self.revision += 1;
+    }
+
+    /// Opens the dialog, a modal root over the window, which keeps the focus while it is open.
+    fn open_dialog(&mut self) {
+        if self.dialog.is_some() {
+            return;
+        }
+        // Its size and scale follow the window's at each frame.
+        let settings = RootSettings {
+            size: [1.0, 1.0],
+            scale: 1.0,
+            direction: self.direction,
+            origin: [0.0; 2],
+            modal: true,
+        };
+        let root = self.ui.add_root(settings, column());
+        let mut close = None;
+        self.ui.build(root, 0, |children| {
+            let mut scrim = Style::default();
+            scrim.layout.grow = 1.0;
+            scrim.layout.justify = Justify::Center;
+            scrim.layout.align_items = Align::Center;
+            let scrim = Element::container(scrim).class("scrim");
+            children.add("scrim", scrim, |children| {
+                let mut dialog = sized(320.0, 140.0);
+                dialog.layout.direction = FlexDirection::Column;
+                dialog.layout.padding = Sides::all(20.0);
+                dialog.layout.gap = [16.0, 0.0];
+                let dialog = Element::container(dialog).class("dialog");
+                children.add("dialog", dialog, |children| {
+                    let text = "a modal root. the focus stays in it, and escape closes it.";
+                    children.add("text", Element::label(text, Style::default()), |_| {});
+                    let mut row = Style::default();
+                    row.layout.gap = [0.0, 8.0];
+                    row.layout.justify = Justify::End;
+                    children.add("buttons", Element::container(row), |children| {
+                        children.add("ok", Element::button("accept", sized(88.0, 28.0)), |_| {});
+                        let button = Element::button("close", sized(88.0, 28.0));
+                        close = Some(children.add("close", button, |_| {}));
+                    });
+                });
+            });
+        });
+        self.dialog = close.map(|close| (root, close));
+        self.tell("dialog opened".to_owned());
+    }
+
+    /// Closes the dialog: the focus goes back to what held it.
+    fn close_dialog(&mut self) {
+        if let Some((root, _)) = self.dialog.take() {
+            self.ui.remove(root);
+            self.tell("dialog closed".to_owned());
+        }
     }
 
     /// Draws the interface over `target`, `time` seconds after the start, at `scale` pixels per
@@ -296,24 +425,34 @@ impl Interface {
             target.width() as f32 / scale,
             target.height() as f32 / scale,
         ];
-        self.ui.set_root(
-            self.root,
-            RootSettings {
-                size,
-                scale,
-                direction: self.direction,
-            },
-        );
+        let settings = RootSettings {
+            size,
+            scale,
+            direction: self.direction,
+            origin: [0.0; 2],
+            modal: false,
+        };
+        self.ui.set_root(self.root, settings);
+        if let Some((dialog, _)) = self.dialog {
+            let modal = RootSettings {
+                modal: true,
+                ..settings
+            };
+            self.ui.set_root(dialog, modal);
+        }
         if let Some(list) = self.list {
             self.ui.scroll_to(list, [0.0, time * 24.0]);
         }
-        // Nothing that the builders read changes: the interface's runs at the first frame, the
-        // list's, in its slot, then again when the list shows other rows.
-        let (mut list, mut view, mut pressed) = (None, None, None);
-        let words = &self.words;
-        self.ui.build(self.root, 0, |children| {
-            build(children, words, &mut list, &mut view, &mut pressed);
+        // The interface's builder runs when what the bar shows changes, the list's, in its slot,
+        // when the list shows other rows.
+        let (mut list, mut view, mut bar) = (None, None, Vec::new());
+        let (words, last) = (&self.words, self.last.as_str());
+        self.ui.build(self.root, self.revision, |children| {
+            build(children, words, last, &mut list, &mut view, &mut bar);
         });
+        if !bar.is_empty() {
+            self.bar = bar;
+        }
         self.list = list.or(self.list);
         if let Some(list) = self.list {
             self.ui.build(list, 0, |rows| {
@@ -323,16 +462,6 @@ impl Interface {
             });
         }
         self.view = view.or(self.view);
-        self.pressed = pressed.or(self.pressed);
-        if let Some(pressed) = self.pressed {
-            self.ui.set_state(
-                pressed,
-                ElementState {
-                    pressed: true,
-                    ..ElementState::default()
-                },
-            );
-        }
         let (display, _) = self.ui.frame();
 
         // The view, drawn into its own target at the size of its image.
@@ -369,16 +498,18 @@ impl Interface {
     }
 }
 
-/// Builds the interface: a bar of buttons, the second shown pressed; a list of 100 000 rows in a
-/// slot, whose rows its own builder gives; the view, a translucent card over it in the same cell of
-/// a grid; a shelf of cards, cut where the window ends; and a sentence of each writing system. The
-/// elements' classes name what the style sheet styles; their own style lays them out.
+/// Builds the interface: a bar of buttons, the first opening the dialog, and what the last action
+/// did; a list of 100 000 rows in a slot, whose rows its own builder gives; the view, a translucent
+/// card over it in the same cell of a grid; a shelf of cards, cut where the window ends; and a
+/// sentence of each writing system. The elements' classes name what the style sheet styles; their
+/// own style lays them out.
 fn build(
     children: &mut Children<'_>,
     words: &[String],
+    last: &str,
     list: &mut Option<ElementId>,
     view: &mut Option<ElementId>,
-    pressed: &mut Option<ElementId>,
+    buttons: &mut Vec<ElementId>,
 ) {
     let mut window = column();
     window.layout.grow = 1.0;
@@ -391,12 +522,17 @@ fn build(
         bar.layout.gap = [0.0, 8.0];
         children.add("bar", Element::container(bar).class("bar"), |children| {
             for index in 0..5_usize {
-                let element = Element::button(words[index * 7].as_str(), sized(88.0, 28.0));
-                let id = children.add(index, element, |_| {});
-                if index == 1 {
-                    *pressed = Some(id);
-                }
+                let label = if index == 0 {
+                    "open"
+                } else {
+                    &words[index * 7]
+                };
+                let element = Element::button(label, sized(88.0, 28.0));
+                buttons.push(children.add(index, element, |_| {}));
             }
+            let mut status = Style::default();
+            status.layout.align_self = Some(Align::Center);
+            children.add("status", Element::label(last, status), |_| {});
         });
         let mut main = Style::default();
         main.layout.grow = 1.0;
@@ -578,6 +714,8 @@ fn srgb(hex: u32) -> LinearColor {
 #[derive(Default)]
 struct InterfaceExample {
     interface: Option<Interface>,
+    /// Whether the dialog opens with the interface.
+    dialog: bool,
     /// The cooked data, until the interface takes it.
     assets: Option<CookedAssets>,
     theme: ThemeName,
@@ -595,50 +733,44 @@ impl Presentation for InterfaceExample {
         if let (Some(gpu), Some(format), Some(assets)) =
             (ctx.gpu(), ctx.surface_format(), self.assets.take())
         {
-            let interface = Interface::new(gpu, format, self.direction, assets, self.theme)?;
+            let mut interface = Interface::new(gpu, format, self.direction, assets, self.theme)?;
+            if self.dialog {
+                interface.open_dialog();
+            }
             self.interface = Some(interface);
         }
         Ok(())
     }
 
-    fn on_event(&mut self, ctx: &mut Context, event: &Event) -> bool {
-        let Event::Key(KeyEvent {
-            physical,
-            state: ButtonState::Pressed,
-            ..
-        }) = event
-        else {
+    fn on_event(&mut self, _ctx: &mut Context, event: &Event) -> bool {
+        // The window's input, to the interface, which turns it into actions.
+        let Some(interface) = &mut self.interface else {
             return false;
         };
-        match physical {
-            KeyCode::Escape => ctx.request_exit(),
-            KeyCode::KeyT => {
-                if let Some(interface) = &mut self.interface {
-                    let before = interface.theme;
-                    interface.theme = match before {
-                        ThemeName::Dark => ThemeName::Light,
-                        ThemeName::Light => ThemeName::Dark,
-                    };
-                    match interface.style() {
-                        Ok(()) => tracing::info!(theme = ?interface.theme, "the theme changed"),
-                        Err(error) => {
-                            interface.theme = before;
-                            tracing::warn!("the theme cannot change: {error}");
-                        }
-                    }
-                }
-            }
+        let ui = &mut interface.ui;
+        match event {
+            Event::CursorMoved { x, y } => ui.pointer_moved(*x as f32, *y as f32),
+            Event::CursorLeft => ui.pointer_left(),
+            Event::MouseButton { button, state } => ui.pointer_button(*button, *state),
+            Event::MouseWheel(delta) => ui.wheel(*delta),
+            Event::ModifiersChanged(modifiers) => ui.modifiers(*modifiers),
+            Event::Key(key) => ui.key(key),
             _ => {}
         }
         false
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
+        if let Some(interface) = &mut self.interface
+            && interface.handle_actions()
+        {
+            ctx.request_exit();
+        }
         if let (Some(watch), Some(interface)) = (&mut self.watch, &mut self.interface) {
             match watch.poll(Instant::now()) {
                 Ok(Some(assets)) => {
                     interface.assets = assets;
-                    match interface.style() {
+                    match interface.read_documents() {
                         Ok(()) => {
                             tracing::info!("the cooked data changed: the interface is styled again")
                         }
@@ -719,6 +851,7 @@ fn main() -> ExitCode {
     let mut example = InterfaceExample {
         must_draw: options.frame_limit.is_some_and(|limit| limit > 0),
         direction: options.direction,
+        dialog: options.dialog,
         theme: options.theme,
         watch: options
             .watch
@@ -753,6 +886,9 @@ fn write_image(
         assets,
         options.theme,
     )?;
+    if options.dialog {
+        interface.open_dialog();
+    }
     // The first frame lays the list out, the second builds the rows that it shows.
     interface.draw(&gpu, &target, IMAGE_TIME, options.scale)?;
     interface.draw(&gpu, &target, IMAGE_TIME, options.scale)?;
@@ -771,6 +907,7 @@ struct Options {
     direction: LayoutDirection,
     theme: ThemeName,
     watch: bool,
+    dialog: bool,
 }
 
 fn parse_options() -> Result<Options, String> {
@@ -782,6 +919,7 @@ fn parse_options() -> Result<Options, String> {
         direction: LayoutDirection::LeftToRight,
         theme: ThemeName::Dark,
         watch: false,
+        dialog: false,
     };
     let mut arguments = std::env::args_os().skip(1);
     while let Some(argument) = arguments.next() {
@@ -807,6 +945,7 @@ fn parse_options() -> Result<Options, String> {
                 };
             }
             Some("--watch") => options.watch = true,
+            Some("--dialog") => options.dialog = true,
             Some("--output") => {
                 options.output = Some(arguments.next().ok_or("--output needs a path")?.into());
             }

@@ -23,9 +23,21 @@ select = { kind = "Button" }
 style.paint = { background = "$button", border_width = 1, border = "$button_border", radii = [6, 6, 6, 6] }
 style.text = { style = { fonts = ["Noto Sans"], size = 13, alignment = "Center" }, color = "$text" }
 
+[button-hovered]
+select = { kind = "Button", states = ["Hovered"] }
+style.paint.background = "$hover"
+
 [button-pressed]
 select = { kind = "Button", states = ["Pressed"] }
 style.paint = { background = "$pressed", border = "$pressed_border" }
+
+[button-focused]
+select = { kind = "Button", states = ["Focused"] }
+style.paint = { border_width = 2, border = "$focus" }
+
+[status]
+select = { kind = "Label", inside = { class = "bar" } }
+style.text.color = "$row_text"
 
 [row]
 select = { classes = ["row"] }
@@ -58,3 +70,11 @@ style.text.style.size = 16
 [sentence]
 select = { kind = "Label", inside = { class = "texts" } }
 style.text.style.size = 14
+
+[scrim]
+select = { classes = ["scrim"] }
+style.paint.background = "$scrim"
+
+[dialog]
+select = { classes = ["dialog"] }
+style.paint = { background = "$panel", border_width = 1, border = "$panel_border", radii = [10, 10, 10, 10], shadow = [{ color = "$card_shadow", offset = [0, 8], blur = 32, spread = 0 }] }

@@ -563,6 +563,8 @@ const SCREEN: RootSettings = RootSettings {
     size: [1920.0, 1080.0],
     scale: 1.0,
     direction: LayoutDirection::LeftToRight,
+    origin: [0.0; 2],
+    modal: false,
 };
 
 /// The editor's style sheet: its labels, buttons and panels, the inspector's names apart.

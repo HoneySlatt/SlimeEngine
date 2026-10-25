@@ -29,12 +29,13 @@
 //! ```
 
 use std::cell::RefCell;
-use std::fmt;
 
 use slime_color::LinearColor;
 use slime_reflect::{Problem, Reflect, Registry, Value};
-use slime_serialize::{Document, Mode, ReadError, References};
+use slime_serialize::{Document, References};
 
+use crate::DocumentError;
+use crate::document::Source;
 use crate::style::Style;
 
 /// A style sheet: rules that select elements and set a part of their style, in the order they are
@@ -50,14 +51,6 @@ pub struct StyleSheet {
 pub struct Theme {
     name: String,
     source: Source,
-}
-
-/// A document as a program has it: a text, as its author wrote it, or its binary encoding, as the
-/// cooker writes it.
-#[derive(Clone, Debug)]
-enum Source {
-    Text(String),
-    Binary(Vec<u8>),
 }
 
 impl StyleSheet {
@@ -108,27 +101,6 @@ impl Theme {
     }
 }
 
-/// Why style sheets and a theme cannot style an interface: the document at fault, and where.
-#[derive(Debug)]
-pub struct StyleError {
-    /// The name of the style sheet or the theme at fault.
-    pub document: String,
-    /// What is wrong, and where in it.
-    pub error: ReadError,
-}
-
-impl fmt::Display for StyleError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}: {}", self.document, self.error)
-    }
-}
-
-impl std::error::Error for StyleError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.error)
-    }
-}
-
 /// What a rule selects: elements of a kind, holding classes, of a key, in states, inside an
 /// ancestor of a kind or a class. A rule selects an element that every condition it gives holds
 /// for.
@@ -166,6 +138,7 @@ pub(crate) enum StateName {
     Hovered,
     Pressed,
     Disabled,
+    Focused,
 }
 
 /// An ancestor that a rule asks for: of a kind, holding a class, or both.
@@ -200,16 +173,12 @@ pub(crate) fn rules(
     registry: &Registry,
     sheets: &[StyleSheet],
     theme: &Theme,
-) -> Result<Vec<Rule>, StyleError> {
-    let theme_error = |error| StyleError {
+) -> Result<Vec<Rule>, DocumentError> {
+    let theme_error = |error| DocumentError {
         document: theme.name.clone(),
         error,
     };
-    let theme_document = match &theme.source {
-        Source::Text(text) => Document::parse(registry, text, Mode::Strict),
-        Source::Binary(bytes) => Document::parse_binary(registry, bytes, Mode::Strict),
-    }
-    .map_err(theme_error)?;
+    let theme_document = theme.source.parse(registry).map_err(theme_error)?;
     let names = Names {
         theme: &theme.name,
         document: RefCell::new(theme_document),
@@ -218,15 +187,11 @@ pub(crate) fn rules(
     let default = Style::default().to_value();
     let mut rules = Vec::new();
     for sheet in sheets {
-        let sheet_error = |error| StyleError {
+        let sheet_error = |error| DocumentError {
             document: sheet.name.clone(),
             error,
         };
-        let mut document = match &sheet.source {
-            Source::Text(text) => Document::parse(registry, text, Mode::Strict),
-            Source::Binary(bytes) => Document::parse_binary(registry, bytes, Mode::Strict),
-        }
-        .map_err(sheet_error)?;
+        let mut document = sheet.source.parse(registry).map_err(sheet_error)?;
         for name in document.keys(&[]) {
             if !document.is_table(&[&name]) {
                 return Err(sheet_error(document.error_at(
