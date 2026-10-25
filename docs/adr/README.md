@@ -199,7 +199,7 @@ the ADR linking to it.
 | [0128](0128-asset-requests.md) | Asset requests | Accepted |
 | [0129](0129-drawing-for-the-editor.md) | Drawing for the editor | Accepted |
 | [0130](0130-picking.md) | Picking | Accepted |
-| [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amended by 0134 and 0137 |
+| [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amended by 0134, 0137 and 0140 |
 | [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted; amended by 0137 and 0140 |
 | [0133](0133-font-files-under-the-open-font-license.md) | Font files under the SIL Open Font License | Accepted; amended by 0139 |
 | [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 |

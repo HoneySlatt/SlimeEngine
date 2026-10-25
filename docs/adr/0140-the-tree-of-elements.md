@@ -2,8 +2,9 @@
 
 - Status: Accepted; amends [0132](0132-the-engines-ui-framework.md) (each element carries the marks
   of its layout and its paint from this milestone, those of its style and its meaning from the
-  milestones that match style sheets and give the tree its meaning); amended by
-  [0141](0141-style-sheets-and-themes.md)
+  milestones that match style sheets and give the tree its meaning) and
+  [0131](0131-stage-6b-and-stage-6c.md) (M6b.4 cut in two: the tree, then style sheets and
+  themes); amended by [0141](0141-style-sheets-and-themes.md)
 - Date: 2026-10-24
 
 ## Context
