@@ -9,6 +9,7 @@ use slime_color::LinearColor;
 use slime_ui::display::ImageKey;
 use slime_ui::style::{Dimension, Display, FlexDirection, Justify, Sides, Style, TextLook, Track};
 use slime_ui::text::{Fonts, GlyphKey, GlyphRasterizer, TextBounds, TextStyle};
+use slime_ui::theme::{StyleSheet, Theme};
 use slime_ui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
 
 use crate::measure::{Context, Row, ms, percentile, timed};
@@ -564,6 +565,41 @@ const SCREEN: RootSettings = RootSettings {
     direction: LayoutDirection::LeftToRight,
 };
 
+/// The editor's style sheet: its labels, buttons and panels, the inspector's names apart.
+const EDITOR_STYLE: &str = r#"
+[label]
+select = { kind = "Label" }
+style.text.color = "$text"
+
+[button]
+select = { kind = "Button" }
+style.paint = { background = "$button", border_width = 1, border = "$border", radii = [4, 4, 4, 4] }
+
+[panel]
+select = { kind = "Scroll" }
+style.paint = { background = "$panel", border_width = 1, border = "$border" }
+
+[name]
+select = { kind = "Label", inside = { kind = "Container", class = "fields" } }
+style.text.color = "$muted"
+"#;
+
+/// A dark or a light theme of the editor's style sheet.
+fn theme(light: bool) -> Theme {
+    let (text, muted, button, border, panel) = if light {
+        ("#212529", "#495057", "#f8f9fa", "#ced4da", "#ffffff")
+    } else {
+        ("#e3e5e8", "#9aa0a6", "#3a3d43", "#4e525a", "#26282c")
+    };
+    Theme::from_text(
+        "editor.theme",
+        format!(
+            "text = \"{text}\"\nmuted = \"{muted}\"\nbutton = \"{button}\"\n\
+             border = \"{border}\"\npanel = \"{panel}\"\n"
+        ),
+    )
+}
+
 /// An editor's window: a toolbar, a hierarchy, a viewport, an inspector and a browser of assets,
 /// each panel a slot built by its own revision: for each of its labels, a row of the hierarchy
 /// and of the browser, and a field of the inspector, a name and a value, in a component of ten.
@@ -579,6 +615,11 @@ impl Editor {
     fn new(fonts: Fonts, labels: Vec<String>) -> Self {
         let mut ui = Ui::new(fonts);
         let root = ui.add_root(SCREEN, column());
+        ui.set_style(
+            &[StyleSheet::from_text("editor.style", EDITOR_STYLE)],
+            &theme(false),
+        )
+        .expect("the editor's style");
         let mut panels = Vec::new();
         ui.build(root, 0, |children| {
             let mut toolbar = Style::default();
@@ -645,16 +686,20 @@ impl Editor {
                 children.add(component, Element::container(column()), |children| {
                     let header = Element::label(fields[0].as_str(), look());
                     children.add("header", header, |_| {});
-                    children.add("fields", Element::container(grid.clone()), |children| {
-                        for (index, label) in fields.iter().enumerate() {
-                            let name = Element::label(label.as_str(), look());
-                            children.add(format!("{index} name"), name, |_| {});
-                            let first = component == 0 && index == 0;
-                            let shown = if first { value } else { index as u64 };
-                            let value = Element::label(format!("{shown}.25"), look());
-                            children.add(format!("{index} value"), value, |_| {});
-                        }
-                    });
+                    children.add(
+                        "fields",
+                        Element::container(grid.clone()).class("fields"),
+                        |children| {
+                            for (index, label) in fields.iter().enumerate() {
+                                let name = Element::label(label.as_str(), look());
+                                children.add(format!("{index} name"), name, |_| {});
+                                let first = component == 0 && index == 0;
+                                let shown = if first { value } else { index as u64 };
+                                let value = Element::label(format!("{shown}.25"), look());
+                                children.add(format!("{index} value"), value, |_| {});
+                            }
+                        },
+                    );
                 });
             }
         });
@@ -696,6 +741,18 @@ pub fn tree(_: &mut Context) -> Result<Vec<Row>, String> {
         editor.build(revision);
         black_box(editor.ui.frame());
     });
+    let mut light = false;
+    let restyled = times(|| {
+        light = !light;
+        editor
+            .ui
+            .set_style(
+                &[StyleSheet::from_text("editor.style", EDITOR_STYLE)],
+                &theme(light),
+            )
+            .expect("the editor's style");
+        black_box(editor.ui.frame());
+    });
     let mut rows = vec![
         Row::new("elements", stats.elements.to_string()),
         Row::new("items of the display list", list.len().to_string()),
@@ -709,6 +766,10 @@ pub fn tree(_: &mut Context) -> Result<Vec<Row>, String> {
         &changed,
     ));
     rows.extend(Row::times("a frame with nothing changed", &still));
+    rows.extend(Row::times(
+        "a frame after the theme changed, every element styled again",
+        &restyled,
+    ));
     Ok(rows)
 }
 
