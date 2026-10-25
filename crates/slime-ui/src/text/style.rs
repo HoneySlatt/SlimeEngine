@@ -2,9 +2,12 @@
 
 use std::num::NonZeroUsize;
 
+use slime_reflect::Reflect;
+
 /// How a text is drawn: its fonts, size, weight and slant, the height of its lines, how its lines
 /// align and in which direction it is written, and its language.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "UiTextStyle", default)]
 pub struct TextStyle {
     /// The font families, by name, in order of preference: a character takes the first font
     /// that has it ([`Fonts`](super::Fonts)).
@@ -51,7 +54,8 @@ impl Default for TextStyle {
 /// Where the lines of a text go across its box: by the start and the end of a line, which are
 /// its left and its right in a text written from left to right, and the reverse in one written
 /// from right to left.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[reflect(name = "UiTextAlignment", default)]
 pub enum Alignment {
     /// Lines begin at the start.
     #[default]
@@ -65,7 +69,8 @@ pub enum Alignment {
 }
 
 /// The direction a text is written in.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[reflect(name = "UiTextDirection", default)]
 pub enum Direction {
     /// The direction of the text's first letter that has one: right to left for Arabic or
     /// Hebrew, left to right for Latin.

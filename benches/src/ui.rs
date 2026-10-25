@@ -9,7 +9,7 @@ use slime_color::LinearColor;
 use slime_ui::display::ImageKey;
 use slime_ui::style::{Dimension, Display, FlexDirection, Justify, Sides, Style, TextLook, Track};
 use slime_ui::text::{Fonts, GlyphKey, GlyphRasterizer, TextBounds, TextStyle};
-use slime_ui::tree::{ButtonStates, Element, ElementId, LayoutDirection, RootSettings, Ui};
+use slime_ui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
 
 use crate::measure::{Context, Row, ms, percentile, timed};
 
@@ -617,7 +617,7 @@ impl Editor {
     fn build(&mut self, revision: u64) {
         let [toolbar, hierarchy, inspector, assets] = self.panels;
         let labels = &self.labels;
-        let button = |label: String| Element::button(label, look(), ButtonStates::default());
+        let button = |label: String| Element::button(label, look());
         self.ui.build(toolbar, 0, |children| {
             for index in 0..30_usize {
                 children.add(index, button(format!("Tool {index}")), |_| {});

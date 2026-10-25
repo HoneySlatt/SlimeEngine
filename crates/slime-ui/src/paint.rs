@@ -50,16 +50,11 @@ fn primitives(
         node.layout.content_box_height(),
     );
     let element = &node.element;
-    let paint = match &element.kind {
-        Kind::Button { states, .. } if node.state.disabled => states.disabled,
-        Kind::Button { states, .. } if node.state.pressed => states.pressed,
-        Kind::Button { states, .. } if node.state.hovered => states.hovered,
-        _ => element.style.paint,
-    };
+    let paint = node.style.paint;
     let mut primitives = Vec::new();
     box_primitives(&paint, rect, scale, direction, &mut primitives);
-    let text_style = element.style.text.style.clone();
-    let color = element.style.text.color;
+    let text_style = node.style.text.style.clone();
+    let color = node.style.text.color;
     match &element.kind {
         Kind::Label(text) | Kind::Button { label: text, .. } => {
             let centred = matches!(element.kind, Kind::Button { .. });
@@ -159,7 +154,7 @@ pub(crate) fn gather(ui: &Ui, root: ElementId, list: &mut DisplayList) {
         let Some(node) = ui.node(id) else {
             continue;
         };
-        if node.element.style.layout.display == Display::None {
+        if node.style.layout.display == Display::None {
             continue;
         }
         for primitive in &node.primitives {

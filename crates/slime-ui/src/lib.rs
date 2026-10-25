@@ -6,6 +6,7 @@ mod paint;
 mod rect;
 pub mod style;
 pub mod text;
+pub mod theme;
 pub mod tree;
 
 pub use rect::Rect;

@@ -9,9 +9,8 @@ use slime_ui::style::{
     Style, TextLook, Track,
 };
 use slime_ui::text::{Fonts, TextStyle};
-use slime_ui::tree::{
-    ButtonStates, Element, ElementId, ElementState, Key, LayoutDirection, RootSettings, Ui,
-};
+use slime_ui::theme::{StyleSheet, Theme};
+use slime_ui::tree::{Element, ElementId, ElementState, Key, LayoutDirection, RootSettings, Ui};
 
 /// An interface whose texts are laid out with the Latin test font.
 fn ui() -> Ui {
@@ -250,7 +249,7 @@ fn a_panel_built_again_keeps_its_elements_and_their_states_by_their_keys() {
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
         Style::default(),
     );
-    let button = |label: &str| Element::button(label, Style::default(), ButtonStates::default());
+    let button = |label: &str| Element::button(label, Style::default());
     let (mut ok, mut cancel) = (None, None);
     ui.build(root, 1, |children| {
         ok = Some(children.add("ok", button("OK"), |_| {}));
@@ -318,12 +317,7 @@ fn a_frame_where_nothing_changed_lays_out_and_draws_nothing() {
                 ..Style::default()
             };
             ids.push(children.add("label", Element::label(label, look), |_| {}));
-            let states = ButtonStates::default();
-            ids.push(children.add(
-                "button",
-                Element::button("Go", Style::default(), states),
-                |_| {},
-            ));
+            ids.push(children.add("button", Element::button("Go", Style::default()), |_| {}));
         });
         ids
     };
@@ -352,7 +346,8 @@ fn a_frame_where_nothing_changed_lays_out_and_draws_nothing() {
     build(&mut ui, 3, LinearColor::WHITE, "Text");
     let (_, stats) = ui.frame();
     assert_eq!((stats.layouts, stats.painted), (0, 1));
-    // A state: drawn again alone.
+    // A state: its style made again, the same without rules that select by states, so nothing
+    // drawn again.
     ui.set_state(
         ids[2],
         ElementState {
@@ -361,7 +356,7 @@ fn a_frame_where_nothing_changed_lays_out_and_draws_nothing() {
         },
     );
     let (_, stats) = ui.frame();
-    assert_eq!((stats.layouts, stats.painted), (0, 1));
+    assert_eq!((stats.styled, stats.layouts, stats.painted), (1, 0, 0));
     // A text: laid out again, and drawn again where it moved.
     build(&mut ui, 4, LinearColor::WHITE, "A longer text");
     let (_, stats) = ui.frame();
@@ -508,6 +503,15 @@ fn the_display_list_draws_each_element_before_its_children_as_its_state_and_dire
         }),
         ..PaintStyle::default()
     };
+    let sheet = StyleSheet::from_text(
+        "buttons.style",
+        "[button]\nselect = { kind = \"Button\" }\nstyle.paint.background = \"$blue\"\n\n\
+         [hovered]\nselect = { kind = \"Button\", states = [\"Hovered\"] }\n\
+         style.paint.background = \"#00ff00\"\n",
+    );
+    let theme = Theme::from_text("plain.theme", "blue = \"#0000ff\"\n");
+    ui.set_style(&[sheet], &theme)
+        .expect("a style sheet and a theme");
     let mut drawn = Vec::new();
     for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
         let mut ui_root = filled(LinearColor::WHITE);
@@ -518,18 +522,12 @@ fn the_display_list_draws_each_element_before_its_children_as_its_state_and_dire
             let mut panel = sized(100.0, 50.0);
             panel.paint = corners;
             children.add("panel", Element::container(panel), |children| {
-                let states = ButtonStates {
-                    hovered: PaintStyle {
-                        background: green,
-                        ..PaintStyle::default()
-                    },
-                    ..ButtonStates::default()
-                };
+                // Its fill from the rules, which style its states.
                 let style = Style {
                     text: text_look(),
-                    ..filled(blue)
+                    ..Style::default()
                 };
-                button = Some(children.add("button", Element::button("Go", style, states), |_| {}));
+                button = Some(children.add("button", Element::button("Go", style), |_| {}));
                 let mut hidden = filled(blue);
                 hidden.layout.display = Display::None;
                 children.add("hidden", Element::container(hidden), |_| {});

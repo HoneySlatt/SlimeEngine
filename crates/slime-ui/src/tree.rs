@@ -8,13 +8,15 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use slime_color::LinearColor;
+use slime_reflect::{Reflect, Registry, Value};
 
 use crate::Rect;
 use crate::display::{DisplayList, ImageKey, ImageKind, Primitive};
 use crate::layout;
 use crate::paint;
-use crate::style::{PaintStyle, Style};
+use crate::style::Style;
 use crate::text::{Fonts, TEXT_CACHE_BUDGET, TextCache};
+use crate::theme::{self, KindName, Rule, StateName, StyleError, StyleSheet, Theme};
 
 /// An element of a [`Ui`]: the place it holds in the tree's arena, and the generation of that
 /// place, so that the id of an element removed names no other that takes its place.
@@ -96,12 +98,10 @@ pub enum Kind {
         color: LinearColor,
     },
     /// A button: its label, in the middle of its box from top to bottom, its lines aligned as its
-    /// text's style says; and how it looks in each of its states ([`ElementState`]).
+    /// text's style says. Rules style its states ([`ElementState`]).
     Button {
         /// Its label.
         label: String,
-        /// How it looks when hovered, pressed or disabled; its style's paint otherwise.
-        states: Box<ButtonStates>,
     },
     /// A box whose children scroll inside it, cut at its edges.
     Scroll,
@@ -120,19 +120,8 @@ pub enum Kind {
     },
 }
 
-/// How a button looks in each of its states, its style's paint when it is in none.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct ButtonStates {
-    /// Under the pointer.
-    pub hovered: PaintStyle,
-    /// Pressed.
-    pub pressed: PaintStyle,
-    /// Disabled.
-    pub disabled: PaintStyle,
-}
-
 /// The state of an element that its builder does not give: whether the pointer is over it, it is
-/// pressed or disabled. The program sets it ([`Ui::set_state`]); a button shows it.
+/// pressed or disabled. The program sets it ([`Ui::set_state`]); rules select elements by it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ElementState {
     /// The pointer is over it.
@@ -143,72 +132,80 @@ pub struct ElementState {
     pub disabled: bool,
 }
 
-/// An element as a builder describes it: what it is and its style. The tree keeps the element it
-/// built before for the same key and kind, and redoes of it only what changed.
+/// An element as a builder describes it: what it is, its classes and its style. The tree keeps
+/// the element it built before for the same key and kind, and redoes of it only what changed.
+///
+/// Its style is the rules' that select it, in their order, the fields that `style` sets apart from
+/// [`Style::default`] in place of theirs ([`Ui::set_style`]): the code keeps what it sets, and a
+/// field that it leaves at its default takes the rules'. A color, an array, a list and an option
+/// are each one field, set whole: `size` set to `[Pixels(120.0), Auto]` sets both its sizes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Element {
     /// What it is.
     pub kind: Kind,
-    /// How it is laid out and drawn.
+    /// The classes that rules select it by.
+    pub classes: Vec<String>,
+    /// How it is laid out and drawn, over what the rules give.
     pub style: Style,
 }
 
 impl Element {
     /// A box that holds others.
     pub fn container(style: Style) -> Self {
-        Self {
-            kind: Kind::Container,
-            style,
-        }
+        Self::of(Kind::Container, style)
     }
 
     /// A text.
     pub fn label(text: impl Into<String>, style: Style) -> Self {
-        Self {
-            kind: Kind::Label(text.into()),
-            style,
-        }
+        Self::of(Kind::Label(text.into()), style)
     }
 
     /// The whole of an image of colors, drawn as it is.
     pub fn image(image: ImageKey, style: Style) -> Self {
-        Self {
-            kind: Kind::Image {
-                image,
-                part: Rect::new(0.0, 0.0, 1.0, 1.0),
-                kind: ImageKind::Color,
-                color: LinearColor::WHITE,
-            },
-            style,
-        }
+        let kind = Kind::Image {
+            image,
+            part: Rect::new(0.0, 0.0, 1.0, 1.0),
+            kind: ImageKind::Color,
+            color: LinearColor::WHITE,
+        };
+        Self::of(kind, style)
     }
 
-    /// A button with its label, which looks as `states` say in each state.
-    pub fn button(label: impl Into<String>, style: Style, states: ButtonStates) -> Self {
-        Self {
-            kind: Kind::Button {
+    /// A button with its label.
+    pub fn button(label: impl Into<String>, style: Style) -> Self {
+        Self::of(
+            Kind::Button {
                 label: label.into(),
-                states: Box::new(states),
             },
             style,
-        }
+        )
     }
 
     /// A box whose children scroll inside it.
     pub fn scroll(style: Style) -> Self {
-        Self {
-            kind: Kind::Scroll,
-            style,
-        }
+        Self::of(Kind::Scroll, style)
     }
 
     /// A list of `rows` rows of `row_height` logical pixels, of which only those that show are
     /// built.
     pub fn list(rows: usize, row_height: f32, style: Style) -> Self {
+        Self::of(Kind::List { rows, row_height }, style)
+    }
+
+    /// An element of `kind` and `style`, of no class.
+    pub fn of(kind: Kind, style: Style) -> Self {
         Self {
-            kind: Kind::List { rows, row_height },
+            kind,
+            classes: Vec::new(),
             style,
         }
+    }
+
+    /// The element, holding the class `class` too.
+    #[must_use]
+    pub fn class(mut self, class: impl Into<String>) -> Self {
+        self.classes.push(class.into());
+        self
     }
 }
 
@@ -237,6 +234,8 @@ pub struct RootSettings {
 /// What changed in an element since it was last laid out and drawn.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Changed {
+    /// Its style: the rules that select it are matched again, and its style made again.
+    pub(crate) style: bool,
     /// Its layout, or its children's: the root is laid out again.
     pub(crate) layout: bool,
     /// How it is drawn.
@@ -248,6 +247,8 @@ pub(crate) struct Changed {
 pub struct FrameStats {
     /// The builders that ran, of those that [`Ui::build`] was given.
     pub built: usize,
+    /// The elements whose rules were matched again, and their style made again.
+    pub styled: usize,
     /// The roots laid out again.
     pub layouts: usize,
     /// The lists whose rows alone were laid out again, their roots not.
@@ -286,6 +287,8 @@ pub(crate) struct Node {
     /// Its box on its root, in pixels of the screen, and the rectangle it is cut to.
     pub(crate) rect: Rect,
     pub(crate) clip: Option<Rect>,
+    /// Its style: the rules' that select it, and its element's.
+    pub(crate) style: Arc<Style>,
     /// What it draws, kept until it changes.
     pub(crate) primitives: Vec<Primitive>,
 }
@@ -347,6 +350,15 @@ pub struct Ui {
     relaid: Vec<ElementId>,
     /// The elements whose content scrolled: what lies below them is placed again.
     scrolled: Vec<ElementId>,
+    /// The elements whose style is to be made again.
+    restyled: Vec<ElementId>,
+    /// The rules of the style sheets that style the elements, their theme's values in them.
+    rules: Vec<Rule>,
+    /// The types that style sheets hold, and the default style as reflection holds it.
+    registry: Registry,
+    default_style: Value,
+    /// The styles made, by the rules that select their elements, then the elements' own styles.
+    styles: HashMap<Vec<u32>, Vec<(Style, Arc<Style>)>>,
 }
 
 impl Ui {
@@ -362,6 +374,11 @@ impl Ui {
             built: 0,
             relaid: Vec::new(),
             scrolled: Vec::new(),
+            restyled: Vec::new(),
+            rules: Vec::new(),
+            registry: theme::registry(),
+            default_style: Style::default().to_value(),
+            styles: HashMap::new(),
         }
     }
 
@@ -391,6 +408,7 @@ impl Ui {
         node.root = Some(settings);
         let id = self.insert(node);
         self.roots.push(id);
+        self.restyled.push(id);
         id
     }
 
@@ -462,13 +480,36 @@ impl Ui {
         node.rebuild = false;
     }
 
-    /// Sets the state of `id`, which a button shows. Nothing happens for an id that names nothing.
+    /// Styles the elements with the rules of `sheets`, in their order and the order of their
+    /// files, their names given the values of `theme`: every element's style is made again at the
+    /// next [`Ui::frame`]. A rule that selects an element sets the fields of its style that it
+    /// gives; a later rule, those it gives in turn; the element's own style, the fields that it
+    /// sets apart from their defaults, a color, an array, a list and an option each one field. The
+    /// styles made are kept and shared, for up to 64 elements' own styles that the same rules
+    /// select: past them, the style of such an element is made again each time, more slowly.
+    ///
+    /// # Errors
+    ///
+    /// [`StyleError`] if a style sheet or the theme is not a document of their types, or names a
+    /// value that the theme does not have or holds of another type: the interface keeps the style
+    /// it had.
+    pub fn set_style(&mut self, sheets: &[StyleSheet], theme: &Theme) -> Result<(), StyleError> {
+        self.rules = theme::rules(&self.registry, sheets, theme)?;
+        self.styles.clear();
+        for root in self.roots.clone() {
+            self.mark_style_subtree(root);
+        }
+        Ok(())
+    }
+
+    /// Sets the state of `id`, which rules select elements by: its style is made again. Nothing
+    /// happens for an id that names nothing.
     pub fn set_state(&mut self, id: ElementId, state: ElementState) {
         if let Some(node) = self.node_mut(id)
             && node.state != state
         {
             node.state = state;
-            node.changed.paint = true;
+            self.mark_style(id);
         }
     }
 
@@ -510,6 +551,12 @@ impl Ui {
     /// The box of `id` on its root after the last [`Ui::frame`], in pixels of the screen.
     pub fn rect(&self, id: ElementId) -> Option<Rect> {
         self.node(id).map(|node| node.rect)
+    }
+
+    /// The style of `id` after the last [`Ui::frame`]: the rules' that select it, and its
+    /// element's.
+    pub fn style(&self, id: ElementId) -> Option<&Style> {
+        self.node(id).map(|node| &*node.style)
     }
 
     /// What `id` is, as its builder last described it.
@@ -571,6 +618,12 @@ impl Ui {
             elements: self.len(),
             ..FrameStats::default()
         };
+        // Styles first: a style that changed lays its element out again.
+        for id in std::mem::take(&mut self.restyled) {
+            if self.restyle(id) {
+                stats.styled += 1;
+            }
+        }
         let mut laid_out = Vec::new();
         let mut lists = Vec::new();
         for root in self.roots.clone() {
@@ -671,6 +724,149 @@ impl Ui {
         }
     }
 
+    /// Marks the style of `id` made again at the next frame.
+    fn mark_style(&mut self, id: ElementId) {
+        if let Some(node) = self.node_mut(id)
+            && !node.changed.style
+        {
+            node.changed.style = true;
+            self.restyled.push(id);
+        }
+    }
+
+    /// Marks the style of `id` and of every element below it made again: rules may select them by
+    /// an ancestor.
+    fn mark_style_subtree(&mut self, id: ElementId) {
+        let mut stack = vec![id];
+        while let Some(id) = stack.pop() {
+            self.mark_style(id);
+            if let Some(node) = self.node(id) {
+                stack.extend(node.children.iter().copied());
+            }
+        }
+    }
+
+    /// Makes the style of `id` again from the rules that select it and its element's own, and marks
+    /// it laid out or drawn again as the style changed; `false` for an id that names nothing.
+    fn restyle(&mut self, id: ElementId) -> bool {
+        let Some(node) = self.node(id) else {
+            return false;
+        };
+        let selected: Vec<u32> = (0..self.rules.len())
+            .filter(|&rule| self.selects(&self.rules[rule], id))
+            .map(|rule| rule as u32)
+            .collect();
+        let code = &node.element.style;
+        // Elements of one style that the same rules select share what they make.
+        let made = self
+            .styles
+            .get(&selected)
+            .and_then(|made| made.iter().find(|(own, _)| own == code))
+            .map(|(_, style)| Arc::clone(style));
+        let style = match made {
+            Some(style) => style,
+            None => {
+                let code = code.clone();
+                let style = Arc::new(self.compose(&selected, &code));
+                let made = self.styles.entry(selected).or_default();
+                if made.len() < STYLES_PER_RULES {
+                    made.push((code, Arc::clone(&style)));
+                }
+                style
+            }
+        };
+        let node = self.node_mut(id).expect("styled above");
+        node.changed.style = false;
+        if *node.style != *style {
+            // The border's width cuts what scrolls inside: placed again with a layout.
+            let layout = node.style.layout != style.layout
+                || node.style.text.style != style.text.style
+                || node.style.paint.border_width != style.paint.border_width;
+            node.style = style;
+            node.changed.paint = true;
+            if layout {
+                self.mark_layout(id);
+            }
+        } else {
+            node.style = style;
+        }
+        true
+    }
+
+    /// The style that the rules `selected`, in their order, then `code`, the fields that it sets
+    /// apart from their defaults, make.
+    fn compose(&self, selected: &[u32], code: &Style) -> Style {
+        if selected.is_empty() {
+            return code.clone();
+        }
+        let mut value = self.default_style.clone();
+        let code_value = code.to_value();
+        let mut own = self
+            .registry
+            .difference("UiStyle", &self.default_style, &code_value, true)
+            .expect("a style");
+        if let Some(own) = &mut own {
+            whole_colors(&self.registry, "UiStyle", own, &code_value);
+        }
+        for part in selected
+            .iter()
+            .map(|&rule| &self.rules[rule as usize].style)
+            .chain(own.as_ref())
+        {
+            self.registry
+                .overlay("UiStyle", &mut value, part)
+                .expect("a part of a style, read as one");
+        }
+        Style::from_value(&value).expect("a style")
+    }
+
+    /// Whether `rule` selects `id`.
+    fn selects(&self, rule: &Rule, id: ElementId) -> bool {
+        let Some(node) = self.node(id) else {
+            return false;
+        };
+        let selector = &rule.selector;
+        let kind = kind_name(&node.element.kind);
+        if selector.kind.is_some_and(|wanted| wanted != kind)
+            || !selector
+                .classes
+                .iter()
+                .all(|class| node.element.classes.contains(class))
+            || selector
+                .key
+                .as_ref()
+                .is_some_and(|key| !named(&node.key, key))
+            || !selector.states.iter().all(|state| match state {
+                StateName::Hovered => node.state.hovered,
+                StateName::Pressed => node.state.pressed,
+                StateName::Disabled => node.state.disabled,
+            })
+        {
+            return false;
+        }
+        let Some(ancestor) = &selector.inside else {
+            return true;
+        };
+        let mut at = node.parent;
+        while let Some(id) = at {
+            let Some(node) = self.node(id) else {
+                return false;
+            };
+            if ancestor
+                .kind
+                .is_none_or(|wanted| wanted == kind_name(&node.element.kind))
+                && ancestor
+                    .class
+                    .as_ref()
+                    .is_none_or(|class| node.element.classes.contains(class))
+            {
+                return true;
+            }
+            at = node.parent;
+        }
+        false
+    }
+
     /// Marks `id` laid out again, with its ancestors, up to its root, or up to the list it is a
     /// row of: a list lays out its rows alone.
     pub(crate) fn mark_layout(&mut self, id: ElementId) {
@@ -697,10 +893,8 @@ impl Ui {
         let Some(node) = self.node_mut(id) else {
             return;
         };
-        node.changed = Changed {
-            layout: true,
-            paint: true,
-        };
+        node.changed.layout = true;
+        node.changed.paint = true;
         node.cache.clear();
         for child in node.children.clone() {
             self.mark_all(child);
@@ -817,6 +1011,7 @@ impl Node {
             key,
             parent: None,
             children: Vec::new(),
+            style: Arc::new(element.style.clone()),
             element,
             state: ElementState::default(),
             root: None,
@@ -826,6 +1021,7 @@ impl Node {
             rows_built: 0..0,
             scroll: [0.0; 2],
             changed: Changed {
+                style: true,
                 layout: true,
                 paint: true,
             },
@@ -925,10 +1121,18 @@ impl<'a> Children<'a> {
                 let node = self.ui.node_mut(id).expect("kept");
                 if node.element != element {
                     let layout = lays_out_again(&node.element, &element);
+                    let style = node.element.style != element.style;
+                    let classes = node.element.classes != element.classes;
                     node.element = element;
                     node.changed.paint = true;
                     if layout {
                         self.ui.mark_layout(id);
+                    }
+                    // Rules may select the elements below by an ancestor's class.
+                    if classes {
+                        self.ui.mark_style_subtree(id);
+                    } else if style {
+                        self.ui.mark_style(id);
                     }
                 }
                 id
@@ -937,7 +1141,9 @@ impl<'a> Children<'a> {
                 let mut node = Node::new(key, element);
                 node.parent = Some(self.parent);
                 node.owner = Some(self.owner);
-                self.ui.insert(node)
+                let id = self.ui.insert(node);
+                self.ui.restyled.push(id);
+                id
             }
         };
         self.given.push(id);
@@ -985,24 +1191,67 @@ fn assert_scale(scale: f32) {
     );
 }
 
-/// Whether changing `before` into `after` lays the element out again, rather than drawing it again
-/// alone.
+/// Whether changing what `before` holds into what `after` holds lays the element out again, rather
+/// than drawing it again alone: a change of style is weighed once the style is made again.
 fn lays_out_again(before: &Element, after: &Element) -> bool {
-    if before.style.layout != after.style.layout
-        || before.style.text.style != after.style.text.style
-    {
-        return true;
-    }
     match (&before.kind, &after.kind) {
         (Kind::Label(before), Kind::Label(after)) => before != after,
-        (
-            Kind::Button {
-                label: before_label,
-                ..
-            },
-            Kind::Button { label, .. },
-        ) => before_label != label,
+        (Kind::Button { label: before }, Kind::Button { label: after }) => before != after,
         (Kind::List { .. }, Kind::List { .. }) => before.kind != after.kind,
         _ => false,
+    }
+}
+
+/// Whether `text` names `key`, as a rule names a key: a name as it is, a number after `#`.
+fn named(key: &Key, text: &str) -> bool {
+    match key {
+        Key::Name(name) => **name == *text,
+        Key::Index(index) => {
+            text.strip_prefix('#')
+                .and_then(|digits| digits.parse::<u64>().ok())
+                == Some(*index)
+        }
+    }
+}
+
+/// The kind of an element, as a rule names it.
+fn kind_name(kind: &Kind) -> KindName {
+    match kind {
+        Kind::Container => KindName::Container,
+        Kind::Label(_) => KindName::Label,
+        Kind::Image { .. } => KindName::Image,
+        Kind::Button { .. } => KindName::Button,
+        Kind::Scroll => KindName::Scroll,
+        Kind::List { .. } => KindName::List,
+    }
+}
+
+/// The styles made that are kept for one set of rules, past which an element's style that the
+/// others are not is made again each time: what elements of styles of their own, sized each its
+/// way, would otherwise keep.
+const STYLES_PER_RULES: usize = 64;
+
+/// Makes whole each color that `part`, a part of a value of the type `ty`, holds a part of, as
+/// `full`, the whole value, holds it: a color is one property of a style, which an element's own
+/// style sets whole, not some of its components over a rule's.
+fn whole_colors(registry: &Registry, ty: &str, part: &mut Value, full: &Value) {
+    if ty == "LinearColor" {
+        *part = full.clone();
+        return;
+    }
+    let Some(registration) = registry.get(ty) else {
+        return;
+    };
+    let (slime_reflect::Kind::Struct(fields), Value::Struct(parts), Value::Struct(wholes)) =
+        (&registration.info().kind, part, full)
+    else {
+        return;
+    };
+    for (name, part) in parts {
+        let field = fields.iter().find(|field| field.name == *name);
+        let whole = wholes.iter().find(|(whole, _)| whole == name);
+        if let (Some(field), Some((_, whole))) = (field, whole) {
+            whole_colors(registry, &field.ty, part, whole);
+        }
     }
 }

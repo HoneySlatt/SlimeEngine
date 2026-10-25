@@ -1,0 +1,60 @@
+# The style of the `interface` example (docs/adr/0141-style-sheets-and-themes.md): each table is a
+# rule, applied in the order of this file, that sets a part of the style of the elements it selects.
+# Its values come from a theme, `dark.theme` or `light.theme`, which name them for it.
+
+[window]
+select = { classes = ["window"] }
+style.paint.background = "$background"
+
+[bar]
+select = { classes = ["bar"] }
+style.paint.background = "$bar"
+
+[panel]
+select = { classes = ["panel"] }
+style.paint = { background = "$panel", border_width = 1, border = "$panel_border", radii = [8, 8, 8, 8], shadow = [{ color = "$shadow", offset = [0, 4], blur = 18, spread = 0 }] }
+
+[label]
+select = { kind = "Label" }
+style.text = { style = { fonts = ["Noto Sans"], size = 13 }, color = "$text" }
+
+[button]
+select = { kind = "Button" }
+style.paint = { background = "$button", border_width = 1, border = "$button_border", radii = [6, 6, 6, 6] }
+style.text = { style = { fonts = ["Noto Sans"], size = 13, alignment = "Center" }, color = "$text" }
+
+[button-pressed]
+select = { kind = "Button", states = ["Pressed"] }
+style.paint = { background = "$pressed", border = "$pressed_border" }
+
+[row]
+select = { classes = ["row"] }
+style.paint = { background = "$row", radii = [4, 4, 4, 4] }
+
+[row-odd]
+select = { classes = ["row", "odd"] }
+style.paint.background = "$row_odd"
+
+[row-selected]
+select = { classes = ["row", "selected"] }
+style.paint.background = "$selected"
+
+[row-name]
+select = { kind = "Label", inside = { class = "row" } }
+style.text.color = "$row_text"
+
+[row-selected-name]
+select = { kind = "Label", inside = { class = "selected" } }
+style.text.color = "$selected_text"
+
+[card]
+select = { classes = ["card"] }
+style.paint = { background = "$card", border_width = 1, border = "$card_border", radii = [10, 10, 10, 10], shadow = [{ color = "$card_shadow", offset = [0, 6], blur = 24, spread = 0 }] }
+
+[caption]
+select = { kind = "Label", inside = { class = "card" } }
+style.text.style.size = 16
+
+[sentence]
+select = { kind = "Label", inside = { class = "texts" } }
+style.text.style.size = 14

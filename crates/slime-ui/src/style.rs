@@ -2,15 +2,18 @@
 //! (`docs/adr/0140-the-tree-of-elements.md`).
 //!
 //! A style is grouped by what a change makes again: its layout, which flexbox and grid lay out,
-//! its paint, which only draws, and its text. Sides and corners are named by the start and the end
+//! its paint, which only draws but for its border's width, inside which what scrolls is cut, and
+//! its text. Sides and corners are named by the start and the end
 //! of a line, not left and right, so that a root laid out from right to left mirrors them.
 
 use slime_color::LinearColor;
+use slime_reflect::Reflect;
 
 use crate::text::TextStyle;
 
 /// How an element is laid out and drawn.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Reflect)]
+#[reflect(name = "UiStyle", default)]
 pub struct Style {
     /// How it and its children are laid out.
     pub layout: LayoutStyle,
@@ -21,7 +24,8 @@ pub struct Style {
 }
 
 /// How an element and its children are laid out, by CSS's flexbox or grid, in logical pixels.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "UiLayout", default)]
 pub struct LayoutStyle {
     /// How its children are laid out, or whether it is laid out at all.
     pub display: Display,
@@ -91,7 +95,8 @@ impl Default for LayoutStyle {
 }
 
 /// How an element's children are laid out.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[reflect(name = "UiDisplay", default)]
 pub enum Display {
     /// In a line along one axis, CSS's flexbox.
     #[default]
@@ -103,7 +108,8 @@ pub enum Display {
 }
 
 /// The axis along which a flexbox lays its children out.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[reflect(name = "UiFlexDirection", default)]
 pub enum FlexDirection {
     /// Along a line, from its start.
     #[default]
@@ -117,7 +123,8 @@ pub enum FlexDirection {
 }
 
 /// How children share the space along the main axis.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[reflect(name = "UiJustify", default)]
 pub enum Justify {
     /// Packed at the start.
     #[default]
@@ -135,7 +142,8 @@ pub enum Justify {
 }
 
 /// How a child is placed across the main axis.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[reflect(name = "UiAlign", default)]
 pub enum Align {
     /// At the start.
     Start,
@@ -149,7 +157,8 @@ pub enum Align {
 }
 
 /// A size: as its content or its parent makes it, in logical pixels, or a share of its parent's.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
+#[reflect(name = "UiDimension", default)]
 pub enum Dimension {
     /// As the layout makes it.
     #[default]
@@ -161,7 +170,8 @@ pub enum Dimension {
 }
 
 /// The four sides of a box, by the start and the end of a line, in logical pixels.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
+#[reflect(name = "UiSides", default)]
 pub struct Sides {
     /// The side where a line starts: left from left to right, right from right to left.
     pub start: f32,
@@ -196,7 +206,8 @@ impl Sides {
 }
 
 /// A track of a grid: a column or a row.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(name = "UiTrack")]
 pub enum Track {
     /// Logical pixels.
     Pixels(f32),
@@ -208,7 +219,8 @@ pub enum Track {
 
 /// Where a grid's child lies among its columns or rows: from a line, numbered from 1 at the start,
 /// or after the children before it when none; across a number of tracks.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
+#[reflect(name = "UiGridPlace", default)]
 pub struct GridPlace {
     /// The line it starts at.
     pub start: Option<u16>,
@@ -226,7 +238,8 @@ impl Default for GridPlace {
 }
 
 /// How an element is drawn: a box behind its children, which lays nothing out.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(name = "UiPaint", default)]
 pub struct PaintStyle {
     /// The box's fill; nothing is drawn where it is transparent and there is no border.
     pub background: LinearColor,
@@ -253,7 +266,8 @@ impl Default for PaintStyle {
 }
 
 /// The shadow that an element's box casts.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(name = "UiShadow", default)]
 pub struct Shadow {
     /// Its color, its alpha its darkness where it is whole.
     pub color: LinearColor,
@@ -265,8 +279,21 @@ pub struct Shadow {
     pub spread: f32,
 }
 
+impl Default for Shadow {
+    /// No shadow to see: transparent, under the box, sharp.
+    fn default() -> Self {
+        Self {
+            color: LinearColor::rgba(0.0, 0.0, 0.0, 0.0),
+            offset: [0.0; 2],
+            blur: 0.0,
+            spread: 0.0,
+        }
+    }
+}
+
 /// The text of a label or a button.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "UiTextLook", default)]
 pub struct TextLook {
     /// Its fonts, size, weight and alignment, in logical pixels.
     pub style: TextStyle,

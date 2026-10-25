@@ -2755,6 +2755,8 @@ dependencies = [
  "icu_properties",
  "parley",
  "slime-color",
+ "slime-reflect",
+ "slime-serialize",
  "swash",
  "taffy",
  "thiserror 2.0.21",

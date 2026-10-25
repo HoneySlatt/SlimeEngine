@@ -95,6 +95,8 @@ jobs:
           cargo run --locked --example headless -- --frames 600
           cargo run --locked --example window -- --headless --frames 600
           cargo run --locked --example offscreen -- --output target/triangle.png
+          # The interface reads its style sheet and themes cooked with the sample.
+          cargo run --locked -p slime-cook -- cook examples/assets target/cooked/examples
           cargo run --locked --example interface -- --output target/interface.png
       # The sample game's zone, fetched from its mirror and kept between runs while its list is
       # unchanged, then cooked for the tests that read it

@@ -83,7 +83,7 @@ fn convert(
             node.cache.clear();
         }
         if node.changed.layout || forced {
-            let mut style = taffy_style(&node.element.style.layout, scale);
+            let mut style = taffy_style(&node.style.layout, scale);
             if let Some(row_height) = row_height {
                 style.size = Size {
                     width: TaffyDimension::percent(1.0),
@@ -194,7 +194,7 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
         }
         node.scroll = within(node.scroll, &node.element.kind, &layout, scale);
         // Content is cut inside the border, as CSS cuts it at the padding's edge.
-        let border = node.element.style.paint.border_width * scale;
+        let border = node.style.paint.border_width * scale;
         let inside = Rect::new(
             rect.x + border,
             rect.y + border,
@@ -455,7 +455,7 @@ impl taffy::LayoutPartialTree for Tree<'_> {
                 };
             }
             let style = at.taffy.clone();
-            let text_style = at.element.style.text.style.clone();
+            let text_style = at.style.text.style.clone();
             let scale = tree.scale;
             compute_leaf_layout(
                 inputs,
