@@ -8,6 +8,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Input and focus for the interface (ADR-0142): `Ui` takes a person's input, the pointer, the
+  wheel, the modifiers and the keys, and turns it into actions (`slime_ui::action`), a button
+  pressed, an intent of navigation, the command of a shortcut, which the program reads from a queue
+  (`Ui::take_actions`) and an agent sends (`Ui::act`). Buttons are hovered, pressed and focused; Tab
+  moves the focus in the order of the tree and the arrows to the nearest element on screen. A root
+  may stand at a place of its own (`RootSettings::origin`) or be modal (`RootSettings::modal`),
+  keeping the input and the focus while it is open. Shortcuts are tables of chords of the keys'
+  meaning that name commands in scopes (`slime_ui::shortcuts::Shortcuts`, `Ui::set_shortcuts`),
+  which the cooker cooks from `.keys` files and `CookedAssets::shortcuts` reads. A new crate,
+  `slime-input`, holds the engine's vocabulary of input, which `slime-platform` translates winit's
+  events into. The example `interface` is used with the pointer and the keyboard, opens a modal
+  dialog, and switches its theme by a shortcut; `--dialog` opens the dialog first.
 - Style sheets and themes for the interface (ADR-0141): `slime_ui::theme::StyleSheet` holds rules
   that select elements by kind, classes, key, states and ancestor, in the order of their file, and
   set a part of their style; `Theme` holds the named values that the rules give as `"$name"`;
@@ -99,6 +111,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `slime-platform`'s input types live in `slime-input`, which it re-exports: their paths through
+  `slime-platform` are unchanged. `RootSettings` gains `origin` and `modal`.
+  `slime_ui::theme::StyleError` is `slime_ui::DocumentError`, which tables of shortcuts share; the
+  cooker's `CookError::Style` is `CookError::Interface`, and `STYLE_COOKER_VERSION` is
+  `INTERFACE_COOKER_VERSION`. In the example `interface`, Escape closes the dialog, and stops the
+  program only when nothing is open.
 - A button's looks in its states are rules of a style sheet: `ButtonStates` is gone, and
   `Element::button` takes a label and a style.
 - `slime_ui::Rect`, at the crate's root, gives a rectangle by its top left corner and its size, as

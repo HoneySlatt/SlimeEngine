@@ -5,8 +5,9 @@
   is released as 0.7), [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) (the
   release map) and [0098](0098-the-games-the-engine-aims-at.md) (Stage 9c's work ships with 0.12);
   amended by [0134](0134-the-editors-core.md) (the first milestone in two, and *Hunna Wood*'s editor
-  package in it), [0137](0137-the-canvas.md) (the third milestone in two) and
-  [0140](0140-the-tree-of-elements.md) (the fourth milestone in two)
+  package in it), [0137](0137-the-canvas.md) (the third milestone in two),
+  [0140](0140-the-tree-of-elements.md) (the fourth milestone in two) and
+  [0142](0142-input-and-focus.md) (the fifth milestone in two)
 - Date: 2026-10-22
 
 ## Context

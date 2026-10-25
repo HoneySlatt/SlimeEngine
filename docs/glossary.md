@@ -6,6 +6,11 @@ game-development vocabulary is not repeated here. Entries are in alphabetical or
 **Adapter.** A GPU as wgpu sees it, through one graphics API: a discrete or integrated GPU, or a
 software driver such as lavapipe or WARP. The engine opens one adapter's *device* to use it.
 
+**Action (interface).** What a person or an agent does to an interface: a button pressed, an
+*intent* of navigation, or the command of a *shortcut* (`slime_ui::action::Action`). A person's
+input becomes actions; an agent sends them; the program reads them from a queue and does what they
+ask ([ADR-0142](adr/0142-input-and-focus.md)).
+
 **Adoption (entity).** A game taking an entity out of the scene that spawned it, with its
 descendants whose identities are under its own, and giving it a key of its own
 (`slime_world::World::adopt`), so that it outlives the scene, as a companion who follows the hero
@@ -356,6 +361,10 @@ changed since ([ADR-0087](adr/0087-the-worlds-documents.md),
 blinks as its coverage of the pixel changes from frame to frame. The renderer does not filter them
 (ADR-0040).
 
+**Focus (interface).** The element that the keys reach first, a button today, which Tab moves
+in the order of the tree and the arrows to the nearest element on screen, within its scope: the top
+*modal root*, or the root that holds it ([ADR-0142](adr/0142-input-and-focus.md)).
+
 **Fixed step.** A duration of time, constant for a run, in which code that must not depend on
 the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or more fixed steps.
 
@@ -519,6 +528,10 @@ engine's types.
 **Index buffer.** A buffer of indices into a vertex buffer, so that the triangles of a mesh share
 vertices (`slime_gfx::IndexBuffer`).
 
+**Intent (navigation).** What a key, and later a gamepad, means to an interface whatever the
+program: next, previous, up, down, left, right, accept, cancel (`slime_ui::action::Intent`). The
+interface moves the *focus* for the first six ([ADR-0142](adr/0142-input-and-focus.md)).
+
 **Input (as data).** The keys and mouse buttons held, and those pressed and released since the last
 frame (`slime_platform::Input`), which the *host* keeps from the window's events, or a test from its
 script, and the *simulation* reads ([ADR-0107](adr/0107-the-execution-model.md)).
@@ -662,6 +675,10 @@ highlights as wide as the *roughness* (glTF 2.0, Appendix B; ADR-0035).
 **MikkTSpace.** The common way of computing a mesh's *tangents* from its normals and texture
 coordinates, which glTF's *normal textures* assume; the cooker computes them so
 (`bevy_mikktspace`, [ADR-0069](adr/0069-the-asset-pipeline.md)).
+
+**Modal root.** A root of an interface, a dialog over a window, that keeps the pointer from the
+roots below it and the *focus* among its elements while it is there, and gives the focus back when
+it is removed (`RootSettings::modal`, [ADR-0142](adr/0142-input-and-focus.md)).
 
 **Milestone.** A small, verifiable step of a stage, listed with its goal, its done criteria and
 how to test it in [`docs/PLAN.md`](PLAN.md). Milestones are numbered `M<stage>.<n>`, for example
@@ -1067,6 +1084,11 @@ anti-aliasing, whether the sun's and the spot lights' shadow passes, the sky and
 whether its rectangle covers its whole output, and whether anything is drawn after the sky or over
 the image. The *render graph* is built again, and its GPU times start over, when it changes
 ([ADR-0041](adr/0041-render-graph.md)).
+
+**Shortcut.** A chord, modifiers and a key named by its meaning, `Ctrl+Z`, that names a command in
+a scope, `global` or the class of an element around the *focus*, read from a table of shortcuts,
+a document cooked from a `.keys` file (`slime_ui::shortcuts::Shortcuts`,
+[ADR-0142](adr/0142-input-and-focus.md)).
 
 **Shaping.** Turning a run of text into the *glyphs* that draw it and their positions: the forms
 that a script's letters take beside each other, ligatures, marks placed on their letters. parley

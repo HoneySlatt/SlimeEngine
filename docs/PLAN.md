@@ -42,7 +42,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   hardware tier now draws at 3840 × 2160 ([ADR-0138](adr/0138-the-high-tier-at-3840-2160.md)).
   M6b.4 was cut in two at the end of its first part ([ADR-0140](adr/0140-the-tree-of-elements.md)):
   M6b.4a, the tree of elements and their layout, and M6b.4b, style sheets and themes
-  ([ADR-0141](adr/0141-style-sheets-and-themes.md)), are done. Next: M6b.5.
+  ([ADR-0141](adr/0141-style-sheets-and-themes.md)), are done. M6b.5 was cut in two at its start:
+  M6b.5a, input and focus ([ADR-0142](adr/0142-input-and-focus.md)), is done. Next: M6b.5b, what
+  agents see.
 
 ## Status
 
@@ -55,7 +57,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.3b](#m6b3b--text-drawn-and-the-display-list) | The renderer draws an interface's text in every writing system, crisp at every scale, from a display list | Done |
 | [M6b.4a](#m6b4a--elements-and-layout) | An interface is a tree of elements, laid out by flexbox and grid, and built again only where what it shows changed | Done |
 | [M6b.4b](#m6b4b--style-sheets-and-themes) | Themes read from files style an interface, and a theme changed on disk restyles it while it runs | Done |
-| [M6b.5](#m6b5--input-focus-and-what-agents-see) | A person and an agent use the interface through the same actions, and an agent reads what it shows | Planned |
+| [M6b.5a](#m6b5a--input-and-focus) | A person uses the interface with the pointer and the keyboard, and the program reads what they did as actions, which an agent can send as well | Done |
+| [M6b.5b](#m6b5b--what-agents-see) | An agent reads what the interface shows, and uses it through the same actions as a person | Planned |
 | [M6b.6](#m6b6--text-edited-and-what-the-platform-lacks) | Text is typed, selected, copied and composed in every writing system, and screen readers read the interface | Planned |
 | [M6b.7](#m6b7--widgets-and-layers) | The framework has the widgets that the dev overlay and the editor are made of | Planned |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
@@ -593,24 +596,75 @@ Risks:
   minutes 46 seconds and `windows-release` 13 minutes 28 seconds; `check (windowed)`, run again with
   its caches warm, took 18 minutes 34 seconds.
 
-### M6b.5 — Input, focus, and what agents see
+### M6b.5a — Input and focus
 
-- **Goal.** A person and an agent use the interface through the same actions, and an agent reads
-  what it shows.
+- **Goal.** A person uses the interface with the pointer and the keyboard, and the program reads
+  what they did as actions, which an agent can send as well.
+- **Crates.** A new `slime-input`, `slime-platform`, `slime-ui`, `slime-cook`, `slime-assets`; the
+  examples.
+- **Delivers.** As ADR-0132 decides: the engine's vocabulary of input, keys by position and by
+  meaning, buttons, modifiers and the wheel, in a crate of its own, without the windowing library,
+  which `slime-platform` translates into and `slime-ui` reads. The element under the pointer, from
+  the last layout; the pointer held by what a button pressed; hovered, pressed and focused states;
+  input turned into actions, which the program reads from a queue, and navigation intents, next,
+  previous, a direction, accept, cancel, which an agent sends too; the interface's layers, roots
+  stacked over one surface at the places that the program gives, the top one taking input, a modal
+  one keeping the focus; focus scopes, Tab order and directions, to the nearest element on screen;
+  shortcuts as documents that name commands by the key's meaning, cooked and loaded again when
+  they change. The example `interface` used with the pointer and the keyboard, a modal opened and
+  closed, its theme switched by a shortcut. The ADR of the design.
+- **Done when.** Tests without a GPU: input turned into actions; the pointer held by a pressed
+  button; focus moved by Tab and by directions, kept in its scope, given back when a layer closes;
+  shortcuts resolved by scope and by the key's meaning; the same actions sent by an agent. CI is
+  green.
+- **How to test.** `cargo test -p slime-input -p slime-platform -p slime-ui`; the example, used by
+  hand.
+- **By hand.** The owner uses the example with the pointer and the keyboard.
+- **Outcome.** Done on 2026-10-25. [ADR-0142](adr/0142-input-and-focus.md) records the owner's
+  decisions of that day: M6b.5 cut in two; the actions in a queue that the program reads; popups
+  and dialogs as roots stacked at places of their own, a modal one keeping the input and the focus;
+  the arrows to the nearest element on screen, Tab in the order of the tree; shortcuts as documents
+  cooked as style sheets are; chords of the key's meaning, not its position; and the vocabulary of
+  input in a crate of its own. A new crate, `slime-input`, holds the input types that
+  `slime-platform` held, which `slime-platform` re-exports and translates winit's events into, the
+  names of the keys listed once in two macros. `slime-ui` gains `action`, its actions and intents,
+  `shortcuts`, its tables of shortcuts, and `DocumentError`, which the style sheets' errors became;
+  `Ui` takes the pointer, the wheel, the modifiers and the keys, hovers, presses and focuses
+  buttons, holds the pointer for the button pressed, moves the focus within its scope, and queues
+  the actions (`Ui::act`, `Ui::take_actions`); a root gains its place and whether it is modal
+  (`RootSettings::origin`, `RootSettings::modal`), and an element the focused state, which rules
+  select by. `slime-assets` gains the kind `Shortcuts`, and `slime-cook` cooks `.keys` files. The
+  example `interface` takes the window's input, opens a modal dialog from its first button or by
+  Ctrl+O, switches its theme by the shortcut T, and shows what the last action did; `--dialog`
+  opens the dialog first. The tests: in `slime-ui`'s `tests/input.rs`, a button pressed and let go
+  over it, the pointer held meanwhile, a disabled button taking nothing, a press whose release was
+  lost letting go of what it held; an agent's actions reaching the queue as a person's; Tab in the
+  tree's order and the arrows to the nearest on screen, in a grid; the focus kept within its root,
+  and starting in the top root that can take it; a button disabled or hidden by an ancestor losing
+  the focus and not pressed; a modal root taking the pointer and the focus and giving the focus
+  back when removed, two closed in either order, an agent's press under them refused; the hover
+  following what moved under a still pointer; the pointer and the wheel in a root laid out from
+  right to left at a place of its own, a clip cutting what it hides; the wheel scrolling the box
+  under the pointer; a rule selecting the focused element; shortcuts by the key's meaning, an
+  AZERTY keyboard's Z included, in the scopes of the focus, a later table winning, a wrong chord
+  refused by its place, Shift left out of a character without case, and a letter of a Cyrillic
+  layout matched by its place. In `slime-input`, a key found again by its name; in `slime-cook`, a
+  table of shortcuts cooked. The example's images, its dialog open, in both themes, were checked
+  by hand: `scripts/check.sh` draws it without its dialog.
+
+### M6b.5b — What agents see
+
+- **Goal.** An agent reads what the interface shows, and uses it through the same actions as a
+  person.
 - **Crates.** `slime-ui`, `slime-app`, `slime-channel`, `slime-mcp`; the examples.
-- **Delivers.** As ADR-0132 decides: the element under the pointer, from the last layout; the
-  pointer held by what a button pressed; hovered and pressed states; input turned into actions and
-  navigation intents, next, previous, a direction, accept, cancel; the interface's layers, popups
-  and modals above panels, the top one taking input; focus scopes, Tab order and directions;
-  shortcuts as data that name commands; what changes the world leaving as a command. The tree's
-  meaning, each element's role, name, value, states, actions, bounds and path. A presentation gives
-  its interface's tree, acts on an element and names the element at a pixel; the development
-  channel's protocol carries them, and the MCP server's tools read the tree, find an element, act on
-  it and capture it. The ADR of the design.
-- **Done when.** Tests without a GPU: input turned into actions, then commands; focus moved by Tab
-  and by directions, kept in its scope, given back when a layer closes; the tree's meaning as
-  expected. An agent's session, in the windowed checks, finds a button by its role and its name,
-  presses it, reads what changed in the world, and captures the element; CI is green.
+- **Delivers.** As ADR-0132 decides: the tree's meaning, each element's role, name, value, states,
+  actions, bounds and path. A presentation gives its interface's tree, acts on an element and names
+  the element at a pixel; the development channel's protocol carries them, and the MCP server's
+  tools read the tree, find an element, act on it and capture it. What changes the world leaving as
+  a command. The ADR of the design.
+- **Done when.** Tests without a GPU: the tree's meaning as expected. An agent's session, in the
+  windowed checks, finds a button by its role and its name, presses it, reads what changed in the
+  world, and captures the element; CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-app -p slime-channel`; the MCP server's session
   test.
 
@@ -1493,6 +1547,17 @@ GitHub issues, linked from their entry; this list stays the reference.
   direction, a Latin paragraph starting at its box's left. No element is placed out of its
   parent's flow. The marks of what changed hold an element's style, layout and paint, not yet its
   meaning.
+- **Input and focus** ([ADR-0142](adr/0142-input-and-focus.md)): buttons alone hold the focus and
+  take the pointer, and boxes that scroll and lists the wheel; a list's rows are not selected. Each
+  program translates the window's events into the interface's calls, a few lines that every program
+  with an interface repeats until a crate of the engine holds them. A root is modal from when it is
+  added. The interface's actions reach no command of the editor or of a game but through the
+  program. The hover follows what a layout moved under a still pointer a frame late, and the focus
+  leaves an element disabled or hidden at the next frame; the focus moved does not scroll its
+  element into view. A layout of another script than the Latin one matches a chord of a letter by
+  the key's place, and a chord of a digit or a sign by its meaning alone. The example `interface`
+  scrolls its list with time, which the wheel does not move. Input methods and touch come with
+  M6b.6 and later.
 - **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md)): a theme's value
   names no other, and a field of the type `String` takes no named value. An error of type in a
   cooked style sheet or theme is placed by its byte and the path of its part, not by its line. The

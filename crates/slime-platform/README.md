@@ -59,17 +59,19 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   Super), once per change: those held when the window gains the focus are reported, and those still
   held when it loses the focus are reported released, before the keys. A shortcut such as Ctrl+S
   is a press of S while the modifiers last reported hold Control.
-- Input types: `KeyEvent` describes a key twice: by `physical` position, whatever the layout
-  (`KeyCode`, named after the W3C UI Events `code` values such as `KeyQ` or `Escape`, with a few
-  exceptions listed in its rustdoc), and by `logical` meaning with the current layout (`Key`: a
-  character such as `"a"`, a `NamedKey` such as `Enter`, a dead key, or `Unidentified`; `KeyCode`
-  has `Unidentified` too, for keys without a code the engine knows). It also gives the `text` the
-  key produces and whether it is a repeat. Use the physical code for movement keys and the logical
-  key for shortcuts and text. The press of a key right after a dead key reports what the two keys
-  make together (on Wayland and X11, `Unidentified` and no text when they do not combine) and its
-  release does not, so a press and its release can have different logical values: track which keys
-  are down by physical code. `KeyCode::name` and `KeyCode::from_name` give a key's code as text and
-  back, as tools name keys. `MouseButton`, `ButtonState` and `ScrollDelta` describe the mouse.
+- Input types, which `slime-input` holds and this crate re-exports and translates winit's events
+  into (`docs/adr/0142-input-and-focus.md`): `KeyEvent` describes a key twice: by `physical`
+  position, whatever the layout (`KeyCode`, named after the W3C UI Events `code` values such as
+  `KeyQ` or `Escape`, with a few exceptions listed in its rustdoc), and by `logical` meaning with
+  the current layout (`Key`: a character such as `"a"`, a `NamedKey` such as `Enter`, a dead key, or
+  `Unidentified`; `KeyCode` has `Unidentified` too, for keys without a code the engine knows). It
+  also gives the `text` the key produces and whether it is a repeat. Use the physical code for
+  movement keys and the logical key for shortcuts and text. The press of a key right after a dead
+  key reports what the two keys make together (on Wayland and X11, `Unidentified` and no text when
+  they do not combine) and its release does not, so a press and its release can have different
+  logical values: track which keys are down by physical code. `KeyCode::name` and
+  `KeyCode::from_name` give a key's code as text and back, as tools name keys. `MouseButton`,
+  `ButtonState` and `ScrollDelta` describe the mouse.
 - `Input` is the input as data: the keys and the mouse buttons held, and those pressed and released
   since the last frame (`Buttons`), which `Input::handle` follows from the events and
   `Input::end_frame` ends, or that a test presses and releases itself. `slime-app`'s host keeps it
@@ -98,6 +100,7 @@ compositor first reports a keyboard, which can happen while the loop runs.
 ## Dependencies
 
 - `winit`: windows, events and input on each windowing system.
+- `slime-input`: the engine's vocabulary of input, which the events carry.
 - `raw-window-handle`: the standard traits for passing a window to a graphics library.
 - `thiserror`: derives `PlatformError`'s `Display` and `Error` implementations.
 - `tracing`: logging.

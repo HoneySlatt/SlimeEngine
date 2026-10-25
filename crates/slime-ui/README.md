@@ -5,8 +5,9 @@ SlimeEngine's UI framework, for the editor and for the interface of games
 leaves it as data. Today it holds its text (`docs/adr/0136-the-interfaces-text.md`), its display
 list (`docs/adr/0139-text-drawn-and-the-display-list.md`), the tree of elements, their typed styles
 and their layout (`docs/adr/0140-the-tree-of-elements.md`), and the style sheets and themes that
-style them (`docs/adr/0141-style-sheets-and-themes.md`); input, focus and the tree's meaning come
-with the next milestones of Stage 6b (`docs/PLAN.md`).
+style them (`docs/adr/0141-style-sheets-and-themes.md`), and the input and the focus
+(`docs/adr/0142-input-and-focus.md`); the tree's meaning comes with the next milestone of Stage 6b
+(`docs/PLAN.md`).
 
 ## Role
 
@@ -22,6 +23,15 @@ with the next milestones of Stage 6b (`docs/PLAN.md`).
   and set a part of their style, and `theme::Theme` the named values that the rules give, read
   from their text or their cooked binary encoding; `Ui::set_style` styles an interface with them,
   the element's own style over the rules.
+- `Ui` takes a person's input, the pointer, the wheel, the modifiers and the keys in the types of
+  `slime-input`, and turns it into `action::Action`s: a button pressed, an intent of navigation, the
+  command of a shortcut. The program reads them from a queue (`Ui::take_actions`); an agent sends
+  them (`Ui::act`). The interface moves the focus itself, by Tab in the order of the tree and by the
+  arrows to the nearest element on screen, within its scope; a root may be a popup at a place of
+  its own, or modal, keeping the input and the focus while it is open.
+- `shortcuts::Shortcuts` is a table of shortcuts, read from a document: chords of the keys' meaning
+  that name commands, in scopes, the classes of the elements around the focus; `Ui::set_shortcuts`
+  takes them. Its errors and the style sheets' are a `DocumentError`.
 - `style::Style` is an element's style, typed, in logical pixels: its layout, CSS's flexbox and
   grid properties with start and end sides, its paint, a box's fill, border, corners and shadow,
   and its text, reflected, so that style sheets set its parts.
@@ -51,9 +61,11 @@ with the next milestones of Stage 6b (`docs/PLAN.md`).
 parley, fontique and swash, the text; taffy, the tree's flexbox and grid, run through its traits on
 the tree's arena; their types stay inside the crate (`docs/adr/0132-the-engines-ui-framework.md`).
 icu_properties, for the writing system of a character; `slime-color`, the colors of the styles and
-the display list; `slime-reflect` and `slime-serialize`, the styles described and the style sheets
-and themes read; thiserror and tracing. No other engine crate: text is laid out and rasterized on
-the CPU, `slime-ui-render` draws the display list, and a program reads the cooked style sheets.
+the display list; `slime-reflect` and `slime-serialize`, the styles described and the style sheets,
+themes and shortcuts read; `slime-input`, the input it takes; thiserror and tracing. No other engine
+crate: text is laid out and rasterized on the CPU, `slime-ui-render` draws the display list, a
+program reads the cooked documents, and the window's input reaches the interface through the
+program.
 
 ## Must not
 
