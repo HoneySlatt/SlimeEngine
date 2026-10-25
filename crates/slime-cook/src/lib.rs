@@ -10,7 +10,8 @@
 //! sources into a directory of cooked data and its manifest ([`cook()`]), once or each time a
 //! source changes ([`watch`]). It imports glTF files ([`gltf_import`]) into meshes, materials and
 //! scenes, their nodes' typed properties into components, and cooks scene files into the engine's
-//! binary encoding of documents, checked through the world that reads them (`slime-world`).
+//! binary encoding of documents, checked through the world that reads them (`slime-world`), and the
+//! interface's style sheets and themes into the same encoding, their syntax checked.
 //!
 //! A game never links this crate: a shipped program holds no importer.
 

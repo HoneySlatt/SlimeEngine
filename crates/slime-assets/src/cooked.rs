@@ -110,6 +110,26 @@ impl CookedAssets {
         self.file(id, AssetKind::SceneFile).map(|(_, bytes)| bytes)
     }
 
+    /// Reads the style sheet `id`: its document in the engine's binary encoding, which `slime-ui`
+    /// reads (`slime_ui::theme::StyleSheet::from_binary`).
+    ///
+    /// # Errors
+    ///
+    /// As [`CookedAssets::texture`], for a style sheet, but for its bytes, which `slime-ui` checks.
+    pub fn style_sheet(&self, id: AssetId) -> Result<Vec<u8>, LoadError> {
+        self.file(id, AssetKind::StyleSheet).map(|(_, bytes)| bytes)
+    }
+
+    /// Reads the theme `id`: its document in the engine's binary encoding, which `slime-ui` reads
+    /// (`slime_ui::theme::Theme::from_binary`).
+    ///
+    /// # Errors
+    ///
+    /// As [`CookedAssets::texture`], for a theme, but for its bytes, which `slime-ui` checks.
+    pub fn theme(&self, id: AssetId) -> Result<Vec<u8>, LoadError> {
+        self.file(id, AssetKind::Theme).map(|(_, bytes)| bytes)
+    }
+
     /// The path and the bytes of the cooked file of the asset `id`, which must be of `kind`.
     fn file(&self, id: AssetId, kind: AssetKind) -> Result<(PathBuf, Vec<u8>), LoadError> {
         let entry = self.manifest.get(id).ok_or_else(|| LoadError::NotCooked {

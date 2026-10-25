@@ -640,3 +640,40 @@ fn a_library_of_cooked_data_reads_again_the_scenes_that_changed_and_those_that_p
         Err(SceneError::Missing { .. })
     ));
 }
+
+#[test]
+fn style_sheets_and_themes_are_cooked_into_their_binary_encoding_their_syntax_checked() {
+    const SHEET: AssetId = AssetId::from_u128(0x0011);
+    const THEME: AssetId = AssetId::from_u128(0x0012);
+    let root = directory("styles").join("sources");
+    let output = root.with_file_name("cooked");
+    let sheet =
+        "[panel]\nselect = { classes = [\"panel\"] }\nstyle.paint.background = \"$surface\"\n";
+    let theme = "surface = \"#26282C\"\n";
+    source(&root, "interface.style", SHEET, sheet.as_bytes());
+    source(&root, "dark.theme", THEME, theme.as_bytes());
+    cook(&root, &output).expect("cooked");
+    let assets = CookedAssets::open(&output).expect("cooked data");
+    for (id, kind, path) in [
+        (SHEET, AssetKind::StyleSheet, "interface.style"),
+        (THEME, AssetKind::Theme, "dark.theme"),
+    ] {
+        let entry = assets.manifest().get(id).expect("listed");
+        assert_eq!((entry.kind, entry.source.as_str()), (kind, path));
+        assert!(entry.needs.is_empty());
+    }
+    let encoded = |text| slime_serialize::encode(text).expect("TOML");
+    assert_eq!(assets.style_sheet(SHEET).expect("read"), encoded(sheet));
+    assert_eq!(assets.theme(THEME).expect("read"), encoded(theme));
+    assert!(
+        assets.style_sheet(THEME).is_err(),
+        "a theme is not a style sheet"
+    );
+    // A document that is not TOML is refused, by its file and its line.
+    source(&root, "dark.theme", THEME, b"surface = \n");
+    let error = cook(&root, &output).unwrap_err().to_string();
+    assert!(
+        error.contains("dark.theme") && error.contains("line 1"),
+        "{error}"
+    );
+}

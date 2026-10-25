@@ -30,6 +30,12 @@ pub enum AssetKind {
     /// A scene file, in the engine's binary encoding of documents, which a world reads
     /// (`docs/adr/0095-cooked-scene-files.md`).
     SceneFile,
+    /// A style sheet of the interface, in the engine's binary encoding of documents, which
+    /// `slime-ui` reads (`docs/adr/0141-style-sheets-and-themes.md`).
+    StyleSheet,
+    /// A theme of the interface, in the engine's binary encoding of documents, which `slime-ui`
+    /// reads (`docs/adr/0141-style-sheets-and-themes.md`).
+    Theme,
 }
 
 impl AssetKind {
@@ -41,6 +47,8 @@ impl AssetKind {
             Self::Material => 3,
             Self::Scene => 4,
             Self::SceneFile => 5,
+            Self::StyleSheet => 6,
+            Self::Theme => 7,
         }
     }
 
@@ -51,6 +59,8 @@ impl AssetKind {
             3 => Some(Self::Material),
             4 => Some(Self::Scene),
             5 => Some(Self::SceneFile),
+            6 => Some(Self::StyleSheet),
+            7 => Some(Self::Theme),
             _ => None,
         }
     }
@@ -63,6 +73,8 @@ impl AssetKind {
             Self::Material => "material",
             Self::Scene => "scene",
             Self::SceneFile => "scene file",
+            Self::StyleSheet => "style sheet",
+            Self::Theme => "theme",
         }
     }
 }
