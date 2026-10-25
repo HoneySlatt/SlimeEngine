@@ -650,7 +650,10 @@ Risks:
   refused by its place, Shift left out of a character without case, and a letter of a Cyrillic
   layout matched by its place. In `slime-input`, a key found again by its name; in `slime-cook`, a
   table of shortcuts cooked. The example's images, its dialog open, in both themes, were checked
-  by hand: `scripts/check.sh` draws it without its dialog.
+  by hand: `scripts/check.sh` draws it without its dialog. CI is green on f92f23f. Its run cooked
+  the zone again in each job, the cooker's sources having changed: `check (headless)` took 16
+  minutes 22 seconds, `check (windowed)` 18 minutes 45 seconds, `windows` 15 minutes 2 seconds and
+  `windows-release` 17 minutes 2 seconds.
 
 ### M6b.5b — What agents see
 
@@ -1539,7 +1542,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   minutes, and at M6b.3b by under a minute; at M6b.4a, `windows` came within half a minute of it. A
   key of the cooker's own dependencies would avoid it. At M6b.4b, the cooker's own sources changed,
   and `check (windowed)` passed the limit by 40 seconds; its caches warm, it takes 18 and a half
-  minutes, near the limit: the runs it holds grow with each milestone.
+  minutes, near the limit: the runs it holds grow with each milestone. At M6b.5a, the cooker's
+  sources changed again, and `check (windowed)` took 18 minutes 45 seconds.
 - **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)): a frame walks every
   element of its roots, to find what to draw again and to gather the display list, even when
   nothing changed. A list shows the rows of a new range one frame late, when it first shows or when
