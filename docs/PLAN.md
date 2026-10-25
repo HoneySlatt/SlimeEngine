@@ -41,7 +41,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   display list ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)), are done, and the high
   hardware tier now draws at 3840 × 2160 ([ADR-0138](adr/0138-the-high-tier-at-3840-2160.md)).
   M6b.4 was cut in two at the end of its first part ([ADR-0140](adr/0140-the-tree-of-elements.md)):
-  M6b.4a, the tree of elements and their layout, is done. Next: M6b.4b, style sheets and themes.
+  M6b.4a, the tree of elements and their layout, and M6b.4b, style sheets and themes
+  ([ADR-0141](adr/0141-style-sheets-and-themes.md)), are done. Next: M6b.5.
 
 ## Status
 
@@ -53,7 +54,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.3a](#m6b3a--the-canvas) | The renderer draws an interface's boxes, shadows and images over any target, within its share of a frame on each tier | Done |
 | [M6b.3b](#m6b3b--text-drawn-and-the-display-list) | The renderer draws an interface's text in every writing system, crisp at every scale, from a display list | Done |
 | [M6b.4a](#m6b4a--elements-and-layout) | An interface is a tree of elements, laid out by flexbox and grid, and built again only where what it shows changed | Done |
-| [M6b.4b](#m6b4b--style-sheets-and-themes) | Themes read from files style an interface, and a theme changed on disk restyles it while it runs | Planned |
+| [M6b.4b](#m6b4b--style-sheets-and-themes) | Themes read from files style an interface, and a theme changed on disk restyles it while it runs | Done |
 | [M6b.5](#m6b5--input-focus-and-what-agents-see) | A person and an agent use the interface through the same actions, and an agent reads what it shows | Planned |
 | [M6b.6](#m6b6--text-edited-and-what-the-platform-lacks) | Text is typed, selected, copied and composed in every writing system, and screen readers read the interface | Planned |
 | [M6b.7](#m6b7--widgets-and-layers) | The framework has the widgets that the dev overlay and the editor are made of | Planned |
@@ -550,7 +551,43 @@ Risks:
 - **Done when.** Tests without a GPU: rules selected by kind, classes, key and states, and named
   values shared; a theme read, checked and cooked; an element restyled only when its classes, state
   or place change. A theme changed on disk restyles a running example; CI is green.
-- **How to test.** `cargo test -p slime-ui`; the example, its theme changed while it runs.
+- **How to test.** `cargo test -p slime-ui -p slime-serialize -p slime-cook`; the example, its theme
+  changed while it runs: `cargo run --example interface -- --watch` beside
+  `cargo run --release -p slime-cook -- watch examples/assets target/cooked/examples`.
+- **By hand.** The owner chooses what a rule holds, where the named values live, which of the code
+  and a rule wins, which of two rules, what a rule selects by, where types are checked, and how a
+  color is written.
+- **Outcome.** Done on 2026-10-25. [ADR-0141](adr/0141-style-sheets-and-themes.md) records the
+  owner's decisions of that day: a rule sets a part of a `Style`, as a save's differences do; a
+  theme of its own holds the named values that the rules give as `$name`, and changes while a
+  program runs; the element's own style wins over the rules, a field at its default taking theirs;
+  the rules apply in the order of their file; a rule selects by kind, classes, key, states and an
+  ancestor; types are checked when the interface reads them; colors are written in sRGB, `#rrggbb`.
+  `slime-serialize`'s `References` gains `value`, which gives the value that a text stands for where
+  a value of another type goes. `slime-ui` gains `theme`, its style sheets and themes, and
+  `Ui::set_style`; elements gain their classes (`Element::class`), each a mark of its style, and
+  lose `ButtonStates`, a button's states styled by rules; the styles' types are reflected, and
+  `slime-ui` depends on `slime-reflect` and `slime-serialize`. `slime-assets` gains the kinds
+  `StyleSheet` and `Theme`, and `slime-cook` cooks `.style` and `.theme` files into their binary
+  encoding. The example `interface` reads its style sheet and its dark and light themes cooked with
+  the sample, `--theme` and T choosing one, `--watch` styling it again as they change; `--assets`
+  names the cooked data, which the scene and world examples now find through one shared function.
+  The benchmark `ui.tree.editor` styles its tree, and measures a frame after the theme changed: 16
+  ms for 12 500 elements, once the styles made are kept and shared; made each time through
+  reflection, they took 228 ms ([`docs/measurements.md`](measurements.md), M6b.4b). The tests: in
+  `slime-serialize`, `a_text_in_place_of_a_value_stands_for_the_value_that_the_references_give`; in
+  `slime-ui`'s `tests/style.rs`, rules selected by kind, class, key, state and ancestor in the order
+  of their file, an element's own fields kept over the rules', another theme styling every element
+  again and a class taken away styling an element and what it holds, documents read from their
+  binary encoding, and errors that name the document and the place and keep the style; in
+  `slime-cook`, a style sheet and a theme cooked, and a theme that is not TOML refused by its line.
+  By hand, under a headless Weston, the example run with `--watch` while its dark theme changed on
+  disk and was cooked again: styled again, then, the theme broken, its style kept and the fault
+  named. ADR-0141 amends ADR-0140: a change of state styles an element again. A read-only review
+  found a rule's shadow given in part, which `Ui::set_style` took and a frame then panicked on; a
+  change of a border's width that did not cut what scrolls inside anew; a number given by a name
+  outside its field's range; an entry of a style sheet that is not a rule taken as an empty one; and
+  stale passages: each is fixed, and tested where a test can.
 
 ### M6b.5 — Input, focus, and what agents see
 
@@ -1448,8 +1485,19 @@ GitHub issues, linked from their entry; this list stays the reference.
   nothing changed. A list shows the rows of a new range one frame late, when it first shows or when
   it scrolls after its builder ran. A text in a root laid out from right to left keeps its own
   direction, a Latin paragraph starting at its box's left. No element is placed out of its
-  parent's flow. The marks of what changed hold an element's layout and paint, not yet its style
-  and its meaning.
+  parent's flow. The marks of what changed hold an element's style, layout and paint, not yet its
+  meaning.
+- **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md)): a theme's value
+  names no other, and a field of the type `String` takes no named value. An error of type in a
+  cooked style sheet or theme is placed by its byte and the path of its part, not by its line. The
+  code cannot set a field of an element's style to its default against a rule. The styles made are
+  kept up to a number of the elements' own styles for each set of rules (`Ui::set_style`); past it,
+  an element's style is made again through reflection at each change, the slow way that
+  [`docs/measurements.md`](measurements.md), M6b.4b, measures. Selectors hold no combinators but an
+  ancestor's kind or class. A color is held whole in a part of a style by `slime-ui`'s own walk,
+  beside reflection's, which holds a rotation whole: two ways of one thing, which a type's attribute
+  of reflection would unify. An array, a list and an option of an element's own style replace the
+  rules' whole, its height with its width.
 - **The system's fallback is checked only where the system has fonts**
   ([ADR-0136](adr/0136-the-interfaces-text.md)): its test checks nothing, and says so, on a machine
   whose fontconfig, or whose lack of it, gives no font for Greek or Japanese, as CI's Linux runners

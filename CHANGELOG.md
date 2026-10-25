@@ -8,6 +8,16 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Style sheets and themes for the interface (ADR-0141): `slime_ui::theme::StyleSheet` holds rules
+  that select elements by kind, classes, key, states and ancestor, in the order of their file, and
+  set a part of their style; `Theme` holds the named values that the rules give as `"$name"`;
+  colors are written in sRGB, `"#rrggbb"`. `Ui::set_style` styles an interface with them, each
+  element's own style over the rules, and styles it again when they change, a document at fault
+  refused by name and place. Elements hold classes (`Element::class`). The cooker cooks `.style`
+  and `.theme` files, which `CookedAssets::style_sheet` and `CookedAssets::theme` read.
+  `slime_serialize::References::value` gives the value that a text stands for. The example
+  `interface` is styled by a style sheet and a dark or a light theme, switched with T, and styled
+  again with `--watch` as they change; the benchmark `ui.tree.editor` measures a theme changed.
 - The interface's tree of elements (ADR-0140): `slime_ui::tree::Ui` keeps an interface's roots, each
   of a size, a scale and a direction, and their elements from one frame to the next. `Ui::build`
   runs a builder when the revision it reads moved, matching the elements it adds with those before
@@ -89,6 +99,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- A button's looks in its states are rules of a style sheet: `ButtonStates` is gone, and
+  `Element::button` takes a label and a style.
 - `slime_ui::Rect`, at the crate's root, gives a rectangle by its top left corner and its size, as
   the canvas does: the text's carets and selections give it so, where they gave edges.
 - `TextCache::get` gives its texts shared, as `Arc<TextLayout>`; `TextLayout` can be cloned.

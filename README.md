@@ -79,7 +79,9 @@ shadows and images, clipped, over a window or a view's image, its colors mixed a
 them, and `slime-ui-render` draws a display list of `slime-ui` through it, the glyphs of its texts
 kept in an atlas. `slime-ui` keeps an interface as a tree of elements, built by code when what it
 shows changes, laid out by flexbox and grid, from left to right or mirrored, its lists building
-only the rows that show; the `interface` example builds one, with text in eight writing systems.
+only the rows that show, and styles it with style sheets and themes, cooked as scenes are and
+loaded again when they change; the `interface` example builds one, with text in eight writing
+systems and a dark and a light theme.
 [`docs/PLAN.md`](docs/PLAN.md) says what comes next, the rest of Stage 6b, the engine's interface:
 its UI framework, proven by the dev overlay; then Stage 6c, the editor. It lists the known debt too.
 
@@ -161,10 +163,10 @@ The engine is young; [`docs/ROADMAP.md`](docs/ROADMAP.md) says which stage bring
 known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) lists the smaller gaps. A game made with it
 today has:
 
-- No audio, physics or animation; an interface built as a tree of elements and laid out
-  (`slime-ui`), styled by code alone, without style sheets, themes or input yet; and of the editor
-  only its core, a library without an interface (`slime-editor`), and its program without a window,
-  which agents drive through the MCP server.
+- No audio, physics or animation; an interface built as a tree of elements, laid out and styled
+  by style sheets and themes (`slime-ui`), without input yet; and of the editor only its core, a
+  library without an interface (`slime-editor`), and its program without a window, which agents
+  drive through the MCP server.
 - An asset pipeline that imports glTF scenes, scene files and PNG and JPEG images only: the cooker,
   `slime-cook`, makes them cooked data, which the renderer loads whole, in the background while the
   game goes on, as an asset cache's requests ask (`AssetCache::request`) or a scene at a time

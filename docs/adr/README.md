@@ -200,7 +200,7 @@ the ADR linking to it.
 | [0129](0129-drawing-for-the-editor.md) | Drawing for the editor | Accepted |
 | [0130](0130-picking.md) | Picking | Accepted |
 | [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amended by 0134 and 0137 |
-| [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted; amended by 0137 |
+| [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted; amended by 0137 and 0140 |
 | [0133](0133-font-files-under-the-open-font-license.md) | Font files under the SIL Open Font License | Accepted; amended by 0139 |
 | [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 |
 | [0135](0135-the-editors-program.md) | The editor's program | Accepted |
@@ -208,4 +208,5 @@ the ADR linking to it.
 | [0137](0137-the-canvas.md) | The canvas | Accepted |
 | [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted |
 | [0139](0139-text-drawn-and-the-display-list.md) | Text drawn, and the display list | Accepted |
-| [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted |
+| [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amended by 0141 |
+| [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted |

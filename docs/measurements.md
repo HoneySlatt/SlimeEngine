@@ -1077,3 +1077,36 @@ The machine was otherwise idle. The build is not measured.
 | `ui.tree.list.100k` | a frame scrolled by 7 pixels, 90th percentile of 15 | 142.9 µs |
 | `ui.tree.list.100k` | a frame standing still, median of 15 | 3.1 µs |
 | `ui.tree.list.100k` | a frame standing still, 90th percentile of 15 | 3.2 µs |
+
+## M6b.4b, RX 6900 XT
+
+Style sheets and themes ([ADR-0141](adr/0141-style-sheets-and-themes.md)), on 2026-10-25, on the
+CPU alone, an AMD Ryzen 7 5800X. `ui.tree.editor` now styles its tree with a style sheet and a
+theme, and measures a frame after the theme changed, which styles every element again, draws it
+again, and gathers the display list: 16 ms. Made each time through reflection, the styles took
+228 ms in that frame, and the first frame 358 ms; kept for the rules that select an element and its
+own style, and shared, they take what this table says, the first frame as long as before styles
+came. The buttons and panels that the style sheet fills add 1 533 items to the display list. The
+machine was otherwise idle. The table was taken before a read-only review's fixes, which add a
+comparison to each element styled again; taken again after them, while another program held three
+quarters of a core, its frames took 4 to 17 % longer. The build is not measured.
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `ui.tree.editor` | elements | 12487 |
+| `ui.tree.editor` | items of the display list | 10713 |
+| `ui.tree.editor` | the first frame: built, its texts and its tree laid out, drawn, median of 15 | 131.38 ms |
+| `ui.tree.editor` | the first frame: built, its texts and its tree laid out, drawn, 90th percentile of 15 | 141.03 ms |
+| `ui.tree.editor` | a frame after one value of the inspector changed, median of 15 | 2.45 ms |
+| `ui.tree.editor` | a frame after one value of the inspector changed, 90th percentile of 15 | 2.48 ms |
+| `ui.tree.editor` | a frame with nothing changed, median of 15 | 291.7 µs |
+| `ui.tree.editor` | a frame with nothing changed, 90th percentile of 15 | 298.2 µs |
+| `ui.tree.editor` | a frame after the theme changed, every element styled again, median of 15 | 15.70 ms |
+| `ui.tree.editor` | a frame after the theme changed, every element styled again, 90th percentile of 15 | 15.95 ms |
+| `ui.tree.list.100k` | elements | 164 |
+| `ui.tree.list.100k` | a frame scrolled by 7 pixels, median of 15 | 55.3 µs |
+| `ui.tree.list.100k` | a frame scrolled by 7 pixels, 90th percentile of 15 | 140.8 µs |
+| `ui.tree.list.100k` | a frame standing still, median of 15 | 3.1 µs |
+| `ui.tree.list.100k` | a frame standing still, 90th percentile of 15 | 3.2 µs |

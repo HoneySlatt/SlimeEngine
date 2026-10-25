@@ -144,6 +144,10 @@ build, the tests on lavapipe, rustdoc, the dependency rules, the source assets a
 the samples without a display server and, with the sample game, in a headless Weston compositor, and
 the links between documents ([`CONTRIBUTING.md`](../CONTRIBUTING.md#checks)).
 
+**Class (element).** A name that the code building an *element* gives it, by which the rules of a
+*style sheet* select it (`Element::class`); an element holds any number
+([ADR-0141](adr/0141-style-sheets-and-themes.md)).
+
 **Client of the engine.** A crate or program built on the engine's public API only, which no engine
 crate depends on: the examples, the games, such as *Hunna Wood*, the editor (`slime-editor`), the
 dev *overlay* (`slime-devui`), and the benchmarks (`slime-benches`).
@@ -1150,6 +1154,12 @@ version of a program may have written, where such a field is left out with a war
 changed parent or name (`World::structure`), so that a list of the entities is made again only
 then ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)).
 
+**Style sheet.** A document of rules that style an interface's *elements*: each selects elements by
+kind, *classes*, *key*, states and ancestor, and sets a part of their style, its fields given or
+named by a *theme*; the rules apply in the order of the file, and an element's own style wins over
+them (`slime_ui::theme::StyleSheet`, [ADR-0141](adr/0141-style-sheets-and-themes.md)). Cooked from
+a `.style` file.
+
 **Sub-asset.** An *asset* inside a source file, such as a mesh, a material or a scene of a glTF
 file, whose ID is derived from the file's ID, its kind and its name
 ([ADR-0069](adr/0069-the-asset-pipeline.md)).
@@ -1193,6 +1203,11 @@ stops a run cleanly; a second one, half a second or more later, ends the process
 
 **Texture role.** What a cooked texture is used for: colors, data or normals, which sets how the
 cooker averages its levels and compresses it ([ADR-0071](adr/0071-cooked-textures.md)).
+
+**Theme (interface).** A document of named values, colors, numbers, lists, that the rules of a
+*style sheet* give as `"$name"`: another theme restyles an interface, its rules unchanged, as a
+dark theme and a light one share one style sheet (`slime_ui::theme::Theme`,
+[ADR-0141](adr/0141-style-sheets-and-themes.md)). Cooked from a `.theme` file.
 
 **Threat model.** What the files that the engine reads from outside its program may hold, damaged,
 edited or made by a buggy tool, and what the engine promises about them: no panic, hang, exhausted

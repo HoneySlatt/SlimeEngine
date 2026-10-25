@@ -17,8 +17,10 @@ images beside them or GLB, into meshes, with MikkTSpace tangents when they have 
 scenes, and cooks the textures their materials read in the roles they read them; their nodes'
 `slime:<type name>` properties become typed components. It cooks scene files into the engine's
 binary encoding of documents, after it checks them
-([ADR-0095](../../docs/adr/0095-cooked-scene-files.md)). It cooks a directory again each time one
-of its files changes, for games that load their data again while they run
+([ADR-0095](../../docs/adr/0095-cooked-scene-files.md)), and the interface's style sheets and
+themes, `.style` and `.theme` files, their syntax checked
+([ADR-0141](../../docs/adr/0141-style-sheets-and-themes.md)). It cooks a directory again each time
+one of its files changes, for games that load their data again while they run
 ([ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)).
 
 ## Role
@@ -45,6 +47,8 @@ of its files changes, for games that load their data again while they run
   not a scene, a parent missing, entities that would be each other's ancestors and scene files that
   place each other; warns of a path that a table gives where the source is not; writes their
   binary encoding, which needs the assets of their table.
+- Cooks the interface's style sheets and themes into their binary encoding, refusing by file and
+  line a document that is not TOML; `slime-ui` checks their types when it reads them.
 - Names each cooked file by the hash of all that made it, so that what is already cooked, and
   reads back whole, is not cooked again, and the same sources cook into the same bytes on one
   platform. Writes its files, and the metadata files it gives, under temporary names of the

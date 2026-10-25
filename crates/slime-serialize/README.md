@@ -37,7 +37,9 @@ comments of the levels that it writes again (`crates/slime-editor`,
 - `Composer` and `Document`: a document of several values, each at its place, written and read one
   at a time, as the world's saves and scene files hold one per component. Given `References`, they
   write and read references to entities as the names it gives them, and to assets as it names
-  them, their IDs unless it says otherwise; without, a reference to an entity is refused.
+  them, their IDs unless it says otherwise; without, a reference to an entity is refused. Their
+  `References::value` may give the value that a text stands for where a value of another type
+  goes, as an interface's style sheets name their themes' values (`slime-ui`).
   `Document::keys`, `is_table` and `error_at` let a program read a document's layout itself, and
   place what it finds wrong at its line and column, as a world reads a scene file;
   `Composer::table` makes a table that holds nothing yet, and `Composer::without_defaults` leaves

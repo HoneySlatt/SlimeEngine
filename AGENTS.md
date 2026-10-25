@@ -38,7 +38,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 scripts/check.sh                                          # everything above, plus the checks below
-cargo run -p slime-cook -- cook examples/assets target/cooked/examples  # cook what the scene and world examples draw
+cargo run -p slime-cook -- cook examples/assets target/cooked/examples  # cook what the scene, world and interface examples read
 cargo run --release -p slime-cook -- watch <sources> <output>  # cook again each change (ADR-0076)
 cargo run --example <name>                                # run an example (list in examples/README.md)
 cargo run --release -p slime-benches -- [<name>...]       # run the benchmarks (benches/README.md)
@@ -52,7 +52,7 @@ cargo build -p hunnawood --no-default-features           # the game built for sh
 cargo run --example editor -- --level <a copy of a level> --journal <file>  # the editor's program on the examples' yard (ADR-0135)
 cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>  # the game's editor on its zone (games/hunnawood-editor/README.md)
 cargo run --example text -- --output <file.png>           # the interface's text in several writing systems, rasterized by the CPU (ADR-0136)
-cargo run --example interface -- --output <file.png>      # an interface built as a tree of elements: text, boxes, images, a view (ADR-0140)
+cargo run --example interface -- --output <file.png>      # an interface built as a tree of elements, styled by a theme: text, boxes, images, a view (ADR-0140, ADR-0141)
 scripts/subset-fonts.sh <noto> <noto-cjk> <noto-emoji>    # make the fonts of slime-ui's tests again (crates/slime-ui/tests/fonts/README.md)
 cargo run --quiet -p slime-mcp                            # the engine's MCP server, through which an agent drives a game (crates/slime-mcp/README.md)
 ```
