@@ -65,6 +65,18 @@ pub trait References {
     fn asset(&self, name: &str) -> Option<u128> {
         document::parse_uuid(name)
     }
+
+    /// The value of the type named `ty` that `text` stands for, where the document holds a text in
+    /// place of a value of a type that is not text itself, a tuple struct of one text included: by
+    /// default `None`, the text read as it is; or the value, which the registry checks, a number
+    /// within its field's range too; or why the text stands for none, which fails the reading there,
+    /// placed at the text. In a part of a value, an option's field is read as an option, so that
+    /// `ty` names the option's type. The interface's style sheets name their themes' values so
+    /// (`slime-ui`).
+    fn value(&self, ty: &str, text: &str) -> Option<Result<Value, String>> {
+        let _ = (ty, text);
+        None
+    }
 }
 
 /// How strictly a document is read.

@@ -1856,3 +1856,94 @@ fn what_reading_a_document_of_the_size_of_the_zone_costs_in_text_and_in_binary()
         bytes.len()
     );
 }
+
+/// Names tints as a theme of the interface names its values: `"#rrggbb"` stands for a tint, and
+/// `"$name"` for the tint of that name, in place of a value of another kind than text.
+struct Named;
+
+impl References for Named {
+    fn name(&self, _: u64) -> Option<String> {
+        None
+    }
+
+    fn entity(&self, _: &str) -> Option<u64> {
+        None
+    }
+
+    fn value(&self, ty: &str, text: &str) -> Option<Result<Value, String>> {
+        let tint = |r, g, b| Tint { r, g, b }.to_value();
+        match (ty, text) {
+            ("test::Tint", "$accent") => Some(Ok(tint(0.0, 0.5, 1.0))),
+            ("test::Tint", "#ff0000") => Some(Ok(tint(1.0, 0.0, 0.0))),
+            ("f32", "$half") => Some(Ok(Value::F32(0.5))),
+            (_, "$wrong") => Some(Ok(Value::Text("not a tint".to_owned()))),
+            (_, name) if name.starts_with('$') => Some(Err(format!("no value is named `{name}`"))),
+            _ => None,
+        }
+    }
+}
+
+#[test]
+fn a_text_in_place_of_a_value_stands_for_the_value_that_the_references_give() {
+    let registry = registry();
+    let text = "first = \"$accent\"\nsecond = \"#ff0000\"\nlabel = \"$accent\"\n\
+                mode = { Blinking = { period = 1.0, tint = \"$accent\" } }\n\
+                unknown = \"$missing\"\nwrong = \"$wrong\"\nplain = \"#00ff00\"\n";
+    let mut document = Document::parse(&registry, text, Mode::Strict).expect("a document");
+    let mut read = |place: &str, ty: &str| document.read(&[place], ty, Some(&Named));
+    let accent = Tint {
+        r: 0.0,
+        g: 0.5,
+        b: 1.0,
+    };
+    assert_eq!(
+        read("first", "test::Tint").unwrap(),
+        Some(accent.to_value())
+    );
+    assert_eq!(
+        read("second", "test::Tint").unwrap(),
+        Some(
+            Tint {
+                r: 1.0,
+                g: 0.0,
+                b: 0.0
+            }
+            .to_value()
+        )
+    );
+    // Where a text goes, the text is read as it is.
+    assert_eq!(
+        read("label", "String").unwrap(),
+        Some(Value::Text("$accent".to_owned()))
+    );
+    let blinking = Mode2::Blinking {
+        period: 1.0,
+        tint: accent,
+    };
+    assert_eq!(
+        read("mode", "test::Mode").unwrap(),
+        Some(blinking.to_value())
+    );
+    // Why a text stands for nothing, placed at its line; a value of another type is refused.
+    let error = read("unknown", "test::Tint").unwrap_err();
+    assert!(
+        error.to_string().contains("no value is named `$missing`")
+            && error.line_and_column().map(|(line, _)| line) == Some(5),
+        "{error}"
+    );
+    assert!(read("wrong", "test::Tint").is_err());
+    // A text that the references do not give is read as it is: not a tint.
+    assert!(read("plain", "test::Tint").is_err());
+    // A number given is held within its field's range.
+    let mut registry = Registry::new();
+    registry.register::<Tally>();
+    let text = "tally = { blend = \"$half\" }\n";
+    let mut document = Document::parse(&registry, text, Mode::Strict).expect("a document");
+    let error = document
+        .read_part(&["tally"], "test::Tally", Some(&Named))
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("is not from 0.7 to 0.9"),
+        "{error}"
+    );
+}

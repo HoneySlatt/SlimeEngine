@@ -290,6 +290,33 @@ impl Reader<'_> {
             problem: ReadProblem::Value(problem),
         };
         let info = info(self.registry, ty).map_err(fail)?;
+        // A text in place of a value of another kind may stand for one, as the document's
+        // references say.
+        if let (Some(references), Value::Text(text)) = (self.references, &document)
+            && !matches!(info.kind, Kind::Text)
+            && let Some(given) = references.value(&info.name, text)
+        {
+            let value = given.map_err(|message| fail(Problem::Invalid(message)))?;
+            self.registry
+                .check(&info.name, &value)
+                .map_err(|error| fail(error.problem().clone()))?;
+            let number = match value {
+                Value::Int(number) => Some(Number::Int(number)),
+                Value::UInt(number) => Some(Number::UInt(number)),
+                Value::F32(number) => Some(Number::F32(number)),
+                Value::F64(number) => Some(Number::F64(number)),
+                _ => None,
+            };
+            if let (Some(range), Some(number)) = (range, number)
+                && !range.holds(number)
+            {
+                return Err(fail(Problem::OutOfRange {
+                    value: number,
+                    range,
+                }));
+            }
+            return Ok(value);
+        }
         let version = self.version(info);
         let document = if version == info.version {
             document
