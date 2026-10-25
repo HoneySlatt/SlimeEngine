@@ -41,6 +41,7 @@ if runs headless; then
     cargo clippy --locked -p slime-app --test windowed_lifecycle -- -D warnings
     cargo clippy --locked -p slime-mcp --test drive -- -D warnings
     cargo clippy --locked -p slime-mcp --test views -- -D warnings
+    cargo clippy --locked -p slime-mcp --test interface -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit_zone -- -D warnings
     # The game built for shipping, without the development channel (ADR-0122): the code that stands in
@@ -52,6 +53,7 @@ if runs headless; then
     cargo clippy --locked -p slime-app --test windowed_lifecycle --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test drive --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test views --target x86_64-pc-windows-msvc -- -D warnings
+    cargo clippy --locked -p slime-mcp --test interface --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit_zone --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p hunnawood --no-default-features --all-targets --target x86_64-pc-windows-msvc -- -D warnings
@@ -159,6 +161,13 @@ if runs windowed; then
     # The same interface over the window, which the canvas draws into without its sRGB encoding.
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 120 cargo run --locked --example interface -- --assets "$cooked/first" --frames 120 ||
+        { cat "$runtime/slime-check.log"; exit 1; }
+    # An agent's session through the MCP server finds a button of its bar by its role and its name,
+    # presses it, reads the count that the press changed in its world, captures the button, and opens
+    # and closes its dialog (ADR-0143).
+    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
+        VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        timeout -k 10 300 cargo test --locked -p slime-mcp --test interface -- "$cooked/first" ||
         { cat "$runtime/slime-check.log"; exit 1; }
     # The scene example draws the sample cooked above.
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \

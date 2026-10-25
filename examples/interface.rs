@@ -19,6 +19,13 @@
 //! button "close" closes; the bar shows what the last action did. The shortcuts are those of
 //! `examples/assets/ui/interface.keys`. The list scrolls with time, not with the wheel.
 //!
+//! Its world holds one entity, `presses`, whose component `Presses` counts the presses of the bar's
+//! buttons but the first: the presentation sends a command for each, which the host applies at the
+//! start of the next frame, as what changes a world leaves an interface. Agents read and use its
+//! interface through the development channel
+//! (`docs/adr/0143-what-agents-see-of-the-interface.md`), its bar and its dialog named for them:
+//! `crates/slime-mcp/tests/interface.rs` is such a session.
+//!
 //! The code gives the elements their layout and their classes; the style sheet
 //! `examples/assets/ui/interface.style` gives the rest, with the values of a dark or a light theme,
 //! which T switches. They are read cooked, as the sample's scenes are:
@@ -51,11 +58,12 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Instant;
 
-use slime_app::{AppConfig, AppError, Context, Presentation};
+use slime_app::{AppConfig, AppError, Context, Presentation, Simulation, SimulationContext};
 use slime_assets::{AssetId, CookedAssets, ManifestWatch};
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderTarget, Texture, TextureFormat};
 use slime_platform::{Event, WindowConfig};
+use slime_reflect::{Reflect, Value};
 use slime_render::{CanvasImage, RenderError};
 use slime_ui::Rect;
 use slime_ui::action::{ActionKind, Intent};
@@ -64,9 +72,9 @@ use slime_ui::shortcuts::Shortcuts;
 use slime_ui::style::{Align, Dimension, Display, FlexDirection, Justify, Sides, Style, Track};
 use slime_ui::text::Fonts;
 use slime_ui::theme::{StyleSheet, Theme};
-use slime_ui::tree::{Children, Element, ElementId, Kind, LayoutDirection, RootSettings, Ui};
+use slime_ui::tree::{Children, Element, ElementId, Kind, LayoutDirection, Role, RootSettings, Ui};
 use slime_ui_render::UiRenderer;
-use slime_world::World;
+use slime_world::{Command, Component, PersistentId, World};
 
 use shapes::Shapes;
 
@@ -174,6 +182,8 @@ struct Interface {
     /// What the last action did, which the bar shows, and the revision of what the bar shows.
     last: String,
     revision: u64,
+    /// The presses that the world counts, as it last read them, and those sent since.
+    presses: u64,
     /// The cooked data that holds the style sheet and the themes, and the theme shown.
     assets: CookedAssets,
     theme: ThemeName,
@@ -271,6 +281,7 @@ impl Interface {
             dialog: None,
             last: "tab and the arrows move, enter presses, t switches the theme".to_owned(),
             revision: 0,
+            presses: 0,
             assets,
             theme,
         };
@@ -304,10 +315,10 @@ impl Interface {
         Ok(())
     }
 
-    /// Does what the actions that the interface queued ask: a button of the bar pressed, the
-    /// dialog opened or closed, the theme switched. Gives whether the program is asked to stop:
-    /// Escape, nothing open.
-    fn handle_actions(&mut self) -> bool {
+    /// Does what the actions that the interface queued ask: a button of the bar pressed, counted in
+    /// the world by a command sent through `ctx`, the dialog opened or closed, the theme switched.
+    /// Gives whether the program is asked to stop: Escape, nothing open.
+    fn handle_actions(&mut self, ctx: &mut Context) -> bool {
         let mut stop = false;
         for action in self.ui.take_actions() {
             let close = self.dialog.map(|(_, close)| close);
@@ -324,8 +335,22 @@ impl Interface {
                         .and_then(|id| match &self.ui.element(id)?.kind {
                             Kind::Button { label } => Some(label.clone()),
                             _ => None,
+                        })
+                        .unwrap_or_default();
+                    if action.element.is_some_and(|id| self.bar.contains(&id)) {
+                        // What changes the world leaves the interface as a command, applied at
+                        // the start of the next frame.
+                        self.presses += 1;
+                        ctx.send(Command::SetProperty {
+                            entity: PersistentId::new([PRESSES]),
+                            component: "Presses".to_owned(),
+                            path: slime_reflect::Path::default().field("count"),
+                            value: Value::UInt(self.presses),
                         });
-                    self.tell(format!("pressed {}", label.unwrap_or_default()));
+                        self.tell(format!("pressed {label}, {} presses", self.presses));
+                    } else {
+                        self.tell(format!("pressed {label}"));
+                    }
                 }
                 ActionKind::Intent(Intent::Cancel) if self.dialog.is_some() => self.close_dialog(),
                 ActionKind::Intent(Intent::Cancel) => stop = true,
@@ -384,7 +409,10 @@ impl Interface {
                 dialog.layout.direction = FlexDirection::Column;
                 dialog.layout.padding = Sides::all(20.0);
                 dialog.layout.gap = [16.0, 0.0];
-                let dialog = Element::container(dialog).class("dialog");
+                let dialog = Element::container(dialog)
+                    .class("dialog")
+                    .role(Role::Dialog)
+                    .named("dialog");
                 children.add("dialog", dialog, |children| {
                     let text = "a modal root. the focus stays in it, and escape closes it.";
                     children.add("text", Element::label(text, Style::default()), |_| {});
@@ -520,7 +548,11 @@ fn build(
         bar.layout.size[1] = Dimension::Pixels(40.0);
         bar.layout.padding = Sides::symmetric(12.0, 6.0);
         bar.layout.gap = [0.0, 8.0];
-        children.add("bar", Element::container(bar).class("bar"), |children| {
+        let bar = Element::container(bar)
+            .class("bar")
+            .role(Role::Toolbar)
+            .named("bar");
+        children.add("bar", bar, |children| {
             for index in 0..5_usize {
                 let label = if index == 0 {
                     "open"
@@ -711,6 +743,37 @@ fn srgb(hex: u32) -> LinearColor {
     LinearColor::from_srgb8((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
 }
 
+/// The key of the entity of the example's world that counts the presses of the bar's buttons.
+const PRESSES: &str = "presses";
+
+/// How many times the bar's buttons but the first were pressed: the component of the example's
+/// world that its interface changes, through commands.
+#[derive(Clone, Debug, Default, PartialEq, Reflect)]
+#[reflect(name = "Presses")]
+struct Presses {
+    /// How many.
+    count: u64,
+}
+
+impl Component for Presses {}
+
+/// The example's simulation: it spawns the entity that counts the presses, which nothing else
+/// changes but the commands that the interface sends.
+struct Counter;
+
+impl Simulation for Counter {
+    fn start(
+        &mut self,
+        _ctx: &mut SimulationContext<'_>,
+        world: &mut World,
+    ) -> Result<(), AppError> {
+        world.register::<Presses>();
+        let presses = world.spawn_keyed(PRESSES)?;
+        world.insert(presses, Presses::default());
+        Ok(())
+    }
+}
+
 #[derive(Default)]
 struct InterfaceExample {
     interface: Option<Interface>,
@@ -742,6 +805,20 @@ impl Presentation for InterfaceExample {
         Ok(())
     }
 
+    fn ui(&mut self) -> Option<&mut Ui> {
+        self.interface.as_mut().map(|interface| &mut interface.ui)
+    }
+
+    fn extract(&mut self, _ctx: &mut Context, world: &World) {
+        // The presses that the world counts, the commands sent applied.
+        if let Some(interface) = &mut self.interface
+            && let Some(presses) = world.find(&PersistentId::new([PRESSES]))
+            && let Some(counted) = world.get::<Presses>(presses)
+        {
+            interface.presses = counted.count;
+        }
+    }
+
     fn on_event(&mut self, _ctx: &mut Context, event: &Event) -> bool {
         // The window's input, to the interface, which turns it into actions.
         let Some(interface) = &mut self.interface else {
@@ -762,7 +839,7 @@ impl Presentation for InterfaceExample {
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
         if let Some(interface) = &mut self.interface
-            && interface.handle_actions()
+            && interface.handle_actions(ctx)
         {
             ctx.request_exit();
         }
@@ -859,7 +936,7 @@ fn main() -> ExitCode {
         assets: Some(assets),
         ..InterfaceExample::default()
     };
-    match slime_app::run(&mut (), &mut example, &config) {
+    match slime_app::run(&mut Counter, &mut example, &config) {
         Ok(()) => ExitCode::SUCCESS,
         // `run` has logged the error with its causes.
         Err(_) => ExitCode::FAILURE,

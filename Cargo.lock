@@ -2659,6 +2659,7 @@ dependencies = [
  "slime-editor",
  "slime-gfx",
  "slime-platform",
+ "slime-reflect",
  "slime-render",
  "slime-ui",
  "slime-ui-render",

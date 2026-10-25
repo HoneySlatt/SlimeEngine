@@ -36,6 +36,13 @@ name = "views"
 test = false
 harness = false
 
+# Uses the `interface` example's interface, which needs a Wayland compositor and the examples'
+# cooked assets: `scripts/check.sh` runs it in a headless Weston too (ADR-0143).
+[[test]]
+name = "interface"
+test = false
+harness = false
+
 # Edits a copy of the examples' yard through the `editor` example, which has no window, and needs
 # the examples' cooked assets: `scripts/check.sh` runs it with the samples (ADR-0135).
 [[test]]

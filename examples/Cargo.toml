@@ -26,6 +26,8 @@ slime-devui.workspace = true
 slime-editor.workspace = true
 slime-gfx.workspace = true
 slime-platform.workspace = true
+# The component that the `interface` example's world counts its presses in (ADR-0143).
+slime-reflect.workspace = true
 slime-render.workspace = true
 # The interface's text, which the `text` example lays out and rasterizes (ADR-0136).
 slime-ui.workspace = true
