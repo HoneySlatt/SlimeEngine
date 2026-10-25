@@ -130,6 +130,17 @@ impl CookedAssets {
         self.file(id, AssetKind::Theme).map(|(_, bytes)| bytes)
     }
 
+    /// Reads the table of shortcuts `id`: its document in the engine's binary encoding, which
+    /// `slime-ui` reads (`slime_ui::shortcuts::Shortcuts::from_binary`).
+    ///
+    /// # Errors
+    ///
+    /// As [`CookedAssets::texture`], for a table of shortcuts, but for its bytes, which `slime-ui`
+    /// checks.
+    pub fn shortcuts(&self, id: AssetId) -> Result<Vec<u8>, LoadError> {
+        self.file(id, AssetKind::Shortcuts).map(|(_, bytes)| bytes)
+    }
+
     /// The path and the bytes of the cooked file of the asset `id`, which must be of `kind`.
     fn file(&self, id: AssetId, kind: AssetKind) -> Result<(PathBuf, Vec<u8>), LoadError> {
         let entry = self.manifest.get(id).ok_or_else(|| LoadError::NotCooked {

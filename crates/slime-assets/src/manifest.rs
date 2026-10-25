@@ -36,6 +36,9 @@ pub enum AssetKind {
     /// A theme of the interface, in the engine's binary encoding of documents, which `slime-ui`
     /// reads (`docs/adr/0141-style-sheets-and-themes.md`).
     Theme,
+    /// A table of the interface's shortcuts, in the engine's binary encoding of documents, which
+    /// `slime-ui` reads (`docs/adr/0142-input-and-focus.md`).
+    Shortcuts,
 }
 
 impl AssetKind {
@@ -49,6 +52,7 @@ impl AssetKind {
             Self::SceneFile => 5,
             Self::StyleSheet => 6,
             Self::Theme => 7,
+            Self::Shortcuts => 8,
         }
     }
 
@@ -61,6 +65,7 @@ impl AssetKind {
             5 => Some(Self::SceneFile),
             6 => Some(Self::StyleSheet),
             7 => Some(Self::Theme),
+            8 => Some(Self::Shortcuts),
             _ => None,
         }
     }
@@ -75,6 +80,7 @@ impl AssetKind {
             Self::SceneFile => "scene file",
             Self::StyleSheet => "style sheet",
             Self::Theme => "theme",
+            Self::Shortcuts => "table of shortcuts",
         }
     }
 }

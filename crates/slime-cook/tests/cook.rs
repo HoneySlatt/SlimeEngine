@@ -642,9 +642,10 @@ fn a_library_of_cooked_data_reads_again_the_scenes_that_changed_and_those_that_p
 }
 
 #[test]
-fn style_sheets_and_themes_are_cooked_into_their_binary_encoding_their_syntax_checked() {
+fn the_interface_s_documents_are_cooked_into_their_binary_encoding_their_syntax_checked() {
     const SHEET: AssetId = AssetId::from_u128(0x0011);
     const THEME: AssetId = AssetId::from_u128(0x0012);
+    const KEYS: AssetId = AssetId::from_u128(0x0013);
     let root = directory("styles").join("sources");
     let output = root.with_file_name("cooked");
     let sheet =
@@ -652,11 +653,14 @@ fn style_sheets_and_themes_are_cooked_into_their_binary_encoding_their_syntax_ch
     let theme = "surface = \"#26282C\"\n";
     source(&root, "interface.style", SHEET, sheet.as_bytes());
     source(&root, "dark.theme", THEME, theme.as_bytes());
+    let keys = "[global]\n\"Ctrl+Z\" = \"undo\"\n";
+    source(&root, "editor.keys", KEYS, keys.as_bytes());
     cook(&root, &output).expect("cooked");
     let assets = CookedAssets::open(&output).expect("cooked data");
     for (id, kind, path) in [
         (SHEET, AssetKind::StyleSheet, "interface.style"),
         (THEME, AssetKind::Theme, "dark.theme"),
+        (KEYS, AssetKind::Shortcuts, "editor.keys"),
     ] {
         let entry = assets.manifest().get(id).expect("listed");
         assert_eq!((entry.kind, entry.source.as_str()), (kind, path));
@@ -665,6 +669,7 @@ fn style_sheets_and_themes_are_cooked_into_their_binary_encoding_their_syntax_ch
     let encoded = |text| slime_serialize::encode(text).expect("TOML");
     assert_eq!(assets.style_sheet(SHEET).expect("read"), encoded(sheet));
     assert_eq!(assets.theme(THEME).expect("read"), encoded(theme));
+    assert_eq!(assets.shortcuts(KEYS).expect("read"), encoded(keys));
     assert!(
         assets.style_sheet(THEME).is_err(),
         "a theme is not a style sheet"

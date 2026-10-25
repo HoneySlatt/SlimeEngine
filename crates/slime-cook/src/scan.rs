@@ -15,9 +15,9 @@ use crate::metadata;
 
 /// The extensions of the files that the pipeline imports, its *source files*, compared without
 /// regard to case: glTF scenes, as JSON with external files or as GLB, PNG and JPEG images, and
-/// scene files, and the interface's style sheets and themes.
-pub const SOURCE_EXTENSIONS: [&str; 8] = [
-    "gltf", "glb", "png", "jpg", "jpeg", "scene", "style", "theme",
+/// scene files, and the interface's style sheets, themes and tables of shortcuts.
+pub const SOURCE_EXTENSIONS: [&str; 9] = [
+    "gltf", "glb", "png", "jpg", "jpeg", "scene", "style", "theme", "keys",
 ];
 
 /// The extension of metadata files, which follows the source file's whole name: `rock.png.meta`.

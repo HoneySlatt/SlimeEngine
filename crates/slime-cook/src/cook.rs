@@ -35,9 +35,10 @@ pub const GLTF_COOKER_VERSION: u32 = 2;
 /// other bytes, so that every scene file is cooked again.
 pub const SCENE_FILE_COOKER_VERSION: u32 = 1;
 
-/// The version of what the cooker makes of a style sheet or a theme: raised whenever the same file
-/// would give other bytes, so that every one is cooked again.
-pub const STYLE_COOKER_VERSION: u32 = 1;
+/// The version of what the cooker makes of the interface's documents, a style sheet, a theme or a
+/// table of shortcuts: raised whenever the same file would give other bytes, so that every one is
+/// cooked again.
+pub const INTERFACE_COOKER_VERSION: u32 = 1;
 
 /// The extension of scene files (`docs/adr/0089-scenes-and-prefabs.md`).
 pub const SCENE_EXTENSION: &str = "scene";
@@ -47,6 +48,9 @@ pub const STYLE_SHEET_EXTENSION: &str = "style";
 
 /// The extension of the interface's themes (`docs/adr/0141-style-sheets-and-themes.md`).
 pub const THEME_EXTENSION: &str = "theme";
+
+/// The extension of the interface's tables of shortcuts (`docs/adr/0142-input-and-focus.md`).
+pub const SHORTCUTS_EXTENSION: &str = "keys";
 
 /// What a cook did.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -106,11 +110,11 @@ pub enum CookError {
         /// What is wrong, and where.
         reason: String,
     },
-    /// A style sheet or a theme cannot be cooked: it is not a document, or not UTF-8 text; where,
-    /// by its line.
+    /// A document of the interface, a style sheet, a theme or a table of shortcuts, cannot be
+    /// cooked: it is not a document, or not UTF-8 text; where, by its line.
     #[error("{}: {reason}", path.display())]
-    Style {
-        /// The style sheet or the theme.
+    Interface {
+        /// The document.
         path: PathBuf,
         /// What is wrong, and where.
         reason: String,
@@ -129,29 +133,30 @@ pub enum CookError {
 /// by that ID. The texture of an image in another role has an ID derived from the image's
 /// ([`crate::ids::texture_id`]). Each scene file becomes its document in the engine's binary
 /// encoding (`slime_serialize::encode`), under its own ID, of the kind [`AssetKind::SceneFile`],
-/// which needs the assets of its table (`docs/adr/0095-cooked-scene-files.md`). Each style sheet
-/// and theme of the interface becomes its document in the binary encoding, of the kind
-/// [`AssetKind::StyleSheet`] or [`AssetKind::Theme`], its syntax checked, its types left to
-/// `slime-ui`, which reads it (`docs/adr/0141-style-sheets-and-themes.md`). A scene file is read
-/// first without the types of its values ([`slime_world::outline`]), and refused if it says
-/// something wrong there, if its table names an asset that the sources do not make, if it places an
-/// asset that is not a scene, or if scene files place each other; the path that its table gives an
-/// asset whose source is elsewhere is a warning.
+/// which needs the assets of its table (`docs/adr/0095-cooked-scene-files.md`). Each style sheet,
+/// theme and table of shortcuts of the interface becomes its document in the binary encoding, of
+/// the kind [`AssetKind::StyleSheet`], [`AssetKind::Theme`] or [`AssetKind::Shortcuts`], its syntax
+/// checked, its types left to `slime-ui`, which reads it
+/// (`docs/adr/0141-style-sheets-and-themes.md`, `docs/adr/0142-input-and-focus.md`). A scene file
+/// is read first without the types of its values ([`slime_world::outline`]), and refused if it
+/// says something wrong there, if its table names an asset that the sources do not make, if it
+/// places an asset that is not a scene, or if scene files place each other; the path that its table
+/// gives an asset whose source is elsewhere is a warning.
 ///
 /// Each cooked file is named by a BLAKE3 hash of all that made it: for a texture of an image file,
 /// the cooker's version ([`TEXTURE_COOKER_VERSION`]), the role, the image's ID and bytes; for what
 /// a glTF file gives, the cooker's versions ([`GLTF_COOKER_VERSION`]), the file's ID and bytes, the
 /// bytes of its buffers and the IDs of the image files it names, then the asset's ID; for a scene
 /// file, its cooker's version ([`SCENE_FILE_COOKER_VERSION`]), its ID and its encoding; for a
-/// style sheet or a theme, its kind, its cooker's version ([`STYLE_COOKER_VERSION`]), its ID and
-/// its encoding. A record of each glTF file's import, named by the same hash, holds what it gave.
-/// What is in `output` already under its name, and is whole, is not cooked again; so a second cook
-/// of unchanged sources cooks nothing, and a source moved with its metadata neither. Whole, a
+/// document of the interface, its kind, its cooker's version ([`INTERFACE_COOKER_VERSION`]), its
+/// ID and its encoding. A record of each glTF file's import, named by the same hash, holds what it
+/// gave. What is in `output` already under its name, and is whole, is not cooked again; so a second
+/// cook of unchanged sources cooks nothing, and a source moved with its metadata neither. Whole, a
 /// cooked file is a file that its kind's reader reads, of the size that the record of its import
-/// says for what a glTF file gave, and a scene file's, a style sheet's or a theme's encoding byte
-/// for byte: a cooked file deleted, emptied or cut short is cooked again. Every cooked file reused
-/// is read: a cook of *Hunna Wood*'s zone that changes nothing,
-/// which reads its 248 MB, took 0.23 s in a release build, where it took 0.09 s without the check.
+/// says for what a glTF file gave, and a scene file's or a document of the interface's encoding
+/// byte for byte: a cooked file deleted, emptied or cut short is cooked again. Every cooked file
+/// reused is read: a cook of *Hunna Wood*'s zone that changes nothing, which reads its 248 MB, took
+/// 0.23 s in a release build, where it took 0.09 s without the check.
 /// Damage that leaves a file readable, texels changed, is not found. The same sources cooked into
 /// two empty directories give the same bytes, on one platform.
 ///
@@ -168,8 +173,8 @@ pub enum CookError {
 /// [`CookError::Scan`] if `sources` cannot be scanned, [`CookError::SameId`] if two metadata
 /// files hold one ID, [`CookError::Import`] if a glTF file cannot be imported, [`CookError::Image`]
 /// if an image cannot be, [`CookError::Scene`] if a scene file cannot be, by its line,
-/// [`CookError::Style`] if a style sheet or a theme cannot be, by its line, and [`CookError::Io`]
-/// if a file cannot be read or written. Files cooked before the error stay.
+/// [`CookError::Interface`] if a document of the interface cannot be, by its line, and
+/// [`CookError::Io`] if a file cannot be read or written. Files cooked before the error stay.
 pub fn cook(sources: &Path, output: &Path) -> Result<Cooked, CookError> {
     let scan = scan::scan(sources, Mode::GiveIds)?;
     let mut result = Cooked::default();
@@ -199,9 +204,14 @@ pub fn cook(sources: &Path, output: &Path) -> Result<Cooked, CookError> {
     let scene_files = read_scene_files(&scan.sources, sources)?;
     for source in &scan.sources {
         if ImageKind::from_extension(extension(&source.path)).is_some()
-            || [SCENE_EXTENSION, STYLE_SHEET_EXTENSION, THEME_EXTENSION]
-                .iter()
-                .any(|known| extension(&source.path).eq_ignore_ascii_case(known))
+            || [
+                SCENE_EXTENSION,
+                STYLE_SHEET_EXTENSION,
+                THEME_EXTENSION,
+                SHORTCUTS_EXTENSION,
+            ]
+            .iter()
+            .any(|known| extension(&source.path).eq_ignore_ascii_case(known))
         {
             continue;
         }
@@ -243,7 +253,7 @@ pub fn cook(sources: &Path, output: &Path) -> Result<Cooked, CookError> {
         }
     }
     scene_files.cook(sources, output, &mut manifest, &mut result)?;
-    cook_styles(&scan.sources, sources, output, &mut manifest, &mut result)?;
+    cook_interface_documents(&scan.sources, sources, output, &mut manifest, &mut result)?;
     let path = output.join(MANIFEST_FILE);
     let bytes = manifest.to_bytes();
     if read_output(&path, None).as_deref() != Some(bytes.as_slice()) {
@@ -611,10 +621,11 @@ fn read_output(path: &Path, size: Option<u64>) -> Option<Vec<u8>> {
 /// lines of those placements, and how many of them the walk took.
 type Step = (AssetId, Vec<(AssetId, usize)>, usize);
 
-/// Cooks each style sheet and theme among `sources`, inside `root`, into its document's binary
-/// encoding, of the kind [`AssetKind::StyleSheet`] or [`AssetKind::Theme`]: its syntax checked, its
-/// types left to `slime-ui`, which reads it, as a scene file's are left to the world.
-fn cook_styles(
+/// Cooks each document of the interface among `sources`, inside `root`, a style sheet, a theme or
+/// a table of shortcuts, into its binary encoding, of the kind [`AssetKind::StyleSheet`],
+/// [`AssetKind::Theme`] or [`AssetKind::Shortcuts`]: its syntax checked, its types left to
+/// `slime-ui`, which reads it, as a scene file's are left to the world.
+fn cook_interface_documents(
     sources: &[Source],
     root: &Path,
     output: &Path,
@@ -627,10 +638,12 @@ fn cook_styles(
             (AssetKind::StyleSheet, STYLE_SHEET_EXTENSION)
         } else if found.eq_ignore_ascii_case(THEME_EXTENSION) {
             (AssetKind::Theme, THEME_EXTENSION)
+        } else if found.eq_ignore_ascii_case(SHORTCUTS_EXTENSION) {
+            (AssetKind::Shortcuts, SHORTCUTS_EXTENSION)
         } else {
             continue;
         };
-        let refuse = |reason: String| CookError::Style {
+        let refuse = |reason: String| CookError::Interface {
             path: source.path.clone(),
             reason,
         };
@@ -639,7 +652,7 @@ fn cook_styles(
         let bytes = slime_serialize::encode(&text).map_err(|error| refuse(error.to_string()))?;
         let mut hasher = blake3::Hasher::new();
         hasher.update(kind.name().as_bytes());
-        hasher.update(&STYLE_COOKER_VERSION.to_le_bytes());
+        hasher.update(&INTERFACE_COOKER_VERSION.to_le_bytes());
         hasher.update(&source.id.as_u128().to_le_bytes());
         hasher.update(&bytes);
         let file = format!("{}.{made}", hasher.finalize().to_hex());
