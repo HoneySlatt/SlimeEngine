@@ -587,7 +587,11 @@ Risks:
   found a rule's shadow given in part, which `Ui::set_style` took and a frame then panicked on; a
   change of a border's width that did not cut what scrolls inside anew; a number given by a name
   outside its field's range; an entry of a style sheet that is not a rule taken as an empty one; and
-  stale passages: each is fixed, and tested where a test can.
+  stale passages: each is fixed, and tested where a test can. CI is green on f374415. Its run cooked
+  the zone again in each job, the cooker's sources having changed: `check (headless)` took 14
+  minutes 19 seconds, `check (windowed)` 20 minutes 40 seconds, past the limit of 20, `windows` 15
+  minutes 46 seconds and `windows-release` 13 minutes 28 seconds; `check (windowed)`, run again with
+  its caches warm, took 18 minutes 34 seconds.
 
 ### M6b.5 — Input, focus, and what agents see
 
@@ -1479,7 +1483,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   zone again in each job. At M6b.2, that took the `windows` and `check (windowed)` jobs past their
   limit of 20 minutes, by under a minute, on the first run, at M6b.3a, `check (windowed)` by 3
   minutes, and at M6b.3b by under a minute; at M6b.4a, `windows` came within half a minute of it. A
-  key of the cooker's own dependencies would avoid it.
+  key of the cooker's own dependencies would avoid it. At M6b.4b, the cooker's own sources changed,
+  and `check (windowed)` passed the limit by 40 seconds; its caches warm, it takes 18 and a half
+  minutes, near the limit: the runs it holds grow with each milestone.
 - **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)): a frame walks every
   element of its roots, to find what to draw again and to gather the display list, even when
   nothing changed. A list shows the rows of a new range one frame late, when it first shows or when
