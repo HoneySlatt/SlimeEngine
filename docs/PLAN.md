@@ -697,7 +697,10 @@ Risks:
   `tests/interface.rs`, run by `scripts/check.sh` in a headless Weston, an agent's session finds a
   button of the example's bar by its role and its name, presses it, reads the count in the world,
   captures the button and finds it again at a pixel, moves the focus, sees an action refused, and
-  opens and closes the dialog.
+  opens and closes the dialog. CI is green on b39c70e. Its run cooked the zone again in each job,
+  `Cargo.lock` having changed: `check (headless)` took 14 minutes 4 seconds, `check (windowed)` 20
+  minutes 28 seconds and `windows` 20 minutes 51 seconds, both past the limit of 20, and
+  `windows-release` 17 minutes 45 seconds.
 
 ### M6b.6 — Text edited, and what the platform lacks
 
@@ -1573,7 +1576,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   key of the cooker's own dependencies would avoid it. At M6b.4b, the cooker's own sources changed,
   and `check (windowed)` passed the limit by 40 seconds; its caches warm, it takes 18 and a half
   minutes, near the limit: the runs it holds grow with each milestone. At M6b.5a, the cooker's
-  sources changed again, and `check (windowed)` took 18 minutes 45 seconds.
+  sources changed again, and `check (windowed)` took 18 minutes 45 seconds. At M6b.5b, `Cargo.lock`
+  changed, which the key holds whole, and with the agent's session on the interface, `check
+  (windowed)` took 20 minutes 28 seconds and `windows` 20 minutes 51 seconds.
 - **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)): a frame walks every
   element of its roots, to find what to draw again and to gather the display list, even when
   nothing changed. A list shows the rows of a new range one frame late, when it first shows or when
