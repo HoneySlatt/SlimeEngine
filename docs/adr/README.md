@@ -172,7 +172,7 @@ the ADR linking to it.
 | [0101](0101-saves-and-identities-that-never-mislead.md) | Saves and identities that never mislead | Accepted; amended by 0109, 0112, 0124 and 0125 |
 | [0102](0102-a-damaged-file-gives-an-error.md) | A damaged file gives an error, never a crash | Accepted |
 | [0103](0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) | A lost GPU device is recovered wherever the loss is found | Accepted |
-| [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted; amended by 0114 and 0123 |
+| [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted; amended by 0114, 0123 and 0144 |
 | [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Accepted; amended by 0132 |
 | [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted; amended by 0117 and 0126 |
 | [0107](0107-the-execution-model.md) | The execution model | Accepted; amended by 0118 and 0121 |
@@ -212,3 +212,4 @@ the ADR linking to it.
 | [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted |
 | [0142](0142-input-and-focus.md) | Input and focus | Accepted |
 | [0143](0143-what-agents-see-of-the-interface.md) | What agents see of the interface | Accepted |
+| [0144](0144-the-cooked-zones-key-in-ci.md) | The cooked zone's key in CI | Accepted |

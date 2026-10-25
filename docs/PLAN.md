@@ -1567,18 +1567,19 @@ GitHub issues, linked from their entry; this list stays the reference.
   first version alone. A word wider than its box, on a line before the last one shown, overflows the
   box rather than being cut. The cache's memory is an estimate fitted once to a measurement, of
   texts not cut; a hit copies its key; and fonts registered are never let go.
-- **CI cooks the zone again whenever the lock or the workspace's manifest changes**: the cache of
-  the cooked zone is keyed by the whole `Cargo.lock` and root `Cargo.toml`, among the cooker's
-  sources, so a milestone that adds a dependency, even one that the cooker does not use, cooks the
-  zone again in each job. At M6b.2, that took the `windows` and `check (windowed)` jobs past their
-  limit of 20 minutes, by under a minute, on the first run, at M6b.3a, `check (windowed)` by 3
-  minutes, and at M6b.3b by under a minute; at M6b.4a, `windows` came within half a minute of it. A
-  key of the cooker's own dependencies would avoid it. At M6b.4b, the cooker's own sources changed,
-  and `check (windowed)` passed the limit by 40 seconds; its caches warm, it takes 18 and a half
-  minutes, near the limit: the runs it holds grow with each milestone. At M6b.5a, the cooker's
-  sources changed again, and `check (windowed)` took 18 minutes 45 seconds. At M6b.5b, `Cargo.lock`
-  changed, which the key holds whole, and with the agent's session on the interface, `check
-  (windowed)` took 20 minutes 28 seconds and `windows` 20 minutes 51 seconds.
+- **CI's jobs near their limit of 20 minutes**: until ADR-0144, the cache of the cooked zone was
+  keyed by the whole `Cargo.lock` and root `Cargo.toml`, so a milestone that added a dependency,
+  even one that the cooker does not use, cooked the zone again in each job. At M6b.2, that took the
+  `windows` and `check (windowed)` jobs past their limit by under a minute, on the first run, at
+  M6b.3a, `check (windowed)` by 3 minutes, and at M6b.3b by under a minute; at M6b.4a, `windows`
+  came within half a minute of it. At M6b.4b, the cooker's own sources changed, and `check
+  (windowed)` passed the limit by 40 seconds; at M6b.5a, they changed again, and it took 18 minutes
+  45 seconds. At M6b.5b, `Cargo.lock` changed, and with the agent's session on the interface,
+  `check (windowed)` took 20 minutes 28 seconds and `windows` 20 minutes 51 seconds.
+  [ADR-0144](adr/0144-the-cooked-zones-key-in-ci.md) keys the cooked zone on the packages that the
+  cooker is built from: a dependency added to another crate no longer cooks it again, but a change
+  of the cooker's sources or of its packages still does. Its caches warm, `check (windowed)` takes
+  some 18 and a half minutes, near the limit: the runs it holds grow with each milestone.
 - **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)): a frame walks every
   element of its roots, to find what to draw again and to gather the display list, even when
   nothing changed. A list shows the rows of a new range one frame late, when it first shows or when
