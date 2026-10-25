@@ -9,10 +9,10 @@ cd "$(dirname "$0")/.."
 
 # The crates of the workspace are named by their versions alone, not by where they lie, which
 # differs from one machine to the next: the key holds their sources apart. A package listed again
-# is marked `(*)`, which the sort makes one line.
+# is marked `(*)`, which the sort makes one line, in the order of bytes whatever the locale.
 digest=$(cargo tree --locked -p slime-cook --edges normal,build,features --prefix none |
     sed -E 's/ \((\*|proc-macro)\)//g; s/ \(([A-Za-z]:)?[\/\\][^)]*\)//' |
-    sort -u |
+    LC_ALL=C sort -u |
     sha256sum |
     cut -c1-32)
 echo "hash=$digest"
