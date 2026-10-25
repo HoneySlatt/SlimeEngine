@@ -132,7 +132,9 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   (`docs/adr/0127-the-settings-of-a-view.md`), and `reports`, the named values, as described, that
   it gives tools, an asset cache's and its views' statistics
   (`docs/adr/0128-asset-requests.md`), and `pick`, which picks the entity at a pixel of a view for a
-  tool and gives it to a `PickAnswer` once it knows it (`docs/adr/0130-picking.md`);
+  tool and gives it to a `PickAnswer` once it knows it (`docs/adr/0130-picking.md`), and `ui`,
+  its interface, if it has one, which a tool reads, acts on and captures element by element
+  (`docs/adr/0143-what-agents-see-of-the-interface.md`);
   `gpu_lost` and `gpu_restored` when the run replaces a lost GPU device, which a game asks for with
   `AppConfig::restore_lost_device`: it drops its GPU objects in the first, before the new device
   opens, and creates them again in the second
@@ -253,8 +255,10 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   frame, the requests of the tools that connect with the token: its state, the host's controls, its
   world read and changed through reflection, keys put down and let go, its window's image or the
   part of it that one of its views draws, copied after the frame is drawn and before it is shown,
-  its views' settings read and changed, its reports read and the entity at a pixel of a view picked,
-  through the presentation's `views`, `view_settings`, `set_view_settings`, `reports` and `pick`,
+  its views' settings read and changed, its reports read, the entity at a pixel of a view picked,
+  and the elements of its interface listed by role and name, found at a pixel, acted on as a
+  person's input acts and captured, through the presentation's `views`, `view_settings`,
+  `set_view_settings`, `reports`, `pick` and `ui`,
   the last lines of its log (`slime_channel::MAX_LOG_LINES`), which only such a run keeps, and its
   run saved to a file and loaded from one, by the simulation's `save` and `load`, and an editor's
   requests, by the simulation's `edit`. Without a token,
@@ -288,6 +292,8 @@ the name the graphics API gives it.
 - `slime-world`: the game's world, which it owns, and its commands.
 - `slime-reflect`: the settings and the reports of a presentation, described to the tools that
   read and change them; the world depends on it in every build.
+- `slime-ui`: the interface that a presentation gives, which the development channel reads and
+  acts on; it needs no window nor GPU.
 - `slime-channel` and `slime-serialize`, with the `development` feature only: the development
   channel, and the documents through which it reads and writes values as text.
 - `thiserror`: derives `RunError`'s `Display` and `Error` implementations.

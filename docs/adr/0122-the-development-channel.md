@@ -12,8 +12,9 @@
   the protocol: a view's settings read and changed), [0128](0128-asset-requests.md) (version 5 of
   the protocol: a game's reports), [0130](0130-picking.md) (version 6 of the protocol: a picking),
   [0134](0134-the-editors-core.md) (version 7 of the protocol: the editor's requests; a reference to
-  an entity written `""` read as no entity) and [0135](0135-the-editors-program.md) (version 7 of
-  the protocol, as built)
+  an entity written `""` read as no entity), [0135](0135-the-editors-program.md) (version 7 of the
+  protocol, as built) and [0143](0143-what-agents-see-of-the-interface.md) (version 8 of the
+  protocol: an interface read, acted on and captured)
 - Date: 2026-10-21
 
 ## Context

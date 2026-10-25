@@ -231,7 +231,8 @@ a *shadow map* is read. Depths are reversed (*reversed depth*).
 server, tests, and from Stage 6c the editor. A game started with a *token* in its environment
 listens on the machine's own address; through it, a tool pauses, steps and reads the game, changes
 its world, plays it with keys, captures its image or one of its views, reads and changes its views'
-settings, reads its *reports*, picks the entity at a pixel, and saves and loads its run
+settings, reads its *reports*, picks the entity at a pixel, reads and uses its interface element by
+element ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)), and saves and loads its run
 (`slime-channel`,
 [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md),
 [ADR-0122](adr/0122-the-development-channel.md)). The *editor's program* listens the same way, and
@@ -566,8 +567,9 @@ that holds steps that the level's file does not, which a crash or a stop without
 ([ADR-0135](adr/0135-the-editors-program.md)).
 
 **Key (element).** What names an *element* among its siblings, a name or a number, given by the code
-that builds it (`slime_ui::tree::Key`); the keys from below its *root* down to it are its path,
-which names it for agents, tests and saved layouts ([ADR-0140](adr/0140-the-tree-of-elements.md)).
+that builds it (`slime_ui::tree::Key`); the keys from below its *root* down to it, after the root's
+number, make its *path (element)*, which names it for agents, tests and saved layouts
+([ADR-0140](adr/0140-the-tree-of-elements.md)).
 
 **Kind (material).** A way of lighting a surface that the renderer knows by registration: its
 shaders, its parameters described by reflection, and the passes it draws in. The physically based
@@ -660,6 +662,11 @@ Code and Codex, call the tools of other programs. The engine's own server, `slim
 drive a running game through its *development channel*; the editor's commands join it at Stage 6b
 ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md),
 [ADR-0122](adr/0122-the-development-channel.md)).
+
+**Meaning (interface).** What an interface's tree says to whoever reads it without seeing it, an
+agent and later a screen reader: each element that a person reads or uses, its *role*, its name, its
+states, the actions it takes now, where it shows and its *path*; made when asked (`Ui::meaning`,
+[ADR-0143](adr/0143-what-agents-see-of-the-interface.md)).
 
 **Mesh.** Triangles given as vertices (a position, a normal, texture coordinates and a *tangent*
 each) and indices, uploaded to the GPU into a *page* (`slime_render::Mesh`, from `MeshData`).
@@ -777,6 +784,10 @@ at any depth, its tuples, lists and options whole: what changed of a value, as a
 features, such as the audit pass and the foundations pass before Stage 6
 ([ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md)), not a render
 pass.
+
+**Path (element).** What names an element of an interface from one frame to the next: the number of
+its root, then the keys from its root down to it, written `#0/bar/open`, a number after `#`
+(`Ui::path_text`, [ADR-0143](adr/0143-what-agents-see-of-the-interface.md)). Not a *property path*.
 
 **Percentage-closer filtering (PCF).** Reading a *shadow map* by comparing a point's depth with
 several stored depths around it and averaging the results, so that the edges of shadows are soft
@@ -986,6 +997,10 @@ depth, and a *depth bias* is negative.
 **Revision (interface).** A number that the code building a panel of an interface reads and moves
 when what the panel shows changes: `Ui::build` runs the builder only when it moved
 ([ADR-0140](adr/0140-the-tree-of-elements.md)).
+
+**Role (interface).** What an element is to whoever reads the interface without seeing it, named as
+AccessKit names roles: `Button`, `Label`, `List`, `ListItem`, `Dialog`; given by its kind, or by its
+builder (`slime_ui::tree::Role`, [ADR-0143](adr/0143-what-agents-see-of-the-interface.md)).
 
 **Root (interface).** A surface that an interface lays its *elements* out on, a window or any
 target, with its size in *logical pixels*, its scale and the direction of its lines

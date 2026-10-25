@@ -43,8 +43,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   M6b.4 was cut in two at the end of its first part ([ADR-0140](adr/0140-the-tree-of-elements.md)):
   M6b.4a, the tree of elements and their layout, and M6b.4b, style sheets and themes
   ([ADR-0141](adr/0141-style-sheets-and-themes.md)), are done. M6b.5 was cut in two at its start:
-  M6b.5a, input and focus ([ADR-0142](adr/0142-input-and-focus.md)), is done. Next: M6b.5b, what
-  agents see.
+  M6b.5a, input and focus ([ADR-0142](adr/0142-input-and-focus.md)), and M6b.5b, what agents see
+  ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)), are done. Next: M6b.6, text edited,
+  and what the platform lacks.
 
 ## Status
 
@@ -58,7 +59,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.4a](#m6b4a--elements-and-layout) | An interface is a tree of elements, laid out by flexbox and grid, and built again only where what it shows changed | Done |
 | [M6b.4b](#m6b4b--style-sheets-and-themes) | Themes read from files style an interface, and a theme changed on disk restyles it while it runs | Done |
 | [M6b.5a](#m6b5a--input-and-focus) | A person uses the interface with the pointer and the keyboard, and the program reads what they did as actions, which an agent can send as well | Done |
-| [M6b.5b](#m6b5b--what-agents-see) | An agent reads what the interface shows, and uses it through the same actions as a person | Planned |
+| [M6b.5b](#m6b5b--what-agents-see) | An agent reads what the interface shows, and uses it through the same actions as a person | Done |
 | [M6b.6](#m6b6--text-edited-and-what-the-platform-lacks) | Text is typed, selected, copied and composed in every writing system, and screen readers read the interface | Planned |
 | [M6b.7](#m6b7--widgets-and-layers) | The framework has the widgets that the dev overlay and the editor are made of | Planned |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
@@ -671,6 +672,32 @@ Risks:
   world, and captures the element; CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-app -p slime-channel`; the MCP server's session
   test.
+- **Outcome.** Done on 2026-10-25. [ADR-0143](adr/0143-what-agents-see-of-the-interface.md)
+  records the owner's decisions of that day: `slime-app` reads the presentation's interface and
+  answers the tools itself; the `interface` example is the program that an agent's session drives;
+  the roles are an enum of the engine's own, under AccessKit's names; and the meaning is made when
+  asked, the mark of the meaning that changed coming with the screen readers' adapter. `slime-ui`
+  gains the tree's meaning (`Ui::meaning`, `Ui::meaning_of`, `Ui::meaning_at`), the roles
+  (`Role`), what an agent can do to an element (`ElementAction`), an element's role and name
+  (`Element::role`, `Element::named`) and its path as text (`Ui::path_text`,
+  `Ui::element_by_path`). `slime-app` depends on `slime-ui`: a presentation gives its interface
+  (`Presentation::ui`), and the development channel lists its elements by role and name, finds the
+  one at a pixel, acts on one and captures one. The protocol, version 8, gains `Request::Elements`,
+  `Request::ElementAt`, `Request::Act` and `Request::CaptureElement`, and the MCP server the tools
+  `find_elements`, `element_at`, `act_on_interface` and `capture_element`. The example `interface`
+  gives its interface, names its bar and its dialog, and counts the presses of its bar's buttons in
+  a component of its world, `Presses`, through the commands that its presentation sends. Elements
+  have no value yet: none holds one that changes. The tests: in `slime-ui`'s `tests/meaning.rs`, the
+  role, name, actions, bounds and path of each element that means something, the boxes that only
+  lay others out and a hidden button left out, the rows of a list, a disabled button that takes
+  nothing, a card cut by the box that scrolls it; an element found by its path and at a pixel, those
+  below a modal root taking nothing; a name changed drawing nothing again. In `slime-app`, the
+  channel's answers read an interface and act on it, refusing what an element does not take; in
+  `slime-channel`, the new messages come back from their encoding. In `slime-mcp`'s
+  `tests/interface.rs`, run by `scripts/check.sh` in a headless Weston, an agent's session finds a
+  button of the example's bar by its role and its name, presses it, reads the count in the world,
+  captures the button and finds it again at a pixel, moves the focus, sees an action refused, and
+  opens and closes the dialog.
 
 ### M6b.6 — Text edited, and what the platform lacks
 
@@ -685,7 +712,9 @@ Risks:
   of AccessKit, behind an `accessibility` feature, built into the editor and the examples and left
   out of games until Stage 7; the adapter exists before its window is shown, which changes how
   `slime-platform` makes windows. The dependencies arboard, accesskit and accesskit_winit; CI timed
-  with the feature built. The ADR of the design.
+  with the feature built. From ADR-0143: an element's value, which the fields are the first to hold,
+  in the tree's meaning and in what agents read; and the mark of the meaning that changed, so that
+  the adapter sends AccessKit only what changed. The ADR of the design.
 - **Done when.** Tests without a GPU, with input methods and a clipboard simulated: text selected by
   the keys and the pointer, moves by word in text of both directions, the field's undo, a
   composition started, changed and committed, text copied and pasted, a field of numbers that the
@@ -1563,6 +1592,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   the key's place, and a chord of a digit or a sign by its meaning alone. The example `interface`
   scrolls its list with time, which the wheel does not move. Input methods and touch come with
   M6b.6 and later.
+- **What agents see** ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)): a tool reads an
+  interface only in a windowed run, from its last frame, and each ask walks the whole tree. Elements
+  hold no value yet. A path holds while the roots below its own stay, and a key's name that holds
+  `/`, or that `#` and digits make, cannot be read back from one. A row of a list is found by its
+  number, the names of its texts not gathered into its own. Games link `slime-ui` through
+  `slime-app`, whether they have an interface or not.
 - **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md)): a theme's value
   names no other, and a field of the type `String` takes no named value. An error of type in a
   cooked style sheet or theme is placed by its byte and the path of its part, not by its line. The

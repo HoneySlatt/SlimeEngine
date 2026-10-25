@@ -10,11 +10,11 @@ through which coding agents, Claude Code and Codex among them, call the tools of
 One game at a time, driven through its development channel (`slime-channel`): started, paused,
 stepped, its speed set, its world read and changed, its keys put down and let go, its image
 captured, the settings of its views changed, its reports read, the entity at a pixel picked, its
-log and its frames' times read,
-its run saved and loaded, stopped. An editor too, started as a game is, its level edited through
-steps of commands, undone and redone, its history and journal read, its selection set and its
-level written back (`docs/adr/0135-the-editors-program.md`). Assets cooked and tests run. No mouse
-in scripted input yet.
+interface read and used, its log and its frames' times read, its run saved and loaded, stopped. An
+editor too, started as a game is, its level edited through steps of commands, undone and redone,
+its history and journal read, its selection set and its level written back
+(`docs/adr/0135-the-editors-program.md`). Assets cooked and tests run. No mouse in scripted input
+yet: an interface is used through its elements' actions.
 
 ## Role
 
@@ -73,6 +73,13 @@ The tools, each described to the agent by the server itself, with its parameters
 - `pick`: the entity drawn at a pixel of the game's image, or of one of its views, counted as in
   the image that `capture` gives, by its persistent identity and name, or nothing; the game picks it
   on the GPU, exactly as it draws it, a frame or more later (`docs/adr/0130-picking.md`).
+- `find_elements`, `element_at`, `act_on_interface` and `capture_element`: the game's interface, as
+  its last frame left it (`docs/adr/0143-what-agents-see-of-the-interface.md`). `find_elements`
+  lists its elements of a role, `Button`, and whose names hold a text, each by its path, which names
+  it to the other tools, its role, name and states, where it shows, and what it takes now;
+  `element_at` names the one at a pixel of the image that `capture` gives; `act_on_interface`
+  presses, focuses or scrolls one, or moves the focus, accepts, cancels or gives a command, as keys
+  do; `capture_element` gives the part of the image where one shows.
 - `read_logs`: the lines of the game's log after a given line.
 - `save_game` and `load_game`: the game's run saved to a file, and loaded from one in place of the
   run, as the game saves and resumes its own runs; a file of the agent's, never the player's save.
@@ -91,12 +98,15 @@ and reads its log. It needs a Wayland
 compositor and the game's zone cooked: `scripts/check.sh` runs it in a headless Weston.
 `tests/views.rs` starts the `world` example, which draws the yard and a map in a corner, captures
 the whole image and each view, shows the map's normals, reads the example's reports, and picks the
-entity at a pixel of the map; it needs
-the examples' assets cooked, in the directory that its first argument names, and `scripts/check.sh`
-runs it there too. `tests/edit.rs` starts the `editor` example on a copy of the yard, writes it
-back unchanged, makes steps, undoes and redoes them, writes the level, finds again, as the editor
-starts again, what it did not write, and, the level written, opens it from its file; it needs no
-compositor, the examples' assets cooked. `tests/edit_zone.rs` starts `hunnawood-editor` on a copy
+entity at a pixel of the map; it needs the examples' assets cooked, in the directory that its first
+argument names, and `scripts/check.sh` runs it there too. `tests/interface.rs` starts the
+`interface` example, finds a button of its bar by its role and its name, presses it, reads in the
+world the count that the press changed, captures the button and finds it at a pixel, moves the
+focus, and opens and closes the dialog; it needs what `tests/views.rs` needs, and runs beside it.
+`tests/edit.rs` starts the `editor` example on a copy of the yard, writes it back unchanged, makes
+steps, undoes and redoes them, writes the level, finds again, as the editor starts again, what it
+did not write, and, the level written, opens it from its file; it needs no compositor, the
+examples' assets cooked. `tests/edit_zone.rs` starts `hunnawood-editor` on a copy
 of *Hunna Wood*'s zone, changes one of the game's components, creates an entity that holds
 another, undoes, redoes and writes the zone; it needs the zone cooked, and `scripts/check.sh` runs
 it with the tests that read the zone.

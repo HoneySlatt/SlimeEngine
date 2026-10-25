@@ -230,13 +230,15 @@ listens on the machine's own address for the tools that drive it; started withou
 The engine's MCP server, `slime-mcp`, starts a game so, and gives an agent the tools to pause and
 step it, read and change its world, play it with keys, save and load its run to files of the agent's
 own, capture its image or one of its views, change how a view draws, pick the entity at a pixel,
-read its reports and its log; its [README](crates/slime-mcp/README.md) says how to give it to an
-agent. The game opens its window on the display that the server's environment names: to keep it off
-your desktop, give the server the environment of a headless Weston, `XDG_RUNTIME_DIR` and
-`WAYLAND_DISPLAY`, with `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"` so that lavapipe draws it, as
-`scripts/check.sh` runs the server's test. The editor's program is driven the same way: the server
-starts it with `start_game`, as a game, on a copy of a level and with a journal of the agent's
-(`--level`, `--journal`), and its editor's tools edit the level; it has no window.
+read its reports and its log, and read and use its interface element by element
+([ADR-0143](docs/adr/0143-what-agents-see-of-the-interface.md)); its
+[README](crates/slime-mcp/README.md) says how to give it to an agent. The game opens its window on
+the display that the server's environment names: to keep it off your desktop, give the server the
+environment of a headless Weston, `XDG_RUNTIME_DIR` and `WAYLAND_DISPLAY`, with
+`VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"` so that lavapipe draws it, as `scripts/check.sh` runs the
+server's test. The editor's program is driven the same way: the server starts it with `start_game`,
+as a game, on a copy of a level and with a journal of the agent's (`--level`, `--journal`), and its
+editor's tools edit the level; it has no window.
 
 A build for shipping leaves the channel out: name the game alone, without its default features,
 `cargo build --release -p hunnawood --no-default-features`. A build of the whole workspace turns
@@ -286,16 +288,17 @@ needs network access), the list of the sample game's source assets (`scripts/fet
 sample game's zone fetched and cooked, the tests that read it, *Hunna Wood*'s editor's included, and
 an agent's session through the MCP server that edits a copy of the zone with that editor, the
 samples with no display server available, and an agent's session that edits a copy of the examples'
-yard with the `editor` example, the windowed samples, the `world` example's two views captured, the
-map's normals shown, its reports read and an entity picked at a pixel, by an agent's session through
-the MCP server, the `scene` example on a copy of the cooked sample with one byte changed, which must
-end with an error and not a panic, the game (its new runs, one resumed from a copy of its save
-fixture, and one driven by an agent's session through the MCP server, their saves kept apart from
-the user's) and the windowed lifecycle test inside a headless Weston compositor (and that test's
-resize and oversize scenarios in a second one, at scale 2), the game built for shipping, which must
-hold no development channel, and `lychee` (links between Markdown files). The individual commands
-are listed in [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of
-them.
+yard with the `editor` example, the windowed samples, the `interface` example's interface used by
+an agent's session through the MCP server, which presses a button that changes its world, the
+`world` example's two views captured, the map's normals shown, its reports read and an entity
+picked at a pixel, by an agent's session through the MCP server, the `scene` example on a copy of
+the cooked sample with one byte changed, which must end with an error and not a panic, the game
+(its new runs, one resumed from a copy of its save fixture, and one driven by an agent's session
+through the MCP server, their saves kept apart from the user's) and the windowed lifecycle test
+inside a headless Weston compositor (and that test's resize and oversize scenarios in a second one,
+at scale 2), the game built for shipping, which must hold no development channel, and `lychee`
+(links between Markdown files). The individual commands are listed in
+[`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
 
 The script also runs clippy for the Windows target, which catches code that does not compile on
 Windows without a Windows machine.

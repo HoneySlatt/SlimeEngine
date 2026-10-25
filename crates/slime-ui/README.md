@@ -5,9 +5,10 @@ SlimeEngine's UI framework, for the editor and for the interface of games
 leaves it as data. Today it holds its text (`docs/adr/0136-the-interfaces-text.md`), its display
 list (`docs/adr/0139-text-drawn-and-the-display-list.md`), the tree of elements, their typed styles
 and their layout (`docs/adr/0140-the-tree-of-elements.md`), and the style sheets and themes that
-style them (`docs/adr/0141-style-sheets-and-themes.md`), and the input and the focus
-(`docs/adr/0142-input-and-focus.md`); the tree's meaning comes with the next milestone of Stage 6b
-(`docs/PLAN.md`).
+style them (`docs/adr/0141-style-sheets-and-themes.md`), the input and the focus
+(`docs/adr/0142-input-and-focus.md`), and what the tree means to agents
+(`docs/adr/0143-what-agents-see-of-the-interface.md`); text edited and screen readers come with the
+next milestone of Stage 6b (`docs/PLAN.md`).
 
 ## Role
 
@@ -32,6 +33,11 @@ style them (`docs/adr/0141-style-sheets-and-themes.md`), and the input and the f
 - `shortcuts::Shortcuts` is a table of shortcuts, read from a document: chords of the keys' meaning
   that name commands, in scopes, the classes of the elements around the focus; `Ui::set_shortcuts`
   takes them. Its errors and the style sheets' are a `DocumentError`.
+- `Ui::meaning` says what the tree means, made when asked: each element drawn that means
+  something, its `tree::Role`, named as AccessKit names roles, its name, its states, the
+  `tree::ElementAction`s that an agent can do to it now, the part of it that shows and its path,
+  `#0/bar/open`, which `Ui::element_by_path` reads back. A box that only lays others out means
+  nothing; a builder gives an element its role and its name (`Element::role`, `Element::named`).
 - `style::Style` is an element's style, typed, in logical pixels: its layout, CSS's flexbox and
   grid properties with start and end sides, its paint, a box's fill, border, corners and shadow,
   and its text, reflected, so that style sheets set its parts.

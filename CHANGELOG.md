@@ -8,6 +8,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- What agents see of the interface (ADR-0143): `Ui::meaning` gives, when asked, each element that
+  means something, its role (`slime_ui::tree::Role`, named as AccessKit names roles), its name, its
+  states, what can be done to it now (`ElementAction`), where it shows and its path, `#0/bar/open`
+  (`Ui::path_text`, `Ui::element_by_path`); `Ui::meaning_at` finds it at a pixel, and a builder
+  gives an element its role and its name (`Element::role`, `Element::named`). A presentation gives
+  its interface (`Presentation::ui`), which the development channel reads, acts on and captures,
+  and the MCP server's tools `find_elements`, `element_at`, `act_on_interface` and
+  `capture_element` give agents. The example `interface` counts the presses of its bar's buttons in
+  its world, through commands.
 - Input and focus for the interface (ADR-0142): `Ui` takes a person's input, the pointer, the
   wheel, the modifiers and the keys, and turns it into actions (`slime_ui::action`), a button
   pressed, an intent of navigation, the command of a shortcut, which the program reads from a queue
@@ -78,8 +87,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   what the journal holds that the level's file does not, as a crash or a stop without writing
   leaves it, and answers the tools that edit the level through the development channel. The
   example `editor` runs it on the examples' yard, and `games/hunnawood-editor`, *Hunna Wood*'s
-  editor package, on the game's zone. The development channel's protocol is at version 7, with the
-  editor's requests (`Request::Edit`); the MCP server gains `edit`, `undo`, `redo`, `select`,
+  editor package, on the game's zone. The development channel's protocol gains the editor's
+  requests (`Request::Edit`); the MCP server gains `edit`, `undo`, `redo`, `select`,
   `editor_history`, `editor_journal` and `write_level`.
 - `Simulation::apply`, through which a host applies the commands that it receives, and
   `Simulation::edit`, which answers an editor's requests; `AppConfig::pace_headless`, which paces a
@@ -111,6 +120,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- The development channel's protocol is at version 8, with the editor's and the interface's
+  requests. `slime-app` depends on `slime-ui`, and `slime_ui::tree::Element` gains `role` and
+  `name`.
 - `slime-platform`'s input types live in `slime-input`, which it re-exports: their paths through
   `slime-platform` are unchanged. `RootSettings` gains `origin` and `modal`.
   `slime_ui::theme::StyleError` is `slime_ui::DocumentError`, which tables of shortcuts share; the
