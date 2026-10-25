@@ -523,15 +523,18 @@ Risks:
   layouts by flexbox and grid mirrored from right to left, labels measured by their text, elements
   and their states kept by their keys, panels and lists built by their own revision, frames that lay
   out and draw nothing when nothing changed, the list of 100 000 rows, a list in the rows of
-  another, boxes that scroll, from left to right and from right to left, an element whose display
-  is none, a root turned to the other direction, and the display list; in `slime-ui-render`, a tree
+  another, boxes that scroll, from left to right and from right to left, an element whose display is
+  none, a root turned to the other direction, and the display list; in `slime-ui-render`, a tree
   drawn where its layout places it, from left to right and mirrored. A read-only review found a list
   in a slot never asked to build its rows; a list in the rows of another left empty once the other
   scrolled; rows keeping their height when their list's changed; what an element whose display is
   none holds laid out at full size; a root turned to the other direction leaving some corners
   unmirrored; a scale of 0 panicking without a word; scrolled content cut outside its border; a
   row's margins ignored; and smaller defects in the documents: each is fixed, and tested where a
-  test can.
+  test can. CI is green on 25d7343. Its run cooked the zone again in each job, the lock having
+  changed (see the known debt): `check (headless)` took 16 minutes 36 seconds, `check (windowed)` 19
+  minutes 30 seconds, `windows` 19 minutes 35 seconds and `windows-release` 15 minutes 34 seconds,
+  within the limit of 20.
 
 ### M6b.4b — Style sheets and themes
 
@@ -1438,7 +1441,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   sources, so a milestone that adds a dependency, even one that the cooker does not use, cooks the
   zone again in each job. At M6b.2, that took the `windows` and `check (windowed)` jobs past their
   limit of 20 minutes, by under a minute, on the first run, at M6b.3a, `check (windowed)` by 3
-  minutes, and at M6b.3b by under a minute; a key of the cooker's own dependencies would avoid it.
+  minutes, and at M6b.3b by under a minute; at M6b.4a, `windows` came within half a minute of it. A
+  key of the cooker's own dependencies would avoid it.
 - **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)): a frame walks every
   element of its roots, to find what to draw again and to gather the display list, even when
   nothing changed. A list shows the rows of a new range one frame late, when it first shows or when
