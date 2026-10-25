@@ -653,7 +653,8 @@ Risks:
   by hand: `scripts/check.sh` draws it without its dialog. CI is green on f92f23f. Its run cooked
   the zone again in each job, the cooker's sources having changed: `check (headless)` took 16
   minutes 22 seconds, `check (windowed)` 18 minutes 45 seconds, `windows` 15 minutes 2 seconds and
-  `windows-release` 17 minutes 2 seconds.
+  `windows-release` 17 minutes 2 seconds. The owner used the example with the pointer and the
+  keyboard on 2026-10-25, and found it as expected.
 
 ### M6b.5b — What agents see
 
