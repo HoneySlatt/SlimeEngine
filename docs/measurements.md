@@ -1049,12 +1049,12 @@ machine was otherwise idle. The build is not measured.
 | `ui.draw.menu` | canvas on the GPU at 3840 × 2160, median of what 30 frames reported | 199.8 µs |
 | `ui.draw.menu` | glyphs drawn, items, and the atlas's memory at 3840 × 2160 | 2440, 2645, 1 MiB |
 
-## M6b.4, RX 6900 XT
+## M6b.4a, RX 6900 XT
 
 The interface's tree of elements, before its style sheets and themes
 ([ADR-0140](adr/0140-the-tree-of-elements.md)), on 2026-10-24. The benchmarks `ui.tree.editor` and
 `ui.tree.list.100k` are new; they use the CPU alone, an AMD Ryzen 7 5800X. A frame of the list of
-100 000 rows holds the budget that ADR-0140 sets, 0.5 ms at its 90th percentile, scrolled or
+100 000 rows holds the budget that ADR-0140 sets, 0.25 ms at its 90th percentile, scrolled or
 standing still: the frames that build new rows, one in three, are those of that percentile. A tree
 of the editor's size takes 2.4 ms after one value of its inspector changed, its panel built again,
 and 0.28 ms with nothing changed, which gathers the display list from what its elements drew before.

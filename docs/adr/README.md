@@ -208,4 +208,4 @@ the ADR linking to it.
 | [0137](0137-the-canvas.md) | The canvas | Accepted |
 | [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted |
 | [0139](0139-text-drawn-and-the-display-list.md) | Text drawn, and the display list | Accepted |
-| [0140](0140-the-tree-of-elements.md) | The tree of elements | Proposed |
+| [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted |

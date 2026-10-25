@@ -40,9 +40,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0137](adr/0137-the-canvas.md)): M6b.3a, the canvas, and M6b.3b, the text drawn from a
   display list ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)), are done, and the high
   hardware tier now draws at 3840 × 2160 ([ADR-0138](adr/0138-the-high-tier-at-3840-2160.md)).
-  M6b.4 is under way: its tree of elements, their typed styles, their layout and the display list
-  made from them are built ([ADR-0140](adr/0140-the-tree-of-elements.md), proposed to the owner);
-  its style sheets and themes remain.
+  M6b.4 was cut in two at the end of its first part ([ADR-0140](adr/0140-the-tree-of-elements.md)):
+  M6b.4a, the tree of elements and their layout, is done. Next: M6b.4b, style sheets and themes.
 
 ## Status
 
@@ -53,7 +52,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.2](#m6b2--text-in-several-writing-systems) | The engine lays text out in every writing system, without a GPU | Done |
 | [M6b.3a](#m6b3a--the-canvas) | The renderer draws an interface's boxes, shadows and images over any target, within its share of a frame on each tier | Done |
 | [M6b.3b](#m6b3b--text-drawn-and-the-display-list) | The renderer draws an interface's text in every writing system, crisp at every scale, from a display list | Done |
-| [M6b.4](#m6b4--elements-styles-and-layout) | An interface is a tree of elements, styled by themes read from files, laid out by flexbox and grid, and built again only where what it shows changed | In progress |
+| [M6b.4a](#m6b4a--elements-and-layout) | An interface is a tree of elements, laid out by flexbox and grid, and built again only where what it shows changed | Done |
+| [M6b.4b](#m6b4b--style-sheets-and-themes) | Themes read from files style an interface, and a theme changed on disk restyles it while it runs | Planned |
 | [M6b.5](#m6b5--input-focus-and-what-agents-see) | A person and an agent use the interface through the same actions, and an agent reads what it shows | Planned |
 | [M6b.6](#m6b6--text-edited-and-what-the-platform-lacks) | Text is typed, selected, copied and composed in every writing system, and screen readers read the interface | Planned |
 | [M6b.7](#m6b7--widgets-and-layers) | The framework has the widgets that the dev overlay and the editor are made of | Planned |
@@ -70,8 +70,9 @@ of *Hunna Wood* and of the `world` example runs on the engine's UI framework, on
 Windows, its theme read from a file, and the framework draws text in several writing systems; an
 agent reads and drives the overlay's panels through the engine's MCP server, and a screen reader
 reads those of the `world` example; the list of a world of 100 000 entities stays within the budget
-that M6b.4 sets for it; egui is gone. The editor's core changes a level through commands, undone and
-redone, written back and opened again, driven by an agent.
+that M6b.4a sets for it ([ADR-0140](adr/0140-the-tree-of-elements.md)); egui is gone. The editor's
+core changes a level through commands, undone and redone, written back and opened again, driven by
+an agent.
 
 This is the second part of Stage 6 ([ADR-0131](adr/0131-stage-6b-and-stage-6c.md)): the engine's
 UI framework, which [ADR-0098](adr/0098-the-games-the-engine-aims-at.md) makes the engine's own,
@@ -483,55 +484,70 @@ Risks:
   14 minutes 25 seconds and `windows-release` 10 minutes 23 seconds; `check (windowed)`, run again
   with its caches warm, took 17 minutes 33 seconds.
 
-### M6b.4 — Elements, styles and layout
+### M6b.4a — Elements and layout
 
-- **Goal.** An interface is a tree of elements, styled by themes read from files, laid out by
-  flexbox and grid, and built again only where what it shows changed.
-- **Crates.** `slime-ui`, `slime-ui-render`, `slime-cook`, `slime-assets`; the examples and the
-  benchmarks.
+- **Goal.** An interface is a tree of elements, laid out by flexbox and grid, and built again only
+  where what it shows changed.
+- **Crates.** `slime-ui`, `slime-ui-render`; the examples and the benchmarks.
 - **Delivers.** As ADR-0132 decides: the tree of elements, handles of an index and a generation,
   keys among siblings and paths; roots, each with its size, its scale and its direction, that a
-  window or later a texture holds; what changed in each element, its style, layout, paint or
-  meaning; panels built again when a revision that they read moves, matched with the elements before
-  by their keys. Typed styles; style sheets and themes as documents of reflected types, read by
-  `slime-serialize`, with named values that rules share and rules selected by an element's kind,
-  classes, key and states, cooked as scene files are and loaded again when they change
-  ([ADR-0076](adr/0076-hot-reload-of-cooked-data.md)). taffy's flexbox and grid on the framework's
-  tree; start and end rather than left and right. The display list built from what changed.
-  Elements: a box, a label, an image, a button that shows its states, an area that scrolls, a list
-  that builds only the rows that show. The dependency taffy. Benchmarks: a tree of the editor's size
-  laid out, then laid out again after one change, then with nothing changed; a list of 100 000 rows
-  scrolled and standing still. The ADR of the design.
+  window or later a texture holds; what changed in each element, its layout and paint; panels built
+  again when a revision that they read moves, matched with the elements before by their keys. Typed
+  styles. taffy's flexbox and grid on the framework's tree; start and end rather than left and
+  right. The display list built from what changed. Elements: a box, a label, an image, a button that
+  shows its states, an area that scrolls, a list that builds only the rows that show. The dependency
+  taffy. Benchmarks: a tree of the editor's size laid out, then laid out again after one change,
+  then with nothing changed; a list of 100 000 rows scrolled and standing still. The ADR of the
+  design.
 - **Done when.** Tests without a GPU: layouts by flexbox and grid, mirrored from right to left; a
   panel built again keeps the state of its elements by their keys; a test that counts the layouts
   finds none in a frame where nothing changed; the list of 100 000 rows costs per frame what shows
-  (benchmark, within its budget, written in the ADR); a theme changed on disk restyles a running
-  example; image tests; CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-ui-render`; the example, its theme changed while
-  it runs.
-- **Progress.** On 2026-10-24, the tree of elements, without its style sheets and themes:
-  [ADR-0140](adr/0140-the-tree-of-elements.md), proposed to the owner, records its design and the
-  budget of a list's frame, 0.5 ms of the CPU. `slime-ui` gains `tree`, the interface's roots and
-  elements in an arena, built by code when a revision moves and matched by keys, laid out by taffy's
-  flexbox and grid through its traits on the arena, mirrored for a root laid out from right to left,
-  its lists building and laying out only the rows that show, and `style`, its typed styles; the
-  dependency taffy. The example `interface` builds its interface as a tree, its list of 100 000
-  rows, and mirrors it with `--right-to-left`. The benchmarks `ui.tree.editor` and
-  `ui.tree.list.100k`: a frame of the list takes some 0.06 ms scrolled, 0.14 ms at its 90th
-  percentile, when it builds new rows, and 0.003 ms standing still, within the budget; a tree of the
-  editor's size, 12 500 elements, 2.4 ms after one value changed and 0.28 ms with nothing changed
-  ([`docs/measurements.md`](measurements.md), M6b.4). The tests: `slime-ui`'s `tests/tree.rs`,
+  (benchmark, within its budget, written in the ADR); image tests; CI is green.
+- **How to test.** `cargo test -p slime-ui -p slime-ui-render`; `cargo run --example interface`,
+  with `--right-to-left`; `cargo run --release -p slime-benches -- ui.tree`.
+- **By hand.** The owner validates the design and the list's budget.
+- **Outcome.** Done on 2026-10-25. M6b.4 was cut in two at the end of its first part, which grew
+  larger than planned: M6b.4a, the tree, and M6b.4b, its style sheets and themes.
+  [ADR-0140](adr/0140-the-tree-of-elements.md) records the design, which the owner validated on
+  2026-10-25 with a tighter budget for a list's frame than the one proposed, 0.25 ms of the CPU
+  rather than 0.5 ms, and the cut. `slime-ui` gains `tree`, the interface's roots and elements in an
+  arena, built by code when a revision moves and matched by keys, laid out by taffy's flexbox and
+  grid through its traits on the arena, mirrored for a root laid out from right to left, its lists
+  building and laying out only the rows that show, and `style`, its typed styles; the dependency
+  taffy. The example `interface` builds its interface as a tree, its list of 100 000 rows in a slot,
+  and mirrors it with `--right-to-left`. The benchmarks `ui.tree.editor` and `ui.tree.list.100k`: a
+  frame of the list takes some 0.06 ms scrolled, 0.14 ms at its 90th percentile, when it builds new
+  rows, and 0.003 ms standing still, within the budget; a tree of the editor's size, 12 500
+  elements, 2.4 ms after one value changed and 0.28 ms with nothing changed
+  ([`docs/measurements.md`](measurements.md), M6b.4a). The tests: `slime-ui`'s `tests/tree.rs`,
   layouts by flexbox and grid mirrored from right to left, labels measured by their text, elements
-  and their states kept by their keys, panels built by their own revision, frames that lay out and
-  draw nothing when nothing changed, the list of 100 000 rows and a box that scrolls, and the
-  display list; in `slime-ui-render`, a tree drawn where its layout places it, from left to right
-  and mirrored. A read-only review found a list in a slot never asked to build its rows; a list in
-  the rows of another left empty once the other scrolled; rows keeping their height when their
-  list's changed; what an element whose display is none holds laid out at full size; a root turned
-  to the other direction leaving some corners unmirrored; a scale of 0 panicking without a word;
-  scrolled content cut outside its border; a row's margins ignored; and smaller defects in the
-  documents: each is fixed, and tested where a test can. Remain: style sheets and themes, cooked and
-  loaded again when they change, and the example restyled by a theme changed on disk.
+  and their states kept by their keys, panels and lists built by their own revision, frames that lay
+  out and draw nothing when nothing changed, the list of 100 000 rows, a list in the rows of
+  another, boxes that scroll, from left to right and from right to left, an element whose display
+  is none, a root turned to the other direction, and the display list; in `slime-ui-render`, a tree
+  drawn where its layout places it, from left to right and mirrored. A read-only review found a list
+  in a slot never asked to build its rows; a list in the rows of another left empty once the other
+  scrolled; rows keeping their height when their list's changed; what an element whose display is
+  none holds laid out at full size; a root turned to the other direction leaving some corners
+  unmirrored; a scale of 0 panicking without a word; scrolled content cut outside its border; a
+  row's margins ignored; and smaller defects in the documents: each is fixed, and tested where a
+  test can.
+
+### M6b.4b — Style sheets and themes
+
+- **Goal.** Themes read from files style an interface, and a theme changed on disk restyles it while
+  it runs.
+- **Crates.** `slime-ui`, `slime-cook`, `slime-assets`; the examples.
+- **Delivers.** As ADR-0132 decides: style sheets and themes as documents of reflected types, read
+  by `slime-serialize`, with named values that rules share and rules selected by an element's kind,
+  classes, key and states, cooked as scene files are and loaded again when they change
+  ([ADR-0076](adr/0076-hot-reload-of-cooked-data.md)); rules matched again only when an element's
+  classes, state or place change, the mark of its style beside those of its layout and paint
+  ([ADR-0140](adr/0140-the-tree-of-elements.md)). The ADR of the design.
+- **Done when.** Tests without a GPU: rules selected by kind, classes, key and states, and named
+  values shared; a theme read, checked and cooked; an element restyled only when its classes, state
+  or place change. A theme changed on disk restyles a running example; CI is green.
+- **How to test.** `cargo test -p slime-ui`; the example, its theme changed while it runs.
 
 ### M6b.5 — Input, focus, and what agents see
 

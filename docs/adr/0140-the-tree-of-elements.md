@@ -1,6 +1,6 @@
 # 0140. The tree of elements
 
-- Status: Proposed; amends [0132](0132-the-engines-ui-framework.md) (each element carries the marks
+- Status: Accepted; amends [0132](0132-the-engines-ui-framework.md) (each element carries the marks
   of its layout and its paint from this milestone, those of its style and its meaning from the
   milestones that match style sheets and give the tree its meaning)
 - Date: 2026-10-24
@@ -17,11 +17,16 @@ through taffy's traits, so that there is one tree; lists that build only the row
 study measured taffy 0.15 laying out a tree of 12 001 elements in 9.8 ms, then in 0.88 ms after one
 element changed.
 
-M6b.4 builds that tree, its elements, their styles and their layout, and the display list made from
-them; it also delivers style sheets and themes, documents of reflected types, which this ADR does
-not decide. Building the tree raised what ADR-0132 left to it: how a builder gives an element's
-children, how a change spreads, in which unit taffy works, how a root is mirrored, how a list lays
-out its rows, how scrolling places elements again, and what a frame of a large list may cost.
+M6b.4 was to build that tree, its elements, their styles and their layout, and the display list made
+from them, with style sheets and themes, documents of reflected types. Building the tree raised what
+ADR-0132 left to it: how a builder gives an element's children, how a change spreads, in which unit
+taffy works, how a root is mirrored, how a list lays out its rows, how scrolling places elements
+again, and what a frame of a large list may cost.
+
+The owner validated the design below on 2026-10-25, with a tighter budget for a list's frame than
+the one proposed, 0.25 ms rather than 0.5 ms, and cut M6b.4 in two, the tree having grown larger
+than planned: M6b.4a, the tree, which this ADR decides, and M6b.4b, style sheets and themes, which
+it does not.
 
 ## Decision
 
@@ -91,10 +96,10 @@ gathers them in the tree's order, each element before its children, with its cli
 whose display is none, and what it holds, takes no space and draws nothing.
 
 **The list's budget.** A frame of a list of 100 000 rows, scrolled or standing still, takes at most
-0.5 ms of the CPU, at its 90th percentile, which the frames that build new rows reach, on the
-development machine, an AMD Ryzen 7 5800X: as long as the interface's share of the GPU on each tier
-([ADR-0137](0137-the-canvas.md)). `ui.tree.list.100k` measures it
-([`docs/measurements.md`](../measurements.md), M6b.4).
+0.25 ms of the CPU, at its 90th percentile, which the frames that build new rows reach, on the
+development machine, an AMD Ryzen 7 5800X: half the interface's share of the GPU on each tier
+([ADR-0137](0137-the-canvas.md)), as the owner chose. `ui.tree.list.100k` measures it
+([`docs/measurements.md`](../measurements.md), M6b.4a).
 
 ## Alternatives considered
 
@@ -112,6 +117,8 @@ development machine, an AMD Ryzen 7 5800X: as long as the interface's share of t
   the frame that its layout finds them. Builders borrow the program's state; kept, they would have
   to own it. The rows come one frame later, only when a list first shows, or when it scrolls after
   its builder ran.
+- **A list's budget of 0.5 ms**, as long as the interface's share of the GPU, which was proposed.
+  The owner chose half, the stricter one, which the list's frames hold too.
 - **The display list patched where elements changed**, rather than gathered each frame. A frame of
   an editor's tree in which nothing changed, which gathers its 9 000 items, takes 0.28 ms; a list
   patched in place is more code for a cost not yet measured as a problem.
@@ -120,7 +127,7 @@ development machine, an AMD Ryzen 7 5800X: as long as the interface's share of t
 
 - A tree of an editor's size, some 12 500 elements, takes 2.4 ms after one value changed, its
   panel built again, and 0.28 ms with nothing changed; its first frame, which lays out its texts,
-  134 ms ([`docs/measurements.md`](../measurements.md), M6b.4).
+  134 ms ([`docs/measurements.md`](../measurements.md), M6b.4a).
 - A frame walks every element of its roots, to find what to draw again and to gather the display
   list, even when nothing changed.
 - A Latin text in a root laid out from right to left starts at its box's left, as a text's own
