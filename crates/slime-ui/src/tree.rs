@@ -20,8 +20,10 @@ use crate::text::{Fonts, TEXT_CACHE_BUDGET, TextCache};
 use crate::theme::{self, KindName, Rule, StateName, StyleSheet, Theme};
 
 mod interact;
+mod meaning;
 
 use interact::Interaction;
+pub use meaning::{ElementAction, Meaning, Role};
 
 /// An element of a [`Ui`]: the place it holds in the tree's arena, and the generation of that
 /// place, so that the id of an element removed names no other that takes its place.
@@ -156,6 +158,12 @@ pub struct Element {
     pub classes: Vec<String>,
     /// How it is laid out and drawn, over what the rules give.
     pub style: Style,
+    /// What it is to whoever reads the interface without seeing it; `None` for what its kind
+    /// makes it ([`Ui::meaning`]).
+    pub role: Option<Role>,
+    /// Its name to whoever reads the interface without seeing it; `None` for a button's label or a
+    /// text's, or no name.
+    pub name: Option<String>,
 }
 
 impl Element {
@@ -207,6 +215,8 @@ impl Element {
             kind,
             classes: Vec::new(),
             style,
+            role: None,
+            name: None,
         }
     }
 
@@ -214,6 +224,21 @@ impl Element {
     #[must_use]
     pub fn class(mut self, class: impl Into<String>) -> Self {
         self.classes.push(class.into());
+        self
+    }
+
+    /// The element, of the role `role` ([`Ui::meaning`]).
+    #[must_use]
+    pub fn role(mut self, role: Role) -> Self {
+        self.role = Some(role);
+        self
+    }
+
+    /// The element, named `name` for whoever reads the interface without seeing it: a container
+    /// so named means something, a [`Role::Group`] unless it has another role ([`Ui::meaning`]).
+    #[must_use]
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
         self
     }
 }
@@ -1174,8 +1199,12 @@ impl<'a> Children<'a> {
                     let layout = lays_out_again(&node.element, &element);
                     let style = node.element.style != element.style;
                     let classes = node.element.classes != element.classes;
+                    // Its role and its name, which nothing draws, change only what it means.
+                    let drawn = node.element.kind != element.kind || style || classes;
                     node.element = element;
-                    node.changed.paint = true;
+                    if drawn {
+                        node.changed.paint = true;
+                    }
                     if layout {
                         self.ui.mark_layout(id);
                     }

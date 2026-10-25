@@ -358,7 +358,7 @@ impl Ui {
     }
 
     /// Whether `id` lies in a root that no modal root above keeps the focus from.
-    fn in_scope(&self, id: ElementId) -> bool {
+    pub(super) fn in_scope(&self, id: ElementId) -> bool {
         match self.interaction.modals.last() {
             Some(&(modal, _)) => self.root_of(id) == Some(modal),
             None => true,
@@ -366,7 +366,7 @@ impl Ui {
     }
 
     /// Whether `id` can hold the focus: a button, not disabled, drawn, as its ancestors are.
-    fn focusable(&self, id: ElementId) -> bool {
+    pub(super) fn focusable(&self, id: ElementId) -> bool {
         let Some(node) = self.node(id) else {
             return false;
         };

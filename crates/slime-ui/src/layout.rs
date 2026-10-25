@@ -256,7 +256,7 @@ pub(crate) fn within(offset: [f32; 2], kind: &Kind, layout: &Layout, scale: f32)
 }
 
 /// `rect` cut to `clip`, when there is one.
-fn intersect(clip: Option<Rect>, rect: Rect) -> Rect {
+pub(crate) fn intersect(clip: Option<Rect>, rect: Rect) -> Rect {
     let Some(clip) = clip else {
         return rect;
     };
