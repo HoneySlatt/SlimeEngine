@@ -11,14 +11,14 @@ pub use client::{Client, Launched, launch};
 pub use error::ChannelError;
 pub use listener::{Incoming, Listener};
 pub use message::{
-    ComponentText, Edit, EditorHistory, EntitySummary, GameState, Hello, LogLine, Reply, Request,
-    ViewSummary,
+    ComponentText, Edit, EditorHistory, ElementSummary, EntitySummary, GameState, Hello,
+    InterfaceAction, LogLine, Reply, Request, ViewSummary,
 };
 pub use token::Token;
 
 /// The version of the protocol: a tool and a game of other versions refuse each other, rather
 /// than misread each other's messages.
-pub const PROTOCOL_VERSION: u32 = 7;
+pub const PROTOCOL_VERSION: u32 = 8;
 
 /// The environment variable that gives a game its token: a game started without it does not
 /// listen.
@@ -30,6 +30,9 @@ pub const ANNOUNCEMENT: &str = "slime-dev-channel ";
 
 /// The most entities that a [`Reply::Entities`] lists: it counts the others.
 pub const MAX_ENTITIES: usize = 1000;
+
+/// The most elements of an interface that a [`Reply::Elements`] lists: it counts the others.
+pub const MAX_ELEMENTS: usize = 1000;
 
 /// The most lines of its log that a game keeps, the oldest dropped first, and that a
 /// [`Reply::Logs`] holds.

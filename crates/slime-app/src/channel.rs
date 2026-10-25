@@ -7,13 +7,17 @@ use std::sync::{Arc, PoisonError};
 use std::time::Duration;
 
 use slime_channel::{
-    ANNOUNCEMENT, ComponentText, EntitySummary, GameState, Incoming, Listener, LogLine,
-    MAX_ENTITIES, MAX_LOG_LINES, Reply, Request, TOKEN_ENV_VAR, Token, ViewSummary,
+    ANNOUNCEMENT, ComponentText, ElementSummary, EntitySummary, GameState, Incoming,
+    InterfaceAction, Listener, LogLine, MAX_ELEMENTS, MAX_ENTITIES, MAX_LOG_LINES, Reply, Request,
+    TOKEN_ENV_VAR, Token, ViewSummary,
 };
 use slime_gfx::{Gpu, Image, RenderTarget};
 use slime_platform::KeyCode;
 use slime_reflect::{Kind, Path, Registry, Value};
 use slime_serialize::{Composer, Document, Mode};
+use slime_ui::Rect;
+use slime_ui::action::{Action, ActionKind, Intent};
+use slime_ui::tree::{ElementAction, ElementState, Meaning, Ui};
 use slime_world::{Command, Entity, Identities, Name, PersistentId, World};
 
 use crate::game::{PickAnswer, PickSlot, Presentation, Reflected, ShownView, Simulation};
@@ -132,7 +136,11 @@ impl DevChannel {
         }
         self.picks = waiting;
         while let Some(incoming) = self.listener.next() {
-            if matches!(incoming.request(), Request::Capture { .. }) && windowed {
+            if matches!(
+                incoming.request(),
+                Request::Capture { .. } | Request::CaptureElement { .. }
+            ) && windowed
+            {
                 self.captures.push(incoming);
                 continue;
             }
@@ -168,13 +176,16 @@ impl DevChannel {
     }
 
     /// Answers the captures that wait with `target`, the frame's image, drawn and not yet shown, or
-    /// with the part of it that one of `views` draws.
-    pub(crate) fn capture(&mut self, gpu: &Gpu, target: &RenderTarget, views: &[ShownView]) {
+    /// with the part of it that one of `views` draws, or that an element of `ui` shows in.
+    pub(crate) fn capture(
+        &mut self,
+        gpu: &Gpu,
+        target: &RenderTarget,
+        views: &[ShownView],
+        ui: Option<&Ui>,
+    ) {
         let image = gpu.read_render_target(target);
         for incoming in self.captures.drain(..) {
-            let Request::Capture { view } = incoming.request().clone() else {
-                unreachable!("only captures wait for the frame's image");
-            };
             let image = match &image {
                 Ok(image) => image,
                 Err(error) => {
@@ -182,24 +193,36 @@ impl DevChannel {
                     continue;
                 }
             };
-            if view.is_empty() {
-                let reply = Reply::Image {
-                    width: image.width,
-                    height: image.height,
-                };
-                incoming.answer_with(reply, image.pixels.clone());
-            } else if let Some(shown) = views.iter().find(|shown| shown.name == view) {
-                match cropped(image, shown) {
-                    Some((width, height, pixels)) => {
-                        incoming.answer_with(Reply::Image { width, height }, pixels);
-                    }
-                    None => incoming.answer(failed(format!(
-                        "the view `{view}` lies outside the image, of {} × {} pixels",
-                        image.width, image.height
-                    ))),
+            let part = match incoming.request() {
+                Request::Capture { view } if view.is_empty() => {
+                    let reply = Reply::Image {
+                        width: image.width,
+                        height: image.height,
+                    };
+                    incoming.answer_with(reply, image.pixels.clone());
+                    continue;
                 }
-            } else {
-                incoming.answer(failed(no_view(&view, views)));
+                Request::Capture { view } => views
+                    .iter()
+                    .find(|shown| shown.name == *view)
+                    .cloned()
+                    .ok_or_else(|| no_view(view, views)),
+                Request::CaptureElement { element } => shown_element(ui, element),
+                _ => unreachable!("only captures wait for the frame's image"),
+            };
+            let reply = part.and_then(|part| {
+                cropped(image, &part).ok_or_else(|| {
+                    format!(
+                        "`{}` lies outside the image, of {} × {} pixels",
+                        part.name, image.width, image.height
+                    )
+                })
+            });
+            match reply {
+                Ok((width, height, pixels)) => {
+                    incoming.answer_with(Reply::Image { width, height }, pixels);
+                }
+                Err(message) => incoming.answer(failed(message)),
             }
         }
     }
@@ -282,9 +305,25 @@ impl DevChannel {
                 set_view_settings(host.world(), presentation, views, view, path, value)
                     .map_or_else(failed, |()| Reply::Done)
             }
-            Request::Capture { .. } => {
+            Request::Capture { .. } | Request::CaptureElement { .. } => {
                 debug_assert!(!windowed, "a windowed run's capture waits for its image");
                 failed("a run without a window shows no image")
+            }
+            Request::Elements { role, name } => elements(presentation, role, name),
+            Request::ElementAt { x, y } => match presentation.ui() {
+                // The middle of the pixel, as the pointer would be there.
+                Some(ui) => Reply::Elements {
+                    elements: ui
+                        .meaning_at(*x as f32 + 0.5, *y as f32 + 0.5)
+                        .into_iter()
+                        .map(element_summary)
+                        .collect(),
+                    more: 0,
+                },
+                None => failed(NO_INTERFACE),
+            },
+            Request::Act { element, action } => {
+                act(presentation, element, action).map_or_else(failed, |()| Reply::Done)
             }
             Request::Pick { .. } => unreachable!("`answer` asks the presentation to pick"),
             Request::Logs { after } => Reply::Logs {
@@ -445,6 +484,176 @@ fn set_view_settings(
     presentation.set_view_settings(view, &settings)
 }
 
+/// Why a request on the interface fails in a game that has none.
+const NO_INTERFACE: &str = "the game has no interface that tools read: its presentation gives \
+                            none, or it runs without a window";
+
+/// The elements of `presentation`'s interface whose role is `role`, whatever its case, and whose
+/// names hold `name`, whatever its case; either empty for any.
+fn elements(presentation: &mut dyn Presentation, role: &str, name: &str) -> Reply {
+    let Some(ui) = presentation.ui() else {
+        return failed(NO_INTERFACE);
+    };
+    let name = name.to_lowercase();
+    let mut found = ui.meaning().into_iter().filter(|meaning| {
+        (role.is_empty() || meaning.role.name().eq_ignore_ascii_case(role))
+            && meaning.name.to_lowercase().contains(&name)
+    });
+    let elements = found
+        .by_ref()
+        .take(MAX_ELEMENTS)
+        .map(element_summary)
+        .collect();
+    Reply::Elements {
+        elements,
+        more: found.count() as u64,
+    }
+}
+
+/// What `meaning` says, as the development channel gives it.
+fn element_summary(meaning: Meaning) -> ElementSummary {
+    // Each state named, so that one more does not compile until it is.
+    let ElementState {
+        hovered,
+        pressed,
+        disabled,
+        focused,
+    } = meaning.state;
+    let states = [
+        (hovered, "hovered"),
+        (pressed, "pressed"),
+        (focused, "focused"),
+        (disabled, "disabled"),
+    ];
+    ElementSummary {
+        path: meaning.path,
+        role: meaning.role.name().to_owned(),
+        name: meaning.name,
+        states: states
+            .into_iter()
+            .filter(|&(holds, _)| holds)
+            .map(|(_, state)| state.to_owned())
+            .collect(),
+        actions: meaning
+            .actions
+            .iter()
+            .map(|action| action.name().to_owned())
+            .collect(),
+        bounds: meaning.bounds.map(|bounds| {
+            let part = covering("", bounds);
+            [part.x, part.y, part.width, part.height]
+        }),
+    }
+}
+
+/// The whole pixels that `rect`, in pixels of the image, covers, as a view named `name` would.
+fn covering(name: &str, rect: Rect) -> ShownView {
+    let (left, top) = (rect.x.max(0.0).floor(), rect.y.max(0.0).floor());
+    let right = (rect.x + rect.width).ceil().max(left);
+    let bottom = (rect.y + rect.height).ceil().max(top);
+    ShownView {
+        name: name.to_owned(),
+        x: left as u32,
+        y: top as u32,
+        width: (right - left) as u32,
+        height: (bottom - top) as u32,
+    }
+}
+
+/// The part of the image where the element at `path` of `ui` shows, or why it shows nowhere.
+fn shown_element(ui: Option<&Ui>, path: &str) -> Result<ShownView, String> {
+    let ui = ui.ok_or(NO_INTERFACE)?;
+    let id = ui
+        .element_by_path(path)
+        .ok_or_else(|| format!("no element of the interface at `{path}`"))?;
+    ui.meaning_of(id)
+        .and_then(|meaning| meaning.bounds)
+        .map(|bounds| covering(path, bounds))
+        .ok_or_else(|| format!("the element `{path}` does not show"))
+}
+
+/// Does `action` in `presentation`'s interface, on the element at `path`, or on none for an empty
+/// path, as a person's input would; or says why it cannot.
+fn act(
+    presentation: &mut dyn Presentation,
+    path: &str,
+    action: &InterfaceAction,
+) -> Result<(), String> {
+    let ui = presentation.ui().ok_or(NO_INTERFACE)?;
+    let id = match path {
+        "" => None,
+        path => Some(
+            ui.element_by_path(path)
+                .ok_or_else(|| format!("no element of the interface at `{path}`"))?,
+        ),
+    };
+    // The element of an action that needs one, which it takes now.
+    let taking = |ui: &Ui, wanted: ElementAction| {
+        let id = id.ok_or_else(|| format!("`{}` needs an element", wanted.name()))?;
+        let meaning = ui.meaning_of(id).ok_or_else(|| {
+            format!(
+                "the element `{path}` takes nothing: it is hidden, or a box that only lays \
+                     others out"
+            )
+        })?;
+        if meaning.actions.contains(&wanted) {
+            Ok(id)
+        } else {
+            let takes: Vec<_> = meaning.actions.iter().map(|action| action.name()).collect();
+            Err(format!(
+                "the element `{path}` takes no `{}` now; it takes {}",
+                wanted.name(),
+                if takes.is_empty() {
+                    "none".to_owned()
+                } else {
+                    format!("`{}`", takes.join("`, `"))
+                }
+            ))
+        }
+    };
+    let kind = match action {
+        InterfaceAction::Press => {
+            let id = taking(ui, ElementAction::Press)?;
+            ui.act(Action {
+                element: Some(id),
+                kind: ActionKind::Press,
+            });
+            return Ok(());
+        }
+        InterfaceAction::Focus => {
+            let id = taking(ui, ElementAction::Focus)?;
+            ui.set_focus(Some(id));
+            return Ok(());
+        }
+        InterfaceAction::Scroll { x, y } => {
+            if !(x.is_finite() && y.is_finite()) {
+                return Err(format!("({x}, {y}) is no offset: finite numbers are"));
+            }
+            let id = taking(ui, ElementAction::Scroll)?;
+            ui.scroll_to(id, [*x, *y]);
+            return Ok(());
+        }
+        InterfaceAction::Next => ActionKind::Intent(Intent::Next),
+        InterfaceAction::Previous => ActionKind::Intent(Intent::Previous),
+        InterfaceAction::Up => ActionKind::Intent(Intent::Up),
+        InterfaceAction::Down => ActionKind::Intent(Intent::Down),
+        InterfaceAction::Left => ActionKind::Intent(Intent::Left),
+        InterfaceAction::Right => ActionKind::Intent(Intent::Right),
+        InterfaceAction::Accept => ActionKind::Intent(Intent::Accept),
+        InterfaceAction::Cancel => ActionKind::Intent(Intent::Cancel),
+        InterfaceAction::Command { name } => ActionKind::Command(name.clone()),
+    };
+    if id.is_some() {
+        return Err(
+            "a navigation intent or a command names no element: it reaches the focus, as a key does"
+                .to_owned(),
+        );
+    }
+    // As a key gives them, of the element that holds the focus.
+    let element = ui.focus();
+    ui.act(Action { element, kind });
+    Ok(())
+}
 /// The part of `image` that `view` covers, cut at the image's edges, as a presentation's views of
 /// an earlier frame may pass them: its width, its height and its pixels, rows from top to bottom,
 /// four bytes each; `None` when the view covers none of the image.
@@ -882,5 +1091,155 @@ mod tests {
             );
         }
         assert!(pick(&mut (), &views, "yard", (0, 0), true).is_err());
+    }
+
+    /// A presentation whose interface is a row of three buttons, `open`, `save`, disabled, and
+    /// `close`, then a box that scrolls, `notes`, of two buttons, the second hidden below the
+    /// first; each 100 logical pixels wide and 40 high, laid out.
+    struct Panel {
+        ui: Ui,
+    }
+
+    impl Panel {
+        fn new() -> Self {
+            use slime_ui::style::{Dimension, FlexDirection, Style};
+            use slime_ui::text::Fonts;
+            use slime_ui::tree::{Element, LayoutDirection, RootSettings};
+
+            let mut ui = Ui::new(Fonts::new());
+            let settings = RootSettings {
+                size: [400.0, 300.0],
+                scale: 1.0,
+                direction: LayoutDirection::LeftToRight,
+                origin: [0.0; 2],
+                modal: false,
+            };
+            let root = ui.add_root(settings, Style::default());
+            let mut style = Style::default();
+            style.layout.size = [Dimension::Pixels(100.0), Dimension::Pixels(40.0)];
+            style.layout.shrink = 0.0;
+            let mut notes = style.clone();
+            notes.layout.direction = FlexDirection::Column;
+            let mut save = None;
+            ui.build(root, 0, |children| {
+                for name in ["open", "save", "close"] {
+                    let button = children.add(name, Element::button(name, style.clone()), |_| {});
+                    if name == "save" {
+                        save = Some(button);
+                    }
+                }
+                children.add("notes", Element::scroll(notes), |children| {
+                    for name in ["top", "below"] {
+                        children.add(name, Element::button(name, style.clone()), |_| {});
+                    }
+                });
+            });
+            let disabled = ElementState {
+                disabled: true,
+                ..ElementState::default()
+            };
+            ui.set_state(save.expect("built"), disabled);
+            ui.frame();
+            Self { ui }
+        }
+    }
+
+    impl Presentation for Panel {
+        fn ui(&mut self) -> Option<&mut Ui> {
+            Some(&mut self.ui)
+        }
+    }
+
+    /// A tool reads the elements of an interface, found by role and name, finds where one shows,
+    /// and acts on them as a person would, what an action needs checked; a presentation without an
+    /// interface refuses it all.
+    #[test]
+    fn a_tool_reads_an_interface_and_acts_on_it() {
+        let mut panel = Panel::new();
+        let found = |panel: &mut Panel, role: &str, name: &str| {
+            let reply = elements(panel, role, name);
+            let Reply::Elements { elements, more } = reply else {
+                panic!("elements: {reply:?}");
+            };
+            assert_eq!(more, 0);
+            elements
+        };
+        let buttons = found(&mut panel, "button", "");
+        let paths: Vec<_> = buttons.iter().map(|button| button.path.as_str()).collect();
+        assert_eq!(
+            paths,
+            [
+                "#0/open",
+                "#0/save",
+                "#0/close",
+                "#0/notes/top",
+                "#0/notes/below"
+            ]
+        );
+        assert_eq!(buttons[1].states, ["disabled"]);
+        assert!(buttons[1].actions.is_empty());
+        assert_eq!(buttons[2].actions, ["press", "focus"]);
+        assert_eq!(buttons[2].bounds, Some([200, 0, 100, 40]));
+        let open = found(&mut panel, "", "PEN");
+        assert_eq!(open.len(), 1, "{open:?}");
+        assert_eq!(open[0].path, "#0/open");
+        let shown = shown_element(Some(&panel.ui), "#0/close").expect("shown");
+        assert_eq!(
+            (shown.x, shown.y, shown.width, shown.height),
+            (200, 0, 100, 40)
+        );
+        // The box that scrolls cuts its second button whole: it does not show, until scrolled to.
+        for (path, ui, problem) in [
+            ("#0/notes/below", Some(&panel.ui), "does not show"),
+            ("#0/nothing", Some(&panel.ui), "no element"),
+            ("#0/open", None, "no interface"),
+        ] {
+            let error = shown_element(ui, path).expect_err(path);
+            assert!(error.contains(problem), "{error}");
+        }
+        let scroll = |x, y| InterfaceAction::Scroll { x, y };
+        for (element, action, problem) in [
+            ("#0/save", InterfaceAction::Press, "takes no `press` now"),
+            ("#0/open", scroll(0.0, 40.0), "takes no `scroll` now"),
+            ("#0/notes", scroll(f32::NAN, 40.0), "is no offset"),
+            ("#0/nothing", InterfaceAction::Press, "no element"),
+            ("", InterfaceAction::Focus, "needs an element"),
+            ("#0/open", InterfaceAction::Next, "names no element"),
+        ] {
+            let error = act(&mut panel, element, &action).expect_err(element);
+            assert!(error.contains(problem), "{error}");
+        }
+        act(&mut panel, "#0/notes", &scroll(0.0, 40.0)).expect("scrolled");
+        act(&mut panel, "#0/open", &InterfaceAction::Press).expect("pressed");
+        act(&mut panel, "#0/open", &InterfaceAction::Focus).expect("focused");
+        act(&mut panel, "", &InterfaceAction::Next).expect("moved");
+        let command = InterfaceAction::Command {
+            name: "undo".to_owned(),
+        };
+        act(&mut panel, "", &command).expect("given");
+        let kinds: Vec<_> = panel
+            .ui
+            .take_actions()
+            .into_iter()
+            .map(|action| action.kind)
+            .collect();
+        assert_eq!(
+            kinds,
+            [ActionKind::Press, ActionKind::Command("undo".to_owned())]
+        );
+        panel.ui.frame();
+        let buttons = found(&mut panel, "Button", "");
+        assert_eq!(buttons[2].states, ["focused"], "over the disabled button");
+        let below = shown_element(Some(&panel.ui), "#0/notes/below").expect("scrolled to");
+        assert_eq!((below.x, below.y, below.height), (300, 0, 40));
+        // The fraction of a pixel that a bound covers counts whole.
+        let part = covering("", Rect::new(10.5, 0.25, 20.0, 9.5));
+        assert_eq!((part.x, part.y, part.width, part.height), (10, 0, 21, 10));
+        let none = elements(&mut (), "", "");
+        assert_eq!(none, failed(NO_INTERFACE));
+        assert_eq!(
+            act(&mut (), "", &InterfaceAction::Next),
+            Err(NO_INTERFACE.to_owned())
+        );
     }
 }

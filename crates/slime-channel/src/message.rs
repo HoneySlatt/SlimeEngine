@@ -157,6 +157,83 @@ pub enum Request {
         /// What it asks.
         edit: Edit,
     },
+    /// The elements of the game's interface that mean something, as its last frame left them
+    /// (`docs/adr/0143-what-agents-see-of-the-interface.md`), in the order of its tree:
+    /// [`Reply::Elements`], at most [`MAX_ELEMENTS`](crate::MAX_ELEMENTS) of them. It fails in a
+    /// game that has no interface, as one that runs without a window.
+    Elements {
+        /// The role of those wanted, `Button`, whatever its case; empty for any.
+        role: String,
+        /// What their names hold, whatever its case; empty for any.
+        name: String,
+    },
+    /// The element of the game's interface that the pointer would reach at a pixel of the game's
+    /// image, or the nearest above it that means something: [`Reply::Elements`], one or none. It
+    /// fails in a game that has no interface, as one that runs without a window.
+    ElementAt {
+        /// The pixel's column, from the left of the image.
+        x: u32,
+        /// Its row, from the top.
+        y: u32,
+    },
+    /// Does `action` in the game's interface, as a person's input would: the interface takes it at
+    /// once, and the game reads what it asks as the frame that answers goes on. It fails in a game
+    /// that has no interface, as one that runs without a window, for a path that names no element,
+    /// for an action that the element does not take now, as a disabled button's press, and for an
+    /// offset that is not finite.
+    Act {
+        /// The element, by its path, `#0/bar/open`; empty for an action of no element, a
+        /// navigation intent or a command.
+        element: String,
+        /// What to do.
+        action: InterfaceAction,
+    },
+    /// The part of the game's image where an element of its interface shows: [`Reply::Image`],
+    /// once the next frame is drawn. It fails in a run without a window, in a game that has no
+    /// interface, and for an element that does not show.
+    CaptureElement {
+        /// The element, by its path.
+        element: String,
+    },
+}
+
+/// What a tool does in a game's interface ([`Request::Act`]), as a person's input would.
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "ChannelInterfaceAction")]
+pub enum InterfaceAction {
+    /// Presses a button, as a click does.
+    Press,
+    /// Gives an element the focus.
+    Focus,
+    /// Scrolls the content of a box that scrolls or of a list to an offset, in logical pixels from
+    /// its start and top.
+    Scroll {
+        /// The offset from the start.
+        x: f32,
+        /// The offset from the top.
+        y: f32,
+    },
+    /// Moves the focus to the next element, as Tab does.
+    Next,
+    /// Moves the focus to the previous element, as Shift+Tab does.
+    Previous,
+    /// Moves the focus up, as the up arrow does.
+    Up,
+    /// Moves the focus down.
+    Down,
+    /// Moves the focus left.
+    Left,
+    /// Moves the focus right.
+    Right,
+    /// Accepts, as Enter does: presses the button that holds the focus.
+    Accept,
+    /// Cancels, as Escape does.
+    Cancel,
+    /// Gives the game a command, as a shortcut does.
+    Command {
+        /// The command's name, `undo`.
+        name: String,
+    },
 }
 
 /// What a tool asks an editor ([`Request::Edit`]). Entities are named by their persistent
@@ -252,6 +329,13 @@ pub enum Reply {
         entity: EntitySummary,
         /// Whether an entity is drawn there.
         found: bool,
+    },
+    /// The elements of a game's interface found.
+    Elements {
+        /// The first of them, in the order of the interface's tree.
+        elements: Vec<ElementSummary>,
+        /// How many more were found and left out.
+        more: u64,
     },
     /// A report of the game's.
     Report {
@@ -355,6 +439,25 @@ pub struct EntitySummary {
     pub identity: String,
     /// Its name; empty for none.
     pub name: String,
+}
+
+/// An element of a game's interface, as a list of elements names it.
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "ChannelElement")]
+pub struct ElementSummary {
+    /// Its path, which names it from one frame to the next: `#0/bar/open`.
+    pub path: String,
+    /// Its role, as AccessKit names it: `Button`.
+    pub role: String,
+    /// Its name; empty for none.
+    pub name: String,
+    /// Its states: `hovered`, `pressed`, `focused`, `disabled`.
+    pub states: Vec<String>,
+    /// What can be done to it now: `press`, `focus`, `scroll`.
+    pub actions: Vec<String>,
+    /// The part of it that shows, in pixels of the game's image: its left column, its top row, its
+    /// width and its height; none where it does not show.
+    pub bounds: Option<[u32; 4]>,
 }
 
 /// A component of an entity, as text.
@@ -506,6 +609,26 @@ mod tests {
                 },
             },
             Request::Edit { edit: Edit::Write },
+            Request::Elements {
+                role: text("Button"),
+                name: text("open"),
+            },
+            Request::ElementAt { x: 40, y: 12 },
+            Request::Act {
+                element: text("#0/bar/open"),
+                action: InterfaceAction::Press,
+            },
+            Request::Act {
+                element: text("#0/content/list"),
+                action: InterfaceAction::Scroll { x: 0.0, y: 120.0 },
+            },
+            Request::Act {
+                element: String::new(),
+                action: InterfaceAction::Command { name: text("undo") },
+            },
+            Request::CaptureElement {
+                element: text("#1/dialog"),
+            },
         ];
         for request in requests {
             let bytes = encode(&request).expect("encoded");
@@ -564,6 +687,27 @@ mod tests {
             },
             Reply::Report {
                 text: text("handles = [6, 0, 0]\n"),
+            },
+            Reply::Elements {
+                elements: vec![
+                    ElementSummary {
+                        path: text("#0/bar/open"),
+                        role: text("Button"),
+                        name: text("open"),
+                        states: vec![text("hovered"), text("focused")],
+                        actions: vec![text("press"), text("focus")],
+                        bounds: Some([0, 0, 120, 28]),
+                    },
+                    ElementSummary {
+                        path: text("#0/content/list/#57"),
+                        role: text("ListItem"),
+                        name: String::new(),
+                        states: Vec::new(),
+                        actions: Vec::new(),
+                        bounds: None,
+                    },
+                ],
+                more: 0,
             },
             Reply::Picked {
                 entity: EntitySummary {

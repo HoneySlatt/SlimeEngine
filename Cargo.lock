@@ -2544,6 +2544,7 @@ dependencies = [
  "slime-platform",
  "slime-reflect",
  "slime-serialize",
+ "slime-ui",
  "slime-world",
  "thiserror 2.0.21",
  "tracing",

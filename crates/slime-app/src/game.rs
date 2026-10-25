@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use slime_gfx::RenderTarget;
 use slime_platform::Event;
 use slime_reflect::{Reflect, ReflectError, Registry, Value};
+use slime_ui::tree::Ui;
 use slime_world::{Command, Entity, World};
 
 use crate::error::AppError;
@@ -248,6 +249,17 @@ pub trait Presentation {
     /// default names none: a tool then captures the whole image.
     fn views(&self) -> Vec<ShownView> {
         Vec::new()
+    }
+
+    /// The presentation's interface, as its last [`render`](Self::render) left it, if it has one:
+    /// what a tool reads, acts on and captures element by element through the development channel
+    /// (`docs/adr/0143-what-agents-see-of-the-interface.md`). A tool's action reaches it as a
+    /// person's input does, the presses and the commands in the queue of actions that the
+    /// presentation takes ([`Ui::take_actions`]). Its roots lie on the window's surface, their
+    /// pixels the window's image's, as a tool counts them to find and capture an element. The
+    /// default has none.
+    fn ui(&mut self) -> Option<&mut Ui> {
+        None
     }
 
     /// The settings of the view that the last [`render`](Self::render) drew under `name`, one of

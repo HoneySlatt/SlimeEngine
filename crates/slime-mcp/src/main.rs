@@ -23,7 +23,7 @@ use rmcp::{
     ErrorData as McpError, ServerHandler, ServiceExt, schemars, tool, tool_handler, tool_router,
 };
 use serde::Deserialize;
-use slime_channel::{Client, Edit, Reply, Request, Token, launch};
+use slime_channel::{Client, Edit, InterfaceAction, Reply, Request, Token, launch};
 
 /// How long a game is given to say where it listens, by default: `cargo run` may build it first.
 const START_TIMEOUT: Duration = Duration::from_secs(600);
@@ -45,12 +45,15 @@ const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its dev
      debugging that shows normals or shadows; `pick` names the entity drawn at a pixel of its \
      image or of a view; `read_report` reads its reports, as its asset cache's; \
      `read_logs` reads its log; `save_game` and `load_game` save its run to a file and load it; \
-     `stop_game` ends it. An editor, started as a game is (`cargo run --example editor -- --level \
-     <a copy of a level> --journal <a file of its own>`), edits its level: `edit` makes a step of \
-     commands, `undo` and `redo` undo and make it again, `select` selects entities, \
-     `editor_history` says its steps and selection, `editor_journal` gives its journal, and \
-     `write_level` writes the level back to its file. \
-     `cook` and `run_tests` run in the repository's root, where the server runs.";
+     `stop_game` ends it. A game's interface is read and used as a person uses it: \
+     `find_elements` lists its elements by role and name, each with its path, `element_at` names \
+     the one at a pixel, `act_on_interface` presses, focuses or scrolls one, or moves the focus, \
+     and `capture_element` shows one. An editor, started as a game is (`cargo run --example \
+     editor -- --level <a copy of a level> --journal <a file of its own>`), edits its level: \
+     `edit` makes a step of commands, `undo` and `redo` undo and make it again, `select` selects \
+     entities, `editor_history` says its steps and selection, `editor_journal` gives its journal, \
+     and `write_level` writes the level back to its file. `cook` and `run_tests` run in the \
+     repository's root, where the server runs.";
 
 /// The game that the server drives, if one runs.
 struct Game {
@@ -199,6 +202,51 @@ struct Pick {
     x: u32,
     /// Its row, from the top.
     y: u32,
+}
+
+/// What `find_elements` takes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct FindElements {
+    /// The role of the elements wanted, as AccessKit names roles, whatever its case: `Button`,
+    /// `Label`, `Image`, `List`, `ListItem`, `ScrollView`, `Dialog`, `Toolbar`, `Group`; any if
+    /// left out.
+    role: Option<String>,
+    /// What their names hold, whatever its case: a button's label, a text; any if left out.
+    name: Option<String>,
+}
+
+/// What `element_at` takes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ElementAt {
+    /// The pixel's column, from the left, as in the image that `capture` gives.
+    x: u32,
+    /// Its row, from the top.
+    y: u32,
+}
+
+/// What `act_on_interface` takes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ActOnInterface {
+    /// What to do, whatever its case: `press`, `focus` or `scroll` an element, which must take it,
+    /// as `find_elements` lists; or, without an element, `next`, `previous`, `up`, `down`, `left`,
+    /// `right` to move the focus as Tab and the arrows do, `accept` as Enter does, `cancel` as
+    /// Escape does, `command` to give the command named `command` as a shortcut does.
+    action: String,
+    /// The element, by the path that `find_elements` gives: `#0/bar/open`.
+    element: Option<String>,
+    /// For `scroll`, the offset from the start of the content, in logical pixels.
+    x: Option<f32>,
+    /// For `scroll`, the offset from its top.
+    y: Option<f32>,
+    /// For `command`, the command's name: `undo`.
+    command: Option<String>,
+}
+
+/// What `capture_element` takes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct CaptureElement {
+    /// The element, by the path that `find_elements` gives.
+    element: String,
 }
 
 /// What `read_logs` takes.
@@ -452,6 +500,37 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
                 said.push_str(&format!("\n\n[{}]\n{}", component.name, component.value));
             }
             text(said)
+        }
+        Reply::Elements { elements, more } => {
+            let mut lines: Vec<String> = elements
+                .into_iter()
+                .map(|element| {
+                    let mut line = format!("{} — {}", element.path, element.role);
+                    if !element.name.is_empty() {
+                        line.push_str(&format!(" `{}`", element.name));
+                    }
+                    if !element.states.is_empty() {
+                        line.push_str(&format!(", {}", element.states.join(", ")));
+                    }
+                    line.push_str(&match element.bounds {
+                        Some([x, y, width, height]) => {
+                            format!("; at ({x}, {y}), {width} × {height} pixels")
+                        }
+                        None => "; does not show".to_owned(),
+                    });
+                    if !element.actions.is_empty() {
+                        line.push_str(&format!("; takes {}", element.actions.join(", ")));
+                    }
+                    line
+                })
+                .collect();
+            if lines.is_empty() {
+                lines.push("no element".to_owned());
+            }
+            if more > 0 {
+                lines.push(format!("and {more} more"));
+            }
+            text(lines.join("\n"))
         }
         Reply::Report { text: report } => text(report),
         Reply::Picked { entity, found } => text(if !found {
@@ -744,6 +823,91 @@ impl Server {
             y,
         })
         .await
+    }
+
+    #[tool(
+        description = "The elements of the game's interface, in the order of its tree, as its \
+                       last frame left them, whose role and name match: each by its path, which \
+                       names it to the other tools, its role, its name, its states (hovered, \
+                       pressed, focused, disabled), where it shows in the image that `capture` \
+                       gives, and what it takes now (press, focus, scroll). Boxes that only lay \
+                       others out are left out."
+    )]
+    async fn find_elements(
+        &self,
+        Parameters(FindElements { role, name }): Parameters<FindElements>,
+    ) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Elements {
+            role: role.unwrap_or_default(),
+            name: name.unwrap_or_default(),
+        })
+        .await
+    }
+
+    #[tool(
+        description = "The element of the game's interface at a pixel of its image, as the pointer \
+                       would reach it, or the nearest above it that means something, as \
+                       `find_elements` gives elements."
+    )]
+    async fn element_at(
+        &self,
+        Parameters(ElementAt { x, y }): Parameters<ElementAt>,
+    ) -> Result<CallToolResult, McpError> {
+        self.ask(Request::ElementAt { x, y }).await
+    }
+
+    #[tool(
+        description = "Acts in the game's interface as a person would: presses a button, gives an \
+                       element the focus, or scrolls a box or a list, which must take it now; or \
+                       moves the focus, accepts, cancels or gives a command, as keys do. The game \
+                       reads what it asks as its frame goes on."
+    )]
+    async fn act_on_interface(
+        &self,
+        Parameters(act): Parameters<ActOnInterface>,
+    ) -> Result<CallToolResult, McpError> {
+        let action = match act.action.to_lowercase().as_str() {
+            "press" => InterfaceAction::Press,
+            "focus" => InterfaceAction::Focus,
+            "scroll" => match (act.x, act.y) {
+                (Some(x), Some(y)) => InterfaceAction::Scroll { x, y },
+                _ => return Ok(failure("`scroll` needs `x` and `y`")),
+            },
+            "next" => InterfaceAction::Next,
+            "previous" => InterfaceAction::Previous,
+            "up" => InterfaceAction::Up,
+            "down" => InterfaceAction::Down,
+            "left" => InterfaceAction::Left,
+            "right" => InterfaceAction::Right,
+            "accept" => InterfaceAction::Accept,
+            "cancel" => InterfaceAction::Cancel,
+            "command" => match act.command {
+                Some(name) => InterfaceAction::Command { name },
+                None => return Ok(failure("`command` needs `command`, the command's name")),
+            },
+            other => {
+                return Ok(failure(format!(
+                    "no action `{other}`: `press`, `focus`, `scroll`, `next`, `previous`, `up`, \
+                     `down`, `left`, `right`, `accept`, `cancel` or `command`"
+                )));
+            }
+        };
+        self.ask(Request::Act {
+            element: act.element.unwrap_or_default(),
+            action,
+        })
+        .await
+    }
+
+    #[tool(
+        description = "The part of the game's image where an element of its interface shows, by \
+                       the path that `find_elements` gives, once its next frame is drawn."
+    )]
+    async fn capture_element(
+        &self,
+        Parameters(CaptureElement { element }): Parameters<CaptureElement>,
+    ) -> Result<CallToolResult, McpError> {
+        self.ask(Request::CaptureElement { element }).await
     }
 
     #[tool(

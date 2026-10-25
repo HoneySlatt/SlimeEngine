@@ -327,7 +327,8 @@ impl Frames {
                 if let (Some(channel), Some(gpu)) = (&mut self.channel, host.context.gpu())
                     && channel.wants_capture()
                 {
-                    channel.capture(gpu, image.target(), &presentation.views());
+                    let views = presentation.views();
+                    channel.capture(gpu, image.target(), &views, presentation.ui().as_deref());
                 }
                 let _span = tracing::trace_span!("present").entered();
                 image.present();

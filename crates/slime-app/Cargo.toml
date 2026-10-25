@@ -21,6 +21,9 @@ slime-serialize = { workspace = true, optional = true }
 slime-reflect.workspace = true
 slime-gfx.workspace = true
 slime-platform.workspace = true
+# The interface that a presentation gives, which the development channel reads and acts on
+# (ADR-0143).
+slime-ui.workspace = true
 slime-world.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
