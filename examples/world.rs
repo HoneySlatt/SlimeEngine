@@ -48,6 +48,8 @@
 //! and `target/cooked/examples` otherwise. Without a window, nothing is drawn: the world runs, the
 //! ring floats, and the run says how far it went.
 
+#[path = "common/assets_directory.rs"]
+mod assets_directory;
 #[path = "common/sample_scene.rs"]
 #[expect(
     dead_code,
@@ -955,7 +957,10 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let directory = options.assets.clone().unwrap_or_else(default_assets);
+    let directory = options
+        .assets
+        .clone()
+        .unwrap_or_else(assets_directory::find);
     let assets = match CookedAssets::open(&directory) {
         Ok(assets) => assets,
         Err(error) => {
@@ -1023,22 +1028,6 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         // `run` has logged the error with its causes.
         Err(_) => ExitCode::FAILURE,
-    }
-}
-
-/// The directory of cooked data read without `--assets`: `assets` beside the program, where CI
-/// ships the Windows programs with the sample cooked, or else `target/cooked/examples` in the
-/// workspace, where the command that the module documents cooks it.
-fn default_assets() -> PathBuf {
-    let beside = std::env::current_exe()
-        .ok()
-        .and_then(|program| Some(program.parent()?.join("assets")));
-    match beside {
-        Some(directory) if directory.join(slime_assets::MANIFEST_FILE).is_file() => directory,
-        _ => PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../target/cooked/examples"
-        )),
     }
 }
 
