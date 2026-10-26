@@ -2,8 +2,8 @@
 //! kind in the editor's look (`docs/adr/0148-widgets.md`), built without a GPU.
 //!
 //! A bar of three tabs chooses what the panel shows. *Inspector*: two panels side by side and the
-//! handle between them, a list of 200 entities in the look's font of fixed width on the left, and on
-//! the right, in a box that scrolls, sections that fold, of sliders and check boxes, the last
+//! handle between them, a list of 200 entities in the look's font of fixed width on the left, and
+//! on the right, in a box that scrolls, sections that fold, of sliders and check boxes, the last
 //! folded. *Console*: two panels one above the other, the lines of a log in a box that scrolls, and
 //! check boxes that choose which of its levels show. *About*: the look's two fonts. A bar at the
 //! bottom shows what the last action did. The program keeps the values of the sliders and the

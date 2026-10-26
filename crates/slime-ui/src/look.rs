@@ -16,11 +16,11 @@
 //! text in Geist Mono where an element holds the class `fixed`; it leaves boxes of no class and
 //! images as their builder gives them. The elements that take the focus show it by the color of a
 //! border of one pixel that they always keep, transparent until then for those that show none
-//! otherwise, so that the focus moves nothing; the handle between two panels, by its fill. Its one theme, dark, gives the values that
-//! the sheet names. Both are documents of the repository, `crates/slime-ui/look/editor.style` and
-//! `dark.theme`, built into the program as text: a program puts a sheet of its own after the
-//! look's, whose rules then win, and which names the theme's values
-//! (`docs/adr/0141-style-sheets-and-themes.md`).
+//! otherwise, so that the focus moves nothing; the handle between two panels, by its fill. Its one
+//! theme, dark, gives the values that the sheet names. Both are documents of the repository,
+//! `crates/slime-ui/look/editor.style` and `dark.theme`, built into the program as text: a program
+//! puts a sheet of its own after the look's, whose rules then win, and which names the theme's
+//! values (`docs/adr/0141-style-sheets-and-themes.md`).
 //!
 //! ```
 //! use slime_ui::look;
