@@ -17,7 +17,12 @@
 //! are hovered, pressed and focused, Tab and the arrows move the focus, and Enter and Space press
 //! the one that holds it. The first button, or Ctrl+O, opens a modal dialog, which Escape or its
 //! button "close" closes; the bar shows what the last action did. The shortcuts are those of
-//! `examples/assets/ui/interface.keys`. The list scrolls with time, not with the wheel.
+//! `examples/assets/ui/interface.keys`. The list scrolls with time, not with the wheel. The bar
+//! holds a field of text and a field of numbers (`docs/adr/0145-text-edited.md`), which take the
+//! text that is typed, pasted or composed through an input method, and which the program reads as
+//! their commits; the field of numbers is dragged left and right too. `slime-app` gives the
+//! window's events to the interface; the built-in fonts fall back on the system's for what they do
+//! not hold, as the editor's will, so that text typed in any writing system shows.
 //!
 //! Its world holds one entity, `presses`, whose component `Presses` counts the presses of the bar's
 //! buttons but the first: the presentation sends a command for each, which the host applies at the
@@ -62,11 +67,11 @@ use slime_app::{AppConfig, AppError, Context, Presentation, Simulation, Simulati
 use slime_assets::{AssetId, CookedAssets, ManifestWatch};
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderTarget, Texture, TextureFormat};
-use slime_platform::{Event, WindowConfig};
+use slime_platform::WindowConfig;
 use slime_reflect::{Reflect, Value};
 use slime_render::{CanvasImage, RenderError};
 use slime_ui::Rect;
-use slime_ui::action::{ActionKind, Intent};
+use slime_ui::action::{ActionKind, FieldValue, Intent};
 use slime_ui::display::{ImageKey, ImageKind};
 use slime_ui::shortcuts::Shortcuts;
 use slime_ui::style::{Align, Dimension, Display, FlexDirection, Justify, Sides, Style, Track};
@@ -184,6 +189,9 @@ struct Interface {
     revision: u64,
     /// The presses that the world counts, as it last read them, and those sent since.
     presses: u64,
+    /// What the bar's fields hold, as the program last took them from their commits.
+    name: String,
+    scale: f64,
     /// The cooked data that holds the style sheet and the themes, and the theme shown.
     assets: CookedAssets,
     theme: ThemeName,
@@ -245,7 +253,9 @@ impl Interface {
             .collect();
         let tick =
             gpu.create_texture_with_levels("tick", MASK, MASK, TextureFormat::R8Unorm, &[&tick])?;
-        let mut fonts = Fonts::new();
+        // The system's fonts for what the built-in ones do not hold, as the editor will fall back
+        // on them: text typed in the fields shows in any writing system.
+        let mut fonts = Fonts::with_system_fonts();
         for font in FONTS {
             fonts.register(font.to_vec())?;
         }
@@ -282,6 +292,8 @@ impl Interface {
             last: "tab and the arrows move, enter presses, t switches the theme".to_owned(),
             revision: 0,
             presses: 0,
+            name: "a name".to_owned(),
+            scale: 1.0,
             assets,
             theme,
         };
@@ -317,7 +329,7 @@ impl Interface {
 
     /// Does what the actions that the interface queued ask: a button of the bar pressed, counted in
     /// the world by a command sent through `ctx`, the dialog opened or closed, the theme switched.
-    /// Gives whether the program is asked to stop: Escape, nothing open.
+    /// Gives whether the program is asked to stop: Escape, no dialog open and nothing focused.
     fn handle_actions(&mut self, ctx: &mut Context) -> bool {
         let mut stop = false;
         for action in self.ui.take_actions() {
@@ -353,6 +365,11 @@ impl Interface {
                     }
                 }
                 ActionKind::Intent(Intent::Cancel) if self.dialog.is_some() => self.close_dialog(),
+                // Escape in a field or on a button leaves the focus; with nothing focused, and no
+                // dialog open, it quits.
+                ActionKind::Intent(Intent::Cancel) if action.element.is_some() => {
+                    self.ui.set_focus(None);
+                }
                 ActionKind::Intent(Intent::Cancel) => stop = true,
                 ActionKind::Intent(_) => {}
                 ActionKind::Command(command) if command == "open" => self.open_dialog(),
@@ -371,6 +388,17 @@ impl Interface {
                     }
                 }
                 ActionKind::Command(command) => self.tell(format!("command {command}")),
+                // The program takes what a field holds when the user commits it, which the bar
+                // gives the field again: the field keeps what the user typed.
+                ActionKind::Changed(_) => {}
+                ActionKind::Committed(FieldValue::Text(name)) => {
+                    self.tell(format!("name {name}"));
+                    self.name = name;
+                }
+                ActionKind::Committed(FieldValue::Number(scale)) => {
+                    self.scale = scale;
+                    self.tell(format!("scale {scale}"));
+                }
             }
         }
         stop
@@ -474,9 +502,14 @@ impl Interface {
         // The interface's builder runs when what the bar shows changes, the list's, in its slot,
         // when the list shows other rows.
         let (mut list, mut view, mut bar) = (None, None, Vec::new());
-        let (words, last) = (&self.words, self.last.as_str());
+        let words = &self.words;
+        let shown = Shown {
+            last: &self.last,
+            name: &self.name,
+            scale: self.scale,
+        };
         self.ui.build(self.root, self.revision, |children| {
-            build(children, words, last, &mut list, &mut view, &mut bar);
+            build(children, words, &shown, &mut list, &mut view, &mut bar);
         });
         if !bar.is_empty() {
             self.bar = bar;
@@ -526,6 +559,13 @@ impl Interface {
     }
 }
 
+/// What the bar shows of the program: what the last action did, and what its fields hold.
+struct Shown<'a> {
+    last: &'a str,
+    name: &'a str,
+    scale: f64,
+}
+
 /// Builds the interface: a bar of buttons, the first opening the dialog, and what the last action
 /// did; a list of 100 000 rows in a slot, whose rows its own builder gives; the view, a translucent
 /// card over it in the same cell of a grid; a shelf of cards, cut where the window ends; and a
@@ -534,7 +574,7 @@ impl Interface {
 fn build(
     children: &mut Children<'_>,
     words: &[String],
-    last: &str,
+    shown: &Shown<'_>,
     list: &mut Option<ElementId>,
     view: &mut Option<ElementId>,
     buttons: &mut Vec<ElementId>,
@@ -562,9 +602,14 @@ fn build(
                 let element = Element::button(label, sized(88.0, 28.0));
                 buttons.push(children.add(index, element, |_| {}));
             }
+            // Fields that the program reads as their commits.
+            let name = Element::text_field(shown.name, sized(160.0, 28.0)).named("name");
+            children.add("name", name, |_| {});
+            let scale = Element::number_field(shown.scale, 0.01, sized(80.0, 28.0)).named("scale");
+            children.add("scale", scale, |_| {});
             let mut status = Style::default();
             status.layout.align_self = Some(Align::Center);
-            children.add("status", Element::label(last, status), |_| {});
+            children.add("status", Element::label(shown.last, status), |_| {});
         });
         let mut main = Style::default();
         main.layout.grow = 1.0;
@@ -817,24 +862,6 @@ impl Presentation for InterfaceExample {
         {
             interface.presses = counted.count;
         }
-    }
-
-    fn on_event(&mut self, _ctx: &mut Context, event: &Event) -> bool {
-        // The window's input, to the interface, which turns it into actions.
-        let Some(interface) = &mut self.interface else {
-            return false;
-        };
-        let ui = &mut interface.ui;
-        match event {
-            Event::CursorMoved { x, y } => ui.pointer_moved(*x as f32, *y as f32),
-            Event::CursorLeft => ui.pointer_left(),
-            Event::MouseButton { button, state } => ui.pointer_button(*button, *state),
-            Event::MouseWheel(delta) => ui.wheel(*delta),
-            Event::ModifiersChanged(modifiers) => ui.modifiers(*modifiers),
-            Event::Key(key) => ui.key(key),
-            _ => {}
-        }
-        false
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {

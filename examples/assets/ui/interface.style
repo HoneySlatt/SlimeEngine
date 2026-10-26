@@ -35,6 +35,26 @@ style.paint = { background = "$pressed", border = "$pressed_border" }
 select = { kind = "Button", states = ["Focused"] }
 style.paint = { border_width = 2, border = "$focus" }
 
+[field]
+select = { kind = "TextField" }
+style.paint = { background = "$field", border_width = 1, border = "$button_border", radii = [6, 6, 6, 6] }
+style.layout.padding = { start = 8, end = 8, top = 0, bottom = 0 }
+style.text = { style = { fonts = ["Noto Sans"], size = 13 }, color = "$text", selection = "$selection" }
+
+[number]
+select = { kind = "NumberField" }
+style.paint = { background = "$field", border_width = 1, border = "$button_border", radii = [6, 6, 6, 6] }
+style.layout.padding = { start = 8, end = 8, top = 0, bottom = 0 }
+style.text = { style = { fonts = ["Noto Sans"], size = 13 }, color = "$text", selection = "$selection" }
+
+[field-focused]
+select = { kind = "TextField", states = ["Focused"] }
+style.paint = { border_width = 2, border = "$focus" }
+
+[number-focused]
+select = { kind = "NumberField", states = ["Focused"] }
+style.paint = { border_width = 2, border = "$focus" }
+
 [status]
 select = { kind = "Label", inside = { class = "bar" } }
 style.text.color = "$row_text"
