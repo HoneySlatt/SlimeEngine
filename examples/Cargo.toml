@@ -29,10 +29,11 @@ slime-platform.workspace = true
 # The component that the `interface` example's world counts its presses in (ADR-0143).
 slime-reflect.workspace = true
 slime-render.workspace = true
-# The interface's text, which the `text` example lays out and rasterizes (ADR-0136).
-slime-ui.workspace = true
-# The bridge that draws the `interface` example's display list through the renderer's canvas
-# (ADR-0139).
+# The interface's text, which the `text` example lays out and rasterizes (ADR-0136), and the
+# editor's look, in which the `widgets` example draws its widgets (ADR-0148).
+slime-ui = { workspace = true, features = ["editor-look"] }
+# The bridge that draws the `interface` and `widgets` examples' display lists through the
+# renderer's canvas (ADR-0139).
 slime-ui-render.workspace = true
 slime-world.workspace = true
 slime-world-render.workspace = true
@@ -73,3 +74,7 @@ path = "text.rs"
 [[example]]
 name = "interface"
 path = "interface.rs"
+
+[[example]]
+name = "widgets"
+path = "widgets.rs"
