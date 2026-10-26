@@ -849,7 +849,10 @@ Risks:
   committed, moved its caret and selected, and pressed a button, which opened the dialog. Orca
   itself was not run. A review of the milestone found that a screen reader asking for the tree again
   while a frame made an update could make AccessKit panic, now guarded, and paths renumbered by a
-  root removed below others, now marked. Its CI times are recorded once it runs.
+  root removed below others, now marked. CI is green on `6388a9a`, the feature built, its 52
+  crates added: the cooked zone restored from its cache, `check (headless)` took 12 minutes 27
+  seconds, `check (windowed)` 13 minutes 36 seconds, `windows` 14 minutes 33 seconds and
+  `windows-release` 15 minutes 27 seconds, all within the limit of 20.
 
 ### M6b.7 — Widgets and layers
 
@@ -1706,9 +1709,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   cooker is built from: a dependency added to another crate no longer cooks it again, but a change
   of the cooker's sources or of its packages still does. M6b.6a was the first milestone to add a
   dependency since, arboard, in `slime-platform`: the zone was restored from its cache, and the
-  four jobs came back within the limit, `windows` the longest at 18 minutes 9 seconds. Its caches
-  warm, `check (windowed)` takes some 16 and a half minutes: the runs it holds grow with each
-  milestone.
+  four jobs came back within the limit, `windows` the longest at 18 minutes 9 seconds. M6b.6b added
+  AccessKit's adapter and its 52 crates on Linux, and the longest job, `windows-release`, took 15
+  minutes 27 seconds: the runs that the windowed part holds grow with each milestone.
 - **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)): a frame walks every
   element of its roots, to find what to draw again and to gather the display list, even when
   nothing changed. A list shows the rows of a new range one frame late, when it first shows or when
