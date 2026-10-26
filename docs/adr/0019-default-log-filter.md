@@ -41,6 +41,11 @@ Entries added since, each with the message that justifies it:
   the desktop settings portal for the theme logs an `error` whenever `dbus-send` returns nothing,
   with a text that speaks of a timeout although none occurred: at every start on systems without a
   session bus or portal (containers, CI runners, minimal compositors). The engine cannot act on it.
+- 2026-10-26: `zbus=warn`. zbus, the D-Bus library through which AccessKit's adapter speaks to
+  screen readers on Linux ([ADR-0146](0146-screen-readers.md)), opens a span at `info` for each
+  message that a screen reader sends, and the log prints a line as each closes:
+  `zbus::object_server: close time.busy=31.5µs time.idle=10.7µs`, many per second while a screen
+  reader reads the window.
 
 ## Alternatives considered
 

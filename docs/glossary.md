@@ -674,9 +674,12 @@ drive a running game through its *development channel*; the editor's commands jo
 [ADR-0122](adr/0122-the-development-channel.md)).
 
 **Meaning (interface).** What an interface's tree says to whoever reads it without seeing it, an
-agent and later a screen reader: each element that a person reads or uses, its *role*, its name, its
-states, the actions it takes now, where it shows and its *path*; made when asked (`Ui::meaning`,
-[ADR-0143](adr/0143-what-agents-see-of-the-interface.md)).
+agent or a screen reader: each element that a person reads or uses, its *role*, its name, a
+field's value, its states, the actions it takes now, where it shows and its *path*; made when asked
+(`Ui::meaning`, [ADR-0143](adr/0143-what-agents-see-of-the-interface.md)). What changed in it since
+it was last taken is given element by element, each marked as its meaning changes and named by a
+number that the interface never gives again (`Ui::take_meaning_changes`,
+[ADR-0146](adr/0146-screen-readers.md)).
 
 **Mesh.** Triangles given as vertices (a position, a normal, texture coordinates and a *tangent*
 each) and indices, uploaded to the GPU into a *page* (`slime_render::Mesh`, from `MeshData`).
@@ -1020,6 +1023,11 @@ target, with its size in *logical pixels*, its scale and the direction of its li
 **Run.** Two things. The running of a game by `slime_app::run`, from its `start` methods to its
 `stop` methods; and, in a game, a play from a new game on, which R starts again, a *save* holds and
 a resume goes on with.
+
+**Run of text (screen readers).** A piece of one line of a field's text, of one direction and of a
+bounded count of characters, through which a screen reader reads the text and follows its caret:
+each character's length, place and width, and where its words start (`slime_ui::tree::TextRun`,
+[ADR-0146](adr/0146-screen-readers.md)). Not a run of *glyphs*.
 
 **Sample.** What demonstrates the exit criterion of a stage: an example up to Stage 3b, the *sample
 game* from Stage 3c. Every stage ends with one.

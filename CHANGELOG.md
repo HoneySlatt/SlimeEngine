@@ -8,6 +8,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Screen readers (ADR-0146): with `slime-app`'s and `slime-platform`'s `accessibility` feature,
+  which the examples turn on and games leave out, screen readers are given a presentation's
+  interface through AccessKit's adapter of the window, read on Linux by a client of AT-SPI, the
+  service that Orca reads: each element that means something, its role, name, value and states, a
+  field's text by runs, which a screen reader moves through by characters, words and lines, and its
+  caret; a screen reader clicks, gives the focus, sets a value or a selection, and scrolls, through
+  the interface's calls. `Ui::take_meaning_changes` gives what changed in the meaning, each element
+  marked as it changes and named by a number never given again (`MeaningChanges`), `Ui::field_runs`
+  a field's text by runs, `Ui::select_text` selects in it, and `Ui::set_value` gives a field a
+  value, as a person who replaced its text and committed would; an element's meaning gains its
+  `value`, and agents set it through the development channel and the MCP server's `act_on_interface`
+  (`set_value`); `Ui::root_settings` gives the settings of an element's root.
 - Text edited (ADR-0145): fields of text, one line or several, and of numbers
   (`Element::text_field`, `Element::text_area`, `Element::number_field`), typed, moved through by
   clusters, words and lines in text of both directions, selected by the keys and the pointer,
@@ -139,14 +151,16 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- With the `accessibility` feature, a window is made hidden and shown once AccessKit's adapter is
+  made, on X11 and Windows. The log's default filter keeps zbus at `warn`.
 - `Ui::pointer_button`, `Ui::key` and `Ui::wheel` give whether the interface took the event; an
   `Action` is no longer `Eq`, its kinds holding numbers; a text's look (`TextLook`) gains the fill
   of a field's selection. `Presentation::on_event` receives only the events that the presentation's
   interface did not take, and a program no longer gives the window's events to its interface: the
   example `interface` no longer does.
-- The development channel's protocol is at version 8, with the editor's and the interface's
-  requests. `slime-app` depends on `slime-ui`, and `slime_ui::tree::Element` gains `role` and
-  `name`.
+- The development channel's protocol is at version 9, with the editor's and the interface's
+  requests, a field's value among them. `slime-app` depends on `slime-ui`, and
+  `slime_ui::tree::Element` gains `role` and `name`.
 - `slime-platform`'s input types live in `slime-input`, which it re-exports: their paths through
   `slime-platform` are unchanged. `RootSettings` gains `origin` and `modal`.
   `slime_ui::theme::StyleError` is `slime_ui::DocumentError`, which tables of shortcuts share; the

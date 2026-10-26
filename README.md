@@ -168,7 +168,8 @@ today has:
 
 - No audio, physics or animation; an interface built as a tree of elements, laid out, styled by
   style sheets and themes, used with the pointer and the keyboard, its fields typed in, and read and
-  used by agents through the MCP server (`slime-ui`), without screen readers yet; and of the editor
+  used by agents through the MCP server (`slime-ui`), read by screen readers in the examples, games
+  leaving them out until Stage 7; and of the editor
   only its core, a library without an interface (`slime-editor`), and its program without a window,
   which agents drive through the MCP server.
 - An asset pipeline that imports glTF scenes, scene files and PNG and JPEG images only: the cooker,

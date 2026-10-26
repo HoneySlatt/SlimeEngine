@@ -9,8 +9,9 @@ requested, resized, scale factor changed, focus, keys, the modifier keys held, m
 motion, the cursor entering and leaving, scrolling, and the text that input methods compose, for
 Chinese, Japanese or Korean) and its redraw requests; it allows and places the input method, sets
 the pointer's shape, and reads and writes the system's clipboard of text
-(`docs/adr/0145-text-edited.md`). It does not report yet: touch screens, touchpad gestures,
-gamepads, or files dropped on the window.
+(`docs/adr/0145-text-edited.md`). With its `accessibility` feature, the window holds AccessKit's
+adapter, through which screen readers read what it shows (`docs/adr/0146-screen-readers.md`). It
+does not report yet: touch screens, touchpad gestures, gamepads, or files dropped on the window.
 
 ## Role
 
@@ -18,6 +19,10 @@ gamepads, or files dropped on the window.
   running the event loop, and translating what happens into engine-owned events.
 - It is the only crate that uses the windowing library (winit), and none of winit's types appears
   in its public API (`docs/adr/0011-windowing-with-winit.md`).
+- With its `accessibility` feature, holds AccessKit's adapter of the window, the only crate that
+  uses it: AT-SPI on Linux, through D-Bus, and UI Automation on Windows. AccessKit's tree and the
+  actions that screen readers ask cross its API, which `slime-app` translates the interface's
+  meaning into and out of (`docs/adr/0146-screen-readers.md`).
 
 ## Entry points
 
@@ -43,6 +48,14 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   factor, `request_redraw` to ask for a chance to draw, `set_ime_allowed` and `set_ime_area` for
   the input method, `set_cursor` for the pointer's shape, and the `raw-window-handle` traits
   through which a graphics library draws into it.
+- With the `accessibility` feature, the window is made hidden, AccessKit's adapter is made for it,
+  then it shows, so that screen readers see it from the start; Wayland, which shows a window with
+  its first frame, ignores the first step. A screen reader's requests arrive as
+  `Event::Accessibility` (`Accessibility`): the whole tree asked for, an action on one of its
+  nodes, or no screen reader any more. `Window::update_accessibility` gives the adapter an update
+  of the tree, which the event loop applies once the handler's call returns, on its own thread,
+  where the adapter stays. Without a screen reader, the adapter does nothing; without a session
+  bus, as in CI, it does not connect.
 - `Clipboard` reads and writes the system's clipboard of text, through arboard: Wayland's
   protocol of the clipboard's managers where the compositor gives it, X11's otherwise, and
   Windows' own.
@@ -107,6 +120,8 @@ compositor first reports a keyboard, which can happen while the loop runs.
 
 - `winit`: windows, events and input on each windowing system.
 - `arboard`: the system's clipboard, without its images, with its Wayland feature.
+- `accesskit` and `accesskit_winit`, with the `accessibility` feature only: the tree that screen
+  readers read, and its adapter for winit's windows.
 - `slime-input`: the engine's vocabulary of input, which the events carry.
 - `raw-window-handle`: the standard traits for passing a window to a graphics library.
 - `thiserror`: derives `PlatformError`'s `Display` and `Error` implementations.

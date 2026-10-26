@@ -12,7 +12,8 @@ as data, commands applied at the start of a frame, the main loop, exit requests,
 startup, clean shutdown on Ctrl+C and other termination signals, profiling spans and diagnostics
 work; a windowed run that asks for it goes on with a new GPU device after a lost one; a run
 built with the `development` feature and started with a token answers the tools that drive it
-through the development channel. What is
+through the development channel; a run built with the `accessibility` feature gives its
+presentation's interface to screen readers. What is
 missing is listed in `docs/PLAN.md` (known debt).
 
 ## Role
@@ -34,6 +35,9 @@ missing is listed in `docs/PLAN.md` (known debt).
 - With its `development` feature, which a game turns on by default and a build for shipping leaves
   out, answers the tools that drive a run started with a token, through the development channel
   (`slime-channel`, `docs/adr/0122-the-development-channel.md`).
+- With its `accessibility` feature, which the examples turn on, and the editor once it has a window,
+  and games leave out until Stage 7, gives screen readers what the presentation's interface means,
+  through AccessKit's adapter of the window (`docs/adr/0146-screen-readers.md`).
 - Sets up the engine's diagnostics.
 
 ## Entry points
@@ -139,7 +143,8 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   window: each event goes to the interface first, and to `on_event` and the game's input only
   when the interface did not take it; the interface gets the system's clipboard, and after each
   frame the window shows the pointer's shape that it asks and allows the input method while one
-  of its fields takes text (`docs/adr/0145-text-edited.md`);
+  of its fields takes text (`docs/adr/0145-text-edited.md`), and, with the `accessibility`
+  feature, screen readers get what changed in what it means;
   `gpu_lost` and `gpu_restored` when the run replaces a lost GPU device, which a game asks for with
   `AppConfig::restore_lost_device`: it drops its GPU objects in the first, before the new device
   opens, and creates them again in the second
@@ -238,8 +243,9 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   CPU architecture and number of logical CPUs. `run` calls it; call it
   yourself only in a program that does not use `run`. Later calls do nothing. `LOG_ENV_VAR` is the
   name of that environment variable. When it is unset, `DEFAULT_LOG_FILTER` applies: `info` and
-  above, except for wgpu-hal's details about the GPU, the Vulkan loader's messages, and the error
-  that winit's client-side decorations log when no desktop portal answers
+  above, except for wgpu-hal's details about the GPU, the Vulkan loader's messages, the error
+  that winit's client-side decorations log when no desktop portal answers, and the spans of the
+  D-Bus library through which screen readers are served on Linux
   (`docs/adr/0019-default-log-filter.md`). With the `SLIME_TRACE` environment variable
   (`TRACE_ENV_VAR`) naming a file, it also writes there a trace of every span of every thread,
   whatever `SLIME_LOG` keeps, in the Chrome Trace Event format that Perfetto and `chrome://tracing`
@@ -269,6 +275,14 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   requests, by the simulation's `edit`. Without a token,
   it does not listen. The `slime-channel` crate holds the protocol and its limits;
   `tests/channel.rs` drives a headless run through it.
+- The `accessibility` feature: a windowed run gives screen readers its window's tree, the window's
+  node holding what the presentation's interface means (`slime_ui::tree::Ui::take_meaning_changes`),
+  translated into AccessKit's tree, whole when a screen reader asks for it and what changed after
+  each frame from then on, while one reads the window; it gives the interface what a screen reader
+  asks, a click, the focus, a value or a selection set, a scroll, through its calls, as a person's
+  input. Its translation's tests, in `src/accessibility.rs`, run with the feature (`cargo test -p
+  slime-app --features accessibility`), which a workspace's run of the tests turns on through the
+  examples.
 
 Engine code and games log through the `tracing` macros. The conventions for errors, log levels and
 assertions are in `docs/adr/0008-errors-logging-and-assertions.md`; why the engine owns the main
@@ -301,6 +315,10 @@ the name the graphics API gives it.
   the development channel reads and acts on; it needs no window nor GPU.
 - `slime-channel` and `slime-serialize`, with the `development` feature only: the development
   channel, and the documents through which it reads and writes values as text.
+- `accesskit`, with the `accessibility` feature only: the tree that screen readers read, which it
+  translates the interface's meaning into; `slime-platform`'s feature of the same name holds
+  AccessKit's adapter. Its tests check the translation with `accesskit_consumer`, the tree that
+  AccessKit's adapters build.
 - `thiserror`: derives `RunError`'s `Display` and `Error` implementations.
 - `tracing`: the logging macros and profiling spans.
 - `tracing-subscriber`: the subscriber that formats, filters and writes log events, including the

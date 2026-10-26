@@ -230,8 +230,9 @@ listens on the machine's own address for the tools that drive it; started withou
 The engine's MCP server, `slime-mcp`, starts a game so, and gives an agent the tools to pause and
 step it, read and change its world, play it with keys, save and load its run to files of the agent's
 own, capture its image or one of its views, change how a view draws, pick the entity at a pixel,
-read its reports and its log, and read and use its interface element by element
-([ADR-0143](docs/adr/0143-what-agents-see-of-the-interface.md)); its
+read its reports and its log, and read and use its interface element by element, its fields given
+values ([ADR-0143](docs/adr/0143-what-agents-see-of-the-interface.md),
+[ADR-0146](docs/adr/0146-screen-readers.md)); its
 [README](crates/slime-mcp/README.md) says how to give it to an agent. The game opens its window on
 the display that the server's environment names: to keep it off your desktop, give the server the
 environment of a headless Weston, `XDG_RUNTIME_DIR` and `WAYLAND_DISPLAY`, with
@@ -242,7 +243,21 @@ editor's tools edit the level; it has no window.
 
 A build for shipping leaves the channel out: name the game alone, without its default features,
 `cargo build --release -p hunnawood --no-default-features`. A build of the whole workspace turns
-the channel on for every program, as cargo unifies the features of a build.
+the channel on for every program, as cargo unifies the features of a build, and so the adapter of
+screen readers too, `slime-app`'s `accessibility` feature, which the examples turn on and games
+leave out until Stage 7 ([ADR-0146](docs/adr/0146-screen-readers.md)).
+
+### Screen readers
+
+The examples give screen readers their windows' trees, through AccessKit's adapter: on Linux to the
+desktop's AT-SPI service on the session bus, which Orca reads, and on Windows to UI Automation,
+which Narrator reads. A client of AT-SPI read the `interface` example's buttons, texts and fields, a
+field's text, caret and words, and used them; Orca and Narrator themselves wait for the owner's
+check by hand ([`docs/PLAN.md`](docs/PLAN.md#checks-by-hand-waiting-for-the-owner)). To try one,
+start Orca (`orca`, or the desktop's setting of accessibility), then the `interface` example. A
+program costs nothing until a screen reader asks for its tree. With
+`SLIME_LOG=info,zbus=warn,slime_app::accessibility=debug`, the log says each action that a screen
+reader asks.
 
 ### Measuring
 
@@ -296,7 +311,8 @@ the cooked sample with one byte changed, which must end with an error and not a 
 (its new runs, one resumed from a copy of its save fixture, and one driven by an agent's session
 through the MCP server, their saves kept apart from the user's) and the windowed lifecycle test
 inside a headless Weston compositor (and that test's resize and oversize scenarios in a second one,
-at scale 2), the game built for shipping, which must hold no development channel, and `lychee`
+at scale 2), the game built for shipping, which must hold no development channel, the game, which
+must hold no adapter for screen readers, and `lychee`
 (links between Markdown files). The individual commands are listed in
 [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
 

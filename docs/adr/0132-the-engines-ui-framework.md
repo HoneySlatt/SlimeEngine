@@ -11,8 +11,10 @@
   interface blends in sRGB's encoding), [0140](0140-the-tree-of-elements.md) (the marks of an
   element's style and meaning come with the milestones that use them),
   [0143](0143-what-agents-see-of-the-interface.md) (an element's value comes with the first element
-  that holds one) and [0145](0145-text-edited.md) (the engine composes the text of input methods
-  and keeps a field's text, parley giving the selection's moves)
+  that holds one), [0145](0145-text-edited.md) (the engine composes the text of input methods
+  and keeps a field's text, parley giving the selection's moves) and
+  [0146](0146-screen-readers.md) (AccessKit's types stay out of `slime-ui`: `slime-app` translates
+  the meaning into AccessKit's tree, `slime-platform` holds the adapter)
 - Date: 2026-10-22
 
 ## Context

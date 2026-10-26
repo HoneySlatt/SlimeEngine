@@ -7,9 +7,9 @@ list (`docs/adr/0139-text-drawn-and-the-display-list.md`), the tree of elements,
 and their layout (`docs/adr/0140-the-tree-of-elements.md`), and the style sheets and themes that
 style them (`docs/adr/0141-style-sheets-and-themes.md`), the input and the focus
 (`docs/adr/0142-input-and-focus.md`), what the tree means to agents
-(`docs/adr/0143-what-agents-see-of-the-interface.md`), and fields of text and of numbers
-(`docs/adr/0145-text-edited.md`); screen readers come with the next milestone of Stage 6b
-(`docs/PLAN.md`).
+(`docs/adr/0143-what-agents-see-of-the-interface.md`), fields of text and of numbers
+(`docs/adr/0145-text-edited.md`), and what changed in the tree's meaning, which screen readers read
+(`docs/adr/0146-screen-readers.md`).
 
 ## Role
 
@@ -42,10 +42,18 @@ style them (`docs/adr/0141-style-sheets-and-themes.md`), the input and the focus
   the pointer's shape and where text is typed (`Ui::cursor`, `Ui::text_input`). The input calls
   give whether the interface took the event, which a game then leaves.
 - `Ui::meaning` says what the tree means, made when asked: each element drawn that means
-  something, its `tree::Role`, named as AccessKit names roles, its name, its states, the
-  `tree::ElementAction`s that an agent can do to it now, the part of it that shows and its path,
-  `#0/bar/open`, which `Ui::element_by_path` reads back. A box that only lays others out means
-  nothing; a builder gives an element its role and its name (`Element::role`, `Element::named`).
+  something, its `tree::Role`, named as AccessKit names roles, its name, a field's value, its
+  states, the `tree::ElementAction`s that an agent can do to it now, the part of it that shows and
+  its path, `#0/bar/open`, which `Ui::element_by_path` reads back. A box that only lays others out
+  means nothing; a builder gives an element its role and its name (`Element::role`,
+  `Element::named`). `Ui::set_value` gives a field a value, as a person who replaced its text and
+  committed would.
+- `Ui::take_meaning_changes` gives what changed in that meaning since it was last taken, as a
+  screen reader's adapter sends it (`tree::MeaningChanges`): each element marked as its meaning
+  changes, named by a number that no other element is ever given, with the elements that mean
+  something nearest below it, and a field's text by runs, which screen readers move through by
+  characters, words and lines (`Ui::field_runs`, `Ui::select_text`). `slime-app` translates them
+  into AccessKit's tree.
 - `style::Style` is an element's style, typed, in logical pixels: its layout, CSS's flexbox and
   grid properties with start and end sides, its paint, a box's fill, border, corners and shadow,
   and its text, reflected, so that style sheets set its parts.
@@ -87,4 +95,5 @@ program.
   servers, and what it draws leaves it as data.
 - Find a font by fallback where a stack can name it: the system's fallback costs up to a hundred
   times more than a font named (`docs/adr/0133-font-files-under-the-open-font-license.md`).
-- Show parley's, fontique's, swash's or taffy's types in its API.
+- Show parley's, fontique's, swash's or taffy's types in its API, nor depend on AccessKit:
+  `slime-app` translates the tree's meaning into AccessKit's (`docs/adr/0146-screen-readers.md`).

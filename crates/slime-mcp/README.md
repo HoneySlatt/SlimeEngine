@@ -76,10 +76,12 @@ The tools, each described to the agent by the server itself, with its parameters
 - `find_elements`, `element_at`, `act_on_interface` and `capture_element`: the game's interface, as
   its last frame left it (`docs/adr/0143-what-agents-see-of-the-interface.md`). `find_elements`
   lists its elements of a role, `Button`, and whose names hold a text, each by its path, which names
-  it to the other tools, its role, name and states, where it shows, and what it takes now;
-  `element_at` names the one at a pixel of the image that `capture` gives; `act_on_interface`
-  presses, focuses or scrolls one, or moves the focus, accepts, cancels or gives a command, as keys
-  do; `capture_element` gives the part of the image where one shows.
+  it to the other tools, its role, name, what a field holds, its states, where it shows, and what it
+  takes now; `element_at` names the one at a pixel of the image that `capture` gives;
+  `act_on_interface` presses, focuses or scrolls one, gives a field a value as a person who replaced
+  its text and committed would (`docs/adr/0146-screen-readers.md`), or moves the focus, accepts,
+  cancels or gives a command, as keys do; `capture_element` gives the part of the image where one
+  shows.
 - `read_logs`: the lines of the game's log after a given line.
 - `save_game` and `load_game`: the game's run saved to a file, and loaded from one in place of the
   run, as the game saves and resumes its own runs; a file of the agent's, never the player's save.
@@ -102,7 +104,9 @@ entity at a pixel of the map; it needs the examples' assets cooked, in the direc
 argument names, and `scripts/check.sh` runs it there too. `tests/interface.rs` starts the
 `interface` example, finds a button of its bar by its role and its name, presses it, reads in the
 world the count that the press changed, captures the button and finds it at a pixel, moves the
-focus, and opens and closes the dialog; it needs what `tests/views.rs` needs, and runs beside it.
+focus, opens and closes the dialog, gives the bar's field of text a value, which the example reads
+as committed, and sees a field of numbers refuse a text that reads as no number; it needs what
+`tests/views.rs` needs, and runs beside it.
 `tests/edit.rs` starts the `editor` example on a copy of the yard, writes it back unchanged, makes
 steps, undoes and redoes them, writes the level, finds again, as the editor starts again, what it
 did not write, and, the level written, opens it from its file; it needs no compositor, the

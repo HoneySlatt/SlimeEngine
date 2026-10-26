@@ -46,7 +46,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   M6b.5a, input and focus ([ADR-0142](adr/0142-input-and-focus.md)), and M6b.5b, what agents see
   ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)), are done. M6b.6 was cut in two at its
   start: M6b.6a, text edited, and what the platform lacks for it
-  ([ADR-0145](adr/0145-text-edited.md)), is done. Next: M6b.6b, screen readers.
+  ([ADR-0145](adr/0145-text-edited.md)), and M6b.6b, screen readers
+  ([ADR-0146](adr/0146-screen-readers.md)), are done. Next: M6b.7, widgets and layers.
 
 ## Status
 
@@ -62,7 +63,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.5a](#m6b5a--input-and-focus) | A person uses the interface with the pointer and the keyboard, and the program reads what they did as actions, which an agent can send as well | Done |
 | [M6b.5b](#m6b5b--what-agents-see) | An agent reads what the interface shows, and uses it through the same actions as a person | Done |
 | [M6b.6a](#m6b6a--text-edited-and-what-the-platform-lacks-for-it) | Text is typed, selected, copied and composed in every writing system, in fields that the program reads as actions | Done |
-| [M6b.6b](#m6b6b--screen-readers) | Screen readers read the interface, and agents read and set what its fields hold | Planned |
+| [M6b.6b](#m6b6b--screen-readers) | Screen readers read the interface, and agents read and set what its fields hold | Done |
 | [M6b.7](#m6b7--widgets-and-layers) | The framework has the widgets that the dev overlay and the editor are made of | Planned |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
@@ -135,9 +136,10 @@ Risks:
   0.5, and its `check (windowed)` job 20 minutes 29 seconds at M6a.9, at the owner's limit of 20
   ([ADR-0104](adr/0104-the-build-ci-and-measurements.md)); the framework's crates bring about 40
   that the engine does not build today, ICU4X's most of them, and AccessKit's adapter 46 more on
-  Linux. Each milestone that adds a crate records how long CI's jobs take, and a job past the limit
-  is split, as ADR-0081 and [ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md) split them; about
-  20 crates leave with egui at M6b.8.
+  Linux, 52 as M6b.6b counted those of the workspace's build that come only through it. Each
+  milestone that adds a crate records how long CI's jobs take, and a job past the limit is split, as
+  ADR-0081 and [ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md) split them; about 20 crates
+  leave with egui at M6b.8.
 - **What only a person checks.** The look of text, input methods on Wayland and on Windows, the
   clipboard on Wayland's compositors and screen readers cannot be checked in a headless Weston: each
   milestone gives its checks by hand to [the list](#checks-by-hand-waiting-for-the-owner), but for
@@ -804,9 +806,50 @@ Risks:
 - **Done when.** Tests without a GPU: the tree's meaning given to AccessKit as expected, and updated
   with only what changed; an agent's session sets a field's value. CI is green and its jobs under
   their limit with the feature built.
-- **How to test.** `cargo test -p slime-ui -p slime-platform`; the MCP server's session test; the
-  example.
+- **How to test.** `cargo test -p slime-ui -p slime-app --features slime-app/accessibility`; the
+  MCP server's session test; the example.
 - **By hand.** Orca reads the example on Linux, and Narrator on Windows.
+- **Outcome.** Done on 2026-10-26. [ADR-0146](adr/0146-screen-readers.md) records the owner's
+  decisions of 2026-10-26: the interface gives what changed in its meaning in the engine's own
+  types, which `slime-app` alone translates into AccessKit's tree, AccessKit's types staying out of
+  `slime-ui`; and fields give their text by runs now, so that Orca reads them. `slime-ui` marks each
+  element as its meaning changes, names each element and each run of a field's text by a number
+  never given again, and gives the changes (`Ui::take_meaning_changes`): each element that changed,
+  with the elements that mean something nearest below it, and a field's text by runs, its
+  characters, their places and widths, where its words start, and the selection (`Ui::field_runs`).
+  An element's meaning gains its value; `Ui::set_value` gives a field a value as a person who
+  replaced its text and committed would, and `Ui::select_text` selects in it. `slime-platform`, with
+  its `accessibility` feature, makes the window hidden, makes AccessKit's adapter, then shows it,
+  gives the handler what screen readers ask (`Event::Accessibility`) and the adapter the updates of
+  the tree (`Window::update_accessibility`). `slime-app`, with its own, sends the whole tree when a
+  screen reader asks for it and what changed after each frame, and turns what a screen reader asks
+  into the interface's calls. The development channel's protocol is at version 9, its elements
+  holding their value, and the MCP server's `act_on_interface` takes `set_value`. The examples turn
+  the feature on; `scripts/check.sh` checks that the game holds no adapter. The log's default filter
+  keeps zbus at `warn`. The dependencies accesskit 0.25.2 and accesskit_winit 0.34.2, and
+  accesskit_consumer 0.39.2 for `slime-app`'s tests. The tests: in `slime-ui`'s
+  `tests/meaning_changes.rs`, the first changes whole and the changes after holding only what
+  changed, applied one after the other giving the whole tree at each step, a text's words, a new
+  element below a box that means nothing, the pointer over a button, a scroll, a field typed in, a
+  box hidden and shown again, a box named and unnamed, a modal root opened and closed, rows that a
+  scroll builds, another kind under a key, a button disabled, a root resized and a root removed
+  below another, numbers never given twice and found again, the marks that no one takes kept within
+  bounds; a field's runs in text of both directions, of several lines, long, empty, with a letter
+  under 200 marks, and its selection. In `tests/field.rs`, a value set as one edit then committed,
+  refused where a person could not type it, and a selection set by bytes. In `slime-app`, the
+  translation built into AccessKit's own tree with `accesskit_consumer`: the whole tree, an update
+  of what changed alone, buttons moving from a box named to the window, an interface that comes and
+  goes, a modal root's whole update, what a screen reader asks reaching the interface, a click on a
+  disabled button doing nothing, a selection across lines, and scrolls in a root laid out from right
+  to left. In `slime-mcp`'s `tests/interface.rs`, an agent's session gives the example's field of
+  text a value and sees a field of numbers refuse a text that reads as no number. Run by hand, a
+  client of AT-SPI, in a D-Bus session of its own with the AT-SPI service and a headless Weston,
+  read the `interface` example's window: its bar, buttons, fields and texts, a field's text, caret
+  and words, the field of numbers' value; it set the field's text, which the example read as
+  committed, moved its caret and selected, and pressed a button, which opened the dialog. Orca
+  itself was not run. A review of the milestone found that a screen reader asking for the tree again
+  while a frame made an update could make AccessKit panic, now guarded, and paths renumbered by a
+  root removed below others, now marked. Its CI times are recorded once it runs.
 
 ### M6b.7 — Widgets and layers
 
@@ -930,6 +973,11 @@ The game is run with `--new --save <a file of its own>`, so that the owner's sav
   eight writing systems, its list scrolling, the window's images seen without their sRGB encoding,
   which no check of CI draws in a window ([ADR-0137](adr/0137-the-canvas.md),
   [ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
+
+- **M6b.6b, on Linux and in the Windows virtual machine.** Orca reads the `interface` example
+  ([ADR-0146](adr/0146-screen-readers.md)): its buttons and texts, the focus that Tab moves, its
+  field's text as the caret moves through it and what is typed; Narrator reads the same in the
+  Windows virtual machine.
 
 ## Releasing
 
@@ -1699,14 +1747,31 @@ GitHub issues, linked from their entry; this list stays the reference.
   while an input method composes, which the field reads without the composition, is left aside, so
   that a field clears itself once the composition ends. The clipboard holds text alone; on
   Wayland, it needs a compositor that gives the protocol of the clipboard's managers, wlroots',
-  niri's and Hyprland's among them, and falls back on X11 through XWayland elsewhere. Agents do
-  not type in a field yet: M6b.6b gives them its value.
+  niri's and Hyprland's among them, and falls back on X11 through XWayland elsewhere. An agent sets
+  a field's value whole, and does not type in it key by key.
 - **What agents see** ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)): a tool reads an
-  interface only in a windowed run, from its last frame, and each ask walks the whole tree. Elements
-  hold no value yet. A path holds while the roots below its own stay, and a key's name that holds
+  interface only in a windowed run, from its last frame, and each ask walks the whole tree. A path
+  holds while the roots below its own stay, and a key's name that holds
   `/`, or that `#` and digits make, cannot be read back from one. A row of a list is found by its
   number, the names of its texts not gathered into its own. Games link `slime-ui` through
   `slime-app`, whether they have an interface or not.
+- **Screen readers** ([ADR-0146](adr/0146-screen-readers.md)): no check of CI runs a screen reader
+  or the AT-SPI service; the adapter was read by a client of AT-SPI by hand, and Orca and Narrator
+  wait for the owner. A modal dialog is not marked modal to screen readers, which find the elements
+  below it taking nothing; a label's text gives no runs, so that a screen reader reads it whole; a
+  field of numbers takes no increment or decrement, and nothing scrolls an element into view; the
+  hover and the press are given to agents, not to screen readers, which AccessKit does not ask. A
+  root's box that changes, a window resized, marks all it holds, and a modal root opened or closed
+  makes the next changes whole. Each element's meaning is made again from the tree when marked, the
+  boxes that only lay others out below it walked, and a field's runs laid out from its text, as it
+  draws it. On Windows, which never says that no client reads any more, a window whose tree was
+  asked for once is given an update after each frame until it closes. A text that its builder names
+  gives screen readers its name, not its words; a caret at the end of a line that breaks within the
+  text is placed at the start of the next, its side lost; screen readers scroll by an item or by
+  what shows, not to an offset. egui's accesskit 0.24 is built beside 0.25 until M6b.8 takes egui
+  out. `deny.toml` ignores three advisories of unmaintained crates that the adapter on Linux brings
+  through zbus 5, zvariant, zbus_names and zvariant_derive, which zbus 6 holds: they go once
+  AccessKit's adapter moves to zbus 6.
 - **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md)): a theme's value
   names no other, and a field of the type `String` takes no named value. An error of type in a
   cooked style sheet or theme is placed by its byte and the path of its part, not by its line. The
