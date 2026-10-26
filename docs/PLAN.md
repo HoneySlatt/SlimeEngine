@@ -778,10 +778,16 @@ Risks:
   the release of a press that the interface did not take left to it too, an empty label taking
   neither press nor wheel, every press and key taken under a modal root, and the arrows giving no
   focus; the keys that type through an input method without text of their own taken, and a drag cut
-  short by another press committing. In `slime-platform`, what an input method composes and
+  short by another press committing. Three reviews read the milestone before it was pushed; what
+  they found is in its commits. In `slime-platform`, what an input method composes and
   commits translated; in
   `slime-app`, the window's events reaching the interface or the game as the rule says. The example
-  drawn into an image with its fields.
+  drawn into an image with its fields. CI is green on `1d56f81`. It is the first run since
+  [ADR-0144](adr/0144-the-cooked-zones-key-in-ci.md) whose `Cargo.lock` changed, by arboard, and it
+  restored the cooked zone from its cache rather than cooking it again: every job came back within
+  the limit of 20 minutes, `check (headless)` in 13 minutes 12 seconds, `check (windowed)` in 16
+  minutes 47 seconds, `windows` in 18 minutes 9 seconds and `windows-release` in 8 minutes 49
+  seconds.
 
 ### M6b.6b — Screen readers
 
@@ -1654,8 +1660,11 @@ GitHub issues, linked from their entry; this list stays the reference.
   `check (windowed)` took 20 minutes 28 seconds and `windows` 20 minutes 51 seconds.
   [ADR-0144](adr/0144-the-cooked-zones-key-in-ci.md) keys the cooked zone on the packages that the
   cooker is built from: a dependency added to another crate no longer cooks it again, but a change
-  of the cooker's sources or of its packages still does. Its caches warm, `check (windowed)` takes
-  some 18 and a half minutes, near the limit: the runs it holds grow with each milestone.
+  of the cooker's sources or of its packages still does. M6b.6a was the first milestone to add a
+  dependency since, arboard, in `slime-platform`: the zone was restored from its cache, and the
+  four jobs came back within the limit, `windows` the longest at 18 minutes 9 seconds. Its caches
+  warm, `check (windowed)` takes some 16 and a half minutes: the runs it holds grow with each
+  milestone.
 - **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)): a frame walks every
   element of its roots, to find what to draw again and to gather the display list, even when
   nothing changed. A list shows the rows of a new range one frame late, when it first shows or when
