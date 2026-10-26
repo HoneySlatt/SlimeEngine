@@ -48,7 +48,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   start: M6b.6a, text edited, and what the platform lacks for it
   ([ADR-0145](adr/0145-text-edited.md)), and M6b.6b, screen readers
   ([ADR-0146](adr/0146-screen-readers.md)), are done. M6b.7 was cut in two at its start, by the
-  owner on 2026-10-26: M6b.7a, the widgets that a panel holds, is built, its CI to run
+  owner on 2026-10-26: M6b.7a, the widgets that a panel holds, is done
   ([ADR-0148](adr/0148-widgets.md)); M6b.7b, the layers, follows.
 
 ## Status
@@ -66,7 +66,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.5b](#m6b5b--what-agents-see) | An agent reads what the interface shows, and uses it through the same actions as a person | Done |
 | [M6b.6a](#m6b6a--text-edited-and-what-the-platform-lacks-for-it) | Text is typed, selected, copied and composed in every writing system, in fields that the program reads as actions | Done |
 | [M6b.6b](#m6b6b--screen-readers) | Screen readers read the interface, and agents read and set what its fields hold | Done |
-| [M6b.7a](#m6b7a--the-widgets-of-a-panel) | The framework has the widgets that a panel of the dev overlay and of the editor is made of, in the editor's theme | Built; CI to run |
+| [M6b.7a](#m6b7a--the-widgets-of-a-panel) | The framework has the widgets that a panel of the dev overlay and of the editor is made of, in the editor's theme | Done |
 | [M6b.7b](#m6b7b--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Planned |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
@@ -882,7 +882,7 @@ fixed width and of icons, Geist Mono and Lucide.
   `cargo test -p slime-examples --test widgets`; the MCP server's session,
   `crates/slime-mcp/tests/widgets.rs`, in a headless Weston; the example.
 - **By hand.** The owner tries the example's widgets.
-- **Outcome.** Built on 2026-10-26, CI to run. [ADR-0148](adr/0148-widgets.md) records the owner's
+- **Outcome.** Done on 2026-10-26. [ADR-0148](adr/0148-widgets.md) records the owner's
   decisions of 2026-10-26: M6b.7 cut in two; each widget an element kind of `slime-ui`; the editor's
   look in `slime-ui`, behind a feature; an example of its own. `slime-ui` gains check boxes
   (`Kind::CheckBox`), sliders (`Kind::Slider`), sections that fold (`Kind::Section`), bars of tabs
@@ -924,7 +924,10 @@ fixed width and of icons, Geist Mono and Lucide.
   level of the log hidden, and its inspector laid out from right to left, its widgets used, against
   reference images; in `slime-mcp`'s `tests/widgets.rs`, an agent's session that unchecks a check
   box, gives a slider a value, opens a folded section, moves a handle, scrolls the list of entities
-  and chooses a tab, the example reading each change that is the program's.
+  and chooses a tab, the example reading each change that is the program's. CI is green on
+  `c32e682`, the reference images matched on WARP too: `check (headless)` took 16 minutes 1 second,
+  `check (windowed)` 17 minutes 28 seconds, `windows` 19 minutes 13 seconds and `windows-release`
+  13 minutes 26 seconds, all within the limit of 20, `windows` the nearest to it.
 
 ### M6b.7b — Layers
 
