@@ -44,8 +44,10 @@ pids=()
 trap 'kill "${pids[@]}" 2>/dev/null || true' EXIT
 
 # The AT-SPI bus and its registry, which a desktop's session would start; then AT-SPI turned on, as
-# a screen reader turns it on, which AccessKit's adapter waits for.
-"$SLIME_AT_SPI/libexec/at-spi-bus-launcher" --launch-immediately >"$logs/bus.log" 2>&1 &
+# a screen reader turns it on, which AccessKit's adapter waits for. The bus keeps that setting in
+# GSettings, whose memory alone holds it here: dconf, which a desktop's session runs, is not.
+GSETTINGS_BACKEND=memory "$SLIME_AT_SPI/libexec/at-spi-bus-launcher" --launch-immediately \
+    >"$logs/bus.log" 2>&1 &
 pids+=("$!")
 for _ in $(seq 100); do
     gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \
@@ -65,6 +67,12 @@ for _ in $(seq 300); do
 done
 gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \
     --method org.freedesktop.DBus.Properties.Set org.a11y.Status IsEnabled '<true>' >/dev/null
+if ! gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \
+    --method org.freedesktop.DBus.Properties.Get org.a11y.Status IsEnabled | grep -q true; then
+    echo "AT-SPI did not turn on:"
+    cat "$logs/bus.log"
+    exit 1
+fi
 
 "$example" --assets "$assets" >"$logs/example.log" 2>&1 &
 example_pid=$!

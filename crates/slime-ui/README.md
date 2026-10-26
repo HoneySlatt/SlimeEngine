@@ -41,6 +41,15 @@ style them (`docs/adr/0141-style-sheets-and-themes.md`), the input and the focus
   reads it as actions, changed and committed (`action::FieldValue`), and the window asks it for
   the pointer's shape and where text is typed (`Ui::cursor`, `Ui::text_input`). The input calls
   give whether the interface took the event, which a game then leaves.
+- Widgets, each an element kind that keeps its state in the tree (M6b.7a, in progress): check boxes
+  (`Element::check_box`) and sliders (`Element::slider`), whose values the program reads as
+  actions, changed and committed (`action::FieldValue`), the program's value replacing the user's
+  only when it changes; sections that fold what they hold (`Element::section`, `Ui::set_open`); bars
+  of tabs (`Element::tab_bar`, `Element::tab`), whose choice runs again the builder that shows its
+  panel (`Children::chosen`); two panels and the handle between them (`Element::split`); and the
+  scroll bars of a box that scrolls and of a list. Their parts apart from their box take the style's
+  `control` part (`style::ControlStyle`), and rules select them by the states `Checked`, `Expanded`
+  and `Selected`.
 - `Ui::meaning` says what the tree means, made when asked: each element drawn that means
   something, its `tree::Role`, named as AccessKit names roles, its name, a field's value, its
   states, the `tree::ElementAction`s that an agent can do to it now, the part of it that shows and

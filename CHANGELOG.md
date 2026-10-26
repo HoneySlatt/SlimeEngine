@@ -8,6 +8,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Widgets of a panel, in progress (M6b.7a): check boxes, sliders, sections that fold, bars of tabs,
+  two panels and a handle between them, and scroll bars over a box that scrolls and a list, each an
+  element kind of `slime-ui` that keeps its state in the tree, with its meaning, which agents and
+  screen readers read, and its actions; `style::ControlStyle` styles their parts apart from their
+  box. `slime-input`'s `CursorShape` gains `ResizeVertical`.
 - Screen readers (ADR-0146): with `slime-app`'s and `slime-platform`'s `accessibility` feature,
   which the examples turn on and games leave out, screen readers are given a presentation's
   interface through AccessKit's adapter of the window, read on Linux by a client of AT-SPI, the
