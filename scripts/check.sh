@@ -42,6 +42,7 @@ if runs headless; then
     cargo clippy --locked -p slime-mcp --test drive -- -D warnings
     cargo clippy --locked -p slime-mcp --test views -- -D warnings
     cargo clippy --locked -p slime-mcp --test interface -- -D warnings
+    cargo clippy --locked -p slime-mcp --test widgets -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit_zone -- -D warnings
     # The game built for shipping, without the development channel (ADR-0122): the code that stands in
@@ -54,6 +55,7 @@ if runs headless; then
     cargo clippy --locked -p slime-mcp --test drive --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test views --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test interface --target x86_64-pc-windows-msvc -- -D warnings
+    cargo clippy --locked -p slime-mcp --test widgets --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit_zone --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p hunnawood --no-default-features --all-targets --target x86_64-pc-windows-msvc -- -D warnings
@@ -70,6 +72,9 @@ if runs headless; then
 
     step "Rustdoc"
     RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+    # The editor's look, which only the examples' dev-dependency turns on, and so the workspace's
+    # documentation leaves out (ADR-0148).
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --locked -p slime-ui --features editor-look
 
     step "Dependencies (licenses, advisories, sources)"
     cargo deny --locked check
@@ -109,6 +114,9 @@ if runs headless; then
     # above, drawn into an image, its text in eight writing systems (ADR-0139, ADR-0140, ADR-0141).
     env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         cargo run --locked --example interface -- --assets "$cooked/first" --output target/interface.png
+    # The widgets of a panel, in the editor's look, drawn into an image (ADR-0148).
+    env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        cargo run --locked --example widgets -- --output target/widgets.png
     # The interface's text, laid out and rasterized by the CPU into an image (ADR-0136).
     cargo run --locked --example text -- --output target/text.png
     # An agent's session through the MCP server edits a copy of the yard with the `editor` example,
@@ -168,6 +176,15 @@ if runs windowed; then
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
         VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 300 cargo test --locked -p slime-mcp --test interface -- "$cooked/first" ||
+        { cat "$runtime/slime-check.log"; exit 1; }
+    # The widgets of a panel over the window, and an agent's session through the MCP server that uses
+    # each of them through its actions (ADR-0148).
+    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        timeout -k 10 120 cargo run --locked --example widgets -- --frames 120 ||
+        { cat "$runtime/slime-check.log"; exit 1; }
+    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
+        VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        timeout -k 10 300 cargo test --locked -p slime-mcp --test widgets ||
         { cat "$runtime/slime-check.log"; exit 1; }
     # A client of AT-SPI, the service that Orca reads, reads and uses the same example as a screen
     # reader does, on a bus of D-Bus of its own (ADR-0146, ADR-0147).

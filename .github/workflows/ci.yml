@@ -103,6 +103,7 @@ jobs:
           # The interface reads its style sheet and themes cooked with the sample.
           cargo run --locked -p slime-cook -- cook examples/assets target/cooked/examples
           cargo run --locked --example interface -- --output target/interface.png
+          cargo run --locked --example widgets -- --output target/widgets.png
       # The sample game's zone, fetched from its mirror and kept between runs while its list is
       # unchanged, then cooked for the tests that read it
       # (docs/adr/0070-the-sample-games-source-assets.md).
@@ -188,9 +189,10 @@ jobs:
       - name: Gather the programs for checks by hand, with DXC beside them and their data cooked
         run: |
           mkdir -p target/windows
-          cp target/release/examples/{hello,headless,window,offscreen,interface,scene,world}.exe target/windows/
-          # The licenses of the parts of Noto fonts that interface.exe embeds (ADR-0133).
-          cp crates/slime-ui/tests/fonts/*.OFL.txt target/windows/
+          cp target/release/examples/{hello,headless,window,offscreen,interface,widgets,scene,world}.exe target/windows/
+          # The licenses of the parts of Noto fonts that interface.exe embeds, and of Geist and Geist
+          # Mono, which widgets.exe embeds (ADR-0133).
+          cp crates/slime-ui/tests/fonts/*.OFL.txt crates/slime-ui/look/Geist.OFL.txt target/windows/
           cp target/release/hunnawood.exe target/windows/
           scripts/fetch-dxc.sh target/windows
           cargo run --locked --release -p slime-cook -- cook examples/assets target/windows/assets
@@ -202,6 +204,7 @@ jobs:
           target/windows/headless.exe --frames 600
           target/windows/world.exe --headless --frames 600
           target/windows/interface.exe --output target/interface-release.png
+          target/windows/widgets.exe --output target/widgets-release.png
           SLIME_LOG=info target/windows/offscreen.exe --output target/triangle-release.png \
             > target/offscreen.log 2>&1 || { cat target/offscreen.log; exit 1; }
           cat target/offscreen.log
