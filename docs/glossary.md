@@ -1378,6 +1378,11 @@ which a rendering technique enters the engine ([ADR-0098](adr/0098-the-games-the
 **WARP.** Microsoft's software driver for Direct3D 12, part of Windows. wgpu uses it on Windows
 machines without a GPU, such as the CI runners.
 
+**Widget.** An element of the interface that a person uses, a check box, a slider, a section that
+folds, a bar of tabs, two panels and their handle: an element kind of `slime-ui` that keeps its
+state in the tree, which the program's value replaces only when it changes, with its own input,
+meaning and actions ([ADR-0148](adr/0148-widgets.md)).
+
 **World.** The *entities* of a game, their *components* and their hierarchy, kept by the engine
 (`slime_world::World`); Stage 5a draws what it holds and saves what changed.
 A game, a test or an editor holds as many worlds as it needs

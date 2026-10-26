@@ -880,6 +880,11 @@ fixed width and of icons, Geist Mono and Lucide.
   example in the theme; an agent's session uses each widget through its actions; CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-ui-render`; the example.
 - **By hand.** The owner tries the example's widgets.
+- **Progress.** [ADR-0148](adr/0148-widgets.md) records the owner's decisions of 2026-10-26 and the
+  design of the widgets built so far, each tested without a GPU in `slime-ui`'s
+  `tests/controls.rs`: check boxes, sliders, sections that fold, bars of tabs, two panels and a
+  handle, and scroll bars. The editor's theme and fonts, the example that shows every widget, an
+  agent's session over it and its image tests are to come.
 
 ### M6b.7b — Layers
 
