@@ -447,3 +447,50 @@ fn a_split_shares_its_length_and_its_handle_is_dragged_and_moved_by_the_keys() {
     ui.key(&named(NamedKey::End));
     assert_eq!(ui.split_share(split), Some(1.0));
 }
+
+#[test]
+fn a_box_whose_content_does_not_fit_shows_a_scroll_bar_that_scrolls_it() {
+    let mut ui = ui();
+    let settings = RootSettings {
+        size: [400.0, 300.0],
+        scale: 1.0,
+        direction: LayoutDirection::LeftToRight,
+        origin: [0.0; 2],
+        modal: false,
+    };
+    let root = ui.add_root(settings, Style::default());
+    let mut boxed = Style::default();
+    boxed.layout.size = [Dimension::Pixels(100.0), Dimension::Pixels(40.0)];
+    boxed.layout.direction = slime_ui::style::FlexDirection::Column;
+    let mut scroll = None;
+    ui.build(root, 0, |children| {
+        scroll = Some(children.add("scroll", Element::scroll(boxed), |children| {
+            for name in ["a", "b", "c"] {
+                let mut tall = sized(80.0);
+                tall.layout.size[1] = Dimension::Pixels(30.0);
+                children.add(name, Element::button(name, tall), |_| {});
+            }
+        }));
+    });
+    let (list, _) = ui.frame();
+    let scroll = scroll.expect("built");
+    // 90 pixels of content in 40: a bar along its end, 8 pixels thick, drawn over its content.
+    let before = list.items().len();
+    assert!(before > 3, "the buttons, then the bar's track and thumb");
+    // The thumb, at the bar's top, dragged halfway down its room: the content scrolls halfway.
+    ui.pointer_moved(96.0, 2.0);
+    assert!(ui.pointer_button(MouseButton::Left, ButtonState::Pressed));
+    let thumb = 40.0 * 40.0 / 90.0;
+    ui.pointer_moved(96.0, 2.0 + (40.0 - thumb) / 2.0);
+    assert!(ui.pointer_button(MouseButton::Left, ButtonState::Released));
+    let [_, y] = ui.scroll(scroll).expect("a box that scrolls");
+    assert!((y - 25.0).abs() < 0.5, "{y}");
+    // A press on its track below the thumb pages down, to the end.
+    ui.frame();
+    ui.pointer_moved(96.0, 39.0);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    assert_eq!(ui.scroll(scroll), Some([0.0, 50.0]));
+    // Nothing reached the buttons below the bar.
+    assert!(ui.take_actions().is_empty());
+}

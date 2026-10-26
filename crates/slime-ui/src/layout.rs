@@ -338,7 +338,15 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
 /// `offset`, a scroll in logical pixels of an element of `kind` laid out as `layout`, kept within
 /// its content: none for an element that does not scroll.
 pub(crate) fn within(offset: [f32; 2], kind: &Kind, layout: &Layout, scale: f32) -> [f32; 2] {
-    let most = match *kind {
+    let most = scroll_most(kind, layout, scale);
+    [0, 1].map(|axis| offset[axis].clamp(0.0, most[axis] / scale))
+}
+
+/// How far the content of an element of `kind` laid out as `layout` scrolls at most, along x and
+/// y, in pixels of the screen at `scale`: 0 for an element that does not scroll, or whose content
+/// fits.
+pub(crate) fn scroll_most(kind: &Kind, layout: &Layout, scale: f32) -> [f32; 2] {
+    match *kind {
         Kind::Scroll => [layout.scroll_width(), layout.scroll_height()],
         Kind::List { rows, row_height } => {
             let height =
@@ -346,8 +354,7 @@ pub(crate) fn within(offset: [f32; 2], kind: &Kind, layout: &Layout, scale: f32)
             [0.0, (height - layout.size.height).max(0.0)]
         }
         _ => [0.0; 2],
-    };
-    [0, 1].map(|axis| offset[axis].clamp(0.0, most[axis] / scale))
+    }
 }
 
 /// `rect` cut to `clip`, when there is one.

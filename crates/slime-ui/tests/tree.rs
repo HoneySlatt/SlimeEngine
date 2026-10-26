@@ -415,9 +415,10 @@ fn a_list_of_100_000_rows_builds_lays_out_and_draws_only_the_rows_that_show() {
     );
     assert_eq!(ui.rect(rows[0]), Some(Rect::new(0.0, -10.0, 400.0, 20.0)));
     assert_eq!(stats.painted, 16);
-    assert_eq!(display.len(), 16);
+    // The rows, cut to the list, then its scroll bar's track and thumb over them.
+    assert_eq!(display.len(), 18);
     let cut = Some(Rect::new(0.0, 0.0, 400.0, 300.0));
-    assert!(display.items().iter().all(|item| item.clip == cut));
+    assert!(display.items()[..16].iter().all(|item| item.clip == cut));
     // Standing still, it costs nothing.
     build(&mut ui, 0);
     let (_, stats) = ui.frame();
@@ -482,8 +483,10 @@ fn a_box_that_scrolls_moves_its_content_cut_to_its_edges_without_laying_it_out()
     let (display, stats) = ui.frame();
     assert_eq!((stats.layouts, stats.painted), (0, 5));
     assert_eq!(ui.rect(items[0]), Some(Rect::new(0.0, -30.0, 200.0, 40.0)));
+    // Its items cut to it, then its scroll bar's track and thumb over them.
     let cut = Some(Rect::new(0.0, 0.0, 200.0, 100.0));
-    assert!(display.items().iter().all(|item| item.clip == cut));
+    let content = &display.items()[..display.len() - 2];
+    assert!(content.iter().all(|item| item.clip == cut));
     // Within its content: 5 items of 40 pixels in a box of 100.
     ui.scroll_to(scroll, [50.0, 500.0]);
     assert_eq!(ui.scroll(scroll), Some([0.0, 100.0]));
@@ -845,8 +848,16 @@ fn a_box_that_scrolls_from_right_to_left_scrolls_from_its_start_and_cuts_inside_
     // 30 pixels from its start, which is on the right: its first item moved right.
     assert_eq!(ui.rect(items[0]), Some(Rect::new(170.0, 0.0, 60.0, 50.0)));
     let inside = Some(Rect::new(102.0, 2.0, 96.0, 46.0));
-    let cut: Vec<_> = list.items().iter().skip(1).map(|item| item.clip).collect();
+    // Its box, its three items cut inside its border, then its scroll bar over them.
+    let cut: Vec<_> = list
+        .items()
+        .iter()
+        .skip(1)
+        .take(3)
+        .map(|item| item.clip)
+        .collect();
     assert_eq!(cut, [inside; 3]);
+    assert_eq!(list.len(), 6);
     // Within its content: three items of 60 pixels in a box of 100.
     ui.scroll_to(scroll, [500.0, 0.0]);
     assert_eq!(ui.scroll(scroll), Some([80.0, 0.0]));

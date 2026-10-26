@@ -172,13 +172,21 @@ fn box_primitives(
 }
 
 /// Adds to `list` what `root` and the elements below it draw, each before its children, those not
-/// laid out left out.
+/// laid out left out; a box that scrolls and a list, their scroll bars after their children, over
+/// them.
 pub(crate) fn gather(ui: &Ui, root: ElementId, list: &mut DisplayList) {
-    let mut stack = vec![root];
-    while let Some(id) = stack.pop() {
+    // An element entered, its own then its children's, or left, what it draws over them.
+    let mut stack = vec![(root, true)];
+    while let Some((id, entered)) = stack.pop() {
         let Some(node) = ui.node(id) else {
             continue;
         };
+        if !entered {
+            for primitive in ui.bar_primitives(id) {
+                list.push(primitive, node.clip);
+            }
+            continue;
+        }
         if node.style.layout.display == Display::None {
             continue;
         }
@@ -189,6 +197,9 @@ pub(crate) fn gather(ui: &Ui, root: ElementId, list: &mut DisplayList) {
             };
             list.push(primitive.clone(), clip);
         }
-        stack.extend(node.children.iter().rev().copied());
+        if matches!(node.element.kind, Kind::Scroll | Kind::List { .. }) {
+            stack.push((id, false));
+        }
+        stack.extend(node.children.iter().rev().map(|&child| (child, true)));
     }
 }

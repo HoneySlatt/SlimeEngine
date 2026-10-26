@@ -36,6 +36,8 @@ pub(super) struct Interaction {
     /// Whether what lies under the pointer may have changed since it was found: the tree was laid
     /// out, scrolled or cut since.
     moved: bool,
+    /// The thumb of a scroll bar that the pointer holds.
+    pub(super) bar: Option<super::scroll_bar::Held>,
 }
 
 impl Ui {
@@ -45,6 +47,9 @@ impl Ui {
     /// follows the pointer too.
     pub fn pointer_moved(&mut self, x: f32, y: f32) {
         self.interaction.pointer = Some([x, y]);
+        if let Some(held) = self.interaction.bar {
+            self.drag_bar(held, x, y);
+        }
         if let Some(captured) = self.interaction.captured {
             match self.node(captured).map(|node| &node.element.kind) {
                 Some(Kind::TextField { .. } | Kind::NumberField { .. }) => {
@@ -77,6 +82,21 @@ impl Ui {
     pub fn pointer_button(&mut self, button: MouseButton, state: ButtonState) -> bool {
         let primary = button == MouseButton::Left;
         match state {
+            // A press on a scroll bar holds its thumb, or pages along its track.
+            ButtonState::Pressed
+                if primary
+                    && let Some([x, y]) = self.interaction.pointer
+                    && let Some((id, bar)) = self.bar_at(x, y) =>
+            {
+                self.interaction.held.retain(|&held| held != button);
+                self.interaction.held.push(button);
+                self.press_bar(id, bar, x, y);
+                true
+            }
+            ButtonState::Released if primary && self.interaction.bar.take().is_some() => {
+                self.interaction.held.retain(|&held| held != button);
+                true
+            }
             ButtonState::Pressed => {
                 // A press without the release of the one before lets go of what that one held.
                 if primary && let Some(before) = self.interaction.captured.take() {
@@ -412,6 +432,9 @@ impl Ui {
         let Some([x, y]) = self.interaction.pointer else {
             return false;
         };
+        if self.bar_at(x, y).is_some() {
+            return true;
+        }
         let mut at = self.element_at(x, y);
         while let Some(node) = at.and_then(|id| self.node(id)) {
             let drawn = node.primitives.iter().any(|(primitive, own)| {
@@ -705,6 +728,6 @@ fn holds(node: &Node, x: f32, y: f32) -> bool {
 }
 
 /// Whether `rect` holds `x` and `y`.
-fn inside(rect: crate::Rect, x: f32, y: f32) -> bool {
+pub(super) fn inside(rect: crate::Rect, x: f32, y: f32) -> bool {
     x >= rect.x && y >= rect.y && x < rect.x + rect.width && y < rect.y + rect.height
 }

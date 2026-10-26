@@ -23,6 +23,7 @@ mod control;
 mod field;
 mod interact;
 mod meaning;
+mod scroll_bar;
 
 pub use field::Clipboard;
 use interact::Interaction;
