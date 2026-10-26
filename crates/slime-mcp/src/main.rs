@@ -47,8 +47,8 @@ const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its dev
      `read_logs` reads its log; `save_game` and `load_game` save its run to a file and load it; \
      `stop_game` ends it. A game's interface is read and used as a person uses it: \
      `find_elements` lists its elements by role and name, each with its path, `element_at` names \
-     the one at a pixel, `act_on_interface` presses, focuses or scrolls one, gives a field a value, \
-     or moves the focus, \
+     the one at a pixel, `act_on_interface` presses, focuses or scrolls one, gives a field, a \
+     slider or two panels a value, or moves the focus, \
      and `capture_element` shows one. An editor, started as a game is (`cargo run --example \
      editor -- --level <a copy of a level> --journal <a file of its own>`), edits its level: \
      `edit` makes a step of commands, `undo` and `redo` undo and make it again, `select` selects \
@@ -210,7 +210,8 @@ struct Pick {
 struct FindElements {
     /// The role of the elements wanted, as AccessKit names roles, whatever its case: `Button`,
     /// `Label`, `Image`, `List`, `ListItem`, `ScrollView`, `Dialog`, `Toolbar`, `Group`,
-    /// `TextInput`, `MultilineTextInput`, `SpinButton`; any if left out.
+    /// `TextInput`, `MultilineTextInput`, `SpinButton`, `CheckBox`, `Slider`, `Details`, `TabList`,
+    /// `Tab`, `TabPanel`, `Splitter`; any if left out.
     role: Option<String>,
     /// What their names hold, whatever its case: a button's label, a text; any if left out.
     name: Option<String>,
@@ -228,11 +229,11 @@ struct ElementAt {
 /// What `act_on_interface` takes.
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct ActOnInterface {
-    /// What to do, whatever its case: `press`, `focus` or `scroll` an element, or `set_value` a
-    /// field's, which must take it, as `find_elements` lists; or, without an element, `next`,
-    /// `previous`, `up`, `down`, `left`, `right` to move the focus as Tab and the arrows do,
-    /// `accept` as Enter does, `cancel` as Escape does, `command` to give the command named
-    /// `command` as a shortcut does.
+    /// What to do, whatever its case: `press`, `focus` or `scroll` an element, or `set_value` of a
+    /// field, a slider or two panels, which must take it, as `find_elements` lists; or, without an
+    /// element, `next`, `previous`, `up`, `down`, `left`, `right` to move the focus as Tab and the
+    /// arrows do, `accept` as Enter does, `cancel` as Escape does, `command` to give the command
+    /// named `command` as a shortcut does.
     action: String,
     /// The element, by the path that `find_elements` gives: `#0/bar/open`.
     element: Option<String>,
@@ -243,7 +244,8 @@ struct ActOnInterface {
     /// For `command`, the command's name: `undo`.
     command: Option<String>,
     /// For `set_value`, the text that the field holds then, as a person who replaced what it holds
-    /// and committed would leave it; for a field of numbers, a finite number: `2.5`.
+    /// and committed would leave it; for a field of numbers or a slider, a finite number: `2.5`;
+    /// for two panels, the share of the first, from 0 to 1.
     value: Option<String>,
 }
 
@@ -836,8 +838,9 @@ impl Server {
     #[tool(
         description = "The elements of the game's interface, in the order of its tree, as its \
                        last frame left them, whose role and name match: each by its path, which \
-                       names it to the other tools, its role, its name, what a field holds, its \
-                       states (hovered, pressed, focused, disabled), where it shows in the image \
+                       names it to the other tools, its role, its name, what a field, a slider or \
+                       two panels hold, its states (hovered, pressed, focused, disabled, checked, \
+                       expanded, selected), where it shows in the image \
                        that `capture` gives, and what it takes now (press, focus, scroll, \
                        set_value). Boxes that only lay others out are left out."
     )]
@@ -866,7 +869,8 @@ impl Server {
 
     #[tool(
         description = "Acts in the game's interface as a person would: presses a button, gives an \
-                       element the focus, scrolls a box or a list, or gives a field a value, as \
+                       element the focus, scrolls a box or a list, or gives a field, a slider or \
+                       two panels a value, as \
                        if a person replaced what it holds and committed, which must take it now; \
                        or moves the focus, accepts, cancels or gives a command, as keys do. The \
                        game reads what it asks as its frame goes on."
@@ -884,7 +888,7 @@ impl Server {
             },
             "set_value" => match act.value {
                 Some(value) => InterfaceAction::SetValue { value },
-                None => return Ok(failure("`set_value` needs `value`, the field's text")),
+                None => return Ok(failure("`set_value` needs `value`, the element's text")),
             },
             "next" => InterfaceAction::Next,
             "previous" => InterfaceAction::Previous,

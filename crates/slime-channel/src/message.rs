@@ -213,8 +213,9 @@ pub enum InterfaceAction {
         /// The offset from the top.
         y: f32,
     },
-    /// Gives a field a value, as a person who replaced what it holds and committed would
-    /// (`docs/adr/0146-screen-readers.md`): the game reads the change and the commit.
+    /// Gives a field, a slider or two panels a value, as a person who replaced what it holds and
+    /// committed would (`docs/adr/0146-screen-readers.md`, `docs/adr/0148-widgets.md`): the game
+    /// reads the change and the commit of a field's or a slider's.
     SetValue {
         /// The text; for a field of numbers, a finite number, as Rust reads one.
         value: String,
@@ -457,7 +458,8 @@ pub struct ElementSummary {
     pub role: String,
     /// Its name; empty for none.
     pub name: String,
-    /// What a field holds, as the user left it; none for an element that is no field.
+    /// What a field holds, as the user left it, a slider's number or two panels' first share; none
+    /// for another element.
     pub value: Option<String>,
     /// Its states: `hovered`, `pressed`, `focused`, `disabled`, `checked`, `expanded`,
     /// `selected`.

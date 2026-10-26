@@ -450,16 +450,16 @@ fn scroll_by(ui: &mut Ui, id: ElementId, action: AccessAction, page: bool) {
 #[cfg(test)]
 mod tests {
     use accesskit_consumer::Tree;
+    use slime_ui::action::FieldValue;
     use slime_ui::style::{Dimension, FlexDirection, Style};
     use slime_ui::text::Fonts;
     use slime_ui::tree::{Element, RootSettings};
 
     use super::*;
 
-    /// An interface of a named bar of two buttons, a text and a field, the first button holding
-    /// the focus: the interface and its root.
-    fn interface() -> (Ui, ElementId) {
-        // The font of slime-ui's tests, which the field's text is laid out in.
+    /// An interface of no element, whose texts are laid out in the font of slime-ui's tests, and
+    /// its root, of 400 by 300 logical pixels at scale 1.
+    fn empty() -> (Ui, ElementId) {
         let path = format!(
             "{}/../slime-ui/tests/fonts/NotoSans.ttf",
             env!("CARGO_MANIFEST_DIR")
@@ -477,6 +477,13 @@ mod tests {
             modal: false,
         };
         let root = ui.add_root(settings, Style::default());
+        (ui, root)
+    }
+
+    /// An interface of a named bar of two buttons, a text and a field, the first button holding
+    /// the focus: the interface and its root.
+    fn interface() -> (Ui, ElementId) {
+        let (mut ui, root) = empty();
         build(&mut ui, root, "ready");
         ui.frame();
         let open = ui.element_by_path("#0/page/bar/open").expect("built");
@@ -893,5 +900,132 @@ mod tests {
         ) {
         }
         fn node_removed(&mut self, _node: &accesskit_consumer::NodeRef<'_>) {}
+    }
+
+    #[test]
+    fn widgets_are_given_with_their_states_and_values_and_take_what_a_screen_reader_asks() {
+        let (mut ui, root) = empty();
+        let sized = |width: f32| {
+            let mut style = Style::default();
+            style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(24.0)];
+            style.layout.shrink = 0.0;
+            style.text.style.fonts = vec!["Noto Sans".to_owned()];
+            style
+        };
+        let mut column = Style::default();
+        column.layout.direction = FlexDirection::Column;
+        ui.build(root, 0, |children| {
+            children.add("page", Element::container(column), |children| {
+                let check = Element::check_box("Shadows", true, sized(200.0));
+                children.add("check", check, |_| {});
+                let slider = Element::slider(0.5, 0.0, 1.0, 0.1, sized(200.0)).named("Volume");
+                children.add("slider", slider, |_| {});
+                let section = Element::section("Physics", false, sized(200.0));
+                children.add("section", section, |children| {
+                    children.add("mass", Element::label("12 kg", sized(100.0)), |_| {});
+                });
+                let bar = children.add("tabs", Element::tab_bar(1, sized(200.0)), |tabs| {
+                    for title in ["Scene", "Light"] {
+                        tabs.add(title, Element::tab(title, sized(80.0)), |_| {});
+                    }
+                });
+                assert_eq!(children.chosen(bar), 1);
+                let split = Element::split(true, 0.25, sized(200.0)).named("Panels");
+                children.add("split", split, |panels| {
+                    for key in ["left", "right"] {
+                        panels.add(key, Element::container(Style::default()), |_| {});
+                    }
+                });
+            });
+        });
+        ui.frame();
+        let mut readers = ScreenReaders::new("Example");
+        let changes = ui.take_meaning_changes(true);
+        let numbers: Vec<(ElementId, NodeId)> = changes
+            .nodes
+            .iter()
+            .map(|node| (node.meaning.id, NodeId(node.number)))
+            .collect();
+        let tree = Tree::new(readers.translate(changes, SIZE), true);
+        let state = tree.state();
+        let nodes: Vec<_> = state.root().children().collect();
+        let roles: Vec<AccessRole> = nodes.iter().map(|node| node.role()).collect();
+        assert_eq!(
+            roles,
+            [
+                AccessRole::CheckBox,
+                AccessRole::Slider,
+                AccessRole::Details,
+                AccessRole::TabList,
+                AccessRole::Splitter,
+            ]
+        );
+        assert_eq!(nodes[0].toggled(), Some(Toggled::True));
+        let slider = &nodes[1];
+        assert_eq!(
+            (
+                slider.numeric_value(),
+                slider.min_numeric_value(),
+                slider.max_numeric_value(),
+                slider.numeric_value_step()
+            ),
+            (Some(0.5), Some(0.0), Some(1.0), Some(0.1))
+        );
+        let filter = accesskit_consumer::common_filter;
+        assert!(slider.supports_action(AccessAction::Increment, &filter));
+        // Folded, a section holds nothing that a screen reader reads.
+        assert_eq!(nodes[2].data().is_expanded(), Some(false));
+        assert_eq!(nodes[2].children().count(), 0);
+        assert!(nodes[2].supports_action(AccessAction::Expand, &filter));
+        let tabs: Vec<Option<bool>> = nodes[3].children().map(|tab| tab.is_selected()).collect();
+        assert_eq!(tabs, [Some(false), Some(true)]);
+        assert_eq!(nodes[4].numeric_value(), Some(0.25));
+
+        // What a screen reader asks: the slider a step up, the check box clicked, the section
+        // opened, the first tab clicked.
+        let [slider, check, section, scene, bar] = [
+            "#0/page/slider",
+            "#0/page/check",
+            "#0/page/section",
+            "#0/page/tabs/Scene",
+            "#0/page/tabs",
+        ]
+        .map(|path| ui.element_by_path(path).expect("built"));
+        let number = |id: ElementId| {
+            numbers
+                .iter()
+                .find(|(element, _)| *element == id)
+                .map(|&(_, number)| number)
+                .expect("an element")
+        };
+        let request = |id: ElementId, action| ActionRequest {
+            action,
+            target_tree: TreeId::ROOT,
+            target_node: number(id),
+            data: None,
+        };
+        act(&mut ui, &request(slider, AccessAction::Increment));
+        assert_eq!(ui.slider_value(slider), Some(0.6));
+        act(&mut ui, &request(check, AccessAction::Click));
+        assert!(!ui.state(check).expect("there").checked);
+        act(&mut ui, &request(section, AccessAction::Expand));
+        assert!(ui.state(section).expect("there").expanded);
+        act(&mut ui, &request(scene, AccessAction::Click));
+        assert_eq!(ui.chosen_tab(bar), Some(0));
+        // The program reads the slider's change and the check box's, each committed.
+        let kinds: Vec<ActionKind> = ui
+            .take_actions()
+            .into_iter()
+            .map(|action| action.kind)
+            .collect();
+        assert_eq!(
+            kinds,
+            [
+                ActionKind::Changed(FieldValue::Number(0.6)),
+                ActionKind::Committed(FieldValue::Number(0.6)),
+                ActionKind::Changed(FieldValue::Checked(false)),
+                ActionKind::Committed(FieldValue::Checked(false)),
+            ]
+        );
     }
 }

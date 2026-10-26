@@ -642,10 +642,11 @@ fn act(
         }
         InterfaceAction::SetValue { value } => {
             let id = taking(ui, ElementAction::SetValue)?;
-            // The field takes what a person could type, a field of numbers a finite number.
+            // A field takes what a person could type; a field of numbers, a slider and two panels,
+            // a finite number.
             if !ui.set_value(id, value) {
                 return Err(format!(
-                    "the field `{path}` reads `{value}` as no finite number, and keeps its own"
+                    "the element `{path}` reads `{value}` as no finite number, and keeps its own"
                 ));
             }
             return Ok(());

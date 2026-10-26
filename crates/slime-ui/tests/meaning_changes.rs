@@ -1,11 +1,12 @@
 //! What changed in what the tree means, without a GPU (`docs/adr/0146-screen-readers.md`): the
 //! first changes whole, then only the elements that changed, which, applied one after the other,
-//! give the whole tree at each step; and a field's text by runs, as screen readers read it, in text
-//! of both directions, of several lines, long or empty, with its selection.
+//! give the whole tree at each step; a field's text by runs, as screen readers read it, in text
+//! of both directions, of several lines, long or empty, with its selection; and widgets used.
 
 use std::collections::{HashMap, HashSet};
 
 use slime_input::{ButtonState, MouseButton};
+use slime_ui::action::{Action, ActionKind};
 use slime_ui::style::{Dimension, Display, FlexDirection, Style};
 use slime_ui::text::Fonts;
 use slime_ui::tree::{
@@ -672,4 +673,85 @@ fn a_root_resized_or_removed_below_others_changes_what_it_shows_and_their_paths(
         .map(|node| node.meaning.path.as_str())
         .collect();
     assert_eq!(paths, ["#0/wide"]);
+}
+
+#[test]
+fn widgets_used_change_what_they_mean_and_keep_the_tree_whole() {
+    let mut ui = ui();
+    let root = ui.add_root(settings(false), Style::default());
+    let mut column = sized(400.0, 300.0);
+    column.layout.direction = FlexDirection::Column;
+    let build = |ui: &mut Ui| {
+        ui.build(root, 0, |children| {
+            children.add("page", Element::container(column.clone()), |children| {
+                let check = Element::check_box("shadows", false, sized(200.0, 24.0));
+                children.add("check", check, |_| {});
+                let slider = Element::slider(0.5, 0.0, 1.0, 0.1, sized(200.0, 24.0));
+                children.add("slider", slider, |_| {});
+                let section = Element::section("physics", false, sized(200.0, 60.0));
+                children.add("section", section, |children| {
+                    children.add("mass", Element::label("mass", sized(100.0, 20.0)), |_| {});
+                });
+                let bar = children.add("tabs", Element::tab_bar(0, sized(200.0, 24.0)), |tabs| {
+                    for title in ["scene", "light"] {
+                        tabs.add(title, Element::tab(title, sized(80.0, 24.0)), |_| {});
+                    }
+                });
+                let shown = ["scene", "light"][children.chosen(bar)];
+                let panel = Element::container(sized(200.0, 40.0))
+                    .role(Role::TabPanel)
+                    .named(shown);
+                children.add(shown, panel, |_| {});
+            });
+        });
+        ui.frame();
+    };
+    build(&mut ui);
+    let mut held = whole(&mut ui);
+    let path = |ui: &Ui, path: &str| ui.element_by_path(path).expect("built");
+    let (check, slider) = (path(&ui, "#0/page/check"), path(&ui, "#0/page/slider"));
+    let (section, light) = (
+        path(&ui, "#0/page/section"),
+        path(&ui, "#0/page/tabs/light"),
+    );
+    let numbers = [check, slider, section].map(|id| number(&mut ui, id));
+
+    // Each widget used gives its element changed: checked, moved, opened.
+    for (id, element_number) in [check, slider, section].into_iter().zip(numbers) {
+        if id == slider {
+            assert!(ui.set_value(slider, "0.8"));
+        } else {
+            ui.act(Action {
+                element: Some(id),
+                kind: ActionKind::Press,
+            });
+        }
+        ui.frame();
+        let (changed, _) = step(&mut ui, &mut held);
+        assert!(changed.contains(&element_number), "{changed:?}");
+    }
+    let given = |held: &Held, number: u64| held.nodes[&number].meaning.clone();
+    assert!(given(&held, numbers[0]).state.checked);
+    assert_eq!(given(&held, numbers[1]).value.as_deref(), Some("0.8"));
+    // Opened, the section gives what it holds, which meant nothing folded.
+    let section_node = &held.nodes[&numbers[2]];
+    assert!(section_node.meaning.state.expanded);
+    assert_eq!(section_node.children.len(), 1);
+
+    // A tab chosen runs the builder again: the tabs' states and the new panel change.
+    ui.act(Action {
+        element: Some(light),
+        kind: ActionKind::Press,
+    });
+    build(&mut ui);
+    step(&mut ui, &mut held);
+    let panels: Vec<String> = held
+        .nodes
+        .values()
+        .filter(|node| node.meaning.role == Role::TabPanel)
+        .map(|node| node.meaning.name.clone())
+        .collect();
+    assert_eq!(panels, ["light"]);
+    let light_number = number(&mut ui, light);
+    assert!(held.nodes[&light_number].meaning.state.selected);
 }
