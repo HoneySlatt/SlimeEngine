@@ -2,7 +2,8 @@
 
 - Status: Accepted; amends [0131](0131-stage-6b-and-stage-6c.md) (M6b.7 cut in two: the widgets
   of a panel, then layers) and [0132](0132-the-engines-ui-framework.md) (each widget is an element
-  kind of `slime-ui`)
+  kind of `slime-ui`); amended by [0149](0149-the-looks-foundations.md) (the rest of M6b.7 in
+  three: the look's foundations, layers, rich widgets)
 - Date: 2026-10-26
 
 ## Context

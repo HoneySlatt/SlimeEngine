@@ -14,8 +14,10 @@
   that holds one), [0145](0145-text-edited.md) (the engine composes the text of input methods
   and keeps a field's text, parley giving the selection's moves),
   [0146](0146-screen-readers.md) (AccessKit's types stay out of `slime-ui`: `slime-app` translates
-  the meaning into AccessKit's tree, `slime-platform` holds the adapter) and
-  [0148](0148-widgets.md) (each widget an element kind of `slime-ui`)
+  the meaning into AccessKit's tree, `slime-platform` holds the adapter),
+  [0148](0148-widgets.md) (each widget an element kind of `slime-ui`) and
+  [0149](0149-the-looks-foundations.md) (transitions declared in style sheets at Stage 6b, which
+  Stage 7 grows)
 - Date: 2026-10-22
 
 ## Context

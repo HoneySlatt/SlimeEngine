@@ -295,7 +295,7 @@ Stage 6 is split in three parts (ADR-0116, ADR-0131): what the editor stands on,
 **Goal.** The engine's UI framework, built and proven by the dev overlay that games ship, and the editor's core without its interface.
 
 - The editor's core first, without its interface: a command and transaction system, every edit undoable, its entities named by their persistent identities, a deletion undone by creating its entities again under the same identities, the commands kept in a journal; what the editor creates named at once as its level's file names it (ADR-0109); the MCP server acts through the same commands (ADR-0099); the editor's own program, without a window yet, which an agent drives through the MCP server, and a game's editor package beside it, *Hunna Wood*'s (ADR-0110, ADR-0134, ADR-0135)
-- The engine's UI framework (ADR-0098, ADR-0132): a retained tree of its own, built by code again when what it reads changes, its actions turned into commands; text in several writing systems; styles, and themes read from files; layout, and lists that lay out only what shows; input, focus and layers; text edited, with input methods and the clipboard; widgets; what it means, read by agents through the MCP server and by screen readers; drawn by the renderer's canvas
+- The engine's UI framework (ADR-0098, ADR-0132): a retained tree of its own, built by code again when what it reads changes, its actions turned into commands; text in several writing systems; styles, and themes read from files; layout, and lists that lay out only what shows; input, focus and layers; text edited, with input methods and the clipboard; widgets; themes that compute their colors, and transitions that style sheets declare (ADR-0149); what it means, read by agents through the MCP server and by screen readers; drawn by the renderer's canvas
 - Shaped for the games of Stage 7 from its first line: transforms, clips and layers in what it draws, roots that are not a window, text that can be translated and written from right to left, actions to which gamepads will be mapped (ADR-0132)
 - The dev overlay rewritten on the framework, and egui removed (ADR-0132)
 - Font files under the SIL Open Font License (ADR-0133)
@@ -329,7 +329,7 @@ The stage is planned in detail at Stage 6b's close (ADR-0131).
 - Audio: sources, listener, spatialization, buses, mixing, streaming; the importer of audio files, moved from Stage 4 (ADR-0068); the backend chosen against sound placed precisely around the listener's head, reverberation per room and sounds muffled by walls (ADR-0098)
 - The core of skeletal animation: skeletons, skinning, clips, blending, moved from Stage 9b (ADR-0097); poses that are not entities, and bones that things are attached to (ADR-0108)
 - Input action mapping, on the keys and buttons held that Stage 6a keeps (ADR-0107)
-- UI of games: text, menus, HUD, on the engine's UI framework, grown with animation and transitions, transforms, masks, effects on text, UI on surfaces in the world, focus driven by gamepads, screen readers, and UI documents, the games' screens as data (ADR-0098, ADR-0132)
+- UI of games: text, menus, HUD, on the engine's UI framework, grown with animation beside the transitions of Stage 6b (ADR-0149), transforms, masks, effects on text, UI on surfaces in the world, focus driven by gamepads, screen readers, and UI documents, the games' screens as data (ADR-0098, ADR-0132)
 
 **Exit.** The game has an animated character in a physical level, with sound and a UI, and is profiled end to end.
 

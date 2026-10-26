@@ -199,8 +199,8 @@ the ADR linking to it.
 | [0128](0128-asset-requests.md) | Asset requests | Accepted |
 | [0129](0129-drawing-for-the-editor.md) | Drawing for the editor | Accepted |
 | [0130](0130-picking.md) | Picking | Accepted |
-| [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amended by 0134, 0137, 0140, 0142, 0145 and 0148 |
-| [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted; amended by 0137, 0140, 0143, 0145, 0146 and 0148 |
+| [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amended by 0134, 0137, 0140, 0142, 0145, 0148 and 0149 |
+| [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted; amended by 0137, 0140, 0143, 0145, 0146, 0148 and 0149 |
 | [0133](0133-font-files-under-the-open-font-license.md) | Font files under the SIL Open Font License | Accepted; amended by 0139 |
 | [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 |
 | [0135](0135-the-editors-program.md) | The editor's program | Accepted |
@@ -209,11 +209,12 @@ the ADR linking to it.
 | [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted |
 | [0139](0139-text-drawn-and-the-display-list.md) | Text drawn, and the display list | Accepted |
 | [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amended by 0141, 0143 and 0146 |
-| [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted |
+| [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted; amended by 0149 |
 | [0142](0142-input-and-focus.md) | Input and focus | Accepted; amended by 0145 |
 | [0143](0143-what-agents-see-of-the-interface.md) | What agents see of the interface | Accepted; amended by 0146 |
 | [0144](0144-the-cooked-zones-key-in-ci.md) | The cooked zone's key in CI | Accepted |
 | [0145](0145-text-edited.md) | Text edited | Accepted |
 | [0146](0146-screen-readers.md) | Screen readers | Accepted; amended by 0147 |
 | [0147](0147-the-screen-readers-check-in-ci.md) | The screen readers' check in CI | Accepted |
-| [0148](0148-widgets.md) | Widgets | Accepted |
+| [0148](0148-widgets.md) | Widgets | Accepted; amended by 0149 |
+| [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted |

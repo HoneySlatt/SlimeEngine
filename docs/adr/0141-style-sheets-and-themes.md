@@ -2,7 +2,8 @@
 
 - Status: Accepted; amends [0140](0140-the-tree-of-elements.md) (a change of an element's state
   styles it again, which draws it again only where its style changed; a button's looks in its states
-  come from rules, not from its code)
+  come from rules, not from its code); amended by [0149](0149-the-looks-foundations.md) (a theme's
+  value names others and computes colors; themes stacked)
 - Date: 2026-10-25
 
 ## Context

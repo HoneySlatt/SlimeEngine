@@ -49,7 +49,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0145](adr/0145-text-edited.md)), and M6b.6b, screen readers
   ([ADR-0146](adr/0146-screen-readers.md)), are done. M6b.7 was cut in two at its start, by the
   owner on 2026-10-26: M6b.7a, the widgets that a panel holds, is done
-  ([ADR-0148](adr/0148-widgets.md)); M6b.7b, the layers, follows.
+  ([ADR-0148](adr/0148-widgets.md)). The owner cut the rest in three on 2026-10-27
+  ([ADR-0149](adr/0149-the-looks-foundations.md)): M6b.7b, the look's foundations, is in progress;
+  M6b.7c, the layers, and M6b.7d, the rich widgets, follow.
 
 ## Status
 
@@ -67,7 +69,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.6a](#m6b6a--text-edited-and-what-the-platform-lacks-for-it) | Text is typed, selected, copied and composed in every writing system, in fields that the program reads as actions | Done |
 | [M6b.6b](#m6b6b--screen-readers) | Screen readers read the interface, and agents read and set what its fields hold | Done |
 | [M6b.7a](#m6b7a--the-widgets-of-a-panel) | The framework has the widgets that a panel of the dev overlay and of the editor is made of, in the editor's theme | Done |
-| [M6b.7b](#m6b7b--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Planned |
+| [M6b.7b](#m6b7b--the-looks-foundations) | The editor's look follows one accent in a dark, a light and a high-contrast theme, moves through transitions, and stays crisp at every scale | In progress |
+| [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Planned |
+| [M6b.7d](#m6b7d--rich-widgets) | The framework has the rich fields, notifications and the palette of commands that make editing fast | Planned |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
 
@@ -115,8 +119,8 @@ core, without its interface. Where the engine stands at the start:
 Out of scope: Stage 6c's work, docking, menu bars, dialogs to open and save files, files dropped,
 drag and drop between panels, the editor's window and viewport, play in the editor, the hierarchy,
 the inspector beyond the overlay's value editors, `EntityRef`, gizmos, levels of several files and
-the asset browser; several windows of the system (G34); Stage 7's UI for games, animation and
-transitions, layers with masks, effects on text through distance fields, UI documents and their
+the asset browser; several windows of the system (G34); Stage 7's UI for games, animation beyond
+the transitions that M6b.7b declares, layers with masks, effects on text through distance fields, UI documents and their
 bindings, UI on surfaces in the world, focus driven by gamepads; translation tables (Stage 9b).
 
 Decisions taken when the stage was planned, by the owner on 2026-10-22: Stage 6b split again, with
@@ -862,7 +866,11 @@ the owner cut it in two on 2026-10-26, along what the widgets stand on: M6b.7a, 
 needs nothing over the tree that exists; M6b.7b, what opens over a panel, needs layers. The owner
 decided too that each widget is an element kind of `slime-ui`, as fields are: its state in the
 tree, its meaning and its actions its own, themes styling it by its kind; and the editor's fonts of
-fixed width and of icons, Geist Mono and Lucide.
+fixed width and of icons, Geist Mono and Lucide. Once M6b.7a was done, the owner cut what was left
+in three on 2026-10-27 ([ADR-0149](adr/0149-the-looks-foundations.md)): the look's foundations
+first, so that what comes after is built on them, then the layers, then the rich widgets; and
+decided that transitions come now, declared in the style sheets, that themes compute colors, and
+that the look has a light and a high-contrast theme beside its dark one.
 
 ### M6b.7a — The widgets of a panel
 
@@ -929,7 +937,30 @@ fixed width and of icons, Geist Mono and Lucide.
   `check (windowed)` 17 minutes 28 seconds, `windows` 19 minutes 13 seconds and `windows-release`
   13 minutes 26 seconds, all within the limit of 20, `windows` the nearest to it.
 
-### M6b.7b — Layers
+### M6b.7b — The look's foundations
+
+- **Goal.** The editor's look follows one accent in a dark, a light and a high-contrast theme, moves
+  through transitions, and stays crisp at every scale.
+- **Crates.** `slime-ui`, `slime-color`, `slime-ui-render`, `slime-platform`, `slime-app`; the
+  examples.
+- **Delivers.** Themes whose values name others and compute colors in OKLCH (`mix`, `lighten`,
+  `darken`, `alpha`), stacked, the last winning. The look on two levels, a palette and the roles
+  computed from it, with fixed scales of spacing, radii, sizes of text, shadows and durations; its
+  dark, light and high-contrast themes, and a compact theme that stacks on them. Transitions that
+  rules declare, of colors, of an opacity that a style's paint gains, and of a section's height,
+  over the time that the program gives each frame, which less motion drops. The state
+  `FocusVisible`, set when the keyboard, an agent or the program gives the focus. Boxes, borders and
+  clips on whole pixels of the screen. OpenType features in a text's style, Geist's digits of one
+  width in the look. The system's dark or light preference where the platform gives it. The
+  `widgets` example switches theme, density and accent with keys. The ADR of the design.
+- **Done when.** Tests without a GPU of the themes' functions and their errors, of stacked themes,
+  of transitions over a time given, of the focus shown to the keyboard alone, and of boxes placed on
+  whole pixels; image tests of the example in each theme; CI is green.
+- **How to test.** `cargo test -p slime-color -p slime-ui --features slime-ui/editor-look`; the
+  example's image tests, `cargo test -p slime-examples --test widgets`; the example.
+- **By hand.** The owner tries the example's themes, densities, accents and transitions.
+
+### M6b.7c — Layers
 
 - **Goal.** The framework has what opens over a panel: popups, tooltips, context menus, lists to
   choose from, panels that float inside a window and are moved, folded and sized, and modal layers.
@@ -938,12 +969,30 @@ fixed width and of icons, Geist Mono and Lucide.
   give them back as they close; popups placed beside what opens them, kept within the window;
   tooltips; context menus and their submenus; lists to choose from; floating panels moved, folded
   and sized; modal layers; each with its meaning and its actions. The editor's font of icons,
-  Lucide ([ADR-0133](adr/0133-font-files-under-the-open-font-license.md)). The example of M6b.7a
-  shows them. The ADR of the design.
+  Lucide ([ADR-0133](adr/0133-font-files-under-the-open-font-license.md)), whose tick a check box
+  draws. The example of M6b.7a shows them. The ADR of the design.
 - **Done when.** Tests without a GPU of each layer's actions, meaning and focus; image tests of the
   example; an agent's session uses each through its actions; CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-ui-render`; the example.
 - **By hand.** The owner tries the example's layers.
+
+### M6b.7d — Rich widgets
+
+- **Goal.** The framework has the rich fields, notifications and the palette of commands that make
+  editing fast.
+- **Crates.** `slime-ui`, `slime-ui-render`, `slime-app`; the examples.
+- **Delivers.** Fields of vectors, their components marked by the axes' colors, and units written
+  in a field; numbers changed by a drag on their label, finer or coarser with a modifier, and given
+  as expressions; sections whose header holds an icon, the type of what it shows, a menu and a
+  reset; buttons that toggle and controls of segments; fields of search with a hint, a way to empty
+  them and their shortcut; texts that fields show while they hold nothing; help shown over a field
+  from the documentation of what it edits; notifications and bars of progress; counts on tabs; the
+  palette of commands, every command named by the shortcuts found by its name, and a sheet of the
+  shortcuts. The example of M6b.7a shows them. The ADR of the design.
+- **Done when.** Tests without a GPU of each widget's actions, meaning and focus; image tests of the
+  example; an agent's session uses each through its actions; CI is green.
+- **How to test.** `cargo test -p slime-ui -p slime-ui-render`; the example.
+- **By hand.** The owner tries the example's rich widgets and its palette.
 
 ### M6b.8 — The dev overlay on the engine's interface
 
