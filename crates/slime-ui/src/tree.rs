@@ -25,7 +25,10 @@ mod meaning;
 
 pub use field::Clipboard;
 use interact::Interaction;
-pub use meaning::{ElementAction, Meaning, Role};
+pub use meaning::{
+    ElementAction, FieldText, Meaning, MeaningChanges, MeaningNode, RUN_CHARACTERS, Role,
+    RunCharacter, TextRun,
+};
 
 /// An element of a [`Ui`]: the place it holds in the tree's arena, and the generation of that
 /// place, so that the id of an element removed names no other that takes its place.
@@ -347,6 +350,10 @@ pub(crate) struct Changed {
     pub(crate) layout: bool,
     /// How it is drawn.
     pub(crate) paint: bool,
+    /// What it means: its role, name, value, states, actions, bounds, the elements that mean
+    /// something nearest below it, or a field's text. Kept for what the interface last gave of its
+    /// meaning's changes ([`Ui::take_meaning_changes`]).
+    pub(crate) meaning: bool,
 }
 
 /// What a frame did ([`Ui::frame`]).
@@ -368,6 +375,9 @@ pub struct FrameStats {
 
 /// An element in the arena.
 pub(crate) struct Node {
+    /// The number that names it to whoever reads what the interface means, given to no other
+    /// element of the interface ([`MeaningNode::number`]).
+    pub(crate) number: u64,
     pub(crate) key: Key,
     pub(crate) parent: Option<ElementId>,
     pub(crate) children: Vec<ElementId>,
@@ -480,6 +490,16 @@ pub struct Ui {
     default_style: Value,
     /// The styles made, by the rules that select their elements, then the elements' own styles.
     styles: HashMap<Vec<u32>, Vec<(Style, Arc<Style>)>>,
+    /// The number that the next element, or run of a field's text, is given: from 1, so that 0
+    /// names none.
+    next_number: u64,
+    /// The elements whose meaning changed since its changes were last taken.
+    meant: Vec<ElementId>,
+    /// Whether the next changes of the meaning are the whole tree: none were taken yet, a modal
+    /// root changed what every element takes, or more changed than the tree holds.
+    meaning_whole: bool,
+    /// Whether the elements that mean something at the top of the tree changed.
+    top_changed: bool,
 }
 
 impl Ui {
@@ -502,6 +522,10 @@ impl Ui {
             registry: theme::registry(),
             default_style: Style::default().to_value(),
             styles: HashMap::new(),
+            next_number: 1,
+            meant: Vec::new(),
+            meaning_whole: true,
+            top_changed: false,
         }
     }
 
@@ -532,6 +556,7 @@ impl Ui {
         let id = self.insert(node);
         self.roots.push(id);
         self.restyled.push(id);
+        self.top_changed = true;
         if settings.modal {
             self.opened_modal(id);
         }
@@ -572,6 +597,20 @@ impl Ui {
                 parent.children.retain(|&child| child != id);
             }
             self.children_changed(parent);
+        } else {
+            self.top_changed = true;
+            // The roots above it take the numbers below theirs, which their elements' paths begin
+            // with.
+            let above: Vec<ElementId> = self
+                .roots
+                .iter()
+                .skip_while(|&&root| root != id)
+                .skip(1)
+                .copied()
+                .collect();
+            for root in above {
+                self.mark_meaning_below(root);
+            }
         }
         self.roots.retain(|&root| root != id);
         self.free_subtree(id);
@@ -644,6 +683,7 @@ impl Ui {
             }
             node.state = state;
             self.mark_style(id);
+            self.mark_meaning(id);
         }
     }
 
@@ -820,8 +860,9 @@ impl Ui {
         self.slots[index].node.as_mut().expect("an element there")
     }
 
-    fn insert(&mut self, node: Node) -> ElementId {
-        match self.free.pop() {
+    fn insert(&mut self, mut node: Node) -> ElementId {
+        node.number = self.number();
+        let id = match self.free.pop() {
             Some(index) => {
                 let slot = &mut self.slots[index as usize];
                 slot.node = Some(node);
@@ -840,7 +881,17 @@ impl Ui {
                     generation: 0,
                 }
             }
-        }
+        };
+        self.mark_meaning(id);
+        id
+    }
+
+    /// A number that names an element, or a run of a field's text, to whoever reads what the
+    /// interface means, never given before.
+    pub(crate) fn number(&mut self) -> u64 {
+        let number = self.next_number;
+        self.next_number += 1;
+        number
     }
 
     fn free_subtree(&mut self, id: ElementId) {
@@ -924,10 +975,18 @@ impl Ui {
             let layout = node.style.layout != style.layout
                 || node.style.text.style != style.text.style
                 || node.style.paint.border_width != style.paint.border_width;
+            let shown = node.style.layout.display != style.layout.display;
             node.style = style;
             node.changed.paint = true;
             if layout {
                 self.mark_layout(id);
+            }
+            // A field's text is laid out in its style; an element hidden or shown again takes
+            // what it holds out of the meaning, or puts it back.
+            self.mark_meaning(id);
+            if shown {
+                self.mark_meaning_below(id);
+                self.mark_meaning_above(id);
             }
         } else {
             node.style = style;
@@ -1044,8 +1103,10 @@ impl Ui {
         }
     }
 
-    /// Marks `parent` laid out again, its children having changed: or only its rows, for a list.
+    /// Marks `parent` laid out again, its children having changed: or only its rows, for a list;
+    /// and the elements that mean something nearest below the one above it that does.
     fn children_changed(&mut self, parent: ElementId) {
+        self.mark_meaning_up(parent);
         if self.row_height(parent).is_some() {
             self.relay(parent);
         } else {
@@ -1131,8 +1192,8 @@ impl Ui {
             .map_or(1.0, |settings| settings.scale)
     }
 
-    /// The settings of the root that `id` lies under.
-    pub(crate) fn root_settings(&self, id: ElementId) -> Option<RootSettings> {
+    /// The settings of the root that `id` lies under: its scale and its direction among them.
+    pub fn root_settings(&self, id: ElementId) -> Option<RootSettings> {
         self.node(self.root_of(id)?)?.root
     }
 
@@ -1152,6 +1213,7 @@ impl Node {
     fn new(key: Key, element: Element) -> Self {
         let field = field::given(&element.kind).map(|text| Box::new(field::Field::new(text)));
         Self {
+            number: 0,
             key,
             parent: None,
             children: Vec::new(),
@@ -1168,6 +1230,7 @@ impl Node {
                 style: true,
                 layout: true,
                 paint: true,
+                meaning: false,
             },
             taffy: taffy::Style::default(),
             cache: taffy::Cache::new(),
@@ -1275,6 +1338,7 @@ impl<'a> Children<'a> {
         });
         let id = match kept {
             Some(id) => {
+                let meant_before = self.ui.means(id);
                 let node = self.ui.node_mut(id).expect("kept");
                 // A field takes the program's text when it differs from the later of what the
                 // program gave before and what the field last committed, and keeps the user's
@@ -1287,6 +1351,7 @@ impl<'a> Children<'a> {
                 {
                     self.ui.mark_layout(id);
                     self.ui.mark_paint(id);
+                    self.ui.mark_meaning(id);
                 }
                 let node = self.ui.node_mut(id).expect("kept");
                 if node.element != element {
@@ -1295,7 +1360,19 @@ impl<'a> Children<'a> {
                     let classes = node.element.classes != element.classes;
                     // Its role and its name, which nothing draws, change only what it means.
                     let drawn = node.element.kind != element.kind || style || classes;
+                    let meant = node.element.kind != element.kind
+                        || node.element.role != element.role
+                        || node.element.name != element.name;
                     node.element = element;
+                    if meant {
+                        self.ui.mark_meaning(id);
+                        // Made to mean something, or nothing, it changes what the element above it
+                        // that means something holds.
+                        if self.ui.means(id) != meant_before {
+                            self.ui.mark_meaning_above(id);
+                        }
+                    }
+                    let node = self.ui.node_mut(id).expect("kept");
                     if drawn {
                         node.changed.paint = true;
                     }

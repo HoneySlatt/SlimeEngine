@@ -608,10 +608,20 @@ fn fields_mean_inputs_that_take_the_focus() {
     let (ui, _, field, _) = interface(Element::number_field(1.0, 1.0, style()));
     let meaning = ui.meaning_of(field).expect("a field means something");
     assert_eq!(meaning.role, slime_ui::tree::Role::SpinButton);
-    assert_eq!(meaning.actions, [slime_ui::tree::ElementAction::Focus]);
-    let (ui, _, field, _) = interface(Element::text_area("", style()));
+    assert_eq!(
+        meaning.actions,
+        [
+            slime_ui::tree::ElementAction::Focus,
+            slime_ui::tree::ElementAction::SetValue
+        ]
+    );
+    // Its value, the text that it shows.
+    assert_eq!(meaning.value.as_deref(), Some("1"));
+    let (ui, _, field, button) = interface(Element::text_area("two\nlines", style()));
     let meaning = ui.meaning_of(field).expect("a field means something");
     assert_eq!(meaning.role, slime_ui::tree::Role::MultilineTextInput);
+    assert_eq!(meaning.value.as_deref(), Some("two\nlines"));
+    assert_eq!(ui.meaning_of(button).expect("a button").value, None);
 }
 
 #[test]
@@ -732,4 +742,72 @@ fn a_drag_cut_short_by_another_press_commits_what_it_gave() {
     // A press without the release of the one before: the drag commits what it gave.
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     assert_eq!(values(&mut ui), ["committed 6"]);
+}
+
+#[test]
+fn a_value_set_replaces_what_the_field_holds_as_one_edit_then_commits() {
+    let (mut ui, _, field, button) = interface(Element::text_field("old", style()));
+    ui.set_focus(Some(button));
+    assert!(ui.set_value(field, "new\ntext"));
+    // A line break, in a field of one line, as a space; the focus where it was.
+    assert_eq!(ui.field_text(field), Some("new text"));
+    assert_eq!(
+        values(&mut ui),
+        ["changed \"new text\"", "committed \"new text\""]
+    );
+    assert_eq!(ui.focus(), Some(button));
+    // One edit, which the field's undo takes back.
+    ui.set_focus(Some(field));
+    assert!(chord(&mut ui, control(), &typed("z")));
+    assert_eq!(ui.field_text(field), Some("old"));
+    // What an input method composes goes first.
+    ui.ime(&Ime::Preedit {
+        text: "かな".to_owned(),
+        cursor: None,
+    });
+    ui.take_actions();
+    assert!(ui.set_value(field, "set"));
+    assert_eq!(ui.field_text(field), Some("set"));
+    assert_eq!(values(&mut ui), ["changed \"set\"", "committed \"set\""]);
+    // A field of several lines keeps its line breaks.
+    let (mut ui, _, area, _) = interface(Element::text_area("", style()));
+    assert!(ui.set_value(area, "a\nb"));
+    assert_eq!(ui.field_text(area), Some("a\nb"));
+}
+
+#[test]
+fn a_value_set_is_refused_where_a_person_could_not_type_it() {
+    let (mut ui, _, field, button) = interface(Element::number_field(1.0, 1.0, style()));
+    // A text that reads as no number, or as none finite: the field keeps its number.
+    assert!(!ui.set_value(field, "two"));
+    assert!(!ui.set_value(field, "inf"));
+    assert_eq!(ui.field_text(field), Some("1"));
+    assert!(ui.take_actions().is_empty());
+    assert!(ui.set_value(field, " 2.50 "));
+    assert_eq!(values(&mut ui), ["changed 2.5", "committed 2.5"]);
+    // An element that is no field, and a disabled field.
+    assert!(!ui.set_value(button, "text"));
+    let mut state = ui.state(field).expect("a field");
+    state.disabled = true;
+    ui.set_state(field, state);
+    assert!(!ui.set_value(field, "3"));
+    assert_eq!(
+        ui.meaning_of(field).expect("a field").actions,
+        [],
+        "a disabled field takes nothing"
+    );
+}
+
+#[test]
+fn a_selection_set_by_bytes_moves_the_caret_and_selects() {
+    let (mut ui, _, field, button) = interface(Element::text_field("héllo world", style()));
+    assert!(!ui.select_text(button, 0, 0), "a button holds no text");
+    ui.set_focus(Some(field));
+    // Inside `é`, moved back to its start; past the end, kept at the end.
+    assert!(ui.select_text(field, 2, 100));
+    ui.key(&named(NamedKey::Backspace));
+    assert_eq!(ui.field_text(field), Some("h"));
+    assert!(ui.select_text(field, 1, 1));
+    type_text(&mut ui, "i");
+    assert_eq!(ui.field_text(field), Some("hi"));
 }

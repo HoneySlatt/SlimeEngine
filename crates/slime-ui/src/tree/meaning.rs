@@ -1,14 +1,20 @@
-//! What the tree means, as agents read it: each element that a person reads or uses, its role, its
-//! name, its states, the actions it takes, where it shows and its path
-//! (`docs/adr/0143-what-agents-see-of-the-interface.md`).
+//! What the tree means, as agents and screen readers read it: each element that a person reads or
+//! uses, its role, its name, its value, its states, the actions it takes, where it shows and its
+//! path (`docs/adr/0143-what-agents-see-of-the-interface.md`); and what changed in it since it was
+//! last read, which the elements' marks give (`docs/adr/0146-screen-readers.md`).
 
-use super::{ElementId, ElementState, Key, Kind, Ui};
+use super::{ElementId, ElementState, Key, Kind, Node, Ui};
 use crate::Rect;
 use crate::layout;
 use crate::style::Display;
 
-/// What an element is to whoever reads the interface without seeing it: an agent, and the screen
-/// readers to come. The roles bear the names of AccessKit's, which screen readers read.
+/// The most characters that a [`TextRun`] holds: screen readers count the characters where its
+/// words start in a byte, so a longer piece of one line, of one direction, is cut into several
+/// runs.
+pub const RUN_CHARACTERS: usize = 255;
+
+/// What an element is to whoever reads the interface without seeing it: an agent, or a screen
+/// reader. The roles bear the names of AccessKit's, through which screen readers read them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Role {
     /// A box that only lays others out: left out of what the tree means, while its children that
@@ -71,15 +77,19 @@ pub enum ElementAction {
     Focus,
     /// Scroll its content ([`Ui::scroll_to`]).
     Scroll,
+    /// Give a field a value, as a person who replaced what it holds and committed
+    /// ([`Ui::set_value`]).
+    SetValue,
 }
 
 impl ElementAction {
-    /// Its name: `press`, `focus` or `scroll`.
+    /// Its name: `press`, `focus`, `scroll` or `set_value`.
     pub fn name(self) -> &'static str {
         match self {
             Self::Press => "press",
             Self::Focus => "focus",
             Self::Scroll => "scroll",
+            Self::SetValue => "set_value",
         }
     }
 }
@@ -96,6 +106,10 @@ pub struct Meaning {
     /// Its name: the one its builder gives ([`Element::named`](super::Element::named)), or else a
     /// button's label or a text's; empty for none.
     pub name: String,
+    /// Its value: what a field holds, as the user left it, the text that an input method composes
+    /// included, a field of numbers' text whether or not it reads as a number; none for an element
+    /// that is no field.
+    pub value: Option<String>,
     /// Its states.
     pub state: ElementState,
     /// What can be done to it now: none, for an element that a modal root above its own keeps
@@ -104,6 +118,101 @@ pub struct Meaning {
     /// The part of it that shows, in pixels of the surface, as the last [`Ui::frame`] laid it out:
     /// within its clips and its root's edges; none where they hide it whole.
     pub bounds: Option<Rect>,
+}
+
+/// What changed in what the tree means since it was last taken ([`Ui::take_meaning_changes`]): the
+/// elements whose meaning changed, as a screen reader's adapter sends them.
+///
+/// The elements form a tree of their own, which leaves out those that mean nothing: an element's
+/// children are the elements that mean something nearest below it. An element that the changes do
+/// not hold is as it was; one that was in the tree and that no element's children, nor the top,
+/// names any more has left it, with what it held.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct MeaningChanges {
+    /// Whether they hold the whole tree: every element that is drawn and means something, and the
+    /// top. The first changes taken are whole, and so are those after a modal root opened or
+    /// closed, which changes what every element takes.
+    pub whole: bool,
+    /// The elements that changed, or that are new, in no order.
+    pub nodes: Vec<MeaningNode>,
+    /// The numbers of the elements that mean something below none that does, in the order of the
+    /// tree and of the roots, when they changed; always given in whole changes.
+    pub top: Option<Vec<u64>>,
+    /// The number of the element that holds the focus, drawn; none where none holds it.
+    pub focus: Option<u64>,
+}
+
+/// An element that means something, as [`MeaningChanges`] gives it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MeaningNode {
+    /// The number that names it, from 1, given to no other element of the interface, nor to a run
+    /// of a field's text, ever.
+    pub number: u64,
+    /// What it means.
+    pub meaning: Meaning,
+    /// The numbers of the elements that mean something nearest below it, in the order of the tree:
+    /// those below the boxes that only lay others out are its own.
+    pub children: Vec<u64>,
+    /// A field's text, by runs, and its selection; none for an element that is no field.
+    pub text: Option<FieldText>,
+}
+
+/// A field's text as a screen reader reads it ([`Ui::field_runs`]): by runs, each a piece of a
+/// line of one direction, which a screen reader moves through by characters, words and lines, and
+/// the selection within them.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FieldText {
+    /// The runs, in the order of the text, line by line: their texts, end to end, are what the
+    /// field holds. An empty line, the field's when its text is empty, or the last after a line
+    /// break, is one empty run.
+    pub runs: Vec<TextRun>,
+    /// Where the selection starts, the side that stays as it grows; collapsed, the caret, with
+    /// [`focus`](Self::focus) at the same place: a run's place in [`runs`](Self::runs) and a
+    /// character's place in that run, or the run's count of characters at its end. A place at the
+    /// end of a line that a line break ends lies on the line break; one where a line breaks within
+    /// the text, at the start of the next line.
+    pub anchor: (usize, usize),
+    /// Where the selection ends, the side that moves as it grows, as [`anchor`](Self::anchor).
+    pub focus: (usize, usize),
+}
+
+/// A run of a field's text: a piece of one line, of one direction, of up to [`RUN_CHARACTERS`]
+/// characters.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextRun {
+    /// The number that names it, as [`MeaningNode::number`]: the field's runs keep theirs while its
+    /// text changes, the first run's for the first run.
+    pub number: u64,
+    /// Its text, in the order it is read; a line break, when it ends a line, at its end.
+    pub text: String,
+    /// Where its text starts in what the field holds, in bytes.
+    pub start: usize,
+    /// Whether it is written from right to left.
+    pub right_to_left: bool,
+    /// Its box, in pixels of the surface: its line's height, from the left of its first character
+    /// to the right of its last, as they lie; where the field scrolls its text, out of the field's
+    /// box too.
+    pub bounds: Rect,
+    /// Its characters, in the order they are read: the clusters that the field's selection moves
+    /// by, a letter and its marks, an emoji sequence; a cluster of more than 255 bytes, which only
+    /// marks heaped on one letter make, is cut into several, the first advancing, as screen readers
+    /// count a character's length in a byte.
+    pub characters: Vec<RunCharacter>,
+    /// The places in [`characters`](Self::characters) where its words start, as the field moves by
+    /// words: a word holds the spaces after it.
+    pub word_starts: Vec<usize>,
+}
+
+/// A character of a [`TextRun`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RunCharacter {
+    /// Its length, in bytes.
+    pub length: usize,
+    /// Where it starts, in pixels from the run's start, its left for a run written from left to
+    /// right and its right otherwise, towards its end.
+    pub position: f32,
+    /// How far it advances, in pixels.
+    pub width: f32,
 }
 
 impl Ui {
@@ -198,25 +307,7 @@ impl Ui {
     fn meaning_with(&self, id: ElementId, path: String) -> Option<Meaning> {
         let node = self.node(id)?;
         let element = &node.element;
-        let in_list = node
-            .parent
-            .and_then(|parent| self.node(parent))
-            .is_some_and(|parent| matches!(parent.element.kind, Kind::List { .. }));
-        let role = element.role.unwrap_or(match &element.kind {
-            Kind::Container if in_list => Role::ListItem,
-            Kind::Container if element.name.is_some() => Role::Group,
-            Kind::Container => Role::GenericContainer,
-            Kind::Label(_) => Role::Label,
-            Kind::Image { .. } => Role::Image,
-            Kind::Button { .. } => Role::Button,
-            Kind::Scroll => Role::ScrollView,
-            Kind::List { .. } => Role::List,
-            Kind::TextField {
-                multiline: false, ..
-            } => Role::TextInput,
-            Kind::TextField { .. } => Role::MultilineTextInput,
-            Kind::NumberField { .. } => Role::SpinButton,
-        });
+        let role = self.role_of(node);
         if role == Role::GenericContainer {
             return None;
         }
@@ -233,6 +324,9 @@ impl Ui {
             }
             if self.focusable(id) {
                 actions.push(ElementAction::Focus);
+                if node.field.is_some() {
+                    actions.push(ElementAction::SetValue);
+                }
             }
             if matches!(element.kind, Kind::Scroll | Kind::List { .. }) {
                 actions.push(ElementAction::Scroll);
@@ -252,9 +346,216 @@ impl Ui {
             path,
             role,
             name,
+            value: node.field.as_ref().map(|field| field.text.clone()),
             state: node.state,
             actions,
             bounds,
         })
+    }
+
+    /// The role of `node`: its builder's, or what its kind makes it, a container in a list a row.
+    fn role_of(&self, node: &Node) -> Role {
+        let element = &node.element;
+        let in_list = node
+            .parent
+            .and_then(|parent| self.node(parent))
+            .is_some_and(|parent| matches!(parent.element.kind, Kind::List { .. }));
+        element.role.unwrap_or(match &element.kind {
+            Kind::Container if in_list => Role::ListItem,
+            Kind::Container if element.name.is_some() => Role::Group,
+            Kind::Container => Role::GenericContainer,
+            Kind::Label(_) => Role::Label,
+            Kind::Image { .. } => Role::Image,
+            Kind::Button { .. } => Role::Button,
+            Kind::Scroll => Role::ScrollView,
+            Kind::List { .. } => Role::List,
+            Kind::TextField {
+                multiline: false, ..
+            } => Role::TextInput,
+            Kind::TextField { .. } => Role::MultilineTextInput,
+            Kind::NumberField { .. } => Role::SpinButton,
+        })
+    }
+
+    /// Whether `id` means something: a role other than [`Role::GenericContainer`].
+    pub(crate) fn means(&self, id: ElementId) -> bool {
+        self.node(id)
+            .is_some_and(|node| self.role_of(node) != Role::GenericContainer)
+    }
+
+    /// What changed in what the tree means since it was last taken, or the whole tree for `whole`
+    /// or when it must be whole ([`MeaningChanges::whole`]), from the last [`Ui::frame`]; the
+    /// elements' marks are cleared. It costs what changed: each element that changed, the boxes
+    /// that only lay others out below it, and a field's text laid out, as it draws it. Where the
+    /// changes are not taken, the marks are kept up to twice as many as the elements of the tree,
+    /// and up to 1 024 for a smaller tree, past which the next changes are whole.
+    pub fn take_meaning_changes(&mut self, whole: bool) -> MeaningChanges {
+        let whole = std::mem::take(&mut self.meaning_whole) || whole;
+        let marked = std::mem::take(&mut self.meant);
+        for &id in &marked {
+            if let Some(node) = self.node_mut(id) {
+                node.changed.meaning = false;
+            }
+        }
+        let top_changed = std::mem::take(&mut self.top_changed);
+        let meanings = if whole {
+            self.meaning()
+        } else {
+            marked
+                .into_iter()
+                .filter_map(|id| self.meaning_of(id))
+                .collect()
+        };
+        let mut nodes = Vec::with_capacity(meanings.len());
+        for meaning in meanings {
+            let id = meaning.id;
+            let Some(number) = self.node(id).map(|node| node.number) else {
+                continue;
+            };
+            let children = self
+                .meaning_children(id)
+                .into_iter()
+                .filter_map(|child| self.node(child).map(|node| node.number))
+                .collect();
+            let text = self.field_runs(id);
+            nodes.push(MeaningNode {
+                number,
+                meaning,
+                children,
+                text,
+            });
+        }
+        let top = (whole || top_changed).then(|| {
+            self.roots
+                .clone()
+                .into_iter()
+                .filter(|&root| {
+                    self.node(root)
+                        .is_some_and(|node| node.style.layout.display != Display::None)
+                })
+                .flat_map(|root| {
+                    if self.means(root) {
+                        vec![root]
+                    } else {
+                        self.meaning_children(root)
+                    }
+                })
+                .filter_map(|id| self.node(id).map(|node| node.number))
+                .collect()
+        });
+        let focus = self
+            .interaction
+            .focus
+            .filter(|&focus| self.meaning_of(focus).is_some())
+            .and_then(|focus| self.node(focus).map(|node| node.number));
+        MeaningChanges {
+            whole,
+            nodes,
+            top,
+            focus,
+        }
+    }
+
+    /// The element of the number `number` ([`MeaningNode::number`]), or the field whose text held
+    /// the run of that number, with the run's place among the field's runs: a field keeps the
+    /// numbers of its runs as its text shrinks, so the place may be past the runs that it gives now
+    /// ([`Ui::field_runs`]). It walks the tree.
+    pub fn element_by_number(&self, number: u64) -> Option<(ElementId, Option<usize>)> {
+        self.slots.iter().enumerate().find_map(|(index, slot)| {
+            let node = slot.node.as_ref()?;
+            let id = ElementId {
+                index: index as u32,
+                generation: slot.generation,
+            };
+            if node.number == number {
+                return Some((id, None));
+            }
+            let run = node
+                .field
+                .as_ref()?
+                .runs
+                .iter()
+                .position(|&run| run == number)?;
+            Some((id, Some(run)))
+        })
+    }
+
+    /// The elements that mean something nearest below `id`, drawn, in the order of the tree.
+    fn meaning_children(&self, id: ElementId) -> Vec<ElementId> {
+        let mut found = Vec::new();
+        let mut stack: Vec<ElementId> = self.children(id).iter().rev().copied().collect();
+        while let Some(child) = stack.pop() {
+            let Some(node) = self.node(child) else {
+                continue;
+            };
+            if node.style.layout.display == Display::None {
+                continue;
+            }
+            if self.role_of(node) == Role::GenericContainer {
+                stack.extend(node.children.iter().rev());
+            } else {
+                found.push(child);
+            }
+        }
+        found
+    }
+
+    /// Marks what `id` means changed: its changes are given when they are next taken.
+    pub(crate) fn mark_meaning(&mut self, id: ElementId) {
+        if self.meaning_whole {
+            return;
+        }
+        let Some(node) = self.node_mut(id) else {
+            return;
+        };
+        if node.changed.meaning {
+            return;
+        }
+        node.changed.meaning = true;
+        self.meant.push(id);
+        // Changes that no one takes are kept within twice the tree; past that, the next are whole.
+        if self.meant.len() > 2 * self.len().max(512) {
+            for id in std::mem::take(&mut self.meant) {
+                if let Some(node) = self.node_mut(id) {
+                    node.changed.meaning = false;
+                }
+            }
+            self.meaning_whole = true;
+        }
+    }
+
+    /// Marks what `id` means changed, and the elements above it up to the first that means
+    /// something, whose children are those that mean something nearest below it; the top, when
+    /// none above it does.
+    pub(crate) fn mark_meaning_up(&mut self, id: ElementId) {
+        let mut at = Some(id);
+        while let Some(id) = at {
+            self.mark_meaning(id);
+            if self.means(id) {
+                return;
+            }
+            at = self.node(id).and_then(|node| node.parent);
+        }
+        self.top_changed = true;
+    }
+
+    /// Marks the elements above `id` changed, up to the first that means something, as
+    /// [`Ui::mark_meaning_up`] does from `id`'s parent: `id` became or ceased to be one of its
+    /// children, or what it holds did.
+    pub(crate) fn mark_meaning_above(&mut self, id: ElementId) {
+        match self.node(id).and_then(|node| node.parent) {
+            Some(parent) => self.mark_meaning_up(parent),
+            None => self.top_changed = true,
+        }
+    }
+
+    /// Marks what `id` and every element below it mean changed: they are shown again, or their
+    /// root's box changed what shows of them.
+    pub(crate) fn mark_meaning_below(&mut self, id: ElementId) {
+        let mut stack = vec![id];
+        while let Some(id) = stack.pop() {
+            self.mark_meaning(id);
+            stack.extend(self.children(id).iter().copied());
+        }
     }
 }

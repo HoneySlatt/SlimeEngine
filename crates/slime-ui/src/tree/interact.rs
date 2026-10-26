@@ -566,6 +566,7 @@ impl Ui {
             change(&mut node.state);
             if node.state != before {
                 self.mark_style(id);
+                self.mark_meaning(id);
             }
         }
     }
@@ -575,6 +576,8 @@ impl Ui {
         let before = self.interaction.focus;
         self.set_focus(None);
         self.interaction.modals.push((root, before));
+        // What every element of the roots below takes changed.
+        self.meaning_whole = true;
     }
 
     /// Forgets what `removed`, an element taken out of the tree with what it held, leaves behind:
@@ -604,6 +607,8 @@ impl Ui {
             return;
         };
         let (_, before) = interaction.modals.remove(at);
+        self.meaning_whole = true;
+        let interaction = &mut self.interaction;
         match interaction.modals.get_mut(at) {
             // Closed below another, it leaves the focus that it took to the one above, when what
             // that one took went with it.

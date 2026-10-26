@@ -179,6 +179,9 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
     // A mirror across the root's box, at its place on the surface.
     let across = 2.0 * settings.origin[0] * scale + settings.size[0] * scale;
     let mut stack = vec![start];
+    // The elements that moved, or whose cut changed, which changes where they show to whoever
+    // reads what the interface means; a root whose box changed, what shows of all it holds.
+    let mut moved = Vec::new();
     while let Some((id, x, y, clip)) = stack.pop() {
         let Some(node) = ui.node_mut(id) else {
             continue;
@@ -194,6 +197,7 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
             node.rect = rect;
             node.clip = clip;
             node.changed.paint = true;
+            moved.push((id, node.root.is_some()));
         }
         node.scroll = within(node.scroll, &node.element.kind, &layout, scale);
         // Content is cut inside the border, as CSS cuts it at the padding's edge.
@@ -236,6 +240,13 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
                     layout.padding.top + margin.top + (number * row_height * scale).round()
                         - scroll[1];
             }
+        }
+    }
+    for (id, root) in moved {
+        if root {
+            ui.mark_meaning_below(id);
+        } else {
+            ui.mark_meaning(id);
         }
     }
 }

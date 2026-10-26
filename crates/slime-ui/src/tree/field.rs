@@ -12,6 +12,7 @@ use std::sync::Arc;
 use parley::{Affinity as ParleyAffinity, Cursor, Layout, Selection};
 use slime_input::{CursorShape, Ime, Key, KeyEvent, NamedKey};
 
+use super::meaning::{FieldText, RUN_CHARACTERS, RunCharacter, TextRun};
 use super::{ElementId, Kind, Ui};
 use crate::Rect;
 use crate::action::{Action, ActionKind, FieldValue};
@@ -63,6 +64,10 @@ pub(crate) struct Field {
     /// A press on a field of numbers that does not hold the focus, which drags its number once the
     /// pointer moves past [`DRAG_THRESHOLD`].
     drag: Option<Drag>,
+    /// The numbers of the runs of its text, as whoever reads what the interface means reads them
+    /// ([`TextRun::number`](super::TextRun::number)), the first run's first: a run keeps its number
+    /// while the text changes.
+    pub(crate) runs: Vec<u64>,
 }
 
 /// What a field held, which an undo gives back.
@@ -100,6 +105,7 @@ impl Field {
             offset: [0.0; 2],
             caret: Rect::default(),
             drag: None,
+            runs: Vec::new(),
         }
     }
 
@@ -321,6 +327,101 @@ impl Ui {
             .map(|field| field.text.as_str())
     }
 
+    /// Gives the field `id` the text `text`, as a person who replaced all that it holds and
+    /// committed would: the text that an input method composes goes, the replacement is one edit,
+    /// which the field's undo takes back, then the field commits, the program reading
+    /// [`ActionKind::Changed`] then [`ActionKind::Committed`], the same text given again included;
+    /// an empty text given to an empty field changes nothing, and is read as nothing. A field of
+    /// one line takes a line
+    /// break as a space, as a paste does. Gives whether the field took it: not an element that is
+    /// no field, nor a field that cannot hold the focus now, disabled, hidden or below a modal
+    /// root, nor a field of numbers given a text that reads as no finite number, which keeps what
+    /// it holds. The focus stays where it is.
+    pub fn set_value(&mut self, id: ElementId, text: &str) -> bool {
+        if !self.focusable(id) || !self.in_scope(id) {
+            return false;
+        }
+        let Some(node) = self.node(id) else {
+            return false;
+        };
+        let kind = &node.element.kind;
+        let multiline = matches!(
+            kind,
+            Kind::TextField {
+                multiline: true,
+                ..
+            }
+        );
+        let number = matches!(kind, Kind::NumberField { .. });
+        if node.field.is_none()
+            || (number
+                && !text
+                    .trim()
+                    .parse::<f64>()
+                    .is_ok_and(|number| number.is_finite()))
+        {
+            return false;
+        }
+        let text = if multiline {
+            text.to_owned()
+        } else {
+            text.replace(['\r', '\n'], " ")
+        };
+        self.edit_text(id, |field, _| {
+            field.uncompose();
+            field.pending = Some((0, field.text.len()));
+            field.insert(&text, false)
+        });
+        self.commit(id);
+        true
+    }
+
+    /// Selects the bytes of the field `id` from `anchor` to `focus`, as the pointer or the keys
+    /// would, each moved back to the start of the character that it falls in, and kept within the
+    /// text; collapsed, it places the caret. Gives whether `id` is a field, whether or not it could
+    /// hold the focus now: the caller checks that it takes
+    /// [`ElementAction::SetValue`](super::ElementAction::SetValue) when a person's rules apply.
+    /// The focus stays where it is.
+    pub fn select_text(&mut self, id: ElementId, anchor: usize, focus: usize) -> bool {
+        self.edit_field(id, |field, layout| {
+            let start = |byte: usize| {
+                let mut byte = byte.min(field.text.len());
+                while !field.text.is_char_boundary(byte) {
+                    byte -= 1;
+                }
+                byte
+            };
+            field.selection = selection(layout, start(anchor), start(focus));
+            field.typing = false;
+        })
+        .is_some()
+    }
+
+    /// The text of the field `id` as a screen reader reads it: its runs, line by line, and its
+    /// selection, laid out as the field draws it, from its box as last laid out. A run that the
+    /// field did not have before is given a number never given before, which it keeps. None for an
+    /// element that is no field.
+    pub fn field_runs(&mut self, id: ElementId) -> Option<FieldText> {
+        let (layout, origin) = self.field_layout(id)?;
+        let field = self.node(id)?.field.as_ref()?;
+        let (anchor, focus) = field.ends();
+        let mut runs = text_runs(&layout, origin);
+        let field = self.node_mut(id)?.field.as_mut()?;
+        let mut numbers = std::mem::take(&mut field.runs);
+        while numbers.len() < runs.len() {
+            numbers.push(self.number());
+        }
+        for (run, &number) in runs.iter_mut().zip(&numbers) {
+            run.number = number;
+        }
+        self.node_mut(id)?.field.as_mut()?.runs = numbers;
+        Some(FieldText {
+            anchor: place_in(&runs, anchor),
+            focus: place_in(&runs, focus),
+            runs,
+        })
+    }
+
     /// The shape that the pointer takes where it is: the I-beam over a field of text and over a
     /// field of numbers that holds the focus, the arrows of a drag over one that does not, or
     /// while one is dragged; the arrow elsewhere.
@@ -434,6 +535,7 @@ impl Ui {
         if relaid {
             self.mark_layout(id);
             self.mark_paint(id);
+            self.mark_meaning(id);
         }
         if let Some(value) = committed {
             self.interaction.actions.push(Action {
@@ -688,6 +790,7 @@ impl Ui {
         field.edited = true;
         self.mark_layout(id);
         self.mark_paint(id);
+        self.mark_meaning(id);
         self.changed(id);
     }
 
@@ -860,6 +963,8 @@ impl Ui {
         }
         self.settle_field(id);
         self.mark_paint(id);
+        // Its text or its selection, which whoever reads it without seeing it follows.
+        self.mark_meaning(id);
         Some(result)
     }
 
@@ -999,6 +1104,135 @@ impl Ui {
         }
         primitives
     }
+}
+
+/// The most bytes that a character of a [`TextRun`] holds: screen readers count a character's
+/// length in a byte.
+const CHARACTER_BYTES: usize = 255;
+
+/// The runs of the text laid out in `layout`, its origin at `origin` in pixels of the surface,
+/// numbered 0 ([`Ui::field_runs`]): each line's pieces of one direction, in the order of the text,
+/// cut every [`RUN_CHARACTERS`] characters, and an empty run for an empty line.
+fn text_runs(layout: &TextLayout, origin: [f32; 2]) -> Vec<TextRun> {
+    let text = layout.shown();
+    let parley = layout.shown_layout();
+    let mut runs = Vec::new();
+    for line in parley.lines() {
+        let metrics = line.metrics();
+        let (top, height) = (
+            metrics.block_min_coord,
+            metrics.block_max_coord - metrics.block_min_coord,
+        );
+        // Each run's clusters as they lie, left to right from the line's start, as its glyphs are
+        // placed; then in the order they are read.
+        let mut x = metrics.offset + metrics.inline_min_coord;
+        let mut pieces = Vec::new();
+        for run in line.runs() {
+            let mut clusters = Vec::new();
+            for cluster in run.visual_clusters() {
+                let advance = cluster.advance();
+                // Where the field's moves by words stop.
+                let word = cluster.is_word_boundary() && !cluster.is_space_or_nbsp();
+                // A cluster longer than a byte counts, which only marks heaped on a letter make, is
+                // cut into characters at the boundaries of its code points, the first advancing.
+                let range = cluster.text_range();
+                let mut start = range.start;
+                while start < range.end {
+                    let mut end = (start + CHARACTER_BYTES).min(range.end);
+                    while !text.is_char_boundary(end) {
+                        end -= 1;
+                    }
+                    let first = start == range.start;
+                    clusters.push((
+                        start..end,
+                        x,
+                        if first { advance } else { 0.0 },
+                        word && first,
+                    ));
+                    start = end;
+                }
+                x += advance;
+            }
+            clusters.sort_by_key(|(range, ..)| range.start);
+            if !clusters.is_empty() {
+                pieces.push((run.is_rtl(), clusters));
+            }
+        }
+        pieces.sort_by_key(|(_, clusters)| clusters[0].0.start);
+        if pieces.is_empty() {
+            let x = metrics.offset + metrics.inline_min_coord;
+            runs.push(TextRun {
+                number: 0,
+                text: String::new(),
+                start: line.text_range().start,
+                right_to_left: parley.is_rtl(),
+                bounds: Rect::new(origin[0] + x, origin[1] + top, 0.0, height),
+                characters: Vec::new(),
+                word_starts: Vec::new(),
+            });
+            continue;
+        }
+        for (right_to_left, clusters) in pieces {
+            for chunk in clusters.chunks(RUN_CHARACTERS) {
+                let left = chunk
+                    .iter()
+                    .map(|(_, x, ..)| *x)
+                    .fold(f32::INFINITY, f32::min);
+                let right = chunk
+                    .iter()
+                    .map(|(_, x, advance, _)| x + advance)
+                    .fold(f32::NEG_INFINITY, f32::max);
+                runs.push(TextRun {
+                    number: 0,
+                    text: chunk
+                        .iter()
+                        .map(|(range, ..)| &text[range.clone()])
+                        .collect(),
+                    start: chunk[0].0.start,
+                    right_to_left,
+                    bounds: Rect::new(origin[0] + left, origin[1] + top, right - left, height),
+                    characters: chunk
+                        .iter()
+                        .map(|(range, x, advance, _)| RunCharacter {
+                            length: range.len(),
+                            position: if right_to_left {
+                                right - (x + advance)
+                            } else {
+                                x - left
+                            },
+                            width: *advance,
+                        })
+                        .collect(),
+                    word_starts: chunk
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, (.., word))| *word)
+                        .map(|(place, _)| place)
+                        .collect(),
+                });
+            }
+        }
+    }
+    runs
+}
+
+/// The place of the byte `byte` of a field's text among its runs `runs`: the run whose text holds
+/// it and the character that it starts, or falls in; at the text's end, the last run's end.
+fn place_in(runs: &[TextRun], byte: usize) -> (usize, usize) {
+    for (index, run) in runs.iter().enumerate() {
+        let mut at = run.start;
+        for (place, character) in run.characters.iter().enumerate() {
+            if byte < at + character.length {
+                if byte >= run.start {
+                    return (index, place);
+                }
+                break;
+            }
+            at += character.length;
+        }
+    }
+    let last = runs.len().saturating_sub(1);
+    (last, runs.last().map_or(0, |run| run.characters.len()))
 }
 
 /// The selection from `anchor` to `focus`, bytes of the text laid out in `layout`.
