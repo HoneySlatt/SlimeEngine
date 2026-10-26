@@ -743,9 +743,9 @@ Risks:
   committed too, and with what the field holds as the program reads it, so that a program clears a
   field or gives back a text that it refuses, while one that gives back each change keeps what the
   user is typing; and the wheel over what the interface draws is the interface's, as a press is.
-  Its checks by hand wait in [the list](#checks-by-hand-waiting-for-the-owner). `slime-input` gains `Ime` and `CursorShape`; `slime-platform` reports what an
-  input method composes (`Event::Ime`), allows and places the input method and sets the pointer's
-  shape (`Window::set_ime_allowed`, `Window::set_ime_area`, `Window::set_cursor`), and reads and
+  `slime-input` gains `Ime` and `CursorShape`; `slime-platform` reports what an input method
+  composes (`Event::Ime`), allows and places the input method and sets the pointer's shape
+  (`Window::set_ime_allowed`, `Window::set_ime_area`, `Window::set_cursor`), and reads and
   writes the system's clipboard (`Clipboard`, on arboard). `slime-ui` gains fields of text and of
   numbers (`Element::text_field`, `Element::text_area`, `Element::number_field`): typing, moves by
   clusters, words and lines in text of both directions, the selection by the keys and the pointer,
@@ -787,7 +787,7 @@ Risks:
   restored the cooked zone from its cache rather than cooking it again: every job came back within
   the limit of 20 minutes, `check (headless)` in 13 minutes 12 seconds, `check (windowed)` in 16
   minutes 47 seconds, `windows` in 18 minutes 9 seconds and `windows-release` in 8 minutes 49
-  seconds.
+  seconds. The owner made its checks by hand on 2026-10-26, and found the example as expected.
 
 ### M6b.6b — Screen readers
 
@@ -930,10 +930,6 @@ The game is run with `--new --save <a file of its own>`, so that the owner's sav
   eight writing systems, its list scrolling, the window's images seen without their sRGB encoding,
   which no check of CI draws in a window ([ADR-0137](adr/0137-the-canvas.md),
   [ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
-- **M6b.6a, on niri, on Hyprland and in the Windows virtual machine.** The `interface` example's
-  fields ([ADR-0145](adr/0145-text-edited.md)): Japanese typed through an input method, its
-  window beside the caret, a composition left by a click on the other field; text copied and pasted
-  between the example and other programs; the pointer's shapes over the fields and the buttons.
 
 ## Releasing
 
