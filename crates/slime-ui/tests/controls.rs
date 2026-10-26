@@ -494,3 +494,30 @@ fn a_box_whose_content_does_not_fit_shows_a_scroll_bar_that_scrolls_it() {
     // Nothing reached the buttons below the bar.
     assert!(ui.take_actions().is_empty());
 }
+
+#[test]
+fn a_third_child_of_two_panels_is_neither_drawn_nor_reached() {
+    let mut ui = ui();
+    let settings = RootSettings {
+        size: [400.0, 300.0],
+        scale: 1.0,
+        direction: LayoutDirection::LeftToRight,
+        origin: [0.0; 2],
+        modal: false,
+    };
+    let root = ui.add_root(settings, Style::default());
+    let mut whole = Style::default();
+    whole.layout.size = [Dimension::Pixels(400.0), Dimension::Pixels(300.0)];
+    ui.build(root, 0, |children| {
+        children.add("split", Element::split(true, 0.5, whole), |panels| {
+            panels.add("left", Element::container(Style::default()), |_| {});
+            panels.add("right", Element::container(Style::default()), |_| {});
+            panels.add("third", Element::button("third", sized(50.0)), |_| {});
+        });
+    });
+    ui.frame();
+    let third = ui.element_by_path("#0/split/third").expect("built");
+    assert_eq!(ui.meaning_of(third), None);
+    ui.key(&named(NamedKey::Tab));
+    assert_ne!(ui.focus(), Some(third));
+}

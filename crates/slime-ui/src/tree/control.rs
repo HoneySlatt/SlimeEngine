@@ -193,15 +193,20 @@ impl Ui {
         }
     }
 
-    /// Whether `id` lies in a folded section: what the section holds is not laid out, drawn nor
-    /// reached.
+    /// Whether `id` lies in a folded section, or past the second child of two panels: it is not
+    /// laid out, drawn nor reached.
     pub(crate) fn folded(&self, id: ElementId) -> bool {
-        self.node(id)
-            .and_then(|node| node.parent)
-            .and_then(|parent| self.node(parent))
-            .is_some_and(|parent| {
-                matches!(parent.element.kind, Kind::Section { .. }) && !parent.state.expanded
-            })
+        let Some(parent) = self.node(id).and_then(|node| node.parent) else {
+            return false;
+        };
+        let Some(node) = self.node(parent) else {
+            return false;
+        };
+        match node.element.kind {
+            Kind::Section { .. } => !node.state.expanded,
+            Kind::Split { .. } => node.children.iter().position(|&child| child == id) > Some(1),
+            _ => false,
+        }
     }
 
     /// The header of the section `id`, in pixels of the surface: the top of its box within its

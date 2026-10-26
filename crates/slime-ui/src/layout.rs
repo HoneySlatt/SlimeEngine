@@ -131,7 +131,6 @@ fn convert(
                     style.flex_grow = 1.0;
                     style.flex_shrink = 1.0;
                 }
-                Some(Panel::Other) => style.display = taffy::Display::None,
                 None => {}
             }
             // A box that scrolls, as CSS's `overflow: hidden`, is as small as its style lets it,
@@ -154,27 +153,24 @@ fn convert(
     }
 }
 
-/// What a child of two panels and a handle is.
+/// What a panel of two panels and a handle takes.
 enum Panel {
     /// The first panel, which takes this share of their length.
     First(f32),
     /// The second, which takes the rest.
     Second,
-    /// A child past the second, which is not laid out.
-    Other,
 }
 
-/// What `id` is as a child of two panels and a handle; none for an element that is no such child.
+/// What `id` takes as a panel of two panels and a handle; none for an element that is no such
+/// panel. A child past the second is folded, its style of no display (`Ui::folded`).
 fn split_panel(ui: &Ui, id: ElementId) -> Option<Panel> {
     let parent = ui.node(id)?.parent?;
     let share = ui.split_share(parent)?;
-    Some(
-        match ui.children(parent).iter().position(|&child| child == id)? {
-            0 => Panel::First(share),
-            1 => Panel::Second,
-            _ => Panel::Other,
-        },
-    )
+    match ui.children(parent).iter().position(|&child| child == id)? {
+        0 => Some(Panel::First(share)),
+        1 => Some(Panel::Second),
+        _ => None,
+    }
 }
 
 /// The height of the header of `id`, a section, in pixels of the screen at `scale`: its title's, or
