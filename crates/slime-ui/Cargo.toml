@@ -10,6 +10,12 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[features]
+# The editor's look: Geist, Geist Mono, and the style sheet and theme made for the editor and the
+# dev overlay (ADR-0148), built into the programs that draw in it; a game that draws neither leaves
+# it out.
+editor-look = []
+
 [dependencies]
 # Text shaped, ordered, broken into lines and laid out, the fonts found by fontique, which parley
 # re-exports; fontique named for its feature that loads fontconfig at run time (ADR-0136).
@@ -32,3 +38,8 @@ taffy.workspace = true
 thiserror.workspace = true
 # A warning when a stack names a family that the fonts lack (ADR-0008).
 tracing.workspace = true
+
+# The editor's look is tested with its feature on.
+[[test]]
+name = "look"
+required-features = ["editor-look"]

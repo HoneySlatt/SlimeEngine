@@ -1,0 +1,154 @@
+# The style sheet of the editor's look (docs/adr/0148-widgets.md): each table is a rule, applied in
+# the order of this file, that sets a part of the style of the elements it selects
+# (docs/adr/0141-style-sheets-and-themes.md). Its values come from a theme, `dark.theme`, which
+# names them for it. Text is in Geist, and in Geist Mono where an element holds the class `fixed`.
+# Elements that take the focus show it by the color of a border of one pixel that they always keep,
+# transparent until then for those that show none otherwise, so that the focus moves nothing; the
+# handle between two panels shows it by its fill.
+
+[window]
+select = { classes = ["window"] }
+style.paint.background = "$background"
+
+[bar]
+select = { classes = ["bar"] }
+style.paint.background = "$bar"
+
+[panel]
+select = { classes = ["panel"] }
+style.paint = { background = "$panel", border_width = 1, border = "$panel_border", radii = [6, 6, 6, 6] }
+
+[label]
+select = { kind = "Label" }
+style.text = { style = { fonts = ["Geist"], size = 13 }, color = "$text" }
+
+[muted]
+select = { kind = "Label", classes = ["muted"] }
+style.text.color = "$muted"
+
+[button]
+select = { kind = "Button" }
+style.paint = { background = "$raised", border_width = 1, border = "$raised_border", radii = [4, 4, 4, 4] }
+style.layout.padding = { start = 10, end = 10, top = 4, bottom = 4 }
+style.text = { style = { fonts = ["Geist"], size = 13, weight = 500 }, color = "$text" }
+
+[button-hovered]
+select = { kind = "Button", states = ["Hovered"] }
+style.paint.background = "$hover"
+
+[button-pressed]
+select = { kind = "Button", states = ["Pressed"] }
+style.paint.background = "$pressed"
+
+[button-focused]
+select = { kind = "Button", states = ["Focused"] }
+style.paint.border = "$focus"
+
+[button-disabled]
+select = { kind = "Button", states = ["Disabled"] }
+style.text.color = "$muted"
+
+[field]
+select = { kind = "TextField" }
+style.paint = { background = "$field", border_width = 1, border = "$raised_border", radii = [4, 4, 4, 4] }
+style.layout.padding = { start = 6, end = 6, top = 3, bottom = 3 }
+style.text = { style = { fonts = ["Geist"], size = 13 }, color = "$text", selection = "$selection" }
+
+[number]
+select = { kind = "NumberField" }
+style.paint = { background = "$field", border_width = 1, border = "$raised_border", radii = [4, 4, 4, 4] }
+style.layout.padding = { start = 6, end = 6, top = 3, bottom = 3 }
+style.text = { style = { fonts = ["Geist Mono"], size = 12 }, color = "$text", selection = "$selection" }
+
+[field-focused]
+select = { kind = "TextField", states = ["Focused"] }
+style.paint.border = "$focus"
+
+[number-focused]
+select = { kind = "NumberField", states = ["Focused"] }
+style.paint.border = "$focus"
+
+[check-box]
+select = { kind = "CheckBox" }
+style.paint = { border_width = 1, border = "$none", radii = [4, 4, 4, 4] }
+style.layout.padding = { start = 2, end = 4, top = 2, bottom = 2 }
+style.text = { style = { fonts = ["Geist"], size = 13 }, color = "$text" }
+style.control = { size = 14, radius = 3, track = "$track", fill = "$accent", mark = "$mark" }
+
+[check-box-hovered]
+select = { kind = "CheckBox", states = ["Hovered"] }
+style.control.track = "$track_hover"
+
+[check-box-focused]
+select = { kind = "CheckBox", states = ["Focused"] }
+style.paint.border = "$focus"
+
+[slider]
+select = { kind = "Slider" }
+style.paint = { border_width = 1, border = "$none", radii = [4, 4, 4, 4] }
+style.layout.padding = { start = 2, end = 2, top = 2, bottom = 2 }
+style.control = { size = 14, radius = 7, track = "$track", fill = "$accent", mark = "$mark" }
+
+[slider-hovered]
+select = { kind = "Slider", states = ["Hovered"] }
+style.control.track = "$track_hover"
+
+[slider-focused]
+select = { kind = "Slider", states = ["Focused"] }
+style.paint.border = "$focus"
+
+[section]
+select = { kind = "Section" }
+style.paint = { border_width = 1, border = "$none", radii = [4, 4, 4, 4] }
+style.layout.padding = { start = 4, end = 4, top = 2, bottom = 4 }
+style.text = { style = { fonts = ["Geist"], size = 13, weight = 600 }, color = "$text" }
+style.control = { size = 14, radius = 3, track = "$raised", fill = "$accent", mark = "$text" }
+
+[section-hovered]
+select = { kind = "Section", states = ["Hovered"] }
+style.control.track = "$hover"
+
+[section-focused]
+select = { kind = "Section", states = ["Focused"] }
+style.paint.border = "$focus"
+
+[tab-bar]
+select = { kind = "TabBar" }
+style.paint.background = "$bar"
+style.layout.padding = { start = 6, end = 6, top = 4, bottom = 0 }
+style.layout.gap = [0, 2]
+
+[tab]
+select = { kind = "Tab" }
+style.paint = { border_width = 1, border = "$none", radii = [4, 4, 0, 0] }
+style.layout.padding = { start = 12, end = 12, top = 6, bottom = 6 }
+style.text = { style = { fonts = ["Geist"], size = 13, weight = 500 }, color = "$muted" }
+
+[tab-hovered]
+select = { kind = "Tab", states = ["Hovered"] }
+style.text.color = "$text"
+
+[tab-chosen]
+select = { kind = "Tab", states = ["Selected"] }
+style.paint.background = "$panel"
+style.text.color = "$text"
+
+[tab-focused]
+select = { kind = "Tab", states = ["Focused"] }
+style.paint.border = "$focus"
+
+[split]
+select = { kind = "Split" }
+style.control = { size = 10, radius = 0, track = "$panel_border", fill = "$accent", mark = "$mark" }
+
+[scroll]
+select = { kind = "Scroll" }
+style.control = { size = 10, radius = 3, track = "$bar_track", fill = "$accent", mark = "$bar_thumb" }
+
+[list]
+select = { kind = "List" }
+style.control = { size = 10, radius = 3, track = "$bar_track", fill = "$accent", mark = "$bar_thumb" }
+
+[fixed]
+select = { classes = ["fixed"] }
+style.text.style = { fonts = ["Geist Mono"], size = 12 }

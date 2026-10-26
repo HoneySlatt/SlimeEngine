@@ -4,6 +4,8 @@ pub mod action;
 pub mod display;
 mod document;
 mod layout;
+#[cfg(feature = "editor-look")]
+pub mod look;
 mod paint;
 mod rect;
 pub mod shortcuts;
