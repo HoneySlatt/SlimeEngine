@@ -1,5 +1,7 @@
 #![doc = include_str!("../README.md")]
 
+#[cfg(feature = "accessibility")]
+mod accessibility;
 mod app;
 #[cfg(feature = "development")]
 mod channel;

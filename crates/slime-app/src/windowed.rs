@@ -191,6 +191,16 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         if let (Event::Resized(size), Some(surface)) = (&event, &mut self.surface) {
             surface.resize(size.width, size.height);
         }
+        // What a screen reader asks reaches the interface alone.
+        #[cfg(feature = "accessibility")]
+        if let Event::Accessibility(asked) = &event {
+            if let Some(window) = self.host.context.window() {
+                self.frames
+                    .screen_readers
+                    .asked(window, self.presentation.ui(), asked);
+            }
+            return;
+        }
         // The interface first; what it takes, neither the presentation nor the game sees.
         let taken_by_interface = match self.presentation.ui() {
             Some(ui) => {

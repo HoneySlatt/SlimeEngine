@@ -235,6 +235,9 @@ pub(crate) struct Frames {
     channel: Option<crate::channel::DevChannel>,
     /// What the window shows of the presentation's interface.
     shown: crate::interface::Shown,
+    /// What screen readers read of the presentation's interface.
+    #[cfg(feature = "accessibility")]
+    pub(crate) screen_readers: crate::accessibility::ScreenReaders,
 }
 
 impl Frames {
@@ -245,6 +248,13 @@ impl Frames {
             #[cfg(feature = "development")]
             channel: crate::channel::DevChannel::open(),
             shown: crate::interface::Shown::default(),
+            #[cfg(feature = "accessibility")]
+            screen_readers: crate::accessibility::ScreenReaders::new(
+                config
+                    .window
+                    .as_ref()
+                    .map_or("", |window| window.title.as_str()),
+            ),
         }
     }
 
@@ -332,6 +342,9 @@ impl Frames {
                 // window shows them without one.
                 if let Some(window) = host.context.window() {
                     self.shown.update(window, presentation.ui().as_deref());
+                    // What changed in what it means, while a screen reader reads the window.
+                    #[cfg(feature = "accessibility")]
+                    self.screen_readers.update(window, presentation.ui());
                 }
                 #[cfg(feature = "development")]
                 if let (Some(channel), Some(gpu)) = (&mut self.channel, host.context.gpu())

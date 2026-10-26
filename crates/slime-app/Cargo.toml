@@ -11,6 +11,9 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+# What a presentation's interface means, translated into the tree that screen readers read, with
+# the `accessibility` feature (ADR-0146).
+accesskit = { workspace = true, optional = true }
 ctrlc.workspace = true
 # The development channel, in programs built with the `development` feature (ADR-0122): its
 # protocol, and the documents through which it reads and writes the world's values as text.
@@ -36,12 +39,19 @@ tracing-subscriber = { workspace = true, features = ["tracing-log"] }
 # (ADR-0110, ADR-0122). A game turns it on by default, and a build for shipping leaves it out
 # (`--no-default-features`).
 development = ["dep:slime-channel", "dep:slime-serialize"]
+# Screen readers read what a presentation's interface means, through AccessKit's adapter of the
+# window (ADR-0146): built into the examples, and into the editor once it has a window, left out of
+# games until Stage 7.
+accessibility = ["dep:accesskit", "slime-platform/accessibility"]
 
 [target.'cfg(windows)'.dependencies]
 nu-ansi-term.workspace = true
 
 # The README's example and the windowed lifecycle test clear their targets to a color.
 [dev-dependencies]
+# The tests of the translation into AccessKit's tree build that tree from the updates, as the
+# adapters do.
+accesskit_consumer.workspace = true
 slime-color.workspace = true
 # The channel test is a tool that drives a run.
 slime-channel.workspace = true
