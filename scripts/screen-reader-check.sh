@@ -54,6 +54,15 @@ for _ in $(seq 100); do
 done
 "$SLIME_AT_SPI/libexec/at-spi2-registryd" >"$logs/registry.log" 2>&1 &
 pids+=("$!")
+# The registry must answer on the AT-SPI bus before the example announces itself to it.
+address=$(gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \
+    --method org.a11y.Bus.GetAddress | sed "s/^('\(.*\)',)$/\1/")
+for _ in $(seq 300); do
+    gdbus call --address "$address" --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus \
+        --method org.freedesktop.DBus.NameHasOwner org.a11y.atspi.Registry 2>/dev/null |
+        grep -q true && break
+    sleep 0.1
+done
 gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \
     --method org.freedesktop.DBus.Properties.Set org.a11y.Status IsEnabled '<true>' >/dev/null
 
@@ -65,6 +74,16 @@ if ! python3 "$here/screen-reader-check.py"; then
     cat "$logs/example.log"
     echo "the AT-SPI bus's log:"
     cat "$logs/bus.log"
+    echo "the AT-SPI registry's log:"
+    cat "$logs/registry.log"
+    echo "AT-SPI's state:"
+    gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \
+        --method org.freedesktop.DBus.Properties.GetAll org.a11y.Status || true
+    gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \
+        --method org.a11y.Bus.GetAddress || true
+    for pid in "${pids[@]}"; do
+        kill -0 "$pid" 2>/dev/null && echo "$pid runs" || echo "$pid has stopped"
+    done
     exit 1
 fi
 # The example stops as a termination signal asks, cleanly.

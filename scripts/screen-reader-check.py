@@ -19,6 +19,17 @@ from gi.repository import Atspi  # noqa: E402
 
 def fail(message):
     print(f"screen reader check: {message}", file=sys.stderr)
+    # What AT-SPI's registry holds, to tell a registry that never answered from an application
+    # that never came.
+    try:
+        desktop = Atspi.get_desktop(0)
+        names = [
+            desktop.get_child_at_index(index).get_name()
+            for index in range(desktop.get_child_count())
+        ]
+        print(f"screen reader check: the desktop holds {names}", file=sys.stderr)
+    except gi.repository.GLib.Error as error:
+        print(f"screen reader check: the desktop cannot be read: {error}", file=sys.stderr)
     sys.exit(1)
 
 
@@ -70,7 +81,7 @@ def text_of(node):
     return Atspi.Text.get_text(node, 0, Atspi.Text.get_character_count(node))
 
 
-app = until("the example's tree", lambda: application("interface"))
+app = until("the example's tree", lambda: application("interface"), seconds=90.0)
 frame = until("the window", lambda: find(app, "frame"))
 if frame.get_name() != "SlimeEngine interface example":
     fail(f"the window is named {frame.get_name()!r}")
