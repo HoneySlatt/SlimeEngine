@@ -66,6 +66,105 @@ impl LinearColor {
     pub fn from_srgb8(r: u8, g: u8, b: u8) -> Self {
         Self::rgb(srgb8_to_linear(r), srgb8_to_linear(g), srgb8_to_linear(b))
     }
+
+    /// The color in OKLCH (`docs/adr/0149-the-looks-foundations.md`), its alpha kept.
+    #[must_use]
+    pub fn to_oklch(self) -> Oklch {
+        // Björn Ottosson's Oklab, from linear sRGB through the cone responses' cube roots.
+        let l = (0.412_221_47 * self.r + 0.536_332_55 * self.g + 0.051_445_995 * self.b).cbrt();
+        let m = (0.211_903_5 * self.r + 0.680_699_5 * self.g + 0.107_396_96 * self.b).cbrt();
+        let s = (0.088_302_46 * self.r + 0.281_718_85 * self.g + 0.629_978_7 * self.b).cbrt();
+        let lightness = 0.210_454_26 * l + 0.793_617_8 * m - 0.004_072_047 * s;
+        let a = 1.977_998_5 * l - 2.428_592_2 * m + 0.450_593_7 * s;
+        let b = 0.025_904_037 * l + 0.782_771_77 * m - 0.808_675_77 * s;
+        Oklch {
+            l: lightness,
+            c: (a * a + b * b).sqrt(),
+            h: b.atan2(a).to_degrees().rem_euclid(360.0),
+            a: self.a,
+        }
+    }
+}
+
+/// A color in OKLCH: its lightness, its chroma and its hue in Oklab, a space in which equal steps
+/// look equal, so that a color lightened by a step looks one step lighter whatever its hue, and its
+/// alpha. The interface's themes compute their colors in it
+/// (`docs/adr/0149-the-looks-foundations.md`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Oklch {
+    /// Lightness, from 0, black, to 1, white.
+    pub l: f32,
+    /// Chroma, how far from grey: 0 for a grey, about 0.37 at most within sRGB.
+    pub c: f32,
+    /// Hue, in degrees from 0 to 360: about 30 for red, 140 for green, 265 for blue. A grey's hue
+    /// means nothing.
+    pub h: f32,
+    /// Alpha, as the color's.
+    pub a: f32,
+}
+
+impl Oklch {
+    /// The color in linear sRGB, outside sRGB's gamut where the lightness and the chroma lie
+    /// outside it: components below 0 or above 1 ([`Oklch::to_linear_in_gamut`] keeps them in).
+    #[must_use]
+    pub fn to_linear(self) -> LinearColor {
+        let (sin, cos) = self.h.to_radians().sin_cos();
+        let (a, b) = (self.c * cos, self.c * sin);
+        let l = (self.l + 0.396_337_78 * a + 0.215_803_76 * b).powi(3);
+        let m = (self.l - 0.105_561_346 * a - 0.063_854_17 * b).powi(3);
+        let s = (self.l - 0.089_484_18 * a - 1.291_485_5 * b).powi(3);
+        LinearColor {
+            r: 4.076_741_7 * l - 3.307_711_6 * m + 0.230_969_94 * s,
+            g: -1.268_438 * l + 2.609_757_4 * m - 0.341_319_38 * s,
+            b: -0.004_196_086_3 * l - 0.703_418_6 * m + 1.707_614_7 * s,
+            a: self.a,
+        }
+    }
+
+    /// The color in linear sRGB, its chroma lowered as little as keeps every component from 0 to 1,
+    /// its lightness and its hue kept: a lightened or darkened color that left sRGB's gamut comes
+    /// back to its nearest of the same lightness and hue, as CSS maps colors into a gamut.
+    #[must_use]
+    pub fn to_linear_in_gamut(self) -> LinearColor {
+        let l = self.l.clamp(0.0, 1.0);
+        let inside = |color: LinearColor| {
+            [color.r, color.g, color.b]
+                .iter()
+                .all(|component| (-1e-4..=1.0 + 1e-4).contains(component))
+        };
+        let color = Self { l, ..self }.to_linear();
+        if inside(color) {
+            return clamped(color);
+        }
+        // Halving the range of the chroma twenty times places it within a millionth.
+        let (mut low, mut high) = (0.0, self.c.max(0.0));
+        for _ in 0..20 {
+            let middle = (low + high) / 2.0;
+            if inside(
+                Self {
+                    l,
+                    c: middle,
+                    ..self
+                }
+                .to_linear(),
+            ) {
+                low = middle;
+            } else {
+                high = middle;
+            }
+        }
+        clamped(Self { l, c: low, ..self }.to_linear())
+    }
+}
+
+/// `color` with each of red, green and blue from 0 to 1.
+fn clamped(color: LinearColor) -> LinearColor {
+    LinearColor {
+        r: color.r.clamp(0.0, 1.0),
+        g: color.g.clamp(0.0, 1.0),
+        b: color.b.clamp(0.0, 1.0),
+        a: color.a,
+    }
 }
 
 /// The linear value of each sRGB-encoded byte.
@@ -128,6 +227,54 @@ mod tests {
             assert!((component - expected).abs() < 1e-6, "{decoded:?}");
         }
         assert_eq!(decoded.a, 1.0);
+    }
+
+    #[test]
+    fn oklch_gives_known_values_and_back() {
+        // White, black and sRGB's red as Oklab's author gives them.
+        let white = LinearColor::WHITE.to_oklch();
+        assert!((white.l - 1.0).abs() < 1e-3 && white.c < 1e-3, "{white:?}");
+        let black = LinearColor::BLACK.to_oklch();
+        assert!(black.l.abs() < 1e-3 && black.c < 1e-3, "{black:?}");
+        let red = LinearColor::rgb(1.0, 0.0, 0.0).to_oklch();
+        assert!((red.l - 0.628).abs() < 1e-3, "{red:?}");
+        assert!((red.c - 0.258).abs() < 1e-3, "{red:?}");
+        assert!((red.h - 29.23).abs() < 0.1, "{red:?}");
+        for color in [
+            LinearColor::from_srgb8(0x4C, 0x8D, 0xFF),
+            LinearColor::from_srgb8(0x16, 0x17, 0x1A),
+            LinearColor::rgba(0.2, 0.7, 0.1, 0.5),
+        ] {
+            let back = color.to_oklch().to_linear();
+            for (a, b) in [
+                (color.r, back.r),
+                (color.g, back.g),
+                (color.b, back.b),
+                (color.a, back.a),
+            ] {
+                assert!((a - b).abs() < 1e-4, "{color:?} {back:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_color_out_of_gamut_keeps_its_lightness_and_hue_with_less_chroma() {
+        let accent = LinearColor::from_srgb8(0x4C, 0x8D, 0xFF).to_oklch();
+        let lighter = Oklch {
+            l: accent.l + 0.25,
+            ..accent
+        };
+        assert!(lighter.to_linear().b > 1.0, "out of sRGB's gamut");
+        let mapped = lighter.to_linear_in_gamut();
+        assert!(
+            [mapped.r, mapped.g, mapped.b]
+                .iter()
+                .all(|c| (0.0..=1.0).contains(c))
+        );
+        let back = mapped.to_oklch();
+        assert!((back.l - lighter.l).abs() < 2e-3, "{back:?}");
+        assert!((back.h - lighter.h).abs() < 1.0, "{back:?}");
+        assert!(back.c < lighter.c);
     }
 
     #[test]
