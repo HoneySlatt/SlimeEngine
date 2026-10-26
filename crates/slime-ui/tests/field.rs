@@ -122,6 +122,7 @@ fn shown(value: &FieldValue) -> String {
     match value {
         FieldValue::Text(text) => format!("{text:?}"),
         FieldValue::Number(number) => format!("{number}"),
+        FieldValue::Checked(checked) => format!("{checked}"),
     }
 }
 

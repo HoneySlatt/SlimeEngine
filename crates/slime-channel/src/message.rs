@@ -459,7 +459,8 @@ pub struct ElementSummary {
     pub name: String,
     /// What a field holds, as the user left it; none for an element that is no field.
     pub value: Option<String>,
-    /// Its states: `hovered`, `pressed`, `focused`, `disabled`.
+    /// Its states: `hovered`, `pressed`, `focused`, `disabled`, `checked`, `expanded`,
+    /// `selected`.
     pub states: Vec<String>,
     /// What can be done to it now: `press`, `focus`, `scroll`, `set_value`.
     pub actions: Vec<String>,

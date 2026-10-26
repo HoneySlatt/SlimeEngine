@@ -15,10 +15,11 @@ use crate::Rect;
 use crate::display::{DisplayList, ImageKey, ImageKind, Primitive};
 use crate::layout;
 use crate::paint;
-use crate::style::Style;
+use crate::style::{Display, Style};
 use crate::text::{Fonts, TEXT_CACHE_BUDGET, TextCache};
 use crate::theme::{self, KindName, Rule, StateName, StyleSheet, Theme};
 
+mod control;
 mod field;
 mod interact;
 mod meaning;
@@ -27,7 +28,7 @@ pub use field::Clipboard;
 use interact::Interaction;
 pub use meaning::{
     ElementAction, FieldText, Meaning, MeaningChanges, MeaningNode, RUN_CHARACTERS, Role,
-    RunCharacter, TextRun,
+    RunCharacter, TextRun, ValueRange,
 };
 
 /// An element of a [`Ui`]: the place it holds in the tree's arena, and the generation of that
@@ -155,14 +156,74 @@ pub enum Kind {
         /// How much a drag of one logical pixel adds to it; a drag gives multiples of it.
         step: f64,
     },
+    /// A check box: its box, checked or not, then its label, in the middle of its box from top to
+    /// bottom. A press, or Enter or Space while it holds the focus, toggles it, which the program
+    /// reads as actions ([`FieldValue::Checked`](crate::action::FieldValue::Checked)). It keeps
+    /// what the user toggled; the program's state replaces it when it differs from the state that
+    /// the program gave before. Rules select it checked by the state `Checked`.
+    CheckBox {
+        /// Its label.
+        label: String,
+        /// Whether it is checked, as the program gives it.
+        checked: bool,
+    },
+    /// A slider: a track from its least value to its most, the part up to its value filled, and a
+    /// thumb at its value, which the pointer drags, or presses elsewhere on the track, and the
+    /// arrows, Home, End, Page Up and Page Down move while it holds the focus, by multiples of its
+    /// step from its least value. It keeps the user's value, as a field of numbers does, which the
+    /// program reads as actions, a number.
+    Slider {
+        /// Its value, as the program gives it, under the same rule as a check box's state; kept
+        /// within its least and most values.
+        value: f64,
+        /// Its least value.
+        min: f64,
+        /// Its most value, at least its least.
+        max: f64,
+        /// The values it takes are its least value and multiples of this from it; 0 for any.
+        step: f64,
+    },
+    /// A section that folds: a header, its title after a mark that shows whether it is open,
+    /// then, while it is open, its children, laid out as a container's below the header. A press
+    /// on the header, or Enter or Space while it holds the focus, opens or folds it; what it holds
+    /// is then not laid out, drawn nor reached. It keeps whether the user opened it, as a check box
+    /// keeps its state, and rules select it open by the state `Expanded`.
+    Section {
+        /// Its title.
+        title: String,
+        /// Whether it is open, as the program gives it.
+        open: bool,
+    },
+    /// A bar of tabs, laid out as a container, whose children are its tabs
+    /// ([`Kind::Tab`]): one is chosen, which a press on another, or the arrows, Home and End while
+    /// a tab holds the focus, changes. It keeps the user's choice, as a check box keeps its state;
+    /// a new choice runs again the builder that made the bar, which shows the chosen tab's panel
+    /// ([`Children::chosen`]).
+    TabBar {
+        /// The place of the chosen tab among the bar's, as the program gives it.
+        chosen: usize,
+    },
+    /// A tab of a bar of tabs ([`Kind::TabBar`]): its title, in the middle of its box, as a
+    /// button's label. Rules select the chosen one by the state `Selected`.
+    Tab {
+        /// Its title.
+        title: String,
+    },
 }
 
 impl Kind {
-    /// Whether a press of the pointer reaches it, and the focus: a button or a field.
+    /// Whether a press of the pointer reaches it, and the focus: a button, a field, a check box or
+    /// a slider.
     pub(crate) fn takes_pointer(&self) -> bool {
         matches!(
             self,
-            Self::Button { .. } | Self::TextField { .. } | Self::NumberField { .. }
+            Self::Button { .. }
+                | Self::TextField { .. }
+                | Self::NumberField { .. }
+                | Self::CheckBox { .. }
+                | Self::Slider { .. }
+                | Self::Section { .. }
+                | Self::Tab { .. }
         )
     }
 }
@@ -181,6 +242,12 @@ pub struct ElementState {
     pub disabled: bool,
     /// It holds the focus: the keys reach it first. The interface sets it ([`Ui::set_focus`]).
     pub focused: bool,
+    /// It is checked: a check box, as the program gave it or the user toggled it.
+    pub checked: bool,
+    /// It is open: a section, as the program gave it or the user opened it.
+    pub expanded: bool,
+    /// It is the chosen tab of its bar.
+    pub selected: bool,
 }
 
 /// An element as a builder describes it: what it is, its classes and its style. The tree keeps
@@ -272,6 +339,53 @@ impl Element {
     /// reads as none.
     pub fn number_field(value: f64, step: f64, style: Style) -> Self {
         Self::of(Kind::NumberField { value, step }, style)
+    }
+
+    /// A check box with its label, checked or not.
+    pub fn check_box(label: impl Into<String>, checked: bool, style: Style) -> Self {
+        let kind = Kind::CheckBox {
+            label: label.into(),
+            checked,
+        };
+        Self::of(kind, style)
+    }
+
+    /// A bar of tabs, the tab at `chosen` among those that its builder adds chosen.
+    pub fn tab_bar(chosen: usize, style: Style) -> Self {
+        Self::of(Kind::TabBar { chosen }, style)
+    }
+
+    /// A tab of a bar of tabs, with its title.
+    pub fn tab(title: impl Into<String>, style: Style) -> Self {
+        Self::of(
+            Kind::Tab {
+                title: title.into(),
+            },
+            style,
+        )
+    }
+
+    /// A section that folds, with its title, open or not.
+    pub fn section(title: impl Into<String>, open: bool, style: Style) -> Self {
+        let kind = Kind::Section {
+            title: title.into(),
+            open,
+        };
+        Self::of(kind, style)
+    }
+
+    /// A slider from `min` to `max`, at `value`, by multiples of `step` from `min`, 0 for any
+    /// value.
+    pub fn slider(value: f64, min: f64, max: f64, step: f64, style: Style) -> Self {
+        Self::of(
+            Kind::Slider {
+                value,
+                min,
+                max,
+                step,
+            },
+            style,
+        )
     }
 
     /// An element of `kind` and `style`, of no class.
@@ -411,6 +525,9 @@ pub(crate) struct Node {
     pub(crate) primitives: Vec<(Primitive, Option<Rect>)>,
     /// What a field keeps: the text that the user types, its selection and its undo.
     pub(crate) field: Option<Box<field::Field>>,
+    /// What a check box or a slider keeps: the value that the program last gave, and a slider's
+    /// own.
+    pub(crate) control: Option<control::Control>,
 }
 
 /// A place in the arena.
@@ -956,7 +1073,7 @@ impl Ui {
             .get(&selected)
             .and_then(|made| made.iter().find(|(own, _)| own == code))
             .map(|(_, style)| Arc::clone(style));
-        let style = match made {
+        let mut style = match made {
             Some(style) => style,
             None => {
                 let code = code.clone();
@@ -968,6 +1085,13 @@ impl Ui {
                 style
             }
         };
+        // What a folded section holds is not laid out, drawn nor reached, as an element of no
+        // display: its style says so, which every walk of the tree reads.
+        if self.folded(id) && style.layout.display != Display::None {
+            let mut hidden = (*style).clone();
+            hidden.layout.display = Display::None;
+            style = Arc::new(hidden);
+        }
         let node = self.node_mut(id).expect("styled above");
         node.changed.style = false;
         if *node.style != *style {
@@ -1042,6 +1166,9 @@ impl Ui {
                 StateName::Pressed => node.state.pressed,
                 StateName::Disabled => node.state.disabled,
                 StateName::Focused => node.state.focused,
+                StateName::Checked => node.state.checked,
+                StateName::Expanded => node.state.expanded,
+                StateName::Selected => node.state.selected,
             })
         {
             return false;
@@ -1212,6 +1339,8 @@ impl Ui {
 impl Node {
     fn new(key: Key, element: Element) -> Self {
         let field = field::given(&element.kind).map(|text| Box::new(field::Field::new(text)));
+        let mut state = ElementState::default();
+        let control = control::Control::new(&element.kind, &mut state);
         Self {
             number: 0,
             key,
@@ -1219,7 +1348,7 @@ impl Node {
             children: Vec::new(),
             style: Arc::new(element.style.clone()),
             element,
-            state: ElementState::default(),
+            state,
             root: None,
             built: None,
             rebuild: false,
@@ -1240,6 +1369,7 @@ impl Node {
             clip: None,
             primitives: Vec::new(),
             field,
+            control,
         }
     }
 
@@ -1353,6 +1483,15 @@ impl<'a> Children<'a> {
                     self.ui.mark_paint(id);
                     self.ui.mark_meaning(id);
                 }
+                // A check box's or a slider's value, under the same rule.
+                let node = self.ui.node_mut(id).expect("kept");
+                if let Some(control) = node.control.as_mut()
+                    && control.give(&element.kind, &mut node.state)
+                {
+                    self.ui.mark_style(id);
+                    self.ui.mark_paint(id);
+                    self.ui.mark_meaning(id);
+                }
                 let node = self.ui.node_mut(id).expect("kept");
                 if node.element != element {
                     let layout = lays_out_again(&node.element, &element);
@@ -1407,6 +1546,12 @@ impl<'a> Children<'a> {
         self.ui.visible_rows(self.parent)
     }
 
+    /// The place of the chosen tab of `bar`, a bar of tabs that this builder added, among its
+    /// tabs: the builder shows its panel. 0 for an element that is no bar of tabs.
+    pub fn chosen(&self, bar: ElementId) -> usize {
+        self.ui.chosen_tab(bar).unwrap_or(0)
+    }
+
     /// Puts the children given in place, removes those not given, and marks the parent laid out
     /// again if they changed.
     fn finish(self) {
@@ -1427,6 +1572,8 @@ impl<'a> Children<'a> {
             node.children = given;
             ui.children_changed(parent);
         }
+        // A bar's tabs show which is chosen.
+        ui.mark_chosen(parent);
         // A list's builder gave the rows that it shows.
         if ui.row_height(parent).is_some() {
             let visible = ui.visible_rows(parent);
@@ -1449,6 +1596,9 @@ fn lays_out_again(before: &Element, after: &Element) -> bool {
     match (&before.kind, &after.kind) {
         (Kind::Label(before), Kind::Label(after)) => before != after,
         (Kind::Button { label: before }, Kind::Button { label: after }) => before != after,
+        (Kind::CheckBox { label: before, .. }, Kind::CheckBox { label: after, .. })
+        | (Kind::Section { title: before, .. }, Kind::Section { title: after, .. })
+        | (Kind::Tab { title: before }, Kind::Tab { title: after }) => before != after,
         (Kind::List { .. }, Kind::List { .. }) => before.kind != after.kind,
         _ => false,
     }
@@ -1477,6 +1627,11 @@ fn kind_name(kind: &Kind) -> KindName {
         Kind::List { .. } => KindName::List,
         Kind::TextField { .. } => KindName::TextField,
         Kind::NumberField { .. } => KindName::NumberField,
+        Kind::CheckBox { .. } => KindName::CheckBox,
+        Kind::Slider { .. } => KindName::Slider,
+        Kind::Section { .. } => KindName::Section,
+        Kind::TabBar { .. } => KindName::TabBar,
+        Kind::Tab { .. } => KindName::Tab,
     }
 }
 

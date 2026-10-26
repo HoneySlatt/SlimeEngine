@@ -30,26 +30,30 @@ pub enum ActionKind {
     /// The command that a shortcut names ([`Shortcuts`](crate::shortcuts::Shortcuts)).
     Command(String),
     /// What a field holds changed, as the user edits it: at each edit, the composition of an
-    /// input method once committed, and each step of a drag of a field of numbers. A field of
-    /// numbers whose text reads as no number gives none.
+    /// input method once committed, and each step of a drag of a field of numbers or of a slider;
+    /// a check box toggled. A field of numbers whose text reads as no number gives none.
     Changed(FieldValue),
     /// What a field holds, given by the user: by Enter in a field of one line, Ctrl+Enter in a
     /// field of several, the focus leaving the field, the release of a drag of a field of numbers,
     /// or an agent's `Accept` while it holds the focus, once the user changed it since it took the
-    /// focus or since its last commit. A field that the user did not change gives none, so that a
-    /// value that the program holds is written only when the user wrote it. A field of numbers
-    /// whose text reads as no number gives none, and shows again the number that the program gave
-    /// or that it last committed, the later of the two.
+    /// focus or since its last commit; a check box toggled, after its change; the release of a
+    /// slider's drag, and each step of its keys, after its change. A field that the user did not
+    /// change gives none, so that a value that the program holds is written only when the user
+    /// wrote it. A field of numbers whose text reads as no number gives none, and shows again the
+    /// number that the program gave or that it last committed, the later of the two.
     Committed(FieldValue),
 }
 
-/// What a field holds: a text, or a number.
+/// What an element that the user gives a value holds: a field's text or number, a check box's
+/// state, a slider's number.
 #[derive(Clone, Debug, PartialEq)]
 pub enum FieldValue {
     /// A field of text's text.
     Text(String),
-    /// A field of numbers' number.
+    /// A field of numbers' number, a slider's.
     Number(f64),
+    /// Whether a check box is checked.
+    Checked(bool),
 }
 
 /// A navigation intent: what a key, and later a gamepad, means to the interface whatever the

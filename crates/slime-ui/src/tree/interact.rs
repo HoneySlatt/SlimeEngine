@@ -45,10 +45,14 @@ impl Ui {
     /// follows the pointer too.
     pub fn pointer_moved(&mut self, x: f32, y: f32) {
         self.interaction.pointer = Some([x, y]);
-        if let Some(captured) = self.interaction.captured
-            && self.node(captured).is_some_and(|node| node.field.is_some())
-        {
-            self.field_drag(captured, x, y);
+        if let Some(captured) = self.interaction.captured {
+            match self.node(captured).map(|node| &node.element.kind) {
+                Some(Kind::TextField { .. } | Kind::NumberField { .. }) => {
+                    self.field_drag(captured, x, y);
+                }
+                Some(Kind::Slider { .. }) => self.slider_drag(captured, x),
+                _ => {}
+            }
         }
         self.hover();
     }
@@ -101,13 +105,15 @@ impl Ui {
                     return taken;
                 };
                 self.interaction.captured = Some(target);
+                let [x, y] = self.interaction.pointer.unwrap_or_default();
                 if self.node(target).is_some_and(|node| node.field.is_some()) {
-                    let [x, y] = self.interaction.pointer.unwrap_or_default();
                     let shift = self.interaction.modifiers.shift;
                     self.field_press(target, x, y, shift);
                 } else {
                     self.change_state(target, |state| state.pressed = true);
                     self.set_focus(Some(target));
+                    // A slider's thumb comes under the pointer, wherever it pressed the track.
+                    self.slider_drag(target, x);
                 }
                 true
             }
@@ -133,6 +139,11 @@ impl Ui {
                     return true;
                 }
                 self.change_state(captured, |state| state.pressed = false);
+                // A slider's drag ends where it is, committed.
+                if let Some(value) = self.slider_value(captured) {
+                    self.set_slider(captured, value, true);
+                    return true;
+                }
                 let over = self.pointer_target(Kind::takes_pointer);
                 if over == Some(captured) {
                     self.act(Action {
@@ -197,6 +208,11 @@ impl Ui {
         {
             return true;
         }
+        if let Some(focus) = self.interaction.focus
+            && (self.slider_key(focus, event) || self.tab_key(focus, event))
+        {
+            return true;
+        }
         if let Some(command) = self.shortcut(event) {
             let element = self.interaction.focus;
             self.act(Action {
@@ -237,11 +253,18 @@ impl Ui {
     pub fn act(&mut self, action: Action) {
         match action.kind {
             ActionKind::Press => {
-                if action
+                let Some(id) = action
                     .element
-                    .is_some_and(|id| self.pressable(id) && self.in_scope(id))
-                {
-                    self.interaction.actions.push(action);
+                    .filter(|&id| self.pressable(id) && self.in_scope(id))
+                else {
+                    return;
+                };
+                // A check box pressed toggles, which the program reads as its value; a section opens
+                // or folds; a tab is chosen.
+                match self.node(id).map(|node| &node.element.kind) {
+                    Some(Kind::CheckBox { .. } | Kind::Section { .. }) => self.toggle(id),
+                    Some(Kind::Tab { .. }) => self.press_tab(id),
+                    _ => self.interaction.actions.push(action),
                 }
             }
             ActionKind::Intent(Intent::Accept) => {
@@ -250,14 +273,16 @@ impl Ui {
                     self.commit(field);
                     return;
                 }
-                let kind = match focus {
-                    Some(id) if self.pressable(id) => ActionKind::Press,
-                    _ => ActionKind::Intent(Intent::Accept),
-                };
-                self.interaction.actions.push(Action {
-                    element: focus,
-                    kind,
-                });
+                match focus {
+                    Some(id) if self.pressable(id) => self.act(Action {
+                        element: focus,
+                        kind: ActionKind::Press,
+                    }),
+                    _ => self.interaction.actions.push(Action {
+                        element: focus,
+                        kind: ActionKind::Intent(Intent::Accept),
+                    }),
+                }
             }
             ActionKind::Intent(Intent::Cancel)
             | ActionKind::Command(_)
@@ -340,7 +365,14 @@ impl Ui {
         let mut at = self.element_at(x, y);
         while let Some(id) = at {
             let node = self.node(id)?;
-            if takes(&node.element.kind) && !node.state.disabled {
+            // A section takes the pointer on its header alone.
+            let reached = match node.element.kind {
+                Kind::Section { .. } => self
+                    .section_header(id)
+                    .is_some_and(|header| inside(header, x, y)),
+                _ => true,
+            };
+            if reached && takes(&node.element.kind) && !node.state.disabled {
                 return Some(id);
             }
             at = node.parent;
@@ -499,12 +531,18 @@ impl Ui {
         true
     }
 
-    /// Whether `id` can be pressed: a button that can hold the focus.
+    /// Whether `id` can be pressed: a button, a check box or a section that can hold the focus.
     pub(super) fn pressable(&self, id: ElementId) -> bool {
         self.focusable(id)
-            && self
-                .node(id)
-                .is_some_and(|node| matches!(node.element.kind, Kind::Button { .. }))
+            && self.node(id).is_some_and(|node| {
+                matches!(
+                    node.element.kind,
+                    Kind::Button { .. }
+                        | Kind::CheckBox { .. }
+                        | Kind::Section { .. }
+                        | Kind::Tab { .. }
+                )
+            })
     }
 
     /// The elements below `root` that can hold the focus, in the order of the tree.
@@ -560,7 +598,7 @@ impl Ui {
 
     /// Changes the state of `id` by `change`, its style made again if it changed. Unlike
     /// [`Ui::set_state`], it sets the states that the interface keeps, the focus's among them.
-    fn change_state(&mut self, id: ElementId, change: impl FnOnce(&mut ElementState)) {
+    pub(super) fn change_state(&mut self, id: ElementId, change: impl FnOnce(&mut ElementState)) {
         if let Some(node) = self.node_mut(id) {
             let before = node.state;
             change(&mut node.state);

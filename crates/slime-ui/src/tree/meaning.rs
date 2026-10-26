@@ -45,6 +45,18 @@ pub enum Role {
     MultilineTextInput,
     /// A field of a number.
     SpinButton,
+    /// A check box, checked or not ([`ElementState::checked`]).
+    CheckBox,
+    /// A slider.
+    Slider,
+    /// A section that folds, open or not ([`ElementState::expanded`]).
+    Details,
+    /// A bar of tabs.
+    TabList,
+    /// A tab of a bar, chosen or not ([`ElementState::selected`]).
+    Tab,
+    /// The panel of the chosen tab, which a builder names so ([`Element::role`](super::Element::role)).
+    TabPanel,
 }
 
 impl Role {
@@ -64,20 +76,38 @@ impl Role {
             Self::TextInput => "TextInput",
             Self::MultilineTextInput => "MultilineTextInput",
             Self::SpinButton => "SpinButton",
+            Self::CheckBox => "CheckBox",
+            Self::Slider => "Slider",
+            Self::Details => "Details",
+            Self::TabList => "TabList",
+            Self::Tab => "Tab",
+            Self::TabPanel => "TabPanel",
         }
     }
+}
+
+/// The bounds and the step of a slider's value.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ValueRange {
+    /// Its least value.
+    pub min: f64,
+    /// Its most value.
+    pub max: f64,
+    /// The values it takes are its least and multiples of this from it; 0 for any.
+    pub step: f64,
 }
 
 /// What an agent can do to an element, as a person would.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ElementAction {
-    /// Press it, as [`ActionKind::Press`](crate::action::ActionKind::Press) does.
+    /// Press it, as [`ActionKind::Press`](crate::action::ActionKind::Press) does; a check box,
+    /// toggle it.
     Press,
     /// Give it the focus ([`Ui::set_focus`]).
     Focus,
     /// Scroll its content ([`Ui::scroll_to`]).
     Scroll,
-    /// Give a field a value, as a person who replaced what it holds and committed
+    /// Give a field or a slider a value, as a person who replaced what it holds and committed
     /// ([`Ui::set_value`]).
     SetValue,
 }
@@ -107,9 +137,11 @@ pub struct Meaning {
     /// button's label or a text's; empty for none.
     pub name: String,
     /// Its value: what a field holds, as the user left it, the text that an input method composes
-    /// included, a field of numbers' text whether or not it reads as a number; none for an element
-    /// that is no field.
+    /// included, a field of numbers' text whether or not it reads as a number; a slider's number,
+    /// as Rust writes it; none for another element.
     pub value: Option<String>,
+    /// The bounds and the step of a slider's value; none for another element.
+    pub range: Option<ValueRange>,
     /// Its states.
     pub state: ElementState,
     /// What can be done to it now: none, for an element that a modal root above its own keeps
@@ -313,7 +345,13 @@ impl Ui {
         }
         let name = match (&element.name, &element.kind) {
             (Some(name), _) => name.clone(),
-            (None, Kind::Button { label }) => label.clone(),
+            (
+                None,
+                Kind::Button { label }
+                | Kind::CheckBox { label, .. }
+                | Kind::Section { title: label, .. }
+                | Kind::Tab { title: label },
+            ) => label.clone(),
             (None, Kind::Label(text)) => text.clone(),
             (None, _) => String::new(),
         };
@@ -324,7 +362,7 @@ impl Ui {
             }
             if self.focusable(id) {
                 actions.push(ElementAction::Focus);
-                if node.field.is_some() {
+                if node.field.is_some() || matches!(element.kind, Kind::Slider { .. }) {
                     actions.push(ElementAction::SetValue);
                 }
             }
@@ -346,7 +384,18 @@ impl Ui {
             path,
             role,
             name,
-            value: node.field.as_ref().map(|field| field.text.clone()),
+            value: match node.field.as_ref() {
+                Some(field) => Some(field.text.clone()),
+                None => self.slider_value(id).map(super::field::number_text),
+            },
+            range: match element.kind {
+                Kind::Slider { min, max, step, .. } => Some(ValueRange {
+                    min,
+                    max: max.max(min),
+                    step,
+                }),
+                _ => None,
+            },
             state: node.state,
             actions,
             bounds,
@@ -374,6 +423,11 @@ impl Ui {
             } => Role::TextInput,
             Kind::TextField { .. } => Role::MultilineTextInput,
             Kind::NumberField { .. } => Role::SpinButton,
+            Kind::CheckBox { .. } => Role::CheckBox,
+            Kind::Slider { .. } => Role::Slider,
+            Kind::Section { .. } => Role::Details,
+            Kind::TabBar { .. } => Role::TabList,
+            Kind::Tab { .. } => Role::Tab,
         })
     }
 

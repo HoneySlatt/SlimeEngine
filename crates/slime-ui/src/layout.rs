@@ -77,6 +77,7 @@ fn convert(
     let scale = settings.scale;
     let mut stack = vec![(start, row_height, forced)];
     while let Some((id, row_height, forced)) = stack.pop() {
+        let header = section_header(ui, id, scale);
         let Some(node) = ui.node_mut(id) else {
             continue;
         };
@@ -97,6 +98,11 @@ fn convert(
                     height: TaffyDimension::length(settings.size[1] * scale),
                 };
             }
+            // A section's header lies above its children, within its padding.
+            if let Some(header) = header {
+                let top = style.padding.top.into_raw().value();
+                style.padding.top = LengthPercentage::length(top + header);
+            }
             // A box that scrolls, as CSS's `overflow: hidden`, is as small as its style lets it,
             // whatever its content.
             if matches!(node.element.kind, Kind::Scroll | Kind::List { .. }) {
@@ -115,6 +121,24 @@ fn convert(
         let forced = rows.is_some() && node.changed.layout;
         stack.extend(node.children.iter().map(|&child| (child, rows, forced)));
     }
+}
+
+/// The height of the header of `id`, a section, in pixels of the screen at `scale`: its title's, or
+/// its mark's where it is taller. None for an element that is no section.
+fn section_header(ui: &mut Ui, id: ElementId, scale: f32) -> Option<f32> {
+    let node = ui.node(id)?;
+    let Kind::Section { title, .. } = &node.element.kind else {
+        return None;
+    };
+    let title = title.clone();
+    let text_style = node.style.text.style.clone();
+    let mark = node.style.control.size * scale;
+    let text = ui
+        .texts
+        .get(&mut ui.fonts, &title, &text_style, scale, TextBounds::default())
+        .height()
+        .ceil();
+    Some(text.max(mark))
 }
 
 /// Lays out each row of the list `list` alone, at the list's width and the height of a row.
@@ -457,9 +481,19 @@ impl taffy::LayoutPartialTree for Tree<'_> {
             if display == taffy::Display::None {
                 return compute_hidden_layout(tree, node);
             }
+            // What a control lays out besides its text, before it: a check box's box and the gap
+            // after it, as wide as half of it; a slider is eight thumbs wide, a thumb tall.
+            let control = at.style.control.size * tree.scale;
+            let (beside, least) = match at.element.kind {
+                Kind::CheckBox { .. } => (control * 1.5, control),
+                Kind::Slider { .. } => (control * 8.0, control),
+                _ => (0.0, 0.0),
+            };
             let text = match &at.element.kind {
                 Kind::Label(text) => Some(text.clone()),
-                Kind::Button { label, .. } => Some(label.clone()),
+                Kind::Button { label, .. }
+                | Kind::CheckBox { label, .. }
+                | Kind::Tab { title: label } => Some(label.clone()),
                 // A field as tall as a line of its text, even empty.
                 Kind::TextField { .. } | Kind::NumberField { .. } => {
                     at.field.as_ref().map(|field| match field.text.as_str() {
@@ -492,13 +526,19 @@ impl taffy::LayoutPartialTree for Tree<'_> {
                 |_, _| 0.0,
                 |known, available| {
                     let Some(text) = text else {
-                        return Size::ZERO;
+                        return Size {
+                            width: beside,
+                            height: least,
+                        };
                     };
-                    let width = known.width.or(match available.width {
-                        AvailableSpace::Definite(width) => Some(width),
-                        AvailableSpace::MinContent => Some(0.0),
-                        AvailableSpace::MaxContent => None,
-                    });
+                    let width = known
+                        .width
+                        .or(match available.width {
+                            AvailableSpace::Definite(width) => Some(width),
+                            AvailableSpace::MinContent => Some(0.0),
+                            AvailableSpace::MaxContent => None,
+                        })
+                        .map(|width| (width - beside).max(0.0));
                     let bounds = width
                         .filter(|_| breaks)
                         .map_or(TextBounds::default(), |width| {
@@ -509,8 +549,8 @@ impl taffy::LayoutPartialTree for Tree<'_> {
                         .texts
                         .get(&mut ui.fonts, &text, &text_style, scale, bounds);
                     Size {
-                        width: layout.width().ceil(),
-                        height: layout.height().ceil(),
+                        width: layout.width().ceil() + beside,
+                        height: layout.height().ceil().max(least),
                     }
                 },
             )

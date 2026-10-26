@@ -131,6 +131,11 @@ pub(crate) enum KindName {
     List,
     TextField,
     NumberField,
+    CheckBox,
+    Slider,
+    Section,
+    TabBar,
+    Tab,
 }
 
 /// The states of an element, as a rule names them.
@@ -141,6 +146,9 @@ pub(crate) enum StateName {
     Pressed,
     Disabled,
     Focused,
+    Checked,
+    Expanded,
+    Selected,
 }
 
 /// An ancestor that a rule asks for: of a kind, holding a class, or both.

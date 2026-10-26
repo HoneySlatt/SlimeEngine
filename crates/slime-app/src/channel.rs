@@ -518,12 +518,18 @@ fn element_summary(meaning: Meaning) -> ElementSummary {
         pressed,
         disabled,
         focused,
+        checked,
+        expanded,
+        selected,
     } = meaning.state;
     let states = [
         (hovered, "hovered"),
         (pressed, "pressed"),
         (focused, "focused"),
         (disabled, "disabled"),
+        (checked, "checked"),
+        (expanded, "expanded"),
+        (selected, "selected"),
     ];
     ElementSummary {
         path: meaning.path,

@@ -287,6 +287,7 @@ fn value_text(value: &FieldValue) -> String {
     match value {
         FieldValue::Text(text) => text.clone(),
         FieldValue::Number(number) => number_text(*number),
+        FieldValue::Checked(checked) => checked.to_string(),
     }
 }
 
@@ -336,7 +337,9 @@ impl Ui {
     /// break as a space, as a paste does. Gives whether the field took it: not an element that is
     /// no field, nor a field that cannot hold the focus now, disabled, hidden or below a modal
     /// root, nor a field of numbers given a text that reads as no finite number, which keeps what
-    /// it holds. The focus stays where it is.
+    /// it holds. A slider takes a text that reads as a finite number, kept within its bounds and on
+    /// its steps, the program reading the change, if any, then the commit. The focus stays where it
+    /// is.
     pub fn set_value(&mut self, id: ElementId, text: &str) -> bool {
         if !self.focusable(id) || !self.in_scope(id) {
             return false;
@@ -344,6 +347,13 @@ impl Ui {
         let Some(node) = self.node(id) else {
             return false;
         };
+        // A slider takes a finite number, kept within its bounds and on its steps.
+        if matches!(node.element.kind, Kind::Slider { .. }) {
+            return match text.trim().parse::<f64>() {
+                Ok(number) if number.is_finite() => self.set_slider(id, number, true),
+                _ => false,
+            };
+        }
         let kind = &node.element.kind;
         let multiline = matches!(
             kind,

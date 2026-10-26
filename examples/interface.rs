@@ -401,6 +401,8 @@ impl Interface {
                     self.scale = scale;
                     self.tell(format!("scale {scale}"));
                 }
+                // It holds no check box.
+                ActionKind::Committed(FieldValue::Checked(_)) => {}
             }
         }
         stop

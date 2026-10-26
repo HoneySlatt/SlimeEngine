@@ -8,8 +8,8 @@
 
 use accesskit::{
     Action as AccessAction, ActionData, ActionRequest, Node, NodeId, Rect as AccessRect,
-    Role as AccessRole, ScrollUnit, TextDirection, TextPosition, TextSelection, TreeId, TreeInfo,
-    TreeUpdate,
+    Role as AccessRole, ScrollUnit, TextDirection, TextPosition, TextSelection, Toggled, TreeId,
+    TreeInfo, TreeUpdate,
 };
 use slime_platform::{Accessibility, PhysicalSize, Window};
 use slime_ui::Rect;
@@ -154,7 +154,7 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
     }
     if let Some(value) = &meaning.value {
         element.set_value(value.clone());
-        if meaning.role == Role::SpinButton
+        if matches!(meaning.role, Role::SpinButton | Role::Slider)
             && let Some(number) = value
                 .trim()
                 .parse::<f64>()
@@ -164,6 +164,26 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
             element.set_numeric_value(number);
         }
     }
+    if let Some(range) = meaning.range {
+        element.set_min_numeric_value(range.min);
+        element.set_max_numeric_value(range.max);
+        if range.step > 0.0 {
+            element.set_numeric_value_step(range.step);
+        }
+    }
+    if meaning.role == Role::Details {
+        element.set_expanded(meaning.state.expanded);
+    }
+    if meaning.role == Role::Tab {
+        element.set_selected(meaning.state.selected);
+    }
+    if meaning.role == Role::CheckBox {
+        element.set_toggled(if meaning.state.checked {
+            Toggled::True
+        } else {
+            Toggled::False
+        });
+    }
     if let Some(bounds) = meaning.bounds {
         element.set_bounds(rect(bounds));
     }
@@ -172,6 +192,14 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
     }
     for action in &meaning.actions {
         match action {
+            ElementAction::Press if meaning.role == Role::Details => {
+                element.add_action(AccessAction::Click);
+                element.add_action(if meaning.state.expanded {
+                    AccessAction::Collapse
+                } else {
+                    AccessAction::Expand
+                });
+            }
             ElementAction::Press => element.add_action(AccessAction::Click),
             ElementAction::Focus => element.add_action(AccessAction::Focus),
             ElementAction::Scroll => {
@@ -183,6 +211,11 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
                 ] {
                     element.add_action(scroll);
                 }
+            }
+            ElementAction::SetValue if meaning.role == Role::Slider => {
+                element.add_action(AccessAction::SetValue);
+                element.add_action(AccessAction::Increment);
+                element.add_action(AccessAction::Decrement);
             }
             ElementAction::SetValue => {
                 element.add_action(AccessAction::SetValue);
@@ -268,6 +301,12 @@ fn role(role: Role) -> AccessRole {
         Role::TextInput => AccessRole::TextInput,
         Role::MultilineTextInput => AccessRole::MultilineTextInput,
         Role::SpinButton => AccessRole::SpinButton,
+        Role::CheckBox => AccessRole::CheckBox,
+        Role::Slider => AccessRole::Slider,
+        Role::Details => AccessRole::Details,
+        Role::TabList => AccessRole::TabList,
+        Role::Tab => AccessRole::Tab,
+        Role::TabPanel => AccessRole::TabPanel,
     }
 }
 
@@ -299,6 +338,10 @@ fn act(ui: &mut Ui, request: &ActionRequest) {
             element: Some(id),
             kind: ActionKind::Press,
         }),
+        // A section opened or folded.
+        (AccessAction::Expand | AccessAction::Collapse, _) if takes(ui, ElementAction::Press) => {
+            ui.set_open(id, request.action == AccessAction::Expand);
+        }
         // A field clicked takes the focus, as a press of the pointer gives it.
         (AccessAction::Click | AccessAction::Focus, _) => ui.set_focus(Some(id)),
         (AccessAction::SetValue, Some(ActionData::Value(text))) => {
@@ -306,6 +349,31 @@ fn act(ui: &mut Ui, request: &ActionRequest) {
         }
         (AccessAction::SetValue, Some(ActionData::NumericValue(number))) => {
             ui.set_value(id, &number.to_string());
+        }
+        // A slider moved by a step.
+        (AccessAction::Increment | AccessAction::Decrement, _)
+            if takes(ui, ElementAction::SetValue) =>
+        {
+            let Some(meaning) = ui.meaning_of(id) else {
+                return;
+            };
+            let (Some(value), Some(range)) = (
+                meaning.value.and_then(|value| value.parse::<f64>().ok()),
+                meaning.range,
+            ) else {
+                return;
+            };
+            let step = if range.step > 0.0 {
+                range.step
+            } else {
+                (range.max - range.min) / 100.0
+            };
+            let towards = if request.action == AccessAction::Increment {
+                step
+            } else {
+                -step
+            };
+            ui.set_value(id, &(value + towards).to_string());
         }
         (AccessAction::SetTextSelection, Some(ActionData::SetTextSelection(selection)))
             if takes(ui, ElementAction::SetValue) =>

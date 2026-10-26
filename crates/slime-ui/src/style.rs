@@ -21,6 +21,9 @@ pub struct Style {
     pub paint: PaintStyle,
     /// The text of a label or a button: its fonts and size, which lay it out, and its color.
     pub text: TextLook,
+    /// The parts of a control that are not its box: a check box's mark, a slider's track and
+    /// thumb.
+    pub control: ControlStyle,
 }
 
 /// How an element and its children are laid out, by CSS's flexbox or grid, in logical pixels.
@@ -287,6 +290,36 @@ impl Default for Shadow {
             offset: [0.0; 2],
             blur: 0.0,
             spread: 0.0,
+        }
+    }
+}
+
+/// The parts of a control drawn apart from its box: a check box's box and its mark, a slider's
+/// track, the part of the track up to its value and its thumb.
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(name = "UiControl", default)]
+pub struct ControlStyle {
+    /// The size of the part that the pointer takes, in logical pixels: the side of a check box's
+    /// box, the width of a slider's thumb, which lay them out.
+    pub size: f32,
+    /// The radius of its corners, in logical pixels.
+    pub radius: f32,
+    /// A check box's box unchecked, a slider's track.
+    pub track: LinearColor,
+    /// A check box's box checked, the part of a slider's track up to its value.
+    pub fill: LinearColor,
+    /// A check box's mark, a slider's thumb.
+    pub mark: LinearColor,
+}
+
+impl Default for ControlStyle {
+    fn default() -> Self {
+        Self {
+            size: 16.0,
+            radius: 3.0,
+            track: LinearColor::rgba(0.3, 0.3, 0.3, 1.0),
+            fill: LinearColor::rgba(0.2, 0.4, 0.9, 1.0),
+            mark: LinearColor::WHITE,
         }
     }
 }

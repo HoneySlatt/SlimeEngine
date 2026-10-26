@@ -59,8 +59,8 @@ fn primitives(
     let text_style = node.style.text.style.clone();
     let color = node.style.text.color;
     match &element.kind {
-        Kind::Label(text) | Kind::Button { label: text, .. } => {
-            let centred = matches!(element.kind, Kind::Button { .. });
+        Kind::Label(text) | Kind::Button { label: text, .. } | Kind::Tab { title: text } => {
+            let centred = matches!(element.kind, Kind::Button { .. } | Kind::Tab { .. });
             let text = text.clone();
             let ui = &mut *ui;
             let layout = ui
@@ -109,7 +109,18 @@ fn primitives(
                 primitives.push((primitive, Some(content)));
             }
         }
-        Kind::Container | Kind::Scroll | Kind::List { .. } => {}
+        Kind::CheckBox { .. } | Kind::Slider { .. } => {
+            for primitive in ui.control_primitives(id) {
+                primitives.push((primitive, Some(content)));
+            }
+        }
+        // A section's header lies within its padding, above its content box.
+        Kind::Section { .. } => {
+            for primitive in ui.control_primitives(id) {
+                primitives.push((primitive, None));
+            }
+        }
+        Kind::Container | Kind::Scroll | Kind::List { .. } | Kind::TabBar { .. } => {}
     }
     primitives
 }
