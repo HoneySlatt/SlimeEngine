@@ -9,9 +9,10 @@
   [0115](0115-what-the-gpu-layer-gives-the-editor.md) (a texture of one channel, and a scissor apart
   from the viewport); amended by [0137](0137-the-canvas.md) (no scissor apart from the viewport; the
   interface blends in sRGB's encoding), [0140](0140-the-tree-of-elements.md) (the marks of an
-  element's style and meaning come with the milestones that use them) and
+  element's style and meaning come with the milestones that use them),
   [0143](0143-what-agents-see-of-the-interface.md) (an element's value comes with the first element
-  that holds one)
+  that holds one) and [0145](0145-text-edited.md) (the engine composes the text of input methods
+  and keeps a field's text, parley giving the selection's moves)
 - Date: 2026-10-22
 
 ## Context

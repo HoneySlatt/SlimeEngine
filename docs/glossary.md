@@ -346,6 +346,12 @@ it.
 **Face (font).** One font of a font file, at one point of its variations, a variable font's
 weight among them: what draws a run of *glyphs* ([ADR-0136](adr/0136-the-interfaces-text.md)).
 
+**Field (interface).** An element that the user types in: of text, one line or several, or of a
+number, which a drag changes too. It keeps what the user types, its selection and its undo, and the
+program reads it as actions, *changed* at each edit and *committed* by Enter or as the focus leaves
+it, once the user changed it (`Element::text_field`, `Element::number_field`,
+[ADR-0145](adr/0145-text-edited.md)).
+
 **Filtered importance sampling.** Reading each sample of a Monte Carlo integral of a texture from
 a blurred level of it whose texels cover the solid angle the sample stands for, which removes the
 noise of sharp features with few samples (Křivánek and Colbert); the *prefiltered levels* are
@@ -362,7 +368,7 @@ changed since ([ADR-0087](adr/0087-the-worlds-documents.md),
 blinks as its coverage of the pixel changes from frame to frame. The renderer does not filter them
 (ADR-0040).
 
-**Focus (interface).** The element that the keys reach first, a button today, which Tab moves
+**Focus (interface).** The element that the keys reach first, a button or a *field*, which Tab moves
 in the order of the tree and the arrows to the nearest element on screen, within its scope: the top
 *modal root*, or the root that holds it ([ADR-0142](adr/0142-input-and-focus.md)).
 
@@ -536,6 +542,10 @@ interface moves the *focus* for the first six ([ADR-0142](adr/0142-input-and-foc
 **Input (as data).** The keys and mouse buttons held, and those pressed and released since the last
 frame (`slime_platform::Input`), which the *host* keeps from the window's events, or a test from its
 script, and the *simulation* reads ([ADR-0107](adr/0107-the-execution-model.md)).
+
+**Input method (IME).** The system's means of typing what a keyboard has no keys for, Chinese,
+Japanese or Korean: the keys compose a text, shown in a field under a line, which the user then
+commits (`slime_input::Ime`, [ADR-0145](adr/0145-text-edited.md)).
 
 **Instance (render).** One thing the renderer draws: a *mesh*, a *material* and a transform from
 the mesh's space to world space (`slime_render::Instance`). A render *scene* is a flat list of

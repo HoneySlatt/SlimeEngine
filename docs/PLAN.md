@@ -44,8 +44,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   M6b.4a, the tree of elements and their layout, and M6b.4b, style sheets and themes
   ([ADR-0141](adr/0141-style-sheets-and-themes.md)), are done. M6b.5 was cut in two at its start:
   M6b.5a, input and focus ([ADR-0142](adr/0142-input-and-focus.md)), and M6b.5b, what agents see
-  ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)), are done. Next: M6b.6, text edited,
-  and what the platform lacks.
+  ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)), are done. M6b.6 was cut in two at its
+  start: M6b.6a, text edited, and what the platform lacks for it
+  ([ADR-0145](adr/0145-text-edited.md)), is done. Next: M6b.6b, screen readers.
 
 ## Status
 
@@ -60,7 +61,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.4b](#m6b4b--style-sheets-and-themes) | Themes read from files style an interface, and a theme changed on disk restyles it while it runs | Done |
 | [M6b.5a](#m6b5a--input-and-focus) | A person uses the interface with the pointer and the keyboard, and the program reads what they did as actions, which an agent can send as well | Done |
 | [M6b.5b](#m6b5b--what-agents-see) | An agent reads what the interface shows, and uses it through the same actions as a person | Done |
-| [M6b.6](#m6b6--text-edited-and-what-the-platform-lacks) | Text is typed, selected, copied and composed in every writing system, and screen readers read the interface | Planned |
+| [M6b.6a](#m6b6a--text-edited-and-what-the-platform-lacks-for-it) | Text is typed, selected, copied and composed in every writing system, in fields that the program reads as actions | Done |
+| [M6b.6b](#m6b6b--screen-readers) | Screen readers read the interface, and agents read and set what its fields hold | Planned |
 | [M6b.7](#m6b7--widgets-and-layers) | The framework has the widgets that the dev overlay and the editor are made of | Planned |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
@@ -702,32 +704,103 @@ Risks:
   minutes 28 seconds and `windows` 20 minutes 51 seconds, both past the limit of 20, and
   `windows-release` 17 minutes 45 seconds.
 
-### M6b.6 — Text edited, and what the platform lacks
+### M6b.6a — Text edited, and what the platform lacks for it
 
-- **Goal.** Text is typed, selected, copied and composed in every writing system, and screen readers
-  read the interface.
-- **Crates.** `slime-ui`, `slime-platform`; the examples.
-- **Delivers.** A field of text, one line or several, on parley's editor: selection by the pointer
-  and the keys, moves by word in text of both directions, an undo of its own, composition by input
-  methods. A field of numbers that shows the value it holds whole and changes it only when the user
-  changed it, by typing or dragging (G33's rule, which M6b.8 applies). In `slime-platform`: input
-  methods, the clipboard through arboard, with its Wayland feature, cursor shapes, and the adapter
-  of AccessKit, behind an `accessibility` feature, built into the editor and the examples and left
-  out of games until Stage 7; the adapter exists before its window is shown, which changes how
-  `slime-platform` makes windows. The dependencies arboard, accesskit and accesskit_winit; CI timed
-  with the feature built. From ADR-0143: an element's value, which the fields are the first to hold,
-  in the tree's meaning and in what agents read; and the mark of the meaning that changed, so that
-  the adapter sends AccessKit only what changed. The ADR of the design.
+- **Goal.** Text is typed, selected, copied and composed in every writing system, in fields that
+  the program reads as actions.
+- **Crates.** `slime-input`, `slime-platform`, `slime-ui`, `slime-app`; the examples.
+- **Delivers.** A field of text, one line or several, laid out as a label's, parley moving its
+  selection: selection by the pointer and the keys, moves by word in text of both directions, an
+  undo of its own, composition by input methods; the field keeps what is typed, and the program
+  reads it as actions, changed at each edit and committed by Enter or when the focus leaves. A
+  field of numbers that shows the value it holds whole and changes it only when the user changed
+  it, by typing or dragging (G33's rule, which M6b.8 applies). In `slime-platform`: input methods,
+  the clipboard through arboard, with its Wayland feature, and cursor shapes. `slime-app` connects
+  a presentation's interface to its window: it translates the window's events into the interface's
+  calls, the interface taking an event before the game when it reaches it, a press on what it
+  draws, a key that a field types, that a shortcut names, or that navigates while an element holds
+  the focus, and every press and key while a modal root is open; it gives the interface the
+  clipboard, sets the cursor's shape, and places the input method's window. The dependency
+  arboard. The ADR of the design.
 - **Done when.** Tests without a GPU, with input methods and a clipboard simulated: text selected by
   the keys and the pointer, moves by word in text of both directions, the field's undo, a
   composition started, changed and committed, text copied and pasted, a field of numbers that the
-  user did not change writing nothing; the tree's meaning given to AccessKit as expected; CI is
-  green and its jobs under their limit with the feature built.
-- **How to test.** `cargo test -p slime-ui -p slime-platform`; the example.
+  user did not change writing nothing; the window's events reaching the interface or the game as
+  the rule says. CI is green.
+- **How to test.** `cargo test -p slime-ui -p slime-platform -p slime-app`; the example.
 - **By hand.** Japanese typed through an input method on niri and on Hyprland, and in the Windows
   virtual machine; text copied and pasted between the example and other programs on Wayland and on
-  Windows; the cursor's shapes over the example's elements; Orca reads the example on Linux, and
-  Narrator on Windows.
+  Windows; the cursor's shapes over the example's elements.
+- **Outcome.** Done on 2026-10-26. [ADR-0145](adr/0145-text-edited.md) records the owner's decisions
+  of 2026-10-25 and 2026-10-26: M6b.6 cut in two; `slime-app` connects a presentation's interface to
+  its window; the interface takes an event before the game when it reaches it; a field keeps what
+  the user types, and the program reads it as actions; the clipboard given to the interface; and the
+  field built on the engine's text, parley moving its selection, rather than on parley's editor.
+  Two reviews of the milestone led to four more: a press on what the interface draws, and every
+  press and key while a modal root is open, are the interface's, and a press that reaches no button
+  and no field takes the focus away, the field committing; without a focus, Tab alone gives it, the
+  arrows staying the game's; the program's text is compared with the one that the field last
+  committed too, and with what the field holds as the program reads it, so that a program clears a
+  field or gives back a text that it refuses, while one that gives back each change keeps what the
+  user is typing; and the wheel over what the interface draws is the interface's, as a press is.
+  Its checks by hand wait in [the list](#checks-by-hand-waiting-for-the-owner). `slime-input` gains `Ime` and `CursorShape`; `slime-platform` reports what an
+  input method composes (`Event::Ime`), allows and places the input method and sets the pointer's
+  shape (`Window::set_ime_allowed`, `Window::set_ime_area`, `Window::set_cursor`), and reads and
+  writes the system's clipboard (`Clipboard`, on arboard). `slime-ui` gains fields of text and of
+  numbers (`Element::text_field`, `Element::text_area`, `Element::number_field`): typing, moves by
+  clusters, words and lines in text of both directions, the selection by the keys and the pointer,
+  the field's undo, the clipboard (`Ui::set_clipboard`), the compositions of input methods
+  (`Ui::ime`), what the program reads (`ActionKind::Changed`, `ActionKind::Committed`), the
+  pointer's shape (`Ui::cursor`) and where text is typed (`Ui::text_input`); its input calls give
+  whether they took the event, and a text's look gains the selection's fill. `slime-app` gives the
+  window's events to the interface first, its clipboard, the pointer's shape and the input method.
+  The example `interface` gains a field of text and a field of numbers in its bar, which it reads as
+  their commits, and no longer translates the window's events itself; it falls back on the system's
+  fonts. The dependency arboard. The tests: in `slime-ui`'s `tests/field.rs`, text typed and moved
+  through by clusters and words, Shift extending the selection, Ctrl+A, a commit only once changed;
+  typing undone whole and done again; text copied, cut and pasted through a clipboard of the test's,
+  a line break pasted in a field of one line; a composition shown, committed, given up, and undone
+  as one edit; the pointer placing the caret, selecting by a drag and extending with Shift, and the
+  pointer's shapes; a field of numbers that writes only what the user changed, typed, refused and
+  dragged; the program's text replacing the user's only when it changes; words moved through as they
+  show in Hebrew; a field taking its keys before the shortcuts and leaving Tab to the focus; an
+  empty composition, a composition over a selection, keys while it composes and the focus leaving it
+  that leave the text whole; edits that change nothing telling nothing, and a cut without a
+  clipboard keeping its text; a field cleared, or given back its text, by the program once another
+  is committed; a field of several lines, its line breaks, its moves between lines and Ctrl+Enter;
+  the up arrow and Escape left to the focus in a field of one line; Ctrl and a letter of another
+  script read by its place, and AltGr typing; a drag of either sign undone at once, and a press let
+  go away from the field; the caret kept in view, and Hebrew placed at the field's right; a program
+  that gives back each change keeping the user's spelling of a number and what an input method
+  composes; a press that reaches nothing taking the focus away and committing; the caret within a
+  field whose text its alignment pushes to its end; the fields' roles and actions. In
+  `tests/input.rs`, a press on a panel taken and one on a box that draws nothing left to the game,
+  the release of a press that the interface did not take left to it too, an empty label taking
+  neither press nor wheel, every press and key taken under a modal root, and the arrows giving no
+  focus; the keys that type through an input method without text of their own taken, and a drag cut
+  short by another press committing. In `slime-platform`, what an input method composes and
+  commits translated; in
+  `slime-app`, the window's events reaching the interface or the game as the rule says. The example
+  drawn into an image with its fields.
+
+### M6b.6b — Screen readers
+
+- **Goal.** Screen readers read the interface, and agents read and set what its fields hold.
+- **Crates.** `slime-ui`, `slime-platform`, `slime-app`, `slime-channel`, `slime-mcp`; the
+  examples.
+- **Delivers.** The adapter of AccessKit in `slime-platform`, behind an `accessibility` feature,
+  built into the editor and the examples and left out of games until Stage 7; the adapter exists
+  before its window is shown, which changes how `slime-platform` makes windows. From ADR-0143: an
+  element's value, which M6b.6a's fields are the first to hold, in the tree's meaning and in what
+  agents read, and an agent's action that sets it; and the mark of the meaning that changed, so
+  that the adapter sends AccessKit only what changed. The dependencies accesskit and
+  accesskit_winit; CI timed with the feature built. The ADR of the design.
+- **Done when.** Tests without a GPU: the tree's meaning given to AccessKit as expected, and updated
+  with only what changed; an agent's session sets a field's value. CI is green and its jobs under
+  their limit with the feature built.
+- **How to test.** `cargo test -p slime-ui -p slime-platform`; the MCP server's session test; the
+  example.
+- **By hand.** Orca reads the example on Linux, and Narrator on Windows.
 
 ### M6b.7 — Widgets and layers
 
@@ -851,6 +924,10 @@ The game is run with `--new --save <a file of its own>`, so that the owner's sav
   eight writing systems, its list scrolling, the window's images seen without their sRGB encoding,
   which no check of CI draws in a window ([ADR-0137](adr/0137-the-canvas.md),
   [ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
+- **M6b.6a, on niri, on Hyprland and in the Windows virtual machine.** The `interface` example's
+  fields ([ADR-0145](adr/0145-text-edited.md)): Japanese typed through an input method, its
+  window beside the caret, a composition left by a click on the other field; text copied and pasted
+  between the example and other programs; the pointer's shapes over the fields and the buttons.
 
 ## Releasing
 
@@ -1023,9 +1100,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   (GNOME), the title bar has no text, because winit's text renderer depends on an unmaintained
   crate (ADR-0011).
 - **Input not reported yet** (issue [#3](https://github.com/HoneySlatt/SlimeEngine/issues/3)):
-  input-method text, touch, touchpad gestures, gamepads, dropped files, the mouse's raw motion. The
-  window cannot grab or hide the cursor, go fullscreen, or change its title once created. M6b.6
-  brings input methods and cursor shapes, Stage 6c dropped files, the raw motion and the cursor
+  touch, touchpad gestures, gamepads, dropped files, the mouse's raw motion. The window cannot grab
+  or hide the cursor, go fullscreen, or change its title once created. Input methods and the
+  pointer's shapes came with M6b.6a; Stage 6c brings dropped files, the raw motion and the cursor
   held, Stage 7 gamepads.
 - **A compositor that stops answering blocks the engine.** Before the first frame, winit waits for
   the window's first configuration without a timeout, so a termination signal is noticed only when a
@@ -1559,14 +1636,13 @@ GitHub issues, linked from their entry; this list stays the reference.
   atlas's budget holds leaves some out, and a glyph larger than a page is never drawn; one that
   meets glyphs no draw has asked for rasterizes them on the thread that draws, a few milliseconds
   for a menu's first draw ([`docs/measurements.md`](measurements.md), M6b.3b).
-- **The interface's text has one style per text, and is not edited yet**
-  ([ADR-0136](adr/0136-the-interfaces-text.md)): spans of several styles in one text come with their
-  first user, and editing, input methods included, at M6b.6. An italic or a weight that a family
-  lacks is drawn with its closest face, its slant or boldness not made up. A face whose colors are
-  only of `COLR`'s second version, as some emoji fonts of systems, draws no color, swash drawing the
-  first version alone. A word wider than its box, on a line before the last one shown, overflows the
-  box rather than being cut. The cache's memory is an estimate fitted once to a measurement, of
-  texts not cut; a hit copies its key; and fonts registered are never let go.
+- **The interface's text has one style per text** ([ADR-0136](adr/0136-the-interfaces-text.md)):
+  spans of several styles in one text come with their first user. An italic or a weight that a
+  family lacks is drawn with its closest face, its slant or boldness not made up. A face whose
+  colors are only of `COLR`'s second version, as some emoji fonts of systems, draws no color, swash
+  drawing the first version alone. A word wider than its box, on a line before the last one shown,
+  overflows the box rather than being cut. The cache's memory is an estimate fitted once to a
+  measurement, of texts not cut; a hit copies its key; and fonts registered are never let go.
 - **CI's jobs near their limit of 20 minutes**: until ADR-0144, the cache of the cooked zone was
   keyed by the whole `Cargo.lock` and root `Cargo.toml`, so a milestone that added a dependency,
   even one that the cooker does not use, cooked the zone again in each job. At M6b.2, that took the
@@ -1587,17 +1663,39 @@ GitHub issues, linked from their entry; this list stays the reference.
   direction, a Latin paragraph starting at its box's left. No element is placed out of its
   parent's flow. The marks of what changed hold an element's style, layout and paint, not yet its
   meaning.
-- **Input and focus** ([ADR-0142](adr/0142-input-and-focus.md)): buttons alone hold the focus and
-  take the pointer, and boxes that scroll and lists the wheel; a list's rows are not selected. Each
-  program translates the window's events into the interface's calls, a few lines that every program
-  with an interface repeats until a crate of the engine holds them. A root is modal from when it is
-  added. The interface's actions reach no command of the editor or of a game but through the
-  program. The hover follows what a layout moved under a still pointer a frame late, and the focus
-  leaves an element disabled or hidden at the next frame; the focus moved does not scroll its
+- **Input and focus** ([ADR-0142](adr/0142-input-and-focus.md)): buttons and fields alone hold the
+  focus and are pressed, and boxes that scroll and lists scroll with the wheel; a list's rows are
+  not selected; a press on what the interface draws is taken whether or not it does anything, from
+  what its last frame drew, so that a game's interface that lets presses through draws nothing
+  where they fall, and the wheel with it; the shadow that a box casts takes them over the box, not
+  over the blur that spreads past it. A root is modal from when it is added. The interface's actions reach no command of the editor or of a game but through
+  the program. The hover follows what a layout moved under a still pointer a frame late, and the
+  focus leaves an element disabled or hidden at the next frame; the focus moved does not scroll its
   element into view. A layout of another script than the Latin one matches a chord of a letter by
   the key's place, and a chord of a digit or a sign by its meaning alone. The example `interface`
-  scrolls its list with time, which the wheel does not move. Input methods and touch come with
-  M6b.6 and later.
+  scrolls its list with time, which the wheel does not move. Touch comes later.
+- **Text edited** ([ADR-0145](adr/0145-text-edited.md)): a double or triple click selects no word
+  or line, and the caret does not blink. A field of one line leaves the up and down arrows to the
+  focus, shows no bar of its own as its text scrolls, lays its text out one caret's width within
+  its content box, so that the caret shows at either end, and does not scroll up and down, so that
+  a text taller than its box is cut above and below. Escape in a field leaves the focus, which
+  commits what the user typed rather than giving back what it held. Each edit lays the field's
+  whole text out again, at a cost that grows with its length; a field undoes up to 100 edits, and
+  forgets them when the program gives it another text. A field has no placeholder, no length that
+  it holds at most, no text hidden as a password's; a field of numbers no bounds, and is dragged
+  only while it does not hold the focus, and reads a full stop alone as its decimal mark, whatever
+  the user's language; a program that holds a number in `f32` and gives it back replaces what the
+  field committed, as `0.1` read back is not the `0.1` typed, which M6b.8 settles. The interface
+  takes an event before the presentation's `on_event`, where the dev overlay reads it: a panel of
+  the overlay drawn above an interface would lose a press to the element beneath it, which M6b.8
+  settles as it moves the overlay onto the interface. The input method's window is placed beside
+  the caret as the last frame drew it, and is turned off and on again, meant to end a composition
+  that the focus left, which no input method was checked with yet; a text that the program gives
+  while an input method composes, which the field reads without the composition, is left aside, so
+  that a field clears itself once the composition ends. The clipboard holds text alone; on
+  Wayland, it needs a compositor that gives the protocol of the clipboard's managers, wlroots',
+  niri's and Hyprland's among them, and falls back on X11 through XWayland elsewhere. Agents do
+  not type in a field yet: M6b.6b gives them its value.
 - **What agents see** ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)): a tool reads an
   interface only in a windowed run, from its last frame, and each ask walks the whole tree. Elements
   hold no value yet. A path holds while the roots below its own stay, and a key's name that holds

@@ -81,7 +81,8 @@ kept in an atlas. `slime-ui` keeps an interface as a tree of elements, built by 
 shows changes, laid out by flexbox and grid, from left to right or mirrored, its lists building
 only the rows that show, and styles it with style sheets and themes, cooked as scenes are and
 loaded again when they change, and takes the pointer and the keyboard, its focus moved by Tab and
-the arrows, and says what it means to agents, who use it through the MCP server as a person does;
+the arrows, its fields typed, selected, copied and composed through input methods in every writing
+system, and says what it means to agents, who use it through the MCP server as a person does;
 the `interface` example builds one, with text in eight writing systems, a dark and a light theme,
 and a modal dialog.
 [`docs/PLAN.md`](docs/PLAN.md) says what comes next, the rest of Stage 6b, the engine's interface:
@@ -166,10 +167,10 @@ known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) lists the smaller gaps. 
 today has:
 
 - No audio, physics or animation; an interface built as a tree of elements, laid out, styled by
-  style sheets and themes, used with the pointer and the keyboard, and read and used by agents
-  through the MCP server (`slime-ui`); and of the editor only its core, a library without an
-  interface (`slime-editor`), and its program without a window, which agents drive through the MCP
-  server.
+  style sheets and themes, used with the pointer and the keyboard, its fields typed in, and read and
+  used by agents through the MCP server (`slime-ui`), without screen readers yet; and of the editor
+  only its core, a library without an interface (`slime-editor`), and its program without a window,
+  which agents drive through the MCP server.
 - An asset pipeline that imports glTF scenes, scene files and PNG and JPEG images only: the cooker,
   `slime-cook`, makes them cooked data, which the renderer loads whole, in the background while the
   game goes on, as an asset cache's requests ask (`AssetCache::request`) or a scene at a time

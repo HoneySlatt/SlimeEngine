@@ -8,6 +8,25 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Text edited (ADR-0145): fields of text, one line or several, and of numbers
+  (`Element::text_field`, `Element::text_area`, `Element::number_field`), typed, moved through by
+  clusters, words and lines in text of both directions, selected by the keys and the pointer,
+  undone, copied and pasted through the system's clipboard, and composed through input methods; the
+  program reads them as actions, changed at each edit and committed by Enter or as the focus leaves
+  (`ActionKind::Changed`, `ActionKind::Committed`, `FieldValue`); the text that the program gives
+  replaces the user's when it differs from the later of the one it gave before and the one last
+  committed, and from what the field holds, so that a program clears a field after a message sent
+  and one that gives back each change keeps what the user is typing; a field of numbers writes
+  only what the user changed, typed or dragged. `slime-platform` reports what input methods compose
+  (`Event::Ime`), allows and places them, sets the pointer's shape, and reads and writes the
+  system's clipboard (`Clipboard`, on arboard). `slime-app` connects a presentation's interface to
+  its window: the events go to the interface first, which takes them before the game when they
+  fall on what it draws, when a field, a shortcut or the focus takes them, and all of them while a
+  modal root is open, with the clipboard, the pointer's shape and the input method. Without a
+  focus, Tab alone gives it: the arrows stay the game's; and a press that reaches no button and no
+  field takes the focus away, the field that held it committing, so that a click back into the
+  world gives the keys to the game. The example `interface` gains a field of
+  text and a field of numbers.
 - What agents see of the interface (ADR-0143): `Ui::meaning` gives, when asked, each element that
   means something, its role (`slime_ui::tree::Role`, named as AccessKit names roles), its name, its
   states, what can be done to it now (`ElementAction`), where it shows and its path, `#0/bar/open`
@@ -120,6 +139,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `Ui::pointer_button`, `Ui::key` and `Ui::wheel` give whether the interface took the event; an
+  `Action` is no longer `Eq`, its kinds holding numbers; a text's look (`TextLook`) gains the fill
+  of a field's selection. `Presentation::on_event` receives only the events that the presentation's
+  interface did not take, and a program no longer gives the window's events to its interface: the
+  example `interface` no longer does.
 - The development channel's protocol is at version 8, with the editor's and the interface's
   requests. `slime-app` depends on `slime-ui`, and `slime_ui::tree::Element` gains `role` and
   `name`.
