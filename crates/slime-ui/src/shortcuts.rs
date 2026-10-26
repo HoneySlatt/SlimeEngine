@@ -154,11 +154,7 @@ impl Chord {
             (Key::Character(character), ChordKey::Character(wanted)) => {
                 character.to_lowercase() == *wanted
                     || (!character.is_ascii()
-                        && event
-                            .physical
-                            .name()
-                            .strip_prefix("Key")
-                            .is_some_and(|letter| letter.to_lowercase() == *wanted))
+                        && position_letter(event).is_some_and(|letter| letter == *wanted))
             }
             (Key::Named(named), ChordKey::Named(wanted)) => named == wanted,
             _ => false,
@@ -168,6 +164,17 @@ impl Chord {
             && modifiers.alt == self.alt
             && modifiers.super_key == self.super_key
     }
+}
+
+/// The letter of the position of `event`'s key on a QWERTY keyboard, lowercase, which a chord
+/// reads for a character of another script than the Latin one; none for a key that holds no
+/// letter there.
+pub(crate) fn position_letter(event: &KeyEvent) -> Option<String> {
+    event
+        .physical
+        .name()
+        .strip_prefix("Key")
+        .map(str::to_lowercase)
 }
 
 /// Reads the shortcuts of `tables`, in their order, those of a later table after an earlier one's.

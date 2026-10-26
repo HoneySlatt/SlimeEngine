@@ -449,8 +449,23 @@ impl taffy::LayoutPartialTree for Tree<'_> {
             let text = match &at.element.kind {
                 Kind::Label(text) => Some(text.clone()),
                 Kind::Button { label, .. } => Some(label.clone()),
+                // A field as tall as a line of its text, even empty.
+                Kind::TextField { .. } | Kind::NumberField { .. } => {
+                    at.field.as_ref().map(|field| match field.text.as_str() {
+                        "" => " ".to_owned(),
+                        text => text.to_owned(),
+                    })
+                }
                 _ => None,
             };
+            // A field of one line does not break its text: it scrolls it.
+            let breaks = !matches!(
+                at.element.kind,
+                Kind::TextField {
+                    multiline: false,
+                    ..
+                } | Kind::NumberField { .. }
+            );
             if !tree.laid_out_children(node).is_empty() {
                 return match display {
                     taffy::Display::Grid => compute_grid_layout(tree, node, inputs),
@@ -473,9 +488,11 @@ impl taffy::LayoutPartialTree for Tree<'_> {
                         AvailableSpace::MinContent => Some(0.0),
                         AvailableSpace::MaxContent => None,
                     });
-                    let bounds = width.map_or(TextBounds::default(), |width| {
-                        TextBounds::width(width / scale)
-                    });
+                    let bounds = width
+                        .filter(|_| breaks)
+                        .map_or(TextBounds::default(), |width| {
+                            TextBounds::width(width / scale)
+                        });
                     let ui = &mut *tree.ui;
                     let layout = ui
                         .texts

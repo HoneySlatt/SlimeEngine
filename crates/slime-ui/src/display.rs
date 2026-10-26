@@ -101,6 +101,28 @@ pub enum Primitive {
     Image(ImagePrimitive),
 }
 
+impl Primitive {
+    /// The rectangle it covers, in pixels, before its clip: a box's, the box that casts a shadow,
+    /// without the blur that spreads past it, the box that a text's glyphs lie in, empty for an
+    /// empty text, an image's.
+    pub(crate) fn bounds(&self) -> Rect {
+        match self {
+            Self::Box(primitive) => primitive.rect,
+            Self::Shadow(primitive) => primitive.rect,
+            Self::Text(primitive) => {
+                let drawn = primitive.layout.drawn_box();
+                Rect::new(
+                    primitive.origin[0] + drawn.x,
+                    primitive.origin[1] + drawn.y,
+                    drawn.width,
+                    drawn.height,
+                )
+            }
+            Self::Image(primitive) => primitive.rect,
+        }
+    }
+}
+
 /// A box: a rectangle with rounded corners, filled, and bordered inside its edges.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BoxPrimitive {

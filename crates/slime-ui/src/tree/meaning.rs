@@ -33,6 +33,12 @@ pub enum Role {
     Dialog,
     /// A bar of buttons.
     Toolbar,
+    /// A field of one line of text.
+    TextInput,
+    /// A field of several lines of text.
+    MultilineTextInput,
+    /// A field of a number.
+    SpinButton,
 }
 
 impl Role {
@@ -49,6 +55,9 @@ impl Role {
             Self::ListItem => "ListItem",
             Self::Dialog => "Dialog",
             Self::Toolbar => "Toolbar",
+            Self::TextInput => "TextInput",
+            Self::MultilineTextInput => "MultilineTextInput",
+            Self::SpinButton => "SpinButton",
         }
     }
 }
@@ -202,6 +211,11 @@ impl Ui {
             Kind::Button { .. } => Role::Button,
             Kind::Scroll => Role::ScrollView,
             Kind::List { .. } => Role::List,
+            Kind::TextField {
+                multiline: false, ..
+            } => Role::TextInput,
+            Kind::TextField { .. } => Role::MultilineTextInput,
+            Kind::NumberField { .. } => Role::SpinButton,
         });
         if role == Role::GenericContainer {
             return None;
@@ -214,8 +228,11 @@ impl Ui {
         };
         let mut actions = Vec::new();
         if self.in_scope(id) {
+            if self.pressable(id) {
+                actions.push(ElementAction::Press);
+            }
             if self.focusable(id) {
-                actions.extend([ElementAction::Press, ElementAction::Focus]);
+                actions.push(ElementAction::Focus);
             }
             if matches!(element.kind, Kind::Scroll | Kind::List { .. }) {
                 actions.push(ElementAction::Scroll);

@@ -539,6 +539,7 @@ fn look() -> Style {
         text: TextLook {
             style: style(&SCRIPTS[0]),
             color: LinearColor::WHITE,
+            ..TextLook::default()
         },
         ..Style::default()
     }

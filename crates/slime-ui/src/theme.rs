@@ -129,6 +129,8 @@ pub(crate) enum KindName {
     Button,
     Scroll,
     List,
+    TextField,
+    NumberField,
 }
 
 /// The states of an element, as a rule names them.

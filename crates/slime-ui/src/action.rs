@@ -10,7 +10,7 @@
 use crate::tree::ElementId;
 
 /// An action: what was done, and the element it was done to, if any.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Action {
     /// The element: the button pressed, the element that held the focus when a key was pressed;
     /// none when nothing held it.
@@ -20,7 +20,7 @@ pub struct Action {
 }
 
 /// What an action does.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ActionKind {
     /// A button pressed: by the pointer, pressed and let go over it, by the keyboard, accepted
     /// while it held the focus, or by an agent.
@@ -29,6 +29,27 @@ pub enum ActionKind {
     Intent(Intent),
     /// The command that a shortcut names ([`Shortcuts`](crate::shortcuts::Shortcuts)).
     Command(String),
+    /// What a field holds changed, as the user edits it: at each edit, the composition of an
+    /// input method once committed, and each step of a drag of a field of numbers. A field of
+    /// numbers whose text reads as no number gives none.
+    Changed(FieldValue),
+    /// What a field holds, given by the user: by Enter in a field of one line, Ctrl+Enter in a
+    /// field of several, the focus leaving the field, the release of a drag of a field of numbers,
+    /// or an agent's `Accept` while it holds the focus, once the user changed it since it took the
+    /// focus or since its last commit. A field that the user did not change gives none, so that a
+    /// value that the program holds is written only when the user wrote it. A field of numbers
+    /// whose text reads as no number gives none, and shows again the number that the program gave
+    /// or that it last committed, the later of the two.
+    Committed(FieldValue),
+}
+
+/// What a field holds: a text, or a number.
+#[derive(Clone, Debug, PartialEq)]
+pub enum FieldValue {
+    /// A field of text's text.
+    Text(String),
+    /// A field of numbers' number.
+    Number(f64),
 }
 
 /// A navigation intent: what a key, and later a gamepad, means to the interface whatever the

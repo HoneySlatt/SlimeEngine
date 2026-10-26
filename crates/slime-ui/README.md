@@ -6,9 +6,10 @@ leaves it as data. Today it holds its text (`docs/adr/0136-the-interfaces-text.m
 list (`docs/adr/0139-text-drawn-and-the-display-list.md`), the tree of elements, their typed styles
 and their layout (`docs/adr/0140-the-tree-of-elements.md`), and the style sheets and themes that
 style them (`docs/adr/0141-style-sheets-and-themes.md`), the input and the focus
-(`docs/adr/0142-input-and-focus.md`), and what the tree means to agents
-(`docs/adr/0143-what-agents-see-of-the-interface.md`); text edited and screen readers come with the
-next milestone of Stage 6b (`docs/PLAN.md`).
+(`docs/adr/0142-input-and-focus.md`), what the tree means to agents
+(`docs/adr/0143-what-agents-see-of-the-interface.md`), and fields of text and of numbers
+(`docs/adr/0145-text-edited.md`); screen readers come with the next milestone of Stage 6b
+(`docs/PLAN.md`).
 
 ## Role
 
@@ -18,8 +19,8 @@ next milestone of Stage 6b (`docs/PLAN.md`).
   keys, so that their state and scroll survive; `Ui::frame` styles again the elements that changed,
   lays out by flexbox and grid the roots where something changed, mirrored for a root laid out from
   right to left, draws again what changed or moved, and gives the display list. Its elements
-  (`tree::Element`) are boxes, labels, parts of images, buttons, boxes that scroll, and lists that
-  build and lay out only the rows that show, each with its classes.
+  (`tree::Element`) are boxes, labels, parts of images, buttons, boxes that scroll, lists that build
+  and lay out only the rows that show, and fields of text and of numbers, each with its classes.
 - `theme::StyleSheet` holds rules that select elements by kind, classes, key, states and ancestor
   and set a part of their style, and `theme::Theme` the named values that the rules give, read
   from their text or their cooked binary encoding; `Ui::set_style` styles an interface with them,
@@ -33,6 +34,13 @@ next milestone of Stage 6b (`docs/PLAN.md`).
 - `shortcuts::Shortcuts` is a table of shortcuts, read from a document: chords of the keys' meaning
   that name commands, in scopes, the classes of the elements around the focus; `Ui::set_shortcuts`
   takes them. Its errors and the style sheets' are a `DocumentError`.
+- A field (`Element::text_field`, `Element::text_area`, `Element::number_field`) keeps what the
+  user types, selects with the keys and the pointer, undoes, copies and pastes through the clipboard
+  that the program gives (`tree::Clipboard`, `Ui::set_clipboard`), and composes through an input
+  method (`Ui::ime`); its text is laid out as a label's, parley moving its selection. The program
+  reads it as actions, changed and committed (`action::FieldValue`), and the window asks it for
+  the pointer's shape and where text is typed (`Ui::cursor`, `Ui::text_input`). The input calls
+  give whether the interface took the event, which a game then leaves.
 - `Ui::meaning` says what the tree means, made when asked: each element drawn that means
   something, its `tree::Role`, named as AccessKit names roles, its name, its states, the
   `tree::ElementAction`s that an agent can do to it now, the part of it that shows and its path,

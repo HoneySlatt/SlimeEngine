@@ -291,14 +291,17 @@ impl Default for Shadow {
     }
 }
 
-/// The text of a label or a button.
+/// The text of a label, a button or a field.
 #[derive(Clone, Debug, PartialEq, Reflect)]
 #[reflect(name = "UiTextLook", default)]
 pub struct TextLook {
     /// Its fonts, size, weight and alignment, in logical pixels.
     pub style: TextStyle,
-    /// Its color.
+    /// Its color, which a field's caret and the line under what an input method composes take
+    /// too.
     pub color: LinearColor,
+    /// The fill behind the text that a field holds selected.
+    pub selection: LinearColor,
 }
 
 impl Default for TextLook {
@@ -306,6 +309,7 @@ impl Default for TextLook {
         Self {
             style: TextStyle::default(),
             color: LinearColor::WHITE,
+            selection: LinearColor::rgba(0.2, 0.4, 0.9, 0.4),
         }
     }
 }

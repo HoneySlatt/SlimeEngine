@@ -25,6 +25,10 @@ pub(crate) fn paint(ui: &mut Ui, root: ElementId) -> usize {
             continue;
         }
         painted += 1;
+        // A field places its caret and scrolls its text from the box that it was laid out in.
+        if ui.node(id).is_some_and(|node| node.field.is_some()) {
+            ui.settle_field(id);
+        }
         let primitives = primitives(ui, id, settings.scale, settings.direction);
         let node = ui.node_mut(id).expect("walked above");
         node.primitives = primitives;
@@ -33,26 +37,25 @@ pub(crate) fn paint(ui: &mut Ui, root: ElementId) -> usize {
     painted
 }
 
-/// What `id` draws: its shadow, its box, then its text or its image.
+/// What `id` draws: its shadow, its box, then its text or its image, or a field's selection, text
+/// and caret, cut to its content box.
 fn primitives(
     ui: &mut Ui,
     id: ElementId,
     scale: f32,
     direction: LayoutDirection,
-) -> Vec<Primitive> {
+) -> Vec<(Primitive, Option<Rect>)> {
     let node = ui.node(id).expect("an element");
     let rect = node.rect;
-    let padding = node.layout.padding;
-    let content = Rect::new(
-        rect.x + padding.left,
-        rect.y + padding.top,
-        node.layout.content_box_width(),
-        node.layout.content_box_height(),
-    );
+    let content = node.content_box();
     let element = &node.element;
     let paint = node.style.paint;
-    let mut primitives = Vec::new();
-    box_primitives(&paint, rect, scale, direction, &mut primitives);
+    let mut boxes = Vec::new();
+    box_primitives(&paint, rect, scale, direction, &mut boxes);
+    let mut primitives: Vec<(Primitive, Option<Rect>)> = boxes
+        .into_iter()
+        .map(|primitive| (primitive, None))
+        .collect();
     let text_style = node.style.text.style.clone();
     let color = node.style.text.color;
     match &element.kind {
@@ -77,24 +80,35 @@ fn primitives(
             } else {
                 content.y
             };
-            primitives.push(Primitive::Text(TextPrimitive {
-                origin: [content.x, y],
-                layout,
-                color,
-            }));
+            primitives.push((
+                Primitive::Text(TextPrimitive {
+                    origin: [content.x, y],
+                    layout,
+                    color,
+                }),
+                None,
+            ));
         }
         Kind::Image {
             image,
             part,
             kind,
             color,
-        } => primitives.push(Primitive::Image(ImagePrimitive {
-            rect: content,
-            image: *image,
-            part: *part,
-            kind: *kind,
-            color: *color,
-        })),
+        } => primitives.push((
+            Primitive::Image(ImagePrimitive {
+                rect: content,
+                image: *image,
+                part: *part,
+                kind: *kind,
+                color: *color,
+            }),
+            None,
+        )),
+        Kind::TextField { .. } | Kind::NumberField { .. } => {
+            for primitive in ui.field_primitives(id) {
+                primitives.push((primitive, Some(content)));
+            }
+        }
         Kind::Container | Kind::Scroll | Kind::List { .. } => {}
     }
     primitives
@@ -157,8 +171,12 @@ pub(crate) fn gather(ui: &Ui, root: ElementId, list: &mut DisplayList) {
         if node.style.layout.display == Display::None {
             continue;
         }
-        for primitive in &node.primitives {
-            list.push(primitive.clone(), node.clip);
+        for (primitive, own) in &node.primitives {
+            let clip = match own {
+                Some(own) => Some(crate::layout::intersect(node.clip, *own)),
+                None => node.clip,
+            };
+            list.push(primitive.clone(), clip);
         }
         stack.extend(node.children.iter().rev().copied());
     }

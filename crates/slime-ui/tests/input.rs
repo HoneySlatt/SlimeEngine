@@ -605,3 +605,88 @@ fn a_rule_selects_the_element_that_holds_the_focus() {
     assert_eq!(border(&ui, buttons[1]), 2.0);
     assert_eq!(border(&ui, buttons[0]), 0.0);
 }
+
+#[test]
+fn a_press_on_what_the_interface_draws_is_its_own_and_a_modal_root_takes_every_press_and_key() {
+    let mut ui = Ui::new(Fonts::new());
+    let root = ui.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+    // A panel with a fill, at the left, and a box without one, at the right: the game's.
+    let mut panel = sized(200.0, 300.0);
+    panel.paint.background = slime_color::LinearColor::rgba(0.1, 0.1, 0.1, 1.0);
+    ui.build(root, 0, |children| {
+        children.add("panel", Element::container(panel), |_| {});
+        children.add("empty", Element::container(sized(200.0, 300.0)), |_| {});
+    });
+    ui.frame();
+    let both = |ui: &mut Ui, button| {
+        let pressed = ui.pointer_button(button, ButtonState::Pressed);
+        let released = ui.pointer_button(button, ButtonState::Released);
+        (pressed, released)
+    };
+    ui.pointer_moved(100.0, 100.0);
+    assert_eq!(both(&mut ui, MouseButton::Left), (true, true), "the panel");
+    assert_eq!(
+        both(&mut ui, MouseButton::Right),
+        (true, true),
+        "any button"
+    );
+    assert!(ui.wheel(ScrollDelta::Lines { x: 0.0, y: 1.0 }));
+    ui.pointer_moved(300.0, 100.0);
+    assert_eq!(both(&mut ui, MouseButton::Left), (false, false), "no fill");
+    assert!(!ui.wheel(ScrollDelta::Lines { x: 0.0, y: 1.0 }));
+    // A press that the interface took keeps its release, wherever the pointer goes.
+    ui.pointer_moved(100.0, 100.0);
+    assert!(ui.pointer_button(MouseButton::Left, ButtonState::Pressed));
+    ui.pointer_moved(300.0, 100.0);
+    assert!(ui.pointer_button(MouseButton::Left, ButtonState::Released));
+    // A modal root takes every press, every wheel and every key pressed, not their releases.
+    let modal = ui.add_root(settings(100.0, 100.0, [0.0; 2], true), Style::default());
+    ui.frame();
+    assert_eq!(both(&mut ui, MouseButton::Left), (true, true));
+    assert!(ui.wheel(ScrollDelta::Lines { x: 0.0, y: 1.0 }));
+    assert!(ui.key(&press(KeyCode::KeyW, Key::Character("w".to_owned()))));
+    assert!(ui.key(&named(NamedKey::F5)));
+    let mut release = named(NamedKey::F5);
+    release.state = ButtonState::Released;
+    assert!(!ui.key(&release));
+    ui.remove(modal);
+    ui.frame();
+    assert_eq!(both(&mut ui, MouseButton::Left), (false, false));
+    assert!(!ui.key(&press(KeyCode::KeyW, Key::Character("w".to_owned()))));
+}
+
+#[test]
+fn without_a_focus_only_tab_enters_the_interface_and_the_arrows_are_the_game_s() {
+    let (mut ui, buttons) = row();
+    assert!(!ui.key(&named(NamedKey::ArrowRight)));
+    assert!(!ui.key(&named(NamedKey::ArrowDown)));
+    assert_eq!(ui.focus(), None, "an arrow gives no focus");
+    assert!(!ui.key(&named(NamedKey::Space)), "nothing to accept");
+    assert!(ui.key(&named(NamedKey::Tab)), "Tab gives the focus");
+    assert_eq!(ui.focus(), Some(buttons[0]));
+    assert!(ui.key(&named(NamedKey::ArrowRight)));
+    assert_eq!(ui.focus(), Some(buttons[1]));
+}
+
+#[test]
+fn a_release_of_a_press_the_interface_did_not_take_is_not_taken_and_an_empty_label_takes_none() {
+    let mut ui = Ui::new(Fonts::new());
+    let root = ui.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+    let mut panel = sized(200.0, 300.0);
+    panel.paint.background = slime_color::LinearColor::rgba(0.1, 0.1, 0.1, 1.0);
+    // A label of no text, stretched across the right half: it draws nothing.
+    ui.build(root, 0, |children| {
+        children.add("panel", Element::container(panel), |_| {});
+        children.add("label", Element::label("", sized(200.0, 300.0)), |_| {});
+    });
+    ui.frame();
+    // Pressed over nothing, let go over the panel: the game keeps both.
+    ui.pointer_moved(300.0, 100.0);
+    assert!(!ui.pointer_button(MouseButton::Left, ButtonState::Pressed));
+    ui.pointer_moved(100.0, 100.0);
+    assert!(!ui.pointer_button(MouseButton::Left, ButtonState::Released));
+    // The empty label takes neither a press nor the wheel.
+    ui.pointer_moved(300.0, 100.0);
+    assert!(!ui.pointer_button(MouseButton::Left, ButtonState::Pressed));
+    assert!(!ui.wheel(ScrollDelta::Lines { x: 0.0, y: 1.0 }));
+}

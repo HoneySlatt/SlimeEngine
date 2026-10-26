@@ -281,6 +281,38 @@ impl TextLayout {
         self.shown_layout().width()
     }
 
+    /// The box that its glyphs lie in, from its origin: where its lines are drawn, which an
+    /// alignment and a text written from right to left move across the box it is laid out in,
+    /// without moving the box ([`TextLayout::width`]). Empty for a text of no line.
+    pub(crate) fn drawn_box(&self) -> Rect {
+        let box_of = |line: parley::Line<'_, ()>| {
+            let metrics = line.metrics();
+            // Where its glyphs are placed from, as a cursor's x is read: the line moved by its
+            // alignment, from its own start.
+            let x = metrics.offset + metrics.inline_min_coord;
+            Rect::new(
+                x,
+                metrics.block_min_coord,
+                metrics.inline_max_coord - metrics.inline_min_coord,
+                metrics.block_max_coord - metrics.block_min_coord,
+            )
+        };
+        self.shown_layout()
+            .lines()
+            .map(box_of)
+            .reduce(|box_of, line| {
+                let x = box_of.x.min(line.x);
+                let y = box_of.y.min(line.y);
+                Rect::new(
+                    x,
+                    y,
+                    (box_of.x + box_of.width).max(line.x + line.width) - x,
+                    (box_of.y + box_of.height).max(line.y + line.height) - y,
+                )
+            })
+            .unwrap_or_default()
+    }
+
     /// The height of its lines together.
     pub fn height(&self) -> f32 {
         self.shown_layout().height()
@@ -364,8 +396,8 @@ impl TextLayout {
             .collect()
     }
 
-    /// The layout of the text shown.
-    fn shown_layout(&self) -> &Layout<()> {
+    /// The layout of the text shown, as parley holds it, which a field moves its selection on.
+    pub(crate) fn shown_layout(&self) -> &Layout<()> {
         self.cut.as_ref().map_or(&self.whole, |cut| &cut.layout)
     }
 

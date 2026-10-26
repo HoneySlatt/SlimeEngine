@@ -19,9 +19,11 @@ use crate::style::Style;
 use crate::text::{Fonts, TEXT_CACHE_BUDGET, TextCache};
 use crate::theme::{self, KindName, Rule, StateName, StyleSheet, Theme};
 
+mod field;
 mod interact;
 mod meaning;
 
+pub use field::Clipboard;
 use interact::Interaction;
 pub use meaning::{ElementAction, Meaning, Role};
 
@@ -125,6 +127,41 @@ pub enum Kind {
         /// The height of each, in logical pixels.
         row_height: f32,
     },
+    /// A field of text, which the user types in, selects, copies and composes through an input
+    /// method, its text laid out as a label's: one line, which scrolls to keep the caret in view,
+    /// or several, broken at its width. The field keeps what the user types; the program reads it
+    /// as actions ([`ActionKind::Changed`](crate::action::ActionKind::Changed),
+    /// [`ActionKind::Committed`](crate::action::ActionKind::Committed)).
+    TextField {
+        /// Its text, as the program gives it: it replaces what the field holds only when it
+        /// differs from the later of the text that the program gave before and the one that the
+        /// field last committed, and from what the field holds. Building the field again keeps
+        /// what the user typed, and so does giving back each change or commit; giving the text
+        /// given before, an empty one after a message sent, or the one that the program had for
+        /// a text that it refuses, replaces what was committed.
+        text: String,
+        /// Whether it holds several lines, Enter typing a line break.
+        multiline: bool,
+    },
+    /// A field of a number, which shows the number whole, as Rust writes it, and which the user
+    /// types in, or drags left and right. As a field of text, it keeps what the user types, and
+    /// the program reads it as actions, a number.
+    NumberField {
+        /// Its number, as the program gives it, under the same rule as a field of text's text.
+        value: f64,
+        /// How much a drag of one logical pixel adds to it; a drag gives multiples of it.
+        step: f64,
+    },
+}
+
+impl Kind {
+    /// Whether a press of the pointer reaches it, and the focus: a button or a field.
+    pub(crate) fn takes_pointer(&self) -> bool {
+        matches!(
+            self,
+            Self::Button { .. } | Self::TextField { .. } | Self::NumberField { .. }
+        )
+    }
 }
 
 /// The state of an element that its builder does not give: whether the pointer is over it, it is
@@ -207,6 +244,31 @@ impl Element {
     /// built.
     pub fn list(rows: usize, row_height: f32, style: Style) -> Self {
         Self::of(Kind::List { rows, row_height }, style)
+    }
+
+    /// A field of one line of text, holding `text`.
+    pub fn text_field(text: impl Into<String>, style: Style) -> Self {
+        let kind = Kind::TextField {
+            text: text.into(),
+            multiline: false,
+        };
+        Self::of(kind, style)
+    }
+
+    /// A field of several lines of text, holding `text`.
+    pub fn text_area(text: impl Into<String>, style: Style) -> Self {
+        let kind = Kind::TextField {
+            text: text.into(),
+            multiline: true,
+        };
+        Self::of(kind, style)
+    }
+
+    /// A field of a number, holding `value`, which a drag of one logical pixel changes by `step`.
+    /// What the user types reads as Rust reads a number, its decimals after a full stop: `2,5`
+    /// reads as none.
+    pub fn number_field(value: f64, step: f64, style: Style) -> Self {
+        Self::of(Kind::NumberField { value, step }, style)
     }
 
     /// An element of `kind` and `style`, of no class.
@@ -334,8 +396,11 @@ pub(crate) struct Node {
     pub(crate) clip: Option<Rect>,
     /// Its style: the rules' that select it, and its element's.
     pub(crate) style: Arc<Style>,
-    /// What it draws, kept until it changes.
-    pub(crate) primitives: Vec<Primitive>,
+    /// What it draws, kept until it changes, each with the rectangle it is cut to besides its
+    /// element's clip: a field's text, cut to its content box.
+    pub(crate) primitives: Vec<(Primitive, Option<Rect>)>,
+    /// What a field keeps: the text that the user types, its selection and its undo.
+    pub(crate) field: Option<Box<field::Field>>,
 }
 
 /// A place in the arena.
@@ -408,6 +473,8 @@ pub struct Ui {
     rules: Vec<Rule>,
     /// What a person's input reached, and the actions that wait for the program.
     interaction: Interaction,
+    /// The system's clipboard, which its fields copy to and paste from.
+    clipboard: Option<Box<dyn Clipboard>>,
     /// The types that style sheets hold, and the default style as reflection holds it.
     registry: Registry,
     default_style: Value,
@@ -430,6 +497,7 @@ impl Ui {
             scrolled: Vec::new(),
             restyled: Vec::new(),
             interaction: Interaction::default(),
+            clipboard: None,
             rules: Vec::new(),
             registry: theme::registry(),
             default_style: Style::default().to_value(),
@@ -1082,6 +1150,7 @@ impl Ui {
 
 impl Node {
     fn new(key: Key, element: Element) -> Self {
+        let field = field::given(&element.kind).map(|text| Box::new(field::Field::new(text)));
         Self {
             key,
             parent: None,
@@ -1107,7 +1176,19 @@ impl Node {
             rect: Rect::default(),
             clip: None,
             primitives: Vec::new(),
+            field,
         }
+    }
+
+    /// Its content box, its box less its padding, in pixels of the screen.
+    pub(crate) fn content_box(&self) -> Rect {
+        let padding = self.layout.padding;
+        Rect::new(
+            self.rect.x + padding.left,
+            self.rect.y + padding.top,
+            self.layout.content_box_width(),
+            self.layout.content_box_height(),
+        )
     }
 }
 
@@ -1194,6 +1275,19 @@ impl<'a> Children<'a> {
         });
         let id = match kept {
             Some(id) => {
+                let node = self.ui.node_mut(id).expect("kept");
+                // A field takes the program's text when it differs from the later of what the
+                // program gave before and what the field last committed, and keeps the user's
+                // otherwise. It is read at each build, the element unchanged too: the text that
+                // the program gave before, given again once the user committed another, replaces
+                // it.
+                let given = field::given(&element.kind);
+                if let (Some(text), Some(field)) = (given, node.field.as_mut())
+                    && field.give(&text, &element.kind)
+                {
+                    self.ui.mark_layout(id);
+                    self.ui.mark_paint(id);
+                }
                 let node = self.ui.node_mut(id).expect("kept");
                 if node.element != element {
                     let layout = lays_out_again(&node.element, &element);
@@ -1304,6 +1398,8 @@ fn kind_name(kind: &Kind) -> KindName {
         Kind::Button { .. } => KindName::Button,
         Kind::Scroll => KindName::Scroll,
         Kind::List { .. } => KindName::List,
+        Kind::TextField { .. } => KindName::TextField,
+        Kind::NumberField { .. } => KindName::NumberField,
     }
 }
 
