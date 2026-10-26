@@ -529,6 +529,7 @@ fn element_summary(meaning: Meaning) -> ElementSummary {
         path: meaning.path,
         role: meaning.role.name().to_owned(),
         name: meaning.name,
+        value: meaning.value,
         states: states
             .into_iter()
             .filter(|&(holds, _)| holds)
@@ -631,6 +632,16 @@ fn act(
             }
             let id = taking(ui, ElementAction::Scroll)?;
             ui.scroll_to(id, [*x, *y]);
+            return Ok(());
+        }
+        InterfaceAction::SetValue { value } => {
+            let id = taking(ui, ElementAction::SetValue)?;
+            // The field takes what a person could type, a field of numbers a finite number.
+            if !ui.set_value(id, value) {
+                return Err(format!(
+                    "the field `{path}` reads `{value}` as no finite number, and keeps its own"
+                ));
+            }
             return Ok(());
         }
         InterfaceAction::Next => ActionKind::Intent(Intent::Next),

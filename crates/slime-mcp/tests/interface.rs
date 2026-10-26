@@ -3,7 +3,9 @@
 //! a button of its bar by its role and its name, presses it, reads in the world the count that the
 //! press changed through a command, captures the button, and finds it again at a pixel. It moves
 //! the focus as Tab does, sees an action refused, opens the dialog, a modal root, which keeps the
-//! elements below from input, and closes it as Escape does.
+//! elements below from input, and closes it as Escape does. It gives the bar's field of text a value,
+//! which the example reads as the user's commit, and sees a field of numbers refuse a text that reads
+//! as no number (`docs/adr/0146-screen-readers.md`).
 //!
 //! It needs a Wayland compositor, the example built (`cargo build --example interface`) and the
 //! examples' assets cooked, in the directory that its first argument names, or
@@ -201,6 +203,37 @@ fn main() {
         || session.tool("find_elements", json!({ "role": "Dialog" })).0,
         |said| said == &["no element"],
     );
+
+    // A value given to the field of text, as a person who replaced its text and committed: the
+    // example reads the commit and tells it.
+    let (fields, _) = session.tool("find_elements", json!({ "role": "TextInput" }));
+    let field = fields[0].split(' ').next().expect("a path").to_owned();
+    assert!(fields[0].contains("takes focus, set_value"), "{fields:?}");
+    let (said, _) = session.tool(
+        "act_on_interface",
+        json!({ "action": "set_value", "element": field, "value": "Grace" }),
+    );
+    assert_eq!(said, ["done"]);
+    until(
+        "the value committed",
+        || {
+            session
+                .tool("find_elements", json!({ "name": "name Grace" }))
+                .0
+        },
+        |said| said.first().is_some_and(|text| text.contains("Label")),
+    );
+    let (fields, _) = session.tool("find_elements", json!({ "role": "TextInput" }));
+    assert!(fields[0].contains("holding \"Grace\""), "{fields:?}");
+    // A field of numbers keeps its number against a text that reads as none.
+    let (numbers, _) = session.tool("find_elements", json!({ "role": "SpinButton" }));
+    let number = numbers[0].split(' ').next().expect("a path").to_owned();
+    let (refused, result) = session.try_tool(
+        "act_on_interface",
+        json!({ "action": "set_value", "element": number, "value": "large" }),
+    );
+    assert_eq!(result["isError"], json!(true), "{refused:?}");
+    assert!(refused[0].contains("no finite number"), "{refused:?}");
 
     let (stopped, _) = session.tool("stop_game", json!({}));
     assert!(stopped[0].contains("the game ended"), "{stopped:?}");

@@ -213,6 +213,12 @@ pub enum InterfaceAction {
         /// The offset from the top.
         y: f32,
     },
+    /// Gives a field a value, as a person who replaced what it holds and committed would
+    /// (`docs/adr/0146-screen-readers.md`): the game reads the change and the commit.
+    SetValue {
+        /// The text; for a field of numbers, a finite number, as Rust reads one.
+        value: String,
+    },
     /// Moves the focus to the next element, as Tab does.
     Next,
     /// Moves the focus to the previous element, as Shift+Tab does.
@@ -451,9 +457,11 @@ pub struct ElementSummary {
     pub role: String,
     /// Its name; empty for none.
     pub name: String,
+    /// What a field holds, as the user left it; none for an element that is no field.
+    pub value: Option<String>,
     /// Its states: `hovered`, `pressed`, `focused`, `disabled`.
     pub states: Vec<String>,
-    /// What can be done to it now: `press`, `focus`, `scroll`.
+    /// What can be done to it now: `press`, `focus`, `scroll`, `set_value`.
     pub actions: Vec<String>,
     /// The part of it that shows, in pixels of the game's image: its left column, its top row, its
     /// width and its height; none where it does not show.
@@ -626,6 +634,10 @@ mod tests {
                 element: String::new(),
                 action: InterfaceAction::Command { name: text("undo") },
             },
+            Request::Act {
+                element: text("#0/bar/name"),
+                action: InterfaceAction::SetValue { value: text("Ada") },
+            },
             Request::CaptureElement {
                 element: text("#1/dialog"),
             },
@@ -694,6 +706,7 @@ mod tests {
                         path: text("#0/bar/open"),
                         role: text("Button"),
                         name: text("open"),
+                        value: None,
                         states: vec![text("hovered"), text("focused")],
                         actions: vec![text("press"), text("focus")],
                         bounds: Some([0, 0, 120, 28]),
@@ -702,6 +715,16 @@ mod tests {
                         path: text("#0/content/list/#57"),
                         role: text("ListItem"),
                         name: String::new(),
+                        value: None,
+                        states: Vec::new(),
+                        actions: Vec::new(),
+                        bounds: None,
+                    },
+                    ElementSummary {
+                        path: text("#0/bar/scale"),
+                        role: text("SpinButton"),
+                        name: text("scale"),
+                        value: Some(text("12.5")),
                         states: Vec::new(),
                         actions: Vec::new(),
                         bounds: None,
