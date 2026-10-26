@@ -47,7 +47,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)), are done. M6b.6 was cut in two at its
   start: M6b.6a, text edited, and what the platform lacks for it
   ([ADR-0145](adr/0145-text-edited.md)), and M6b.6b, screen readers
-  ([ADR-0146](adr/0146-screen-readers.md)), are done. Next: M6b.7, widgets and layers.
+  ([ADR-0146](adr/0146-screen-readers.md)), are done. M6b.7 was cut in two at its start, by the
+  owner on 2026-10-26: M6b.7a, the widgets that a panel holds, is in progress; M6b.7b, the layers,
+  follows.
 
 ## Status
 
@@ -64,7 +66,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.5b](#m6b5b--what-agents-see) | An agent reads what the interface shows, and uses it through the same actions as a person | Done |
 | [M6b.6a](#m6b6a--text-edited-and-what-the-platform-lacks-for-it) | Text is typed, selected, copied and composed in every writing system, in fields that the program reads as actions | Done |
 | [M6b.6b](#m6b6b--screen-readers) | Screen readers read the interface, and agents read and set what its fields hold | Done |
-| [M6b.7](#m6b7--widgets-and-layers) | The framework has the widgets that the dev overlay and the editor are made of | Planned |
+| [M6b.7a](#m6b7a--the-widgets-of-a-panel) | The framework has the widgets that a panel of the dev overlay and of the editor is made of, in the editor's theme | In progress |
+| [M6b.7b](#m6b7b--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Planned |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
 
@@ -854,20 +857,45 @@ Risks:
   seconds, `check (windowed)` 13 minutes 36 seconds, `windows` 14 minutes 33 seconds and
   `windows-release` 15 minutes 27 seconds, all within the limit of 20.
 
-### M6b.7 — Widgets and layers
+M6b.7 was to bring every widget that the dev overlay and the editor are made of. Before it started,
+the owner cut it in two on 2026-10-26, along what the widgets stand on: M6b.7a, what a panel holds,
+needs nothing over the tree that exists; M6b.7b, what opens over a panel, needs layers. The owner
+decided too that each widget is an element kind of `slime-ui`, as fields are: its state in the
+tree, its meaning and its actions its own, themes styling it by its kind; and the editor's fonts of
+fixed width and of icons, Geist Mono and Lucide.
 
-- **Goal.** The framework has the widgets that the dev overlay and the editor are made of.
-- **Crates.** `slime-ui`, `slime-ui-render`; the examples.
-- **Delivers.** Check boxes, sliders, lists to choose from, sections that fold, tabs, tooltips,
-  context menus, popups and modal layers, panels that float inside a window and are moved, folded
-  and sized, splitters and scroll bars; each with its meaning and its actions. The editor's theme,
-  and its fonts, of text, of fixed width and of icons
-  ([ADR-0133](adr/0133-font-files-under-the-open-font-license.md)). An example shows every widget;
-  CI builds it for Windows.
+### M6b.7a — The widgets of a panel
+
+- **Goal.** The framework has the widgets that a panel of the dev overlay and of the editor is made
+  of, in the editor's theme.
+- **Crates.** `slime-ui`, `slime-ui-render`, `slime-app`; the examples.
+- **Delivers.** Check boxes, sliders, sections that fold, tabs, splitters and scroll bars, each an
+  element kind with its state in the tree, its meaning, which agents and screen readers read, and
+  its actions; the parts of a control that themes style apart from its box. The editor's theme, and
+  its fonts of text and of fixed width, Geist and Geist Mono
+  ([ADR-0133](adr/0133-font-files-under-the-open-font-license.md),
+  [ADR-0139](adr/0139-text-drawn-and-the-display-list.md)). An example shows every widget of the
+  milestone; CI builds it for Windows. The ADR of the design.
 - **Done when.** Tests without a GPU of each widget's actions, meaning and focus; image tests of the
   example in the theme; an agent's session uses each widget through its actions; CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-ui-render`; the example.
 - **By hand.** The owner tries the example's widgets.
+
+### M6b.7b — Layers
+
+- **Goal.** The framework has what opens over a panel: popups, tooltips, context menus, lists to
+  choose from, panels that float inside a window and are moved, folded and sized, and modal layers.
+- **Crates.** `slime-ui`, `slime-ui-render`, `slime-app`; the examples.
+- **Delivers.** Layers over a window's root, which take the pointer and the focus as they open and
+  give them back as they close; popups placed beside what opens them, kept within the window;
+  tooltips; context menus and their submenus; lists to choose from; floating panels moved, folded
+  and sized; modal layers; each with its meaning and its actions. The editor's font of icons,
+  Lucide ([ADR-0133](adr/0133-font-files-under-the-open-font-license.md)). The example of M6b.7a
+  shows them. The ADR of the design.
+- **Done when.** Tests without a GPU of each layer's actions, meaning and focus; image tests of the
+  example; an agent's session uses each through its actions; CI is green.
+- **How to test.** `cargo test -p slime-ui -p slime-ui-render`; the example.
+- **By hand.** The owner tries the example's layers.
 
 ### M6b.8 — The dev overlay on the engine's interface
 
