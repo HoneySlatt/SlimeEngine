@@ -109,7 +109,7 @@ fn primitives(
                 primitives.push((primitive, Some(content)));
             }
         }
-        Kind::CheckBox { .. } | Kind::Slider { .. } => {
+        Kind::CheckBox { .. } | Kind::Slider { .. } | Kind::Split { .. } => {
             for primitive in ui.control_primitives(id) {
                 primitives.push((primitive, Some(content)));
             }

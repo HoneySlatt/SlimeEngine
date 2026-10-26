@@ -154,12 +154,14 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
     }
     if let Some(value) = &meaning.value {
         element.set_value(value.clone());
-        if matches!(meaning.role, Role::SpinButton | Role::Slider)
-            && let Some(number) = value
-                .trim()
-                .parse::<f64>()
-                .ok()
-                .filter(|number| number.is_finite())
+        if matches!(
+            meaning.role,
+            Role::SpinButton | Role::Slider | Role::Splitter
+        ) && let Some(number) = value
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|number| number.is_finite())
         {
             element.set_numeric_value(number);
         }
@@ -212,7 +214,7 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
                     element.add_action(scroll);
                 }
             }
-            ElementAction::SetValue if meaning.role == Role::Slider => {
+            ElementAction::SetValue if matches!(meaning.role, Role::Slider | Role::Splitter) => {
                 element.add_action(AccessAction::SetValue);
                 element.add_action(AccessAction::Increment);
                 element.add_action(AccessAction::Decrement);
@@ -307,6 +309,7 @@ fn role(role: Role) -> AccessRole {
         Role::TabList => AccessRole::TabList,
         Role::Tab => AccessRole::Tab,
         Role::TabPanel => AccessRole::TabPanel,
+        Role::Splitter => AccessRole::Splitter,
     }
 }
 

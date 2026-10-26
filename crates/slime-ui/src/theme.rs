@@ -136,6 +136,7 @@ pub(crate) enum KindName {
     Section,
     TabBar,
     Tab,
+    Split,
 }
 
 /// The states of an element, as a rule names them.

@@ -28,6 +28,14 @@ pub(crate) enum Control {
         /// The place that the program last gave.
         given: usize,
     },
+    /// Two panels and a handle: the share of its length that the first takes, and the share that
+    /// the program last gave.
+    Share {
+        /// The first panel's share, from 0 to 1.
+        share: f32,
+        /// The share that the program last gave.
+        given: f32,
+    },
     /// A slider: its value, and the value that the program last gave.
     Range {
         /// Its value, within its bounds and on its steps.
@@ -53,6 +61,10 @@ impl Control {
             Kind::TabBar { chosen } => Some(Self::Choice {
                 chosen,
                 given: chosen,
+            }),
+            Kind::Split { share, .. } => Some(Self::Share {
+                share: unit(share),
+                given: share,
             }),
             Kind::Slider {
                 value,
@@ -88,6 +100,15 @@ impl Control {
                 *given = *open;
                 let changed = state.expanded != *open;
                 state.expanded = *open;
+                changed
+            }
+            (Self::Share { share, given }, &Kind::Split { share: program, .. }) => {
+                if *given == program {
+                    return false;
+                }
+                *given = program;
+                let changed = *share != unit(program);
+                *share = unit(program);
                 changed
             }
             (Self::Choice { chosen, given }, &Kind::TabBar { chosen: program }) => {
@@ -133,6 +154,15 @@ pub(crate) fn snapped(value: f64, min: f64, max: f64, step: f64) -> f64 {
         value = min + ((value - min) / step).round() * step;
     }
     value.clamp(min, max)
+}
+
+/// `share` within 0 and 1; 0 for one that is no number.
+fn unit(share: f32) -> f32 {
+    if share.is_nan() {
+        0.0
+    } else {
+        share.clamp(0.0, 1.0)
+    }
 }
 
 /// A slider's bounds and step, from its kind.
@@ -282,6 +312,120 @@ impl Ui {
         if let Some(&chosen) = self.children(bar).get(target) {
             self.set_focus(Some(chosen));
         }
+        true
+    }
+
+    /// The share of the length of `split`, two panels and a handle, that its first panel takes, as
+    /// the user left it; none for an element that is no such split.
+    pub fn split_share(&self, split: ElementId) -> Option<f32> {
+        match self.node(split)?.control? {
+            Control::Share { share, .. } => Some(share),
+            _ => None,
+        }
+    }
+
+    /// Sets the share of the length of `split` that its first panel takes, within 0 and 1: it is
+    /// laid out again. Gives whether `split` is two panels and a handle.
+    pub fn set_share(&mut self, split: ElementId, share: f32) -> bool {
+        let Some(node) = self.node_mut(split) else {
+            return false;
+        };
+        let Some(Control::Share { share: held, .. }) = node.control.as_mut() else {
+            return false;
+        };
+        let share = unit(share);
+        if *held != share {
+            *held = share;
+            let children = node.children.clone();
+            self.mark_layout(split);
+            self.mark_paint(split);
+            self.mark_meaning(split);
+            for child in children {
+                self.mark_layout(child);
+            }
+        }
+        true
+    }
+
+    /// The handle of `split`, between its panels, in pixels of the surface: where the first panel
+    /// ends, as thick as the gap that the layout leaves.
+    pub(crate) fn split_handle(&self, split: ElementId) -> Option<Rect> {
+        let node = self.node(split)?;
+        let Kind::Split { side_by_side, .. } = node.element.kind else {
+            return None;
+        };
+        let first = self.node(*node.children.first()?)?.rect;
+        let content = node.content_box();
+        let thickness = node.style.control.size * self.scale_of(split) / 2.0;
+        Some(if side_by_side {
+            let rtl = self.root_settings(split).map(|root| root.direction)
+                == Some(LayoutDirection::RightToLeft);
+            let x = if rtl {
+                first.x - thickness
+            } else {
+                first.x + first.width
+            };
+            Rect::new(x, content.y, thickness, content.height)
+        } else {
+            Rect::new(content.x, first.y + first.height, content.width, thickness)
+        })
+    }
+
+    /// The pointer pressed, or moved while it holds the handle of `split`, at `x` and `y` in pixels
+    /// of the surface: the first panel's share ends there, in the handle's middle.
+    pub(crate) fn split_drag(&mut self, split: ElementId, x: f32, y: f32) {
+        let Some(node) = self.node(split) else {
+            return;
+        };
+        let Kind::Split { side_by_side, .. } = node.element.kind else {
+            return;
+        };
+        let content = node.content_box();
+        let half = node.style.control.size * self.scale_of(split) / 4.0;
+        let rtl = self.root_settings(split).map(|root| root.direction)
+            == Some(LayoutDirection::RightToLeft);
+        let share = match (side_by_side, rtl) {
+            (true, false) => (x - half - content.x) / content.width,
+            (true, true) => (content.x + content.width - x - half) / content.width,
+            (false, _) => (y - half - content.y) / content.height,
+        };
+        if share.is_finite() {
+            self.set_share(split, share);
+        }
+    }
+
+    /// A key reached `split`, which holds the focus: the arrows along it move its handle by a
+    /// twentieth of its length, Home and End to its ends. Gives whether it took the key.
+    pub(crate) fn split_key(&mut self, split: ElementId, event: &KeyEvent) -> bool {
+        let Key::Named(named) = &event.logical else {
+            return false;
+        };
+        let Some(node) = self.node(split) else {
+            return false;
+        };
+        let Kind::Split { side_by_side, .. } = node.element.kind else {
+            return false;
+        };
+        let Some(share) = self.split_share(split) else {
+            return false;
+        };
+        let forward = if self.root_settings(split).map(|root| root.direction)
+            == Some(LayoutDirection::RightToLeft)
+        {
+            -0.05
+        } else {
+            0.05
+        };
+        let target = match named {
+            NamedKey::ArrowRight if side_by_side => share + forward,
+            NamedKey::ArrowLeft if side_by_side => share - forward,
+            NamedKey::ArrowDown if !side_by_side => share + 0.05,
+            NamedKey::ArrowUp if !side_by_side => share - 0.05,
+            NamedKey::Home => 0.0,
+            NamedKey::End => 1.0,
+            _ => return false,
+        };
+        self.set_share(split, target);
         true
     }
 
@@ -567,6 +711,16 @@ impl Ui {
                     layout,
                     color: look.color,
                 }));
+            }
+            Kind::Split { .. } => {
+                if let Some(handle) = self.split_handle(id) {
+                    let fill = if node.state.pressed || node.state.focused {
+                        control.fill
+                    } else {
+                        control.track
+                    };
+                    primitives.push(filled(handle, 0.0, fill));
+                }
             }
             Kind::Slider { .. } => {
                 let Some((track, thumb)) = self.slider_geometry(id) else {

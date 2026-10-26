@@ -78,6 +78,7 @@ fn convert(
     let mut stack = vec![(start, row_height, forced)];
     while let Some((id, row_height, forced)) = stack.pop() {
         let header = section_header(ui, id, scale);
+        let panel = split_panel(ui, id);
         let Some(node) = ui.node_mut(id) else {
             continue;
         };
@@ -103,6 +104,36 @@ fn convert(
                 let top = style.padding.top.into_raw().value();
                 style.padding.top = LengthPercentage::length(top + header);
             }
+            // Two panels and a handle: the panels in a row or a column, the handle the gap
+            // between them; the first takes its share, the second the rest, the others nothing.
+            if let Kind::Split { side_by_side, .. } = node.element.kind {
+                style.display = taffy::Display::Flex;
+                style.flex_direction = if side_by_side {
+                    taffy::FlexDirection::Row
+                } else {
+                    taffy::FlexDirection::Column
+                };
+                style.align_items = taffy::AlignItems::STRETCH;
+                let handle = LengthPercentage::length(node.style.control.size * scale / 2.0);
+                style.gap = Size {
+                    width: handle,
+                    height: handle,
+                };
+            }
+            match panel {
+                Some(Panel::First(share)) => {
+                    style.flex_basis = TaffyDimension::percent(share);
+                    style.flex_grow = 0.0;
+                    style.flex_shrink = 1.0;
+                }
+                Some(Panel::Second) => {
+                    style.flex_basis = TaffyDimension::length(0.0);
+                    style.flex_grow = 1.0;
+                    style.flex_shrink = 1.0;
+                }
+                Some(Panel::Other) => style.display = taffy::Display::None,
+                None => {}
+            }
             // A box that scrolls, as CSS's `overflow: hidden`, is as small as its style lets it,
             // whatever its content.
             if matches!(node.element.kind, Kind::Scroll | Kind::List { .. }) {
@@ -123,6 +154,29 @@ fn convert(
     }
 }
 
+/// What a child of two panels and a handle is.
+enum Panel {
+    /// The first panel, which takes this share of their length.
+    First(f32),
+    /// The second, which takes the rest.
+    Second,
+    /// A child past the second, which is not laid out.
+    Other,
+}
+
+/// What `id` is as a child of two panels and a handle; none for an element that is no such child.
+fn split_panel(ui: &Ui, id: ElementId) -> Option<Panel> {
+    let parent = ui.node(id)?.parent?;
+    let share = ui.split_share(parent)?;
+    Some(
+        match ui.children(parent).iter().position(|&child| child == id)? {
+            0 => Panel::First(share),
+            1 => Panel::Second,
+            _ => Panel::Other,
+        },
+    )
+}
+
 /// The height of the header of `id`, a section, in pixels of the screen at `scale`: its title's, or
 /// its mark's where it is taller. None for an element that is no section.
 fn section_header(ui: &mut Ui, id: ElementId, scale: f32) -> Option<f32> {
@@ -135,7 +189,13 @@ fn section_header(ui: &mut Ui, id: ElementId, scale: f32) -> Option<f32> {
     let mark = node.style.control.size * scale;
     let text = ui
         .texts
-        .get(&mut ui.fonts, &title, &text_style, scale, TextBounds::default())
+        .get(
+            &mut ui.fonts,
+            &title,
+            &text_style,
+            scale,
+            TextBounds::default(),
+        )
         .height()
         .ceil();
     Some(text.max(mark))

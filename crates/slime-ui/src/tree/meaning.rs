@@ -55,8 +55,11 @@ pub enum Role {
     TabList,
     /// A tab of a bar, chosen or not ([`ElementState::selected`]).
     Tab,
-    /// The panel of the chosen tab, which a builder names so ([`Element::role`](super::Element::role)).
+    /// The panel of the chosen tab, which a builder names so
+    /// ([`Element::role`](super::Element::role)).
     TabPanel,
+    /// Two panels and the handle between them, its value the first panel's share.
+    Splitter,
 }
 
 impl Role {
@@ -82,6 +85,7 @@ impl Role {
             Self::TabList => "TabList",
             Self::Tab => "Tab",
             Self::TabPanel => "TabPanel",
+            Self::Splitter => "Splitter",
         }
     }
 }
@@ -138,9 +142,10 @@ pub struct Meaning {
     pub name: String,
     /// Its value: what a field holds, as the user left it, the text that an input method composes
     /// included, a field of numbers' text whether or not it reads as a number; a slider's number,
-    /// as Rust writes it; none for another element.
+    /// and two panels' first share, as Rust writes them; none for another element.
     pub value: Option<String>,
-    /// The bounds and the step of a slider's value; none for another element.
+    /// The bounds and the step of a slider's value, and of two panels' share; none for another
+    /// element.
     pub range: Option<ValueRange>,
     /// Its states.
     pub state: ElementState,
@@ -362,7 +367,9 @@ impl Ui {
             }
             if self.focusable(id) {
                 actions.push(ElementAction::Focus);
-                if node.field.is_some() || matches!(element.kind, Kind::Slider { .. }) {
+                if node.field.is_some()
+                    || matches!(element.kind, Kind::Slider { .. } | Kind::Split { .. })
+                {
                     actions.push(ElementAction::SetValue);
                 }
             }
@@ -386,13 +393,21 @@ impl Ui {
             name,
             value: match node.field.as_ref() {
                 Some(field) => Some(field.text.clone()),
-                None => self.slider_value(id).map(super::field::number_text),
+                None => self
+                    .slider_value(id)
+                    .or_else(|| self.split_share(id).map(f64::from))
+                    .map(super::field::number_text),
             },
             range: match element.kind {
                 Kind::Slider { min, max, step, .. } => Some(ValueRange {
                     min,
                     max: max.max(min),
                     step,
+                }),
+                Kind::Split { .. } => Some(ValueRange {
+                    min: 0.0,
+                    max: 1.0,
+                    step: 0.0,
                 }),
                 _ => None,
             },
@@ -428,6 +443,7 @@ impl Ui {
             Kind::Section { .. } => Role::Details,
             Kind::TabBar { .. } => Role::TabList,
             Kind::Tab { .. } => Role::Tab,
+            Kind::Split { .. } => Role::Splitter,
         })
     }
 

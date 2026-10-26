@@ -51,6 +51,7 @@ impl Ui {
                     self.field_drag(captured, x, y);
                 }
                 Some(Kind::Slider { .. }) => self.slider_drag(captured, x),
+                Some(Kind::Split { .. }) => self.split_drag(captured, x, y),
                 _ => {}
             }
         }
@@ -209,7 +210,9 @@ impl Ui {
             return true;
         }
         if let Some(focus) = self.interaction.focus
-            && (self.slider_key(focus, event) || self.tab_key(focus, event))
+            && (self.slider_key(focus, event)
+                || self.tab_key(focus, event)
+                || self.split_key(focus, event))
         {
             return true;
         }
@@ -365,11 +368,14 @@ impl Ui {
         let mut at = self.element_at(x, y);
         while let Some(id) = at {
             let node = self.node(id)?;
-            // A section takes the pointer on its header alone.
+            // A section takes the pointer on its header alone, two panels on their handle.
             let reached = match node.element.kind {
                 Kind::Section { .. } => self
                     .section_header(id)
                     .is_some_and(|header| inside(header, x, y)),
+                Kind::Split { .. } => self
+                    .split_handle(id)
+                    .is_some_and(|handle| inside(handle, x, y)),
                 _ => true,
             };
             if reached && takes(&node.element.kind) && !node.state.disabled {

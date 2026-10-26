@@ -266,12 +266,7 @@ fn section(open: bool) -> (Ui, ElementId, ElementId, ElementId) {
         ));
     });
     ui.frame();
-    (
-        ui,
-        root,
-        folding.expect("built"),
-        button.expect("built"),
-    )
+    (ui, root, folding.expect("built"), button.expect("built"))
 }
 
 #[test]
@@ -347,7 +342,9 @@ fn build_tabs(ui: &mut Ui, root: ElementId, revision: u64, chosen: usize) -> Ele
 
 /// The text of the panel that the tabs show.
 fn shown(ui: &Ui) -> String {
-    let text = ui.element_by_path("#0/panel/text").expect("the panel's text");
+    let text = ui
+        .element_by_path("#0/panel/text")
+        .expect("the panel's text");
     ui.meaning_of(text).expect("a text").name
 }
 
@@ -397,4 +394,56 @@ fn a_tab_chosen_by_the_pointer_or_the_keys_shows_its_panel() {
     });
     assert_eq!(ui.chosen_tab(bar), Some(1));
     assert!(ui.take_actions().is_empty());
+}
+
+#[test]
+fn a_split_shares_its_length_and_its_handle_is_dragged_and_moved_by_the_keys() {
+    let mut ui = ui();
+    let settings = RootSettings {
+        size: [400.0, 300.0],
+        scale: 1.0,
+        direction: LayoutDirection::LeftToRight,
+        origin: [0.0; 2],
+        modal: false,
+    };
+    let root = ui.add_root(settings, Style::default());
+    let mut whole = Style::default();
+    whole.layout.size = [Dimension::Pixels(400.0), Dimension::Pixels(300.0)];
+    ui.build(root, 0, |children| {
+        children.add("split", Element::split(true, 0.25, whole), |panels| {
+            panels.add("left", Element::container(Style::default()), |_| {});
+            panels.add("right", Element::container(Style::default()), |_| {});
+        });
+    });
+    ui.frame();
+    let split = ui.element_by_path("#0/split").expect("built");
+    let left = ui.element_by_path("#0/split/left").expect("built");
+    let right = ui.element_by_path("#0/split/right").expect("built");
+    // The first panel takes a quarter, the handle the next 8 pixels, the second the rest.
+    assert_eq!(ui.rect(left).map(|rect| rect.width), Some(100.0));
+    assert_eq!(
+        ui.rect(right).map(|rect| (rect.x, rect.width)),
+        Some((108.0, 292.0))
+    );
+    let meaning = ui.meaning_of(split).expect("it means something");
+    assert_eq!(meaning.role, Role::Splitter);
+    assert_eq!(meaning.value.as_deref(), Some("0.25"));
+    // The handle dragged to the middle.
+    ui.pointer_moved(104.0, 100.0);
+    assert_eq!(ui.cursor(), slime_input::CursorShape::ResizeHorizontal);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_moved(204.0, 100.0);
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    ui.frame();
+    assert_eq!(ui.split_share(split), Some(0.5));
+    assert_eq!(ui.rect(left).map(|rect| rect.width), Some(200.0));
+    // A press beside the handle, on a panel, leaves it alone.
+    click(&mut ui, 300.0, 100.0);
+    assert_eq!(ui.split_share(split), Some(0.5));
+    // The arrows while it holds the focus, a twentieth at a time; End to its end.
+    ui.set_focus(Some(split));
+    ui.key(&named(NamedKey::ArrowLeft));
+    assert!((ui.split_share(split).expect("a split") - 0.45).abs() < 1e-6);
+    ui.key(&named(NamedKey::End));
+    assert_eq!(ui.split_share(split), Some(1.0));
 }

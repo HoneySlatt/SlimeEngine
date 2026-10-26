@@ -283,8 +283,11 @@ pub enum CursorShape {
     Default,
     /// Over text that can be selected or edited: the I-beam.
     Text,
-    /// Over what is dragged left and right, as a field of numbers.
+    /// Over what is dragged left and right, as a field of numbers or the handle between two panels
+    /// side by side.
     ResizeHorizontal,
+    /// Over what is dragged up and down, as the handle between two panels one above the other.
+    ResizeVertical,
 }
 
 #[cfg(test)]

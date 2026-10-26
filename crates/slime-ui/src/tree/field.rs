@@ -347,12 +347,22 @@ impl Ui {
         let Some(node) = self.node(id) else {
             return false;
         };
-        // A slider takes a finite number, kept within its bounds and on its steps.
-        if matches!(node.element.kind, Kind::Slider { .. }) {
-            return match text.trim().parse::<f64>() {
-                Ok(number) if number.is_finite() => self.set_slider(id, number, true),
-                _ => false,
-            };
+        // A slider takes a finite number, kept within its bounds and on its steps; two panels,
+        // their first panel's share.
+        match node.element.kind {
+            Kind::Slider { .. } => {
+                return match text.trim().parse::<f64>() {
+                    Ok(number) if number.is_finite() => self.set_slider(id, number, true),
+                    _ => false,
+                };
+            }
+            Kind::Split { .. } => {
+                return match text.trim().parse::<f32>() {
+                    Ok(share) if share.is_finite() => self.set_share(id, share),
+                    _ => false,
+                };
+            }
+            _ => {}
         }
         let kind = &node.element.kind;
         let multiline = matches!(
@@ -443,6 +453,21 @@ impl Ui {
                 .is_some_and(|field| field.drag.is_some_and(|drag| drag.moved))
         {
             return CursorShape::ResizeHorizontal;
+        }
+        // Over the handle between two panels, or while it is dragged: the arrows along it.
+        let split = self
+            .interaction
+            .captured
+            .or_else(|| self.pointer_target(|kind| matches!(kind, Kind::Split { .. })));
+        if let Some(Kind::Split { side_by_side, .. }) = split
+            .and_then(|id| self.node(id))
+            .map(|node| &node.element.kind)
+        {
+            return if *side_by_side {
+                CursorShape::ResizeHorizontal
+            } else {
+                CursorShape::ResizeVertical
+            };
         }
         let over = self.pointer_target(|kind| {
             matches!(kind, Kind::TextField { .. } | Kind::NumberField { .. })

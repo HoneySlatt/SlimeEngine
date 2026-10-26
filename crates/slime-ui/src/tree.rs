@@ -209,6 +209,17 @@ pub enum Kind {
         /// Its title.
         title: String,
     },
+    /// Two panels, its first two children, side by side or one above the other, and a handle
+    /// between them, as thick as half its control's size, which the pointer drags, and the arrows
+    /// move while it holds the focus: the share of its length that the first takes. It keeps the
+    /// user's share, as a slider keeps its value; children past the second are not laid out.
+    Split {
+        /// Whether its panels lie side by side, the handle upright; one above the other otherwise.
+        side_by_side: bool,
+        /// The share of its length that its first panel takes, from 0 to 1, as the program gives
+        /// it; the second takes the rest, less the handle.
+        share: f32,
+    },
 }
 
 impl Kind {
@@ -224,6 +235,7 @@ impl Kind {
                 | Self::Slider { .. }
                 | Self::Section { .. }
                 | Self::Tab { .. }
+                | Self::Split { .. }
         )
     }
 }
@@ -360,6 +372,18 @@ impl Element {
         Self::of(
             Kind::Tab {
                 title: title.into(),
+            },
+            style,
+        )
+    }
+
+    /// Two panels side by side, or one above the other, the first taking `share` of its length;
+    /// its builder adds them.
+    pub fn split(side_by_side: bool, share: f32, style: Style) -> Self {
+        Self::of(
+            Kind::Split {
+                side_by_side,
+                share,
             },
             style,
         )
@@ -1632,6 +1656,7 @@ fn kind_name(kind: &Kind) -> KindName {
         Kind::Section { .. } => KindName::Section,
         Kind::TabBar { .. } => KindName::TabBar,
         Kind::Tab { .. } => KindName::Tab,
+        Kind::Split { .. } => KindName::Split,
     }
 }
 

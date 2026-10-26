@@ -130,6 +130,7 @@ pub(crate) fn cursor_icon(shape: CursorShape) -> winit::window::CursorIcon {
         CursorShape::Default => winit::window::CursorIcon::Default,
         CursorShape::Text => winit::window::CursorIcon::Text,
         CursorShape::ResizeHorizontal => winit::window::CursorIcon::EwResize,
+        CursorShape::ResizeVertical => winit::window::CursorIcon::NsResize,
     }
 }
 
