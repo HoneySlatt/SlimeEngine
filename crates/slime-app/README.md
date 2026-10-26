@@ -119,12 +119,13 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   default refusal (`docs/adr/0135-the-editors-program.md`).
 - `Presentation`: what the player sees, which reads the world and never writes it: every method
   receives it as `&World` or not at all, so that a presentation that writes the world does not
-  compile. `start` once the window and the GPU are open; `on_event` for each event of the window,
-  which returns whether the presentation takes it for itself, as a dev overlay takes the keys
-  typed into a field: the simulation's input then does not see a key or a button put down, and
-  always sees one let go; for each frame, `extract`, which reads the world and makes what the
-  frame draws, then, when the window can show a new image, `render`, which draws it into the
-  window's image without the world (`docs/adr/0111-the-frame-contract.md`), and `views`, which
+  compile. `start` once the window and the GPU are open; `on_event` for each event of the window
+  that its interface did not take, which returns whether the presentation takes it for itself, as
+  a dev overlay takes the keys typed into a field: the simulation's input then does not see a key
+  or a button put down, and always sees one let go; for each frame, `extract`, which reads the
+  world and makes what the frame draws, then, when the window can show a new image, `render`,
+  which draws it into the window's image without the world
+  (`docs/adr/0111-the-frame-contract.md`), and `views`, which
   names the views that it drew there, each with its rectangle (`ShownView`), so that a tool
   captures one through the development channel (`docs/adr/0126-views-apart-from-the-renderer.md`),
   with `view_settings` and `set_view_settings`, which hand a tool a view's settings as reflection
@@ -134,7 +135,11 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   (`docs/adr/0128-asset-requests.md`), and `pick`, which picks the entity at a pixel of a view for a
   tool and gives it to a `PickAnswer` once it knows it (`docs/adr/0130-picking.md`), and `ui`,
   its interface, if it has one, which a tool reads, acts on and captures element by element
-  (`docs/adr/0143-what-agents-see-of-the-interface.md`);
+  (`docs/adr/0143-what-agents-see-of-the-interface.md`), and which the run connects to the
+  window: each event goes to the interface first, and to `on_event` and the game's input only
+  when the interface did not take it; the interface gets the system's clipboard, and after each
+  frame the window shows the pointer's shape that it asks and allows the input method while one
+  of its fields takes text (`docs/adr/0145-text-edited.md`);
   `gpu_lost` and `gpu_restored` when the run replaces a lost GPU device, which a game asks for with
   `AppConfig::restore_lost_device`: it drops its GPU objects in the first, before the new device
   opens, and creates them again in the second
@@ -292,8 +297,8 @@ the name the graphics API gives it.
 - `slime-world`: the game's world, which it owns, and its commands.
 - `slime-reflect`: the settings and the reports of a presentation, described to the tools that
   read and change them; the world depends on it in every build.
-- `slime-ui`: the interface that a presentation gives, which the development channel reads and
-  acts on; it needs no window nor GPU.
+- `slime-ui`: the interface that a presentation gives, which the run connects to the window and
+  the development channel reads and acts on; it needs no window nor GPU.
 - `slime-channel` and `slime-serialize`, with the `development` feature only: the development
   channel, and the documents through which it reads and writes values as text.
 - `thiserror`: derives `RunError`'s `Display` and `Error` implementations.

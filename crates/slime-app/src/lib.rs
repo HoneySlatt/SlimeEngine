@@ -8,6 +8,7 @@ mod diagnostics;
 mod error;
 mod game;
 mod host;
+mod interface;
 #[cfg(feature = "development")]
 mod log_lines;
 mod signal;

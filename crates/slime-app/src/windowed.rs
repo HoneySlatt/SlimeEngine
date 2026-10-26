@@ -1,6 +1,7 @@
 //! The windowed driver: frames run from the callbacks of the platform's event loop, each time the
 //! windowing system lets the window draw.
 
+use std::cell::OnceCell;
 use std::time::{Duration, Instant};
 
 use slime_gfx::{Gpu, PresentMode, Surface};
@@ -38,6 +39,7 @@ pub(crate) fn run_windowed(
         present_mode: config.present_mode,
         restore_lost_device: config.restore_lost_device,
         restores: Vec::new(),
+        clipboard: OnceCell::new(),
         frame_period: Duration::from_secs(1) / config.max_frame_rate,
         last_frame: now,
         next_frame: now,
@@ -63,6 +65,9 @@ struct WindowedDriver<'a, S, P> {
     restore_lost_device: bool,
     /// When the run opened the devices that replaced lost ones, within `RESTORE_WINDOW`.
     restores: Vec<Instant>,
+    /// The system's clipboard, which the presentation's interface copies to and pastes from,
+    /// opened as the presentation first gives an interface: none where the system gives none.
+    clipboard: OnceCell<Option<crate::interface::SharedClipboard>>,
     /// The interval at which frames are scheduled, from `AppConfig::max_frame_rate`.
     frame_period: Duration,
     last_frame: Instant,
@@ -186,7 +191,21 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         if let (Event::Resized(size), Some(surface)) = (&event, &mut self.surface) {
             surface.resize(size.width, size.height);
         }
-        let taken = self.presentation.on_event(&mut self.host.context, &event);
+        // The interface first; what it takes, neither the presentation nor the game sees.
+        let taken_by_interface = match self.presentation.ui() {
+            Some(ui) => {
+                let clipboard = self
+                    .clipboard
+                    .get_or_init(crate::interface::SharedClipboard::open);
+                if let Some(clipboard) = clipboard {
+                    clipboard.give(ui);
+                }
+                crate::interface::give(ui, &event)
+            }
+            None => false,
+        };
+        let taken =
+            taken_by_interface || self.presentation.on_event(&mut self.host.context, &event);
         self.host.input_mut().handle(&event, taken);
         if event == Event::CloseRequested {
             self.host.context.exit_because(ExitReason::WindowClosed);

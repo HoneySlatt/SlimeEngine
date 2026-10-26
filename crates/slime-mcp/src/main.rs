@@ -208,8 +208,8 @@ struct Pick {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct FindElements {
     /// The role of the elements wanted, as AccessKit names roles, whatever its case: `Button`,
-    /// `Label`, `Image`, `List`, `ListItem`, `ScrollView`, `Dialog`, `Toolbar`, `Group`; any if
-    /// left out.
+    /// `Label`, `Image`, `List`, `ListItem`, `ScrollView`, `Dialog`, `Toolbar`, `Group`,
+    /// `TextInput`, `MultilineTextInput`, `SpinButton`; any if left out.
     role: Option<String>,
     /// What their names hold, whatever its case: a button's label, a text; any if left out.
     name: Option<String>,

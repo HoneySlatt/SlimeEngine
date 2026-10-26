@@ -127,9 +127,11 @@ impl Default for AppConfig {
 ///   on its own, for example while the window is being resized. Each frame runs the host's phases
 ///   ([`Host::frame`]), then [`Presentation::extract`] and, when the window can show a new image,
 ///   [`Presentation::render`], whose image the engine then shows as [`AppConfig::present_mode`]
-///   says. Between frames, the loop sleeps until the next frame is due
-///   or an event arrives; each event is passed to [`Presentation::on_event`], then to the host's
-///   input.
+///   says. Between frames, the loop sleeps until the next frame is due or an event arrives; each
+///   event is passed to the presentation's interface ([`Presentation::ui`]), then, unless the
+///   interface took it, to [`Presentation::on_event`], then to the host's input. After each frame
+///   drawn, the window shows the pointer's shape that the interface asks, and allows the input
+///   method while one of its fields takes text.
 ///
 /// Each frame is recorded as a `trace`-level profiling span named `frame`, containing one
 /// `fixed_step` span per fixed step, one `update` span and, with a window, an `extract` span, an
@@ -231,6 +233,8 @@ pub(crate) struct Frames {
     /// The development channel, when the environment gave a token.
     #[cfg(feature = "development")]
     channel: Option<crate::channel::DevChannel>,
+    /// What the window shows of the presentation's interface.
+    shown: crate::interface::Shown,
 }
 
 impl Frames {
@@ -240,6 +244,7 @@ impl Frames {
             limit: config.frame_limit,
             #[cfg(feature = "development")]
             channel: crate::channel::DevChannel::open(),
+            shown: crate::interface::Shown::default(),
         }
     }
 
@@ -322,6 +327,11 @@ impl Frames {
                 {
                     let _span = tracing::trace_span!("render").entered();
                     presentation.render(&mut host.context, image.target());
+                }
+                // The pointer's shape and the input method, as the interface left them, or as the
+                // window shows them without one.
+                if let Some(window) = host.context.window() {
+                    self.shown.update(window, presentation.ui().as_deref());
                 }
                 #[cfg(feature = "development")]
                 if let (Some(channel), Some(gpu)) = (&mut self.channel, host.context.gpu())

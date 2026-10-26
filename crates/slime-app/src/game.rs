@@ -204,7 +204,8 @@ pub trait Presentation {
         Ok(())
     }
 
-    /// Called for each event of the window, between frames, before the host's input follows it
+    /// Called for each event of the window that the presentation's interface did not take
+    /// ([`ui`](Self::ui)), between frames, before the host's input follows it
     /// ([`Input::handle`](slime_platform::Input::handle)). Returns whether the presentation takes
     /// the event for itself, as a dev overlay does with the keys typed into a field and the clicks
     /// on a panel: the simulation's input then does not see a key or a button that it puts down. A
@@ -256,8 +257,13 @@ pub trait Presentation {
     /// (`docs/adr/0143-what-agents-see-of-the-interface.md`). A tool's action reaches it as a
     /// person's input does, the presses and the commands in the queue of actions that the
     /// presentation takes ([`Ui::take_actions`]). Its roots lie on the window's surface, their
-    /// pixels the window's image's, as a tool counts them to find and capture an element. The
-    /// default has none.
+    /// pixels the window's image's, as a tool counts them to find and capture an element.
+    ///
+    /// The run connects it to the window (`docs/adr/0145-text-edited.md`): it gives it each event
+    /// of the window first, which neither [`on_event`](Self::on_event) nor the game's input sees
+    /// when the interface takes it; it gives it the system's clipboard; and after each frame drawn,
+    /// it shows the pointer's shape that the interface asks, and allows the input method while
+    /// one of its fields takes text. The default has none.
     fn ui(&mut self) -> Option<&mut Ui> {
         None
     }
