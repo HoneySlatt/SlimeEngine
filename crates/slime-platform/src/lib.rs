@@ -1,5 +1,7 @@
 #![doc = include_str!("../README.md")]
 
+#[cfg(feature = "accessibility")]
+mod accessibility;
 mod clipboard;
 mod error;
 mod event;
@@ -8,6 +10,8 @@ mod held;
 mod input;
 mod window;
 
+#[cfg(feature = "accessibility")]
+pub use accessibility::Accessibility;
 pub use clipboard::Clipboard;
 pub use error::PlatformError;
 pub use event::Event;

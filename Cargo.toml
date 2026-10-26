@@ -97,6 +97,16 @@ winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "
 # (`image-data`, which brings the `image` crate), with the Wayland protocol of the compositors that
 # give it (`wayland-data-control`), X11's otherwise.
 arboard = { version = "3.7.0", default-features = false, features = ["wayland-data-control"] }
+# What the interface means, read by screen readers through AccessKit (ADR-0132, ADR-0146): its tree,
+# which slime-app translates the interface's meaning into, and its adapter for winit's windows in
+# slime-platform, both behind their `accessibility` feature. The adapter without its default
+# features, which would ask winit for its own: AT-SPI on Linux, through D-Bus on async-io, and
+# UI Automation on Windows; the window handles of raw-window-handle 0.6.
+accesskit = "0.25.2"
+accesskit_winit = { version = "0.34.2", default-features = false, features = ["accesskit_unix", "async-io", "rwh_06"] }
+# slime-app's tests only: the tree that AccessKit's adapters build from the updates, which panics on
+# an update that is not one. Already built by the adapter, on Linux and on Windows.
+accesskit_consumer = "0.39.2"
 # The asset pipeline's cooker only: decodes JPEG images (ADR-0069).
 zune-jpeg = "0.5.15"
 # The text of the engine's interface, in slime-ui (ADR-0132, ADR-0136): parley shapes, orders, breaks

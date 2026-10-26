@@ -53,6 +53,13 @@ pub enum LoopControl {
     Exit,
 }
 
+/// What reaches the event loop from other threads: what screen readers ask, through AccessKit's
+/// adapter, with the `accessibility` feature; nothing without it.
+#[cfg(feature = "accessibility")]
+type UserEvent = accesskit_winit::Event;
+#[cfg(not(feature = "accessibility"))]
+type UserEvent = ();
+
 /// The largest width or height a window can be asked for, in logical pixels: larger than any
 /// display. Times the scale factor, it can still exceed the 65 535 physical pixels that X11
 /// allows, so `resumed` also gives winit a maximum size there.
@@ -100,16 +107,23 @@ pub fn run_event_loop(
         !config.title.contains('\0'),
         "the window title must not contain NUL bytes"
     );
-    let event_loop = EventLoop::new().map_err(|error| match error {
-        EventLoopError::RecreationAttempt => PlatformError::SecondEventLoop,
-        error => PlatformError::Connect(Box::new(error)),
-    })?;
+    let event_loop =
+        EventLoop::<UserEvent>::with_user_event()
+            .build()
+            .map_err(|error| match error {
+                EventLoopError::RecreationAttempt => PlatformError::SecondEventLoop,
+                error => PlatformError::Connect(Box::new(error)),
+            })?;
     let mut adapter = WinitAdapter {
         config,
         handler,
         window: None,
         translator: Translator::default(),
         error: None,
+        #[cfg(feature = "accessibility")]
+        proxy: event_loop.create_proxy(),
+        #[cfg(feature = "accessibility")]
+        accessibility: None,
     };
     event_loop
         .run_app(&mut adapter)
@@ -124,9 +138,27 @@ struct WinitAdapter<'a, H> {
     window: Option<Window>,
     translator: Translator,
     error: Option<PlatformError>,
+    /// Where AccessKit's adapter sends what screen readers ask, from its own threads.
+    #[cfg(feature = "accessibility")]
+    proxy: winit::event_loop::EventLoopProxy<UserEvent>,
+    /// AccessKit's adapter of the window, made before the window shows.
+    #[cfg(feature = "accessibility")]
+    accessibility: Option<crate::accessibility::Adapter>,
 }
 
-impl<H: EventHandler> ApplicationHandler for WinitAdapter<'_, H> {
+impl<H> WinitAdapter<'_, H> {
+    /// Gives AccessKit's adapter the updates of the tree that the handler gave the window.
+    fn update_accessibility(&mut self) {
+        #[cfg(feature = "accessibility")]
+        if let (Some(adapter), Some(window)) = (&mut self.accessibility, &self.window) {
+            for update in window.take_accessibility() {
+                adapter.update(update);
+            }
+        }
+    }
+}
+
+impl<H: EventHandler> ApplicationHandler<UserEvent> for WinitAdapter<'_, H> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // winit sends `resumed` once at startup on desktop platforms; mobile platforms send it
         // again after a suspension, when the window already exists.
@@ -136,6 +168,10 @@ impl<H: EventHandler> ApplicationHandler for WinitAdapter<'_, H> {
         let attributes = winit::window::Window::default_attributes()
             .with_title(&self.config.title)
             .with_inner_size(LogicalSize::new(self.config.width, self.config.height));
+        // AccessKit's adapter is made before the window shows, so that screen readers see it from
+        // the start; Wayland shows a window with its first frame, whatever this says.
+        #[cfg(feature = "accessibility")]
+        let attributes = attributes.with_visible(false);
         // The X11 protocol limits a window to 65 535 physical pixels per side, and winit panics
         // when the requested size times the scale factor is larger, unless a maximum size makes
         // it limit the size first.
@@ -151,6 +187,15 @@ impl<H: EventHandler> ApplicationHandler for WinitAdapter<'_, H> {
         };
         match event_loop.create_window(attributes) {
             Ok(window) => {
+                #[cfg(feature = "accessibility")]
+                {
+                    self.accessibility = Some(crate::accessibility::Adapter::new(
+                        event_loop,
+                        &window,
+                        self.proxy.clone(),
+                    ));
+                    window.set_visible(true);
+                }
                 let window = Window::new(window);
                 let size = window.inner_size();
                 tracing::info!(
@@ -171,15 +216,39 @@ impl<H: EventHandler> ApplicationHandler for WinitAdapter<'_, H> {
     }
 
     fn window_event(&mut self, _event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        if self.window.is_none() {
+        let Some(window) = &self.window else {
             return;
+        };
+        #[cfg(feature = "accessibility")]
+        if let Some(adapter) = &mut self.accessibility {
+            adapter.process_event(window.winit(), &event);
         }
+        #[cfg(not(feature = "accessibility"))]
+        let _ = window;
         if matches!(event, WindowEvent::RedrawRequested) {
             self.handler.redraw_requested();
         } else {
             self.translator
                 .translate(event, |event| self.handler.event(event));
         }
+        self.update_accessibility();
+    }
+
+    #[cfg(feature = "accessibility")]
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
+        use crate::Accessibility;
+        use accesskit_winit::WindowEvent as Asked;
+
+        if self.window.is_none() {
+            return;
+        }
+        let asked = match event.window_event {
+            Asked::InitialTreeRequested => Accessibility::TreeRequested,
+            Asked::ActionRequested(request) => Accessibility::Action(request),
+            Asked::AccessibilityDeactivated => Accessibility::Deactivated,
+        };
+        self.handler.event(Event::Accessibility(asked));
+        self.update_accessibility();
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
@@ -188,7 +257,9 @@ impl<H: EventHandler> ApplicationHandler for WinitAdapter<'_, H> {
         if self.window.is_none() || event_loop.exiting() {
             return;
         }
-        match self.handler.about_to_wait() {
+        let control = self.handler.about_to_wait();
+        self.update_accessibility();
+        match control {
             LoopControl::WaitUntil(instant) => {
                 event_loop.set_control_flow(ControlFlow::WaitUntil(instant));
             }
@@ -207,7 +278,12 @@ impl<H: EventHandler> ApplicationHandler for WinitAdapter<'_, H> {
         if let Some(window) = &self.window {
             window.hide();
         }
-        // Drop the window while the connection to the windowing system is still open.
+        // Drop the window while the connection to the windowing system is still open, after the
+        // adapter that serves it.
+        #[cfg(feature = "accessibility")]
+        {
+            self.accessibility = None;
+        }
         self.window = None;
     }
 }

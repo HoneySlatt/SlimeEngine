@@ -14,7 +14,16 @@ targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 [advisories]
 # Every RustSec advisory (vulnerability, unsound or unmaintained crate) affecting a dependency
 # fails the check. An advisory may be ignored only with an entry here that says why.
-ignore = []
+ignore = [
+    # zvariant, zbus_names and zvariant_derive are unmaintained as crates of their own: zbus 6
+    # holds them. AccessKit's adapter on Linux, accesskit_unix 0.24.1, the latest, speaks D-Bus
+    # through zbus 5, which uses them; they are built only with the `accessibility` feature of
+    # slime-platform and slime-app, which the examples turn on and games leave out (ADR-0146).
+    # Not vulnerabilities. Remove these once AccessKit's adapter moves to zbus 6.
+    { id = "RUSTSEC-2026-0370", reason = "zvariant, merged into zbus 6; only AccessKit's adapter on Linux uses it, through zbus 5" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names, merged into zbus 6; only AccessKit's adapter on Linux uses it, through zbus 5" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive, merged into zbus 6; only AccessKit's adapter on Linux uses it, through zbus 5" },
+]
 
 [licenses]
 # Licenses compatible with distributing SlimeEngine under MPL-2.0 and games under any license.

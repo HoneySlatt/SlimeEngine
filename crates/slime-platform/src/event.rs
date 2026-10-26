@@ -101,6 +101,10 @@ pub enum Event {
     /// ([`Window::set_ime_allowed`](crate::Window::set_ime_allowed)). The keys that it reads give
     /// no text of their own then.
     Ime(Ime),
+    /// A screen reader asked something of what the window shows, through AccessKit's adapter
+    /// (`docs/adr/0146-screen-readers.md`).
+    #[cfg(feature = "accessibility")]
+    Accessibility(crate::Accessibility),
 }
 
 /// Translates winit's window events into the engine's.

@@ -61,13 +61,52 @@ pub struct PhysicalSize {
 #[derive(Clone, Debug)]
 pub struct Window {
     inner: Arc<winit::window::Window>,
+    /// The updates of the tree that screen readers read, which the event loop gives the adapter
+    /// once the handler's call returns: the adapter stays on the thread of the event loop.
+    #[cfg(feature = "accessibility")]
+    accessibility: Arc<std::sync::Mutex<Vec<accesskit::TreeUpdate>>>,
 }
 
 impl Window {
     pub(crate) fn new(window: winit::window::Window) -> Self {
         Self {
             inner: Arc::new(window),
+            #[cfg(feature = "accessibility")]
+            accessibility: Arc::default(),
         }
+    }
+
+    /// winit's window.
+    #[cfg(feature = "accessibility")]
+    pub(crate) fn winit(&self) -> &winit::window::Window {
+        &self.inner
+    }
+
+    /// Gives the tree that screen readers read `update`, as the window's handler's call returns:
+    /// the whole tree, with its [`TreeInfo`](accesskit::TreeInfo), once one was asked for
+    /// ([`Accessibility::TreeRequested`](crate::Accessibility::TreeRequested)), then what changed.
+    /// An update while no screen reader reads the window is dropped, and so is one of what
+    /// changed given after a screen reader asked for the tree and before the whole tree, a tree
+    /// of the window's node alone, numbered 0, standing in for it until the whole tree comes. An
+    /// update that names a node that neither it nor the tree holds, or that puts the focus on one,
+    /// makes AccessKit panic.
+    #[cfg(feature = "accessibility")]
+    pub fn update_accessibility(&self, update: accesskit::TreeUpdate) {
+        self.accessibility
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(update);
+    }
+
+    /// The updates given since they were last taken.
+    #[cfg(feature = "accessibility")]
+    pub(crate) fn take_accessibility(&self) -> Vec<accesskit::TreeUpdate> {
+        std::mem::take(
+            &mut self
+                .accessibility
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        )
     }
 
     /// The current size of the window's content area, in physical pixels. It can be zero, for
