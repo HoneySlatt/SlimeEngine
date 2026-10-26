@@ -653,6 +653,11 @@ the logical key `"a"`. Suits shortcuts and text. See also *physical key*.
 display's, it covers. The sizes of `WindowConfig` are logical; `Window::inner_size`,
 `Event::CursorMoved` and render targets are physical. egui calls logical pixels *points*.
 
+**Look (the editor's).** The fonts and the style made for the interfaces of the engine's editor and
+of its dev overlay: Geist and Geist Mono, and a style sheet and a dark *theme*
+(`slime_ui::look`, built with `slime-ui`'s feature `editor-look`;
+[ADR-0148](adr/0148-widgets.md)).
+
 **Lux (lx).** The unit of *illuminance*, lumens per square metre: the strength of a directional
 light (`illuminance`); about 100 000 for direct sunlight, 400 at sunrise.
 

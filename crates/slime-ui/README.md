@@ -8,8 +8,9 @@ and their layout (`docs/adr/0140-the-tree-of-elements.md`), and the style sheets
 style them (`docs/adr/0141-style-sheets-and-themes.md`), the input and the focus
 (`docs/adr/0142-input-and-focus.md`), what the tree means to agents
 (`docs/adr/0143-what-agents-see-of-the-interface.md`), fields of text and of numbers
-(`docs/adr/0145-text-edited.md`), and what changed in the tree's meaning, which screen readers read
-(`docs/adr/0146-screen-readers.md`).
+(`docs/adr/0145-text-edited.md`), what changed in the tree's meaning, which screen readers read
+(`docs/adr/0146-screen-readers.md`), the widgets of a panel and the editor's look
+(`docs/adr/0148-widgets.md`).
 
 ## Role
 
@@ -41,7 +42,7 @@ style them (`docs/adr/0141-style-sheets-and-themes.md`), the input and the focus
   reads it as actions, changed and committed (`action::FieldValue`), and the window asks it for
   the pointer's shape and where text is typed (`Ui::cursor`, `Ui::text_input`). The input calls
   give whether the interface took the event, which a game then leaves.
-- Widgets, each an element kind that keeps its state in the tree (M6b.7a, in progress): check boxes
+- Widgets, each an element kind that keeps its state in the tree: check boxes
   (`Element::check_box`) and sliders (`Element::slider`), whose values the program reads as
   actions, changed and committed (`action::FieldValue`), the program's value replacing the user's
   only when it changes; sections that fold what they hold (`Element::section`, `Ui::set_open`); bars
@@ -50,13 +51,20 @@ style them (`docs/adr/0141-style-sheets-and-themes.md`), the input and the focus
   scroll bars of a box that scrolls and of a list. Their parts apart from their box take the style's
   `control` part (`style::ControlStyle`), and rules select them by the states `Checked`, `Expanded`
   and `Selected`.
+- `look`, built only with the feature `editor-look`, is the editor's look, made for the editor and
+  the dev overlay, and drawn by the `widgets` example: its fonts, Geist and Geist Mono
+  (`look::register_fonts`), and its style sheet and dark theme (`look::style_sheet`,
+  `look::theme`).
+  Its files are in [`look/`](look/README.md), with the fonts' license, which a program that builds
+  them in ships beside it.
 - `Ui::meaning` says what the tree means, made when asked: each element drawn that means
-  something, its `tree::Role`, named as AccessKit names roles, its name, a field's value, its
+  something, its `tree::Role`, named as AccessKit names roles, its name, its value, a field's, a
+  slider's or two panels' share, its
   states, the `tree::ElementAction`s that an agent can do to it now, the part of it that shows and
   its path, `#0/bar/open`, which `Ui::element_by_path` reads back. A box that only lays others out
   means nothing; a builder gives an element its role and its name (`Element::role`,
   `Element::named`). `Ui::set_value` gives a field a value, as a person who replaced its text and
-  committed would.
+  committed would, and a slider or two panels theirs.
 - `Ui::take_meaning_changes` gives what changed in that meaning since it was last taken, as a
   screen reader's adapter sends it (`tree::MeaningChanges`): each element marked as its meaning
   changes, named by a number that no other element is ever given, with the elements that mean

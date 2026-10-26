@@ -8,11 +8,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
-- Widgets of a panel, in progress (M6b.7a): check boxes, sliders, sections that fold, bars of tabs,
-  two panels and a handle between them, and scroll bars over a box that scrolls and a list, each an
-  element kind of `slime-ui` that keeps its state in the tree, with its meaning, which agents and
-  screen readers read, and its actions; `style::ControlStyle` styles their parts apart from their
-  box. `slime-input`'s `CursorShape` gains `ResizeVertical`.
+- Widgets of a panel (ADR-0148): check boxes, sliders, sections that fold, bars of tabs, two panels
+  and a handle between them, and scroll bars over a box that scrolls and a list, each an element
+  kind of `slime-ui` that keeps its state in the tree, with its meaning, which agents and screen
+  readers read, and its actions; `style::ControlStyle` styles their parts apart from their box.
+  `slime-input`'s `CursorShape` gains `ResizeVertical`. The editor's look, `slime_ui::look` with the
+  feature `editor-look`, made for the editor and the dev overlay: the fonts Geist and Geist Mono,
+  and a style sheet and a dark theme. The example `widgets` draws a panel of the editor's kind in
+  that look, every widget in it, in a window or into an image; CI's Windows artifact carries it,
+  with the fonts' license. The MCP server's tools name the widgets' roles, states and values.
 - Screen readers (ADR-0146): with `slime-app`'s and `slime-platform`'s `accessibility` feature,
   which the examples turn on and games leave out, screen readers are given a presentation's
   interface through AccessKit's adapter of the window, read on Linux by a client of AT-SPI, the
@@ -192,6 +196,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   way, as the editor does, receives them all.
 - A tool of an earlier version of the development channel's protocol is refused by a game of this
   one, and the reverse.
+- A label takes the presses that fall on its glyphs alone: aligned to its start, no longer those
+  across the rest of its box; centred or aligned to its end, no longer those past it. A slider's
+  value on its steps, and a field of numbers' dragged, keep the decimals of their step and of their
+  start, and no more: steps of `0.1` give `0.6`, not `0.6000000000000001`, and `1.25` dragged four
+  tenths up gives `1.65`, not `1.7`.
 
 ## [0.5.0] - 2026-10-22
 

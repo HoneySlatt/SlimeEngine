@@ -230,8 +230,8 @@ listens on the machine's own address for the tools that drive it; started withou
 The engine's MCP server, `slime-mcp`, starts a game so, and gives an agent the tools to pause and
 step it, read and change its world, play it with keys, save and load its run to files of the agent's
 own, capture its image or one of its views, change how a view draws, pick the entity at a pixel,
-read its reports and its log, and read and use its interface element by element, its fields given
-values ([ADR-0143](docs/adr/0143-what-agents-see-of-the-interface.md),
+read its reports and its log, and read and use its interface element by element, its fields,
+sliders and handles given values ([ADR-0143](docs/adr/0143-what-agents-see-of-the-interface.md),
 [ADR-0146](docs/adr/0146-screen-readers.md)); its
 [README](crates/slime-mcp/README.md) says how to give it to an agent. The game opens its window on
 the display that the server's environment names: to keep it off your desktop, give the server the
@@ -297,27 +297,28 @@ nix develop -c scripts/check.sh
 ```
 [`scripts/check.sh`](scripts/check.sh) runs rustfmt, clippy with warnings as errors, the build and
 tests of every target, the renderer's and the world's tests again with glam's assertions on (which a
-game that turns them on also turns on in the engine), rustdoc with warnings as errors, `cargo deny`
-(dependency licenses, security advisories and sources; it downloads the advisory database, so it
-needs network access), the list of the sample game's source assets (`scripts/fetch-assets.sh`),
-`slime-cook check` (every source asset has a metadata file of its own,
-[ADR-0069](docs/adr/0069-the-asset-pipeline.md)), the sample's assets cooked twice and compared, the
-sample game's zone fetched and cooked, the tests that read it, *Hunna Wood*'s editor's included, and
-an agent's session through the MCP server that edits a copy of the zone with that editor, the
-samples with no display server available, and an agent's session that edits a copy of the examples'
-yard with the `editor` example, the windowed samples, the `interface` example's interface used by
-an agent's session through the MCP server, which presses a button that changes its world, and read
-and used through AT-SPI as a screen reader does, the
-`world` example's two views captured, the map's normals shown, its reports read and an entity
-picked at a pixel, by an agent's session through the MCP server, the `scene` example on a copy of
-the cooked sample with one byte changed, which must end with an error and not a panic, the game
-(its new runs, one resumed from a copy of its save fixture, and one driven by an agent's session
-through the MCP server, their saves kept apart from the user's) and the windowed lifecycle test
-inside a headless Weston compositor (and that test's resize and oversize scenarios in a second one,
-at scale 2), the game built for shipping, which must hold no development channel, the game, which
-must hold no adapter for screen readers, and `lychee`
-(links between Markdown files). The individual commands are listed in
-[`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
+game that turns them on also turns on in the engine), rustdoc with warnings as errors, once more for
+`slime-ui` with its feature `editor-look`, `cargo deny` (dependency licenses, security advisories
+and sources; it downloads the advisory database, so it needs network access), the list of the sample
+game's source assets (`scripts/fetch-assets.sh`), `slime-cook check` (every source asset has a
+metadata file of its own, [ADR-0069](docs/adr/0069-the-asset-pipeline.md)), the sample's assets
+cooked twice and compared, the sample game's zone fetched and cooked, the tests that read it, *Hunna
+Wood*'s editor's included, and an agent's session through the MCP server that edits a copy of the
+zone with that editor, the samples with no display server available, and an agent's session that
+edits a copy of the examples' yard with the `editor` example, the windowed samples, the `interface`
+example's interface used by an agent's session through the MCP server, which presses a button that
+changes its world, and read and used through AT-SPI as a screen reader does, the `widgets` example
+drawn into an image, run in a window and its widgets each used by an agent's session through the MCP
+server, the `world` example's two views captured, the map's normals shown, its reports read and an
+entity picked at a pixel, by an agent's session through the MCP server, the `scene` example on a
+copy of the cooked sample with one byte changed, which must end with an error and not a panic, the
+game (its new runs, one resumed from a copy of its save fixture, and one driven by an agent's
+session through the MCP server, their saves kept apart from the user's) and the windowed lifecycle
+test inside a headless Weston compositor (and that test's resize and oversize scenarios in a second
+one, at scale 2), the game built for shipping, which must hold no development channel, the game,
+which must hold no adapter for screen readers, and `lychee` (links between Markdown files). The
+individual commands are listed in [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you
+want to run only one of them.
 
 The script also runs clippy for the Windows target, which catches code that does not compile on
 Windows without a Windows machine.
@@ -337,8 +338,8 @@ crashes the process, now and then, when several threads compile shaders at once.
 the first test program that fails, and when a step fails, it publishes the images that the failing
 image tests rendered on WARP, as an artifact named `image-test-failures-windows`. The second,
 `windows-release`, runs clippy, builds in release and runs the headless samples, and publishes the
-`hello`, `headless`, `window`, `offscreen`, `interface`, `scene` and `world` examples and the
-`hunnawood` game built for Windows, with the sample cooked for `scene` and `world` and the zone
+`hello`, `headless`, `window`, `offscreen`, `interface`, `widgets`, `scene` and `world` examples and
+the `hunnawood` game built for Windows, with the sample cooked for `scene` and `world` and the zone
 cooked for the game, as an artifact named `slime-examples-windows`, to run by hand on a Windows
 machine. Each job keeps the cooked zone in its cache, keyed on what makes its bytes.
 [ADR-0007](docs/adr/0007-documentation-tooling-and-ci.md) and

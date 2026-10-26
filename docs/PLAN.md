@@ -48,8 +48,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   start: M6b.6a, text edited, and what the platform lacks for it
   ([ADR-0145](adr/0145-text-edited.md)), and M6b.6b, screen readers
   ([ADR-0146](adr/0146-screen-readers.md)), are done. M6b.7 was cut in two at its start, by the
-  owner on 2026-10-26: M6b.7a, the widgets that a panel holds, is in progress; M6b.7b, the layers,
-  follows.
+  owner on 2026-10-26: M6b.7a, the widgets that a panel holds, is built, its CI to run
+  ([ADR-0148](adr/0148-widgets.md)); M6b.7b, the layers, follows.
 
 ## Status
 
@@ -66,7 +66,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.5b](#m6b5b--what-agents-see) | An agent reads what the interface shows, and uses it through the same actions as a person | Done |
 | [M6b.6a](#m6b6a--text-edited-and-what-the-platform-lacks-for-it) | Text is typed, selected, copied and composed in every writing system, in fields that the program reads as actions | Done |
 | [M6b.6b](#m6b6b--screen-readers) | Screen readers read the interface, and agents read and set what its fields hold | Done |
-| [M6b.7a](#m6b7a--the-widgets-of-a-panel) | The framework has the widgets that a panel of the dev overlay and of the editor is made of, in the editor's theme | In progress |
+| [M6b.7a](#m6b7a--the-widgets-of-a-panel) | The framework has the widgets that a panel of the dev overlay and of the editor is made of, in the editor's theme | Built; CI to run |
 | [M6b.7b](#m6b7b--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Planned |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
@@ -878,13 +878,53 @@ fixed width and of icons, Geist Mono and Lucide.
   milestone; CI builds it for Windows. The ADR of the design.
 - **Done when.** Tests without a GPU of each widget's actions, meaning and focus; image tests of the
   example in the theme; an agent's session uses each widget through its actions; CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-ui-render`; the example.
+- **How to test.** `cargo test -p slime-ui --features editor-look`; the example's image tests,
+  `cargo test -p slime-examples --test widgets`; the MCP server's session,
+  `crates/slime-mcp/tests/widgets.rs`, in a headless Weston; the example.
 - **By hand.** The owner tries the example's widgets.
-- **Progress.** [ADR-0148](adr/0148-widgets.md) records the owner's decisions of 2026-10-26 and the
-  design of the widgets built so far, each tested without a GPU in `slime-ui`'s
-  `tests/controls.rs`: check boxes, sliders, sections that fold, bars of tabs, two panels and a
-  handle, and scroll bars. The editor's theme and fonts, the example that shows every widget, an
-  agent's session over it and its image tests are to come.
+- **Outcome.** Built on 2026-10-26, CI to run. [ADR-0148](adr/0148-widgets.md) records the owner's
+  decisions of 2026-10-26: M6b.7 cut in two; each widget an element kind of `slime-ui`; the editor's
+  look in `slime-ui`, behind a feature; an example of its own. `slime-ui` gains check boxes
+  (`Kind::CheckBox`), sliders (`Kind::Slider`), sections that fold (`Kind::Section`), bars of tabs
+  and their tabs (`Kind::TabBar`, `Kind::Tab`), two panels and the handle between them
+  (`Kind::Split`), and scroll bars over a box that scrolls and a list; each keeps its state in the
+  tree, under the rule of fields that a program's value replaces the user's only when it changes,
+  takes the pointer, the keys and the focus, means something to agents and screen readers, and is
+  styled by its kind, its states, `Checked`, `Expanded` and `Selected` among them, and the parts of
+  its control (`style::ControlStyle`). A section folded, and the children of two panels past the
+  second, take a computed style of no display. The editor's look, `slime_ui::look` with the feature
+  `editor-look`: Geist and Geist Mono 1.7.0, their variable fonts with their license, taken from the
+  NixOS package, the license, which the package lacks, fetched from Geist's repository at its tag
+  with the owner's agreement; a style sheet that styles labels, buttons, fields and widgets, and a
+  dark theme. The `widgets` example draws a panel of the editor's kind in the look, every widget in
+  it, in a window or into an image; CI builds it for Windows and carries it in its artifact, the
+  fonts' license beside it. `slime-app` gives screen readers the widgets' roles, states, values and
+  actions, and the development channel their states and values; the MCP server's tools name them.
+  Found while making the example's images: a check box's label and a section's title drawn at the
+  far side of their box in a root laid out from right to left, now placed against their box from
+  either side; and the box of a text's glyphs, which reached across the whole width that its lines
+  were aligned in, now as far as their advances, without the spaces that end a line, so that a label
+  takes the presses that fall on its glyphs alone, whatever its alignment. Found by the tests of
+  what screen readers read: a slider on steps of a tenth gave `0.6000000000000001`, its value now
+  rounded to the decimals of its step and of its least value, as a field of numbers' drag now is
+  too, which rounded `1.25` dragged four tenths up to `1.7`. A review of the milestone found a
+  slider whose least bound is no number panicking as it was built, now unbounded from that side. The
+  tests: in `slime-ui`'s `tests/controls.rs`, each widget toggled, moved, folded, chosen or dragged
+  by the pointer, the keys and an agent, in roots of either direction, read by the program, its
+  value given again by a builder, its meaning, its scroll bars, a check box's label and a section's
+  title beside their box from either side, in text of either direction, a slider of bounds that are
+  no number, and a share read as written; in `tests/input.rs`, a label taking the presses on its
+  glyphs alone; in `tests/field.rs`, a drag keeping the decimals of its start; in `tests/look.rs`,
+  the look's fonts holding Latin, Vietnamese and Cyrillic at the weights that it asks of them, its
+  style sheet and theme styling the kinds, their states and the classes; in
+  `tests/meaning_changes.rs`, each widget used giving its element changed, a section opened giving
+  what it holds, a tab chosen giving its panel; in `slime-app`'s translation, the widgets' roles,
+  states, values and actions given to AccessKit, and what a screen reader asks of them reaching the
+  interface; in `slime-examples`'s `tests/widgets.rs`, the example's inspector, its console with a
+  level of the log hidden, and its inspector laid out from right to left, its widgets used, against
+  reference images; in `slime-mcp`'s `tests/widgets.rs`, an agent's session that unchecks a check
+  box, gives a slider a value, opens a folded section, moves a handle, scrolls the list of entities
+  and chooses a tab, the example reading each change that is the program's.
 
 ### M6b.7b — Layers
 
@@ -1010,6 +1050,10 @@ The game is run with `--new --save <a file of its own>`, so that the owner's sav
   which no check of CI draws in a window ([ADR-0137](adr/0137-the-canvas.md),
   [ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
 
+- **M6b.7a, on Linux.** The `widgets` example's widgets, used with the pointer and the keyboard
+  ([ADR-0148](adr/0148-widgets.md)): check boxes, sliders dragged and moved by their keys, sections
+  folded, tabs chosen, handles dragged, the list and the box of properties scrolled by their bars
+  and the wheel, the editor's look at scales 1 and 2.
 - **M6b.6b, on Linux and in the Windows virtual machine.** Orca reads the `interface` example
   ([ADR-0146](adr/0146-screen-readers.md)): its buttons and texts, the focus that Tab moves, its
   field's text as the caret moves through it and what is typed; Narrator reads the same in the
@@ -1029,8 +1073,9 @@ A release is an annotated git tag on a commit whose CI run is green on Linux and
 4. From 0.1 on, create the GitHub release of the tag, its `CHANGELOG.md` section as its notes,
    with the `slime-examples-windows` artifact of that commit's CI run attached as
    `slime-examples-windows-<version>.zip`: CI keeps its artifacts 14 days, a release keeps them.
-   CI puts beside the programs DXC's library and its licence, and the licenses of the parts of Noto
-   fonts that `interface.exe` embeds; add `LICENSE.txt`, a `NOTICE.txt` and the licenses of the egui
+   CI puts beside the programs DXC's library and its licence, the licenses of the parts of Noto
+   fonts that `interface.exe` embeds and that of Geist and Geist Mono, which `widgets.exe` embeds;
+   add `LICENSE.txt`, a `NOTICE.txt` and the licenses of the egui
    fonts that `scene.exe`, `world.exe` and `hunnawood.exe` embed in their dev overlay, which the
    Ubuntu Font Licence asks to travel with them.
 
@@ -1752,8 +1797,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   direction, a Latin paragraph starting at its box's left. No element is placed out of its
   parent's flow. The marks of what changed hold an element's style, layout and paint, not yet its
   meaning.
-- **Input and focus** ([ADR-0142](adr/0142-input-and-focus.md)): buttons and fields alone hold the
-  focus and are pressed, and boxes that scroll and lists scroll with the wheel; a list's rows are
+- **Input and focus** ([ADR-0142](adr/0142-input-and-focus.md)): buttons, fields and widgets alone
+  hold the focus, buttons, check boxes, sections and tabs alone are pressed, and boxes that scroll
+  and lists scroll with the wheel; a list's rows are
   not selected; a press on what the interface draws is taken whether or not it does anything, from
   what its last frame drew, so that a game's interface that lets presses through draws nothing
   where they fall, and the wheel with it; the shadow that a box casts takes them over the box, not
@@ -1785,6 +1831,14 @@ GitHub issues, linked from their entry; this list stays the reference.
   Wayland, it needs a compositor that gives the protocol of the clipboard's managers, wlroots',
   niri's and Hyprland's among them, and falls back on X11 through XWayland elsewhere. An agent sets
   a field's value whole, and does not type in it key by key.
+- **Widgets** ([ADR-0148](adr/0148-widgets.md)): a check box has no third state, mixed; a slider
+  lies across alone, and shows neither ticks nor its value; tabs are neither closed, moved nor
+  scrolled when the bar is too narrow for them; two panels are two, of no least size, and a third
+  child is folded; scroll bars show over the content as long as it does not fit, and have no
+  arrows. Whether a section is open, which tab is chosen and where a handle stands are the
+  interface's alone: they tell the program nothing, and an element that a builder removes forgets
+  them. The editor's look has one theme, dark, and no italic faces; its fonts hold no Greek; it is
+  built into the program, not cooked, and how a game's overlay replaces it is M6b.8's to decide.
 - **What agents see** ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)): a tool reads an
   interface only in a windowed run, from its last frame, and each ask walks the whole tree. A path
   holds while the roots below its own stay, and a key's name that holds

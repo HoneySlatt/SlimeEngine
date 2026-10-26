@@ -82,9 +82,12 @@ shows changes, laid out by flexbox and grid, from left to right or mirrored, its
 only the rows that show, and styles it with style sheets and themes, cooked as scenes are and
 loaded again when they change, and takes the pointer and the keyboard, its focus moved by Tab and
 the arrows, its fields typed, selected, copied and composed through input methods in every writing
-system, and says what it means to agents, who use it through the MCP server as a person does;
-the `interface` example builds one, with text in eight writing systems, a dark and a light theme,
-and a modal dialog.
+system, and says what it means to agents, who use it through the MCP server as a person does; it
+has the widgets of a panel, check boxes, sliders, sections that fold, tabs, two panels and a
+handle, and scroll bars, and holds the editor's look, its fonts Geist and Geist Mono, behind a
+feature. The `interface` example builds an
+interface, with text in eight writing systems, a dark and a light theme, and a modal dialog; the
+`widgets` example, a panel of the editor's kind.
 [`docs/PLAN.md`](docs/PLAN.md) says what comes next, the rest of Stage 6b, the engine's interface:
 its UI framework, proven by the dev overlay; then Stage 6c, the editor. It lists the known debt too.
 
@@ -105,8 +108,8 @@ cargo run --quiet -p slime-mcp  # the MCP server through which an agent drives a
 ```
 
 Each CI run on GitHub also publishes the `hello`, `headless`, `window`, `offscreen`, `interface`,
-`scene` and `world` examples and the `hunnawood` game built for Windows, to try without a toolchain;
-the GitHub release of each version since 0.1 carries what that version had.
+`widgets`, `scene` and `world` examples and the `hunnawood` game built for Windows, to try without a
+toolchain; the GitHub release of each version since 0.1 carries what that version had.
 
 The tests run on your own GPU; CI runs them on drivers that render on the CPU, lavapipe on Linux and
 WARP on Windows, and [`CONTRIBUTING.md`](CONTRIBUTING.md#gpu) explains how to run them the same way.
@@ -167,7 +170,8 @@ known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) lists the smaller gaps. 
 today has:
 
 - No audio, physics or animation; an interface built as a tree of elements, laid out, styled by
-  style sheets and themes, used with the pointer and the keyboard, its fields typed in, and read and
+  style sheets and themes, used with the pointer and the keyboard, its fields typed in, its widgets
+  checked, moved, folded and chosen, and read and
   used by agents through the MCP server (`slime-ui`), read by screen readers in the examples, games
   leaving them out until Stage 7; and of the editor
   only its core, a library without an interface (`slime-editor`), and its program without a window,

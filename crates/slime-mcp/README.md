@@ -76,10 +76,11 @@ The tools, each described to the agent by the server itself, with its parameters
 - `find_elements`, `element_at`, `act_on_interface` and `capture_element`: the game's interface, as
   its last frame left it (`docs/adr/0143-what-agents-see-of-the-interface.md`). `find_elements`
   lists its elements of a role, `Button`, and whose names hold a text, each by its path, which names
-  it to the other tools, its role, name, what a field holds, its states, where it shows, and what it
-  takes now; `element_at` names the one at a pixel of the image that `capture` gives;
-  `act_on_interface` presses, focuses or scrolls one, gives a field a value as a person who replaced
-  its text and committed would (`docs/adr/0146-screen-readers.md`), or moves the focus, accepts,
+  it to the other tools, its role, name, what a field, a slider or two panels hold, its states,
+  where it shows, and what it takes now; `element_at` names the one at a pixel of the image that
+  `capture` gives; `act_on_interface` presses, focuses or scrolls one, gives a field a value as a
+  person who replaced its text and committed would (`docs/adr/0146-screen-readers.md`), and a
+  slider or two panels theirs (`docs/adr/0148-widgets.md`), or moves the focus, accepts,
   cancels or gives a command, as keys do; `capture_element` gives the part of the image where one
   shows.
 - `read_logs`: the lines of the game's log after a given line.
@@ -106,7 +107,11 @@ argument names, and `scripts/check.sh` runs it there too. `tests/interface.rs` s
 world the count that the press changed, captures the button and finds it at a pixel, moves the
 focus, opens and closes the dialog, gives the bar's field of text a value, which the example reads
 as committed, and sees a field of numbers refuse a text that reads as no number; it needs what
-`tests/views.rs` needs, and runs beside it.
+`tests/views.rs` needs, and runs beside it. `tests/widgets.rs` starts the `widgets` example and
+uses each widget of a panel through its actions: it unchecks a check box and gives a slider a
+value, which the example tells in its bar, opens a folded section, moves the handle between two
+panels, scrolls the list of entities and chooses a tab; it needs a compositor alone, and runs
+beside the others.
 `tests/edit.rs` starts the `editor` example on a copy of the yard, writes it back unchanged, makes
 steps, undoes and redoes them, writes the level, finds again, as the editor starts again, what it
 did not write, and, the level written, opens it from its file; it needs no compositor, the
