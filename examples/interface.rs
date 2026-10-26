@@ -28,8 +28,10 @@
 //! buttons but the first: the presentation sends a command for each, which the host applies at the
 //! start of the next frame, as what changes a world leaves an interface. Agents read and use its
 //! interface through the development channel
-//! (`docs/adr/0143-what-agents-see-of-the-interface.md`), its bar and its dialog named for them:
-//! `crates/slime-mcp/tests/interface.rs` is such a session.
+//! (`docs/adr/0143-what-agents-see-of-the-interface.md`), its bar and its dialog named for them,
+//! and give its fields values: `crates/slime-mcp/tests/interface.rs` is such a session. Its tree
+//! is given to screen readers, Orca on Linux and Narrator on Windows, through AccessKit's adapter
+//! of the window (`docs/adr/0146-screen-readers.md`), as any example's interface is.
 //!
 //! The code gives the elements their layout and their classes; the style sheet
 //! `examples/assets/ui/interface.style` gives the rest, with the values of a dark or a light theme,

@@ -16,8 +16,8 @@ workspace = true
 gltf.workspace = true
 png.workspace = true
 # The examples' programs are never shipped: they hold the development channel, through which
-# tools drive them (ADR-0122).
-slime-app = { workspace = true, features = ["development"] }
+# tools drive them (ADR-0122), and screen readers read their interfaces (ADR-0146).
+slime-app = { workspace = true, features = ["development", "accessibility"] }
 slime-assets.workspace = true
 slime-color.workspace = true
 slime-cook.workspace = true

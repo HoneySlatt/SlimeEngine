@@ -266,6 +266,12 @@ if runs headless; then
         exit 1
     fi
 
+    step "The game holds no adapter for screen readers, which games leave out until Stage 7 (ADR-0146)"
+    if cargo tree --locked -p hunnawood -e normal | grep -E 'accesskit_winit '; then
+        echo "the game depends on AccessKit's adapter"
+        exit 1
+    fi
+
     step "Documentation links"
     # Tracked and new, non-ignored Markdown files. External links are not checked: they fail for
     # reasons unrelated to the change being checked.
