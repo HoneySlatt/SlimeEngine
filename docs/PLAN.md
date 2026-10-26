@@ -1756,8 +1756,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   number, the names of its texts not gathered into its own. Games link `slime-ui` through
   `slime-app`, whether they have an interface or not.
 - **Screen readers** ([ADR-0146](adr/0146-screen-readers.md)): no check of CI runs a screen reader
-  or the AT-SPI service; the adapter was read by a client of AT-SPI by hand, and Orca and Narrator
-  wait for the owner. A modal dialog is not marked modal to screen readers, which find the elements
+  nor Windows' UI Automation; CI reads and uses the `interface` example through AT-SPI on Linux
+  ([ADR-0147](adr/0147-the-screen-readers-check-in-ci.md)), and Orca and Narrator wait for the
+  owner. A modal dialog is not marked modal to screen readers, which find the elements
   below it taking nothing; a label's text gives no runs, so that a screen reader reads it whole; a
   field of numbers takes no increment or decrement, and nothing scrolls an element into view; the
   hover and the press are given to agents, not to screen readers, which AccessKit does not ask. A

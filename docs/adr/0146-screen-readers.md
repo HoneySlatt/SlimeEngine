@@ -5,7 +5,9 @@
   of `slime-ui`: `slime-app` translates the interface's meaning into AccessKit's tree, and
   `slime-platform` holds the adapter), [0140](0140-the-tree-of-elements.md) (each element carries
   the mark of its meaning) and [0143](0143-what-agents-see-of-the-interface.md) (an element's
-  value, an agent's action that sets it, and the changes of the meaning, which the marks give)
+  value, an agent's action that sets it, and the changes of the meaning, which the marks give);
+  amended by [0147](0147-the-screen-readers-check-in-ci.md) (a check of CI reads and uses an
+  example through AT-SPI)
 - Date: 2026-10-26
 
 ## Context

@@ -251,9 +251,11 @@ leave out until Stage 7 ([ADR-0146](docs/adr/0146-screen-readers.md)).
 
 The examples give screen readers their windows' trees, through AccessKit's adapter: on Linux to the
 desktop's AT-SPI service on the session bus, which Orca reads, and on Windows to UI Automation,
-which Narrator reads. A client of AT-SPI read the `interface` example's buttons, texts and fields, a
-field's text, caret and words, and used them; Orca and Narrator themselves wait for the owner's
-check by hand ([`docs/PLAN.md`](docs/PLAN.md#checks-by-hand-waiting-for-the-owner)). To try one,
+which Narrator reads. `scripts/screen-reader-check.sh`, which `scripts/check.sh` runs in a headless
+Weston, reads and uses the `interface` example through AT-SPI, as Orca does, on a session bus of
+its own ([ADR-0147](docs/adr/0147-the-screen-readers-check-in-ci.md)); Orca and Narrator themselves
+wait for the owner's check by hand
+([`docs/PLAN.md`](docs/PLAN.md#checks-by-hand-waiting-for-the-owner)). To try one,
 start Orca (`orca`, or the desktop's setting of accessibility), then the `interface` example. A
 program costs nothing until a screen reader asks for its tree. With
 `SLIME_LOG=info,zbus=warn,slime_app::accessibility=debug`, the log says each action that a screen
@@ -304,7 +306,8 @@ sample game's zone fetched and cooked, the tests that read it, *Hunna Wood*'s ed
 an agent's session through the MCP server that edits a copy of the zone with that editor, the
 samples with no display server available, and an agent's session that edits a copy of the examples'
 yard with the `editor` example, the windowed samples, the `interface` example's interface used by
-an agent's session through the MCP server, which presses a button that changes its world, the
+an agent's session through the MCP server, which presses a button that changes its world, and read
+and used through AT-SPI as a screen reader does, the
 `world` example's two views captured, the map's normals shown, its reports read and an entity
 picked at a pixel, by an agent's session through the MCP server, the `scene` example on a copy of
 the cooked sample with one byte changed, which must end with an error and not a panic, the game

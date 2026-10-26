@@ -169,6 +169,13 @@ if runs windowed; then
         VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 300 cargo test --locked -p slime-mcp --test interface -- "$cooked/first" ||
         { cat "$runtime/slime-check.log"; exit 1; }
+    # A client of AT-SPI, the service that Orca reads, reads and uses the same example as a screen
+    # reader does, on a bus of D-Bus of its own (ADR-0146, ADR-0147).
+    cargo build --locked --example interface
+    env -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check \
+        VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        timeout -k 10 180 scripts/screen-reader-check.sh target/debug/examples/interface "$cooked/first" ||
+        { cat "$runtime/slime-check.log"; exit 1; }
     # The scene example draws the sample cooked above.
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 120 cargo run --locked --example scene -- --assets "$cooked/first" --frames 120 ||

@@ -29,7 +29,24 @@
           pkgs.lychee
           # A compositor without a screen, in which scripts/check.sh runs the windowed samples.
           pkgs.weston
+          # The service of screen readers on Linux, AT-SPI, on a session bus of D-Bus of its own,
+          # and a client of it in Python, through which scripts/check.sh reads and uses the
+          # `interface` example as a screen reader does (ADR-0146).
+          pkgs.at-spi2-core
+          pkgs.dbus
+          # gdbus, which turns AT-SPI on.
+          pkgs.glib
+          (pkgs.python3.withPackages (python: [ python.pygobject3 ]))
         ];
+
+        # Where the client of AT-SPI finds the types of AT-SPI, GLib and D-Bus, and the AT-SPI's
+        # bus and registry, which are not on the path.
+        GI_TYPELIB_PATH = pkgs.lib.makeSearchPath "lib/girepository-1.0" [
+          pkgs.at-spi2-core
+          pkgs.glib
+          pkgs.gobject-introspection
+        ];
+        SLIME_AT_SPI = "${pkgs.at-spi2-core}";
 
         # winit (in slime-platform) and wgpu (in slime-gfx) open the windowing system's libraries and
         # the Vulkan loader at run time instead of linking them, and fontique (in slime-ui)

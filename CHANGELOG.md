@@ -19,7 +19,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   a field's text by runs, `Ui::select_text` selects in it, and `Ui::set_value` gives a field a
   value, as a person who replaced its text and committed would; an element's meaning gains its
   `value`, and agents set it through the development channel and the MCP server's `act_on_interface`
-  (`set_value`); `Ui::root_settings` gives the settings of an element's root.
+  (`set_value`); `Ui::root_settings` gives the settings of an element's root. `scripts/check.sh`
+  reads and uses the `interface` example through AT-SPI, as a screen reader does
+  (`scripts/screen-reader-check.sh`, ADR-0147), with AT-SPI, D-Bus and Python in the Nix shell.
 - Text edited (ADR-0145): fields of text, one line or several, and of numbers
   (`Element::text_field`, `Element::text_area`, `Element::number_field`), typed, moved through by
   clusters, words and lines in text of both directions, selected by the keys and the pointer,

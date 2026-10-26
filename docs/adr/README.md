@@ -214,4 +214,5 @@ the ADR linking to it.
 | [0143](0143-what-agents-see-of-the-interface.md) | What agents see of the interface | Accepted; amended by 0146 |
 | [0144](0144-the-cooked-zones-key-in-ci.md) | The cooked zone's key in CI | Accepted |
 | [0145](0145-text-edited.md) | Text edited | Accepted |
-| [0146](0146-screen-readers.md) | Screen readers | Accepted |
+| [0146](0146-screen-readers.md) | Screen readers | Accepted; amended by 0147 |
+| [0147](0147-the-screen-readers-check-in-ci.md) | The screen readers' check in CI | Accepted |
