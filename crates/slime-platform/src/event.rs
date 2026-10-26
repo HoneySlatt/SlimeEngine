@@ -3,7 +3,7 @@
 use winit::event::WindowEvent;
 use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 
-use slime_input::{ButtonState, KeyEvent, Modifiers, MouseButton, ScrollDelta};
+use slime_input::{ButtonState, Ime, KeyEvent, Modifiers, MouseButton, ScrollDelta};
 
 use crate::input;
 use crate::window::PhysicalSize;
@@ -12,9 +12,8 @@ use crate::window::PhysicalSize;
 ///
 /// Keys arrive while the window has the keyboard focus. Mouse input arrives while the cursor is
 /// over the window, and outside it while a button pressed over the window is held (see
-/// [`CursorMoved`](Self::CursorMoved)). The engine does not report yet: gamepads, text composed by
-/// input methods (used for Chinese, Japanese or Korean), touch screens, touchpad gestures, or files
-/// dropped on the window.
+/// [`CursorMoved`](Self::CursorMoved)). The engine does not report yet: gamepads, touch screens,
+/// touchpad gestures, or files dropped on the window.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Event {
@@ -98,6 +97,10 @@ pub enum Event {
     /// A mouse wheel or a touchpad scrolled while the cursor was over the window, or outside it
     /// while a button pressed over the window is held.
     MouseWheel(ScrollDelta),
+    /// The input method composed or committed text, or turned on or off, while it is allowed
+    /// ([`Window::set_ime_allowed`](crate::Window::set_ime_allowed)). The keys that it reads give
+    /// no text of their own then.
+    Ime(Ime),
 }
 
 /// Translates winit's window events into the engine's.
@@ -185,6 +188,7 @@ impl Translator {
             WindowEvent::CursorEntered { .. } => Event::CursorEntered,
             WindowEvent::CursorLeft { .. } => Event::CursorLeft,
             WindowEvent::MouseWheel { delta, .. } => Event::MouseWheel(input::scroll_delta(delta)),
+            WindowEvent::Ime(ime) => Event::Ime(input::ime(ime)),
             _ => return,
         };
         deliver(event);
@@ -553,6 +557,21 @@ mod tests {
         assert_eq!(
             translate(WindowEvent::Focused(false)),
             Some(Event::Focused(false))
+        );
+        // What an input method composes, then commits.
+        let preedit = winit::event::Ime::Preedit("にほ".to_owned(), Some((6, 6)));
+        assert_eq!(
+            translate(WindowEvent::Ime(preedit)),
+            Some(Event::Ime(Ime::Preedit {
+                text: "にほ".to_owned(),
+                cursor: Some((6, 6)),
+            }))
+        );
+        assert_eq!(
+            translate(WindowEvent::Ime(winit::event::Ime::Commit(
+                "日本".to_owned()
+            ))),
+            Some(Event::Ime(Ime::Commit("日本".to_owned())))
         );
     }
 

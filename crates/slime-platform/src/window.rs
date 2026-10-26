@@ -5,6 +5,7 @@ use std::sync::Arc;
 use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
 };
+use slime_input::CursorShape;
 
 /// The settings of the window that [`run_event_loop`](crate::run_event_loop) creates.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -52,7 +53,8 @@ pub struct PhysicalSize {
 /// still open when the loop ends is hidden then, and released only when the process exits.
 ///
 /// It cannot yet go fullscreen, grab or hide the cursor, change its title once created, or report
-/// the mouse's raw motion, which games that turn a camera with the mouse need.
+/// the mouse's raw motion, which games that turn a camera with the mouse need. It sets the
+/// pointer's shape and places the input method, which it allows while a field takes text.
 ///
 /// It implements the [`raw-window-handle`](raw_window_handle) traits, through which graphics
 /// libraries draw into a window without knowing the windowing library that created it.
@@ -92,6 +94,29 @@ impl Window {
     /// resized.
     pub fn request_redraw(&self) {
         self.inner.request_redraw();
+    }
+
+    /// Allows the input method, or forbids it: while it is allowed, the keys that it reads compose
+    /// text, which arrives as [`Event::Ime`](crate::Event::Ime) rather than as keys' text. Allow
+    /// it while a field of text holds the focus, and only then, since it takes keys that a game
+    /// reads. It is forbidden when the window opens.
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        self.inner.set_ime_allowed(allowed);
+    }
+
+    /// Tells the input method where the text being composed lies, the caret's box, in physical
+    /// pixels from the content area's top left corner: it places its window of candidates beside
+    /// it, not over it.
+    pub fn set_ime_area(&self, x: f32, y: f32, width: f32, height: f32) {
+        self.inner.set_ime_cursor_area(
+            winit::dpi::PhysicalPosition::new(x, y),
+            winit::dpi::PhysicalSize::new(width, height),
+        );
+    }
+
+    /// Shows `shape` as the pointer over the window.
+    pub fn set_cursor(&self, shape: CursorShape) {
+        self.inner.set_cursor(crate::input::cursor_icon(shape));
     }
 
     #[cfg(windows)]

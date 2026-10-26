@@ -11,6 +11,8 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+# The system's clipboard, of text (ADR-0145).
+arboard.workspace = true
 raw-window-handle.workspace = true
 # The engine's vocabulary of input, which the platform translates winit's events into (ADR-0142).
 slime-input.workspace = true

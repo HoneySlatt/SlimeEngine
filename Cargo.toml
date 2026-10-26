@@ -93,6 +93,10 @@ wgpu = { version = "30.0.1", default-features = false, features = ["std", "parki
 # compositor does not draw them, as on GNOME) are built without title text: the text renderer
 # depends on `ttf-parser`, which is unmaintained (RUSTSEC-2026-0192).
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita-notitle"] }
+# The system's clipboard of text, in slime-platform (ADR-0132, ADR-0145): without its images
+# (`image-data`, which brings the `image` crate), with the Wayland protocol of the compositors that
+# give it (`wayland-data-control`), X11's otherwise.
+arboard = { version = "3.7.0", default-features = false, features = ["wayland-data-control"] }
 # The asset pipeline's cooker only: decodes JPEG images (ADR-0069).
 zune-jpeg = "0.5.15"
 # The text of the engine's interface, in slime-ui (ADR-0132, ADR-0136): parley shapes, orders, breaks

@@ -254,6 +254,39 @@ pub enum ScrollDelta {
     },
 }
 
+/// What an input method does while the user composes text through it, as Chinese, Japanese and
+/// Korean are typed: the keys that it reads then give no text of their own.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Ime {
+    /// The input method is on for the window: compositions may follow.
+    Enabled,
+    /// The text being composed, not yet committed, which replaces the one before: empty when the
+    /// composition ends without a commit.
+    Preedit {
+        /// The text.
+        text: String,
+        /// Where the method shows its own cursor, as bytes of the text, its start and its end;
+        /// none to hide it.
+        cursor: Option<(usize, usize)>,
+    },
+    /// Text committed, in place of the text being composed.
+    Commit(String),
+    /// The input method is off for the window.
+    Disabled,
+}
+
+/// The shape of the pointer over the window.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum CursorShape {
+    /// The system's arrow.
+    #[default]
+    Default,
+    /// Over text that can be selected or edited: the I-beam.
+    Text,
+    /// Over what is dragged left and right, as a field of numbers.
+    ResizeHorizontal,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

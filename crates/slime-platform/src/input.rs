@@ -7,7 +7,8 @@ use winit::keyboard::{
 };
 
 use slime_input::{
-    ButtonState, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey, ScrollDelta,
+    ButtonState, CursorShape, Ime, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey,
+    ScrollDelta,
 };
 
 /// Declares `translate_key_code`, which translates winit's key code into the engine's, by the
@@ -120,6 +121,25 @@ pub(crate) fn scroll_delta(delta: MouseScrollDelta) -> ScrollDelta {
             x: position.x,
             y: position.y,
         },
+    }
+}
+
+/// The icon that winit shows for the engine's cursor shape.
+pub(crate) fn cursor_icon(shape: CursorShape) -> winit::window::CursorIcon {
+    match shape {
+        CursorShape::Default => winit::window::CursorIcon::Default,
+        CursorShape::Text => winit::window::CursorIcon::Text,
+        CursorShape::ResizeHorizontal => winit::window::CursorIcon::EwResize,
+    }
+}
+
+/// What winit's input method event is, in the engine's terms.
+pub(crate) fn ime(ime: winit::event::Ime) -> Ime {
+    match ime {
+        winit::event::Ime::Enabled => Ime::Enabled,
+        winit::event::Ime::Preedit(text, cursor) => Ime::Preedit { text, cursor },
+        winit::event::Ime::Commit(text) => Ime::Commit(text),
+        winit::event::Ime::Disabled => Ime::Disabled,
     }
 }
 

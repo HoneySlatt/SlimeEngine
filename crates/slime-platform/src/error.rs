@@ -31,4 +31,8 @@ pub enum PlatformError {
     /// status 1, so neither `exiting` nor anything after it runs.
     #[error("the event loop failed")]
     EventLoop(#[source] Source),
+    /// The system gives no clipboard: on Linux, neither a compositor that gives Wayland's protocol
+    /// of the clipboard nor an X server.
+    #[error("cannot open the system's clipboard")]
+    Clipboard(#[source] Source),
 }

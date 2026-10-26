@@ -6,8 +6,10 @@ The engine's link to the operating system's windowing and input services.
 
 Partial. It opens one window, on Wayland or X11 (Linux) and on Windows, reports its events (close
 requested, resized, scale factor changed, focus, keys, the modifier keys held, mouse buttons, cursor
-motion, the cursor entering and leaving, and scrolling) and its redraw requests. It does not report
-yet: text composed by input methods (Chinese, Japanese, Korean), touch screens, touchpad gestures,
+motion, the cursor entering and leaving, scrolling, and the text that input methods compose, for
+Chinese, Japanese or Korean) and its redraw requests; it allows and places the input method, sets
+the pointer's shape, and reads and writes the system's clipboard of text
+(`docs/adr/0145-text-edited.md`). It does not report yet: touch screens, touchpad gestures,
 gamepads, or files dropped on the window.
 
 ## Role
@@ -38,8 +40,12 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   until a given instant, or exit. On Windows, while the user resizes or moves the window, only
   `event` and `redraw_requested` are called, because the system runs a loop of its own.
 - `Window` is a cheap, clonable handle to the window: its size in physical pixels, its scale
-  factor, `request_redraw` to ask for a chance to draw, and the `raw-window-handle` traits through
-  which a graphics library draws into it.
+  factor, `request_redraw` to ask for a chance to draw, `set_ime_allowed` and `set_ime_area` for
+  the input method, `set_cursor` for the pointer's shape, and the `raw-window-handle` traits
+  through which a graphics library draws into it.
+- `Clipboard` reads and writes the system's clipboard of text, through arboard: Wayland's
+  protocol of the clipboard's managers where the compositor gives it, X11's otherwise, and
+  Windows' own.
 - `Event` is what happened to the window, or input it received. It is `#[non_exhaustive]`: new
   kinds of events will be added. Key events pair up the same way on every platform: a key still
   down when the window loses the keyboard focus is released just before `Focused(false)`, and a
@@ -100,6 +106,7 @@ compositor first reports a keyboard, which can happen while the loop runs.
 ## Dependencies
 
 - `winit`: windows, events and input on each windowing system.
+- `arboard`: the system's clipboard, without its images, with its Wayland feature.
 - `slime-input`: the engine's vocabulary of input, which the events carry.
 - `raw-window-handle`: the standard traits for passing a window to a graphics library.
 - `thiserror`: derives `PlatformError`'s `Display` and `Error` implementations.
