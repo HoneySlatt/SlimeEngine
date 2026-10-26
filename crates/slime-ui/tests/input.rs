@@ -9,7 +9,7 @@ use slime_input::{
 use slime_ui::action::{Action, ActionKind, Intent};
 use slime_ui::shortcuts::Shortcuts;
 use slime_ui::style::{Dimension, Display, FlexDirection, Style, Track};
-use slime_ui::text::Fonts;
+use slime_ui::text::{Alignment, Fonts};
 use slime_ui::theme::{StyleSheet, Theme};
 use slime_ui::tree::{Element, ElementId, ElementState, LayoutDirection, RootSettings, Ui};
 
@@ -689,4 +689,33 @@ fn a_release_of_a_press_the_interface_did_not_take_is_not_taken_and_an_empty_lab
     ui.pointer_moved(300.0, 100.0);
     assert!(!ui.pointer_button(MouseButton::Left, ButtonState::Pressed));
     assert!(!ui.wheel(ScrollDelta::Lines { x: 0.0, y: 1.0 }));
+}
+
+#[test]
+fn a_label_takes_the_presses_that_fall_on_its_glyphs_not_those_past_them() {
+    let path = format!("{}/tests/fonts/NotoSans.ttf", env!("CARGO_MANIFEST_DIR"));
+    let font = std::fs::read(path).expect("the test font");
+    // The glyphs of "ok" take some 20 of the box's 300 logical pixels: at its start, then its end.
+    for (alignment, on, past) in [
+        (Alignment::Start, 5.0, 200.0),
+        (Alignment::End, 295.0, 100.0),
+    ] {
+        let mut fonts = Fonts::new();
+        fonts.register(font.clone()).expect("a font");
+        let mut ui = Ui::new(fonts);
+        let root = ui.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+        let mut style = sized(300.0, 20.0);
+        style.text.style.fonts = vec!["Noto Sans".to_owned()];
+        style.text.style.alignment = alignment;
+        ui.build(root, 0, |children| {
+            children.add("label", Element::label("ok", style), |_| {});
+        });
+        ui.frame();
+        for (x, taken) in [(on, true), (past, false)] {
+            ui.pointer_moved(x, 10.0);
+            let pressed = ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+            ui.pointer_button(MouseButton::Left, ButtonState::Released);
+            assert_eq!(pressed, taken, "{alignment:?} at {x}");
+        }
+    }
 }

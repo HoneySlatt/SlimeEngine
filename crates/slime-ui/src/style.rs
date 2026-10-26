@@ -324,7 +324,7 @@ impl Default for ControlStyle {
     }
 }
 
-/// The text of a label, a button or a field.
+/// The text of a label, a button, a field, a check box's label, a section's title or a tab's.
 #[derive(Clone, Debug, PartialEq, Reflect)]
 #[reflect(name = "UiTextLook", default)]
 pub struct TextLook {

@@ -104,15 +104,15 @@ pub struct ValueRange {
 /// What an agent can do to an element, as a person would.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ElementAction {
-    /// Press it, as [`ActionKind::Press`](crate::action::ActionKind::Press) does; a check box,
-    /// toggle it.
+    /// Press it, as [`ActionKind::Press`](crate::action::ActionKind::Press) does: a check box
+    /// toggles, a section opens or folds, a tab is chosen.
     Press,
     /// Give it the focus ([`Ui::set_focus`]).
     Focus,
     /// Scroll its content ([`Ui::scroll_to`]).
     Scroll,
-    /// Give a field or a slider a value, as a person who replaced what it holds and committed
-    /// ([`Ui::set_value`]).
+    /// Give a field, a slider or two panels a value, as a person who replaced what it holds and
+    /// committed ([`Ui::set_value`]).
     SetValue,
 }
 
@@ -138,7 +138,7 @@ pub struct Meaning {
     /// Its role.
     pub role: Role,
     /// Its name: the one its builder gives ([`Element::named`](super::Element::named)), or else a
-    /// button's label or a text's; empty for none.
+    /// button's or a check box's label, a section's or a tab's title, or a text's; empty for none.
     pub name: String,
     /// Its value: what a field holds, as the user left it, the text that an input method composes
     /// included, a field of numbers' text whether or not it reads as a number; a slider's number,
@@ -393,10 +393,11 @@ impl Ui {
             name,
             value: match node.field.as_ref() {
                 Some(field) => Some(field.text.clone()),
+                // A share as its own type writes it, which a widening would lengthen.
                 None => self
                     .slider_value(id)
-                    .or_else(|| self.split_share(id).map(f64::from))
-                    .map(super::field::number_text),
+                    .map(super::field::number_text)
+                    .or_else(|| self.split_share(id).map(|share| share.to_string())),
             },
             range: match element.kind {
                 Kind::Slider { min, max, step, .. } => Some(ValueRange {

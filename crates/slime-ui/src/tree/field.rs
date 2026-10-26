@@ -291,20 +291,27 @@ fn value_text(value: &FieldValue) -> String {
     }
 }
 
-/// `value` rounded to as many decimals as `step` has, as a drag gives multiples of `step`: what
-/// adding them up in binary leaves past them, `0.30000000000000004`, is dropped. A step of 0, and
-/// a value too large to round, leave it as it is.
-fn rounded(value: f64, step: f64) -> f64 {
-    let decimals = number_text(step.abs())
-        .split_once('.')
-        .map_or(0, |(_, decimals)| decimals.len().min(15));
+/// `value`, a sum of `terms` and their multiples, as a drag or a slider's steps give it, rounded to
+/// as many decimals as the term written with the most has, as Rust writes them shortest: what
+/// adding them up in binary leaves past them, `0.30000000000000004`, is dropped. Terms of more than
+/// 15 decimals, and a value too large to round, leave it as it is.
+pub(crate) fn rounded(value: f64, terms: &[f64]) -> f64 {
+    let decimals = terms
+        .iter()
+        .map(|term| {
+            number_text(term.abs())
+                .split_once('.')
+                .map_or(0, |(_, decimals)| decimals.len())
+        })
+        .max()
+        .unwrap_or(0);
+    // Past 15 decimals, a power of ten loses what it is meant to keep.
+    if decimals > 15 {
+        return value;
+    }
     let scale = 10f64.powi(decimals as i32);
     let rounded = (value * scale).round() / scale;
-    if step == 0.0 || !rounded.is_finite() {
-        value
-    } else {
-        rounded
-    }
+    if rounded.is_finite() { rounded } else { value }
 }
 
 impl Ui {
@@ -338,8 +345,8 @@ impl Ui {
     /// no field, nor a field that cannot hold the focus now, disabled, hidden or below a modal
     /// root, nor a field of numbers given a text that reads as no finite number, which keeps what
     /// it holds. A slider takes a text that reads as a finite number, kept within its bounds and on
-    /// its steps, the program reading the change, if any, then the commit. The focus stays where it
-    /// is.
+    /// its steps, the program reading the change, if any, then the commit; two panels, the share of
+    /// the first, kept from 0 to 1, which tells the program nothing. The focus stays where it is.
     pub fn set_value(&mut self, id: ElementId, text: &str) -> bool {
         if !self.focusable(id) || !self.in_scope(id) {
             return false;
@@ -814,7 +821,7 @@ impl Ui {
         }
         drag.moved = true;
         let steps = ((x - drag.x) / scale).round() as f64;
-        let text = number_text(rounded(drag.value + steps * step, step));
+        let text = number_text(rounded(drag.value + steps * step, &[drag.value, step]));
         if text == field.text {
             return;
         }

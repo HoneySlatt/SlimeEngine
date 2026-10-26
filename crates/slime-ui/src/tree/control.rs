@@ -146,12 +146,25 @@ impl Control {
 }
 
 /// `value` kept within `min` and `max`, on the nearest multiple of `step` from `min`; a step of 0
-/// keeps any value. A bound that is no number keeps it from that side.
+/// keeps any value. A bound that is no number does not bound it from its side, nor does it give
+/// steps; a value that is no number is `min`, or 0 without it. A value on the steps has no more
+/// decimals than the step and `min` are written with: a step of `0.1` gives `0.6`, not the
+/// `0.6000000000000001` that six steps of it add up to.
 pub(crate) fn snapped(value: f64, min: f64, max: f64, step: f64) -> f64 {
-    let max = max.max(min);
-    let mut value = if value.is_nan() { min } else { value };
-    if step > 0.0 && step.is_finite() {
+    let min = if min.is_nan() { f64::NEG_INFINITY } else { min };
+    let max = if max.is_nan() {
+        f64::INFINITY
+    } else {
+        max.max(min)
+    };
+    let mut value = match (value.is_nan(), min.is_finite()) {
+        (false, _) => value,
+        (true, true) => min,
+        (true, false) => 0.0,
+    };
+    if step > 0.0 && step.is_finite() && min.is_finite() {
         value = min + ((value - min) / step).round() * step;
+        value = super::field::rounded(value, &[min, step]);
     }
     value.clamp(min, max)
 }
@@ -581,11 +594,10 @@ impl Ui {
             (content.width - size).max(0.0),
             0.0,
         );
-        let mut along = if max > min {
-            ((value - min) / (max - min)) as f32
-        } else {
-            0.0
-        };
+        // Bounds that are no number, or infinite, place the thumb at the start.
+        let mut along = Some(((value - min) / (max - min)) as f32)
+            .filter(|along| max > min && along.is_finite())
+            .unwrap_or(0.0);
         if self.root_settings(id).map(|root| root.direction) == Some(LayoutDirection::RightToLeft) {
             along = 1.0 - along;
         }
@@ -656,12 +668,15 @@ impl Ui {
                         TextBounds::width(width / scale),
                     )
                     .clone();
-                let x = match direction {
+                let area = match direction {
                     LayoutDirection::LeftToRight => content.x + size + gap,
                     LayoutDirection::RightToLeft => content.x,
                 };
                 primitives.push(Primitive::Text(TextPrimitive {
-                    origin: [x, content.y + (content.height - layout.height()) / 2.0],
+                    origin: [
+                        beside(direction, &layout, area, width),
+                        content.y + (content.height - layout.height()) / 2.0,
+                    ],
                     layout,
                     color: look.color,
                 }));
@@ -707,12 +722,15 @@ impl Ui {
                         TextBounds::width(width / scale),
                     )
                     .clone();
-                let x = match direction {
+                let area = match direction {
                     LayoutDirection::LeftToRight => header.x + size + gap,
                     LayoutDirection::RightToLeft => header.x,
                 };
                 primitives.push(Primitive::Text(TextPrimitive {
-                    origin: [x, header.y + (header.height - layout.height()) / 2.0],
+                    origin: [
+                        beside(direction, &layout, area, width),
+                        header.y + (header.height - layout.height()) / 2.0,
+                    ],
                     layout,
                     color: look.color,
                 }));
@@ -749,5 +767,17 @@ impl Ui {
             _ => {}
         }
         primitives
+    }
+}
+
+/// The x of the origin of `layout`, a check box's label or a section's title, laid out across the
+/// area of `width` pixels from `area`, which places its glyphs against the area's side that faces
+/// the box or the mark: its left in a root laid out from left to right, its right from right to
+/// left, whatever the direction of the text, which aligns it to its own start.
+fn beside(direction: LayoutDirection, layout: &TextLayout, area: f32, width: f32) -> f32 {
+    let drawn = layout.drawn_box();
+    match direction {
+        LayoutDirection::LeftToRight => area - drawn.x,
+        LayoutDirection::RightToLeft => area + width - drawn.x - drawn.width,
     }
 }

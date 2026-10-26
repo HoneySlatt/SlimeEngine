@@ -327,8 +327,8 @@ impl Ui {
         self.interaction.focus
     }
 
-    /// Gives the focus to `id`, a button or a field that is not disabled and is drawn, or takes it
-    /// from what holds it, for `None`; a field that loses it commits. Nothing happens for an
+    /// Gives the focus to `id`, a button, a field or a widget that is not disabled and is drawn, or
+    /// takes it from what holds it, for `None`; a field that loses it commits. Nothing happens for an
     /// element that cannot hold it, or that a modal root above its own keeps it from.
     pub fn set_focus(&mut self, id: Option<ElementId>) {
         if let Some(id) = id
@@ -541,8 +541,8 @@ impl Ui {
         }
     }
 
-    /// Whether `id` can hold the focus: a button or a field, not disabled, drawn, as its ancestors
-    /// are.
+    /// Whether `id` can hold the focus: an element of a kind that the pointer reaches, a button, a
+    /// field or a widget, not disabled, drawn, as its ancestors are.
     pub(super) fn focusable(&self, id: ElementId) -> bool {
         let Some(node) = self.node(id) else {
             return false;
@@ -560,7 +560,8 @@ impl Ui {
         true
     }
 
-    /// Whether `id` can be pressed: a button, a check box or a section that can hold the focus.
+    /// Whether `id` can be pressed: a button, a check box, a section or a tab that can hold the
+    /// focus.
     pub(super) fn pressable(&self, id: ElementId) -> bool {
         self.focusable(id)
             && self.node(id).is_some_and(|node| {

@@ -576,6 +576,10 @@ fn a_drag_gives_multiples_of_its_step_whatever_its_sign_and_one_undo() {
     let (mut ui, _, field, _) = interface(Element::number_field(1.0, -0.5, style()));
     drag(&mut ui, 104.0);
     assert_eq!(ui.field_text(field), Some("-1"));
+    // A number of more decimals than its step keeps them: 1.25, four tenths up, is 1.65.
+    let (mut ui, _, field, _) = interface(Element::number_field(1.25, 0.1, style()));
+    drag(&mut ui, 104.0);
+    assert_eq!(ui.field_text(field), Some("1.65"));
     // A release away from a field pressed without a drag gives it no focus.
     ui.pointer_moved(100.0, 15.0);
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);

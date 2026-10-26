@@ -224,8 +224,8 @@ pub enum Kind {
 }
 
 impl Kind {
-    /// Whether a press of the pointer reaches it, and the focus: a button, a field, a check box or
-    /// a slider.
+    /// Whether a press of the pointer reaches it, and the focus: a button, a field, a check box, a
+    /// slider, a section, a tab or two panels and their handle.
     pub(crate) fn takes_pointer(&self) -> bool {
         matches!(
             self,

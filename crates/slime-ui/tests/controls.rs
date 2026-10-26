@@ -5,6 +5,7 @@
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use slime_ui::action::{Action, ActionKind, FieldValue};
+use slime_ui::display::Primitive;
 use slime_ui::style::{Dimension, Style};
 use slime_ui::text::Fonts;
 use slime_ui::tree::{Element, ElementAction, ElementId, LayoutDirection, Role, RootSettings, Ui};
@@ -184,11 +185,14 @@ fn a_slider_is_dragged_pressed_on_its_track_and_moved_by_the_keys() {
     assert_eq!(steps[0], "changed 0.9");
     assert_eq!(steps[2], "changed 0");
     assert_eq!(steps.last().map(String::as_str), Some("committed 1"));
-    // Its value on its steps, as its own arithmetic leaves them close to.
-    assert!((ui.slider_value(slider).expect("a slider") - 1.0).abs() < 1e-9);
-    // A value set, as an agent or a screen reader sets it, within its bounds.
+    assert_eq!(ui.slider_value(slider), Some(1.0));
+    // A value set, as an agent or a screen reader sets it, within its bounds and on its steps,
+    // which give tenths, not what their sums add up to in binary.
     assert!(ui.set_value(slider, "0.42"));
-    assert!((ui.slider_value(slider).expect("a slider") - 0.4).abs() < 1e-9);
+    assert_eq!(ui.slider_value(slider), Some(0.4));
+    ui.key(&named(NamedKey::ArrowRight));
+    ui.key(&named(NamedKey::ArrowRight));
+    assert_eq!(ui.slider_value(slider), Some(0.6));
     assert!(!ui.set_value(slider, "high"));
     assert!(ui.set_value(slider, "7"));
     assert_eq!(ui.slider_value(slider), Some(1.0));
@@ -520,4 +524,79 @@ fn a_third_child_of_two_panels_is_neither_drawn_nor_reached() {
     assert_eq!(ui.meaning_of(third), None);
     ui.key(&named(NamedKey::Tab));
     assert_ne!(ui.focus(), Some(third));
+}
+
+#[test]
+fn a_check_box_s_label_and_a_section_s_title_lie_beside_their_box_from_either_side() {
+    // Latin, and Hebrew, which the font lacks but which is laid out from right to left all the
+    // same: in a root of either direction, the glyphs lie against the box, or the mark.
+    let elements = [
+        Element::check_box("shadows", true, sized(300.0)),
+        Element::check_box("צללים", true, sized(300.0)),
+        Element::section("physics", true, sized(300.0)),
+        Element::section("פיזיקה", true, sized(300.0)),
+    ];
+    for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
+        for element in elements.clone() {
+            let (mut ui, _, _) = interface(direction, element);
+            let (list, _) = ui.frame();
+            let mut boxed = None;
+            let mut text = None;
+            for item in list.items() {
+                match &item.primitive {
+                    Primitive::Box(primitive) if primitive.rect.width == 16.0 => {
+                        boxed.get_or_insert(primitive.rect);
+                    }
+                    Primitive::Text(primitive) => text = Some(primitive.clone()),
+                    _ => {}
+                }
+            }
+            let (boxed, text) = (boxed.expect("its box"), text.expect("its label"));
+            // Where its glyphs start and end, the first at the line's start.
+            let first = text
+                .layout
+                .runs()
+                .iter()
+                .flat_map(|run| run.glyphs.iter().map(|glyph| glyph.x))
+                .fold(f32::INFINITY, f32::min);
+            let start = text.origin[0] + first;
+            let end = start + text.layout.width();
+            // Half the box's side between them.
+            let gap = match direction {
+                LayoutDirection::LeftToRight => start - (boxed.x + boxed.width),
+                LayoutDirection::RightToLeft => boxed.x - end,
+            };
+            assert!((gap - 8.0).abs() < 0.5, "{direction:?}: {gap}");
+        }
+    }
+}
+
+#[test]
+fn a_slider_whose_bounds_are_no_numbers_keeps_its_value_and_draws() {
+    // No least bound, so no steps from it; no greatest bound.
+    let element = Element::slider(0.55, f64::NAN, f64::NAN, 0.1, sized(216.0));
+    let (mut ui, _, slider) = interface(LayoutDirection::LeftToRight, element);
+    assert_eq!(ui.slider_value(slider), Some(0.55));
+    assert!(ui.set_value(slider, "7.25"));
+    assert_eq!(ui.slider_value(slider), Some(7.25));
+    let (list, _) = ui.frame();
+    for item in list.items() {
+        if let Primitive::Box(primitive) = &item.primitive {
+            assert!(primitive.rect.x.is_finite(), "{primitive:?}");
+        }
+    }
+}
+
+#[test]
+fn a_share_reads_as_its_own_type_writes_it() {
+    // 0.32 has no exact value in binary: widened, it would read 0.3199999928474426.
+    let (mut ui, _, split) = interface(
+        LayoutDirection::LeftToRight,
+        Element::split(true, 0.32, sized(300.0)),
+    );
+    let meaning = ui.meaning_of(split).expect("it means something");
+    assert_eq!(meaning.value.as_deref(), Some("0.32"));
+    assert!(ui.set_value(split, "0.7"));
+    let meaning = ui.meaning_of(split).expect("it means something");
+    assert_eq!(meaning.value.as_deref(), Some("0.7"));
 }

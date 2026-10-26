@@ -283,23 +283,42 @@ impl TextLayout {
 
     /// The box that its glyphs lie in, from its origin: where its lines are drawn, which an
     /// alignment and a text written from right to left move across the box it is laid out in,
-    /// without moving the box ([`TextLayout::width`]). Empty for a text of no line.
+    /// without moving the box ([`TextLayout::width`]), as far as their glyphs' advances reach,
+    /// without the spaces that end a line. Empty for a text of no glyph but spaces.
     pub(crate) fn drawn_box(&self) -> Rect {
+        let layout = self.shown_layout();
+        let right_to_left = layout.is_rtl();
+        // A line reaches from the first glyph of its runs to the advance of the last, less the
+        // spaces that end it, at its right from left to right and its left from right to left: its
+        // metrics give the width that it is aligned in, not that of its glyphs.
         let box_of = |line: parley::Line<'_, ()>| {
             let metrics = line.metrics();
-            // Where its glyphs are placed from, as a cursor's x is read: the line moved by its
-            // alignment, from its own start.
-            let x = metrics.offset + metrics.inline_min_coord;
-            Rect::new(
-                x,
-                metrics.block_min_coord,
-                metrics.inline_max_coord - metrics.inline_min_coord,
-                metrics.block_max_coord - metrics.block_min_coord,
-            )
+            let (mut start, mut end) = line
+                .items()
+                .filter_map(|item| match item {
+                    PositionedLayoutItem::GlyphRun(run) => {
+                        Some((run.offset(), run.offset() + run.advance()))
+                    }
+                    PositionedLayoutItem::InlineBox(_) => None,
+                })
+                .reduce(|(start, end), (from, to)| (start.min(from), end.max(to)))?;
+            if right_to_left {
+                start += metrics.hanging_advance;
+            } else {
+                end -= metrics.hanging_advance;
+            }
+            (end > start).then(|| {
+                Rect::new(
+                    start,
+                    metrics.block_min_coord,
+                    end - start,
+                    metrics.block_max_coord - metrics.block_min_coord,
+                )
+            })
         };
-        self.shown_layout()
+        layout
             .lines()
-            .map(box_of)
+            .filter_map(box_of)
             .reduce(|box_of, line| {
                 let x = box_of.x.min(line.x);
                 let y = box_of.y.min(line.y);
