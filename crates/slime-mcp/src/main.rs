@@ -230,7 +230,8 @@ struct ElementAt {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct ActOnInterface {
     /// What to do, whatever its case: `press`, `focus` or `scroll` an element, or `set_value` of a
-    /// field, a slider or two panels, which must take it, as `find_elements` lists; or, without an
+    /// field, a slider, two panels or a list to choose from, which must take it, as `find_elements`
+    /// lists; or, without an
     /// element, `next`, `previous`, `up`, `down`, `left`, `right` to move the focus as Tab and the
     /// arrows do, `accept` as Enter does, `cancel` as Escape does, `command` to give the command
     /// named `command` as a shortcut does.
@@ -245,7 +246,8 @@ struct ActOnInterface {
     command: Option<String>,
     /// For `set_value`, the text that the field holds then, as a person who replaced what it holds
     /// and committed would leave it; for a field of numbers or a slider, a finite number: `2.5`;
-    /// for two panels, the share of the first, from 0 to 1.
+    /// for two panels, the share of the first, from 0 to 1; for a list to choose from, one of its
+    /// options, `High`, or the place of one, from 0.
     value: Option<String>,
 }
 
@@ -841,9 +843,11 @@ impl Server {
     #[tool(
         description = "The elements of the game's interface, in the order of its tree, as its \
                        last frame left them, whose role and name match: each by its path, which \
-                       names it to the other tools, its role, its name, what a field, a slider or \
-                       two panels hold, its states (hovered, pressed, focused, disabled, checked, \
-                       expanded, selected), where it shows in the image \
+                       names it to the other tools, its role, its name, what a field, a slider, \
+                       two panels or a list to choose from hold, its description (its tooltip), \
+                       its states (hovered, pressed, focused, disabled, checked, expanded, \
+                       selected, has_popup for what opens a menu or a list beside it), where it \
+                       shows in the image \
                        that `capture` gives, and what it takes now (press, focus, scroll, \
                        set_value). Boxes that only lay others out are left out."
     )]

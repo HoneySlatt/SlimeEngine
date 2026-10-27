@@ -4,6 +4,10 @@
 //! check box and gives a slider a value, which the example reads and tells in its bar, opens a
 //! folded section, whose slider then shows, moves the handle between two panels, scrolls the list
 //! of entities, and chooses a tab, whose panel then shows, where it unchecks a level of the log.
+//! It uses what opens over the panel too (`docs/adr/0150-layers.md`): it chooses the quality of
+//! shadows by the text of an option, reads the list's tooltip as its description, opens the bar's
+//! menus, shows the floating panel of statistics through an item that *View* holds, and opens a
+//! recent level through *File*'s submenu, whose menus then close.
 //!
 //! It needs a Wayland compositor and the example built (`cargo build --example widgets`):
 //! `scripts/check.sh` runs it in a headless Weston with lavapipe, as it runs the `interface` test.
@@ -59,6 +63,24 @@ fn act(session: &mut Session, action: &str, path: &str, more: serde_json::Value)
     assert_eq!(said, ["done"], "{action} on {path}");
 }
 
+/// The path of the first element of `role` whose name holds `name`, once one shows.
+fn path_of(session: &mut Session, role: &str, name: &str) -> String {
+    let found = until(
+        name,
+        || {
+            session
+                .try_tool("find_elements", json!({ "role": role, "name": name }))
+                .0
+        },
+        |said| said.first().is_some_and(|text| text.contains(" — ")),
+    );
+    found[0]
+        .split(" — ")
+        .next()
+        .expect("a path before the role")
+        .to_owned()
+}
+
 /// Waits until the bar at the bottom tells `told`, what the example read of the last change.
 fn told(session: &mut Session, told: &str) {
     until(
@@ -97,8 +119,12 @@ fn main() {
         },
         |said| said.first().is_some_and(|text| text.contains("; at (")),
     );
+    // Its tooltip read as its description.
     assert!(
-        tabs[0].starts_with("#0/window/tabs/Inspector — Tab `Inspector`, selected"),
+        tabs[0].starts_with(
+            "#0/window/tabs/Inspector — Tab `Inspector`, described \"The entities and their \
+             properties\", selected"
+        ),
         "{tabs:?}"
     );
 
@@ -184,6 +210,49 @@ fn main() {
         || line(&mut session, first),
         |line| line.is_none(),
     );
+
+    // A list to choose from, read with its tooltip, given an option by its text.
+    let quality = format!("{PROPERTIES}/Rendering/shadow quality/choice");
+    let choice = line(&mut session, &quality).expect("the list to choose from");
+    assert!(
+        choice.contains(
+            "ComboBox `shadow quality`, holding \"High\", described \"How sharp the shadows are, \
+             and what they cost\", has_popup"
+        ),
+        "{choice}"
+    );
+    assert!(
+        choice.ends_with("takes press, focus, set_value"),
+        "{choice}"
+    );
+    act(
+        &mut session,
+        "set_value",
+        &quality,
+        json!({ "value": "Low" }),
+    );
+    told(&mut session, "shadows low");
+
+    // The bar's menu View, opened: its item shows the floating panel of statistics.
+    act(&mut session, "press", "#0/window/menus/View", json!({}));
+    let statistics = path_of(&mut session, "MenuItemCheckBox", "Statistics");
+    act(&mut session, "press", &statistics, json!({}));
+    told(&mut session, "statistics shown");
+    let panel = path_of(&mut session, "Pane", "Statistics");
+    let pane = line(&mut session, &panel).expect("the floating panel");
+    assert!(pane.contains(", expanded"), "{pane}");
+
+    // File's submenu of recent levels, through its item: a level opened, the menus closed.
+    act(&mut session, "press", "#0/window/menus/File", json!({}));
+    let recent = path_of(&mut session, "MenuItem", "Recent");
+    let item = line(&mut session, &recent).expect("the item");
+    assert!(item.contains("has_popup"), "{item}");
+    act(&mut session, "press", &recent, json!({}));
+    let zone = path_of(&mut session, "MenuItem", "zone.scene");
+    act(&mut session, "press", &zone, json!({}));
+    told(&mut session, "open zone.scene");
+    let (menus, _) = session.tool("find_elements", json!({ "role": "Menu" }));
+    assert_eq!(menus, ["no element"], "the menus closed");
 
     // Another tab chosen: its panel shows, the inspector's leaves.
     act(&mut session, "press", "#0/window/tabs/Console", json!({}));

@@ -76,11 +76,14 @@ The tools, each described to the agent by the server itself, with its parameters
 - `find_elements`, `element_at`, `act_on_interface` and `capture_element`: the game's interface, as
   its last frame left it (`docs/adr/0143-what-agents-see-of-the-interface.md`). `find_elements`
   lists its elements of a role, `Button`, and whose names hold a text, each by its path, which names
-  it to the other tools, its role, name, what a field, a slider or two panels hold, its states,
-  where it shows, and what it takes now; `element_at` names the one at a pixel of the image that
-  `capture` gives; `act_on_interface` presses, focuses or scrolls one, gives a field a value as a
-  person who replaced its text and committed would (`docs/adr/0146-screen-readers.md`), and a
-  slider or two panels theirs (`docs/adr/0148-widgets.md`), or moves the focus, accepts,
+  it to the other tools, its role, name, what a field, a slider, two panels or a list to choose
+  from hold, its description, which its tooltip gives, its states, where it shows, and what it
+  takes now;
+  `element_at` names the one at a pixel of the image that `capture` gives; `act_on_interface`
+  presses, focuses or scrolls one, gives a field a value as a person who replaced its text and
+  committed would (`docs/adr/0146-screen-readers.md`), a slider or two panels theirs
+  (`docs/adr/0148-widgets.md`), and a list to choose from an option (`docs/adr/0150-layers.md`);
+  menus, their bar and floating panels are pressed as buttons are; or it moves the focus, accepts,
   cancels or gives a command, as keys do; `capture_element` gives the part of the image where one
   shows.
 - `read_logs`: the lines of the game's log after a given line.
