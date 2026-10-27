@@ -81,6 +81,12 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   (`Element::prefix`), its units, which it converts as they are typed (`Element::units`,
   `tree::Units`), and the expressions that it reads; the box of a section's header
   (`Element::section_header`); tooltips of a title and a text (`Element::help`, `tree::Tooltip`).
+- What the editor tells and finds (`docs/adr/0151-rich-widgets.md`): notifications stacked at
+  the window's bottom end (`Ui::notify`, `tree::Notification`); the palette of commands, which
+  finds a program's commands by name and gives the chosen one as a shortcut's command
+  (`Ui::open_palette`, `tree::PaletteCommand`); the sheet of shortcuts
+  (`Ui::open_shortcut_sheet`); a command's chord and the shortcuts by scope (`Ui::command_chord`,
+  `Ui::shortcuts`).
 - `look`, built only with the feature `editor-look`, is the editor's look, made for the editor and
   the dev overlay, and drawn by the `widgets` example: its fonts, Geist and Geist Mono, and
   Lucide's icons (`look::register_fonts`, `look::icon`), its style sheet (`look::style_sheet`), and

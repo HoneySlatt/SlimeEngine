@@ -792,6 +792,11 @@ as high as the camera's height, as wide as its aspect makes it, from its near pl
 beyond which nothing is seen ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)). See
 *reversed depth*.
 
+**Notification.** A short message that a program gives the interface, which stacks it at the
+window's bottom end and takes it away after a time that its kind sets, information, success,
+warning or error; screen readers read it as it comes (`Ui::notify`,
+[ADR-0151](adr/0151-rich-widgets.md)).
+
 **Overlay (dev).** Panels drawn over the engine's frames with egui, to show statistics and
 tooling over a running application (`slime_devui::Overlay`,
 [ADR-0031](adr/0031-dev-overlay-with-egui.md)). Drawn with egui until Stage 6b rewrites it on the
@@ -808,6 +813,11 @@ kept and reported ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
 *meshes*, each in a range of its own, so that draws of different meshes bind no other buffer: a
 renderer and its loads place their meshes in its pages (`slime_render::Mesh`,
 [ADR-0117](adr/0117-frustum-culling-and-instancing.md)).
+
+**Palette of commands.** A layer that the interface opens over a window, a field and a list, which
+finds every command that the program names by the letters typed, in their order, and gives the
+chosen one to the program as a shortcut gives its command (`Ui::open_palette`,
+[ADR-0151](adr/0151-rich-widgets.md)).
 
 **Partial value.** A *value* that leaves some of its fields out, those of its structs and variants
 at any depth, its tuples, lists and options whole: what changed of a value, as a save holds it. An

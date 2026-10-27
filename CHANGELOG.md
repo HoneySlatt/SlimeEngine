@@ -8,6 +8,14 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- What the editor tells and finds (ADR-0151): notifications that the interface stacks at the
+  window's bottom end, of a kind that sets how long they stay, with a bar of progress and buttons
+  that give commands, read by screen readers as they come (`Ui::notify`, `Notification`); the
+  palette of commands, which finds the commands that a program names by what is typed and gives
+  the chosen one as a shortcut's command (`Ui::open_palette`, `PaletteCommand`); the sheet of
+  shortcuts (`Ui::open_shortcut_sheet`); a command's chord and the shortcuts by scope
+  (`Ui::command_chord`, `Ui::shortcuts`). The example `widgets` tells of a level made or saved,
+  and opens the palette with Ctrl+Shift+P and the sheet with F1.
 - Rich fields (ADR-0151): a field's placeholder (`Element::placeholder`), buttons that toggle
   (`Element::toggle_button`), controls of segments (`Element::segments`), bars of progress
   (`Element::progress`), a tab's count (`Element::counted_tab`), fields of search
