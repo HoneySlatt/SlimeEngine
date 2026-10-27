@@ -15,11 +15,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   screen readers as the rest of the presentation's interface; the editors of reflected values
   (`slime_devui::ValueEditor`), whose fields change a value only when the user changed it, an
   angle in radians shown in degrees, and the world panel (`slime_devui::WorldPanel`), whose list
-  builds only the rows that show, its frame over 100 000 entities costing what one over a few does
-  (benchmark `devui.world_panel.100k`); the look styles their rows, links, heading and refusal.
+  builds only the rows that show, its frames standing still or scrolled over 100 000 entities
+  costing what one over a few does, while a frame after an entity is renamed, spawned or despawned
+  reads every name again, about 7 ms at 100 000 (benchmark `devui.world_panel.100k`); the look
+  styles their rows, links, heading and refusal. Escape, while one of its panels holds the focus,
+  gives the keys back to the game.
 - F6 and Shift+F6 move the focus from one root of an interface to the next, then give it back to
   the program, and an interface that a game holds takes Tab only once it holds a focus that takes
-  the keys (`Ui::set_tab_enters`, ADR-0153).
+  the keys (`Ui::set_tab_enters`, ADR-0153). A focus that a press gave to a button, a check box, a
+  slider, a segment, a tab, a color well or a floating panel takes no keys: they reach the program,
+  unless the focus lies in a menu, a list or a dialog, or the widget's layer is open (ADR-0152); the
+  program's and an agent's focus takes them. A floating panel takes no focus as it opens, and gives
+  it to nothing as it closes; a held key gives a shortcut's command once.
 - Color wells (ADR-0152): a swatch that opens a picker below it, a square of saturation and value,
   strips of hue and alpha, the channels and the hexadecimal code, the program reading the color as
   a value (`Element::color_well`, `FieldValue::Color`), which the dev overlay's editors edit colors
@@ -83,9 +90,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   and a handle between them, and scroll bars over a box that scrolls and a list, each an element
   kind of `slime-ui` that keeps its state in the tree, with its meaning, which agents and screen
   readers read, and its actions; `style::ControlStyle` styles their parts apart from their box.
-  `slime-input`'s `CursorShape` gains `ResizeVertical`. The editor's look, `slime_ui::look` with the
-  feature `editor-look`, made for the editor and the dev overlay: the fonts Geist and Geist Mono,
-  and a style sheet and a dark theme. The example `widgets` draws a panel of the editor's kind in
+  The editor's look, `slime_ui::look` with the feature `editor-look`, made for the editor and the
+  dev overlay: the fonts Geist and Geist Mono, and a style sheet and a dark theme. The example `widgets` draws a panel of the editor's kind in
   that look, every widget in it, in a window or into an image; CI's Windows artifact carries it,
   with the fonts' license. The MCP server's tools name the widgets' roles, states and values.
 - Screen readers (ADR-0146): with `slime-app`'s and `slime-platform`'s `accessibility` feature,
@@ -233,48 +239,20 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
-- A focus that a press gave to a button, a check box, a slider, a segment, a tab, a color well or a
-  floating panel takes no keys: they reach the program, as egui's overlay left them, unless the
-  focus lies in a menu, a list or a dialog, or the widget's layer is open (ADR-0152); in an
-  interface that lets Tab in, Tab goes on from it. The focus that the program gives
-  (`Ui::set_focus`) shows and takes the keys, as an agent's does. A floating panel takes no focus
-  as it opens, and gives the focus to nothing as it closes. A held key gives a shortcut's command
-  once, its repeats giving none. A field that does not hold the focus shows the start of its text.
-  Escape, while the dev overlay holds the focus, gives the keys back to the game.
 - *Hunna Wood*'s dev overlay is in its development build alone, with the `development` feature:
   its build for shipping holds neither the overlay nor the editor's look. Its panel of statistics
   shows the instances that the draw calls draw, as the `scene` example's does.
-- `Kind::TextField` holds whether it is a field of search, `Kind::NumberField` its prefix and its
-  units and `Kind::Tab` its count; `Element::tooltip` holds a `Tooltip`; `Style::icons` names a
-  magnifier and a cross too. A field of numbers reads what is typed as an expression, and gives
-  its unit's symbol in its meaning's value.
-- `Ui::chosen_tab` is `Ui::chosen`, which gives a list to choose from's choice too. A floating
-  layer takes its own size; a press on it raises it above the other roots, which changes their
-  numbers in paths.
-- `Ui::set_style` takes a list of themes, stacked; `look::theme` is `look::themes`. The look's
-  colors are a palette and roles computed from it, its dark theme's colors changed a little.
-
-- With the `accessibility` feature, a window is made hidden and shown once AccessKit's adapter is
-  made, on X11 and Windows. The log's default filter keeps zbus at `warn`.
-- `Ui::pointer_button`, `Ui::key` and `Ui::wheel` give whether the interface took the event; an
-  `Action` is no longer `Eq`, its kinds holding numbers; a text's look (`TextLook`) gains the fill
-  of a field's selection. `Presentation::on_event` receives only the events that the presentation's
-  interface did not take, and a program no longer gives the window's events to its interface: the
-  example `interface` no longer does.
+- `slime_devui::Overlay` and `slime_devui::WorldPanel` keep their names and are rewritten on
+  `slime-ui` (ADR-0152): the overlay is roots of the presentation's interface, its panels added
+  with `Overlay::add_panel` and drawn by `Overlay::draw` with the view's renderer;
+  `WorldPanel::show` is `WorldPanel::build` and `WorldPanel::act`.
+- `Presentation::on_event` receives only the events that the presentation's interface
+  (`Presentation::ui`) did not take: `slime-app` gives the window's events to the interface first.
 - The development channel's protocol is at version 9, with the editor's and the interface's
-  requests, a field's value among them. `slime-app` depends on `slime-ui`, and
-  `slime_ui::tree::Element` gains `role` and `name`.
+  requests, a field's value among them; a tool of an earlier version is refused by a game of this
+  one, and the reverse. `slime-app` depends on `slime-ui`.
 - `slime-platform`'s input types live in `slime-input`, which it re-exports: their paths through
-  `slime-platform` are unchanged. `RootSettings` gains `origin` and `modal`.
-  `slime_ui::theme::StyleError` is `slime_ui::DocumentError`, which tables of shortcuts share; the
-  cooker's `CookError::Style` is `CookError::Interface`, and `STYLE_COOKER_VERSION` is
-  `INTERFACE_COOKER_VERSION`. In the example `interface`, Escape closes the dialog, and stops the
-  program only when nothing is open.
-- A button's looks in its states are rules of a style sheet: `ButtonStates` is gone, and
-  `Element::button` takes a label and a style.
-- `slime_ui::Rect`, at the crate's root, gives a rectangle by its top left corner and its size, as
-  the canvas does: the text's carets and selections give it so, where they gave edges.
-- `TextCache::get` gives its texts shared, as `Arc<TextLayout>`; `TextLayout` can be cloned.
+  `slime-platform` are unchanged. The log's default filter keeps zbus at `warn`.
 - The high hardware tier draws at 3840 × 2160 (ADR-0138), and the render benchmarks measure it
   there, rather than at 2560 × 1440.
 - A window whose images cannot be seen without their sRGB encoding, Vulkan without
@@ -286,13 +264,6 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The commands that a host receives, from its presentation, the dev overlay or a tool's
   `set_property`, go through `Simulation::apply`, so that a simulation that applies them its own
   way, as the editor does, receives them all.
-- A tool of an earlier version of the development channel's protocol is refused by a game of this
-  one, and the reverse.
-- A label takes the presses that fall on its glyphs alone: aligned to its start, no longer those
-  across the rest of its box; centred or aligned to its end, no longer those past it. A slider's
-  value on its steps, and a field of numbers' dragged, keep the decimals of their step and of their
-  start, and no more: steps of `0.1` give `0.6`, not `0.6000000000000001`, and `1.25` dragged four
-  tenths up gives `1.65`, not `1.7`.
 
 ### Removed
 
@@ -302,6 +273,20 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The `wgpu` feature of `slime-gfx` gives the engine's own tests the device alone
   (`Gpu::wgpu_device`): `Gpu::wgpu_queue`, `RenderPass::wgpu_pass`, `TextureFormat::wgpu_format`
   and the re-export of wgpu, which the overlay drew egui with, are gone.
+
+### Known limitations
+
+[`docs/PLAN.md`](docs/PLAN.md#known-debt) lists the known debt; the most notable:
+
+- The editor has its core and its program, driven by agents, but no window: docking, dialogs to
+  open and save files, drag and drop, the viewport and the inspector come with Stage 6c.
+- The dev overlay's world panel reads every name again in the frame after an entity is renamed,
+  spawned or despawned, about 7 ms at 100 000 entities. Its look is built into the program.
+- Screen readers find no modal dialog marked as such; no check of CI runs a screen reader itself.
+- On Linux, the system's preference of a dark or a light scheme is not read: the look stays dark.
+- `deny.toml` ignores three advisories of unmaintained crates that AccessKit's adapter on Linux
+  brings through zbus 5.
+- Games keep the adapter of screen readers out of their build until Stage 7.
 
 ## [0.5.0] - 2026-10-22
 
