@@ -111,6 +111,12 @@ fn primitives(
             }),
             None,
         )),
+        // A part of a color's picker: its marks at its edges show whole, past its box.
+        Kind::ColorPart(_) => {
+            for primitive in ui.control_primitives(id) {
+                primitives.push((primitive, None));
+            }
+        }
         Kind::TextField { .. } | Kind::NumberField { .. } => {
             for primitive in ui.field_primitives(id) {
                 primitives.push((primitive, Some(content)));
@@ -127,7 +133,6 @@ fn primitives(
         | Kind::Choice { .. }
         | Kind::Progress { .. }
         | Kind::ColorWell { .. }
-        | Kind::ColorPart(_)
         | Kind::Tab { .. } => {
             for primitive in ui.control_primitives(id) {
                 primitives.push((primitive, Some(content)));

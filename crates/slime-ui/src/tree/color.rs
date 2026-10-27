@@ -162,6 +162,9 @@ pub(super) struct Picker {
     channels: [ElementId; 4],
     code: ElementId,
     revision: u64,
+    /// The color, the hue and the saturation that the picker was built for: the program giving the
+    /// well another color builds it again.
+    shown: (LinearColor, f32, f32),
 }
 
 impl Ui {
@@ -186,12 +189,23 @@ impl Ui {
         }
     }
 
-    /// A press of the color well `id`: its picker opens below it, or closes when it is open.
+    /// A press of the color well `id`: its picker opens below it, the picker of another well
+    /// closing, and its square taking the focus where the keyboard pressed it; or closes when it is
+    /// open.
     pub(super) fn press_well(&mut self, id: ElementId) {
         if let Some(picker) = self.owned_layer(id) {
             self.close_layer(picker, true);
             return;
         }
+        // One picker at a time.
+        if let Some(open) = self
+            .picker
+            .as_ref()
+            .and_then(|picker| self.owned_layer(picker.well))
+        {
+            self.close_layer(open, true);
+        }
+        let by_pointer = self.interaction.by_pointer;
         let layer = Layer {
             place: Place::Beside {
                 element: id,
@@ -208,9 +222,14 @@ impl Ui {
             channels: [root; 4],
             code: root,
             revision: 0,
+            shown: (LinearColor::BLACK, 0.0, 0.0),
         });
         self.build_picker();
         self.change_state(id, |state| state.expanded = true);
+        // The keyboard finds the square under the focus.
+        if !by_pointer && let Some(&square) = self.picker.as_ref().and_then(|p| p.parts.first()) {
+            self.set_focus(Some(square));
+        }
     }
 
     /// Builds the open picker again, from its well's color.
@@ -281,8 +300,12 @@ impl Ui {
                 },
             );
         });
+        let shown = self
+            .well_hsva(well)
+            .map_or((color, 0.0, 0.0), |held| (color, held.h, held.s));
         if let Some(picker) = self.picker.as_mut() {
             picker.revision = revision;
+            picker.shown = shown;
             picker.parts = parts;
             if let [r, g, b, a] = fields[..] {
                 picker.channels = [r, g, b, a];
@@ -398,7 +421,18 @@ impl Ui {
             ColorPart::Hue => hsva.h = across * 360.0,
             ColorPart::Alpha => hsva.a = across,
         }
-        self.set_color(well, hsva.color(), hsva, false);
+        let color = self.picked(well, part, hsva);
+        self.set_color(well, color, hsva, false);
+    }
+
+    /// The color that the part `part` of the picker of `well` picks, as `hsva` says: the strip of
+    /// alpha changes the alpha of the well's color alone, its channels kept as they are, past 1
+    /// included; the square and the strip of hue give the color of `hsva`.
+    fn picked(&self, well: ElementId, part: ColorPart, hsva: Hsva) -> LinearColor {
+        match (part, self.color(well)) {
+            (ColorPart::Alpha, Some(held)) => LinearColor { a: hsva.a, ..held },
+            _ => hsva.color(),
+        }
     }
 
     /// The pointer let go of the part `id` of a picker, which it held: its well's color committed.
@@ -449,18 +483,22 @@ impl Ui {
             ColorPart::Hue => hsva.h = (hsva.h + (across + up) * 360.0).clamp(0.0, 360.0),
             ColorPart::Alpha => hsva.a = (hsva.a + across + up).clamp(0.0, 1.0),
         }
-        self.set_color(well, hsva.color(), hsva, true);
+        let color = self.picked(well, part, hsva);
+        self.set_color(well, color, hsva, true);
         true
     }
 
-    /// Turns the actions of the open picker's fields into its well's: a channel or a hexadecimal
-    /// code committed sets the color, which the program reads as the well's; what the fields hold
-    /// as they are typed in never reaches it. A code that names no color is given back.
+    /// Turns the actions of the open picker's elements into its well's: a channel or a hexadecimal
+    /// code committed sets the color, which the program reads as the well's; a channel that is no
+    /// finite number, below 0, or an alpha past 1, and a code that names no color, are given back.
+    /// Nothing else that the picker's elements do reaches the program, what its fields hold as they
+    /// are typed in nor what its parts are asked.
     pub(super) fn settle_picker_actions(&mut self) {
         let Some(picker) = self.picker.as_ref() else {
             return;
         };
         let (well, channels, code) = (picker.well, picker.channels, picker.code);
+        let parts = picker.parts.clone();
         let actions = std::mem::take(&mut self.interaction.actions);
         let mut kept = Vec::with_capacity(actions.len());
         for action in actions {
@@ -469,7 +507,7 @@ impl Ui {
                 continue;
             };
             let channel = channels.iter().position(|&each| each == element);
-            if channel.is_none() && element != code {
+            if channel.is_none() && element != code && !parts.contains(&element) {
                 kept.push(action);
                 continue;
             }
@@ -478,22 +516,54 @@ impl Ui {
             };
             match (channel, &action.kind) {
                 (Some(place), ActionKind::Committed(FieldValue::Number(number))) => {
-                    let mut values = [color.r, color.g, color.b, color.a];
-                    values[place] = *number as f32;
-                    let [r, g, b, a] = values;
-                    self.commit_color(well, LinearColor::rgba(r, g, b, a));
-                }
-                (None, ActionKind::Committed(FieldValue::Text(text))) => match parse_hex(text) {
-                    Some(color) => {
-                        self.commit_color(well, color);
+                    let number = *number as f32;
+                    let most = if place == 3 { 1.0 } else { f32::MAX };
+                    if number.is_finite() && (0.0..=most).contains(&number) {
+                        let mut values = [color.r, color.g, color.b, color.a];
+                        values[place] = number;
+                        let [r, g, b, a] = values;
+                        self.commit_color(well, LinearColor::rgba(r, g, b, a));
+                    } else {
+                        self.build_picker();
                     }
-                    None => self.build_picker(),
-                },
+                }
+                (None, ActionKind::Committed(FieldValue::Text(text))) if element == code => {
+                    match parse_hex(text) {
+                        Some(color) => {
+                            self.commit_color(well, color);
+                        }
+                        None => self.build_picker(),
+                    }
+                }
                 _ => {}
             }
             kept.append(&mut self.interaction.actions);
         }
         self.interaction.actions = kept;
+    }
+
+    /// The picker's layer `root` closes: the field that the user typed in, holding the focus,
+    /// commits, the part that the pointer drags commits its color, and what they did becomes the
+    /// well's before the picker is forgotten.
+    pub(super) fn picker_closing(&mut self, root: ElementId) {
+        let Some(well) = self.picker.as_ref().map(|picker| picker.well) else {
+            return;
+        };
+        if self.owned_layer(well) != Some(root) {
+            return;
+        }
+        if let Some(field) = self.focused_field()
+            && self.root_of(field) == Some(root)
+        {
+            self.commit(field);
+        }
+        if let Some(captured) = self.interaction.captured
+            && self.part_of(captured).is_some()
+        {
+            self.interaction.captured = None;
+            self.part_release(captured);
+        }
+        self.settle_picker_actions();
     }
 
     /// Forgets the picker of the color well `well`, whose layer closed.
@@ -503,8 +573,30 @@ impl Ui {
             .as_ref()
             .is_some_and(|picker| picker.well == well)
         {
+            self.settle_picker_actions();
             self.picker = None;
         }
+    }
+
+    /// Builds the open picker again where its well's color, hue or saturation is no longer what it
+    /// shows, as when the program gave the well another: run before a frame lays out.
+    pub(crate) fn settle_picker(&mut self) {
+        let Some(picker) = self.picker.as_ref() else {
+            return;
+        };
+        let well = picker.well;
+        let (Some(color), Some(held)) = (self.color(well), self.well_hsva(well)) else {
+            return;
+        };
+        let (shown, hue, saturation) = picker.shown;
+        if same(shown, color) && hue == held.h && saturation == held.s {
+            return;
+        }
+        for part in picker.parts.clone() {
+            self.mark_paint(part);
+            self.mark_meaning(part);
+        }
+        self.build_picker();
     }
 
     /// What screen readers and agents read of the part `id` of a picker: its value, the square's

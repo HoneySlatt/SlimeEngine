@@ -433,6 +433,8 @@ impl Ui {
     /// to what held it as it opened; `dismissed` when the user left it, which tells the program,
     /// for a layer that it opened.
     pub(crate) fn close_layer(&mut self, root: ElementId, dismissed: bool) {
+        // A color well's picker gives the well what was typed or dragged in it first.
+        self.picker_closing(root);
         let Some(held) = self.node_mut(root).and_then(|node| node.layer.take()) else {
             return;
         };

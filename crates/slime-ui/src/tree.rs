@@ -375,17 +375,21 @@ pub enum Kind {
     /// A color well (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`): a swatch of its
     /// color, over a checkerboard where its alpha shows it, which a press, or Enter or Space while it
     /// holds the focus, opens a picker below, in a layer of its own, as a list to choose from opens
-    /// its list. The picker holds a square of saturation and value, a strip of hue and one of alpha
+    /// its list, the picker of another well closing; the keyboard finds the picker's square under
+    /// the focus. The picker holds a square of saturation and value, a strip of hue and one of alpha
     /// ([`Kind::ColorPart`]), each dragged by the pointer and moved by the arrows, the color's four
     /// channels as fields of numbers, shown to three decimals, and its hexadecimal code, which gives
-    /// it whole; Escape, a press outside or a press on
-    /// the well closes it. Hue, saturation and value are read on the color's sRGB encoding, and the
-    /// well keeps the hue of a gray and the saturation of black, which the color cannot give back; a color past 1 in a channel
-    /// is held within 0 and 1 by an edit of its hue, saturation or value, not by one of its
-    /// channels. It keeps the user's color, which the program reads as actions
-    /// ([`FieldValue::Color`](crate::action::FieldValue::Color)), changed while the pointer drags
-    /// and committed once it lets go or a field commits, under a check box's rule; rules select it
-    /// open by the state `Expanded`.
+    /// it whole; Escape, a press outside or a press on the well closes it, the field typed in
+    /// committing and the part dragged committing its color. Hue, saturation and value are read on
+    /// the color's sRGB encoding, and the well keeps the hue of a gray and the saturation of black,
+    /// which the color cannot give back. The square and the strip of hue hold the color within 0
+    /// and 1; the strip of alpha changes its alpha alone; a field of a channel takes a finite number
+    /// from 0, past 1 too, an alpha up to 1, and gives back another, as the field of the code gives
+    /// back a text that names no color. It keeps the user's color, which the program reads as
+    /// actions ([`FieldValue::Color`](crate::action::FieldValue::Color)), changed while the pointer
+    /// drags and committed once it lets go or a field commits, under a check box's rule; the open
+    /// picker shows the program's color as it gives another. Rules select it open by the state
+    /// `Expanded`.
     ColorWell {
         /// Its color, as the program gives it.
         color: LinearColor,
@@ -400,9 +404,10 @@ pub enum Kind {
 pub enum ColorPart {
     /// The square of saturation, along it, and value, up it, in the well's hue.
     Square,
-    /// The strip of hue, from 0° at its start to 360° at its end.
+    /// The strip of hue, from 0° at its left to 360° at its right, whatever the direction of its
+    /// root: colors are not text.
     Hue,
-    /// The strip of alpha, from clear at its start to opaque at its end.
+    /// The strip of alpha, from clear at its left to opaque at its right.
     Alpha,
 }
 
@@ -1490,6 +1495,7 @@ impl Ui {
         self.settle_rest();
         self.settle_notices();
         self.settle_palette();
+        self.settle_picker();
         // Layers take their surface from the root that they stand over, those whose anchor went
         // close, and those opened by the keyboard give their first element the focus.
         self.settle_layers();

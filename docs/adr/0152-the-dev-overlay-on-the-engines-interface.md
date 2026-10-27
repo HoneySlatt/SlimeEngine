@@ -128,11 +128,10 @@ checked apart: the first by tests alone, the second by hand in the programs.
 *color well*, a swatch of the color that a press opens, in a layer beside it that the well owns, as
 a list to choose from opens its list. The layer holds a square of saturation and value, a strip of
 hue and one of alpha, each dragged by the pointer and moved by the arrows, the four channels as
-fields, shown to three decimals, and the hexadecimal code, which gives the color whole. The
-program's color is linear; hue, saturation and value are read on its sRGB encoding, as every picker
-and the hexadecimal code read them, the well keeping the hue of a gray and the saturation of black,
-which the color cannot give back. The program reads the color as actions, changed while the pointer
-drags and committed once it lets go or a field commits, under a check box's rule.
+fields, and the hexadecimal code. The program's color is linear; hue, saturation and value are read
+on its sRGB encoding, as every picker and the hexadecimal code read them, the well keeping the hue
+of a gray that it cannot read back. The program reads the color as actions, changed while the
+pointer drags and committed once it lets go or a field commits, under a check box's rule.
 
 **Gradients in the canvas.** The square and the strips are gradients, which the canvas did not
 draw: a box of the display list, and the canvas's, may take a color at each corner in place of its

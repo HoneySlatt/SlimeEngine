@@ -268,3 +268,169 @@ fn an_agent_gives_a_code_and_the_program_s_color_replaces_the_user_s_when_it_cha
     let meaning = well.ui.meaning_of(well.well).expect("drawn");
     assert_eq!(meaning.value.as_deref(), Some("#ff0000"));
 }
+
+#[test]
+fn the_keyboard_opens_the_picker_on_its_square_and_moves_through_it() {
+    let mut well = Well::new(srgb(255, 0, 0));
+    well.ui.set_focus(Some(well.well));
+    well.key(NamedKey::Enter);
+    let square = well.find(Role::Slider, "saturation and value").id;
+    assert_eq!(well.ui.focus(), Some(square));
+    well.key(NamedKey::ArrowLeft);
+    let colors = well.colors();
+    assert_eq!(colors.last().map(|(what, _)| *what), Some("committed"));
+    // Tab moves on to the strips and the fields; Enter there reaches nothing of the program.
+    well.key(NamedKey::Tab);
+    assert_eq!(well.ui.focus(), Some(well.find(Role::Slider, "hue").id));
+    well.key(NamedKey::Enter);
+    assert!(well.ui.take_actions().is_empty());
+}
+
+#[test]
+fn what_is_typed_in_a_field_is_committed_as_the_picker_closes() {
+    let mut well = Well::new(LinearColor::WHITE);
+    well.click_well();
+    let red = well.find(Role::SpinButton, "red").id;
+    well.ui.set_focus(Some(red));
+    well.ui.key(&KeyEvent {
+        physical: KeyCode::Unidentified,
+        logical: Key::Named(NamedKey::Home),
+        text: None,
+        state: ButtonState::Pressed,
+        repeat: false,
+    });
+    for character in ["0", "."] {
+        well.ui.key(&KeyEvent {
+            physical: KeyCode::Unidentified,
+            logical: Key::Character(character.into()),
+            text: Some(character.into()),
+            state: ButtonState::Pressed,
+            repeat: false,
+        });
+    }
+    let typed: f32 = well
+        .ui
+        .field_text(red)
+        .and_then(|text| text.parse().ok())
+        .expect("a number typed");
+    assert_ne!(typed, 1.0);
+    // A press outside the picker, in two frames: the field commits, the well reads it.
+    well.ui.pointer_moved(590.0, 490.0);
+    well.ui
+        .pointer_button(MouseButton::Left, ButtonState::Pressed);
+    well.ui.frame();
+    well.ui
+        .pointer_button(MouseButton::Left, ButtonState::Released);
+    well.ui.frame();
+    assert!(!well.ui.state(well.well).expect("there").expanded);
+    let colors = well.colors();
+    assert_eq!(colors.last().map(|(what, _)| *what), Some("committed"));
+    assert_eq!(well.ui.color(well.well).map(|color| color.r), Some(typed));
+    // A press on the well while a field holds an edit, press and release in one frame.
+    well.click_well();
+    let green = well.find(Role::SpinButton, "green").id;
+    assert!(well.ui.set_value(green, "0.5"));
+    well.ui.take_actions();
+    let blue = well.find(Role::SpinButton, "blue").id;
+    well.ui.set_focus(Some(blue));
+    well.ui.key(&KeyEvent {
+        physical: KeyCode::Unidentified,
+        logical: Key::Character("5".into()),
+        text: Some("5".into()),
+        state: ButtonState::Pressed,
+        repeat: false,
+    });
+    let rect = well.ui.rect(well.well).expect("laid out");
+    well.ui.pointer_moved(rect.x + 10.0, rect.y + 10.0);
+    well.ui
+        .pointer_button(MouseButton::Left, ButtonState::Pressed);
+    well.ui
+        .pointer_button(MouseButton::Left, ButtonState::Released);
+    // `colors` refuses any action that is not the well's color.
+    let colors = well.colors();
+    assert_eq!(colors.last().map(|(what, _)| *what), Some("committed"));
+}
+
+#[test]
+fn a_drag_cut_by_escape_is_committed_and_the_alpha_strip_keeps_the_channels() {
+    // Channels past 1, as a light's color may hold.
+    let bright = LinearColor::rgba(4.0, 2.0, 1.0, 1.0);
+    let mut well = Well::new(bright);
+    well.click_well();
+    let alpha = well.find(Role::Slider, "alpha").bounds.expect("drawn");
+    well.ui
+        .pointer_moved(alpha.x + alpha.width / 2.0, alpha.y + 4.0);
+    well.ui
+        .pointer_button(MouseButton::Left, ButtonState::Pressed);
+    well.ui
+        .pointer_moved(alpha.x + alpha.width / 4.0, alpha.y + 4.0);
+    well.key(NamedKey::Escape);
+    well.ui
+        .pointer_button(MouseButton::Left, ButtonState::Released);
+    well.ui.frame();
+    let colors = well.colors();
+    let (what, color) = *colors.last().expect("a commit");
+    assert_eq!(what, "committed");
+    assert_eq!((color.r, color.g, color.b), (4.0, 2.0, 1.0));
+    assert!((color.a - 0.25).abs() < 0.02, "{color:?}");
+}
+
+#[test]
+fn a_channel_out_of_its_range_is_given_back() {
+    let mut well = Well::new(LinearColor::rgb(0.5, 0.5, 0.5));
+    well.click_well();
+    let green = well.find(Role::SpinButton, "green").id;
+    for wrong in ["-3", "1e300"] {
+        assert!(well.ui.set_value(green, wrong));
+        assert!(well.colors().is_empty(), "{wrong}");
+        well.ui.frame();
+        assert_eq!(well.ui.field_text(green), Some("0.5"), "{wrong}");
+    }
+    let alpha = well.find(Role::SpinButton, "alpha channel").id;
+    assert!(well.ui.set_value(alpha, "2"));
+    assert!(well.colors().is_empty());
+    // Past 1 in a color's channel, as a light's.
+    assert!(well.ui.set_value(green, "3"));
+    assert_eq!(
+        well.colors().last(),
+        Some(&("committed", LinearColor::rgb(0.5, 3.0, 0.5)))
+    );
+}
+
+#[test]
+fn the_open_picker_shows_the_color_that_the_program_gives_and_one_picker_opens_at_once() {
+    let mut well = Well::new(srgb(255, 0, 0));
+    well.click_well();
+    well.build(srgb(0, 0, 255));
+    let code = well.find(Role::TextInput, "hexadecimal code").id;
+    assert_eq!(well.ui.field_text(code), Some("#0000ff"));
+    let hue = well.find(Role::Slider, "hue");
+    assert_eq!(hue.value.as_deref(), Some("240°"));
+    // A second well: its picker opens, the first one's closes.
+    let mut style = Style::default();
+    style.layout.size = [Dimension::Pixels(60.0), Dimension::Pixels(20.0)];
+    style.layout.align_self = Some(slime_ui::style::Align::Start);
+    let (mut first, mut second) = (None, None);
+    well.builds += 1;
+    let builds = well.builds;
+    well.ui.build(well.root, builds, |children| {
+        let tint = Element::color_well(srgb(0, 0, 255), style.clone()).named("tint");
+        first = Some(children.add("tint", tint, |_| {}));
+        let glow = Element::color_well(srgb(0, 255, 0), style.clone()).named("glow");
+        second = Some(children.add("glow", glow, |_| {}));
+    });
+    well.ui.frame();
+    let (first, second) = (first.expect("built"), second.expect("built"));
+    well.ui.set_focus(Some(second));
+    well.ui.act(slime_ui::action::Action {
+        element: Some(second),
+        kind: ActionKind::Press,
+    });
+    well.ui.frame();
+    assert!(well.ui.state(second).expect("there").expanded);
+    assert!(!well.ui.state(first).expect("there").expanded);
+    assert_eq!(
+        well.find(Role::Slider, "hue").value.as_deref(),
+        Some("120°")
+    );
+}
