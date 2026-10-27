@@ -89,18 +89,14 @@ jobs:
       # The tests run one at a time: WARP's shader compiler crashes the process, now and then, when
       # several threads compile shaders at once, even on separate devices (an access violation in
       # d3d10warp.dll, which no test can catch; seen in other projects too). Without failing fast,
-      # every image test runs, and the last step publishes the image of each one that fails.
+      # every image test runs, and the last step publishes the image of each one that fails. Their
+      # output is not captured, so that the log shows what only this job can tell of WARP: the
+      # difference that each image test measured against its reference, the GPU timing and
+      # multi-pass tests' times, the renderer's shaders made again, and the device's limits. The
+      # panics that tests expect show there too. Running those tests again with `-p` to print
+      # them built the workspace again, with the features of those packages alone.
       - name: Tests
-        run: cargo test --workspace --locked --no-fail-fast -- --test-threads=1
-      # The image tests print the difference they measured against the reference, which only this
-      # job can tell for WARP; the step above has run them already.
-      - name: Image tests, printing their measurements
-        run: cargo test --locked -p slime-examples -- --nocapture --test-threads=1
-      - name: GPU timing and multi-pass tests, the renderer's shaders made again, and the device's limits, printing what WARP measures and offers
-        run: |
-          cargo test --locked -p slime-gfx --test timing --test passes -- --nocapture --test-threads=1
-          cargo test --locked -p slime-gfx --lib -- the_device_opens_above_the_floor_and_prints_its_limits --nocapture
-          cargo test --locked -p slime-render --test shaders -- --nocapture --test-threads=1
+        run: cargo test --workspace --locked --no-fail-fast -- --nocapture --test-threads=1
       - name: Headless samples
         run: |
           cargo run --locked --example headless -- --frames 600

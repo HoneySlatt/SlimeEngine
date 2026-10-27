@@ -343,11 +343,10 @@ and `scripts/check.sh game`,
 everything that reads the sample game's zone, which it fetches and cooks first: the tests that read
 it, the agent's session with its editor, and the game's runs in a headless Weston compositor; without
 an argument, the script runs the three, one after the other. Two Windows jobs run beside them
-([ADR-0104](docs/adr/0104-the-build-ci-and-measurements.md)). The first, `windows`, runs the tests,
-then the image tests, the GPU timing test, the multi-pass test, the test of the device's limits and
-the test that makes the renderer's shaders again with `--nocapture` so that its log shows what they
-measured on WARP, then the headless samples, fetches and cooks the sample game's zone and runs the
-tests that read it. It runs the tests one at a time (`--test-threads=1`): WARP's shader compiler
+([ADR-0104](docs/adr/0104-the-build-ci-and-measurements.md)). The first, `windows`, runs the tests
+with `--nocapture`, so that its log shows what the image tests, the GPU timing test and the
+multi-pass test measured on WARP, the renderer's shaders made again and the device's limits, then
+the headless samples, fetches and cooks the sample game's zone and runs the tests that read it. It runs the tests one at a time (`--test-threads=1`): WARP's shader compiler
 crashes the process, now and then, when several threads compile shaders at once. It does not stop at
 the first test program that fails, and when a step fails, it publishes the images that the failing
 image tests rendered on WARP, as an artifact named `image-test-failures-windows`. The second,
