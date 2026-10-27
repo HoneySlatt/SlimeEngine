@@ -442,7 +442,8 @@ Risks:
   `the_canvas_s_shader_is_replaced_with_the_others_and_a_broken_one_refused`,
   `a_lost_device_stops_the_canvas_and_a_new_renderer_draws_it_again` and
   `the_canvas_s_time_on_the_gpu_comes_back_where_the_adapter_times`; `slime-color`'s doc test of
-  `linear_to_srgb`.
+  `linear_to_srgb`. The owner's check by hand in the Windows virtual machine, on 2026-10-27, passed:
+  `interface.exe` draws in its window on Direct3D 12 as `--output` draws it.
 
 ### M6b.3b — Text drawn, and the display list
 
@@ -864,7 +865,9 @@ Risks:
   root removed below others, now marked. CI is green on `6388a9a`, the feature built, its 52
   crates added: the cooked zone restored from its cache, `check (headless)` took 12 minutes 27
   seconds, `check (windowed)` 13 minutes 36 seconds, `windows` 14 minutes 33 seconds and
-  `windows-release` 15 minutes 27 seconds, all within the limit of 20.
+  `windows-release` 15 minutes 27 seconds, all within the limit of 20. The owner's checks by hand,
+  on 2026-10-27, passed: Orca reads the `interface` example on Linux, and Narrator in the Windows
+  virtual machine.
 
 M6b.7 was to bring every widget that the dev overlay and the editor are made of. Before it started,
 the owner cut it in two on 2026-10-26, along what the widgets stand on: M6b.7a, what a panel holds,
@@ -940,7 +943,8 @@ that the look has a light and a high-contrast theme beside its dark one.
   and chooses a tab, the example reading each change that is the program's. CI is green on
   `c32e682`, the reference images matched on WARP too: `check (headless)` took 16 minutes 1 second,
   `check (windowed)` 17 minutes 28 seconds, `windows` 19 minutes 13 seconds and `windows-release`
-  13 minutes 26 seconds, all within the limit of 20, `windows` the nearest to it.
+  13 minutes 26 seconds, all within the limit of 20, `windows` the nearest to it. The owner's check
+  by hand on Linux, on 2026-10-27, passed.
 
 ### M6b.7b — The look's foundations
 
@@ -1004,7 +1008,9 @@ that the look has a light and a high-contrast theme beside its dark one.
   green on `4498cc8`, the reference images matched on WARP too: `check (headless)` took 18 minutes
   11 seconds, `check (windowed)` 21 minutes 55 seconds, `windows` 21 minutes 39 seconds and
   `windows-release` 18 minutes 12 seconds, two jobs past the limit of 20: `slime-color`, from which
-  the cooker is built, changed, and the zone was cooked again in each job (see the known debt).
+  the cooker is built, changed, and the zone was cooked again in each job (see the known debt). The
+  owner's checks by hand on Linux and in the Windows virtual machine, on 2026-10-27, passed, the
+  colors following the system's dark or light mode there.
 
 ### M6b.7c — Layers
 
@@ -1070,7 +1076,7 @@ that the look has a light and a high-contrast theme beside its dark one.
   bottom from right to left; a press on the root of a layer at a point did not close it; a layer
   over a dialog's root was kept within the dialog, not the window; a raised panel went over its own
   menus, and left screen readers stale paths; Alt after a press hid the bar's focus, and Alt or F10
-  in a bar's menu left it open.
+  in a bar's menu left it open. The owner's check by hand on Linux, on 2026-10-27, passed.
 
 ### M6b.7d — Rich fields
 
@@ -1115,7 +1121,7 @@ that the look has a light and a high-contrast theme beside its dark one.
   `src/tree/expression.rs`, a test of the placeholder in `tests/field.rs`, and `slime-app`'s
   translation of them. CI is green on `f72fc59`: `check (headless)` took 15 minutes 51 seconds,
   `check (windowed)` 11 minutes 13 seconds, `windows` 15 minutes 19 seconds and `windows-release`
-  11 minutes 20 seconds.
+  11 minutes 20 seconds. The owner's check by hand on Linux, on 2026-10-27, passed.
 
 ### M6b.7e — What the editor tells and finds
 
@@ -1156,7 +1162,8 @@ that the look has a light and a high-contrast theme beside its dark one.
   tests: `slime-ui`'s `tests/palette.rs`, the ranking's own tests in `src/tree/palette.rs`, and
   `slime-app`'s translation of notifications as live regions. CI is green on `e8ba52a`:
   `check (headless)` took 15 minutes 38 seconds, `check (windowed)` 18 minutes 14 seconds,
-  `windows` 19 minutes 30 seconds and `windows-release` 15 minutes 30 seconds.
+  `windows` 19 minutes 30 seconds and `windows-release` 15 minutes 30 seconds. The owner's check by
+  hand on Linux, on 2026-10-27, passed.
 
 ### M6b.8 — The dev overlay on the engine's interface
 
@@ -1271,37 +1278,6 @@ The game is run with `--new --save <a file of its own>`, so that the owner's sav
 - **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
   slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
   `af512af` prints.
-- **M6b.3a, in the Windows virtual machine.** `interface.exe` of the `slime-examples-windows`
-  artifact, in its window, on Direct3D 12: the interface drawn as `--output` draws it, its texts in
-  eight writing systems, its list scrolling, the window's images seen without their sRGB encoding,
-  which no check of CI draws in a window ([ADR-0137](adr/0137-the-canvas.md),
-  [ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
-
-- **M6b.7e, on Linux.** The `widgets` example's notifications, Ctrl+N and Ctrl+S, the pointer
-  resting on one, its mark; the palette of commands, Ctrl+Shift+P, typed in, its arrows, Enter and
-  a press; the sheet of shortcuts, F1 ([ADR-0151](adr/0151-rich-widgets.md)).
-- **M6b.7d, on Linux.** The `widgets` example's rich fields
-  ([ADR-0151](adr/0151-rich-widgets.md)): the segments, Snap and the bars of progress; the search
-  over the list of entities; the position's prefixes dragged, finer with Shift and coarser with
-  Control, and given expressions and units, `1m + 20cm`; the light's Reset in its header; the help
-  over the material's properties.
-- **M6b.7c, on Linux.** The `widgets` example's layers ([ADR-0150](adr/0150-layers.md)): the bar
-  of menus with the pointer, passing along it, and with F10, Alt and the arrows; the submenus
-  opening as the pointer rests; the menu of an entity's row at the second button and Shift+F10; the
-  list to choose the quality of shadows from; the tooltips; the floating panel of statistics moved,
-  sized, folded and raised.
-- **M6b.7b, on Linux and in the Windows virtual machine.** The `widgets` example's themes of
-  colors, densities, accents and transitions, switched with T, D, A and M
-  ([ADR-0149](adr/0149-the-looks-foundations.md)); in the Windows virtual machine, its colors
-  following the system's dark or light mode.
-- **M6b.7a, on Linux.** The `widgets` example's widgets, used with the pointer and the keyboard
-  ([ADR-0148](adr/0148-widgets.md)): check boxes, sliders dragged and moved by their keys, sections
-  folded, tabs chosen, handles dragged, the list and the box of properties scrolled by their bars
-  and the wheel, the editor's look at scales 1 and 2.
-- **M6b.6b, on Linux and in the Windows virtual machine.** Orca reads the `interface` example
-  ([ADR-0146](adr/0146-screen-readers.md)): its buttons and texts, the focus that Tab moves, its
-  field's text as the caret moves through it and what is typed; Narrator reads the same in the
-  Windows virtual machine.
 
 ## Releasing
 
