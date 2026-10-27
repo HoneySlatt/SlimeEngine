@@ -158,7 +158,9 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
             meaning.role,
             Role::SpinButton | Role::Slider | Role::Splitter | Role::ProgressIndicator
         ) && let Some(number) = value
-            .trim()
+            .split_whitespace()
+            .next()
+            .unwrap_or_default()
             .parse::<f64>()
             .ok()
             .filter(|number| number.is_finite())

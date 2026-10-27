@@ -254,8 +254,8 @@ fn section_header(ui: &mut Ui, id: ElementId, scale: f32) -> Option<f32> {
 
 /// The room that the field `id` keeps before and after its text, in pixels of the screen at
 /// `scale`: a field of search's magnifier and the mark that empties it, each a control's size and
-/// half of one; a field of numbers' prefix and half a control's size after it. None for another
-/// element.
+/// half of one; a field of numbers' prefix and half a control's size after it, and the symbol of
+/// its unit and half a control's size before it. None for another element.
 fn field_room(ui: &mut Ui, id: ElementId, scale: f32) -> Option<[f32; 2]> {
     let node = ui.node(id)?;
     let control = node.style.control.size * scale;
@@ -265,19 +265,31 @@ fn field_room(ui: &mut Ui, id: ElementId, scale: f32) -> Option<[f32; 2]> {
             multiline: false,
             ..
         } => Some([control * 1.5, control * 1.5]),
-        Kind::NumberField { prefix, .. } if !prefix.is_empty() => {
-            let (prefix, text_style) = (prefix.clone(), node.style.text.style.clone());
-            let width = ui
-                .texts
-                .get(
-                    &mut ui.fonts,
-                    &prefix,
-                    &text_style,
-                    scale,
-                    TextBounds::default(),
-                )
-                .width();
-            Some([width.ceil() + control / 2.0, 0.0])
+        Kind::NumberField { prefix, units, .. }
+            if !prefix.is_empty() || crate::tree::expression::symbol(*units).is_some() =>
+        {
+            let (prefix, suffix, text_style) = (
+                prefix.clone(),
+                crate::tree::expression::symbol(*units),
+                node.style.text.style.clone(),
+            );
+            let mut width = |text: &str| {
+                if text.is_empty() {
+                    return 0.0;
+                }
+                let width = ui
+                    .texts
+                    .get(
+                        &mut ui.fonts,
+                        text,
+                        &text_style,
+                        scale,
+                        TextBounds::default(),
+                    )
+                    .width();
+                width.ceil() + control / 2.0
+            };
+            Some([width(&prefix), width(suffix.unwrap_or_default())])
         }
         _ => None,
     }

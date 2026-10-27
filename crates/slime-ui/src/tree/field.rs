@@ -246,7 +246,7 @@ impl Field {
     }
 
     /// What the field holds, as the program reads it: a field of numbers' number, if its text
-    /// reads as a finite one.
+    /// reads as an expression of a finite one.
     fn value(&self, kind: &Kind) -> Option<FieldValue> {
         let text = match &self.compose {
             Some(range) => {
@@ -257,12 +257,10 @@ impl Field {
             None => self.text.clone(),
         };
         match kind {
-            Kind::NumberField { .. } => text
-                .trim()
-                .parse::<f64>()
-                .ok()
-                .filter(|number| number.is_finite())
-                .map(FieldValue::Number),
+            // An expression, its numbers in units of the field's family.
+            Kind::NumberField { units, .. } => {
+                super::expression::evaluate(&text, *units).map(FieldValue::Number)
+            }
             _ => Some(FieldValue::Text(text)),
         }
     }
@@ -344,8 +342,8 @@ impl Ui {
     /// one line takes a line
     /// break as a space, as a paste does. Gives whether the field took it: not an element that is
     /// no field, nor a field that cannot hold the focus now, disabled, hidden or below a modal
-    /// root, nor a field of numbers given a text that reads as no finite number, which keeps what
-    /// it holds. A slider takes a text that reads as a finite number, kept within its bounds and on
+    /// root, nor a field of numbers given a text that reads as no expression of a finite number in
+    /// its family of units, `2.5`, `sqrt(2)/2`, `10cm`, which keeps what it holds. A slider takes a text that reads as a finite number, kept within its bounds and on
     /// its steps, the program reading the change, if any, then the commit; two panels, the share of
     /// the first, kept from 0 to 1, which tells the program nothing; a list to choose from, one of
     /// its options, or else the place of one, from 0, the program reading the change and the commit
@@ -390,13 +388,12 @@ impl Ui {
                 ..
             }
         );
-        let number = matches!(kind, Kind::NumberField { .. });
+        let units = match kind {
+            Kind::NumberField { units, .. } => Some(*units),
+            _ => None,
+        };
         if node.field.is_none()
-            || (number
-                && !text
-                    .trim()
-                    .parse::<f64>()
-                    .is_ok_and(|number| number.is_finite()))
+            || units.is_some_and(|units| super::expression::evaluate(text, units).is_none())
         {
             return false;
         }
@@ -573,6 +570,15 @@ impl Ui {
         if std::mem::take(&mut field.edited) {
             match field.value(&kind) {
                 Some(value) => {
+                    // An expression shows its result once committed; a number typed keeps the
+                    // user's spelling of it.
+                    if let FieldValue::Number(number) = value
+                        && field.text.trim().parse::<f64>().is_err()
+                    {
+                        field.text = number_text(number);
+                        field.pending = Some((field.text.len(), field.text.len()));
+                        relaid = true;
+                    }
                     field.given = value_text(&value);
                     committed = Some(value);
                 }
@@ -842,6 +848,21 @@ impl Ui {
             return;
         }
         drag.moved = true;
+        // Finer with Shift, coarser with Control.
+        let modifiers = self.interaction.modifiers;
+        let step = if modifiers.shift {
+            step / 10.0
+        } else if modifiers.control {
+            step * 10.0
+        } else {
+            step
+        };
+        let Some(field) = self.node_mut(id).and_then(|node| node.field.as_mut()) else {
+            return;
+        };
+        let Some(drag) = field.drag.as_mut() else {
+            return;
+        };
         let steps = ((x - drag.x) / scale).round() as f64;
         let text = number_text(rounded(drag.value + steps * step, &[drag.value, step]));
         if text == field.text {
@@ -1259,7 +1280,7 @@ impl Ui {
 
     /// What a field draws besides its text, out of its content box: a field of search's
     /// magnifier and the mark that empties it, a field of numbers' prefix, in its control's mark
-    /// color.
+    /// color, and the symbol of its unit, in its track color.
     pub(crate) fn field_marks(&mut self, id: ElementId) -> Vec<crate::display::Primitive> {
         use crate::display::{BoxPrimitive, Primitive, TextPrimitive};
 
@@ -1320,30 +1341,40 @@ impl Ui {
                     primitives.push(cross.unwrap_or_else(|| shape(dot)));
                 }
             }
-            Kind::NumberField { prefix, .. } => {
-                let (Some(area), prefix) = (prefix_area, prefix.clone()) else {
-                    return primitives;
+            Kind::NumberField { prefix, units, .. } => {
+                let (prefix, suffix) = (prefix.clone(), super::expression::symbol(*units));
+                let text = |ui: &mut Ui, text: &str| {
+                    ui.texts
+                        .get(&mut ui.fonts, text, &look, scale, TextBounds::default())
+                        .clone()
                 };
-                let layout = self
-                    .texts
-                    .get(
-                        &mut self.fonts,
-                        &prefix,
-                        &look,
-                        scale,
-                        TextBounds::default(),
-                    )
-                    .clone();
-                let x = if rtl {
-                    area.x + size / 2.0
-                } else {
-                    content.x - size / 2.0 - layout.width()
-                };
-                primitives.push(Primitive::Text(TextPrimitive {
-                    origin: [x, content.y + (content.height - layout.height()) / 2.0],
-                    layout,
-                    color: control.mark,
-                }));
+                if let Some(area) = prefix_area {
+                    let layout = text(self, &prefix);
+                    let x = if rtl {
+                        area.x + size / 2.0
+                    } else {
+                        content.x - size / 2.0 - layout.width()
+                    };
+                    primitives.push(Primitive::Text(TextPrimitive {
+                        origin: [x, content.y + (content.height - layout.height()) / 2.0],
+                        layout,
+                        color: control.mark,
+                    }));
+                }
+                // The symbol of its unit after its number, in its quieter color.
+                if let Some(suffix) = suffix {
+                    let layout = text(self, suffix);
+                    let x = if rtl {
+                        content.x - size / 2.0 - layout.width()
+                    } else {
+                        content.x + content.width + size / 2.0
+                    };
+                    primitives.push(Primitive::Text(TextPrimitive {
+                        origin: [x, content.y + (content.height - layout.height()) / 2.0],
+                        layout,
+                        color: control.track,
+                    }));
+                }
             }
             _ => {}
         }

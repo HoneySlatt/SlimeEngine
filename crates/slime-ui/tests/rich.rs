@@ -10,7 +10,7 @@ use slime_ui::action::{Action, ActionKind, FieldValue};
 use slime_ui::display::Primitive;
 use slime_ui::style::{Dimension, Style};
 use slime_ui::text::Fonts;
-use slime_ui::tree::{Element, ElementId, LayoutDirection, Role, RootSettings, Ui};
+use slime_ui::tree::{Element, ElementId, LayoutDirection, Role, RootSettings, Ui, Units};
 
 /// An interface whose font is the tests' Noto Sans.
 fn ui() -> Ui {
@@ -292,7 +292,7 @@ fn a_fields_prefix_lies_before_its_number_and_drags_it_even_focused() {
     ui.build(root, 0, |children| {
         let plain = Element::number_field(1.0, 0.1, style(Some(120.0)));
         ids.push(children.add("plain", plain, |_| {}));
-        let x = Element::prefixed_number_field("X", 1.0, 0.1, style(Some(120.0)));
+        let x = Element::number_field(1.0, 0.1, style(Some(120.0))).prefix("X");
         ids.push(children.add("x", x, |_| {}));
     });
     ui.frame();
@@ -364,7 +364,7 @@ fn from_right_to_left_a_fields_prefix_and_marks_stand_at_its_right_and_left() {
     let root = ui.add_root(settings, Style::default());
     let mut ids = Vec::new();
     ui.build(root, 0, |children| {
-        let x = Element::prefixed_number_field("X", 1.0, 0.1, style(Some(120.0)));
+        let x = Element::number_field(1.0, 0.1, style(Some(120.0))).prefix("X");
         ids.push(children.add("x", x, |_| {}));
         let search = Element::search_field("torch", style(Some(200.0)));
         ids.push(children.add("search", search, |_| {}));
@@ -396,7 +396,7 @@ fn a_prefix_given_later_makes_room_and_a_composition_keeps_it_from_dragging() {
     let build = |ui: &mut Ui, revision: u64, prefix: &str| {
         let mut id = None;
         ui.build(root, revision, |children| {
-            let field = Element::prefixed_number_field(prefix, 1.0, 0.1, style(Some(120.0)));
+            let field = Element::number_field(1.0, 0.1, style(Some(120.0))).prefix(prefix);
             id = Some(children.add("x", field, |_| {}));
         });
         ui.frame();
@@ -439,4 +439,94 @@ fn a_prefix_given_later_makes_room_and_a_composition_keeps_it_from_dragging() {
             .any(|value| value.contains("Number(4")),
         "no drag while composing"
     );
+}
+
+#[test]
+fn a_field_of_numbers_reads_an_expression_and_shows_its_result_once_committed() {
+    let (mut ui, root) = interface();
+    let mut id = None;
+    ui.build(root, 0, |children| {
+        let field = Element::number_field(1.0, 0.1, style(Some(160.0)));
+        id = Some(children.add("number", field, |_| {}));
+    });
+    ui.frame();
+    let field = id.expect("built");
+    assert!(ui.set_value(field, "sqrt(2)/2"));
+    let committed = values(&mut ui).pop().expect("a commit");
+    assert_eq!(
+        committed,
+        format!("committed {:?}", FieldValue::Number(2f64.sqrt() / 2.0))
+    );
+    assert_eq!(ui.field_text(field), Some("0.7071067811865476"));
+    // A number keeps the user's spelling; what reads as nothing is refused.
+    assert!(ui.set_value(field, "1.50"));
+    assert_eq!(ui.field_text(field), Some("1.50"));
+    assert!(!ui.set_value(field, "1 +"));
+    assert!(
+        !ui.set_value(field, "10cm"),
+        "a field of no units takes none"
+    );
+}
+
+#[test]
+fn a_field_of_lengths_shows_meters_and_converts_what_is_typed() {
+    let (mut ui, root) = interface();
+    let mut id = None;
+    ui.build(root, 0, |children| {
+        let field = Element::number_field(1.5, 0.1, style(Some(160.0))).units(Units::Length);
+        id = Some(children.add("length", field, |_| {}));
+    });
+    ui.frame();
+    let field = id.expect("built");
+    assert_eq!(
+        ui.meaning_of(field).expect("drawn").value.as_deref(),
+        Some("1.5 m")
+    );
+    assert!(ui.set_value(field, "1m + 20cm"));
+    let committed = values(&mut ui).pop().expect("a commit");
+    assert!(committed.starts_with("committed Number(1.2"), "{committed}");
+    // Its value read back, its unit with it.
+    assert!(ui.set_value(field, "2.5 m"));
+    assert_eq!(
+        values(&mut ui).pop().as_deref(),
+        Some("committed Number(2.5)")
+    );
+    assert!(!ui.set_value(field, "90°"), "an angle is no length");
+    // The symbol of its unit is drawn after its number.
+    let (list, _) = ui.frame();
+    assert!(list.items().iter().any(|item| matches!(
+        &item.primitive,
+        Primitive::Text(text) if text.layout.shown() == "m"
+    )));
+}
+
+#[test]
+fn a_drag_goes_finer_with_shift_and_coarser_with_control() {
+    let (mut ui, root) = interface();
+    let mut id = None;
+    ui.build(root, 0, |children| {
+        let field = Element::number_field(1.0, 0.1, style(Some(160.0)));
+        id = Some(children.add("number", field, |_| {}));
+    });
+    ui.frame();
+    let field = id.expect("built");
+    let rect = ui.rect(field).expect("laid out");
+    let drag = |ui: &mut Ui, modifiers: slime_input::Modifiers| {
+        let at = (rect.x + 20.0, rect.y + rect.height / 2.0);
+        ui.modifiers(modifiers);
+        ui.pointer_moved(at.0, at.1);
+        ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+        ui.pointer_moved(at.0 + 10.0, at.1);
+        ui.pointer_button(MouseButton::Left, ButtonState::Released);
+        ui.modifiers(slime_input::Modifiers::default());
+        ui.frame();
+        ui.set_focus(None);
+        values(ui).pop().expect("a commit")
+    };
+    let mut shift = slime_input::Modifiers::default();
+    shift.shift = true;
+    assert_eq!(drag(&mut ui, shift), "committed Number(1.1)");
+    let mut control = slime_input::Modifiers::default();
+    control.control = true;
+    assert_eq!(drag(&mut ui, control), "committed Number(11.1)");
 }

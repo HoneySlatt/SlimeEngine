@@ -22,6 +22,7 @@ use crate::theme::{self, KindName, Rule, StateName, StyleSheet, Theme};
 
 mod choice;
 mod control;
+pub(crate) mod expression;
 mod field;
 mod interact;
 mod layer;
@@ -161,7 +162,10 @@ pub enum Kind {
         search: bool,
     },
     /// A field of a number, which shows the number whole, as Rust writes it, and which the user
-    /// types in, or drags left and right. As a field of text, it keeps what the user types, and
+    /// types in, or drags left and right, a tenth of its step for each logical pixel while Shift is
+    /// held and ten steps while Control is. What is typed reads as an expression, `sqrt(2)/2`, its
+    /// numbers in any unit of its family, `10cm`, which shows its result once committed
+    /// (`docs/adr/0151-rich-widgets.md`). As a field of text, it keeps what the user types, and
     /// the program reads it as actions, a number.
     NumberField {
         /// Its number, as the program gives it, under the same rule as a field of text's text.
@@ -172,6 +176,9 @@ pub enum Kind {
         /// drags to change the number whether or not the field holds the focus
         /// (`docs/adr/0151-rich-widgets.md`); empty for none.
         prefix: String,
+        /// The family of units of its number, whose base unit it shows after the number, and whose
+        /// every unit it reads in what is typed (`docs/adr/0151-rich-widgets.md`).
+        units: Units,
     },
     /// A check box: its box, checked or not, then its label, in the middle of its box from top to
     /// bottom. A press, or Enter or Space while it holds the focus, toggles it, which the program
@@ -341,6 +348,22 @@ pub enum Kind {
     },
 }
 
+/// The family of units of a field of numbers ([`Kind::NumberField`]): its number is in the family's
+/// base unit, which the field shows after it, and what is typed in it may be written in any unit
+/// of the family, `10cm`, converted to the base unit.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Units {
+    /// No unit: what is typed holds none.
+    #[default]
+    None,
+    /// Lengths, in meters: millimeters `mm`, centimeters `cm`, meters `m`, kilometers `km`.
+    Length,
+    /// Angles, in degrees: degrees `°` or `deg`, radians `rad`.
+    Angle,
+    /// Times, in seconds: milliseconds `ms`, seconds `s`.
+    Time,
+}
+
 /// What an item of a menu ([`Kind::MenuItem`]) shows besides its label and its shortcut.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ItemMark {
@@ -507,29 +530,15 @@ impl Element {
     }
 
     /// A field of a number, holding `value`, which a drag of one logical pixel changes by `step`.
-    /// What the user types reads as Rust reads a number, its decimals after a full stop: `2,5`
-    /// reads as none.
+    /// What the user types reads as an expression: the four operations, parentheses, a sign, `pi`,
+    /// and `sqrt`, `sin`, `cos`, `abs`, `min` and `max`, whose angles are in radians; its numbers
+    /// as Rust writes them, their decimals after a full stop: `2,5` reads as none.
     pub fn number_field(value: f64, step: f64, style: Style) -> Self {
         let kind = Kind::NumberField {
             value,
             step,
             prefix: String::new(),
-        };
-        Self::of(kind, style)
-    }
-
-    /// A field of a number, as [`Element::number_field`] makes one, with `prefix` before its
-    /// number, which the pointer drags: `X` for a vector's first component.
-    pub fn prefixed_number_field(
-        prefix: impl Into<String>,
-        value: f64,
-        step: f64,
-        style: Style,
-    ) -> Self {
-        let kind = Kind::NumberField {
-            value,
-            step,
-            prefix: prefix.into(),
+            units: Units::None,
         };
         Self::of(kind, style)
     }
@@ -716,6 +725,27 @@ impl Element {
     #[must_use]
     pub fn tooltip(mut self, text: impl Into<String>) -> Self {
         self.tooltip = Some(text.into());
+        self
+    }
+
+    /// The element, a field of numbers, with `prefix` before its number, which the pointer drags:
+    /// `X` for a vector's first component ([`Kind::NumberField`]). Nothing changes for another
+    /// element.
+    #[must_use]
+    pub fn prefix(mut self, prefix: impl Into<String>) -> Self {
+        if let Kind::NumberField { prefix: held, .. } = &mut self.kind {
+            *held = prefix.into();
+        }
+        self
+    }
+
+    /// The element, a field of numbers, of the family of units `units` ([`Kind::NumberField`]).
+    /// Nothing changes for another element.
+    #[must_use]
+    pub fn units(mut self, units: Units) -> Self {
+        if let Kind::NumberField { units: held, .. } = &mut self.kind {
+            *held = units;
+        }
         self
     }
 
@@ -2034,9 +2064,18 @@ fn lays_out_again(before: &Element, after: &Element) -> bool {
                 ..
             },
         ) => before != after || lines_before != lines_after,
-        (Kind::NumberField { prefix: before, .. }, Kind::NumberField { prefix: after, .. }) => {
-            before != after
-        }
+        (
+            Kind::NumberField {
+                prefix: before,
+                units: units_before,
+                ..
+            },
+            Kind::NumberField {
+                prefix: after,
+                units: units_after,
+                ..
+            },
+        ) => before != after || units_before != units_after,
         _ => false,
     }
 }

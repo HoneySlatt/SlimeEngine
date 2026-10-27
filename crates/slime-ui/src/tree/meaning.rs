@@ -183,7 +183,8 @@ pub struct Meaning {
     /// button's or a check box's label, a section's or a tab's title, or a text's; empty for none.
     pub name: String,
     /// Its value: what a field holds, as the user left it, the text that an input method composes
-    /// included, a field of numbers' text whether or not it reads as a number; a slider's number,
+    /// included, a field of numbers' text whether or not it reads as a number, then the symbol of
+    /// its unit, `1.5 m`; a slider's number,
     /// and two panels' first share, as Rust writes them; none for another element.
     pub value: Option<String>,
     /// The bounds and the step of a slider's value, and of two panels' share; none for another
@@ -462,7 +463,14 @@ impl Ui {
             role,
             name,
             value: match node.field.as_ref() {
-                Some(field) => Some(field.text.clone()),
+                // A number with the symbol of its unit, `1.5 m`, which a value given back reads.
+                Some(field) => Some(match &element.kind {
+                    Kind::NumberField { units, .. } => match super::expression::symbol(*units) {
+                        Some(symbol) => format!("{} {symbol}", field.text),
+                        None => field.text.clone(),
+                    },
+                    _ => field.text.clone(),
+                }),
                 // A share as its own type writes it, which a widening would lengthen.
                 None => match &element.kind {
                     Kind::Progress { share } => {
