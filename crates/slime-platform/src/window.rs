@@ -125,6 +125,14 @@ impl Window {
         self.inner.scale_factor()
     }
 
+    /// The scheme of colors that the system prefers, dark or light, where the platform tells it:
+    /// on Windows; none on Linux, where winit reads no desktop's settings
+    /// (`docs/adr/0149-the-looks-foundations.md`). [`Event::ColorSchemeChanged`](crate::Event)
+    /// says when it changes.
+    pub fn color_scheme(&self) -> Option<ColorScheme> {
+        self.inner.theme().map(ColorScheme::from)
+    }
+
     /// Asks the windowing system for a chance to draw: the event loop then calls
     /// [`EventHandler::redraw_requested`](crate::EventHandler::redraw_requested), usually during
     /// its next iteration. Requests made before that call are merged into one.
@@ -173,5 +181,23 @@ impl HasWindowHandle for Window {
 impl HasDisplayHandle for Window {
     fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
         self.inner.display_handle()
+    }
+}
+
+/// The scheme of colors that the system prefers ([`Window::color_scheme`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ColorScheme {
+    /// Light text on dark surfaces.
+    Dark,
+    /// Dark text on light surfaces.
+    Light,
+}
+
+impl From<winit::window::Theme> for ColorScheme {
+    fn from(theme: winit::window::Theme) -> Self {
+        match theme {
+            winit::window::Theme::Dark => Self::Dark,
+            winit::window::Theme::Light => Self::Light,
+        }
     }
 }

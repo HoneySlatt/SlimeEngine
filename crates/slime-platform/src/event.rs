@@ -6,7 +6,7 @@ use winit::keyboard::{KeyCode as WinitKeyCode, PhysicalKey};
 use slime_input::{ButtonState, Ime, KeyEvent, Modifiers, MouseButton, ScrollDelta};
 
 use crate::input;
-use crate::window::PhysicalSize;
+use crate::window::{ColorScheme, PhysicalSize};
 
 /// Something that happened to the window, or input it received.
 ///
@@ -28,6 +28,9 @@ pub enum Event {
         /// The new number of physical pixels per logical pixel.
         scale_factor: f64,
     },
+    /// The scheme of colors that the system prefers changed, where the platform tells it
+    /// ([`Window::color_scheme`](crate::Window::color_scheme)).
+    ColorSchemeChanged(ColorScheme),
     /// The window gained (`true`) or lost (`false`) the keyboard focus. The keys and mouse buttons
     /// still down when the focus is lost are released just before: see [`Key`](Self::Key) and
     /// [`MouseButton`](Self::MouseButton).
@@ -147,6 +150,7 @@ impl Translator {
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 Event::ScaleFactorChanged { scale_factor }
             }
+            WindowEvent::ThemeChanged(theme) => Event::ColorSchemeChanged(theme.into()),
             WindowEvent::Focused(focused) => {
                 if !focused {
                     self.release_all(&mut deliver);

@@ -21,7 +21,7 @@ pub use slime_input::{
     ButtonState, CursorShape, Ime, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey,
     ScrollDelta,
 };
-pub use window::{PhysicalSize, Window, WindowConfig};
+pub use window::{ColorScheme, PhysicalSize, Window, WindowConfig};
 
 /// Which types may cross threads (`docs/ARCHITECTURE.md`, "Threads"): checked when the tests are
 /// compiled.
