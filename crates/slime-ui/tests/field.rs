@@ -12,6 +12,7 @@ use slime_input::{
     ButtonState, CursorShape, Ime, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey,
 };
 use slime_ui::action::{ActionKind, FieldValue};
+use slime_ui::display::Primitive;
 use slime_ui::shortcuts::Shortcuts;
 use slime_ui::style::{Dimension, Style};
 use slime_ui::text::Fonts;
@@ -603,6 +604,24 @@ fn a_field_keeps_its_caret_in_view_and_places_a_line_written_from_right_to_left_
     ui.key(&named(NamedKey::Home));
     let caret = ui.text_input().expect("a field takes text");
     assert!(caret.x < rect.x + 5.0, "{caret:?}");
+    // Its caret at its end again, the field shows the start of its text once the focus leaves it,
+    // and its caret as the focus comes back.
+    ui.key(&named(NamedKey::End));
+    ui.set_focus(None);
+    let (list, _) = ui.frame();
+    let start = list
+        .items()
+        .iter()
+        .find_map(|item| match &item.primitive {
+            Primitive::Text(text) => Some(text.origin[0]),
+            _ => None,
+        })
+        .expect("its text");
+    assert!(start >= rect.x, "{start} from {rect:?}");
+    ui.set_focus(Some(field));
+    ui.frame();
+    let caret = ui.text_input().expect("a field takes text");
+    assert!(caret.x > rect.x + rect.width / 2.0, "{caret:?}");
     // Hebrew, its start on the right, in a field wider than it.
     let (mut ui, _, field, _) = interface(Element::text_field("שלום", style()));
     ui.set_focus(Some(field));

@@ -1089,9 +1089,11 @@ impl Ui {
     }
 
     /// Sets the selection that an edit of the field `id` left, on the layout of its new text, and
-    /// scrolls its text to keep the caret in view, from the field's box as last laid out.
+    /// scrolls its text to keep the caret in view, from the field's box as last laid out; a field
+    /// that does not hold the focus shows the start of its text.
     pub(crate) fn settle_field(&mut self, id: ElementId) {
         let scale = self.scale_of(id);
+        let focused = self.interaction.focus == Some(id);
         let Some((layout, origin)) = self.field_layout(id) else {
             return;
         };
@@ -1113,12 +1115,19 @@ impl Ui {
             field.selection = selection(layout.shown_layout(), anchor, focus);
         }
         let focus = field.selection.focus();
-        let position = TextPosition {
-            index: focus.index(),
-            affinity: match focus.affinity() {
-                ParleyAffinity::Downstream => Affinity::Downstream,
-                ParleyAffinity::Upstream => Affinity::Upstream,
-            },
+        let position = if focused {
+            TextPosition {
+                index: focus.index(),
+                affinity: match focus.affinity() {
+                    ParleyAffinity::Downstream => Affinity::Downstream,
+                    ParleyAffinity::Upstream => Affinity::Upstream,
+                },
+            }
+        } else {
+            TextPosition {
+                index: 0,
+                affinity: Affinity::Downstream,
+            }
         };
         let caret = layout.caret(position);
         // Where the caret would be, the text not scrolled: the caret, as wide as it is drawn, kept
