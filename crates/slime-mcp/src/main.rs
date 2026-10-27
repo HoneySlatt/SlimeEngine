@@ -245,9 +245,10 @@ struct ActOnInterface {
     /// For `command`, the command's name: `undo`.
     command: Option<String>,
     /// For `set_value`, the text that the field holds then, as a person who replaced what it holds
-    /// and committed would leave it; for a field of numbers or a slider, a finite number: `2.5`;
-    /// for two panels, the share of the first, from 0 to 1; for a list to choose from, one of its
-    /// options, `High`, or the place of one, from 0.
+    /// and committed would leave it; for a field of numbers, an expression of a finite number, in
+    /// a unit of its family where it has one: `2.5`, `sqrt(2)/2`, `10cm`; for a slider, a finite
+    /// number; for two panels, the share of the first, from 0 to 1; for a list to choose from, one
+    /// of its options, `High`, or the place of one, from 0.
     value: Option<String>,
 }
 

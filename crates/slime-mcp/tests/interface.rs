@@ -233,7 +233,10 @@ fn main() {
         json!({ "action": "set_value", "element": number, "value": "large" }),
     );
     assert_eq!(result["isError"], json!(true), "{refused:?}");
-    assert!(refused[0].contains("no finite number"), "{refused:?}");
+    assert!(
+        refused[0].contains("as nothing that it takes"),
+        "{refused:?}"
+    );
 
     let (stopped, _) = session.tool("stop_game", json!({}));
     assert!(stopped[0].contains("the game ended"), "{stopped:?}");

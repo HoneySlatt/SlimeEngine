@@ -532,7 +532,7 @@ fn a_drag_goes_finer_with_shift_and_coarser_with_control() {
 }
 
 #[test]
-fn a_sections_header_holds_its_slot_at_its_end_whose_presses_do_not_fold_it() {
+fn a_sections_header_holds_its_box_at_its_end_whose_presses_do_not_fold_it() {
     for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
         let mut ui = ui();
         let settings = RootSettings {
@@ -574,14 +574,14 @@ fn a_sections_header_holds_its_slot_at_its_end_whose_presses_do_not_fold_it() {
             }
             LayoutDirection::RightToLeft => assert_eq!(button.x, box_.x + 4.0),
         }
-        // A press on the slot's button reaches the program, and leaves the section open.
+        // A press on the header box's button reaches the program, and leaves the section open.
         click(&mut ui, reset);
         assert!(ui.state(section).expect("there").expanded);
         assert_eq!(
             ui.take_actions().first().map(|action| &action.kind),
             Some(&ActionKind::Press)
         );
-        // Folded, the section keeps its slot.
+        // Folded, the section keeps its header's box.
         ui.set_open(section, false);
         ui.frame();
         assert!(ui.meaning_of(reset).is_some(), "{direction:?}");
@@ -614,5 +614,149 @@ fn a_tooltip_of_a_title_and_a_text_is_read_as_both() {
     assert!(
         ui.element(title)
             .is_some_and(|element| element.classes.contains(&"tooltip-title".to_owned()))
+    );
+}
+
+/// The x of the start and the end of the drawn text `text`, in the display list of a frame.
+fn drawn_text(ui: &mut Ui, text: &str) -> Option<(f32, f32)> {
+    let (list, _) = ui.frame();
+    list.items().iter().find_map(|item| match &item.primitive {
+        Primitive::Text(drawn) if drawn.layout.shown() == text => {
+            Some((drawn.origin[0], drawn.origin[0] + drawn.layout.width()))
+        }
+        _ => None,
+    })
+}
+
+#[test]
+fn a_sections_title_keeps_beside_its_mark_and_leaves_the_room_of_its_headers_box() {
+    for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
+        let mut ui = ui();
+        let settings = RootSettings {
+            size: [400.0, 300.0],
+            scale: 1.0,
+            direction,
+            origin: [0.0; 2],
+            modal: false,
+        };
+        let root = ui.add_root(settings, Style::default());
+        let build = |ui: &mut Ui, revision: u64, button: Option<f32>| {
+            let mut id = None;
+            ui.build(root, revision, |children| {
+                let mut section_style = style(Some(200.0));
+                section_style.layout.size[1] = Dimension::Auto;
+                let section = Element::section("Light", true, section_style);
+                id = Some(children.add("light", section, |section| {
+                    if let Some(width) = button {
+                        section.add("box", Element::section_header(Style::default()), |held| {
+                            held.add("reset", Element::button("", style(Some(width))), |_| {});
+                        });
+                    }
+                }));
+            });
+            ui.frame();
+            id.expect("built")
+        };
+        let section = build(&mut ui, 0, None);
+        let alone = drawn_text(&mut ui, "Light").expect("its title");
+        // A box shown at a later revision: the title stays where it was, beside the mark.
+        build(&mut ui, 1, Some(60.0));
+        let beside_box = drawn_text(&mut ui, "Light").expect("its title");
+        assert_eq!(alone, beside_box, "{direction:?}");
+        let held = ui.element_by_path("#0/light/box/reset").expect("built");
+        let button = ui.rect(held).expect("laid out");
+        let rect = ui.rect(section).expect("laid out");
+        match direction {
+            LayoutDirection::LeftToRight => {
+                assert!(beside_box.0 < rect.x + 30.0 && beside_box.1 < button.x);
+            }
+            LayoutDirection::RightToLeft => {
+                assert!(
+                    beside_box.1 > rect.x + rect.width - 30.0 && beside_box.0 > button.x + 60.0
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_modifier_held_in_the_middle_of_a_drag_goes_on_from_where_it_was() {
+    let (mut ui, root) = interface();
+    let mut id = None;
+    ui.build(root, 0, |children| {
+        let field = Element::number_field(0.0, 0.1, style(Some(160.0)));
+        id = Some(children.add("number", field, |_| {}));
+    });
+    ui.frame();
+    let field = id.expect("built");
+    let rect = ui.rect(field).expect("laid out");
+    let y = rect.y + rect.height / 2.0;
+    ui.pointer_moved(rect.x + 20.0, y);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    // Twenty pixels: two whole units.
+    ui.pointer_moved(rect.x + 40.0, y);
+    assert_eq!(ui.field_text(field), Some("2"));
+    // Shift held: the next pixel goes by the step it began with, then ten pixels add ten tenths of
+    // a step, from where the drag was.
+    let mut shift = slime_input::Modifiers::default();
+    shift.shift = true;
+    ui.modifiers(shift);
+    ui.pointer_moved(rect.x + 41.0, y);
+    assert_eq!(ui.field_text(field), Some("2.1"));
+    ui.pointer_moved(rect.x + 51.0, y);
+    assert_eq!(ui.field_text(field), Some("2.2"));
+    // Let go, the whole steps go on from there, not from where the drag began.
+    ui.modifiers(slime_input::Modifiers::default());
+    ui.pointer_moved(rect.x + 52.0, y);
+    ui.pointer_moved(rect.x + 62.0, y);
+    assert_eq!(ui.field_text(field), Some("3.21"));
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+}
+
+#[test]
+fn what_is_typed_in_a_field_of_lengths_reads_as_it_is_until_committed() {
+    let (mut ui, root) = interface();
+    let mut id = None;
+    ui.build(root, 0, |children| {
+        let field = Element::number_field(1.0, 0.1, style(Some(160.0))).units(Units::Length);
+        id = Some(children.add("length", field, |_| {}));
+    });
+    ui.frame();
+    let field = id.expect("built");
+    ui.set_focus(Some(field));
+    // Its text selected whole, then typed over.
+    ui.key(&KeyEvent {
+        physical: KeyCode::Unidentified,
+        logical: Key::Named(NamedKey::End),
+        text: None,
+        state: ButtonState::Pressed,
+        repeat: false,
+    });
+    ui.key(&KeyEvent {
+        physical: KeyCode::Unidentified,
+        logical: Key::Named(NamedKey::Backspace),
+        text: None,
+        state: ButtonState::Pressed,
+        repeat: false,
+    });
+    for character in "200cm".chars() {
+        ui.key(&KeyEvent {
+            physical: KeyCode::Unidentified,
+            logical: Key::Character(character.to_string()),
+            text: Some(character.to_string()),
+            state: ButtonState::Pressed,
+            repeat: false,
+        });
+    }
+    ui.frame();
+    assert_eq!(
+        ui.meaning_of(field).expect("drawn").value.as_deref(),
+        Some("200cm")
+    );
+    key(&mut ui, NamedKey::Enter);
+    assert_eq!(ui.field_text(field), Some("2"));
+    assert_eq!(
+        ui.meaning_of(field).expect("drawn").value.as_deref(),
+        Some("2 m")
     );
 }

@@ -8,13 +8,17 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
-- Rich widgets, the first part of ADR-0151: a field's placeholder (`Element::placeholder`), buttons
-  that toggle (`Element::toggle_button`), controls of segments (`Element::segments`), bars of
-  progress (`Element::progress`), a tab's count (`Element::counted_tab`), fields of search
-  (`Element::search_field`) and a field of numbers' prefix, which drags it
-  (`Element::prefixed_number_field`), with their roles for screen readers and the look's styles, the
-  axes' prefixes in red, green and blue; the example `widgets` shows each, in a bar of tools, over
-  its list of entities, in its position and on its console's tab.
+- Rich fields (ADR-0151): a field's placeholder (`Element::placeholder`), buttons that toggle
+  (`Element::toggle_button`), controls of segments (`Element::segments`), bars of progress
+  (`Element::progress`), a tab's count (`Element::counted_tab`), fields of search
+  (`Element::search_field`), a field of numbers' prefix, which drags it (`Element::prefix`), drags
+  finer with Shift and coarser with Control, expressions in fields of numbers, `sqrt(2)/2`, and
+  units by families, length, angle and time, converted as they are typed (`Element::units`,
+  `Units`), the box of a section's header (`Element::section_header`), and tooltips of a title and
+  a text (`Element::help`, `Tooltip`), with their roles for screen readers and the look's styles,
+  the axes' prefixes in red, green and blue; the example `widgets` shows each, in a bar of tools,
+  over its list of entities, in its position, in the light's header, over the material's
+  properties and on its console's tab.
 - Layers (ADR-0150): roots that the interface places over the others, beside an element, at a
   point or floating, kept within the window and closed as the user leaves them, a press outside or
   Escape, which the program reads (`Ui::open_layer`, `Layer`, `Place`, `ActionKind::Dismissed`).
@@ -198,8 +202,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
-- `Kind::TextField` holds whether it is a field of search, `Kind::NumberField` its prefix and
-  `Kind::Tab` its count; `Style::icons` names a magnifier and a cross too.
+- `Kind::TextField` holds whether it is a field of search, `Kind::NumberField` its prefix and its
+  units and `Kind::Tab` its count; `Element::tooltip` holds a `Tooltip`; `Style::icons` names a
+  magnifier and a cross too. A field of numbers reads what is typed as an expression, and gives
+  its unit's symbol in its meaning's value.
 - `Ui::chosen_tab` is `Ui::chosen`, which gives a list to choose from's choice too. A floating
   layer takes its own size; a press on it raises it above the other roots, which changes their
   numbers in paths.

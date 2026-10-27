@@ -157,13 +157,7 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
         if matches!(
             meaning.role,
             Role::SpinButton | Role::Slider | Role::Splitter | Role::ProgressIndicator
-        ) && let Some(number) = value
-            .split_whitespace()
-            .next()
-            .unwrap_or_default()
-            .parse::<f64>()
-            .ok()
-            .filter(|number| number.is_finite())
+        ) && let Some(number) = number_of(value)
         {
             element.set_numeric_value(number);
         }
@@ -314,6 +308,21 @@ fn run_nodes(text: &FieldText, nodes: &mut Vec<(NodeId, Node)>) {
         );
         nodes.push((NodeId(run.number), node));
     }
+}
+
+/// The number that a value gives: the whole of it, or the number before the symbol of its unit,
+/// `1.5 m`; none where it reads as neither.
+fn number_of(value: &str) -> Option<f64> {
+    let value = value.trim();
+    value
+        .parse::<f64>()
+        .ok()
+        .or_else(|| {
+            let (number, unit) = value.rsplit_once(' ')?;
+            let unit = !unit.is_empty() && !unit.chars().any(|c| c.is_ascii_digit());
+            unit.then(|| number.trim().parse::<f64>().ok()).flatten()
+        })
+        .filter(|number| number.is_finite())
 }
 
 /// AccessKit's role of `role`, of the same name, a button for a button that toggles.
@@ -1197,5 +1206,14 @@ mod tests {
         assert_eq!(segments, [Some(Toggled::False), Some(Toggled::True)]);
         assert_eq!(nodes[2].numeric_value(), Some(0.25));
         assert_eq!(nodes[3].data().placeholder(), Some("Search"));
+    }
+
+    #[test]
+    fn a_value_with_the_symbol_of_its_unit_gives_its_number() {
+        assert_eq!(number_of("1.5 m"), Some(1.5));
+        assert_eq!(number_of(" 2 "), Some(2.0));
+        assert_eq!(number_of("90 °"), Some(90.0));
+        assert_eq!(number_of("1 + 2"), None);
+        assert_eq!(number_of("10cm"), None);
     }
 }

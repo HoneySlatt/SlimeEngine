@@ -53,7 +53,9 @@ session, and CI green.
 **Expressions in fields of numbers.** A field of numbers reads what is typed as an expression: the
 four operations, parentheses, a unary minus, `pi`, and the functions `sqrt`, `sin`, `cos`, `abs`,
 `min` and `max`, read by a parser of the engine's own, the field committing the result and showing
-it. A text that reads as no expression is refused as a text that reads as no number is today.
+it. A text that reads as no expression is refused as a text that reads as no number was. Every
+number of an expression is in the field's base unit, so that `sin` and `cos` take degrees in a field
+of angles, `sin(30)` reading as a half, and radians elsewhere, as Rust's do.
 
 **Drags finer or coarser.** A drag of a field of numbers, on its prefix or on the field, changes its
 number by a tenth of its step for each logical pixel while Shift is held, and by ten steps while
@@ -63,10 +65,11 @@ Control is held, as editors of three dimensions do.
 centimeters, meters, kilometers), angle (degrees, radians), time (milliseconds, seconds) or none,
 and its base unit, meters, degrees or seconds. It shows its unit after its number, and reads a
 number typed with any unit of its family, `10cm` in a field of meters, converted, within
-expressions too, `1m + 20cm`; the program's value is always in the base unit.
+expressions too, `1m + 20cm`, a unit following a number, `pi`, a call or a part in parentheses,
+`(pi/2) rad`; the program's value is always in the base unit.
 
-**A section's header holds a slot.** After a section's title, a slot that the program builds, as a
-list's rows are built, holding what it likes: an icon, the type of what it shows, a button of a menu
+**A section's header holds a box that the program builds.** After a section's title, a box that
+the program builds holding what it likes: an icon, the type of what it shows, a button of a menu
 or of reset, each element of it taking the pointer without folding the section.
 
 **Help from the documentation, by the program.** The program gives a field's tooltip from the
@@ -114,7 +117,7 @@ from the tables of shortcuts, by scope, each chord and its command's name as the
 
 ## Consequences
 
-- `slime-ui` gains the kinds and fields above, expressions and units in fields of numbers, a slot
+- `slime-ui` gains the kinds and fields above, expressions and units in fields of numbers, a box
   in a section's header and tooltips of two parts in M6b.7d; notifications, the palette and the
   sheet of shortcuts in M6b.7e. The look's sheet styles them; the `widgets` example shows them, its
   images drawn again; an agent's session uses each.

@@ -1311,8 +1311,8 @@ Khronos glTF Sample Viewer, which keeps hues and lowers dark and mid tones by up
 meant to balance the reflection of their surroundings that surfaces get from image-based lighting
 ([ADR-0034](adr/0034-hdr-rendering-and-tone-mapping.md)).
 
-**Tooltip.** A short text that shows below an element once the pointer has rested on it, or once
-the keys gave it the focus, in a *layer* that the pointer passes through; screen
+**Tooltip.** A short text, under a title where it has one, that shows below an element once the
+pointer has rested on it, or once the keys gave it the focus, in a *layer* that the pointer passes through; screen
 readers read it as the element's description (`Element::tooltip`,
 [ADR-0150](adr/0150-layers.md)).
 

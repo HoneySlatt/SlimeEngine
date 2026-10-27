@@ -80,12 +80,15 @@ struct Snapshot {
 /// A press on a field of numbers.
 #[derive(Clone, Copy)]
 struct Drag {
-    /// Where the pointer pressed, along x, in pixels of the screen.
+    /// Where the pointer pressed, along x, in pixels of the screen, or where it was as the step
+    /// last changed.
     x: f32,
     /// The number then.
     value: f64,
     /// Whether the pointer moved past the threshold: the number is dragged.
     moved: bool,
+    /// The step that the drag goes by from there, finer or coarser as the modifiers held say.
+    step: f64,
 }
 
 impl Field {
@@ -817,6 +820,7 @@ impl Ui {
                     x,
                     value,
                     moved: false,
+                    step: 0.0,
                 });
                 field.typing = false;
             }
@@ -863,6 +867,16 @@ impl Ui {
         let Some(drag) = field.drag.as_mut() else {
             return;
         };
+        // A modifier held or let go goes on from the number that the drag reached, by the new
+        // step, rather than going back over the way with it.
+        if drag.step != step {
+            if drag.step != 0.0 {
+                let steps = ((x - drag.x) / scale).round() as f64;
+                drag.value = rounded(drag.value + steps * drag.step, &[drag.value, drag.step]);
+                drag.x = x;
+            }
+            drag.step = step;
+        }
         let steps = ((x - drag.x) / scale).round() as f64;
         let text = number_text(rounded(drag.value + steps * step, &[drag.value, step]));
         if text == field.text {

@@ -213,11 +213,14 @@ pub enum InterfaceAction {
         /// The offset from the top.
         y: f32,
     },
-    /// Gives a field, a slider or two panels a value, as a person who replaced what it holds and
-    /// committed would (`docs/adr/0146-screen-readers.md`, `docs/adr/0148-widgets.md`): the game
-    /// reads the change and the commit of a field's or a slider's.
+    /// Gives a field, a slider, two panels or a list to choose from a value, as a person who
+    /// replaced what it holds and committed would (`docs/adr/0146-screen-readers.md`,
+    /// `docs/adr/0148-widgets.md`, `docs/adr/0151-rich-widgets.md`): the game reads the change and
+    /// the commit of a field's, a slider's or a list's.
     SetValue {
-        /// The text; for a field of numbers, a finite number, as Rust reads one.
+        /// The text; for a field of numbers, an expression of a finite number, in a unit of its
+        /// family where it has one, `sqrt(2)/2`, `10cm`; for a slider, a finite number, as Rust
+        /// reads one; for a list to choose from, one of its options or the place of one.
         value: String,
     },
     /// Moves the focus to the next element, as Tab does.

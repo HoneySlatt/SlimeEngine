@@ -88,7 +88,7 @@ fn convert(
     let mut stack = vec![(start, row_height, forced)];
     while let Some((id, row_height, forced)) = stack.pop() {
         let header = section_header(ui, id, scale);
-        let slot = header_slot(ui, id, settings);
+        let header_box = header_box_height(ui, id, settings);
         let room = field_room(ui, id, scale);
         let panel = split_panel(ui, id);
         let revealed = ui.reveal_height(id);
@@ -143,10 +143,10 @@ fn convert(
                 let top = style.padding.top.into_raw().value();
                 style.padding.top = LengthPercentage::length(top + header);
             }
-            // The slot of a section's header lies in the header, at the end of its line, out of
+            // The box of a section's header lies in the header, at the end of its line, out of
             // the flow of what the section holds.
             // Sized as the header is tall, and placed at its end once its section is laid out.
-            if let Some(height) = slot {
+            if let Some(height) = header_box {
                 style.position = taffy::Position::Absolute;
                 style.size.height = TaffyDimension::length(height);
             }
@@ -209,9 +209,22 @@ fn convert(
             Kind::List { row_height, .. } => Some(row_height),
             _ => None,
         };
-        // A list that changed may have changed the height of its rows.
+        // A list that changed may have changed the height of its rows, and a section the height
+        // of its header, which the box of its header takes.
         let forced = rows.is_some() && node.changed.layout;
-        stack.extend(node.children.iter().map(|&child| (child, rows, forced)));
+        let header = node.changed.layout
+            && matches!(
+                node.element.kind,
+                Kind::Section { .. } | Kind::FloatingPanel { .. }
+            );
+        let children = node.children.clone();
+        for child in children {
+            let held = header
+                && ui
+                    .node(child)
+                    .is_some_and(|child| matches!(child.element.kind, Kind::SectionHeader));
+            stack.push((child, rows, forced || held));
+        }
     }
 }
 
@@ -235,9 +248,9 @@ fn split_panel(ui: &Ui, id: ElementId) -> Option<Panel> {
     }
 }
 
-/// How tall the slot of a header `id` is, in pixels of the screen: its section's or floating panel's
-/// header's height. None for another element, or a slot of no such parent.
-fn header_slot(ui: &mut Ui, id: ElementId, settings: RootSettings) -> Option<f32> {
+/// How tall the box of a header `id` is, in pixels of the screen: its section's or floating panel's
+/// header's height. None for another element, or a box of no such parent.
+fn header_box_height(ui: &mut Ui, id: ElementId, settings: RootSettings) -> Option<f32> {
     let node = ui.node(id)?;
     if !matches!(node.element.kind, Kind::SectionHeader) {
         return None;
@@ -384,6 +397,7 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
     // The elements that moved, or whose cut changed, which changes where they show to whoever
     // reads what the interface means; a root whose box changed, what shows of all it holds.
     let mut moved = Vec::new();
+    let mut titled = Vec::new();
     while let Some((id, x, y, clip)) = stack.pop() {
         let Some(node) = ui.node_mut(id) else {
             continue;
@@ -396,11 +410,23 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
             rect.x = across - rect.x - rect.width;
         }
         if node.rect != rect || node.clip != clip {
+            // The section whose header's box moved or changed its size draws its title again,
+            // which leaves the box's room.
+            if matches!(node.element.kind, Kind::SectionHeader)
+                && node.rect.width != rect.width
+                && let Some(parent) = node.parent
+            {
+                titled.push(parent);
+            }
+            let node = ui.node_mut(id).expect("placed above");
             node.rect = rect;
             node.clip = clip;
             node.changed.paint = true;
             moved.push((id, node.root.is_some()));
         }
+        let Some(node) = ui.node_mut(id) else {
+            continue;
+        };
         node.scroll = within(node.scroll, &node.element.kind, &layout, scale);
         // Content is cut inside the border, as CSS cuts it at the padding's edge.
         let border = node.style.paint.border_width * scale;
@@ -430,7 +456,7 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
                 .iter()
                 .map(|&child| (child, content_x, content_y, inner)),
         );
-        // The slot of a section's header at the end of the header's line, out of the flow; laid
+        // The box of a section's header at the end of the header's line, out of the flow; laid
         // out from left to right, its end on the right, which a root from right to left mirrors.
         if matches!(
             node.element.kind,
@@ -445,12 +471,12 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
                 layout.size.width,
             );
             for child in node.children.clone() {
-                let Some(slot) = ui.node_mut(child) else {
+                let Some(held) = ui.node_mut(child) else {
                     continue;
                 };
-                if matches!(slot.element.kind, Kind::SectionHeader) {
-                    slot.layout.location.x = width - end - slot.layout.size.width;
-                    slot.layout.location.y = top;
+                if matches!(held.element.kind, Kind::SectionHeader) {
+                    held.layout.location.x = width - end - held.layout.size.width;
+                    held.layout.location.y = top;
                 }
             }
         }
@@ -480,6 +506,9 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
         } else {
             ui.mark_meaning(id);
         }
+    }
+    for section in titled {
+        ui.mark_paint(section);
     }
 }
 

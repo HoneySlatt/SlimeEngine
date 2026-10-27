@@ -163,7 +163,7 @@ pub enum Kind {
     },
     /// A field of a number, which shows the number whole, as Rust writes it, and which the user
     /// types in, or drags left and right, a tenth of its step for each logical pixel while Shift is
-    /// held and ten steps while Control is. What is typed reads as an expression, `sqrt(2)/2`, its
+    /// held and ten steps while Control is, going on from the number reached as they change. What is typed reads as an expression, `sqrt(2)/2`, its
     /// numbers in any unit of its family, `10cm`, which shows its result once committed
     /// (`docs/adr/0151-rich-widgets.md`). As a field of text, it keeps what the user types, and
     /// the program reads it as actions, a number.
@@ -281,11 +281,11 @@ pub enum Kind {
         /// What it shows besides its label.
         mark: ItemMark,
     },
-    /// The slot of a section's header (`docs/adr/0151-rich-widgets.md`): a box, laid out as a
-    /// container, that its section, or a floating panel, lays in its header, after its title, at
-    /// the end of the line, as tall as the header, and never folds; its builder fills it with what
-    /// it likes, an icon, the type of what the section shows, a button of a menu or of reset, whose
-    /// presses do not fold the section. Elsewhere, a container.
+    /// The box of a section's header (`docs/adr/0151-rich-widgets.md`): laid out as a container,
+    /// its section, or a floating panel, lays it in its header, after its title, at the end of the
+    /// line, as tall as the header, and never folds it; its builder fills it with what it likes, an
+    /// icon, the type of what the section shows, a button of a menu or of reset, whose presses do
+    /// not fold the section. Elsewhere, a container.
     SectionHeader,
     /// A panel that floats over a window: a bar of its title, after a mark that shows whether it
     /// is open, then, while it is open, its children, laid out as a container's below the bar, as
@@ -648,7 +648,7 @@ impl Element {
         )
     }
 
-    /// The slot of a section's header, whose builder adds what it holds.
+    /// The box of a section's header, whose builder adds what it holds.
     pub fn section_header(style: Style) -> Self {
         Self::of(Kind::SectionHeader, style)
     }

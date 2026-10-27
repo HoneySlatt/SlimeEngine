@@ -287,12 +287,12 @@ impl Ui {
         let Some(node) = self.node(parent) else {
             return false;
         };
-        // The slot of a header stays in it, open or folded.
-        let slot = self
+        // The box of a header stays in it, open or folded.
+        let header_box = self
             .node(id)
             .is_some_and(|child| matches!(child.element.kind, Kind::SectionHeader));
         match node.element.kind {
-            Kind::Section { .. } | Kind::FloatingPanel { .. } if !slot => {
+            Kind::Section { .. } | Kind::FloatingPanel { .. } if !header_box => {
                 !node.state.expanded && !self.folding(parent)
             }
             Kind::Split { .. } => node.children.iter().position(|&child| child == id) > Some(1),
@@ -831,14 +831,14 @@ impl Ui {
                     }
                 }
                 let gap = size / 2.0;
-                // The title leaves the room that the header's slot takes, and a gap before it.
-                let slot = self
+                // The title leaves the room that the header's box takes, and a gap before it.
+                let header_box = self
                     .children(id)
                     .iter()
                     .filter_map(|&child| self.node(child))
                     .find(|child| matches!(child.element.kind, Kind::SectionHeader))
                     .map_or(0.0, |child| child.rect.width + gap);
-                let width = (header.width - size - gap - slot).max(0.0);
+                let width = (header.width - size - gap - header_box).max(0.0);
                 let layout: std::sync::Arc<TextLayout> = self
                     .texts
                     .get(
@@ -849,9 +849,10 @@ impl Ui {
                         TextBounds::width(width / scale),
                     )
                     .clone();
+                // From right to left, the header's box lies at its left, before the title.
                 let area = match direction {
                     LayoutDirection::LeftToRight => header.x + size + gap,
-                    LayoutDirection::RightToLeft => header.x,
+                    LayoutDirection::RightToLeft => header.x + header_box,
                 };
                 primitives.push(Primitive::Text(TextPrimitive {
                     origin: [

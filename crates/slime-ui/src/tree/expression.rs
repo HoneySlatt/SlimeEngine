@@ -1,6 +1,6 @@
 //! What a field of numbers reads (`docs/adr/0151-rich-widgets.md`): an expression of numbers, the
-//! four operations, parentheses, a sign, `pi` and a few functions, each number written with a unit
-//! of the field's family, converted to its base unit.
+//! four operations, parentheses, a sign, `pi` and a few functions, a number, `pi`, a call or a part
+//! in parentheses written with a unit of the field's family, converted to its base unit.
 
 use super::Units;
 
@@ -15,17 +15,24 @@ const FUNCTIONS: [(&str, usize); 6] = [
     ("max", 2),
 ];
 
+/// How deep parentheses, signs and calls nest at most: a text nested deeper reads as nothing,
+/// rather than reading it at the cost of the stack.
+const DEPTH: usize = 64;
+
 /// The number that `text` reads as, for a field of numbers of the family `units`: an expression of
 /// numbers, `+`, `-`, `*`, `/`, parentheses, a sign, `pi`, and the functions `sqrt`, `sin`, `cos`,
-/// `abs`, `min` and `max`, whose angles are in radians, as Rust's are. A number may be followed by
-/// a unit of the field's family, `10cm`, `90°`, `250ms`, which converts it to the family's base
-/// unit, meters, degrees or seconds; a field of no family takes no unit. None for a text that reads
-/// as no expression, a unit of another family, or a result that is not a finite number.
+/// `abs`, `min` and `max`. A number, `pi`, a call or a part in parentheses may be followed by a unit
+/// of the field's family, `10cm`, `90°`, `(pi/2) rad`, `250ms`, which converts it to the family's
+/// base unit, meters, degrees or seconds; a field of no family takes no unit. Every number of an
+/// expression is in the field's base unit: `sin` and `cos` take degrees in a field of angles, and
+/// radians elsewhere, as Rust's do. None for a text that reads as no expression, nested more than
+/// 64 deep, a unit of another family, or a part or a result that is not a finite number.
 pub(crate) fn evaluate(text: &str, units: Units) -> Option<f64> {
     let mut reader = Reader {
         text: text.as_bytes(),
         at: 0,
         units,
+        depth: 0,
     };
     let value = reader.sum()?;
     reader.blanks();
@@ -40,6 +47,11 @@ pub(crate) fn symbol(units: Units) -> Option<&'static str> {
         Units::Angle => Some("°"),
         Units::Time => Some("s"),
     }
+}
+
+/// `value`, if it is a finite number.
+fn finite(value: f64) -> Option<f64> {
+    value.is_finite().then_some(value)
 }
 
 /// How many of the base unit of `units` one `name` makes; none for a unit of another family.
@@ -62,6 +74,8 @@ struct Reader<'a> {
     text: &'a [u8],
     at: usize,
     units: Units,
+    /// How deep the reading nests now.
+    depth: usize,
 }
 
 impl Reader<'_> {
@@ -72,11 +86,11 @@ impl Reader<'_> {
             match self.peek() {
                 Some(b'+') => {
                     self.at += 1;
-                    value += self.product()?;
+                    value = finite(value + self.product()?)?;
                 }
                 Some(b'-') => {
                     self.at += 1;
-                    value -= self.product()?;
+                    value = finite(value - self.product()?)?;
                 }
                 _ => return Some(value),
             }
@@ -90,30 +104,36 @@ impl Reader<'_> {
             match self.peek() {
                 Some(b'*') => {
                     self.at += 1;
-                    value *= self.signed()?;
+                    value = finite(value * self.signed()?)?;
                 }
                 Some(b'/') => {
                     self.at += 1;
-                    value /= self.signed()?;
+                    value = finite(value / self.signed()?)?;
                 }
                 _ => return Some(value),
             }
         }
     }
 
-    /// A factor, after any signs.
+    /// A factor and its unit, after any signs, nested no deeper than [`DEPTH`].
     fn signed(&mut self) -> Option<f64> {
-        match self.peek() {
+        self.depth += 1;
+        if self.depth > DEPTH {
+            return None;
+        }
+        let value = match self.peek() {
             Some(b'-') => {
                 self.at += 1;
-                Some(-self.signed()?)
+                self.signed().map(|value| -value)
             }
             Some(b'+') => {
                 self.at += 1;
                 self.signed()
             }
-            _ => self.factor(),
-        }
+            _ => self.factor().and_then(|value| finite(value * self.unit()?)),
+        };
+        self.depth -= 1;
+        value
     }
 
     /// A number and its unit, `pi`, a call of a function, or an expression in parentheses.
@@ -125,10 +145,7 @@ impl Reader<'_> {
                 self.expect(b')')?;
                 Some(value)
             }
-            byte if byte.is_ascii_digit() || byte == b'.' => {
-                let number = self.number()?;
-                Some(number * self.unit()?)
-            }
+            byte if byte.is_ascii_digit() || byte == b'.' => self.number(),
             byte if byte.is_ascii_alphabetic() => {
                 let name = self.word();
                 if name == "pi" {
@@ -146,10 +163,15 @@ impl Reader<'_> {
                     return None;
                 }
                 let first = arguments[0];
-                Some(match name.as_str() {
+                // The angles of a field of angles are in degrees.
+                let angle = match self.units {
+                    Units::Angle => first.to_radians(),
+                    _ => first,
+                };
+                finite(match name.as_str() {
                     "sqrt" => first.sqrt(),
-                    "sin" => first.sin(),
-                    "cos" => first.cos(),
+                    "sin" => angle.sin(),
+                    "cos" => angle.cos(),
                     "abs" => first.abs(),
                     "min" => arguments.into_iter().fold(f64::INFINITY, f64::min),
                     _ => arguments.into_iter().fold(f64::NEG_INFINITY, f64::max),
@@ -197,7 +219,7 @@ impl Reader<'_> {
             .ok()
     }
 
-    /// The factor of the unit after a number: 1 for none, none for a unit that the field's family
+    /// The factor of the unit after a factor: 1 for none, none for a unit that the field's family
     /// does not hold.
     fn unit(&mut self) -> Option<f64> {
         let start = self.at;
@@ -308,9 +330,37 @@ mod tests {
     #[test]
     fn what_reads_as_no_expression_or_no_finite_number_gives_none() {
         for text in [
-            "", "2,5", "1 +", "(1", "1)", "abc", "1/0", "sqrt(-1)", "1 2",
+            "",
+            "2,5",
+            "1 +",
+            "(1",
+            "1)",
+            "abc",
+            "1/0",
+            "sqrt(-1)",
+            "1 2",
+            "2e",
+            "min(sqrt(-1), 2)",
+            "1/(1/0)",
+            "1\u{a0}+ 2",
+            "é",
         ] {
             assert_eq!(evaluate(text, Units::None), None, "{text:?}");
         }
+        // Nested past its depth, it reads as nothing, the stack spared.
+        let deep = format!("{}1{}", "(".repeat(100_000), ")".repeat(100_000));
+        assert_eq!(evaluate(&deep, Units::None), None);
+        assert_eq!(evaluate(&"-".repeat(100_000), Units::None), None);
+    }
+
+    #[test]
+    fn a_field_of_angles_reads_degrees_and_a_unit_after_any_factor() {
+        assert!(near(evaluate("sin(30)", Units::Angle), 0.5));
+        assert!(near(evaluate("sin(pi/6)", Units::None), 0.5));
+        assert!(near(evaluate("(pi/2) rad", Units::Angle), 90.0));
+        assert!(near(evaluate("pi rad", Units::Angle), 180.0));
+        assert_eq!(evaluate("90 °", Units::Angle), Some(90.0));
+        assert_eq!(evaluate("1e3cm", Units::Length), Some(10.0));
+        assert_eq!(evaluate("(1 + 1) m", Units::Length), Some(2.0));
     }
 }

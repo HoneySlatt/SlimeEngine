@@ -1078,7 +1078,7 @@ that the look has a light and a high-contrast theme beside its dark one.
   buttons that toggle and controls of segments; bars of progress; counts on tabs; fields of search;
   fields of numbers with a prefix that drags them, the axes' colors on a vector's fields; drags
   finer or coarser with Shift and Control; expressions in fields of numbers; units by families,
-  converted as they are typed; a slot in a section's header; tooltips of a title and a body, which a
+  converted as they are typed; a box that the program builds in a section's header; tooltips of a title and a body, which a
   program gives from the documentation that reflection keeps. The `widgets` example shows them.
 - **Done when.** Tests without a GPU of each widget's actions, meaning and focus, of the expressions
   and of the units; image tests of the example; an agent's session uses each through its actions;
@@ -1099,7 +1099,7 @@ that the look has a light and a high-contrast theme beside its dark one.
   press on a prefix that cut an input method's composition, a bar of progress hidden that kept
   frames coming, and a placeholder placed apart from the field's text, fixed with tests. The owner
   took the record's choices the same day, which made it accepted: expressions with functions, units
-  by families, a slot in a section's header, help given by the program; and, for M6b.7e,
+  by families, a box that the program builds in a section's header, help given by the program; and, for M6b.7e,
   notifications, the palette and the sheet of shortcuts kept by the framework. The rest is under
   way.
 

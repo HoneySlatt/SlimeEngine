@@ -184,7 +184,7 @@ pub struct Meaning {
     pub name: String,
     /// Its value: what a field holds, as the user left it, the text that an input method composes
     /// included, a field of numbers' text whether or not it reads as a number, then the symbol of
-    /// its unit, `1.5 m`; a slider's number,
+    /// its unit where it holds a number, `1.5 m`; a slider's number,
     /// and two panels' first share, as Rust writes them; none for another element.
     pub value: Option<String>,
     /// The bounds and the step of a slider's value, and of two panels' share; none for another
@@ -192,8 +192,8 @@ pub struct Meaning {
     pub range: Option<ValueRange>,
     /// Its states.
     pub state: ElementState,
-    /// Its description: its tooltip ([`Element::tooltip`](super::Element::tooltip)); none for
-    /// none.
+    /// Its description: its tooltip's title and text
+    /// ([`Tooltip::description`](super::Tooltip::description)); none for none.
     pub description: Option<String>,
     /// The text that a field shows while it holds nothing
     /// ([`Element::placeholder`](super::Element::placeholder)); none for none.
@@ -463,12 +463,15 @@ impl Ui {
             role,
             name,
             value: match node.field.as_ref() {
-                // A number with the symbol of its unit, `1.5 m`, which a value given back reads.
-                Some(field) => Some(match &element.kind {
-                    Kind::NumberField { units, .. } => match super::expression::symbol(*units) {
-                        Some(symbol) => format!("{} {symbol}", field.text),
-                        None => field.text.clone(),
-                    },
+                // A number with the symbol of its unit, `1.5 m`, which a value given back reads;
+                // what the user types meanwhile, `10cm`, as it is.
+                Some(field) => Some(match (&element.kind, field.text.trim().parse::<f64>()) {
+                    (Kind::NumberField { units, .. }, Ok(_)) => {
+                        match super::expression::symbol(*units) {
+                            Some(symbol) => format!("{} {symbol}", field.text.trim()),
+                            None => field.text.clone(),
+                        }
+                    }
                     _ => field.text.clone(),
                 }),
                 // A share as its own type writes it, which a widening would lengthen.
