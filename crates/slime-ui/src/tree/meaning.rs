@@ -500,7 +500,7 @@ impl Ui {
                 _ => None,
             },
             state: node.state,
-            description: element.tooltip.clone(),
+            description: element.tooltip.as_ref().map(super::Tooltip::description),
             placeholder: element.placeholder.clone().filter(|_| node.field.is_some()),
             popup: matches!(
                 element.kind,
@@ -524,7 +524,7 @@ impl Ui {
         element.role.unwrap_or(match &element.kind {
             Kind::Container if in_list => Role::ListItem,
             Kind::Container if element.name.is_some() => Role::Group,
-            Kind::Container => Role::GenericContainer,
+            Kind::Container | Kind::SectionHeader => Role::GenericContainer,
             Kind::Label(_) => Role::Label,
             Kind::Image { .. } => Role::Image,
             Kind::Button { .. } => Role::Button,

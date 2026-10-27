@@ -530,3 +530,89 @@ fn a_drag_goes_finer_with_shift_and_coarser_with_control() {
     control.control = true;
     assert_eq!(drag(&mut ui, control), "committed Number(11.1)");
 }
+
+#[test]
+fn a_sections_header_holds_its_slot_at_its_end_whose_presses_do_not_fold_it() {
+    for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
+        let mut ui = ui();
+        let settings = RootSettings {
+            size: [400.0, 300.0],
+            scale: 1.0,
+            direction,
+            origin: [0.0; 2],
+            modal: false,
+        };
+        let root = ui.add_root(settings, Style::default());
+        let mut ids = (None, None);
+        ui.build(root, 0, |children| {
+            let mut section_style = style(Some(300.0));
+            section_style.layout.size[1] = Dimension::Auto;
+            section_style.layout.padding.start = 4.0;
+            section_style.layout.padding.end = 4.0;
+            let section = Element::section("Light", true, section_style);
+            ids.0 = Some(children.add("light", section, |section| {
+                section.add("slot", Element::section_header(Style::default()), |slot| {
+                    ids.1 = Some(slot.add("reset", Element::button("", style(Some(40.0))), |_| {}));
+                });
+                section.add("body", Element::label("intensity", style(None)), |_| {});
+            }));
+        });
+        ui.frame();
+        let (section, reset) = (ids.0.expect("built"), ids.1.expect("built"));
+        let (box_, button) = (
+            ui.rect(section).expect("laid out"),
+            ui.rect(reset).expect("laid out"),
+        );
+        // In the header's line, at its end.
+        assert!(
+            button.y < box_.y + 24.0,
+            "{direction:?} {button:?} {box_:?}"
+        );
+        match direction {
+            LayoutDirection::LeftToRight => {
+                assert_eq!(button.x + button.width, box_.x + box_.width - 4.0);
+            }
+            LayoutDirection::RightToLeft => assert_eq!(button.x, box_.x + 4.0),
+        }
+        // A press on the slot's button reaches the program, and leaves the section open.
+        click(&mut ui, reset);
+        assert!(ui.state(section).expect("there").expanded);
+        assert_eq!(
+            ui.take_actions().first().map(|action| &action.kind),
+            Some(&ActionKind::Press)
+        );
+        // Folded, the section keeps its slot.
+        ui.set_open(section, false);
+        ui.frame();
+        assert!(ui.meaning_of(reset).is_some(), "{direction:?}");
+    }
+}
+
+#[test]
+fn a_tooltip_of_a_title_and_a_text_is_read_as_both() {
+    let (mut ui, root) = interface();
+    let mut id = None;
+    ui.build(root, 0, |children| {
+        let field = Element::number_field(0.5, 0.05, style(Some(120.0)))
+            .help("Roughness", "How rough the surface is, from 0 to 1");
+        id = Some(children.add("roughness", field, |_| {}));
+    });
+    ui.frame();
+    let field = id.expect("built");
+    assert_eq!(
+        ui.meaning_of(field).expect("drawn").description.as_deref(),
+        Some("Roughness: How rough the surface is, from 0 to 1")
+    );
+    let rect = ui.rect(field).expect("laid out");
+    ui.pointer_moved(rect.x + 5.0, rect.y + 5.0);
+    ui.advance(Duration::from_millis(600));
+    ui.frame();
+    let title = ui
+        .element_by_path("#1/tooltip/title")
+        .expect("the tooltip's title");
+    assert!(ui.element_by_path("#1/tooltip/text").is_some());
+    assert!(
+        ui.element(title)
+            .is_some_and(|element| element.classes.contains(&"tooltip-title".to_owned()))
+    );
+}

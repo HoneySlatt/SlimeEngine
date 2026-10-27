@@ -88,6 +88,7 @@ fn convert(
     let mut stack = vec![(start, row_height, forced)];
     while let Some((id, row_height, forced)) = stack.pop() {
         let header = section_header(ui, id, scale);
+        let slot = header_slot(ui, id, settings);
         let room = field_room(ui, id, scale);
         let panel = split_panel(ui, id);
         let revealed = ui.reveal_height(id);
@@ -141,6 +142,13 @@ fn convert(
             if let Some(header) = header {
                 let top = style.padding.top.into_raw().value();
                 style.padding.top = LengthPercentage::length(top + header);
+            }
+            // The slot of a section's header lies in the header, at the end of its line, out of
+            // the flow of what the section holds.
+            // Sized as the header is tall, and placed at its end once its section is laid out.
+            if let Some(height) = slot {
+                style.position = taffy::Position::Absolute;
+                style.size.height = TaffyDimension::length(height);
             }
             // A field's marks and prefix lie before and after its text, within its padding.
             if let Some([start, end]) = room {
@@ -225,6 +233,17 @@ fn split_panel(ui: &Ui, id: ElementId) -> Option<Panel> {
         1 => Some(Panel::Second),
         _ => None,
     }
+}
+
+/// How tall the slot of a header `id` is, in pixels of the screen: its section's or floating panel's
+/// header's height. None for another element, or a slot of no such parent.
+fn header_slot(ui: &mut Ui, id: ElementId, settings: RootSettings) -> Option<f32> {
+    let node = ui.node(id)?;
+    if !matches!(node.element.kind, Kind::SectionHeader) {
+        return None;
+    }
+    let parent = node.parent?;
+    section_header(ui, parent, settings.scale)
 }
 
 /// The height of the header of `id`, a section or a floating panel, in pixels of the screen at
@@ -411,8 +430,34 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
                 .iter()
                 .map(|&child| (child, content_x, content_y, inner)),
         );
+        // The slot of a section's header at the end of the header's line, out of the flow; laid
+        // out from left to right, its end on the right, which a root from right to left mirrors.
+        if matches!(
+            node.element.kind,
+            Kind::Section { .. } | Kind::FloatingPanel { .. }
+        ) {
+            let padding = node.style.layout.padding;
+            let border = node.style.paint.border_width * scale;
+            // As the header's box lies: within the padding above, to the content's end.
+            let (end, top, width) = (
+                border + padding.end * scale,
+                padding.top * scale,
+                layout.size.width,
+            );
+            for child in node.children.clone() {
+                let Some(slot) = ui.node_mut(child) else {
+                    continue;
+                };
+                if matches!(slot.element.kind, Kind::SectionHeader) {
+                    slot.layout.location.x = width - end - slot.layout.size.width;
+                    slot.layout.location.y = top;
+                }
+            }
+        }
         // Each row of a list at its place, from its number.
-        if let Kind::List { row_height, .. } = node.element.kind {
+        if let Some(node) = ui.node(id)
+            && let Kind::List { row_height, .. } = node.element.kind
+        {
             for child in node.children.clone() {
                 let Some(row) = ui.node_mut(child) else {
                     continue;

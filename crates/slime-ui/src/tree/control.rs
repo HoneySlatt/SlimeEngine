@@ -287,8 +287,12 @@ impl Ui {
         let Some(node) = self.node(parent) else {
             return false;
         };
+        // The slot of a header stays in it, open or folded.
+        let slot = self
+            .node(id)
+            .is_some_and(|child| matches!(child.element.kind, Kind::SectionHeader));
         match node.element.kind {
-            Kind::Section { .. } | Kind::FloatingPanel { .. } => {
+            Kind::Section { .. } | Kind::FloatingPanel { .. } if !slot => {
                 !node.state.expanded && !self.folding(parent)
             }
             Kind::Split { .. } => node.children.iter().position(|&child| child == id) > Some(1),
@@ -827,7 +831,14 @@ impl Ui {
                     }
                 }
                 let gap = size / 2.0;
-                let width = (header.width - size - gap).max(0.0);
+                // The title leaves the room that the header's slot takes, and a gap before it.
+                let slot = self
+                    .children(id)
+                    .iter()
+                    .filter_map(|&child| self.node(child))
+                    .find(|child| matches!(child.element.kind, Kind::SectionHeader))
+                    .map_or(0.0, |child| child.rect.width + gap);
+                let width = (header.width - size - gap - slot).max(0.0);
                 let layout: std::sync::Arc<TextLayout> = self
                     .texts
                     .get(

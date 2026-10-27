@@ -159,6 +159,7 @@ pub(crate) enum KindName {
     MenuItem,
     Choice,
     FloatingPanel,
+    SectionHeader,
     ToggleButton,
     Segments,
     Segment,

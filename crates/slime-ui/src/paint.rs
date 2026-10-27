@@ -144,7 +144,8 @@ fn primitives(
         | Kind::TabBar { .. }
         | Kind::Menu
         | Kind::MenuBar
-        | Kind::Segments { .. } => {}
+        | Kind::Segments { .. }
+        | Kind::SectionHeader => {}
     }
     primitives
 }

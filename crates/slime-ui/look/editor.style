@@ -119,6 +119,11 @@ style.text.style.weight = "$weight_title"
 style.control = { size = "$control", radius = "$radius_s", track = "$raised", fill = "$accent", mark = "$text" }
 style.transition = { duration = "$slow", easing = "EaseInOut" }
 
+[section-header]
+select = { kind = "SectionHeader" }
+style.layout.gap = [0, "$space_s"]
+style.layout.align_items = "Center"
+
 [section-hovered]
 select = { kind = "Section", states = ["Hovered"] }
 style.control.track = "$hover"
@@ -292,6 +297,10 @@ style.layout.max_size = [{ Pixels = "$tooltip_width" }, "Auto"]
 [tooltip-text]
 select = { kind = "Label", inside = { class = "tooltip" } }
 style.text.style.size = "$text_s"
+
+[tooltip-title]
+select = { kind = "Label", classes = ["tooltip-title"] }
+style.text.style.weight = "$weight_title"
 
 [floating-panel]
 select = { kind = "FloatingPanel" }

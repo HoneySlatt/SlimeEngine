@@ -281,6 +281,12 @@ pub enum Kind {
         /// What it shows besides its label.
         mark: ItemMark,
     },
+    /// The slot of a section's header (`docs/adr/0151-rich-widgets.md`): a box, laid out as a
+    /// container, that its section, or a floating panel, lays in its header, after its title, at
+    /// the end of the line, as tall as the header, and never folds; its builder fills it with what
+    /// it likes, an icon, the type of what the section shows, a button of a menu or of reset, whose
+    /// presses do not fold the section. Elsewhere, a container.
+    SectionHeader,
     /// A panel that floats over a window: a bar of its title, after a mark that shows whether it
     /// is open, then, while it is open, its children, laid out as a container's below the bar, as
     /// a section's are (`docs/adr/0150-layers.md`). The program opens a floating layer
@@ -346,6 +352,28 @@ pub enum Kind {
         /// The place of the chosen option among them, as the program gives it; kept within them.
         chosen: usize,
     },
+}
+
+/// What an element's tooltip shows ([`Element::tooltip`](Element::tooltip)): a title, which may be
+/// empty, above a text.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Tooltip {
+    /// Its title, empty for none: the name of what the element edits.
+    pub title: String,
+    /// Its text.
+    pub text: String,
+}
+
+impl Tooltip {
+    /// What screen readers read of it, as its element's description: its title, then its text,
+    /// `Roughness: how rough the surface is`.
+    pub fn description(&self) -> String {
+        if self.title.is_empty() {
+            self.text.clone()
+        } else {
+            format!("{}: {}", self.title, self.text)
+        }
+    }
 }
 
 /// The family of units of a field of numbers ([`Kind::NumberField`]): its number is in the family's
@@ -446,10 +474,10 @@ pub struct Element {
     /// Its name to whoever reads the interface without seeing it; `None` for a button's label or a
     /// text's, or no name.
     pub name: Option<String>,
-    /// The text that shows below it once the pointer has rested on it for half a second of the
-    /// interface's clock, or once the keys gave it the focus, and that screen readers read as its
-    /// description (`docs/adr/0150-layers.md`); `None` for none.
-    pub tooltip: Option<String>,
+    /// What shows below it once the pointer has rested on it for half a second of the interface's
+    /// clock, or once the keys gave it the focus, and that screen readers read as its description
+    /// (`docs/adr/0150-layers.md`); `None` for none.
+    pub tooltip: Option<Tooltip>,
     /// The text that a field shows, in its control's track color, while it holds nothing, and that
     /// screen readers read as its placeholder (`docs/adr/0151-rich-widgets.md`); `None` for none,
     /// and for an element that is no field.
@@ -620,6 +648,11 @@ impl Element {
         )
     }
 
+    /// The slot of a section's header, whose builder adds what it holds.
+    pub fn section_header(style: Style) -> Self {
+        Self::of(Kind::SectionHeader, style)
+    }
+
     /// A section that folds, with its title, open or not.
     pub fn section(title: impl Into<String>, open: bool, style: Style) -> Self {
         let kind = Kind::Section {
@@ -724,7 +757,23 @@ impl Element {
     /// container of the class `tooltip` holding a label.
     #[must_use]
     pub fn tooltip(mut self, text: impl Into<String>) -> Self {
-        self.tooltip = Some(text.into());
+        self.tooltip = Some(Tooltip {
+            title: String::new(),
+            text: text.into(),
+        });
+        self
+    }
+
+    /// The element, with a tooltip of a title and a text (the field [`tooltip`](Self::tooltip)),
+    /// as a program gives one from the documentation of what a field edits
+    /// (`docs/adr/0151-rich-widgets.md`): the title in a label of the class `tooltip-title`, above
+    /// the text.
+    #[must_use]
+    pub fn help(mut self, title: impl Into<String>, text: impl Into<String>) -> Self {
+        self.tooltip = Some(Tooltip {
+            title: title.into(),
+            text: text.into(),
+        });
         self
     }
 
@@ -2114,6 +2163,7 @@ fn kind_name(kind: &Kind) -> KindName {
         Kind::MenuItem { .. } => KindName::MenuItem,
         Kind::Choice { .. } => KindName::Choice,
         Kind::FloatingPanel { .. } => KindName::FloatingPanel,
+        Kind::SectionHeader => KindName::SectionHeader,
         Kind::ToggleButton { .. } => KindName::ToggleButton,
         Kind::Segments { .. } => KindName::Segments,
         Kind::Segment { .. } => KindName::Segment,

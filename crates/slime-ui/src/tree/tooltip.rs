@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use super::{Along, Element, ElementId, ItemMark, Kind, Layer, Place, Role, Side, Ui};
 use crate::action::{Action, ActionKind};
-use crate::style::Style;
+use crate::style::{FlexDirection, Style};
 
 /// How long the pointer rests on an element before its tooltip shows.
 const TOOLTIP_REST: Duration = Duration::from_millis(500);
@@ -120,7 +120,7 @@ impl Ui {
     /// Shows the tooltip of `owner` below it, the one that showed going.
     pub(super) fn show_tooltip(&mut self, owner: ElementId) {
         self.hide_tooltip();
-        let Some(text) = self
+        let Some(tooltip) = self
             .node(owner)
             .and_then(|node| node.element.tooltip.clone())
         else {
@@ -140,10 +140,19 @@ impl Ui {
             held.tooltip = true;
         }
         self.build(root, 0, |children| {
-            let tip = Element::container(Style::default()).class("tooltip");
+            let mut column = Style::default();
+            column.layout.direction = FlexDirection::Column;
+            let tip = Element::container(column).class("tooltip");
             children.add("tooltip", tip, |tip| {
                 // Screen readers read it as its element's description, not twice.
-                let text = Element::label(text, Style::default()).role(Role::GenericContainer);
+                if !tooltip.title.is_empty() {
+                    let title = Element::label(tooltip.title, Style::default())
+                        .class("tooltip-title")
+                        .role(Role::GenericContainer);
+                    tip.add("title", title, |_| {});
+                }
+                let text =
+                    Element::label(tooltip.text, Style::default()).role(Role::GenericContainer);
                 tip.add("text", text, |_| {});
             });
         });
