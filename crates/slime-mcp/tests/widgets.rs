@@ -11,7 +11,8 @@
 //! (`docs/adr/0150-layers.md`): it chooses the quality of shadows by the text of an option, reads
 //! the list's tooltip as its description, opens the bar's menus, shows the floating panel of
 //! statistics through an item that *View* holds, and opens a recent level through *File*'s submenu,
-//! whose menus then close.
+//! whose menus then close; it gives a command that the example tells of in a notification, and
+//! finds a command in the palette of commands, which it gives.
 //!
 //! It needs a Wayland compositor and the example built (`cargo build --example widgets`):
 //! `scripts/check.sh` runs it in a headless Weston with lavapipe, as it runs the `interface` test.
@@ -323,6 +324,30 @@ fn main() {
     told(&mut session, "open zone.scene");
     let (menus, _) = session.tool("find_elements", json!({ "role": "Menu" }));
     assert_eq!(menus, ["no element"], "the menus closed");
+
+    // A command that the example tells of in a notification, as a shortcut gives it.
+    let (said, _) = session.tool(
+        "act_on_interface",
+        json!({ "action": "command", "command": "save" }),
+    );
+    assert_eq!(said, ["done"]);
+    path_of(&mut session, "Status", "yard.scene is saved");
+    // The palette of commands: what is given its field finds the commands, a press gives one.
+    let (said, _) = session.tool(
+        "act_on_interface",
+        json!({ "action": "command", "command": "palette" }),
+    );
+    assert_eq!(said, ["done"]);
+    let field = path_of(&mut session, "SearchInput", "command");
+    act(
+        &mut session,
+        "set_value",
+        &field,
+        json!({ "value": "statistics" }),
+    );
+    let found = path_of(&mut session, "ListBoxOption", "Show or hide the statistics");
+    act(&mut session, "press", &found, json!({}));
+    told(&mut session, "statistics hidden");
 
     // Another tab chosen: its panel shows, the inspector's leaves.
     act(&mut session, "press", "#0/window/tabs/Console", json!({}));

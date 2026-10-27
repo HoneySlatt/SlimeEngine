@@ -23,6 +23,10 @@
 //! the count of its warnings and errors; the light's section, whose header holds its type and a
 //! button that resets it; help over the material's properties, a title and a text.
 //!
+//! What the editor tells and finds (`docs/adr/0151-rich-widgets.md`): a notification as a level is
+//! made or saved, Ctrl+N and Ctrl+S; the palette of commands, Ctrl+Shift+P, which finds every
+//! command of the example by its name; the sheet of shortcuts, F1. *View* opens both.
+//!
 //! What opens over the panel (`docs/adr/0150-layers.md`): a bar of menus above the tabs, *File*,
 //! with a submenu of recent levels, and *View*, which shows the floating panel of statistics, and
 //! has a submenu of the look's colors; a menu of the entities' rows, at the pointer's second button
@@ -38,8 +42,8 @@ use slime_ui::style::{Align, Dimension, FlexDirection, Sides, Style};
 use slime_ui::text::Fonts;
 use slime_ui::theme::Theme;
 use slime_ui::tree::{
-    Along, Children, Element, ElementId, ItemMark, Layer, LayoutDirection, Place, Role,
-    RootSettings, Side, Ui, Units,
+    Along, Children, Element, ElementId, ItemMark, Layer, LayoutDirection, Notification,
+    NotificationKind, PaletteCommand, Place, Role, RootSettings, Side, Ui, Units,
 };
 
 /// The rows of the list of entities.
@@ -73,6 +77,21 @@ const TAB_TIPS: [&str; 3] = [
 const QUALITIES: [&str; 4] = ["Low", "Medium", "High", "Ultra"];
 /// The levels that *File*'s submenu offers.
 const RECENT: [&str; 3] = ["yard.scene", "lamp.scene", "zone.scene"];
+/// The commands that the palette finds and the sheet of shortcuts names: each its name and the
+/// command, as the table of shortcuts names it.
+const COMMANDS: [(&str, &str); 11] = [
+    ("New level", "new-level"),
+    ("Open a level", "open"),
+    ("Save the level", "save"),
+    ("Quit", "quit"),
+    ("Show or hide the statistics", "statistics"),
+    ("Switch the colors", "switch-colors"),
+    ("Switch the density", "switch-density"),
+    ("Switch the accent", "switch-accent"),
+    ("Less motion, or more", "switch-motion"),
+    ("Command palette", "palette"),
+    ("Keyboard shortcuts", "shortcuts"),
+];
 /// The tools that the control of segments chooses from.
 const TOOLS: [&str; 3] = ["Move", "Turn", "Scale"];
 /// The help of the properties that have some, as a program gives it from the documentation of
@@ -112,6 +131,9 @@ M = "switch-motion"
 "Ctrl+N" = "new-level"
 "Ctrl+O" = "open"
 "Ctrl+Q" = "quit"
+"Ctrl+S" = "save"
+"Ctrl+Shift+P" = "palette"
+F1 = "shortcuts"
 "#;
 
 /// A slider of the inspector: its label, its value, its bounds and its step.
@@ -169,8 +191,6 @@ enum Item {
     Submenu(Menu),
     /// Opens a level of the recent ones.
     Recent(&'static str),
-    /// Shows or hides the floating panel of statistics.
-    Statistics,
     /// Switches the look's colors.
     Colors(Colors),
     /// Renames, duplicates or deletes the entity of a row.
@@ -483,8 +503,35 @@ impl WidgetsPanel {
     /// asked to stop.
     fn command(&mut self, command: &str) -> bool {
         let told = match command {
-            "new-level" | "open" => {
+            "open" => {
                 self.tell(command.replace('-', " "));
+                return false;
+            }
+            // What the editor tells the user, in a notification.
+            "new-level" | "save" => {
+                let (kind, text) = match command {
+                    "save" => (NotificationKind::Success, "yard.scene is saved"),
+                    _ => (NotificationKind::Information, "A new level is made"),
+                };
+                self.ui.notify(Notification {
+                    kind,
+                    text: text.to_owned(),
+                    ..Notification::default()
+                });
+                self.tell(command.replace('-', " "));
+                return false;
+            }
+            "palette" => {
+                self.ui.open_palette("Type a command", palette_commands());
+                return false;
+            }
+            "shortcuts" => {
+                self.ui
+                    .open_shortcut_sheet("Keyboard shortcuts", &palette_commands());
+                return false;
+            }
+            "statistics" => {
+                self.toggle_statistics();
                 return false;
             }
             "quit" => return true,
@@ -532,7 +579,6 @@ impl WidgetsPanel {
                 self.open_menu(place, menu);
             }
             Item::Recent(level) => self.tell(format!("open {level}")),
-            Item::Statistics => self.toggle_statistics(),
             Item::Colors(colors) => {
                 self.colors = colors;
                 self.style();
@@ -555,6 +601,7 @@ impl WidgetsPanel {
                     Item::Command("new-level"),
                 ),
                 entry("Open…", "Ctrl+O", ItemMark::None, Item::Command("open")),
+                entry("Save", "Ctrl+S", ItemMark::None, Item::Command("save")),
                 entry("Recent", "", ItemMark::Submenu, Item::Submenu(Menu::Recent)),
                 entry("Quit", "Ctrl+Q", ItemMark::None, Item::Command("quit")),
             ],
@@ -567,7 +614,7 @@ impl WidgetsPanel {
                     "Statistics",
                     "",
                     ItemMark::Check(self.statistics.is_some()),
-                    Item::Statistics,
+                    Item::Command("statistics"),
                 ),
                 entry("Colors", "", ItemMark::Submenu, Item::Submenu(Menu::Colors)),
                 entry(
@@ -575,6 +622,18 @@ impl WidgetsPanel {
                     "M",
                     ItemMark::Check(self.ui.reduced_motion()),
                     Item::Command("switch-motion"),
+                ),
+                entry(
+                    "Command palette…",
+                    "Ctrl+Shift+P",
+                    ItemMark::None,
+                    Item::Command("palette"),
+                ),
+                entry(
+                    "Keyboard shortcuts",
+                    "F1",
+                    ItemMark::None,
+                    Item::Command("shortcuts"),
                 ),
             ],
             Menu::Colors => [
@@ -980,6 +1039,17 @@ fn position_row(
             targets.push((children.add(prefix, field, |_| {}), Target::Position(axis)));
         }
     });
+}
+
+/// The commands that the palette finds and the sheet of shortcuts names.
+fn palette_commands() -> Vec<PaletteCommand> {
+    COMMANDS
+        .iter()
+        .map(|&(name, command)| PaletteCommand {
+            name: name.to_owned(),
+            command: command.to_owned(),
+        })
+        .collect()
 }
 
 /// The name of the entity `entity`, as the list shows it.

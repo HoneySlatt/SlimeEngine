@@ -5,7 +5,9 @@
 //! check box that an action unchecked; the inspector laid out from the right, a section folded and
 //! another opened, a slider moved and a check box checked; the bar's menu *File* open with its
 //! submenu of recent levels; the floating panel of statistics, the list to choose the quality of
-//! shadows from open, and a tab's tooltip (`docs/adr/0150-layers.md`). Transitions are dropped, so
+//! shadows from open, and a tab's tooltip (`docs/adr/0150-layers.md`); a notification of a level
+//! saved and the palette of commands, what is typed finding its commands
+//! (`docs/adr/0151-rich-widgets.md`). Transitions are dropped, so
 //! that each image shows where they end (`docs/adr/0149-the-looks-foundations.md`).
 //!
 //! The references were drawn with lavapipe, as the triangle's were (`tests/offscreen.rs`). To draw
@@ -179,4 +181,30 @@ fn a_floating_panel_a_list_open_and_a_tooltip_match_their_reference_image() {
         .pointer_moved(tab.x + tab.width / 2.0, tab.y + tab.height / 2.0);
     panel.ui.advance(std::time::Duration::from_millis(600));
     check(&mut panel, "widgets-layers");
+}
+
+/// Gives the command `command`, as a shortcut does, and lets the program take what it did.
+fn command(panel: &mut WidgetsPanel, command: &str) {
+    panel.ui.act(Action {
+        element: None,
+        kind: ActionKind::Command(command.to_owned()),
+    });
+    panel.handle_actions();
+    panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+}
+
+#[test]
+fn a_notification_and_the_palette_of_commands_match_their_reference_image() {
+    let mut panel = panel(LayoutDirection::LeftToRight);
+    panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+    command(&mut panel, "save");
+    command(&mut panel, "palette");
+    // What is typed in the palette's field finds the commands.
+    let field = panel
+        .ui
+        .element_by_path("#2/palette/search")
+        .expect("the palette's field");
+    assert!(panel.ui.set_value(field, "sw"));
+    panel.handle_actions();
+    check(&mut panel, "widgets-told");
 }
