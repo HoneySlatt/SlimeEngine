@@ -38,6 +38,7 @@ struct Key {
     alignment: super::Alignment,
     direction: super::Direction,
     locale: Option<String>,
+    features: Vec<String>,
 }
 
 struct Entry {
@@ -83,6 +84,7 @@ impl TextCache {
             alignment: style.alignment,
             direction: style.direction,
             locale: style.locale.clone(),
+            features: style.features.clone(),
         };
         self.clock += 1;
         let clock = self.clock;

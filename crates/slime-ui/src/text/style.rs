@@ -32,11 +32,15 @@ pub struct TextStyle {
     /// The language, a BCP 47 tag, `ja` or `zh-CN`: it chooses the forms that a font has for it,
     /// and the fonts that the system's fallback finds. None for no language.
     pub locale: Option<String>,
+    /// The OpenType features that the fonts turn on, by their four-letter tags: `tnum`, digits of
+    /// one width, so that numbers line up in columns and do not move as they change. A tag that a
+    /// font does not have changes nothing (`docs/adr/0149-the-looks-foundations.md`).
+    pub features: Vec<String>,
 }
 
 impl Default for TextStyle {
     /// No fonts, 14 pixels, regular, upright, the fonts' line height, at the start, the direction
-    /// of the text, no language.
+    /// of the text, no language, no features.
     fn default() -> Self {
         Self {
             fonts: Vec::new(),
@@ -47,6 +51,7 @@ impl Default for TextStyle {
             alignment: Alignment::Start,
             direction: Direction::Auto,
             locale: None,
+            features: Vec::new(),
         }
     }
 }

@@ -6,8 +6,8 @@ use std::ops::Range;
 
 use parley::{
     Affinity as ParleyAffinity, Alignment as ParleyAlignment, AlignmentOptions, BaseDirection,
-    BoundingBox, Cluster, Cursor, FontFamily, FontFamilyName, FontStyle, FontWeight, Language,
-    Layout, LineHeight, PositionedLayoutItem, Selection, StyleProperty,
+    BoundingBox, Cluster, Cursor, FontFamily, FontFamilyName, FontFeatures, FontStyle, FontWeight,
+    Language, Layout, LineHeight, PositionedLayoutItem, Selection, StyleProperty,
 };
 
 use crate::Rect;
@@ -227,6 +227,17 @@ impl Fonts {
         )));
         if let Some(locale) = &style.locale {
             builder.push_default(StyleProperty::Locale(Language::parse(locale).ok()));
+        }
+        if !style.features.is_empty() {
+            // As CSS's `font-feature-settings` writes them, which parley reads.
+            let features: Vec<String> = style
+                .features
+                .iter()
+                .map(|tag| format!("\"{tag}\" 1"))
+                .collect();
+            builder.push_default(StyleProperty::FontFeatures(FontFeatures::Source(
+                Cow::Owned(features.join(", ")),
+            )));
         }
         builder.build(text)
     }
