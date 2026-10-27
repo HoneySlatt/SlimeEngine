@@ -88,9 +88,10 @@ handle, and scroll bars, and what opens over a panel, menus and their bar, conte
 choose from, tooltips and floating panels, and holds the editor's look, its fonts Geist and Geist
 Mono and Lucide's icons, in dark, light and high-contrast themes, behind a feature. The `interface`
 example builds an interface, with text in eight writing systems, a dark and a light theme, and a
-modal dialog; the `widgets` example, a panel of the editor's kind, with its menus.
-[`docs/PLAN.md`](docs/PLAN.md) says what comes next, the rest of Stage 6b, the engine's interface:
-its UI framework, proven by the dev overlay; then Stage 6c, the editor. It lists the known debt too.
+modal dialog; the `widgets` example, a panel of the editor's kind, with its menus. The dev overlay
+is built on it, in the editor's look, over *Hunna Wood* and the `scene` and `world` examples, and
+egui has left the engine. [`docs/PLAN.md`](docs/PLAN.md) says what comes next, the end of Stage 6b
+and its release; then Stage 6c, the editor. It lists the known debt too.
 
 ## Getting started
 
@@ -150,8 +151,9 @@ opt-level = 3
   points, and [`examples/`](examples/README.md) holds programs to start from: `world` draws a world,
   `scene` drives the renderer by hand.
 - A game that tools and agents drive declares a `development` feature, on by default, which turns
-  on `slime-app/development`, and is built for shipping with `--no-default-features`, which leaves
-  the development channel out, as [`games/hunnawood`](games/hunnawood/Cargo.toml) does
+  on `slime-app/development` and its dev overlay, and is built for shipping with
+  `--no-default-features`, which leaves the development channel and the overlay out, as
+  [`games/hunnawood`](games/hunnawood/Cargo.toml) does
   ([`crates/slime-app/README.md`](crates/slime-app/README.md)).
 - Building needs Rust 1.99 or later and, on Linux, the libraries that
   [`CONTRIBUTING.md`](CONTRIBUTING.md#on-linux-without-nix) lists and a [Vulkan

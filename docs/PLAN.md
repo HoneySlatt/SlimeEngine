@@ -1334,10 +1334,8 @@ A release is an annotated git tag on a commit whose CI run is green on Linux and
    `slime-examples-windows-<version>.zip`: CI keeps its artifacts 14 days, a release keeps them.
    CI puts beside the programs DXC's library and its licence, the licenses of the parts of Noto
    fonts that `interface.exe` embeds and those of Geist, Geist Mono and Lucide, which `widgets.exe`
-   embeds;
-   add `LICENSE.txt`, a `NOTICE.txt` and the licenses of the egui
-   fonts that `scene.exe`, `world.exe` and `hunnawood.exe` embed in their dev overlay, which the
-   Ubuntu Font Licence asks to travel with them.
+   embeds, and `scene.exe`, `world.exe` and `hunnawood.exe` in their dev overlay; add
+   `LICENSE.txt` and a `NOTICE.txt`.
 
 0.0.1 was released on 2026-10-12, before Windows joined CI: the tag `v0.0.1` is on the commit
 "Release 0.0.1". 0.0.2 was released the same way on 2026-10-12: the tag `v0.0.2` is on the
@@ -1516,13 +1514,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   sctk-adwaita, on compositors that do not draw decorations), each waiting up to 100 ms when the
   settings portal does not answer; the error they log when no session bus or portal answers is
   hidden by the default log filter (ADR-0019).
-- **Upgrading wgpu waits for egui** while the dev overlay draws with it (ADR-0031; M6b.8b).
-  `egui-wgpu` is built against one wgpu version (egui 0.36 against wgpu 30 today), so wgpu moves
-  only once egui follows. M6b.8b moves the overlay on the engine's UI framework and removes egui
-  ([ADR-0132](adr/0132-the-engines-ui-framework.md)).
-- **The dev overlay blends in an sRGB framebuffer.** egui prefers a linear one for its blending,
-  warns once at startup, and its panels look slightly lighter than egui's own demos (ADR-0031;
-  M6b.8b). Harmless for tooling; it goes with egui at M6b.8b.
 - **Mipmaps of textures made in code are computed on the CPU when they are created**
   (`Gpu::create_texture`, whose documentation gives the cost), on the calling thread, in work
   proportional to the texture's pixels (ADR-0032): a level of tens of large textures waits seconds.
@@ -1666,12 +1657,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   that pass until the next time replaces it. wgpu does not tell how many bits are valid, so the
   wrapped difference cannot be recovered. Dropping such a sample (`end.checked_sub(start)` in
   `crates/slime-gfx/src/timer.rs`) is a one-line change if it ever matters.
-- **The dev overlay can still panic on a lost device** (ADR-0022, ADR-0103; M6b.8b, which moves it
-  without egui). `Overlay::render` skips the frame when the device was lost earlier in it, and
-  `Overlay::new` returns an error on a lost device, but two cases panic inside egui-wgpu or wgpu: a
-  loss that egui-wgpu's own buffer upload is the first to find, and a device lost between
-  `Overlay::new`'s check and egui-wgpu's creation of its buffers (`create_buffer_init`). Both are
-  documented under `# Panics`; closing them needs a change in egui-wgpu or wgpu.
 - **Exposed light beyond 64 × 65 504 is clamped** (ADR-0035, ADR-0037, ADR-0039, ADR-0040). The
   scene and sky shaders write exposed light divided by 64 into the `Rgba16Float` target, and light
   above 64 × 65 504 as 65 504, the largest half, rather than leave it to the driver, which may store
@@ -2081,10 +2066,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   forgets them when the program gives it another text. A field has no length that it holds at
   most, no text hidden as a password's; a field of numbers no bounds, without a prefix
   is dragged only while it does not hold the focus, and reads a full stop alone as its decimal mark,
-  whatever the user's language. The interface
-  takes an event before the presentation's `on_event`, where the dev overlay reads it: a panel of
-  the overlay drawn above an interface would lose a press to the element beneath it, which M6b.8b
-  settles as it moves the overlay onto the interface. The input method's window is placed beside
+  whatever the user's language. The input method's window is placed beside
   the caret as the last frame drew it, and is turned off and on again, meant to end a composition
   that the focus left, which no input method was checked with yet; a text that the program gives
   while an input method composes, which the field reads without the composition, is left aside, so
@@ -2099,7 +2081,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   arrows. Whether a section is open, which tab is chosen and where a handle stands are the
   interface's alone: they tell the program nothing, and an element that a builder removes forgets
   them. The editor's look has no italic faces; its fonts hold no Greek; it is built into the
-  program, not cooked, and how a game's overlay replaces it is M6b.8b's to decide.
+  program, not cooked: the dev overlay carries it into a game's development build, and the game's
+  build for shipping leaves it out.
 - **The look's foundations** ([ADR-0149](adr/0149-the-looks-foundations.md)): a theme's values are
   typed only where a rule uses them, so that a name that holds a value of the wrong type is refused
   where a rule names it, not where the theme gives it; the color functions are four, and work on
@@ -2160,8 +2143,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   asked for once is given an update after each frame until it closes. A text that its builder names
   gives screen readers its name, not its words; a caret at the end of a line that breaks within the
   text is placed at the start of the next, its side lost; screen readers scroll by an item or by
-  what shows, not to an offset. egui's accesskit 0.24 is built beside 0.25 until M6b.8b takes egui
-  out. `deny.toml` ignores three advisories of unmaintained crates that the adapter on Linux brings
+  what shows, not to an offset. `deny.toml` ignores three advisories of unmaintained crates that the adapter on Linux brings
   through zbus 5, zvariant, zbus_names and zvariant_derive, which zbus 6 holds: they go once
   AccessKit's adapter moves to zbus 6.
 - **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md)): a theme's value
@@ -2233,11 +2215,6 @@ determinism between Linux and Windows.
 - **A very deep hierarchy costs quadratic time** (G32, medium; Stage 6c): spawning, loading, saving
   and each frame walk every entity's ancestors (`set_parent`'s search for a cycle,
   `World::unsaved`, `interpolated_transform`). M6a.3 made `World::is_hidden` read a flag.
-- **The world panel rounds a number that was only clicked or crossed with the keyboard, and writes
-  the rounding into the world** (G33, medium; M6b.8b, which moves the programs onto M6b.8a's world
-  panel, whose fields write only what the user changed): egui's `DragValue` shows as many decimals
-  as the drag's speed gives, and writes back the text it shows when it loses the focus. The rule for
-  the editor's inspector: a field changes a value only when the user changed it.
 - **A GPU object used with another `Gpu` acts on another object without a word, and no API opens a
   second window on the same GPU** (G34, medium; Stage 6c): each `Gpu` numbers its objects from zero,
   and a window's surface comes only with a new `Gpu`. The editor's model of windows decides.
@@ -2256,11 +2233,6 @@ determinism between Linux and Windows.
   later): `view_from_eye` squares the direction in `f32`.
 - **`World::write_scene` loops without end when more than 1 679 616 entities need IDs from one
   base** (G45, low; Stage 6c): it draws four base-36 characters until one is free.
-- **The world panel costs about 1.25 µs per entity and per frame** (G46, low; M6b.8b, which moves
-  the programs onto M6b.8a's world panel, measured by `devui.world_panel.100k`): 125 to 145
-  ms per frame at 100 000 entities, every row laid out, visible or not, measured before M6a.3,
-  which makes the list again only when the world's structure moves, and was not measured again.
-  The editor's hierarchy needs a virtualized list.
 - **`Registry::register_dynamic` accepts version 0, which the derive refuses** (G48, low; Stage 8):
   the values are written, then never read back, with a wrong message.
 - **Two cooks in one process share their temporary files** (G49, low; Stage 6c): named after the

@@ -19,7 +19,7 @@ it is built this way.
 │   ├── slime-channel/   the development channel: a running game driven by tools, its protocol
 │   ├── slime-color/     the color type of every API: linear colors, the sRGB transfer function
 │   ├── slime-cook/      the asset pipeline's cooker, a library and its program
-│   ├── slime-devui/     dev overlay (egui until Stage 6b), tooling
+│   ├── slime-devui/     the dev overlay, on the engine's interface: tooling
 │   ├── slime-editor/    the editor: today its core, a level changed through undoable commands
 │   ├── slime-gfx/       GPU layer (wgpu)
 │   ├── slime-input/     the vocabulary of input: keys, mouse buttons, modifiers, the wheel
@@ -68,7 +68,7 @@ created only when code needs it.
 | [`slime-input`](../crates/slime-input/README.md) | The engine's vocabulary of input, without a window: keys by position and by meaning, mouse buttons, modifiers, the wheel ([ADR-0142](adr/0142-input-and-focus.md)) | none | The types of a key's press and release, the modifiers, the mouse's buttons and the wheel, what an input method does, and the pointer's shapes ([ADR-0145](adr/0145-text-edited.md)); the names of the keys, listed once |
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input, and that input as data, the keys and buttons held; the only crate that uses the windowing library (winit), the clipboard's (arboard) and AccessKit's adapter | `slime-input`, `winit`, `arboard`, `raw-window-handle`, `thiserror`, `tracing`; with its `accessibility` feature, `accesskit`, `accesskit_winit` | One window; window, keyboard and mouse events, and the text that input methods compose; the keys and mouse buttons held, pressed and released since the last frame; the input method allowed and placed, the pointer's shape, and the system's clipboard of text ([ADR-0145](adr/0145-text-edited.md)); the scheme of colors that the system prefers, where winit tells it ([ADR-0149](adr/0149-the-looks-foundations.md)); with its `accessibility` feature, AccessKit's adapter of the window, made before it shows, the requests of screen readers as events and the updates of their tree ([ADR-0146](adr/0146-screen-readers.md)) |
 | [`slime-app`](../crates/slime-app/README.md) | A game run as a simulation, its rules, and a presentation, what the player sees, by a host that owns its world, real time and game time, its input and its commands, through the phases of each frame ([ADR-0107](adr/0107-the-execution-model.md), [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); the main loop, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `slime-world`, `slime-reflect`, `slime-ui`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber`, `nu-ansi-term` (Windows only); with its `development` feature, `slime-channel`, `slime-serialize`; with its `accessibility` feature, `accesskit` | Headless runs, and windowed runs drawn by the GPU, which go on with a new device after a lost one when the game asks; game time that pauses, slows down and steps, and that a game holds while it is not ready; commands applied at the start of a frame; a host that a test drives without a GPU; with its `development` feature, which a game turns on by default, the development channel, through which tools drive a run started with a token ([ADR-0122](adr/0122-the-development-channel.md)), and read and change the settings of the views that a presentation names, and read its reports, described by reflection ([ADR-0127](adr/0127-the-settings-of-a-view.md), [ADR-0128](adr/0128-asset-requests.md)), and ask it to pick the entity at a pixel of a view ([ADR-0130](adr/0130-picking.md)), and read its interface, act on it and capture its elements ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)); a presentation's interface connected to its window, given its events first, which it takes before the game when they reach its elements, the system's clipboard, the pointer's shape and the input method ([ADR-0145](adr/0145-text-edited.md)), and each frame's time, by which its transitions go on ([ADR-0149](adr/0149-the-looks-foundations.md)); with its `accessibility` feature, which the examples turn on, and the editor once it has a window, the interface's meaning translated into the tree that screen readers read, and their requests given back to it ([ADR-0146](adr/0146-screen-readers.md)); the commands that a host receives applied through its simulation, and an editor's requests answered by it; a run without a window paced, as the editor's program asks; the user's data directory, and a file that one program at a time holds ([ADR-0135](adr/0135-the-editors-program.md)) |
-| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, apart from the dev overlay through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `slime-color`, `thiserror`, `tracing` | Opens a GPU device, and another in place of a lost one; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; colors laid over a target by their alpha, straight or already multiplied by it (blending); an sRGB target, a window's image included, drawn into without its encoding ([ADR-0137](adr/0137-the-canvas.md)); targets of integers, read back without waiting ([ADR-0130](adr/0130-picking.md)); depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, one channel of 8 bits, half-precision floats and BC7 and BC5 blocks among their formats; storage buffers, buffers written by ranges, instanced draws from a base vertex; an uploader that submits the copies of what loads bring within a budget of bytes per frame, on a thread of its own, the lowest rank first; a window's image read back where the system allows it |
+| [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, the engine's own tests reaching the device through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `slime-color`, `thiserror`, `tracing` | Opens a GPU device, and another in place of a lost one; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; colors laid over a target by their alpha, straight or already multiplied by it (blending); an sRGB target, a window's image included, drawn into without its encoding ([ADR-0137](adr/0137-the-canvas.md)); targets of integers, read back without waiting ([ADR-0130](adr/0130-picking.md)); depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, one channel of 8 bits, half-precision floats and BC7 and BC5 blocks among their formats; storage buffers, buffers written by ranges, instanced draws from a base vertex; an uploader that submits the copies of what loads bring within a budget of bytes per frame, on a thread of its own, the lowest rank first; a window's image read back where the system allows it |
 | [`slime-channel`](../crates/slime-channel/README.md) | The development channel: the protocol between a running game and the tools that drive it, and both of its ends, the game's listener and the tools' client ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0122](adr/0122-the-development-channel.md)); headless | `getrandom`, `slime-reflect`, `slime-serialize`, `thiserror`, `tracing` | A game started with a token listens on the machine's own address and accepts only the token and its version; the host's controls, the world read and changed through reflection, scripted keys, captures of the game's image or of one of its views ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)), the settings of its views read and changed ([ADR-0127](adr/0127-the-settings-of-a-view.md)), its reports read ([ADR-0128](adr/0128-asset-requests.md)), the entity at a pixel picked ([ADR-0130](adr/0130-picking.md)), the elements of its interface listed by role and name, found at a pixel, acted on, a field given a value, and captured ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md), [ADR-0146](adr/0146-screen-readers.md)), its state, log and frames' times, and its run saved to a file and loaded from one ([ADR-0125](adr/0125-saves-per-scene.md)); a game started by a tool with a new token; an editor's requests, steps of commands, undo and redo, its history, its journal, its selection and its level written back ([ADR-0135](adr/0135-the-editors-program.md)) |
 | [`slime-color`](../crates/slime-color/README.md) | The color type of every API of the engine, `LinearColor`, and the sRGB transfer function, below every crate that holds a color ([ADR-0045](adr/0045-one-linear-color-type.md), [ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-reflect` | Linear colors and their constructors, sRGB bytes decoded and encoded, linear values encoded; colors in OKLCH, and brought back into sRGB's gamut ([ADR-0149](adr/0149-the-looks-foundations.md)) |
 | [`slime-tasks`](../crates/slime-tasks/README.md) | The engine's task pool: the threads on which the engine computes, with a priority for the work that a frame waits for ([ADR-0107](adr/0107-the-execution-model.md)); headless, on the standard library alone | none | One pool, the machine's logical cores but one; frame and background tasks, a thread always left for frame tasks; items computed in parallel, the calling thread taking its share |
@@ -83,7 +83,7 @@ created only when code needs it.
 | [`slime-assets`](../crates/slime-assets/README.md) | The assets as games load them: asset IDs, cooked data and its manifest, read by ID from a directory of cooked data ([ADR-0069](adr/0069-the-asset-pipeline.md)); headless | `slime-reflect`, `ktx2`, `thiserror` | The asset ID and its text form, a UUID; cooked textures in KTX2 files ([ADR-0071](adr/0071-cooked-textures.md)), meshes, materials and scenes, their nodes' extras and typed components among them; cooked scene files, style sheets, themes and tables of shortcuts, read as bytes ([ADR-0095](adr/0095-cooked-scene-files.md), [ADR-0141](adr/0141-style-sheets-and-themes.md), [ADR-0142](adr/0142-input-and-focus.md)); the manifest; reading them by ID; a watch of the manifest, for hot reload |
 | [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `slime-tasks`, `slime-world`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, read and written through `slime-serialize`, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; the typed properties of their nodes; scene files checked and cooked into the binary encoding of documents ([ADR-0095](adr/0095-cooked-scene-files.md)), and the interface's style sheets, themes and tables of shortcuts ([ADR-0141](adr/0141-style-sheets-and-themes.md), [ADR-0142](adr/0142-input-and-focus.md)); a directory cooked again only where it changed, with its manifest, once or at each change; files written whole or not at all, as the editor writes its levels |
 | [`slime-mcp`](../crates/slime-mcp/README.md) | The engine's MCP server: an AI agent drives a running game through it, as a person would ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md), [ADR-0122](adr/0122-the-development-channel.md)); a program, which no game links | `slime-channel`, `rmcp`, `tokio`, `serde`, `base64`, `png` | One game at a time, started with a token and driven through its development channel; its captures, whole or of one view, as PNG images, its views' settings changed, its reports read and the entity at a pixel picked; the elements of its interface found by role and name or at a pixel, acted on and captured ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)); assets cooked and tests run; an editor, started as a game is, its level edited through steps, undone and redone, its history and journal read and its level written back ([ADR-0135](adr/0135-the-editors-program.md)) |
-| [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: egui drawn over the engine's frames, fed with the engine's events, and its world panel; tooling, rewritten on the engine's UI framework at Stage 6b, which removes egui ([ADR-0052](adr/0052-amend-roadmap-before-0-1.md), [ADR-0081](adr/0081-stage-5a-the-world.md), [ADR-0132](adr/0132-the-engines-ui-framework.md)) | `egui`, `egui-wgpu`, `slime-assets`, `slime-color`, `slime-gfx` (with its `wgpu` feature), `slime-platform`, `slime-reflect`, `slime-ui`, `slime-world` | Panels built when a frame is extracted and drawn over it when it is rendered; a world's entities listed by name and their components edited through reflection, each edit returned as a command for the caller to send; any reflected value edited with the same widgets, as a view's settings ([ADR-0127](adr/0127-the-settings-of-a-view.md)); no clipboard or input methods; the same panels on the engine's interface, which the programs do not use yet ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)) |
+| [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: panels on the engine's interface, in the editor's look, floating over a program's view, and its world panel and editors of reflected values; tooling ([ADR-0081](adr/0081-stage-5a-the-world.md), [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)) | `slime-assets`, `slime-color`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-ui` (with its `editor-look` feature), `slime-ui-render`, `slime-world` | Panels opened and closed by chords and commands, built when a frame is extracted and drawn with the view's renderer after the view; a world's entities listed by name, the list building only the rows that show, and their components edited through reflection, each edit given as a command for the caller to send; any reflected value edited with the same editors, as a view's settings ([ADR-0127](adr/0127-the-settings-of-a-view.md)) |
 | [`slime-editor`](../crates/slime-editor/README.md) | The editor, a client of the engine's public API; today its core, without an interface: a level opened from its scene file, changed through the world's commands grouped into steps, undone and redone, journaled, and written back with its comments ([ADR-0109](adr/0109-stable-references-and-undo.md), [ADR-0134](adr/0134-the-editors-core.md)); its core headless, its program on `slime-app` | `slime-app` (with its `development` feature), `slime-assets`, `slime-channel`, `slime-cook`, `slime-reflect`, `slime-serialize`, `slime-world`, `thiserror`, `tracing` | Steps made whole or not at all from commands given as values or as text; undo and redo within a bound of memory; the selection, by persistent identity, which undo and redo restore; a journal of the steps, as text, from which an editor that crashed is recovered; commands that would change what is not under the level's root refused; the level written back whole or not at all, its comments kept, what the editor created named as the file names it. Its program, `run`, on `slime-app` without a window until Stage 6c, which tools drive through the development channel, and which recovers its journal as it starts ([ADR-0135](adr/0135-the-editors-program.md)) |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-editor`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-ui`, `slime-ui-render`, `slime-world`, `slime-world-render`, `png`, `tracing`; for the tests, `slime-cook` and `gltf` | `hello`, `headless`, `window`, `offscreen`, `scene`, which draws a cooked scene, `world`, which spawns a yard of prefabs from a cooked scene file and draws it from a world, through two views whose settings its overlay changes; `editor`, the editor's program on the yard ([ADR-0135](adr/0135-the-editors-program.md)); `text`, the interface's text in several writing systems, rasterized into an image by the CPU ([ADR-0136](adr/0136-the-interfaces-text.md)); `interface`, an interface built as a tree of elements, styled by a style sheet and a dark or a light theme cooked with the sample, and drawn through the renderer's canvas, over a window or into an image, from left to right or mirrored, with a list of 100 000 rows, text in eight writing systems and a view's image in a panel, used with the pointer and the keyboard, a field of text and one of numbers in its bar ([ADR-0145](adr/0145-text-edited.md)), and read and used by an agent, which presses a button that changes its world ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md), [ADR-0137](adr/0137-the-canvas.md), [ADR-0139](adr/0139-text-drawn-and-the-display-list.md), [ADR-0140](adr/0140-the-tree-of-elements.md)); `widgets`, a panel of the editor's kind in the editor's look, every widget of a panel in it, over a window or into an image, used by an agent ([ADR-0148](adr/0148-widgets.md)); the reference image tests, and tests that cook glTF files and draw them |
 | [`slime-benches`](../benches/README.md) | The engine's benchmarks, a program whose figures [`measurements.md`](measurements.md) keeps; a client of the engine through its public API only, not part of the engine ([ADR-0104](adr/0104-the-build-ci-and-measurements.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-cook`, `slime-devui`, `slime-gfx`, `slime-render`, `slime-ui`, `slime-ui-render`, `slime-world`, `slime-world-render` | The scenarios that its README lists, of rendering, of the world, of loading, of text, of the interface's tree and of the dev overlay's world panel |
@@ -108,17 +108,17 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
        ├──▶ slime-editor (the editor's program, on the yard)
        ├──▶ slime-ui (a tree of elements laid out, text laid out and rasterized)
        ├──▶ slime-ui-render (a display list drawn)
-       ├──▶ slime-devui ───┬───────▶ slime-gfx (feature wgpu) ──▶ wgpu
-       │                   ├───────▶ egui, egui-wgpu ──────────▶ wgpu
-       │                   ├───────▶ slime-platform (events)
-       │                   ├───────▶ slime-ui (the panels on the engine's interface)
+       ├──▶ slime-devui ───┬───────▶ slime-ui (feature editor-look), slime-ui-render, slime-render
+       │                   │         (the panels, drawn with the view's renderer)
+       │                   ├───────▶ slime-gfx, slime-platform (the target, the window's size)
        │                   └───────▶ slime-world, slime-reflect, slime-assets, slime-color (the world panel)
        └──▶ slime-platform, slime-gfx, slime-color, slime-world, slime-reflect (their types: events,
             GPU objects, colors, the world, a component reflected)
 
-hunnawood  ──▶ slime-app, slime-assets, slime-render, slime-platform, slime-gfx, slime-color, slime-devui,
+hunnawood  ──▶ slime-app, slime-assets, slime-render, slime-platform, slime-gfx, slime-color,
                slime-world, slime-world-render, slime-reflect, slime-serialize (the size of a
-               save; its tests, the zones they make) (public API only)
+               save; its tests, the zones they make), slime-devui and slime-ui (feature
+               development) (public API only)
 
 slime-mcp ──▶ slime-channel (a game or an editor driven), rmcp, tokio (the Model Context Protocol)
 
@@ -173,11 +173,12 @@ lists every dependency.
   calls them in `extract` and `render`; it names the views it drew to the development channel
   (`Presentation::views`), and gives their settings as reflection describes them
   (`Presentation::view_settings`, [ADR-0127](adr/0127-the-settings-of-a-view.md)).
-- `slime-devui` is the one crate besides `slime-gfx` that reaches wgpu, through the `wgpu` feature
-  of `slime-gfx`, to draw egui with egui's own renderer ([ADR-0031](adr/0031-dev-overlay-with-egui.md)).
-  The engine's own tests may enable the feature too. `slime-devui` is tooling, a client of the
-  engine like the examples: no engine crate depends on it, and a game reaches the feature only
-  through `slime-devui`, as *Hunna Wood* does for its dev overlay.
+- No crate besides `slime-gfx` reaches wgpu. The `wgpu` feature of `slime-gfx` gives the engine's
+  own tests the wgpu device, which `slime-app`'s windowed lifecycle test makes invalid as a driver
+  reset does ([ADR-0031](adr/0031-dev-overlay-with-egui.md)); games must not enable it.
+  `slime-devui` is tooling, a client of the engine like the examples: no engine crate depends on
+  it, and a game leaves it out of its build for shipping, as *Hunna Wood* does with its
+  `development` feature ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)).
 - A game, such as `hunnawood`, is a client of the engine like the examples: it uses the public API
   of the engine's crates only, and no engine crate depends on it
   ([ADR-0055](adr/0055-games-in-the-workspace.md)). The benchmarks, `slime-benches`, are a client
@@ -233,8 +234,8 @@ lists every dependency.
   ([ADR-0011](adr/0011-windowing-with-winit.md)). `slime_platform::Window` exposes the
   `raw-window-handle` traits so that graphics libraries can draw into it.
 - Only `slime-gfx` uses wgpu, and wgpu's types never appear in a public API
-  ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)), except through its `wgpu` feature, for the dev
-  overlay (above). `slime-gfx` depends on no other engine crate than `slime-color`, so that it works
+  ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)), except through its `wgpu` feature, for the
+  engine's own tests (above). `slime-gfx` depends on no other engine crate than `slime-color`, so that it works
   without a windowing system.
 - A headless run never touches the windowing system or the GPU: it does not create an event loop
   or open a device, so the windowing libraries and the Vulkan loader, which are loaded at run
@@ -719,12 +720,11 @@ instances hold clones of their meshes and materials, counted references, so that
 one thread is drawn on another ([ADR-0111](adr/0111-the-frame-contract.md),
 [ADR-0120](adr/0120-a-frame-that-owns-what-it-draws.md)).
 
-The dev overlay ([`crates/slime-devui/src/lib.rs`](../crates/slime-devui/src/lib.rs),
-[ADR-0031](adr/0031-dev-overlay-with-egui.md)) draws after the tone-mapping pass, in the output,
-in a pass and a submission of its own that keep the target: the application hands it every window
-event, which it translates into egui's, and in `render` builds its panels with egui and lets
-egui's wgpu renderer draw them, through the wgpu objects that the `wgpu` feature of `slime-gfx`
-gives.
+The dev overlay ([`crates/slime-devui/src/overlay.rs`](../crates/slime-devui/src/overlay.rs),
+[ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)) draws after the view, in the
+output: its panels are roots of the presentation's interface, which the run gives the window's
+events first, and its display list is drawn through the canvas of the view's renderer, as any
+interface's is (below).
 
 The shader ([`shader.wgsl`](../crates/slime-render/src/shader.wgsl)) transforms each vertex by its
 instance's matrix then the camera's, and its normal by the instance's normal matrix (the cofactor
@@ -1079,23 +1079,30 @@ Errors name the component and the path of the part at fault; the component stays
 Serialization writes and reads the same values (below).
 
 The dev overlay's world panel ([`slime_devui::WorldPanel`](../crates/slime-devui/README.md),
-[ADR-0081](adr/0081-stage-5a-the-world.md)) is the first editor built on it. It reads a world and
-changes nothing: the presentation sends what it asks for as commands, which the host applies at the
-start of the next frame ([ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)).
+[ADR-0081](adr/0081-stage-5a-the-world.md), [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md))
+is the first editor built on it, as elements of the engine's interface. It reads a world and
+changes nothing: the presentation takes the interface's actions, gives them to the panel, which
+keeps its own and gives the commands that they ask for, which the host applies at the start of the
+next frame ([ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); then the panel
+builds its elements in a slot of the interface, again only where what it shows changed, its list
+building only the rows that show.
 
 ```text
 extract
-├── overlay.build(size, |egui| panel.show(egui, world))
-│   ├── world.entities(), their Name                 the list, filtered by name
-│   └── world.component_names(selected)
-│       └── world.component_value(selected, name)    each component as a Value, shown through
-│                                                    its type's description in world.registry();
-│                                                    a widget changed gives a command: the
-│                                                    entity's persistent identity, the
-│                                                    component's name, a path and a value
-└── for each command: ctx.send(command)
+├── actions = overlay.take_actions()                 the panels' chords taken, which open and
+│                                                    close them
+├── panel.act(&mut actions)                          the panel's actions: the filter typed, the
+│   │                                                entity selected, and the edits, each a
+│   │                                                command: the entity's persistent identity,
+│   │                                                the component's name, a path and a value
+│   └── for each command: ctx.send(command)
+└── panel.build(&mut ui, slot, world)                built again where the entity selected, the
+    ├── world.entities(), their Name                 world's structure, the filter or a refusal
+    └── world.component_value(selected, name)        changed, each component as a Value through
+                                                     its type's description in world.registry();
+                                                     its rows where the list shows others
 render
-└── overlay.render(gpu, target)                      the panels built, drawn over the frame
+└── overlay.draw(gpu, view's renderer, target)       the interface laid out and drawn over the view
 the next frame's start
 └── world.apply(command)                             the host: the entity found by its identity,
                                                      then world.set_property(...); a refusal
@@ -1103,26 +1110,9 @@ the next frame's start
                                                      panel shows (WorldPanel::refused)
 ```
 
-Its widgets edit a value outside a world too, `slime_devui::edit_reflected`, which sets the parts
+Its editors edit a value outside a world too, `slime_devui::ValueEditor`, which sets the parts
 changed within their fields' ranges: the `world` example's and *Hunna Wood*'s overlays edit their
 views' settings with it ([ADR-0127](adr/0127-the-settings-of-a-view.md)).
-
-The same panels are built on the engine's interface too (`slime_devui::interface`,
-[ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)), which the programs do not use
-yet. There, the program takes the interface's actions, gives them to the panel, which keeps its own
-and gives the commands that they ask for, sent as above, then has the panel build its elements
-under a parent of its interface, again only where what it shows changed, its list building only the
-rows that show:
-
-```text
-extract
-├── actions = ui.take_actions()
-├── panel.act(&mut actions)                          the panel's actions: commands, as above, and
-│                                                    the filter typed and the entity selected
-└── panel.build(&mut ui, parent, world)              built again where the entity selected, the
-                                                     world's structure, the filter or a refusal
-                                                     changed; its rows where the list shows others
-```
 
 ### Serialization
 
@@ -1570,8 +1560,8 @@ ui.draw(gpu, &mut renderer, &fonts, &list,    slime-ui-render's UiRenderer:
 ### Losing the GPU
 
 The driver can lose the device: it crashes or is reset, the GPU is removed, or it runs out of
-memory. Memory that runs out in a creation that no caller hears of, made by a library built on
-wgpu such as egui's renderer, gives the device up the same way
+memory. Memory that runs out in a creation that no caller hears of gives the device up the same
+way
 ([ADR-0044](adr/0044-running-out-of-gpu-memory.md)). `slime-gfx` records the loss in wgpu's
 device-lost callback, and from then on its error handler logs wgpu's errors instead of panicking,
 since every use of the device fails, and creations return `GfxError::DeviceLost`, which says why
@@ -1719,8 +1709,7 @@ cooker encodes textures on it. A game's development channel has a thread that ac
 and one for each connection, which wait rather than compute ([above](#the-development-channel)).
 What may cross threads is stated, so that
 later stages (a render thread, the job system) can rely on it, and checked when the tests of the
-crates that own these types compile (a `threads` module in their `lib.rs`, or in `slime-devui`'s
-tests):
+crates that own these types compile (a `threads` module in their `lib.rs`):
 
 - **Shared between threads** (`Send` and `Sync`): the `Gpu`, whose clones share its device, its
   `Surface` and every GPU object it creates (targets, textures, samplers, buffers, bind groups and
@@ -1728,7 +1717,7 @@ tests):
   environments, cameras, lights, scenes and instances, the renderer, loaded scenes and loads in
   progress, the asset cache, its requests, handles and reports, statistics, views' settings,
   drawings, pickings and what they found, windows, events, the input, the host, its `Context` and
-  `AppConfig`, the dev overlay, worlds and entity handles, scene libraries and resolved scenes, the
+  `AppConfig`, worlds and entity handles, scene libraries and resolved scenes, the
   frame builder of `slime-world-render`, its frames and its picker, reflected values and registries,
   the development channel's tokens, messages and clients, and the error types of those crates.
   Scenes, their instances and the frames of `slime-world-render` are also `'static`: they own what
@@ -1742,6 +1731,10 @@ tests):
   it mutably anyway. A `Readback`, which keeps through a cell what wgpu said of its copy. The
   development channel's `Listener` and the requests it hands over, `Incoming`, which answer through
   a channel of the standard library.
+- **Kept on the thread that made them** (neither `Send` nor `Sync`): an interface
+  (`slime_ui::tree::Ui`), its fonts' state and its clipboard among it, and so the dev overlay that
+  holds one (`slime_devui::Overlay`); a presentation uses them on the main thread, where `run`
+  drives it.
 
 ## Platforms
 

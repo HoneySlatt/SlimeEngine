@@ -663,7 +663,7 @@ the logical key `"a"`. Suits shortcuts and text. See also *physical key*.
 **Logical pixel.** A pixel of the window as the user sees it; the *scale factor*
 (`Window::scale_factor`, `Event::ScaleFactorChanged`) says how many *physical pixels*, the
 display's, it covers. The sizes of `WindowConfig` are logical; `Window::inner_size`,
-`Event::CursorMoved` and render targets are physical. egui calls logical pixels *points*.
+`Event::CursorMoved` and render targets are physical.
 
 **Look (the editor's).** The fonts and the style made for the interfaces of the engine's editor and
 of its dev overlay: Geist and Geist Mono, a style sheet, and *themes* stacked, a base of scales, one
@@ -804,10 +804,11 @@ window's bottom end and takes it away after a time that its kind sets, informati
 warning or error; screen readers read it as it comes (`Ui::notify`,
 [ADR-0151](adr/0151-rich-widgets.md)).
 
-**Overlay (dev).** Panels drawn over the engine's frames with egui, to show statistics and
-tooling over a running application (`slime_devui::Overlay`,
-[ADR-0031](adr/0031-dev-overlay-with-egui.md)). Drawn with egui until Stage 6b rewrites it on the
-engine's UI framework and removes egui ([ADR-0132](adr/0132-the-engines-ui-framework.md)).
+**Overlay (dev).** Panels on the engine's interface, in the editor's look, floating over a
+program's view, to show statistics and tooling over a running game: the frame's figures, the
+settings of its views, its world panel (`slime_devui::Overlay`,
+[ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)). It was drawn with egui until
+Stage 6b.
 
 **Override.** A value that a *placement* sets on its *prefab*: a value changed, a component added
 or removed, an entity of the prefab removed or one added, written by the scene that places it. It
@@ -1338,9 +1339,8 @@ readers read it as the element's description (`Element::tooltip`,
 [ADR-0150](adr/0150-layers.md)).
 
 **Tooling (engine's).** Code that serves development, not what a game is made of: the dev
-*overlay* today, which a game may keep, as *Hunna Wood* does, its fonts with it
-([ADR-0105](adr/0105-egui-fonts-ship-with-the-dev-overlay.md)). It alone may reach wgpu, through
-the `wgpu` feature of `slime-gfx` ([ADR-0031](adr/0031-dev-overlay-with-egui.md)).
+*overlay*, which a game keeps in its development builds and leaves out of its build for shipping,
+as *Hunna Wood* does ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)).
 
 **Transform in the world (global transform).** Where an entity is in the world: its `Transform`
 composed with its ancestors', a translation in `f64`, a rotation and a uniform scale, without its

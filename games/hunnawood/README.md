@@ -55,7 +55,7 @@ machine's own address for the tools and the agents that drive it, which see its 
 its reports, `assets`, its asset cache's requests and memory, and `views`, its view's statistics
 ([ADR-0128](../../docs/adr/0128-asset-requests.md)); started
 without one, as above, it does not. `cargo build -p hunnawood --no-default-features` builds it for shipping, without the
-channel.
+channel and the dev overlay.
 
 The window shows its first frame once the hero is loaded and the skies computed, while the zone
 loads in the background: until it is drawn, game time is held, the hero stands at the start under
@@ -155,16 +155,21 @@ test sets it aside as a save of an earlier version of the engine, and a new run 
 | R | Start again: the hero at the start, the key in its place, the door closed, at the time the game started at |
 | F5 | Save the run |
 | F9 | Load the save, in place of the run |
-| F1 | Show or hide what each frame costs, in the engine's dev overlay, with the size the view draws at and its settings, which it changes (render scale, anti-aliasing, a mode of debugging that shows normals or shadows, and whether it draws the shadows, the sky and the bloom), whose slider sets the speed of game time, from a tenth to four times, and whose button loses the GPU device on purpose |
+| F1 | Show or hide what each frame costs, in the engine's dev overlay, in a build with the `development` feature, with the size the view draws at and its settings, which it changes (render scale, anti-aliasing, a mode of debugging that shows normals or shadows, and whether it draws the shadows, the sky and the bloom), whose slider sets the speed of game time, from a tenth to four times, and whose button loses the GPU device on purpose |
 | F2 | Show or hide the world panel of the dev overlay: the world's entities by name, with a filter, and the components of the one selected, whose values it changes ([`slime-devui`](../../crates/slime-devui/README.md)) |
 | F3 | Pause game time, or let it run again: the hero, the fire's flicker and the key's glow stop, and the camera still turns |
 | F4 | While game time is paused, run one step of it, 1/60 s |
+| F6 | Give the keyboard's focus to the dev overlay's panels, one after the other, then back to the game |
 | Escape | Quit |
 
 Keys are read by their position on the keyboard, so that the four movement keys sit in the same
-place on every layout. While a text field of the dev overlay has the keyboard, or a menu of it is
-open, the game ignores the keys, Escape included, which leaves the field or closes the menu, and
-clicks on a panel are the overlay's; F1 and F2 still show and hide the panels. CI builds the game
+place on every layout. The dev overlay's panels take the clicks that fall on them, and the keys
+while one of their fields or open lists takes them, Escape included, which leaves the field or
+closes the list, or while F6 gave them the keyboard's focus, Tab moving it within a panel then; the
+game sees none of them. A click on a button or a slider of a panel leaves the keys to the game. F1
+and F2 show and hide the panels whatever holds the keys; F3 and F4 work while no field takes them
+([ADR-0153](../../docs/adr/0153-tab-and-f6-in-a-games-interface.md)). The build for shipping,
+`--no-default-features`, has no overlay: F1 to F4 and F6 do nothing there. CI builds the game
 for Windows with the examples: `hunnawood.exe` is in the `slime-examples-windows` artifact of each
 run, with its cooked zone beside it.
 
@@ -219,7 +224,7 @@ identity.
 | `main.rs` | The program: the command line, the world built before the window opens, a new run or the save resumed, and the rules and the screen run with `slime_app::run` |
 | `lib.rs` | The library: its modules, and the two parts that a host runs |
 | `simulation.rs` | The rules as a simulation (`slime_app::Simulation`): the hero walked at each fixed step as the keys held ask, where the player looks turned on real time, rest, restart, saving with F5 and when the game stops, loading with F9, Escape, and with `--watch` the run carried into the scenes that changed; a save resumed from its file, or set aside |
-| `screen.rs` | What the player sees as a presentation (`slime_app::Presentation`): the view made when the window opens and again with a new GPU device, with its settings, which a tool reads and changes, the camera, game time held until the zone is drawn, the dev overlay and its keys, F3 and F4, and with `--watch` the cooked data and the shaders loaded again |
+| `screen.rs` | What the player sees as a presentation (`slime_app::Presentation`): the view made when the window opens and again with a new GPU device, with its settings, which a tool reads and changes, the camera, game time held until the zone is drawn, the dev overlay, in a build with the `development` feature, and its keys, F3 and F4, and with `--watch` the cooked data and the shaders loaded again |
 | `assets.rs` | Where the cooked data is, and the IDs of the zone's scene file and the hero, from their metadata files |
 | `saves.rs` | The save: where its file is, held by one copy of the game at a time, what it holds and how it is read and written, and a run resumed from it once it is checked; a run carried into the scenes that changed on disk, or started again when the zone's layout changed |
 | `rules.rs` | The rules, as functions over the world and without the GPU: the hero's movement, its heading, and its collisions, as a circle on the ground against the colliders that are not hidden and the zone's edge; the key, the door, the campfire and the time of day |
@@ -228,7 +233,7 @@ identity.
 | `controls.rs` | What the keys held ask for, read from the engine's input (`slime_platform::Input`) |
 | `camera.rs` | The camera behind the hero along where the player looks, coming nearer when a collider would stand between them |
 | `view.rs` | What the player sees: the renderer, the asset cache (`slime_render::AssetCache`), which loads the hero's meshes before the first frame and the rest in the background, and a frame builder for each time of day (`slime_world_render::FrameBuilder`): by day, the overcast sky, the zone's sun behind its clouds; by night, a dark sky around the moon's disc, the zone's moon showing in the sky; the fire that flickers, its light in the frame and its materials, and the key that pulses at night, their materials found by name in the cooked data and changed at each frame (`Material::set_values`); each frame built from the world when the screen extracts, and drawn without it |
-| `overlay.rs` | The dev overlay: what each frame costs, the settings of the view, and the speed of game time, with a button that loses the GPU device on purpose, and the world panel, whose edits the screen sends to the host as commands |
+| `overlay.rs` | The dev overlay, in a build with the `development` feature (`slime_devui::Overlay`): what each frame costs, the settings of the view, and the speed of game time, with a button that loses the GPU device on purpose, and the world panel, whose edits the screen sends to the host as commands; drawn with the view's renderer |
 
 The rules run at the engine's fixed step, 1/60 s of game time, so that a game plays the same on
 every machine and at every speed; the world draws the hero between its last two steps, by the share
@@ -400,15 +405,15 @@ spawning the zone cost, and, on a GPU, what building a frame of the zone's world
 
 ## Dependencies
 
-The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`, and
-`slime-devui` for the dev overlay and its world panel, engine tooling that turns `slime-gfx`'s
-`wgpu` feature on for itself (the game uses no wgpu type); `slime-assets`, which reads the cooked
+The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`;
+`slime-devui` for the dev overlay and its world panel, engine tooling, and `slime-ui`, whose
+elements its panel of statistics is built of, both with the `development` feature; `slime-assets`, which reads the cooked
 zone; `slime-color`, for the colors of its lights and skies; `slime-world`, its world, and
 `slime-world-render`, which draws it; `slime-reflect`, which describes its components, as every
 component is; `slime-serialize`, for the size of the largest save, up to which it reads its save,
 and whose tests encode with it the components of the zones they make, as the cooker does; and
 `tracing` for the log. Its default feature, `development`, turns on `slime-app`'s, the development
-channel.
+channel, and the dev overlay.
 
 ## Must not
 

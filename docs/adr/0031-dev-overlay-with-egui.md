@@ -4,7 +4,9 @@
   (2026-10-13); amended by [0052](0052-amend-roadmap-before-0-1.md) (when the overlay is removed),
   [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) (egui's fonts ship in the programs
   that draw the overlay) and [0132](0132-the-engines-ui-framework.md) (the overlay rewritten on the
-  engine's UI framework, and egui removed, at Stage 6b)
+  engine's UI framework, and egui removed, at Stage 6b); superseded by
+  [0152](0152-the-dev-overlay-on-the-engines-interface.md) for the overlay, which egui left at
+  M6b.8b: the `wgpu` feature serves the engine's own tests alone
 - Date: 2026-10-13
 
 ## Context

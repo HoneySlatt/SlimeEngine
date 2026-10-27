@@ -8,12 +8,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
-- The dev overlay's panels on the engine's interface (ADR-0152), beside egui's until the programs
-  move onto them: the editors of reflected values (`slime_devui::interface::ValueEditor`), whose
-  fields change a value only when the user changed it, an angle in radians shown in degrees, and
-  the world panel (`slime_devui::interface::WorldPanel`), whose list builds only the rows that
-  show, its frame over 100 000 entities costing what one over a few does (benchmark
-  `devui.world_panel.100k`); the look styles their rows, links, heading and refusal.
+- The dev overlay on the engine's interface (ADR-0152), in the editor's look, over *Hunna Wood* and
+  the examples `scene` and `world`: `slime_devui::Overlay`, its panels floating over a program's
+  view, opened and closed by their chords and the commands that an agent gives too, moved, sized
+  and folded, drawn with the view's renderer after the view, and read and used by agents and
+  screen readers as the rest of the presentation's interface; the editors of reflected values
+  (`slime_devui::ValueEditor`), whose fields change a value only when the user changed it, an
+  angle in radians shown in degrees, and the world panel (`slime_devui::WorldPanel`), whose list
+  builds only the rows that show, its frame over 100 000 entities costing what one over a few does
+  (benchmark `devui.world_panel.100k`); the look styles their rows, links, heading and refusal.
+- F6 and Shift+F6 move the focus from one root of an interface to the next, then give it back to
+  the program, and an interface that a game holds takes Tab only once it holds a focus that takes
+  the keys (`Ui::set_tab_enters`, ADR-0153).
 - Color wells (ADR-0152): a swatch that opens a picker below it, a square of saturation and value,
   strips of hue and alpha, the channels and the hexadecimal code, the program reading the color as
   a value (`Element::color_well`, `FieldValue::Color`), which the dev overlay's editors edit colors
@@ -227,6 +233,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- A focus that a press gave to a button, a check box, a slider, a segment, a tab, a color well or a
+  floating panel takes no keys: they reach the program, as egui's overlay left them, unless the
+  focus lies in a menu, a list or a dialog, or the widget's layer is open (ADR-0152); in an
+  interface that lets Tab in, Tab goes on from it. The focus that the program gives
+  (`Ui::set_focus`) shows and takes the keys, as an agent's does. A floating panel that opens takes
+  no focus. A field that does not hold the focus shows the start of its text.
+- *Hunna Wood*'s dev overlay is in its development build alone, with the `development` feature:
+  its build for shipping holds neither the overlay nor the editor's look. Its panel of statistics
+  shows the instances that the draw calls draw, as the `scene` example's does.
 - `Kind::TextField` holds whether it is a field of search, `Kind::NumberField` its prefix and its
   units and `Kind::Tab` its count; `Element::tooltip` holds a `Tooltip`; `Style::icons` names a
   magnifier and a cross too. A field of numbers reads what is typed as an expression, and gives
@@ -276,6 +291,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   value on its steps, and a field of numbers' dragged, keep the decimals of their step and of their
   start, and no more: steps of `0.1` give `0.6`, not `0.6000000000000001`, and `1.25` dragged four
   tenths up gives `1.65`, not `1.7`.
+
+### Removed
+
+- egui and egui-wgpu, the dev overlay's interface until 0.5, with `slime_devui::egui`, its overlay
+  and its world panel, `slime_devui::edit_reflected` and the exception of `deny.toml` for egui's
+  fonts (ADR-0152). The two cases where the overlay could panic on a lost device went with them.
+- The `wgpu` feature of `slime-gfx` gives the engine's own tests the device alone
+  (`Gpu::wgpu_device`): `Gpu::wgpu_queue`, `RenderPass::wgpu_pass`, `TextureFormat::wgpu_format`
+  and the re-export of wgpu, which the overlay drew egui with, are gone.
 
 ## [0.5.0] - 2026-10-22
 
