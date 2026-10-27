@@ -141,10 +141,9 @@ Risks, whose figures ADR-0155's context gives:
   to cut: docking by drag, stamp mode and modal keys are already outside what the exit needs.
 - **Dates outside the project**: winit 0.31, in beta for months, and `accesskit_winit`'s release
   for it. Polling's cost on Windows is not measured, which M6c.7 measures before it adopts notify.
-- **The cost of the checks.** M6c.0 split the Linux checks into three jobs, each well within the
-  owner's limit of 20 minutes, but `windows` runs within a minute of it, and every session of the
-  editor adds to the checks ([Known debt](#known-debt)): each milestone records how long CI's jobs
-  take.
+- **The cost of the checks.** M6c.0 brought each of CI's jobs well within the owner's limit of 20
+  minutes, but every session of the editor adds to the checks ([Known debt](#known-debt)): each
+  milestone records how long CI's jobs take.
 - **One GPU.** Budgets are checked on the owner's RX 6900 XT only ([Known debt](#known-debt)).
 
 ### M6c.0 — Before the stage
@@ -190,7 +189,11 @@ Risks, whose figures ADR-0155's context gives:
   than the code, each fixed. CI is green on `a199369`: `check (headless)` took 13 minutes 35
   seconds, `check (windowed)` 4 minutes 42 seconds, `check (game)` 4 minutes 14 seconds with the
   cooked zone restored from its cache, `windows` 19 minutes 43 seconds and `windows-release` 13
-  minutes 32 seconds. `windows` stays within a minute of the limit ([Known debt](#known-debt)).
+  minutes 32 seconds. `windows` then ran some of its tests a second time to print what they measured
+  on WARP, built again for it with other features; its one run of the tests now leaves their output
+  uncaptured instead. CI is green on `bb4552b`: `check (headless)` 13 minutes 43 seconds, `check
+  (windowed)` 5 minutes 31 seconds, `check (game)` 4 minutes 14 seconds, `windows` 11 minutes 20
+  seconds and `windows-release` 10 minutes 10 seconds, on runners faster than the run before.
 
 ### M6c.1 — The editor's window
 
@@ -1202,7 +1205,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   drawing the first version alone. A word wider than its box, on a line before the last one shown,
   overflows the box rather than being cut. The cache's memory is an estimate fitted once to a
   measurement, of texts not cut; a hit copies its key; and fonts registered are never let go.
-- **CI's jobs near their limit of 20 minutes**: until ADR-0144, the cache of the cooked zone was
+- **CI's jobs and their limit of 20 minutes**: until ADR-0144, the cache of the cooked zone was
   keyed by the whole `Cargo.lock` and root `Cargo.toml`, so a milestone that added a dependency,
   even one that the cooker does not use, cooked the zone again in each job. At M6b.2, that took the
   `windows` and `check (windowed)` jobs past their limit by under a minute, on the first run, at
@@ -1228,10 +1231,13 @@ GitHub issues, linked from their entry; this list stays the reference.
   `windowed` and `game`, and made the session draw the zone without shadows: on `a199369`, the three
   Linux jobs took 13 minutes 35 seconds, 4 minutes 42 seconds and 4 minutes 14 seconds, the zone
   restored from its cache; cooking it again adds about 3 minutes to `check (game)` alone. What
-  remains is `windows`: 19 minutes 43 seconds on `a199369`, 20 minutes 23 seconds on `ebc16f2`.
-  Its later steps, the image tests printing their measurements, the GPU timing tests and the tests
-  that read the zone, each name packages with `-p`, whose features differ from the workspace's: on
-  `a199369`, building again for them took 2 minutes 2 seconds, 50 seconds and 53 seconds.
+  remained `windows`: 19 minutes 43 seconds on `a199369`, 20 minutes 23 seconds on `ebc16f2`. Its
+  later steps ran the image tests, the GPU timing tests and the tests that read the zone with `-p`,
+  whose features differ from the workspace's: on `a199369`, building again for them took 2 minutes
+  2 seconds, 50 seconds and 53 seconds. The first two now print from the one run of the tests, and
+  `windows` took 11 minutes 20 seconds on `bb4552b`. The tests that read the zone still build again,
+  about a minute: run over the workspace, `--ignored` would also run the measurements that other
+  crates ignore, meant for release builds.
 - **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)): a frame walks every
   element of its roots, to find what to draw again and to gather the display list, even when nothing
   changed. A list shows the rows of a new range one frame late, when it first shows or when it
