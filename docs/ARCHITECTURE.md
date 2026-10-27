@@ -1689,10 +1689,13 @@ tool                                             game, built with the `developme
 slime_channel::launch(command)
 ├── Token::generate (getrandom)
 ├── starts the game, the token in its ─────────▶ run → Frames::new → DevChannel::open
-│   environment only (SLIME_DEV_TOKEN)           ├── Listener::open: 127.0.0.1, a port that the
-│                                                │   system chooses; a thread accepts connections
-└── reads its standard output until ◀─────────── └── "slime-dev-channel 127.0.0.1:<port>" on its
-    the announcement                                 standard output
+│   environment only (SLIME_DEV_TOKEN),          ├── Listener::open: 127.0.0.1, a port that the
+│   its standard input a pipe that the tool      │   system chooses; a thread accepts connections
+│   holds                                        ├── "slime-dev-channel 127.0.0.1:<port>" on its
+└── reads its standard output until ◀─────────── │   standard output
+    the announcement                             └── a thread waits for its standard input's end,
+                                                     the tool's, which stops the run as a
+                                                     termination signal does
 Client::connect(address, token)
 └── Hello { version, token } ──────────────────▶ a thread for the connection, unless too many
                                                  wait for their hello: refused with the reason

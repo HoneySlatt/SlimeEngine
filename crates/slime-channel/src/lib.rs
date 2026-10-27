@@ -21,7 +21,10 @@ pub use token::Token;
 pub const PROTOCOL_VERSION: u32 = 9;
 
 /// The environment variable that gives a game its token: a game started without it does not
-/// listen.
+/// listen. A game started with it ends once its standard input closes, but when that input is a
+/// terminal: the tool that started it holds a pipe there ([`launch`]), so that a tool that ends,
+/// crashed or not, leaves no game behind. Whoever starts a game with a token without `launch` holds
+/// such a pipe too: an input that is empty or missing, as `/dev/null`, ends the game at once.
 pub const TOKEN_ENV_VAR: &str = "SLIME_DEV_TOKEN";
 
 /// What a game writes on its standard output, followed by the address it listens on, once it

@@ -100,7 +100,9 @@ impl Client {
 /// A game started with a token, and where it listens.
 pub struct Launched {
     /// The game's process. A thread of the tool reads its standard output to its end, looking for
-    /// the announcement, and keeps none of it; its standard error is as the command set it.
+    /// the announcement, and keeps none of it; its standard error is as the command set it. Its
+    /// standard input is a pipe that `child` holds (`Child::stdin`): the game ends once it closes,
+    /// as when the tool drops it or ends, crashed or not.
     pub child: Child,
     /// Where it listens.
     pub address: SocketAddr,
@@ -111,7 +113,9 @@ pub struct Launched {
 /// Starts the game that `command` runs, with a new token in its environment
 /// ([`TOKEN_ENV_VAR`]), and waits, at most `timeout`, for it to say on its standard output where it
 /// listens ([`ANNOUNCEMENT`]). The token is in the game's environment only, never on its command
-/// line, which other users of the machine can read.
+/// line, which other users of the machine can read. Its standard input is a pipe that the tool
+/// holds, whatever `command` set: a game started with a token ends once it closes, so that a tool
+/// that ends leaves no game behind ([`Launched::child`]).
 ///
 /// # Errors
 ///
@@ -123,6 +127,7 @@ pub fn launch(command: &mut Command, timeout: Duration) -> Result<Launched, Chan
     let token = Token::generate()?;
     let mut child = command
         .env(TOKEN_ENV_VAR, token.to_string())
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;
     let Some(stdout) = child.stdout.take() else {

@@ -658,10 +658,7 @@ impl Server {
             let log_file = File::create(&log).map_err(|error| error.to_string())?;
             let timeout = timeout_seconds.map_or(START_TIMEOUT, Duration::from_secs);
             let mut launched = launch(
-                Command::new(program)
-                    .args(arguments)
-                    .stdin(Stdio::null())
-                    .stderr(log_file),
+                Command::new(program).args(arguments).stderr(log_file),
                 timeout,
             )
             .map_err(|error| format!("{}\n{}", causes(&error), tail(&log)))?;

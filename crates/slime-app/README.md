@@ -229,7 +229,9 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   the commands (`Context::send`), and those that the simulation refused at this frame's start
   (`Context::refused`); stopping the run (`request_exit`), or failing it (`exit_with_error`); and
   whether it is going to stop (`exit_requested`), which reports a termination signal as soon as it
-  arrives, even during a `start` or in the middle of a frame.
+  arrives, even during a `start` or in the middle of a frame, and, with the `development` feature,
+  the end of the tool that started the game with a token, whose pipe on the game's standard input
+  closed.
 - `time`: `Time` holds a frame's real time, `FrameTime` (index, delta, elapsed time), and its game
   time, `GameTime`: the fixed steps run, the game time the frame added, and the fraction of a step
   accumulated but not run (`alpha`), at which the world draws what moved during the last step

@@ -92,8 +92,9 @@ impl Default for AppConfig {
 /// It first calls [`init_diagnostics`], so logging works from the first line of a `start`, and
 /// installs a handler for termination signals. It then calls [`Simulation::start`] and, with a
 /// window, [`Presentation::start`], runs frames until the game requests an exit, the window is
-/// closed, the process receives a termination signal or [`AppConfig::frame_limit`] is reached,
-/// and calls [`Presentation::stop`] then [`Simulation::stop`]. An exit requested during a `start`
+/// closed, the process receives a termination signal, the tool that started it with a token ends
+/// (with the `development` feature, below) or [`AppConfig::frame_limit`] is reached, and calls
+/// [`Presentation::stop`] then [`Simulation::stop`]. An exit requested during a `start`
 /// runs no frame; an error returned by a `start` runs no frame and no `stop`.
 ///
 /// Termination signals are SIGINT (Ctrl+C in a terminal), SIGTERM (a service manager stopping the
@@ -167,7 +168,10 @@ impl Default for AppConfig {
 ///
 /// Built with the `development` feature, a run whose environment gives a token listens for the
 /// tools that drive it, before its `start` methods, and answers them at the start of each frame
-/// (the crate's documentation says what they ask).
+/// (the crate's documentation says what they ask). It stops, as at a termination signal, once its
+/// standard input closes, which the tool that started it holds as a pipe, unless that input is a
+/// terminal: an input that is empty or missing, as `/dev/null`, stops it at once
+/// (`slime_channel::TOKEN_ENV_VAR`).
 ///
 /// # Panics
 ///
@@ -278,6 +282,10 @@ impl Frames {
         if signal::received() {
             ctx.exit_because(ExitReason::Signal);
         }
+        #[cfg(feature = "development")]
+        if crate::channel::tool_ended() {
+            ctx.exit_because(ExitReason::ToolEnded);
+        }
         if !restorable && ctx.gpu().is_some_and(|gpu| gpu.check().is_err()) {
             ctx.exit_because(ExitReason::DeviceLost);
         }
@@ -288,6 +296,8 @@ impl Frames {
             Some(ExitReason::Requested) => Some("the application requested an exit"),
             Some(ExitReason::WindowClosed) => Some("the window was closed"),
             Some(ExitReason::Signal) => Some("a termination signal was received"),
+            #[cfg(feature = "development")]
+            Some(ExitReason::ToolEnded) => Some("the tool that started the game ended"),
             Some(ExitReason::DeviceLost) => Some("the GPU device was lost"),
             Some(ExitReason::SurfaceLost) => Some("the window's surface was lost"),
             Some(ExitReason::Failed) => Some("the application stopped with an error"),

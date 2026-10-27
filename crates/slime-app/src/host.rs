@@ -265,11 +265,14 @@ impl Context {
     }
 
     /// Whether the run is going to stop: the game requested an exit, the window was closed, the
-    /// process received a termination signal, the GPU device was lost and not replaced
-    /// ([`AppConfig::restore_lost_device`]), or the window's surface was lost for good.
+    /// process received a termination signal, the tool that started the game with a token ended
+    /// (with the `development` feature, `slime_channel::TOKEN_ENV_VAR`), the GPU device was lost
+    /// and not replaced ([`AppConfig::restore_lost_device`]), or the window's surface was lost for
+    /// good.
     ///
-    /// A termination signal shows here as soon as it is received, even during a `start` or in the
-    /// middle of a frame, so that a long loading or a long update that checks it can stop early.
+    /// A termination signal, and the end of the tool, show here as soon as they come, even during a
+    /// `start` or in the middle of a frame, so that a long loading or a long update that checks it
+    /// can stop early.
     /// The loss of the GPU device or of the surface is noticed only between frames.
     pub fn exit_requested(&self) -> bool {
         self.exit.requested()
@@ -435,8 +438,16 @@ impl Exit {
     }
 
     fn requested(&self) -> bool {
-        self.reason.is_some() || signal::received()
+        self.reason.is_some() || signal::received() || tool_ended()
     }
+}
+
+/// Whether the tool that started the game with a token ended, with the development channel.
+fn tool_ended() -> bool {
+    #[cfg(feature = "development")]
+    return crate::channel::tool_ended();
+    #[cfg(not(feature = "development"))]
+    false
 }
 
 /// Whether `error`, or one of its causes, is the loss of a GPU device.
@@ -455,6 +466,9 @@ pub(crate) enum ExitReason {
     Requested,
     WindowClosed,
     Signal,
+    /// The tool that started the game with a token ended (`channel::tool_ended`).
+    #[cfg(feature = "development")]
+    ToolEnded,
     DeviceLost,
     SurfaceLost,
     Failed,

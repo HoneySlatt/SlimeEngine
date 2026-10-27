@@ -305,6 +305,33 @@ fn a_tool_with_the_token_drives_a_headless_run() {
 }
 
 #[test]
+fn a_run_ends_once_the_tool_that_started_it_closes_its_input() {
+    if std::env::var_os(CHILD_ENV).is_some() {
+        return child();
+    }
+    let mut launched = launch(
+        &mut command("a_run_ends_once_the_tool_that_started_it_closes_its_input"),
+        Duration::from_secs(60),
+    )
+    .expect("the run listens");
+    // The tool ends, as a crash would end it: the pipe of the game's input closes, and the run
+    // stops as at a termination signal, its `stop` methods run.
+    drop(launched.child.stdin.take());
+    let started = std::time::Instant::now();
+    let status = loop {
+        if let Some(status) = launched.child.try_wait().expect("the run") {
+            break status;
+        }
+        if started.elapsed() > Duration::from_secs(30) {
+            let _ = launched.child.kill();
+            panic!("the run went on without the tool that started it");
+        }
+        thread::sleep(Duration::from_millis(10));
+    };
+    assert!(status.success(), "{status}");
+}
+
+#[test]
 fn a_run_started_without_a_token_does_not_listen() {
     if std::env::var_os(CHILD_ENV).is_some() {
         // Ten frames, without a tool.

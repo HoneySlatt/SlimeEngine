@@ -2,7 +2,8 @@
 //! drive it, at the start of each frame (`docs/adr/0122-the-development-channel.md`).
 
 use std::collections::VecDeque;
-use std::io::Write as _;
+use std::io::{IsTerminal as _, Write as _};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, PoisonError};
 use std::time::Duration;
 
@@ -27,6 +28,16 @@ use crate::log_lines;
 /// How many frames the measurements of the frames' times cover.
 const FRAMES_MEASURED: usize = 120;
 
+/// Whether the tool that started the game ended: its standard input, which the tool held, closed.
+/// Set once and never cleared, as a termination signal is.
+static TOOL_ENDED: AtomicBool = AtomicBool::new(false);
+
+/// Whether the tool that started the game with a token ended, which stops the run as a termination
+/// signal does ([`DevChannel::open`]).
+pub(crate) fn tool_ended() -> bool {
+    TOOL_ENDED.load(Ordering::Relaxed)
+}
+
 /// A run's development channel, open when the environment gave a token.
 pub(crate) struct DevChannel {
     listener: Listener,
@@ -40,6 +51,28 @@ pub(crate) struct DevChannel {
     steps: Vec<(Incoming, u64)>,
     /// The time between the starts of the last frames.
     frames: VecDeque<Duration>,
+}
+
+/// Ends the run once the game's standard input closes: the tool that started it with a token holds a
+/// pipe there (`slime_channel::launch`), which closes as the tool ends, crashed or not, so that no
+/// game outlives it. A terminal is left alone, which a person ends the game from, and from which a
+/// game run in the background would be stopped as it reads. What is read is let go, and an input
+/// that is empty or missing, as `/dev/null`, ends the run at once.
+fn watch_standard_input() {
+    if std::io::stdin().is_terminal() {
+        return;
+    }
+    let watching = std::thread::Builder::new()
+        .name("slime dev channel input".to_owned())
+        .spawn(|| {
+            // `copy` reads again when a signal interrupts a read.
+            let _ = std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink());
+            tracing::info!("the tool that started the game ended: the run stops");
+            TOOL_ENDED.store(true, Ordering::Relaxed);
+        });
+    if let Err(error) = watching {
+        tracing::warn!(%error, "the game cannot watch for the end of the tool that started it");
+    }
 }
 
 impl DevChannel {
@@ -70,6 +103,7 @@ impl DevChannel {
         // Whoever started the game reads it there; a closed output only leaves it unread.
         let _ = writeln!(stdout, "{ANNOUNCEMENT}{address}").and_then(|()| stdout.flush());
         tracing::info!(%address, "the development channel listens");
+        watch_standard_input();
         Some(Self {
             listener,
             captures: Vec::new(),
