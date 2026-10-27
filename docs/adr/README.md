@@ -217,6 +217,6 @@ the ADR linking to it.
 | [0146](0146-screen-readers.md) | Screen readers | Accepted; amended by 0147 |
 | [0147](0147-the-screen-readers-check-in-ci.md) | The screen readers' check in CI | Accepted |
 | [0148](0148-widgets.md) | Widgets | Accepted; amended by 0149 |
-| [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted |
+| [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151 |
 | [0150](0150-layers.md) | Layers | Accepted |
-| [0151](0151-rich-widgets.md) | Rich widgets | Proposed |
+| [0151](0151-rich-widgets.md) | Rich widgets | Accepted |

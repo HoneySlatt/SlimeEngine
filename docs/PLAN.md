@@ -51,8 +51,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   owner on 2026-10-26: M6b.7a, the widgets that a panel holds, is done
   ([ADR-0148](adr/0148-widgets.md)). The owner cut the rest in three on 2026-10-27
   ([ADR-0149](adr/0149-the-looks-foundations.md)): M6b.7b, the look's foundations, is done;
-  M6b.7c, the layers ([ADR-0150](adr/0150-layers.md)), is done; M6b.7d, the rich widgets, is in
-  progress, its cut and its choices proposed to the owner ([ADR-0151](adr/0151-rich-widgets.md)).
+  M6b.7c, the layers ([ADR-0150](adr/0150-layers.md)), is done. The owner cut the rich widgets in
+  two on 2026-10-27 ([ADR-0151](adr/0151-rich-widgets.md)): M6b.7d, the rich fields, is in
+  progress; M6b.7e, what the editor tells and finds, follows.
 
 ## Status
 
@@ -72,7 +73,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.7a](#m6b7a--the-widgets-of-a-panel) | The framework has the widgets that a panel of the dev overlay and of the editor is made of, in the editor's theme | Done |
 | [M6b.7b](#m6b7b--the-looks-foundations) | The editor's look follows one accent in a dark, a light and a high-contrast theme, moves through transitions, and stays crisp at every scale | Done |
 | [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Done |
-| [M6b.7d](#m6b7d--rich-widgets) | The framework has the rich fields, notifications and the palette of commands that make editing fast | In progress |
+| [M6b.7d](#m6b7d--rich-fields) | The framework has the rich fields and buttons that make editing fast | In progress |
+| [M6b.7e](#m6b7e--what-the-editor-tells-and-finds) | The framework tells the user what goes on, and finds every command by its name | Planned |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
 
@@ -1068,37 +1070,54 @@ that the look has a light and a high-contrast theme beside its dark one.
   menus, and left screen readers stale paths; Alt after a press hid the bar's focus, and Alt or F10
   in a bar's menu left it open.
 
-### M6b.7d — Rich widgets
+### M6b.7d — Rich fields
 
-- **Goal.** The framework has the rich fields, notifications and the palette of commands that make
-  editing fast.
-- **Crates.** `slime-ui`, `slime-ui-render`, `slime-app`; the examples.
-- **Delivers.** Fields of vectors, their components marked by the axes' colors, and units written
-  in a field; numbers changed by a drag on their label, finer or coarser with a modifier, and given
-  as expressions; sections whose header holds an icon, the type of what it shows, a menu and a
-  reset; buttons that toggle and controls of segments; fields of search with a hint, a way to empty
-  them and their shortcut; texts that fields show while they hold nothing; help shown over a field
-  from the documentation of what it edits; notifications and bars of progress; counts on tabs; the
-  palette of commands, every command named by the shortcuts found by its name, and a sheet of the
-  shortcuts. The example of M6b.7a shows them. The ADR of the design.
-- **Done when.** Tests without a GPU of each widget's actions, meaning and focus; image tests of the
-  example; an agent's session uses each through its actions; CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-ui-render`; the example.
-- **By hand.** The owner tries the example's rich widgets and its palette.
-- **Progress.** [ADR-0151](adr/0151-rich-widgets.md), proposed on 2026-10-27, cuts it in two, rich
-  fields, then notifications and the palette of commands, and lists seven choices that wait for the
-  owner: expressions, units, a section's header, help from the documentation, notifications, the
-  palette and the sheet of shortcuts. The parts that hold no open choice are built, on 2026-10-27: a
-  field's placeholder (`Element::placeholder`), buttons that toggle (`Element::toggle_button`),
-  controls of segments (`Element::segments`, `Element::segment`), bars of progress, with a share or
-  moving with the clock (`Element::progress`), a tab's count (`Element::counted_tab`), fields of
-  search with a magnifier and a mark that empties them (`Element::search_field`), and a field of
-  numbers' prefix, which drags it, the look coloring the axes' prefixes
-  (`Element::prefixed_number_field`); `slime-app` gives screen readers their roles, states and
-  values, and agents read a field's placeholder. The `widgets` example shows each, in a bar of
-  tools, over its list of entities, in its position and on its console's tab, its images drawn
-  again, and its agent's session uses them. The tests: `slime-ui`'s `tests/rich.rs` and a test of
-  the placeholder in `tests/field.rs`, and `slime-app`'s translation of them.
+- **Goal.** The framework has the rich fields and buttons that make editing fast.
+- **Crates.** `slime-ui`, `slime-app`; the examples.
+- **Delivers.** As [ADR-0151](adr/0151-rich-widgets.md) decides: texts that empty fields show;
+  buttons that toggle and controls of segments; bars of progress; counts on tabs; fields of search;
+  fields of numbers with a prefix that drags them, the axes' colors on a vector's fields; drags
+  finer or coarser with Shift and Control; expressions in fields of numbers; units by families,
+  converted as they are typed; a slot in a section's header; tooltips of a title and a body, which a
+  program gives from the documentation that reflection keeps. The `widgets` example shows them.
+- **Done when.** Tests without a GPU of each widget's actions, meaning and focus, of the expressions
+  and of the units; image tests of the example; an agent's session uses each through its actions;
+  CI is green.
+- **How to test.** `cargo test -p slime-ui`; the example.
+- **By hand.** The owner tries the example's rich fields.
+- **Progress.** [ADR-0151](adr/0151-rich-widgets.md) was proposed on 2026-10-27, and its parts that
+  held no open choice built: a field's placeholder (`Element::placeholder`), buttons that toggle
+  (`Element::toggle_button`), controls of segments (`Element::segments`, `Element::segment`), bars
+  of progress, with a share or moving with the clock (`Element::progress`), a tab's count
+  (`Element::counted_tab`), fields of search with a magnifier and a mark that empties them
+  (`Element::search_field`), and a field of numbers' prefix, which drags it, the look coloring the
+  axes' prefixes (`Element::prefixed_number_field`); `slime-app` gives screen readers their roles,
+  states and values, and agents read a field's placeholder. The `widgets` example shows each, in a
+  bar of tools, over its list of entities, in its position and on its console's tab, its images
+  drawn again, and its agent's session uses them. The tests: `slime-ui`'s `tests/rich.rs` and a test
+  of the placeholder in `tests/field.rs`, and `slime-app`'s translation of them. A review found a
+  press on a prefix that cut an input method's composition, a bar of progress hidden that kept
+  frames coming, and a placeholder placed apart from the field's text, fixed with tests. The owner
+  took the record's choices the same day, which made it accepted: expressions with functions, units
+  by families, a slot in a section's header, help given by the program; and, for M6b.7e,
+  notifications, the palette and the sheet of shortcuts kept by the framework. The rest is under
+  way.
+
+### M6b.7e — What the editor tells and finds
+
+- **Goal.** The framework tells the user what goes on, and finds every command by its name.
+- **Crates.** `slime-ui`, `slime-app`; the examples.
+- **Delivers.** As [ADR-0151](adr/0151-rich-widgets.md) decides: notifications that the framework
+  stacks at the window's bottom end, of a kind, with a bar of progress and buttons, taken away after
+  a time unless the pointer rests on them, read by screen readers; the palette of commands, which
+  the framework opens, every command that the program names found by its name and shown with its
+  shortcut; the sheet of shortcuts, built from the tables of shortcuts. The `widgets` example shows
+  them.
+- **Done when.** Tests without a GPU of the notifications' stack and times, of the palette's ranking
+  and choice, and of the sheet; image tests of the example; an agent's session uses each; CI is
+  green.
+- **How to test.** `cargo test -p slime-ui`; the example.
+- **By hand.** The owner tries the example's notifications, palette and sheet of shortcuts.
 
 ### M6b.8 — The dev overlay on the engine's interface
 
