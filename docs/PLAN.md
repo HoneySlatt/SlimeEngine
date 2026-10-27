@@ -53,7 +53,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0149](adr/0149-the-looks-foundations.md)): M6b.7b, the look's foundations, is done;
   M6b.7c, the layers ([ADR-0150](adr/0150-layers.md)), is done. The owner cut the rich widgets in
   two on 2026-10-27 ([ADR-0151](adr/0151-rich-widgets.md)): M6b.7d, the rich fields, is done;
-  M6b.7e, what the editor tells and finds, is built, its CI to run.
+  M6b.7e, what the editor tells and finds, is done.
 
 ## Status
 
@@ -74,7 +74,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.7b](#m6b7b--the-looks-foundations) | The editor's look follows one accent in a dark, a light and a high-contrast theme, moves through transitions, and stays crisp at every scale | Done |
 | [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Done |
 | [M6b.7d](#m6b7d--rich-fields) | The framework has the rich fields and buttons that make editing fast | Done |
-| [M6b.7e](#m6b7e--what-the-editor-tells-and-finds) | The framework tells the user what goes on, and finds every command by its name | Built; CI to run |
+| [M6b.7e](#m6b7e--what-the-editor-tells-and-finds) | The framework tells the user what goes on, and finds every command by its name | Done |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
 
@@ -1130,7 +1130,7 @@ that the look has a light and a high-contrast theme beside its dark one.
   green.
 - **How to test.** `cargo test -p slime-ui`; the example.
 - **By hand.** The owner tries the example's notifications, palette and sheet of shortcuts.
-- **Outcome.** Built on 2026-10-27, CI to run, as [ADR-0151](adr/0151-rich-widgets.md) decides.
+- **Outcome.** Done on 2026-10-27, as [ADR-0151](adr/0151-rich-widgets.md) decides.
   `slime-ui` stacks the notifications that the program gives at the window's bottom end, in a layer
   that takes the focus from no one, each of a kind that sets how long it stays, its time counted
   again while the pointer rests on it or as it is updated, one with a bar of progress or an error
@@ -1152,7 +1152,9 @@ that the look has a light and a high-contrast theme beside its dark one.
   from an input method's composition, an Enter that gave the command of what was typed before, a
   chord shown for a command that a later table had taken it from, each fixed with a test. The
   tests: `slime-ui`'s `tests/palette.rs`, the ranking's own tests in `src/tree/palette.rs`, and
-  `slime-app`'s translation of notifications as live regions.
+  `slime-app`'s translation of notifications as live regions. CI is green on `e8ba52a`:
+  `check (headless)` took 15 minutes 38 seconds, `check (windowed)` 18 minutes 14 seconds,
+  `windows` 19 minutes 30 seconds and `windows-release` 15 minutes 30 seconds.
 
 ### M6b.8 — The dev overlay on the engine's interface
 
