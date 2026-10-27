@@ -20,33 +20,21 @@
 //! It is not in the default run of `cargo test` (`test = false` in Cargo.toml), and has no harness,
 //! so that its failures print once.
 
+#[path = "common/interface.rs"]
+mod interface;
 #[path = "common/session.rs"]
 #[expect(dead_code, reason = "this session reads no image")]
 mod session;
 
 use std::path::Path;
-use std::thread;
-use std::time::Duration;
 
 use serde_json::json;
 
+use interface::{act, path_of, until};
 use session::{Session, server};
 
 /// Where the inspector's properties are.
 const PROPERTIES: &str = "#0/window/Inspector/split/properties";
-
-/// Asks `ask` again, a tenth of a second apart, up to a hundred times, until `done` holds for what
-/// it gives: the frames that the game draws meanwhile apply what the session asked.
-fn until<T>(what: &str, mut ask: impl FnMut() -> T, done: impl Fn(&T) -> bool) -> T {
-    for _ in 0..100 {
-        let given = ask();
-        if done(&given) {
-            return given;
-        }
-        thread::sleep(Duration::from_millis(100));
-    }
-    panic!("{what} did not come in a hundred asks");
-}
 
 /// The line, as `find_elements` writes it, of the element at `path`; none where no element is
 /// there.
@@ -57,34 +45,6 @@ fn line(session: &mut Session, path: &str) -> Option<String> {
         .flat_map(|text| text.lines())
         .find(|line| line.starts_with(&format!("{path} — ")))
         .map(str::to_owned)
-}
-
-/// Acts `action` on the element at `path`, with what `more` adds, which must be done.
-fn act(session: &mut Session, action: &str, path: &str, more: serde_json::Value) {
-    let mut arguments = json!({ "action": action, "element": path });
-    if let (Some(arguments), Some(more)) = (arguments.as_object_mut(), more.as_object()) {
-        arguments.extend(more.clone());
-    }
-    let (said, _) = session.tool("act_on_interface", arguments);
-    assert_eq!(said, ["done"], "{action} on {path}");
-}
-
-/// The path of the first element of `role` whose name holds `name`, once one shows.
-fn path_of(session: &mut Session, role: &str, name: &str) -> String {
-    let found = until(
-        name,
-        || {
-            session
-                .try_tool("find_elements", json!({ "role": role, "name": name }))
-                .0
-        },
-        |said| said.first().is_some_and(|text| text.contains(" — ")),
-    );
-    found[0]
-        .split(" — ")
-        .next()
-        .expect("a path before the role")
-        .to_owned()
 }
 
 /// Waits until the bar at the bottom tells `told`, what the example read of the last change.

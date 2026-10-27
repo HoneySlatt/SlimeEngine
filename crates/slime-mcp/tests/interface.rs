@@ -13,29 +13,18 @@
 //! runs the `views` test. It is not in the default run of `cargo test` (`test = false` in
 //! Cargo.toml), and has no harness, so that its failures print once.
 
+#[path = "common/interface.rs"]
+#[expect(dead_code, reason = "this session finds its elements by their lines")]
+mod interface;
 #[path = "common/session.rs"]
 mod session;
 
 use std::path::Path;
-use std::thread;
-use std::time::Duration;
 
 use serde_json::json;
 
+use interface::until;
 use session::{Session, image, server};
-
-/// Asks `ask` again, a tenth of a second apart, up to a hundred times, until `done` holds for what
-/// it gives: the frames that the game draws meanwhile apply what the session asked.
-fn until<T>(what: &str, mut ask: impl FnMut() -> T, done: impl Fn(&T) -> bool) -> T {
-    for _ in 0..100 {
-        let given = ask();
-        if done(&given) {
-            return given;
-        }
-        thread::sleep(Duration::from_millis(100));
-    }
-    panic!("{what} did not come in a hundred asks");
-}
 
 /// The line of `lines`, as `find_elements` writes them, of the element at `path`.
 fn line<'a>(lines: &'a [String], path: &str) -> &'a str {
