@@ -7,7 +7,7 @@ use slime_input::{Key, KeyEvent, NamedKey};
 use super::control::Control;
 use super::{Along, Element, ElementId, ItemMark, Kind, Layer, Place, Role, Side, Ui};
 use crate::action::{Action, ActionKind, FieldValue};
-use crate::style::{Dimension, Style};
+use crate::style::{Dimension, FlexDirection, Style};
 
 impl Ui {
     /// A press of the list to choose from `id`: its list opens below it, or closes unchanged when
@@ -38,6 +38,7 @@ impl Ui {
         let root = self.open_owned_layer(id, layer, Style::default());
         // As wide as the list to choose from, at least; read as a list of options.
         let mut style = Style::default();
+        style.layout.direction = FlexDirection::Column;
         style.layout.min_size[0] = Dimension::Pixels(width);
         let mut items = Vec::new();
         self.build(root, 0, |children| {

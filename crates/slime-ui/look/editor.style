@@ -12,6 +12,9 @@
 select = {}
 style.text = { style = { fonts = ["Geist"], size = "$text_m", features = ["tnum"] }, color = "$text", selection = "$selection" }
 style.transition = { duration = "$fast", easing = "EaseOut" }
+# Lucide's `check`, `chevron-down`, `chevron-right` and `chevron-left`, by their codepoints, which
+# `Lucide.codepoints.json` names; a sheet after this one names others.
+style.icons = { font = "lucide", tick = "\uE06C", down = "\uE06D", right = "\uE06F", left = "\uE06E" }
 
 [window]
 select = { classes = ["window"] }
@@ -158,6 +161,92 @@ style.control = { size = "$scroll_bar", radius = "$radius_s", track = "$bar_trac
 [list]
 select = { kind = "List" }
 style.control = { size = "$scroll_bar", radius = "$radius_s", track = "$bar_track", fill = "$accent", mark = "$bar_thumb" }
+
+[menu-bar]
+select = { kind = "MenuBar" }
+style.paint.background = "$bar"
+style.layout.padding = { start = "$space_s", end = "$space_s", top = "$space_xs", bottom = "$space_xs" }
+style.layout.gap = [0, "$space_xs"]
+
+[menu]
+select = { kind = "Menu" }
+style.paint = { background = "$raised", border_width = 1, border = "$raised_border", radii = ["$radius_l", "$radius_l", "$radius_l", "$radius_l"], shadow = [{ color = "$shadow", offset = [0, "$shadow_y"], blur = "$shadow_blur", spread = 0 }] }
+style.layout.direction = "Column"
+style.layout.padding = { start = "$space_xs", end = "$space_xs", top = "$space_xs", bottom = "$space_xs" }
+style.layout.min_size = [{ Pixels = "$menu_width" }, "Auto"]
+
+[menu-item]
+select = { kind = "MenuItem" }
+style.paint = { border_width = 1, border = "$none", radii = ["$radius_s", "$radius_s", "$radius_s", "$radius_s"] }
+style.layout.padding = { start = "$space_s", end = "$space_s", top = "$button_y", bottom = "$button_y" }
+style.control = { size = "$control", radius = "$radius_s", track = "$muted", fill = "$accent", mark = "$text" }
+
+[menu-item-focused]
+select = { kind = "MenuItem", states = ["Focused"] }
+style.paint.background = "$accent_soft"
+
+[menu-item-open]
+select = { kind = "MenuItem", states = ["Expanded"] }
+style.paint.background = "$hover"
+
+[menu-item-disabled]
+select = { kind = "MenuItem", states = ["Disabled"] }
+style.text.color = "$muted"
+
+[menu-bar-item]
+select = { kind = "MenuItem", inside = { kind = "MenuBar" } }
+style.layout.padding = { start = "$space_m", end = "$space_m", top = "$button_y", bottom = "$button_y" }
+
+[menu-bar-item-hovered]
+select = { kind = "MenuItem", states = ["Hovered"], inside = { kind = "MenuBar" } }
+style.paint.background = "$hover"
+
+[menu-bar-item-focused]
+select = { kind = "MenuItem", states = ["FocusVisible"], inside = { kind = "MenuBar" } }
+style.paint.border = "$focus"
+
+[menu-bar-item-open]
+select = { kind = "MenuItem", states = ["Expanded"], inside = { kind = "MenuBar" } }
+style.paint.background = "$accent_soft"
+
+[choice]
+select = { kind = "Choice" }
+style.paint = { background = "$raised", border_width = 1, border = "$raised_border", radii = ["$radius_m", "$radius_m", "$radius_m", "$radius_m"] }
+style.layout.padding = { start = "$field_x", end = "$field_x", top = "$button_y", bottom = "$button_y" }
+style.control = { size = "$control", radius = "$radius_s", track = "$track", fill = "$accent", mark = "$muted" }
+
+[choice-hovered]
+select = { kind = "Choice", states = ["Hovered"] }
+style.paint.background = "$hover"
+
+[choice-open]
+select = { kind = "Choice", states = ["Expanded"] }
+style.paint.background = "$pressed"
+
+[choice-focused]
+select = { kind = "Choice", states = ["FocusVisible"] }
+style.paint.border = "$focus"
+
+[tooltip]
+select = { classes = ["tooltip"] }
+style.paint = { background = "$raised", border_width = 1, border = "$raised_border", radii = ["$radius_m", "$radius_m", "$radius_m", "$radius_m"], shadow = [{ color = "$shadow", offset = [0, "$shadow_y"], blur = "$shadow_blur", spread = 0 }] }
+style.layout.padding = { start = "$space_m", end = "$space_m", top = "$space_s", bottom = "$space_s" }
+style.layout.max_size = [{ Pixels = "$tooltip_width" }, "Auto"]
+
+[tooltip-text]
+select = { kind = "Label", inside = { class = "tooltip" } }
+style.text.style.size = "$text_s"
+
+[floating-panel]
+select = { kind = "FloatingPanel" }
+style.paint = { background = "$panel", border_width = 1, border = "$panel_border", radii = ["$radius_l", "$radius_l", "$radius_l", "$radius_l"], shadow = [{ color = "$shadow", offset = [0, "$shadow_y"], blur = "$shadow_blur", spread = 0 }] }
+style.layout.padding = { start = "$space_m", end = "$space_m", top = "$space_s", bottom = "$space_m" }
+style.text.style.weight = "$weight_title"
+style.control = { size = "$control", radius = "$radius_s", track = "$muted", fill = "$accent", mark = "$text" }
+
+[floating-panel-focused]
+select = { kind = "FloatingPanel", states = ["FocusVisible"] }
+style.paint.border = "$focus"
 
 [fixed]
 select = { classes = ["fixed"] }

@@ -1177,7 +1177,8 @@ A release is an annotated git tag on a commit whose CI run is green on Linux and
    with the `slime-examples-windows` artifact of that commit's CI run attached as
    `slime-examples-windows-<version>.zip`: CI keeps its artifacts 14 days, a release keeps them.
    CI puts beside the programs DXC's library and its licence, the licenses of the parts of Noto
-   fonts that `interface.exe` embeds and that of Geist and Geist Mono, which `widgets.exe` embeds;
+   fonts that `interface.exe` embeds and those of Geist, Geist Mono and Lucide, which `widgets.exe`
+   embeds;
    add `LICENSE.txt`, a `NOTICE.txt` and the licenses of the egui
    fonts that `scene.exe`, `world.exe` and `hunnawood.exe` embed in their dev overlay, which the
    Ubuntu Font Licence asks to travel with them.

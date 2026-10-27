@@ -82,13 +82,15 @@ gives the path of its driver file in `SLIME_LAVAPIPE_ICD` (from nixpkgs' `mesa` 
 ## Fonts
 
 Font files under the SIL Open Font License 1.1, which
-[ADR-0133](adr/0133-font-files-under-the-open-font-license.md) allows, each with its license beside
-it. No tool checks a font's license: the change that adds a font records it here.
+[ADR-0133](adr/0133-font-files-under-the-open-font-license.md) allows, and Lucide's font of icons,
+under the ISC and MIT licenses ([ADR-0150](adr/0150-layers.md)), each with its license beside it.
+No tool checks a font's license: the change that adds a font records it here.
 
 | Font | Used by | Source | License |
 |---|---|---|---|
 | Parts of Noto Sans, Noto Sans Arabic, Hebrew, Devanagari and Thai, Noto Sans CJK JP and SC, and Noto Color Emoji, in [`crates/slime-ui/tests/fonts`](../crates/slime-ui/tests/fonts/README.md) | slime-ui's and slime-ui-render's tests, the text benchmarks, the `text` example, and the `interface` example, which embeds them; shipped with `interface.exe` of the Windows artifact, their licenses beside it | The Noto releases of 2026-10-01 (Noto Sans), 2.004 (Noto CJK) and 2.051 (Noto Emoji), cut down to the characters of the tests' texts by `scripts/subset-fonts.sh` (M6b.2) | OFL-1.1, one license file per font |
 | Geist and Geist Mono, the variable fonts of their upright faces, in [`crates/slime-ui/look`](../crates/slime-ui/look/README.md) | The editor's look, `slime_ui::look`, with `slime-ui`'s feature `editor-look` ([ADR-0148](adr/0148-widgets.md)): the `widgets` example, which embeds them, and slime-ui's tests of the look; shipped with `widgets.exe` of the Windows artifact, their license beside it | Geist's release 1.7.0, as the NixOS package `geist-font` 1.7.0 holds it, unchanged; its license from Geist's repository at the tag `1.7.0`, which the package lacks (M6b.7a) | OFL-1.1, one license file for both, which reserves no name |
+| Lucide's font of icons, whole, with its file of codepoints, in [`crates/slime-ui/look`](../crates/slime-ui/look/README.md) | The editor's look's icons, the controls' ticks and chevrons and `slime_ui::look::icon`, with the feature `editor-look` ([ADR-0150](adr/0150-layers.md)): the `widgets` example, which embeds it, and slime-ui's tests of the look; shipped with `widgets.exe` of the Windows artifact, its license beside it | `lucide.ttf` and `codepoints.json` of `lucide-font-1.61.0.zip`, of Lucide's release 1.61.0 on GitHub, unchanged; its license from Lucide's repository at that tag (M6b.7c) | ISC, and MIT for the icons that it took from Feather, both in one license file |
 
 ## Shipped with the Windows programs
 

@@ -3,9 +3,11 @@
 //! the writing systems that it promises, at the weights that it asks of their variable fonts, their
 //! digits of one width; its style sheet and stacked themes, which style each kind of element, its
 //! states and its classes, in each theme of colors and density, a project's accent followed by what
-//! the look computes from it. Built with the feature `editor-look` alone.
+//! the look computes from it; Lucide's icons, by name, and the controls' ticks and chevrons drawn
+//! from them. Built with the feature `editor-look` alone.
 
 use slime_color::{LinearColor, Oklch};
+use slime_ui::display::Primitive;
 use slime_ui::look::{self, Colors, Density, FIXED_FAMILY, TEXT_FAMILY};
 use slime_ui::style::Style;
 use slime_ui::text::{Fonts, TextBounds, TextStyle};
@@ -230,4 +232,83 @@ fn a_project_s_accent_changes_every_color_that_follows_it() {
     ui.frame();
     let border = ui.style(ids[8]).expect("styled").paint.border;
     assert!(near(border, lighten(srgb(0x2BB673), 0.08)), "{border:?}");
+}
+
+#[test]
+fn the_controls_draw_their_ticks_and_chevrons_from_lucide_which_names_its_icons() {
+    let themes = look::themes(Colors::Dark, Density::Comfortable);
+    let (mut ui, ids) = styled(&themes, every_kind());
+    let icons = &ui.style(ids[3]).expect("styled").icons;
+    assert_eq!(icons.font, look::ICON_FAMILY);
+    assert_eq!(
+        [&icons.tick, &icons.down, &icons.right, &icons.left].map(|glyph| glyph.chars().next()),
+        ["check", "chevron-down", "chevron-right", "chevron-left"].map(look::icon)
+    );
+    // Lucide draws each of them, and holds all of its icons.
+    let mut fonts = Fonts::new();
+    look::register_fonts(&mut fonts);
+    let style = TextStyle {
+        fonts: vec![look::ICON_FAMILY.to_owned()],
+        ..TextStyle::default()
+    };
+    for name in [
+        "check",
+        "chevron-down",
+        "folder",
+        "eye",
+        "lock",
+        "circle-chevrons-up",
+    ] {
+        let glyph = look::icon(name).expect("an icon of Lucide").to_string();
+        let layout = fonts.lay_out(&glyph, &style, 1.0, TextBounds::default());
+        let run = &layout.runs()[0];
+        assert_eq!(fonts.family(run.font), look::ICON_FAMILY, "{name}");
+        assert!(run.glyphs.iter().all(|glyph| glyph.id != 0), "{name}");
+    }
+    // The checked check box draws its tick, and the open section its chevron, as texts in Lucide.
+    let (list, _) = ui.frame();
+    let icons_drawn = list
+        .items()
+        .iter()
+        .filter(|item| match &item.primitive {
+            Primitive::Text(text) => text
+                .layout
+                .runs()
+                .iter()
+                .all(|run| ui.fonts().family(run.font) == look::ICON_FAMILY),
+            _ => false,
+        })
+        .count();
+    assert_eq!(icons_drawn, 2);
+}
+
+#[test]
+fn the_look_styles_what_opens_over_a_panel() {
+    use slime_ui::style::Dimension;
+    use slime_ui::tree::ItemMark;
+    let themes = look::themes(Colors::Dark, Density::Comfortable);
+    let elements = vec![
+        Element::menu(Style::default()),
+        Element::menu_item("Save", "Ctrl+S", ItemMark::None, Style::default()),
+        Element::choice(vec!["Low".to_owned()], 0, Style::default()),
+        Element::container(Style::default()).class("tooltip"),
+        Element::floating_panel("Color", true, Style::default()),
+        Element::menu_bar(Style::default()),
+    ];
+    let (ui, ids) = styled(&themes, elements);
+    let style = |index: usize| ui.style(ids[index]).expect("styled");
+    // A menu floats over what it opens on: a shadow, a least width, its items in a column.
+    let menu = style(0);
+    assert!(menu.paint.shadow.is_some());
+    assert_eq!(menu.layout.min_size[0], Dimension::Pixels(180.0));
+    assert_eq!(
+        menu.layout.direction,
+        slime_ui::style::FlexDirection::Column
+    );
+    // An item's shortcut in the quieter color, as a list to choose from's chevron.
+    assert!(near(style(1).control.track, style(2).control.mark));
+    assert!(style(3).paint.shadow.is_some());
+    assert_eq!(style(3).layout.max_size[0], Dimension::Pixels(280.0));
+    assert!(style(4).paint.shadow.is_some());
+    assert_ne!(style(5).paint.background, style(0).paint.background);
 }

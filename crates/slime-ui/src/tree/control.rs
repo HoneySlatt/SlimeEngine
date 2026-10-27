@@ -1,13 +1,15 @@
 //! Check boxes, sliders and sections that fold: the value that the user gives, or whether a section
 //! is open, kept by the element as a field keeps its text (`docs/adr/0148-widgets.md`).
 
+use slime_color::LinearColor;
 use slime_input::{Key, KeyEvent, NamedKey};
 
 use super::{ElementId, ElementState, ItemMark, Kind, LayoutDirection, Ui};
 use crate::Rect;
 use crate::action::{Action, ActionKind, FieldValue};
 use crate::display::{BoxPrimitive, Primitive, TextPrimitive};
-use crate::text::{TextBounds, TextLayout};
+use crate::style::Icons;
+use crate::text::{TextBounds, TextLayout, TextStyle};
 
 /// How many steps Page Up and Page Down move a slider by.
 const PAGE_STEPS: f64 = 10.0;
@@ -688,6 +690,12 @@ impl Ui {
             return Vec::new();
         };
         let control = node.style.control;
+        let icons = node.style.icons.clone();
+        // The glyph towards a line's end: a chevron for what is folded or opens a submenu.
+        let towards_end = match direction {
+            LayoutDirection::LeftToRight => icons.right.clone(),
+            LayoutDirection::RightToLeft => icons.left.clone(),
+        };
         let content = node.content_box();
         let filled = |rect: Rect, radius: f32, fill| {
             Primitive::Box(BoxPrimitive {
@@ -710,6 +718,7 @@ impl Ui {
                 let boxed = Rect::new(x, content.y + (content.height - size) / 2.0, size, size);
                 let fill = if checked { control.fill } else { control.track };
                 primitives.push(filled(boxed, control.radius, fill));
+                let label = label.clone();
                 if checked {
                     let inset = size * 0.3;
                     let mark = Rect::new(
@@ -718,9 +727,15 @@ impl Ui {
                         size - 2.0 * inset,
                         size - 2.0 * inset,
                     );
-                    primitives.push(filled(mark, control.radius / 2.0, control.mark));
+                    let tick =
+                        self.icon(&icons, &icons.tick, boxed, size * 0.8, scale, control.mark);
+                    primitives.push(
+                        tick.unwrap_or_else(|| filled(mark, control.radius / 2.0, control.mark)),
+                    );
                 }
-                let label = label.clone();
+                let Some(node) = self.node(id) else {
+                    return primitives;
+                };
                 let gap = size / 2.0;
                 let width = (content.width - size - gap).max(0.0);
                 let look = node.style.text.clone();
@@ -761,21 +776,27 @@ impl Ui {
                     LayoutDirection::RightToLeft => header.x + header.width - size,
                 };
                 let mark = Rect::new(x, header.y + (header.height - size) / 2.0, size, size);
-                primitives.push(filled(mark, control.radius, control.track));
-                // A minus, open; a plus, folded: two bars of the mark's color.
-                let (long, thin) = (size * 0.6, (size * 0.12).max(scale));
-                let middle = [mark.x + size / 2.0, mark.y + size / 2.0];
-                primitives.push(filled(
-                    Rect::new(middle[0] - long / 2.0, middle[1] - thin / 2.0, long, thin),
-                    0.0,
-                    control.mark,
-                ));
-                if !open {
+                // A chevron down, open, towards the end, folded; else, on a box, a minus, open,
+                // a plus, folded: two bars of the mark's color.
+                let glyph = if open { &icons.down } else { &towards_end };
+                if let Some(chevron) = self.icon(&icons, glyph, mark, size, scale, control.mark) {
+                    primitives.push(chevron);
+                } else {
+                    primitives.push(filled(mark, control.radius, control.track));
+                    let (long, thin) = (size * 0.6, (size * 0.12).max(scale));
+                    let middle = [mark.x + size / 2.0, mark.y + size / 2.0];
                     primitives.push(filled(
-                        Rect::new(middle[0] - thin / 2.0, middle[1] - long / 2.0, thin, long),
+                        Rect::new(middle[0] - long / 2.0, middle[1] - thin / 2.0, long, thin),
                         0.0,
                         control.mark,
                     ));
+                    if !open {
+                        primitives.push(filled(
+                            Rect::new(middle[0] - thin / 2.0, middle[1] - long / 2.0, thin, long),
+                            0.0,
+                            control.mark,
+                        ));
+                    }
                 }
                 let gap = size / 2.0;
                 let width = (header.width - size - gap).max(0.0);
@@ -865,15 +886,21 @@ impl Ui {
                     LayoutDirection::LeftToRight => (content.x, content.x + content.width - size),
                     LayoutDirection::RightToLeft => (content.x + content.width - size, content.x),
                 };
+                // A tick, or a dot, where it is checked; a chevron, or a bar, where it opens a
+                // submenu.
                 if mark == ItemMark::Check(true) {
+                    let place = Rect::new(start, middle - size / 2.0, size, size);
+                    let tick = self.icon(&icons, &icons.tick, place, size, scale, control.mark);
                     let dot = size * 0.4;
                     let at = Rect::new(start + (size - dot) / 2.0, middle - dot / 2.0, dot, dot);
-                    primitives.push(filled(at, control.size, control.mark));
+                    primitives.push(tick.unwrap_or_else(|| filled(at, control.size, control.mark)));
                 }
                 if mark == ItemMark::Submenu {
+                    let place = Rect::new(end, middle - size / 2.0, size, size);
+                    let chevron = self.icon(&icons, &towards_end, place, size, scale, control.mark);
                     let (thin, long) = ((size * 0.15).max(scale), size * 0.5);
                     let at = Rect::new(end + (size - thin) / 2.0, middle - long / 2.0, thin, long);
-                    primitives.push(filled(at, 0.0, control.mark));
+                    primitives.push(chevron.unwrap_or_else(|| filled(at, 0.0, control.mark)));
                 }
                 let shortcut = (!shortcut.is_empty()).then(|| {
                     self.texts
@@ -935,14 +962,17 @@ impl Ui {
                 let size = control.size * scale;
                 let gap = size / 2.0;
                 let middle = content.y + content.height / 2.0;
-                // The mark at the end of a line: a bar across, for a list that opens below.
+                // The mark at the end of a line: a chevron down, or a bar across, for a list that
+                // opens below.
                 let end = match direction {
                     LayoutDirection::LeftToRight => content.x + content.width - size,
                     LayoutDirection::RightToLeft => content.x,
                 };
+                let place = Rect::new(end, middle - size / 2.0, size, size);
+                let chevron = self.icon(&icons, &icons.down, place, size, scale, control.mark);
                 let (long, thin) = (size * 0.5, (size * 0.15).max(scale));
                 let at = Rect::new(end + (size - long) / 2.0, middle - thin / 2.0, long, thin);
-                primitives.push(filled(at, 0.0, control.mark));
+                primitives.push(chevron.unwrap_or_else(|| filled(at, 0.0, control.mark)));
                 let width = (content.width - size - gap).max(0.0);
                 let layout: std::sync::Arc<TextLayout> = self
                     .texts
@@ -999,6 +1029,42 @@ impl Ui {
             _ => {}
         }
         primitives
+    }
+}
+
+impl Ui {
+    /// The glyph `glyph` of the font of `icons`, `size` pixels tall, in the middle of `rect`, of
+    /// `color`; none where `icons` names no font, or `glyph` is empty.
+    fn icon(
+        &mut self,
+        icons: &Icons,
+        glyph: &str,
+        rect: Rect,
+        size: f32,
+        scale: f32,
+        color: LinearColor,
+    ) -> Option<Primitive> {
+        if icons.font.is_empty() || glyph.is_empty() {
+            return None;
+        }
+        let style = TextStyle {
+            fonts: vec![icons.font.clone()],
+            size: size / scale,
+            ..TextStyle::default()
+        };
+        let layout = self
+            .texts
+            .get(&mut self.fonts, glyph, &style, scale, TextBounds::default())
+            .clone();
+        let drawn = layout.drawn_box();
+        Some(Primitive::Text(TextPrimitive {
+            origin: [
+                rect.x + (rect.width - drawn.width) / 2.0 - drawn.x,
+                rect.y + (rect.height - layout.height()) / 2.0,
+            ],
+            layout,
+            color,
+        }))
     }
 }
 

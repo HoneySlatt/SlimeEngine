@@ -9,7 +9,10 @@
 //! them ships beside it (`docs/adr/0133-font-files-under-the-open-font-license.md`). They hold
 //! the Latin script, Vietnamese included, and Cyrillic: the editor falls back on the system's
 //! fonts for the other writing systems ([`Fonts::with_system_fonts`]); the overlay, which ships in
-//! games, does not.
+//! games, does not. Its icons are Lucide's font of icons, whole, under the ISC license and, for the
+//! icons that it took from Feather, the MIT license, whose file a program ships beside it too
+//! (`docs/adr/0150-layers.md`): the controls draw their ticks and chevrons from it, and a program
+//! draws any of its icons by name ([`icon`]).
 //!
 //! Its style sheet styles labels, buttons, fields and widgets by their kind and their states, boxes
 //! by the classes `panel`, `bar` and `window`, labels of the class `muted` in a quieter color, and
@@ -45,6 +48,9 @@
 //!     .expect("the look's documents are valid");
 //! ```
 
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
 use crate::text::Fonts;
 use crate::theme::{StyleSheet, Theme};
 
@@ -52,15 +58,47 @@ use crate::theme::{StyleSheet, Theme};
 pub const TEXT_FAMILY: &str = "Geist";
 /// The family of the look's text of fixed width.
 pub const FIXED_FAMILY: &str = "Geist Mono";
+/// The family of the look's icons, Lucide's.
+pub const ICON_FAMILY: &str = "lucide";
 
-/// Geist 1.7.0 and Geist Mono 1.7.0, their variable fonts of upright faces, as their release gives
-/// them (`crates/slime-ui/look/README.md`).
-const FONTS: [&[u8]; 2] = [
+/// Geist 1.7.0 and Geist Mono 1.7.0, their variable fonts of upright faces, and Lucide 1.61.0's
+/// font of icons, as their releases give them (`crates/slime-ui/look/README.md`).
+const FONTS: [&[u8]; 3] = [
     include_bytes!("../look/Geist.ttf"),
     include_bytes!("../look/GeistMono.ttf"),
+    include_bytes!("../look/Lucide.ttf"),
 ];
 
-/// Registers the look's fonts, Geist and Geist Mono, with `fonts`, which keep them without a copy.
+/// The character of Lucide's icon `name`, as Lucide names its icons, `chevron-down`, which a text
+/// in [`ICON_FAMILY`] draws; none for a name that Lucide does not give. The look's 2191 icons are
+/// those of Lucide 1.61.0; the first call reads their names, which the next ones keep.
+///
+/// ```
+/// let check = slime_ui::look::icon("check").expect("Lucide draws a check");
+/// assert_eq!(check, '\u{E06C}');
+/// assert_eq!(slime_ui::look::icon("no-such-icon"), None);
+/// ```
+pub fn icon(name: &str) -> Option<char> {
+    static ICONS: OnceLock<HashMap<&'static str, char>> = OnceLock::new();
+    ICONS
+        .get_or_init(|| {
+            // Lucide's file of codepoints holds a name and its codepoint on each line,
+            // `  "check": 57452,`.
+            include_str!("../look/Lucide.codepoints.json")
+                .lines()
+                .filter_map(|line| {
+                    let (name, code) = line.trim().trim_end_matches(',').split_once(':')?;
+                    let name = name.trim().strip_prefix('"')?.strip_suffix('"')?;
+                    Some((name, char::from_u32(code.trim().parse().ok()?)?))
+                })
+                .collect()
+        })
+        .get(name)
+        .copied()
+}
+
+/// Registers the look's fonts, Geist, Geist Mono and Lucide, with `fonts`, which keep them without
+/// a copy.
 ///
 /// # Panics
 ///

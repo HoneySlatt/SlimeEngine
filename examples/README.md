@@ -35,8 +35,8 @@ On Windows, the same commands work with the toolchain described in
 `scene.exe` and `world.exe` built for Windows, as the artifact `slime-examples-windows`, with the
 game, `hunnawood.exe` ([`games/hunnawood`](../games/hunnawood/README.md)) and its cooked zone, and
 DXC's library and its licence beside them, with which Direct3D 12 compiles their shaders, the
-licenses of the parts of Noto fonts that `interface.exe` embeds, and that of Geist and Geist Mono,
-which `widgets.exe` embeds ([ADR-0066](../docs/adr/0066-shipping-dxc-beside-the-programs.md)), to
+licenses of the parts of Noto fonts that `interface.exe` embeds, and those of Geist, Geist Mono and
+Lucide, which `widgets.exe` embeds ([ADR-0066](../docs/adr/0066-shipping-dxc-beside-the-programs.md)), to
 run on a Windows machine without a Rust toolchain. They link the C runtime of the MSVC toolchain
 statically, so they start on a fresh Windows install too, without the Visual C++ Redistributable.
 Run them from a terminal (Windows Terminal, PowerShell or cmd): started by a double click, their

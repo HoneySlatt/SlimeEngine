@@ -27,6 +27,28 @@ pub struct Style {
     /// How a change of its style shows: at once, or over a time
     /// (`docs/adr/0149-the-looks-foundations.md`).
     pub transition: Transition,
+    /// The glyphs of a font of icons that its control draws in place of its shapes
+    /// (`docs/adr/0150-layers.md`).
+    pub icons: Icons,
+}
+
+/// The glyphs of a font of icons that controls draw, each a text of one character of `font`, empty
+/// for the shape that a control draws without it: a check box's square mark, a section's minus and
+/// plus, a bar for a chevron. They take the size of the control's part and its mark's color.
+#[derive(Clone, Debug, Default, PartialEq, Reflect)]
+#[reflect(name = "UiIcons", default)]
+pub struct Icons {
+    /// The family of the font that holds them; empty for none, the controls drawing their shapes.
+    pub font: String,
+    /// A tick: a check box checked, an item of a menu checked.
+    pub tick: String,
+    /// A chevron down: a section or a floating panel open, a list to choose from.
+    pub down: String,
+    /// A chevron towards the right: a section or a floating panel folded, and an item of a menu
+    /// that opens a submenu, in a root laid out from left to right.
+    pub right: String,
+    /// A chevron towards the left: the same, in a root laid out from right to left.
+    pub left: String,
 }
 
 /// How a change of an element's style shows: its colors and its opacity going from what they showed

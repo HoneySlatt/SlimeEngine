@@ -190,9 +190,9 @@ jobs:
         run: |
           mkdir -p target/windows
           cp target/release/examples/{hello,headless,window,offscreen,interface,widgets,scene,world}.exe target/windows/
-          # The licenses of the parts of Noto fonts that interface.exe embeds, and of Geist and Geist
-          # Mono, which widgets.exe embeds (ADR-0133).
-          cp crates/slime-ui/tests/fonts/*.OFL.txt crates/slime-ui/look/Geist.OFL.txt target/windows/
+          # The licenses of the parts of Noto fonts that interface.exe embeds, and of Geist, Geist
+          # Mono and Lucide, which widgets.exe embeds (ADR-0133, ADR-0150).
+          cp crates/slime-ui/tests/fonts/*.OFL.txt crates/slime-ui/look/Geist.OFL.txt crates/slime-ui/look/Lucide.LICENSE.txt target/windows/
           cp target/release/hunnawood.exe target/windows/
           scripts/fetch-dxc.sh target/windows
           cargo run --locked --release -p slime-cook -- cook examples/assets target/windows/assets
