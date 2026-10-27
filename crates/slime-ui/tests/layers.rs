@@ -370,3 +370,79 @@ fn a_modal_layer_keeps_the_input_and_the_focus_until_it_closes() {
     ui.set_focus(Some(button));
     assert_eq!(ui.focus(), Some(button), "the window takes the focus again");
 }
+
+#[test]
+fn a_layer_beside_an_elements_end_keeps_its_top_from_right_to_left() {
+    let (mut ui, _, button) = interface(LayoutDirection::RightToLeft, 60.0);
+    let (layer, _) = open(
+        &mut ui,
+        Place::Beside {
+            element: button,
+            side: Side::End,
+            along: Along::Start,
+        },
+    );
+    // From right to left, the end is the left: before the button, its top on the button's top.
+    let (anchor, rect) = (
+        ui.rect(button).expect("laid out"),
+        ui.rect(layer).expect("placed"),
+    );
+    assert_eq!(rect.y, anchor.y);
+    assert_eq!(rect.x + rect.width + 4.0, anchor.x);
+}
+
+#[test]
+fn a_press_anywhere_outside_closes_a_layer_at_a_point() {
+    let (mut ui, root, _) = interface(LayoutDirection::LeftToRight, 0.0);
+    let (layer, _) = open(
+        &mut ui,
+        Place::At {
+            over: root,
+            point: [200.0, 100.0],
+        },
+    );
+    // On the root that it stands over, outside it: it closes.
+    click(&mut ui, 50.0, 250.0);
+    assert!(ui.rect(layer).is_none());
+    let kinds: Vec<ActionKind> = ui.take_actions().into_iter().map(|a| a.kind).collect();
+    assert_eq!(kinds, [ActionKind::Dismissed]);
+}
+
+#[test]
+fn a_layer_over_a_root_placed_within_the_window_stays_within_the_window() {
+    let (mut ui, _, _) = interface(LayoutDirection::LeftToRight, 0.0);
+    // A dialog of 200 by 100 at (100, 40), its button at its bottom.
+    let mut column = Style::default();
+    column.layout.direction = FlexDirection::Column;
+    column.layout.padding.top = 70.0;
+    let dialog = ui.add_root(
+        RootSettings {
+            size: [200.0, 100.0],
+            scale: 1.0,
+            direction: LayoutDirection::LeftToRight,
+            origin: [100.0, 40.0],
+            modal: false,
+        },
+        column,
+    );
+    let mut button = None;
+    ui.build(dialog, 0, |children| {
+        button = Some(children.add("open", Element::button("", sized(100.0, 30.0)), |_| {}));
+    });
+    ui.frame();
+    let button = button.expect("built");
+    let (layer, _) = open(
+        &mut ui,
+        Place::Beside {
+            element: button,
+            side: Side::Below,
+            along: Along::Start,
+        },
+    );
+    // Below the button, out of the dialog's box: the window has the room.
+    let (anchor, rect) = (
+        ui.rect(button).expect("laid out"),
+        ui.rect(layer).expect("placed"),
+    );
+    assert_eq!(rect.y, anchor.y + anchor.height + 4.0);
+}

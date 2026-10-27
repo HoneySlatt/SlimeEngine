@@ -236,3 +236,28 @@ fn a_bars_items_lay_out_their_labels_alone() {
     // `File` is about as wide as the button's `Go`, not four marks wider.
     assert!(file.width < button.width + 20.0, "{file:?} {button:?}");
 }
+
+#[test]
+fn alt_after_a_press_shows_the_bars_focus_and_alt_in_a_menu_leaves_the_bar() {
+    let mut window = Window::new();
+    let [file, ..] = window.items;
+    // A press of the pointer, then Alt alone: the bar's focus shows, as the keys gave it.
+    window.click(window.button);
+    window.ui.take_actions();
+    window.press(NamedKey::Alt);
+    window.key(NamedKey::Alt, ButtonState::Released);
+    assert_eq!(window.ui.focus(), Some(file));
+    assert!(window.ui.state(file).expect("there").focus_visible);
+    window.press(NamedKey::Escape);
+    // From a menu of the bar, F10 closes it and gives the focus back to what held it before.
+    window.ui.set_focus(Some(window.button));
+    window.press(NamedKey::F10);
+    window.press(NamedKey::ArrowDown);
+    window.actions();
+    let (menu, entries) = window.open_menu(file);
+    assert_eq!(window.ui.focus(), Some(entries[0]));
+    window.press(NamedKey::F10);
+    assert!(window.ui.rect(menu).is_none());
+    assert_eq!(window.ui.focus(), Some(window.button));
+    assert_eq!(window.actions(), [(Some(menu), ActionKind::Dismissed)]);
+}

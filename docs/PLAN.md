@@ -1031,7 +1031,7 @@ that the look has a light and a high-contrast theme beside its dark one.
   an item closes the menus that led to it. A bar of menus, its items their labels alone, which the
   pointer passes along while a menu is open, the arrows between its menus, F10 and Alt alone
   reaching it. Lists to choose from, their list a menu of their options, chosen by the keys, the
-  pointer and agents. Tooltips once the pointer rests half a second on the interface's clock, or
+  pointer and agents. Tooltips once the pointer rests on the interface's clock, or
   the keys give the focus, which the pointer passes through, read as the element's description.
   Floating panels that fill their layer, moved by their bar within the window, sized by their
   corner, folded by their mark and raised by a press. A style's icons name the glyphs that controls
@@ -2015,8 +2015,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   settings would need a new dependency; Windows reports it.
 - **Layers** ([ADR-0150](adr/0150-layers.md)): a menu's separators are boxes of the class
   `separator` that the look styles, not a kind of their own; a menu has no letters that jump to an
-  item, and no way to cross its siblings towards an open submenu: resting a quarter of a
-  second on another item closes it. A list to choose from does not scroll its options, so that a
+  item, and no way to cross its siblings towards an open submenu: resting on another item on
+  the way closes it. A list to choose from does not scroll its options, so that a
   list taller than the window is cut; Tab within an open list moves among its options rather than
   closing it. A tooltip shows for the keys' focus alone, not the program's, and is not placed
   beside the pointer. A floating panel has a least size of its own, no docking, and does not keep

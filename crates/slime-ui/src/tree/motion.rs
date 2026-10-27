@@ -144,9 +144,10 @@ fn moves(style: &Style) -> bool {
 
 impl Ui {
     /// Gives the interface the time that passed since its last frame, by which its transitions go
-    /// on: a program calls it once a frame, before [`Ui::frame`], with the frame's real time, as
+    /// on, tooltips wait, submenus open as the pointer rests, and bars of progress without a share
+    /// move: a program calls it once a frame, before [`Ui::frame`], with the frame's real time, as
     /// `slime-app` does for a presentation's interface. An interface that is never given time
-    /// shows each transition's start until it is.
+    /// shows each transition's start until it is, and no tooltip.
     pub fn advance(&mut self, elapsed: Duration) {
         self.now += elapsed;
     }

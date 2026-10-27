@@ -51,9 +51,11 @@ pub enum ActionKind {
         /// Where the menu goes.
         at: [f32; 2],
     },
-    /// A layer that closes as the user leaves it closed so: a press outside it and outside what
-    /// opened it, or Escape. The action's element is the layer's root, which no longer exists
-    /// (`docs/adr/0150-layers.md`).
+    /// A layer that the program opened closed without the program: a press outside it and outside
+    /// the element that it stands beside, or Escape, for one that closes as the user leaves it; a
+    /// press on an item of a menu, for the menus that led to it; the element that it stands beside
+    /// or over removed, for any layer. The action's element is the layer's root, which no longer
+    /// exists (`docs/adr/0150-layers.md`).
     Dismissed,
 }
 

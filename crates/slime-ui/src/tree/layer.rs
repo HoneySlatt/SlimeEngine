@@ -60,14 +60,15 @@ pub enum Side {
     End,
 }
 
-/// The edge of an element's side that a layer lines up with.
+/// The edge of an element's side that a layer lines up with: along a line for a layer above or
+/// below it, from top to bottom for one before its start or after its end.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Along {
-    /// Its start: the layer's start on the element's.
+    /// Its start: the layer's start on the element's, or its top on the element's top.
     Start,
     /// Its middle.
     Center,
-    /// Its end.
+    /// Its end: the layer's end on the element's, or its bottom on the element's bottom.
     End,
 }
 
@@ -79,8 +80,8 @@ pub struct Layer {
     /// Whether it is modal: while it is open, the roots below it take no input, and the focus stays
     /// among its elements, as a modal root's does.
     pub modal: bool,
-    /// Whether it closes as the user leaves it: a press outside it and outside what opened it, or
-    /// Escape while the focus is in it or nowhere.
+    /// Whether it closes as the user leaves it: a press outside it and outside the element that it
+    /// stands beside, or Escape while the focus is in it, on that element or nowhere.
     pub dismiss: bool,
 }
 
@@ -146,6 +147,7 @@ impl Ui {
         let focus_first = !self.interaction.by_pointer;
         let root = self.add_root(
             RootSettings {
+                size: self.surface_size(),
                 origin: [0.0; 2],
                 modal: layer.modal,
                 ..settings
@@ -209,6 +211,20 @@ impl Ui {
         self.mark_layout(root);
     }
 
+    /// The size of the window's surface, in logical pixels: as far as the roots that are no layers
+    /// reach, from its top left corner, a dialog placed within the window's root included.
+    pub(crate) fn surface_size(&self) -> [f32; 2] {
+        self.roots
+            .iter()
+            .filter_map(|&root| self.node(root).filter(|node| node.layer.is_none())?.root)
+            .fold([1.0_f32; 2], |size, root| {
+                [
+                    size[0].max(root.origin[0] + root.size[0]),
+                    size[1].max(root.origin[1] + root.size[1]),
+                ]
+            })
+    }
+
     /// Where the layer `root` stands now; none for a root that is no layer.
     pub fn layer_place(&self, root: ElementId) -> Option<Place> {
         Some(self.node(root)?.layer.as_ref()?.layer.place)
@@ -230,8 +246,8 @@ impl Ui {
             .is_some_and(|held| !matches!(held.layer.place, Place::Floating { .. }))
     }
 
-    /// Gives each layer the scale, the direction and the size of the surface of the root that it
-    /// stands over, and closes those whose anchor is gone. Run before a frame lays out.
+    /// Gives each layer the scale and the direction of the root that it stands over, and the size
+    /// of the window's surface, and closes those whose anchor is gone. Run before a frame lays out.
     pub(crate) fn settle_layers(&mut self) {
         for root in self.layers() {
             let Some(held) = self.node(root).and_then(|node| node.layer.as_ref()) else {
@@ -250,6 +266,7 @@ impl Ui {
                 continue;
             };
             let wanted = RootSettings {
+                size: self.surface_size(),
                 origin: settings.origin,
                 modal: settings.modal,
                 ..base
@@ -333,8 +350,8 @@ impl Ui {
     }
 
     /// Closes the dismissable layers above the root that a press at `x` and `y` falls in, but those
-    /// that it falls in what opened, down to the first modal root, which keeps the press: they
-    /// close as the user leaves them.
+    /// beside the element that it falls in, down to the first modal root, which keeps the press:
+    /// they close as the user leaves them.
     pub(crate) fn dismiss_outside(&mut self, x: f32, y: f32) {
         let hit = self.element_at(x, y);
         let hit_root = hit.and_then(|id| self.root_of(id));
@@ -357,9 +374,11 @@ impl Ui {
             if !held.layer.dismiss {
                 continue;
             }
-            // A press on what opened it reaches what opened it, which closes it as it likes.
-            let opener = held.layer.place.anchor();
-            if hit.is_some_and(|hit| self.within(hit, opener)) {
+            // A press on the element that a layer stands beside reaches it, which closes the
+            // layer as it likes; a layer at a point or floating has no such element.
+            if let Place::Beside { element, .. } = held.layer.place
+                && hit.is_some_and(|hit| self.within(hit, element))
+            {
                 continue;
             }
             self.close_layer(root, true);
@@ -522,17 +541,18 @@ fn beside(
     rtl: bool,
 ) -> [f32; 2] {
     let (right, bottom) = (bounds.x + bounds.width, bounds.y + bounds.height);
-    // Start and end, and their alignment, from the root's direction.
+    // Start and end from the root's direction: a side across the line, and the alignment along
+    // it of a layer above or below; beside its start or end, the alignment runs from top to bottom.
     let (side, along) = if rtl {
         let side = match side {
             Side::Start => Side::End,
             Side::End => Side::Start,
             other => other,
         };
-        let along = match along {
-            Along::Start => Along::End,
-            Along::End => Along::Start,
-            other => other,
+        let along = match (side, along) {
+            (Side::Below | Side::Above, Along::Start) => Along::End,
+            (Side::Below | Side::Above, Along::End) => Along::Start,
+            (_, other) => other,
         };
         (side, along)
     } else {

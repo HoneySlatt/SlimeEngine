@@ -83,10 +83,7 @@ impl Ui {
             Place::Floating { over, origin, size }
         } else {
             // Kept within the window, as it is placed.
-            let window = self
-                .root_of(over)
-                .and_then(|base| self.node(base)?.root)
-                .map_or([f32::INFINITY; 2], |base| base.size);
+            let window = self.surface_size();
             let height = self
                 .node(grab.root)
                 .map_or(grab.size[1], |node| node.rect.height / scale);
@@ -133,7 +130,8 @@ impl Ui {
         Some(Rect::new(x, header.y, side, header.height))
     }
 
-    /// Raises the floating layer that holds `id` above the others, a press having reached it.
+    /// Raises the floating layer that holds `id` above the others, a press having reached it, with
+    /// the layers that stand over what it holds.
     pub(super) fn raise_panel(&mut self, id: ElementId) {
         let Some(root) = self.root_of(id) else {
             return;
@@ -143,9 +141,37 @@ impl Ui {
         {
             return;
         }
-        self.roots.retain(|&each| each != root);
-        self.roots.push(root);
+        // The layers that stand over what the panel holds, its menus and lists, stay above it, in
+        // their order.
+        let mut raised = vec![root];
+        for &layer in &self.roots {
+            let anchor = match self.layer_place(layer) {
+                Some(Place::Beside { element, .. }) => element,
+                Some(Place::At { over, .. } | Place::Floating { over, .. }) => over,
+                None => continue,
+            };
+            if layer != root
+                && self
+                    .root_of(anchor)
+                    .is_some_and(|base| raised.contains(&base))
+            {
+                raised.push(layer);
+            }
+        }
+        let first = self.roots.iter().position(|&each| each == root);
+        self.roots.retain(|each| !raised.contains(each));
+        self.roots.extend(&raised);
+        // The roots that moved take other numbers, which their elements' paths begin with.
         self.top_changed = true;
+        for moved in self
+            .roots
+            .iter()
+            .skip(first.unwrap_or(0))
+            .copied()
+            .collect::<Vec<_>>()
+        {
+            self.mark_meaning_below(moved);
+        }
     }
 
     /// The size of the floating layer `root`, in logical pixels, the panel that it holds folded to

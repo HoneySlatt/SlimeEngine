@@ -231,14 +231,30 @@ impl Ui {
     }
 
     /// Gives the first item of the first bar of menus drawn, from the top root, the layers left
-    /// out, the focus, keeping what held it; or, where an item of a bar holds it, gives it back.
-    /// Gives whether there was a bar.
+    /// out, the focus, keeping what held it; or, where an item of a bar holds it or one of its
+    /// menus is open, closes that menu and gives the focus back. Gives whether there was a bar.
     pub(super) fn toggle_menu_bar(&mut self) -> bool {
-        if let Some(focus) = self.interaction.focus
-            && self.in_menu_bar(focus)
-        {
+        // The keys reach the bar: its focus shows, whatever the last press was.
+        self.interaction.by_pointer = false;
+        // On the bar, or in one of its menus: the menus close, and the focus goes back.
+        let open = self
+            .layers()
+            .into_iter()
+            .find(|&layer| self.bar_item_of(layer).is_some());
+        let on_bar = self
+            .interaction
+            .focus
+            .is_some_and(|focus| self.in_menu_bar(focus));
+        if on_bar || open.is_some() {
+            if let Some(menu) = open {
+                self.close_layer(menu, true);
+            }
+            // What held the focus before the keys reached the bar takes it back; a menu that the
+            // pointer opened gave it back as it closed.
             let back = self.interaction.bar_before.take();
-            self.set_focus(back);
+            if back.is_some() || on_bar {
+                self.set_focus(back);
+            }
             return true;
         }
         let bar = self.roots.iter().rev().find_map(|&root| {

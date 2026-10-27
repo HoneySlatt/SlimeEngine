@@ -158,9 +158,14 @@ impl Control {
                     chosen: program,
                 },
             ) => {
-                let program = (*program).min(options.len().saturating_sub(1));
+                let last = options.len().saturating_sub(1);
+                let program = (*program).min(last);
+                // The user's choice stays among the options, which may be fewer now.
                 if *given == program {
-                    return false;
+                    let kept = (*chosen).min(last);
+                    let changed = kept != *chosen;
+                    *chosen = kept;
+                    return changed;
                 }
                 *given = program;
                 let changed = *chosen != program;

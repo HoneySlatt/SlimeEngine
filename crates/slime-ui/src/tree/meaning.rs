@@ -358,10 +358,10 @@ impl Ui {
         None
     }
 
-    /// The path of `id` as text: the number of its root, in the order the roots were added, then
-    /// its keys ([`Ui::path`]), joined by `/`, a name written as it is and a number after `#`:
+    /// The path of `id` as text: the number of its root, in the order the roots stack, then its
+    /// keys ([`Ui::path`]), joined by `/`, a name written as it is and a number after `#`:
     /// `#0/bar/open`, `#0/content/list/#57`. A root's number changes when a root below it is
-    /// removed; a key's name that holds `/`, or that `#` and digits make, cannot be read back
+    /// removed, and when a press raises a floating panel's layer; a key's name that holds `/`, or that `#` and digits make, cannot be read back
     /// ([`Ui::element_by_path`]).
     pub fn path_text(&self, id: ElementId) -> Option<String> {
         let root = self.root_of(id)?;

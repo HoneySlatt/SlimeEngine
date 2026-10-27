@@ -690,7 +690,11 @@ impl Ui {
     fn move_focus(&mut self, intent: Intent) {
         let focus = self.interaction.focus;
         let scopes: Vec<ElementId> = match self.interaction.modals.last() {
-            Some(&(modal, _)) => vec![modal],
+            // Within the root of the focus, a layer above the modal root, or else the modal root.
+            Some(&(modal, _)) => match focus.filter(|&focus| self.in_scope(focus)) {
+                Some(focus) => self.root_of(focus).into_iter().collect(),
+                None => vec![modal],
+            },
             None => match focus.and_then(|focus| self.root_of(focus)) {
                 Some(root) => vec![root],
                 None => self.roots.iter().rev().copied().collect(),
@@ -725,10 +729,18 @@ impl Ui {
         }
     }
 
-    /// Whether `id` lies in a root that no modal root above keeps the focus from.
+    /// Whether `id` lies in a root that no modal root above keeps the focus from: the top modal
+    /// root, or a root above it.
     pub(super) fn in_scope(&self, id: ElementId) -> bool {
         match self.interaction.modals.last() {
-            Some(&(modal, _)) => self.root_of(id) == Some(modal),
+            // The modal root's, or a root above it: a layer that it opened, its list or its menu.
+            Some(&(modal, _)) => {
+                let place = |root| self.roots.iter().position(|&each| each == root);
+                self.root_of(id)
+                    .and_then(place)
+                    .zip(place(modal))
+                    .is_some_and(|(root, modal)| root >= modal)
+            }
             None => true,
         }
     }

@@ -273,3 +273,69 @@ fn a_list_to_choose_from_means_a_combo_box_and_its_options_a_list() {
         (Role::ListBoxOption, "Medium", true)
     );
 }
+
+#[test]
+fn a_choice_kept_by_the_user_stays_among_fewer_options() {
+    let mut choice = Choice::new(0);
+    choice.ui.set_focus(Some(choice.choice));
+    choice.key(NamedKey::End);
+    choice.ui.take_actions();
+    assert_eq!(choice.ui.chosen(choice.choice), Some(2));
+    // The program gives one option, chosen as before: the user's choice is the last there is.
+    let mut style = Style::default();
+    style.text.style.fonts = vec!["Noto Sans".to_owned()];
+    let mut id = None;
+    choice.ui.build(choice.root, 99, |children| {
+        id = Some(children.add(
+            "quality",
+            Element::choice(vec!["Low".to_owned()], 0, style),
+            |_| {},
+        ));
+    });
+    choice.ui.frame();
+    assert_eq!(choice.ui.chosen(choice.choice), Some(0));
+    let meaning = choice.ui.meaning_of(choice.choice).expect("drawn");
+    assert_eq!(meaning.value.as_deref(), Some("Low"));
+}
+
+#[test]
+fn a_list_to_choose_from_in_a_modal_layer_opens_and_chooses() {
+    let mut choice = Choice::new(0);
+    let dialog = choice.ui.open_layer(
+        slime_ui::tree::Layer {
+            place: slime_ui::tree::Place::Floating {
+                over: choice.root,
+                origin: [100.0, 100.0],
+                size: [200.0, 120.0],
+            },
+            modal: true,
+            dismiss: true,
+        },
+        Style::default(),
+    );
+    let mut style = Style::default();
+    style.layout.size[0] = Dimension::Pixels(160.0);
+    style.text.style.fonts = vec!["Noto Sans".to_owned()];
+    let mut inner = None;
+    choice.ui.build(dialog, 0, |children| {
+        let options = OPTIONS.map(str::to_owned).to_vec();
+        inner = Some(children.add("quality", Element::choice(options, 0, style), |_| {}));
+    });
+    choice.ui.frame();
+    let inner = inner.expect("built");
+    let (x, y) = middle(&choice.ui, inner);
+    choice.click(x, y);
+    let menu = choice
+        .ui
+        .element_by_path("#2/options")
+        .expect("its list, over the dialog");
+    let options = choice.ui.children(menu).to_vec();
+    // The keys move into the list, and the pointer chooses there.
+    choice.ui.set_focus(Some(options[1]));
+    assert_eq!(choice.ui.focus(), Some(options[1]));
+    let (ox, oy) = middle(&choice.ui, options[2]);
+    choice.click(ox, oy);
+    assert_eq!(choice.actions(), chosen(2));
+    assert_eq!(choice.ui.chosen(inner), Some(2));
+    assert!(choice.ui.rect(dialog).is_some(), "the dialog stays");
+}

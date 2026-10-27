@@ -161,3 +161,55 @@ fn a_panel_means_a_pane_named_by_its_title() {
     assert_eq!((meaning.role, meaning.name.as_str()), (Role::Pane, "Color"));
     assert!(meaning.state.expanded);
 }
+
+#[test]
+fn a_raised_panel_keeps_the_menu_that_it_opened_above_it() {
+    let (mut ui, root) = interface(LayoutDirection::LeftToRight);
+    let (first, panel) = open(&mut ui, root, [20.0, 20.0], "First");
+    // A button in the first panel, and a menu beside it, then a second panel over both.
+    let mut button = None;
+    ui.build(panel, 0, |children| {
+        let mut style = Style::default();
+        style.layout.size = [Dimension::Pixels(60.0), Dimension::Pixels(24.0)];
+        button = Some(children.add("open", Element::button("", style), |_| {}));
+    });
+    ui.frame();
+    let button = button.expect("built");
+    let menu = ui.open_layer(
+        Layer {
+            place: Place::Beside {
+                element: button,
+                side: slime_ui::tree::Side::Below,
+                along: slime_ui::tree::Along::Start,
+            },
+            modal: false,
+            dismiss: true,
+        },
+        Style::default(),
+    );
+    ui.build(menu, 0, |children| {
+        let mut style = Style::default();
+        style.layout.size = [Dimension::Pixels(100.0), Dimension::Pixels(60.0)];
+        children.add("item", Element::button("", style), |_| {});
+    });
+    ui.frame();
+    let (second, _) = open(&mut ui, root, [60.0, 60.0], "Second");
+    let _ = second;
+    // A press on the button raises the first panel, its menu staying above it.
+    let at = ui.rect(button).expect("laid out");
+    drag(&mut ui, (at.x + 5.0, at.y + 5.0), (at.x + 5.0, at.y + 5.0));
+    assert!(ui.rect(menu).is_some(), "a press on its opener keeps it");
+    let menu_rect = ui.rect(menu).expect("placed");
+    let inside_menu = (menu_rect.x + 5.0, menu_rect.y + 5.0);
+    let path = ui.path_text(menu).expect("there");
+    let hit = ui
+        .element_at(inside_menu.0, inside_menu.1)
+        .and_then(|hit| ui.path_text(hit))
+        .expect("an element");
+    assert!(hit.starts_with(&path), "{hit} under {path}");
+    let first_path = ui.path_text(first).expect("there");
+    assert!(
+        first_path < path,
+        "the panel below its menu: {first_path} {path}"
+    );
+}

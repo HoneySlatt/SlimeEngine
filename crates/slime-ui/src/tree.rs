@@ -260,7 +260,8 @@ pub enum Kind {
     /// opens a submenu, in the middle of its box from top to bottom. The pointer over it gives it
     /// the focus. A press, or Enter or Space while it holds the focus, reaches the program, and
     /// closes the menus that the program opened, from the first that led to it, telling the
-    /// program that they closed ([`ActionKind::Dismissed`](crate::action::ActionKind::Dismissed));
+    /// program that they closed ([`ActionKind::Dismissed`](crate::action::ActionKind::Dismissed)),
+    /// so that the item that the press names no longer exists as the program reads it;
     /// an item that opens a submenu stays, and the arrow towards the end of a line presses it too,
     /// the program opening the submenu beside it. In a submenu, the arrow towards the start closes
     /// it, the focus back on its item. Rules select it checked by the state `Checked`, and an item
@@ -638,7 +639,8 @@ impl Element {
         Self::of(Kind::Menu, style)
     }
 
-    /// A bar of menus, whose builder adds its items, each opening a submenu.
+    /// A bar of menus, whose builder adds its items, each of [`ItemMark::Submenu`], which opens its
+    /// menu: an item of another mark in a bar is pressed as a menu's item is, opening nothing.
     pub fn menu_bar(style: Style) -> Self {
         Self::of(Kind::MenuBar, style)
     }
@@ -1033,7 +1035,10 @@ impl Ui {
     }
 
     /// Removes `id`, a root or an element, with its children; their ids name nothing from then
-    /// on. Nothing happens for an id that names nothing.
+    /// on. A layer goes with the layers that stand over what it holds, telling the program nothing
+    /// ([`Ui::open_layer`]); the layers that stood beside or over what another removal took close
+    /// at the next frame, which tells it ([`ActionKind::Dismissed`](crate::action::ActionKind::Dismissed)).
+    /// Nothing happens for an id that names nothing.
     pub fn remove(&mut self, id: ElementId) {
         let Some(node) = self.node(id) else {
             return;
