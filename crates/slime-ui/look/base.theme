@@ -1,0 +1,39 @@
+# The base theme of the editor's look (docs/adr/0149-the-looks-foundations.md): the scales that every
+# theme of colors shares, in logical pixels and seconds. A theme of colors, `dark.theme`,
+# `light.theme` or `contrast.theme`, stacks on it, and `compact.theme` on them for a denser layout.
+
+# Spacings, on a grid of 4 pixels, and half a step below it.
+space_xs = 2
+space_s = 4
+space_m = 8
+space_l = 12
+space_xl = 16
+
+# Radii of corners.
+radius_s = 3
+radius_m = 5
+radius_l = 8
+
+# Sizes of text, the weights of controls and titles, and the features of digits of one width.
+text_s = 11.5
+text_m = 13
+text_mono = 12
+weight_control = 500
+weight_title = 600
+
+# What controls take: a check box's side, a slider's thumb; a handle; a scroll bar.
+control = 14
+handle = 10
+scroll_bar = 10
+
+# The padding of buttons, fields, tabs and sections.
+button_x = 10
+button_y = 4
+field_x = 6
+field_y = 3
+tab_x = 12
+tab_y = 6
+
+# How long a change takes: one that answers the user, one that moves things.
+fast = 0.12
+slow = 0.2

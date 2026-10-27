@@ -1,22 +1,50 @@
-# The dark theme of the editor's look: the values that `editor.style` names, colors in sRGB.
-background = "#16171A"
-bar = "#1B1C20"
-panel = "#202126"
-panel_border = "#2D2F35"
-shadow = "#00000066"
-text = "#E4E5E9"
-muted = "#9599A2"
-raised = "#2A2C32"
-raised_border = "#393C43"
-hover = "#33363D"
-pressed = "#3E424A"
-field = "#131417"
+# The dark theme of the editor's look: a palette, then the roles that the style sheet names, worked
+# out from it (docs/adr/0149-the-looks-foundations.md). Colors in sRGB; `mix`, `lighten`, `darken`
+# and `alpha` work in OKLCH. A theme stacked after it that gives `accent` changes every color that
+# follows the accent.
+
+# The palette: neutrals from the ground up, the accent, and the colors of states.
+ground = "#141518"
+neutral_1 = "#18191D"
+neutral_2 = "#1E1F24"
+neutral_3 = "#26282E"
+neutral_4 = "#2F3239"
+neutral_5 = "#3A3D45"
+ink = "#E6E7EB"
+ink_muted = "#9A9EA8"
 accent = "#4C8DFF"
-focus = "#7AA9FF"
-selection = "#4C8DFF66"
-track = "#3A3D44"
-track_hover = "#474A52"
-mark = "#F4F5F7"
+warning = "#E5B24C"
+danger = "#EE6A5E"
+success = "#5CC98A"
+
+# Surfaces.
+background = "$ground"
+bar = "$neutral_1"
+panel = "$neutral_2"
+panel_border = "mix($neutral_3, $neutral_4, 50%)"
+raised = "$neutral_3"
+raised_border = "$neutral_4"
+hover = "lighten($neutral_3, 0.035)"
+pressed = "lighten($neutral_3, 0.07)"
+field = "darken($ground, 0.02)"
+shadow = "#00000070"
+scrim = "#00000099"
+
+# Texts.
+text = "$ink"
+muted = "$ink_muted"
+
+# The accent and what follows it.
+accent_hover = "lighten($accent, 0.05)"
+accent_soft = "alpha($accent, 22%)"
+focus = "lighten($accent, 0.08)"
+selection = "alpha($accent, 40%)"
+
+# Controls.
+track = "$neutral_5"
+track_hover = "lighten($neutral_5, 0.05)"
+mark = "#F5F6F8"
+thumb = "#F5F6F8"
 bar_track = "#FFFFFF0A"
 bar_thumb = "#FFFFFF38"
 none = "#00000000"

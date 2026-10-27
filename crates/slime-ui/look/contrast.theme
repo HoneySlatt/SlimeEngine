@@ -1,0 +1,43 @@
+# The high-contrast theme of the editor's look: black surfaces, white text, borders that every
+# surface keeps, and a lighter accent (docs/adr/0149-the-looks-foundations.md).
+
+ground = "#000000"
+neutral_1 = "#000000"
+neutral_2 = "#0A0A0A"
+neutral_3 = "#1A1A1A"
+neutral_4 = "#B8B8B8"
+neutral_5 = "#8A8A8A"
+ink = "#FFFFFF"
+ink_muted = "#E0E0E0"
+accent = "#4C8DFF"
+warning = "#FFD166"
+danger = "#FF7A6E"
+success = "#7CF0A8"
+
+background = "$ground"
+bar = "$neutral_1"
+panel = "$neutral_2"
+panel_border = "$neutral_4"
+raised = "$neutral_3"
+raised_border = "$neutral_4"
+hover = "#333333"
+pressed = "#4D4D4D"
+field = "#000000"
+shadow = "#00000000"
+scrim = "#000000CC"
+
+text = "$ink"
+muted = "$ink_muted"
+
+accent_hover = "lighten($accent, 0.1)"
+accent_soft = "alpha(lighten($accent, 0.1), 35%)"
+focus = "#FFFFFF"
+selection = "alpha(lighten($accent, 0.1), 55%)"
+
+track = "$neutral_5"
+track_hover = "#B0B0B0"
+mark = "#FFFFFF"
+thumb = "#FFFFFF"
+bar_track = "#FFFFFF1F"
+bar_thumb = "#FFFFFF99"
+none = "#00000000"

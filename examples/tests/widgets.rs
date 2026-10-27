@@ -1,8 +1,10 @@
 //! The image tests of the `widgets` example (`docs/adr/0148-widgets.md`): its interface, in the
 //! editor's look, drawn by the renderer's canvas, must match the reference images of
-//! `tests/reference/` within a tolerance. The inspector as it opens; the console, a level of its
-//! log hidden by a check box that an action unchecked; the inspector laid out from the right, a
-//! section folded and another opened, a slider moved and a check box checked.
+//! `tests/reference/` within a tolerance. The inspector as it opens, in the dark theme and in the
+//! light one; the console in high contrast and compact; the console, a level of its log hidden by a
+//! check box that an action unchecked; the inspector laid out from the right, a section folded and
+//! another opened, a slider moved and a check box checked. Transitions are dropped, so that each
+//! image shows where they end (`docs/adr/0149-the-looks-foundations.md`).
 //!
 //! The references were drawn with lavapipe, as the triangle's were (`tests/offscreen.rs`). To draw
 //! them again, after a deliberate change of the example or of the look:
@@ -21,6 +23,7 @@ use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderPassDescriptor, TextureFormat};
 use slime_render::Renderer;
 use slime_ui::action::{Action, ActionKind};
+use slime_ui::look::{Colors, Density};
 use slime_ui::tree::LayoutDirection;
 use slime_ui_render::UiRenderer;
 
@@ -85,15 +88,39 @@ fn press(panel: &mut WidgetsPanel, path: &str) {
     panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
 }
 
+/// The example's interface laid out in `direction`, its transitions dropped, so that each image
+/// shows where they end.
+fn panel(direction: LayoutDirection) -> WidgetsPanel {
+    let mut panel = WidgetsPanel::new(direction);
+    panel.ui.set_reduced_motion(true);
+    panel
+}
+
 #[test]
 fn the_inspector_matches_its_reference_image() {
-    let mut panel = WidgetsPanel::new(LayoutDirection::LeftToRight);
+    let mut panel = panel(LayoutDirection::LeftToRight);
     check(&mut panel, "widgets-inspector");
 }
 
 #[test]
+fn the_inspector_in_the_light_theme_matches_its_reference_image() {
+    let mut panel = panel(LayoutDirection::LeftToRight);
+    panel.set_look(Colors::Light, Density::Comfortable);
+    check(&mut panel, "widgets-light");
+}
+
+#[test]
+fn the_console_in_high_contrast_and_compact_matches_its_reference_image() {
+    let mut panel = panel(LayoutDirection::LeftToRight);
+    panel.set_look(Colors::HighContrast, Density::Compact);
+    panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+    press(&mut panel, "#0/window/tabs/Console");
+    check(&mut panel, "widgets-contrast-compact");
+}
+
+#[test]
 fn the_console_with_a_level_hidden_matches_its_reference_image() {
-    let mut panel = WidgetsPanel::new(LayoutDirection::LeftToRight);
+    let mut panel = panel(LayoutDirection::LeftToRight);
     panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
     press(&mut panel, "#0/window/tabs/Console");
     press(&mut panel, "#0/window/Console/split/levels/info");
@@ -102,7 +129,7 @@ fn the_console_with_a_level_hidden_matches_its_reference_image() {
 
 #[test]
 fn the_inspector_from_the_right_with_its_widgets_used_matches_its_reference_image() {
-    let mut panel = WidgetsPanel::new(LayoutDirection::RightToLeft);
+    let mut panel = panel(LayoutDirection::RightToLeft);
     panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
     let properties = "#0/window/Inspector/split/properties";
     press(&mut panel, &format!("{properties}/Transform"));

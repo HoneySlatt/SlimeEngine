@@ -1,17 +1,37 @@
-//! The editor's look, without a GPU (`docs/adr/0148-widgets.md`): its fonts registered under their
-//! families, which hold the writing systems that it promises, at the weights that it asks of their
-//! variable fonts; its style sheet and theme, which style each kind of element, its states and its
-//! classes. Built with the feature `editor-look` alone.
+//! The editor's look, without a GPU (`docs/adr/0148-widgets.md`,
+//! `docs/adr/0149-the-looks-foundations.md`): its fonts registered under their families, which hold
+//! the writing systems that it promises, at the weights that it asks of their variable fonts, their
+//! digits of one width; its style sheet and stacked themes, which style each kind of element, its
+//! states and its classes, in each theme of colors and density, a project's accent followed by what
+//! the look computes from it. Built with the feature `editor-look` alone.
 
-use slime_color::LinearColor;
-use slime_ui::look::{self, FIXED_FAMILY, TEXT_FAMILY};
+use slime_color::{LinearColor, Oklch};
+use slime_ui::look::{self, Colors, Density, FIXED_FAMILY, TEXT_FAMILY};
 use slime_ui::style::Style;
 use slime_ui::text::{Fonts, TextBounds, TextStyle};
+use slime_ui::theme::Theme;
 use slime_ui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
 
-/// A color of the look's theme, given as sRGB's 0xRRGGBB.
+/// A color given as sRGB's 0xRRGGBB.
 fn srgb(hex: u32) -> LinearColor {
     LinearColor::from_srgb8((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
+}
+
+/// `color` lighter by `by` of OKLCH's lightness, as the look's `lighten` computes it.
+fn lighten(color: LinearColor, by: f32) -> LinearColor {
+    let color = color.to_oklch();
+    Oklch {
+        l: color.l + by,
+        ..color
+    }
+    .to_linear_in_gamut()
+}
+
+/// Whether two colors are within 1/1000 on each component.
+fn near(a: LinearColor, b: LinearColor) -> bool {
+    [(a.r, b.r), (a.g, b.g), (a.b, b.b), (a.a, b.a)]
+        .iter()
+        .all(|(x, y)| (x - y).abs() < 1e-3)
 }
 
 #[test]
@@ -40,13 +60,36 @@ fn the_fonts_hold_latin_vietnamese_and_cyrillic_and_vary_in_weight() {
     }
 }
 
-/// An interface in the look whose root holds `elements`, keyed by their places: the interface and
-/// the elements' ids.
-fn styled(elements: Vec<Element>) -> (Ui, Vec<ElementId>) {
+#[test]
+fn geist_s_digits_take_one_width_with_tnum() {
+    let mut fonts = Fonts::new();
+    look::register_fonts(&mut fonts);
+    let mut style = TextStyle {
+        fonts: vec![TEXT_FAMILY.to_owned()],
+        ..TextStyle::default()
+    };
+    let width = |fonts: &mut Fonts, style: &TextStyle, text: &str| {
+        fonts
+            .lay_out(text, style, 1.0, TextBounds::default())
+            .width()
+    };
+    // Proportional by default: a 1 is narrower than a 0.
+    assert!(width(&mut fonts, &style, "111") < width(&mut fonts, &style, "000"));
+    style.features = vec!["tnum".to_owned()];
+    let (ones, zeros) = (
+        width(&mut fonts, &style, "111"),
+        width(&mut fonts, &style, "000"),
+    );
+    assert!((ones - zeros).abs() < 0.01, "{ones} {zeros}");
+}
+
+/// An interface in the look, its themes `themes`, whose root holds `elements`, keyed by their
+/// places: the interface and the elements' ids.
+fn styled(themes: &[Theme], elements: Vec<Element>) -> (Ui, Vec<ElementId>) {
     let mut fonts = Fonts::new();
     look::register_fonts(&mut fonts);
     let mut ui = Ui::new(fonts);
-    ui.set_style(&[look::style_sheet()], &[look::theme()])
+    ui.set_style(&[look::style_sheet()], themes)
         .expect("the look's documents are valid");
     let settings = RootSettings {
         size: [800.0, 600.0],
@@ -66,9 +109,9 @@ fn styled(elements: Vec<Element>) -> (Ui, Vec<ElementId>) {
     (ui, ids)
 }
 
-#[test]
-fn the_style_sheet_styles_each_kind_its_states_and_its_classes() {
-    let (mut ui, ids) = styled(vec![
+/// One element of each kind that the look styles, and a panel.
+fn every_kind() -> Vec<Element> {
+    vec![
         Element::label("Name", Style::default()),
         Element::label("entity-0042", Style::default()).class("fixed"),
         Element::button("Apply", Style::default()),
@@ -77,36 +120,53 @@ fn the_style_sheet_styles_each_kind_its_states_and_its_classes() {
         Element::section("Transform", true, Style::default()),
         Element::number_field(1.5, 0.1, Style::default()),
         Element::container(Style::default()).class("panel"),
-    ]);
+        Element::text_field("name", Style::default()),
+    ]
+}
+
+#[test]
+fn the_style_sheet_styles_each_kind_its_states_and_its_classes() {
+    let themes = look::themes(Colors::Dark, Density::Comfortable);
+    let (mut ui, ids) = styled(&themes, every_kind());
     let style = |ui: &Ui, index: usize| ui.style(ids[index]).expect("styled").clone();
-    let text = srgb(0xE4E5E9);
     let label = style(&ui, 0);
     assert_eq!(label.text.style.fonts, [TEXT_FAMILY]);
-    assert_eq!(label.text.color, text);
+    assert_eq!(label.text.style.features, ["tnum"]);
+    assert_eq!(label.text.color, srgb(0xE6E7EB));
     assert_eq!(style(&ui, 1).text.style.fonts, [FIXED_FAMILY]);
-    // Numbers in the font of fixed width, a section's title heavier.
+    // Numbers in the font of fixed width, a section's title heavier and slower to change.
     assert_eq!(style(&ui, 6).text.style.fonts, [FIXED_FAMILY]);
-    assert_eq!(style(&ui, 5).text.style.weight, 600.0);
+    let section = style(&ui, 5);
+    assert_eq!(section.text.style.weight, 600.0);
+    assert_eq!(section.transition.duration, 0.2);
     let check_box = style(&ui, 3);
     assert_eq!(check_box.control.fill, srgb(0x4C8DFF));
-    assert_eq!(check_box.control.mark, srgb(0xF4F5F7));
+    assert_eq!(check_box.control.mark, srgb(0xF5F6F8));
+    assert_eq!(check_box.transition.duration, 0.12);
     assert_eq!(style(&ui, 4).control.radius, 7.0);
-    assert_eq!(style(&ui, 7).paint.background, srgb(0x202126));
-    // Focused, a button changes the color of its border, not its width.
+    assert_eq!(style(&ui, 7).paint.background, srgb(0x1E1F24));
+    // Focused by the program, as by the keyboard, a button changes the color of its border, not
+    // its width, to the accent lightened.
     let before = style(&ui, 2).paint;
     ui.set_focus(Some(ids[2]));
     ui.frame();
+    ui.set_reduced_motion(true);
     let focused = style(&ui, 2).paint;
-    assert_eq!(focused.border, srgb(0x7AA9FF));
+    assert!(
+        near(focused.border, lighten(srgb(0x4C8DFF), 0.08)),
+        "{focused:?}"
+    );
     assert_eq!(focused.border_width, before.border_width);
 }
 
 #[test]
 fn a_chosen_tab_takes_the_panels_color_and_the_others_a_quieter_text() {
+    let themes = look::themes(Colors::Dark, Density::Comfortable);
+    let bar = Element::tab_bar(1, Style::default());
     let mut fonts = Fonts::new();
     look::register_fonts(&mut fonts);
     let mut ui = Ui::new(fonts);
-    ui.set_style(&[look::style_sheet()], &[look::theme()])
+    ui.set_style(&[look::style_sheet()], &themes)
         .expect("the look's documents are valid");
     let settings = RootSettings {
         size: [800.0, 600.0],
@@ -118,7 +178,7 @@ fn a_chosen_tab_takes_the_panels_color_and_the_others_a_quieter_text() {
     let root = ui.add_root(settings, Style::default());
     let mut tabs = Vec::new();
     ui.build(root, 0, |children| {
-        children.add("tabs", Element::tab_bar(1, Style::default()), |bar| {
+        children.add("tabs", bar, |bar| {
             for title in ["Scene", "Lighting"] {
                 tabs.push(bar.add(title, Element::tab(title, Style::default()), |_| {}));
             }
@@ -126,7 +186,48 @@ fn a_chosen_tab_takes_the_panels_color_and_the_others_a_quieter_text() {
     });
     ui.frame();
     let [first, chosen] = [tabs[0], tabs[1]].map(|tab| ui.style(tab).expect("styled").clone());
-    assert_eq!(chosen.paint.background, srgb(0x202126));
-    assert_eq!(chosen.text.color, srgb(0xE4E5E9));
-    assert_eq!(first.text.color, srgb(0x9599A2));
+    assert_eq!(chosen.paint.background, srgb(0x1E1F24));
+    assert_eq!(chosen.text.color, srgb(0xE6E7EB));
+    assert_eq!(first.text.color, srgb(0x9A9EA8));
+}
+
+#[test]
+fn every_theme_of_colors_and_density_styles_every_kind() {
+    for colors in [Colors::Dark, Colors::Light, Colors::HighContrast] {
+        for density in [Density::Comfortable, Density::Compact] {
+            let (ui, ids) = styled(&look::themes(colors, density), every_kind());
+            let label = ui.style(ids[0]).expect("styled");
+            let panel = ui.style(ids[7]).expect("styled");
+            // Text that reads on its surface: far apart in lightness.
+            let (text, ground) = (
+                label.text.color.to_oklch(),
+                panel.paint.background.to_oklch(),
+            );
+            assert!(
+                (text.l - ground.l).abs() > 0.55,
+                "{colors:?}: {text:?} on {ground:?}"
+            );
+            let size = ui.style(ids[3]).expect("styled").control.size;
+            let expected = match density {
+                Density::Comfortable => 14.0,
+                Density::Compact => 12.0,
+            };
+            assert_eq!(size, expected, "{colors:?} {density:?}");
+        }
+    }
+}
+
+#[test]
+fn a_project_s_accent_changes_every_color_that_follows_it() {
+    let mut themes = look::themes(Colors::Dark, Density::Comfortable);
+    themes.push(Theme::from_text("project.theme", "accent = \"#2BB673\"\n"));
+    let (mut ui, ids) = styled(&themes, every_kind());
+    let check_box = ui.style(ids[3]).expect("styled").clone();
+    assert_eq!(check_box.control.fill, srgb(0x2BB673));
+    // The field's focus, the accent lightened: green now.
+    ui.set_reduced_motion(true);
+    ui.set_focus(Some(ids[8]));
+    ui.frame();
+    let border = ui.style(ids[8]).expect("styled").paint.border;
+    assert!(near(border, lighten(srgb(0x2BB673), 0.08)), "{border:?}");
 }

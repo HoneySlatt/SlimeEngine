@@ -1,0 +1,43 @@
+# The light theme of the editor's look: the roles of `dark.theme`, light, the accent darkened where
+# it stands on a light ground (docs/adr/0149-the-looks-foundations.md).
+
+ground = "#ECEDF0"
+neutral_1 = "#F3F4F6"
+neutral_2 = "#FBFBFC"
+neutral_3 = "#E4E6EA"
+neutral_4 = "#D3D6DC"
+neutral_5 = "#C2C6CE"
+ink = "#1C1D21"
+ink_muted = "#5E636D"
+accent = "#4C8DFF"
+warning = "#B07A12"
+danger = "#C8382C"
+success = "#2E8A55"
+
+background = "$ground"
+bar = "$neutral_1"
+panel = "$neutral_2"
+panel_border = "$neutral_4"
+raised = "$neutral_2"
+raised_border = "$neutral_4"
+hover = "darken($neutral_3, 0.02)"
+pressed = "darken($neutral_3, 0.05)"
+field = "#FFFFFF"
+shadow = "#1A1F2E2E"
+scrim = "#1A1F2E66"
+
+text = "$ink"
+muted = "$ink_muted"
+
+accent_hover = "darken($accent, 0.05)"
+accent_soft = "alpha($accent, 18%)"
+focus = "darken($accent, 0.06)"
+selection = "alpha($accent, 30%)"
+
+track = "$neutral_4"
+track_hover = "darken($neutral_4, 0.05)"
+mark = "#FFFFFF"
+thumb = "darken($accent, 0.04)"
+bar_track = "#0000000A"
+bar_thumb = "#00000033"
+none = "#00000000"

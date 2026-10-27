@@ -1,0 +1,17 @@
+# The compact theme of the editor's look, stacked after a theme of colors: smaller text, controls and
+# padding, for more on a screen (docs/adr/0149-the-looks-foundations.md).
+
+text_s = 11
+text_m = 12
+text_mono = 11.5
+control = 12
+handle = 8
+scroll_bar = 8
+button_x = 8
+button_y = 2
+field_x = 5
+field_y = 2
+tab_x = 10
+tab_y = 4
+space_m = 6
+space_l = 10

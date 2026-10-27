@@ -5,6 +5,11 @@
 //! text is in Geist, and in Geist Mono where it is fixed in width, the fonts that `slime-ui`'s
 //! feature `editor-look` builds in with the look's style sheet and theme.
 //!
+//! Its look follows the system's dark or light preference where the platform tells it, on Windows,
+//! and changes with keys (`docs/adr/0149-the-looks-foundations.md`): T switches its colors, dark,
+//! light and high contrast, D its density, A its accent, M its transitions on or off; its changes
+//! move over a short time, a section folding over a longer one.
+//!
 //! It is used with the pointer and the keyboard (`docs/adr/0142-input-and-focus.md`): Tab and the
 //! arrows move the focus, Enter and Space press what holds it, check a check box, fold a section
 //! and choose a tab; the arrows move a slider by its step and a handle, Page Up and Page Down by
@@ -36,8 +41,9 @@ use std::process::ExitCode;
 
 use slime_app::{AppConfig, AppError, Context, Presentation};
 use slime_gfx::{Gpu, RenderTarget, TextureFormat};
-use slime_platform::WindowConfig;
+use slime_platform::{ColorScheme, Event, WindowConfig};
 use slime_render::{RenderError, Renderer};
+use slime_ui::look::{Colors, Density};
 use slime_ui::tree::{LayoutDirection, Ui};
 use slime_ui_render::UiRenderer;
 use slime_world::World;
@@ -103,9 +109,25 @@ impl Presentation for WidgetsExample {
     fn start(&mut self, ctx: &mut Context, _world: &World) -> Result<(), AppError> {
         if let (Some(gpu), Some(format)) = (ctx.gpu(), ctx.surface_format()) {
             let drawing = Drawing::new(gpu, format)?;
-            self.panel = Some((WidgetsPanel::new(self.direction), drawing));
+            let mut panel = WidgetsPanel::new(self.direction);
+            // The system's light colors, where the platform tells them.
+            if ctx.window().and_then(|window| window.color_scheme()) == Some(ColorScheme::Light) {
+                panel.set_look(Colors::Light, Density::Comfortable);
+            }
+            self.panel = Some((panel, drawing));
         }
         Ok(())
+    }
+
+    fn on_event(&mut self, _ctx: &mut Context, event: &Event) -> bool {
+        if let (Event::ColorSchemeChanged(scheme), Some((panel, _))) = (event, &mut self.panel) {
+            let colors = match scheme {
+                ColorScheme::Dark => Colors::Dark,
+                ColorScheme::Light => Colors::Light,
+            };
+            panel.set_look(colors, Density::Comfortable);
+        }
+        false
     }
 
     fn ui(&mut self) -> Option<&mut Ui> {

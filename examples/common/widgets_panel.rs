@@ -10,12 +10,18 @@
 //! check boxes, as the user changes them, and gives them back at each build: the interface keeps
 //! what the user did as long as the program's values do not change. Which tab is chosen, which
 //! section folded, where the handles stand and how far the boxes scroll are the interface's alone.
+//!
+//! The look's themes stack (`docs/adr/0149-the-looks-foundations.md`): T switches its colors,
+//! dark, light and high contrast, D its density, A the accent, a theme of one value stacked after
+//! the look's, and M the motion, the transitions or none.
 
 use slime_ui::action::{ActionKind, FieldValue, Intent};
 use slime_ui::display::DisplayList;
-use slime_ui::look;
+use slime_ui::look::{self, Colors, Density};
+use slime_ui::shortcuts::Shortcuts;
 use slime_ui::style::{Align, Dimension, FlexDirection, Sides, Style};
 use slime_ui::text::Fonts;
+use slime_ui::theme::Theme;
 use slime_ui::tree::{Children, Element, ElementId, LayoutDirection, Role, RootSettings, Ui};
 
 /// The rows of the list of entities.
@@ -40,6 +46,21 @@ const LINES: [(usize, &str); 6] = [
 ];
 /// The tabs' titles.
 const TABS: [&str; 3] = ["Inspector", "Console", "About"];
+/// The accents that A goes through, by their names: the look's own first.
+const ACCENTS: [(&str, &str); 4] = [
+    ("blue", "#4C8DFF"),
+    ("green", "#2BB673"),
+    ("violet", "#9B7BFF"),
+    ("amber", "#E8A33D"),
+];
+/// The keys that change the look, as a table of shortcuts names them.
+const KEYS: &str = r#"
+[global]
+T = "switch-colors"
+D = "switch-density"
+A = "switch-accent"
+M = "switch-motion"
+"#;
 
 /// A slider of the inspector: its label, its value, its bounds and its step.
 struct Slider {
@@ -81,6 +102,10 @@ pub struct WidgetsPanel {
     /// What the last action did, and the revision of what the interface shows of the program.
     last: String,
     revision: u64,
+    /// The look's colors, density and accent, by its place in [`ACCENTS`].
+    colors: Colors,
+    density: Density,
+    accent: usize,
 }
 
 impl WidgetsPanel {
@@ -90,8 +115,8 @@ impl WidgetsPanel {
         let mut fonts = Fonts::new();
         look::register_fonts(&mut fonts);
         let mut ui = Ui::new(fonts);
-        ui.set_style(&[look::style_sheet()], &[look::theme()])
-            .expect("the look's documents are valid");
+        ui.set_shortcuts(&[Shortcuts::from_text("widgets.keys", KEYS)])
+            .expect("the example's shortcuts are valid");
         let root = ui.add_root(settings([1.0, 1.0], 1.0, direction), column());
         let slider = |label, value, min, max, step| Slider {
             label,
@@ -156,7 +181,7 @@ impl WidgetsPanel {
                 checks: vec![("kinematic", false)],
             },
         ];
-        Self {
+        let mut panel = Self {
             ui,
             root,
             direction,
@@ -164,9 +189,35 @@ impl WidgetsPanel {
             sections,
             levels: [true; 3],
             targets: Vec::new(),
-            last: "tab and the arrows move, enter and space press".to_owned(),
+            last: "tab and the arrows move, enter and space press; t, d, a and m change the look"
+                .to_owned(),
             revision: 0,
-        }
+            colors: Colors::Dark,
+            density: Density::Comfortable,
+            accent: 0,
+        };
+        panel.style();
+        panel
+    }
+
+    /// Shows the look in `colors` and `density`, as T and D switch them.
+    pub fn set_look(&mut self, colors: Colors, density: Density) {
+        self.colors = colors;
+        self.density = density;
+        self.style();
+    }
+
+    /// Styles the interface with the look's sheet and its themes, the accent's stacked after them.
+    fn style(&mut self) {
+        let mut themes = look::themes(self.colors, self.density);
+        let (name, accent) = ACCENTS[self.accent];
+        themes.push(Theme::from_text(
+            format!("{name}.theme"),
+            format!("accent = \"{accent}\"\n"),
+        ));
+        self.ui
+            .set_style(&[look::style_sheet()], &themes)
+            .expect("the look's documents are valid");
     }
 
     /// Does what the actions that the interface queued ask: each value that a slider or a check
@@ -210,6 +261,7 @@ impl WidgetsPanel {
                     };
                     self.tell(format!("{label} {}", if checked { "on" } else { "off" }));
                 }
+                (ActionKind::Command(command), _) => self.command(&command),
                 (ActionKind::Intent(Intent::Cancel), _) if action.element.is_some() => {
                     self.ui.set_focus(None);
                 }
@@ -218,6 +270,39 @@ impl WidgetsPanel {
             }
         }
         stop
+    }
+
+    /// Does the command of a shortcut: switches the look's colors, density, accent or motion.
+    fn command(&mut self, command: &str) {
+        let told = match command {
+            "switch-colors" => {
+                self.colors = match self.colors {
+                    Colors::Dark => Colors::Light,
+                    Colors::Light => Colors::HighContrast,
+                    Colors::HighContrast => Colors::Dark,
+                };
+                format!("colors {:?}", self.colors)
+            }
+            "switch-density" => {
+                self.density = match self.density {
+                    Density::Comfortable => Density::Compact,
+                    Density::Compact => Density::Comfortable,
+                };
+                format!("density {:?}", self.density)
+            }
+            "switch-accent" => {
+                self.accent = (self.accent + 1) % ACCENTS.len();
+                format!("accent {}", ACCENTS[self.accent].0)
+            }
+            "switch-motion" => {
+                let reduced = !self.ui.reduced_motion();
+                self.ui.set_reduced_motion(reduced);
+                format!("motion {}", if reduced { "none" } else { "on" })
+            }
+            _ => return,
+        };
+        self.style();
+        self.tell(told.to_lowercase());
     }
 
     /// Shows `what` in the bar, as the last thing done.
