@@ -7,7 +7,8 @@
   too), [0122](0122-the-development-channel.md) (the token's randomness, where the port is made
   known, values as text in the messages, builds for development and for shipping) and
   [0134](0134-the-editors-core.md) (the editor is a program of the engine's application, and a
-  game's editor package comes with Stage 6b)
+  game's editor package comes with Stage 6b) and [0155](0155-the-editors-design.md) (Play hands the
+  game private copies of the scenes not written, and the editor's steps while it runs)
 - Date: 2026-10-20
 
 ## Context

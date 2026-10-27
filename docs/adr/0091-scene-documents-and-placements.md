@@ -2,8 +2,9 @@
 
 - Status: Accepted; amends [0086](0086-serialization.md) (how documents name assets, and the errors
   of a document's layout); amended by [0102](0102-a-damaged-file-gives-an-error.md) (the bound of a
-  resolved scene) and [0112](0112-levels-saves-and-worlds-for-open-worlds.md) (references to
-  entities of other scenes, written as absolute identities)
+  resolved scene), [0112](0112-levels-saves-and-worlds-for-open-worlds.md) (references to
+  entities of other scenes, written as absolute identities) and
+  [0155](0155-the-editors-design.md) (a level names its parts in a table of their own)
 - Date: 2026-10-17
 
 ## Context

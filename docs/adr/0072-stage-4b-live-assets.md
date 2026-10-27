@@ -2,8 +2,9 @@
 
 - Status: Accepted; amended by [0078](0078-stage-5-in-two-halves.md) (0.3 at the end of Stage 5a),
   [0103](0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) (when a run gives up
-  replacing a lost device) and [0107](0107-the-execution-model.md) (the engine's task pool, and one
-  owner of the copies to the GPU)
+  replacing a lost device), [0107](0107-the-execution-model.md) (the engine's task pool, and one
+  owner of the copies to the GPU) and [0155](0155-the-editors-design.md) (notify, rejected for
+  games, used by the tools)
 - Date: 2026-10-15
 
 ## Context

@@ -5,8 +5,9 @@
   [0101](0101-saves-and-identities-that-never-mislead.md) (`Unsaved` in a level written back, and
   the numbers of what a run spawned), [0112](0112-levels-saves-and-worlds-for-open-worlds.md)
   (references to entities of other scenes, former identities written by the editor, and hot reload
-  without a start world) and [0134](0134-the-editors-core.md) (the editor keeps the comments of a
-  level that it writes)
+  without a start world), [0134](0134-the-editors-core.md) (the editor keeps the comments of a
+  level that it writes) and [0155](0155-the-editors-design.md) (the editor opens a level that holds
+  what the program does not know; the world updated in place at Stage 8)
 - Date: 2026-10-17
 
 ## Context

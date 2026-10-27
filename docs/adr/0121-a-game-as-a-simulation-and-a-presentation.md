@@ -8,8 +8,9 @@
   [0110](0110-how-the-editor-runs-a-games-code.md) (a game's library holds its presentation too) and
   [0120](0120-a-frame-that-owns-what-it-draws.md) (the frame's lights name their entities); amended
   by [0122](0122-the-development-channel.md) (a game holds game time apart from the pause),
-  [0134](0134-the-editors-core.md) (applying a command gives back the command that undoes it) and
-  [0135](0135-the-editors-program.md) (the commands sent to a host go through its simulation)
+  [0134](0134-the-editors-core.md) (applying a command gives back the command that undoes it),
+  [0135](0135-the-editors-program.md) (the commands sent to a host go through its simulation) and
+  [0155](0155-the-editors-design.md) (the editor's window reads the editor's core)
 - Date: 2026-10-21
 
 ## Context

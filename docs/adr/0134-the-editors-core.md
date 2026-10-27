@@ -11,7 +11,8 @@
   editor's requests) and [0131](0131-stage-6b-and-stage-6c.md) (Stage 6b's first milestone in two,
   and *Hunna Wood*'s editor package in it); amended by [0135](0135-the-editors-program.md) (what the
   program does with the journal that a crash leaves, the shape of the program, the level's file
-  named in its journal, and a level not written over once changed apart from the editor)
+  named in its journal, and a level not written over once changed apart from the editor) and
+  [0155](0155-the-editors-design.md) (a gesture made one step through an open step)
 - Date: 2026-10-22
 
 ## Context

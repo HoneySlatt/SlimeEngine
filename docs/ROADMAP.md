@@ -306,12 +306,15 @@ Stage 6 is split in three parts (ADR-0116, ADR-0131): what the editor stands on,
 
 **Goal.** A real editor, built as a client of the engine, on its UI framework.
 
-- Docking, dialogs to open and save files, and drag and drop (ADR-0131); menu bars came with Stage 6b (ADR-0150)
-- Viewport, hierarchy, inspector (driven by reflection), gizmos, asset browser
-- Levels made of several scene files, former identities written when the editor moves an entity out of its file, and references to entities of other scenes, `EntityRef` (ADR-0112)
-- Play in the editor, the game running in a child process first (ADR-0097), in its own window, linked to the editor and to tools by the development channel; a change of the game's code starts it again where it was
+- The editor's window, one window of the system per process, which reads the editor's core and asks it through typed requests; every action a named operation of one registry, which menus, shortcuts, the palette and agents run alike (ADR-0155)
+- Frames on demand: an idle editor draws nothing, its viewports and its interface drawn again only when what they show changed (ADR-0155)
+- Viewport, hierarchy, inspector (driven by reflection), gizmos, a drag made one undo step, asset browser with thumbnails, cooking from the editor (ADR-0155)
+- Docking, in steps: regions with tabs, splits that the user resizes and floating panels first, panels dragged to dock last, which may move to Stage 11; layouts saved per user and per project; dialogs to open and save files, and drag and drop (ADR-0131, ADR-0155); menu bars came with Stage 6b (ADR-0150)
+- Levels made of several scene files, which name their parts; former identities written when the editor moves an entity out of its file, and references to entities of other scenes, `EntityRef` (ADR-0112, ADR-0155); a level that holds what the program does not know opened to be repaired, that data kept (ADR-0155)
+- Play in the editor, the game running in a child process first (ADR-0097), in its own window, linked to the editor and to tools by the development channel, given private copies of the scenes not written, the editor's edits reaching it as commands while it runs; a change of the game's code starts it again where it was (ADR-0110, ADR-0155)
+- The sample game's zone moved onto a kit of prefabs, which the editor places (ADR-0155)
 
-The stage is planned in detail at Stage 6b's close (ADR-0131).
+The stage's milestones, their order and the owner's two checkpoints are decided in ADR-0155, and detailed in `docs/PLAN.md`; one release, 0.7 (ADR-0131).
 
 **Exit.** A level of the game is built, saved and reloaded entirely in the editor, with undo/redo on every operation. The editor uses no private engine API.
 
@@ -340,6 +343,7 @@ The stage is planned in detail at Stage 6b's close (ADR-0131).
 - Module activation: a game enables only what it needs
 - Plugin architecture for runtime and editor
 - Scripting (language decided here), bound through reflection, with reload and debugging
+- The world updated in place when its scenes change while a game runs, keeping the handles that the game's code holds, moved from Stage 6 (ADR-0089, ADR-0155)
 
 The C ABI and the C++ SDK moved to Stage 11, derived from the API that the editor and the game will have proven (ADR-0097).
 
@@ -435,7 +439,7 @@ The stage is split in two halves when it is planned (ADR-0098).
 
 **Goal.** External projects can rely on the engine.
 
-- Complete editor: material, animation, VFX and audio editors, sequencer, profiler, build tools, plugin manager, saved layouts, multi-window, command palette
+- Complete editor: material, animation, VFX and audio editors, sequencer, profiler, build tools, plugin manager, panels in windows of their own (ADR-0155); the palette of commands came with Stage 6b (ADR-0151), and saved layouts come with Stage 6c
 - Editor extensibility: custom panels, inspectors, importers, asset types, build steps
 - C ABI: opaque handles, versioned structures, function tables, explicit ownership, explicit error codes; moved from Stage 8 (ADR-0097)
 - C++ SDK as an ergonomic wrapper over the C ABI, with a C++ sample that builds against it

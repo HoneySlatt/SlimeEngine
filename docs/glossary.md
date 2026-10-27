@@ -146,6 +146,11 @@ the tiles of one *shadow atlas* ([ADR-0064](adr/0064-cascaded-shadow-maps.md)), 
 with the finest cascade that holds it, which fades into the next across a band at its edge
 ([ADR-0065](adr/0065-reading-the-cascades.md)).
 
+**Checkpoint (plan).** A check of a stage so far that the *owner* makes by hand between two of its
+*milestones*, whose findings adjust the plan: Stage 6c has two, the owner trying the editor after
+Play, then building a part of the game's zone again by hand as the stage's exit asks
+([`docs/PLAN.md`](PLAN.md), [ADR-0155](adr/0155-the-editors-design.md)).
+
 **Checks (the).** The automated checks of the *definition of done*, which `scripts/check.sh` runs
 and the two Linux CI jobs run unchanged, one for each of its parts, `headless` and `windowed`
 ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md)): formatting, clippy (for Windows too), the
@@ -265,6 +270,12 @@ its texts' glyphs read from the *glyph atlas* ([ADR-0132](adr/0132-the-engines-u
 so that the rounding keeps their average and a slow gradient shows an even grain instead of bands
 one step apart. The renderer dithers 8-bit outputs by up to one step
 ([ADR-0051](adr/0051-dithering-8-bit-outputs.md)).
+
+**Docking (editor).** Arranging an editor's panels inside its window, in splits of any number of
+children, each with its share of the space, and stacks of tabs; a panel closed keeps its place, to
+come back there. The arrangement, the panels' layout, is reflected data saved per user and per
+project, outside the repository ([ADR-0155](adr/0155-the-editors-design.md)). Decided, not built
+yet.
 
 **Document (serialization).** A file that holds one *value* of a registered type, or several at
 their places as a *save* does, written by the engine's writer and read through the types'
@@ -412,6 +423,11 @@ second on average. With the default *present mode*, it alone paces the frames
 
 **Frame.** One iteration of the main loop. Its *delta* is the time it represents: the time since
 the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
+
+**Frames on demand.** A program's loop that runs a frame only when something asks for one, an event
+of the window, a request of the *development channel*, a timer of the interface, a load or a cook
+that ends, rather than at the scheduled rate: an idle editor runs none
+([ADR-0155](adr/0155-the-editors-design.md)). Decided, not built yet.
 
 **Frustum culling.** Leaving out of a pass the *instances* that it cannot show: those whose box,
 the smallest box around their mesh, lies outside the volume that the pass's camera or light covers,
@@ -597,6 +613,11 @@ material is the first kind, an *unlit material* the second; games register their
 [ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md),
 [ADR-0129](adr/0129-drawing-for-the-editor.md); `Material::kind`,
 `Renderer::describe_materials`).
+
+**Kit (prefabs).** The *prefabs* that a level is built from, one per variant of a piece of terrain,
+a tree, a rock or a prop, each with its collider, placed and arranged in the editor rather than
+scattered by a script ([ADR-0155](adr/0155-the-editors-design.md)). *Hunna Wood*'s zone moves onto
+one at Stage 6c.
 
 **KTX2.** The Khronos Group's file format for GPU textures, which holds every mipmap level of a
 texture in its GPU format: the format of cooked textures
@@ -800,6 +821,21 @@ look equal: the interface's *themes* lighten, darken and mix their colors in it,
 lightness looks the same on blue as on yellow (`slime_color::Oklch`,
 [ADR-0149](adr/0149-the-looks-foundations.md)).
 
+**Open in context.** Editing a *placement*'s prefab in place, inside the level that places it, its
+changes written to the prefab's file ([ADR-0155](adr/0155-the-editors-design.md)). Decided, not
+built yet.
+
+**Open step (editor).** The *commands* of a gesture that a person makes, a handle or a slider
+dragged, which the editor's core applies to the level at once but neither journals nor keeps in its
+history until the gesture ends: letting go makes them one *step*, Escape undoes them. Agents' steps
+wait while one is open ([ADR-0155](adr/0155-the-editors-design.md)). Decided, not built yet.
+
+**Operation (editor).** One of the actions of the editor, named in one registry with its label, its
+shortcut and its parameters, which menus, shortcuts, the palette, toolbars and agents run alike, by
+its name; those that change the level are *steps*, those that change only the view are not. Not a
+world's *command*, which an operation may make ([ADR-0155](adr/0155-the-editors-design.md)).
+Decided, not built yet.
+
 **Orthographic projection.** A camera's projection in which what is farther is as large, every
 pixel seen along the camera's axis, as a map or a plan is drawn (`slime_render::Projection`): a box
 as high as the camera's height, as wide as its aspect makes it, from its near plane to its far one,
@@ -828,6 +864,11 @@ renderer and its loads place their meshes in its pages (`slime_render::Mesh`,
 finds every command that the program names by the letters typed, in their order, and gives the
 chosen one to the program as a shortcut gives its command (`Ui::open_palette`,
 [ADR-0151](adr/0151-rich-widgets.md)).
+
+**Part (level).** A scene file that a level places and that the editor edits in place, writing it to
+its own file, named in a table of the level's file of its own, `[parts.<id>]`; what a level places
+otherwise is a *prefab* ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md),
+[ADR-0155](adr/0155-the-editors-design.md)). Decided, not built yet.
 
 **Partial value.** A *value* that leaves some of its fields out, those of its structs and variants
 at any depth, its tuples, lists and options whole: what changed of a value, as a save holds it. An
@@ -1423,6 +1464,11 @@ until then ([ADR-0127](adr/0127-the-settings-of-a-view.md)).
 whether it draws the shadows, the sky and the bloom. Described by reflection, through which the dev
 overlay and a tool driving a game read and change them
 ([ADR-0127](adr/0127-the-settings-of-a-view.md)).
+
+**Viewport (editor).** A panel of the editor that shows a *view* of the level being edited, drawn
+into a target of its own, which the interface's *canvas* shows, and drawn again only when what it
+shows changes ([ADR-0132](adr/0132-the-engines-ui-framework.md),
+[ADR-0155](adr/0155-the-editors-design.md)). Decided, not built yet.
 
 **Visual target.** A reference image that a game sets for its look, on its target *hardware tier*
 at its frame rate: the gap between the game's image and its targets is the measured problem by

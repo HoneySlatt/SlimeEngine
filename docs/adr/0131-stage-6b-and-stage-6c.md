@@ -10,8 +10,9 @@
   [0142](0142-input-and-focus.md) (the fifth milestone in two),
   [0145](0145-text-edited.md) (the sixth milestone in two), [0148](0148-widgets.md) (the seventh
   milestone in two), [0149](0149-the-looks-foundations.md) (the rest of the seventh in three, and
-  transitions in Stage 6b) and [0152](0152-the-dev-overlay-on-the-engines-interface.md) (the eighth
-  milestone in two)
+  transitions in Stage 6b), [0152](0152-the-dev-overlay-on-the-engines-interface.md) (the eighth
+  milestone in two) and [0155](0155-the-editors-design.md) (Stage 6c's milestones, their order and
+  the owner's two checkpoints)
 - Date: 2026-10-22
 
 ## Context

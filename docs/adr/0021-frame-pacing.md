@@ -1,6 +1,7 @@
 # 0021. Frame pacing
 
-- Status: Accepted
+- Status: Accepted; amended by [0155](0155-the-editors-design.md) (a program may run its frames
+  only when something asks for one)
 - Date: 2026-10-12
 
 ## Context

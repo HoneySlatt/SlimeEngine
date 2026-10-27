@@ -1,7 +1,8 @@
 # 0123. The Linux checks in two jobs
 
 - Status: Accepted; amends [0007](0007-documentation-tooling-and-ci.md) (CI runs the checks' script
-  in two parts) and [0104](0104-the-build-ci-and-measurements.md) (CI's jobs)
+  in two parts) and [0104](0104-the-build-ci-and-measurements.md) (CI's jobs); amended by
+  [0155](0155-the-editors-design.md) (the Linux checks in three jobs)
 - Date: 2026-10-21
 
 ## Context

@@ -89,7 +89,7 @@ the ADR linking to it.
 | [0018](0018-reference-image-tests.md) | Reference image tests | Accepted; amended by 0028, 0030 |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
 | [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022, 0025, 0043 and 0107 |
-| [0021](0021-frame-pacing.md) | Frame pacing | Accepted |
+| [0021](0021-frame-pacing.md) | Frame pacing | Accepted; amended by 0155 |
 | [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted; amended by 0025, 0044, 0075 and 0103 |
 | [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |
 | [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted; extended on 2026-10-13 |
@@ -140,11 +140,11 @@ the ADR linking to it.
 | [0069](0069-the-asset-pipeline.md) | The asset pipeline: identity, cooking and what a game loads | Accepted; amended by 0080, 0102 and 0106 |
 | [0070](0070-the-sample-games-source-assets.md) | The sample game's source assets: free, listed, mirrored | Accepted |
 | [0071](0071-cooked-textures.md) | Cooked textures | Accepted; amended by 0102 and 0106 |
-| [0072](0072-stage-4b-live-assets.md) | Stage 4b: live assets | Accepted; amended by 0078, 0103 and 0107 |
+| [0072](0072-stage-4b-live-assets.md) | Stage 4b: live assets | Accepted; amended by 0078, 0103, 0107 and 0155 |
 | [0073](0073-loading-scenes-in-the-background.md) | Loading scenes in the background | Accepted; amended by 0074, 0107, 0113 and 0128 |
 | [0074](0074-uploading-textures-without-holding-up-frames.md) | Uploading textures without holding up frames | Accepted; amended by 0107 |
 | [0075](0075-recovering-from-a-lost-gpu-device.md) | Recovering from a lost GPU device | Accepted; amended by 0103 |
-| [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted; amended by 0084 and 0102 |
+| [0076](0076-hot-reload-of-cooked-data.md) | Hot reload of cooked data | Accepted; amended by 0084, 0102 and 0155 |
 | [0077](0077-hot-reload-of-shaders.md) | Hot reload of shaders | Accepted; amended by 0104 |
 | [0078](0078-stage-5-in-two-halves.md) | Stage 5 in two halves | Accepted; amended by 0090 |
 | [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted; amended by 0087, 0107, 0108, 0109 and 0112 |
@@ -157,9 +157,9 @@ the ADR linking to it.
 | [0086](0086-serialization.md) | Serialization | Accepted; amended by 0087, 0091 and 0102 |
 | [0087](0087-the-worlds-documents.md) | The world's documents | Accepted; amended by 0088, 0089, 0092, 0093, 0101, 0108, 0112, 0124 and 0125 |
 | [0088](0088-saving-and-resuming-a-run.md) | Saving and resuming a run | Accepted; amended by 0101, 0108, 0112 and 0125 |
-| [0089](0089-scenes-and-prefabs.md) | Scenes and prefabs | Accepted; amended by 0101, 0112 and 0134 |
+| [0089](0089-scenes-and-prefabs.md) | Scenes and prefabs | Accepted; amended by 0101, 0112, 0134 and 0155 |
 | [0090](0090-stage-5b-scenes-and-prefabs.md) | Stage 5b: scenes and prefabs | Accepted; amended by 0097, 0116 and 0131 |
-| [0091](0091-scene-documents-and-placements.md) | Scene documents and placements | Accepted; amended by 0102 and 0112 |
+| [0091](0091-scene-documents-and-placements.md) | Scene documents and placements | Accepted; amended by 0102, 0112 and 0155 |
 | [0092](0092-a-world-written-back-as-a-scene.md) | A world written back as a scene | Accepted; amended by 0101, 0108, 0109 and 0134 |
 | [0093](0093-saves-and-hot-reload-with-placements.md) | Saves and hot reload with placements | Accepted; amended by 0101, 0109, 0112 and 0125 |
 | [0094](0094-the-binary-encoding-of-documents.md) | The binary encoding of documents | Accepted |
@@ -178,9 +178,9 @@ the ADR linking to it.
 | [0107](0107-the-execution-model.md) | The execution model | Accepted; amended by 0118 and 0121 |
 | [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted; amended by 0119 and 0124 |
 | [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amended by 0116, 0124 and 0134 |
-| [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116, 0121, 0122 and 0134 |
+| [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116, 0121, 0122, 0134 and 0155 |
 | [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115, 0120, 0126, 0127 and 0129 |
-| [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted; amended by 0125 |
+| [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted; amended by 0125 and 0155 |
 | [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted; amended by 0120 and 0128 |
 | [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amended by 0120 and 0138 |
 | [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted; amended by 0117, 0129, 0130 and 0132 |
@@ -189,9 +189,9 @@ the ADR linking to it.
 | [0118](0118-the-task-pool-and-the-copies-to-the-gpu.md) | The task pool and the copies to the GPU | Accepted |
 | [0119](0119-the-worlds-ticks-blocks-and-log.md) | The world's ticks, blocks and log | Accepted |
 | [0120](0120-a-frame-that-owns-what-it-draws.md) | A frame that owns what it draws | Accepted; amended by 0121 |
-| [0121](0121-a-game-as-a-simulation-and-a-presentation.md) | A game as a simulation and a presentation | Accepted; amended by 0122, 0134 and 0135 |
-| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125, 0126, 0127, 0128, 0130, 0134, 0135, 0143 and 0146 |
-| [0123](0123-the-linux-checks-in-two-jobs.md) | The Linux checks in two jobs | Accepted |
+| [0121](0121-a-game-as-a-simulation-and-a-presentation.md) | A game as a simulation and a presentation | Accepted; amended by 0122, 0134, 0135 and 0155 |
+| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125, 0126, 0127, 0128, 0130, 0134, 0135, 0143, 0146 and 0155 |
+| [0123](0123-the-linux-checks-in-two-jobs.md) | The Linux checks in two jobs | Accepted; amended by 0155 |
 | [0124](0124-driven-components-keys-and-created-entities-in-levels.md) | Driven components, start keys and created entities written into levels | Accepted; amended by 0125 |
 | [0125](0125-saves-per-scene.md) | Saves per scene, scenes unloaded and adoption | Accepted |
 | [0126](0126-views-apart-from-the-renderer.md) | Views apart from the renderer | Accepted; amended by 0127 |
@@ -199,10 +199,10 @@ the ADR linking to it.
 | [0128](0128-asset-requests.md) | Asset requests | Accepted |
 | [0129](0129-drawing-for-the-editor.md) | Drawing for the editor | Accepted |
 | [0130](0130-picking.md) | Picking | Accepted |
-| [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amended by 0134, 0137, 0140, 0142, 0145, 0148, 0149 and 0152 |
+| [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amended by 0134, 0137, 0140, 0142, 0145, 0148, 0149, 0152 and 0155 |
 | [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted; amended by 0137, 0140, 0143, 0145, 0146, 0148 and 0149 |
 | [0133](0133-font-files-under-the-open-font-license.md) | Font files under the SIL Open Font License | Accepted; amended by 0139 |
-| [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 |
+| [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 and 0155 |
 | [0135](0135-the-editors-program.md) | The editor's program | Accepted |
 | [0136](0136-the-interfaces-text.md) | The interface's text | Accepted |
 | [0137](0137-the-canvas.md) | The canvas | Accepted; amended by 0152 |
@@ -223,3 +223,4 @@ the ADR linking to it.
 | [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
 | [0153](0153-tab-and-f6-in-a-games-interface.md) | Tab and F6 in a game's interface | Accepted |
 | [0154](0154-floating-panels-and-held-keys.md) | Floating panels and held keys | Accepted |
+| [0155](0155-the-editors-design.md) | The editor's design | Accepted |

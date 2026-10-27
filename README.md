@@ -93,8 +93,8 @@ feature. The `interface`
 example builds an interface, with text in eight writing systems, a dark and a light theme, and a
 modal dialog; the `widgets` example, a panel of the editor's kind, with its menus. The dev overlay
 is built on it, in the editor's look, over *Hunna Wood* and the `scene` and `world` examples, and
-egui has left the engine. [`docs/PLAN.md`](docs/PLAN.md) says what comes next, the end of Stage 6b
-and its release; then Stage 6c, the editor. It lists the known debt too.
+egui has left the engine. [`docs/PLAN.md`](docs/PLAN.md) says what comes next, Stage 6c, the
+editor, planned in [ADR-0155](docs/adr/0155-the-editors-design.md). It lists the known debt too.
 
 ## Getting started
 

@@ -12,1292 +12,41 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 
 ## Current
 
-- Stage 6a — What the editor stands on: done, and released as 0.5 on 2026-10-22 with the audit pass
-  and the foundations pass ([ADR-0116](adr/0116-stage-6-in-two-halves.md) to
-  [ADR-0130](adr/0130-picking.md)). *Hunna Wood* runs on what the editor stands on, on Linux and on
-  Windows: frustum culling and instancing, the engine's task pool and the copies to the GPU within
-  a budget, the world's ticks, a frame that owns what it draws, a game as a simulation and a
-  presentation, with a game time that pauses and steps, the development channel and the MCP server
-  through which an agent drives it, saves made of differences per scene, views with settings of
-  their own, asset requests, drawing for the editor and picking. The audit pass and the foundations
-  pass before it fixed what the audit of 0.4 found, and decided as ADRs what the editor freezes
-  ([ADR-0096](adr/0096-the-files-the-engine-reads.md) to
-  [ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)); the games that the engine aims at
-  are described in [ADR-0098](adr/0098-the-games-the-engine-aims-at.md), and AI agents drive the
-  engine through its MCP server ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md)). See
-  [Completed stages](#completed-stages).
-- Stage 6b — The engine's interface: planned on 2026-10-22 and validated by the owner
-  ([ADR-0131](adr/0131-stage-6b-and-stage-6c.md)), to be released as 0.6 at its close. A study of
-  the UI framework's design, made by four agents from four starting points and measured on the
-  candidate crates, led to the owner's decisions on the framework
-  ([ADR-0132](adr/0132-the-engines-ui-framework.md)) and on the fonts that the engine ships
-  ([ADR-0133](adr/0133-font-files-under-the-open-font-license.md)). Stage 6 is now in three parts:
-  Stage 6c, the editor, is planned in detail at Stage 6b's close, and released as 0.7. M6b.1 was
-  cut in two at its start ([ADR-0134](adr/0134-the-editors-core.md)): M6b.1a, the commands and
-  undo, and M6b.1b, the editor driven by an agent ([ADR-0135](adr/0135-the-editors-program.md)),
-  are done, and so is M6b.2, text in several writing systems
-  ([ADR-0136](adr/0136-the-interfaces-text.md)). M6b.3 was cut in two at its start
-  ([ADR-0137](adr/0137-the-canvas.md)): M6b.3a, the canvas, and M6b.3b, the text drawn from a
-  display list ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)), are done, and the high
-  hardware tier now draws at 3840 × 2160 ([ADR-0138](adr/0138-the-high-tier-at-3840-2160.md)).
-  M6b.4 was cut in two at the end of its first part ([ADR-0140](adr/0140-the-tree-of-elements.md)):
-  M6b.4a, the tree of elements and their layout, and M6b.4b, style sheets and themes
-  ([ADR-0141](adr/0141-style-sheets-and-themes.md)), are done. M6b.5 was cut in two at its start:
-  M6b.5a, input and focus ([ADR-0142](adr/0142-input-and-focus.md)), and M6b.5b, what agents see
-  ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)), are done. M6b.6 was cut in two at its
-  start: M6b.6a, text edited, and what the platform lacks for it
-  ([ADR-0145](adr/0145-text-edited.md)), and M6b.6b, screen readers
-  ([ADR-0146](adr/0146-screen-readers.md)), are done. M6b.7 was cut in two at its start, by the
-  owner on 2026-10-26: M6b.7a, the widgets that a panel holds, is done
-  ([ADR-0148](adr/0148-widgets.md)). The owner cut the rest in three on 2026-10-27
-  ([ADR-0149](adr/0149-the-looks-foundations.md)): M6b.7b, the look's foundations, is done;
-  M6b.7c, the layers ([ADR-0150](adr/0150-layers.md)), is done. The owner cut the rich widgets in
-  two on 2026-10-27 ([ADR-0151](adr/0151-rich-widgets.md)): M6b.7d, the rich fields, is done;
-  M6b.7e, what the editor tells and finds, is done. The owner cut M6b.8 in two on 2026-10-27
-  ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)): M6b.8a, the editors and the
-  world panel on the engine's interface, is done; M6b.8b, the overlay over the games' views, is
-  done, with the owner's choice on Tab and F6 in a game's interface
-  ([ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)), and M6b.9, the Windows check, the
-  documents reread and the release. Stage 6b is done, and released as 0.6 on 2026-10-27. Next:
-  Stage 6c, the editor, planned in detail with the owner.
+- Stage 6b — The engine's interface: done, and released as 0.6 on 2026-10-27
+  ([ADR-0131](adr/0131-stage-6b-and-stage-6c.md) to
+  [ADR-0154](adr/0154-floating-panels-and-held-keys.md)). The engine has a UI framework of its own,
+  on which the dev overlay of *Hunna Wood* and of the examples runs, on Linux and on Windows: text
+  in several writing systems, a tree of elements styled by themes read from files, input, focus and
+  layers, text edited through input methods and the clipboard, widgets, menus, a palette of
+  commands and notifications, read and used by agents through the MCP server and read by screen
+  readers; egui has left the engine. The editor's core changes a level through commands, undone,
+  redone and journaled, and writes it back with its comments, driven by an agent through the
+  editor's own program, without a window yet. See [Completed stages](#completed-stages).
+- Stage 6c — The editor: planned on 2026-10-27 ([ADR-0155](adr/0155-the-editors-design.md)), to be
+  released as 0.7 at its close. A study of the editor's design, made by four agents from four
+  starting points and measured in prototypes on the owner's machine, led to the owner's sixteen
+  decisions on the editor's design, its milestones and their order, which ADR-0155 records. Next:
+  M6c.0.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M6b.1a](#m6b1a--the-commands-and-undo) | The world's commands name entities for good and undo themselves; the editor's core makes them into steps, undone, redone and journaled, and writes its level back with its comments | Done |
-| [M6b.1b](#m6b1b--the-editor-driven-by-an-agent) | An agent drives the editor's core through the MCP server, on a level of the examples and on *Hunna Wood*'s zone | Done |
-| [M6b.2](#m6b2--text-in-several-writing-systems) | The engine lays text out in every writing system, without a GPU | Done |
-| [M6b.3a](#m6b3a--the-canvas) | The renderer draws an interface's boxes, shadows and images over any target, within its share of a frame on each tier | Done |
-| [M6b.3b](#m6b3b--text-drawn-and-the-display-list) | The renderer draws an interface's text in every writing system, crisp at every scale, from a display list | Done |
-| [M6b.4a](#m6b4a--elements-and-layout) | An interface is a tree of elements, laid out by flexbox and grid, and built again only where what it shows changed | Done |
-| [M6b.4b](#m6b4b--style-sheets-and-themes) | Themes read from files style an interface, and a theme changed on disk restyles it while it runs | Done |
-| [M6b.5a](#m6b5a--input-and-focus) | A person uses the interface with the pointer and the keyboard, and the program reads what they did as actions, which an agent can send as well | Done |
-| [M6b.5b](#m6b5b--what-agents-see) | An agent reads what the interface shows, and uses it through the same actions as a person | Done |
-| [M6b.6a](#m6b6a--text-edited-and-what-the-platform-lacks-for-it) | Text is typed, selected, copied and composed in every writing system, in fields that the program reads as actions | Done |
-| [M6b.6b](#m6b6b--screen-readers) | Screen readers read the interface, and agents read and set what its fields hold | Done |
-| [M6b.7a](#m6b7a--the-widgets-of-a-panel) | The framework has the widgets that a panel of the dev overlay and of the editor is made of, in the editor's theme | Done |
-| [M6b.7b](#m6b7b--the-looks-foundations) | The editor's look follows one accent in a dark, a light and a high-contrast theme, moves through transitions, and stays crisp at every scale | Done |
-| [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Done |
-| [M6b.7d](#m6b7d--rich-fields) | The framework has the rich fields and buttons that make editing fast | Done |
-| [M6b.7e](#m6b7e--what-the-editor-tells-and-finds) | The framework tells the user what goes on, and finds every command by its name | Done |
-| [M6b.8a](#m6b8a--the-editors-and-the-world-panel-on-the-engines-interface) | The dev overlay's editors of reflected values, its world panel and a picker of colors run on the engine's interface | Done |
-| [M6b.8b](#m6b8b--the-overlay-over-the-games-views) | The dev overlay runs on the engine's interface over *Hunna Wood* and the examples, and egui leaves the engine | Done |
-| [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Done |
+| [M6c.0](#m6c0--before-the-stage) | The development channel answers in milliseconds, CI's checks stay within their limit, and a game that a tool started never outlives it | Planned |
+| [M6c.1](#m6c1--the-editors-window) | The editor opens a level in a window of its own, where a person and an agent run the same named operations | Planned |
+| [M6c.2](#m6c2--the-viewport) | The level shows in a viewport that the user flies through and picks in, drawn again only when what it shows changed | Planned |
+| [M6c.3](#m6c3--move-and-place) | The user moves, turns, scales, creates and deletes, each gesture a single step of the history | Planned |
+| [M6c.4](#m6c4--play-it) | Play runs the level being edited in the game, steps not written included, and the editor's edits reach the running game | Planned |
+| [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
+| [M6c.5](#m6c5--find-and-change) | The user finds any entity in a hierarchy, changes its components in an inspector, and arranges the panels in regions of tabs | Planned |
+| [M6c.6](#m6c6--levels-of-several-files-and-links) | A level is made of several files, which the editor writes together, and an entity refers to entities of other files | Planned |
+| [M6c.7](#m6c7--build-from-a-kit) | The user builds a level from a kit of prefabs found in an asset browser, and *Hunna Wood*'s zone is made so | Planned |
+| [Checkpoint B](#checkpoint-b--the-exit-rehearsal) | The owner builds a part of the zone again by hand in the editor, plays it, writes it and opens it again: the exit criterion | Planned |
+| [M6c.8](#m6c8--panels-dragged-to-dock) | The user drags panels and tabs to arrange the editor; may move to Stage 11 | Planned |
+| [M6c.9](#m6c9--windows-check-documentation-release-07) | Stage 6c is done, checked on Windows, and released as 0.7 | Planned |
 
-Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b, 5a, 5b and 6a are done, and so are the audit pass and the
-foundations pass; see [Completed stages](#completed-stages).
-
-## Stage 6b — The engine's interface
-
-Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-6b--the-engines-interface--06)): the dev overlay
-of *Hunna Wood* and of the `world` example runs on the engine's UI framework, on Linux and on
-Windows, its theme read from a file, and the framework draws text in several writing systems; an
-agent reads and drives the overlay's panels through the engine's MCP server, and a screen reader
-reads those of the `world` example; the list of a world of 100 000 entities stays within the budget
-that M6b.4a sets for it ([ADR-0140](adr/0140-the-tree-of-elements.md)); egui is gone. The editor's
-core changes a level through commands, undone and redone, written back and opened again, driven by
-an agent.
-
-This is the second part of Stage 6 ([ADR-0131](adr/0131-stage-6b-and-stage-6c.md)): the engine's
-UI framework, which [ADR-0098](adr/0098-the-games-the-engine-aims-at.md) makes the engine's own,
-for its editor and for the UI of games, proven by the dev overlay that games ship; and the editor's
-core, without its interface. Where the engine stands at the start:
-
-- **The world takes one command.** `Command::SetProperty` names its entity by its persistent
-  identity and is applied at the start of a frame
-  ([ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); nothing creates an entity
-  under a given identity nested in a scene's, nor puts a child at a given rank among its siblings
-  (`World::set_parent` puts it last), `World::despawn` forgets an identity, and nothing undoes
-  ([ADR-0109](adr/0109-stable-references-and-undo.md)).
-- **The only interface is the dev overlay, on egui**
-  ([ADR-0031](adr/0031-dev-overlay-with-egui.md)): immediate mode, its world panel laying out every
-  row (G46), its number fields writing back the rounding they show (G33), its renderer, egui-wgpu,
-  the one library outside `slime-gfx` that reaches wgpu, through `slime-gfx`'s `wgpu` feature, its
-  fonts shipped by an exception of `deny.toml`
-  ([ADR-0105](adr/0105-egui-fonts-ship-with-the-dev-overlay.md)).
-- **The platform reads keys, the mouse and the scale factor of one window**: no input methods,
-  clipboard, cursor shapes, files dropped, dialogs, raw motion of the mouse nor screen readers
-  ([ADR-0011](adr/0011-windowing-with-winit.md)).
-- **The renderer draws views**, and lines and unlit instances into them
-  ([ADR-0129](adr/0129-drawing-for-the-editor.md)); nothing draws rounded rectangles, glyphs or
-  images in two dimensions. `slime-gfx` has no texture of one channel, writes no part of a texture,
-  and its scissor is its viewport.
-- **Agents read a running game's world, captures, reports and picks**
-  ([ADR-0122](adr/0122-the-development-channel.md)), nothing of an interface.
-
-Out of scope: Stage 6c's work, docking, dialogs to open and save files, files dropped,
-drag and drop between panels, the editor's window and viewport, play in the editor, the hierarchy,
-the inspector beyond the overlay's value editors, `EntityRef`, gizmos, levels of several files and
-the asset browser; several windows of the system (G34); Stage 7's UI for games, animation beyond
-the transitions that M6b.7b declares, layers with masks, effects on text through distance fields, UI documents and their
-bindings, UI on surfaces in the world, focus driven by gamepads; translation tables (Stage 9b).
-
-Decisions taken when the stage was planned, by the owner on 2026-10-22: Stage 6b split again, with
-its order and its releases, in [ADR-0131](adr/0131-stage-6b-and-stage-6c.md); the framework's
-design, its crates and its dependencies, in [ADR-0132](adr/0132-the-engines-ui-framework.md); the
-fonts that the engine ships, in [ADR-0133](adr/0133-font-files-under-the-open-font-license.md).
-Each milestone that designs a part records its design in a new ADR, which amends ADR-0132 where it
-changes it; each dependency is added at the milestone that first uses it, its version and what it
-adds to CI's build checked then.
-
-Risks:
-
-- **The size of the framework.** The study counted 18 000 to 25 000 lines of Rust for it, where
-  each of Stage 6a's milestones added 1 000 to 4 000. A milestone that outgrows itself is split at
-  its start, as M6a.7, M6a.8 and M6a.10 were.
-- **Dependencies that change fast.** parley, taffy and AccessKit published a version that breaks
-  their API every one or two months in 2026. Their types stay inside the engine's crates, their
-  versions are pinned, and each is upgraded at most once a milestone.
-- **The cost of the checks.** CI's `windows` job took 19 minutes 55 seconds on the release commit of
-  0.5, and its `check (windowed)` job 20 minutes 29 seconds at M6a.9, at the owner's limit of 20
-  ([ADR-0104](adr/0104-the-build-ci-and-measurements.md)); the framework's crates bring about 40
-  that the engine does not build today, ICU4X's most of them, and AccessKit's adapter 46 more on
-  Linux, 52 as M6b.6b counted those of the workspace's build that come only through it. Each
-  milestone that adds a crate records how long CI's jobs take, and a job past the limit is split, as
-  ADR-0081 and [ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md) split them; about 20 crates
-  leave with egui at M6b.8b.
-- **What only a person checks.** The look of text, input methods on Wayland and on Windows, the
-  clipboard on Wayland's compositors and screen readers cannot be checked in a headless Weston: each
-  milestone gives its checks by hand to [the list](#checks-by-hand-waiting-for-the-owner), but for
-  the choices that it needs from the owner to go on, the blending of M6b.3a and the font of
-  M6b.3b, made during them.
-- **Wayland.** arboard reaches Wayland's clipboard through the data-control protocol, which niri and
-  Hyprland offer and not every compositor does; winit 0.30.13 drops no file on Wayland (Stage 6c).
-- **The overlay rewritten.** Games and their checks by hand use it: M6b.8a writes a checklist of
-  what it does today, and egui leaves at M6b.8b only once the new one does all of it.
-- **One GPU.** Budgets are checked on the owner's RX 6900 XT only ([Known debt](#known-debt)).
-
-### M6b.1a — The commands and undo
-
-- **Goal.** The world's commands name entities for good and give back what undoes them; the
-  editor's core makes them into steps, undone, redone and journaled, and writes its level back with
-  its comments.
-- **Crates.** `slime-world`, `slime-serialize`, `slime-cook`, a new `slime-editor`; `slime-app`;
-  the benchmarks.
-- **Delivers.** As [ADR-0109](adr/0109-stable-references-and-undo.md) decides, and
-  [ADR-0134](adr/0134-the-editors-core.md) shapes: the world creates an entity under a given
-  identity nested in a scene's, refused if the identity is taken, places a prefab so, and puts a
-  child at a given rank among its siblings. The world's commands are the editor's: create, place a
-  prefab, delete, reparent, set a property, attach and detach a component, and restore what a
-  deletion recorded, its subtree, the components as reflected values, the ranks and the references
-  that named it; each gives back the command that undoes it, and is written and read as text, its
-  entities by their identities. `slime-editor`, a library without an interface: a level opened from
-  its scene file, changed through steps, made whole or not at all, undone and redone within a bound
-  of memory, the selection by identities, restored by undo and redo; the journal, as text, from
-  which an editor that crashed is recovered; the level written back, whole or not at all, with its
-  comments, what the editor created named at once as the file names it. The ADR of the design; the
-  rustdoc, `docs/ARCHITECTURE.md`, the glossary, `CHANGELOG.md`.
-- **Done when.** Tests: each command, done, undone and redone, leaves the level that the file writes
-  as it was, identities, ranks and references included; a subtree deleted, which other entities
-  named, comes back named by them; a step refused half-way leaves the level as it was; an editor
-  recovered from its journal holds the level, the history and the selection of the one that
-  crashed, a writing of the level and undoes across it included;
-  a level opened, changed, written back and opened again holds the changes and its comments, and
-  what the editor created there has the identity that the file gives it; a benchmark of a thousand
-  entities deleted then restored (the audit estimated 10 to 15 ms); CI is green.
-- **How to test.** `cargo test -p slime-world -p slime-serialize -p slime-editor`;
-  `cargo run --release -p slime-benches -- world.undo`.
-- **Outcome.** Done on 2026-10-22. [ADR-0134](adr/0134-the-editors-core.md) records the owner's
-  eight decisions of 2026-10-22, among which M6b.1 cut in two, and amends ADR-0089, ADR-0092,
-  ADR-0109, ADR-0110, ADR-0121, ADR-0122 and ADR-0131. `slime_world::Command` gains `Create`,
-  `Place`, `Delete`, `Reparent`, `Insert`, `Remove` and `Restore`, and `World::apply` returns the
-  command that undoes the one it applied; `Delete` records its subtree in `Deleted`, its values
-  referring to entities by identity, which `Restore` creates again. `World::spawn_as`,
-  `World::place_as` and `World::new_id` create under an identity of a scene; `World::set_parent_at`
-  and `World::rank` place a child among its siblings. `Command::write` and `Command::read` give a
-  command's text; `slime_world::Identities` names entities by identity for it and for the
-  development channel, which used a copy of its own. `slime_serialize::keep_comments` puts the
-  comments of a document written by hand back into the one written again; `slime_cook::write`, which
-  writes a file whole or not at all, is public. `slime_editor::Editor` opens a level, makes steps of
-  commands given as values or as text, refusing those that would change what is not under the
-  level's root, undoes and redoes them (`HISTORY_BUDGET`), selects, keeps a journal, from which
-  `Editor::recover` recovers an editor that crashed, and writes its level back. The examples' yard
-  written back by the editor, unchanged, is the file written by hand, byte for byte, which a probe
-  checked and M6b.1b's tests check. The benchmark `world.undo.1k` deletes and restores a subtree of
-  1 000 entities in a level of 100 000 several times faster than the audit estimated
-  ([`docs/measurements.md`](measurements.md)). A read-only review found twelve defects, among which
-  a recovery that rebuilt another level when an undo crossed a writing, and entities left out of the
-  level without a word: each is fixed, and tested. The tests: in `slime-world`'s
-  `tests/commands.rs`, `each_command_done_undone_and_redone_leaves_the_file_as_it_was`,
-  `a_deleted_subtree_comes_back_named_by_what_named_it`,
-  `a_restoration_is_refused_while_an_identity_is_taken_and_changes_nothing`,
-  `a_command_refused_changes_nothing`, `commands_written_as_text_are_read_back_the_same`,
-  `text_that_is_not_a_command_is_refused_with_the_reason`,
-  `what_the_world_names_is_free_and_written_as_the_file_names_it` and
-  `a_prefab_placed_is_written_as_a_file_places_it`; in `hierarchy.rs`,
-  `a_child_put_at_a_rank_goes_there_and_back_and_a_rank_past_the_last_puts_it_last`; in
-  `slime-serialize`'s `comments.rs`, five tests, and its documents damaged, their comments kept; in
-  `slime-editor`'s `tests/editor.rs`,
-  `a_level_changed_written_and_opened_again_holds_the_changes_and_its_comments`,
-  `steps_undo_and_redo_whole_and_select_again_what_they_selected`,
-  `a_step_refused_half_way_leaves_the_level_as_it_was`,
-  `a_command_that_would_change_what_is_not_under_the_level_s_root_is_refused`,
-  `a_recovered_editor_holds_the_level_the_history_and_the_selection_of_the_one_that_crashed` and
-  `the_history_forgets_the_steps_undone_then_the_oldest_done_past_its_budget_but_the_last`.
-
-### M6b.1b — The editor driven by an agent
-
-- **Goal.** An agent drives the editor's core through the MCP server, on a level of the examples
-  and on *Hunna Wood*'s zone.
-- **Crates.** `slime-editor`, `slime-app`, `slime-channel`, `slime-mcp`; the examples;
-  `games/hunnawood` and a new `games/hunnawood-editor`.
-- **Delivers.** As [ADR-0134](adr/0134-the-editors-core.md) decides: the editor's program, an
-  application of `slime-app` whose simulation is the editor's core, without a window, its frames
-  paced; the editor's requests reaching it through methods of `Simulation`, and the commands that
-  the channel or the dev overlay send to it made steps of its history; version 7 of the
-  protocol, a step of commands as text, undo, redo, the history, the journal, the selection read
-  and set, and the level written back; the MCP server's tools for each. Two programs: the example
-  `editor`, on the examples' yard, and `games/hunnawood-editor`, *Hunna Wood*'s editor package, on
-  its zone, the game making public what registers its types. The journal kept in the editor's
-  directory of the user's data directory, unless `--journal` names another file; what a program
-  does with the journal that a crash left is decided at the milestone's start.
-- **Done when.** Tests: an agent's session through the MCP server opens the yard, creates, places,
-  changes, deletes, undoes and redoes, reads the history and the journal, writes the level back
-  and opens it again; the yard written back unchanged is the file written by hand, byte for byte;
-  *Hunna Wood*'s zone written back keeps its comments; the commands that the channel sends to the
-  editor undo; CI is green, its jobs' times recorded.
-- **How to test.** `cargo test -p slime-editor -p slime-app -p slime-mcp`; the MCP server's session
-  test; `cargo run --example editor`; `cargo run -p hunnawood-editor`.
-- **Outcome.** Done on 2026-10-23. CI is green on its last commit, 54cb416: `check (headless)` took
-  15 minutes 28 seconds, `check (windowed)` 15 minutes 48 seconds, `windows` 16 minutes 49 seconds
-  and `windows-release` 12 minutes 34 seconds. [ADR-0135](adr/0135-the-editors-program.md) records
-  the owner's decision of 2026-10-23, that a program recovers by itself the journal that a crash,
-  or a stop without writing, leaves, and the design that the owner validated the same day; it
-  amends ADR-0121, ADR-0122 and ADR-0134. `slime_editor::run` runs a `Program` on `slime-app`
-  without a window, its frames paced (`AppConfig::pace_headless`); its journal is
-  `slime-editor/<the level's asset ID>.journal` in the user's data directory
-  (`slime_app::data_directory`), or one of its own for a copy of the level, held by one editor at a
-  time (`slime_app::HeldFile`); a journal that cannot be read, played again or written stops the
-  program, and `--discard` sets it aside (`slime_app::set_aside`). *Hunna Wood* gave itself the
-  data directory, the lock and the setting aside before. `Simulation::apply` takes the commands that
-  the host receives, which the editor makes steps of, and `Simulation::edit` the editor's requests,
-  version 7 of the protocol (`Request::Edit`); the MCP server gains `edit`, `undo`, `redo`,
-  `select`, `editor_history`, `editor_journal` and `write_level`. The example `editor` opens the
-  examples' yard, and `games/hunnawood-editor` the game's zone, through
-  `hunnawood::rules::register`, now public. Run by hand, *Hunna Wood*'s editor opens the zone and
-  paces its frames at 60 a second. The zone written back keeps every comment above what it
-  describes; its formatting becomes the engine's writer's, rotations whole as ADR-0092 writes them.
-  A read-only review found nine defects, among which a recovery that failed half-way and emptied the
-  journal that it recovered, copies of a level that shared one journal, and a level written over
-  what another editor wrote, as well as gaps in the tests and the documents: each is fixed, and
-  each defect tested. The tests: in `slime-mcp`, `tests/edit.rs`, an agent's session through the
-  server, which writes the yard back unchanged, byte for byte, makes a step that creates, places,
-  changes and deletes, changes a value with `set_property`, which becomes a step, undoes it and
-  finds the value as it was, redoes, reads the history and the journal, writes the level, which
-  holds the changes, stops the editor and finds again, as it starts, the step done after the
-  writing and a step not written, then, the level written, opens it from its file; and
-  `tests/edit_zone.rs`, a session on a copy of *Hunna Wood*'s zone, which changes one of the game's
-  components, creates an entity that holds another, undoes, redoes and writes the zone; in
-  `games/hunnawood-editor`'s `tests/zone.rs`,
-  `the_zone_written_back_keeps_its_comments_and_opens_again_the_same`, with the cooked zone; in
-  `slime-app`'s `tests/lifecycle.rs`,
-  `a_paced_headless_run_waits_for_each_frame_and_still_steps_one_fixed_step_each` and
-  `a_simulation_applies_the_commands_sent_to_it_its_own_way`, in `data.rs`,
-  `one_program_at_a_time_holds_a_file` and `files_set_aside_keep_names_of_their_own`, moved from
-  the game, and in `game.rs`,
-  `a_simulation_that_is_not_an_editor_refuses_what_a_tool_asks_of_an_editor`; in `slime-channel`,
-  the editor's requests and replies in `every_kind_of_message_comes_back_from_its_encoding`; in
-  `slime-editor`'s `program.rs`,
-  `options_name_another_level_assets_and_journal_or_discard_the_journal`,
-  `a_session_recovers_what_its_journal_holds_that_the_file_does_not_and_only_that`,
-  `a_journal_that_cannot_be_played_again_stays_as_it_was_and_discard_sets_it_aside`,
-  `a_journal_that_is_not_text_stops_the_start_and_discard_sets_it_aside`,
-  `a_journal_whose_last_entry_is_torn_stops_the_start_and_stays_as_it_was`,
-  `one_editor_at_a_time_holds_a_journal_and_another_level_s_is_refused` and
-  `copies_of_a_level_take_journals_of_their_own`, and in `journal.rs`,
-  `a_journal_holds_steps_unwritten_after_its_last_writing_or_its_start`.
-
-### M6b.2 — Text in several writing systems
-
-- **Goal.** The engine lays text out in every writing system, without a GPU.
-- **Crates.** A new `slime-ui`, its text module; fonts in the repository.
-- **Delivers.** As [ADR-0132](adr/0132-the-engines-ui-framework.md) decides: fonts loaded from bytes
-  and named in a font's stack; the system's fonts as a fallback where a program asks for it,
-  fontconfig loaded at run time; parley wrapped: shaping, bidirectional order, line breaking with
-  its `complex-scripts` feature, alignment, an ellipsis where a line is cut, the glyph under a
-  point, carets and selections; glyph runs whose key holds the font, the glyph, the size, the
-  position between pixels and the representation; glyphs rasterized by swash, into coverage or
-  color; shaped text kept in a cache within a budget. Test fonts, small parts of Noto fonts with
-  their licenses ([ADR-0133](adr/0133-font-files-under-the-open-font-license.md)), each fetched with
-  the owner's agreement. The dependencies parley, fontique and swash. Benchmarks of shaping and
-  rasterizing. The ADR of the design.
-- **Done when.** Tests without a GPU: Arabic joined, and laid out right to left with Latin words and
-  numbers in it; Hebrew; Devanagari's clusters; Thai broken between its words; Japanese and Chinese
-  broken between characters; an emoji sequence as one glyph; no glyph missing; an ellipsis; carets
-  and the glyph under a point in text of both directions. The benchmarks, on the owner's machine,
-  stay within 20 % of the study's figures that [ADR-0132](adr/0132-the-engines-ui-framework.md)
-  records, or the milestone says why; CI's jobs, timed, stay under their limit; CI is green.
-- **How to test.** `cargo test -p slime-ui`; `cargo run --release -p slime-benches -- ui`.
-- **Outcome.** Done on 2026-10-23. CI is green on its last commit, 0b35c5f. Its first run, the
-  caches cold since the lock changed, took `check (headless)` 13 minutes 30 seconds, `check
-  (windowed)` 20 minutes 13 seconds, `windows` 20 minutes 38 seconds and `windows-release` 15
-  minutes 5 seconds: two jobs past the limit of 20, by cooking the zone again (see the known debt).
-  Run again, the caches warm, they took 13 minutes 45 seconds, 9 minutes 53 seconds, 14 minutes 44
-  seconds and 10 minutes 54 seconds. [ADR-0136](adr/0136-the-interfaces-text.md) records the owner's
-  decisions of 2026-10-23, that the tests' fonts are parts of the Noto releases that the development
-  machine holds, nothing downloaded, and that the font that the system's fallback finds is
-  remembered for a writing system, through `icu_properties`, and the design that the owner validated
-  the same day. `slime-ui` is created, holding its text module: `Fonts`, which registers fonts from
-  their bytes and, where a program asks, falls back on the system's, the family found for a writing
-  system named for its characters from then on; `Fonts::lay_out`, which shapes, orders, breaks and
-  aligns text with parley and cuts it with an ellipsis of the engine's own, parley 0.12 having none;
-  the `TextLayout`'s lines and glyph runs, the cluster under a point, the position nearest it,
-  carets and selections; `GlyphRasterizer`, which draws a glyph without hinting, from a key that
-  holds a position between two pixels; and `TextCache`, within a budget of memory that an estimate
-  counts, fitted to a counting allocator's measurement. The dev shell loads fontconfig. The fonts of
-  the tests, some 700 KiB, are made by `scripts/subset-fonts.sh`. The benchmarks
-  `ui.text.labels.1k`, `ui.text.paragraphs` and `ui.text.raster` stay within 20 % of the study's
-  figures, or under them, but for lines broken again in another width, which also gathers the glyphs
-  again for drawing: breaking alone costs what the study measured
-  ([`docs/measurements.md`](measurements.md), M6b.2). The example `text` writes a sentence of eight
-  writing systems, and a label cut, to an image drawn by the CPU. A read-only review found that the
-  fallback, as first built, remembered its fonts for a stack, so that the order of texts changed the
-  font of a writing system, and that the measurements were not recorded, with smaller defects, among
-  which a stack of unknown families that drew nothing without a word, and the Hebrew font's family
-  named by the subset's legacy name: each is fixed, and tested where a test can. The tests: in
-  `slime-ui`'s `tests/text.rs`, `the_test_fonts_are_registered_under_their_families`,
-  `arabic_is_joined_and_laid_out_right_to_left_with_latin_words_and_numbers_in_it`,
-  `hebrew_is_laid_out_right_to_left`, `devanagari_letters_and_their_signs_make_one_cluster`,
-  `thai_breaks_between_its_words`, `japanese_and_chinese_break_between_characters`,
-  `an_emoji_sequence_is_one_color_glyph`, `no_glyph_is_missing_from_the_test_texts`,
-  `a_text_too_long_for_its_box_ends_with_an_ellipsis`, `a_box_that_changes_breaks_the_lines_again`,
-  `carets_and_the_cluster_under_a_point_follow_the_text_s_direction`,
-  `a_style_s_weight_alignment_and_direction_change_the_layout`,
-  `a_scale_multiplies_sizes_and_positions`,
-  `glyphs_are_rasterized_at_their_positions_between_pixels`, `an_emoji_is_rasterized_in_color` and
-  `a_text_cache_keeps_its_texts_within_its_budget_least_recently_used_first`; in `layout.rs`,
-  `without_the_system_s_fonts_what_no_font_has_is_missing`,
-  `a_stack_of_families_that_the_fonts_lack_draws_nothing` and
-  `the_system_s_font_for_a_writing_system_is_found_once_whatever_came_before`; in `fonts.rs`,
-  `a_text_is_cut_into_pieces_by_writing_system_its_spaces_and_marks_with_them`; in `cache.rs`,
-  `the_text_used_least_recently_leaves_first`; the module's doc test.
-
-### M6b.3a — The canvas
-
-- **Goal.** The renderer draws an interface's boxes, shadows and images over any target, within its
-  share of a frame on each tier.
-- **Crates.** `slime-gfx`, `slime-color`, `slime-render`; the examples and the benchmarks.
-- **Delivers.** As [ADR-0137](adr/0137-the-canvas.md) decides. In `slime-gfx`: a texture of one
-  channel; the blending of colors multiplied by their alpha; an sRGB target, a window's image
-  included, seen without its encoding. In `slime-render`, the canvas: boxes with rounded corners and
-  borders, their shadows, images of colors and of coverage, and a view's target as an image, each
-  clipped, with the indices of a transform and a layer that stay the identity and the root's until
-  Stage 7; drawn after the views into any target of the renderer's format, its GPU time in its
-  statistics, its shader loaded again when it changes, made again after a lost device. Whether the
-  interface blends in linear space or in sRGB's encoding, chosen by the owner from pairs of images.
-  A benchmark of the canvas's GPU time at the hardware tiers' resolutions
-  ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)). An example that draws boxes,
-  shadows, images and a view in a panel, over a window or into an image; CI builds it for Windows
-  with the other programs. The ADR of the design, which sets the interface's share of a frame on
-  each tier.
-- **Done when.** Image tests: corners, borders and shadows; clips; images, and a view drawn into a
-  panel; scale 2; the blending chosen; the shader replaced; a lost device. The benchmark within the
-  share of a frame that the ADR sets on each tier; CI is green.
-- **How to test.** `cargo test -p slime-gfx -p slime-render`; `cargo run --example interface`;
-  `cargo run --release -p slime-benches -- render.canvas`.
-- **By hand.** The owner chooses how the interface blends.
-- **Outcome.** Done on 2026-10-23. CI is green on its last commit, 485d9f8. Its first run, on
-  1b26a1b, cooked the zone again in each job, the lock and `slime-color` having changed (see the
-  known debt): `check (headless)` took 17 minutes 19 seconds, `check (windowed)` 22 minutes 59
-  seconds, past the limit of 20, and `windows-release` 16 minutes 22 seconds; `windows` failed, and
-  failed again run anew: on Direct3D 12 on WARP, a view drawn again at its first size held 1.3 MiB
-  more than then, past its test's margin of 1 MiB, Vulkan's figures unchanged by the milestone; the
-  margin is now 2 MiB, less than any target of the larger size. The next run, its caches warm, took
-  13 minutes 56 seconds, 16 minutes 55 seconds, 17 minutes 54 seconds for `windows` and 8 minutes
-  44 seconds. `cargo deny` found an advisory against tokio 1.53.2, which `slime-mcp` reaches through
-  rmcp, RUSTSEC-2026-0386: tokio is at 1.53.3, the release that fixes it. The owner decided that day
-  to cut M6b.3 in two; that the
-  interface takes at most 0.5 ms of GPU on each tier's reference machine, the plan's 1 ms halved;
-  that the handheld tier's benchmark draws a game's menu, the editor's screen bounded at the two
-  others; that the interface blends in sRGB's encoding, from pairs of images; and that the high tier
-  draws at 3840 × 2160, natively ([ADR-0138](adr/0138-the-high-tier-at-3840-2160.md)).
-  [ADR-0137](adr/0137-the-canvas.md) records the design that the owner validated. `slime-gfx` gains
-  `TextureFormat::R8Unorm`, for textures, `Blend::Premultiplied`, `TextureFormat::Bgra8Unorm` and
-  `RenderTarget::without_srgb`, which every sRGB target and every window's image allow, a window
-  that cannot being refused (`GfxError::SurfaceWithoutEncoding`); `slime-color` gains
-  `linear_to_srgb`. `slime-render` gains the canvas: `Canvas`, its items, `CanvasBox`,
-  `CanvasShadow` and `ImageQuad`, and its images, and `Renderer::draw_canvas`, one pipeline that
-  reads the items from a storage buffer, its shader `canvas.wgsl` reloaded with the others. Shadows
-  are Raph Levien's approximation, its constants computed on the CPU, within a few hundredths of the
-  box blurred exactly; items are cut to their clip on the CPU, those it leaves nothing of left out;
-  into an sRGB target, colors are encoded once per item on the CPU, and an image's texels in the
-  shader. The approximation, which replaced shadows integrated over four rows, and the items cut to
-  their clip took some 30 % off the canvas's time on the GPU, and encoding colors on the CPU rather
-  than for each pixel made the blending in sRGB's encoding cost nothing measurable; both screens
-  hold the budget, wherever it bounds them, with room to spare
-  ([`docs/measurements.md`](measurements.md), M6b.3a). The scissor apart from the viewport that
-  ADR-0132 planned is not made: clips are cut in the shader. Writing a part of a texture moves to
-  M6b.3b, the glyphs' atlas being its first user. The example `interface` draws a list that scrolls
-  in its clip, buttons, images, a translucent card and the image tests' shapes in a panel, over a
-  window or into a PNG file; `scripts/check.sh` runs it in both ways, and CI on Windows too. The
-  tests: in `slime-gfx`'s `tests/drawing.rs`,
-  `a_blended_pipeline_lays_its_color_over_the_target_s_by_its_alpha`, now with premultiplied colors
-  too, and `an_srgb_target_seen_without_its_encoding_stores_and_blends_values_as_they_are`; in
-  `tests/textures.rs`, `a_texture_of_one_channel_is_read_as_its_red_its_rows_of_any_width`; in
-  `slime-render`'s `tests/canvas.rs`,
-  `a_box_fills_inside_its_rounded_corners_and_its_border_inside_its_edges`,
-  `a_shadow_fades_from_under_its_box_where_its_offset_puts_it`,
-  `a_shadow_is_its_box_blurred_by_a_gaussian_within_a_few_hundredths`,
-  `into_an_srgb_target_colors_mix_as_srgb_values_and_into_another_as_linear_ones`,
-  `a_clip_cuts_what_lies_outside_it`, `an_image_is_drawn_in_a_color_or_as_it_is`,
-  `a_target_that_a_view_drew_is_drawn_as_an_image_into_a_panel`,
-  `items_are_drawn_in_their_order_few_draws_for_many`,
-  `shapes_drawn_at_twice_the_scale_keep_their_place`,
-  `the_canvas_s_shader_is_replaced_with_the_others_and_a_broken_one_refused`,
-  `a_lost_device_stops_the_canvas_and_a_new_renderer_draws_it_again` and
-  `the_canvas_s_time_on_the_gpu_comes_back_where_the_adapter_times`; `slime-color`'s doc test of
-  `linear_to_srgb`. The owner's check by hand in the Windows virtual machine, on 2026-10-27, passed:
-  `interface.exe` draws in its window on Direct3D 12 as `--output` draws it.
-
-### M6b.3b — Text drawn, and the display list
-
-- **Goal.** The renderer draws an interface's text in every writing system, crisp at every scale,
-  from a display list.
-- **Crates.** `slime-gfx`, `slime-ui`, a new `slime-ui-render`; the examples.
-- **Delivers.** In `slime-gfx`: writing a part of a texture. In `slime-ui`, the display list.
-  `slime-ui-render`, the bridge: a display list into a canvas, the glyphs' atlas pages, placed by
-  etagere, within a budget, the least recently used leaving first, rasterized again after a lost
-  device; images through the asset cache, which the owner moved to their first user. The example
-  `interface` draws paragraphs in several writing systems too, at scales 1 and 2, from a display
-  list made by hand. The font of the editor's and the overlay's text, chosen by the owner
-  (ADR-0133), and whether glyphs are hinted, judged by the owner on images
-  ([ADR-0136](adr/0136-the-interfaces-text.md)). The dependency etagere. The ADR of the design.
-- **Done when.** Image tests: glyphs of each writing system; text at scale 2; text drawn again after
-  a lost device. The canvas's benchmark, with text, within the share of a frame that
-  [ADR-0137](adr/0137-the-canvas.md) sets on each tier; CI is green.
-- **How to test.** `cargo test -p slime-gfx -p slime-render -p slime-ui-render`; the example.
-- **By hand.** The owner chooses the font of the interface's text, and judges the text at scales 1
-  and 2, hinted or not.
-- **Outcome.** Done on 2026-10-24. [ADR-0139](adr/0139-text-drawn-and-the-display-list.md) records
-  the owner's decisions: on 2026-10-23, that the interface's images come through the asset cache
-  with their first user, a display list naming them by keys that the program resolves, and that a
-  rectangle is given by its corner and its size everywhere; the design, validated the same day; and
-  on 2026-10-24, from images of the text that the engine drew, Geist as the font of the editor's and
-  the overlay's text, rather than Noto Sans, its file to come with its first user, and glyphs left
-  unhinted. `slime-gfx` gains `Gpu::write_texture`, which writes a part of a texture. `slime-ui`
-  gains its display list, `display::DisplayList`, owned data that holds boxes, shadows, texts and
-  images, each with its clip, its transform and its layer, and `Rect`, at its root, which its text's
-  carets and selections now give; `TextCache` gives its texts shared, as `Arc<TextLayout>`, and
-  `slime-ui` depends on `slime-color`. A new crate, `slime-ui-render`, draws a display list through
-  the canvas: `UiRenderer` keeps the glyphs' atlas, pages of coverage and of colors that etagere
-  fills, within a budget, the glyphs that no draw asked for the longest leaving first. The example
-  `interface` draws its interface from a display list, with a sentence of each of the eight writing
-  systems of slime-ui's tests, its list's rows and buttons named, at scales 1 and 2; its fonts and
-  texts are built into the program. The benchmark `ui.draw.menu` draws a game's menu of real text
-  through the bridge, within the interface's budget at every tier, the first draw rasterizing its
-  glyphs ([`docs/measurements.md`](measurements.md), M6b.3b). The tests: in `slime-gfx`'s
-  `tests/textures.rs`, `a_part_of_a_texture_is_written_and_the_rest_kept` and
-  `a_part_beyond_the_texture_is_refused`; in `slime-ui`, `a_display_list_is_sent_to_another_thread`,
-  `a_text_held_elsewhere_is_given_again_as_it_is_and_copied_only_for_another_box` and the display
-  list's doc test; in `slime-ui-render`'s `tests/drawing.rs`, each comparing the pixels drawn with
-  the same glyphs laid over black by the CPU,
-  `the_text_of_each_writing_system_is_drawn_where_its_layout_places_its_glyphs`, at scales 1 and 2,
-  `a_glyph_drawn_again_is_read_from_the_atlas_not_rasterized_again`,
-  `past_its_budget_the_atlas_lets_go_of_the_glyphs_that_no_draw_asked_for_the_longest`,
-  `an_image_is_drawn_as_the_program_gives_it_and_one_it_does_not_give_is_left_out`,
-  `a_lost_device_stops_the_drawing_and_a_new_renderer_draws_the_text_again`,
-  `a_text_cut_by_its_clip_is_drawn_inside_it_alone`,
-  `each_image_is_asked_for_once_a_draw_and_a_glyph_larger_than_a_page_is_left_out` and
-  `a_page_whose_glyphs_a_draw_does_not_draw_makes_room_for_a_page_of_another_kind`. A read-only
-  review found the architecture document's title broken by an edit; the text cache copying a layout
-  that a display list held at every hit, even in the same box; one kind of atlas page able to keep
-  the other out for good, the pages never let go; stale passages, the README's and the test fonts',
-  which did not say that `interface.exe` ships them; and smaller defects, among which glyphs left
-  out rasterized again at each of their occurrences, and the bridge's lifetime tying the images to
-  its own borrow: each is fixed, and tested where a test can. CI is green on d795b56. Its run cooked
-  the zone again in each job, the lock having changed (see the known debt): `check (headless)` took
-  16 minutes 32 seconds, `check (windowed)` 20 minutes 44 seconds, past the limit of 20, `windows`
-  14 minutes 25 seconds and `windows-release` 10 minutes 23 seconds; `check (windowed)`, run again
-  with its caches warm, took 17 minutes 33 seconds.
-
-### M6b.4a — Elements and layout
-
-- **Goal.** An interface is a tree of elements, laid out by flexbox and grid, and built again only
-  where what it shows changed.
-- **Crates.** `slime-ui`, `slime-ui-render`; the examples and the benchmarks.
-- **Delivers.** As ADR-0132 decides: the tree of elements, handles of an index and a generation,
-  keys among siblings and paths; roots, each with its size, its scale and its direction, that a
-  window or later a texture holds; what changed in each element, its layout and paint; panels built
-  again when a revision that they read moves, matched with the elements before by their keys. Typed
-  styles. taffy's flexbox and grid on the framework's tree; start and end rather than left and
-  right. The display list built from what changed. Elements: a box, a label, an image, a button that
-  shows its states, an area that scrolls, a list that builds only the rows that show. The dependency
-  taffy. Benchmarks: a tree of the editor's size laid out, then laid out again after one change,
-  then with nothing changed; a list of 100 000 rows scrolled and standing still. The ADR of the
-  design.
-- **Done when.** Tests without a GPU: layouts by flexbox and grid, mirrored from right to left; a
-  panel built again keeps the state of its elements by their keys; a test that counts the layouts
-  finds none in a frame where nothing changed; the list of 100 000 rows costs per frame what shows
-  (benchmark, within its budget, written in the ADR); image tests; CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-ui-render`; `cargo run --example interface`,
-  with `--right-to-left`; `cargo run --release -p slime-benches -- ui.tree`.
-- **By hand.** The owner validates the design and the list's budget.
-- **Outcome.** Done on 2026-10-25. M6b.4 was cut in two at the end of its first part, which grew
-  larger than planned: M6b.4a, the tree, and M6b.4b, its style sheets and themes.
-  [ADR-0140](adr/0140-the-tree-of-elements.md) records the design, which the owner validated on
-  2026-10-25 with a tighter budget for a list's frame than the one proposed, 0.25 ms of the CPU
-  rather than 0.5 ms, and the cut. `slime-ui` gains `tree`, the interface's roots and elements in an
-  arena, built by code when a revision moves and matched by keys, laid out by taffy's flexbox and
-  grid through its traits on the arena, mirrored for a root laid out from right to left, its lists
-  building and laying out only the rows that show, and `style`, its typed styles; the dependency
-  taffy. The example `interface` builds its interface as a tree, its list of 100 000 rows in a slot,
-  and mirrors it with `--right-to-left`. The benchmarks `ui.tree.editor` and `ui.tree.list.100k`: a
-  frame of the list takes some 0.06 ms scrolled, 0.14 ms at its 90th percentile, when it builds new
-  rows, and 0.003 ms standing still, within the budget; a tree of the editor's size, 12 500
-  elements, 2.4 ms after one value changed and 0.28 ms with nothing changed
-  ([`docs/measurements.md`](measurements.md), M6b.4a). The tests: `slime-ui`'s `tests/tree.rs`,
-  layouts by flexbox and grid mirrored from right to left, labels measured by their text, elements
-  and their states kept by their keys, panels and lists built by their own revision, frames that lay
-  out and draw nothing when nothing changed, the list of 100 000 rows, a list in the rows of
-  another, boxes that scroll, from left to right and from right to left, an element whose display is
-  none, a root turned to the other direction, and the display list; in `slime-ui-render`, a tree
-  drawn where its layout places it, from left to right and mirrored. A read-only review found a list
-  in a slot never asked to build its rows; a list in the rows of another left empty once the other
-  scrolled; rows keeping their height when their list's changed; what an element whose display is
-  none holds laid out at full size; a root turned to the other direction leaving some corners
-  unmirrored; a scale of 0 panicking without a word; scrolled content cut outside its border; a
-  row's margins ignored; and smaller defects in the documents: each is fixed, and tested where a
-  test can. CI is green on 25d7343. Its run cooked the zone again in each job, the lock having
-  changed (see the known debt): `check (headless)` took 16 minutes 36 seconds, `check (windowed)` 19
-  minutes 30 seconds, `windows` 19 minutes 35 seconds and `windows-release` 15 minutes 34 seconds,
-  within the limit of 20.
-
-### M6b.4b — Style sheets and themes
-
-- **Goal.** Themes read from files style an interface, and a theme changed on disk restyles it while
-  it runs.
-- **Crates.** `slime-ui`, `slime-cook`, `slime-assets`; the examples.
-- **Delivers.** As ADR-0132 decides: style sheets and themes as documents of reflected types, read
-  by `slime-serialize`, with named values that rules share and rules selected by an element's kind,
-  classes, key and states, cooked as scene files are and loaded again when they change
-  ([ADR-0076](adr/0076-hot-reload-of-cooked-data.md)); rules matched again only when an element's
-  classes, state or place change, the mark of its style beside those of its layout and paint
-  ([ADR-0140](adr/0140-the-tree-of-elements.md)). The ADR of the design.
-- **Done when.** Tests without a GPU: rules selected by kind, classes, key and states, and named
-  values shared; a theme read, checked and cooked; an element restyled only when its classes, state
-  or place change. A theme changed on disk restyles a running example; CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-serialize -p slime-cook`; the example, its theme
-  changed while it runs: `cargo run --example interface -- --watch` beside
-  `cargo run --release -p slime-cook -- watch examples/assets target/cooked/examples`.
-- **By hand.** The owner chooses what a rule holds, where the named values live, which of the code
-  and a rule wins, which of two rules, what a rule selects by, where types are checked, and how a
-  color is written.
-- **Outcome.** Done on 2026-10-25. [ADR-0141](adr/0141-style-sheets-and-themes.md) records the
-  owner's decisions of that day: a rule sets a part of a `Style`, as a save's differences do; a
-  theme of its own holds the named values that the rules give as `$name`, and changes while a
-  program runs; the element's own style wins over the rules, a field at its default taking theirs;
-  the rules apply in the order of their file; a rule selects by kind, classes, key, states and an
-  ancestor; types are checked when the interface reads them; colors are written in sRGB, `#rrggbb`.
-  `slime-serialize`'s `References` gains `value`, which gives the value that a text stands for where
-  a value of another type goes. `slime-ui` gains `theme`, its style sheets and themes, and
-  `Ui::set_style`; elements gain their classes (`Element::class`), each a mark of its style, and
-  lose `ButtonStates`, a button's states styled by rules; the styles' types are reflected, and
-  `slime-ui` depends on `slime-reflect` and `slime-serialize`. `slime-assets` gains the kinds
-  `StyleSheet` and `Theme`, and `slime-cook` cooks `.style` and `.theme` files into their binary
-  encoding. The example `interface` reads its style sheet and its dark and light themes cooked with
-  the sample, `--theme` and T choosing one, `--watch` styling it again as they change; `--assets`
-  names the cooked data, which the scene and world examples now find through one shared function.
-  The benchmark `ui.tree.editor` styles its tree, and measures a frame after the theme changed: 16
-  ms for 12 500 elements, once the styles made are kept and shared; made each time through
-  reflection, they took 228 ms ([`docs/measurements.md`](measurements.md), M6b.4b). The tests: in
-  `slime-serialize`, `a_text_in_place_of_a_value_stands_for_the_value_that_the_references_give`; in
-  `slime-ui`'s `tests/style.rs`, rules selected by kind, class, key, state and ancestor in the order
-  of their file, an element's own fields kept over the rules', another theme styling every element
-  again and a class taken away styling an element and what it holds, documents read from their
-  binary encoding, and errors that name the document and the place and keep the style; in
-  `slime-cook`, a style sheet and a theme cooked, and a theme that is not TOML refused by its line.
-  By hand, under a headless Weston, the example run with `--watch` while its dark theme changed on
-  disk and was cooked again: styled again, then, the theme broken, its style kept and the fault
-  named. ADR-0141 amends ADR-0140: a change of state styles an element again. A read-only review
-  found a rule's shadow given in part, which `Ui::set_style` took and a frame then panicked on; a
-  change of a border's width that did not cut what scrolls inside anew; a number given by a name
-  outside its field's range; an entry of a style sheet that is not a rule taken as an empty one; and
-  stale passages: each is fixed, and tested where a test can. CI is green on f374415. Its run cooked
-  the zone again in each job, the cooker's sources having changed: `check (headless)` took 14
-  minutes 19 seconds, `check (windowed)` 20 minutes 40 seconds, past the limit of 20, `windows` 15
-  minutes 46 seconds and `windows-release` 13 minutes 28 seconds; `check (windowed)`, run again with
-  its caches warm, took 18 minutes 34 seconds.
-
-### M6b.5a — Input and focus
-
-- **Goal.** A person uses the interface with the pointer and the keyboard, and the program reads
-  what they did as actions, which an agent can send as well.
-- **Crates.** A new `slime-input`, `slime-platform`, `slime-ui`, `slime-cook`, `slime-assets`; the
-  examples.
-- **Delivers.** As ADR-0132 decides: the engine's vocabulary of input, keys by position and by
-  meaning, buttons, modifiers and the wheel, in a crate of its own, without the windowing library,
-  which `slime-platform` translates into and `slime-ui` reads. The element under the pointer, from
-  the last layout; the pointer held by what a button pressed; hovered, pressed and focused states;
-  input turned into actions, which the program reads from a queue, and navigation intents, next,
-  previous, a direction, accept, cancel, which an agent sends too; the interface's layers, roots
-  stacked over one surface at the places that the program gives, the top one taking input, a modal
-  one keeping the focus; focus scopes, Tab order and directions, to the nearest element on screen;
-  shortcuts as documents that name commands by the key's meaning, cooked and loaded again when
-  they change. The example `interface` used with the pointer and the keyboard, a modal opened and
-  closed, its theme switched by a shortcut. The ADR of the design.
-- **Done when.** Tests without a GPU: input turned into actions; the pointer held by a pressed
-  button; focus moved by Tab and by directions, kept in its scope, given back when a layer closes;
-  shortcuts resolved by scope and by the key's meaning; the same actions sent by an agent. CI is
-  green.
-- **How to test.** `cargo test -p slime-input -p slime-platform -p slime-ui`; the example, used by
-  hand.
-- **By hand.** The owner uses the example with the pointer and the keyboard.
-- **Outcome.** Done on 2026-10-25. [ADR-0142](adr/0142-input-and-focus.md) records the owner's
-  decisions of that day: M6b.5 cut in two; the actions in a queue that the program reads; popups
-  and dialogs as roots stacked at places of their own, a modal one keeping the input and the focus;
-  the arrows to the nearest element on screen, Tab in the order of the tree; shortcuts as documents
-  cooked as style sheets are; chords of the key's meaning, not its position; and the vocabulary of
-  input in a crate of its own. A new crate, `slime-input`, holds the input types that
-  `slime-platform` held, which `slime-platform` re-exports and translates winit's events into, the
-  names of the keys listed once in two macros. `slime-ui` gains `action`, its actions and intents,
-  `shortcuts`, its tables of shortcuts, and `DocumentError`, which the style sheets' errors became;
-  `Ui` takes the pointer, the wheel, the modifiers and the keys, hovers, presses and focuses
-  buttons, holds the pointer for the button pressed, moves the focus within its scope, and queues
-  the actions (`Ui::act`, `Ui::take_actions`); a root gains its place and whether it is modal
-  (`RootSettings::origin`, `RootSettings::modal`), and an element the focused state, which rules
-  select by. `slime-assets` gains the kind `Shortcuts`, and `slime-cook` cooks `.keys` files. The
-  example `interface` takes the window's input, opens a modal dialog from its first button or by
-  Ctrl+O, switches its theme by the shortcut T, and shows what the last action did; `--dialog`
-  opens the dialog first. The tests: in `slime-ui`'s `tests/input.rs`, a button pressed and let go
-  over it, the pointer held meanwhile, a disabled button taking nothing, a press whose release was
-  lost letting go of what it held; an agent's actions reaching the queue as a person's; Tab in the
-  tree's order and the arrows to the nearest on screen, in a grid; the focus kept within its root,
-  and starting in the top root that can take it; a button disabled or hidden by an ancestor losing
-  the focus and not pressed; a modal root taking the pointer and the focus and giving the focus
-  back when removed, two closed in either order, an agent's press under them refused; the hover
-  following what moved under a still pointer; the pointer and the wheel in a root laid out from
-  right to left at a place of its own, a clip cutting what it hides; the wheel scrolling the box
-  under the pointer; a rule selecting the focused element; shortcuts by the key's meaning, an
-  AZERTY keyboard's Z included, in the scopes of the focus, a later table winning, a wrong chord
-  refused by its place, Shift left out of a character without case, and a letter of a Cyrillic
-  layout matched by its place. In `slime-input`, a key found again by its name; in `slime-cook`, a
-  table of shortcuts cooked. The example's images, its dialog open, in both themes, were checked
-  by hand: `scripts/check.sh` draws it without its dialog. CI is green on f92f23f. Its run cooked
-  the zone again in each job, the cooker's sources having changed: `check (headless)` took 16
-  minutes 22 seconds, `check (windowed)` 18 minutes 45 seconds, `windows` 15 minutes 2 seconds and
-  `windows-release` 17 minutes 2 seconds. The owner used the example with the pointer and the
-  keyboard on 2026-10-25, and found it as expected.
-
-### M6b.5b — What agents see
-
-- **Goal.** An agent reads what the interface shows, and uses it through the same actions as a
-  person.
-- **Crates.** `slime-ui`, `slime-app`, `slime-channel`, `slime-mcp`; the examples.
-- **Delivers.** As ADR-0132 decides: the tree's meaning, each element's role, name, value, states,
-  actions, bounds and path. A presentation gives its interface's tree, acts on an element and names
-  the element at a pixel; the development channel's protocol carries them, and the MCP server's
-  tools read the tree, find an element, act on it and capture it. What changes the world leaving as
-  a command. The ADR of the design.
-- **Done when.** Tests without a GPU: the tree's meaning as expected. An agent's session, in the
-  windowed checks, finds a button by its role and its name, presses it, reads what changed in the
-  world, and captures the element; CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-app -p slime-channel`; the MCP server's session
-  test.
-- **Outcome.** Done on 2026-10-25. [ADR-0143](adr/0143-what-agents-see-of-the-interface.md)
-  records the owner's decisions of that day: `slime-app` reads the presentation's interface and
-  answers the tools itself; the `interface` example is the program that an agent's session drives;
-  the roles are an enum of the engine's own, under AccessKit's names; and the meaning is made when
-  asked, the mark of the meaning that changed coming with the screen readers' adapter. `slime-ui`
-  gains the tree's meaning (`Ui::meaning`, `Ui::meaning_of`, `Ui::meaning_at`), the roles
-  (`Role`), what an agent can do to an element (`ElementAction`), an element's role and name
-  (`Element::role`, `Element::named`) and its path as text (`Ui::path_text`,
-  `Ui::element_by_path`). `slime-app` depends on `slime-ui`: a presentation gives its interface
-  (`Presentation::ui`), and the development channel lists its elements by role and name, finds the
-  one at a pixel, acts on one and captures one. The protocol, version 8, gains `Request::Elements`,
-  `Request::ElementAt`, `Request::Act` and `Request::CaptureElement`, and the MCP server the tools
-  `find_elements`, `element_at`, `act_on_interface` and `capture_element`. The example `interface`
-  gives its interface, names its bar and its dialog, and counts the presses of its bar's buttons in
-  a component of its world, `Presses`, through the commands that its presentation sends. Elements
-  have no value yet: none holds one that changes. The tests: in `slime-ui`'s `tests/meaning.rs`, the
-  role, name, actions, bounds and path of each element that means something, the boxes that only
-  lay others out and a hidden button left out, the rows of a list, a disabled button that takes
-  nothing, a card cut by the box that scrolls it; an element found by its path and at a pixel, those
-  below a modal root taking nothing; a name changed drawing nothing again. In `slime-app`, the
-  channel's answers read an interface and act on it, refusing what an element does not take; in
-  `slime-channel`, the new messages come back from their encoding. In `slime-mcp`'s
-  `tests/interface.rs`, run by `scripts/check.sh` in a headless Weston, an agent's session finds a
-  button of the example's bar by its role and its name, presses it, reads the count in the world,
-  captures the button and finds it again at a pixel, moves the focus, sees an action refused, and
-  opens and closes the dialog. CI is green on b39c70e. Its run cooked the zone again in each job,
-  `Cargo.lock` having changed: `check (headless)` took 14 minutes 4 seconds, `check (windowed)` 20
-  minutes 28 seconds and `windows` 20 minutes 51 seconds, both past the limit of 20, and
-  `windows-release` 17 minutes 45 seconds.
-
-### M6b.6a — Text edited, and what the platform lacks for it
-
-- **Goal.** Text is typed, selected, copied and composed in every writing system, in fields that
-  the program reads as actions.
-- **Crates.** `slime-input`, `slime-platform`, `slime-ui`, `slime-app`; the examples.
-- **Delivers.** A field of text, one line or several, laid out as a label's, parley moving its
-  selection: selection by the pointer and the keys, moves by word in text of both directions, an
-  undo of its own, composition by input methods; the field keeps what is typed, and the program
-  reads it as actions, changed at each edit and committed by Enter or when the focus leaves. A
-  field of numbers that shows the value it holds whole and changes it only when the user changed
-  it, by typing or dragging (G33's rule, which M6b.8 applies). In `slime-platform`: input methods,
-  the clipboard through arboard, with its Wayland feature, and cursor shapes. `slime-app` connects
-  a presentation's interface to its window: it translates the window's events into the interface's
-  calls, the interface taking an event before the game when it reaches it, a press on what it
-  draws, a key that a field types, that a shortcut names, or that navigates while an element holds
-  the focus, and every press and key while a modal root is open; it gives the interface the
-  clipboard, sets the cursor's shape, and places the input method's window. The dependency
-  arboard. The ADR of the design.
-- **Done when.** Tests without a GPU, with input methods and a clipboard simulated: text selected by
-  the keys and the pointer, moves by word in text of both directions, the field's undo, a
-  composition started, changed and committed, text copied and pasted, a field of numbers that the
-  user did not change writing nothing; the window's events reaching the interface or the game as
-  the rule says. CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-platform -p slime-app`; the example.
-- **By hand.** Japanese typed through an input method on niri and on Hyprland, and in the Windows
-  virtual machine; text copied and pasted between the example and other programs on Wayland and on
-  Windows; the cursor's shapes over the example's elements.
-- **Outcome.** Done on 2026-10-26. [ADR-0145](adr/0145-text-edited.md) records the owner's decisions
-  of 2026-10-25 and 2026-10-26: M6b.6 cut in two; `slime-app` connects a presentation's interface to
-  its window; the interface takes an event before the game when it reaches it; a field keeps what
-  the user types, and the program reads it as actions; the clipboard given to the interface; and the
-  field built on the engine's text, parley moving its selection, rather than on parley's editor.
-  Two reviews of the milestone led to four more: a press on what the interface draws, and every
-  press and key while a modal root is open, are the interface's, and a press that reaches no button
-  and no field takes the focus away, the field committing; without a focus, Tab alone gives it, the
-  arrows staying the game's; the program's text is compared with the one that the field last
-  committed too, and with what the field holds as the program reads it, so that a program clears a
-  field or gives back a text that it refuses, while one that gives back each change keeps what the
-  user is typing; and the wheel over what the interface draws is the interface's, as a press is.
-  `slime-input` gains `Ime` and `CursorShape`; `slime-platform` reports what an input method
-  composes (`Event::Ime`), allows and places the input method and sets the pointer's shape
-  (`Window::set_ime_allowed`, `Window::set_ime_area`, `Window::set_cursor`), and reads and
-  writes the system's clipboard (`Clipboard`, on arboard). `slime-ui` gains fields of text and of
-  numbers (`Element::text_field`, `Element::text_area`, `Element::number_field`): typing, moves by
-  clusters, words and lines in text of both directions, the selection by the keys and the pointer,
-  the field's undo, the clipboard (`Ui::set_clipboard`), the compositions of input methods
-  (`Ui::ime`), what the program reads (`ActionKind::Changed`, `ActionKind::Committed`), the
-  pointer's shape (`Ui::cursor`) and where text is typed (`Ui::text_input`); its input calls give
-  whether they took the event, and a text's look gains the selection's fill. `slime-app` gives the
-  window's events to the interface first, its clipboard, the pointer's shape and the input method.
-  The example `interface` gains a field of text and a field of numbers in its bar, which it reads as
-  their commits, and no longer translates the window's events itself; it falls back on the system's
-  fonts. The dependency arboard. The tests: in `slime-ui`'s `tests/field.rs`, text typed and moved
-  through by clusters and words, Shift extending the selection, Ctrl+A, a commit only once changed;
-  typing undone whole and done again; text copied, cut and pasted through a clipboard of the test's,
-  a line break pasted in a field of one line; a composition shown, committed, given up, and undone
-  as one edit; the pointer placing the caret, selecting by a drag and extending with Shift, and the
-  pointer's shapes; a field of numbers that writes only what the user changed, typed, refused and
-  dragged; the program's text replacing the user's only when it changes; words moved through as they
-  show in Hebrew; a field taking its keys before the shortcuts and leaving Tab to the focus; an
-  empty composition, a composition over a selection, keys while it composes and the focus leaving it
-  that leave the text whole; edits that change nothing telling nothing, and a cut without a
-  clipboard keeping its text; a field cleared, or given back its text, by the program once another
-  is committed; a field of several lines, its line breaks, its moves between lines and Ctrl+Enter;
-  the up arrow and Escape left to the focus in a field of one line; Ctrl and a letter of another
-  script read by its place, and AltGr typing; a drag of either sign undone at once, and a press let
-  go away from the field; the caret kept in view, and Hebrew placed at the field's right; a program
-  that gives back each change keeping the user's spelling of a number and what an input method
-  composes; a press that reaches nothing taking the focus away and committing; the caret within a
-  field whose text its alignment pushes to its end; the fields' roles and actions. In
-  `tests/input.rs`, a press on a panel taken and one on a box that draws nothing left to the game,
-  the release of a press that the interface did not take left to it too, an empty label taking
-  neither press nor wheel, every press and key taken under a modal root, and the arrows giving no
-  focus; the keys that type through an input method without text of their own taken, and a drag cut
-  short by another press committing. Three reviews read the milestone before it was pushed; what
-  they found is in its commits. In `slime-platform`, what an input method composes and
-  commits translated; in
-  `slime-app`, the window's events reaching the interface or the game as the rule says. The example
-  drawn into an image with its fields. CI is green on `1d56f81`. It is the first run since
-  [ADR-0144](adr/0144-the-cooked-zones-key-in-ci.md) whose `Cargo.lock` changed, by arboard, and it
-  restored the cooked zone from its cache rather than cooking it again: every job came back within
-  the limit of 20 minutes, `check (headless)` in 13 minutes 12 seconds, `check (windowed)` in 16
-  minutes 47 seconds, `windows` in 18 minutes 9 seconds and `windows-release` in 8 minutes 49
-  seconds. The owner made its checks by hand on 2026-10-26, and found the example as expected.
-
-### M6b.6b — Screen readers
-
-- **Goal.** Screen readers read the interface, and agents read and set what its fields hold.
-- **Crates.** `slime-ui`, `slime-platform`, `slime-app`, `slime-channel`, `slime-mcp`; the
-  examples.
-- **Delivers.** The adapter of AccessKit in `slime-platform`, behind an `accessibility` feature,
-  built into the editor and the examples and left out of games until Stage 7; the adapter exists
-  before its window is shown, which changes how `slime-platform` makes windows. From ADR-0143: an
-  element's value, which M6b.6a's fields are the first to hold, in the tree's meaning and in what
-  agents read, and an agent's action that sets it; and the mark of the meaning that changed, so
-  that the adapter sends AccessKit only what changed. The dependencies accesskit and
-  accesskit_winit; CI timed with the feature built. The ADR of the design.
-- **Done when.** Tests without a GPU: the tree's meaning given to AccessKit as expected, and updated
-  with only what changed; an agent's session sets a field's value. CI is green and its jobs under
-  their limit with the feature built.
-- **How to test.** `cargo test -p slime-ui -p slime-app --features slime-app/accessibility`; the
-  MCP server's session test; the example.
-- **By hand.** Orca reads the example on Linux, and Narrator on Windows.
-- **Outcome.** Done on 2026-10-26. [ADR-0146](adr/0146-screen-readers.md) records the owner's
-  decisions of 2026-10-26: the interface gives what changed in its meaning in the engine's own
-  types, which `slime-app` alone translates into AccessKit's tree, AccessKit's types staying out of
-  `slime-ui`; and fields give their text by runs now, so that Orca reads them. `slime-ui` marks each
-  element as its meaning changes, names each element and each run of a field's text by a number
-  never given again, and gives the changes (`Ui::take_meaning_changes`): each element that changed,
-  with the elements that mean something nearest below it, and a field's text by runs, its
-  characters, their places and widths, where its words start, and the selection (`Ui::field_runs`).
-  An element's meaning gains its value; `Ui::set_value` gives a field a value as a person who
-  replaced its text and committed would, and `Ui::select_text` selects in it. `slime-platform`, with
-  its `accessibility` feature, makes the window hidden, makes AccessKit's adapter, then shows it,
-  gives the handler what screen readers ask (`Event::Accessibility`) and the adapter the updates of
-  the tree (`Window::update_accessibility`). `slime-app`, with its own, sends the whole tree when a
-  screen reader asks for it and what changed after each frame, and turns what a screen reader asks
-  into the interface's calls. The development channel's protocol is at version 9, its elements
-  holding their value, and the MCP server's `act_on_interface` takes `set_value`. The examples turn
-  the feature on; `scripts/check.sh` checks that the game holds no adapter. The log's default filter
-  keeps zbus at `warn`. The dependencies accesskit 0.25.2 and accesskit_winit 0.34.2, and
-  accesskit_consumer 0.39.2 for `slime-app`'s tests. The tests: in `slime-ui`'s
-  `tests/meaning_changes.rs`, the first changes whole and the changes after holding only what
-  changed, applied one after the other giving the whole tree at each step, a text's words, a new
-  element below a box that means nothing, the pointer over a button, a scroll, a field typed in, a
-  box hidden and shown again, a box named and unnamed, a modal root opened and closed, rows that a
-  scroll builds, another kind under a key, a button disabled, a root resized and a root removed
-  below another, numbers never given twice and found again, the marks that no one takes kept within
-  bounds; a field's runs in text of both directions, of several lines, long, empty, with a letter
-  under 200 marks, and its selection. In `tests/field.rs`, a value set as one edit then committed,
-  refused where a person could not type it, and a selection set by bytes. In `slime-app`, the
-  translation built into AccessKit's own tree with `accesskit_consumer`: the whole tree, an update
-  of what changed alone, buttons moving from a box named to the window, an interface that comes and
-  goes, a modal root's whole update, what a screen reader asks reaching the interface, a click on a
-  disabled button doing nothing, a selection across lines, and scrolls in a root laid out from right
-  to left. In `slime-mcp`'s `tests/interface.rs`, an agent's session gives the example's field of
-  text a value and sees a field of numbers refuse a text that reads as no number. Run by hand, a
-  client of AT-SPI, in a D-Bus session of its own with the AT-SPI service and a headless Weston,
-  read the `interface` example's window: its bar, buttons, fields and texts, a field's text, caret
-  and words, the field of numbers' value; it set the field's text, which the example read as
-  committed, moved its caret and selected, and pressed a button, which opened the dialog. Orca
-  itself was not run. A review of the milestone found that a screen reader asking for the tree again
-  while a frame made an update could make AccessKit panic, now guarded, and paths renumbered by a
-  root removed below others, now marked. CI is green on `6388a9a`, the feature built, its 52
-  crates added: the cooked zone restored from its cache, `check (headless)` took 12 minutes 27
-  seconds, `check (windowed)` 13 minutes 36 seconds, `windows` 14 minutes 33 seconds and
-  `windows-release` 15 minutes 27 seconds, all within the limit of 20. The owner's checks by hand,
-  on 2026-10-27, passed: Orca reads the `interface` example on Linux, and Narrator in the Windows
-  virtual machine.
-
-M6b.7 was to bring every widget that the dev overlay and the editor are made of. Before it started,
-the owner cut it in two on 2026-10-26, along what the widgets stand on: M6b.7a, what a panel holds,
-needs nothing over the tree that exists; M6b.7b, what opens over a panel, needs layers. The owner
-decided too that each widget is an element kind of `slime-ui`, as fields are: its state in the
-tree, its meaning and its actions its own, themes styling it by its kind; and the editor's fonts of
-fixed width and of icons, Geist Mono and Lucide. Once M6b.7a was done, the owner cut what was left
-in three on 2026-10-27 ([ADR-0149](adr/0149-the-looks-foundations.md)): the look's foundations
-first, so that what comes after is built on them, then the layers, then the rich widgets; and
-decided that transitions come now, declared in the style sheets, that themes compute colors, and
-that the look has a light and a high-contrast theme beside its dark one.
-
-### M6b.7a — The widgets of a panel
-
-- **Goal.** The framework has the widgets that a panel of the dev overlay and of the editor is made
-  of, in the editor's theme.
-- **Crates.** `slime-ui`, `slime-ui-render`, `slime-app`; the examples.
-- **Delivers.** Check boxes, sliders, sections that fold, tabs, splitters and scroll bars, each an
-  element kind with its state in the tree, its meaning, which agents and screen readers read, and
-  its actions; the parts of a control that themes style apart from its box. The editor's theme, and
-  its fonts of text and of fixed width, Geist and Geist Mono
-  ([ADR-0133](adr/0133-font-files-under-the-open-font-license.md),
-  [ADR-0139](adr/0139-text-drawn-and-the-display-list.md)). An example shows every widget of the
-  milestone; CI builds it for Windows. The ADR of the design.
-- **Done when.** Tests without a GPU of each widget's actions, meaning and focus; image tests of the
-  example in the theme; an agent's session uses each widget through its actions; CI is green.
-- **How to test.** `cargo test -p slime-ui --features editor-look`; the example's image tests,
-  `cargo test -p slime-examples --test widgets`; the MCP server's session,
-  `crates/slime-mcp/tests/widgets.rs`, in a headless Weston; the example.
-- **By hand.** The owner tries the example's widgets.
-- **Outcome.** Done on 2026-10-26. [ADR-0148](adr/0148-widgets.md) records the owner's
-  decisions of 2026-10-26: M6b.7 cut in two; each widget an element kind of `slime-ui`; the editor's
-  look in `slime-ui`, behind a feature; an example of its own. `slime-ui` gains check boxes
-  (`Kind::CheckBox`), sliders (`Kind::Slider`), sections that fold (`Kind::Section`), bars of tabs
-  and their tabs (`Kind::TabBar`, `Kind::Tab`), two panels and the handle between them
-  (`Kind::Split`), and scroll bars over a box that scrolls and a list; each keeps its state in the
-  tree, under the rule of fields that a program's value replaces the user's only when it changes,
-  takes the pointer, the keys and the focus, means something to agents and screen readers, and is
-  styled by its kind, its states, `Checked`, `Expanded` and `Selected` among them, and the parts of
-  its control (`style::ControlStyle`). A section folded, and the children of two panels past the
-  second, take a computed style of no display. The editor's look, `slime_ui::look` with the feature
-  `editor-look`: Geist and Geist Mono 1.7.0, their variable fonts with their license, taken from the
-  NixOS package, the license, which the package lacks, fetched from Geist's repository at its tag
-  with the owner's agreement; a style sheet that styles labels, buttons, fields and widgets, and a
-  dark theme. The `widgets` example draws a panel of the editor's kind in the look, every widget in
-  it, in a window or into an image; CI builds it for Windows and carries it in its artifact, the
-  fonts' license beside it. `slime-app` gives screen readers the widgets' roles, states, values and
-  actions, and the development channel their states and values; the MCP server's tools name them.
-  Found while making the example's images: a check box's label and a section's title drawn at the
-  far side of their box in a root laid out from right to left, now placed against their box from
-  either side; and the box of a text's glyphs, which reached across the whole width that its lines
-  were aligned in, now as far as their advances, without the spaces that end a line, so that a label
-  takes the presses that fall on its glyphs alone, whatever its alignment. Found by the tests of
-  what screen readers read: a slider on steps of a tenth gave `0.6000000000000001`, its value now
-  rounded to the decimals of its step and of its least value, as a field of numbers' drag now is
-  too, which rounded `1.25` dragged four tenths up to `1.7`. A review of the milestone found a
-  slider whose least bound is no number panicking as it was built, now unbounded from that side. The
-  tests: in `slime-ui`'s `tests/controls.rs`, each widget toggled, moved, folded, chosen or dragged
-  by the pointer, the keys and an agent, in roots of either direction, read by the program, its
-  value given again by a builder, its meaning, its scroll bars, a check box's label and a section's
-  title beside their box from either side, in text of either direction, a slider of bounds that are
-  no number, and a share read as written; in `tests/input.rs`, a label taking the presses on its
-  glyphs alone; in `tests/field.rs`, a drag keeping the decimals of its start; in `tests/look.rs`,
-  the look's fonts holding Latin, Vietnamese and Cyrillic at the weights that it asks of them, its
-  style sheet and theme styling the kinds, their states and the classes; in
-  `tests/meaning_changes.rs`, each widget used giving its element changed, a section opened giving
-  what it holds, a tab chosen giving its panel; in `slime-app`'s translation, the widgets' roles,
-  states, values and actions given to AccessKit, and what a screen reader asks of them reaching the
-  interface; in `slime-examples`'s `tests/widgets.rs`, the example's inspector, its console with a
-  level of the log hidden, and its inspector laid out from right to left, its widgets used, against
-  reference images; in `slime-mcp`'s `tests/widgets.rs`, an agent's session that unchecks a check
-  box, gives a slider a value, opens a folded section, moves a handle, scrolls the list of entities
-  and chooses a tab, the example reading each change that is the program's. CI is green on
-  `c32e682`, the reference images matched on WARP too: `check (headless)` took 16 minutes 1 second,
-  `check (windowed)` 17 minutes 28 seconds, `windows` 19 minutes 13 seconds and `windows-release`
-  13 minutes 26 seconds, all within the limit of 20, `windows` the nearest to it. The owner's check
-  by hand on Linux, on 2026-10-27, passed.
-
-### M6b.7b — The look's foundations
-
-- **Goal.** The editor's look follows one accent in a dark, a light and a high-contrast theme, moves
-  through transitions, and stays crisp at every scale.
-- **Crates.** `slime-ui`, `slime-color`, `slime-ui-render`, `slime-platform`, `slime-app`; the
-  examples.
-- **Delivers.** Themes whose values name others and compute colors in OKLCH (`mix`, `lighten`,
-  `darken`, `alpha`), stacked, the last winning. The look on two levels, a palette and the roles
-  computed from it, with fixed scales of spacing, radii, sizes of text, shadows and durations; its
-  dark, light and high-contrast themes, and a compact theme that stacks on them. Transitions that
-  rules declare, of colors, of an opacity that a style's paint gains, and of a section's height,
-  over the time that the program gives each frame, which less motion drops. The state
-  `FocusVisible`, set when the keyboard, an agent or the program gives the focus. Boxes, borders and
-  clips on whole pixels of the screen. OpenType features in a text's style, Geist's digits of one
-  width in the look. The system's dark or light preference where the platform gives it. The
-  `widgets` example switches theme, density and accent with keys. The ADR of the design.
-- **Done when.** Tests without a GPU of the themes' functions and their errors, of stacked themes,
-  of transitions over a time given, of the focus shown to the keyboard alone, and of boxes placed on
-  whole pixels; image tests of the example in each theme; CI is green.
-- **How to test.** `cargo test -p slime-color -p slime-ui --features slime-ui/editor-look`; the
-  example's image tests, `cargo test -p slime-examples --test widgets`; the example.
-- **By hand.** The owner tries the example's themes, densities, accents and transitions.
-- **Outcome.** Done on 2026-10-27. [ADR-0149](adr/0149-the-looks-foundations.md)
-  records the owner's decisions of 2026-10-26 and 2026-10-27: the rest of M6b.7 in three, the
-  look's foundations first; transitions at Stage 6b, declared in the style sheets; themes that
-  compute colors in OKLCH; light and high-contrast themes beside the dark one. `slime-color`
-  converts colors to and from OKLCH and brings them back into sRGB's gamut by lowering their
-  chroma. A theme's value names another, `"$name"`, or calls `mix`, `lighten`, `darken` or `alpha`,
-  in OKLCH; every name and function of the themes is checked as the interface reads them, a value
-  that names itself, a name that no theme gives or a function given what it does not take refusing
-  them; `Ui::set_style` takes the themes stacked, the last that gives a name giving its value and
-  what names it following it. A style's transition moves its colors and its opacity, and a
-  section's height as it opens or folds, the section laid out once open to measure it and cut to
-  its height meanwhile, over the time that the program gives each frame (`Ui::advance`), which
-  `slime-app` gives a presentation's interface; `Ui::set_reduced_motion` drops them, and
-  `FrameStats::animating` says that one goes on; a new element shows its style at once. A style's
-  paint gains an opacity, which multiplies the alpha of what the element and its descendants draw.
-  The state `FocusVisible` holds for a focus that the keyboard, an agent or the program gave, not
-  a press of the pointer. The display list places boxes, images and clips on whole pixels of the
-  screen, a border on whole pixels too. A text's style names OpenType features, which parley
-  applies. `slime-platform` gives the scheme of colors that the system prefers where winit tells
-  it, on Windows. The look's themes stack: a base theme of scales, spacings on a grid of 4 pixels,
-  radii, sizes of text, the controls' sizes and durations; a theme of colors, dark, light or high
-  contrast, a palette and the roles computed from it; a compact theme; the style sheet names roles
-  and scales alone, sets Geist's digits of one width, moves its changes over the base's durations,
-  and draws its rings on `FocusVisible`. The `widgets` example switches the colors, the density,
-  the accent and the motion with T, D, A and M, and follows the system's scheme where the platform
-  tells it. Found while making the light theme's image: the slider's white thumb vanished on a
-  light panel, which a role of its own, `thumb`, fixed. The tests: in `slime-color`, values that
-  Oklab's author gives and colors brought back into the gamut; in `slime-ui`'s `tests/style.rs`,
-  names that name names, colors lightened, darkened, mixed and made translucent in OKLCH, a mix with
-  a grey keeping the color's hue, stacked themes, and themes refused by the value at fault; in
-  `tests/motion.rs`, a color moving over the time given and less motion dropping it, a new element
-  styled at once, opacities multiplied, a section shrinking and growing to its height, the focus
-  shown to the keyboard and not to the pointer, and boxes on whole pixels at scale 1.5; in
-  `tests/look.rs`, Geist's digits of one width with `tnum`, every theme of colors and density
-  styling every kind with text that reads on its surface, and a project's accent followed by what
-  the look computes from it; in `slime-examples`'s `tests/widgets.rs`, the inspector in the light
-  theme and the console in high contrast and compact, beside the dark images drawn again. CI is
-  green on `4498cc8`, the reference images matched on WARP too: `check (headless)` took 18 minutes
-  11 seconds, `check (windowed)` 21 minutes 55 seconds, `windows` 21 minutes 39 seconds and
-  `windows-release` 18 minutes 12 seconds, two jobs past the limit of 20: `slime-color`, from which
-  the cooker is built, changed, and the zone was cooked again in each job (see the known debt). The
-  owner's checks by hand on Linux and in the Windows virtual machine, on 2026-10-27, passed, the
-  colors following the system's dark or light mode there.
-
-### M6b.7c — Layers
-
-- **Goal.** The framework has what opens over a panel: popups, tooltips, context menus, lists to
-  choose from, panels that float inside a window and are moved, folded and sized, and modal layers.
-- **Crates.** `slime-ui`, `slime-ui-render`, `slime-app`; the examples.
-- **Delivers.** Layers over a window's root, which take the pointer and the focus as they open and
-  give them back as they close; popups placed beside what opens them, kept within the window;
-  tooltips; context menus and their submenus; lists to choose from; floating panels moved, folded
-  and sized; modal layers; each with its meaning and its actions. The editor's font of icons,
-  Lucide ([ADR-0133](adr/0133-font-files-under-the-open-font-license.md)), whose tick a check box
-  draws. The example of M6b.7a shows them. The ADR of the design.
-- **Done when.** Tests without a GPU of each layer's actions, meaning and focus; image tests of the
-  example; an agent's session uses each through its actions; CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-ui-render`; the example.
-- **By hand.** The owner tries the example's layers.
-- **Outcome.** Done on 2026-10-27. [ADR-0150](adr/0150-layers.md) records the owner's
-  decisions of 2026-10-27: the widgets that own a layer open it alone, a list to choose from and a
-  tooltip, and the program builds menus, context menus, floating panels and dialogs, which the
-  framework places, closes on a press outside or Escape, and moves the keys through; a bar of
-  menus in the framework; Lucide's font of icons whole in the look. `slime-ui` opens layers, roots
-  placed beside an element, at a point or floating, after their content is laid out, kept within
-  the window, following their anchor, closed with it, and closed as the user leaves them, the focus
-  given back and the program told; a modal layer keeps the press. The pointer's second button and
-  Shift+F10 ask for a context menu. Menus and their items, a mark, a label, a shortcut and a chevron
-  in columns that line up, moved through by the arrows, around, their submenus opened and closed by
-  the arrows towards a line's end and start and by the pointer resting on their items; a press on
-  an item closes the menus that led to it. A bar of menus, its items their labels alone, which the
-  pointer passes along while a menu is open, the arrows between its menus, F10 and Alt alone
-  reaching it. Lists to choose from, their list a menu of their options, chosen by the keys, the
-  pointer and agents. Tooltips once the pointer rests on the interface's clock, or
-  the keys give the focus, which the pointer passes through, read as the element's description.
-  Floating panels that fill their layer, moved by their bar within the window, sized by their
-  corner, folded by their mark and raised by a press. A style's icons name the glyphs that controls
-  draw, which the look takes from Lucide, whole, with its codepoints (`look::icon`), its sheet
-  styling menus, their bar, lists, tooltips and floating panels with a shadow under what floats.
-  `slime-app` gives screen readers the new roles, popups and descriptions, the development channel
-  and the MCP server agents. Found while drawing the example's images: a submenu was kept within its
-  menu's box, fixed by placing every layer within the window; and a floating layer took the
-  window's size. The tests: in `slime-ui`'s `tests/layers.rs`, layers placed, turned and moved,
-  closed by a press outside and by Escape, following their anchor and closing with it, a submenu out
-  of its menu's box, a modal layer keeping the press and the focus, context menus; in
-  `tests/menus.rs`, the arrows among a menu's items, submenus opened and closed from either
-  direction, a press closing the menus, the pointer's focus, the columns, the meaning; in
-  `tests/menu_bar.rs`, F10 and Alt alone, the arrows along the bar and between its menus, a command
-  giving the focus back, the pointer passing along the bar; in `tests/choice.rs`, the list opened
-  on its chosen option, chosen by the keys and the pointer, closed unchanged, the keys that choose
-  while it is closed, the program's choice, an agent's, the meaning; in `tests/tooltips.rs`, the
-  rest, what hides it, the keys' focus, the description, a submenu opened by resting; in
-  `tests/panels.rs`, a panel moved within the window, sized from either direction, folded, raised,
-  its meaning; in `tests/look.rs`, Lucide's icons by name and drawn by the controls, and the look's
-  styles of layers; in `slime-app`'s translation, the layers' roles, popups and descriptions and a
-  screen reader's choice; in `slime-examples`'s `tests/widgets.rs`, the bar's menu and its submenu,
-  and the floating panel, the list open and a tooltip, against reference images, the others drawn
-  again with the look's icons; in `slime-mcp`'s `tests/widgets.rs`, an agent's session that chooses
-  an option, opens the bar's menus, shows the floating panel and opens a recent level through a
-  submenu. CI is green on `87eceae`, the reference images matched on WARP too: `check (headless)`
-  took 11 minutes 10 seconds, `check (windowed)` 11 minutes 22 seconds, `windows` 19 minutes 34
-  seconds and `windows-release` 10 minutes 30 seconds, the zone restored from its cache. The review
-  that AGENTS.md asks for, made after, found seven faults, each fixed with a test: a list or a menu
-  opened from a modal layer took no input; a choice that the user kept could pass the options that
-  the program gave after; a layer beside an element's start or end lost its alignment from top to
-  bottom from right to left; a press on the root of a layer at a point did not close it; a layer
-  over a dialog's root was kept within the dialog, not the window; a raised panel went over its own
-  menus, and left screen readers stale paths; Alt after a press hid the bar's focus, and Alt or F10
-  in a bar's menu left it open. The owner's check by hand on Linux, on 2026-10-27, passed.
-
-### M6b.7d — Rich fields
-
-- **Goal.** The framework has the rich fields and buttons that make editing fast.
-- **Crates.** `slime-ui`, `slime-app`; the examples.
-- **Delivers.** As [ADR-0151](adr/0151-rich-widgets.md) decides: texts that empty fields show;
-  buttons that toggle and controls of segments; bars of progress; counts on tabs; fields of search;
-  fields of numbers with a prefix that drags them, the axes' colors on a vector's fields; drags
-  finer or coarser with Shift and Control; expressions in fields of numbers; units by families,
-  converted as they are typed; a box that the program builds in a section's header; tooltips of a title and a body, which a
-  program gives from the documentation that reflection keeps. The `widgets` example shows them.
-- **Done when.** Tests without a GPU of each widget's actions, meaning and focus, of the expressions
-  and of the units; image tests of the example; an agent's session uses each through its actions;
-  CI is green.
-- **How to test.** `cargo test -p slime-ui`; the example.
-- **By hand.** The owner tries the example's rich fields.
-- **Outcome.** Done on 2026-10-27. [ADR-0151](adr/0151-rich-widgets.md), proposed
-  first, its parts that held no open choice built meanwhile, then accepted as the owner took its
-  choices: M6b.7d cut in two; expressions with functions; units by families, converted as they are
-  typed; a box that the program builds in a section's header; help that the program gives; and,
-  for M6b.7e, notifications, the palette of commands and the sheet of shortcuts kept by the
-  framework. `slime-ui` gains a field's placeholder (`Element::placeholder`), buttons that toggle
-  (`Element::toggle_button`), controls of segments (`Element::segments`, `Element::segment`), bars
-  of progress, with a share or moving with the clock while they show (`Element::progress`), a tab's
-  count (`Element::counted_tab`), fields of search with a magnifier and a mark that empties them
-  (`Element::search_field`), a field of numbers' prefix, which drags it (`Element::prefix`), drags
-  finer with Shift and coarser with Control, expressions read by a parser of its own, which a field
-  commits as their result, units by families, whose base unit a field shows after its number and
-  gives in its value (`Element::units`, `Units`), the box of a section's header
-  (`Element::section_header`), and tooltips of a title and a text (`Element::help`, `Tooltip`).
-  `slime-app` gives screen readers their roles, states and values, a number read before its unit's
-  symbol, and agents read a field's placeholder. The look styles all of them, the axes' prefixes in
-  red, green and blue. The `widgets` example shows each, in a bar of tools, over its list of
-  entities, in its position, in meters, in the light's header, over the material's properties and
-  on its console's tab, its images drawn again, and its agent's session uses them. Two reviews
-  found faults, each fixed with a test: a press on a prefix that cut an input method's
-  composition, a bar of progress hidden that kept frames coming, a placeholder placed apart from
-  the field's text; from right to left, a section's title pushed away from its mark by the box of
-  its header, a title not drawn again as that box changed, a drag that jumped as a modifier
-  changed, angles read in radians in a field of degrees, a text nested deep enough to overflow the
-  stack. The tests: `slime-ui`'s `tests/rich.rs`, the parser's own tests in
-  `src/tree/expression.rs`, a test of the placeholder in `tests/field.rs`, and `slime-app`'s
-  translation of them. CI is green on `f72fc59`: `check (headless)` took 15 minutes 51 seconds,
-  `check (windowed)` 11 minutes 13 seconds, `windows` 15 minutes 19 seconds and `windows-release`
-  11 minutes 20 seconds. The owner's check by hand on Linux, on 2026-10-27, passed.
-
-### M6b.7e — What the editor tells and finds
-
-- **Goal.** The framework tells the user what goes on, and finds every command by its name.
-- **Crates.** `slime-ui`, `slime-app`; the examples.
-- **Delivers.** As [ADR-0151](adr/0151-rich-widgets.md) decides: notifications that the framework
-  stacks at the window's bottom end, of a kind, with a bar of progress and buttons, taken away after
-  a time unless the pointer rests on them, read by screen readers; the palette of commands, which
-  the framework opens, every command that the program names found by its name and shown with its
-  shortcut; the sheet of shortcuts, built from the tables of shortcuts. The `widgets` example shows
-  them.
-- **Done when.** Tests without a GPU of the notifications' stack and times, of the palette's ranking
-  and choice, and of the sheet; image tests of the example; an agent's session uses each; CI is
-  green.
-- **How to test.** `cargo test -p slime-ui`; the example.
-- **By hand.** The owner tries the example's notifications, palette and sheet of shortcuts.
-- **Outcome.** Done on 2026-10-27, as [ADR-0151](adr/0151-rich-widgets.md) decides.
-  `slime-ui` stacks the notifications that the program gives at the window's bottom end, in a layer
-  that takes the focus from no one, each of a kind that sets how long it stays, its time counted
-  again while the pointer rests on it or as it is updated, one with a bar of progress or an error
-  staying, with buttons that give commands and a mark that closes it (`Ui::notify`,
-  `Ui::update_notification`, `Ui::close_notification`, `Notification`); screen readers read them
-  as live regions, a warning or an error at once. The palette of commands (`Ui::open_palette`,
-  `PaletteCommand`) finds the commands that the program names by the letters typed, in their order,
-  ranked by a match of the engine's own that rewards the starts of words and letters that follow
-  each other, each shown with the chord that applies to it (`Ui::command_chord`), and gives the
-  chosen one as a shortcut's command; its field's changes and commits never reach the program,
-  shortcuts still do, and an input method's composition keeps its keys. The sheet of shortcuts
-  (`Ui::open_shortcut_sheet`) lists the tables' chords by scope (`Ui::shortcuts`), in a box that
-  scrolls. The palette and the sheet stay in the middle of the window. The `widgets` example tells
-  of a level made or saved, opens the palette with Ctrl+Shift+P and the sheet with F1, both in
-  *View* too; its images draw a notification with the palette open; its agent's session gives a
-  command that a notification tells of, finds a command in the palette and opens and closes the
-  sheet. The review found an update of a notification that drew nothing and broke its buttons, a
-  stack that took the focus from a field, shortcuts lost while the palette was open, Enter taken
-  from an input method's composition, an Enter that gave the command of what was typed before, a
-  chord shown for a command that a later table had taken it from, each fixed with a test. The
-  tests: `slime-ui`'s `tests/palette.rs`, the ranking's own tests in `src/tree/palette.rs`, and
-  `slime-app`'s translation of notifications as live regions. CI is green on `e8ba52a`:
-  `check (headless)` took 15 minutes 38 seconds, `check (windowed)` 18 minutes 14 seconds,
-  `windows` 19 minutes 30 seconds and `windows-release` 15 minutes 30 seconds. The owner's check by
-  hand on Linux, on 2026-10-27, passed.
-
-### M6b.8a — The editors and the world panel on the engine's interface
-
-- **Goal.** The dev overlay's editors of reflected values, its world panel and a picker of colors
-  run on the engine's interface.
-- **Crates.** `slime-ui`, `slime-render`, `slime-ui-render`, `slime-devui`; the `widgets` example;
-  the benchmarks.
-- **Delivers.** As [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md) decides: the
-  checklist of what the overlay does today, which the ADR holds; sliders on a logarithmic scale and
-  from high to low, options of a list to choose from that are disabled or carry help, fields of
-  numbers of single precision; `slime-devui`'s editors of reflected values and its world panel on
-  `slime-ui`, beside egui's, which the editor's inspector of Stage 6c reuses; the color well and its
-  picker; boxes filled with a gradient in the display list and the canvas. The `widgets` example
-  shows a color well.
-- **Done when.** Tests without a GPU of the editors, the world panel and the picker: a field that
-  the user did not change writes nothing (G33), the world panel of 100 000 entities within its
-  budget (G46, `devui.world_panel.100k`), the editors' edits as commands; a test of the canvas's
-  gradients; the `widgets` example's images drawn again with its color well, which its agent's
-  session uses; CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-devui`; `cargo run --release -p slime-benches --
-  devui`; `cargo run --example widgets`.
-- **By hand.** The owner tries the `widgets` example's color well.
-- **Outcome.** Done on 2026-10-27, as
-  [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md) decides. The ADR was proposed
-  that day with the checklist of what the overlay does today, its parts that held no open choice
-  built meanwhile, then accepted as the owner took its choices: M6b.8 cut in two, the
-  overlay as roots of the program's one interface, a focus that the pointer gave leaving the keys to
-  the program, the overlay kept out of the game's shipping build, and the whole picker of colors,
-  drawn with gradients in the canvas. Built: the sliders, the options and the fields of single
-  precision; the editors of reflected values and the world panel on the engine's interface
-  (then `slime_devui::interface`, the crate's root since M6b.8b), tested without a GPU, measured
-  by `devui.world_panel.100k`, which the programs used from M6b.8b. A frame after an entity was renamed, spawned or despawned makes the
-  panel's list of entities again, about 7 ms at 100 000 entities
-  ([measurements](measurements.md#m6b8-rx-6900-xt)), as egui's did. The color well and its picker,
-  drawn with the canvas's gradients, edit the overlay's colors, and the `widgets` example shows one
-  in its light's section, drawn in its images and used by its agent's session. The reviews found,
-  in the panels, an option's box left disabled once it held a value, an edit after a load sent to
-  the entity that a stale handle named, a NaN that built the panel again at each frame, two fields
-  of one vector committed in one frame, a logarithmic slider that missed its maximum, a list's
-  elements sharing one name and a range in radians told beside degrees; in the color well, a picker
-  opened by the keyboard that kept the focus out of its reach, a second picker leaving the first
-  open, an edit lost as the picker closed, a picker that kept an old color once the program gave
-  another, the strip of alpha rewriting the channels, a channel taking an infinite or negative
-  number, Enter reaching the program from the picker's parts, and marks cut at the edges; all were
-  fixed, held by tests and by the picker's image drawn again. CI is green on `4cfd840`: `check (headless)` took 16 minutes 26 seconds,
-  `check (windowed)` 18 minutes 34 seconds, `windows` 15 minutes 1 second and `windows-release`
-  12 minutes 11 seconds. The owner's check by hand on Linux, on 2026-10-27, passed.
-
-### M6b.8b — The overlay over the games' views
-
-- **Goal.** The dev overlay runs on the engine's interface over *Hunna Wood* and the examples, and
-  egui leaves the engine.
-- **Crates.** `slime-ui`, `slime-devui`, `slime-gfx`; *Hunna Wood*, the `world` and `scene`
-  examples; `deny.toml`.
-- **Delivers.** As [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md) decides: the
-  overlay built as roots of the presentation's one interface, drawn after the view with the view's
-  renderer; a focus that the pointer gave taking no keys but a field's and an open list's, in every
-  interface; the panels that *Hunna Wood*, the `world` example and the `scene` example build, their
-  statistics, time controls, views' settings and world panels, rewritten on M6b.8a's, in the
-  editor's look; *Hunna Wood*'s overlay behind its `development` feature. The overlay takes the
-  pointer and the keys as it does today, and outlives a lost device. egui and egui-wgpu leave the
-  workspace, with `deny.toml`'s exception for their fonts and the overlay's use of `slime-gfx`'s
-  `wgpu` feature.
-- **Done when.** The checklist holds, by tests where a test is practical: the value editors send
-  commands; the overlay released and restored after a lost device; a click on the overlay leaves the
-  game's keys to it. An agent drives the overlay through the MCP server; the game built for
-  shipping holds no overlay; `cargo deny` passes without egui's exception; CI is green.
-- **How to test.** `cargo test -p slime-devui`; `cargo run -p hunnawood -- --new --save <file>`;
-  `cargo run --example world`; `cargo run --example scene`.
-- **By hand.** The owner plays *Hunna Wood* with its F1 and F2 panels, uses the `world` and `scene`
-  examples' panels, and listens to Orca read the `world` example's.
-- **Outcome.** Done on 2026-10-27, as
-  [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md) decides and
-  [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md), taken by the owner that day as the
-  milestone started, adds: a game's interface takes Tab only once it holds a focus that takes the
-  keys (`Ui::set_tab_enters`), and F6 moves the focus from one root to the next, then back to the
-  game. In every interface, a focus that a press gave to a button or a widget takes no keys, unless
-  it lies in a menu, a list or a dialog, or the widget's layer is open; the focus that the program
-  gives takes them, as an agent's does. `slime-devui` is the overlay on `slime-ui`
-  (`slime_devui::Overlay`): panels floating over the window, opened and closed by their chords and
-  by the commands that an agent gives, which keep their place, take no focus as they open and give
-  none back as they close, drawn with the view's renderer after the view; Escape in a panel gives
-  the keys back to the game. *Hunna Wood*, behind its `development` feature, and the `world` and
-  `scene` examples build their statistics, the speed of game time, the views' settings and the
-  world panels on it, the run giving it the window's events first. egui, egui-wgpu and `deny.toml`'s
-  exception for their fonts left the workspace, with what the `wgpu` feature of `slime-gfx` gave
-  them; the editor's look and its fonts ship with the programs that draw the overlay. The game's
-  agent session opens both panels, sets the speed with the slider and the hero's direction with the
-  world panel; `check.sh` checks that the game built for shipping holds neither the overlay nor the
-  editor's look. The development build adds about 11 s to the game's release build
-  ([measurements](measurements.md#m6b8b-ryzen-7-5800x)). Looking at the panels found a field of
-  numbers too narrow for its number showing its end, now its start while it does not hold the focus.
-  The review found Escape kept in a panel's field, a held F1 toggling its panel at each repeat, and
-  a closed panel giving the focus back to what then took the game's keys, each fixed with a test;
-  the owner took the rules of floating panels' focus and held keys as decisions after the release
-  ([ADR-0154](adr/0154-floating-panels-and-held-keys.md)). The tests: `slime-devui`'s overlay tests, with and without a GPU, the device lost and replaced;
-  `slime-ui`'s `tests/input.rs` and `tests/panels.rs`. What nothing checks yet: a screen reader on
-  the overlay, which the owner's check by hand with Orca covers. CI is green on `0b6f1a9`:
-  `check (headless)` took 14 minutes 56 seconds, `check (windowed)` 23 minutes 31 seconds, longer
-  by the game's agent session that uses the overlay, `windows` 19 minutes 44 seconds and
-  `windows-release` 12 minutes 51 seconds. The owner's checks by hand on Linux, on 2026-10-27,
-  passed: *Hunna Wood*'s panels and the `world` and `scene` examples', and Orca reading the
-  `world` example's.
-
-### M6b.9 — Windows check, documentation, release 0.6
-
-- **Goal.** Stage 6b is done, checked on Windows, and released as 0.6.
-- **Delivers.** The owner's check, in the Windows virtual machine, of the programs that CI builds,
-  with the checks by hand that wait in [the list](#checks-by-hand-waiting-for-the-owner) if the
-  owner makes them then; the documents reread as a newcomer would read them; `CHANGELOG.md`'s
-  section of 0.6; the release, as [Releasing](#releasing) says, with the licenses of the fonts that
-  the programs embed; Stage 6c planned with the owner.
-- **Done when.** The owner ran *Hunna Wood*'s and the examples' overlays on Windows; the documents
-  are reread and corrected; CI is green on the release commit; the tag and the GitHub release exist,
-  with the Windows programs.
-- **By hand.** In the Windows virtual machine: the overlay of *Hunna Wood* and of the `world`
-  example; text in several writing systems in the examples; an input method and the clipboard in the
-  examples' fields; Narrator reading the `world` example's overlay.
-- **Outcome.** Done on 2026-10-27. The owner's check in the Windows virtual machine of the programs
-  that CI built from `0b6f1a9`, passed, as the owner reported it whole: the overlay of *Hunna Wood*
-  and of the `world` example, Narrator reading the `world` example's panels, as Orca reads them on
-  Linux, the text in several writing systems, an input method and the clipboard in the examples'
-  fields. The documents were reread as a newcomer would read them, against the code, and
-  corrected: the architecture's flows of the interface, the CHANGELOG's section of 0.6 gathered from
-  the milestones' entries, the debts that Stage 6b settled, and the overlay's own written. Stage 6b's
-  exit holds, the overlay's theme read from the look's files, which `slime-ui` builds into the
-  program, rather than from the disk while it runs; a frame of the world panel after an entity is
-  renamed, spawned or despawned passes a list's budget, which [Known debt](#known-debt) records.
-  Released as 0.6 on 2026-10-27, the tag `v0.6.0` on the commit "Release 0.6.0".
+Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b, 5a, 5b, 6a and 6b are done, and so are the audit pass and
+the foundations pass; see [Completed stages](#completed-stages).
 
 ## Stage 6c — The editor
 
@@ -1305,43 +54,406 @@ Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-6c--the-editor--07)): a leve
 built, saved and reloaded entirely in the editor, with undo and redo on every operation; the editor
 uses no private engine API. Released as 0.7 ([ADR-0131](adr/0131-stage-6b-and-stage-6c.md)).
 
-The stage is planned in detail with the owner at Stage 6b's close. Its milestones, in an order
-provisional until then:
+This is the third part of Stage 6 ([ADR-0131](adr/0131-stage-6b-and-stage-6c.md)): the editor, a
+client of the engine on the engine's interface, which a person and an agent use alike. Where the
+engine stands at the start:
 
-1. **Docking, dialogs, and drag and drop**
-   ([ADR-0132](adr/0132-the-engines-ui-framework.md)): panels docked, in tabs, split, dragged from
-   one place to another, their layout saved; dialogs to open and save, through rfd;
-   drag and drop between panels; files dropped from the system on Windows and X11, and on Wayland
-   once winit 0.31 is released.
-2. **The editor's window and its viewport**: the editor's program, and *Hunna Wood*'s editor
-   package, which M6b.1b makes ([ADR-0134](adr/0134-the-editors-core.md)), given a window; a view
-   in a panel, drawn into a texture; its camera, with the raw motion of the mouse
-   and the cursor held; the grid and the icons of lights; a click that selects, and the selection
-   outlined, which needs the scene's depth resolved, and handles drawn over the image with a depth
-   of their own ([Known debt](#known-debt)); when a viewport draws again; the modes of debugging
-   that the editor needs; G34, with the editor's model of windows.
-3. **Play in the editor** (ADR-0110): the game started in a child process on the level being
-   edited, with a save of its own, in its own window; pause, speed, one step and stop; the game
-   started again where it was after a change of its code; the world updated in place when a prefab
-   changes while the game runs, keeping the handles that its code holds
-   ([ADR-0089](adr/0089-scenes-and-prefabs.md)); the three seconds from Play to control, measured.
-4. **The hierarchy and the inspector**: a tree of the world's entities that lays out only what
-   shows, reparenting by drag and drop, as commands; an inspector driven by reflection, on M6b.8a's
-   value editors, overrides marked, applied and reverted; `EntityRef`, a reference to an entity of
-   any scene, and its picker ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md));
-   the rest of G32.
-5. **Gizmos and placing**: moving, turning and scaling a selection; creating, duplicating and
-   deleting.
-6. **Levels of several files** (ADR-0112): parts of a level opened alone, former identities
-   written when an entity moves out of its file, a prefab made of a selection among them
-   ([ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)); a valid change of a prefab that makes
-   a level placing it refuse, checked before saving; whether a level that cannot spawn opens
-   leniently, to be repaired (ADR-0089); G31, G40, G42, G43 and G45; whether a file says the parents
-   and the order of a placement's entities ([Known debt](#known-debt)).
-7. **The asset browser**: the cooker's index of assets, thumbnails, assets dragged into the view,
-   cooking from the editor; a load that a passing error failed tried again (G16); G20, G23, G49 to
-   G53 and G56.
-8. **Windows check, documentation, release 0.7.**
+- **The editor has a core and a program, without a window**
+  ([ADR-0134](adr/0134-the-editors-core.md), [ADR-0135](adr/0135-the-editors-program.md)): commands
+  that name entities by their persistent identities, steps undone, redone and journaled, the
+  selection, a level of one scene file written back with its comments; the `editor` example and
+  *Hunna Wood*'s editor package, which an agent drives through the MCP server. A presentation can
+  only queue the world's commands, each its own step: it can neither ask the core to undo, to
+  select or to write, nor read the selection and the history.
+- **The engine's interface** ([ADR-0132](adr/0132-the-engines-ui-framework.md), ADR-0140 to
+  [ADR-0154](adr/0154-floating-panels-and-held-keys.md)) has widgets, layers, a menu bar, a palette
+  of commands, notifications and floating panels, read by agents and by screen readers; the dev
+  overlay's editors of reflected values and its world panel run on it
+  ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)). It has no docking, no dialogs
+  to open and save, no drag and drop between elements, no rows that are selected.
+- **Views, picking and drawing for the editor**
+  ([ADR-0126](adr/0126-views-apart-from-the-renderer.md) to [ADR-0130](adr/0130-picking.md)): a
+  view draws into a target of its own, which the canvas shows; picking by the GPU and by the CPU;
+  lines and unlit instances in the scene, lines over the image. The scene's depth is not resolved
+  for an outline, and nothing is drawn over the image with a depth of its own.
+- **The platform reads keys, the mouse, input methods and the clipboard of one window**, without
+  the mouse's raw motion, a cursor held or files dropped (issue
+  [#3](https://github.com/HoneySlatt/SlimeEngine/issues/3)), and **a frame runs at the scheduled
+  rate** whether anything changed or not ([ADR-0021](adr/0021-frame-pacing.md)).
+- **The development channel takes most of a tenth of a second to answer a request**, which
+  Nagle's algorithm costs ([ADR-0155](adr/0155-the-editors-design.md)), and an MCP server drives one
+  program at a time.
+- **Play does not exist, and a level is one scene file**, without parts, former identities or
+  `EntityRef` ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)).
+- ***Hunna Wood*'s zone is laid out by its Blender script**, its trees, rocks and ferns scattered
+  from a seed into one glTF file that a scene file places with six lanterns.
+
+Out of scope: panels in windows of their own (one window per process); a highlight that follows
+the pointer; the world updated in place keeping a game's handles (Stage 8); files dropped on
+Wayland, and placed where they fall, which wait for winit 0.31, whose move is a milestone of its
+own when it is released and does not hold 0.7 back; named layouts; a start page or a manager of
+projects; modal keys G, R and S; a wireframe of the whole scene; a fix of the renderer for
+[ADR-0041](adr/0041-render-graph.md)'s stall, unless the owner brings it in; editors of materials,
+animation, effects and sound, and the rest of Stage 11's editor; a game's own editing tools (Stage
+8's plugins, [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)); story layers (Stage 9b);
+cells and streaming (Stage 10a).
+
+Decisions taken when the stage was planned, by the owner on 2026-10-27: the editor's design, the
+milestones, their order, the owner's two checkpoints, one release, and the dependencies, in
+[ADR-0155](adr/0155-the-editors-design.md). Each milestone that designs a part records its design
+in a new ADR, which amends ADR-0155 where it changes it; each dependency is added at the milestone
+that first uses it, rfd at M6c.1, `serde_json` in `slime-editor` at M6c.4, notify at M6c.7, what it
+adds to CI's build checked then. Every milestone ends, besides the definition of done, with an
+agent's session in `scripts/check.sh`, in a headless Weston when it is windowed, and image tests of
+the panels that it adds. Any milestone may be cut in two at its start, as Stage 6b's were; M6c.5 and
+M6c.6 are expected to be.
+
+Risks, whose figures ADR-0155's context gives:
+
+- **[ADR-0041](adr/0041-render-graph.md)'s stall decides how the editor feels on machines without
+  resizable BAR**, the owner's included: a view drawn again costs several milliseconds of CPU once
+  the desktop fills the GPU's memory that the CPU maps. Drawing on demand hides most of it; M6c.2
+  measures `PASSES_PER_SUBMISSION` and the bloom there. The editor and the game running at once,
+  two devices on one GPU, and Windows were never measured.
+- **The cursor held and the mouse's raw motion were never run**, on any system: the study read
+  winit's sources. M6c.1 tries them first, by hand, on niri, Hyprland, X11 through XWayland and in
+  the Windows virtual machine, where relative motion may be missing.
+- **No dialog was opened**: whether niri and Hyprland give `xdg-foreign` v2, without which a dialog
+  is not modal to the window, and rfd off the main thread on Windows. A path typed in the palette is
+  the fallback.
+- **Play's figures are partial**: caches warm, nothing built, written or cooked, no level of 100 000
+  entities. M6c.4 measures Play from the click; on Windows, a running executable may block the
+  link. [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)'s second condition, that what the
+  editor inspects through the channel is enough, cannot be tested before M6c.0's fix.
+- **The open step and the order of the channel's requests**: what the journal holds after a crash
+  during a drag, and how agents' steps that waited are applied. M6c.3 writes their tests first.
+- **Writing several files whole or not at all**, beside `World::carry` and saves per scene
+  ([ADR-0125](adr/0125-saves-per-scene.md)), and **opening leniently by splicing text** back: both
+  unproven, M6c.6a starts with them.
+- **The hierarchy's peaks**: in the study's prototype, a broad filter and a jump by a page passed a
+  list's budget ([ADR-0140](adr/0140-the-tree-of-elements.md)). The filter runs off the frame or
+  after a pause; M6c.5a measures with search and drags at 100 000 entities.
+- **Costs never measured**: the outline and the handles at 3840 × 2160 with many entities selected;
+  thumbnails at the scale of thousands of meshes, and drawn many at once; docking's drags and a
+  docked layout's interface.
+- **The size of the stage.** The study counted 31 000 to 39 000 lines of Rust with their tests,
+  more than Stage 6b's framework. [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) is where
+  to cut: docking by drag, stamp mode and modal keys are already outside what the exit needs.
+- **Dates outside the project**: winit 0.31, in beta for months, and `accesskit_winit`'s release
+  for it. Polling's cost on Windows is not measured, which M6c.7 measures before it adopts notify.
+- **The cost of the checks.** CI's `check (windowed)` job passed the owner's limit of 20 minutes at
+  M6b.8b ([Known debt](#known-debt)), and every windowed session of the editor adds to it: M6c.0
+  splits it, and each milestone records how long CI's jobs take.
+- **One GPU.** Budgets are checked on the owner's RX 6900 XT only ([Known debt](#known-debt)).
+
+### M6c.0 — Before the stage
+
+- **Goal.** The development channel answers in milliseconds, CI's checks stay within their limit,
+  and a game that a tool started never outlives it.
+- **Crates.** `slime-channel`, `slime-app`; `scripts/check.sh` and CI's workflow; `AGENTS.md` and
+  `CONTRIBUTING.md`.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: each message of the
+  development channel written in one write, Nagle's algorithm turned off at both ends
+  (`TCP_NODELAY`); the round trip measured again, in [`docs/measurements.md`](measurements.md), and
+  what remains of the delay, if delayed acknowledgements still hold it, said. A game started with a
+  token ends when its standard input closes, so that an editor, an MCP server or a test that crashes
+  leaves no game behind, with the standard library alone. `scripts/check.sh` in three parts, which
+  CI runs in three jobs side by side, which runs each part holds chosen at the milestone, the limit
+  of 20 minutes kept ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md)). `CONTRIBUTING.md`
+  says that a windowed run measured on a GPU in a headless Weston needs `--renderer=gl`, without
+  which RADV cannot present and wgpu falls back on lavapipe.
+- **Done when.** A test of the channel's round trip, and its figure; a test in which a game started
+  by a tool ends once its standard input closes; the commands of `AGENTS.md` and `CONTRIBUTING.md`
+  name the three parts; CI is green, each job within its limit, their times recorded here.
+- **How to test.** `cargo test -p slime-channel -p slime-app`; `scripts/check.sh` with each part.
+- **Debt settled.** CI's jobs past their limit of 20 minutes.
+
+### M6c.1 — The editor's window
+
+- **Goal.** The editor opens a level in a window of its own, where a person and an agent run the
+  same named operations.
+- **Crates.** `slime-editor`, `slime-app`, `slime-channel`, `slime-mcp`, `slime-ui`,
+  `slime-platform`, `slime-gfx`, `slime-devui`; the `editor` example and
+  `games/hunnawood-editor`; `flake.nix`.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: the editor's window, a
+  presentation of the editor's program that reads the core through a value they share and asks it
+  through typed requests, the channel's `Edit` requests going through the same handler; the
+  registry of operations, run by menus, shortcuts, the palette and agents alike, the channel's
+  requests that list them and run one by name, version 10 of the protocol, and the MCP server's
+  two tools; frames on demand in `slime-app`, and the interface drawn only when it changed; fixed
+  regions of panels, the menu bar, a status bar, and the window's title, both showing how many
+  steps are not written; quitting at once, the journal keeping what was not written; the palette
+  scrolling past 12 entries; roots named in paths by their keys, not by their numbers; dialogs to
+  open and save through rfd, on a thread of their own, which fill in for a person the path that an
+  agent gives, and a scrim behind a modal layer; D-Bus's library in the development shell, which rfd
+  loads; the mouse's raw motion and the cursor held, locked on Wayland and Windows, confined, hidden
+  and put back on X11, left free with a word where locking fails; the window's title changed while
+  it runs; `slime-app`'s state and cache directories beside its data directory; each `Gpu` with an
+  identity that its objects carry, an object used with another `Gpu` panicking (G34); the dev
+  overlay's world panel in a region, as the hierarchy and the inspector until M6c.5; on the first
+  run, the program's level opened at once, the examples cooked if missing, the recent levels in the
+  File menu and one hint; the run without a window kept for CI's agents. The dependency rfd 0.17,
+  which [ADR-0132](adr/0132-the-engines-ui-framework.md) approved. The ADR of the design, which
+  says whether the run without a window waits for requests too.
+- **Done when.** Tests without a GPU: the core answers the window's requests and the channel's
+  alike; an operation run by its name, by its shortcut and from the palette does the same; the
+  operations that change the view enter no history. A check finds every item of a menu and every
+  entry of a `.keys` file in the registry. An agent's session in a headless Weston opens the yard,
+  runs operations by name, undoes, and writes the level; an idle editor runs no frame for 10 s;
+  image tests of the window at scales 1 and 2; CI is green.
+- **How to test.** `cargo test -p slime-editor -p slime-app -p slime-ui -p slime-channel`;
+  `cargo run --example editor -- --level <a copy of the yard> --journal <file>`; the MCP server's
+  session tests.
+- **By hand.** Dialogs opened and saved on niri, Hyprland and in the Windows virtual machine; the
+  cursor held and the raw motion on niri, Hyprland, X11 through XWayland and in the Windows virtual
+  machine.
+- **Debt settled.** The raw motion, the cursor held and the title changed (issue #3, in part); a
+  root's number in paths; the palette's 12 entries; a modal layer without a scrim; G34.
+
+### M6c.2 — The viewport
+
+- **Goal.** The level shows in a viewport that the user flies through and picks in, the selection
+  outlined, drawn again only when what it shows changed.
+- **Crates.** `slime-ui`, `slime-render`, `slime-world-render`, `slime-editor`; the benchmarks.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: `Kind::Surface`, an element
+  kind that gives the program the pointer's actions and holds the pointer during a drag, single-key
+  shortcuts suspended while the right button flies; navigation, flying with the right button held
+  and W, A, S, D, Q, E, orbiting with Alt and the left button, panning with the middle one, F
+  framing the selection, and a `.keys` preset in Blender's way; the grid; icons of lights and
+  cameras from Lucide's glyphs; a click that picks by the GPU, the outermost placement first and a
+  level deeper at the second click, Alt and a click through what lies behind by the CPU's ray, a
+  marquee selecting what its area holds; the selection outlined, the scene's depth resolved, its
+  hidden part dimmed, an entity without a mesh drawn as its transform's unit box; the modes of
+  debugging base color and light alone, and a wireframe of the selection; each viewport drawn again
+  only when its camera, the world, the selection, its settings or its assets changed, and once more
+  `RESIZE_DELAY` after its size last changed; a second viewport, the one navigated alone drawn at
+  the full rate; `PASSES_PER_SUBMISSION` and the bloom measured while the desktop fills the GPU's
+  memory that the CPU maps. The ADR of the design.
+- **Done when.** Image tests on lavapipe of the grid, the icons, the outline and its hidden part;
+  an agent picks in a viewport and captures it; an idle editor's viewports draw nothing; the
+  frame's costs at the hardware tiers' sizes, in [`docs/measurements.md`](measurements.md); CI is
+  green.
+- **How to test.** `cargo test -p slime-ui -p slime-render -p slime-editor`;
+  `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
+- **By hand.** Flying, orbiting and picking in the zone on niri, Hyprland and X11 through XWayland.
+- **Debt settled.** A view's new size waiting for its next frame; the scene's depth resolved
+  ([ADR-0129](adr/0129-drawing-for-the-editor.md)); the outline; the two modes of debugging.
+
+### M6c.3 — Move and place
+
+- **Goal.** The user moves, turns, scales, creates, duplicates and deletes what the level holds,
+  each gesture a single step of the history.
+- **Crates.** `slime-editor`, `slime-render`, `slime-world`; the `editor` example.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: the core's open step, a
+  gesture applied live, cancelled by Escape, made one step as it ends, the requests of agents
+  waiting meanwhile; handles to move, turn and scale, the engine's own, drawn over the image with a
+  depth of their own, in the world's axes or the selection's, about a pivot, onto the world's
+  uniform scale and its stretch; snapping by increments of distance, angle and scale, and to an
+  absolute grid; End and Shift+End dropping the selection on what lies below, by the CPU's picker;
+  creating, duplicating (Ctrl+D, the references inside the copy pointed at the copy, nested
+  overrides kept), deleting, copying and pasting as commands' text on the system's clipboard,
+  repeating the last operation, grouping (Ctrl+G) and nudging; "Place prefab…" from the
+  manifest's scenes; the history panel. The ADR of the design.
+- **Done when.** Tests of the core written first: an open step applied live, cancelled, and made one
+  journaled step; an agent's step that waited applied after it; a crash during a drag losing the
+  drag alone. Tests of the handles' mathematics; image tests of the handles; an agent moves three
+  entities in one step and undoes it; the zone written back unchanged once every step is undone; CI
+  is green.
+- **How to test.** `cargo test -p slime-editor -p slime-render`; the MCP server's session tests.
+- **By hand.** The handles' feel, their hit areas and the snapping, in the yard and the zone.
+- **Debt settled.** Instances over the image, with a depth of their own
+  ([ADR-0129](adr/0129-drawing-for-the-editor.md)).
+
+### M6c.4 — Play it
+
+- **Goal.** Play runs the level being edited in the game, steps not written included, and the
+  editor's edits reach the running game.
+- **Crates.** `slime-editor`, `slime-app`, `slime-world`, `slime-channel`, `slime-mcp`;
+  `games/hunnawood` and `games/hunnawood-editor`.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: Play's states and its
+  controls, Play, Pause, Step, Speed and Stop, in a toolbar; the game started through
+  `slime_channel::launch`, with a token and a save of the editor's own, given the scenes that hold
+  steps not written as private copies, through an option of development builds that the engine
+  handles for every game, the user's files left alone; the steps made while it runs sent to it as
+  commands, those it refuses shown; a console of its log; a game whose code changed built again and
+  started on a save of its run, a mark on Play saying so, the build read from cargo's messages in
+  JSON and the executable started itself, without a console window on Windows; the MCP server
+  driving two programs, the editor and the game it plays; Play's time to control measured from the
+  click on the zone and on a generated level of 100 000 entities, against ADR-0110's 3 seconds;
+  "keep this value", a value read in the running game made a step of the level, if the milestone has
+  room. The dependency `serde_json` in `slime-editor`, already in the lock. The ADR of the design,
+  which says how the scenes are handed over.
+- **Done when.** Play's states tested against a stub game; an agent plays, pauses, steps, reads the
+  log and stops; a game that crashes leaves the editor running; an edit while playing reaches the
+  game, and one that the game refuses is shown; Play leaves the user's files as they were; the
+  figures in [`docs/measurements.md`](measurements.md); CI is green.
+- **How to test.** `cargo test -p slime-editor -p slime-app`;
+  `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
+- **By hand.** Play, edits while playing, and a change of the game's rules built and started again,
+  on Linux.
+- **Debt settled.** An entity that a run created, wrote into its level and destroyed coming back
+  ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)); an MCP server
+  that drives one program at a time.
+
+### Checkpoint A — The owner tries the editor
+
+- **What.** The owner, for about an hour, on Linux and in the Windows virtual machine: flies
+  through the zone, selects, rearranges it and plays it; the raw motion, the cursor held, the
+  game's child process and the system's firewall, the dialogs.
+- **Result.** A list of frictions, and this plan adjusted: what to cut, if the stage runs long, is
+  decided here.
+
+### M6c.5 — Find and change
+
+- **Goal.** The user finds any entity in a hierarchy, changes its components in an inspector, and
+  arranges the panels in regions of tabs.
+- **Crates.** `slime-ui`, `slime-world`, `slime-devui`, `slime-editor`; the benchmarks.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides, in two parts, each likely a
+  milestone of its own:
+  - *M6c.5a, the hierarchy and the regions.* In `slime-ui`: the roles of a tree and its items, rows
+    that are selected, drag and drop between elements, an element scrolled into view, panes that
+    F6 moves between, an amendment of [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md);
+    docking's model, regions of tabs, splits that the user resizes, "Move to" and floating panels,
+    the layout saved per user and per project in the user's state directory, and set aside when it
+    cannot be read. In `slime-world`, a tick of the entities' names apart from the structure. The
+    hierarchy: rows that the editor flattens from the world's children, built only where they
+    show; a search, `c:` naming a component and `p:` a prefab, run off the frame; renaming;
+    reparenting by a drag and by Alt and the arrows; an eye and a lock, the user's, never the
+    level's, the editor hiding nothing through `World::is_hidden`.
+  - *M6c.5b, the inspector.* `slime-devui`'s builder of an entity's components made public; the
+    inspector on it: components added and removed; several entities selected, a mixed value shown
+    as "—", a check box's third state; overrides marked by a bar and a bold label, Revert and Apply
+    for each field; driven fields read-only; the interim world panel retired.
+  The ADR of each part's design.
+- **Done when.** A benchmark, `editor.hierarchy.100k`, within a list's budget
+  ([ADR-0140](adr/0140-the-tree-of-elements.md)) standing still, scrolled and after a rename; an
+  agent reparents by a drag's action and reverts an override; a layout that cannot be read gives the
+  default; image tests of the hierarchy and the inspector; CI is green.
+- **How to test.** `cargo test -p slime-ui -p slime-world -p slime-devui -p slime-editor`;
+  `cargo run --release -p slime-benches -- editor`.
+- **By hand.** The hierarchy and the inspector, read by Orca on Linux and by Narrator in the
+  Windows virtual machine.
+- **Debt settled.** G32; a list's rows not selected; the focus moved not scrolling its element
+  into view, and nothing scrolling an element into view for screen readers; a check box without a
+  third state; a row of a list found by its number; the world panel's list made again at each
+  rename.
+
+### M6c.6 — Levels of several files, and links
+
+- **Goal.** A level is made of several files, which the editor writes together, and an entity
+  refers to entities of other files.
+- **Crates.** `slime-world`, `slime-serialize`, `slime-reflect`, `slime-cook`, `slime-devui`,
+  `slime-editor`; `.gitattributes`; the examples' yard and *Hunna Wood*'s zone.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) and
+  [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md) decide, in two parts, each likely
+  a milestone of its own:
+  - *M6c.6a, levels of several files.* The new layout of scene files, in one change, which the
+    first part holds whole: the level's parts in a table of their own, former identities, the
+    absolute identities that `EntityRef` writes, and whether a file says the parents and the order
+    of a placement's entities. The core over several files: a step across files, the journal's
+    entries naming their files, every file written or those named, all or none; a level that holds
+    a component or a field that the program does not know opened, its text kept and written back
+    byte for byte; a check before writing that the placements of a changed prefab still spawn;
+    prefabs changed on disk followed; a prefab opened in context. The yard and the zone written in
+    the new layout.
+  - *M6c.6b, links.* `EntityRef`, and its picker in the inspector: an eyedropper in the viewport, a
+    drag from the hierarchy, and a search over the parts loaded or not; a prefab made of a
+    selection; Apply to prefab.
+  The ADR of each part's design, the first amending
+  [ADR-0091](adr/0091-scene-documents-and-placements.md) for the layout.
+- **Done when.** `slime-world`'s round trips on fixtures of the new layout; tests of the core's
+  steps across files; a failure injected between two renames leaves the files as they were, or
+  names those written; one edit changes one hunk of a file; a level with an unknown component
+  opened, changed and written back with that component's text unchanged; an agent splits the yard
+  into parts and links an entity across two; CI is green.
+- **How to test.** `cargo test -p slime-world -p slime-serialize -p slime-editor`; the MCP server's
+  session tests.
+- **By hand.** The owner moves an entity from one part of the zone to another, and links two parts.
+- **Debt settled.** G31, G40, G42, G43 and G45; the parents and the order of a placement's
+  entities; the editor not following the prefabs that change on disk.
+
+### M6c.7 — Build from a kit
+
+- **Goal.** The user builds a level from a kit of prefabs found in an asset browser, cooked by the
+  editor as its sources change, and *Hunna Wood*'s zone is made so.
+- **Crates.** `slime-editor`, `slime-cook`, `slime-assets`, `slime-render`, `slime-ui-render`,
+  `slime-platform`; `games/hunnawood`, its zone's Blender script, its tests and its save fixture.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: the asset browser, an index
+  of the cooker's manifest and a scan of the sources, by folder and kind, with a search;
+  thumbnails, a texture's small level of its KTX2, a mesh or a prefab drawn offscreen, a few a
+  frame and only for the tiles that show, encoded as PNG with `Compression::Fast` and cached in the
+  user's cache directory under the cooked file's name; assets dragged into a viewport; stamp mode,
+  which may be cut; New level; cooking in the editor's process, on the background priority, with its
+  progress, once two cooks in one process no longer share their temporary files (G49); the tools'
+  watch told of changes by notify, once polling is measured on Windows, a scan again when its queue
+  overflows and polling as its fallback; files dropped on Windows and X11 imported; the interface's
+  images asked of the asset cache. *Hunna Wood*'s kit: its Blender script exports pieces of terrain
+  and one prefab per variant of tree, rock and prop with its collider; an agent converts the
+  scatter into placements once, through the editor's operations; the zone's tests on the kit, and a
+  new save fixture, which [ADR-0100](adr/0100-updates-of-shipped-games.md) allows before the game's
+  first release; the game's README says it. The dependency notify 8.2.1. The ADR of the design. The
+  known debt gains that winit's drag and drop makes Windows' main thread a single-threaded COM
+  apartment, which Stage 7's audio must not start as a multi-threaded one.
+- **Done when.** Thumbnails found in the cache after a restart; tests of the watch: a file written,
+  renamed and removed, and a queue that overflowed; an agent places an asset by its ID and cooks;
+  the zone's tests pass on the kit, with the new fixture; CI is green.
+- **How to test.** `cargo test -p slime-editor -p slime-cook -p slime-assets`;
+  `scripts/fetch-assets.sh`;
+  `blender --background --factory-startup --python games/hunnawood/zone/build_zone.py`;
+  `cargo test -p hunnawood -p hunnawood-editor -- --ignored`.
+- **By hand.** The browser, its thumbnails and stamping, on Linux; G20, which waits in
+  [the list](#checks-by-hand-waiting-for-the-owner).
+- **Debt settled.** G16, G20 with the owner's check, G23, G49 to G53 and G56; the interface's images
+  given by the program.
+
+### Checkpoint B — The exit rehearsal
+
+- **What.** The owner, on Linux and in the Windows virtual machine: erases the zone's campfire
+  clearing, builds it again by hand in the editor, plays it, writes it, opens it again, and undoes
+  and redoes through it all.
+- **Result.** The exit criterion met, or what keeps it from being met.
+
+### M6c.8 — Panels dragged to dock
+
+- **Goal.** The user drags panels and tabs to arrange the editor. If the stage runs long, the
+  milestone moves to Stage 11, with an amendment of ADR-0131 and the roadmap, the regions of M6c.5a
+  serving meanwhile.
+- **Crates.** `slime-ui`, `slime-editor`; `games/hunnawood-editor`.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: zones to drop a panel or a
+  tab on, shown as it is dragged; tabs moved and closed; floating panels docked again; closed
+  panels coming back to their places; a least size for panels; a project's default layout, which a
+  game's editor package gives. The ADR of the design.
+- **Done when.** `slime-ui`'s tests of the layout's rules after random edits; a layout saved against
+  an older default upgraded; a layout that cannot be read gives the default and a notification; an
+  agent moves a panel by its operation; CI is green.
+- **How to test.** `cargo test -p slime-ui -p slime-editor`.
+- **By hand.** Panels docked by drag on niri, Hyprland and in the Windows virtual machine.
+- **Debt settled.** Tabs neither moved nor closed; two panels without a least size; a floating
+  panel that does not dock.
+
+### M6c.9 — Windows check, documentation, release 0.7
+
+- **Goal.** Stage 6c is done, checked on Windows, and released as 0.7.
+- **Delivers.** The owner's check, in the Windows virtual machine, of the programs that CI builds,
+  with the checks by hand that wait in [the list](#checks-by-hand-waiting-for-the-owner) if the
+  owner makes them then; the documents reread as a newcomer would read them; `CHANGELOG.md`'s
+  section of 0.7; the release, as [Releasing](#releasing) says; Stage 7 planned with the owner.
+- **Done when.** The owner ran *Hunna Wood*'s editor on Windows; the documents are reread and
+  corrected; CI is green on the release commit; the tag and the GitHub release exist, with the
+  Windows programs.
+- **By hand.** In the Windows virtual machine: *Hunna Wood*'s editor, its dialogs, its viewport,
+  Play, and the asset browser.
+
+### What the exit needs at minimum
+
+If the stage must be cut, the exit needs M6c.1 to M6c.3, M6c.5 and M6c.6, with prefabs placed from
+a list. It can do without panels docked by drag (M6c.8), thumbnails, a list of names serving, stamp
+mode, several viewports, a view of the running game and "keep this value", the notify watch, and
+modal keys. Play ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md),
+[ADR-0131](adr/0131-stage-6b-and-stage-6c.md)) and the layout of files
+([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)) belong to the stage by decision,
+not by the exit. What is cut is decided at
+[Checkpoint A](#checkpoint-a--the-owner-tries-the-editor).
 
 ## Checks by hand waiting for the owner
 
@@ -1409,6 +521,7 @@ commit.
 | 5b — Scenes and prefabs → 0.4 | M5b.1 scenes placed in a world; M5b.2 a world written back as a scene; M5b.3 saves and hot reload with placements; M5b.4 the binary encoding of documents; M5b.5 scene files cooked, typed components, prefabs in the `world` example; M5b.6 *Hunna Wood*'s zone made of prefabs; M5b.7 Windows check, documentation, release 0.4 | Done, released as 0.4 on 2026-10-18. Its decisions are in [ADR-0089](adr/0089-scenes-and-prefabs.md) to [ADR-0095](adr/0095-cooked-scene-files.md), with the measurements of spawning scenes in ADR-0091; its save fixture, `games/hunnawood/fixtures/save.toml`, was made again at M6a.7b in the layout of saves per scene, which refuses those of 0.4 ([ADR-0125](adr/0125-saves-per-scene.md)); the zone is made of prefabs placing its land and six lanterns. The audit of 0.4 that followed it is the audit pass, in the next row. |
 | The audit pass and the foundations pass | P1 saves and identities that never mislead; P2 a damaged file gives an error, never a crash; P3 the loss of the GPU device and the main loop; P5 the build, CI, and measurements tracked from one commit to the next; P4 the measured quick wins; P6 the foundation decisions | Done on 2026-10-20, released with 0.5. The engine was audited at 0.4, without changing it, for correctness, measured performance and architecture against the games it aims at; [ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) sums up what it found and records the owner's decisions, and [ADR-0096](adr/0096-the-files-the-engine-reads.md) is the threat model that ranks its defects. P1 to P5 fixed them ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md) to [ADR-0106](adr/0106-the-measured-quick-wins.md)), but B4-F01, which M6a.2 fixed; P6 decided what the editor freezes ([ADR-0107](adr/0107-the-execution-model.md) to [ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). Each finding was described in full in this plan until 0.5 (`git show v0.5.0:docs/PLAN.md`); the audit's report and its tests are kept outside the repository; what neither pass fixed is in the [known debt](#left-by-the-audit-of-04); the owner's checks by hand of P3 and P5, in the Windows virtual machine on 2026-10-27, passed. |
 | 6a — What the editor stands on → 0.5 | M6a.1 frustum culling and instancing; M6a.2 the engine's task pool, and copies to the GPU within a budget; M6a.3 what the world knows of its changes; M6a.4 a frame that owns what it draws; M6a.5 the phases of a frame, game time, and a game as a simulation and a presentation; M6a.6 the development channel and the MCP server; M6a.7a driven components, keys and created entities written into levels; M6a.7b saves per scene and adoption; M6a.8a views apart from the renderer; M6a.8b the settings of a view; M6a.9 asset requests; M6a.10a drawing for the editor; M6a.10b picking; M6a.11 Windows check, documentation, release 0.5 | Done, released as 0.5 on 2026-10-22 with the audit pass and the foundations pass. Its decisions are in [ADR-0116](adr/0116-stage-6-in-two-halves.md) to [ADR-0130](adr/0130-picking.md), its measurements in [`measurements.md`](measurements.md), under the milestones that measured; its save fixture is `games/hunnawood/fixtures/save.toml`, of the layout of saves per scene ([ADR-0125](adr/0125-saves-per-scene.md)). The owner checked each milestone that changed what shows by hand, on Linux, and the whole in the Windows virtual machine at M6a.11, which found four defects fixed before the release. |
+| 6b — The engine's interface → 0.6 | M6b.1a the commands and undo; M6b.1b the editor driven by an agent; M6b.2 text in several writing systems; M6b.3a the canvas; M6b.3b text drawn, and the display list; M6b.4a elements and layout; M6b.4b style sheets and themes; M6b.5a input and focus; M6b.5b what agents see; M6b.6a text edited, and what the platform lacks for it; M6b.6b screen readers; M6b.7a the widgets of a panel; M6b.7b the look's foundations; M6b.7c layers; M6b.7d rich fields; M6b.7e what the editor tells and finds; M6b.8a the editors and the world panel on the engine's interface; M6b.8b the overlay over the games' views; M6b.9 Windows check, documentation, release 0.6 | Done, released as 0.6 on 2026-10-27. Its decisions are in [ADR-0131](adr/0131-stage-6b-and-stage-6c.md) to [ADR-0154](adr/0154-floating-panels-and-held-keys.md), its measurements in [`measurements.md`](measurements.md), under the milestones that measured. Each milestone was described in full in this plan until 0.6 (`git show v0.6.0:docs/PLAN.md`); what it left is in the [known debt](#known-debt). The owner chose that the interface blends in sRGB's encoding, at M6b.3a, and Geist as the font of the editor's text, at M6b.3b; checked each milestone that changed what shows by hand, on Linux and for several in the Windows virtual machine, Orca and Narrator reading the examples; and checked the whole in the Windows virtual machine at M6b.9, which passed. |
 
 The details of each completed milestone (what it delivered, how it was checked, what was measured)
 are in the history of this file and in the commits that implemented it; the measurements that
@@ -1433,9 +546,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)); a run without a window has no image
   to capture; the measurements that the channel gives are the frames' times, and the reports that
   a game gives, its views' statistics among them;
-  an MCP server drives one game at a time; a component that refers to an entity without a
-  persistent identity is read, the reference written as no entity, `""`, and written back so, no
-  longer naming it. A window's image is created with the copy-source usage wherever the system
+  an MCP server drives one game at a time, until M6c.4; a component that refers to an entity
+  without a persistent identity is read, the reference written as no entity, `""`, and written back
+  so, no longer naming it. A window's image is created with the copy-source usage wherever the system
   offers it, at every frame, whether or not a tool captures it: what that costs
   a driver is not measured. Each later milestone exposes its system to the channel
   ([ADR-0116](adr/0116-stage-6-in-two-halves.md)).
@@ -1532,8 +645,9 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Input not reported yet** (issue [#3](https://github.com/HoneySlatt/SlimeEngine/issues/3)):
   touch, touchpad gestures, gamepads, dropped files, the mouse's raw motion. The window cannot grab
   or hide the cursor, go fullscreen, or change its title once created. Input methods and the
-  pointer's shapes came with M6b.6a; Stage 6c brings dropped files, the raw motion and the cursor
-  held, Stage 7 gamepads.
+  pointer's shapes came with M6b.6a; M6c.1 brings the raw motion, the cursor held and the title
+  changed, M6c.7 files dropped on Windows and X11, Stage 7 gamepads; files dropped on Wayland wait
+  for winit 0.31 ([ADR-0155](adr/0155-the-editors-design.md)).
 - **A compositor that stops answering blocks the engine.** Before the first frame, winit waits for
   the window's first configuration without a timeout, so a termination signal is noticed only when a
   second one ends the process; after the `stop` methods, releasing the window or the surface can
@@ -1748,12 +862,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   picked. *Hunna Wood* does not pick yet: a tool's picking in it is refused. Scripted input has no
   mouse, so that an agent picks through the MCP server's `pick` tool, not by clicking.
 - **What a client draws into a view is lines and instances in the scene, and lines over the image**
-  ([ADR-0129](adr/0129-drawing-for-the-editor.md)). Instances over the image, which need a depth of
-  their own, and the scene's depth resolved for an outline or handles partly hidden, come with the
-  editor's handles at Stage 6c. A line that lies on a surface may be hidden by it in places; blended
-  surfaces are drawn in no particular order until Stage 9a sorts them. The `world` example selects
-  with Tab from the keyboard alone: scripted keys reach a game's input, which its simulation reads,
-  not its presentation's events. How long `Renderer::set_shaders` takes was measured before the
+  ([ADR-0129](adr/0129-drawing-for-the-editor.md)). The scene's depth resolved for an outline comes
+  with M6c.2, and instances over the image, which need a depth of their own, with M6c.3's handles.
+  A line that lies on a surface may be hidden by it in places; blended surfaces are drawn in no
+  particular order until Stage 9a sorts them. The `world` example selects with Tab from the
+  keyboard alone: scripted keys reach a game's input, which its simulation reads, not its
+  presentation's events. How long `Renderer::set_shaders` takes was measured before the
   unlit kind's pipelines and the lines'.
 - **A page of meshes keeps the ranges of dropped meshes until new ones fill them or it empties**
   ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)). Nothing moves a mesh to pack its
@@ -1866,7 +980,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)): the save no
   longer names it, and the file holds it. A save that names the written identities of what the run
   destroyed would settle it; the editor writes levels through its commands from M6b.1a, and play in
-  the editor carries a run into them at Stage 6c, which meets it first.
+  the editor, M6c.4, settles it ([ADR-0155](adr/0155-the-editors-design.md)).
 - **A game's preparation of a scene that a save spawns may change only the scene's entities**
   ([ADR-0125](adr/0125-saves-per-scene.md)): what it creates, under a key or as a placement, is the
   run's, which a save holds, and which loading the save creates before it prepares the scene, so
@@ -1909,7 +1023,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   loses it. An entity of a placement moved out of the place that its prefab gives it is written in
   that place, and the children of a placement's entity in its prefab's order, then the file's; both
   are reported: a scene file has no parents for a placement's entities, nor an order among them.
-  Stage 6c decides whether a file says them.
+  M6c.6 decides whether a file says them, with the new layout of scene files
+  ([ADR-0155](adr/0155-the-editors-design.md)).
 - **`World::write_scene` drops a scene file's comments** (ADR-0089): it writes the canonical form;
   the editor puts them back (`slime_serialize::keep_comments`,
   [ADR-0134](adr/0134-the-editors-core.md)), within the limits that the editor's core gives below.
@@ -1959,7 +1074,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   `PASSES_PER_SUBMISSION` in `crates/slime-render/src/graph.rs`, with the window filled to
   several levels, by the desktop's programs or by a program that allocates device-local,
   host-visible memory (on Linux, `mem_info_vis_vram_used` in the GPU's sysfs directory tells how
-  full it is).
+  full it is). M6c.2 measures it so, the bloom on and off, since the editor's viewports meet the
+  stall ([ADR-0155](adr/0155-the-editors-design.md)).
 - **The render graph trusts what a pass says it samples from imported targets** (ADR-0041). The
   groups that sample transient targets are built from the declarations, but the scene pass's group
   holding the shadow atlases is built by the renderer: a pass that binds an imported target must
@@ -1987,14 +1103,16 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A view's new size waits for its next frame after `RESIZE_DELAY`**
   ([ADR-0127](adr/0127-the-settings-of-a-view.md)): a view drawn only when something changes, as an
   editor's viewport may be, keeps its image stretched until it is drawn again `RESIZE_DELAY` after
-  its size last changed. Stage 6c's viewports draw again then, or at every frame.
+  its size last changed. The editor's viewports draw again then, from M6c.2
+  ([ADR-0155](adr/0155-the-editors-design.md)).
 - **A render scale reads the scene's light bilinearly**
   ([ADR-0127](adr/0127-the-settings-of-a-view.md)): below 1 the image is blurred, and between 1 and
   2 each pixel averages the four texels nearest its centre, missing others. Stage 9a's temporal
   upscaling is the sharper way; a pass of a sharper filter was rejected.
 - **Two modes of debugging** ([ADR-0127](adr/0127-the-settings-of-a-view.md)): the normals and the
-  shadows. The editor adds those it needs, base color, light alone or cascades, at Stage 6c; a
-  wireframe needs lines along a mesh's edges, which M6a.10a's drawings give a client to draw.
+  shadows. M6c.2 adds base color and light alone, and a wireframe of the selection; a wireframe of
+  the whole scene waits until `PolygonMode::Line` is measured against lines along a mesh's edges,
+  which M6a.10a's drawings give a client to draw ([ADR-0155](adr/0155-the-editors-design.md)).
 - **Tiny, very bright sources blink in the bloom** (ADR-0040). Without a firefly filter (Karis's
   average dims the sun's halo and makes it flicker, measured), a highlight smaller than a pixel
   blooms as its coverage of the pixel changes from frame to frame. Temporal anti-aliasing, or a cap
@@ -2035,7 +1153,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   subtree of 1 000 entities, of types that refer to none, not the editor's step.
 - **The editor does not follow the prefabs that change on disk while it edits**
   ([ADR-0134](adr/0134-the-editors-core.md)): its library holds the cooked scenes as it opened them.
-  Hot reload in the editor comes with Stage 6c.
+  M6c.6 follows them.
 - **A comment within a value written on several lines is lost** when the editor writes the level
   again, but for the end of the value's first line (`slime_serialize::keep_comments`).
 - **The canvas draws nothing turned or scaled** ([ADR-0137](adr/0137-the-canvas.md)): the items'
@@ -2049,8 +1167,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   number, item by item ([`docs/measurements.md`](measurements.md), M6b.3a).
 - **The interface's images are textures that the program gives** for the keys of its display list
   ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)): cooked images that the asset cache
-  holds come with the first program that draws them, the editor or a game's screens. A draw that asks for more glyphs than the
-  atlas's budget holds leaves some out, and a glyph larger than a page is never drawn; one that
+  holds come with their first user, M6c.7's asset browser. A draw that asks for more glyphs than
+  the atlas's budget holds leaves some out, and a glyph larger than a page is never drawn; one that
   meets glyphs no draw has asked for rasterizes them on the thread that draws, a few milliseconds
   for a menu's first draw ([`docs/measurements.md`](measurements.md), M6b.3b).
 - **The interface's text has one style per text** ([ADR-0136](adr/0136-the-interfaces-text.md)):
@@ -2079,8 +1197,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   `slime-color` changed, and the zone was cooked again: `check (windowed)` took 21 minutes 55
   seconds and `windows` 21 minutes 39 seconds. At M6b.8b, with the zone restored from its cache,
   the game's agent session through the overlay made `check (windowed)` take 23 minutes 31 seconds:
-  the windowed part is to split again, as [ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md) did, or its limit
-  to be decided with the owner.
+  the owner decided to split the windowed part again, into a third job, as
+  [ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md) split the checks, the limit of 20 minutes
+  kept: M6c.0 does it ([ADR-0155](adr/0155-the-editors-design.md)).
 - **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)): a frame walks every
   element of its roots, to find what to draw again and to gather the display list, even when nothing
   changed. A list shows the rows of a new range one frame late, when it first shows or when it
@@ -2099,7 +1218,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   focus leaves an element disabled or hidden at the next frame; the focus moved does not scroll its
   element into view. A layout of another script than the Latin one matches a chord of a letter by
   the key's place, and a chord of a digit or a sign by its meaning alone. The example `interface`
-  scrolls its list with time, which the wheel does not move. Touch comes later.
+  scrolls its list with time, which the wheel does not move. Touch comes later. M6c.5 selects a
+  list's rows and scrolls the focus into view.
 - **Text edited** ([ADR-0145](adr/0145-text-edited.md)): a double or triple click selects no word
   or line, and the caret does not blink. A field of one line leaves the up and down arrows to the
   focus, shows no bar of its own as its text scrolls, lays its text out one caret's width within
@@ -2126,7 +1246,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   interface's alone: they tell the program nothing, and an element that a builder removes forgets
   them. The editor's look has no italic faces; its fonts hold no Greek; it is built into the
   program, not cooked: the dev overlay carries it into a game's development build, and the game's
-  build for shipping leaves it out.
+  build for shipping leaves it out. M6c.5 gives a check box its third state; M6c.8 moves and
+  closes tabs, and gives panels a least size.
 - **The look's foundations** ([ADR-0149](adr/0149-the-looks-foundations.md)): a theme's values are
   typed only where a rule uses them, so that a name that holds a value of the wrong type is refused
   where a rule names it, not where the theme gives it; the color functions are four, and work on
@@ -2150,7 +1271,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   layer draws no scrim behind it. A style sheet reads a theme's value in place of every value but a
   text: the look names its icons by their codepoints in its sheet, not in a theme. The bar of menus
   takes Alt let go alone whenever an interface holds one, which a game whose interface holds a bar
-  loses as a key of its own.
+  loses as a key of its own. M6c.1 names roots in paths by their keys and draws a scrim behind a
+  modal layer; M6c.8 docks floating panels.
 - **Rich fields** ([ADR-0151](adr/0151-rich-widgets.md)): a press on a focused field's prefix that
   does not drag places its caret at its start; a field's prefix and its unit's symbol are drawn
   whatever their width, cut by nothing; a bar of progress without a share that less motion stills
@@ -2161,36 +1283,37 @@ GitHub issues, linked from their entry; this list stays the reference.
   the root's direction, so that an asymmetric padding is mirrored wrongly from right to left, a
   drift found while placing the fields' marks, which allow for it.
 - **What the editor tells and finds** ([ADR-0151](adr/0151-rich-widgets.md)): the palette shows
-  12 commands at most, and finds them by letters in order, without forgiving a letter typed wrong;
-  the sheet of shortcuts takes no focus, so that a screen reader says nothing as it opens; a
-  notification's mark that closes it is named `close` in English; no check runs a screen reader on
-  the live regions of notifications; the stack of notifications turns from its corner as a layer
-  at a point does, which holds for a stack wider and taller than its margin, as every
-  notification is.
+  12 commands at most, until M6c.1 scrolls it, and finds them by letters in order, without
+  forgiving a letter typed wrong; the sheet of shortcuts takes no focus, so that a screen reader
+  says nothing as it opens; a notification's mark that closes it is named `close` in English; no
+  check runs a screen reader on the live regions of notifications; the stack of notifications turns
+  from its corner as a layer at a point does, which holds for a stack wider and taller than its
+  margin, as every notification is.
 - **What agents see** ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)): a tool reads an
   interface only in a windowed run, from its last frame, and each ask walks the whole tree. A path
   holds while the roots below its own stay, and a key's name that holds
   `/`, or that `#` and digits make, cannot be read back from one. A row of a list is found by its
-  number, the names of its texts not gathered into its own. Games link `slime-ui` through
-  `slime-app`, whether they have an interface or not.
+  number, the names of its texts not gathered into its own, until M6c.5. Games link `slime-ui`
+  through `slime-app`, whether they have an interface or not.
 - **The dev overlay** ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md),
   [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)): a frame after an entity is renamed,
   spawned or despawned makes the world panel's list again, every name read and filtered, about
   7 ms at 100 000 entities ([measurements](measurements.md#m6b8-rx-6900-xt)), past the budget of a
-  list's frame; the frames standing still, scrolled, or after the selection changed stay within
-  it. Its panels keep the size that they open at, their content scrolling, where egui's fitted
-  theirs. It holds its interface's tables of shortcuts, which a game's interface would share; a
-  game loses F6 while its interface shows a root that holds an element that can take the focus,
-  and F6 gives a panel's bar the focus first. Its look, the editor's, is built into the program:
-  its themes are files of `slime-ui`, read as the program starts, not from the disk while it runs.
-  No check of CI runs a screen reader on it.
+  list's frame, until M6c.5's tick of names spares it the renames; the frames standing still,
+  scrolled, or after the selection changed stay within it. Its panels keep the size that they open
+  at, their content scrolling, where egui's fitted theirs. It holds its interface's tables of
+  shortcuts, which a game's interface would share; a game loses F6 while its interface shows a
+  root that holds an element that can take the focus, and F6 gives a panel's bar the focus first.
+  Its look, the editor's, is built into the program: its themes are files of `slime-ui`, read as
+  the program starts, not from the disk while it runs. No check of CI runs a screen reader on it.
 - **Screen readers** ([ADR-0146](adr/0146-screen-readers.md)): no check of CI runs a screen reader
   nor Windows' UI Automation; CI reads and uses the `interface` example through AT-SPI on Linux
   ([ADR-0147](adr/0147-the-screen-readers-check-in-ci.md)); the owner checks Orca and Narrator by
   hand, on the `interface` example and on the `world` example's dev overlay. A modal dialog is not
   marked modal to screen readers, which find the elements below it taking nothing; a label's text gives no runs, so that a screen reader reads it whole; a
-  field of numbers takes no increment or decrement, and nothing scrolls an element into view; the
-  hover and the press are given to agents, not to screen readers, which AccessKit does not ask. A
+  field of numbers takes no increment or decrement, and nothing scrolls an element into view
+  before M6c.5; the hover and the press are given to agents, not to screen readers, which AccessKit
+  does not ask. A
   root's box that changes, a window resized, marks all it holds, and a modal root opened or closed
   makes the next changes whole. Each element's meaning is made again from the tree when marked, the
   boxes that only lay others out below it walked, and a field's runs laid out from its text, as it
@@ -2243,17 +1366,17 @@ each is kept outside the repository, and comes in with its fix. The audit did no
 Intel GPUs, X11, a game outside the workspace, the delay from a key to the image shown, nor
 determinism between Linux and Windows.
 
-- **A mesh that a passing error failed is not tried again** (G16, medium; Stage 6c). Since M6a.9,
+- **A mesh that a passing error failed is not tried again** (G16, medium; M6c.7). Since M6a.9,
   a mesh of an asset cache's request fails alone ([ADR-0128](adr/0128-asset-requests.md)), and is
   not asked for again until the cooked data changes, a passing error such as GPU memory running out
   included; a scene's load still fails whole. Trying a passing error again is to decide with the
   editor's asset browser.
 - **On Windows, a `.meta` whose name differs from its source's by case only takes a new ID at every
-  cook** (G20, medium; Stage 6c), and `slime-cook watch` cooks again without end: the scan matches
+  cook** (G20, medium; M6c.7), and `slime-cook watch` cooks again without end: the scan matches
   the two files by the file system's rule, which ignores case on NTFS, then looks the ID up by the
   exact path. Not run on Windows by the audit: it waits in the
   [list of checks by hand](#checks-by-hand-waiting-for-the-owner).
-- **Importing a glTF file takes time quadratic in its named meshes** (G23, medium; Stage 6c): 38 to
+- **Importing a glTF file takes time quadratic in its named meshes** (G23, medium; M6c.7): 38 to
   57 s for 80 000 meshes, as each name is counted against the whole list.
 - **The world's storage keeps 4 MB per component type and per million slots, and gives nothing back
   after destruction** (G28, medium; Stage 10a): each type keeps an index of 4 bytes per slot up to
@@ -2264,45 +1387,48 @@ determinism between Linux and Windows.
   falls in the levels drawn far away, down to none, and trees fade in the distance. Preserving
   coverage per level for textures that a masked material reads is to do before large exteriors.
 - **`World::write_scene` writes, without an error, a level that cannot be opened again** (G31,
-  medium; Stage 6c): it never counts the entities that the file gives once its placements resolve,
+  medium; M6c.6): it never counts the entities that the file gives once its placements resolve,
   which the reader refuses beyond `MAX_ENTITIES`, nor what they take, refused beyond
   `MAX_SCENE_SIZE`.
-- **A very deep hierarchy costs quadratic time** (G32, medium; Stage 6c): spawning, loading, saving
+- **A very deep hierarchy costs quadratic time** (G32, medium; M6c.5): spawning, loading, saving
   and each frame walk every entity's ancestors (`set_parent`'s search for a cycle,
   `World::unsaved`, `interpolated_transform`). M6a.3 made `World::is_hidden` read a flag.
 - **A GPU object used with another `Gpu` acts on another object without a word, and no API opens a
-  second window on the same GPU** (G34, medium; Stage 6c): each `Gpu` numbers its objects from zero,
-  and a window's surface comes only with a new `Gpu`. The editor's model of windows decides.
+  second window on the same GPU** (G34, medium; M6c.1): each `Gpu` numbers its objects from zero,
+  and a window's surface comes only with a new `Gpu`. M6c.1 settles it: one window per process,
+  and each `Gpu` with an identity that its objects carry
+  ([ADR-0155](adr/0155-the-editors-design.md)).
 - **Between two fixed steps, the children of a turning parent cut the arc's chord while their
   siblings stay on it** (G38, low; Stage 7): a child moved by its parent is drawn in a straight line
   between its two positions. Interpolating through the hierarchy is to decide before skeletal
   animation turns many hierarchies.
 - **A string on several lines in a scene file checked out on Windows keeps its CRLF line ends**
-  (G40, low; Stage 6c): `.gitattributes` keeps `*.toml`, `*.meta` and `*.tsv` at LF, not `*.scene`,
+  (G40, low; M6c.6): `.gitattributes` keeps `*.toml`, `*.meta` and `*.tsv` at LF, not `*.scene`,
   so that the value and the cooked bytes depend on the checkout.
 - **A negative integer, or one too large, for an unsigned field gives a wrong message** (G42, low;
-  Stage 6c): "not an integer" or "not text", rather than its range.
-- **The writer of documents accepts what the reader refuses** (G43, low; Stage 6c): a reserved key
+  M6c.6): "not an integer" or "not text", rather than its range.
+- **The writer of documents accepts what the reader refuses** (G43, low; M6c.6): a reserved key
   `$…` at the root, and a field given twice, the second lost.
 - **A camera target farther than about 2 × 10¹⁹ m draws nothing, without a message** (G44, low;
   later): `view_from_eye` squares the direction in `f32`.
 - **`World::write_scene` loops without end when more than 1 679 616 entities need IDs from one
-  base** (G45, low; Stage 6c): it draws four base-36 characters until one is free.
+  base** (G45, low; M6c.6): it draws four base-36 characters until one is free.
 - **`Registry::register_dynamic` accepts version 0, which the derive refuses** (G48, low; Stage 8):
   the values are written, then never read back, with a wrong message.
-- **Two cooks in one process share their temporary files** (G49, low; Stage 6c): named after the
-  process, they separate processes, not threads, and one cook fails at random, naming a file that
-  exists.
-- **An output directory inside the sources breaks the next cook** (G50, low; Stage 6c): cooked glTF
+- **Two cooks in one process share their temporary files** (G49, low; M6c.7, before the editor
+  cooks): named after the process, they separate processes, not threads, and one cook fails at
+  random, naming a file that exists.
+- **An output directory inside the sources breaks the next cook** (G50, low; M6c.7): cooked glTF
   scenes take the `.scene` extension of scene files, which the next scan reads as sources.
 - **After a glTF file is moved with its `.meta`, the cooker's cache keeps the old path** (G51, low;
-  Stage 6c): the manifest names it, and warnings blame tables that are right.
+  M6c.7): the manifest names it, and warnings blame tables that are right.
 - **Two `.meta` with one ID, one of them without a source, make the cook stop without saying which
-  is the orphan** (G52, low; Stage 6c).
-- **`Manifest::from_bytes` refuses a valid manifest whose names are short** (G53, low; Stage 6c): it
+  is the orphan** (G52, low; M6c.7).
+- **`Manifest::from_bytes` refuses a valid manifest whose names are short** (G53, low; M6c.7): it
   assumes 45 bytes per entry where the least is 37.
 - **With `--watch`, after the cooked data is cleaned, a reload that the game refuses leaves it
-  unable to save** (G56, low; Stage 6c): `SceneLibrary::reload` forgets the changed scenes before
+  unable to save** (G56, low; M6c.7, with cooking from the editor): `SceneLibrary::reload` forgets
+  the changed scenes before
   the game accepts them, and the files of the old manifest are gone.
 
 ## Notes
