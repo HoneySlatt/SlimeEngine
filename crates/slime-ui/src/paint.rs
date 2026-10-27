@@ -118,8 +118,9 @@ fn primitives(
                 primitives.push((primitive, Some(content)));
             }
         }
-        // A section's header lies within its padding, above its content box.
-        Kind::Section { .. } => {
+        // A section's header lies within its padding, above its content box, as a floating
+        // panel's bar does.
+        Kind::Section { .. } | Kind::FloatingPanel { .. } => {
             for primitive in ui.control_primitives(id) {
                 primitives.push((primitive, None));
             }

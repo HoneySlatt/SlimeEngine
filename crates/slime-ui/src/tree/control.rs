@@ -57,7 +57,7 @@ impl Control {
                 state.checked = checked;
                 Some(Self::Toggle { given: checked })
             }
-            Kind::Section { open, .. } => {
+            Kind::Section { open, .. } | Kind::FloatingPanel { open, .. } => {
                 state.expanded = open;
                 Some(Self::Toggle { given: open })
             }
@@ -121,7 +121,10 @@ impl Control {
                 state.checked = checked;
                 true
             }
-            (Self::Toggle { given }, Kind::Section { open, .. }) => {
+            (
+                Self::Toggle { given },
+                Kind::Section { open, .. } | Kind::FloatingPanel { open, .. },
+            ) => {
                 if *given == *open {
                     return false;
                 }
@@ -231,19 +234,24 @@ fn bounds(kind: &Kind) -> Option<(f64, f64, f64)> {
 }
 
 impl Ui {
-    /// Opens the section `id`, or folds it, as a press on its header does: what it holds is laid
-    /// out, drawn and reached again, or no longer. Nothing happens for an element that is no
-    /// section.
+    /// Opens the section or the floating panel `id`, or folds it, as a press on its header does:
+    /// what it holds is laid out, drawn and reached again, or no longer. Nothing happens for
+    /// another element.
     pub fn set_open(&mut self, id: ElementId, open: bool) {
         let Some(node) = self.node(id) else {
             return;
         };
-        if !matches!(node.element.kind, Kind::Section { .. }) || node.state.expanded == open {
+        if !matches!(
+            node.element.kind,
+            Kind::Section { .. } | Kind::FloatingPanel { .. }
+        ) || node.state.expanded == open
+        {
             return;
         }
         let children = node.children.clone();
         self.change_state(id, |state| state.expanded = open);
         self.mark_paint(id);
+        self.mark_layout(id);
         // It grows or shrinks to its height over its transition, if its style has one.
         self.reveal(id, open);
         // Its children's styles say whether they are laid out, drawn and reached: shown at once as
@@ -253,8 +261,8 @@ impl Ui {
         }
     }
 
-    /// Whether `id` lies in a folded section, or past the second child of two panels: it is not
-    /// laid out, drawn nor reached.
+    /// Whether `id` lies in a folded section or floating panel, or past the second child of two
+    /// panels: it is not laid out, drawn nor reached.
     pub(crate) fn folded(&self, id: ElementId) -> bool {
         let Some(parent) = self.node(id).and_then(|node| node.parent) else {
             return false;
@@ -263,17 +271,23 @@ impl Ui {
             return false;
         };
         match node.element.kind {
-            Kind::Section { .. } => !node.state.expanded && !self.folding(parent),
+            Kind::Section { .. } | Kind::FloatingPanel { .. } => {
+                !node.state.expanded && !self.folding(parent)
+            }
             Kind::Split { .. } => node.children.iter().position(|&child| child == id) > Some(1),
             _ => false,
         }
     }
 
-    /// The header of the section `id`, in pixels of the surface: the top of its box within its
-    /// padding, as tall as the layout makes room for it above its children.
+    /// The header of the section or the bar of the floating panel `id`, in pixels of the surface:
+    /// the top of its box within its padding, as tall as the layout makes room for it above its
+    /// children.
     pub(crate) fn section_header(&self, id: ElementId) -> Option<Rect> {
         let node = self.node(id)?;
-        if !matches!(node.element.kind, Kind::Section { .. }) {
+        if !matches!(
+            node.element.kind,
+            Kind::Section { .. } | Kind::FloatingPanel { .. }
+        ) {
             return None;
         }
         let scale = self.scale_of(id);
@@ -510,7 +524,10 @@ impl Ui {
         let Some(node) = self.node(id) else {
             return;
         };
-        if matches!(node.element.kind, Kind::Section { .. }) {
+        if matches!(
+            node.element.kind,
+            Kind::Section { .. } | Kind::FloatingPanel { .. }
+        ) {
             let open = !node.state.expanded;
             self.set_open(id, open);
             return;
@@ -730,7 +747,8 @@ impl Ui {
                     color: look.color,
                 }));
             }
-            Kind::Section { title, .. } => {
+            Kind::Section { title, .. } | Kind::FloatingPanel { title, .. } => {
+                let panel = matches!(node.element.kind, Kind::FloatingPanel { .. });
                 let open = node.state.expanded;
                 let title = title.clone();
                 let look = node.style.text.clone();
@@ -783,6 +801,32 @@ impl Ui {
                     layout,
                     color: look.color,
                 }));
+                // A floating panel's corner that sizes it: two bars along its edges.
+                if panel
+                    && open
+                    && let Some(corner) = self.panel_corner(id)
+                {
+                    let (long, thin) = (corner.width * 0.6, (corner.width * 0.12).max(scale));
+                    let (right, bottom) = (corner.x + corner.width, corner.y + corner.height);
+                    let edge = match direction {
+                        LayoutDirection::LeftToRight => right - thin,
+                        LayoutDirection::RightToLeft => corner.x,
+                    };
+                    let along = match direction {
+                        LayoutDirection::LeftToRight => right - long,
+                        LayoutDirection::RightToLeft => corner.x,
+                    };
+                    primitives.push(filled(
+                        Rect::new(edge, bottom - long, thin, long),
+                        0.0,
+                        control.track,
+                    ));
+                    primitives.push(filled(
+                        Rect::new(along, bottom - thin, long, thin),
+                        0.0,
+                        control.track,
+                    ));
+                }
             }
             Kind::MenuItem {
                 label,

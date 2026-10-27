@@ -28,6 +28,7 @@ mod layer;
 mod meaning;
 mod menu;
 mod motion;
+mod panel;
 mod scroll_bar;
 mod tooltip;
 
@@ -260,6 +261,22 @@ pub enum Kind {
         /// What it shows besides its label.
         mark: ItemMark,
     },
+    /// A panel that floats over a window: a bar of its title, after a mark that shows whether it
+    /// is open, then, while it is open, its children, laid out as a container's below the bar, as
+    /// a section's are (`docs/adr/0150-layers.md`). The program opens a floating layer
+    /// ([`Place::Floating`]) and builds the panel as its only child, which fills it. The pointer
+    /// drags the bar to move the layer, and the corner at the end of its bottom to size it; a
+    /// press on its mark, or Enter or Space while it holds the focus, folds it to its bar, the
+    /// layer as tall as the bar then, and opens it again; a press anywhere on it raises its layer
+    /// above the others. The place and the size that the user leaves are the layer's
+    /// ([`Ui::layer_place`], [`Ui::set_layer_place`]); whether it is open is kept as a section's,
+    /// and rules select it open by the state `Expanded`.
+    FloatingPanel {
+        /// Its title.
+        title: String,
+        /// Whether it is open, as the program gives it.
+        open: bool,
+    },
     /// A list to choose from: its chosen option, in the middle of its box from top to bottom, as
     /// wide as its widest, and a mark at its end. A press, or Enter, Space, Alt+Down or F4 while it
     /// holds the focus, opens the list of its options below it, in a layer of its own, a menu
@@ -292,8 +309,8 @@ pub enum ItemMark {
 
 impl Kind {
     /// Whether a press of the pointer reaches it, and the focus: a button, a field, a check box, a
-    /// slider, a section, a tab, two panels and their handle, an item of a menu, or a list to
-    /// choose from.
+    /// slider, a section, a tab, two panels and their handle, an item of a menu, a list to choose
+    /// from, or a floating panel.
     pub(crate) fn takes_pointer(&self) -> bool {
         matches!(
             self,
@@ -307,6 +324,7 @@ impl Kind {
                 | Self::Split { .. }
                 | Self::MenuItem { .. }
                 | Self::Choice { .. }
+                | Self::FloatingPanel { .. }
         )
     }
 }
@@ -512,6 +530,15 @@ impl Element {
             label: label.into(),
             shortcut: shortcut.into(),
             mark,
+        };
+        Self::of(kind, style)
+    }
+
+    /// A panel that floats over a window, with its title, open or not.
+    pub fn floating_panel(title: impl Into<String>, open: bool, style: Style) -> Self {
+        let kind = Kind::FloatingPanel {
+            title: title.into(),
+            open,
         };
         Self::of(kind, style)
     }
@@ -1807,6 +1834,7 @@ fn lays_out_again(before: &Element, after: &Element) -> bool {
         (Kind::Button { label: before }, Kind::Button { label: after }) => before != after,
         (Kind::CheckBox { label: before, .. }, Kind::CheckBox { label: after, .. })
         | (Kind::Section { title: before, .. }, Kind::Section { title: after, .. })
+        | (Kind::FloatingPanel { title: before, .. }, Kind::FloatingPanel { title: after, .. })
         | (Kind::Tab { title: before }, Kind::Tab { title: after }) => before != after,
         (
             Kind::MenuItem {
@@ -1864,6 +1892,7 @@ fn kind_name(kind: &Kind) -> KindName {
         Kind::MenuBar => KindName::MenuBar,
         Kind::MenuItem { .. } => KindName::MenuItem,
         Kind::Choice { .. } => KindName::Choice,
+        Kind::FloatingPanel { .. } => KindName::FloatingPanel,
     }
 }
 

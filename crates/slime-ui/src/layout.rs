@@ -91,6 +91,7 @@ fn convert(
         let panel = split_panel(ui, id);
         let revealed = ui.reveal_height(id);
         let fits = ui.fits_content(id);
+        let floating = ui.floating_size(id);
         let Some(node) = ui.node_mut(id) else {
             continue;
         };
@@ -105,11 +106,34 @@ fn convert(
                     height: TaffyDimension::length(row_height * scale),
                 };
             }
-            // A root is as large as its surface, but a layer that takes the size of its content.
-            if node.root.is_some() && !fits {
+            // A root is as large as its surface, but a layer that takes the size of its content,
+            // and a floating one, of its own size, as tall as its content where its panel is
+            // folded.
+            if let Some(size) = floating {
+                let length = |side: Option<f32>| {
+                    side.map_or(TaffyDimension::auto(), |side| {
+                        TaffyDimension::length(side * scale)
+                    })
+                };
+                style.size = Size {
+                    width: length(size[0]),
+                    height: length(size[1]),
+                };
+            } else if node.root.is_some() && !fits {
                 style.size = Size {
                     width: TaffyDimension::length(settings.size[0] * scale),
                     height: TaffyDimension::length(settings.size[1] * scale),
+                };
+            }
+            // A floating panel fills its layer, as tall as its bar once folded.
+            if let Kind::FloatingPanel { .. } = node.element.kind {
+                style.size = Size {
+                    width: TaffyDimension::percent(1.0),
+                    height: if node.state.expanded {
+                        TaffyDimension::percent(1.0)
+                    } else {
+                        TaffyDimension::auto()
+                    },
                 };
             }
             // A section's header lies above its children, within its padding.
@@ -191,11 +215,12 @@ fn split_panel(ui: &Ui, id: ElementId) -> Option<Panel> {
     }
 }
 
-/// The height of the header of `id`, a section, in pixels of the screen at `scale`: its title's, or
-/// its mark's where it is taller. None for an element that is no section.
+/// The height of the header of `id`, a section or a floating panel, in pixels of the screen at
+/// `scale`: its title's, or its mark's where it is taller. None for another element.
 fn section_header(ui: &mut Ui, id: ElementId, scale: f32) -> Option<f32> {
     let node = ui.node(id)?;
-    let Kind::Section { title, .. } = &node.element.kind else {
+    let (Kind::Section { title, .. } | Kind::FloatingPanel { title, .. }) = &node.element.kind
+    else {
         return None;
     };
     let title = title.clone();

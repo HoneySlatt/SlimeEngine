@@ -173,7 +173,7 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
             element.set_numeric_value_step(range.step);
         }
     }
-    if meaning.role == Role::Details {
+    if matches!(meaning.role, Role::Details | Role::Pane) {
         element.set_expanded(meaning.state.expanded);
     }
     if let Some(description) = &meaning.description {
@@ -205,7 +205,7 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
     }
     for action in &meaning.actions {
         match action {
-            ElementAction::Press if meaning.role == Role::Details => {
+            ElementAction::Press if matches!(meaning.role, Role::Details | Role::Pane) => {
                 element.add_action(AccessAction::Click);
                 element.add_action(if meaning.state.expanded {
                     AccessAction::Collapse
@@ -330,6 +330,7 @@ fn role(role: Role) -> AccessRole {
         Role::MenuItemCheckBox => AccessRole::MenuItemCheckBox,
         Role::ComboBox => AccessRole::ComboBox,
         Role::ListBox => AccessRole::ListBox,
+        Role::Pane => AccessRole::Pane,
         Role::ListBoxOption => AccessRole::ListBoxOption,
     }
 }

@@ -158,6 +158,7 @@ pub(crate) enum KindName {
     MenuBar,
     MenuItem,
     Choice,
+    FloatingPanel,
 }
 
 /// The states of an element, as a rule names them.

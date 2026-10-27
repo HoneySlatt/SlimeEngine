@@ -74,6 +74,8 @@ pub enum Role {
     ComboBox,
     /// The list of options that a list to choose from opens.
     ListBox,
+    /// A panel that floats over a window, open or folded ([`ElementState::expanded`]).
+    Pane,
     /// An option of that list, chosen or not ([`ElementState::selected`]).
     ListBoxOption,
 }
@@ -108,6 +110,7 @@ impl Role {
             Self::MenuItemCheckBox => "MenuItemCheckBox",
             Self::ComboBox => "ComboBox",
             Self::ListBox => "ListBox",
+            Self::Pane => "Pane",
             Self::ListBoxOption => "ListBoxOption",
         }
     }
@@ -385,6 +388,7 @@ impl Ui {
                 Kind::Button { label }
                 | Kind::CheckBox { label, .. }
                 | Kind::Section { title: label, .. }
+                | Kind::FloatingPanel { title: label, .. }
                 | Kind::Tab { title: label }
                 | Kind::MenuItem { label, .. },
             ) => label.clone(),
@@ -501,6 +505,7 @@ impl Ui {
             } => Role::MenuItemCheckBox,
             Kind::MenuItem { .. } => Role::MenuItem,
             Kind::Choice { .. } => Role::ComboBox,
+            Kind::FloatingPanel { .. } => Role::Pane,
         })
     }
 

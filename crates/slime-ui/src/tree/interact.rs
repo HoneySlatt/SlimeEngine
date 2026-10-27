@@ -49,6 +49,8 @@ pub(super) struct Interaction {
     pub(super) bar_before: Option<ElementId>,
     /// Whether Alt went down, and no other key nor button since.
     alt_alone: bool,
+    /// The floating panel that the pointer holds by its bar or its corner.
+    panel: Option<super::panel::Grab>,
 }
 
 impl Ui {
@@ -61,6 +63,9 @@ impl Ui {
         let hovered = self.interaction.hovered;
         if let Some(held) = self.interaction.bar {
             self.drag_bar(held, x, y);
+        }
+        if let Some(grab) = self.interaction.panel {
+            self.drag_panel(grab, x, y);
         }
         if let Some(captured) = self.interaction.captured {
             match self.node(captured).map(|node| &node.element.kind) {
@@ -115,9 +120,13 @@ impl Ui {
             self.interaction.alt_alone = false;
             self.interaction.bar_before = None;
             self.input_hides_tooltip();
-            // A press outside a layer that closes as the user leaves it closes it.
+            // A press outside a layer that closes as the user leaves it closes it; one on a
+            // floating panel raises it.
             if let Some([x, y]) = self.interaction.pointer {
                 self.dismiss_outside(x, y);
+                if let Some(hit) = self.element_at(x, y) {
+                    self.raise_panel(hit);
+                }
             }
         }
         match state {
@@ -185,6 +194,11 @@ impl Ui {
                 };
                 self.interaction.captured = Some(target);
                 let [x, y] = self.interaction.pointer.unwrap_or_default();
+                // A floating panel's bar or corner, held, moves or sizes it.
+                if let Some(grab) = self.panel_grab(target, x, y) {
+                    self.interaction.panel = Some(grab);
+                    return true;
+                }
                 if self.node(target).is_some_and(|node| node.field.is_some()) {
                     let shift = self.interaction.modifiers.shift;
                     self.field_press(target, x, y, shift);
@@ -210,6 +224,10 @@ impl Ui {
                 };
                 self.interaction.held.swap_remove(at);
                 if !primary {
+                    return true;
+                }
+                if self.interaction.panel.take().is_some() {
+                    self.interaction.captured = None;
                     return true;
                 }
                 let Some(captured) = self.interaction.captured.take() else {
@@ -417,7 +435,9 @@ impl Ui {
                 // A check box pressed toggles, which the program reads as its value; a section opens
                 // or folds; a tab is chosen.
                 match self.node(id).map(|node| &node.element.kind) {
-                    Some(Kind::CheckBox { .. } | Kind::Section { .. }) => self.toggle(id),
+                    Some(
+                        Kind::CheckBox { .. } | Kind::Section { .. } | Kind::FloatingPanel { .. },
+                    ) => self.toggle(id),
                     Some(Kind::Tab { .. }) => self.press_tab(id),
                     Some(Kind::MenuItem { .. }) => self.press_menu_item(id),
                     Some(Kind::Choice { .. }) => self.press_choice(id),
@@ -544,6 +564,14 @@ impl Ui {
                 Kind::Section { .. } => self
                     .section_header(id)
                     .is_some_and(|header| inside(header, x, y)),
+                // A floating panel on its bar and its corner.
+                Kind::FloatingPanel { .. } => {
+                    self.section_header(id)
+                        .is_some_and(|header| inside(header, x, y))
+                        || self
+                            .panel_corner(id)
+                            .is_some_and(|corner| inside(corner, x, y))
+                }
                 Kind::Split { .. } => self
                     .split_handle(id)
                     .is_some_and(|handle| inside(handle, x, y)),
@@ -711,8 +739,8 @@ impl Ui {
         true
     }
 
-    /// Whether `id` can be pressed: a button, a check box, a section, a tab, an item of a menu or
-    /// a list to choose from that can hold the focus.
+    /// Whether `id` can be pressed: a button, a check box, a section, a tab, an item of a menu, a
+    /// list to choose from or a floating panel that can hold the focus.
     pub(super) fn pressable(&self, id: ElementId) -> bool {
         self.focusable(id)
             && self.node(id).is_some_and(|node| {
@@ -724,6 +752,7 @@ impl Ui {
                         | Kind::Tab { .. }
                         | Kind::MenuItem { .. }
                         | Kind::Choice { .. }
+                        | Kind::FloatingPanel { .. }
                 )
             })
     }

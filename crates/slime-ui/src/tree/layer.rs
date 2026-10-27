@@ -195,6 +195,20 @@ impl Ui {
             .find(|&root| self.layer_owner(root) == Some(owner))
     }
 
+    /// Moves the layer `root` to `place`, as the user moving or sizing a floating panel does: it
+    /// is laid out and placed again at the next frame. Nothing happens for a root that is no
+    /// layer.
+    pub fn set_layer_place(&mut self, root: ElementId, place: Place) {
+        let Some(held) = self.node_mut(root).and_then(|node| node.layer.as_mut()) else {
+            return;
+        };
+        if held.layer.place == place {
+            return;
+        }
+        held.layer.place = place;
+        self.mark_layout(root);
+    }
+
     /// Where the layer `root` stands now; none for a root that is no layer.
     pub fn layer_place(&self, root: ElementId) -> Option<Place> {
         Some(self.node(root)?.layer.as_ref()?.layer.place)
