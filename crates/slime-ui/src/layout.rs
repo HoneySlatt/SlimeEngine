@@ -49,6 +49,8 @@ pub(crate) fn lay_out(ui: &mut Ui, root: ElementId) {
     for list in ui.lists(root) {
         lay_out_rows(ui, list, settings);
     }
+    // A layer is placed once its content is laid out, beside what it stands beside.
+    let settings = ui.place_layer(root).unwrap_or(settings);
     let origin = settings.origin.map(|at| at * scale);
     place(ui, (root, origin[0], origin[1], None), settings);
 }
@@ -88,6 +90,7 @@ fn convert(
         let header = section_header(ui, id, scale);
         let panel = split_panel(ui, id);
         let revealed = ui.reveal_height(id);
+        let fits = ui.fits_content(id);
         let Some(node) = ui.node_mut(id) else {
             continue;
         };
@@ -102,7 +105,8 @@ fn convert(
                     height: TaffyDimension::length(row_height * scale),
                 };
             }
-            if node.root.is_some() {
+            // A root is as large as its surface, but a layer that takes the size of its content.
+            if node.root.is_some() && !fits {
                 style.size = Size {
                     width: TaffyDimension::length(settings.size[0] * scale),
                     height: TaffyDimension::length(settings.size[1] * scale),
@@ -270,8 +274,13 @@ pub(crate) fn place_below(ui: &mut Ui, id: ElementId) {
 /// box or cut moves is drawn again.
 fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: RootSettings) {
     let (scale, direction) = (settings.scale, settings.direction);
-    // A mirror across the root's box, at its place on the surface.
-    let across = 2.0 * settings.origin[0] * scale + settings.size[0] * scale;
+    // A mirror across the root's box, at its place on the surface: as wide as its surface, or as
+    // its content for a layer that takes the size of its content.
+    let width = ui
+        .root_of(start.0)
+        .and_then(|root| ui.node(root))
+        .map_or(settings.size[0] * scale, |root| root.layout.size.width);
+    let across = 2.0 * settings.origin[0] * scale + width;
     let mut stack = vec![start];
     // The elements that moved, or whose cut changed, which changes where they show to whoever
     // reads what the interface means; a root whose box changed, what shows of all it holds.

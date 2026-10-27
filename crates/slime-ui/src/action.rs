@@ -42,6 +42,19 @@ pub enum ActionKind {
     /// wrote it. A field of numbers whose text reads as no number gives none, and shows again the
     /// number that the program gave or that it last committed, the later of the two.
     Committed(FieldValue),
+    /// A context menu asked for at `at`, in logical pixels of the surface of the action's element's
+    /// root: a press of the pointer's second button on what the interface draws, the element under
+    /// it the action's; or the key that opens a context menu, or Shift+F10, while an element holds
+    /// the focus, at that element's bottom start corner. The program opens its menu there
+    /// (`docs/adr/0150-layers.md`).
+    ContextMenu {
+        /// Where the menu goes.
+        at: [f32; 2],
+    },
+    /// A layer that closes as the user leaves it closed so: a press outside it and outside what
+    /// opened it, or Escape. The action's element is the layer's root, which no longer exists
+    /// (`docs/adr/0150-layers.md`).
+    Dismissed,
 }
 
 /// What an element that the user gives a value holds: a field's text or number, a check box's

@@ -23,12 +23,14 @@ use crate::theme::{self, KindName, Rule, StateName, StyleSheet, Theme};
 mod control;
 mod field;
 mod interact;
+mod layer;
 mod meaning;
 mod motion;
 mod scroll_bar;
 
 pub use field::Clipboard;
 use interact::Interaction;
+pub use layer::{Along, Layer, Place, Side};
 pub use meaning::{
     ElementAction, FieldText, Meaning, MeaningChanges, MeaningNode, RUN_CHARACTERS, Role,
     RunCharacter, TextRun, ValueRange,
@@ -567,6 +569,8 @@ pub(crate) struct Node {
     pub(crate) motion: Option<Box<motion::Motion>>,
     /// A section's growing or shrinking under way.
     pub(crate) reveal: Option<motion::Reveal>,
+    /// What the interface keeps of a layer, for a root that it places.
+    pub(crate) layer: Option<Box<layer::Held>>,
 }
 
 /// A place in the arena.
@@ -757,6 +761,11 @@ impl Ui {
         let Some(node) = self.node(id) else {
             return;
         };
+        // A layer goes with the layers that stand over what it holds.
+        if node.layer.is_some() {
+            self.close_layer(id, false);
+            return;
+        }
         if let Some(parent) = node.parent {
             if let Some(parent) = self.node_mut(parent) {
                 parent.children.retain(|&child| child != id);
@@ -969,6 +978,10 @@ impl Ui {
         // out again. The input's states follow what they made, a focus hidden or disabled dropped,
         // and are styled in turn.
         self.step_motions();
+        // Layers take their surface from the root that they stand over, those whose anchor went
+        // close, and those opened by the keyboard give their first element the focus.
+        self.settle_layers();
+        self.focus_new_layers();
         stats.styled += self.restyle_marked();
         self.settle_input();
         stats.styled += self.restyle_marked();
@@ -996,6 +1009,10 @@ impl Ui {
             layout::place_below(self, id);
             lists.push(id);
         }
+        // A layer follows its anchor, which a layout or a scroll may have moved.
+        let followed = self.follow_anchors();
+        stats.layouts += followed.len();
+        lists.extend(followed);
         if stats.layouts + stats.lists > 0 || !lists.is_empty() {
             self.moved();
         }
@@ -1391,7 +1408,7 @@ impl Ui {
     }
 
     /// The root that `id` lies under.
-    fn root_of(&self, id: ElementId) -> Option<ElementId> {
+    pub(crate) fn root_of(&self, id: ElementId) -> Option<ElementId> {
         let mut at = id;
         loop {
             match self.node(at)?.parent {
@@ -1439,6 +1456,7 @@ impl Node {
             styled: false,
             motion: None,
             reveal: None,
+            layer: None,
         }
     }
 

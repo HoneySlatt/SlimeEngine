@@ -40,7 +40,7 @@ pub(super) struct Interaction {
     pub(super) bar: Option<super::scroll_bar::Held>,
     /// Whether the last input was a press of the pointer, whose focus does not show, rather than a
     /// key, an agent's action or the program's.
-    by_pointer: bool,
+    pub(super) by_pointer: bool,
 }
 
 impl Ui {
@@ -86,6 +86,10 @@ impl Ui {
         let primary = button == MouseButton::Left;
         if state == ButtonState::Pressed {
             self.interaction.by_pointer = true;
+            // A press outside a layer that closes as the user leaves it closes it.
+            if let Some([x, y]) = self.interaction.pointer {
+                self.dismiss_outside(x, y);
+            }
         }
         match state {
             // A press on a scroll bar holds its thumb, or pages along its track.
@@ -101,6 +105,25 @@ impl Ui {
             }
             ButtonState::Released if primary && self.interaction.bar.take().is_some() => {
                 self.interaction.held.retain(|&held| held != button);
+                true
+            }
+            // The second button on what the interface draws asks for a context menu.
+            ButtonState::Pressed
+                if button == MouseButton::Right
+                    && let Some([x, y]) = self.interaction.pointer
+                    && (self.holds_pointer()
+                        || self.pointer_target(Kind::takes_pointer).is_some()) =>
+            {
+                self.interaction.held.retain(|&held| held != button);
+                self.interaction.held.push(button);
+                let element = self.element_at(x, y);
+                let scale = element.map_or(1.0, |id| self.scale_of(id));
+                self.interaction.actions.push(Action {
+                    element,
+                    kind: ActionKind::ContextMenu {
+                        at: [x / scale, y / scale],
+                    },
+                });
                 true
             }
             ButtonState::Pressed => {
@@ -230,6 +253,28 @@ impl Ui {
             return false;
         }
         self.interaction.by_pointer = false;
+        // Escape closes the top layer that closes as the user leaves it.
+        if event.logical == Key::Named(NamedKey::Escape) && self.dismiss_top() {
+            return true;
+        }
+        // The key of context menus, or Shift+F10, asks for one at the element that holds the
+        // focus.
+        let context = event.logical == Key::Named(NamedKey::ContextMenu)
+            || (event.logical == Key::Named(NamedKey::F10) && self.interaction.modifiers.shift);
+        if context && let Some(focus) = self.interaction.focus {
+            let scale = self.scale_of(focus);
+            let rect = self.node(focus).map(|node| node.rect).unwrap_or_default();
+            let rtl = self.root_settings(focus).map(|root| root.direction)
+                == Some(super::LayoutDirection::RightToLeft);
+            let x = if rtl { rect.x + rect.width } else { rect.x };
+            self.interaction.actions.push(Action {
+                element: Some(focus),
+                kind: ActionKind::ContextMenu {
+                    at: [x / scale, (rect.y + rect.height) / scale],
+                },
+            });
+            return true;
+        }
         let modal = !self.interaction.modals.is_empty();
         if let Some(field) = self.focused_field()
             && self.field_key(field, event)
@@ -315,10 +360,14 @@ impl Ui {
                     }),
                 }
             }
+            // Cancel closes the top layer that closes as the user leaves it, as Escape does.
+            ActionKind::Intent(Intent::Cancel) if self.dismiss_top() => {}
             ActionKind::Intent(Intent::Cancel)
             | ActionKind::Command(_)
             | ActionKind::Changed(_)
-            | ActionKind::Committed(_) => {
+            | ActionKind::Committed(_)
+            | ActionKind::ContextMenu { .. }
+            | ActionKind::Dismissed => {
                 self.interaction.actions.push(action);
             }
             ActionKind::Intent(intent) => self.move_focus(intent),
