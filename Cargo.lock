@@ -1276,7 +1276,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hunnawood"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "slime-app",
  "slime-assets",
@@ -1295,7 +1295,7 @@ dependencies = [
 
 [[package]]
 name = "hunnawood-editor"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "hunnawood",
  "slime-assets",
@@ -2918,7 +2918,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "slime-app"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "accesskit",
  "accesskit_consumer",
@@ -2939,7 +2939,7 @@ dependencies = [
 
 [[package]]
 name = "slime-assets"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "ktx2",
  "slime-reflect",
@@ -2948,7 +2948,7 @@ dependencies = [
 
 [[package]]
 name = "slime-benches"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "slime-app",
  "slime-assets",
@@ -2965,7 +2965,7 @@ dependencies = [
 
 [[package]]
 name = "slime-channel"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "getrandom 0.4.3",
  "slime-reflect",
@@ -2976,14 +2976,14 @@ dependencies = [
 
 [[package]]
 name = "slime-color"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "slime-reflect",
 ]
 
 [[package]]
 name = "slime-cook"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "bevy_mikktspace",
  "blake3",
@@ -3004,7 +3004,7 @@ dependencies = [
 
 [[package]]
 name = "slime-devui"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "slime-app",
  "slime-assets",
@@ -3021,7 +3021,7 @@ dependencies = [
 
 [[package]]
 name = "slime-editor"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "slime-app",
  "slime-assets",
@@ -3036,7 +3036,7 @@ dependencies = [
 
 [[package]]
 name = "slime-examples"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "gltf",
  "png",
@@ -3059,7 +3059,7 @@ dependencies = [
 
 [[package]]
 name = "slime-gfx"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "block_compression",
  "pollster",
@@ -3072,11 +3072,11 @@ dependencies = [
 
 [[package]]
 name = "slime-input"
-version = "0.5.0"
+version = "0.6.0"
 
 [[package]]
 name = "slime-mcp"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "base64",
  "png",
@@ -3089,7 +3089,7 @@ dependencies = [
 
 [[package]]
 name = "slime-platform"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "accesskit",
  "accesskit_winit",
@@ -3103,7 +3103,7 @@ dependencies = [
 
 [[package]]
 name = "slime-reflect"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "glam",
  "slime-reflect-derive",
@@ -3111,7 +3111,7 @@ dependencies = [
 
 [[package]]
 name = "slime-reflect-derive"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3120,7 +3120,7 @@ dependencies = [
 
 [[package]]
 name = "slime-render"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "glam",
  "slime-assets",
@@ -3134,7 +3134,7 @@ dependencies = [
 
 [[package]]
 name = "slime-serialize"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "glam",
  "slime-reflect",
@@ -3144,11 +3144,11 @@ dependencies = [
 
 [[package]]
 name = "slime-tasks"
-version = "0.5.0"
+version = "0.6.0"
 
 [[package]]
 name = "slime-ui"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "fontique",
  "icu_properties",
@@ -3165,7 +3165,7 @@ dependencies = [
 
 [[package]]
 name = "slime-ui-render"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "etagere",
  "slime-color",
@@ -3177,7 +3177,7 @@ dependencies = [
 
 [[package]]
 name = "slime-world"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "glam",
  "slime-assets",
@@ -3190,7 +3190,7 @@ dependencies = [
 
 [[package]]
 name = "slime-world-render"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "slime-assets",
  "slime-color",

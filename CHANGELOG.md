@@ -6,6 +6,21 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-27
+
+The ninth release, which closes Stage 6b of the roadmap, the engine's interface. The editor's core
+changes a level through commands that it undoes and redoes, journals and writes back with its
+comments, and an AI agent drives its program through the engine's MCP server, on the examples' yard
+and on *Hunna Wood*'s zone. `slime-ui`, the engine's UI framework, keeps an interface as a tree of
+elements laid out by flexbox and grid, styled by style sheets and stacked themes that compute their
+colors, with text in every writing system that the renderer's canvas draws, input and focus, text
+edited through input methods and the clipboard, the widgets of an editor's panel, layers, rich
+fields, notifications and a palette of commands; agents read and use it through the MCP server,
+and screen readers through AccessKit. The dev overlay runs on it, in the editor's look, over *Hunna
+Wood* and the examples, and egui has left the engine; the game's build for shipping holds no
+overlay. The high hardware tier draws at 3840 × 2160. The Windows programs that CI builds are
+attached to the release on GitHub.
+
 ### Added
 
 - The dev overlay on the engine's interface (ADR-0152), in the editor's look, over *Hunna Wood* and

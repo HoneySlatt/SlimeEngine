@@ -57,8 +57,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)): M6b.8a, the editors and the
   world panel on the engine's interface, is done; M6b.8b, the overlay over the games' views, is
   done, with the owner's choice on Tab and F6 in a game's interface
-  ([ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)). M6b.9, the Windows check and the
-  release of 0.6, is in progress.
+  ([ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)), and M6b.9, the Windows check, the
+  documents reread and the release. Stage 6b is done, and released as 0.6 on 2026-10-27. Next:
+  Stage 6c, the editor, planned in detail with the owner.
 
 ## Status
 
@@ -82,7 +83,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.7e](#m6b7e--what-the-editor-tells-and-finds) | The framework tells the user what goes on, and finds every command by its name | Done |
 | [M6b.8a](#m6b8a--the-editors-and-the-world-panel-on-the-engines-interface) | The dev overlay's editors of reflected values, its world panel and a picker of colors run on the engine's interface | Done |
 | [M6b.8b](#m6b8b--the-overlay-over-the-games-views) | The dev overlay runs on the engine's interface over *Hunna Wood* and the examples, and egui leaves the engine | Done |
-| [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | In progress |
+| [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Done |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b, 5a, 5b and 6a are done, and so are the audit pass and the
 foundations pass; see [Completed stages](#completed-stages).
@@ -1285,12 +1286,17 @@ that the look has a light and a high-contrast theme beside its dark one.
 - **By hand.** In the Windows virtual machine: the overlay of *Hunna Wood* and of the `world`
   example; text in several writing systems in the examples; an input method and the clipboard in the
   examples' fields; Narrator reading the `world` example's overlay.
-- **Progress.** The owner's check in the Windows virtual machine, on 2026-10-27, of the programs
+- **Outcome.** Done on 2026-10-27. The owner's check in the Windows virtual machine of the programs
   that CI built from `0b6f1a9`, passed, as the owner reported it whole: the overlay of *Hunna Wood*
   and of the `world` example, Narrator reading the `world` example's panels, as Orca reads them on
   Linux, the text in several writing systems, an input method and the clipboard in the examples'
   fields. The documents were reread as a newcomer would read them, against the code, and
-  corrected.
+  corrected: the architecture's flows of the interface, the CHANGELOG's section of 0.6 gathered from
+  the milestones' entries, the debts that Stage 6b settled, and the overlay's own written. Stage 6b's
+  exit holds, the overlay's theme read from the look's files, which `slime-ui` builds into the
+  program, rather than from the disk while it runs; a frame of the world panel after an entity is
+  renamed, spawned or despawned passes a list's budget, which [Known debt](#known-debt) records.
+  Released as 0.6 on 2026-10-27, the tag `v0.6.0` on the commit "Release 0.6.0".
 
 ## Stage 6c — The editor
 
@@ -1381,7 +1387,9 @@ Stage 5b was released as 0.4 on 2026-10-18: the tag `v0.4.0` is on the commit "R
 its GitHub release carries the Windows programs that CI built from that commit. Stage 6a was
 released as 0.5 on 2026-10-22, with the audit pass and the foundations pass: the tag `v0.5.0` is on
 the commit "Release 0.5.0", and its GitHub release carries the Windows programs that CI built from
-that commit.
+that commit. Stage 6b was released as 0.6 on 2026-10-27: the tag `v0.6.0` is on the commit
+"Release 0.6.0", and its GitHub release carries the Windows programs that CI built from that
+commit.
 
 ## Completed stages
 

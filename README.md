@@ -9,8 +9,8 @@ games first, then open-world games, then large online worlds.
 Pre-alpha. Stages 0 (*Foundations*), 1 (*Core and platform*), 2 (*GPU layer*), 3a (*First
 renderer*), 3b (*Physically based renderer*), 3c (*A first game*), 3d (*Anti-aliasing and the
 shadows of spot lights*), 4a (*Cooked assets*), 4b (*Live assets*), 5a (*The world*), 5b (*Scenes
-and prefabs*) and 6a (*What the editor stands on*) are done; the latest release is 0.5 (git tag
-`v0.5.0`), which released Stage 6a, with the audit pass and the foundations pass before it.
+and prefabs*), 6a (*What the editor stands on*) and 6b (*The engine's interface*) are done; the
+latest release is 0.6 (git tag `v0.6.0`), which released Stage 6b.
 Applications run headless or with a window (Wayland or X11 on Linux, Win32 on Windows) that
 receives keyboard and mouse input, with a fixed-step main loop, logging, panic reporting and a clean shutdown on Ctrl+C. The
 engine opens the GPU (Vulkan on Linux, Direct3D 12 on Windows), paces frames with its own schedule
@@ -128,15 +128,20 @@ not move.
 
 ```toml
 [dependencies]
-slime-app = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
-slime-assets = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
-slime-color = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
-slime-gfx = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
-slime-platform = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
-slime-reflect = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
-slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
-slime-world = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
-slime-world-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.5.0" }
+slime-app = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
+slime-assets = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
+slime-color = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
+slime-gfx = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
+slime-platform = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
+slime-reflect = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
+slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
+slime-world = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
+slime-world-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
+# A game's interface (`Presentation::ui`), drawn through the renderer's canvas.
+slime-ui = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
+slime-ui-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
+# The dev overlay, in a development build alone: `dep:slime-devui` in the game's feature.
+slime-devui = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0", optional = true }
 
 # The renderer computes a sky's lighting on the CPU, several times slower without optimizations.
 [profile.dev.package.slime-render]
@@ -148,7 +153,8 @@ opt-level = 3
   the input events and the keys held, `slime-gfx` the GPU's objects, `slime-color` the
   colors, `slime-render` the renderer, and `slime-assets` the cooked data that the renderer loads.
   `slime-world` keeps the game's entities and components and saves them, `slime-world-render` draws
-  them, and `slime-reflect` describes the components, which derive `Reflect`. The cooker,
+  them, and `slime-reflect` describes the components, which derive `Reflect`. `slime-ui` keeps a
+  game's interface, which `slime-ui-render` draws with the renderer's canvas. The cooker,
   `slime-cook`, is a program of this repository that cooks a game's source assets before it runs,
   as [`games/hunnawood`](games/hunnawood/README.md) shows. Each crate's README shows its entry
   points, and [`examples/`](examples/README.md) holds programs to start from: `world` draws a world,
