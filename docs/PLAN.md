@@ -53,7 +53,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0149](adr/0149-the-looks-foundations.md)): M6b.7b, the look's foundations, is done;
   M6b.7c, the layers ([ADR-0150](adr/0150-layers.md)), is done. The owner cut the rich widgets in
   two on 2026-10-27 ([ADR-0151](adr/0151-rich-widgets.md)): M6b.7d, the rich fields, is done;
-  M6b.7e, what the editor tells and finds, is in progress.
+  M6b.7e, what the editor tells and finds, is built, its CI to run.
 
 ## Status
 
@@ -74,7 +74,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.7b](#m6b7b--the-looks-foundations) | The editor's look follows one accent in a dark, a light and a high-contrast theme, moves through transitions, and stays crisp at every scale | Done |
 | [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Done |
 | [M6b.7d](#m6b7d--rich-fields) | The framework has the rich fields and buttons that make editing fast | Done |
-| [M6b.7e](#m6b7e--what-the-editor-tells-and-finds) | The framework tells the user what goes on, and finds every command by its name | In progress |
+| [M6b.7e](#m6b7e--what-the-editor-tells-and-finds) | The framework tells the user what goes on, and finds every command by its name | Built; CI to run |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
 
@@ -1130,6 +1130,29 @@ that the look has a light and a high-contrast theme beside its dark one.
   green.
 - **How to test.** `cargo test -p slime-ui`; the example.
 - **By hand.** The owner tries the example's notifications, palette and sheet of shortcuts.
+- **Outcome.** Built on 2026-10-27, CI to run, as [ADR-0151](adr/0151-rich-widgets.md) decides.
+  `slime-ui` stacks the notifications that the program gives at the window's bottom end, in a layer
+  that takes the focus from no one, each of a kind that sets how long it stays, its time counted
+  again while the pointer rests on it or as it is updated, one with a bar of progress or an error
+  staying, with buttons that give commands and a mark that closes it (`Ui::notify`,
+  `Ui::update_notification`, `Ui::close_notification`, `Notification`); screen readers read them
+  as live regions, a warning or an error at once. The palette of commands (`Ui::open_palette`,
+  `PaletteCommand`) finds the commands that the program names by the letters typed, in their order,
+  ranked by a match of the engine's own that rewards the starts of words and letters that follow
+  each other, each shown with the chord that applies to it (`Ui::command_chord`), and gives the
+  chosen one as a shortcut's command; its field's changes and commits never reach the program,
+  shortcuts still do, and an input method's composition keeps its keys. The sheet of shortcuts
+  (`Ui::open_shortcut_sheet`) lists the tables' chords by scope (`Ui::shortcuts`), in a box that
+  scrolls. The palette and the sheet stay in the middle of the window. The `widgets` example tells
+  of a level made or saved, opens the palette with Ctrl+Shift+P and the sheet with F1, both in
+  *View* too; its images draw a notification with the palette open; its agent's session gives a
+  command that a notification tells of, finds a command in the palette and opens and closes the
+  sheet. The review found an update of a notification that drew nothing and broke its buttons, a
+  stack that took the focus from a field, shortcuts lost while the palette was open, Enter taken
+  from an input method's composition, an Enter that gave the command of what was typed before, a
+  chord shown for a command that a later table had taken it from, each fixed with a test. The
+  tests: `slime-ui`'s `tests/palette.rs`, the ranking's own tests in `src/tree/palette.rs`, and
+  `slime-app`'s translation of notifications as live regions.
 
 ### M6b.8 — The dev overlay on the engine's interface
 
@@ -1239,6 +1262,9 @@ The game is run with `--new --save <a file of its own>`, so that the owner's sav
   which no check of CI draws in a window ([ADR-0137](adr/0137-the-canvas.md),
   [ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
 
+- **M6b.7e, on Linux.** The `widgets` example's notifications, Ctrl+N and Ctrl+S, the pointer
+  resting on one, its mark; the palette of commands, Ctrl+Shift+P, typed in, its arrows, Enter and
+  a press; the sheet of shortcuts, F1 ([ADR-0151](adr/0151-rich-widgets.md)).
 - **M6b.7d, on Linux.** The `widgets` example's rich fields
   ([ADR-0151](adr/0151-rich-widgets.md)): the segments, Snap and the bars of progress; the search
   over the list of entities; the position's prefixes dragged, finer with Shift and coarser with
@@ -2078,6 +2104,13 @@ GitHub issues, linked from their entry; this list stays the reference.
   out, which placed it from the wrong box. A content box takes its padding from the left whatever
   the root's direction, so that an asymmetric padding is mirrored wrongly from right to left, a
   drift found while placing the fields' marks, which allow for it.
+- **What the editor tells and finds** ([ADR-0151](adr/0151-rich-widgets.md)): the palette shows
+  12 commands at most, and finds them by letters in order, without forgiving a letter typed wrong;
+  the sheet of shortcuts takes no focus, so that a screen reader says nothing as it opens; a
+  notification's mark that closes it is named `close` in English; no check runs a screen reader on
+  the live regions of notifications; the stack of notifications turns from its corner as a layer
+  at a point does, which holds for a stack wider and taller than its margin, as every
+  notification is.
 - **What agents see** ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)): a tool reads an
   interface only in a windowed run, from its last frame, and each ask walks the whole tree. A path
   holds while the roots below its own stay, and a key's name that holds
