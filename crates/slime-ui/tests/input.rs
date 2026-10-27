@@ -596,7 +596,7 @@ fn a_rule_selects_the_element_that_holds_the_focus() {
     let sheet = "[focused]\nselect = { states = [\"Focused\"] }\nstyle.paint.border_width = 2\n";
     ui.set_style(
         &[StyleSheet::from_text("focus.style", sheet)],
-        &Theme::from_text("plain.theme", ""),
+        &[Theme::from_text("plain.theme", "")],
     )
     .expect("a style sheet");
     ui.set_focus(Some(buttons[1]));

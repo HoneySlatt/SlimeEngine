@@ -46,7 +46,7 @@ fn styled(elements: Vec<Element>) -> (Ui, Vec<ElementId>) {
     let mut fonts = Fonts::new();
     look::register_fonts(&mut fonts);
     let mut ui = Ui::new(fonts);
-    ui.set_style(&[look::style_sheet()], &look::theme())
+    ui.set_style(&[look::style_sheet()], &[look::theme()])
         .expect("the look's documents are valid");
     let settings = RootSettings {
         size: [800.0, 600.0],
@@ -106,7 +106,7 @@ fn a_chosen_tab_takes_the_panels_color_and_the_others_a_quieter_text() {
     let mut fonts = Fonts::new();
     look::register_fonts(&mut fonts);
     let mut ui = Ui::new(fonts);
-    ui.set_style(&[look::style_sheet()], &look::theme())
+    ui.set_style(&[look::style_sheet()], &[look::theme()])
         .expect("the look's documents are valid");
     let settings = RootSettings {
         size: [800.0, 600.0],

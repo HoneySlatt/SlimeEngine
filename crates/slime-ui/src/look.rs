@@ -30,7 +30,7 @@
 //! let mut fonts = Fonts::new();
 //! look::register_fonts(&mut fonts);
 //! let mut ui = Ui::new(fonts);
-//! ui.set_style(&[look::style_sheet()], &look::theme())
+//! ui.set_style(&[look::style_sheet()], &[look::theme()])
 //!     .expect("the look's documents are valid");
 //! ```
 

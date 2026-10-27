@@ -90,7 +90,7 @@ impl WidgetsPanel {
         let mut fonts = Fonts::new();
         look::register_fonts(&mut fonts);
         let mut ui = Ui::new(fonts);
-        ui.set_style(&[look::style_sheet()], &look::theme())
+        ui.set_style(&[look::style_sheet()], &[look::theme()])
             .expect("the look's documents are valid");
         let root = ui.add_root(settings([1.0, 1.0], 1.0, direction), column());
         let slider = |label, value, min, max, step| Slider {

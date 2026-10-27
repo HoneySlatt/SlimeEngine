@@ -789,20 +789,26 @@ impl Ui {
     }
 
     /// Styles the elements with the rules of `sheets`, in their order and the order of their
-    /// files, their names given the values of `theme`: every element's style is made again at the
-    /// next [`Ui::frame`]. A rule that selects an element sets the fields of its style that it
-    /// gives; a later rule, those it gives in turn; the element's own style, the fields that it
-    /// sets apart from their defaults, a color, an array, a list and an option each one field. The
-    /// styles made are kept and shared, for up to 64 elements' own styles that the same rules
+    /// files, their names given the values of `themes`, stacked: of the themes that give a name, the
+    /// last gives its value, and the values that name it follow it. Every element's style is made
+    /// again at the next [`Ui::frame`]. A rule that selects an element sets the fields of its style
+    /// that it gives; a later rule, those it gives in turn; the element's own style, the fields
+    /// that it sets apart from their defaults, a color, an array, a list and an option each one
+    /// field. The styles made are kept and shared, for up to 64 elements' own styles that the same
+    /// rules
     /// select: past them, the style of such an element is made again each time, more slowly.
     ///
     /// # Errors
     ///
-    /// [`DocumentError`] if a style sheet or the theme is not a document of their types, or names a
-    /// value that the theme does not have or holds of another type: the interface keeps the style
-    /// it had.
-    pub fn set_style(&mut self, sheets: &[StyleSheet], theme: &Theme) -> Result<(), DocumentError> {
-        self.rules = theme::rules(&self.registry, sheets, theme)?;
+    /// [`DocumentError`] if a style sheet or a theme is not a document of their types, names a
+    /// value that no theme gives or that holds another type, a value names itself through others,
+    /// or a color function is given what it does not take: the interface keeps the style it had.
+    pub fn set_style(
+        &mut self,
+        sheets: &[StyleSheet],
+        themes: &[Theme],
+    ) -> Result<(), DocumentError> {
+        self.rules = theme::rules(&self.registry, sheets, themes)?;
         self.styles.clear();
         for root in self.roots.clone() {
             self.mark_style_subtree(root);

@@ -323,7 +323,7 @@ impl Interface {
         };
         let sheet = StyleSheet::from_binary(name(STYLE), self.assets.style_sheet(STYLE)?);
         let theme = Theme::from_binary(name(theme), self.assets.theme(theme)?);
-        self.ui.set_style(&[sheet], &theme)?;
+        self.ui.set_style(&[sheet], std::slice::from_ref(&theme))?;
         let keys = Shortcuts::from_binary(name(KEYS), self.assets.shortcuts(KEYS)?);
         self.ui.set_shortcuts(&[keys])?;
         Ok(())

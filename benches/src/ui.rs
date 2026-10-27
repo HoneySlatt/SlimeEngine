@@ -620,7 +620,7 @@ impl Editor {
         let root = ui.add_root(SCREEN, column());
         ui.set_style(
             &[StyleSheet::from_text("editor.style", EDITOR_STYLE)],
-            &theme(false),
+            &[theme(false)],
         )
         .expect("the editor's style");
         let mut panels = Vec::new();
@@ -751,7 +751,7 @@ pub fn tree(_: &mut Context) -> Result<Vec<Row>, String> {
             .ui
             .set_style(
                 &[StyleSheet::from_text("editor.style", EDITOR_STYLE)],
-                &theme(light),
+                &[theme(light)],
             )
             .expect("the editor's style");
         black_box(editor.ui.frame());

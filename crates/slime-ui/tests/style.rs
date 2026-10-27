@@ -94,7 +94,7 @@ fn rules_select_by_kind_class_key_state_and_ancestor_in_the_order_of_their_file(
     let ids = build(&mut ui, root, 0, Style::default());
     ui.set_style(
         &[StyleSheet::from_text("ui.style", SHEET)],
-        &Theme::from_text("dark.theme", DARK),
+        &[Theme::from_text("dark.theme", DARK)],
     )
     .expect("a style sheet and a theme");
     ui.frame();
@@ -133,7 +133,7 @@ fn an_element_keeps_the_fields_that_its_own_style_sets_and_takes_the_rules_for_t
     let ids = build(&mut ui, root, 0, panel);
     ui.set_style(
         &[StyleSheet::from_text("ui.style", SHEET)],
-        &Theme::from_text("dark.theme", DARK),
+        &[Theme::from_text("dark.theme", DARK)],
     )
     .expect("a style sheet and a theme");
     ui.frame();
@@ -153,12 +153,12 @@ fn another_theme_styles_every_element_again_with_its_values() {
     let (mut ui, root) = ui();
     let ids = build(&mut ui, root, 0, Style::default());
     let sheets = [StyleSheet::from_text("ui.style", SHEET)];
-    ui.set_style(&sheets, &Theme::from_text("dark.theme", DARK))
+    ui.set_style(&sheets, &[Theme::from_text("dark.theme", DARK)])
         .expect("dark");
     ui.frame();
     let (_, stats) = ui.frame();
     assert_eq!((stats.styled, stats.layouts, stats.painted), (0, 0, 0));
-    ui.set_style(&sheets, &Theme::from_text("light.theme", LIGHT))
+    ui.set_style(&sheets, &[Theme::from_text("light.theme", LIGHT)])
         .expect("light");
     let (_, stats) = ui.frame();
     assert_eq!(stats.styled, stats.elements);
@@ -193,7 +193,7 @@ fn style_sheets_and_themes_are_read_from_their_binary_encoding_as_from_their_tex
     let theme = slime_serialize::encode(DARK).expect("a document");
     ui.set_style(
         &[StyleSheet::from_binary("ui.style", sheet)],
-        &Theme::from_binary("dark.theme", theme),
+        &[Theme::from_binary("dark.theme", theme)],
     )
     .expect("a style sheet and a theme");
     ui.frame();
@@ -205,14 +205,17 @@ fn a_wrong_style_sheet_or_theme_is_refused_by_name_and_place_and_the_style_is_ke
     let (mut ui, root) = ui();
     let ids = build(&mut ui, root, 0, Style::default());
     let theme = Theme::from_text("dark.theme", DARK);
-    ui.set_style(&[StyleSheet::from_text("ui.style", SHEET)], &theme)
-        .expect("a style sheet and a theme");
+    ui.set_style(
+        &[StyleSheet::from_text("ui.style", SHEET)],
+        std::slice::from_ref(&theme),
+    )
+    .expect("a style sheet and a theme");
     ui.frame();
     let cases = [
         (
             "[a]\nselect = { kind = \"Container\" }\nstyle.paint.background = \"$missing\"\n",
             "ui.style: line 3,",
-            "no value named `missing`",
+            "no theme gives a value named `missing`",
         ),
         (
             "[a]\nstyle.paint.background = \"#12345\"\n",
@@ -239,7 +242,10 @@ fn a_wrong_style_sheet_or_theme_is_refused_by_name_and_place_and_the_style_is_ke
     ];
     for (sheet, place, problem) in cases {
         let error = ui
-            .set_style(&[StyleSheet::from_text("ui.style", sheet)], &theme)
+            .set_style(
+                &[StyleSheet::from_text("ui.style", sheet)],
+                std::slice::from_ref(&theme),
+            )
             .unwrap_err()
             .to_string();
         assert!(
@@ -250,7 +256,7 @@ fn a_wrong_style_sheet_or_theme_is_refused_by_name_and_place_and_the_style_is_ke
     let error = ui
         .set_style(
             &[StyleSheet::from_text("ui.style", SHEET)],
-            &Theme::from_text("broken.theme", "accent = \n"),
+            &[Theme::from_text("broken.theme", "accent = \n")],
         )
         .unwrap_err();
     assert!(
@@ -271,7 +277,7 @@ fn rules_apply_in_the_order_of_their_file_whatever_their_names() {
                  [alpha]\nselect = { kind = \"Container\" }\nstyle.paint.background = \"#222222\"\n";
     ui.set_style(
         &[StyleSheet::from_text("order.style", sheet)],
-        &Theme::from_text("empty.theme", ""),
+        &[Theme::from_text("empty.theme", "")],
     )
     .expect("a style sheet");
     ui.frame();
@@ -286,7 +292,7 @@ fn an_element_whose_own_style_changes_is_styled_again() {
     let ids = build(&mut ui, root, 0, red);
     ui.set_style(
         &[StyleSheet::from_text("ui.style", SHEET)],
-        &Theme::from_text("dark.theme", DARK),
+        &[Theme::from_text("dark.theme", DARK)],
     )
     .expect("a style sheet and a theme");
     ui.frame();
@@ -304,7 +310,7 @@ fn the_rows_of_a_list_restyled_lay_out_the_list_s_rows_alone() {
     let sheet = "[row]\nselect = { classes = [\"row\"] }\nstyle.layout.padding.top = \"$pad\"\n";
     let theme = |pad: u32| Theme::from_text("pad.theme", format!("pad = {pad}\n"));
     let sheets = [StyleSheet::from_text("rows.style", sheet)];
-    ui.set_style(&sheets, &theme(2)).expect("a style sheet");
+    ui.set_style(&sheets, &[theme(2)]).expect("a style sheet");
     let mut list = None;
     let mut build = |ui: &mut Ui| {
         ui.build(root, 0, |children| {
@@ -323,7 +329,7 @@ fn the_rows_of_a_list_restyled_lay_out_the_list_s_rows_alone() {
     };
     build(&mut ui);
     build(&mut ui);
-    ui.set_style(&sheets, &theme(6)).expect("a style sheet");
+    ui.set_style(&sheets, &[theme(6)]).expect("a style sheet");
     let (_, stats) = build(&mut ui);
     assert_eq!((stats.layouts, stats.lists), (0, 1));
     let row = ui.children(list.unwrap())[0];
@@ -340,7 +346,7 @@ fn a_shadow_set_in_part_takes_the_defaults_of_what_it_leaves_out_and_a_name_give
     let theme = "card = { color = \"#00000080\", offset = [0, 6], blur = 24, spread = 2 }\n";
     ui.set_style(
         &[StyleSheet::from_text("shadows.style", sheet)],
-        &Theme::from_text("shadows.theme", theme),
+        &[Theme::from_text("shadows.theme", theme)],
     )
     .expect("a style sheet and a theme");
     ui.frame();
@@ -355,4 +361,124 @@ fn a_shadow_set_in_part_takes_the_defaults_of_what_it_leaves_out_and_a_name_give
         (card.offset, card.blur, card.spread),
         ([0.0, 6.0], 24.0, 2.0)
     );
+}
+
+/// The fill of a box styled by the `$fill` of `themes`, stacked.
+fn computed(themes: &[(&str, &str)]) -> Result<LinearColor, String> {
+    let (mut ui, root) = ui();
+    let sheet = "[box]\nselect = { kind = \"Container\" }\nstyle.paint.background = \"$fill\"\n";
+    let themes: Vec<Theme> = themes
+        .iter()
+        .map(|(name, text)| Theme::from_text(*name, *text))
+        .collect();
+    ui.set_style(&[StyleSheet::from_text("box.style", sheet)], &themes)
+        .map_err(|error| error.to_string())?;
+    let mut id = None;
+    ui.build(root, 0, |children| {
+        id = Some(children.add("box", Element::container(Style::default()), |_| {}));
+    });
+    ui.frame();
+    Ok(fill(&ui, id.expect("built")))
+}
+
+/// Whether two colors are within 1/1000 on each component.
+fn near(a: LinearColor, b: LinearColor) -> bool {
+    [(a.r, b.r), (a.g, b.g), (a.b, b.b), (a.a, b.a)]
+        .iter()
+        .all(|(x, y)| (x - y).abs() < 1e-3)
+}
+
+#[test]
+fn a_theme_s_values_name_others_and_compute_colors_in_oklch() {
+    let base = "accent = \"#4c8dff\"\npanel = \"#202126\"\nhalf = \"50%\"\n";
+    // A name that names a name.
+    let named = computed(&[(
+        "a.theme",
+        &format!("{base}fill = \"$link\"\nlink = \"$accent\"\n"),
+    )]);
+    assert_eq!(named, Ok(srgb(0x4c8dff)));
+    // Lighter and darker by a share of OKLCH's lightness, the hue kept.
+    let accent = srgb(0x4c8dff).to_oklch();
+    for (call, by) in [
+        ("lighten($accent, 0.1)", 0.1),
+        ("darken($accent, 10%)", -0.1),
+    ] {
+        let color = computed(&[("a.theme", &format!("{base}fill = \"{call}\"\n"))])
+            .expect("computed")
+            .to_oklch();
+        assert!(
+            (color.l - (accent.l + by)).abs() < 2e-3,
+            "{call}: {color:?}"
+        );
+        assert!((color.h - accent.h).abs() < 1.0, "{call}: {color:?}");
+    }
+    // A mix halfway, its lightness halfway in OKLCH; an opacity; nested calls; a share by name.
+    let panel = srgb(0x202126).to_oklch();
+    let mixed = computed(&[(
+        "a.theme",
+        &format!("{base}fill = \"mix($accent, $panel, $half)\"\n"),
+    )])
+    .expect("computed")
+    .to_oklch();
+    assert!(
+        (mixed.l - (accent.l + panel.l) / 2.0).abs() < 2e-3,
+        "{mixed:?}"
+    );
+    let soft = computed(&[(
+        "a.theme",
+        &format!("{base}fill = \"alpha(lighten($accent, 0.05), 20%)\"\n"),
+    )])
+    .expect("computed");
+    assert!((soft.a - 0.2).abs() < 1e-6, "{soft:?}");
+    // A mix with a grey keeps the color's hue rather than turning through the grey's.
+    let warm = computed(&[("a.theme", "fill = \"mix(#e8a33d, #808080, 30%)\"\n")])
+        .expect("computed")
+        .to_oklch();
+    assert!(
+        (warm.h - srgb(0xe8a33d).to_oklch().h).abs() < 1.0,
+        "{warm:?}"
+    );
+}
+
+#[test]
+fn stacked_themes_give_the_last_value_and_what_names_it_follows() {
+    let base = "accent = \"#4c8dff\"\nfill = \"lighten($accent, 0.1)\"\n";
+    let first = computed(&[("base.theme", base)]).expect("computed");
+    let green = computed(&[
+        ("base.theme", base),
+        ("user.theme", "accent = \"#2bb673\"\n"),
+    ])
+    .expect("computed");
+    let expected =
+        computed(&[("one.theme", "fill = \"lighten(#2bb673, 0.1)\"\n")]).expect("computed");
+    assert!(near(green, expected), "{green:?} {expected:?}");
+    assert!(!near(green, first));
+    // A later theme that gives the value itself wins over the earlier computation.
+    let given = computed(&[("base.theme", base), ("user.theme", "fill = \"#ff0000\"\n")]);
+    assert_eq!(given, Ok(srgb(0xff0000)));
+}
+
+#[test]
+fn a_theme_that_names_itself_a_missing_value_or_calls_wrongly_is_refused_by_its_value() {
+    let cases = [
+        (
+            "a = \"$b\"\nb = \"$a\"\nfill = \"#000000\"\n",
+            "names itself",
+        ),
+        (
+            "other = \"lighten($nowhere, 0.1)\"\nfill = \"#000000\"\n",
+            "no theme gives a value named `nowhere`",
+        ),
+        (
+            "fill = \"mix(#000000, #ffffff)\"\n",
+            "`mix` takes two colors and a share",
+        ),
+        ("fill = \"glow(#000000, 1)\"\n", "no color function `glow`"),
+        ("fill = \"lighten(#000000, much)\"\n", "`much` is no share"),
+    ];
+    for (theme, expected) in cases {
+        let error = computed(&[("bad.theme", theme)]).expect_err(theme);
+        assert!(error.contains("bad.theme"), "{error}");
+        assert!(error.contains(expected), "{theme}: {error}");
+    }
 }
