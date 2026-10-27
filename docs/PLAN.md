@@ -51,8 +51,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   owner on 2026-10-26: M6b.7a, the widgets that a panel holds, is done
   ([ADR-0148](adr/0148-widgets.md)). The owner cut the rest in three on 2026-10-27
   ([ADR-0149](adr/0149-the-looks-foundations.md)): M6b.7b, the look's foundations, is done;
-  M6b.7c, the layers ([ADR-0150](adr/0150-layers.md)), is in progress, and M6b.7d, the rich
-  widgets, follows.
+  M6b.7c, the layers ([ADR-0150](adr/0150-layers.md)), is built, its CI to run, and M6b.7d, the
+  rich widgets, follows.
 
 ## Status
 
@@ -71,7 +71,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.6b](#m6b6b--screen-readers) | Screen readers read the interface, and agents read and set what its fields hold | Done |
 | [M6b.7a](#m6b7a--the-widgets-of-a-panel) | The framework has the widgets that a panel of the dev overlay and of the editor is made of, in the editor's theme | Done |
 | [M6b.7b](#m6b7b--the-looks-foundations) | The editor's look follows one accent in a dark, a light and a high-contrast theme, moves through transitions, and stays crisp at every scale | Done |
-| [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | In progress |
+| [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Built; CI to run |
 | [M6b.7d](#m6b7d--rich-widgets) | The framework has the rich fields, notifications and the palette of commands that make editing fast | Planned |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
@@ -1017,11 +1017,47 @@ that the look has a light and a high-contrast theme beside its dark one.
   example; an agent's session uses each through its actions; CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-ui-render`; the example.
 - **By hand.** The owner tries the example's layers.
-- **Progress.** [ADR-0150](adr/0150-layers.md) records the owner's decisions of 2026-10-27: the
-  widgets that own a layer open it alone, a list to choose from and a tooltip, and the program
-  builds menus, context menus, floating panels and dialogs, which the framework places beside what
-  opens them, closes on a press outside or Escape, and moves the keyboard through; Lucide's font
-  whole in the look. The rest is under way.
+- **Outcome.** Built on 2026-10-27, CI to run. [ADR-0150](adr/0150-layers.md) records the owner's
+  decisions of 2026-10-27: the widgets that own a layer open it alone, a list to choose from and a
+  tooltip, and the program builds menus, context menus, floating panels and dialogs, which the
+  framework places, closes on a press outside or Escape, and moves the keys through; a bar of
+  menus in the framework; Lucide's font of icons whole in the look. `slime-ui` opens layers, roots
+  placed beside an element, at a point or floating, after their content is laid out, kept within
+  the window, following their anchor, closed with it, and closed as the user leaves them, the focus
+  given back and the program told; a modal layer keeps the press. The pointer's second button and
+  Shift+F10 ask for a context menu. Menus and their items, a mark, a label, a shortcut and a chevron
+  in columns that line up, moved through by the arrows, around, their submenus opened and closed by
+  the arrows towards a line's end and start and by the pointer resting on their items; a press on
+  an item closes the menus that led to it. A bar of menus, its items their labels alone, which the
+  pointer passes along while a menu is open, the arrows between its menus, F10 and Alt alone
+  reaching it. Lists to choose from, their list a menu of their options, chosen by the keys, the
+  pointer and agents. Tooltips once the pointer rests half a second on the interface's clock, or
+  the keys give the focus, which the pointer passes through, read as the element's description.
+  Floating panels that fill their layer, moved by their bar within the window, sized by their
+  corner, folded by their mark and raised by a press. A style's icons name the glyphs that controls
+  draw, which the look takes from Lucide, whole, with its codepoints (`look::icon`), its sheet
+  styling menus, their bar, lists, tooltips and floating panels with a shadow under what floats.
+  `slime-app` gives screen readers the new roles, popups and descriptions, the development channel
+  and the MCP server agents. Found while drawing the example's images: a submenu was kept within its
+  menu's box, fixed by placing every layer within the window; and a floating layer took the
+  window's size. The tests: in `slime-ui`'s `tests/layers.rs`, layers placed, turned and moved,
+  closed by a press outside and by Escape, following their anchor and closing with it, a submenu out
+  of its menu's box, a modal layer keeping the press and the focus, context menus; in
+  `tests/menus.rs`, the arrows among a menu's items, submenus opened and closed from either
+  direction, a press closing the menus, the pointer's focus, the columns, the meaning; in
+  `tests/menu_bar.rs`, F10 and Alt alone, the arrows along the bar and between its menus, a command
+  giving the focus back, the pointer passing along the bar; in `tests/choice.rs`, the list opened
+  on its chosen option, chosen by the keys and the pointer, closed unchanged, the keys that choose
+  while it is closed, the program's choice, an agent's, the meaning; in `tests/tooltips.rs`, the
+  rest, what hides it, the keys' focus, the description, a submenu opened by resting; in
+  `tests/panels.rs`, a panel moved within the window, sized from either direction, folded, raised,
+  its meaning; in `tests/look.rs`, Lucide's icons by name and drawn by the controls, and the look's
+  styles of layers; in `slime-app`'s translation, the layers' roles, popups and descriptions and a
+  screen reader's choice; in `slime-examples`'s `tests/widgets.rs`, the bar's menu and its submenu,
+  and the floating panel, the list open and a tooltip, against reference images, the others drawn
+  again with the look's icons; in `slime-mcp`'s `tests/widgets.rs`, an agent's session that chooses
+  an option, opens the bar's menus, shows the floating panel and opens a recent level through a
+  submenu.
 
 ### M6b.7d — Rich widgets
 
@@ -1149,6 +1185,11 @@ The game is run with `--new --save <a file of its own>`, so that the owner's sav
   which no check of CI draws in a window ([ADR-0137](adr/0137-the-canvas.md),
   [ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
 
+- **M6b.7c, on Linux.** The `widgets` example's layers ([ADR-0150](adr/0150-layers.md)): the bar
+  of menus with the pointer, passing along it, and with F10, Alt and the arrows; the submenus
+  opening as the pointer rests; the menu of an entity's row at the second button and Shift+F10; the
+  list to choose the quality of shadows from; the tooltips; the floating panel of statistics moved,
+  sized, folded and raised.
 - **M6b.7b, on Linux and in the Windows virtual machine.** The `widgets` example's themes of
   colors, densities, accents and transitions, switched with T, D, A and M
   ([ADR-0149](adr/0149-the-looks-foundations.md)); in the Windows virtual machine, its colors
@@ -1897,14 +1938,14 @@ GitHub issues, linked from their entry; this list stays the reference.
   `slime-color` changed, and the zone was cooked again: `check (windowed)` took 21 minutes 55
   seconds and `windows` 21 minutes 39 seconds.
 - **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)): a frame walks every
-  element of its roots, to find what to draw again and to gather the display list, even when
-  nothing changed. A list shows the rows of a new range one frame late, when it first shows or when
-  it scrolls after its builder ran. A text in a root laid out from right to left keeps its own
-  direction, a Latin paragraph starting at its box's left. No element is placed out of its
-  parent's flow. The marks of what changed hold an element's style, layout and paint, not yet its
-  meaning.
+  element of its roots, to find what to draw again and to gather the display list, even when nothing
+  changed. A list shows the rows of a new range one frame late, when it first shows or when it
+  scrolls after its builder ran. A text in a root laid out from right to left keeps its own
+  direction, a Latin paragraph starting at its box's left. No element is placed out of its parent's
+  flow but in a layer of its own ([ADR-0150](adr/0150-layers.md)). The marks of what changed hold an
+  element's style, layout and paint, not yet its meaning.
 - **Input and focus** ([ADR-0142](adr/0142-input-and-focus.md)): buttons, fields and widgets alone
-  hold the focus, buttons, check boxes, sections and tabs alone are pressed, and boxes that scroll
+  hold the focus, buttons and widgets alone are pressed, and boxes that scroll
   and lists scroll with the wheel; a list's rows are
   not selected; a press on what the interface draws is taken whether or not it does anything, from
   what its last frame drew, so that a game's interface that lets presses through draws nothing
@@ -1956,6 +1997,18 @@ GitHub issues, linked from their entry; this list stays the reference.
   Stage 7's layers. A shadow is not placed on whole pixels. On Linux, the system's dark or light
   preference is not read: winit reads no desktop's settings, and the portal of the desktop's
   settings would need a new dependency; Windows reports it.
+- **Layers** ([ADR-0150](adr/0150-layers.md)): a menu has no separators of its own, no letters that
+  jump to an item, and no way to cross its siblings towards an open submenu: resting a quarter of a
+  second on another item closes it. A list to choose from does not scroll its options, so that a
+  list taller than the window is cut; Tab within an open list moves among its options rather than
+  closing it. A tooltip shows for the keys' focus alone, not the program's, and is not placed
+  beside the pointer. A floating panel has a least size of its own, no docking, and does not keep
+  its place against a window that shrinks, where it is placed within the window but keeps what the
+  user left. A press that raises a floating layer changes the numbers of the roots in paths. A modal
+  layer draws no scrim behind it. A style sheet reads a theme's value in place of every value but a
+  text: the look names its icons by their codepoints in its sheet, not in a theme. The bar of menus
+  takes Alt let go alone whenever an interface holds one, which a game whose interface holds a bar
+  loses as a key of its own.
 - **What agents see** ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)): a tool reads an
   interface only in a windowed run, from its last frame, and each ask walks the whole tree. A path
   holds while the roots below its own stay, and a key's name that holds

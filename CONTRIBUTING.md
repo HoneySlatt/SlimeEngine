@@ -308,17 +308,17 @@ zone with that editor, the samples with no display server available, and an agen
 edits a copy of the examples' yard with the `editor` example, the windowed samples, the `interface`
 example's interface used by an agent's session through the MCP server, which presses a button that
 changes its world, and read and used through AT-SPI as a screen reader does, the `widgets` example
-drawn into an image, run in a window and its widgets each used by an agent's session through the MCP
-server, the `world` example's two views captured, the map's normals shown, its reports read and an
-entity picked at a pixel, by an agent's session through the MCP server, the `scene` example on a
-copy of the cooked sample with one byte changed, which must end with an error and not a panic, the
-game (its new runs, one resumed from a copy of its save fixture, and one driven by an agent's
-session through the MCP server, their saves kept apart from the user's) and the windowed lifecycle
-test inside a headless Weston compositor (and that test's resize and oversize scenarios in a second
-one, at scale 2), the game built for shipping, which must hold no development channel, the game,
-which must hold no adapter for screen readers, and `lychee` (links between Markdown files). The
-individual commands are listed in [`AGENTS.md`](AGENTS.md#environment-and-commands) for when you
-want to run only one of them.
+drawn into an image, run in a window and its widgets, menus, list to choose from and floating panel
+each used by an agent's session through the MCP server, the `world` example's two views captured,
+the map's normals shown, its reports read and an entity picked at a pixel, by an agent's session
+through the MCP server, the `scene` example on a copy of the cooked sample with one byte changed,
+which must end with an error and not a panic, the game (its new runs, one resumed from a copy of its
+save fixture, and one driven by an agent's session through the MCP server, their saves kept apart
+from the user's) and the windowed lifecycle test inside a headless Weston compositor (and that
+test's resize and oversize scenarios in a second one, at scale 2), the game built for shipping,
+which must hold no development channel, the game, which must hold no adapter for screen readers, and
+`lychee` (links between Markdown files). The individual commands are listed in
+[`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
 
 The script also runs clippy for the Windows target, which catches code that does not compile on
 Windows without a Windows machine.

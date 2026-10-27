@@ -41,7 +41,8 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   command of a shortcut. The program reads them from a queue (`Ui::take_actions`); an agent sends
   them (`Ui::act`). The interface moves the focus itself, by Tab in the order of the tree and by the
   arrows to the nearest element on screen, within its scope; a root may be a popup at a place of
-  its own, or modal, keeping the input and the focus while it is open.
+  its own, or modal, keeping the input and the focus while it is open. An element's description,
+  its tooltip, and whether a press opens a layer beside it, are part of what it means.
 - `shortcuts::Shortcuts` is a table of shortcuts, read from a document: chords of the keys' meaning
   that name commands, in scopes, the classes of the elements around the focus; `Ui::set_shortcuts`
   takes them. Its errors and the style sheets' are a `DocumentError`.
@@ -61,12 +62,25 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   scroll bars of a box that scrolls and of a list. Their parts apart from their box take the style's
   `control` part (`style::ControlStyle`), and rules select them by the states `Checked`, `Expanded`
   and `Selected`.
+- Layers (`docs/adr/0150-layers.md`): roots over the others that the interface places
+  (`Ui::open_layer`, `tree::Layer`, `tree::Place`), beside an element, at a point or floating, kept
+  within the window, closed as the user leaves them, which the program reads
+  (`action::ActionKind::Dismissed`). Menus (`Element::menu`, `Element::menu_item`, `tree::ItemMark`)
+  and a bar of menus (`Element::menu_bar`) that the keys move through, whose items' presses the
+  program reads to open their submenus or do their commands; context menus that the pointer's second
+  button and Shift+F10 ask for (`action::ActionKind::ContextMenu`); lists to choose from
+  (`Element::choice`), which open their own list and give their choice as a value
+  (`action::FieldValue::Chosen`, `Ui::chosen`); tooltips (`Element::tooltip`), shown once the
+  pointer rests on the interface's clock; floating panels (`Element::floating_panel`), which move
+  and size their layer (`Ui::layer_place`, `Ui::set_layer_place`). A style's `icons`
+  (`style::Icons`) name the glyphs of a font that controls draw in place of their shapes.
 - `look`, built only with the feature `editor-look`, is the editor's look, made for the editor and
-  the dev overlay, and drawn by the `widgets` example: its fonts, Geist and Geist Mono
-  (`look::register_fonts`), its style sheet (`look::style_sheet`), and its themes, stacked: a base
-  of scales, a theme of colors, dark, light or high contrast, and a compact one
-  (`look::themes`, `look::Colors`, `look::Density`). Its files are in [`look/`](look/README.md),
-  with the fonts' license, which a program that builds them in ships beside it.
+  the dev overlay, and drawn by the `widgets` example: its fonts, Geist and Geist Mono, and
+  Lucide's icons (`look::register_fonts`, `look::icon`), its style sheet (`look::style_sheet`), and
+  its themes, stacked: a base of scales, a theme of colors, dark, light or high contrast, and a
+  compact one (`look::themes`, `look::Colors`, `look::Density`). Its files are in
+  [`look/`](look/README.md), with the fonts' licenses, which a program that builds them in ships
+  beside it.
 - `Ui::meaning` says what the tree means, made when asked: each element drawn that means
   something, its `tree::Role`, named as AccessKit names roles, its name, its value, a field's, a
   slider's or two panels' share, its

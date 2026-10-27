@@ -8,6 +8,23 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Layers (ADR-0150): roots that the interface places over the others, beside an element, at a
+  point or floating, kept within the window and closed as the user leaves them, a press outside or
+  Escape, which the program reads (`Ui::open_layer`, `Layer`, `Place`, `ActionKind::Dismissed`).
+  Menus and their submenus, and a bar of menus that F10 or Alt alone reaches, moved through by the
+  keys, their items' presses read by the program (`Element::menu`, `Element::menu_item`,
+  `ItemMark`, `Element::menu_bar`); context menus asked for by the pointer's second button and
+  Shift+F10 (`ActionKind::ContextMenu`); lists to choose from, which open their own list and give
+  their choice as a value (`Element::choice`, `FieldValue::Chosen`); tooltips, shown once the
+  pointer rests or the keys give the focus, read as the element's description
+  (`Element::tooltip`, `Meaning::description`); floating panels, moved by their bar, sized by
+  their corner, folded and raised (`Element::floating_panel`, `Ui::set_layer_place`). A style's
+  icons name the glyphs of a font that controls draw in place of their shapes (`Style::icons`). The
+  editor's look holds Lucide's font of icons whole (`look::icon`) and styles all of it; the
+  example `widgets` shows a bar of menus, a menu of the entities, a list to choose from, tooltips
+  and a floating panel, and CI's Windows artifact carries Lucide's license. Screen readers and the
+  MCP server's tools read the new roles, popups and descriptions, and agents choose an option by
+  its text.
 - The look's foundations (ADR-0149): a theme's value names another and computes colors in OKLCH,
   `mix`, `lighten`, `darken` and `alpha`, and themes stack, the last that gives a name giving its
   value (`slime_color::Oklch`); a style's `transition` moves its colors, its opacity and a
@@ -174,6 +191,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `Ui::chosen_tab` is `Ui::chosen`, which gives a list to choose from's choice too. A floating
+  layer takes its own size; a press on it raises it above the other roots, which changes their
+  numbers in paths.
 - `Ui::set_style` takes a list of themes, stacked; `look::theme` is `look::themes`. The look's
   colors are a palette and roles computed from it, its dark theme's colors changed a little.
 

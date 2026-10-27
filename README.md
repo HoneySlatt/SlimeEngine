@@ -84,10 +84,11 @@ loaded again when they change, and takes the pointer and the keyboard, its focus
 the arrows, its fields typed, selected, copied and composed through input methods in every writing
 system, and says what it means to agents, who use it through the MCP server as a person does; it
 has the widgets of a panel, check boxes, sliders, sections that fold, tabs, two panels and a
-handle, and scroll bars, and holds the editor's look, its fonts Geist and Geist Mono, behind a
-feature. The `interface` example builds an
-interface, with text in eight writing systems, a dark and a light theme, and a modal dialog; the
-`widgets` example, a panel of the editor's kind.
+handle, and scroll bars, and what opens over a panel, menus and their bar, context menus, lists to
+choose from, tooltips and floating panels, and holds the editor's look, its fonts Geist and Geist
+Mono and Lucide's icons, in dark, light and high-contrast themes, behind a feature. The `interface`
+example builds an interface, with text in eight writing systems, a dark and a light theme, and a
+modal dialog; the `widgets` example, a panel of the editor's kind, with its menus.
 [`docs/PLAN.md`](docs/PLAN.md) says what comes next, the rest of Stage 6b, the engine's interface:
 its UI framework, proven by the dev overlay; then Stage 6c, the editor. It lists the known debt too.
 
@@ -171,7 +172,7 @@ today has:
 
 - No audio, physics or animation; an interface built as a tree of elements, laid out, styled by
   style sheets and themes, used with the pointer and the keyboard, its fields typed in, its widgets
-  checked, moved, folded and chosen, and read and
+  checked, moved, folded and chosen, its menus, lists and floating panels opened, and read and
   used by agents through the MCP server (`slime-ui`), read by screen readers in the examples, games
   leaving them out until Stage 7; and of the editor
   only its core, a library without an interface (`slime-editor`), and its program without a window,

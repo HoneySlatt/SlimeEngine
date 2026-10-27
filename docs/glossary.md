@@ -600,6 +600,11 @@ creation method of `slime_gfx::Gpu`. Error messages and GPU capture tools show i
 that GPU tests give the same results on every machine, including machines without a GPU. It is
 the *reference driver* of the image tests.
 
+**Layer (interface).** A root of an interface that the interface places over the others, beside an
+element, at a point or floating, kept within the window, and that may close as the user leaves it,
+a press outside it or Escape: a menu, a list to choose from's options, a tooltip, a floating panel,
+a dialog (`Ui::open_layer`, [ADR-0150](adr/0150-layers.md)). Not a *layer* of a scene.
+
 **Layer (scene).** A part of a level that holds a condition on the state of a game's story, such
 as "after the quest X", and exists only while it holds; the editor shows or hides each layer
 ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)). Decided for Stage 9b, not built
@@ -701,6 +706,10 @@ highlights as wide as the *roughness* (glTF 2.0, Appendix B; ADR-0035).
 **MikkTSpace.** The common way of computing a mesh's *tangents* from its normals and texture
 coordinates, which glTF's *normal textures* assume; the cooker computes them so
 (`bevy_mikktspace`, [ADR-0069](adr/0069-the-asset-pipeline.md)).
+
+**Menu bar.** The row of an interface's menus, *File*, *View*, whose items open them below; the
+keys move along it and between its menus, and F10 or Alt alone reaches it (`Element::menu_bar`,
+[ADR-0150](adr/0150-layers.md)).
 
 **Modal root.** A root of an interface, a dialog over a window, that keeps the pointer from the
 roots below it and the *focus* among its elements while it is there, and gives the focus back when
@@ -1301,6 +1310,11 @@ curve that compresses highlights instead of clipping them. The renderer's tone-m
 Khronos glTF Sample Viewer, which keeps hues and lowers dark and mid tones by up to 0.04, an offset
 meant to balance the reflection of their surroundings that surfaces get from image-based lighting
 ([ADR-0034](adr/0034-hdr-rendering-and-tone-mapping.md)).
+
+**Tooltip.** A short text that shows below an element once the pointer has rested on it for half a
+second, or once the keys gave it the focus, in a *layer* that the pointer passes through; screen
+readers read it as the element's description (`Element::tooltip`,
+[ADR-0150](adr/0150-layers.md)).
 
 **Tooling (engine's).** Code that serves development, not what a game is made of: the dev
 *overlay* today, which a game may keep, as *Hunna Wood* does, its fonts with it
