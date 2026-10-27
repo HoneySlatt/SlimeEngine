@@ -58,7 +58,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   world panel on the engine's interface, is done; M6b.8b, the overlay over the games' views, is
   done, with the owner's choice on Tab and F6 in a game's interface
   ([ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)). M6b.9, the Windows check and the
-  release of 0.6, is next.
+  release of 0.6, is in progress.
 
 ## Status
 
@@ -82,7 +82,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.7e](#m6b7e--what-the-editor-tells-and-finds) | The framework tells the user what goes on, and finds every command by its name | Done |
 | [M6b.8a](#m6b8a--the-editors-and-the-world-panel-on-the-engines-interface) | The dev overlay's editors of reflected values, its world panel and a picker of colors run on the engine's interface | Done |
 | [M6b.8b](#m6b8b--the-overlay-over-the-games-views) | The dev overlay runs on the engine's interface over *Hunna Wood* and the examples, and egui leaves the engine | Done |
-| [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
+| [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | In progress |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b, 5a, 5b and 6a are done, and so are the audit pass and the
 foundations pass; see [Completed stages](#completed-stages).
@@ -1214,7 +1214,7 @@ that the look has a light and a high-contrast theme beside its dark one.
   number, Enter reaching the program from the picker's parts, and marks cut at the edges; all were
   fixed, held by tests and by the picker's image drawn again. CI is green on `4cfd840`: `check (headless)` took 16 minutes 26 seconds,
   `check (windowed)` 18 minutes 34 seconds, `windows` 15 minutes 1 second and `windows-release`
-  12 minutes 11 seconds.
+  12 minutes 11 seconds. The owner's check by hand on Linux, on 2026-10-27, passed.
 
 ### M6b.8b — The overlay over the games' views
 
@@ -1267,7 +1267,9 @@ that the look has a light and a high-contrast theme beside its dark one.
   the overlay, which the owner's check by hand with Orca covers. CI is green on `0b6f1a9`:
   `check (headless)` took 14 minutes 56 seconds, `check (windowed)` 23 minutes 31 seconds, longer
   by the game's agent session that uses the overlay, `windows` 19 minutes 44 seconds and
-  `windows-release` 12 minutes 51 seconds.
+  `windows-release` 12 minutes 51 seconds. The owner's checks by hand on Linux, on 2026-10-27,
+  passed, *Hunna Wood*'s panels and the `world` and `scene` examples', but Orca reading the
+  `world` example's, which waits in [the list](#checks-by-hand-waiting-for-the-owner).
 
 ### M6b.9 — Windows check, documentation, release 0.6
 
@@ -1340,17 +1342,8 @@ The game is run with `--new --save <a file of its own>`, so that the owner's sav
 - **G20, in the Windows virtual machine.** A source asset whose `.meta` differs from its own name
   by case only, cooked twice: whether its ID changes at each cook, and whether `slime-cook watch`
   cooks it again without end (see [Known debt](#left-by-the-audit-of-04)).
-- **P3, in the Windows virtual machine.** A timeout detection and recovery (TDR) forced while the
-  zone loads, then a second while the game makes its GPU objects again: a new device each time,
-  the log saying "the GPU device was lost; a new one replaces it", and the game going on.
-- **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
-  slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
-  `af512af` prints.
-- **M6b.8a, on Linux.** The `widgets` example's color well: its picker opened by the pointer and by
-  the keyboard, the color changed by its square, its strips, its channels and its code.
-- **M6b.8b, on Linux.** *Hunna Wood*'s F1 and F2 panels while playing: the keys left to the game
-  after a click on a button or a slider, F6 into the panels and out, Escape out of a field; the
-  `world` and `scene` examples' panels; Orca reading the `world` example's panels.
+- **M6b.8b, on Linux.** Orca reading the `world` example's panels: F2 and F3 open them, F6 gives
+  them the focus, Tab moves it within one, and Orca says each element's role, name and value.
 
 ## Releasing
 
@@ -1402,7 +1395,7 @@ that commit.
 | 4b — Live assets | M4b.1 a shared GPU and a task pool; M4b.2 the zone loads while frames go on; M4b.3 recovering from a lost GPU device; M4b.4 *Hunna Wood* goes on after a lost device; M4b.5 materials that change in place; M4b.6 hot reload of cooked data; M4b.7 hot reload of shaders; M4b.8 refining *Hunna Wood*; M4b.9 Windows check, documentation, close | Done on 2026-10-16; no release of its own: what it delivers is released with 0.3, at the end of Stage 5a. Its decisions are in [ADR-0072](adr/0072-stage-4b-live-assets.md) to [ADR-0077](adr/0077-hot-reload-of-shaders.md). The owner checked the recovery from a lost device by hand at its close: in the Windows virtual machine, from the dev overlay and by a forced TDR, and in a KDE Plasma session after a real reset of the GPU (see [Known debt](#known-debt)). |
 | 5a — The world → 0.3 | M5a.1 the world: entities and components; M5a.2 the hierarchy and the transforms; M5a.3 what the world draws; M5a.4 *Hunna Wood* on the world; M5a.5 reflection; M5a.6 any component listed and edited; M5a.7 serialization with format versioning; M5a.8 the world round-trips; M5a.9 saving and resuming a run; M5a.10 Windows check, documentation, release 0.3 | Done, released as 0.3 on 2026-10-17 with Stage 4b. Its decisions are in [ADR-0078](adr/0078-stage-5-in-two-halves.md) to [ADR-0088](adr/0088-saving-and-resuming-a-run.md), with the measurements of the world's storage, transforms and frame in ADR-0082 to ADR-0084; its save fixture, now `games/hunnawood/fixtures/save-0.3.toml`, is set aside by later versions as a save of another layout ([ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)), and how long CI took with each crate it added is in the [Notes](#notes). |
 | 5b — Scenes and prefabs → 0.4 | M5b.1 scenes placed in a world; M5b.2 a world written back as a scene; M5b.3 saves and hot reload with placements; M5b.4 the binary encoding of documents; M5b.5 scene files cooked, typed components, prefabs in the `world` example; M5b.6 *Hunna Wood*'s zone made of prefabs; M5b.7 Windows check, documentation, release 0.4 | Done, released as 0.4 on 2026-10-18. Its decisions are in [ADR-0089](adr/0089-scenes-and-prefabs.md) to [ADR-0095](adr/0095-cooked-scene-files.md), with the measurements of spawning scenes in ADR-0091; its save fixture, `games/hunnawood/fixtures/save.toml`, was made again at M6a.7b in the layout of saves per scene, which refuses those of 0.4 ([ADR-0125](adr/0125-saves-per-scene.md)); the zone is made of prefabs placing its land and six lanterns. The audit of 0.4 that followed it is the audit pass, in the next row. |
-| The audit pass and the foundations pass | P1 saves and identities that never mislead; P2 a damaged file gives an error, never a crash; P3 the loss of the GPU device and the main loop; P5 the build, CI, and measurements tracked from one commit to the next; P4 the measured quick wins; P6 the foundation decisions | Done on 2026-10-20, released with 0.5. The engine was audited at 0.4, without changing it, for correctness, measured performance and architecture against the games it aims at; [ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) sums up what it found and records the owner's decisions, and [ADR-0096](adr/0096-the-files-the-engine-reads.md) is the threat model that ranks its defects. P1 to P5 fixed them ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md) to [ADR-0106](adr/0106-the-measured-quick-wins.md)), but B4-F01, which M6a.2 fixed; P6 decided what the editor freezes ([ADR-0107](adr/0107-the-execution-model.md) to [ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). Each finding was described in full in this plan until 0.5 (`git show v0.5.0:docs/PLAN.md`); the audit's report and its tests are kept outside the repository; what neither pass fixed is in the [known debt](#left-by-the-audit-of-04); the checks by hand of P3 and P5 that wait are in [the list](#checks-by-hand-waiting-for-the-owner). |
+| The audit pass and the foundations pass | P1 saves and identities that never mislead; P2 a damaged file gives an error, never a crash; P3 the loss of the GPU device and the main loop; P5 the build, CI, and measurements tracked from one commit to the next; P4 the measured quick wins; P6 the foundation decisions | Done on 2026-10-20, released with 0.5. The engine was audited at 0.4, without changing it, for correctness, measured performance and architecture against the games it aims at; [ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) sums up what it found and records the owner's decisions, and [ADR-0096](adr/0096-the-files-the-engine-reads.md) is the threat model that ranks its defects. P1 to P5 fixed them ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md) to [ADR-0106](adr/0106-the-measured-quick-wins.md)), but B4-F01, which M6a.2 fixed; P6 decided what the editor freezes ([ADR-0107](adr/0107-the-execution-model.md) to [ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). Each finding was described in full in this plan until 0.5 (`git show v0.5.0:docs/PLAN.md`); the audit's report and its tests are kept outside the repository; what neither pass fixed is in the [known debt](#left-by-the-audit-of-04); the owner's checks by hand of P3 and P5, in the Windows virtual machine on 2026-10-27, passed. |
 | 6a — What the editor stands on → 0.5 | M6a.1 frustum culling and instancing; M6a.2 the engine's task pool, and copies to the GPU within a budget; M6a.3 what the world knows of its changes; M6a.4 a frame that owns what it draws; M6a.5 the phases of a frame, game time, and a game as a simulation and a presentation; M6a.6 the development channel and the MCP server; M6a.7a driven components, keys and created entities written into levels; M6a.7b saves per scene and adoption; M6a.8a views apart from the renderer; M6a.8b the settings of a view; M6a.9 asset requests; M6a.10a drawing for the editor; M6a.10b picking; M6a.11 Windows check, documentation, release 0.5 | Done, released as 0.5 on 2026-10-22 with the audit pass and the foundations pass. Its decisions are in [ADR-0116](adr/0116-stage-6-in-two-halves.md) to [ADR-0130](adr/0130-picking.md), its measurements in [`measurements.md`](measurements.md), under the milestones that measured; its save fixture is `games/hunnawood/fixtures/save.toml`, of the layout of saves per scene ([ADR-0125](adr/0125-saves-per-scene.md)). The owner checked each milestone that changed what shows by hand, on Linux, and the whole in the Windows virtual machine at M6a.11, which found four defects fixed before the release. |
 
 The details of each completed milestone (what it delivered, how it was checked, what was measured)
