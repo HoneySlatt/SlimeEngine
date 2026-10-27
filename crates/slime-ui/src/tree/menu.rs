@@ -38,7 +38,7 @@ impl Ui {
             } else if !self.interaction.by_pointer
                 && let Some(first) = self.first_focusable(submenu)
             {
-                self.set_focus(Some(first));
+                self.focus_on(Some(first));
             }
             return;
         }
@@ -128,7 +128,7 @@ impl Ui {
             NamedKey::End => count - 1,
             _ => return false,
         };
-        self.set_focus(Some(items[next]));
+        self.focus_on(Some(items[next]));
         true
     }
 
@@ -152,7 +152,7 @@ impl Ui {
             // A command of a bar's menu gives the focus back to what held it before the keys
             // reached the bar.
             if from_bar && let Some(back) = self.interaction.bar_before.take() {
-                self.set_focus(Some(back));
+                self.focus_on(Some(back));
             }
         }
     }
@@ -183,7 +183,7 @@ impl Ui {
                 } else {
                     items.last()
                 };
-                self.set_focus(item.copied());
+                self.focus_on(item.copied());
             }
             NamedKey::ArrowDown | NamedKey::ArrowUp => self.perform(Action {
                 element: Some(id),
@@ -191,7 +191,7 @@ impl Ui {
             }),
             NamedKey::Escape => {
                 let back = self.interaction.bar_before.take();
-                self.set_focus(back);
+                self.focus_on(back);
             }
             _ => return false,
         }
@@ -209,7 +209,7 @@ impl Ui {
         if let Some(menu) = self.submenu_of(item) {
             self.close_layer(menu, true);
         }
-        self.set_focus(Some(next));
+        self.focus_on(Some(next));
         if open {
             self.perform(Action {
                 element: Some(next),
@@ -257,7 +257,7 @@ impl Ui {
             // pointer opened gave it back as it closed.
             let back = self.interaction.bar_before.take();
             if back.is_some() || on_bar {
-                self.set_focus(back);
+                self.focus_on(back);
             }
             return true;
         }
@@ -287,7 +287,7 @@ impl Ui {
             return false;
         };
         self.interaction.bar_before = self.interaction.focus;
-        self.set_focus(Some(first));
+        self.focus_on(Some(first));
         true
     }
 

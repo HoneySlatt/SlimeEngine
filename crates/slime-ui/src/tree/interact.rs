@@ -94,7 +94,7 @@ impl Ui {
                 // The palette's rows are chosen as the pointer passes, its field keeping the focus.
             } else {
                 self.interaction.by_pointer = true;
-                self.set_focus(Some(item));
+                self.focus_on(Some(item));
             }
         }
     }
@@ -191,7 +191,7 @@ impl Ui {
                         && self.interaction.pointer.is_some()
                         && self.interaction.modals.is_empty()
                     {
-                        self.set_focus(None);
+                        self.focus_on(None);
                     }
                     return taken;
                 };
@@ -208,7 +208,7 @@ impl Ui {
                     .is_some_and(|clear| inside(clear, x, y))
                 {
                     self.interaction.captured = None;
-                    self.set_focus(Some(target));
+                    self.focus_on(Some(target));
                     self.set_value(target, "");
                     return true;
                 }
@@ -219,7 +219,7 @@ impl Ui {
                     self.change_state(target, |state| state.pressed = true);
                     // An item of a bar of menus takes the focus from the keys alone.
                     if !self.in_menu_bar(target) {
-                        self.set_focus(Some(target));
+                        self.focus_on(Some(target));
                     }
                     // A slider's thumb comes under the pointer, wherever it pressed the track; a
                     // part of a color's picker takes the color under it.
@@ -312,10 +312,19 @@ impl Ui {
     /// and edits with; then it gives the command of a shortcut whose chord it is, in the scopes of
     /// the focus, innermost first, then `global` ([`Ui::set_shortcuts`]); else the intent that its
     /// key means: Tab and Shift+Tab next and previous, the arrows a direction, Enter and Space
-    /// accept, Escape cancel. The interface takes what a field takes, a shortcut's key, the key
-    /// of an intent while an element holds the focus or once it gives the focus, as Tab does with
-    /// none held, and every key while a modal root is open; the intent of a key that it does not
-    /// take still reaches its queue. Its releases are left to the game, which pairs them with its
+    /// accept, Escape cancel. A focus that a press of the pointer gave to anything but a field
+    /// takes none of these keys, nor the widget's own, the arrows of a slider or a list to choose
+    /// from, unless it lies in a layer that closes as the user leaves it or in a modal root, or its
+    /// widget's layer is open: they reach the program, as with no focus
+    /// (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`). Tab and Shift+Tab, with no
+    /// focus that takes the keys, give the focus to the interface only where it lets them
+    /// ([`Ui::set_tab_enters`]); F6 and Shift+F6 give it to the first element of the next or the
+    /// previous root that holds one, the top root first, then to nothing
+    /// (`docs/adr/0153-tab-and-f6-in-a-games-interface.md`). The interface takes what a field
+    /// takes, a shortcut's key, the key of an intent while an element holds the focus and takes the
+    /// keys or once it gives the focus, F6 while a root holds an element that can take the focus,
+    /// and every key while a modal root is open; the intent of a key that it does not take still
+    /// reaches its queue. Its releases are left to the game, which pairs them with its
     /// presses, but Alt's, which, pressed and let go alone, gives a bar of menus the focus, as F10
     /// does ([`Kind::MenuBar`]). A press hides the tooltip that shows, which Escape does alone
     /// then, and the element that it gives the focus shows its tooltip
@@ -387,12 +396,23 @@ impl Ui {
             return true;
         }
         let modal = !self.interaction.modals.is_empty();
+        if event.logical == Key::Named(NamedKey::F6)
+            && !modal
+            && self.next_root(self.interaction.modifiers.shift)
+        {
+            return true;
+        }
         if let Some(field) = self.focused_field()
             && self.field_key(field, event)
         {
             return true;
         }
-        if let Some(focus) = self.interaction.focus
+        // A focus that a press gave leaves the keys to the program, as none does.
+        let focus = self
+            .interaction
+            .focus
+            .filter(|&focus| self.takes_keys(focus));
+        if let Some(focus) = focus
             && (self.slider_key(focus, event)
                 || self.part_key(focus, event)
                 || self.tab_key(focus, event)
@@ -414,6 +434,7 @@ impl Ui {
             return modal;
         };
         let intent = match named {
+            NamedKey::Tab if focus.is_none() && !modal && !self.tab_enters => return false,
             NamedKey::Tab if self.interaction.modifiers.shift => Intent::Previous,
             NamedKey::Tab => Intent::Next,
             NamedKey::ArrowUp => Intent::Up,
@@ -424,12 +445,107 @@ impl Ui {
             NamedKey::Escape => Intent::Cancel,
             _ => return modal,
         };
-        let element = self.interaction.focus;
-        self.act(Action {
-            element,
-            kind: ActionKind::Intent(intent),
+        let quiet = self.interaction.focus.is_some() && focus.is_none();
+        match intent {
+            // Tab goes on from the element that a press gave the focus.
+            Intent::Next | Intent::Previous => self.move_focus(intent),
+            // The other keys reach the program as with no focus: the element is not accepted, nor
+            // the focus moved.
+            _ if quiet => {
+                let queued = match intent {
+                    Intent::Accept => true,
+                    Intent::Cancel => !self.dismiss_top(),
+                    _ => false,
+                };
+                if queued {
+                    self.interaction.actions.push(Action {
+                        element: None,
+                        kind: ActionKind::Intent(intent),
+                    });
+                }
+                return modal;
+            }
+            _ => self.act(Action {
+                element: focus,
+                kind: ActionKind::Intent(intent),
+            }),
+        }
+        focus.is_some() || self.interaction.focus.is_some() || modal
+    }
+
+    /// Whether the focus that `focus` holds takes the keys that move it and its widget's own: one
+    /// that the keys, an agent or the program gave, a field, one in a layer that closes as the user
+    /// leaves it or in a modal root, and one whose widget's layer is open. A focus that a press
+    /// gave to a button, a check box, a slider, a segment, a tab, a color well or a floating
+    /// panel takes none (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`).
+    fn takes_keys(&self, focus: ElementId) -> bool {
+        let Some(node) = self.node(focus) else {
+            return false;
+        };
+        if node.state.focus_visible || node.field.is_some() {
+            return true;
+        }
+        let root = self.root_of(focus).and_then(|root| self.node(root));
+        let held = root.and_then(|root| root.layer.as_ref());
+        root.and_then(|root| root.root)
+            .is_some_and(|root| root.modal)
+            || held.is_some_and(|held| held.layer.dismiss || held.layer.modal)
+            || self.opened_layer(focus)
+    }
+
+    /// Gives the focus to the first element of the root after the one that holds it, or before it
+    /// when `back`, the top root first, then to nothing, as F6 and Shift+F6 do, from a focus that a
+    /// press gave as from none: the roots that hold
+    /// an element that can take the focus, but the layers that close as the user leaves them, which
+    /// close first, and the tooltip. Gives whether such a root is open, the key taken then.
+    fn next_root(&mut self, back: bool) -> bool {
+        while self.dismiss_top() {}
+        let tooltip = self.interaction.tooltip;
+        let roots: Vec<ElementId> = self
+            .roots
+            .iter()
+            .rev()
+            .copied()
+            .filter(|&root| Some(root) != tooltip)
+            .filter(|&root| {
+                self.node(root)
+                    .and_then(|node| node.layer.as_ref())
+                    .is_none_or(|held| !held.layer.dismiss)
+            })
+            .filter_map(|root| self.focusables(root).first().copied())
+            .collect();
+        if roots.is_empty() {
+            return false;
+        }
+        // A focus that a press gave counts as none.
+        let focus = self
+            .interaction
+            .focus
+            .filter(|&focus| self.takes_keys(focus));
+        let at = focus.and_then(|focus| {
+            let root = self.root_of(focus)?;
+            roots
+                .iter()
+                .position(|&first| self.root_of(first) == Some(root))
         });
-        element.is_some() || self.interaction.focus.is_some() || modal
+        let next = match (at, back) {
+            (None, false) => Some(0),
+            (None, true) => Some(roots.len() - 1),
+            (Some(at), false) => Some(at + 1).filter(|&next| next < roots.len()),
+            (Some(at), true) => at.checked_sub(1),
+        };
+        self.focus_on(next.map(|next| roots[next]));
+        true
+    }
+
+    /// Whether Tab and Shift+Tab, while no focus takes the keys, give the focus to the interface:
+    /// none holds it, or one that a press gave. They do by default, as a program whose window is
+    /// its interface wants, Tab going on from the element that a press gave the focus. A game turns
+    /// it off, so that Tab reaches it until its interface holds a focus that takes the keys, which
+    /// F6, an agent or the game gives ([`Ui::set_focus`]); a modal root takes Tab whatever it is
+    /// (`docs/adr/0153-tab-and-f6-in-a-games-interface.md`).
+    pub fn set_tab_enters(&mut self, enters: bool) {
+        self.tab_enters = enters;
     }
 
     /// Does `action`, as a person's input does, for an agent or the program: a press of a button
@@ -520,8 +636,17 @@ impl Ui {
 
     /// Gives the focus to `id`, a button, a field or a widget that is not disabled and is drawn, or
     /// takes it from what holds it, for `None`; a field that loses it commits. Nothing happens for an
-    /// element that cannot hold it, or that a modal root above its own keeps it from.
+    /// element that cannot hold it, or that a modal root above its own keeps it from. The focus
+    /// that the program or an agent gives shows and takes the keys, as one that the keys gave
+    /// does.
     pub fn set_focus(&mut self, id: Option<ElementId>) {
+        self.interaction.by_pointer = false;
+        self.focus_on(id);
+    }
+
+    /// Gives the focus to `id`, as [`Ui::set_focus`] says, for the last input: the focus that a
+    /// press of the pointer gave neither shows nor takes the keys.
+    pub(super) fn focus_on(&mut self, id: Option<ElementId>) {
         if let Some(id) = id
             && (!self.focusable(id) || !self.in_scope(id))
         {
@@ -773,7 +898,7 @@ impl Ui {
                 Intent::Previous => candidates[candidates.len() - 1],
                 _ => return,
             };
-            self.set_focus(Some(first));
+            self.focus_on(Some(first));
             return;
         };
         let next = match intent {
@@ -785,7 +910,7 @@ impl Ui {
             Intent::Accept | Intent::Cancel => None,
         };
         if let Some(next) = next {
-            self.set_focus(Some(next));
+            self.focus_on(Some(next));
         }
     }
 
@@ -913,7 +1038,7 @@ impl Ui {
     /// Takes the focus from the root below when `root`, a modal one, opens.
     pub(super) fn opened_modal(&mut self, root: ElementId) {
         let before = self.interaction.focus;
-        self.set_focus(None);
+        self.focus_on(None);
         self.interaction.modals.push((root, before));
         // What every element of the roots below takes changed.
         self.meaning_whole = true;
@@ -958,7 +1083,7 @@ impl Ui {
             }
             None => {
                 if interaction.focus.is_none() {
-                    self.set_focus(before);
+                    self.focus_on(before);
                 }
             }
         }
@@ -971,7 +1096,7 @@ impl Ui {
         if let Some(focus) = self.interaction.focus
             && !self.focusable(focus)
         {
-            self.set_focus(None);
+            self.focus_on(None);
         }
         if let Some(&(modal, _)) = self.interaction.modals.last() {
             let inside = self
@@ -979,7 +1104,7 @@ impl Ui {
                 .focus
                 .is_some_and(|focus| self.root_of(focus) == Some(modal));
             if !inside && let Some(&first) = self.focusables(modal).first() {
-                self.set_focus(Some(first));
+                self.focus_on(Some(first));
             }
         }
         if std::mem::take(&mut self.interaction.moved) {

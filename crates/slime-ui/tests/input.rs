@@ -668,6 +668,109 @@ fn without_a_focus_only_tab_enters_the_interface_and_the_arrows_are_the_game_s()
     assert_eq!(ui.focus(), Some(buttons[1]));
 }
 
+/// An intent of no element, as a key that the interface leaves to the program queues it.
+fn intent(intent: Intent) -> Action {
+    Action {
+        element: None,
+        kind: ActionKind::Intent(intent),
+    }
+}
+
+/// A press and a release of the primary button at `x` and `y`.
+fn click(ui: &mut Ui, x: f32, y: f32) {
+    ui.pointer_moved(x, y);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+}
+
+#[test]
+fn a_focus_that_a_press_gave_leaves_the_keys_to_the_program_but_tab_goes_on_from_it() {
+    let (mut ui, buttons) = row();
+    click(&mut ui, 50.0, 20.0);
+    assert_eq!(ui.take_actions(), [press_action(buttons[0])]);
+    assert_eq!(ui.focus(), Some(buttons[0]));
+    // The arrows, Enter and Escape are the program's: the button is not pressed again, and the
+    // intents reach the queue as those of no element.
+    assert!(!ui.key(&named(NamedKey::ArrowRight)));
+    assert!(!ui.key(&named(NamedKey::Enter)));
+    assert!(!ui.key(&named(NamedKey::Escape)));
+    assert_eq!(ui.focus(), Some(buttons[0]));
+    assert_eq!(
+        ui.take_actions(),
+        [intent(Intent::Accept), intent(Intent::Cancel)]
+    );
+    // Tab goes on from it, as the interface lets Tab in by default; the focus that it gave takes
+    // the arrows.
+    assert!(ui.key(&named(NamedKey::Tab)));
+    assert_eq!(ui.focus(), Some(buttons[1]));
+    assert!(ui.key(&named(NamedKey::ArrowRight)));
+    assert_eq!(ui.focus(), Some(buttons[2]));
+}
+
+#[test]
+fn a_game_s_interface_takes_tab_once_it_holds_the_focus_and_f6_moves_between_its_roots() {
+    let (mut ui, below) = row();
+    let above = ui.add_root(
+        settings(400.0, 100.0, [0.0, 200.0], false),
+        Style::default(),
+    );
+    let mut buttons = Vec::new();
+    ui.build(above, 0, |children| {
+        for index in 0..2_usize {
+            buttons.push(children.add(index, button(), |_| {}));
+        }
+    });
+    ui.frame();
+    ui.set_tab_enters(false);
+    // Tab is the game's without a focus, and with the one that a press gave.
+    assert!(!ui.key(&named(NamedKey::Tab)));
+    assert_eq!(ui.focus(), None);
+    click(&mut ui, 50.0, 20.0);
+    ui.take_actions();
+    assert!(!ui.key(&named(NamedKey::Tab)));
+    assert_eq!(ui.focus(), Some(below[0]));
+    // F6 gives the focus to the top root's first element, then the next root's, then to nothing;
+    // the focus that it gave takes Tab, within its root.
+    assert!(ui.key(&named(NamedKey::F6)));
+    assert_eq!(ui.focus(), Some(buttons[0]));
+    assert!(ui.key(&named(NamedKey::Tab)));
+    assert_eq!(ui.focus(), Some(buttons[1]));
+    assert!(ui.key(&named(NamedKey::F6)));
+    assert_eq!(ui.focus(), Some(below[0]));
+    assert!(ui.key(&named(NamedKey::F6)));
+    assert_eq!(ui.focus(), None);
+    // Shift+F6 goes the other way, the bottom root first.
+    let mut shift = Modifiers::default();
+    shift.shift = true;
+    ui.modifiers(shift);
+    assert!(ui.key(&named(NamedKey::F6)));
+    assert_eq!(ui.focus(), Some(below[0]));
+    assert!(ui.key(&named(NamedKey::F6)));
+    assert_eq!(ui.focus(), Some(buttons[0]));
+    ui.modifiers(Modifiers::default());
+    // The focus that the program gives takes Tab too.
+    ui.set_focus(Some(buttons[1]));
+    assert!(ui.key(&named(NamedKey::Tab)));
+    assert_eq!(ui.focus(), Some(buttons[0]));
+    // A modal root takes Tab whatever the setting, and keeps the focus from F6.
+    ui.set_focus(None);
+    let modal = ui.add_root(settings(400.0, 300.0, [0.0; 2], true), Style::default());
+    let mut ok = None;
+    ui.build(modal, 0, |children| {
+        ok = Some(children.add("ok", button(), |_| {}));
+    });
+    ui.frame();
+    assert!(ui.key(&named(NamedKey::Tab)));
+    assert_eq!(ui.focus(), ok);
+    assert!(ui.key(&named(NamedKey::F6)));
+    assert_eq!(ui.focus(), ok);
+    // With no root that holds an element to focus, F6 is the game's.
+    let mut empty = Ui::new(Fonts::new());
+    empty.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+    empty.frame();
+    assert!(!empty.key(&named(NamedKey::F6)));
+}
+
 #[test]
 fn a_release_of_a_press_the_interface_did_not_take_is_not_taken_and_an_empty_label_takes_none() {
     let mut ui = Ui::new(Fonts::new());

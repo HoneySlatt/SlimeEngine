@@ -847,7 +847,7 @@ impl Ui {
             }
             return;
         }
-        self.set_focus(Some(id));
+        self.focus_on(Some(id));
         self.place_caret(id, x, y, shift);
     }
 
@@ -921,7 +921,7 @@ impl Ui {
         match self.field_let_go(id) {
             Some(drag) if drag.moved => self.commit(id),
             Some(_) if self.pointer_target(Kind::takes_pointer) == Some(id) => {
-                self.set_focus(Some(id));
+                self.focus_on(Some(id));
                 self.place_caret(id, x, y, false);
             }
             _ => {}

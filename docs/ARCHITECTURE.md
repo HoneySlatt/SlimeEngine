@@ -1432,11 +1432,16 @@ ui.cursor(), ui.text_input()                    slime-app, after each frame draw
 
 The interface takes an event when it reaches it: a press on what it draws, a button, a field, a
 panel's box or a label's text, and its release; a key that a focused field takes, that a shortcut
-names or that navigates while an element holds the focus, Tab alone giving the focus where none is
-held; a wheel over a box that scrolls or a list, or over what it draws; and every press, key and
-wheel while a modal root is open. A press that reaches no button and no field takes the focus
-away, the field that held it committing. A game with nothing focused and no modal root open
-receives every key but Tab and those its shortcuts name. `slime-app` gives the interface the
+names or that navigates while an element holds a focus that takes the keys, Tab alone giving the
+focus where none is held, unless the program kept Tab for itself (`Ui::set_tab_enters`), and F6
+moving it from one root to the next; a wheel over a box that scrolls or a list, or over what it
+draws; and every press, key and wheel while a modal root is open. A press that reaches no button
+and no field takes the focus away, the field that held it committing; one that reaches a button
+or a widget gives it a focus that takes no keys, which reach the program, unless it lies in a
+menu, a list or a dialog ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md),
+[ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)). A game with no focus that takes the keys
+and no modal root open receives every key but those its shortcuts name, Tab unless its interface
+lets Tab in, and F6 while a root holds what can take the focus. `slime-app` gives the interface the
 system's clipboard, which a field copies to and pastes from.
 
 A popup or a dialog is a root of its own at a place on the window's surface; a modal one keeps the

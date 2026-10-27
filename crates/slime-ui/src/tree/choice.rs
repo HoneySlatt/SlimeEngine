@@ -69,7 +69,7 @@ impl Ui {
             && let Some(place) = nearest_enabled(&options, chosen)
             && let Some(&item) = items.get(place)
         {
-            self.set_focus(Some(item));
+            self.focus_on(Some(item));
         }
     }
 
@@ -114,7 +114,7 @@ impl Ui {
             if let (Some(place), Some(items)) = (place, items)
                 && let Some(&item) = items.get(place)
             {
-                self.set_focus(Some(item));
+                self.focus_on(Some(item));
             }
             return true;
         }

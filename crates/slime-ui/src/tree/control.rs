@@ -517,7 +517,7 @@ impl Ui {
         };
         self.choose_tab(bar, target);
         if let Some(&chosen) = self.children(bar).get(target) {
-            self.set_focus(Some(chosen));
+            self.focus_on(Some(chosen));
         }
         true
     }

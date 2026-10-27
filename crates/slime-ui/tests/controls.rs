@@ -108,7 +108,11 @@ fn a_check_box_toggles_by_the_pointer_the_keys_and_an_agent() {
     assert_eq!(values(&mut ui), ["changed true", "committed true"]);
     assert!(ui.state(check).expect("a check box").checked);
     assert_eq!(ui.focus(), Some(check));
-    // Space while it holds the focus, as Enter: toggled back.
+    // The focus that a press gave leaves Space to the program: nothing is toggled.
+    assert!(!ui.key(&named(NamedKey::Space)));
+    assert!(values(&mut ui).is_empty());
+    // Space while the keys gave it the focus, as Enter: toggled back.
+    ui.set_focus(Some(check));
     ui.key(&named(NamedKey::Space));
     assert_eq!(values(&mut ui), ["changed false", "committed false"]);
     // An agent's press.
@@ -179,8 +183,12 @@ fn a_slider_is_dragged_pressed_on_its_track_and_moved_by_the_keys() {
         values(&mut ui),
         ["changed 0", "changed 0.5", "changed 1", "committed 1"]
     );
-    // Keys while it holds the focus: a step, ten, its bounds, each committed.
+    // The focus that the press gave leaves the arrows to the program.
     assert_eq!(ui.focus(), Some(slider));
+    assert!(!ui.key(&named(NamedKey::ArrowLeft)));
+    assert!(values(&mut ui).is_empty());
+    // Keys while the keys gave it the focus: a step, ten, its bounds, each committed.
+    ui.set_focus(Some(slider));
     ui.key(&named(NamedKey::ArrowLeft));
     ui.key(&named(NamedKey::Home));
     ui.key(&named(NamedKey::PageUp));
@@ -215,6 +223,7 @@ fn a_slider_from_right_to_left_starts_at_its_right() {
     click(&mut ui, 192.0, 10.0);
     assert_eq!(ui.slider_value(slider), Some(10.0));
     // The right arrow moves it towards its least value, the end of a line being at the left.
+    ui.set_focus(Some(slider));
     ui.key(&named(NamedKey::ArrowRight));
     assert_eq!(ui.slider_value(slider), Some(9.0));
 }
@@ -245,6 +254,7 @@ fn a_logarithmic_slider_multiplies_its_value_by_as_much_along_its_track() {
     let value = ui.slider_value(slider).expect("a slider");
     assert!((value - 10f64.powf(-0.5)).abs() < 1e-3, "{value}");
     // A slider of no step moves by a hundredth of its track: a factor of 100 ^ 0.01.
+    ui.set_focus(Some(slider));
     ui.key(&named(NamedKey::Home));
     ui.key(&named(NamedKey::ArrowRight));
     let value = ui.slider_value(slider).expect("a slider");
@@ -270,6 +280,7 @@ fn a_reversed_slider_runs_from_its_most_value_to_its_least() {
     click(&mut ui, 208.0, 10.0);
     assert_eq!(ui.slider_value(slider), Some(0.0));
     // The right arrow moves it towards its least value, at the right; up towards its most.
+    ui.set_focus(Some(slider));
     ui.key(&named(NamedKey::ArrowUp));
     ui.key(&named(NamedKey::ArrowUp));
     ui.key(&named(NamedKey::ArrowRight));
@@ -451,9 +462,10 @@ fn a_tab_chosen_by_the_pointer_or_the_keys_shows_its_panel() {
     assert_eq!(shown(&ui), "Physics");
     assert!(ui.state(tabs[1]).expect("a tab").selected);
     assert!(!ui.state(tabs[0]).expect("a tab").selected);
-    // The arrows while a tab holds the focus choose its neighbours, which take the focus; End the
-    // last.
+    // The arrows while a tab holds the focus that the keys gave choose its neighbours, which take
+    // the focus; End the last.
     assert_eq!(ui.focus(), Some(tabs[1]));
+    ui.set_focus(Some(tabs[1]));
     ui.key(&named(NamedKey::ArrowRight));
     assert_eq!((ui.chosen(bar), ui.focus()), (Some(2), Some(tabs[2])));
     ui.key(&named(NamedKey::Home));

@@ -40,8 +40,10 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   `slime-input`, and turns it into `action::Action`s: a button pressed, an intent of navigation, the
   command of a shortcut. The program reads them from a queue (`Ui::take_actions`); an agent sends
   them (`Ui::act`). The interface moves the focus itself, by Tab in the order of the tree and by the
-  arrows to the nearest element on screen, within its scope; a root may be a popup at a place of
-  its own, or modal, keeping the input and the focus while it is open. An element's description,
+  arrows to the nearest element on screen, within its scope, and by F6 from one root to the next; a
+  focus that a press of the pointer gave leaves the keys to the program, and a game keeps Tab until
+  its interface holds a focus (`Ui::set_tab_enters`); a root may be a popup at a place of its own,
+  or modal, keeping the input and the focus while it is open. An element's description,
   its tooltip, and whether a press opens a layer beside it, are part of what it means.
 - `shortcuts::Shortcuts` is a table of shortcuts, read from a document: chords of the keys' meaning
   that name commands, in scopes, the classes of the elements around the focus; `Ui::set_shortcuts`

@@ -210,6 +210,19 @@ impl Ui {
             .find(|&root| self.layer_owner(root) == Some(owner))
     }
 
+    /// Whether a layer that `id` owns, or stands beside, is open: a list to choose from, a picker
+    /// or a menu that it opened.
+    pub(crate) fn opened_layer(&self, id: ElementId) -> bool {
+        self.layers().into_iter().any(|root| {
+            self.node(root)
+                .and_then(|node| node.layer.as_ref())
+                .is_some_and(|held| {
+                    held.owner == Some(id)
+                        || matches!(held.layer.place, Place::Beside { element, .. } if element == id)
+                })
+        })
+    }
+
     /// Moves the layer `root` to `place`, as the user moving or sizing a floating panel does: it
     /// is laid out and placed again at the next frame. Nothing happens for a root that is no
     /// layer.
@@ -458,7 +471,7 @@ impl Ui {
                 .before
                 .filter(|&before| self.focusable(before))
                 .or_else(|| Some(held.layer.place.anchor()).filter(|&a| self.focusable(a)));
-            self.set_focus(back);
+            self.focus_on(back);
         }
         if held.quiet {
             self.forget_own_layer(root);
@@ -495,7 +508,7 @@ impl Ui {
                 held.focus_first = false;
             }
             if let Some(first) = self.first_focusable(root) {
-                self.set_focus(Some(first));
+                self.focus_on(Some(first));
             }
         }
     }

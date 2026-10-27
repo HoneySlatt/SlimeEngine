@@ -4,7 +4,8 @@
   and the world panel, then the overlay over the games' views), [0137](0137-the-canvas.md) (the
   canvas fills a box with a gradient between its corners' colors) and
   [0142](0142-input-and-focus.md) (a focus that the pointer gave takes no keys but a field's and an
-  open list's)
+  open list's); amended by [0153](0153-tab-and-f6-in-a-games-interface.md) (in an interface that
+  allows it, Tab goes on from a focus that a press gave)
 - Date: 2026-10-27
 
 ## Context

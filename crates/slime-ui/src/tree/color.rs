@@ -228,7 +228,7 @@ impl Ui {
         self.change_state(id, |state| state.expanded = true);
         // The keyboard finds the square under the focus.
         if !by_pointer && let Some(&square) = self.picker.as_ref().and_then(|p| p.parts.first()) {
-            self.set_focus(Some(square));
+            self.focus_on(Some(square));
         }
     }
 

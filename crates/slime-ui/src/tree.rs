@@ -1166,6 +1166,8 @@ pub struct Ui {
     reduced_motion: bool,
     /// The elements whose transition is under way.
     moving: Vec<ElementId>,
+    /// Whether Tab enters the interface while no focus takes the keys ([`Ui::set_tab_enters`]).
+    tab_enters: bool,
 }
 
 impl Ui {
@@ -1200,6 +1202,7 @@ impl Ui {
             now: Duration::ZERO,
             reduced_motion: false,
             moving: Vec::new(),
+            tab_enters: true,
         }
     }
 

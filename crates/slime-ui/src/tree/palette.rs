@@ -91,7 +91,7 @@ impl Ui {
         });
         self.show_found();
         self.interaction.by_pointer = false;
-        self.set_focus(Some(field));
+        self.focus_on(Some(field));
     }
 
     /// Closes the palette of commands, if it is open, telling the program nothing.

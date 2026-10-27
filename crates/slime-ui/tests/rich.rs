@@ -108,6 +108,8 @@ fn a_button_that_toggles_stays_pressed_and_tells_the_program() {
     click(&mut ui, snap);
     assert_eq!(values(&mut ui), ["changed true", "committed true"]);
     assert!(ui.state(snap).expect("there").checked);
+    // Space reaches it once the keys gave it the focus, not the press.
+    ui.set_focus(Some(snap));
     key(&mut ui, NamedKey::Space);
     assert_eq!(values(&mut ui), ["changed false", "committed false"]);
     ui.act(Action {
