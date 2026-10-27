@@ -1148,4 +1148,52 @@ mod tests {
         );
         assert_eq!(ui.chosen(element), Some(0));
     }
+
+    #[test]
+    fn rich_widgets_are_given_with_their_roles_states_and_values() {
+        let (mut ui, root) = empty();
+        let mut style = Style::default();
+        style.layout.size = [Dimension::Pixels(120.0), Dimension::Pixels(24.0)];
+        style.text.style.fonts = vec!["Noto Sans".to_owned()];
+        let mut column = Style::default();
+        column.layout.direction = FlexDirection::Column;
+        ui.build(root, 0, |children| {
+            children.add("page", Element::container(column), |children| {
+                let snap = Element::toggle_button("Snap", true, style.clone());
+                children.add("snap", snap, |_| {});
+                children.add("tool", Element::segments(1, style.clone()), |segments| {
+                    for title in ["Move", "Turn"] {
+                        segments.add(title, Element::segment(title, style.clone()), |_| {});
+                    }
+                });
+                let progress = Element::progress(Some(0.25), style.clone()).named("Cooking");
+                children.add("progress", progress, |_| {});
+                let search = Element::search_field("", style.clone()).placeholder("Search");
+                children.add("search", search, |_| {});
+            });
+        });
+        ui.frame();
+        let mut readers = ScreenReaders::new("Example");
+        let tree = Tree::new(readers.translate(ui.take_meaning_changes(true), SIZE), true);
+        let state = tree.state();
+        let nodes: Vec<_> = state.root().children().collect();
+        let roles: Vec<AccessRole> = nodes.iter().map(|node| node.role()).collect();
+        assert_eq!(
+            roles,
+            [
+                AccessRole::Button,
+                AccessRole::RadioGroup,
+                AccessRole::ProgressIndicator,
+                AccessRole::SearchInput
+            ]
+        );
+        assert_eq!(nodes[0].toggled(), Some(Toggled::True));
+        let segments: Vec<Option<Toggled>> = nodes[1]
+            .children()
+            .map(|segment| segment.toggled())
+            .collect();
+        assert_eq!(segments, [Some(Toggled::False), Some(Toggled::True)]);
+        assert_eq!(nodes[2].numeric_value(), Some(0.25));
+        assert_eq!(nodes[3].data().placeholder(), Some("Search"));
+    }
 }
