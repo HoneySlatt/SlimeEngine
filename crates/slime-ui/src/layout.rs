@@ -793,7 +793,7 @@ impl taffy::LayoutPartialTree for Tree<'_> {
                         (options.clone(), at.style.text.style.clone(), tree.scale);
                     let ui = &mut *tree.ui;
                     let mut widest = (0.0, String::new());
-                    for option in options {
+                    for option in options.into_iter().map(|option| option.label) {
                         let width = ui
                             .texts
                             .get(

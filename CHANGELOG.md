@@ -8,6 +8,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- What the dev overlay's editors need of the interface's widgets (ADR-0152): sliders on a
+  logarithmic scale and from high to low (`Element::logarithmic`, `Element::reversed`), options of
+  a list to choose from that are disabled, passed over by the keys and the pointer, or carry a
+  tooltip (`ChoiceOption`), and fields of numbers that the program holds in an `f32`, which show
+  the shortest text of that `f32` and keep the `0.1` committed (`Element::single_precision`).
 - What the editor tells and finds (ADR-0151): notifications that the interface stacks at the
   window's bottom end, of a kind that sets how long they stay, with a bar of progress and buttons
   that give commands, read by screen readers as they come (`Ui::notify`, `Notification`); the

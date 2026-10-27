@@ -96,6 +96,7 @@ impl Control {
                 min,
                 max,
                 step,
+                ..
             } => Some(Self::Range {
                 value: snapped(value, min, max, step),
                 given: value,
@@ -191,6 +192,7 @@ impl Control {
                     min,
                     max,
                     step,
+                    ..
                 },
             ) => {
                 let kept = snapped(*value, min, max, step);
@@ -242,11 +244,60 @@ fn unit(share: f32) -> f32 {
     }
 }
 
-/// A slider's bounds and step, from its kind.
-fn bounds(kind: &Kind) -> Option<(f64, f64, f64)> {
-    match *kind {
-        Kind::Slider { min, max, step, .. } => Some((min, max.max(min), step)),
-        _ => None,
+/// A slider's bounds, its step and how its track maps its values, from its kind.
+#[derive(Clone, Copy)]
+struct Track {
+    min: f64,
+    max: f64,
+    step: f64,
+    /// Whether the track maps the values logarithmically: only for a least value above 0.
+    logarithmic: bool,
+    reversed: bool,
+}
+
+impl Track {
+    fn of(kind: &Kind) -> Option<Self> {
+        match *kind {
+            Kind::Slider {
+                min,
+                max,
+                step,
+                logarithmic,
+                reversed,
+                ..
+            } => Some(Self {
+                min,
+                max: max.max(min),
+                step,
+                logarithmic: logarithmic && min > 0.0,
+                reversed,
+            }),
+            _ => None,
+        }
+    }
+
+    /// Where `value` lies along the track, from 0 at its least value to 1 at its most; 0 where
+    /// the bounds are no numbers, infinite or equal.
+    fn along(self, value: f64) -> f64 {
+        let along = if self.logarithmic {
+            (value / self.min).ln() / (self.max / self.min).ln()
+        } else {
+            (value - self.min) / (self.max - self.min)
+        };
+        if self.max > self.min && along.is_finite() {
+            along.clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
+    }
+
+    /// The value at `along` the track, from 0 at its least value to 1 at its most.
+    fn value(self, along: f64) -> f64 {
+        if self.logarithmic {
+            self.min * (self.max / self.min).powf(along)
+        } else {
+            self.min + along * (self.max - self.min)
+        }
     }
 }
 
@@ -587,13 +638,13 @@ impl Ui {
         let Some(node) = self.node_mut(id) else {
             return false;
         };
-        let Some((min, max, step)) = bounds(&node.element.kind) else {
+        let Some(track) = Track::of(&node.element.kind) else {
             return false;
         };
         let Some(Control::Range { value: held, .. }) = node.control.as_mut() else {
             return false;
         };
-        let value = snapped(value, min, max, step);
+        let value = snapped(value, track.min, track.max, track.step);
         let changed = *held != value;
         *held = value;
         if changed {
@@ -622,7 +673,7 @@ impl Ui {
         let Some(node) = self.node(id) else {
             return;
         };
-        let Some((min, max, _)) = bounds(&node.element.kind) else {
+        let Some(mapping) = Track::of(&node.element.kind) else {
             return;
         };
         let mut along = if track.width > 0.0 {
@@ -630,16 +681,28 @@ impl Ui {
         } else {
             0.0
         };
-        if self.root_settings(id).map(|root| root.direction) == Some(LayoutDirection::RightToLeft) {
+        if self.slider_flipped(id) {
             along = 1.0 - along;
         }
-        self.set_slider(id, min + f64::from(along) * (max - min), false);
+        self.set_slider(id, mapping.value(f64::from(along)), false);
+    }
+
+    /// Whether the slider `id`'s least value lies at the right of its track: reversed, or laid out
+    /// from right to left, not both.
+    fn slider_flipped(&self, id: ElementId) -> bool {
+        let reversed = self
+            .node(id)
+            .and_then(|node| Track::of(&node.element.kind))
+            .is_some_and(|track| track.reversed);
+        let rtl =
+            self.root_settings(id).map(|root| root.direction) == Some(LayoutDirection::RightToLeft);
+        reversed != rtl
     }
 
     /// A key reached the slider `id`, which holds the focus: the arrows move it by a step, towards
-    /// its most value up and towards its end, Page Up and Page Down by ten, Home and End to its
-    /// bounds, each committed. Gives whether it took the key; a slider of no step moves by a
-    /// hundredth of its range.
+    /// its most value up and towards the right where its least value lies at the left, Page Up and
+    /// Page Down by ten, Home and End to its least and most values, each committed. Gives whether
+    /// it took the key; a slider of no step moves by a hundredth of its track.
     pub(crate) fn slider_key(&mut self, id: ElementId, event: &KeyEvent) -> bool {
         let Key::Named(named) = &event.logical else {
             return false;
@@ -647,32 +710,35 @@ impl Ui {
         let Some(node) = self.node(id) else {
             return false;
         };
-        let Some((min, max, step)) = bounds(&node.element.kind) else {
+        let Some(track) = Track::of(&node.element.kind) else {
             return false;
         };
         let Some(value) = self.slider_value(id) else {
             return false;
         };
-        let step = if step > 0.0 {
-            step
-        } else {
-            (max - min) / 100.0
-        };
-        // Towards the end of a line: the right, or the left from right to left.
-        let forward = match self.root_settings(id).map(|root| root.direction) {
-            Some(LayoutDirection::RightToLeft) => -1.0,
-            _ => 1.0,
-        };
-        let target = match named {
-            NamedKey::ArrowRight => value + forward * step,
-            NamedKey::ArrowLeft => value - forward * step,
-            NamedKey::ArrowUp => value + step,
-            NamedKey::ArrowDown => value - step,
-            NamedKey::PageUp => value + PAGE_STEPS * step,
-            NamedKey::PageDown => value - PAGE_STEPS * step,
-            NamedKey::Home => min,
-            NamedKey::End => max,
+        // Towards its most value: the right, or the left where the least value lies at the right.
+        let right = if self.slider_flipped(id) { -1.0 } else { 1.0 };
+        let steps = match named {
+            NamedKey::ArrowRight => right,
+            NamedKey::ArrowLeft => -right,
+            NamedKey::ArrowUp => 1.0,
+            NamedKey::ArrowDown => -1.0,
+            NamedKey::PageUp => PAGE_STEPS,
+            NamedKey::PageDown => -PAGE_STEPS,
+            NamedKey::Home => {
+                self.set_slider(id, track.min, true);
+                return true;
+            }
+            NamedKey::End => {
+                self.set_slider(id, track.max, true);
+                return true;
+            }
             _ => return false,
+        };
+        let target = if track.step > 0.0 {
+            value + steps * track.step
+        } else {
+            track.value(track.along(value) + steps / 100.0)
         };
         self.set_slider(id, target, true);
         true
@@ -683,7 +749,7 @@ impl Ui {
     fn slider_geometry(&self, id: ElementId) -> Option<(Rect, Rect)> {
         let scale = self.scale_of(id);
         let node = self.node(id)?;
-        let (min, max, _) = bounds(&node.element.kind)?;
+        let mapping = Track::of(&node.element.kind)?;
         let value = self.slider_value(id)?;
         let content = node.content_box();
         let size = (node.style.control.size * scale).min(content.height.max(1.0));
@@ -693,11 +759,9 @@ impl Ui {
             (content.width - size).max(0.0),
             0.0,
         );
-        // Bounds that are no number, or infinite, place the thumb at the start.
-        let mut along = Some(((value - min) / (max - min)) as f32)
-            .filter(|along| max > min && along.is_finite())
-            .unwrap_or(0.0);
-        if self.root_settings(id).map(|root| root.direction) == Some(LayoutDirection::RightToLeft) {
+        // Bounds that are no number, or infinite, place the thumb at the least value's end.
+        let mut along = mapping.along(value) as f32;
+        if self.slider_flipped(id) {
             along = 1.0 - along;
         }
         let middle = track.x + along * track.width;
@@ -996,7 +1060,7 @@ impl Ui {
                 let shown = self
                     .chosen(id)
                     .and_then(|chosen| options.get(chosen))
-                    .cloned()
+                    .map(|option| option.label.clone())
                     .unwrap_or_default();
                 let look = node.style.text.clone();
                 let size = control.size * scale;
@@ -1134,13 +1198,11 @@ impl Ui {
                 let line = Rect::new(track.x, track.y - thickness / 2.0, track.width, thickness);
                 primitives.push(filled(line, control.radius, control.track));
                 let middle = thumb.x + thumb.width / 2.0;
-                let up_to = match direction {
-                    LayoutDirection::LeftToRight => {
-                        Rect::new(line.x, line.y, middle - line.x, thickness)
-                    }
-                    LayoutDirection::RightToLeft => {
-                        Rect::new(middle, line.y, line.x + line.width - middle, thickness)
-                    }
+                // From the least value's end to the thumb.
+                let up_to = if self.slider_flipped(id) {
+                    Rect::new(middle, line.y, line.x + line.width - middle, thickness)
+                } else {
+                    Rect::new(line.x, line.y, middle - line.x, thickness)
                 };
                 primitives.push(filled(up_to, control.radius, control.fill));
                 primitives.push(filled(thumb, control.radius, control.mark));

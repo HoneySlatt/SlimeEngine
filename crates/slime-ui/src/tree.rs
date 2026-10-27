@@ -183,6 +183,11 @@ pub enum Kind {
         /// The family of units of its number, whose base unit it shows after the number, and whose
         /// every unit it reads in what is typed (`docs/adr/0151-rich-widgets.md`).
         units: Units,
+        /// Whether the program holds the number in an `f32`: the field shows the shortest text
+        /// that reads back to that `f32`, `0.1` rather than the `0.10000000149011612` that its
+        /// `f64` is, and keeps the `0.1` that the user committed when the program gives it back
+        /// (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`).
+        single_precision: bool,
     },
     /// A check box: its box, checked or not, then its label, in the middle of its box from top to
     /// bottom. A press, or Enter or Space while it holds the focus, toggles it, which the program
@@ -195,10 +200,11 @@ pub enum Kind {
         /// Whether it is checked, as the program gives it.
         checked: bool,
     },
-    /// A slider: a track from its least value to its most, the part up to its value filled, and a
-    /// thumb at its value, which the pointer drags, or presses elsewhere on the track, and the
-    /// arrows, Home, End, Page Up and Page Down move while it holds the focus, by multiples of its
-    /// step from its least value. It keeps the user's value, as a field of numbers does, which the
+    /// A slider: a track from its least value to its most, or from its most to its least, linear or
+    /// logarithmic, the part from its least value to its value filled, and a thumb at its value,
+    /// which the pointer drags, or presses elsewhere on the track, and the arrows, Home, End, Page
+    /// Up and Page Down move while it holds the focus, by multiples of its step from its least
+    /// value. It keeps the user's value, as a field of numbers does, which the
     /// program reads as actions, a number.
     Slider {
         /// Its value, as the program gives it, under the same rule as a check box's state; kept
@@ -210,6 +216,14 @@ pub enum Kind {
         max: f64,
         /// The values it takes are its least value and multiples of this from it; 0 for any.
         step: f64,
+        /// Whether its track maps its values on a logarithmic scale, each part of the track
+        /// multiplying the value by as much, as a speed's or a distance's slider wants
+        /// (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`); a slider whose least
+        /// value is not above 0 maps them linearly.
+        logarithmic: bool,
+        /// Whether its track runs from its most value at its start to its least at its end, as an
+        /// exposure's does.
+        reversed: bool,
     },
     /// A section that folds: a header, its title after a mark that shows whether it is open,
     /// then, while it is open, its children, laid out as a container's below the header. A press
@@ -347,15 +361,45 @@ pub enum Kind {
     /// the keyboard opened it; the arrows and the pointer move through it, a press or Enter
     /// chooses, Escape, a press outside or a press on the list to choose from closes it unchanged.
     /// Closed, the arrows up and down choose the option before or after it, Home and End the first
-    /// and the last. It keeps the user's choice, which the program reads as actions
+    /// and the last, each passing over the options that are disabled. It keeps the user's choice,
+    /// which the program reads as actions
     /// ([`FieldValue::Chosen`](crate::action::FieldValue::Chosen)), under a check box's rule; rules
     /// select it open by the state `Expanded`.
     Choice {
         /// Its options.
-        options: Vec<String>,
+        options: Vec<ChoiceOption>,
         /// The place of the chosen option among them, as the program gives it; kept within them.
         chosen: usize,
     },
+}
+
+/// An option of a list to choose from ([`Kind::Choice`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ChoiceOption {
+    /// Its label.
+    pub label: String,
+    /// Whether it is disabled: the keys and the pointer pass over it, and neither the user nor an
+    /// agent chooses it; the program may still give it chosen, as the variant that a value holds
+    /// is chosen whether or not a new value can start in it
+    /// (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`).
+    pub disabled: bool,
+    /// Its tooltip in the open list, if it has one.
+    pub help: Option<Tooltip>,
+}
+
+impl From<String> for ChoiceOption {
+    fn from(label: String) -> Self {
+        Self {
+            label,
+            ..Self::default()
+        }
+    }
+}
+
+impl From<&str> for ChoiceOption {
+    fn from(label: &str) -> Self {
+        Self::from(label.to_owned())
+    }
 }
 
 /// What an element's tooltip shows ([`Element::tooltip`](Element::tooltip)): a title, which may be
@@ -571,6 +615,7 @@ impl Element {
             step,
             prefix: String::new(),
             units: Units::None,
+            single_precision: false,
         };
         Self::of(kind, style)
     }
@@ -675,6 +720,8 @@ impl Element {
                 min,
                 max,
                 step,
+                logarithmic: false,
+                reversed: false,
             },
             style,
         )
@@ -716,8 +763,14 @@ impl Element {
         Self::of(kind, style)
     }
 
-    /// A list to choose from, of `options`, the one at `chosen` chosen.
-    pub fn choice(options: Vec<String>, chosen: usize, style: Style) -> Self {
+    /// A list to choose from, of `options`, the one at `chosen` chosen: each a label, or a
+    /// [`ChoiceOption`] that may be disabled and carry help.
+    pub fn choice(
+        options: impl IntoIterator<Item = impl Into<ChoiceOption>>,
+        chosen: usize,
+        style: Style,
+    ) -> Self {
+        let options = options.into_iter().map(Into::into).collect();
         Self::of(Kind::Choice { options, chosen }, style)
     }
 
@@ -792,12 +845,45 @@ impl Element {
         self
     }
 
+    /// The element, a slider, mapping its values on a logarithmic scale ([`Kind::Slider`]).
+    /// Nothing changes for another element.
+    #[must_use]
+    pub fn logarithmic(mut self) -> Self {
+        if let Kind::Slider { logarithmic, .. } = &mut self.kind {
+            *logarithmic = true;
+        }
+        self
+    }
+
+    /// The element, a slider, running from its most value to its least ([`Kind::Slider`]).
+    /// Nothing changes for another element.
+    #[must_use]
+    pub fn reversed(mut self) -> Self {
+        if let Kind::Slider { reversed, .. } = &mut self.kind {
+            *reversed = true;
+        }
+        self
+    }
+
     /// The element, a field of numbers, of the family of units `units` ([`Kind::NumberField`]).
     /// Nothing changes for another element.
     #[must_use]
     pub fn units(mut self, units: Units) -> Self {
         if let Kind::NumberField { units: held, .. } = &mut self.kind {
             *held = units;
+        }
+        self
+    }
+
+    /// The element, a field of numbers, holding a number that the program keeps in an `f32`
+    /// ([`Kind::NumberField`]). Nothing changes for another element.
+    #[must_use]
+    pub fn single_precision(mut self) -> Self {
+        if let Kind::NumberField {
+            single_precision, ..
+        } = &mut self.kind
+        {
+            *single_precision = true;
         }
         self
     }

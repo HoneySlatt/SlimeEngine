@@ -5,7 +5,9 @@
 use slime_input::{Key, KeyEvent, NamedKey};
 
 use super::control::Control;
-use super::{Along, Element, ElementId, ItemMark, Kind, Layer, Place, Role, Side, Ui};
+use super::{
+    Along, ChoiceOption, Element, ElementId, ItemMark, Kind, Layer, Place, Role, Side, Ui,
+};
 use crate::action::{Action, ActionKind, FieldValue};
 use crate::style::{Dimension, FlexDirection, Style};
 
@@ -46,18 +48,27 @@ impl Ui {
             children.add("options", menu, |menu| {
                 for (place, option) in options.iter().enumerate() {
                     let mark = ItemMark::Check(place == chosen);
-                    let item = Element::menu_item(option.as_str(), "", mark, Style::default())
-                        .role(Role::ListBoxOption);
+                    let mut item =
+                        Element::menu_item(option.label.as_str(), "", mark, Style::default())
+                            .role(Role::ListBoxOption);
+                    item.tooltip.clone_from(&option.help);
                     items.push(menu.add(place, item, |_| {}));
                 }
             });
         });
         for (place, &item) in items.iter().enumerate() {
-            self.change_state(item, |state| state.selected = place == chosen);
+            let disabled = options[place].disabled;
+            self.change_state(item, |state| {
+                state.selected = place == chosen;
+                state.disabled = disabled;
+            });
         }
         self.change_state(id, |state| state.expanded = true);
-        // The keyboard finds the chosen option under the focus.
-        if !by_pointer && let Some(&item) = items.get(chosen) {
+        // The keyboard finds the chosen option under the focus, or the first that is not disabled.
+        if !by_pointer
+            && let Some(place) = nearest_enabled(&options, chosen)
+            && let Some(&item) = items.get(place)
+        {
             self.set_focus(Some(item));
         }
     }
@@ -97,8 +108,11 @@ impl Ui {
             if !matches!(named, NamedKey::ArrowDown | NamedKey::ArrowUp) {
                 return false;
             }
-            let options = self.children(list).first().map(|&menu| self.children(menu));
-            if let Some(&item) = options.and_then(|items| items.get(chosen)) {
+            let place = nearest_enabled(options, chosen);
+            let items = self.children(list).first().map(|&menu| self.children(menu));
+            if let (Some(place), Some(items)) = (place, items)
+                && let Some(&item) = items.get(place)
+            {
                 self.set_focus(Some(item));
             }
             return true;
@@ -113,13 +127,15 @@ impl Ui {
                 self.press_choice(id);
                 return true;
             }
-            NamedKey::ArrowDown => (chosen + 1).min(last),
-            NamedKey::ArrowUp => chosen.saturating_sub(1),
-            NamedKey::Home => 0,
-            NamedKey::End => last,
+            NamedKey::ArrowDown => enabled(options, chosen, 1, 1),
+            NamedKey::ArrowUp => enabled(options, chosen, 1, -1),
+            NamedKey::Home => enabled(options, 0, 0, 1),
+            NamedKey::End => enabled(options, last, 0, -1),
             _ => return false,
         };
-        self.choose(id, place);
+        if let Some(place) = place {
+            self.choose(id, place);
+        }
         true
     }
 
@@ -133,7 +149,7 @@ impl Ui {
         let Kind::Choice { options, .. } = &node.element.kind else {
             return false;
         };
-        if place >= options.len() {
+        if options.get(place).is_none_or(|option| option.disabled) {
             return false;
         }
         let Some(Control::Choice { chosen, .. }) = node.control.as_mut() else {
@@ -161,4 +177,22 @@ impl Ui {
             .is_some_and(|node| matches!(node.element.kind, Kind::Choice { .. }))
             .then_some(owner)
     }
+}
+
+/// The first option of `options` that is not disabled, from `from` and `skip` places past it, in
+/// the direction of `towards`, 1 or -1; none where there is none that way.
+fn enabled(options: &[ChoiceOption], from: usize, skip: usize, towards: isize) -> Option<usize> {
+    let mut place = from.checked_add_signed(towards * skip as isize)?;
+    while let Some(option) = options.get(place) {
+        if !option.disabled {
+            return Some(place);
+        }
+        place = place.checked_add_signed(towards)?;
+    }
+    None
+}
+
+/// The option of `options` nearest to `place` that is not disabled, itself or after it first.
+fn nearest_enabled(options: &[ChoiceOption], place: usize) -> Option<usize> {
+    enabled(options, place, 0, 1).or_else(|| enabled(options, place, 0, -1))
 }

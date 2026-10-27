@@ -488,7 +488,7 @@ impl Ui {
                     Kind::Choice { options, .. } => self
                         .chosen(id)
                         .and_then(|chosen| options.get(chosen))
-                        .cloned(),
+                        .map(|option| option.label.clone()),
                     _ => self
                         .slider_value(id)
                         .map(super::field::number_text)

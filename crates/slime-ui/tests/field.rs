@@ -2,8 +2,9 @@
 //! (`docs/adr/0145-text-edited.md`): text typed, moved through by clusters and words, in text of
 //! both directions, selected by the keys and the pointer, undone, copied and pasted, composed;
 //! what the program reads of it, changed and committed; a field of numbers typed and dragged, which
-//! writes nothing that the user did not change; the program's text, which replaces the user's only
-//! when it changes; the keys and presses that a field takes; the pointer's shapes.
+//! writes nothing that the user did not change, and one of single precision; the program's text,
+//! which replaces the user's only when it changes; the keys and presses that a field takes; the
+//! pointer's shapes.
 
 use std::sync::{Arc, Mutex};
 
@@ -673,6 +674,47 @@ fn a_program_that_gives_back_each_change_keeps_what_the_user_is_typing() {
     assert_eq!(ui.field_text(field), Some("に"), "the composition kept");
     ui.ime(&Ime::Commit("日".to_owned()));
     assert_eq!(ui.field_text(field), Some("日"));
+}
+
+#[test]
+fn a_field_of_single_precision_shows_an_f32_shortest_and_keeps_what_was_committed() {
+    // A program that holds the number in an `f32`, as most components do.
+    let held = f64::from(0.3f32);
+    let (mut ui, root, field, _) =
+        interface(Element::number_field(held, 0.1, style()).single_precision());
+    assert_eq!(ui.field_text(field), Some("0.3"));
+    let build = |ui: &mut Ui, revision: u64, value: f64| {
+        ui.build(root, revision, |children| {
+            let element = Element::number_field(value, 0.1, style()).single_precision();
+            children.add("field", element, |_| {});
+            children.add("button", Element::button("", style()), |_| {});
+        });
+        ui.frame();
+    };
+    ui.set_focus(Some(field));
+    chord(&mut ui, control(), &typed("a"));
+    type_text(&mut ui, "0.1");
+    ui.key(&named(NamedKey::Enter));
+    assert_eq!(
+        values(&mut ui).last().map(String::as_str),
+        Some("committed 0.1")
+    );
+    // Given back as the `f32` that holds it, it keeps the text committed.
+    build(&mut ui, 1, f64::from(0.1f32));
+    assert_eq!(ui.field_text(field), Some("0.1"));
+    // A number that the `f32` cannot hold whole shows what the program kept of it.
+    chord(&mut ui, control(), &typed("a"));
+    type_text(&mut ui, "0.123456789");
+    ui.key(&named(NamedKey::Enter));
+    build(
+        &mut ui,
+        2,
+        f64::from("0.123456789".parse::<f32>().expect("a number")),
+    );
+    assert_eq!(ui.field_text(field), Some("0.12345679"));
+    // A field of double precision shows the `f64` whole.
+    let (ui, _, field, _) = interface(Element::number_field(held, 0.1, style()));
+    assert_eq!(ui.field_text(field), Some("0.30000001192092896"));
 }
 
 #[test]

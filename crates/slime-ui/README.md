@@ -87,6 +87,11 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   (`Ui::open_palette`, `tree::PaletteCommand`); the sheet of shortcuts
   (`Ui::open_shortcut_sheet`); a command's chord and the shortcuts by scope (`Ui::command_chord`,
   `Ui::shortcuts`).
+- What the dev overlay's editors of reflected values need
+  (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`): sliders on a logarithmic scale and
+  from high to low (`Element::logarithmic`, `Element::reversed`), options of a list to choose from
+  that are disabled or carry help (`tree::ChoiceOption`), and fields of numbers that the program
+  holds in an `f32` (`Element::single_precision`).
 - `look`, built only with the feature `editor-look`, is the editor's look, made for the editor and
   the dev overlay, and drawn by the `widgets` example: its fonts, Geist and Geist Mono, and
   Lucide's icons (`look::register_fonts`, `look::icon`), its style sheet (`look::style_sheet`), and

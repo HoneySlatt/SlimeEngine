@@ -273,7 +273,15 @@ impl Field {
 pub(crate) fn given(kind: &Kind) -> Option<String> {
     match kind {
         Kind::TextField { text, .. } => Some(text.clone()),
-        Kind::NumberField { value, .. } => Some(number_text(*value)),
+        Kind::NumberField {
+            value,
+            single_precision,
+            ..
+        } => Some(if *single_precision {
+            single_text(*value)
+        } else {
+            number_text(*value)
+        }),
         _ => None,
     }
 }
@@ -281,6 +289,12 @@ pub(crate) fn given(kind: &Kind) -> Option<String> {
 /// `value` as a field of numbers shows it: whole, as Rust writes it.
 pub(crate) fn number_text(value: f64) -> String {
     format!("{value}")
+}
+
+/// `value`, which a program holds in an `f32`, as a field of numbers shows it: the shortest text
+/// that reads back to the nearest `f32`, as Rust writes an `f32`.
+fn single_text(value: f64) -> String {
+    format!("{}", value as f32)
 }
 
 /// The text that the program gives to keep a field as `value` left it.
@@ -377,7 +391,7 @@ impl Ui {
             Kind::Choice { ref options, .. } => {
                 let place = options
                     .iter()
-                    .position(|option| option == text)
+                    .position(|option| option.label == text)
                     .or_else(|| text.trim().parse::<usize>().ok());
                 return place.is_some_and(|place| self.choose(id, place));
             }

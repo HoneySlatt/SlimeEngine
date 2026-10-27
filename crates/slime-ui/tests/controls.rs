@@ -1,7 +1,8 @@
 //! Check boxes and sliders, without a GPU (`docs/adr/0148-widgets.md`): toggled by the pointer, by
 //! the keys and by an agent, a slider dragged, pressed on its track and moved by the keys, in a
-//! root of either direction, each read by the program as its value changed and committed; the
-//! program's value, which replaces the user's only when it changes; their meaning and their state.
+//! root of either direction, logarithmic or reversed, each read by the program as its value changed
+//! and committed; the program's value, which replaces the user's only when it changes; their
+//! meaning and their state.
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use slime_ui::action::{Action, ActionKind, FieldValue};
@@ -215,6 +216,76 @@ fn a_slider_from_right_to_left_starts_at_its_right() {
     // The right arrow moves it towards its least value, the end of a line being at the left.
     ui.key(&named(NamedKey::ArrowRight));
     assert_eq!(ui.slider_value(slider), Some(9.0));
+}
+
+#[test]
+fn a_logarithmic_slider_multiplies_its_value_by_as_much_along_its_track() {
+    // From 0.1 to 10: the track's middle is 1, its quarter 0.316.
+    let (mut ui, _, slider) = interface(
+        LayoutDirection::LeftToRight,
+        Element::slider(1.0, 0.1, 10.0, 0.0, sized(216.0)).logarithmic(),
+    );
+    // The thumb at 1 stands in the middle of the track, from 8 to 208.
+    let middle = |ui: &mut Ui| {
+        let (list, _) = ui.frame();
+        let thumb = list
+            .items()
+            .iter()
+            .rev()
+            .find_map(|item| match &item.primitive {
+                Primitive::Box(each) => Some(each.rect),
+                _ => None,
+            })
+            .expect("a thumb");
+        thumb.x + thumb.width / 2.0
+    };
+    assert!((middle(&mut ui) - 108.0).abs() < 0.01);
+    click(&mut ui, 58.0, 10.0);
+    let value = ui.slider_value(slider).expect("a slider");
+    assert!((value - 10f64.powf(-0.5)).abs() < 1e-3, "{value}");
+    // A slider of no step moves by a hundredth of its track: a factor of 100 ^ 0.01.
+    ui.key(&named(NamedKey::Home));
+    ui.key(&named(NamedKey::ArrowRight));
+    let value = ui.slider_value(slider).expect("a slider");
+    assert!((value - 0.1 * 100f64.powf(0.01)).abs() < 1e-9, "{value}");
+    // A least value not above 0 maps the track linearly.
+    let (mut ui, _, slider) = interface(
+        LayoutDirection::LeftToRight,
+        Element::slider(0.0, 0.0, 10.0, 0.0, sized(216.0)).logarithmic(),
+    );
+    click(&mut ui, 108.0, 10.0);
+    assert_eq!(ui.slider_value(slider), Some(5.0));
+}
+
+#[test]
+fn a_reversed_slider_runs_from_its_most_value_to_its_least() {
+    // An exposure, from 18 at its left to 0 at its right.
+    let (mut ui, _, slider) = interface(
+        LayoutDirection::LeftToRight,
+        Element::slider(9.0, 0.0, 18.0, 1.0, sized(216.0)).reversed(),
+    );
+    click(&mut ui, 8.0, 10.0);
+    assert_eq!(ui.slider_value(slider), Some(18.0));
+    click(&mut ui, 208.0, 10.0);
+    assert_eq!(ui.slider_value(slider), Some(0.0));
+    // The right arrow moves it towards its least value, at the right; up towards its most.
+    ui.key(&named(NamedKey::ArrowUp));
+    ui.key(&named(NamedKey::ArrowUp));
+    ui.key(&named(NamedKey::ArrowRight));
+    assert_eq!(ui.slider_value(slider), Some(1.0));
+    // Its meaning keeps its least and most values.
+    let range = ui.meaning_of(slider).and_then(|meaning| meaning.range);
+    let range = range.expect("a slider's range");
+    assert_eq!((range.min, range.max), (0.0, 18.0));
+    // From right to left, reversed, its least value lies at the left again.
+    let (mut ui, _, slider) = interface(
+        LayoutDirection::RightToLeft,
+        Element::slider(0.0, 0.0, 10.0, 1.0, sized(216.0)).reversed(),
+    );
+    click(&mut ui, 192.0, 10.0);
+    assert_eq!(ui.slider_value(slider), Some(0.0));
+    click(&mut ui, 392.0, 10.0);
+    assert_eq!(ui.slider_value(slider), Some(10.0));
 }
 
 #[test]

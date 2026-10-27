@@ -3,13 +3,17 @@
 //! keyboard; an option chosen by the keys or the pointer, which the program reads; the list closed
 //! unchanged by Escape, a press outside it, or a press on what opened it; the keys that choose
 //! while it is closed; the program's choice, which replaces the user's only when it changes; an
-//! agent's choice by an option's text or place; their meaning.
+//! agent's choice by an option's text or place; options that are disabled, passed over, and their
+//! help; their meaning.
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey};
 use slime_ui::action::{Action, ActionKind, FieldValue};
 use slime_ui::style::{Dimension, FlexDirection, Style};
 use slime_ui::text::Fonts;
-use slime_ui::tree::{Element, ElementAction, ElementId, LayoutDirection, Role, RootSettings, Ui};
+use slime_ui::tree::{
+    ChoiceOption, Element, ElementAction, ElementId, LayoutDirection, Role, RootSettings, Tooltip,
+    Ui,
+};
 
 const OPTIONS: [&str; 3] = ["Low", "Medium", "High"];
 
@@ -338,4 +342,74 @@ fn a_list_to_choose_from_in_a_modal_layer_opens_and_chooses() {
     assert_eq!(choice.actions(), chosen(2));
     assert_eq!(choice.ui.chosen(inner), Some(2));
     assert!(choice.ui.rect(dialog).is_some(), "the dialog stays");
+}
+
+#[test]
+fn options_that_are_disabled_are_passed_over_and_options_show_their_help() {
+    let mut choice = Choice::new(0);
+    let mut style = Style::default();
+    style.layout.size[0] = Dimension::Pixels(160.0);
+    style.layout.align_self = Some(slime_ui::style::Align::Start);
+    style.text.style.fonts = vec!["Noto Sans".to_owned()];
+    let options = [
+        ChoiceOption::from("Low"),
+        ChoiceOption {
+            label: "Medium".to_owned(),
+            disabled: true,
+            help: Some(Tooltip {
+                title: "Medium".to_owned(),
+                text: "needs a second light".to_owned(),
+            }),
+        },
+        ChoiceOption::from("High"),
+    ];
+    choice.ui.build(choice.root, 99, |children| {
+        let element = Element::choice(options.clone(), 0, style);
+        children.add("quality", element, |_| {});
+    });
+    choice.ui.frame();
+    // Closed, the arrows pass over it, both ways.
+    choice.ui.set_focus(Some(choice.choice));
+    choice.key(NamedKey::ArrowDown);
+    assert_eq!(choice.actions(), chosen(2));
+    choice.key(NamedKey::ArrowUp);
+    assert_eq!(choice.actions(), chosen(0));
+    // Neither an agent nor a press chooses it.
+    assert!(!choice.ui.set_value(choice.choice, "Medium"));
+    assert!(!choice.ui.set_value(choice.choice, "1"));
+    choice.key(NamedKey::Enter);
+    let (_, items) = choice.list().expect("open");
+    let state = choice.ui.state(items[1]).expect("there");
+    assert!(state.disabled);
+    let meaning = choice.ui.meaning_of(items[1]).expect("drawn");
+    assert_eq!(
+        meaning.description.as_deref(),
+        Some("Medium: needs a second light")
+    );
+    let (x, y) = middle(&choice.ui, items[1]);
+    choice.click(x, y);
+    assert!(choice.actions().is_empty());
+    assert_eq!(choice.ui.chosen(choice.choice), Some(0));
+    // The keys in the open list pass over it too.
+    choice.key(NamedKey::Escape);
+    assert!(choice.list().is_none());
+    choice.ui.set_focus(Some(choice.choice));
+    choice.key(NamedKey::Enter);
+    let (_, items) = choice.list().expect("open");
+    assert_eq!(choice.ui.focus(), Some(items[0]));
+    choice.key(NamedKey::ArrowDown);
+    assert_eq!(choice.ui.focus(), Some(items[2]));
+    // The program may give it chosen: the list opens on the nearest option that is not.
+    choice.key(NamedKey::Escape);
+    choice.ui.build(choice.root, 100, |children| {
+        let mut style = Style::default();
+        style.text.style.fonts = vec!["Noto Sans".to_owned()];
+        children.add("quality", Element::choice(options, 1, style), |_| {});
+    });
+    choice.ui.frame();
+    assert_eq!(choice.ui.chosen(choice.choice), Some(1));
+    choice.ui.set_focus(Some(choice.choice));
+    choice.key(NamedKey::Enter);
+    let (_, items) = choice.list().expect("open");
+    assert_eq!(choice.ui.focus(), Some(items[2]));
 }
