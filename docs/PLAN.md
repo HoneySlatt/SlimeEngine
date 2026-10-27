@@ -51,8 +51,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   owner on 2026-10-26: M6b.7a, the widgets that a panel holds, is done
   ([ADR-0148](adr/0148-widgets.md)). The owner cut the rest in three on 2026-10-27
   ([ADR-0149](adr/0149-the-looks-foundations.md)): M6b.7b, the look's foundations, is done;
-  M6b.7c, the layers ([ADR-0150](adr/0150-layers.md)), is built, its CI to run, and M6b.7d, the
-  rich widgets, follows.
+  M6b.7c, the layers ([ADR-0150](adr/0150-layers.md)), is done; M6b.7d, the rich widgets, is in
+  progress, its cut and its choices proposed to the owner ([ADR-0151](adr/0151-rich-widgets.md)).
 
 ## Status
 
@@ -71,7 +71,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.6b](#m6b6b--screen-readers) | Screen readers read the interface, and agents read and set what its fields hold | Done |
 | [M6b.7a](#m6b7a--the-widgets-of-a-panel) | The framework has the widgets that a panel of the dev overlay and of the editor is made of, in the editor's theme | Done |
 | [M6b.7b](#m6b7b--the-looks-foundations) | The editor's look follows one accent in a dark, a light and a high-contrast theme, moves through transitions, and stays crisp at every scale | Done |
-| [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Built; CI to run |
+| [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Done |
 | [M6b.7d](#m6b7d--rich-widgets) | The framework has the rich fields, notifications and the palette of commands that make editing fast | In progress |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
@@ -1017,7 +1017,7 @@ that the look has a light and a high-contrast theme beside its dark one.
   example; an agent's session uses each through its actions; CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-ui-render`; the example.
 - **By hand.** The owner tries the example's layers.
-- **Outcome.** Built on 2026-10-27, CI to run. [ADR-0150](adr/0150-layers.md) records the owner's
+- **Outcome.** Done on 2026-10-27. [ADR-0150](adr/0150-layers.md) records the owner's
   decisions of 2026-10-27: the widgets that own a layer open it alone, a list to choose from and a
   tooltip, and the program builds menus, context menus, floating panels and dialogs, which the
   framework places, closes on a press outside or Escape, and moves the keys through; a bar of
@@ -1057,7 +1057,9 @@ that the look has a light and a high-contrast theme beside its dark one.
   and the floating panel, the list open and a tooltip, against reference images, the others drawn
   again with the look's icons; in `slime-mcp`'s `tests/widgets.rs`, an agent's session that chooses
   an option, opens the bar's menus, shows the floating panel and opens a recent level through a
-  submenu.
+  submenu. CI is green on `87eceae`, the reference images matched on WARP too: `check (headless)`
+  took 11 minutes 10 seconds, `check (windowed)` 11 minutes 22 seconds, `windows` 19 minutes 34
+  seconds and `windows-release` 10 minutes 30 seconds, the zone restored from its cache.
 
 ### M6b.7d — Rich widgets
 
