@@ -1198,8 +1198,8 @@ that the look has a light and a high-contrast theme beside its dark one.
   the program, the overlay kept out of the game's shipping build, and the whole picker of colors,
   drawn with gradients in the canvas. Built: the sliders, the options and the fields of single
   precision; the editors of reflected values and the world panel on the engine's interface
-  (`slime_devui::interface`), tested without a GPU, measured by `devui.world_panel.100k`, which the
-  programs do not use yet. A frame after an entity was renamed, spawned or despawned makes the
+  (then `slime_devui::interface`, the crate's root since M6b.8b), tested without a GPU, measured
+  by `devui.world_panel.100k`, which the programs used from M6b.8b. A frame after an entity was renamed, spawned or despawned makes the
   panel's list of entities again, about 7 ms at 100 000 entities
   ([measurements](measurements.md#m6b8-rx-6900-xt)), as egui's did. The color well and its picker,
   drawn with the canvas's gradients, edit the overlay's colors, and the `widgets` example shows one
@@ -1286,8 +1286,11 @@ that the look has a light and a high-contrast theme beside its dark one.
   example; text in several writing systems in the examples; an input method and the clipboard in the
   examples' fields; Narrator reading the `world` example's overlay.
 - **Progress.** The owner's check in the Windows virtual machine, on 2026-10-27, of the programs
-  that CI built from `0b6f1a9`, passed: the overlay of *Hunna Wood* and of the `world` example,
-  Narrator reading the `world` example's panels, as Orca reads them on Linux.
+  that CI built from `0b6f1a9`, passed, as the owner reported it whole: the overlay of *Hunna Wood*
+  and of the `world` example, Narrator reading the `world` example's panels, as Orca reads them on
+  Linux, the text in several writing systems, an input method and the clipboard in the examples'
+  fields. The documents were reread as a newcomer would read them, against the code, and
+  corrected.
 
 ## Stage 6c — The editor
 
@@ -1327,8 +1330,7 @@ provisional until then:
    ([ADR-0092](adr/0092-a-world-written-back-as-a-scene.md)); a valid change of a prefab that makes
    a level placing it refuse, checked before saving; whether a level that cannot spawn opens
    leniently, to be repaired (ADR-0089); G31, G40, G42, G43 and G45; whether a file says the parents
-   and the order of a placement's entities, and keeps the comments of a file written by hand
-   ([Known debt](#known-debt)).
+   and the order of a placement's entities ([Known debt](#known-debt)).
 7. **The asset browser**: the cooker's index of assets, thumbnails, assets dragged into the view,
    cooking from the editor; a load that a passing error failed tried again (G16); G20, G23, G49 to
    G53 and G56.
@@ -1352,7 +1354,7 @@ A release is an annotated git tag on a commit whose CI run is green on Linux and
 ([ADR-0004](adr/0004-workspace-layout-and-crate-naming.md)):
 
 1. In one commit, set the version in the root `Cargo.toml` and the tag that the README's "Using
-   SlimeEngine in a game" names, rename the `[Unreleased]` section of `CHANGELOG.md` to
+   SlimeEngine in a game" names, with its list of crates, rename the `[Unreleased]` section of `CHANGELOG.md` to
    `[<version>] - <date>`, and update this plan.
 2. Push that commit and wait for its CI run to pass.
 3. Tag that commit, not a later one, then push the tag:
@@ -1418,8 +1420,10 @@ GitHub issues, linked from their entry; this list stays the reference.
   alone; each renderer has an uploader of its own, and two renderers send twice the budget.
 - **The development channel scripts keys only, and captures windowed runs only**
   ([ADR-0122](adr/0122-the-development-channel.md)). A tool puts keys down and lets them go, not
-  the mouse nor text; a run without a window has no image to capture; the measurements that the
-  channel gives are the frames' times, not the renderer's statistics, which the presentation holds;
+  the mouse nor text, which an agent gives an interface through its elements' actions instead
+  ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)); a run without a window has no image
+  to capture; the measurements that the channel gives are the frames' times, and the reports that
+  a game gives, its views' statistics among them;
   an MCP server drives one game at a time; a component that refers to an entity without a
   persistent identity is read, the reference written as no entity, `""`, and written back so, no
   longer naming it. A window's image is created with the copy-source usage wherever the system
@@ -1445,7 +1449,7 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **`cargo test` leaves out the tests of the cooked zone**: they need the zone fetched and cooked,
   so they are ignored (`#[ignore]`); `scripts/check.sh` and CI's `windows` job fetch and cook the
   zone, then run them (`cargo test -p hunnawood -p hunnawood-editor -- --ignored`). The agents'
-  sessions of the editor through the MCP server, on the yard and on the zone, are tests apart
+  sessions through the MCP server, the six session tests of `slime-mcp`, are tests apart
   (`test = false`), which `scripts/check.sh` runs on Linux alone.
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue
   [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)). With Mailbox, the default, the
@@ -1897,8 +1901,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   that place, and the children of a placement's entity in its prefab's order, then the file's; both
   are reported: a scene file has no parents for a placement's entities, nor an order among them.
   Stage 6c decides whether a file says them.
-- **A scene file written back loses its comments** (ADR-0089): `World::write_scene` writes the
-  canonical form. Stage 6c decides whether its editor keeps the comments of files written by hand.
+- **`World::write_scene` drops a scene file's comments** (ADR-0089): it writes the canonical form;
+  the editor puts them back (`slime_serialize::keep_comments`,
+  [ADR-0134](adr/0134-the-editors-core.md)), within the limits that the editor's core gives below.
 - **The cooked glTF scene is a format apart from the binary encoding** (ADR-0089, ADR-0095). A
   glTF file's scenes are cooked into a format of their own, `slime_assets::CookedScene`, and only
   the typed properties of their nodes into the binary encoding: cooked scenes have two formats, and
@@ -1921,7 +1926,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   `slime-world` that only tests enable; neither is worth it yet.
 - **An edit through reflection reads the whole component again** (ADR-0085): a field that its type
   skips takes its `Default` value, and a rotation is edited whole, as `Transform`'s check refuses a
-  coordinate edited alone. The panel of M5a.6 edits a rotation whole.
+  coordinate edited alone. The dev overlay's editors edit a rotation, a vector and a color whole.
 - **Rough metals reflect the sky with multiple scattering compensated, the lights without**
   (ADR-0039, as the Khronos glTF Sample Viewer): a white metal of roughness 1 reflects all of a
   uniform sky, but its lights keep glTF's single-scattering BRDF, under which it would reflect
@@ -2035,8 +2040,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   number, item by item ([`docs/measurements.md`](measurements.md), M6b.3a).
 - **The interface's images are textures that the program gives** for the keys of its display list
   ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)): cooked images that the asset cache
-  holds come with the first program that draws them, the editor or a game's screens. The editor's
-  font, Geist, is chosen, not yet in the repository. A draw that asks for more glyphs than the
+  holds come with the first program that draws them, the editor or a game's screens. A draw that asks for more glyphs than the
   atlas's budget holds leaves some out, and a glyph larger than a page is never drawn; one that
   meets glyphs no draw has asked for rasterizes them on the thread that draws, a few milliseconds
   for a menu's first draw ([`docs/measurements.md`](measurements.md), M6b.3b).
@@ -2064,14 +2068,17 @@ GitHub issues, linked from their entry; this list stays the reference.
   AccessKit's adapter and its 52 crates on Linux, and the longest job, `windows-release`, took 15
   minutes 27 seconds: the runs that the windowed part holds grow with each milestone. At M6b.7b,
   `slime-color` changed, and the zone was cooked again: `check (windowed)` took 21 minutes 55
-  seconds and `windows` 21 minutes 39 seconds.
+  seconds and `windows` 21 minutes 39 seconds. At M6b.8b, with the zone restored from its cache,
+  the game's agent session through the overlay made `check (windowed)` take 23 minutes 31 seconds:
+  the windowed part is to split again, as [ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md) did, or its limit
+  to be decided with the owner.
 - **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)): a frame walks every
   element of its roots, to find what to draw again and to gather the display list, even when nothing
   changed. A list shows the rows of a new range one frame late, when it first shows or when it
   scrolls after its builder ran. A text in a root laid out from right to left keeps its own
   direction, a Latin paragraph starting at its box's left. No element is placed out of its parent's
   flow but in a layer of its own ([ADR-0150](adr/0150-layers.md)). The marks of what changed hold an
-  element's style, layout and paint, not yet its meaning.
+  element's style, layout, paint and meaning ([ADR-0146](adr/0146-screen-readers.md)).
 - **Input and focus** ([ADR-0142](adr/0142-input-and-focus.md)): buttons, fields and widgets alone
   hold the focus, buttons and widgets alone are pressed, and boxes that scroll
   and lists scroll with the wheel; a list's rows are
@@ -2157,11 +2164,22 @@ GitHub issues, linked from their entry; this list stays the reference.
   `/`, or that `#` and digits make, cannot be read back from one. A row of a list is found by its
   number, the names of its texts not gathered into its own. Games link `slime-ui` through
   `slime-app`, whether they have an interface or not.
+- **The dev overlay** ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md),
+  [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)): a frame after an entity is renamed,
+  spawned or despawned makes the world panel's list again, every name read and filtered, about
+  7 ms at 100 000 entities ([measurements](measurements.md#m6b8-rx-6900-xt)), past the budget of a
+  list's frame; the frames standing still, scrolled, or after the selection changed stay within
+  it. Its panels keep the size that they open at, their content scrolling, where egui's fitted
+  theirs. It holds its interface's tables of shortcuts, which a game's interface would share; a
+  game loses F6 while its interface shows a root that holds an element that can take the focus,
+  and F6 gives a panel's bar the focus first. Its look, the editor's, is built into the program:
+  its themes are files of `slime-ui`, read as the program starts, not from the disk while it runs.
+  No check of CI runs a screen reader on it.
 - **Screen readers** ([ADR-0146](adr/0146-screen-readers.md)): no check of CI runs a screen reader
   nor Windows' UI Automation; CI reads and uses the `interface` example through AT-SPI on Linux
-  ([ADR-0147](adr/0147-the-screen-readers-check-in-ci.md)), and Orca and Narrator wait for the
-  owner. A modal dialog is not marked modal to screen readers, which find the elements
-  below it taking nothing; a label's text gives no runs, so that a screen reader reads it whole; a
+  ([ADR-0147](adr/0147-the-screen-readers-check-in-ci.md)); the owner checks Orca and Narrator by
+  hand, on the `interface` example and on the `world` example's dev overlay. A modal dialog is not
+  marked modal to screen readers, which find the elements below it taking nothing; a label's text gives no runs, so that a screen reader reads it whole; a
   field of numbers takes no increment or decrement, and nothing scrolls an element into view; the
   hover and the press are given to agents, not to screen readers, which AccessKit does not ask. A
   root's box that changes, a window resized, marks all it holds, and a modal root opened or closed
@@ -2174,8 +2192,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   what shows, not to an offset. `deny.toml` ignores three advisories of unmaintained crates that the adapter on Linux brings
   through zbus 5, zvariant, zbus_names and zvariant_derive, which zbus 6 holds: they go once
   AccessKit's adapter moves to zbus 6.
-- **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md)): a theme's value
-  names no other, and a field of the type `String` takes no named value. An error of type in a
+- **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md)): a field of the type
+  `String` takes no named value. An error of type in a
   cooked style sheet or theme is placed by its byte and the path of its part, not by its line. The
   code cannot set a field of an element's style to its default against a rule. The styles made are
   kept up to a number of the elements' own styles for each set of rules (`Ui::set_style`); past it,
