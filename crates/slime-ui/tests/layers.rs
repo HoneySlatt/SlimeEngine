@@ -331,3 +331,42 @@ fn a_layer_beside_an_element_of_another_layer_stands_out_of_that_layer() {
     );
     assert_eq!((second.x, second.y), (first.x + 80.0 + 4.0, first.y));
 }
+
+#[test]
+fn a_modal_layer_keeps_the_input_and_the_focus_until_it_closes() {
+    let (mut ui, root, button) = interface(LayoutDirection::LeftToRight, 0.0);
+    let dialog = ui.open_layer(
+        Layer {
+            place: Place::Floating {
+                over: root,
+                origin: [150.0, 100.0],
+                size: [200.0, 120.0],
+            },
+            modal: true,
+            dismiss: true,
+        },
+        Style::default(),
+    );
+    let mut ok = None;
+    ui.build(dialog, 0, |children| {
+        ok = Some(children.add("ok", Element::button("", sized(80.0, 30.0)), |_| {}));
+    });
+    ui.frame();
+    let ok = ok.expect("built");
+    // A press below it reaches nothing there, and does not close it; the focus stays within it.
+    click(&mut ui, 50.0, 15.0);
+    assert!(ui.rect(dialog).is_some());
+    assert!(ui.take_actions().is_empty());
+    ui.set_focus(Some(button));
+    assert_ne!(ui.focus(), Some(button));
+    ui.set_focus(Some(ok));
+    assert_eq!(ui.focus(), Some(ok));
+    // Escape closes it, which the program reads.
+    assert!(ui.key(&escape()));
+    ui.frame();
+    assert!(ui.rect(dialog).is_none());
+    let kinds: Vec<ActionKind> = ui.take_actions().into_iter().map(|a| a.kind).collect();
+    assert_eq!(kinds, [ActionKind::Dismissed]);
+    ui.set_focus(Some(button));
+    assert_eq!(ui.focus(), Some(button), "the window takes the focus again");
+}

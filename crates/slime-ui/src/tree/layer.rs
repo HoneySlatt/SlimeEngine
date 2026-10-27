@@ -333,7 +333,8 @@ impl Ui {
     }
 
     /// Closes the dismissable layers above the root that a press at `x` and `y` falls in, but those
-    /// that it falls in what opened: they close as the user leaves them.
+    /// that it falls in what opened, down to the first modal root, which keeps the press: they
+    /// close as the user leaves them.
     pub(crate) fn dismiss_outside(&mut self, x: f32, y: f32) {
         let hit = self.element_at(x, y);
         let hit_root = hit.and_then(|id| self.root_of(id));
@@ -342,6 +343,14 @@ impl Ui {
             .unwrap_or(0);
         let above: Vec<ElementId> = self.roots.iter().skip(below + 1).copied().collect();
         for root in above.into_iter().rev() {
+            // A modal root keeps the press: neither it nor what lies below closes.
+            if self
+                .node(root)
+                .and_then(|node| node.root)
+                .is_some_and(|settings| settings.modal)
+            {
+                return;
+            }
             let Some(held) = self.node(root).and_then(|node| node.layer.as_ref()) else {
                 continue;
             };
