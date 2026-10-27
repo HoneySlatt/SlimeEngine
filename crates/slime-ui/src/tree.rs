@@ -233,6 +233,16 @@ pub enum Kind {
     /// the focus among its items, around, Home and End to the first and the last. A layer that the
     /// program opens holds it, beside what opens it or at the pointer ([`Ui::open_layer`]).
     Menu,
+    /// A bar of menus, laid out as a container, whose items ([`Kind::MenuItem`]) open its menus
+    /// below them: their labels alone, in the middle of their boxes, as buttons' (`docs/adr/0150-
+    /// layers.md`). A press on an item opens its menu, the program opening it beside the item, and
+    /// closes it once open; while a menu of the bar is open, the pointer over another item opens
+    /// that one's. The arrows towards a line's start and end move the focus among its items,
+    /// around, and between its menus while one is open; the arrows up and down open the menu of
+    /// the item that holds the focus. F10, or Alt pressed and let go alone, gives its first item
+    /// the focus, and Escape gives it back to what held it; a press on an item of its menus gives
+    /// it back too. Its items take the focus from the keys alone.
+    MenuBar,
     /// An item of a menu: a mark, its label, the shortcut of its command, then a chevron where it
     /// opens a submenu, in the middle of its box from top to bottom. The pointer over it gives it
     /// the focus. A press, or Enter or Space while it holds the focus, reaches the program, and
@@ -483,6 +493,11 @@ impl Element {
     /// A menu, whose builder adds its items.
     pub fn menu(style: Style) -> Self {
         Self::of(Kind::Menu, style)
+    }
+
+    /// A bar of menus, whose builder adds its items, each opening a submenu.
+    pub fn menu_bar(style: Style) -> Self {
+        Self::of(Kind::MenuBar, style)
     }
 
     /// An item of a menu, with its label, the chord of its shortcut as the user reads it, empty for
@@ -1846,6 +1861,7 @@ fn kind_name(kind: &Kind) -> KindName {
         Kind::Tab { .. } => KindName::Tab,
         Kind::Split { .. } => KindName::Split,
         Kind::Menu => KindName::Menu,
+        Kind::MenuBar => KindName::MenuBar,
         Kind::MenuItem { .. } => KindName::MenuItem,
         Kind::Choice { .. } => KindName::Choice,
     }

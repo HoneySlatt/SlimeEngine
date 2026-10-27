@@ -155,6 +155,7 @@ pub(crate) enum KindName {
     Tab,
     Split,
     Menu,
+    MenuBar,
     MenuItem,
     Choice,
 }

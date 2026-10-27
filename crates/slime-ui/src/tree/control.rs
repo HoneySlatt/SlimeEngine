@@ -791,6 +791,28 @@ impl Ui {
             } => {
                 let (label, shortcut, mark) = (label.clone(), shortcut.clone(), *mark);
                 let look = node.style.text.clone();
+                // In a bar of menus, its label alone, in the middle of its box.
+                if self.in_menu_bar(id) {
+                    let layout: std::sync::Arc<TextLayout> = self
+                        .texts
+                        .get(
+                            &mut self.fonts,
+                            &label,
+                            &look.style,
+                            scale,
+                            TextBounds::default(),
+                        )
+                        .clone();
+                    primitives.push(Primitive::Text(TextPrimitive {
+                        origin: [
+                            content.x + (content.width - layout.width()) / 2.0,
+                            content.y + (content.height - layout.height()) / 2.0,
+                        ],
+                        layout,
+                        color: look.color,
+                    }));
+                    return primitives;
+                }
                 let size = control.size * scale;
                 let gap = size / 2.0;
                 let middle = content.y + content.height / 2.0;

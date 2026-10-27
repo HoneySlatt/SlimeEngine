@@ -124,7 +124,12 @@ fn primitives(
                 primitives.push((primitive, None));
             }
         }
-        Kind::Container | Kind::Scroll | Kind::List { .. } | Kind::TabBar { .. } | Kind::Menu => {}
+        Kind::Container
+        | Kind::Scroll
+        | Kind::List { .. }
+        | Kind::TabBar { .. }
+        | Kind::Menu
+        | Kind::MenuBar => {}
     }
     primitives
 }

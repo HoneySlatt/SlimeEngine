@@ -62,6 +62,8 @@ pub enum Role {
     Splitter,
     /// A menu.
     Menu,
+    /// A bar of menus.
+    MenuBar,
     /// An item of a menu, open or not where it opens a submenu ([`ElementState::expanded`]).
     MenuItem,
     /// An item of a menu that turns something on or off, checked or not
@@ -101,6 +103,7 @@ impl Role {
             Self::TabPanel => "TabPanel",
             Self::Splitter => "Splitter",
             Self::Menu => "Menu",
+            Self::MenuBar => "MenuBar",
             Self::MenuItem => "MenuItem",
             Self::MenuItemCheckBox => "MenuItemCheckBox",
             Self::ComboBox => "ComboBox",
@@ -491,6 +494,7 @@ impl Ui {
             Kind::Tab { .. } => Role::Tab,
             Kind::Split { .. } => Role::Splitter,
             Kind::Menu => Role::Menu,
+            Kind::MenuBar => Role::MenuBar,
             Kind::MenuItem {
                 mark: ItemMark::Check(_),
                 ..

@@ -325,6 +325,7 @@ fn role(role: Role) -> AccessRole {
         Role::TabPanel => AccessRole::TabPanel,
         Role::Splitter => AccessRole::Splitter,
         Role::Menu => AccessRole::Menu,
+        Role::MenuBar => AccessRole::MenuBar,
         Role::MenuItem => AccessRole::MenuItem,
         Role::MenuItemCheckBox => AccessRole::MenuItemCheckBox,
         Role::ComboBox => AccessRole::ComboBox,

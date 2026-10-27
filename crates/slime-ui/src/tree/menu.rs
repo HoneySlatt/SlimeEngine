@@ -28,7 +28,10 @@ impl Ui {
             return;
         }
         if let Some(submenu) = self.submenu_of(id) {
-            if !self.interaction.by_pointer
+            // The pointer closes the menu of a bar's item.
+            if self.interaction.by_pointer && self.in_menu_bar(id) {
+                self.close_layer(submenu, true);
+            } else if !self.interaction.by_pointer
                 && let Some(first) = self.first_focusable(submenu)
             {
                 self.set_focus(Some(first));
@@ -73,6 +76,21 @@ impl Ui {
             Some(LayoutDirection::RightToLeft) => (NamedKey::ArrowLeft, NamedKey::ArrowRight),
             _ => (NamedKey::ArrowRight, NamedKey::ArrowLeft),
         };
+        if self.in_menu_bar(id) {
+            return self.bar_key(id, named, forward, backward);
+        }
+        // In a menu of a bar, the arrows towards a line's start and end move to the bar's other
+        // menus, but on an item that opens a submenu.
+        if let Some(bar_item) = self.root_of(id).and_then(|root| self.bar_item_of(root)) {
+            if named == backward {
+                self.bar_step(bar_item, -1, true);
+                return true;
+            }
+            if named == forward && !submenu {
+                self.bar_step(bar_item, 1, true);
+                return true;
+            }
+        }
         if named == forward && submenu {
             self.perform(Action {
                 element: Some(id),
@@ -125,8 +143,162 @@ impl Ui {
             };
         }
         if let Some(first) = first {
+            let from_bar = self.bar_item_of(first).is_some();
             self.close_layer(first, true);
+            // A command of a bar's menu gives the focus back to what held it before the keys
+            // reached the bar.
+            if from_bar && let Some(back) = self.interaction.bar_before.take() {
+                self.set_focus(Some(back));
+            }
         }
+    }
+
+    /// A key reached the item of a bar of menus `id`, which holds the focus: the arrows towards a
+    /// line's end and start move to the next item and the one before, around, opening its menu
+    /// while one is open; Home and End to the first and the last; the arrows up and down open its
+    /// menu; Escape gives the focus back to what held it before the keys reached the bar. Gives
+    /// whether it took the key.
+    fn bar_key(
+        &mut self,
+        id: ElementId,
+        named: NamedKey,
+        forward: NamedKey,
+        backward: NamedKey,
+    ) -> bool {
+        let open = self
+            .bar_items(id)
+            .iter()
+            .any(|&item| self.submenu_of(item).is_some());
+        match named {
+            _ if named == forward => self.bar_step(id, 1, open),
+            _ if named == backward => self.bar_step(id, -1, open),
+            NamedKey::Home | NamedKey::End => {
+                let items = self.bar_items(id);
+                let item = if named == NamedKey::Home {
+                    items.first()
+                } else {
+                    items.last()
+                };
+                self.set_focus(item.copied());
+            }
+            NamedKey::ArrowDown | NamedKey::ArrowUp => self.perform(Action {
+                element: Some(id),
+                kind: ActionKind::Press,
+            }),
+            NamedKey::Escape => {
+                let back = self.interaction.bar_before.take();
+                self.set_focus(back);
+            }
+            _ => return false,
+        }
+        true
+    }
+
+    /// Moves the focus from the item of a bar of menus `item` to the one `step` places along,
+    /// around, closing the menu that `item` opened and opening the other's, for `open`.
+    pub(super) fn bar_step(&mut self, item: ElementId, step: isize, open: bool) {
+        let items = self.bar_items(item);
+        let Some(at) = items.iter().position(|&each| each == item) else {
+            return;
+        };
+        let next = items[(at as isize + step).rem_euclid(items.len() as isize) as usize];
+        if let Some(menu) = self.submenu_of(item) {
+            self.close_layer(menu, true);
+        }
+        self.set_focus(Some(next));
+        if open {
+            self.perform(Action {
+                element: Some(next),
+                kind: ActionKind::Press,
+            });
+        }
+    }
+
+    /// The pointer came over the item of a bar of menus `id`: while another item's menu is open,
+    /// its own opens.
+    pub(super) fn hover_bar_item(&mut self, id: ElementId) {
+        let open = self
+            .bar_items(id)
+            .into_iter()
+            .any(|item| item != id && self.submenu_of(item).is_some());
+        if open && self.submenu_of(id).is_none() {
+            self.interaction.by_pointer = true;
+            self.perform(Action {
+                element: Some(id),
+                kind: ActionKind::Press,
+            });
+        }
+    }
+
+    /// Gives the first item of the first bar of menus drawn, from the top root, the layers left
+    /// out, the focus, keeping what held it; or, where an item of a bar holds it, gives it back.
+    /// Gives whether there was a bar.
+    pub(super) fn toggle_menu_bar(&mut self) -> bool {
+        if let Some(focus) = self.interaction.focus
+            && self.in_menu_bar(focus)
+        {
+            let back = self.interaction.bar_before.take();
+            self.set_focus(back);
+            return true;
+        }
+        let bar = self.roots.iter().rev().find_map(|&root| {
+            if self.layer_place(root).is_some() {
+                return None;
+            }
+            let mut stack = vec![root];
+            while let Some(id) = stack.pop() {
+                let node = self.node(id)?;
+                if node.style.layout.display == crate::style::Display::None {
+                    continue;
+                }
+                if matches!(node.element.kind, Kind::MenuBar) {
+                    return Some(id);
+                }
+                stack.extend(node.children.iter().rev().copied());
+            }
+            None
+        });
+        let Some(first) = bar.and_then(|bar| {
+            self.children(bar)
+                .iter()
+                .copied()
+                .find(|&item| self.focusable(item) && self.in_scope(item))
+        }) else {
+            return false;
+        };
+        self.interaction.bar_before = self.interaction.focus;
+        self.set_focus(Some(first));
+        true
+    }
+
+    /// Whether `id` is an item of a bar of menus.
+    pub(crate) fn in_menu_bar(&self, id: ElementId) -> bool {
+        self.is_menu_item(id)
+            && self
+                .node(id)
+                .and_then(|node| node.parent)
+                .and_then(|parent| self.node(parent))
+                .is_some_and(|parent| matches!(parent.element.kind, Kind::MenuBar))
+    }
+
+    /// The item of a bar of menus that the layer `root` stands beside: the bar's menu that it is.
+    fn bar_item_of(&self, root: ElementId) -> Option<ElementId> {
+        match self.layer_place(root)? {
+            Place::Beside { element, .. } if self.in_menu_bar(element) => Some(element),
+            _ => None,
+        }
+    }
+
+    /// The items of the bar of menus that holds the item `item` that can hold the focus.
+    fn bar_items(&self, item: ElementId) -> Vec<ElementId> {
+        let Some(bar) = self.node(item).and_then(|node| node.parent) else {
+            return Vec::new();
+        };
+        self.children(bar)
+            .iter()
+            .copied()
+            .filter(|&each| self.focusable(each))
+            .collect()
     }
 
     /// The layer open beside the item `id`: its submenu.

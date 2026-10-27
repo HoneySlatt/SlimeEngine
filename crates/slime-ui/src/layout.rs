@@ -574,18 +574,25 @@ impl taffy::LayoutPartialTree for Tree<'_> {
             // What a control lays out besides its text: a check box's box and the gap after it,
             // as wide as half of it; a slider is eight thumbs wide, a thumb tall; an item of a
             // menu, its mark and its chevron, each with its gap, whether it shows them or not, so
-            // that a menu's labels line up, and its shortcut, two marks after its label; a list to
-            // choose from, its mark and the gap before it.
+            // that a menu's labels line up, and its shortcut, two marks after its label, unless a
+            // bar of menus holds it; a list to choose from, its mark and the gap before it.
             let control = at.style.control.size * tree.scale;
+            // An item of a bar of menus lays out its label alone.
+            let in_bar = at
+                .parent
+                .and_then(|parent| tree.ui.node(parent))
+                .is_some_and(|parent| matches!(parent.element.kind, Kind::MenuBar));
             let (mut beside, least) = match at.element.kind {
                 Kind::CheckBox { .. } => (control * 1.5, control),
                 Kind::Slider { .. } => (control * 8.0, control),
+                Kind::MenuItem { .. } if in_bar => (0.0, 0.0),
                 Kind::MenuItem { .. } => (control * 3.0, control),
                 Kind::Choice { .. } => (control * 1.5, control),
                 _ => (0.0, 0.0),
             };
             if let Kind::MenuItem { shortcut, .. } = &at.element.kind
                 && !shortcut.is_empty()
+                && !in_bar
             {
                 let (shortcut, text_style, scale) =
                     (shortcut.clone(), at.style.text.style.clone(), tree.scale);

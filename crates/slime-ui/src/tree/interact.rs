@@ -45,6 +45,10 @@ pub(super) struct Interaction {
     pub(super) rest: super::tooltip::Rest,
     /// The layer of the tooltip that shows, if one does.
     pub(super) tooltip: Option<ElementId>,
+    /// What held the focus before the keys gave it to a bar of menus.
+    pub(super) bar_before: Option<ElementId>,
+    /// Whether Alt went down, and no other key nor button since.
+    alt_alone: bool,
 }
 
 impl Ui {
@@ -72,15 +76,18 @@ impl Ui {
         let on = self.element_at(x, y);
         self.rest_on(on);
         // The item of a menu that the pointer comes over takes the focus, which the keys move on
-        // from, as a press would give it.
+        // from, as a press would give it; one of a bar of menus opens its menu while another's is
+        // open.
         if let Some(item) = self.interaction.hovered
             && Some(item) != hovered
-            && self
-                .node(item)
-                .is_some_and(|node| matches!(node.element.kind, Kind::MenuItem { .. }))
+            && self.is_menu_item(item)
         {
-            self.interaction.by_pointer = true;
-            self.set_focus(Some(item));
+            if self.in_menu_bar(item) {
+                self.hover_bar_item(item);
+            } else {
+                self.interaction.by_pointer = true;
+                self.set_focus(Some(item));
+            }
         }
     }
 
@@ -105,6 +112,8 @@ impl Ui {
         let primary = button == MouseButton::Left;
         if state == ButtonState::Pressed {
             self.interaction.by_pointer = true;
+            self.interaction.alt_alone = false;
+            self.interaction.bar_before = None;
             self.input_hides_tooltip();
             // A press outside a layer that closes as the user leaves it closes it.
             if let Some([x, y]) = self.interaction.pointer {
@@ -181,7 +190,10 @@ impl Ui {
                     self.field_press(target, x, y, shift);
                 } else {
                     self.change_state(target, |state| state.pressed = true);
-                    self.set_focus(Some(target));
+                    // An item of a bar of menus takes the focus from the keys alone.
+                    if !self.in_menu_bar(target) {
+                        self.set_focus(Some(target));
+                    }
                     // A slider's thumb comes under the pointer, wherever it pressed the track.
                     self.slider_drag(target, x);
                 }
@@ -268,12 +280,22 @@ impl Ui {
     /// of an intent while an element holds the focus or once it gives the focus, as Tab does with
     /// none held, and every key while a modal root is open; the intent of a key that it does not
     /// take still reaches its queue. Its releases are left to the game, which pairs them with its
-    /// presses. A press hides the tooltip that shows, which Escape does alone then, and the element
-    /// that it gives the focus shows its tooltip ([`Element::tooltip`](super::Element::tooltip)).
+    /// presses, but Alt's, which, pressed and let go alone, gives a bar of menus the focus, as F10
+    /// does ([`Kind::MenuBar`]). A press hides the tooltip that shows, which Escape does alone
+    /// then, and the element that it gives the focus shows its tooltip
+    /// ([`Element::tooltip`](super::Element::tooltip)).
     pub fn key(&mut self, event: &KeyEvent) -> bool {
+        let alt = event.logical == Key::Named(NamedKey::Alt);
         if event.state != ButtonState::Pressed {
+            // Alt let go alone reaches the bar of menus.
+            let alone = std::mem::take(&mut self.interaction.alt_alone);
+            return alt && alone && self.toggle_menu_bar();
+        }
+        if alt {
+            self.interaction.alt_alone = true;
             return false;
         }
+        self.interaction.alt_alone = false;
         self.interaction.by_pointer = false;
         // A key hides the tooltip that shows; Escape does nothing more.
         if self.input_hides_tooltip() && event.logical == Key::Named(NamedKey::Escape) {
@@ -315,6 +337,13 @@ impl Ui {
                     at: [x / scale, (rect.y + rect.height) / scale],
                 },
             });
+            return true;
+        }
+        // F10 reaches the bar of menus.
+        if event.logical == Key::Named(NamedKey::F10)
+            && !self.interaction.modifiers.shift
+            && self.toggle_menu_bar()
+        {
             return true;
         }
         let modal = !self.interaction.modals.is_empty();

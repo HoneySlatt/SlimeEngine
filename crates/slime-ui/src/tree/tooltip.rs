@@ -102,7 +102,8 @@ impl Ui {
         let Kind::MenuItem { mark, .. } = node.element.kind else {
             return;
         };
-        if node.state.disabled || !self.in_scope(id) {
+        // A bar of menus opens its menus as the pointer presses, not as it rests.
+        if node.state.disabled || !self.in_scope(id) || self.in_menu_bar(id) {
             return;
         }
         if mark == ItemMark::Submenu {
