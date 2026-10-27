@@ -120,7 +120,8 @@ impl Ui {
     /// ([`ActionKind::Dismissed`]). It takes the scale and the direction of the root that holds
     /// what it stands beside or over, and closes with it. A layer opened while the last input was
     /// not a press of the pointer gives its first element that takes the focus the focus, once
-    /// built.
+    /// built, but a floating panel, which leaves the focus where it is: F6 gives it the focus
+    /// (`docs/adr/0153-tab-and-f6-in-a-games-interface.md`).
     pub fn open_layer(&mut self, layer: Layer, style: Style) -> ElementId {
         let root = self.add_layer(layer, style);
         // A button or an item of a menu shows that what it opened is open.
@@ -145,7 +146,9 @@ impl Ui {
                 modal: false,
             });
         let before = self.interaction.focus;
-        let focus_first = !self.interaction.by_pointer;
+        // A floating panel stands beside the work rather than over it: F6 reaches it.
+        let focus_first =
+            !self.interaction.by_pointer && !matches!(layer.place, Place::Floating { .. });
         let root = self.add_root(
             RootSettings {
                 size: self.surface_size(),

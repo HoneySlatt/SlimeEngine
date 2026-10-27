@@ -160,6 +160,8 @@ fn a_panel_means_a_pane_named_by_its_title() {
     let meaning = ui.meaning_of(panel).expect("drawn");
     assert_eq!((meaning.role, meaning.name.as_str()), (Role::Pane, "Color"));
     assert!(meaning.state.expanded);
+    // Opened by the program, not by a press, it leaves the focus where it was: F6 reaches it.
+    assert_eq!(ui.focus(), None);
 }
 
 #[test]
