@@ -155,6 +155,10 @@ pub enum Kind {
         text: String,
         /// Whether it holds several lines, Enter typing a line break.
         multiline: bool,
+        /// Whether it is a field of search (`docs/adr/0151-rich-widgets.md`): of one line, a
+        /// magnifier before its text and, once it holds something, a mark after it that a press
+        /// empties it by, as a person who deleted its text and committed would.
+        search: bool,
     },
     /// A field of a number, which shows the number whole, as Rust writes it, and which the user
     /// types in, or drags left and right. As a field of text, it keeps what the user types, and
@@ -164,6 +168,10 @@ pub enum Kind {
         value: f64,
         /// How much a drag of one logical pixel adds to it; a drag gives multiples of it.
         step: f64,
+        /// A short text before its number, `X`, in its control's mark color, which the pointer
+        /// drags to change the number whether or not the field holds the focus
+        /// (`docs/adr/0151-rich-widgets.md`); empty for none.
+        prefix: String,
     },
     /// A check box: its box, checked or not, then its label, in the middle of its box from top to
     /// bottom. A press, or Enter or Space while it holds the focus, toggles it, which the program
@@ -472,6 +480,7 @@ impl Element {
         let kind = Kind::TextField {
             text: text.into(),
             multiline: false,
+            search: false,
         };
         Self::of(kind, style)
     }
@@ -481,6 +490,17 @@ impl Element {
         let kind = Kind::TextField {
             text: text.into(),
             multiline: true,
+            search: false,
+        };
+        Self::of(kind, style)
+    }
+
+    /// A field of search, of one line, holding `text`.
+    pub fn search_field(text: impl Into<String>, style: Style) -> Self {
+        let kind = Kind::TextField {
+            text: text.into(),
+            multiline: false,
+            search: true,
         };
         Self::of(kind, style)
     }
@@ -489,7 +509,28 @@ impl Element {
     /// What the user types reads as Rust reads a number, its decimals after a full stop: `2,5`
     /// reads as none.
     pub fn number_field(value: f64, step: f64, style: Style) -> Self {
-        Self::of(Kind::NumberField { value, step }, style)
+        let kind = Kind::NumberField {
+            value,
+            step,
+            prefix: String::new(),
+        };
+        Self::of(kind, style)
+    }
+
+    /// A field of a number, as [`Element::number_field`] makes one, with `prefix` before its
+    /// number, which the pointer drags: `X` for a vector's first component.
+    pub fn prefixed_number_field(
+        prefix: impl Into<String>,
+        value: f64,
+        step: f64,
+        style: Style,
+    ) -> Self {
+        let kind = Kind::NumberField {
+            value,
+            step,
+            prefix: prefix.into(),
+        };
+        Self::of(kind, style)
     }
 
     /// A check box with its label, checked or not.

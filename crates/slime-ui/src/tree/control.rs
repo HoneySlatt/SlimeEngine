@@ -1135,7 +1135,7 @@ impl Ui {
 impl Ui {
     /// The glyph `glyph` of the font of `icons`, `size` pixels tall, in the middle of `rect`, of
     /// `color`; none where `icons` names no font, or `glyph` is empty.
-    fn icon(
+    pub(super) fn icon(
         &mut self,
         icons: &Icons,
         glyph: &str,

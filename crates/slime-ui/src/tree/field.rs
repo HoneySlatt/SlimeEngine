@@ -793,7 +793,11 @@ impl Ui {
         let number = self
             .node(id)
             .is_some_and(|node| matches!(node.element.kind, Kind::NumberField { .. }));
-        if number && self.interaction.focus != Some(id) {
+        // Its prefix drags its number, whether or not it holds the focus.
+        let on_prefix = self
+            .prefix_area(id)
+            .is_some_and(|area| super::interact::inside(area, x, y));
+        if number && (self.interaction.focus != Some(id) || on_prefix) {
             let value = self.field_number(id);
             if let Some(field) = self.node_mut(id).and_then(|node| node.field.as_mut()) {
                 field.drag = Some(Drag {
@@ -1187,6 +1191,142 @@ impl Ui {
                 Rect::new(caret.x, caret.y, scale.max(1.0), caret.height),
                 caret_color,
             ));
+        }
+        primitives
+    }
+}
+
+impl Ui {
+    /// The mark that empties the field of search `id`, in pixels of the surface, after its text,
+    /// while it holds something; none otherwise.
+    pub(crate) fn search_clear(&self, id: ElementId) -> Option<Rect> {
+        let node = self.node(id)?;
+        if !matches!(node.element.kind, Kind::TextField { search: true, .. })
+            || node.field.as_ref()?.text.is_empty()
+        {
+            return None;
+        }
+        let size = node.style.control.size * self.scale_of(id);
+        let content = node.content_box();
+        let x = match self.root_settings(id)?.direction {
+            super::LayoutDirection::LeftToRight => content.x + content.width + size / 2.0,
+            super::LayoutDirection::RightToLeft => content.x - size * 1.5,
+        };
+        Some(Rect::new(
+            x,
+            content.y + (content.height - size) / 2.0,
+            size,
+            size,
+        ))
+    }
+
+    /// The prefix of the field of numbers `id`, in pixels of the surface: the room before its
+    /// text, from its box's edge; none for a field without one.
+    pub(crate) fn prefix_area(&self, id: ElementId) -> Option<Rect> {
+        let node = self.node(id)?;
+        let Kind::NumberField { prefix, .. } = &node.element.kind else {
+            return None;
+        };
+        if prefix.is_empty() {
+            return None;
+        }
+        let (rect, content) = (node.rect, node.content_box());
+        Some(match self.root_settings(id)?.direction {
+            super::LayoutDirection::LeftToRight => {
+                Rect::new(rect.x, rect.y, content.x - rect.x, rect.height)
+            }
+            super::LayoutDirection::RightToLeft => {
+                let end = content.x + content.width;
+                Rect::new(end, rect.y, rect.x + rect.width - end, rect.height)
+            }
+        })
+    }
+
+    /// What a field draws besides its text, out of its content box: a field of search's
+    /// magnifier and the mark that empties it, a field of numbers' prefix, in its control's mark
+    /// color.
+    pub(crate) fn field_marks(&mut self, id: ElementId) -> Vec<crate::display::Primitive> {
+        use crate::display::{BoxPrimitive, Primitive, TextPrimitive};
+
+        let scale = self.scale_of(id);
+        let rtl = self.root_settings(id).map(|root| root.direction)
+            == Some(super::LayoutDirection::RightToLeft);
+        let clear = self.search_clear(id);
+        let prefix_area = self.prefix_area(id);
+        let Some(node) = self.node(id) else {
+            return Vec::new();
+        };
+        let (control, icons, look) = (
+            node.style.control,
+            node.style.icons.clone(),
+            node.style.text.style.clone(),
+        );
+        let content = node.content_box();
+        let size = control.size * scale;
+        let shape = |rect: Rect| {
+            Primitive::Box(BoxPrimitive {
+                rect,
+                radii: [rect.width / 2.0; 4],
+                fill: control.mark,
+                border_width: 0.0,
+                border: control.mark,
+            })
+        };
+        let mut primitives = Vec::new();
+        match &node.element.kind {
+            Kind::TextField { search: true, .. } => {
+                let x = if rtl {
+                    content.x + content.width + size / 2.0
+                } else {
+                    content.x - size * 1.5
+                };
+                let place = Rect::new(x, content.y + (content.height - size) / 2.0, size, size);
+                let inset = size * 0.3;
+                let ring = Rect::new(
+                    place.x + inset,
+                    place.y + inset,
+                    size - 2.0 * inset,
+                    size - 2.0 * inset,
+                );
+                let magnifier = self.icon(&icons, &icons.search, place, size, scale, control.mark);
+                primitives.push(magnifier.unwrap_or_else(|| shape(ring)));
+                if let Some(clear) = clear {
+                    let cross = self.icon(&icons, &icons.clear, clear, size, scale, control.mark);
+                    let dot = Rect::new(
+                        clear.x + inset,
+                        clear.y + inset,
+                        size - 2.0 * inset,
+                        size - 2.0 * inset,
+                    );
+                    primitives.push(cross.unwrap_or_else(|| shape(dot)));
+                }
+            }
+            Kind::NumberField { prefix, .. } => {
+                let (Some(area), prefix) = (prefix_area, prefix.clone()) else {
+                    return primitives;
+                };
+                let layout = self
+                    .texts
+                    .get(
+                        &mut self.fonts,
+                        &prefix,
+                        &look,
+                        scale,
+                        TextBounds::default(),
+                    )
+                    .clone();
+                let x = if rtl {
+                    area.x + size / 2.0
+                } else {
+                    content.x - size / 2.0 - layout.width()
+                };
+                primitives.push(Primitive::Text(TextPrimitive {
+                    origin: [x, content.y + (content.height - layout.height()) / 2.0],
+                    layout,
+                    color: control.mark,
+                }));
+            }
+            _ => {}
         }
         primitives
     }

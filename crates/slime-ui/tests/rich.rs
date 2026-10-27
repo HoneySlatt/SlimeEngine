@@ -234,3 +234,82 @@ fn a_bar_of_progress_gives_its_share_and_one_without_moves_with_the_clock() {
     let after = moving(&mut ui).expect("a part that moves");
     assert!(after > before, "{before} then {after}");
 }
+
+#[test]
+fn a_field_of_search_is_emptied_by_its_mark_once_it_holds_text() {
+    let (mut ui, root) = interface();
+    let mut id = None;
+    ui.build(root, 0, |children| {
+        let search = Element::search_field("", style(Some(200.0))).placeholder("Search");
+        id = Some(children.add("search", search, |_| {}));
+    });
+    ui.frame();
+    let search = id.expect("built");
+    assert_eq!(
+        ui.meaning_of(search).expect("drawn").role,
+        Role::SearchInput
+    );
+    let rect = ui.rect(search).expect("laid out");
+    // The mark lies at its end, a control's size before its edge's half.
+    let mark = (rect.x + rect.width - 8.0, rect.y + rect.height / 2.0);
+    let press = |ui: &mut Ui| {
+        ui.pointer_moved(mark.0, mark.1);
+        ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+        ui.pointer_button(MouseButton::Left, ButtonState::Released);
+        ui.frame();
+    };
+    // Empty, it has no mark: a press there gives it the focus, and empties nothing.
+    press(&mut ui);
+    assert_eq!(ui.focus(), Some(search));
+    assert!(values(&mut ui).is_empty());
+    for character in ["t", "o"] {
+        ui.key(&KeyEvent {
+            physical: KeyCode::Unidentified,
+            logical: Key::Character(character.to_owned()),
+            text: Some(character.to_owned()),
+            state: ButtonState::Pressed,
+            repeat: false,
+        });
+    }
+    ui.frame();
+    values(&mut ui);
+    press(&mut ui);
+    assert_eq!(
+        values(&mut ui),
+        [
+            format!("changed {:?}", FieldValue::Text(String::new())),
+            format!("committed {:?}", FieldValue::Text(String::new()))
+        ]
+    );
+    assert_eq!(ui.field_text(search), Some(""));
+    assert_eq!(ui.focus(), Some(search));
+}
+
+#[test]
+fn a_fields_prefix_lies_before_its_number_and_drags_it_even_focused() {
+    let (mut ui, root) = interface();
+    let mut ids = Vec::new();
+    ui.build(root, 0, |children| {
+        let plain = Element::number_field(1.0, 0.1, style(Some(120.0)));
+        ids.push(children.add("plain", plain, |_| {}));
+        let x = Element::prefixed_number_field("X", 1.0, 0.1, style(Some(120.0)));
+        ids.push(children.add("x", x, |_| {}));
+    });
+    ui.frame();
+    let x = ids[1];
+    let rect = ui.rect(x).expect("laid out");
+    ui.set_focus(Some(x));
+    // A drag from its prefix, ten logical pixels to the right: ten steps.
+    let at = (rect.x + 3.0, rect.y + rect.height / 2.0);
+    ui.pointer_moved(at.0, at.1);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_moved(at.0 + 10.0, at.1);
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    ui.frame();
+    let values = values(&mut ui);
+    assert_eq!(
+        values.last().map(String::as_str),
+        Some("committed Number(2.0)")
+    );
+    assert_eq!(ui.field_text(x), Some("2"));
+}

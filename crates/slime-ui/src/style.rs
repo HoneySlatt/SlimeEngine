@@ -34,7 +34,7 @@ pub struct Style {
 
 /// The glyphs of a font of icons that controls draw, each a text of one character of `font`, empty
 /// for the shape that a control draws without it: a check box's square mark, a section's minus and
-/// plus, a bar for a chevron. They take the size of the control's part and its mark's color.
+/// plus, a bar for a chevron, a ring for a magnifier, a square for a cross. They take the size of the control's part and its mark's color.
 #[derive(Clone, Debug, Default, PartialEq, Reflect)]
 #[reflect(name = "UiIcons", default)]
 pub struct Icons {
@@ -49,6 +49,10 @@ pub struct Icons {
     pub right: String,
     /// A chevron towards the left: the same, in a root laid out from right to left.
     pub left: String,
+    /// A magnifier: a field of search.
+    pub search: String,
+    /// A cross: the mark that empties a field of search.
+    pub clear: String,
 }
 
 /// How a change of an element's style shows: its colors and its opacity going from what they showed

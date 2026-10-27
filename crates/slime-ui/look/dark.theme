@@ -48,3 +48,8 @@ thumb = "#F5F6F8"
 bar_track = "#FFFFFF0A"
 bar_thumb = "#FFFFFF38"
 none = "#00000000"
+
+# The axes, by which a vector's components are told apart: x, y, z.
+axis_x = "#E5605A"
+axis_y = "#6CC877"
+axis_z = "#5A9BEF"

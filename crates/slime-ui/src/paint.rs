@@ -115,6 +115,10 @@ fn primitives(
             for primitive in ui.field_primitives(id) {
                 primitives.push((primitive, Some(content)));
             }
+            // A field's marks and prefix lie within its padding, out of its content box.
+            for primitive in ui.field_marks(id) {
+                primitives.push((primitive, None));
+            }
         }
         Kind::CheckBox { .. }
         | Kind::Slider { .. }

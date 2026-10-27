@@ -199,6 +199,16 @@ impl Ui {
                     self.interaction.panel = Some(grab);
                     return true;
                 }
+                // The mark of a field of search empties it, the field holding the focus.
+                if self
+                    .search_clear(target)
+                    .is_some_and(|clear| inside(clear, x, y))
+                {
+                    self.interaction.captured = None;
+                    self.set_focus(Some(target));
+                    self.set_value(target, "");
+                    return true;
+                }
                 if self.node(target).is_some_and(|node| node.field.is_some()) {
                     let shift = self.interaction.modifiers.shift;
                     self.field_press(target, x, y, shift);

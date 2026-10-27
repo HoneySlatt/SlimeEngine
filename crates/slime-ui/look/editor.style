@@ -12,9 +12,9 @@
 select = {}
 style.text = { style = { fonts = ["Geist"], size = "$text_m", features = ["tnum"] }, color = "$text", selection = "$selection" }
 style.transition = { duration = "$fast", easing = "EaseOut" }
-# Lucide's `check`, `chevron-down`, `chevron-right` and `chevron-left`, by their codepoints, which
-# `Lucide.codepoints.json` names; a sheet after this one names others.
-style.icons = { font = "lucide", tick = "\uE06C", down = "\uE06D", right = "\uE06F", left = "\uE06E" }
+# Lucide's `check`, `chevron-down`, `chevron-right`, `chevron-left`, `search` and `x`, by their
+# codepoints, which `Lucide.codepoints.json` names; a sheet after this one names others.
+style.icons = { font = "lucide", tick = "\uE06C", down = "\uE06D", right = "\uE06F", left = "\uE06E", search = "\uE151", clear = "\uE1B2" }
 
 [window]
 select = { classes = ["window"] }
@@ -58,13 +58,13 @@ style.text.color = "$muted"
 select = { kind = "TextField" }
 style.paint = { background = "$field", border_width = 1, border = "$raised_border", radii = ["$radius_m", "$radius_m", "$radius_m", "$radius_m"] }
 style.layout.padding = { start = "$field_x", end = "$field_x", top = "$field_y", bottom = "$field_y" }
-style.control.track = "$muted"
+style.control = { size = "$control", track = "$muted", mark = "$muted" }
 
 [number]
 select = { kind = "NumberField" }
 style.paint = { background = "$field", border_width = 1, border = "$raised_border", radii = ["$radius_m", "$radius_m", "$radius_m", "$radius_m"] }
 style.layout.padding = { start = "$field_x", end = "$field_x", top = "$field_y", bottom = "$field_y" }
-style.control.track = "$muted"
+style.control = { size = "$control", track = "$muted", mark = "$muted" }
 style.text.style = { fonts = ["Geist Mono"], size = "$text_mono" }
 
 [field-hovered]
@@ -297,6 +297,18 @@ style.control = { size = "$control", radius = "$radius_s", track = "$muted", fil
 [floating-panel-focused]
 select = { kind = "FloatingPanel", states = ["FocusVisible"] }
 style.paint.border = "$focus"
+
+[axis-x]
+select = { kind = "NumberField", classes = ["axis-x"] }
+style.control.mark = "$axis_x"
+
+[axis-y]
+select = { kind = "NumberField", classes = ["axis-y"] }
+style.control.mark = "$axis_y"
+
+[axis-z]
+select = { kind = "NumberField", classes = ["axis-z"] }
+style.control.mark = "$axis_z"
 
 [fixed]
 select = { classes = ["fixed"] }

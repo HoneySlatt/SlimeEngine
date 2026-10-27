@@ -328,6 +328,7 @@ fn role(role: Role) -> AccessRole {
         Role::Dialog => AccessRole::Dialog,
         Role::Toolbar => AccessRole::Toolbar,
         Role::TextInput => AccessRole::TextInput,
+        Role::SearchInput => AccessRole::SearchInput,
         Role::MultilineTextInput => AccessRole::MultilineTextInput,
         Role::SpinButton => AccessRole::SpinButton,
         Role::CheckBox => AccessRole::CheckBox,

@@ -41,6 +41,8 @@ pub enum Role {
     Toolbar,
     /// A field of one line of text.
     TextInput,
+    /// A field of search.
+    SearchInput,
     /// A field of several lines of text.
     MultilineTextInput,
     /// A field of a number.
@@ -104,6 +106,7 @@ impl Role {
             Self::Dialog => "Dialog",
             Self::Toolbar => "Toolbar",
             Self::TextInput => "TextInput",
+            Self::SearchInput => "SearchInput",
             Self::MultilineTextInput => "MultilineTextInput",
             Self::SpinButton => "SpinButton",
             Self::CheckBox => "CheckBox",
@@ -519,6 +522,7 @@ impl Ui {
             Kind::Button { .. } => Role::Button,
             Kind::Scroll => Role::ScrollView,
             Kind::List { .. } => Role::List,
+            Kind::TextField { search: true, .. } => Role::SearchInput,
             Kind::TextField {
                 multiline: false, ..
             } => Role::TextInput,

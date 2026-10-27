@@ -41,3 +41,8 @@ thumb = "darken($accent, 0.04)"
 bar_track = "#0000000A"
 bar_thumb = "#00000033"
 none = "#00000000"
+
+# The axes, by which a vector's components are told apart: x, y, z.
+axis_x = "#C8382C"
+axis_y = "#2E8A55"
+axis_z = "#2F6FD0"

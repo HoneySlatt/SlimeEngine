@@ -88,6 +88,7 @@ fn convert(
     let mut stack = vec![(start, row_height, forced)];
     while let Some((id, row_height, forced)) = stack.pop() {
         let header = section_header(ui, id, scale);
+        let room = field_room(ui, id, scale);
         let panel = split_panel(ui, id);
         let revealed = ui.reveal_height(id);
         let fits = ui.fits_content(id);
@@ -140,6 +141,17 @@ fn convert(
             if let Some(header) = header {
                 let top = style.padding.top.into_raw().value();
                 style.padding.top = LengthPercentage::length(top + header);
+            }
+            // A field's marks and prefix lie before and after its text, within its padding.
+            if let Some([start, end]) = room {
+                let (start, end) = match settings.direction {
+                    LayoutDirection::LeftToRight => (start, end),
+                    LayoutDirection::RightToLeft => (end, start),
+                };
+                let left = style.padding.left.into_raw().value();
+                let right = style.padding.right.into_raw().value();
+                style.padding.left = LengthPercentage::length(left + start);
+                style.padding.right = LengthPercentage::length(right + end);
             }
             // Two panels and a handle: the panels in a row or a column, the handle the gap
             // between them; the first takes its share, the second the rest, the others nothing.
@@ -238,6 +250,33 @@ fn section_header(ui: &mut Ui, id: ElementId, scale: f32) -> Option<f32> {
         .height()
         .ceil();
     Some(text.max(mark))
+}
+
+/// The room that the field `id` keeps before and after its text, in pixels of the screen at
+/// `scale`: a field of search's magnifier and the mark that empties it, each a control's size and
+/// half of one; a field of numbers' prefix and half a control's size after it. None for another
+/// element.
+fn field_room(ui: &mut Ui, id: ElementId, scale: f32) -> Option<[f32; 2]> {
+    let node = ui.node(id)?;
+    let control = node.style.control.size * scale;
+    match &node.element.kind {
+        Kind::TextField { search: true, .. } => Some([control * 1.5, control * 1.5]),
+        Kind::NumberField { prefix, .. } if !prefix.is_empty() => {
+            let (prefix, text_style) = (prefix.clone(), node.style.text.style.clone());
+            let width = ui
+                .texts
+                .get(
+                    &mut ui.fonts,
+                    &prefix,
+                    &text_style,
+                    scale,
+                    TextBounds::default(),
+                )
+                .width();
+            Some([width.ceil() + control / 2.0, 0.0])
+        }
+        _ => None,
+    }
 }
 
 /// Lays out each row of the list `list` alone, at the list's width and the height of a row.
