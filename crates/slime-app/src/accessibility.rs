@@ -1224,4 +1224,34 @@ mod tests {
         assert_eq!(number_of("1 + 2"), None);
         assert_eq!(number_of("10cm"), None);
     }
+
+    #[test]
+    fn notifications_are_read_as_they_come_a_warning_at_once() {
+        let (mut ui, _) = empty();
+        ui.notify(slime_ui::tree::Notification {
+            text: "Saved".to_owned(),
+            ..Default::default()
+        });
+        ui.notify(slime_ui::tree::Notification {
+            kind: slime_ui::tree::NotificationKind::Warning,
+            text: "A texture is missing".to_owned(),
+            ..Default::default()
+        });
+        ui.frame();
+        let mut readers = ScreenReaders::new("Example");
+        let tree = Tree::new(readers.translate(ui.take_meaning_changes(true), SIZE), true);
+        let state = tree.state();
+        let nodes: Vec<_> = state.root().children().collect();
+        let read: Vec<(AccessRole, Option<Live>)> = nodes
+            .iter()
+            .map(|node| (node.role(), node.data().live()))
+            .collect();
+        assert_eq!(
+            read,
+            [
+                (AccessRole::Status, Some(Live::Polite)),
+                (AccessRole::Alert, Some(Live::Assertive))
+            ]
+        );
+    }
 }
