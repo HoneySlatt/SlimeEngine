@@ -50,8 +50,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0146](adr/0146-screen-readers.md)), are done. M6b.7 was cut in two at its start, by the
   owner on 2026-10-26: M6b.7a, the widgets that a panel holds, is done
   ([ADR-0148](adr/0148-widgets.md)). The owner cut the rest in three on 2026-10-27
-  ([ADR-0149](adr/0149-the-looks-foundations.md)): M6b.7b, the look's foundations, is built, its CI
-  to run; M6b.7c, the layers, and M6b.7d, the rich widgets, follow.
+  ([ADR-0149](adr/0149-the-looks-foundations.md)): M6b.7b, the look's foundations, is done;
+  M6b.7c, the layers ([ADR-0150](adr/0150-layers.md)), is in progress, and M6b.7d, the rich
+  widgets, follows.
 
 ## Status
 
@@ -69,7 +70,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.6a](#m6b6a--text-edited-and-what-the-platform-lacks-for-it) | Text is typed, selected, copied and composed in every writing system, in fields that the program reads as actions | Done |
 | [M6b.6b](#m6b6b--screen-readers) | Screen readers read the interface, and agents read and set what its fields hold | Done |
 | [M6b.7a](#m6b7a--the-widgets-of-a-panel) | The framework has the widgets that a panel of the dev overlay and of the editor is made of, in the editor's theme | Done |
-| [M6b.7b](#m6b7b--the-looks-foundations) | The editor's look follows one accent in a dark, a light and a high-contrast theme, moves through transitions, and stays crisp at every scale | Built; CI to run |
+| [M6b.7b](#m6b7b--the-looks-foundations) | The editor's look follows one accent in a dark, a light and a high-contrast theme, moves through transitions, and stays crisp at every scale | Done |
 | [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | In progress |
 | [M6b.7d](#m6b7d--rich-widgets) | The framework has the rich fields, notifications and the palette of commands that make editing fast | Planned |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
@@ -959,7 +960,7 @@ that the look has a light and a high-contrast theme beside its dark one.
 - **How to test.** `cargo test -p slime-color -p slime-ui --features slime-ui/editor-look`; the
   example's image tests, `cargo test -p slime-examples --test widgets`; the example.
 - **By hand.** The owner tries the example's themes, densities, accents and transitions.
-- **Outcome.** Built on 2026-10-27, CI to run. [ADR-0149](adr/0149-the-looks-foundations.md)
+- **Outcome.** Done on 2026-10-27. [ADR-0149](adr/0149-the-looks-foundations.md)
   records the owner's decisions of 2026-10-26 and 2026-10-27: the rest of M6b.7 in three, the
   look's foundations first; transitions at Stage 6b, declared in the style sheets; themes that
   compute colors in OKLCH; light and high-contrast themes beside the dark one. `slime-color`
@@ -995,7 +996,11 @@ that the look has a light and a high-contrast theme beside its dark one.
   `tests/look.rs`, Geist's digits of one width with `tnum`, every theme of colors and density
   styling every kind with text that reads on its surface, and a project's accent followed by what
   the look computes from it; in `slime-examples`'s `tests/widgets.rs`, the inspector in the light
-  theme and the console in high contrast and compact, beside the dark images drawn again.
+  theme and the console in high contrast and compact, beside the dark images drawn again. CI is
+  green on `4498cc8`, the reference images matched on WARP too: `check (headless)` took 18 minutes
+  11 seconds, `check (windowed)` 21 minutes 55 seconds, `windows` 21 minutes 39 seconds and
+  `windows-release` 18 minutes 12 seconds, two jobs past the limit of 20: `slime-color`, from which
+  the cooker is built, changed, and the zone was cooked again in each job (see the known debt).
 
 ### M6b.7c — Layers
 
@@ -1887,7 +1892,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   dependency since, arboard, in `slime-platform`: the zone was restored from its cache, and the
   four jobs came back within the limit, `windows` the longest at 18 minutes 9 seconds. M6b.6b added
   AccessKit's adapter and its 52 crates on Linux, and the longest job, `windows-release`, took 15
-  minutes 27 seconds: the runs that the windowed part holds grow with each milestone.
+  minutes 27 seconds: the runs that the windowed part holds grow with each milestone. At M6b.7b,
+  `slime-color` changed, and the zone was cooked again: `check (windowed)` took 21 minutes 55
+  seconds and `windows` 21 minutes 39 seconds.
 - **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)): a frame walks every
   element of its roots, to find what to draw again and to gather the display list, even when
   nothing changed. A list shows the rows of a new range one frame late, when it first shows or when
