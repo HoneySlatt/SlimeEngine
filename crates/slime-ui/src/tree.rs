@@ -155,9 +155,9 @@ pub enum Kind {
         text: String,
         /// Whether it holds several lines, Enter typing a line break.
         multiline: bool,
-        /// Whether it is a field of search (`docs/adr/0151-rich-widgets.md`): of one line, a
-        /// magnifier before its text and, once it holds something, a mark after it that a press
-        /// empties it by, as a person who deleted its text and committed would.
+        /// Whether it is a field of search (`docs/adr/0151-rich-widgets.md`): a magnifier before
+        /// its text and, once it holds something, a mark after it that a press empties it by, as a
+        /// person who deleted its text and committed would. A field of several lines is none.
         search: bool,
     },
     /// A field of a number, which shows the number whole, as Rust writes it, and which the user
@@ -226,8 +226,8 @@ pub enum Kind {
     Tab {
         /// Its title.
         title: String,
-        /// A count that it shows after its title, how many lines its panel holds that ask to be
-        /// read (`docs/adr/0151-rich-widgets.md`); none for none.
+        /// A count that it shows after its title, in a small box, which its name holds too
+        /// (`docs/adr/0151-rich-widgets.md`); none for none.
         count: Option<u64>,
     },
     /// Two panels, its first two children, side by side or one above the other, and a handle
@@ -1935,7 +1935,8 @@ impl<'a> Children<'a> {
     }
 
     /// The place of the chosen tab of `bar`, a bar of tabs that this builder added, among its
-    /// tabs: the builder shows its panel. 0 for an element that is no bar of tabs.
+    /// tabs: the builder shows its panel. A control of segments' and a list to choose from's choice
+    /// too; 0 for another element.
     pub fn chosen(&self, bar: ElementId) -> usize {
         self.ui.chosen(bar).unwrap_or(0)
     }
@@ -2020,6 +2021,22 @@ fn lays_out_again(before: &Element, after: &Element) -> bool {
             Kind::Choice { options: after, .. },
         ) => before != after,
         (Kind::List { .. }, Kind::List { .. }) => before.kind != after.kind,
+        // The room that a field keeps for its marks and its prefix.
+        (
+            Kind::TextField {
+                search: before,
+                multiline: lines_before,
+                ..
+            },
+            Kind::TextField {
+                search: after,
+                multiline: lines_after,
+                ..
+            },
+        ) => before != after || lines_before != lines_after,
+        (Kind::NumberField { prefix: before, .. }, Kind::NumberField { prefix: after, .. }) => {
+            before != after
+        }
         _ => false,
     }
 }

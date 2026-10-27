@@ -313,3 +313,130 @@ fn a_fields_prefix_lies_before_its_number_and_drags_it_even_focused() {
     );
     assert_eq!(ui.field_text(x), Some("2"));
 }
+
+#[test]
+fn a_bar_without_a_share_stops_moving_once_hidden_or_given_one() {
+    let (mut ui, root) = interface();
+    let build = |ui: &mut Ui, revision: u64, open: bool, share: Option<f32>| {
+        ui.build(root, revision, |children| {
+            let section = Element::section("Cook", open, style(None));
+            children.add("cook", section, |section| {
+                let bar = Element::progress(share, style(Some(200.0)));
+                section.add("bar", bar, |_| {});
+            });
+        });
+        ui.frame();
+    };
+    build(&mut ui, 0, true, None);
+    let (_, stats) = ui.frame();
+    assert!(stats.animating);
+    // Folded, what the section holds does not show: nothing moves.
+    let section = ui.element_by_path("#0/cook").expect("built");
+    ui.set_open(section, false);
+    ui.frame();
+    let (_, stats) = ui.frame();
+    assert!(!stats.animating, "hidden");
+    ui.set_open(section, true);
+    ui.frame();
+    let (_, stats) = ui.frame();
+    assert!(stats.animating, "shown again");
+    build(&mut ui, 1, true, Some(0.5));
+    let (_, stats) = ui.frame();
+    assert!(!stats.animating, "given a share");
+    // Less motion keeps it still.
+    build(&mut ui, 2, true, None);
+    ui.set_reduced_motion(true);
+    ui.frame();
+    let (_, stats) = ui.frame();
+    assert!(!stats.animating, "less motion");
+}
+
+#[test]
+fn from_right_to_left_a_fields_prefix_and_marks_stand_at_its_right_and_left() {
+    let mut ui = ui();
+    let settings = RootSettings {
+        size: [400.0, 300.0],
+        scale: 1.0,
+        direction: LayoutDirection::RightToLeft,
+        origin: [0.0; 2],
+        modal: false,
+    };
+    let root = ui.add_root(settings, Style::default());
+    let mut ids = Vec::new();
+    ui.build(root, 0, |children| {
+        let x = Element::prefixed_number_field("X", 1.0, 0.1, style(Some(120.0)));
+        ids.push(children.add("x", x, |_| {}));
+        let search = Element::search_field("torch", style(Some(200.0)));
+        ids.push(children.add("search", search, |_| {}));
+    });
+    ui.frame();
+    let (x, search) = (ids[0], ids[1]);
+    // The prefix at the field's right, which a drag towards the left, its line's end, raises.
+    let rect = ui.rect(x).expect("laid out");
+    let at = (rect.x + rect.width - 3.0, rect.y + rect.height / 2.0);
+    ui.pointer_moved(at.0, at.1);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_moved(at.0 + 10.0, at.1);
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    ui.frame();
+    assert_eq!(ui.field_text(x), Some("2"));
+    values(&mut ui);
+    // The mark that empties the field of search at its left.
+    let rect = ui.rect(search).expect("laid out");
+    ui.pointer_moved(rect.x + 8.0, rect.y + rect.height / 2.0);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    ui.frame();
+    assert_eq!(ui.field_text(search), Some(""));
+}
+
+#[test]
+fn a_prefix_given_later_makes_room_and_a_composition_keeps_it_from_dragging() {
+    let (mut ui, root) = interface();
+    let build = |ui: &mut Ui, revision: u64, prefix: &str| {
+        let mut id = None;
+        ui.build(root, revision, |children| {
+            let field = Element::prefixed_number_field(prefix, 1.0, 0.1, style(Some(120.0)));
+            id = Some(children.add("x", field, |_| {}));
+        });
+        ui.frame();
+        id.expect("built")
+    };
+    // Where the field draws its number, `1`.
+    let number_x = |ui: &mut Ui| {
+        let (list, _) = ui.frame();
+        list.items()
+            .iter()
+            .find_map(|item| match &item.primitive {
+                Primitive::Text(text) if text.layout.shown() == "1" => Some(text.origin[0]),
+                _ => None,
+            })
+            .expect("its number drawn")
+    };
+    let field = build(&mut ui, 0, "");
+    let without = number_x(&mut ui);
+    // The field kept, given a prefix: its number moves past the prefix's room.
+    assert_eq!(build(&mut ui, 1, "Width"), field);
+    let with = number_x(&mut ui);
+    assert!(with > without + 20.0, "{without} then {with}");
+    let rect = ui.rect(field).expect("laid out");
+    ui.set_focus(Some(field));
+    ui.ime(&slime_input::Ime::Enabled);
+    ui.ime(&slime_input::Ime::Preedit {
+        text: "２".to_owned(),
+        cursor: None,
+    });
+    // A drag from the prefix while it composes moves no number, and cuts nothing.
+    let at = (rect.x + 3.0, rect.y + rect.height / 2.0);
+    ui.pointer_moved(at.0, at.1);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_moved(at.0 + 30.0, at.1);
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    ui.frame();
+    assert!(
+        !values(&mut ui)
+            .iter()
+            .any(|value| value.contains("Number(4")),
+        "no drag while composing"
+    );
+}

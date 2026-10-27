@@ -31,13 +31,15 @@ pub enum ActionKind {
     Command(String),
     /// What a field holds changed, as the user edits it: at each edit, the composition of an
     /// input method once committed, and each step of a drag of a field of numbers or of a slider;
-    /// a check box toggled. A field of numbers whose text reads as no number gives none.
+    /// a check box or a button that toggles turned, a list to choose from or a control of segments
+    /// given another choice. A field of numbers whose text reads as no number gives none.
     Changed(FieldValue),
     /// What a field holds, given by the user: by Enter in a field of one line, Ctrl+Enter in a
     /// field of several, the focus leaving the field, the release of a drag of a field of numbers,
     /// or an agent's `Accept` while it holds the focus, once the user changed it since it took the
-    /// focus or since its last commit; a check box toggled, after its change; the release of a
-    /// slider's drag, and each step of its keys, after its change. A field that the user did not
+    /// focus or since its last commit; a check box or a button that toggles turned, and a list to
+    /// choose from or a control of segments given another choice, after their change; the release
+    /// of a slider's drag, and each step of its keys, after its change. A field that the user did not
     /// change gives none, so that a value that the program holds is written only when the user
     /// wrote it. A field of numbers whose text reads as no number gives none, and shows again the
     /// number that the program gave or that it last committed, the later of the two.
@@ -59,17 +61,18 @@ pub enum ActionKind {
     Dismissed,
 }
 
-/// What an element that the user gives a value holds: a field's text or number, a check box's
-/// state, a slider's number.
+/// What an element that the user gives a value holds: a field's text or number, a check box's or a
+/// button that toggles' state, a slider's number, the choice of a list or of segments.
 #[derive(Clone, Debug, PartialEq)]
 pub enum FieldValue {
     /// A field of text's text.
     Text(String),
     /// A field of numbers' number, a slider's.
     Number(f64),
-    /// Whether a check box is checked.
+    /// Whether a check box is checked, or a button that toggles on.
     Checked(bool),
-    /// The place of a list to choose from's chosen option among its options.
+    /// The place of a list to choose from's chosen option among its options, or of a control of
+    /// segments' chosen segment among its segments.
     Chosen(usize),
 }
 

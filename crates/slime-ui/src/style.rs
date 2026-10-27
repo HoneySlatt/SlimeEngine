@@ -34,7 +34,7 @@ pub struct Style {
 
 /// The glyphs of a font of icons that controls draw, each a text of one character of `font`, empty
 /// for the shape that a control draws without it: a check box's square mark, a section's minus and
-/// plus, a bar for a chevron, a ring for a magnifier, a square for a cross. They take the size of the control's part and its mark's color.
+/// plus, a bar for a chevron, a disc for a magnifier or a cross. They take the size of the control's part and its mark's color.
 #[derive(Clone, Debug, Default, PartialEq, Reflect)]
 #[reflect(name = "UiIcons", default)]
 pub struct Icons {
@@ -380,17 +380,20 @@ impl Default for Shadow {
 #[reflect(name = "UiControl", default)]
 pub struct ControlStyle {
     /// The size of the part that the pointer takes, in logical pixels: the side of a check box's
-    /// box, the width of a slider's thumb, the side of an item of a menu's mark and chevron, which
-    /// lay them out.
+    /// box, the width of a slider's thumb, the side of an item of a menu's mark and chevron, of a
+    /// field of search's marks and of a list to choose from's, twice the thickness of a bar of
+    /// progress, the gap after a field's prefix and a tab's title, which lay them out.
     pub size: f32,
     /// The radius of its corners, in logical pixels.
     pub radius: f32,
-    /// A check box's box unchecked, a slider's track, an item of a menu's shortcut, a field's
-    /// placeholder.
+    /// A check box's box unchecked, a slider's track and a bar of progress's, an item of a menu's
+    /// shortcut, a field's placeholder, the box of a tab's count.
     pub track: LinearColor,
-    /// A check box's box checked, the part of a slider's track up to its value.
+    /// A check box's box checked, the part of a slider's track up to its value, of a bar of
+    /// progress's up to its share.
     pub fill: LinearColor,
-    /// A check box's mark, a slider's thumb, an item of a menu's mark and chevron.
+    /// A check box's mark, a slider's thumb, an item of a menu's mark and chevron, a list to choose
+    /// from's chevron, a field's prefix and a field of search's marks, the digits of a tab's count.
     pub mark: LinearColor,
 }
 

@@ -260,7 +260,11 @@ fn field_room(ui: &mut Ui, id: ElementId, scale: f32) -> Option<[f32; 2]> {
     let node = ui.node(id)?;
     let control = node.style.control.size * scale;
     match &node.element.kind {
-        Kind::TextField { search: true, .. } => Some([control * 1.5, control * 1.5]),
+        Kind::TextField {
+            search: true,
+            multiline: false,
+            ..
+        } => Some([control * 1.5, control * 1.5]),
         Kind::NumberField { prefix, .. } if !prefix.is_empty() => {
             let (prefix, text_style) = (prefix.clone(), node.style.text.style.clone());
             let width = ui
@@ -639,7 +643,8 @@ impl taffy::LayoutPartialTree for Tree<'_> {
             // as wide as half of it; a slider is eight thumbs wide, a thumb tall; an item of a
             // menu, its mark and its chevron, each with its gap, whether it shows them or not, so
             // that a menu's labels line up, and its shortcut, two marks after its label, unless a
-            // bar of menus holds it; a list to choose from, its mark and the gap before it.
+            // bar of menus holds it; a list to choose from, its mark and the gap before it; a bar
+            // of progress, eight marks wide, half a mark tall; a tab, its count's box.
             let control = at.style.control.size * tree.scale;
             // An item of a bar of menus lays out its label alone.
             let in_bar = at

@@ -522,7 +522,11 @@ impl Ui {
             Kind::Button { .. } => Role::Button,
             Kind::Scroll => Role::ScrollView,
             Kind::List { .. } => Role::List,
-            Kind::TextField { search: true, .. } => Role::SearchInput,
+            Kind::TextField {
+                search: true,
+                multiline: false,
+                ..
+            } => Role::SearchInput,
             Kind::TextField {
                 multiline: false, ..
             } => Role::TextInput,

@@ -16,8 +16,8 @@
 //! the look's, and M the motion, the transitions or none.
 //!
 //! The rich widgets (`docs/adr/0151-rich-widgets.md`): a bar of tools under the menus, a control of
-//! segments that chooses the tool, a button that toggles the snapping, and a bar of progress of a
-//! cook that goes on; a field of search over the list of entities, which keeps the rows whose names
+//! segments that chooses the tool, a button that toggles the snapping, a bar of progress of a cook
+//! that goes on, and one without a share, which moves; a field of search over the list of entities, which keeps the rows whose names
 //! hold what it holds; the position, a vector of three fields, each with its axis's prefix, which
 //! drags it; the console's tab, with the count of its warnings and errors.
 //!
@@ -889,6 +889,11 @@ fn tools(children: &mut Children<'_>, shown: &Shown<'_>, built: &mut Built) {
         children.add("cooking", cooking, |_| {});
         let progress = Element::progress(Some(0.65), wide(120.0)).named("cooking textures");
         children.add("progress", progress, |_| {});
+        // How far the search of the assets went is not known: its bar moves with the clock.
+        let indexing = Element::label("indexing", Style::default()).class("muted");
+        children.add("indexing", indexing, |_| {});
+        let progress = Element::progress(None, wide(60.0)).named("indexing");
+        children.add("searching", progress, |_| {});
     });
 }
 

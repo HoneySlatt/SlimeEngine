@@ -788,15 +788,22 @@ impl Ui {
     /// The pointer pressed on the field `id`, at `x` and `y` in pixels of the surface, `shift`
     /// held or not: a field of text, or of numbers that holds the focus, takes the focus and
     /// places its caret there, or extends its selection; a field of numbers that does not hold
-    /// it waits to see whether the press drags its number.
+    /// it, or whose prefix the press falls on while no input method composes in it, waits to see
+    /// whether the press drags its number.
     pub(crate) fn field_press(&mut self, id: ElementId, x: f32, y: f32, shift: bool) {
         let number = self
             .node(id)
             .is_some_and(|node| matches!(node.element.kind, Kind::NumberField { .. }));
-        // Its prefix drags its number, whether or not it holds the focus.
-        let on_prefix = self
-            .prefix_area(id)
-            .is_some_and(|area| super::interact::inside(area, x, y));
+        // Its prefix drags its number, whether or not it holds the focus, unless an input method
+        // composes in it, which the drag's text would cut.
+        let composing = self
+            .node(id)
+            .and_then(|node| node.field.as_ref())
+            .is_some_and(|field| field.compose.is_some());
+        let on_prefix = !composing
+            && self
+                .prefix_area(id)
+                .is_some_and(|area| super::interact::inside(area, x, y));
         if number && (self.interaction.focus != Some(id) || on_prefix) {
             let value = self.field_number(id);
             if let Some(field) = self.node_mut(id).and_then(|node| node.field.as_mut()) {
@@ -1163,8 +1170,6 @@ impl Ui {
         if let Some(placeholder) = placeholder {
             let (style, color) = (look.style.clone(), node.style.control.track);
             let content = node.content_box();
-            let rtl = self.root_settings(id).map(|root| root.direction)
-                == Some(super::LayoutDirection::RightToLeft);
             let layout = self
                 .texts
                 .get(
@@ -1175,11 +1180,15 @@ impl Ui {
                     TextBounds::default(),
                 )
                 .clone();
-            let x = if rtl {
-                content.x + content.width - layout.width()
-            } else {
-                content.x
-            };
+            // Placed as the field would place it as its text: by its alignment, from the end of a
+            // text written from right to left.
+            let room = (content.width - layout.width() - scale.max(1.0)).max(0.0);
+            let x = content.x
+                + match (style.alignment, layout.is_right_to_left()) {
+                    (Alignment::Center, _) => room / 2.0,
+                    (Alignment::End, false) | (Alignment::Start | Alignment::Justify, true) => room,
+                    _ => 0.0,
+                };
             primitives.push(Primitive::Text(TextPrimitive {
                 origin: [x, origin[1]],
                 layout,
@@ -1201,8 +1210,14 @@ impl Ui {
     /// while it holds something; none otherwise.
     pub(crate) fn search_clear(&self, id: ElementId) -> Option<Rect> {
         let node = self.node(id)?;
-        if !matches!(node.element.kind, Kind::TextField { search: true, .. })
-            || node.field.as_ref()?.text.is_empty()
+        if !matches!(
+            node.element.kind,
+            Kind::TextField {
+                search: true,
+                multiline: false,
+                ..
+            }
+        ) || node.field.as_ref()?.text.is_empty()
         {
             return None;
         }
@@ -1274,7 +1289,11 @@ impl Ui {
         };
         let mut primitives = Vec::new();
         match &node.element.kind {
-            Kind::TextField { search: true, .. } => {
+            Kind::TextField {
+                search: true,
+                multiline: false,
+                ..
+            } => {
                 let x = if rtl {
                     content.x + content.width + size / 2.0
                 } else {

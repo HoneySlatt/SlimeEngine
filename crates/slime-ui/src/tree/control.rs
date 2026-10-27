@@ -320,9 +320,9 @@ impl Ui {
         ))
     }
 
-    /// The place of the chosen tab of the bar of tabs `id` among its tabs, or of the chosen option
-    /// of the list to choose from `id` among its options, as the user left it; none for another
-    /// element.
+    /// The place of the chosen tab of the bar of tabs `id` among its tabs, of the chosen segment of
+    /// the control of segments `id`, or of the chosen option of the list to choose from `id` among
+    /// its options, as the user left it; none for another element.
     pub fn chosen(&self, id: ElementId) -> Option<usize> {
         match self.node(id)?.control? {
             Control::Choice { chosen, .. } => Some(chosen),
@@ -1083,9 +1083,11 @@ impl Ui {
                 );
                 primitives.push(filled(track, control.radius, control.track));
                 // Its share from a line's start; without one, a third of the track that crosses it
-                // every second and a half of the clock.
+                // every second and a half of the clock, drawn again each frame while it shows, or
+                // still in its middle for less motion.
                 let (from, length) = match share {
                     Some(share) => (0.0, share.clamp(0.0, 1.0)),
+                    None if self.reduced_motion || !self.shown(id) => (0.35, 0.3),
                     None => {
                         let turn = (self.now.as_secs_f32() / 1.5).fract();
                         self.spinning.push(id);
@@ -1138,6 +1140,18 @@ impl Ui {
 }
 
 impl Ui {
+    /// Whether `id` shows: neither it nor an ancestor has a display of none.
+    fn shown(&self, id: ElementId) -> bool {
+        let mut at = Some(id);
+        while let Some(node) = at.and_then(|id| self.node(id)) {
+            if node.style.layout.display == crate::style::Display::None {
+                return false;
+            }
+            at = node.parent;
+        }
+        true
+    }
+
     /// The glyph `glyph` of the font of `icons`, `size` pixels tall, in the middle of `rect`, of
     /// `color`; none where `icons` names no font, or `glyph` is empty.
     pub(super) fn icon(

@@ -2033,6 +2033,10 @@ GitHub issues, linked from their entry; this list stays the reference.
   text: the look names its icons by their codepoints in its sheet, not in a theme. The bar of menus
   takes Alt let go alone whenever an interface holds one, which a game whose interface holds a bar
   loses as a key of its own.
+- **Rich widgets** ([ADR-0151](adr/0151-rich-widgets.md)): a press on a focused field's prefix that
+  does not drag places its caret at its start; a field's prefix is drawn whatever its width, cut by
+  nothing; a bar of progress without a share that less motion stills stays still until it is drawn
+  again; the look's fallbacks for a magnifier and a cross, without a font of icons, are one disc.
 - **What agents see** ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)): a tool reads an
   interface only in a windowed run, from its last frame, and each ask walks the whole tree. A path
   holds while the roots below its own stay, and a key's name that holds
