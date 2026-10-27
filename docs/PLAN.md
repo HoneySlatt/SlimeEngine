@@ -25,14 +25,14 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 - Stage 6c — The editor: planned on 2026-10-27 ([ADR-0155](adr/0155-the-editors-design.md)), to be
   released as 0.7 at its close. A study of the editor's design, made by four agents from four
   starting points and measured in prototypes on the owner's machine, led to the owner's sixteen
-  decisions on the editor's design, its milestones and their order, which ADR-0155 records. Next:
-  M6c.0.
+  decisions on the editor's design, its milestones and their order, which ADR-0155 records. M6c.0
+  is done; next: M6c.1.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
-| [M6c.0](#m6c0--before-the-stage) | The development channel answers in milliseconds, CI's checks stay within their limit, and a game that a tool started never outlives it | Planned |
+| [M6c.0](#m6c0--before-the-stage) | The development channel answers in milliseconds, CI's checks stay within their limit, and a game that a tool started never outlives it | Done |
 | [M6c.1](#m6c1--the-editors-window) | The editor opens a level in a window of its own, where a person and an agent run the same named operations | Planned |
 | [M6c.2](#m6c2--the-viewport) | The level shows in a viewport that the user flies through and picks in, drawn again only when what it shows changed | Planned |
 | [M6c.3](#m6c3--move-and-place) | The user moves, turns, scales, creates and deletes, each gesture a single step of the history | Planned |
@@ -141,9 +141,10 @@ Risks, whose figures ADR-0155's context gives:
   to cut: docking by drag, stamp mode and modal keys are already outside what the exit needs.
 - **Dates outside the project**: winit 0.31, in beta for months, and `accesskit_winit`'s release
   for it. Polling's cost on Windows is not measured, which M6c.7 measures before it adopts notify.
-- **The cost of the checks.** CI's `check (windowed)` job passed the owner's limit of 20 minutes at
-  M6b.8b ([Known debt](#known-debt)), and every windowed session of the editor adds to it: M6c.0
-  splits it, and each milestone records how long CI's jobs take.
+- **The cost of the checks.** M6c.0 split the Linux checks into three jobs, each well within the
+  owner's limit of 20 minutes, but `windows` runs within a minute of it, and every session of the
+  editor adds to the checks ([Known debt](#known-debt)): each milestone records how long CI's jobs
+  take.
 - **One GPU.** Budgets are checked on the owner's RX 6900 XT only ([Known debt](#known-debt)).
 
 ### M6c.0 — Before the stage
@@ -166,7 +167,30 @@ Risks, whose figures ADR-0155's context gives:
   by a tool ends once its standard input closes; the commands of `AGENTS.md` and `CONTRIBUTING.md`
   name the three parts; CI is green, each job within its limit, their times recorded here.
 - **How to test.** `cargo test -p slime-channel -p slime-app`; `scripts/check.sh` with each part.
-- **Debt settled.** CI's jobs past their limit of 20 minutes.
+- **Debt settled.** CI's Linux jobs past their limit of 20 minutes.
+- **Outcome.** Done on 2026-10-27. Each message of the development channel goes out in one write,
+  but for a payload, which follows in a second, Nagle's algorithm off at both ends: a request
+  answered at once took 82 ms and takes 0.14 ms, and no delayed acknowledgement remains in it
+  ([measurements](measurements.md#m6c0-ryzen-7-5800x)); `slime-channel`'s test measures it. A game
+  started with a token ends once its standard input closes, which `slime_channel::launch` holds as
+  a pipe, the run stopping as at a termination signal; a terminal there is left alone, and an input
+  that is empty or missing, as `/dev/null`, ends the game at once, which the token's rustdoc says;
+  `slime-app`'s `tests/channel.rs` checks it, and fails without it. CI's failures since 0.6 came
+  from the game's agent session: each of its requests waits for a frame of the zone, which took
+  about 25 s on CI's runners with its shadows, and it reached its own limit of 15 minutes. The
+  session now sets the game's view without shadows, without anti-aliasing and at half its size once
+  the game is paused, which the game's own runs in the checks do not: 426 s became 21 s on four
+  cores, and 22 s on CI. `scripts/check.sh` has three parts: `headless`, every check that needs
+  neither a compositor nor the zone; `windowed`, the examples and the windowed lifecycle test; and
+  `game`, everything that reads the zone, which it alone fetches and cooks among the Linux jobs.
+  `CONTRIBUTING.md` says how to measure a windowed run on a GPU in a headless Weston, which was
+  checked: with Weston's default renderer, the `window` example took llvmpipe; with
+  `--renderer=gl`, the RX 6900 XT. The review found the empty input's case undocumented, a read
+  interrupted by a signal taken for the tool's end, and several documents that said less or other
+  than the code, each fixed. CI is green on `a199369`: `check (headless)` took 13 minutes 35
+  seconds, `check (windowed)` 4 minutes 42 seconds, `check (game)` 4 minutes 14 seconds with the
+  cooked zone restored from its cache, `windows` 19 minutes 43 seconds and `windows-release` 13
+  minutes 32 seconds. `windows` stays within a minute of the limit ([Known debt](#known-debt)).
 
 ### M6c.1 — The editor's window
 
@@ -1199,7 +1223,15 @@ GitHub issues, linked from their entry; this list stays the reference.
   the game's agent session through the overlay made `check (windowed)` take 23 minutes 31 seconds:
   the owner decided to split the windowed part again, into a third job, as
   [ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md) split the checks, the limit of 20 minutes
-  kept: M6c.0 does it ([ADR-0155](adr/0155-the-editors-design.md)).
+  kept ([ADR-0155](adr/0155-the-editors-design.md)). The two runs after the release of 0.6 failed,
+  the game's session past its own limit of 15 minutes. M6c.0 split the checks into `headless`,
+  `windowed` and `game`, and made the session draw the zone without shadows: on `a199369`, the three
+  Linux jobs took 13 minutes 35 seconds, 4 minutes 42 seconds and 4 minutes 14 seconds, the zone
+  restored from its cache; cooking it again adds about 3 minutes to `check (game)` alone. What
+  remains is `windows`: 19 minutes 43 seconds on `a199369`, 20 minutes 23 seconds on `ebc16f2`.
+  Its later steps, the image tests printing their measurements, the GPU timing tests and the tests
+  that read the zone, each name packages with `-p`, whose features differ from the workspace's: on
+  `a199369`, building again for them took 2 minutes 2 seconds, 50 seconds and 53 seconds.
 - **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)): a frame walks every
   element of its roots, to find what to draw again and to gather the display list, even when nothing
   changed. A list shows the rows of a new range one frame late, when it first shows or when it
