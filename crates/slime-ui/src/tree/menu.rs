@@ -35,6 +35,15 @@ impl Ui {
             }
             return;
         }
+        self.close_other_submenus(id);
+        self.interaction.actions.push(Action {
+            element: Some(id),
+            kind: ActionKind::Press,
+        });
+    }
+
+    /// Closes the submenus that the other items of the menu of the item `id` opened.
+    pub(super) fn close_other_submenus(&mut self, id: ElementId) {
         let root = self.root_of(id);
         for layer in self.layers().into_iter().rev() {
             if let Some(Place::Beside { element, .. }) = self.layer_place(layer)
@@ -45,10 +54,6 @@ impl Ui {
                 self.close_layer(layer, true);
             }
         }
-        self.interaction.actions.push(Action {
-            element: Some(id),
-            kind: ActionKind::Press,
-        });
     }
 
     /// A key reached the item of a menu `id`, which holds the focus: the arrows up and down move

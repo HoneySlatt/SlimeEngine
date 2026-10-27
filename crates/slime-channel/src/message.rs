@@ -458,12 +458,14 @@ pub struct ElementSummary {
     pub role: String,
     /// Its name; empty for none.
     pub name: String,
-    /// What a field holds, as the user left it, a slider's number or two panels' first share; none
-    /// for another element.
+    /// What a field holds, as the user left it, a slider's number, two panels' first share or a
+    /// list to choose from's chosen option; none for another element.
     pub value: Option<String>,
+    /// Its description, its tooltip; none for none.
+    pub description: Option<String>,
     /// Its states: `hovered`, `pressed`, `focused`, `disabled`, `checked`, `expanded`,
     /// `selected`, and `has_popup` for what a press opens a layer beside, an item of a menu that
-    /// opens a submenu.
+    /// opens a submenu or a list to choose from.
     pub states: Vec<String>,
     /// What can be done to it now: `press`, `focus`, `scroll`, `set_value`.
     pub actions: Vec<String>,
@@ -711,6 +713,7 @@ mod tests {
                         role: text("Button"),
                         name: text("open"),
                         value: None,
+                        description: Some(text("Opens a scene")),
                         states: vec![text("hovered"), text("focused")],
                         actions: vec![text("press"), text("focus")],
                         bounds: Some([0, 0, 120, 28]),
@@ -720,6 +723,7 @@ mod tests {
                         role: text("ListItem"),
                         name: String::new(),
                         value: None,
+                        description: None,
                         states: Vec::new(),
                         actions: Vec::new(),
                         bounds: None,
@@ -729,6 +733,7 @@ mod tests {
                         role: text("SpinButton"),
                         name: text("scale"),
                         value: Some(text("12.5")),
+                        description: None,
                         states: Vec::new(),
                         actions: Vec::new(),
                         bounds: None,

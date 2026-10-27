@@ -29,6 +29,7 @@ mod meaning;
 mod menu;
 mod motion;
 mod scroll_bar;
+mod tooltip;
 
 pub use field::Clipboard;
 use interact::Interaction;
@@ -346,6 +347,10 @@ pub struct Element {
     /// Its name to whoever reads the interface without seeing it; `None` for a button's label or a
     /// text's, or no name.
     pub name: Option<String>,
+    /// The text that shows below it once the pointer has rested on it for half a second of the
+    /// interface's clock, or once the keys gave it the focus, and that screen readers read as its
+    /// description (`docs/adr/0150-layers.md`); `None` for none.
+    pub tooltip: Option<String>,
 }
 
 impl Element {
@@ -509,6 +514,7 @@ impl Element {
             style,
             role: None,
             name: None,
+            tooltip: None,
         }
     }
 
@@ -531,6 +537,15 @@ impl Element {
     #[must_use]
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// The element, with a tooltip of `text` (the field [`tooltip`](Self::tooltip)): the
+    /// interface shows it in a layer below the element, which the pointer passes through, a
+    /// container of the class `tooltip` holding a label.
+    #[must_use]
+    pub fn tooltip(mut self, text: impl Into<String>) -> Self {
+        self.tooltip = Some(text.into());
         self
     }
 }
@@ -598,8 +613,9 @@ pub struct FrameStats {
     pub painted: usize,
     /// The elements in the tree.
     pub elements: usize,
-    /// Whether a transition goes on after this frame: a program that draws only when something
-    /// changes draws the next frame too.
+    /// Whether a transition goes on after this frame, or the pointer rests where a tooltip will
+    /// show or a submenu open: a program that draws only when something changes draws the next
+    /// frame too.
     pub animating: bool,
 }
 
@@ -1059,6 +1075,8 @@ impl Ui {
         // out again. The input's states follow what they made, a focus hidden or disabled dropped,
         // and are styled in turn.
         self.step_motions();
+        // The pointer resting long enough shows a tooltip or opens a submenu.
+        self.settle_rest();
         // Layers take their surface from the root that they stand over, those whose anchor went
         // close, and those opened by the keyboard give their first element the focus.
         self.settle_layers();
@@ -1107,7 +1125,7 @@ impl Ui {
         for root in &self.roots {
             paint::gather(self, *root, &mut list);
         }
-        stats.animating = !self.moving.is_empty();
+        stats.animating = !self.moving.is_empty() || self.resting();
         (list, stats)
     }
 
@@ -1676,7 +1694,8 @@ impl<'a> Children<'a> {
                     let drawn = node.element.kind != element.kind || style || classes;
                     let meant = node.element.kind != element.kind
                         || node.element.role != element.role
-                        || node.element.name != element.name;
+                        || node.element.name != element.name
+                        || node.element.tooltip != element.tooltip;
                     node.element = element;
                     if meant {
                         self.ui.mark_meaning(id);

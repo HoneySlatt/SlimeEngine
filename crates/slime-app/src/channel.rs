@@ -539,6 +539,7 @@ fn element_summary(meaning: Meaning) -> ElementSummary {
         role: meaning.role.name().to_owned(),
         name: meaning.name,
         value: meaning.value,
+        description: meaning.description,
         states: states
             .into_iter()
             .filter(|&(holds, _)| holds)

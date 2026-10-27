@@ -519,6 +519,9 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
                     if let Some(value) = &element.value {
                         line.push_str(&format!(", holding {value:?}"));
                     }
+                    if let Some(description) = &element.description {
+                        line.push_str(&format!(", described {description:?}"));
+                    }
                     if !element.states.is_empty() {
                         line.push_str(&format!(", {}", element.states.join(", ")));
                     }

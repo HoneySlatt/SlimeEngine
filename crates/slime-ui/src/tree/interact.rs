@@ -41,6 +41,10 @@ pub(super) struct Interaction {
     /// Whether the last input was a press of the pointer, whose focus does not show, rather than a
     /// key, an agent's action or the program's.
     pub(super) by_pointer: bool,
+    /// Where the pointer rests, and since when.
+    pub(super) rest: super::tooltip::Rest,
+    /// The layer of the tooltip that shows, if one does.
+    pub(super) tooltip: Option<ElementId>,
 }
 
 impl Ui {
@@ -65,6 +69,8 @@ impl Ui {
             }
         }
         self.hover();
+        let on = self.element_at(x, y);
+        self.rest_on(on);
         // The item of a menu that the pointer comes over takes the focus, which the keys move on
         // from, as a press would give it.
         if let Some(item) = self.interaction.hovered
@@ -82,6 +88,7 @@ impl Ui {
     pub fn pointer_left(&mut self) {
         self.interaction.pointer = None;
         self.hover();
+        self.rest_on(None);
     }
 
     /// A button of the mouse went down or up; gives whether the interface took it, which a game
@@ -98,6 +105,7 @@ impl Ui {
         let primary = button == MouseButton::Left;
         if state == ButtonState::Pressed {
             self.interaction.by_pointer = true;
+            self.input_hides_tooltip();
             // A press outside a layer that closes as the user leaves it closes it.
             if let Some([x, y]) = self.interaction.pointer {
                 self.dismiss_outside(x, y);
@@ -223,6 +231,7 @@ impl Ui {
     /// leaves: when such a box or list lies under the pointer, whether or not it had room to
     /// scroll, and, as a press, over what the interface draws or while a modal root is open.
     pub fn wheel(&mut self, delta: ScrollDelta) -> bool {
+        self.input_hides_tooltip();
         let Some(target) =
             self.pointer_target(|kind| matches!(kind, Kind::Scroll | Kind::List { .. }))
         else {
@@ -259,12 +268,33 @@ impl Ui {
     /// of an intent while an element holds the focus or once it gives the focus, as Tab does with
     /// none held, and every key while a modal root is open; the intent of a key that it does not
     /// take still reaches its queue. Its releases are left to the game, which pairs them with its
-    /// presses.
+    /// presses. A press hides the tooltip that shows, which Escape does alone then, and the element
+    /// that it gives the focus shows its tooltip ([`Element::tooltip`](super::Element::tooltip)).
     pub fn key(&mut self, event: &KeyEvent) -> bool {
         if event.state != ButtonState::Pressed {
             return false;
         }
         self.interaction.by_pointer = false;
+        // A key hides the tooltip that shows; Escape does nothing more.
+        if self.input_hides_tooltip() && event.logical == Key::Named(NamedKey::Escape) {
+            return true;
+        }
+        let before = self.interaction.focus;
+        let taken = self.press_key(event);
+        // The element that the keys gave the focus shows its tooltip.
+        if let Some(focus) = self.interaction.focus
+            && Some(focus) != before
+            && self
+                .node(focus)
+                .is_some_and(|node| node.element.tooltip.is_some())
+        {
+            self.show_tooltip(focus);
+        }
+        taken
+    }
+
+    /// What a key's press does, as [`Ui::key`] says, once the tooltip is hidden.
+    fn press_key(&mut self, event: &KeyEvent) -> bool {
         // Escape closes the top layer that closes as the user leaves it.
         if event.logical == Key::Named(NamedKey::Escape) && self.dismiss_top() {
             return true;
@@ -452,10 +482,14 @@ impl Ui {
     }
 
     /// The element that the pointer would reach at `x` and `y`, in pixels of the screen: the
-    /// deepest drawn there, of the top root that holds the point, its clip holding it too; none
-    /// below a modal root.
+    /// deepest drawn there, of the top root that holds the point, its clip holding it too, a
+    /// tooltip letting it through; none below a modal root.
     pub fn element_at(&self, x: f32, y: f32) -> Option<ElementId> {
         for &root in self.roots.iter().rev() {
+            // The pointer passes through a tooltip.
+            if self.interaction.tooltip == Some(root) {
+                continue;
+            }
             if let Some(hit) = self.hit(root, x, y) {
                 return Some(hit);
             }

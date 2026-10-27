@@ -169,6 +169,9 @@ pub struct Meaning {
     pub range: Option<ValueRange>,
     /// Its states.
     pub state: ElementState,
+    /// Its description: its tooltip ([`Element::tooltip`](super::Element::tooltip)); none for
+    /// none.
+    pub description: Option<String>,
     /// Whether a press opens a layer beside it, which screen readers announce, open or not
     /// ([`ElementState::expanded`]): an item of a menu that opens a submenu, a list to choose
     /// from.
@@ -447,6 +450,7 @@ impl Ui {
                 _ => None,
             },
             state: node.state,
+            description: element.tooltip.clone(),
             popup: matches!(
                 element.kind,
                 Kind::MenuItem {

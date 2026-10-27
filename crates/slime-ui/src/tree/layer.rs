@@ -97,6 +97,8 @@ pub(crate) struct Held {
     /// Whether its first element that takes the focus takes it once built: it opened by the
     /// keyboard, an agent or the program.
     focus_first: bool,
+    /// Whether it is a tooltip, which the pointer passes through and whose closing tells no one.
+    pub(crate) tooltip: bool,
 }
 
 impl Place {
@@ -118,6 +120,18 @@ impl Ui {
     /// not a press of the pointer gives its first element that takes the focus the focus, once
     /// built.
     pub fn open_layer(&mut self, layer: Layer, style: Style) -> ElementId {
+        let root = self.add_layer(layer, style);
+        // A button or an item of a menu shows that what it opened is open.
+        if let Place::Beside { element, .. } = layer.place
+            && self.opens_layers(element)
+        {
+            self.change_state(element, |state| state.expanded = true);
+        }
+        root
+    }
+
+    /// Adds the root of a layer, as [`Ui::open_layer`] says, without telling what it stands beside.
+    pub(crate) fn add_layer(&mut self, layer: Layer, style: Style) -> ElementId {
         let settings = self
             .root_of(layer.place.anchor())
             .and_then(|root| self.node(root)?.root)
@@ -145,13 +159,8 @@ impl Ui {
                 anchored: Rect::default(),
                 before,
                 focus_first,
+                tooltip: false,
             }));
-        }
-        // A button or an item of a menu shows that what it opened is open.
-        if let Place::Beside { element, .. } = layer.place
-            && self.opens_layers(element)
-        {
-            self.change_state(element, |state| state.expanded = true);
         }
         root
     }
@@ -164,7 +173,7 @@ impl Ui {
         layer: Layer,
         style: Style,
     ) -> ElementId {
-        let root = self.open_layer(layer, style);
+        let root = self.add_layer(layer, style);
         if let Some(held) = self.node_mut(root).and_then(|node| node.layer.as_mut()) {
             held.owner = Some(owner);
             // The widget gives the focus as it builds the layer.
@@ -396,7 +405,12 @@ impl Ui {
                 .or_else(|| Some(held.layer.place.anchor()).filter(|&a| self.focusable(a)));
             self.set_focus(back);
         }
+        if held.tooltip {
+            self.interaction.tooltip = None;
+            return;
+        }
         if let Place::Beside { element, .. } = held.layer.place
+            && held.owner.is_none()
             && self.opens_layers(element)
         {
             self.change_state(element, |state| state.expanded = false);
