@@ -3,8 +3,10 @@
 //! `tests/reference/` within a tolerance. The inspector as it opens, in the dark theme and in the
 //! light one; the console in high contrast and compact; the console, a level of its log hidden by a
 //! check box that an action unchecked; the inspector laid out from the right, a section folded and
-//! another opened, a slider moved and a check box checked. Transitions are dropped, so that each
-//! image shows where they end (`docs/adr/0149-the-looks-foundations.md`).
+//! another opened, a slider moved and a check box checked; the bar's menu *File* open with its
+//! submenu of recent levels; the floating panel of statistics, the list to choose the quality of
+//! shadows from open, and a tab's tooltip (`docs/adr/0150-layers.md`). Transitions are dropped, so
+//! that each image shows where they end (`docs/adr/0149-the-looks-foundations.md`).
 //!
 //! The references were drawn with lavapipe, as the triangle's were (`tests/offscreen.rs`). To draw
 //! them again, after a deliberate change of the example or of the look:
@@ -145,4 +147,36 @@ fn the_inspector_from_the_right_with_its_widgets_used_matches_its_reference_imag
     assert!(panel.ui.set_value(slider, "7.5"));
     panel.handle_actions();
     check(&mut panel, "widgets-right-to-left");
+}
+
+#[test]
+fn the_bars_menu_and_its_submenu_match_their_reference_image() {
+    let mut panel = panel(LayoutDirection::LeftToRight);
+    panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+    press(&mut panel, "#0/window/menus/File");
+    press(&mut panel, "#1/menu/Recent");
+    check(&mut panel, "widgets-menus");
+}
+
+#[test]
+fn a_floating_panel_a_list_open_and_a_tooltip_match_their_reference_image() {
+    let mut panel = panel(LayoutDirection::LeftToRight);
+    panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+    press(&mut panel, "#0/window/menus/View");
+    press(&mut panel, "#1/menu/Statistics");
+    press(
+        &mut panel,
+        "#0/window/Inspector/split/properties/Rendering/shadow quality/choice",
+    );
+    // The pointer rests on the console's tab for longer than a tooltip waits.
+    let tab = panel
+        .ui
+        .element_by_path("#0/window/tabs/Console")
+        .and_then(|tab| panel.ui.rect(tab))
+        .expect("the console's tab");
+    panel
+        .ui
+        .pointer_moved(tab.x + tab.width / 2.0, tab.y + tab.height / 2.0);
+    panel.ui.advance(std::time::Duration::from_millis(600));
+    check(&mut panel, "widgets-layers");
 }

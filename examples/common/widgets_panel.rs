@@ -14,6 +14,13 @@
 //! The look's themes stack (`docs/adr/0149-the-looks-foundations.md`): T switches its colors,
 //! dark, light and high contrast, D its density, A the accent, a theme of one value stacked after
 //! the look's, and M the motion, the transitions or none.
+//!
+//! What opens over the panel (`docs/adr/0150-layers.md`): a bar of menus above the tabs, *File*,
+//! with a submenu of recent levels, and *View*, which shows the floating panel of statistics, and
+//! has a submenu of the look's colors; a menu of the entities' rows, at the pointer's second button
+//! or Shift+F10; a list to choose the quality of shadows from, in the *Rendering* section; tooltips
+//! on the tabs and on that list. The program builds the menus and the panel as their items are
+//! pressed, and forgets them as the interface closes them.
 
 use slime_ui::action::{ActionKind, FieldValue, Intent};
 use slime_ui::display::DisplayList;
@@ -22,7 +29,10 @@ use slime_ui::shortcuts::Shortcuts;
 use slime_ui::style::{Align, Dimension, FlexDirection, Sides, Style};
 use slime_ui::text::Fonts;
 use slime_ui::theme::Theme;
-use slime_ui::tree::{Children, Element, ElementId, LayoutDirection, Role, RootSettings, Ui};
+use slime_ui::tree::{
+    Along, Children, Element, ElementId, ItemMark, Layer, LayoutDirection, Place, Role,
+    RootSettings, Side, Ui,
+};
 
 /// The rows of the list of entities.
 const ENTITIES: usize = 200;
@@ -44,8 +54,17 @@ const LINES: [(usize, &str); 6] = [
     (2, "prefab lamp.scene names no mesh `shade`"),
     (0, "view main: 1280 x 800, 2 shadow cascades"),
 ];
-/// The tabs' titles.
+/// The tabs' titles, and their tooltips.
 const TABS: [&str; 3] = ["Inspector", "Console", "About"];
+const TAB_TIPS: [&str; 3] = [
+    "The entities and their properties",
+    "What the engine told, by levels",
+    "The look's fonts",
+];
+/// The qualities of shadows that the list to choose from offers.
+const QUALITIES: [&str; 4] = ["Low", "Medium", "High", "Ultra"];
+/// The levels that *File*'s submenu offers.
+const RECENT: [&str; 3] = ["yard.scene", "lamp.scene", "zone.scene"];
 /// The accents that A goes through, by their names: the look's own first.
 const ACCENTS: [(&str, &str); 4] = [
     ("blue", "#4C8DFF"),
@@ -60,6 +79,9 @@ T = "switch-colors"
 D = "switch-density"
 A = "switch-accent"
 M = "switch-motion"
+"Ctrl+N" = "new-level"
+"Ctrl+O" = "open"
+"Ctrl+Q" = "quit"
 "#;
 
 /// A slider of the inspector: its label, its value, its bounds and its step.
@@ -79,12 +101,42 @@ struct Section {
     checks: Vec<(&'static str, bool)>,
 }
 
-/// What a check box or a slider gives its value to: a property of a section of the inspector, by
-/// its section and its place there, or a level of the console.
+/// What a check box, a slider or the list to choose from gives its value to: a property of a
+/// section of the inspector, by its section and its place there, a level of the console, or the
+/// quality of shadows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Target {
     Property { section: usize, index: usize },
     Level(usize),
+    Quality,
+}
+
+/// A menu that the program builds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Menu {
+    File,
+    View,
+    Recent,
+    Colors,
+    /// The menu of the entity of the list's row.
+    Entity(usize),
+}
+
+/// What an item of a menu does.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Item {
+    /// The command that a shortcut names too.
+    Command(&'static str),
+    /// Opens a submenu.
+    Submenu(Menu),
+    /// Opens a level of the recent ones.
+    Recent(&'static str),
+    /// Shows or hides the floating panel of statistics.
+    Statistics,
+    /// Switches the look's colors.
+    Colors(Colors),
+    /// Renames, duplicates or deletes the entity of a row.
+    Entity(&'static str, usize),
 }
 
 /// The interface, the values that the program keeps of it, and what its bar shows.
@@ -106,6 +158,15 @@ pub struct WidgetsPanel {
     colors: Colors,
     density: Density,
     accent: usize,
+    /// The quality of shadows, by its place in [`QUALITIES`].
+    quality: usize,
+    /// The items of the bar of menus, by their menus, as the last build gave them.
+    bar: Vec<(ElementId, Menu)>,
+    /// The layers of the menus open, and their items, by what they do.
+    menus: Vec<ElementId>,
+    items: Vec<(ElementId, Item)>,
+    /// The layer of the floating panel of statistics, while it is open.
+    statistics: Option<ElementId>,
 }
 
 impl WidgetsPanel {
@@ -189,12 +250,18 @@ impl WidgetsPanel {
             sections,
             levels: [true; 3],
             targets: Vec::new(),
-            last: "tab and the arrows move, enter and space press; t, d, a and m change the look"
+            last: "f10 reaches the menus; tab and the arrows move, enter and space press; t, d, a \
+                   and m change the look"
                 .to_owned(),
             revision: 0,
             colors: Colors::Dark,
             density: Density::Comfortable,
             accent: 0,
+            quality: 2,
+            bar: Vec::new(),
+            menus: Vec::new(),
+            items: Vec::new(),
+            statistics: None,
         };
         panel.style();
         panel
@@ -226,6 +293,54 @@ impl WidgetsPanel {
     pub fn handle_actions(&mut self) -> bool {
         let mut stop = false;
         for action in self.ui.take_actions() {
+            // What opens over the panel: a menu of the bar or of an entity, what an item of a menu
+            // does, and a layer that the interface closed, forgotten.
+            if let Some(id) = action.element {
+                let bar = self
+                    .bar
+                    .iter()
+                    .find(|&&(item, _)| item == id)
+                    .map(|&(_, menu)| menu);
+                let item = self
+                    .items
+                    .iter()
+                    .find(|&&(each, _)| each == id)
+                    .map(|&(_, item)| item);
+                match (&action.kind, bar, item) {
+                    (ActionKind::Press, Some(menu), _) => {
+                        let place = Place::Beside {
+                            element: id,
+                            side: Side::Below,
+                            along: Along::Start,
+                        };
+                        self.open_menu(place, menu);
+                        continue;
+                    }
+                    (ActionKind::Press, None, Some(item)) => {
+                        stop |= self.run(id, item);
+                        continue;
+                    }
+                    (ActionKind::Dismissed, ..) => {
+                        self.menus.retain(|&layer| layer != id);
+                        let ui = &self.ui;
+                        self.items.retain(|&(each, _)| ui.element(each).is_some());
+                        continue;
+                    }
+                    (&ActionKind::ContextMenu { at }, ..) => {
+                        if let Some(row) = self.entity_row(id) {
+                            self.open_menu(
+                                Place::At {
+                                    over: id,
+                                    point: at,
+                                },
+                                Menu::Entity(row),
+                            );
+                        }
+                        continue;
+                    }
+                    _ => {}
+                }
+            }
             let target = self
                 .targets
                 .iter()
@@ -258,10 +373,16 @@ impl WidgetsPanel {
                             self.levels[level] = checked;
                             LEVELS[level]
                         }
+                        // A list to choose from is no check box.
+                        Target::Quality => continue,
                     };
                     self.tell(format!("{label} {}", if checked { "on" } else { "off" }));
                 }
-                (ActionKind::Command(command), _) => self.command(&command),
+                (ActionKind::Committed(FieldValue::Chosen(quality)), Some(Target::Quality)) => {
+                    self.quality = quality;
+                    self.tell(format!("shadows {}", QUALITIES[quality].to_lowercase()));
+                }
+                (ActionKind::Command(command), _) => stop |= self.command(&command),
                 (ActionKind::Intent(Intent::Cancel), _) if action.element.is_some() => {
                     self.ui.set_focus(None);
                 }
@@ -272,9 +393,16 @@ impl WidgetsPanel {
         stop
     }
 
-    /// Does the command of a shortcut: switches the look's colors, density, accent or motion.
-    fn command(&mut self, command: &str) {
+    /// Does the command of a shortcut, or of an item of a menu: switches the look's colors,
+    /// density, accent or motion, makes a level, opens one, or quits. Gives whether the program is
+    /// asked to stop.
+    fn command(&mut self, command: &str) -> bool {
         let told = match command {
+            "new-level" | "open" => {
+                self.tell(command.replace('-', " "));
+                return false;
+            }
+            "quit" => return true,
             "switch-colors" => {
                 self.colors = match self.colors {
                     Colors::Dark => Colors::Light,
@@ -299,10 +427,161 @@ impl WidgetsPanel {
                 self.ui.set_reduced_motion(reduced);
                 format!("motion {}", if reduced { "none" } else { "on" })
             }
-            _ => return,
+            _ => return false,
         };
         self.style();
         self.tell(told.to_lowercase());
+        false
+    }
+
+    /// Does what the item of a menu `id` does: gives whether the program is asked to stop.
+    fn run(&mut self, id: ElementId, item: Item) -> bool {
+        match item {
+            Item::Command(command) => return self.command(command),
+            Item::Submenu(menu) => {
+                let place = Place::Beside {
+                    element: id,
+                    side: Side::End,
+                    along: Along::Start,
+                };
+                self.open_menu(place, menu);
+            }
+            Item::Recent(level) => self.tell(format!("open {level}")),
+            Item::Statistics => self.toggle_statistics(),
+            Item::Colors(colors) => {
+                self.colors = colors;
+                self.style();
+                self.tell(format!("colors {colors:?}").to_lowercase());
+            }
+            Item::Entity(verb, row) => self.tell(format!("{verb} entity-{row:04}")),
+        }
+        false
+    }
+
+    /// The items of `menu`: each its label, its shortcut, its mark and what it does.
+    fn entries(&self, menu: Menu) -> Vec<(String, &'static str, ItemMark, Item)> {
+        let entry = |label: &str, shortcut, mark, item| (label.to_owned(), shortcut, mark, item);
+        match menu {
+            Menu::File => vec![
+                entry(
+                    "New level",
+                    "Ctrl+N",
+                    ItemMark::None,
+                    Item::Command("new-level"),
+                ),
+                entry("Open…", "Ctrl+O", ItemMark::None, Item::Command("open")),
+                entry("Recent", "", ItemMark::Submenu, Item::Submenu(Menu::Recent)),
+                entry("Quit", "Ctrl+Q", ItemMark::None, Item::Command("quit")),
+            ],
+            Menu::Recent => RECENT
+                .iter()
+                .map(|&level| entry(level, "", ItemMark::None, Item::Recent(level)))
+                .collect(),
+            Menu::View => vec![
+                entry(
+                    "Statistics",
+                    "",
+                    ItemMark::Check(self.statistics.is_some()),
+                    Item::Statistics,
+                ),
+                entry("Colors", "", ItemMark::Submenu, Item::Submenu(Menu::Colors)),
+                entry(
+                    "Less motion",
+                    "M",
+                    ItemMark::Check(self.ui.reduced_motion()),
+                    Item::Command("switch-motion"),
+                ),
+            ],
+            Menu::Colors => [
+                ("Dark", Colors::Dark),
+                ("Light", Colors::Light),
+                ("High contrast", Colors::HighContrast),
+            ]
+            .into_iter()
+            .map(|(label, colors)| {
+                let mark = ItemMark::Check(self.colors == colors);
+                entry(label, "", mark, Item::Colors(colors))
+            })
+            .collect(),
+            Menu::Entity(row) => ["rename", "duplicate", "delete"]
+                .into_iter()
+                .map(|verb| {
+                    let label = format!("{}{}", verb[..1].to_uppercase(), &verb[1..]);
+                    entry(&label, "", ItemMark::None, Item::Entity(verb, row))
+                })
+                .collect(),
+        }
+    }
+
+    /// Opens `menu` at `place`, in a layer that closes as the user leaves it.
+    fn open_menu(&mut self, place: Place, menu: Menu) {
+        let layer = Layer {
+            place,
+            modal: false,
+            dismiss: true,
+        };
+        let layer = self.ui.open_layer(layer, Style::default());
+        let entries = self.entries(menu);
+        let mut items = Vec::new();
+        self.ui.build(layer, 0, |children| {
+            children.add("menu", Element::menu(Style::default()), |menu| {
+                for (label, shortcut, mark, item) in entries {
+                    let element =
+                        Element::menu_item(label.as_str(), shortcut, mark, Style::default());
+                    items.push((menu.add(label.as_str(), element, |_| {}), item));
+                }
+            });
+        });
+        self.menus.push(layer);
+        self.items.extend(items);
+    }
+
+    /// Opens the floating panel of statistics over the window's bottom end, or closes it.
+    fn toggle_statistics(&mut self) {
+        if let Some(layer) = self.statistics.take() {
+            self.ui.remove(layer);
+            self.tell("statistics hidden".to_owned());
+            return;
+        }
+        let place = Place::Floating {
+            over: self.root,
+            origin: [640.0, 330.0],
+            size: [260.0, 140.0],
+        };
+        let layer = Layer {
+            place,
+            modal: false,
+            dismiss: false,
+        };
+        let layer = self.ui.open_layer(layer, Style::default());
+        self.ui.build(layer, 0, |children| {
+            let mut style = column();
+            style.layout.gap = [4.0, 0.0];
+            let panel = Element::floating_panel("Statistics", true, style);
+            children.add("statistics", panel, |panel| {
+                let lines = [
+                    ("entities", "entities        200"),
+                    ("frame", "frame       16.6 ms"),
+                    ("draws", "draw calls      412"),
+                ];
+                for (key, line) in lines {
+                    panel.add(
+                        key,
+                        Element::label(line, Style::default()).class("fixed"),
+                        |_| {},
+                    );
+                }
+            });
+        });
+        self.statistics = Some(layer);
+        self.tell("statistics shown".to_owned());
+    }
+
+    /// The row of the list of entities that holds `id`, by its place in the list.
+    fn entity_row(&self, id: ElementId) -> Option<usize> {
+        let path = self.ui.path_text(id)?;
+        let (_, row) = path.split_once("/list/#")?;
+        row.split('/').next()?.parse().ok()
     }
 
     /// Shows `what` in the bar, as the last thing done.
@@ -323,6 +602,7 @@ impl WidgetsPanel {
         let shown = Shown {
             sections: &self.sections,
             levels: self.levels,
+            quality: self.quality,
             last: &self.last,
         };
         self.ui.build(self.root, self.revision, |children| {
@@ -331,6 +611,7 @@ impl WidgetsPanel {
         if let Some(built) = built {
             self.list = built.list;
             self.targets = built.targets;
+            self.bar = built.bar;
         }
         // The list's rows, in its slot, built when it shows others.
         if let Some(list) = self.list {
@@ -355,6 +636,7 @@ impl WidgetsPanel {
 struct Shown<'a> {
     sections: &'a [Section],
     levels: [bool; 3],
+    quality: usize,
     last: &'a str,
 }
 
@@ -363,10 +645,11 @@ struct Shown<'a> {
 struct Built {
     list: Option<ElementId>,
     targets: Vec<(ElementId, Target)>,
+    bar: Vec<(ElementId, Menu)>,
 }
 
-/// Builds the interface: the bar of tabs, the panel of the chosen one, and the bar of what the last
-/// action did.
+/// Builds the interface: the bar of menus, the bar of tabs, the panel of the chosen one, and the
+/// bar of what the last action did.
 fn build(children: &mut Children<'_>, shown: &Shown<'_>) -> Built {
     let mut built = Built::default();
     let mut window = column();
@@ -374,9 +657,19 @@ fn build(children: &mut Children<'_>, shown: &Shown<'_>) -> Built {
     window.layout.min_size[1] = Dimension::Pixels(0.0);
     let window = Element::container(window).class("window");
     children.add("window", window, |children| {
+        children.add("menus", Element::menu_bar(Style::default()), |bar| {
+            for (title, menu) in [("File", Menu::File), ("View", Menu::View)] {
+                let item = Element::menu_item(title, "", ItemMark::Submenu, Style::default());
+                built.bar.push((bar.add(title, item, |_| {}), menu));
+            }
+        });
         let tabs = children.add("tabs", Element::tab_bar(0, Style::default()), |tabs| {
-            for title in TABS {
-                tabs.add(title, Element::tab(title, Style::default()), |_| {});
+            for (title, tip) in TABS.into_iter().zip(TAB_TIPS) {
+                tabs.add(
+                    title,
+                    Element::tab(title, Style::default()).tooltip(tip),
+                    |_| {},
+                );
             }
         });
         let chosen = children.chosen(tabs);
@@ -445,6 +738,11 @@ fn inspector(children: &mut Children<'_>, shown: &Shown<'_>, built: &mut Built) 
                             .targets
                             .push((children.add(label, check, |_| {}), target));
                     }
+                    if section.title == "Rendering" {
+                        built
+                            .targets
+                            .push((quality_row(children, shown.quality), Target::Quality));
+                    }
                 });
             }
         });
@@ -465,6 +763,25 @@ fn slider_row(children: &mut Children<'_>, slider: &Slider) -> ElementId {
         id = Some(children.add("slider", element, |_| {}));
         let value = Element::label(format!("{:.2}", slider.value), wide(48.0)).class("fixed");
         children.add("value", value, |_| {});
+    });
+    id.expect("added above")
+}
+
+/// A row of the list to choose the quality of shadows from: its label and the list, with a
+/// tooltip; gives the list.
+fn quality_row(children: &mut Children<'_>, quality: usize) -> ElementId {
+    let mut row = Style::default();
+    row.layout.gap = [0.0, 8.0];
+    row.layout.align_items = Align::Center;
+    let mut id = None;
+    children.add("shadow quality", Element::container(row), |children| {
+        let label = Element::label("shadow quality", wide(96.0));
+        children.add("label", label, |_| {});
+        let options = QUALITIES.map(str::to_owned).to_vec();
+        let choice = Element::choice(options, quality, Style::default())
+            .named("shadow quality")
+            .tooltip("How sharp the shadows are, and what they cost");
+        id = Some(children.add("choice", choice, |_| {}));
     });
     id.expect("added above")
 }

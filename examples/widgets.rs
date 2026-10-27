@@ -15,7 +15,14 @@
 //! and choose a tab; the arrows move a slider by its step and a handle, Page Up and Page Down by
 //! ten steps, Home and End to their ends; the pointer drags thumbs and handles, and the wheel
 //! scrolls. The bar at the bottom shows what the last change did. Escape, nothing focused, closes
-//! the window. Agents read and use its widgets through the development channel, as
+//! the window.
+//!
+//! What opens over the panel (`docs/adr/0150-layers.md`): a bar of menus, which F10 or Alt alone
+//! reaches, *File* and *View*, their submenus opening as the pointer rests on their items or the
+//! arrows reach them; a menu of an entity's row at the pointer's second button or Shift+F10; a list
+//! to choose the quality of shadows from; tooltips on the tabs and on that list, once the pointer
+//! rests on them; a floating panel of statistics, which *View* shows, moved by its bar, sized by its
+//! corner and folded by its mark. The menus' ticks and chevrons are Lucide's icons. Agents read and use its widgets through the development channel, as
 //! `crates/slime-mcp/tests/widgets.rs` does, and screen readers read them
 //! (`docs/adr/0146-screen-readers.md`).
 //!
