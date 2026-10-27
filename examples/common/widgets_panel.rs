@@ -584,6 +584,11 @@ impl WidgetsPanel {
         self.ui.build(layer, 0, |children| {
             children.add("menu", Element::menu(Style::default()), |menu| {
                 for (label, shortcut, mark, item) in entries {
+                    // A line parts the command that ends the program from the others.
+                    if item == Item::Command("quit") {
+                        let line = Element::container(Style::default()).class("separator");
+                        menu.add("separator", line, |_| {});
+                    }
                     let element =
                         Element::menu_item(label.as_str(), shortcut, mark, Style::default());
                     items.push((menu.add(label.as_str(), element, |_| {}), item));

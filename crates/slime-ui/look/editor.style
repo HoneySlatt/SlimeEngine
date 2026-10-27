@@ -225,6 +225,12 @@ style.layout.direction = "Column"
 style.layout.padding = { start = "$space_xs", end = "$space_xs", top = "$space_xs", bottom = "$space_xs" }
 style.layout.min_size = [{ Pixels = "$menu_width" }, "Auto"]
 
+[menu-separator]
+select = { classes = ["separator"], inside = { kind = "Menu" } }
+style.paint.background = "$raised_border"
+style.layout.size = ["Auto", { Pixels = 1 }]
+style.layout.margin = { start = "$space_s", end = "$space_s", top = "$space_xs", bottom = "$space_xs" }
+
 [menu-item]
 select = { kind = "MenuItem" }
 style.paint = { border_width = 1, border = "$none", radii = ["$radius_s", "$radius_s", "$radius_s", "$radius_s"] }

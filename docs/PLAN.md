@@ -2011,8 +2011,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   Stage 7's layers. A shadow is not placed on whole pixels. On Linux, the system's dark or light
   preference is not read: winit reads no desktop's settings, and the portal of the desktop's
   settings would need a new dependency; Windows reports it.
-- **Layers** ([ADR-0150](adr/0150-layers.md)): a menu has no separators of its own, no letters that
-  jump to an item, and no way to cross its siblings towards an open submenu: resting a quarter of a
+- **Layers** ([ADR-0150](adr/0150-layers.md)): a menu's separators are boxes of the class
+  `separator` that the look styles, not a kind of their own; a menu has no letters that jump to an
+  item, and no way to cross its siblings towards an open submenu: resting a quarter of a
   second on another item closes it. A list to choose from does not scroll its options, so that a
   list taller than the window is cut; Tab within an open list moves among its options rather than
   closing it. A tooltip shows for the keys' focus alone, not the program's, and is not placed
