@@ -1142,3 +1142,19 @@ The build is not measured.
 | `devui.world_panel.100k` | a frame scrolled by a row, 90th percentile of 15 | 35.3 µs |
 | `devui.world_panel.100k` | a frame after an entity was renamed, median of 15 | 6.93 ms |
 | `devui.world_panel.100k` | a frame after an entity was renamed, 90th percentile of 15 | 7.62 ms |
+
+## M6b.8b, Ryzen 7 5800X
+
+Commit `616e799`, on 2026-10-27: what *Hunna Wood*'s development build adds to its build for
+shipping, now that the dev overlay is in the first alone
+([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)), a release build on an AMD Ryzen
+7 5800X, 16 logical CPUs, after the build for shipping, its dependencies built. Building the game
+alone again takes 6.0 s; the development build, after the build for shipping, takes 17.0 s, as it
+builds the development channel, the overlay, the canvas's bridge, the editor's look and the crates
+whose features change, and the game. The overlay on egui was estimated to cost about 10 s of the
+game's release build, which the build for shipping paid then. The benchmarks are not measured.
+
+| Build | Measure | Value |
+|---|---|---|
+| `cargo build --release -p hunnawood --no-default-features` | the game alone built again | 6.0 s |
+| `cargo build --release -p hunnawood` | after the build for shipping | 17.0 s |

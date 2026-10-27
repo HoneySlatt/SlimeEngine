@@ -56,7 +56,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   M6b.7e, what the editor tells and finds, is done. The owner cut M6b.8 in two on 2026-10-27
   ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)): M6b.8a, the editors and the
   world panel on the engine's interface, is done; M6b.8b, the overlay over the games' views, is
-  next.
+  built, its CI to run, with the owner's choice on Tab and F6 in a game's interface
+  ([ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)).
 
 ## Status
 
@@ -79,7 +80,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.7d](#m6b7d--rich-fields) | The framework has the rich fields and buttons that make editing fast | Done |
 | [M6b.7e](#m6b7e--what-the-editor-tells-and-finds) | The framework tells the user what goes on, and finds every command by its name | Done |
 | [M6b.8a](#m6b8a--the-editors-and-the-world-panel-on-the-engines-interface) | The dev overlay's editors of reflected values, its world panel and a picker of colors run on the engine's interface | Done |
-| [M6b.8b](#m6b8b--the-overlay-over-the-games-views) | The dev overlay runs on the engine's interface over *Hunna Wood* and the examples, and egui leaves the engine | Planned |
+| [M6b.8b](#m6b8b--the-overlay-over-the-games-views) | The dev overlay runs on the engine's interface over *Hunna Wood* and the examples, and egui leaves the engine | Built; CI to run |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b, 5a, 5b and 6a are done, and so are the audit pass and the
@@ -1237,6 +1238,32 @@ that the look has a light and a high-contrast theme beside its dark one.
   `cargo run --example world`; `cargo run --example scene`.
 - **By hand.** The owner plays *Hunna Wood* with its F1 and F2 panels, uses the `world` and `scene`
   examples' panels, and listens to Orca read the `world` example's.
+- **Outcome.** Built on 2026-10-27, CI to run, as
+  [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md) decides and
+  [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md), taken by the owner that day as the
+  milestone started, adds: a game's interface takes Tab only once it holds a focus that takes the
+  keys (`Ui::set_tab_enters`), and F6 moves the focus from one root to the next, then back to the
+  game. In every interface, a focus that a press gave to a button or a widget takes no keys, unless
+  it lies in a menu, a list or a dialog, or the widget's layer is open; the focus that the program
+  gives takes them, as an agent's does. `slime-devui` is the overlay on `slime-ui`
+  (`slime_devui::Overlay`): panels floating over the window, opened and closed by their chords and
+  by the commands that an agent gives, which keep their place, take no focus as they open and give
+  none back as they close, drawn with the view's renderer after the view; Escape in a panel gives
+  the keys back to the game. *Hunna Wood*, behind its `development` feature, and the `world` and
+  `scene` examples build their statistics, the speed of game time, the views' settings and the
+  world panels on it, the run giving it the window's events first. egui, egui-wgpu and `deny.toml`'s
+  exception for their fonts left the workspace, with what the `wgpu` feature of `slime-gfx` gave
+  them; the editor's look and its fonts ship with the programs that draw the overlay. The game's
+  agent session opens both panels, sets the speed with the slider and the hero's direction with the
+  world panel; `check.sh` checks that the game built for shipping holds neither the overlay nor the
+  editor's look. The development build adds about 11 s to the game's release build
+  ([measurements](measurements.md#m6b8b-ryzen-7-5800x)). Looking at the panels found a field of
+  numbers too narrow for its number showing its end, now its start while it does not hold the focus.
+  The review found Escape kept in a panel's field, a held F1 toggling its panel at each repeat, and
+  a closed panel giving the focus back to what then took the game's keys, each fixed with a test.
+  The tests: `slime-devui`'s overlay tests, with and without a GPU, the device lost and replaced;
+  `slime-ui`'s `tests/input.rs` and `tests/panels.rs`. What nothing checks yet: a screen reader on
+  the overlay, which the owner's check by hand with Orca covers.
 
 ### M6b.9 — Windows check, documentation, release 0.6
 
@@ -2249,10 +2276,6 @@ determinism between Linux and Windows.
 - **With `--watch`, after the cooked data is cleaned, a reload that the game refuses leaves it
   unable to save** (G56, low; Stage 6c): `SceneLibrary::reload` forgets the changed scenes before
   the game accepts them, and the files of the old manifest are gone.
-- **The dev overlay is built into the game that ships**, egui and its fonts with it (B1-F08;
-  measured again at M6b.8b, which rewrites it without egui): an estimated 10 s of the game's release
-  build, 46 s on the owner's machine. The owner chose on 2026-10-19 to keep it in the game, and its
-  fonts with it (P5); building it only in development would need a feature of the game.
 
 ## Notes
 
