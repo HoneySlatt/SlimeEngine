@@ -17,6 +17,11 @@
 //! scrolls. The bar at the bottom shows what the last change did. Escape, nothing focused, closes
 //! the window.
 //!
+//! Its rich widgets (`docs/adr/0151-rich-widgets.md`): a bar of tools, a control of segments that
+//! chooses the tool, a button that toggles the snapping and a bar of progress; a field of search
+//! over the list of entities, which keeps the rows that match as it is typed in; the position, three
+//! fields whose prefixes, the axes' letters, drag them; the console's tab, with its count.
+//!
 //! What opens over the panel (`docs/adr/0150-layers.md`): a bar of menus, which F10 or Alt alone
 //! reaches, *File* and *View*, their submenus opening as the pointer rests on their items or the
 //! arrows reach them; a menu of an entity's row at the pointer's second button or Shift+F10; a list

@@ -3,11 +3,13 @@
 //! and their names, and uses each through the actions that a person's input becomes: it unchecks a
 //! check box and gives a slider a value, which the example reads and tells in its bar, opens a
 //! folded section, whose slider then shows, moves the handle between two panels, scrolls the list
-//! of entities, and chooses a tab, whose panel then shows, where it unchecks a level of the log.
-//! It uses what opens over the panel too (`docs/adr/0150-layers.md`): it chooses the quality of
-//! shadows by the text of an option, reads the list's tooltip as its description, opens the bar's
-//! menus, shows the floating panel of statistics through an item that *View* holds, and opens a
-//! recent level through *File*'s submenu, whose menus then close.
+//! of entities, and chooses a tab, whose panel then shows, where it unchecks a level of the log. It
+//! uses the rich widgets (`docs/adr/0151-rich-widgets.md`): it chooses a tool among segments, turns
+//! a button that toggles off, searches the list of entities and gives a component of the position a
+//! value. It uses what opens over the panel too (`docs/adr/0150-layers.md`): it chooses the quality
+//! of shadows by the text of an option, reads the list's tooltip as its description, opens the
+//! bar's menus, shows the floating panel of statistics through an item that *View* holds, and opens
+//! a recent level through *File*'s submenu, whose menus then close.
 //!
 //! It needs a Wayland compositor and the example built (`cargo build --example widgets`):
 //! `scripts/check.sh` runs it in a headless Weston with lavapipe, as it runs the `interface` test.
@@ -210,6 +212,39 @@ fn main() {
         || line(&mut session, first),
         |line| line.is_none(),
     );
+
+    // The rich widgets: a tool chosen among segments, the snapping turned off, the list of entities
+    // searched, a component of the position given a value.
+    act(
+        &mut session,
+        "press",
+        "#0/window/tools/tool/Turn",
+        json!({}),
+    );
+    told(&mut session, "tool turn");
+    let snap = line(&mut session, "#0/window/tools/snap").expect("the button that toggles");
+    assert!(snap.contains("ToggleButton `Snap`"), "{snap}");
+    assert!(snap.contains(", checked"), "{snap}");
+    act(&mut session, "press", "#0/window/tools/snap", json!({}));
+    told(&mut session, "snap off");
+    let search = "#0/window/Inspector/split/entities/search";
+    let field = line(&mut session, search).expect("the field of search");
+    assert!(
+        field.contains(
+            "SearchInput `search entities`, holding \"\", showing \"Search entities\" while empty"
+        ),
+        "{field}"
+    );
+    act(
+        &mut session,
+        "set_value",
+        search,
+        json!({ "value": "torch" }),
+    );
+    told(&mut session, "25 entities found");
+    let x = format!("{PROPERTIES}/Transform/position/X");
+    act(&mut session, "set_value", &x, json!({ "value": "2.5" }));
+    told(&mut session, "position x 2.5");
 
     // A list to choose from, read with its tooltip, given an option by its text.
     let quality = format!("{PROPERTIES}/Rendering/shadow quality/choice");

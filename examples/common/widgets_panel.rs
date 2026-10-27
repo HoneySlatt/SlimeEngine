@@ -15,6 +15,12 @@
 //! dark, light and high contrast, D its density, A the accent, a theme of one value stacked after
 //! the look's, and M the motion, the transitions or none.
 //!
+//! The rich widgets (`docs/adr/0151-rich-widgets.md`): a bar of tools under the menus, a control of
+//! segments that chooses the tool, a button that toggles the snapping, and a bar of progress of a
+//! cook that goes on; a field of search over the list of entities, which keeps the rows whose names
+//! hold what it holds; the position, a vector of three fields, each with its axis's prefix, which
+//! drags it; the console's tab, with the count of its warnings and errors.
+//!
 //! What opens over the panel (`docs/adr/0150-layers.md`): a bar of menus above the tabs, *File*,
 //! with a submenu of recent levels, and *View*, which shows the floating panel of statistics, and
 //! has a submenu of the look's colors; a menu of the entities' rows, at the pointer's second button
@@ -65,6 +71,10 @@ const TAB_TIPS: [&str; 3] = [
 const QUALITIES: [&str; 4] = ["Low", "Medium", "High", "Ultra"];
 /// The levels that *File*'s submenu offers.
 const RECENT: [&str; 3] = ["yard.scene", "lamp.scene", "zone.scene"];
+/// The tools that the control of segments chooses from.
+const TOOLS: [&str; 3] = ["Move", "Turn", "Scale"];
+/// The axes of the position, their prefixes and their classes.
+const AXES: [(&str, &str); 3] = [("X", "axis-x"), ("Y", "axis-y"), ("Z", "axis-z")];
 /// The accents that A goes through, by their names: the look's own first.
 const ACCENTS: [(&str, &str); 4] = [
     ("blue", "#4C8DFF"),
@@ -106,9 +116,17 @@ struct Section {
 /// quality of shadows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Target {
-    Property { section: usize, index: usize },
+    Property {
+        section: usize,
+        index: usize,
+    },
     Level(usize),
     Quality,
+    /// The tool chosen, the snapping, the field of search, an axis of the position.
+    Tool,
+    Snap,
+    Search,
+    Position(usize),
 }
 
 /// A menu that the program builds.
@@ -160,6 +178,14 @@ pub struct WidgetsPanel {
     accent: usize,
     /// The quality of shadows, by its place in [`QUALITIES`].
     quality: usize,
+    /// The tool chosen, by its place in [`TOOLS`], and whether moves snap.
+    tool: usize,
+    snap: bool,
+    /// What the field of search holds, and the entities whose names hold it, by their numbers.
+    query: String,
+    matches: Vec<usize>,
+    /// The position, by its axes.
+    position: [f64; 3],
     /// The items of the bar of menus, by their menus, as the last build gave them.
     bar: Vec<(ElementId, Menu)>,
     /// The layers of the menus open, and their items, by what they do.
@@ -191,9 +217,6 @@ impl WidgetsPanel {
                 title: "Transform",
                 folded: false,
                 sliders: vec![
-                    slider("position x", 1.5, -10.0, 10.0, 0.1),
-                    slider("position y", 0.0, -10.0, 10.0, 0.1),
-                    slider("position z", -4.2, -10.0, 10.0, 0.1),
                     slider("turn", 90.0, 0.0, 360.0, 15.0),
                     slider("scale", 1.0, 0.1, 4.0, 0.1),
                 ],
@@ -258,6 +281,11 @@ impl WidgetsPanel {
             density: Density::Comfortable,
             accent: 0,
             quality: 2,
+            tool: 0,
+            snap: true,
+            query: String::new(),
+            matches: (0..ENTITIES).collect(),
+            position: [1.5, 0.0, -4.2],
             bar: Vec::new(),
             menus: Vec::new(),
             items: Vec::new(),
@@ -373,14 +401,44 @@ impl WidgetsPanel {
                             self.levels[level] = checked;
                             LEVELS[level]
                         }
-                        // A list to choose from is no check box.
-                        Target::Quality => continue,
+                        Target::Snap => {
+                            self.snap = checked;
+                            "snap"
+                        }
+                        // The others are no check box.
+                        Target::Quality | Target::Tool | Target::Search | Target::Position(_) => {
+                            continue;
+                        }
                     };
                     self.tell(format!("{label} {}", if checked { "on" } else { "off" }));
                 }
                 (ActionKind::Committed(FieldValue::Chosen(quality)), Some(Target::Quality)) => {
                     self.quality = quality;
                     self.tell(format!("shadows {}", QUALITIES[quality].to_lowercase()));
+                }
+                (ActionKind::Committed(FieldValue::Chosen(tool)), Some(Target::Tool)) => {
+                    self.tool = tool;
+                    self.tell(format!("tool {}", TOOLS[tool].to_lowercase()));
+                }
+                // The list keeps the rows that match as the user types.
+                (ActionKind::Changed(FieldValue::Text(query)), Some(Target::Search)) => {
+                    self.search(query);
+                }
+                (ActionKind::Committed(FieldValue::Text(query)), Some(Target::Search)) => {
+                    self.search(query);
+                    let found = self.matches.len();
+                    self.tell(format!("{found} entities found"));
+                }
+                (ActionKind::Changed(FieldValue::Number(value)), Some(Target::Position(axis))) => {
+                    self.position[axis] = value;
+                }
+                (
+                    ActionKind::Committed(FieldValue::Number(value)),
+                    Some(Target::Position(axis)),
+                ) => {
+                    self.position[axis] = value;
+                    let name = AXES[axis].0.to_lowercase();
+                    self.tell(format!("position {name} {value}"));
                 }
                 (ActionKind::Command(command), _) => stop |= self.command(&command),
                 (ActionKind::Intent(Intent::Cancel), _) if action.element.is_some() => {
@@ -577,11 +635,22 @@ impl WidgetsPanel {
         self.tell("statistics shown".to_owned());
     }
 
-    /// The row of the list of entities that holds `id`, by its place in the list.
+    /// The entity of the row of the list that holds `id`, by its number.
     fn entity_row(&self, id: ElementId) -> Option<usize> {
         let path = self.ui.path_text(id)?;
         let (_, row) = path.split_once("/list/#")?;
-        row.split('/').next()?.parse().ok()
+        let row: usize = row.split('/').next()?.parse().ok()?;
+        self.matches.get(row).copied()
+    }
+
+    /// Keeps the entities whose names hold `query`, whatever its case.
+    fn search(&mut self, query: String) {
+        let lower = query.to_lowercase();
+        self.matches = (0..ENTITIES)
+            .filter(|&entity| entity_name(entity).contains(&lower))
+            .collect();
+        self.query = query;
+        self.revision += 1;
     }
 
     /// Shows `what` in the bar, as the last thing done.
@@ -603,6 +672,11 @@ impl WidgetsPanel {
             sections: &self.sections,
             levels: self.levels,
             quality: self.quality,
+            tool: self.tool,
+            snap: self.snap,
+            query: &self.query,
+            found: self.matches.len(),
+            position: self.position,
             last: &self.last,
         };
         self.ui.build(self.root, self.revision, |children| {
@@ -615,9 +689,10 @@ impl WidgetsPanel {
         }
         // The list's rows, in its slot, built when it shows others.
         if let Some(list) = self.list {
-            self.ui.build(list, 0, |rows| {
+            let matches = &self.matches;
+            self.ui.build(list, self.revision, |rows| {
                 for row in rows.rows() {
-                    let name = format!("entity-{row:04}  {}", NAMES[row % NAMES.len()]);
+                    let name = entity_name(matches[row]);
                     let mut style = Style::default();
                     style.layout.padding.start = 8.0;
                     style.layout.align_items = Align::Center;
@@ -637,6 +712,11 @@ struct Shown<'a> {
     sections: &'a [Section],
     levels: [bool; 3],
     quality: usize,
+    tool: usize,
+    snap: bool,
+    query: &'a str,
+    found: usize,
+    position: [f64; 3],
     last: &'a str,
 }
 
@@ -663,13 +743,15 @@ fn build(children: &mut Children<'_>, shown: &Shown<'_>) -> Built {
                 built.bar.push((bar.add(title, item, |_| {}), menu));
             }
         });
+        tools(children, shown, &mut built);
         let tabs = children.add("tabs", Element::tab_bar(0, Style::default()), |tabs| {
             for (title, tip) in TABS.into_iter().zip(TAB_TIPS) {
-                tabs.add(
-                    title,
-                    Element::tab(title, Style::default()).tooltip(tip),
-                    |_| {},
-                );
+                // The console's tab counts the warnings and the errors of its log.
+                let tab = match title {
+                    "Console" => Element::counted_tab(title, flagged_lines(), Style::default()),
+                    _ => Element::tab(title, Style::default()),
+                };
+                tabs.add(title, tab.tooltip(tip), |_| {});
             }
         });
         let chosen = children.chosen(tabs);
@@ -705,7 +787,14 @@ fn inspector(children: &mut Children<'_>, shown: &Shown<'_>, built: &mut Built) 
         entities.layout.min_size = [Dimension::Pixels(0.0); 2];
         let entities = Element::container(entities).class("panel");
         panels.add("entities", entities, |children| {
-            let list = Element::list(ENTITIES, 22.0, filling()).named("entities");
+            let mut search = Style::default();
+            search.layout.margin.bottom = 4.0;
+            let search = Element::search_field(shown.query, search)
+                .named("search entities")
+                .placeholder("Search entities");
+            let id = children.add("search", search, |_| {});
+            built.targets.push((id, Target::Search));
+            let list = Element::list(shown.found, 22.0, filling()).named("entities");
             built.list = Some(children.add_slot("list", list));
         });
         let mut properties = column();
@@ -721,6 +810,9 @@ fn inspector(children: &mut Children<'_>, shown: &Shown<'_>, built: &mut Built) 
                 style.layout.gap = [4.0, 0.0];
                 let element = Element::section(section.title, !section.folded, style);
                 children.add(section.title, element, |children| {
+                    if section.title == "Transform" {
+                        position_row(children, shown.position, &mut built.targets);
+                    }
                     for (index, slider) in section.sliders.iter().enumerate() {
                         let target = Target::Property {
                             section: section_index,
@@ -765,6 +857,68 @@ fn slider_row(children: &mut Children<'_>, slider: &Slider) -> ElementId {
         children.add("value", value, |_| {});
     });
     id.expect("added above")
+}
+
+/// The bar of tools under the menus: the control of segments that chooses the tool, the button
+/// that toggles the snapping, and the bar of progress of a cook, at the bar's end.
+fn tools(children: &mut Children<'_>, shown: &Shown<'_>, built: &mut Built) {
+    let mut bar = Style::default();
+    bar.layout.padding = Sides::symmetric(8.0, 4.0);
+    bar.layout.gap = [0.0, 8.0];
+    bar.layout.align_items = Align::Center;
+    children.add("tools", Element::container(bar).class("bar"), |children| {
+        let segments = Element::segments(shown.tool, Style::default()).named("tool");
+        let id = children.add("tool", segments, |segments| {
+            for title in TOOLS {
+                segments.add(title, Element::segment(title, Style::default()), |_| {});
+            }
+        });
+        built.targets.push((id, Target::Tool));
+        let snap = Element::toggle_button("Snap", shown.snap, Style::default())
+            .tooltip("Moves go by whole steps of the grid");
+        built
+            .targets
+            .push((children.add("snap", snap, |_| {}), Target::Snap));
+        children.add("space", Element::container(filling()), |_| {});
+        let cooking = Element::label("cooking textures", Style::default()).class("muted");
+        children.add("cooking", cooking, |_| {});
+        let progress = Element::progress(Some(0.65), wide(120.0)).named("cooking textures");
+        children.add("progress", progress, |_| {});
+    });
+}
+
+/// The row of the position: its label and a field for each axis, its prefix the axis's, which
+/// drags it; gives the fields to `targets`.
+fn position_row(
+    children: &mut Children<'_>,
+    position: [f64; 3],
+    targets: &mut Vec<(ElementId, Target)>,
+) {
+    let mut row = Style::default();
+    row.layout.gap = [0.0, 8.0];
+    row.layout.align_items = Align::Center;
+    let group = Element::container(row).named("position");
+    children.add("position", group, |children| {
+        children.add("label", Element::label("position", wide(96.0)), |_| {});
+        for (axis, (&value, (prefix, class))) in position.iter().zip(AXES).enumerate() {
+            let field = Element::prefixed_number_field(prefix, value, 0.1, filling())
+                .class(class)
+                .named(format!("position {}", prefix.to_lowercase()));
+            targets.push((children.add(prefix, field, |_| {}), Target::Position(axis)));
+        }
+    });
+}
+
+/// The name of the entity `entity`, as the list shows it.
+fn entity_name(entity: usize) -> String {
+    format!("entity-{entity:04}  {}", NAMES[entity % NAMES.len()])
+}
+
+/// How many of the log's lines are warnings or errors.
+fn flagged_lines() -> u64 {
+    (0..40)
+        .filter(|&number| LINES[number % LINES.len()].0 > 0)
+        .count() as u64
 }
 
 /// A row of the list to choose the quality of shadows from: its label and the list, with a
