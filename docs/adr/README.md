@@ -220,3 +220,4 @@ the ADR linking to it.
 | [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151 |
 | [0150](0150-layers.md) | Layers | Accepted |
 | [0151](0151-rich-widgets.md) | Rich widgets | Accepted |
+| [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Proposed |

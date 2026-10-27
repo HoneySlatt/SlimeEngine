@@ -53,7 +53,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0149](adr/0149-the-looks-foundations.md)): M6b.7b, the look's foundations, is done;
   M6b.7c, the layers ([ADR-0150](adr/0150-layers.md)), is done. The owner cut the rich widgets in
   two on 2026-10-27 ([ADR-0151](adr/0151-rich-widgets.md)): M6b.7d, the rich fields, is done;
-  M6b.7e, what the editor tells and finds, is done.
+  M6b.7e, what the editor tells and finds, is done. M6b.8, the dev overlay on the engine's
+  interface, is in progress: [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md),
+  proposed, lists the choices that wait for the owner.
 
 ## Status
 
@@ -75,7 +77,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Done |
 | [M6b.7d](#m6b7d--rich-fields) | The framework has the rich fields and buttons that make editing fast | Done |
 | [M6b.7e](#m6b7e--what-the-editor-tells-and-finds) | The framework tells the user what goes on, and finds every command by its name | Done |
-| [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
+| [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | In progress |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b, 5a, 5b and 6a are done, and so are the audit pass and the
@@ -1180,6 +1182,12 @@ that the look has a light and a high-contrast theme beside its dark one.
   `cargo run --example world`.
 - **By hand.** The owner plays *Hunna Wood* with its F1 and F2 panels, uses the `world` and `scene`
   examples' panels, and listens to Orca read the `world` example's.
+- **Progress.** [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md), proposed on
+  2026-10-27, holds the checklist of what the overlay does today and lists five choices that wait
+  for the owner: the milestone cut in two, the overlay as roots of the program's one interface, the
+  keys that a focus given by the pointer leaves to the program, the overlay kept out of the game's
+  shipping build, and the picker of colors. The parts that hold no open choice are being built
+  meanwhile.
 
 ### M6b.9 — Windows check, documentation, release 0.6
 
