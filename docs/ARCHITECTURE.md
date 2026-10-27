@@ -31,7 +31,8 @@ it is built this way.
 │   ├── slime-render/    renderer: meshes, PBR materials, cameras, views, lights, shadows, HDR, tone mapping
 │   ├── slime-tasks/     the engine's task pool: the threads on which the engine computes
 │   ├── slime-ui/        the UI framework, without a GPU: its tree of elements, widgets, text,
-│   │                    display list, and the editor's look (look/: fonts, style sheet, theme)
+│   │                    display list, and the editor's look (look/: fonts and icons, a style
+│   │                    sheet, five themes)
 │   ├── slime-ui-render/ the bridge from a display list to the renderer's canvas, with the glyphs' atlas
 │   ├── slime-world/     the world: a game's entities, their components and their hierarchy
 │   └── slime-world-render/  the bridge from a world to the renderer: what a world draws, each frame
@@ -48,7 +49,9 @@ it is built this way.
 ├── scripts/             check.sh, every automated check as CI runs them; measure.sh, the build's
 │                        and the benchmarks' figures; the scripts that fetch DXC and the sample
 │                        game's source assets, and write their credits; subset-fonts.sh, the
-│                        fonts of slime-ui's tests
+│                        fonts of slime-ui's tests; screen-reader-check.sh, an interface read
+│                        through AT-SPI as a screen reader does; cooker-dependencies.sh, CI's
+│                        key of the cooked zone
 ├── AGENTS.md            rules for every contributor
 ├── CHANGELOG.md         notable changes, per release
 ├── CONTRIBUTING.md      environment, checks, how a change is made and reviewed
@@ -67,12 +70,12 @@ created only when code needs it.
 |---|---|---|---|
 | [`slime-input`](../crates/slime-input/README.md) | The engine's vocabulary of input, without a window: keys by position and by meaning, mouse buttons, modifiers, the wheel ([ADR-0142](adr/0142-input-and-focus.md)) | none | The types of a key's press and release, the modifiers, the mouse's buttons and the wheel, what an input method does, and the pointer's shapes ([ADR-0145](adr/0145-text-edited.md)); the names of the keys, listed once |
 | [`slime-platform`](../crates/slime-platform/README.md) | The window, its events and keyboard and mouse input, and that input as data, the keys and buttons held; the only crate that uses the windowing library (winit), the clipboard's (arboard) and AccessKit's adapter | `slime-input`, `winit`, `arboard`, `raw-window-handle`, `thiserror`, `tracing`; with its `accessibility` feature, `accesskit`, `accesskit_winit` | One window; window, keyboard and mouse events, and the text that input methods compose; the keys and mouse buttons held, pressed and released since the last frame; the input method allowed and placed, the pointer's shape, and the system's clipboard of text ([ADR-0145](adr/0145-text-edited.md)); the scheme of colors that the system prefers, where winit tells it ([ADR-0149](adr/0149-the-looks-foundations.md)); with its `accessibility` feature, AccessKit's adapter of the window, made before it shows, the requests of screen readers as events and the updates of their tree ([ADR-0146](adr/0146-screen-readers.md)) |
-| [`slime-app`](../crates/slime-app/README.md) | A game run as a simulation, its rules, and a presentation, what the player sees, by a host that owns its world, real time and game time, its input and its commands, through the phases of each frame ([ADR-0107](adr/0107-the-execution-model.md), [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); the main loop, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `slime-world`, `slime-reflect`, `slime-ui`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber`, `nu-ansi-term` (Windows only); with its `development` feature, `slime-channel`, `slime-serialize`; with its `accessibility` feature, `accesskit` | Headless runs, and windowed runs drawn by the GPU, which go on with a new device after a lost one when the game asks; game time that pauses, slows down and steps, and that a game holds while it is not ready; commands applied at the start of a frame; a host that a test drives without a GPU; with its `development` feature, which a game turns on by default, the development channel, through which tools drive a run started with a token ([ADR-0122](adr/0122-the-development-channel.md)), and read and change the settings of the views that a presentation names, and read its reports, described by reflection ([ADR-0127](adr/0127-the-settings-of-a-view.md), [ADR-0128](adr/0128-asset-requests.md)), and ask it to pick the entity at a pixel of a view ([ADR-0130](adr/0130-picking.md)), and read its interface, act on it and capture its elements ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)); a presentation's interface connected to its window, given its events first, which it takes before the game when they reach its elements, the system's clipboard, the pointer's shape and the input method ([ADR-0145](adr/0145-text-edited.md)), and each frame's time, by which its transitions go on ([ADR-0149](adr/0149-the-looks-foundations.md)); with its `accessibility` feature, which the examples turn on, and the editor once it has a window, the interface's meaning translated into the tree that screen readers read, and their requests given back to it ([ADR-0146](adr/0146-screen-readers.md)); the commands that a host receives applied through its simulation, and an editor's requests answered by it; a run without a window paced, as the editor's program asks; the user's data directory, and a file that one program at a time holds ([ADR-0135](adr/0135-the-editors-program.md)) |
+| [`slime-app`](../crates/slime-app/README.md) | A game run as a simulation, its rules, and a presentation, what the player sees, by a host that owns its world, real time and game time, its input and its commands, through the phases of each frame ([ADR-0107](adr/0107-the-execution-model.md), [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); the main loop, diagnostics setup, headless mode | `slime-platform`, `slime-gfx`, `slime-world`, `slime-reflect`, `slime-ui`, `ctrlc`, `thiserror`, `tracing`, `tracing-subscriber`, `nu-ansi-term` (Windows only); with its `development` feature, `slime-channel`, `slime-serialize`; with its `accessibility` feature, `accesskit` | Headless runs, and windowed runs drawn by the GPU, which go on with a new device after a lost one when the game asks; game time that pauses, slows down and steps, and that a game holds while it is not ready; commands applied at the start of a frame; a host that a test drives without a GPU; with its `development` feature, which a game turns on by default, the development channel, through which tools drive a run started with a token ([ADR-0122](adr/0122-the-development-channel.md)), and read and change the settings of the views that a presentation names, and read its reports, described by reflection ([ADR-0127](adr/0127-the-settings-of-a-view.md), [ADR-0128](adr/0128-asset-requests.md)), and ask it to pick the entity at a pixel of a view ([ADR-0130](adr/0130-picking.md)), and read its interface, act on it and capture its elements ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)); a presentation's interface connected to its window, given its events first, which it takes before the game when they reach its elements, the system's clipboard, the pointer's shape and the input method ([ADR-0145](adr/0145-text-edited.md)), and each frame's time, by which its transitions go on ([ADR-0149](adr/0149-the-looks-foundations.md)); with its `accessibility` feature, which the examples turn on, the interface's meaning translated into the tree that screen readers read, and their requests given back to it ([ADR-0146](adr/0146-screen-readers.md)); the commands that a host receives applied through its simulation, and an editor's requests answered by it; a run without a window paced, as the editor's program asks; the user's data directory, and a file that one program at a time holds ([ADR-0135](adr/0135-the-editors-program.md)) |
 | [`slime-gfx`](../crates/slime-gfx/README.md) | The GPU layer; the only crate that uses wgpu, the engine's own tests reaching the device through its `wgpu` feature | `wgpu`, `pollster`, `raw-window-handle`, `slime-color`, `thiserror`, `tracing` | Opens a GPU device, and another in place of a lost one; draws into offscreen images, 8-bit or 16-bit float, and reads them back; draws into a window; later passes sample what earlier ones drew; colors laid over a target by their alpha, straight or already multiplied by it (blending); an sRGB target, a window's image included, drawn into without its encoding ([ADR-0137](adr/0137-the-canvas.md)); targets of integers, read back without waiting ([ADR-0130](adr/0130-picking.md)); depth-only passes; images of four samples per pixel, resolved for anti-aliasing; textures and cube textures whose levels the caller gives, one channel of 8 bits, half-precision floats and BC7 and BC5 blocks among their formats; storage buffers, buffers written by ranges, instanced draws from a base vertex; an uploader that submits the copies of what loads bring within a budget of bytes per frame, on a thread of its own, the lowest rank first; a window's image read back where the system allows it |
 | [`slime-channel`](../crates/slime-channel/README.md) | The development channel: the protocol between a running game and the tools that drive it, and both of its ends, the game's listener and the tools' client ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0122](adr/0122-the-development-channel.md)); headless | `getrandom`, `slime-reflect`, `slime-serialize`, `thiserror`, `tracing` | A game started with a token listens on the machine's own address and accepts only the token and its version; the host's controls, the world read and changed through reflection, scripted keys, captures of the game's image or of one of its views ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)), the settings of its views read and changed ([ADR-0127](adr/0127-the-settings-of-a-view.md)), its reports read ([ADR-0128](adr/0128-asset-requests.md)), the entity at a pixel picked ([ADR-0130](adr/0130-picking.md)), the elements of its interface listed by role and name, found at a pixel, acted on, a field given a value, and captured ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md), [ADR-0146](adr/0146-screen-readers.md)), its state, log and frames' times, and its run saved to a file and loaded from one ([ADR-0125](adr/0125-saves-per-scene.md)); a game started by a tool with a new token; an editor's requests, steps of commands, undo and redo, its history, its journal, its selection and its level written back ([ADR-0135](adr/0135-the-editors-program.md)) |
 | [`slime-color`](../crates/slime-color/README.md) | The color type of every API of the engine, `LinearColor`, and the sRGB transfer function, below every crate that holds a color ([ADR-0045](adr/0045-one-linear-color-type.md), [ADR-0079](adr/0079-the-engines-own-world.md)); headless | `slime-reflect` | Linear colors and their constructors, sRGB bytes decoded and encoded, linear values encoded; colors in OKLCH, and brought back into sRGB's gamut ([ADR-0149](adr/0149-the-looks-foundations.md)) |
 | [`slime-tasks`](../crates/slime-tasks/README.md) | The engine's task pool: the threads on which the engine computes, with a priority for the work that a frame waits for ([ADR-0107](adr/0107-the-execution-model.md)); headless, on the standard library alone | none | One pool, the machine's logical cores but one; frame and background tasks, a thread always left for frame tasks; items computed in parallel, the calling thread taking its share |
-| [`slime-ui`](../crates/slime-ui/README.md) | The UI framework, for the editor and the interface of games ([ADR-0132](adr/0132-the-engines-ui-framework.md)); today its tree of elements and their layout ([ADR-0140](adr/0140-the-tree-of-elements.md)), its style sheets and themes ([ADR-0141](adr/0141-style-sheets-and-themes.md)), its input and focus ([ADR-0142](adr/0142-input-and-focus.md)), its fields ([ADR-0145](adr/0145-text-edited.md)), its widgets and the editor's look ([ADR-0148](adr/0148-widgets.md)), its layers ([ADR-0150](adr/0150-layers.md)), what its tree means to agents ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)), its text ([ADR-0136](adr/0136-the-interfaces-text.md)) and its display list ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)); headless | `slime-color`, `slime-reflect`, `slime-serialize`, `slime-input`, `parley`, `fontique`, `swash`, `taffy`, `icu_properties`, `thiserror`, `tracing` | Layers that the interface places beside an element, at a point or floating, kept within the window and closed as the user leaves them; menus, their submenus and a bar of menus, moved through by the keys; context menus asked for by the pointer's second button and Shift+F10; lists to choose from; tooltips once the pointer rests; floating panels moved, sized, folded and raised; glyphs of a font of icons in place of controls' shapes ([ADR-0150](adr/0150-layers.md)); placeholders, buttons that toggle, controls of segments, bars of progress, tabs' counts, fields of search, a field's prefix that drags its number, expressions and units in fields of numbers, the box of a section's header, tooltips of a title and a text, notifications, the palette of commands and the sheet of shortcuts ([ADR-0151](adr/0151-rich-widgets.md)); Check boxes, sliders, sections that fold, bars of tabs, two panels and the handle between them, and scroll bars, each an element kind that keeps its state in the tree, takes the pointer, the keys and the focus, and means something to agents and screen readers, its parts styled apart from its box; with its `editor-look` feature, which the examples turn on, the editor's look, the fonts Geist and Geist Mono, Lucide's icons, and a style sheet and stacked themes, a base, dark, light, high contrast and compact ([ADR-0148](adr/0148-widgets.md), [ADR-0149](adr/0149-the-looks-foundations.md)); themes whose values name others and compute colors in OKLCH, stacked; transitions of colors, opacity and a section's height that rules declare, over the time that the program gives; an opacity that an element's descendants share; the focus shown to the keyboard alone; boxes on whole pixels; OpenType features of a text ([ADR-0149](adr/0149-the-looks-foundations.md)); Style sheets of rules that select elements by kind, classes, key, states and ancestor and set a part of their style, themes of the values that the rules name, the element's own style over them; a person's input and an agent's actions turned into actions in a queue, the focus moved by Tab and by the arrows within its scope, popups and modal roots stacked over a window, shortcuts read from tables that name commands ([ADR-0142](adr/0142-input-and-focus.md)); fields of text, of one line or several, and of numbers, typed, selected by the keys and the pointer, undone, copied and pasted, composed through input methods, which the program reads as actions, changed and committed ([ADR-0145](adr/0145-text-edited.md)); the tree's meaning, made when asked, each element's role, name, value, states, actions, bounds and path ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)), and what changed in it, each element marked as its meaning changes, named by a number never given again, with a field's text by runs ([ADR-0146](adr/0146-screen-readers.md)); A tree of elements kept from frame to frame in an arena, built by code when a revision moves, matched by keys, its roots each of a size, a scale and a direction; boxes, labels, images, buttons that show their states, boxes that scroll and lists that build only the rows that show; typed styles in logical pixels, with start and end sides; flexbox and grid by taffy, mirrored for a root from right to left; a frame that lays out and draws again only what changed; Fonts registered from their bytes and named in stacks, the system's for a program that asks for them, found by fallback once for each writing system then named for it; text shaped, put in the order of its directions, broken into lines and aligned in every writing system, cut with an ellipsis to a box of a width and a most lines; its lines, its glyph runs, the cluster under a point, the position nearest it, carets and selections; each glyph placed at a whole pixel and a position between two, its image rasterized as coverage or color, without hinting; laid-out text kept within a budget of memory, shared with the display lists that hold it; a display list of boxes, shadows, gradients, texts and images, each clipped, its images named by keys; color wells and their pickers ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)) |
+| [`slime-ui`](../crates/slime-ui/README.md) | The UI framework, for the editor and the interface of games ([ADR-0132](adr/0132-the-engines-ui-framework.md)); today its tree of elements and their layout ([ADR-0140](adr/0140-the-tree-of-elements.md)), its style sheets and themes ([ADR-0141](adr/0141-style-sheets-and-themes.md)), its input and focus ([ADR-0142](adr/0142-input-and-focus.md)), its fields ([ADR-0145](adr/0145-text-edited.md)), its widgets and the editor's look ([ADR-0148](adr/0148-widgets.md)), its layers ([ADR-0150](adr/0150-layers.md)), what its tree means to agents ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)), its text ([ADR-0136](adr/0136-the-interfaces-text.md)) and its display list ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)); headless | `slime-color`, `slime-reflect`, `slime-serialize`, `slime-input`, `parley`, `fontique`, `swash`, `taffy`, `icu_properties`, `thiserror`, `tracing` | Fonts registered from their bytes and named in stacks, the system's for a program that asks for them, found by fallback once for each writing system then named for it; text shaped, put in the order of its directions, broken into lines and aligned in every writing system, cut with an ellipsis to a box of a width and a most lines; its lines, its glyph runs, the cluster under a point, the position nearest it, carets and selections; each glyph placed at a whole pixel and a position between two, its image rasterized as coverage or color, without hinting; laid-out text kept within a budget of memory, shared with the display lists that hold it; a display list of boxes, shadows, gradients, texts and images, each clipped, its images named by keys; a tree of elements kept from frame to frame in an arena, built by code when a revision moves, matched by keys, its roots each of a size, a scale and a direction; boxes, labels, images, buttons that show their states, boxes that scroll and lists that build only the rows that show; typed styles in logical pixels, with start and end sides; flexbox and grid by taffy, mirrored for a root from right to left; a frame that lays out and draws again only what changed; style sheets of rules that select elements by kind, classes, key, states and ancestor and set a part of their style, themes of the values that the rules name, the element's own style over them; a person's input and an agent's actions turned into actions in a queue, the focus moved by Tab and by the arrows within its scope, popups and modal roots stacked over a window, shortcuts read from tables that name commands ([ADR-0142](adr/0142-input-and-focus.md)); fields of text, of one line or several, and of numbers, typed, selected by the keys and the pointer, undone, copied and pasted, composed through input methods, which the program reads as actions, changed and committed ([ADR-0145](adr/0145-text-edited.md)); the tree's meaning, made when asked, each element's role, name, value, states, actions, bounds and path ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)), and what changed in it, each element marked as its meaning changes, named by a number never given again, with a field's text by runs ([ADR-0146](adr/0146-screen-readers.md)); check boxes, sliders, sections that fold, bars of tabs, two panels and the handle between them, and scroll bars, each an element kind that keeps its state in the tree, takes the pointer, the keys and the focus, and means something to agents and screen readers, its parts styled apart from its box; with its `editor-look` feature, which the examples turn on, the editor's look, the fonts Geist and Geist Mono, Lucide's icons, and a style sheet and stacked themes, a base, dark, light, high contrast and compact ([ADR-0148](adr/0148-widgets.md), [ADR-0149](adr/0149-the-looks-foundations.md)); themes whose values name others and compute colors in OKLCH, stacked; transitions of colors, opacity and a section's height that rules declare, over the time that the program gives; an opacity that an element's descendants share; the focus shown to the keyboard alone; boxes on whole pixels; OpenType features of a text ([ADR-0149](adr/0149-the-looks-foundations.md)); layers that the interface places beside an element, at a point or floating, kept within the window and closed as the user leaves them; menus, their submenus and a bar of menus, moved through by the keys; context menus asked for by the pointer's second button and Shift+F10; lists to choose from; tooltips once the pointer rests; floating panels moved, sized, folded and raised; glyphs of a font of icons in place of controls' shapes ([ADR-0150](adr/0150-layers.md)); placeholders, buttons that toggle, controls of segments, bars of progress, tabs' counts, fields of search, a field's prefix that drags its number, expressions and units in fields of numbers, the box of a section's header, tooltips of a title and a text, notifications, the palette of commands and the sheet of shortcuts ([ADR-0151](adr/0151-rich-widgets.md)); color wells and their pickers ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)) |
 | [`slime-ui-render`](../crates/slime-ui-render/README.md) | The bridge between the interface and the renderer, as `slime-world-render` is between the world and the renderer ([ADR-0132](adr/0132-the-engines-ui-framework.md), [ADR-0139](adr/0139-text-drawn-and-the-display-list.md)) | `slime-ui`, `slime-render`, `slime-gfx`, `etagere`, `tracing` | A display list drawn through the renderer's canvas; the glyphs' atlas, pages of coverage and of colors in which etagere places each glyph's image, rasterized once, within a budget, the glyphs that no draw asked for the longest leaving first, again after a lost device; images given by the program for their keys |
 | [`slime-render`](../crates/slime-render/README.md) | The renderer: draws instances of meshes with their materials, lit by directional, point and spot lights, seen from cameras through views, into render targets or rectangles of them, and reports what each view cost; built on `slime-gfx`'s types, without wgpu | `slime-gfx`, `slime-assets`, `slime-color`, `slime-reflect`, `slime-tasks`, `glam`, `thiserror`, `tracing` | Textures and scenes cooked by the asset pipeline, loaded onto the GPU, BC7 and BC5 among them, normal textures read by x and y; meshes with tangents, simple shapes made in code (a cube, a sphere, a square), glTF's metallic-roughness materials (five textures, masks, double-sided, values that change while a game runs, found by name in a loaded scene), unlit materials, their color shown as it is, masked or blended ([ADR-0129](adr/0129-drawing-for-the-editor.md)), cameras in perspective or orthographic, drawing their whole image or a part of it, several views a frame sharing the pipelines, the meshes and the shadow atlases, each with its own targets at the size it draws, made again once a new size holds still, and its settings: a render scale, no anti-aliasing or four samples, a mode of debugging that shows normals or shadows, and the shadows, the sky or the bloom left out ([ADR-0126](adr/0126-views-apart-from-the-renderer.md), [ADR-0127](adr/0127-the-settings-of-a-view.md)), the depth test, up to 16 directional, point and spot lights in physical units (`KHR_lights_punctual`), a procedural sky computed on the CPU that surfaces reflect (image-based lighting) and that is drawn behind them with its sun's disc, the shadows of the first directional light that casts them (four cascades in one atlas, filtered over 5 × 5 texels) and of every spot light that casts them (a tile each of one atlas), mirrored instances drawn with their front faces, the scene drawn in HDR with its light exposed, at four samples per pixel (multisample anti-aliasing) unless a view draws without, an energy-conserving bloom, then tone mapped, the passes ordered by a render graph and recorded four to a submission, statistics with the GPU time of each pass; scenes loaded in the background, and again when their cooked data changed, keeping what did not change; the meshes a game draws kept by asset ID in a cache, asked for by requests of a priority whose handles hold them, loaded in batches by class, each mesh that fails alone, kept within budgets of the textures' and the meshes' memory once nothing holds them, loaded again when their cooked data changes and, through the requests given back, after a lost device ([ADR-0084](adr/0084-what-the-world-draws.md), [ADR-0128](adr/0128-asset-requests.md)); what a client draws into a view besides the scene, lines a width in pixels wide and instances, in the scene and over the image ([ADR-0129](adr/0129-drawing-for-the-editor.md)); the number of the instance drawn at each pixel of an area of a view, picked a frame or more later ([ADR-0130](adr/0130-picking.md)); an interface's canvas, boxes with rounded corners and borders, their shadows, boxes filled with a gradient and images, each clipped, drawn over any of its targets, its colors mixed as sRGB values ([ADR-0137](adr/0137-the-canvas.md), [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)); its shaders replaced while it runs |
 | [`slime-reflect`](../crates/slime-reflect/README.md) | Reflection: types described at run time, their values as plain data, read and changed by property path through a registry, compared and their differences applied ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0085](adr/0085-reflection.md)); headless | `glam`, `slime-reflect-derive` | `Reflect` and its derive, with stable names, aliases, versions and their upgrades, default values, skipped and transient fields, ranges and units; one value type, references to assets and entities kinds of their own; descriptions of types; a registry, explicit and recursive, that holds types with no Rust type behind them, checks values, sets their parts by path within their fields' ranges and lists their leaves; the standard types, glam's `Vec3`, `DVec3` and `Quat`; no files: `slime-serialize` writes and reads them |
@@ -84,11 +87,11 @@ created only when code needs it.
 | [`slime-cook`](../crates/slime-cook/README.md) | The cooker: turns source assets into cooked data before games run; a library and its program, which no game links ([ADR-0069](adr/0069-the-asset-pipeline.md)) | `slime-assets`, `slime-color`, `slime-reflect`, `slime-serialize`, `slime-tasks`, `slime-world`, `bevy_mikktspace`, `blake3`, `block_compression`, `glam`, `gltf`, `png`, `uuid`, `zune-jpeg`, `thiserror` | IDs for source files in metadata files beside them, read and written through `slime-serialize`, their check, and the IDs of the assets inside a file; PNG and JPEG images cooked into textures compressed in BC7 or BC5, every level computed; glTF files imported into meshes (MikkTSpace tangents), materials and scenes; the typed properties of their nodes; scene files checked and cooked into the binary encoding of documents ([ADR-0095](adr/0095-cooked-scene-files.md)), and the interface's style sheets, themes and tables of shortcuts ([ADR-0141](adr/0141-style-sheets-and-themes.md), [ADR-0142](adr/0142-input-and-focus.md)); a directory cooked again only where it changed, with its manifest, once or at each change; files written whole or not at all, as the editor writes its levels |
 | [`slime-mcp`](../crates/slime-mcp/README.md) | The engine's MCP server: an AI agent drives a running game through it, as a person would ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md), [ADR-0122](adr/0122-the-development-channel.md)); a program, which no game links | `slime-channel`, `rmcp`, `tokio`, `serde`, `base64`, `png` | One game at a time, started with a token and driven through its development channel; its captures, whole or of one view, as PNG images, its views' settings changed, its reports read and the entity at a pixel picked; the elements of its interface found by role and name or at a pixel, acted on and captured ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)); assets cooked and tests run; an editor, started as a game is, its level edited through steps, undone and redone, its history and journal read and its level written back ([ADR-0135](adr/0135-the-editors-program.md)) |
 | [`slime-devui`](../crates/slime-devui/README.md) | The dev overlay: panels on the engine's interface, in the editor's look, floating over a program's view, and its world panel and editors of reflected values; tooling ([ADR-0081](adr/0081-stage-5a-the-world.md), [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)) | `slime-assets`, `slime-color`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-ui` (with its `editor-look` feature), `slime-ui-render`, `slime-world` | Panels opened and closed by chords and commands, built when a frame is extracted and drawn with the view's renderer after the view; a world's entities listed by name, the list building only the rows that show, and their components edited through reflection, each edit given as a command for the caller to send; any reflected value edited with the same editors, as a view's settings ([ADR-0127](adr/0127-the-settings-of-a-view.md)) |
-| [`slime-editor`](../crates/slime-editor/README.md) | The editor, a client of the engine's public API; today its core, without an interface: a level opened from its scene file, changed through the world's commands grouped into steps, undone and redone, journaled, and written back with its comments ([ADR-0109](adr/0109-stable-references-and-undo.md), [ADR-0134](adr/0134-the-editors-core.md)); its core headless, its program on `slime-app` | `slime-app` (with its `development` feature), `slime-assets`, `slime-channel`, `slime-cook`, `slime-reflect`, `slime-serialize`, `slime-world`, `thiserror`, `tracing` | Steps made whole or not at all from commands given as values or as text; undo and redo within a bound of memory; the selection, by persistent identity, which undo and redo restore; a journal of the steps, as text, from which an editor that crashed is recovered; commands that would change what is not under the level's root refused; the level written back whole or not at all, its comments kept, what the editor created named as the file names it. Its program, `run`, on `slime-app` without a window until Stage 6c, which tools drive through the development channel, and which recovers its journal as it starts ([ADR-0135](adr/0135-the-editors-program.md)) |
+| [`slime-editor`](../crates/slime-editor/README.md) | The editor, a client of the engine's public API; today its core, without an interface: a level opened from its scene file, changed through the world's commands grouped into steps, undone and redone, journaled, and written back with its comments ([ADR-0109](adr/0109-stable-references-and-undo.md), [ADR-0134](adr/0134-the-editors-core.md)); its core headless, its program on `slime-app` | `slime-app` (with its `development` feature), `slime-assets`, `slime-channel`, `slime-cook`, `slime-reflect`, `slime-serialize`, `slime-world`, `thiserror`, `tracing` | Steps made whole or not at all from commands given as values or as text; undo and redo within a bound of memory; the selection, by persistent identity, which undo and redo restore; a journal of the steps, as text, from which an editor that crashed is recovered; commands that would change what is not under the level's root refused; the level written back whole or not at all, its comments kept, what the editor created named as the file names it. Its program, `run`, on `slime-app` without a window, which tools drive through the development channel, and which recovers its journal as it starts ([ADR-0135](adr/0135-the-editors-program.md)) |
 | [`slime-examples`](../examples/README.md) | Runnable examples; not part of the engine | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-editor`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-ui`, `slime-ui-render`, `slime-world`, `slime-world-render`, `png`, `tracing`; for the tests, `slime-cook` and `gltf` | `hello`, `headless`, `window`, `offscreen`, `scene`, which draws a cooked scene, `world`, which spawns a yard of prefabs from a cooked scene file and draws it from a world, through two views whose settings its overlay changes; `editor`, the editor's program on the yard ([ADR-0135](adr/0135-the-editors-program.md)); `text`, the interface's text in several writing systems, rasterized into an image by the CPU ([ADR-0136](adr/0136-the-interfaces-text.md)); `interface`, an interface built as a tree of elements, styled by a style sheet and a dark or a light theme cooked with the sample, and drawn through the renderer's canvas, over a window or into an image, from left to right or mirrored, with a list of 100 000 rows, text in eight writing systems and a view's image in a panel, used with the pointer and the keyboard, a field of text and one of numbers in its bar ([ADR-0145](adr/0145-text-edited.md)), and read and used by an agent, which presses a button that changes its world ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md), [ADR-0137](adr/0137-the-canvas.md), [ADR-0139](adr/0139-text-drawn-and-the-display-list.md), [ADR-0140](adr/0140-the-tree-of-elements.md)); `widgets`, a panel of the editor's kind in the editor's look, every widget of a panel in it, over a window or into an image, used by an agent ([ADR-0148](adr/0148-widgets.md)); the reference image tests, and tests that cook glTF files and draw them |
 | [`slime-benches`](../benches/README.md) | The engine's benchmarks, a program whose figures [`measurements.md`](measurements.md) keeps; a client of the engine through its public API only, not part of the engine ([ADR-0104](adr/0104-the-build-ci-and-measurements.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-cook`, `slime-devui`, `slime-gfx`, `slime-render`, `slime-ui`, `slime-ui-render`, `slime-world`, `slime-world-render` | The scenarios that its README lists, of rendering, of the world, of loading, of text, of the interface's tree and of the dev overlay's world panel |
-| [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-devui`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-serialize`, `slime-world`, `slime-world-render`, `tracing` | A library, its rules as a simulation and what the player sees as a presentation, and its program ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); a forest zone, a scene file that places the land and six lanterns of one prefab, and its hero, read from cooked data and spawned in the game's world, its colliders, markers and lights' times of day as the game's components, typed properties of their nodes, the camera behind the hero along where the player looks, the hero's movement and its collisions with boxes turned about the vertical and cylinders, a key that opens a door, a campfire that flickers, the zone drawn while it loads, game time held until the zone is drawn, and paused, slowed down and stepped from the dev overlay, which changes the settings of its view too ([ADR-0127](adr/0127-the-settings-of-a-view.md)), the run kept after a lost GPU device, the run carried into the scenes changed on disk, and the shaders loaded again when their files change (`--watch`); the run saved on F5 and on quit, loaded on F9 and resumed on start, a save checked before it is resumed and held by one copy of the game at a time ([ADR-0088](adr/0088-saving-and-resuming-a-run.md), [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md), [ADR-0125](adr/0125-saves-per-scene.md)); the development channel in its default build ([ADR-0122](adr/0122-the-development-channel.md)) |
-| [`hunnawood-editor`](../games/hunnawood-editor/README.md) | *Hunna Wood*'s editor: the engine's editor, which knows the game's types through its library; a client of the engine, which the game does not depend on ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0135](adr/0135-the-editors-program.md)) | `hunnawood`, `slime-editor`; for its test, `slime-assets`, `slime-world` | The editor's program on the game's zone, without a window until Stage 6c; the zone written back with its comments |
+| [`hunnawood`](../games/hunnawood/README.md) | Hunna Wood, the game that every stage grows from Stage 4a on; a client of the engine through its public API only, not part of the engine ([ADR-0055](adr/0055-games-in-the-workspace.md), [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)) | `slime-app`, `slime-assets`, `slime-color`, `slime-gfx`, `slime-platform`, `slime-reflect`, `slime-render`, `slime-serialize`, `slime-world`, `slime-world-render`, `tracing`; with its `development` feature, on by default, `slime-devui` and `slime-ui`, and `slime-app`'s `development` feature | A library, its rules as a simulation and what the player sees as a presentation, and its program ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)); a forest zone, a scene file that places the land and six lanterns of one prefab, and its hero, read from cooked data and spawned in the game's world, its colliders, markers and lights' times of day as the game's components, typed properties of their nodes, the camera behind the hero along where the player looks, the hero's movement and its collisions with boxes turned about the vertical and cylinders, a key that opens a door, a campfire that flickers, the zone drawn while it loads, game time held until the zone is drawn, and paused, slowed down and stepped from the dev overlay, which changes the settings of its view too ([ADR-0127](adr/0127-the-settings-of-a-view.md)), the run kept after a lost GPU device, the run carried into the scenes changed on disk, and the shaders loaded again when their files change (`--watch`); the run saved on F5 and on quit, loaded on F9 and resumed on start, a save checked before it is resumed and held by one copy of the game at a time ([ADR-0088](adr/0088-saving-and-resuming-a-run.md), [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md), [ADR-0125](adr/0125-saves-per-scene.md)); the development channel in its default build ([ADR-0122](adr/0122-the-development-channel.md)) |
+| [`hunnawood-editor`](../games/hunnawood-editor/README.md) | *Hunna Wood*'s editor: the engine's editor, which knows the game's types through its library; a client of the engine, which the game does not depend on ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0135](adr/0135-the-editors-program.md)) | `hunnawood`, `slime-editor`; for its test, `slime-assets`, `slime-world` | The editor's program on the game's zone, without a window; the zone written back with its comments |
 
 ## Dependency rules
 
@@ -98,7 +101,8 @@ slime-examples ──▶ slime-app ──┬──▶ slime-platform ──▶ w
        │                       ├──▶ slime-gfx ──────▶ wgpu
        │                       ├──▶ slime-world (the game's world)
        │                       ├──▶ slime-reflect (the settings and reports of a presentation)
-       │                       ├──▶ slime-ui (the interface of a presentation, which tools read)
+       │                       ├──▶ slime-ui (a presentation's interface: given the window's events,
+       │                       │    read by tools and screen readers)
        │                       ├──▶ slime-channel, slime-serialize (feature development)
        │                       │    slime-channel ──▶ getrandom, slime-reflect, slime-serialize
        │                       └──▶ accesskit (feature accessibility: the tree of screen readers)
@@ -161,8 +165,11 @@ lists every dependency.
   `slime-gfx`, never the reverse, and `slime-platform` and `slime-gfx` do not depend on each
   other: the window reaches the GPU layer only as `raw-window-handle` traits. `slime-app` also
   depends on `slime-world`, since it owns the game's world
-  ([ADR-0079](adr/0079-the-engines-own-world.md)), and on `slime-ui`, since it reads the interface
-  that a presentation gives the development channel's tools
+  ([ADR-0079](adr/0079-the-engines-own-world.md)), and on `slime-ui`, since it connects the
+  interface that a presentation gives (`Presentation::ui`) to the window, its events first, the
+  clipboard, the pointer's shape, the input method and its time
+  ([ADR-0145](adr/0145-text-edited.md), [ADR-0149](adr/0149-the-looks-foundations.md)), to screen
+  readers ([ADR-0146](adr/0146-screen-readers.md)) and to the development channel's tools
   ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)). AccessKit's types stay out of
   `slime-ui`: with their `accessibility` feature, `slime-app` translates the interface's meaning
   into AccessKit's tree, and `slime-platform`, whose API carries that tree and the requests of
@@ -175,7 +182,8 @@ lists every dependency.
   (`Presentation::view_settings`, [ADR-0127](adr/0127-the-settings-of-a-view.md)).
 - No crate besides `slime-gfx` reaches wgpu. The `wgpu` feature of `slime-gfx` gives the engine's
   own tests the wgpu device, which `slime-app`'s windowed lifecycle test makes invalid as a driver
-  reset does ([ADR-0031](adr/0031-dev-overlay-with-egui.md)); games must not enable it.
+  reset does ([ADR-0031](adr/0031-dev-overlay-with-egui.md), whose rule on this feature outlived the
+  overlay on egui that it was written for); games must not enable it.
   `slime-devui` is tooling, a client of the engine like the examples: no engine crate depends on
   it, and a game leaves it out of its build for shipping, as *Hunna Wood* does with its
   `development` feature ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)).
@@ -305,8 +313,13 @@ frame                                     span "frame", trace level
     │                                     span "acquire"
     ├── presentation.render(ctx, target)  6. draws into the image, without the world; span
     │                                        "render"
+    ├── interface::Shown::update          the pointer's shape and the input method, as the
+    │                                     presentation's interface asks (ADR-0145); with the
+    │                                     `accessibility` feature, what changed in its meaning sent
+    │                                     to screen readers (ADR-0146)
     ├── channel.capture(gpu, target,      a tool asked for the image, or for the part of it that
-    │       presentation.views())         one of its views draws: copied back to the CPU
+    │       views, presentation.ui())     one of its views draws, or that an element of the
+    │                                     interface shows: copied back to the CPU
     └── image.present()                   hands it to the window; span "present"
 ```
 
@@ -331,7 +344,9 @@ headless, and by the `spans` scenario of `windowed_lifecycle.rs` with a window.
 slime_app::run
 ├── init_diagnostics()
 ├── simulation.start(ctx, &mut world)
-├── loop: frame with delta = the fixed step (simulated time), back to back
+├── loop: frame with delta = the fixed step (simulated time), back to back, or at
+│         AppConfig::max_frame_rate when AppConfig::pace_headless asks, as the editor's program
+│         does
 └── simulation.stop(ctx, &mut world)
 ```
 
@@ -349,12 +364,18 @@ slime_app::run
     │                              ctx gets the window and the GPU; simulation.start(ctx, &mut
     │                              world), then presentation.start(ctx, &world)
     ├── winit "window_event"     Translator::translate (event.rs) → driver.event
-    │                            → Resized: surface.resize; taken =
+    │                            → Resized: surface.resize; with the `accessibility` feature,
+    │                              Event::Accessibility goes to screen readers' side alone
+    │                              (below); otherwise the event goes first to the interface of
+    │                              Presentation::ui (interface::give, with the system's
+    │                              clipboard), then, unless it took it,
     │                              presentation.on_event(ctx, &event); the host's input follows
-    │                              the event (Input::handle) unless the presentation took a key
-    │                              or a button put down; CloseRequested → stop
-    ├── winit "window_event"     RedrawRequested → driver.redraw_requested → frame with the
-    │                            measured delta
+    │                              the event (Input::handle) unless one of them took a key or a
+    │                              button put down; CloseRequested → stop
+    ├── winit "window_event"     RedrawRequested → driver.redraw_requested → a lost device
+    │                            restored (below); the interface's clock advanced by the
+    │                            measured delta (Ui::advance, its transitions, ADR-0149);
+    │                            frame with the measured delta
     ├── winit "about_to_wait"    → driver.about_to_wait
     │                            → if the next frame is due: window.request_redraw();
     │                              return WaitUntil(next frame) or Exit
@@ -431,14 +452,19 @@ gpu = Gpu::new()
 │                                                        depth test and bias, culling, whether
 │                                                        it draws into multisampled targets, and
 │                                                        whether it lays its colors over the
-│                                                        target's by their alpha (Blend::Alpha)
+│                                                        target's by their alpha, straight or
+│                                                        premultiplied (Blend::Alpha,
+│                                                        Blend::Premultiplied)
 ├── create_vertex_buffer(label, bytes)
 ├── create_index_buffer(label, indices)
 ├── create_uniform_buffer(label, bytes)                  written again with write_uniform_buffer
 ├── create_storage_buffer(label, bytes)                  values that shaders read by index, written
-│                                                        by ranges
+│                                                        by ranges (write_storage_buffer)
 ├── create_texture(label, width, height, format, pixels) an image that shaders sample, its levels
-│                                                        of detail computed from its 8-bit pixels
+│                                                        of detail computed from its 8-bit pixels,
+│                                                        of four channels or one (R8Unorm); a
+│                                                        region written again with write_texture,
+│                                                        as the glyphs' atlas is
 ├── create_texture_with_levels(label, width, height, format, levels)
 │                                                        the same with the caller's levels, in any
 │                                                        format (Rgba16Float: f32_to_f16)
@@ -548,7 +574,8 @@ renderer = Renderer::new(&gpu, format)                 the output's format; its 
 │                                                      the place of either shadow atlas until
 │                                                      it exists, in the group that reads them,
 │                                                      bind group 3; the shadow atlases, when a
-│                                                      light first casts shadows into one
+│                                                      light first casts shadows into one; the
+│                                                      canvas's (canvas.wgsl, ADR-0137)
 ├── create_view(&gpu, label) → View                    what one image keeps from frame to frame:
 │   └── view.set_settings(ViewSettings)                its settings (the default until changed:
 │                                                      a render scale of 1, four samples, no
@@ -556,8 +583,9 @@ renderer = Renderer::new(&gpu, format)                 the output's format; its 
 │                                                      values and instances, its graph, targets
 │                                                      and timers, its stats
 ├── set_shaders(&gpu, &ShaderSources)                  the pipelines made again from new
-│                                                      sources, all or none: on an error, the
-│                                                      ones it had stay (ADR-0077)
+│                                                      sources, all or none, the canvas's
+│                                                      included: on an error, the ones it had
+│                                                      stay (ADR-0077)
 ├── create_mesh(&gpu, label, &MeshData)                after a check, 48-byte vertices with their
 │                                                      tangent and the indices written into the
 │                                                      first page of the renderer's meshes with
@@ -840,6 +868,8 @@ slime-cook cook <sources> <output>                     the cooker's program, bef
     │                                                  output/<name>.scenefile unless the file
     │                                                  there holds it; it needs the assets of
     │                                                  its table
+    ├── for each style sheet, theme and table of       checked, and written in the binary
+    │   shortcuts (.style, .theme, .keys)              encoding (ADR-0141, ADR-0142)
     └── Manifest::to_bytes ──▶ output/manifest         each asset's kind, file, size, source;
                                                        written only if it changed
 
@@ -1089,6 +1119,7 @@ building only the rows that show.
 
 ```text
 extract
+├── overlay.set_window(size, scale_factor)           the window that the panels lie over
 ├── actions = overlay.take_actions()                 the panels' chords taken, which open and
 │                                                    close them
 ├── panel.act(&mut actions)                          the panel's actions: the filter typed, the
@@ -1373,17 +1404,22 @@ at the list's width and the height of a row, so that a list costs what it shows.
 
 Style sheets and themes ([`slime_ui::theme`](../crates/slime-ui/README.md),
 [ADR-0141](adr/0141-style-sheets-and-themes.md)) are cooked as scene files are, and read when an
-interface takes them:
+interface takes them; the editor's look, behind `slime-ui`'s `editor-look` feature, is built into
+`slime-ui` and read from its text (`slime_ui::look`), as the dev overlay does
+([ADR-0149](adr/0149-the-looks-foundations.md)):
 
 ```text
 interface.style, dark.theme                    sources: rules, and the named values they give
 slime-cook cook                                each into its binary encoding, its syntax checked
 CookedAssets::style_sheet(id) / theme(id)      their bytes
 StyleSheet::from_binary / Theme::from_binary
-ui.set_style(&[sheet], &theme)                 every rule read as a part of a Style, its "$name"
-│                                              given the theme's value and its "#rrggbb" a color,
-│                                              through slime-serialize's References::value; every
-│                                              element marked to be styled again
+ui.set_style(&[sheet], &[base, dark])          every rule read as a part of a Style, its "$name"
+│                                              given the value of the last of the stacked themes
+│                                              that gives it, values that name others or compute
+│                                              colors in OKLCH worked out first, and its "#rrggbb"
+│                                              a color, through slime-serialize's
+│                                              References::value; every element marked to be
+│                                              styled again
 ui.frame()
 └── each marked element: the rules that select it, by kind, classes, key, states and ancestor, in
     their order, then the fields that its own style sets; the style made kept for those rules and
@@ -1400,10 +1436,11 @@ A person's input reaches an interface in the engine's vocabulary of input, `slim
 which `slime-app` gives the presentation's interface first ([ADR-0145](adr/0145-text-edited.md)):
 
 ```text
-Event::CursorMoved / MouseButton / MouseWheel   the window's events, which slime-app gives the
-Event::ModifiersChanged / Key / Ime             interface of Presentation::ui
-ui.pointer_moved / pointer_button / wheel       the button under the pointer hovered, pressed, held;
-                                                a field focused, its caret placed, its text selected
+Event::CursorMoved / CursorLeft                 the window's events, which slime-app gives the
+Event::MouseButton / MouseWheel                 interface of Presentation::ui
+Event::ModifiersChanged / Key / Ime
+ui.pointer_moved / pointer_left                 the button under the pointer hovered, pressed, held;
+ui.pointer_button / wheel                       a field focused, its caret placed, its text selected
 ui.modifiers / key / ime                        what the focused field types and edits with, then a
 │                                               shortcut's command, or an intent: Tab, the arrows,
 │                                               Enter and Space, Escape
@@ -1495,7 +1532,7 @@ and gives what changed in its own types; `slime-app` alone translates them:
 
 ```text
 a screen reader begins to read          the adapter, from its own thread → Event::Accessibility
-                                        (TreeRequested) on the event loop's
+                                        (TreeRequested), delivered on the event loop's thread
 slime-app                               ui.take_meaning_changes(whole): every element that means
                                         something → AccessKit's update, the window's node at the
                                         root; Window::update_accessibility
@@ -1523,8 +1560,9 @@ The renderer draws an interface as a *canvas*
 ```text
 Canvas::new()                                 what an interface draws in a frame
 canvas.add_image(CanvasImage::Texture(&t))    an image that items read: a texture, of colors or of
-canvas.add_image(CanvasImage::Target(&view))  coverage, or a target that a view drew
-canvas.draw_box / draw_shadow / draw_image    items in their order, each cut to its clip
+canvas.add_image(CanvasImage::Target(&rt))    coverage, or a target that a view drew
+canvas.draw_box / draw_shadow / draw_gradient items in their order, each cut to its clip; a
+       / draw_image                           gradient's colors mixed between its corners
 renderer.draw_canvas(gpu, &canvas, &target)   one pass over the target, sRGB seen without its
 │                                             encoding (RenderTarget::without_srgb)
 ├── the items written to a storage buffer, their colors mixed as the target mixes them
@@ -1544,16 +1582,18 @@ An interface built by `slime-ui` gives what it draws as a *display list*, data w
 
 ```text
 DisplayList::new()                            what an interface draws in a frame, without a GPU
-list.push(BoxPrimitive / ShadowPrimitive      boxes, shadows, texts laid out (Arc<TextLayout>,
-          / TextPrimitive / ImagePrimitive,   shared with the TextCache), and images named by
-          clip)                               keys, each cut to its clip
-ui.draw(gpu, &mut renderer, &fonts, &list,    slime-ui-render's UiRenderer:
-        |key| image, &target)
+list.push(BoxPrimitive / ShadowPrimitive      boxes, shadows, gradients, texts laid out
+          / GradientPrimitive                 (Arc<TextLayout>, shared with the TextCache), and
+          / TextPrimitive / ImagePrimitive,   images named by keys, each cut to its clip
+          clip)
+ui_renderer.draw(gpu, &mut renderer, &fonts,  slime-ui-render's UiRenderer, which gives its
+        &list, |key| Option<CanvasImage>,     UiStats:
+        &target)
 ├── the atlas: each glyph that its pages lack rasterized (GlyphRasterizer), placed by etagere in a
 │   page of coverage or of colors, and written into it (Gpu::write_texture); past the budget, the
 │   glyphs that no draw asked for the longest leave first
-├── a canvas: boxes and shadows as they are, each glyph a part of its page, each image as the
-│   program gives it for its key
+├── a canvas: boxes, shadows and gradients as they are, each glyph a part of its page, each image as
+│   the program gives it for its key
 └── renderer.draw_canvas(gpu, &canvas, &target)
 ```
 
@@ -1707,9 +1747,13 @@ uploader's, which submits the copies of what the loads bring, and waits rather t
 (ADR-0118). The sky's environment is computed by frame tasks of the same pool, and the
 cooker encodes textures on it. A game's development channel has a thread that accepts connections,
 and one for each connection, which wait rather than compute ([above](#the-development-channel)).
+The handler of termination signals runs on a thread of its own, and logs from another
+([below](#termination-signals)); with the `accessibility` feature, AccessKit's adapter asks for the
+window's tree from its own thread, the event loop answering it ([above](#what-a-screen-reader-reads-of-an-interface)).
 What may cross threads is stated, so that
-later stages (a render thread, the job system) can rely on it, and checked when the tests of the
-crates that own these types compile (a `threads` module in their `lib.rs`):
+later stages (a render thread, the job system) can rely on it, and checked for most of them when
+the tests of the crates that own these types compile (a `threads` module in their `lib.rs`, a test
+of its own for the display list); rustdoc states it for the others:
 
 - **Shared between threads** (`Send` and `Sync`): the `Gpu`, whose clones share its device, its
   `Surface` and every GPU object it creates (targets, textures, samplers, buffers, bind groups and
@@ -1719,7 +1763,9 @@ crates that own these types compile (a `threads` module in their `lib.rs`):
   drawings, pickings and what they found, windows, events, the input, the host, its `Context` and
   `AppConfig`, worlds and entity handles, scene libraries and resolved scenes, the
   frame builder of `slime-world-render`, its frames and its picker, reflected values and registries,
-  the development channel's tokens, messages and clients, and the error types of those crates.
+  the development channel's tokens, messages and clients, an interface's display list, fonts and
+  text cache, the renderer of display lists (`UiRenderer`), the editor's core (`Editor`), and the
+  error types of those crates.
   Scenes, their instances and the frames of `slime-world-render` are also `'static`: they own what
   they draw, so that a frame built on one thread is drawn on another (ADR-0120). wgpu keeps its
   error scopes per thread, so GPU objects can be created from several threads. wgpu fails to
@@ -1732,9 +1778,8 @@ crates that own these types compile (a `threads` module in their `lib.rs`):
   development channel's `Listener` and the requests it hands over, `Incoming`, which answer through
   a channel of the standard library.
 - **Kept on the thread that made them** (neither `Send` nor `Sync`): an interface
-  (`slime_ui::tree::Ui`), its fonts' state and its clipboard among it, and so the dev overlay that
-  holds one (`slime_devui::Overlay`); a presentation uses them on the main thread, where `run`
-  drives it.
+  (`slime_ui::tree::Ui`), and so the dev overlay that holds one (`slime_devui::Overlay`), which no
+  test checks; a presentation uses them on the main thread, where `run` drives it.
 
 ## Platforms
 
@@ -1759,6 +1804,9 @@ The engine targets Linux (`x86_64-unknown-linux-gnu`) and Windows (`x86_64-pc-wi
   Linux and UI Automation on Windows; `slime-platform` makes the window hidden, then shows it once
   the adapter is made, which Wayland ignores, showing a window with its first frame
   ([ADR-0146](adr/0146-screen-readers.md)).
+- arboard hides the systems' clipboards: Wayland's data-control protocol where the compositor gives
+  it, X11's otherwise, through XWayland, and Windows' own; on Linux without either, fields copy and
+  paste nothing, which the log says (`crates/slime-platform/src/clipboard.rs`).
 - `ctrlc` hides signals (Unix) and console events (Windows); `crates/slime-app/src/signal.rs`
   describes how each platform behaves.
 - wgpu hides the graphics APIs; `slime-gfx` only chooses which one to ask for on each platform
