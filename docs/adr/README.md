@@ -219,3 +219,4 @@ the ADR linking to it.
 | [0148](0148-widgets.md) | Widgets | Accepted; amended by 0149 |
 | [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted |
 | [0150](0150-layers.md) | Layers | Accepted |
+| [0151](0151-rich-widgets.md) | Rich widgets | Proposed |

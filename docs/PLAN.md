@@ -72,7 +72,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.7a](#m6b7a--the-widgets-of-a-panel) | The framework has the widgets that a panel of the dev overlay and of the editor is made of, in the editor's theme | Done |
 | [M6b.7b](#m6b7b--the-looks-foundations) | The editor's look follows one accent in a dark, a light and a high-contrast theme, moves through transitions, and stays crisp at every scale | Done |
 | [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Built; CI to run |
-| [M6b.7d](#m6b7d--rich-widgets) | The framework has the rich fields, notifications and the palette of commands that make editing fast | Planned |
+| [M6b.7d](#m6b7d--rich-widgets) | The framework has the rich fields, notifications and the palette of commands that make editing fast | In progress |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
 
@@ -1076,6 +1076,10 @@ that the look has a light and a high-contrast theme beside its dark one.
   example; an agent's session uses each through its actions; CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-ui-render`; the example.
 - **By hand.** The owner tries the example's rich widgets and its palette.
+- **Progress.** [ADR-0151](adr/0151-rich-widgets.md), proposed on 2026-10-27, cuts it in two, rich
+  fields, then notifications and the palette of commands, and lists seven choices that wait for the
+  owner: expressions, units, a section's header, help from the documentation, notifications, the
+  palette and the sheet of shortcuts. The parts that hold no open choice are being built meanwhile.
 
 ### M6b.8 — The dev overlay on the engine's interface
 
