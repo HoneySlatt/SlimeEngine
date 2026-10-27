@@ -1268,8 +1268,8 @@ that the look has a light and a high-contrast theme beside its dark one.
   `check (headless)` took 14 minutes 56 seconds, `check (windowed)` 23 minutes 31 seconds, longer
   by the game's agent session that uses the overlay, `windows` 19 minutes 44 seconds and
   `windows-release` 12 minutes 51 seconds. The owner's checks by hand on Linux, on 2026-10-27,
-  passed, *Hunna Wood*'s panels and the `world` and `scene` examples', but Orca reading the
-  `world` example's, which waits in [the list](#checks-by-hand-waiting-for-the-owner).
+  passed: *Hunna Wood*'s panels and the `world` and `scene` examples', and Orca reading the
+  `world` example's.
 
 ### M6b.9 — Windows check, documentation, release 0.6
 
@@ -1285,6 +1285,9 @@ that the look has a light and a high-contrast theme beside its dark one.
 - **By hand.** In the Windows virtual machine: the overlay of *Hunna Wood* and of the `world`
   example; text in several writing systems in the examples; an input method and the clipboard in the
   examples' fields; Narrator reading the `world` example's overlay.
+- **Progress.** The owner's check in the Windows virtual machine, on 2026-10-27, of the programs
+  that CI built from `0b6f1a9`, passed: the overlay of *Hunna Wood* and of the `world` example,
+  Narrator reading the `world` example's panels, as Orca reads them on Linux.
 
 ## Stage 6c — The editor
 
@@ -1342,8 +1345,6 @@ The game is run with `--new --save <a file of its own>`, so that the owner's sav
 - **G20, in the Windows virtual machine.** A source asset whose `.meta` differs from its own name
   by case only, cooked twice: whether its ID changes at each cook, and whether `slime-cook watch`
   cooks it again without end (see [Known debt](#left-by-the-audit-of-04)).
-- **M6b.8b, on Linux.** Orca reading the `world` example's panels: F2 and F3 open them, F6 gives
-  them the focus, Tab moves it within one, and Orca says each element's role, name and value.
 
 ## Releasing
 
