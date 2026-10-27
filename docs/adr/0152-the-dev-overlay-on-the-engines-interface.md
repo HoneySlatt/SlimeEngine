@@ -1,6 +1,10 @@
 # 0152. The dev overlay on the engine's interface
 
-- Status: Proposed
+- Status: Accepted; amends [0131](0131-stage-6b-and-stage-6c.md) (M6b.8 cut in two: the editors
+  and the world panel, then the overlay over the games' views), [0137](0137-the-canvas.md) (the
+  canvas fills a box with a gradient between its corners' colors) and
+  [0142](0142-input-and-focus.md) (a focus that the pointer gave takes no keys but a field's and an
+  open list's)
 - Date: 2026-10-27
 
 ## Context
@@ -77,12 +81,20 @@ low; options of a list to choose from that are disabled or carry help; a field o
 what was committed when a program holding an `f32` gives it back; a picker of colors.
 
 The overlay is about 2 600 lines in `slime-devui`, half of them tests, and 500 in the programs that
-build panels with it. Several parts of its design are the owner's to choose. This record is
-proposed, the parts that hold no open choice built meanwhile.
+build panels with it. Several parts of its design were the owner's to choose. This record was first
+proposed, the parts that held no open choice built meanwhile; the owner took the choices on
+2026-10-27, among the options that "Alternatives considered" lists.
 
-## Decision (proposed)
+## Decision
 
-**Built without an open choice:**
+**M6b.8 in two.** M6b.8a, *the editors of reflected values and the world panel*: rewritten on
+`slime-ui`, with the picker of colors, beside the overlay of egui, tested without a GPU. M6b.8b,
+*the overlay over the games' views*: the overlay hosted in *Hunna Wood* and the `world` and `scene`
+examples, their panels rewritten on it, the keys, the lost device, the game's shipping build, and
+egui leaving. M6b.8 is twice the largest milestone of Stage 6b, and its two halves are reviewed and
+checked apart: the first by tests alone, the second by hand in the programs.
+
+**Built first, in M6b.8a, without an open choice:**
 
 - *Sliders on a logarithmic scale, and from high to low*: a slider's track may map its values
   logarithmically, its least value above 0 (`Element::logarithmic`), and may run from its most
@@ -110,44 +122,57 @@ proposed, the parts that hold no open choice built meanwhile.
   keep it round, 1 for an integer, which stays one, and for a float the power of ten at most a
   hundredth of it, where egui dragged an integer by a tenth and a float by a hundredth of itself. A
   list's elements are named by their places, `weights [1]`. A color is a swatch and its four
-  channels until the picker's choice is taken.
+  channels until the picker replaces them.
 
-**Open choices, for the owner** (each with the recommendation first):
+**The picker of colors, in M6b.8a**, a widget of `slime-ui` that the editor's inspector reuses: a
+*color well*, a swatch of the color that a press opens, in a layer beside it that the well owns, as
+a list to choose from opens its list. The layer holds a square of saturation and value, a strip of
+hue and one of alpha, each dragged by the pointer and moved by the arrows, the four channels as
+fields, and the hexadecimal code. The program's color is linear; hue, saturation and value are read
+on its sRGB encoding, as every picker and the hexadecimal code read them, the well keeping the hue
+of a gray that it cannot read back. The program reads the color as actions, changed while the
+pointer drags and committed once it lets go or a field commits, under a check box's rule.
 
-1. *M6b.8 in two.* (a) M6b.8a, *the editors of reflected values and the world panel*, on `slime-ui`,
-   tested without a GPU, beside the overlay of egui; M6b.8b, *the overlay over the games' views*:
-   hosting it, the programs' panels, the keys, the lost device, the shipping build, and egui leaving.
-   (b) M6b.8 whole. Recommended: (a). M6b.8 is twice the largest milestone of Stage 6b, and its two
-   halves are reviewed and checked apart: the first by tests alone, the second by hand in the
-   programs.
-2. *Where the overlay lives in a program.* (a) Roots of the presentation's one interface: the
-   overlay builds its panels as roots above the program's own, in the `Ui` that `Presentation::ui`
-   gives; one tree, one queue of actions sorted by root, one focus, the overlay seen by agents and
-   screen readers as the rest of the interface is, and a press over a panel never lost to an element
-   beneath it. (b) A second interface that `slime-app` gives the events to first: the overlay apart
-   from the game's interface, but two trees for agents, screen readers and the focus to join, and
-   `slime-app` holding two of each. Recommended: (a).
-3. *The keys and a focus that a press gave.* (a) A focus that the pointer gave to a button, a check
-   box, a slider, a segment or a tab takes no keys: the keys reach the program, as egui left them; a
-   field still takes them, so does an open menu or list, and a focus that Tab gave takes the keys
-   until a press elsewhere, as the editor's keyboard users need; the rule holds in every program,
-   the editor's too. (b) The same rule, only for the overlay's roots. (c) Any focus takes the keys,
-   as now: a click on the overlay takes the game's arrows and Escape until a press in its view.
-   Recommended: (a): a game, the editor's viewport and the overlay all want their keys back after a
-   click on a button, and one rule is simpler than two.
-4. *The overlay in the game's shipping build.* (a) Behind *Hunna Wood*'s `development` feature, as
-   the development channel is ([ADR-0122](0122-the-development-channel.md)): the build for shipping
-   carries neither the world panel that edits the world nor the editor's look and its fonts, about
-   1.2 MB; a statistics overlay for players becomes the game's own interface, Stage 7's. (b) In
-   every build, as now. Recommended: (a).
-5. *The picker of colors.* (a) A swatch that opens, in a layer beside it, a square of saturation and
-   value, a strip of hue and one of alpha, the four channels as fields and the hexadecimal code, in
-   linear values with the swatch drawn as the screen shows them; the editor's inspector reuses it.
-   (b) The swatch and four fields, the picker left to Stage 6c. Recommended: (a), which the editor
-   needs and which the overlay has today.
+**Gradients in the canvas.** The square and the strips are gradients, which the canvas did not
+draw: a box of the display list, and the canvas's, may take a color at each corner in place of its
+fill, mixed across it on sRGB's encoding, as CSS mixes a gradient and as the interface blends
+([ADR-0137](0137-the-canvas.md)). The square is one box, white, the hue, black and black at its
+corners; the strip of hue is six. Games' interfaces draw their fades and bars with it too.
+
+**The overlay over the games' views, in M6b.8b:**
+
+- *Roots of the presentation's one interface.* The overlay builds its panels as roots above the
+  program's own, in the `Ui` that `Presentation::ui` gives: one tree, one queue of actions sorted
+  by root, one focus, the overlay seen by agents and screen readers as the rest of the interface
+  is, and a press over a panel never lost to an element beneath it.
+- *A focus that the pointer gave takes no keys.* A button, a check box, a slider, a segment, a tab
+  or a color well that a press gave the focus takes no keys: they reach the program, as egui left
+  them. A field still takes them, so does an open menu or list, and a focus that Tab gave takes the
+  keys until a press elsewhere, as keyboard users need. The rule holds in every program, the
+  editor's too, whose viewport wants its keys back after a click on a button.
+- *The overlay in development builds only.* It goes behind *Hunna Wood*'s `development` feature, as
+  the development channel does ([ADR-0122](0122-the-development-channel.md)): the build for
+  shipping carries neither the world panel that edits the world nor the editor's look and its
+  fonts, about 1.2 MB. A statistics overlay for players is the game's own interface, Stage 7's.
+- *Drawn with the view's renderer.* Each program draws its interface after its view, with the
+  renderer of its view, which lends its canvas.
 
 ## Alternatives considered
 
+- **M6b.8 whole**: one milestone, but twice the largest of Stage 6b, reviewed and checked at once.
+- **A second interface for the overlay**, which `slime-app` gives the events to first: the overlay
+  apart from the game's interface, but two trees for agents, screen readers and the focus to join,
+  and `slime-app` holding two of each.
+- **The rule of the keys for the overlay's roots alone**: the editor's interface left as it is, but
+  two rules to know. **Any focus taking the keys**, as before: a click on the overlay takes the
+  game's arrows and Escape until a press in its view.
+- **The overlay in every build**, as egui's was: F1 and F2 in the shipped game, with the fonts.
+- **The swatch and four fields, the picker left to Stage 6c**: less work now, but the overlay loses
+  the picker that egui's has, and the editor needs one.
+- **Gradients made of many small boxes**, 32 × 32 to 64 × 64 for the square: no change to the
+  renderer, but steps that show, thousands of items while the picker is open, and a stopgap that
+  the editor would replace. **An image of the square made on the CPU**: smooth, but the interface's
+  images are textures that the program gives, which a widget has none of.
 - **A crate of its own for the editors of reflected values**, beside `slime-devui`: the editor of
   Stage 6c would not depend on the overlay's crate, but a crate for one client until Stage 6c, and
   the overlay is the editors' first user; the split can come when the editor needs it.
@@ -157,7 +182,8 @@ proposed, the parts that hold no open choice built meanwhile.
 
 ## Consequences
 
-- `slime-ui` gains the parts above; `slime-devui` gains the editors and the world panel on it, then
-  loses egui.
-- The open choices decide the rest of M6b.8, which `docs/PLAN.md` describes once they are taken;
-  this record is accepted then, its choices written in place of the options.
+- `slime-ui` gains the parts above, the color well among them; its display list's boxes and the
+  canvas's take a gradient; the rule of the keys changes for every interface.
+- `slime-devui` gains the editors and the world panel on `slime-ui`, then loses egui, with
+  `deny.toml`'s exception for egui's fonts and its use of `slime-gfx`'s `wgpu` feature.
+- *Hunna Wood*'s shipping build loses the overlay; its development build holds the editor's look.

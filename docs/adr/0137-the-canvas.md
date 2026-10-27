@@ -2,7 +2,9 @@
 
 - Status: Accepted; amends [0131](0131-stage-6b-and-stage-6c.md) (M6b.3 cut in two: the canvas,
   then the text and the display list) and [0132](0132-the-engines-ui-framework.md) (no scissor
-  apart from the viewport; the interface blends in sRGB's encoding)
+  apart from the viewport; the interface blends in sRGB's encoding); amended by
+  [0152](0152-the-dev-overlay-on-the-engines-interface.md) (a box filled with a gradient between its
+  corners' colors)
 - Date: 2026-10-23
 
 ## Context

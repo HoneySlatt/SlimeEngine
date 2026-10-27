@@ -4,8 +4,10 @@
   focus, then what agents see); amended by [0145](0145-text-edited.md) (`slime-app` gives the
   window's events to a presentation's interface, whose input calls give whether they took each;
   fields hold the focus too; a press on what the interface draws, and every press and key while a
-  modal root is open, are the interface's) and [0150](0150-layers.md) (roots that the framework
-  places, and closes on a press outside them or Escape)
+  modal root is open, are the interface's), [0150](0150-layers.md) (roots that the framework
+  places, and closes on a press outside them or Escape) and
+  [0152](0152-the-dev-overlay-on-the-engines-interface.md) (a focus that the pointer gave takes no
+  keys but a field's and an open list's)
 - Date: 2026-10-25
 
 ## Context

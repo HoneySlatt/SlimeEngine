@@ -53,9 +53,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0149](adr/0149-the-looks-foundations.md)): M6b.7b, the look's foundations, is done;
   M6b.7c, the layers ([ADR-0150](adr/0150-layers.md)), is done. The owner cut the rich widgets in
   two on 2026-10-27 ([ADR-0151](adr/0151-rich-widgets.md)): M6b.7d, the rich fields, is done;
-  M6b.7e, what the editor tells and finds, is done. M6b.8, the dev overlay on the engine's
-  interface, is in progress: [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md),
-  proposed, lists the choices that wait for the owner.
+  M6b.7e, what the editor tells and finds, is done. The owner cut M6b.8 in two on 2026-10-27
+  ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)): M6b.8a, the editors and the
+  world panel on the engine's interface, is in progress; M6b.8b, the overlay over the games' views,
+  follows.
 
 ## Status
 
@@ -77,7 +78,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Done |
 | [M6b.7d](#m6b7d--rich-fields) | The framework has the rich fields and buttons that make editing fast | Done |
 | [M6b.7e](#m6b7e--what-the-editor-tells-and-finds) | The framework tells the user what goes on, and finds every command by its name | Done |
-| [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | In progress |
+| [M6b.8a](#m6b8a--the-editors-and-the-world-panel-on-the-engines-interface) | The dev overlay's editors of reflected values, its world panel and a picker of colors run on the engine's interface | In progress |
+| [M6b.8b](#m6b8b--the-overlay-over-the-games-views) | The dev overlay runs on the engine's interface over *Hunna Wood* and the examples, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b, 5a, 5b and 6a are done, and so are the audit pass and the
@@ -151,7 +153,7 @@ Risks:
   Linux, 52 as M6b.6b counted those of the workspace's build that come only through it. Each
   milestone that adds a crate records how long CI's jobs take, and a job past the limit is split, as
   ADR-0081 and [ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md) split them; about 20 crates
-  leave with egui at M6b.8.
+  leave with egui at M6b.8b.
 - **What only a person checks.** The look of text, input methods on Wayland and on Windows, the
   clipboard on Wayland's compositors and screen readers cannot be checked in a headless Weston: each
   milestone gives its checks by hand to [the list](#checks-by-hand-waiting-for-the-owner), but for
@@ -159,8 +161,8 @@ Risks:
   M6b.3b, made during them.
 - **Wayland.** arboard reaches Wayland's clipboard through the data-control protocol, which niri and
   Hyprland offer and not every compositor does; winit 0.30.13 drops no file on Wayland (Stage 6c).
-- **The overlay rewritten.** Games and their checks by hand use it: M6b.8 writes a checklist of
-  what it does today, and egui leaves only once the new one does all of it.
+- **The overlay rewritten.** Games and their checks by hand use it: M6b.8a writes a checklist of
+  what it does today, and egui leaves at M6b.8b only once the new one does all of it.
 - **One GPU.** Budgets are checked on the owner's RX 6900 XT only ([Known debt](#known-debt)).
 
 ### M6b.1a — The commands and undo
@@ -1165,41 +1167,63 @@ that the look has a light and a high-contrast theme beside its dark one.
   `windows` 19 minutes 30 seconds and `windows-release` 15 minutes 30 seconds. The owner's check by
   hand on Linux, on 2026-10-27, passed.
 
-### M6b.8 — The dev overlay on the engine's interface
+### M6b.8a — The editors and the world panel on the engine's interface
 
-- **Goal.** The dev overlay runs on the engine's interface, and egui leaves the engine.
-- **Crates.** `slime-devui`, `slime-gfx`; *Hunna Wood*, the `world` and `scene` examples;
-  `deny.toml`.
-- **Delivers.** As ADR-0132 decides: `slime-devui` rewritten on `slime-ui`, its world panel, which
-  builds only the rows that show and keeps its selection by identity, and its editors of reflected
-  values, booleans, numbers, text, structs, enums, options, lists, vectors, rotations as angles,
-  colors, and references shown, which the editor's inspector of Stage 6c reuses; its fields change a
-  value only when the user changed it. The panels that *Hunna Wood*, the `world` example and the
-  `scene` example build with it, their statistics, time controls, views' settings and reports,
-  rewritten on it too, its theme read from a file. The overlay takes the pointer and the keys as it
-  does today, and outlives a lost device. A checklist of what the overlay does today, written at the
-  milestone's start. egui and egui-wgpu leave the workspace, with `deny.toml`'s exception for their
-  fonts and the overlay's use of `slime-gfx`'s `wgpu` feature. The ADR of the design.
-- **Done when.** The checklist holds, by tests where a test is practical: the world panel of 100 000
-  entities within its budget, retiring G46; a field that the user did not change writes nothing,
-  retiring G33; the value editors send commands; the overlay released and restored after a lost
-  device. An agent drives the overlay through the MCP server; `cargo deny` passes without egui's
-  exception; CI is green.
+- **Goal.** The dev overlay's editors of reflected values, its world panel and a picker of colors
+  run on the engine's interface.
+- **Crates.** `slime-ui`, `slime-render`, `slime-ui-render`, `slime-devui`; the `widgets` example;
+  the benchmarks.
+- **Delivers.** As [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md) decides: the
+  checklist of what the overlay does today, which the ADR holds; sliders on a logarithmic scale and
+  from high to low, options of a list to choose from that are disabled or carry help, fields of
+  numbers of single precision; `slime-devui`'s editors of reflected values and its world panel on
+  `slime-ui`, beside egui's, which the editor's inspector of Stage 6c reuses; the color well and its
+  picker; boxes filled with a gradient in the display list and the canvas. The `widgets` example
+  shows a color well.
+- **Done when.** Tests without a GPU of the editors, the world panel and the picker: a field that
+  the user did not change writes nothing (G33), the world panel of 100 000 entities within its
+  budget (G46, `devui.world_panel.100k`), the editors' edits as commands; a test of the canvas's
+  gradients; the `widgets` example's images drawn again with its color well, which its agent's
+  session uses; CI is green.
+- **How to test.** `cargo test -p slime-ui -p slime-devui`; `cargo run --release -p slime-benches --
+  devui`; `cargo run --example widgets`.
+- **By hand.** The owner tries the `widgets` example's color well.
+- **Progress.** [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md), proposed on
+  2026-10-27 with the checklist of what the overlay does today, its parts that held no open choice
+  built meanwhile, then accepted as the owner took its choices that day: M6b.8 cut in two, the
+  overlay as roots of the program's one interface, a focus that the pointer gave leaving the keys to
+  the program, the overlay kept out of the game's shipping build, and the whole picker of colors,
+  drawn with gradients in the canvas. Built: the sliders, the options and the fields of single
+  precision; the editors of reflected values and the world panel on the engine's interface
+  (`slime_devui::interface`), tested without a GPU, measured by `devui.world_panel.100k`, which the
+  programs do not use yet. A frame after an entity was renamed, spawned or despawned makes the
+  panel's list of entities again, about 7 ms at 100 000 entities
+  ([measurements](measurements.md#m6b8-rx-6900-xt)), as egui's did. The color well and the canvas's
+  gradients are being built.
+
+### M6b.8b — The overlay over the games' views
+
+- **Goal.** The dev overlay runs on the engine's interface over *Hunna Wood* and the examples, and
+  egui leaves the engine.
+- **Crates.** `slime-ui`, `slime-devui`, `slime-gfx`; *Hunna Wood*, the `world` and `scene`
+  examples; `deny.toml`.
+- **Delivers.** As [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md) decides: the
+  overlay built as roots of the presentation's one interface, drawn after the view with the view's
+  renderer; a focus that the pointer gave taking no keys but a field's and an open list's, in every
+  interface; the panels that *Hunna Wood*, the `world` example and the `scene` example build, their
+  statistics, time controls, views' settings and world panels, rewritten on M6b.8a's, in the
+  editor's look; *Hunna Wood*'s overlay behind its `development` feature. The overlay takes the
+  pointer and the keys as it does today, and outlives a lost device. egui and egui-wgpu leave the
+  workspace, with `deny.toml`'s exception for their fonts and the overlay's use of `slime-gfx`'s
+  `wgpu` feature.
+- **Done when.** The checklist holds, by tests where a test is practical: the value editors send
+  commands; the overlay released and restored after a lost device; a click on the overlay leaves the
+  game's keys to it. An agent drives the overlay through the MCP server; the game built for
+  shipping holds no overlay; `cargo deny` passes without egui's exception; CI is green.
 - **How to test.** `cargo test -p slime-devui`; `cargo run -p hunnawood -- --new --save <file>`;
-  `cargo run --example world`.
+  `cargo run --example world`; `cargo run --example scene`.
 - **By hand.** The owner plays *Hunna Wood* with its F1 and F2 panels, uses the `world` and `scene`
   examples' panels, and listens to Orca read the `world` example's.
-- **Progress.** [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md), proposed on
-  2026-10-27, holds the checklist of what the overlay does today and lists five choices that wait
-  for the owner: the milestone cut in two, the overlay as roots of the program's one interface, the
-  keys that a focus given by the pointer leaves to the program, the overlay kept out of the game's
-  shipping build, and the picker of colors. The parts that hold no open choice are being built
-  meanwhile: sliders on a logarithmic scale and from high to low, options of a list to choose from
-  that are disabled or carry help, fields of numbers of single precision; the editors of reflected
-  values and the world panel on the engine's interface (`slime_devui::interface`), tested without
-  a GPU, measured by `devui.world_panel.100k`, which the programs do not use yet. A frame after an
-  entity was renamed, spawned or despawned makes the panel's list of entities again, about 7 ms at
-  100 000 entities ([measurements](measurements.md#m6b8-rx-6900-xt)), as egui's did.
 
 ### M6b.9 — Windows check, documentation, release 0.6
 
@@ -1243,7 +1267,7 @@ provisional until then:
    changes while the game runs, keeping the handles that its code holds
    ([ADR-0089](adr/0089-scenes-and-prefabs.md)); the three seconds from Play to control, measured.
 4. **The hierarchy and the inspector**: a tree of the world's entities that lays out only what
-   shows, reparenting by drag and drop, as commands; an inspector driven by reflection, on M6b.8's
+   shows, reparenting by drag and drop, as commands; an inspector driven by reflection, on M6b.8a's
    value editors, overrides marked, applied and reverted; `EntityRef`, a reference to an entity of
    any scene, and its picker ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md));
    the rest of G32.
@@ -1477,13 +1501,13 @@ GitHub issues, linked from their entry; this list stays the reference.
   sctk-adwaita, on compositors that do not draw decorations), each waiting up to 100 ms when the
   settings portal does not answer; the error they log when no session bus or portal answers is
   hidden by the default log filter (ADR-0019).
-- **Upgrading wgpu waits for egui** while the dev overlay draws with it (ADR-0031; M6b.8).
+- **Upgrading wgpu waits for egui** while the dev overlay draws with it (ADR-0031; M6b.8b).
   `egui-wgpu` is built against one wgpu version (egui 0.36 against wgpu 30 today), so wgpu moves
-  only once egui follows. M6b.8 rewrites the overlay on the engine's UI framework and removes egui
+  only once egui follows. M6b.8b moves the overlay on the engine's UI framework and removes egui
   ([ADR-0132](adr/0132-the-engines-ui-framework.md)).
 - **The dev overlay blends in an sRGB framebuffer.** egui prefers a linear one for its blending,
   warns once at startup, and its panels look slightly lighter than egui's own demos (ADR-0031;
-  M6b.8). Harmless for tooling; it goes with egui at M6b.8.
+  M6b.8b). Harmless for tooling; it goes with egui at M6b.8b.
 - **Mipmaps of textures made in code are computed on the CPU when they are created**
   (`Gpu::create_texture`, whose documentation gives the cost), on the calling thread, in work
   proportional to the texture's pixels (ADR-0032): a level of tens of large textures waits seconds.
@@ -1627,7 +1651,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   that pass until the next time replaces it. wgpu does not tell how many bits are valid, so the
   wrapped difference cannot be recovered. Dropping such a sample (`end.checked_sub(start)` in
   `crates/slime-gfx/src/timer.rs`) is a one-line change if it ever matters.
-- **The dev overlay can still panic on a lost device** (ADR-0022, ADR-0103; M6b.8, which rewrites it
+- **The dev overlay can still panic on a lost device** (ADR-0022, ADR-0103; M6b.8b, which moves it
   without egui). `Overlay::render` skips the frame when the device was lost earlier in it, and
   `Overlay::new` returns an error on a lost device, but two cases panic inside egui-wgpu or wgpu: a
   loss that egui-wgpu's own buffer upload is the first to find, and a device lost between
@@ -2039,13 +2063,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   a text taller than its box is cut above and below. Escape in a field leaves the focus, which
   commits what the user typed rather than giving back what it held. Each edit lays the field's
   whole text out again, at a cost that grows with its length; a field undoes up to 100 edits, and
-  forgets them when the program gives it another text. A field has no placeholder, no length that
-  it holds at most, no text hidden as a password's; a field of numbers no bounds, and is dragged
-  only while it does not hold the focus, and reads a full stop alone as its decimal mark, whatever
-  the user's language; a program that holds a number in `f32` and gives it back replaces what the
-  field committed, as `0.1` read back is not the `0.1` typed, which M6b.8 settles. The interface
+  forgets them when the program gives it another text. A field has no length that it holds at
+  most, no text hidden as a password's; a field of numbers no bounds, without a prefix
+  is dragged only while it does not hold the focus, and reads a full stop alone as its decimal mark,
+  whatever the user's language. The interface
   takes an event before the presentation's `on_event`, where the dev overlay reads it: a panel of
-  the overlay drawn above an interface would lose a press to the element beneath it, which M6b.8
+  the overlay drawn above an interface would lose a press to the element beneath it, which M6b.8b
   settles as it moves the overlay onto the interface. The input method's window is placed beside
   the caret as the last frame drew it, and is turned off and on again, meant to end a composition
   that the focus left, which no input method was checked with yet; a text that the program gives
@@ -2061,7 +2084,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   arrows. Whether a section is open, which tab is chosen and where a handle stands are the
   interface's alone: they tell the program nothing, and an element that a builder removes forgets
   them. The editor's look has no italic faces; its fonts hold no Greek; it is built into the
-  program, not cooked, and how a game's overlay replaces it is M6b.8's to decide.
+  program, not cooked, and how a game's overlay replaces it is M6b.8b's to decide.
 - **The look's foundations** ([ADR-0149](adr/0149-the-looks-foundations.md)): a theme's values are
   typed only where a rule uses them, so that a name that holds a value of the wrong type is refused
   where a rule names it, not where the theme gives it; the color functions are four, and work on
@@ -2122,7 +2145,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   asked for once is given an update after each frame until it closes. A text that its builder names
   gives screen readers its name, not its words; a caret at the end of a line that breaks within the
   text is placed at the start of the next, its side lost; screen readers scroll by an item or by
-  what shows, not to an offset. egui's accesskit 0.24 is built beside 0.25 until M6b.8 takes egui
+  what shows, not to an offset. egui's accesskit 0.24 is built beside 0.25 until M6b.8b takes egui
   out. `deny.toml` ignores three advisories of unmaintained crates that the adapter on Linux brings
   through zbus 5, zvariant, zbus_names and zvariant_derive, which zbus 6 holds: they go once
   AccessKit's adapter moves to zbus 6.
@@ -2196,7 +2219,8 @@ determinism between Linux and Windows.
   and each frame walk every entity's ancestors (`set_parent`'s search for a cycle,
   `World::unsaved`, `interpolated_transform`). M6a.3 made `World::is_hidden` read a flag.
 - **The world panel rounds a number that was only clicked or crossed with the keyboard, and writes
-  the rounding into the world** (G33, medium; M6b.8): egui's `DragValue` shows as many decimals
+  the rounding into the world** (G33, medium; M6b.8b, which moves the programs onto M6b.8a's world
+  panel, whose fields write only what the user changed): egui's `DragValue` shows as many decimals
   as the drag's speed gives, and writes back the text it shows when it loses the focus. The rule for
   the editor's inspector: a field changes a value only when the user changed it.
 - **A GPU object used with another `Gpu` acts on another object without a word, and no API opens a
@@ -2217,7 +2241,8 @@ determinism between Linux and Windows.
   later): `view_from_eye` squares the direction in `f32`.
 - **`World::write_scene` loops without end when more than 1 679 616 entities need IDs from one
   base** (G45, low; Stage 6c): it draws four base-36 characters until one is free.
-- **The world panel costs about 1.25 µs per entity and per frame** (G46, low; M6b.8): 125 to 145
+- **The world panel costs about 1.25 µs per entity and per frame** (G46, low; M6b.8b, which moves
+  the programs onto M6b.8a's world panel, measured by `devui.world_panel.100k`): 125 to 145
   ms per frame at 100 000 entities, every row laid out, visible or not, measured before M6a.3,
   which makes the list again only when the world's structure moves, and was not measured again.
   The editor's hierarchy needs a virtualized list.
@@ -2238,7 +2263,7 @@ determinism between Linux and Windows.
   unable to save** (G56, low; Stage 6c): `SceneLibrary::reload` forgets the changed scenes before
   the game accepts them, and the files of the old manifest are gone.
 - **The dev overlay is built into the game that ships**, egui and its fonts with it (B1-F08;
-  measured again at M6b.8, which rewrites it without egui): an estimated 10 s of the game's release
+  measured again at M6b.8b, which rewrites it without egui): an estimated 10 s of the game's release
   build, 46 s on the owner's machine. The owner chose on 2026-10-19 to keep it in the game, and its
   fonts with it (P5); building it only in development would need a feature of the game.
 
