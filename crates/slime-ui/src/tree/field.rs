@@ -1148,11 +1148,44 @@ impl Ui {
                 primitives.push(filled(line, look.color));
             }
         }
-        if focused {
-            let caret = field.caret;
+        let caret = focused.then_some(field.caret);
+        let caret_color = look.color;
+        // An empty field shows its placeholder in its quieter color, from its start.
+        let placeholder = node
+            .element
+            .placeholder
+            .clone()
+            .filter(|_| field.text.is_empty() && field.compose.is_none());
+        if let Some(placeholder) = placeholder {
+            let (style, color) = (look.style.clone(), node.style.control.track);
+            let content = node.content_box();
+            let rtl = self.root_settings(id).map(|root| root.direction)
+                == Some(super::LayoutDirection::RightToLeft);
+            let layout = self
+                .texts
+                .get(
+                    &mut self.fonts,
+                    &placeholder,
+                    &style,
+                    scale,
+                    TextBounds::default(),
+                )
+                .clone();
+            let x = if rtl {
+                content.x + content.width - layout.width()
+            } else {
+                content.x
+            };
+            primitives.push(Primitive::Text(TextPrimitive {
+                origin: [x, origin[1]],
+                layout,
+                color,
+            }));
+        }
+        if let Some(caret) = caret {
             primitives.push(filled(
                 Rect::new(caret.x, caret.y, scale.max(1.0), caret.height),
-                look.color,
+                caret_color,
             ));
         }
         primitives

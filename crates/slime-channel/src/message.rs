@@ -463,6 +463,8 @@ pub struct ElementSummary {
     pub value: Option<String>,
     /// Its description, its tooltip; none for none.
     pub description: Option<String>,
+    /// The text that a field shows while it holds nothing; none for none.
+    pub placeholder: Option<String>,
     /// Its states: `hovered`, `pressed`, `focused`, `disabled`, `checked`, `expanded`,
     /// `selected`, and `has_popup` for what a press opens a layer beside, an item of a menu that
     /// opens a submenu or a list to choose from.
@@ -714,6 +716,7 @@ mod tests {
                         name: text("open"),
                         value: None,
                         description: Some(text("Opens a scene")),
+                        placeholder: None,
                         states: vec![text("hovered"), text("focused")],
                         actions: vec![text("press"), text("focus")],
                         bounds: Some([0, 0, 120, 28]),
@@ -724,6 +727,7 @@ mod tests {
                         name: String::new(),
                         value: None,
                         description: None,
+                        placeholder: None,
                         states: Vec::new(),
                         actions: Vec::new(),
                         bounds: None,
@@ -734,6 +738,7 @@ mod tests {
                         name: text("scale"),
                         value: Some(text("12.5")),
                         description: None,
+                        placeholder: Some(text("a scale")),
                         states: Vec::new(),
                         actions: Vec::new(),
                         bounds: None,

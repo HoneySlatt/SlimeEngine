@@ -381,7 +381,8 @@ pub struct ControlStyle {
     pub size: f32,
     /// The radius of its corners, in logical pixels.
     pub radius: f32,
-    /// A check box's box unchecked, a slider's track, an item of a menu's shortcut.
+    /// A check box's box unchecked, a slider's track, an item of a menu's shortcut, a field's
+    /// placeholder.
     pub track: LinearColor,
     /// A check box's box checked, the part of a slider's track up to its value.
     pub fill: LinearColor,

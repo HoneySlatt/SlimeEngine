@@ -524,6 +524,9 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
                     if let Some(description) = &element.description {
                         line.push_str(&format!(", described {description:?}"));
                     }
+                    if let Some(placeholder) = &element.placeholder {
+                        line.push_str(&format!(", showing {placeholder:?} while empty"));
+                    }
                     if !element.states.is_empty() {
                         line.push_str(&format!(", {}", element.states.join(", ")));
                     }
@@ -845,6 +848,7 @@ impl Server {
                        last frame left them, whose role and name match: each by its path, which \
                        names it to the other tools, its role, its name, what a field, a slider, \
                        two panels or a list to choose from hold, its description (its tooltip), \
+                       the text that a field shows while empty, \
                        its states (hovered, pressed, focused, disabled, checked, expanded, \
                        selected, has_popup for what opens a menu or a list beside it), where it \
                        shows in the image \

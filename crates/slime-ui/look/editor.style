@@ -58,11 +58,13 @@ style.text.color = "$muted"
 select = { kind = "TextField" }
 style.paint = { background = "$field", border_width = 1, border = "$raised_border", radii = ["$radius_m", "$radius_m", "$radius_m", "$radius_m"] }
 style.layout.padding = { start = "$field_x", end = "$field_x", top = "$field_y", bottom = "$field_y" }
+style.control.track = "$muted"
 
 [number]
 select = { kind = "NumberField" }
 style.paint = { background = "$field", border_width = 1, border = "$raised_border", radii = ["$radius_m", "$radius_m", "$radius_m", "$radius_m"] }
 style.layout.padding = { start = "$field_x", end = "$field_x", top = "$field_y", bottom = "$field_y" }
+style.control.track = "$muted"
 style.text.style = { fonts = ["Geist Mono"], size = "$text_mono" }
 
 [field-hovered]

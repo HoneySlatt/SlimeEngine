@@ -179,6 +179,9 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
     if let Some(description) = &meaning.description {
         element.set_description(description.as_str());
     }
+    if let Some(placeholder) = &meaning.placeholder {
+        element.set_placeholder(placeholder.as_str());
+    }
     if meaning.popup {
         element.set_has_popup(if meaning.role == Role::ComboBox {
             HasPopup::Listbox

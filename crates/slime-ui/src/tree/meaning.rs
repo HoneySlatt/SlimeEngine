@@ -178,6 +178,9 @@ pub struct Meaning {
     /// Its description: its tooltip ([`Element::tooltip`](super::Element::tooltip)); none for
     /// none.
     pub description: Option<String>,
+    /// The text that a field shows while it holds nothing
+    /// ([`Element::placeholder`](super::Element::placeholder)); none for none.
+    pub placeholder: Option<String>,
     /// Whether a press opens a layer beside it, which screen readers announce, open or not
     /// ([`ElementState::expanded`]): an item of a menu that opens a submenu, a list to choose
     /// from.
@@ -458,6 +461,7 @@ impl Ui {
             },
             state: node.state,
             description: element.tooltip.clone(),
+            placeholder: element.placeholder.clone().filter(|_| node.field.is_some()),
             popup: matches!(
                 element.kind,
                 Kind::MenuItem {

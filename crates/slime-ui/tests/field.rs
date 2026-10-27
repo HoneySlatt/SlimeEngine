@@ -817,3 +817,31 @@ fn a_selection_set_by_bytes_moves_the_caret_and_selects() {
     type_text(&mut ui, "i");
     assert_eq!(ui.field_text(field), Some("hi"));
 }
+
+#[test]
+fn an_empty_field_shows_its_placeholder_in_its_quieter_color_until_it_holds_text() {
+    let mut style = style();
+    style.control.track = slime_color::LinearColor::rgba(0.5, 0.5, 0.5, 1.0);
+    let field = Element::text_field("", style).placeholder("Search entities");
+    let (mut ui, _, field, _) = interface(field);
+    let placeholder_drawn = |ui: &mut Ui| {
+        let (list, _) = ui.frame();
+        list.items().iter().any(|item| {
+            matches!(
+                &item.primitive,
+                slime_ui::display::Primitive::Text(text)
+                    if text.layout.shown() == "Search entities"
+                        && text.color == slime_color::LinearColor::rgba(0.5, 0.5, 0.5, 1.0)
+            )
+        })
+    };
+    assert!(placeholder_drawn(&mut ui));
+    let meaning = ui.meaning_of(field).expect("drawn");
+    assert_eq!(meaning.placeholder.as_deref(), Some("Search entities"));
+    assert_eq!(meaning.value.as_deref(), Some(""));
+    // Focused, it still shows; once it holds a character, no more.
+    ui.set_focus(Some(field));
+    assert!(placeholder_drawn(&mut ui));
+    type_text(&mut ui, "t");
+    assert!(!placeholder_drawn(&mut ui));
+}

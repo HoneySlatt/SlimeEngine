@@ -540,6 +540,7 @@ fn element_summary(meaning: Meaning) -> ElementSummary {
         name: meaning.name,
         value: meaning.value,
         description: meaning.description,
+        placeholder: meaning.placeholder,
         states: states
             .into_iter()
             .filter(|&(holds, _)| holds)

@@ -379,6 +379,10 @@ pub struct Element {
     /// interface's clock, or once the keys gave it the focus, and that screen readers read as its
     /// description (`docs/adr/0150-layers.md`); `None` for none.
     pub tooltip: Option<String>,
+    /// The text that a field shows, in its control's track color, while it holds nothing, and that
+    /// screen readers read as its placeholder (`docs/adr/0151-rich-widgets.md`); `None` for none,
+    /// and for an element that is no field.
+    pub placeholder: Option<String>,
 }
 
 impl Element {
@@ -557,6 +561,7 @@ impl Element {
             role: None,
             name: None,
             tooltip: None,
+            placeholder: None,
         }
     }
 
@@ -588,6 +593,14 @@ impl Element {
     #[must_use]
     pub fn tooltip(mut self, text: impl Into<String>) -> Self {
         self.tooltip = Some(text.into());
+        self
+    }
+
+    /// The element, a field, showing `text` while it holds nothing (the field
+    /// [`placeholder`](Self::placeholder)).
+    #[must_use]
+    pub fn placeholder(mut self, text: impl Into<String>) -> Self {
+        self.placeholder = Some(text.into());
         self
     }
 }
@@ -1732,12 +1745,17 @@ impl<'a> Children<'a> {
                     let layout = lays_out_again(&node.element, &element);
                     let style = node.element.style != element.style;
                     let classes = node.element.classes != element.classes;
-                    // Its role and its name, which nothing draws, change only what it means.
-                    let drawn = node.element.kind != element.kind || style || classes;
+                    // Its role, its name and its tooltip, which it does not draw, change only what
+                    // it means.
+                    let drawn = node.element.kind != element.kind
+                        || style
+                        || classes
+                        || node.element.placeholder != element.placeholder;
                     let meant = node.element.kind != element.kind
                         || node.element.role != element.role
                         || node.element.name != element.name
-                        || node.element.tooltip != element.tooltip;
+                        || node.element.tooltip != element.tooltip
+                        || node.element.placeholder != element.placeholder;
                     node.element = element;
                     if meant {
                         self.ui.mark_meaning(id);
