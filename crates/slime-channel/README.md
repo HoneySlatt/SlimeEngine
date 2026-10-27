@@ -66,7 +66,9 @@ game.join().expect("the game answered");
   pixels.
 - `launch(&mut command, timeout)`: starts a game with a new token, and waits for it to say where it
   listens; `Client::connect(address, &token)` then opens a connection, and `Client::request`
-  sends a `Request` and waits for its `Reply`.
+  sends a `Request` and waits for its `Reply`. Both ends write each message at once, Nagle's
+  algorithm off, so that a request is answered within the game's next frame rather than after tens
+  of milliseconds of acknowledgements.
 
 The rustdoc holds the contracts: each request and its reply, the limits, the errors.
 

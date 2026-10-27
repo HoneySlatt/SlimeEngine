@@ -74,6 +74,9 @@ impl Listener {
                         thread::sleep(ACCEPT_PAUSE);
                         continue;
                     };
+                    // Each answer goes out at once, rather than waiting for the acknowledgement of
+                    // the last message: a socket that cannot is still served, slower.
+                    let _ = stream.set_nodelay(true);
                     if waiting.fetch_add(1, Ordering::Relaxed) >= MAX_WAITING {
                         waiting.fetch_sub(1, Ordering::Relaxed);
                         continue;
@@ -260,6 +263,8 @@ fn reply(stream: &mut TcpStream, answer: &Reply, payload: &[u8]) -> Result<(), C
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::AtomicBool;
+
     use slime_reflect::Reflect;
 
     use super::*;
@@ -346,6 +351,45 @@ mod tests {
             std::thread::sleep(Duration::from_millis(10));
         }
         assert!(accepted.is_some(), "a tool with the token connects again");
+    }
+
+    #[test]
+    fn a_request_is_answered_in_well_under_the_delay_of_an_acknowledgement() {
+        let token = Token::generate().expect("random bits");
+        let listener = Listener::open(token.clone(), "test").expect("a port");
+        let mut client = Client::connect(listener.address(), &token).expect("accepted");
+        let stop = Arc::new(AtomicBool::new(false));
+        // The game's side: answers each request at once, with a payload as a capture has.
+        let answering = {
+            let stop = Arc::clone(&stop);
+            thread::spawn(move || {
+                while !stop.load(Ordering::Relaxed) {
+                    match listener.next() {
+                        Some(incoming) => incoming.answer_with(Reply::Done, vec![7; 64]),
+                        None => thread::yield_now(),
+                    }
+                }
+            })
+        };
+        let mut times: Vec<Duration> = (0..21)
+            .map(|_| {
+                let started = Instant::now();
+                let (reply, payload) = client.request(&Request::State).expect("answered");
+                assert_eq!((reply, payload.len()), (Reply::Done, 64));
+                started.elapsed()
+            })
+            .collect();
+        stop.store(true, Ordering::Relaxed);
+        answering.join().expect("answered");
+        times.sort();
+        let median = times[times.len() / 2];
+        println!(
+            "a request answered in {median:?}, the median of {}",
+            times.len()
+        );
+        // A message written in pieces, on a socket that waits for the acknowledgement of the last
+        // piece before it sends the next, takes 40 ms or more.
+        assert!(median < Duration::from_millis(20), "{median:?}");
     }
 
     #[test]

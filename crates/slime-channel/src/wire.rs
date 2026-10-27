@@ -9,14 +9,20 @@ use crate::error::ChannelError;
 pub(crate) const MAX_PAYLOAD: u64 = 1 << 30;
 
 /// Writes a message: the length of `document` in four bytes, little-endian, then `document`; the
-/// length of `payload` in eight bytes, then `payload`.
+/// length of `payload` in eight bytes, then `payload`. What comes before the payload goes in one
+/// write, and the payload, if any, in a second: a message written in small pieces waits for the
+/// acknowledgement of each on a socket that delays them, tens of milliseconds a message.
 pub(crate) fn send(stream: &mut impl Write, document: &[u8], payload: &[u8]) -> io::Result<()> {
     let length = u32::try_from(document.len())
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "a document past 4 GiB"))?;
-    stream.write_all(&length.to_le_bytes())?;
-    stream.write_all(document)?;
-    stream.write_all(&(payload.len() as u64).to_le_bytes())?;
-    stream.write_all(payload)?;
+    let mut head = Vec::with_capacity(4 + document.len() + 8);
+    head.extend_from_slice(&length.to_le_bytes());
+    head.extend_from_slice(document);
+    head.extend_from_slice(&(payload.len() as u64).to_le_bytes());
+    stream.write_all(&head)?;
+    if !payload.is_empty() {
+        stream.write_all(payload)?;
+    }
     stream.flush()
 }
 

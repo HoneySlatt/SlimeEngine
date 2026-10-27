@@ -40,6 +40,8 @@ impl Client {
     /// [`ChannelError::Malformed`] when what answers does not speak the protocol.
     pub fn connect(address: SocketAddr, token: &Token) -> Result<Self, ChannelError> {
         let stream = TcpStream::connect(address)?;
+        // Each message goes out at once, rather than waiting for the acknowledgement of the last.
+        stream.set_nodelay(true)?;
         stream.set_read_timeout(Some(ANSWER_TIMEOUT))?;
         let mut client = Self {
             stream,
