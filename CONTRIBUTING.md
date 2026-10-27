@@ -328,11 +328,15 @@ The script also runs clippy for the Windows target, which catches code that does
 Windows without a Windows machine.
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every
-pull request. Two Linux jobs run the same script side by side, each one of its two parts
-([ADR-0123](docs/adr/0123-the-linux-checks-in-two-jobs.md)): `scripts/check.sh headless`, every
-check that needs no compositor, and `scripts/check.sh windowed`, the runs in headless Weston
-compositors, which cooks first what they draw; without an argument, the script runs both, one after
-the other. Two Windows jobs run beside them
+pull request. Three Linux jobs run the same script side by side, each one of its three parts
+([ADR-0123](docs/adr/0123-the-linux-checks-in-two-jobs.md),
+[ADR-0155](docs/adr/0155-the-editors-design.md)): `scripts/check.sh headless`, every check that
+needs neither a compositor nor the sample game's zone, `scripts/check.sh windowed`, the examples and
+the windowed lifecycle test run in headless Weston compositors, which cooks first what they draw,
+and `scripts/check.sh game`,
+everything that reads the sample game's zone, which it fetches and cooks first: the tests that read
+it, the agent's session with its editor, and the game's runs in a headless Weston compositor; without
+an argument, the script runs the three, one after the other. Two Windows jobs run beside them
 ([ADR-0104](docs/adr/0104-the-build-ci-and-measurements.md)). The first, `windows`, runs the tests,
 then the image tests, the GPU timing test, the multi-pass test, the test of the device's limits and
 the test that makes the renderer's shaders again with `--nocapture` so that its log shows what they
@@ -345,7 +349,8 @@ image tests rendered on WARP, as an artifact named `image-test-failures-windows`
 `hello`, `headless`, `window`, `offscreen`, `interface`, `widgets`, `scene` and `world` examples and
 the `hunnawood` game built for Windows, with the sample cooked for `scene` and `world` and the zone
 cooked for the game, as an artifact named `slime-examples-windows`, to run by hand on a Windows
-machine. Each job keeps the cooked zone in its cache, keyed on what makes its bytes.
+machine. Each job that cooks the zone, `check (game)` and the two Windows jobs, keeps it in its
+cache, keyed on what makes its bytes.
 [ADR-0007](docs/adr/0007-documentation-tooling-and-ci.md) and
 [ADR-0015](docs/adr/0015-platforms-and-ci.md) explain the setup.
 

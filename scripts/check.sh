@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Runs every automated check of the definition of done (AGENTS.md). CI runs this script
-# unchanged, inside the Nix development shell, in two jobs side by side, one for each of its parts
-# (ADR-0123): `nix develop --no-update-lock-file -c scripts/check.sh headless`, every check that
-# needs no compositor, and `... scripts/check.sh windowed`, the runs in headless Weston compositors
-# (the flag makes an incomplete flake.lock an error instead of a silent update). Without an
-# argument, it runs both parts, one after the other.
+# unchanged, inside the Nix development shell, in three jobs side by side, one for each of its parts
+# (ADR-0123, ADR-0155): `nix develop --no-update-lock-file -c scripts/check.sh headless`, every
+# check that needs neither a compositor nor the sample game's zone, `... scripts/check.sh windowed`,
+# the examples and the windowed lifecycle test run in headless Weston compositors, and
+# `... scripts/check.sh game`, everything that reads the sample game's zone, which it fetches and cooks first (the flag makes an incomplete
+# flake.lock an error instead of a silent update). Without an argument, it runs the three parts, one
+# after the other.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # The Nix development shell sets this variable (flake.nix). Without the shell, the GPU tests and the
@@ -16,9 +18,9 @@ unset VK_LOADER_DRIVERS_SELECT VK_LOADER_DRIVERS_DISABLE
 
 part=${1:-all}
 case "$part" in
-    all | headless | windowed) ;;
+    all | headless | windowed | game) ;;
     *)
-        echo "usage: scripts/check.sh [headless|windowed]" >&2
+        echo "usage: scripts/check.sh [headless|windowed|game]" >&2
         exit 2
         ;;
 esac
@@ -27,8 +29,31 @@ runs() { [ "$part" = all ] || [ "$part" = "$1" ]; }
 
 step() { printf '\n==> %s\n' "$*"; }
 
-# The sample, cooked from empty directories by the headless part, and drawn by both.
+# The sample, cooked from empty directories by the headless part, and drawn by the windowed part.
 cooked=target/check-cooked
+
+# The windowed runs go into headless Weston compositors. A private runtime directory keeps them apart
+# from the one the developer may be using.
+runtime=$(mktemp -d)
+westons=()
+# `kill` fails when a Weston has already exited; that must not skip the rest of the cleanup.
+trap 'kill "${westons[@]}" 2>/dev/null || true; rm -rf "$runtime"' EXIT
+# Starts a headless Weston on the socket named by the first argument, with the options that follow,
+# and waits until it accepts clients. Its log goes to `$runtime/<socket>.log`.
+start_weston() {
+    local socket=$1
+    shift
+    XDG_RUNTIME_DIR=$runtime weston --backend=headless --socket="$socket" --idle-time=0 "$@" \
+        >"$runtime/$socket.log" 2>&1 &
+    westons+=("$!")
+    for _ in $(seq 100); do
+        [ -S "$runtime/$socket" ] && return
+        sleep 0.1
+    done
+    echo "Weston did not start:"
+    cat "$runtime/$socket.log"
+    exit 1
+}
 
 if runs headless; then
     step "Formatting"
@@ -79,11 +104,8 @@ if runs headless; then
     step "Dependencies (licenses, advisories, sources)"
     cargo deny --locked check
 
-    step "The sample game's list of source assets, and the files of it that are cooked (ADR-0070)"
-    scripts/fetch-assets.sh zone/
-
     step "Source assets (each with a metadata file of its own, ADR-0069)"
-    cargo run --locked -p slime-cook -- check examples/assets games/hunnawood/assets/zone
+    cargo run --locked -p slime-cook -- check examples/assets
 
     step "Cooking the sample twice, from empty directories, gives the same bytes; a third cook cooks nothing"
     rm -rf "$cooked"
@@ -91,16 +113,6 @@ if runs headless; then
     cargo run --locked -p slime-cook -- cook examples/assets "$cooked/second"
     diff -r "$cooked/first" "$cooked/second"
     cargo run --locked -p slime-cook -- cook examples/assets "$cooked/first" | grep -q ': 0 assets cooked'
-
-    # A release build: a debug build of the cooker takes minutes to compress the zone's textures.
-    step "The sample game's zone, cooked, and the tests that read it"
-    cargo run --locked --release -p slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood
-    # Its editor's too, which writes the zone back with its comments (ADR-0135).
-    VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test --locked -p hunnawood -p hunnawood-editor -- --ignored
-    # An agent's session through the MCP server edits a copy of the zone with the game's editor, which
-    # has no window: a component of the game changed, an entity created, undone, redone, written back.
-    cargo build --locked -p hunnawood-editor
-    env -u WAYLAND_DISPLAY -u DISPLAY timeout -k 10 300 cargo test --locked -p slime-mcp --test edit_zone
 
     step "Headless samples (no display server)"
     env -u WAYLAND_DISPLAY -u DISPLAY cargo run --locked --example headless -- --frames 600
@@ -129,37 +141,12 @@ fi
 
 if runs windowed; then
     if [ "$part" = windowed ]; then
-        # What the headless part cooks, when it does not run first: the sample, and the game's zone,
-        # which a cache may hold already, cooked again only where it changed.
-        step "What the windowed runs draw: the sample and the game's zone, cooked"
+        # What the headless part cooks, when it does not run first.
+        step "What the windowed runs draw: the sample, cooked"
         cargo run --locked -p slime-cook -- cook examples/assets "$cooked/first"
-        scripts/fetch-assets.sh zone/
-        cargo run --locked --release -p slime-cook -- \
-            cook games/hunnawood/assets/zone target/cooked/hunnawood
     fi
 
-    step "Windowed samples, the game and the lifecycle test in headless Wayland compositors (Weston), drawn with lavapipe"
-    # A private runtime directory keeps these compositors apart from the one the developer may be using.
-    runtime=$(mktemp -d)
-    westons=()
-    # `kill` fails when a Weston has already exited; that must not skip the rest of the cleanup.
-    trap 'kill "${westons[@]}" 2>/dev/null || true; rm -rf "$runtime"' EXIT
-    # Starts a headless Weston on the socket named by the first argument, with the options that follow,
-    # and waits until it accepts clients. Its log goes to `$runtime/<socket>.log`.
-    start_weston() {
-        local socket=$1
-        shift
-        XDG_RUNTIME_DIR=$runtime weston --backend=headless --socket="$socket" --idle-time=0 "$@" \
-            >"$runtime/$socket.log" 2>&1 &
-        westons+=("$!")
-        for _ in $(seq 100); do
-            [ -S "$runtime/$socket" ] && return
-            sleep 0.1
-        done
-        echo "Weston did not start:"
-        cat "$runtime/$socket.log"
-        exit 1
-    }
+    step "Windowed samples and the lifecycle test in headless Wayland compositors (Weston), drawn with lavapipe"
     start_weston slime-check
     # Each run takes a few seconds; `timeout` ends a stalled one, with SIGTERM, which stops the engine
     # cleanly, then SIGKILL if that is not enough, and the failure then prints Weston's log.
@@ -225,41 +212,6 @@ if runs windowed; then
         VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 300 cargo test --locked -p slime-mcp --test views -- "$cooked/first" ||
         { cat "$runtime/slime-check.log"; exit 1; }
-    # The game too (ADR-0055), by day and at night, each run a new one. It draws the zone cooked above;
-    # a frame of it takes seconds on lavapipe, most of them in the shadows of the sun or the moon
-    # through the leaves (docs/PLAN.md, known debt), so each run draws one frame only. Its saves go to
-    # the private runtime directory, never to the user's (ADR-0088).
-    for time in "" --night; do
-        env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
-            VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
-            timeout -k 10 300 cargo run --locked -p hunnawood -- --new --frames 1 ${time:+"$time"} ||
-            { cat "$runtime/slime-check.log"; exit 1; }
-    done
-    # And once more, losing its GPU device after its first frame of the zone: it must open a new one,
-    # load its zone again and draw it once more, or it fails (ADR-0075).
-    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
-        VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
-        timeout -k 10 300 cargo run --locked -p hunnawood -- --new --frames 2 --lose-device-at 1 ||
-        { cat "$runtime/slime-check.log"; exit 1; }
-    # And resumed from a copy of the save committed as a fixture, which it must resume (ADR-0088).
-    cp games/hunnawood/fixtures/save.toml "$runtime/save.toml"
-    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
-        VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
-        timeout -k 10 300 cargo run --locked -p hunnawood -- --save "$runtime/save.toml" --frames 1 2>&1 |
-        tee "$runtime/resumed.log" ||
-        { cat "$runtime/slime-check.log"; exit 1; }
-    grep -q "the run resumes from" "$runtime/resumed.log" ||
-        { echo "the game did not resume the run of its save"; exit 1; }
-    # And driven by an agent's session through the MCP server, which starts it with a token and
-    # connects to its development channel: pauses it, steps it, reads and changes the hero, walks it
-    # with a scripted key, saves its run and loads it back, captures its image and reads its log
-    # (ADR-0122, ADR-0125). The test needs a compositor, so it is outside the default test run, as
-    # the lifecycle test below is. Each of its requests waits for a frame of the zone, 18 to 30 s on
-    # CI's runners: about 10 minutes on the slowest.
-    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
-        VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
-        timeout -k 10 900 cargo test --locked -p slime-mcp --test drive ||
-        { cat "$runtime/slime-check.log"; exit 1; }
     # The windowed lifecycle test needs the compositor too, so it is outside the default test run
     # (ADR-0024).
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
@@ -274,6 +226,62 @@ if runs windowed; then
         SLIME_APP_TEST_SCALED=1 VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 120 cargo test --locked -p slime-app --test windowed_lifecycle ||
         { cat "$runtime/slime-check-scaled.log"; exit 1; }
+fi
+
+if runs game; then
+    step "The sample game's list of source assets, and the files of it that are cooked (ADR-0070)"
+    scripts/fetch-assets.sh zone/
+
+    step "The sample game's source assets (each with a metadata file of its own, ADR-0069)"
+    cargo run --locked -p slime-cook -- check games/hunnawood/assets/zone
+
+    # A release build: a debug build of the cooker takes minutes to compress the zone's textures. A
+    # cache may hold the zone cooked already, which is cooked again only where it changed.
+    step "The sample game's zone, cooked, and the tests that read it"
+    cargo run --locked --release -p slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood
+    # Its editor's too, which writes the zone back with its comments (ADR-0135).
+    VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test --locked -p hunnawood -p hunnawood-editor -- --ignored
+    # An agent's session through the MCP server edits a copy of the zone with the game's editor, which
+    # has no window: a component of the game changed, an entity created, undone, redone, written back.
+    cargo build --locked -p hunnawood-editor
+    env -u WAYLAND_DISPLAY -u DISPLAY timeout -k 10 300 cargo test --locked -p slime-mcp --test edit_zone
+
+    step "The game in a headless Wayland compositor (Weston), drawn with lavapipe"
+    start_weston slime-check-game
+    # The game (ADR-0055), by day and at night, each run a new one. A frame of its zone takes seconds
+    # on lavapipe, most of them in the shadows of the sun or the moon through the leaves (docs/PLAN.md,
+    # known debt), so each run draws one frame only. Its saves go to the private runtime directory,
+    # never to the user's (ADR-0088).
+    for time in "" --night; do
+        env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check-game \
+            VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+            timeout -k 10 300 cargo run --locked -p hunnawood -- --new --frames 1 ${time:+"$time"} ||
+            { cat "$runtime/slime-check-game.log"; exit 1; }
+    done
+    # And once more, losing its GPU device after its first frame of the zone: it must open a new one,
+    # load its zone again and draw it once more, or it fails (ADR-0075).
+    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check-game \
+        VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        timeout -k 10 300 cargo run --locked -p hunnawood -- --new --frames 2 --lose-device-at 1 ||
+        { cat "$runtime/slime-check-game.log"; exit 1; }
+    # And resumed from a copy of the save committed as a fixture, which it must resume (ADR-0088).
+    cp games/hunnawood/fixtures/save.toml "$runtime/save.toml"
+    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check-game \
+        VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        timeout -k 10 300 cargo run --locked -p hunnawood -- --save "$runtime/save.toml" --frames 1 2>&1 |
+        tee "$runtime/resumed.log" ||
+        { cat "$runtime/slime-check-game.log"; exit 1; }
+    grep -q "the run resumes from" "$runtime/resumed.log" ||
+        { echo "the game did not resume the run of its save"; exit 1; }
+    # And driven by an agent's session through the MCP server, which starts it with a token and
+    # connects to its development channel: pauses it, draws its view without shadows, steps it,
+    # reads and changes the hero, walks it with a scripted key, saves its run and loads it back, uses
+    # its dev overlay, captures its image and reads its log (ADR-0122, ADR-0125, ADR-0152). The test
+    # needs a compositor, so it is outside the default test run, as the lifecycle test is.
+    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check-game \
+        VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        timeout -k 10 300 cargo test --locked -p slime-mcp --test drive ||
+        { cat "$runtime/slime-check-game.log"; exit 1; }
 fi
 
 if runs headless; then

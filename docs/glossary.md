@@ -152,8 +152,9 @@ Play, then building a part of the game's zone again by hand as the stage's exit 
 ([`docs/PLAN.md`](PLAN.md), [ADR-0155](adr/0155-the-editors-design.md)).
 
 **Checks (the).** The automated checks of the *definition of done*, which `scripts/check.sh` runs
-and the two Linux CI jobs run unchanged, one for each of its parts, `headless` and `windowed`
-([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md)): formatting, clippy (for Windows too), the
+and the three Linux CI jobs run unchanged, one for each of its parts, `headless`, `windowed` and
+`game` ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md),
+[ADR-0155](adr/0155-the-editors-design.md)): formatting, clippy (for Windows too), the
 build, the tests on lavapipe, rustdoc, the dependency rules, the source assets and their cooking,
 the samples without a display server and, with the sample game, in a headless Weston compositor, and
 the links between documents ([`CONTRIBUTING.md`](../CONTRIBUTING.md#checks)).

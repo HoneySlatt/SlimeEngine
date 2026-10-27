@@ -18,15 +18,17 @@ permissions:
 
 jobs:
   # Every check, in the same Nix shell that contributors use: a local run of scripts/check.sh does
-  # what these two jobs do together (docs/adr/0007-documentation-tooling-and-ci.md). Each runs one
-  # part of the script, side by side, past the 20 minutes that one took
-  # (docs/adr/0123-the-linux-checks-in-two-jobs.md): `headless`, every check that needs no
-  # compositor, and `windowed`, the runs in headless Weston compositors.
+  # what these three jobs do together (docs/adr/0007-documentation-tooling-and-ci.md). Each runs one
+  # part of the script, side by side, each within the owner's limit of 20 minutes
+  # (docs/adr/0123-the-linux-checks-in-two-jobs.md, docs/adr/0155-the-editors-design.md):
+  # `headless`, every check that needs neither a compositor nor the sample game's zone, `windowed`,
+  # the examples and the windowed lifecycle test run in headless Weston compositors, and `game`,
+  # everything that reads the zone.
   check:
     strategy:
       fail-fast: false
       matrix:
-        part: [headless, windowed]
+        part: [headless, windowed, game]
     name: check (${{ matrix.part }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -35,8 +37,10 @@ jobs:
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
       # The sample game's zone, which scripts/fetch-assets.sh fetches from its mirror for the checks
       # to cook, kept from one run to the next while its list is unchanged; the metadata files come
-      # from the checkout (docs/adr/0070-the-sample-games-source-assets.md).
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # from the checkout (docs/adr/0070-the-sample-games-source-assets.md). Only the `game` part
+      # reads it.
+      - if: matrix.part == 'game'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             games/hunnawood/assets/zone
@@ -50,9 +54,11 @@ jobs:
       # checks first. A crate of the workspace that the cooker comes to depend on joins the key, here
       # and in the Windows jobs.
       - name: The packages that the cooker is built from
+        if: matrix.part == 'game'
         id: cooker
         run: nix develop --no-update-lock-file --command scripts/cooker-dependencies.sh >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - if: matrix.part == 'game'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: target/cooked/hunnawood
           key: hunnawood-cooked-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('games/hunnawood/assets/sources.tsv', 'games/hunnawood/assets/zone/**/*.meta', 'games/hunnawood/assets/zone/**/*.scene', 'crates/slime-cook/src/**', 'crates/slime-cook/Cargo.toml', 'crates/slime-assets/src/**', 'crates/slime-assets/Cargo.toml', 'crates/slime-color/src/**', 'crates/slime-color/Cargo.toml', 'crates/slime-reflect/src/**', 'crates/slime-reflect/Cargo.toml', 'crates/slime-reflect-derive/src/**', 'crates/slime-reflect-derive/Cargo.toml', 'crates/slime-serialize/src/**', 'crates/slime-serialize/Cargo.toml', 'crates/slime-world/src/**', 'crates/slime-world/Cargo.toml', 'rust-toolchain.toml') }}-${{ steps.cooker.outputs.hash }}
