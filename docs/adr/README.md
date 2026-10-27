@@ -210,7 +210,7 @@ the ADR linking to it.
 | [0139](0139-text-drawn-and-the-display-list.md) | Text drawn, and the display list | Accepted |
 | [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amended by 0141, 0143 and 0146 |
 | [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted; amended by 0149 |
-| [0142](0142-input-and-focus.md) | Input and focus | Accepted; amended by 0145 |
+| [0142](0142-input-and-focus.md) | Input and focus | Accepted; amended by 0145 and 0150 |
 | [0143](0143-what-agents-see-of-the-interface.md) | What agents see of the interface | Accepted; amended by 0146 |
 | [0144](0144-the-cooked-zones-key-in-ci.md) | The cooked zone's key in CI | Accepted |
 | [0145](0145-text-edited.md) | Text edited | Accepted |
@@ -218,3 +218,4 @@ the ADR linking to it.
 | [0147](0147-the-screen-readers-check-in-ci.md) | The screen readers' check in CI | Accepted |
 | [0148](0148-widgets.md) | Widgets | Accepted; amended by 0149 |
 | [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted |
+| [0150](0150-layers.md) | Layers | Accepted |

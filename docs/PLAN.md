@@ -70,7 +70,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.6b](#m6b6b--screen-readers) | Screen readers read the interface, and agents read and set what its fields hold | Done |
 | [M6b.7a](#m6b7a--the-widgets-of-a-panel) | The framework has the widgets that a panel of the dev overlay and of the editor is made of, in the editor's theme | Done |
 | [M6b.7b](#m6b7b--the-looks-foundations) | The editor's look follows one accent in a dark, a light and a high-contrast theme, moves through transitions, and stays crisp at every scale | Built; CI to run |
-| [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Planned |
+| [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | In progress |
 | [M6b.7d](#m6b7d--rich-widgets) | The framework has the rich fields, notifications and the palette of commands that make editing fast | Planned |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
@@ -1012,6 +1012,11 @@ that the look has a light and a high-contrast theme beside its dark one.
   example; an agent's session uses each through its actions; CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-ui-render`; the example.
 - **By hand.** The owner tries the example's layers.
+- **Progress.** [ADR-0150](adr/0150-layers.md) records the owner's decisions of 2026-10-27: the
+  widgets that own a layer open it alone, a list to choose from and a tooltip, and the program
+  builds menus, context menus, floating panels and dialogs, which the framework places beside what
+  opens them, closes on a press outside or Escape, and moves the keyboard through; Lucide's font
+  whole in the look. The rest is under way.
 
 ### M6b.7d — Rich widgets
 
