@@ -255,6 +255,9 @@ pub struct ElementState {
     pub disabled: bool,
     /// It holds the focus: the keys reach it first. The interface sets it ([`Ui::set_focus`]).
     pub focused: bool,
+    /// It holds a focus that shows: one that the keyboard, an agent or the program gave, not a
+    /// press of the pointer (`docs/adr/0149-the-looks-foundations.md`). The interface sets it.
+    pub focus_visible: bool,
     /// It is checked: a check box, as the program gave it or the user toggled it.
     pub checked: bool,
     /// It is open: a section, as the program gave it or the user opened it.
@@ -817,13 +820,15 @@ impl Ui {
     }
 
     /// Sets the state of `id`, which rules select elements by: its style is made again. Whether it
-    /// holds the focus stays as it was, the focus's ([`Ui::set_focus`]); whether it is hovered or
-    /// pressed, which the input sets too, holds until the input next changes it. A disabled element
-    /// loses the focus at the next [`Ui::frame`]. Nothing happens for an id that names nothing.
+    /// holds the focus, and whether its focus shows, stay as they were, the focus's
+    /// ([`Ui::set_focus`]); whether it is hovered or pressed, which the input sets too, holds until
+    /// the input next changes it. A disabled element loses the focus at the next [`Ui::frame`].
+    /// Nothing happens for an id that names nothing.
     pub fn set_state(&mut self, id: ElementId, state: ElementState) {
         if let Some(node) = self.node_mut(id) {
             let state = ElementState {
                 focused: node.state.focused,
+                focus_visible: node.state.focus_visible,
                 ..state
             };
             if node.state == state {
@@ -1197,6 +1202,7 @@ impl Ui {
                 StateName::Pressed => node.state.pressed,
                 StateName::Disabled => node.state.disabled,
                 StateName::Focused => node.state.focused,
+                StateName::FocusVisible => node.state.focus_visible,
                 StateName::Checked => node.state.checked,
                 StateName::Expanded => node.state.expanded,
                 StateName::Selected => node.state.selected,

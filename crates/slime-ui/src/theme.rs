@@ -164,6 +164,7 @@ pub(crate) enum StateName {
     Pressed,
     Disabled,
     Focused,
+    FocusVisible,
     Checked,
     Expanded,
     Selected,

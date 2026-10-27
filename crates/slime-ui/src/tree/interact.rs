@@ -38,6 +38,9 @@ pub(super) struct Interaction {
     moved: bool,
     /// The thumb of a scroll bar that the pointer holds.
     pub(super) bar: Option<super::scroll_bar::Held>,
+    /// Whether the last input was a press of the pointer, whose focus does not show, rather than a
+    /// key, an agent's action or the program's.
+    by_pointer: bool,
 }
 
 impl Ui {
@@ -81,6 +84,9 @@ impl Ui {
     /// field, and every press while a modal root is open; and the release of a press that it took.
     pub fn pointer_button(&mut self, button: MouseButton, state: ButtonState) -> bool {
         let primary = button == MouseButton::Left;
+        if state == ButtonState::Pressed {
+            self.interaction.by_pointer = true;
+        }
         match state {
             // A press on a scroll bar holds its thumb, or pages along its track.
             ButtonState::Pressed
@@ -223,6 +229,7 @@ impl Ui {
         if event.state != ButtonState::Pressed {
             return false;
         }
+        self.interaction.by_pointer = false;
         let modal = !self.interaction.modals.is_empty();
         if let Some(field) = self.focused_field()
             && self.field_key(field, event)
@@ -274,6 +281,7 @@ impl Ui {
     /// changes and commits reach the queue. A press of what is not such a button, or of what
     /// names nothing, is left out.
     pub fn act(&mut self, action: Action) {
+        self.interaction.by_pointer = false;
         match action.kind {
             ActionKind::Press => {
                 let Some(id) = action
@@ -342,11 +350,20 @@ impl Ui {
                 self.commit(before);
                 self.mark_paint(before);
             }
-            self.change_state(before, |state| state.focused = false);
+            self.change_state(before, |state| {
+                state.focused = false;
+                state.focus_visible = false;
+            });
         }
         if let Some(id) = id {
+            // The focus that the keyboard, an agent or the program gave shows; the pointer's does
+            // not, as browsers show it.
+            let visible = !self.interaction.by_pointer;
             self.interaction.focus = Some(id);
-            self.change_state(id, |state| state.focused = true);
+            self.change_state(id, |state| {
+                state.focused = true;
+                state.focus_visible = visible;
+            });
             self.mark_paint(id);
         }
     }

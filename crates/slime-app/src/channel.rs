@@ -518,6 +518,8 @@ fn element_summary(meaning: Meaning) -> ElementSummary {
         pressed,
         disabled,
         focused,
+        // Whether the focus shows is the look's, not what the element means.
+        focus_visible: _,
         checked,
         expanded,
         selected,
