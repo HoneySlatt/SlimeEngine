@@ -555,18 +555,22 @@ impl Ui {
     }
 
     /// The chord that gives `command`, as a table writes it, `Ctrl+S`: of the scope `global`
-    /// first, then of the first scope that gives it, the later table's where two do; none for a
-    /// command that no shortcut gives.
+    /// first, then of the first scope that gives it, in the order of [`Ui::shortcuts`]; a chord that
+    /// a later table gives another command in its scope gives this one no more. None for a command
+    /// that no shortcut gives.
     pub fn command_chord(&self, command: &str) -> Option<String> {
-        let bindings = &self.interaction.bindings;
-        let giving = |binding: &&Binding| binding.command == command;
-        bindings
+        let scopes = self.shortcuts();
+        let chord = |(_, chords): &(String, Vec<(String, String)>)| {
+            chords
+                .iter()
+                .find(|(_, each)| each == command)
+                .map(|(chord, _)| chord.clone())
+        };
+        scopes
             .iter()
-            .rev()
-            .filter(giving)
-            .find(|binding| binding.scope == "global")
-            .or_else(|| bindings.iter().rev().find(giving))
-            .map(|binding| binding.chord.text())
+            .find(|(scope, _)| scope == "global")
+            .and_then(chord)
+            .or_else(|| scopes.iter().find_map(chord))
     }
 
     /// The shortcuts that the tables give, by scope, each scope's in the order of the tables:

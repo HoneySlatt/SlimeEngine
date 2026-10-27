@@ -100,12 +100,17 @@ impl Ui {
             return;
         };
         // Its field, losing the focus as the layer goes, commits nothing that the program reads.
+        self.drop_palette_actions();
         if let Some(palette) = self.palette.take() {
             self.close_layer(palette.root, false);
         }
-        self.interaction
-            .actions
-            .retain(|action| action.element != Some(field));
+        self.interaction.actions.retain(|action| {
+            action.element != Some(field)
+                || !matches!(
+                    action.kind,
+                    ActionKind::Changed(_) | ActionKind::Committed(_)
+                )
+        });
     }
 
     /// Whether the palette of commands is open.
@@ -115,8 +120,8 @@ impl Ui {
 
     /// Opens the sheet of shortcuts, titled `title`: a layer below the window's top that lists the
     /// shortcuts of the tables by scope ([`Ui::shortcuts`]), each chord and the name that
-    /// `commands` gives its command, or the command itself where they give none. Escape and a press
-    /// outside close it.
+    /// `commands` gives its command, or the command itself where they give none, in a box that
+    /// scrolls within the window's height. Escape and a press outside close it.
     pub fn open_shortcut_sheet(&mut self, title: &str, commands: &[PaletteCommand]) {
         self.close_shortcut_sheet();
         let Some(root) = self.own_layer() else {
@@ -133,8 +138,9 @@ impl Ui {
                 .map_or_else(|| command.to_owned(), |each| each.name.clone())
         };
         let title = title.to_owned();
+        let surface = self.surface_size();
         self.build(root, 0, |children| {
-            let sheet = super::Element::container(column)
+            let sheet = super::Element::container(column.clone())
                 .class("sheet")
                 .role(Role::Dialog)
                 .named(title.as_str());
@@ -144,25 +150,33 @@ impl Ui {
                     super::Element::label(title.as_str(), Style::default()).class("sheet-title"),
                     |_| {},
                 );
-                for (scope, chords) in &scopes {
-                    let heading = super::Element::label(scope.as_str(), Style::default())
-                        .class("sheet-scope");
-                    sheet.add(format!("scope {scope}"), heading, |_| {});
-                    for (chord, command) in chords {
-                        let mut row = Style::default();
-                        row.layout.gap = [0.0, 12.0];
-                        let row = super::Element::container(row).class("sheet-row");
-                        sheet.add(format!("{scope} {chord}"), row, |row| {
-                            let mut keys = Style::default();
-                            keys.layout.size[0] = Dimension::Pixels(140.0);
-                            keys.layout.shrink = 0.0;
-                            let keys = super::Element::label(chord.as_str(), keys).class("fixed");
-                            row.add("chord", keys, |_| {});
-                            let text = super::Element::label(name(command), Style::default());
-                            row.add("name", text, |_| {});
-                        });
+                // Its shortcuts scroll within most of the window's height.
+                let mut rows = column;
+                rows.layout.size[0] = Dimension::Auto;
+                rows.layout.max_size[1] = Dimension::Pixels((surface[1] - 2.0 * TOP).max(120.0));
+                sheet.add("shortcuts", super::Element::scroll(rows), |rows| {
+                    for (number, (scope, chords)) in scopes.iter().enumerate() {
+                        // Keys by the scope's place, which no chord nor scope's name can repeat.
+                        let heading = super::Element::label(scope.as_str(), Style::default())
+                            .class("sheet-scope");
+                        rows.add(format!("scope {number}"), heading, |_| {});
+                        for (chord, command) in chords {
+                            let mut row = Style::default();
+                            row.layout.gap = [0.0, 12.0];
+                            let row = super::Element::container(row).class("sheet-row");
+                            rows.add(format!("{number} {chord}"), row, |row| {
+                                let mut keys = Style::default();
+                                keys.layout.size[0] = Dimension::Pixels(140.0);
+                                keys.layout.shrink = 0.0;
+                                let keys =
+                                    super::Element::label(chord.as_str(), keys).class("fixed");
+                                row.add("chord", keys, |_| {});
+                                let text = super::Element::label(name(command), Style::default());
+                                row.add("name", text, |_| {});
+                            });
+                        }
                     }
-                }
+                });
             });
         });
         self.sheet = Some(root);
@@ -179,6 +193,18 @@ impl Ui {
     /// that closes as the user leaves it and tells no one as it closes; none without a window's
     /// root to open it over.
     fn own_layer(&mut self) -> Option<ElementId> {
+        let place = self.own_place()?;
+        let layer = Layer {
+            place,
+            modal: false,
+            dismiss: true,
+        };
+        Some(self.add_quiet_layer(layer, Style::default()))
+    }
+
+    /// Where the palette and the sheet stand: their top start corner below the window's top, so
+    /// that they lie in its middle; none without a window's root.
+    fn own_place(&self) -> Option<Place> {
         let over = self.window_root()?;
         let surface = self.surface_size();
         // Its top start corner, its left or, from right to left, its right.
@@ -189,19 +215,10 @@ impl Ui {
         } else {
             ((surface[0] - WIDTH) / 2.0).max(8.0)
         };
-        let layer = Layer {
-            place: Place::At {
-                over,
-                point: [x, TOP],
-            },
-            modal: false,
-            dismiss: true,
-        };
-        let root = self.add_layer(layer, Style::default());
-        if let Some(held) = self.node_mut(root).and_then(|node| node.layer.as_mut()) {
-            held.quiet = true;
-        }
-        Some(root)
+        Some(Place::At {
+            over,
+            point: [x, TOP],
+        })
     }
 
     /// The first root that is no layer: the window's.
@@ -222,6 +239,8 @@ impl Ui {
             .as_ref()
             .is_some_and(|palette| palette.root == root)
         {
+            // What its field gave in the batch that closed it reaches the program no more.
+            self.drop_palette_actions();
             self.palette = None;
         }
         if self.sheet == Some(root) {
@@ -234,12 +253,22 @@ impl Ui {
     /// among the commands found, around, and Enter gives the chosen one. Gives whether it took the
     /// key; another key edits the field, as any field's.
     pub(super) fn palette_key(&mut self, event: &KeyEvent) -> bool {
+        let Some(field) = self.palette.as_ref().map(|palette| palette.field) else {
+            return false;
+        };
+        // An input method that composes in the field takes every key, Enter and the arrows too.
+        let composing = self
+            .node(field)
+            .and_then(|node| node.field.as_ref())
+            .is_some_and(|field| field.compose.is_some());
+        if self.interaction.focus != Some(field) || composing {
+            return false;
+        }
+        // What was typed since the last frame finds its commands before Enter gives one.
+        self.settle_palette();
         let Some(palette) = self.palette.as_ref() else {
             return false;
         };
-        if self.interaction.focus != Some(palette.field) {
-            return false;
-        }
         let count = palette.found.len().min(SHOWN);
         match event.logical {
             Key::Named(NamedKey::ArrowDown | NamedKey::ArrowUp) if count > 0 => {
@@ -268,9 +297,22 @@ impl Ui {
         }
     }
 
-    /// Finds the commands again where the palette's field changed, however it changed: typed in,
-    /// composed, pasted or given by an agent. Run before a frame lays out.
+    /// Keeps the palette and the sheet of shortcuts in the middle of the window, which may have
+    /// changed its size, and finds the commands again where the palette's field changed, however
+    /// it changed: typed in, composed, pasted or given by an agent. Run before a frame lays out.
     pub(crate) fn settle_palette(&mut self) {
+        // The palette and the sheet stay in the middle of a window that changes its size.
+        if let Some(place) = self.own_place() {
+            let roots = [
+                self.palette.as_ref().map(|palette| palette.root),
+                self.sheet,
+            ];
+            for root in roots.into_iter().flatten() {
+                if self.layer_place(root) != Some(place) {
+                    self.set_layer_place(root, place);
+                }
+            }
+        }
         let Some(palette) = self.palette.as_ref() else {
             return;
         };
@@ -284,12 +326,17 @@ impl Ui {
         }
     }
 
-    /// Takes out of the queue what the palette's field gave: its text is the palette's alone.
+    /// Takes out of the queue the changes and the commits of the palette's field: its text is the
+    /// palette's alone; a shortcut's command given while it holds the focus stays.
     pub(super) fn drop_palette_actions(&mut self) {
         if let Some(field) = self.palette.as_ref().map(|palette| palette.field) {
-            self.interaction
-                .actions
-                .retain(|action| action.element != Some(field));
+            self.interaction.actions.retain(|action| {
+                action.element != Some(field)
+                    || !matches!(
+                        action.kind,
+                        ActionKind::Changed(_) | ActionKind::Committed(_)
+                    )
+            });
         }
     }
 
@@ -447,20 +494,45 @@ pub(crate) fn rank(query: &str, names: &[&str]) -> Vec<usize> {
 /// The score of `name` for the characters `wanted`, in lower case, or none where they do not come
 /// in it in their order: each character found scores 1, 8 more at a word's start, 4 more right
 /// after the one found before; a name loses a point for every 8 characters, so that of two names
-/// that match alike the shorter is first.
+/// that match alike the shorter is first. Each character is found at the next word's start that
+/// holds it where the rest still comes after it, and else at its next place.
 fn score(wanted: &[char], name: &str) -> Option<i64> {
-    let characters: Vec<char> = name.chars().collect();
+    // The name in lower case, a character whose lower case is several giving them all, each
+    // marked where a word starts: after what is no letter nor digit, or a capital after a small
+    // letter.
+    let original: Vec<char> = name.chars().collect();
+    let mut characters = Vec::new();
+    for (place, &character) in original.iter().enumerate() {
+        let start = place == 0
+            || !original[place - 1].is_alphanumeric()
+            || (character.is_uppercase() && original[place - 1].is_lowercase());
+        for (index, lower) in character.to_lowercase().enumerate() {
+            characters.push((lower, start && index == 0));
+        }
+    }
+    let comes = |from: usize, rest: &[char]| {
+        let mut at = from;
+        rest.iter().all(|&want| {
+            match (at..characters.len()).find(|&place| characters[place].0 == want) {
+                Some(found) => {
+                    at = found + 1;
+                    true
+                }
+                None => false,
+            }
+        })
+    };
     let mut total = 0;
     let mut at = 0;
     let mut previous: Option<usize> = None;
-    for &want in wanted {
-        let found = (at..characters.len())
-            .find(|&place| characters[place].to_lowercase().eq(std::iter::once(want)))?;
-        let start = found == 0
-            || !characters[found - 1].is_alphanumeric()
-            || (characters[found].is_uppercase() && characters[found - 1].is_lowercase());
+    for (index, &want) in wanted.iter().enumerate() {
+        let rest = &wanted[index + 1..];
+        let at_start = (at..characters.len())
+            .find(|&place| characters[place] == (want, true) && comes(place + 1, rest));
+        let found = at_start
+            .or_else(|| (at..characters.len()).find(|&place| characters[place].0 == want))?;
         total += 1;
-        if start {
+        if characters[found].1 {
             total += 8;
         }
         if previous.is_some_and(|previous| previous + 1 == found) {
@@ -469,12 +541,12 @@ fn score(wanted: &[char], name: &str) -> Option<i64> {
         previous = Some(found);
         at = found + 1;
     }
-    Some(total - characters.len() as i64 / 8)
+    Some(total - original.len() as i64 / 8)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::rank;
+    use super::{rank, score};
 
     const NAMES: [&str; 6] = [
         "Save the level",
@@ -497,5 +569,17 @@ mod tests {
         assert_eq!(rank("QUIT", &NAMES), [5]);
         assert_eq!(rank("q t", &NAMES), [5]);
         assert!(rank("xyz", &NAMES).is_empty());
+    }
+
+    #[test]
+    fn a_letter_is_taken_at_a_words_start_and_a_long_lower_case_is_found() {
+        // `grid` found at the start of its word, each letter after the one before, not from the
+        // `g` of `Toggle`: 9, then 5 three times, less a point for its 11 characters.
+        assert_eq!(score(&['g', 'r', 'i', 'd'], "Toggle grid"), Some(23));
+        // Each letter at a word's start, as an acronym, before them.
+        let names = ["Toggle grid", "Gizmo rotation in degrees"];
+        assert_eq!(rank("grid", &names), [1, 0]);
+        // `İ` is `i̇` in lower case: its first character finds it.
+        assert_eq!(rank("i", &["İstanbul", "Quit"])[0], 0);
     }
 }

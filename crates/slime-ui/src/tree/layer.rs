@@ -168,6 +168,18 @@ impl Ui {
         root
     }
 
+    /// Adds a layer that the interface opens for itself, as [`Ui::open_layer`] does but that gives
+    /// the focus to none of its elements and tells no one as it closes: a tooltip, the palette of
+    /// commands, the sheet of shortcuts, the notifications.
+    pub(crate) fn add_quiet_layer(&mut self, layer: Layer, style: Style) -> ElementId {
+        let root = self.add_layer(layer, style);
+        if let Some(held) = self.node_mut(root).and_then(|node| node.layer.as_mut()) {
+            held.quiet = true;
+            held.focus_first = false;
+        }
+        root
+    }
+
     /// Opens a layer as [`Ui::open_layer`] does, that the widget `owner` owns: it closes it, and
     /// reads that it closed, rather than the program.
     pub(crate) fn open_owned_layer(

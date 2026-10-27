@@ -12,7 +12,8 @@
 //! the list's tooltip as its description, opens the bar's menus, shows the floating panel of
 //! statistics through an item that *View* holds, and opens a recent level through *File*'s submenu,
 //! whose menus then close; it gives a command that the example tells of in a notification, and
-//! finds a command in the palette of commands, which it gives.
+//! finds a command in the palette of commands, which it gives, and opens and closes the sheet of
+//! shortcuts.
 //!
 //! It needs a Wayland compositor and the example built (`cargo build --example widgets`):
 //! `scripts/check.sh` runs it in a headless Weston with lavapipe, as it runs the `interface` test.
@@ -348,6 +349,24 @@ fn main() {
     let found = path_of(&mut session, "ListBoxOption", "Show or hide the statistics");
     act(&mut session, "press", &found, json!({}));
     told(&mut session, "statistics hidden");
+    // The sheet of shortcuts, opened by its command, read, and closed as Escape closes it.
+    let (said, _) = session.tool(
+        "act_on_interface",
+        json!({ "action": "command", "command": "shortcuts" }),
+    );
+    assert_eq!(said, ["done"]);
+    path_of(&mut session, "Dialog", "Keyboard shortcuts");
+    let (said, _) = session.tool("act_on_interface", json!({ "action": "cancel" }));
+    assert_eq!(said, ["done"]);
+    until(
+        "the sheet closed",
+        || {
+            session
+                .try_tool("find_elements", json!({ "role": "Dialog" }))
+                .0
+        },
+        |said| said == &["no element"],
+    );
 
     // Another tab chosen: its panel shows, the inspector's leaves.
     act(&mut session, "press", "#0/window/tabs/Console", json!({}));

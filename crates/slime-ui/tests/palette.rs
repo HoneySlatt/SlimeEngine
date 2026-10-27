@@ -199,11 +199,11 @@ fn the_sheet_lists_the_shortcuts_by_scope_and_escape_closes_it() {
         (Role::Dialog, "Keyboard shortcuts")
     );
     let save = ui
-        .element_by_path("#1/sheet/global Ctrl+S/name")
+        .element_by_path("#1/sheet/shortcuts/0 Ctrl+S/name")
         .expect("the row of save");
     assert_eq!(ui.meaning_of(save).expect("drawn").name, "Save the level");
     // A command that no name is given for shows as it is.
-    assert!(ui.element_by_path("#1/sheet/global F1/name").is_some());
+    assert!(ui.element_by_path("#1/sheet/shortcuts/0 F1/name").is_some());
     key(&mut ui, Key::Named(NamedKey::Escape), None);
     assert!(ui.element_by_path("#1/sheet").is_none());
 }
@@ -295,4 +295,101 @@ fn the_pointer_resting_keeps_a_notification_and_its_buttons_give_commands() {
     ui.frame();
     assert_eq!(ui.notifications().len(), 5);
     assert!(!ui.notifications().contains(&bar));
+}
+
+#[test]
+fn a_notification_takes_the_focus_from_no_one_and_an_update_shows_at_once() {
+    let (mut ui, root) = interface();
+    let mut field = None;
+    ui.build(root, 0, |children| {
+        let element = slime_ui::tree::Element::text_field("", Style::default());
+        field = Some(children.add("name", element, |_| {}));
+    });
+    ui.frame();
+    let field = field.expect("built");
+    ui.set_focus(Some(field));
+    let cooking = ui.notify(Notification {
+        text: "Cooking".to_owned(),
+        progress: Some(Some(0.1)),
+        ..Notification::default()
+    });
+    ui.frame();
+    assert_eq!(ui.focus(), Some(field), "the field keeps the focus");
+    ui.advance(Duration::from_secs(30));
+    ui.update_notification(
+        cooking,
+        Notification {
+            kind: NotificationKind::Success,
+            text: "Cooked".to_owned(),
+            ..Notification::default()
+        },
+    );
+    ui.frame();
+    // Its text shows at once, and its time starts again: it is not gone for the time before.
+    let card = ui.element_by_path("#1/notifications/#0").expect("it");
+    assert_eq!(ui.meaning_of(card).expect("drawn").name, "Cooked");
+    assert_eq!(ui.notifications(), [cooking]);
+    // Its mark closes it.
+    let close = ui
+        .element_by_path("#1/notifications/#0/line/close")
+        .expect("its mark");
+    let rect = ui.rect(close).expect("laid out");
+    ui.pointer_moved(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    ui.frame();
+    assert!(ui.notifications().is_empty());
+    assert!(actions(&mut ui).is_empty());
+}
+
+#[test]
+fn a_shortcut_works_while_the_palette_is_open_and_enter_finds_what_was_just_typed() {
+    let (mut ui, _) = interface();
+    ui.open_palette("Type a command", commands());
+    ui.frame();
+    let mut control = slime_input::Modifiers::default();
+    control.control = true;
+    ui.modifiers(control);
+    key(&mut ui, Key::Character("s".to_owned()), Some("s"));
+    ui.modifiers(slime_input::Modifiers::default());
+    assert_eq!(actions(&mut ui), [ActionKind::Command("save".to_owned())]);
+    // Typed and Enter in one batch, before a frame finds the commands again.
+    for character in "quit".chars() {
+        ui.key(&KeyEvent {
+            physical: KeyCode::Unidentified,
+            logical: Key::Character(character.to_string()),
+            text: Some(character.to_string()),
+            state: ButtonState::Pressed,
+            repeat: false,
+        });
+    }
+    ui.key(&KeyEvent {
+        physical: KeyCode::Unidentified,
+        logical: Key::Named(NamedKey::Enter),
+        text: None,
+        state: ButtonState::Pressed,
+        repeat: false,
+    });
+    assert_eq!(actions(&mut ui), [ActionKind::Command("quit".to_owned())]);
+}
+
+#[test]
+fn enter_in_a_composition_is_the_input_methods_and_a_chord_given_again_is_the_later() {
+    let (mut ui, _) = interface();
+    ui.open_palette("Type a command", commands());
+    ui.frame();
+    ui.ime(&slime_input::Ime::Enabled);
+    ui.ime(&slime_input::Ime::Preedit {
+        text: "sa".to_owned(),
+        cursor: None,
+    });
+    key(&mut ui, Key::Named(NamedKey::Enter), None);
+    assert!(ui.palette_open(), "Enter was the input method's");
+    assert!(actions(&mut ui).is_empty());
+    // A later table that gives Ctrl+S another command: save has its chord no more.
+    let later = Shortcuts::from_text("later.keys", "[global]\n\"Ctrl+S\" = \"save-all\"\n");
+    ui.set_shortcuts(&[Shortcuts::from_text("test.keys", KEYS), later])
+        .expect("valid shortcuts");
+    assert_eq!(ui.command_chord("save"), None);
+    assert_eq!(ui.command_chord("save-all").as_deref(), Some("Ctrl+S"));
 }

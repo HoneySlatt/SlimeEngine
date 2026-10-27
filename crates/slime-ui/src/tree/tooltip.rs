@@ -140,10 +140,7 @@ impl Ui {
             modal: false,
             dismiss: false,
         };
-        let root = self.add_layer(layer, Style::default());
-        if let Some(held) = self.node_mut(root).and_then(|node| node.layer.as_mut()) {
-            held.quiet = true;
-        }
+        let root = self.add_quiet_layer(layer, Style::default());
         self.build(root, 0, |children| {
             let mut column = Style::default();
             column.layout.direction = FlexDirection::Column;

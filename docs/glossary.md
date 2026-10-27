@@ -1148,6 +1148,10 @@ whether its rectangle covers its whole output, and whether anything is drawn aft
 the image. The *render graph* is built again, and its GPU times start over, when it changes
 ([ADR-0041](adr/0041-render-graph.md)).
 
+**Sheet of shortcuts.** A layer that the interface opens over a window, which lists the chords of
+the tables of shortcuts by scope, each with the name of its command (`Ui::open_shortcut_sheet`,
+[ADR-0151](adr/0151-rich-widgets.md)).
+
 **Shortcut.** A chord, modifiers and a key named by its meaning, `Ctrl+Z`, that names a command in
 a scope, `global` or the class of an element around the *focus*, read from a table of shortcuts,
 a document cooked from a `.keys` file (`slime_ui::shortcuts::Shortcuts`,

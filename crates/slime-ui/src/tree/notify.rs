@@ -80,8 +80,9 @@ pub(super) struct Notices {
     shown: Vec<(NotificationId, Notification, Duration)>,
     /// The number that the next notification takes.
     next: u64,
-    /// Whether the stack is to be built again.
+    /// Whether the stack is to be built again, and the revision of its build.
     changed: bool,
+    revision: u64,
     /// The elements of the stack that close a notification or give a command: the close mark's
     /// command is none.
     presses: Vec<(ElementId, NotificationId, Option<String>)>,
@@ -105,13 +106,15 @@ impl Ui {
         id
     }
 
-    /// Replaces what the notification `id` tells, as a bar of progress moves on, its time going on;
-    /// whether it still shows.
+    /// Replaces what the notification `id` tells, as a bar of progress moves on or a task ends, its
+    /// time starting again; whether it still shows.
     pub fn update_notification(&mut self, id: NotificationId, notification: Notification) -> bool {
+        let now = self.now;
         let Some(shown) = self.notices.shown.iter_mut().find(|(each, ..)| *each == id) else {
             return false;
         };
         shown.1 = notification;
+        shown.2 = now;
         self.notices.changed = true;
         true
     }
@@ -179,7 +182,9 @@ impl Ui {
         let root = match self.notices.root {
             Some(root) => root,
             None => {
+                // Without a window's root yet, the stack is built once there is one.
                 let Some(over) = self.window_root() else {
+                    self.notices.changed = true;
                     return;
                 };
                 let layer = Layer {
@@ -190,17 +195,16 @@ impl Ui {
                     modal: false,
                     dismiss: false,
                 };
-                let root = self.add_layer(layer, Style::default());
-                if let Some(held) = self.node_mut(root).and_then(|node| node.layer.as_mut()) {
-                    held.quiet = true;
-                }
+                // It takes the focus from no one.
+                let root = self.add_quiet_layer(layer, Style::default());
                 self.notices.root = Some(root);
                 root
             }
         };
         let shown = self.notices.shown.clone();
         let mut presses = Vec::new();
-        let revision = self.notices.next + shown.len() as u64 * 1000;
+        self.notices.revision += 1;
+        let revision = self.notices.revision;
         self.build(root, revision, |children| {
             let mut column = Style::default();
             column.layout.direction = FlexDirection::Column;
@@ -327,11 +331,13 @@ impl Ui {
         None
     }
 
-    /// Forgets the stack's layer, which closed.
+    /// Forgets the stack's layer, which closed: the notifications that still show are built again
+    /// in a new one.
     pub(super) fn forget_notices(&mut self, root: ElementId) {
         if self.notices.root == Some(root) {
             self.notices.root = None;
             self.notices.presses.clear();
+            self.notices.changed = !self.notices.shown.is_empty();
         }
     }
 }

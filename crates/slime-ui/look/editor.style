@@ -374,13 +374,13 @@ select = { classes = ["notification", "error"] }
 style.paint.border = "$danger"
 
 [notification-close]
-select = { kind = "Button", classes = ["close"] }
+select = { kind = "Button", classes = ["close"], inside = { class = "notification" } }
 style.paint = { background = "$none", border = "$none" }
 style.layout.padding = { start = "$space_xs", end = "$space_xs", top = 0, bottom = 0 }
 style.text.color = "$muted"
 
 [notification-close-hovered]
-select = { kind = "Button", classes = ["close"], states = ["Hovered"] }
+select = { kind = "Button", classes = ["close"], states = ["Hovered"], inside = { class = "notification" } }
 style.text.color = "$text"
 
 [fixed]
