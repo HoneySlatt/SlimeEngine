@@ -76,9 +76,8 @@ The tools, each described to the agent by the server itself, with its parameters
 - `find_elements`, `element_at`, `act_on_interface` and `capture_element`: the game's interface, as
   its last frame left it (`docs/adr/0143-what-agents-see-of-the-interface.md`). `find_elements`
   lists its elements of a role, `Button`, and whose names hold a text, each by its path, which names
-  it to the other tools, its role, name, what a field, a slider, two panels or a list to choose
-  from hold, its description, which its tooltip gives, its states, where it shows, and what it
-  takes now;
+  it to the other tools, its role, name, what a field, a slider, two panels or a list to choose from
+  hold, its description, which its tooltip gives, its states, where it shows, and what it takes now;
   `element_at` names the one at a pixel of the image that `capture` gives; `act_on_interface`
   presses, focuses or scrolls one, gives a field a value as a person who replaced its text and
   committed would (`docs/adr/0146-screen-readers.md`), a slider or two panels theirs
