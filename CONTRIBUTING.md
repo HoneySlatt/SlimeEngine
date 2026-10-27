@@ -282,6 +282,12 @@ To see where a frame's time goes, `SLIME_TRACE=<file>` makes a program that call
 its spans, which [Perfetto](https://ui.perfetto.dev) opens in the browser, without sending the
 file anywhere; the rustdoc of `slime_app::TRACE_ENV_VAR` says what it holds.
 
+A windowed run measured on the machine's GPU, kept off the desktop in a headless Weston, needs
+Weston's GL renderer, `weston --backend=headless --renderer=gl`: with the default one, the GPU's
+Vulkan driver (RADV, at least) cannot present to it, and wgpu takes the CPU driver instead without
+failing. The log's `GPU adapter` line says which one the run took. The checks keep the default
+renderer, as they draw with lavapipe.
+
 Debug builds give the dependencies the tables that place a backtrace's frames in their source
 only, not the rest of their debug information. To step through a dependency in a debugger, build
 it with all of it:
