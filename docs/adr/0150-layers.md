@@ -1,7 +1,9 @@
 # 0150. Layers
 
 - Status: Accepted; amends [0142](0142-input-and-focus.md) (roots that the framework places, and
-  closes on a press outside them or Escape)
+  closes on a press outside them or Escape); amended by
+  [0154](0154-floating-panels-and-held-keys.md) (a floating panel takes no focus as it opens, and
+  gives it to nothing as it closes)
 - Date: 2026-10-27
 
 ## Context

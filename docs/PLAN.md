@@ -1262,8 +1262,9 @@ that the look has a light and a high-contrast theme beside its dark one.
   ([measurements](measurements.md#m6b8b-ryzen-7-5800x)). Looking at the panels found a field of
   numbers too narrow for its number showing its end, now its start while it does not hold the focus.
   The review found Escape kept in a panel's field, a held F1 toggling its panel at each repeat, and
-  a closed panel giving the focus back to what then took the game's keys, each fixed with a test.
-  The tests: `slime-devui`'s overlay tests, with and without a GPU, the device lost and replaced;
+  a closed panel giving the focus back to what then took the game's keys, each fixed with a test;
+  the owner took the rules of floating panels' focus and held keys as decisions after the release
+  ([ADR-0154](adr/0154-floating-panels-and-held-keys.md)). The tests: `slime-devui`'s overlay tests, with and without a GPU, the device lost and replaced;
   `slime-ui`'s `tests/input.rs` and `tests/panels.rs`. What nothing checks yet: a screen reader on
   the overlay, which the owner's check by hand with Orca covers. CI is green on `0b6f1a9`:
   `check (headless)` took 14 minutes 56 seconds, `check (windowed)` 23 minutes 31 seconds, longer

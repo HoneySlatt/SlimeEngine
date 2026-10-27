@@ -210,7 +210,7 @@ the ADR linking to it.
 | [0139](0139-text-drawn-and-the-display-list.md) | Text drawn, and the display list | Accepted |
 | [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amended by 0141, 0143 and 0146 |
 | [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted; amended by 0149 |
-| [0142](0142-input-and-focus.md) | Input and focus | Accepted; amended by 0145, 0150, 0152 and 0153 |
+| [0142](0142-input-and-focus.md) | Input and focus | Accepted; amended by 0145, 0150, 0152, 0153 and 0154 |
 | [0143](0143-what-agents-see-of-the-interface.md) | What agents see of the interface | Accepted; amended by 0146 |
 | [0144](0144-the-cooked-zones-key-in-ci.md) | The cooked zone's key in CI | Accepted |
 | [0145](0145-text-edited.md) | Text edited | Accepted |
@@ -218,7 +218,8 @@ the ADR linking to it.
 | [0147](0147-the-screen-readers-check-in-ci.md) | The screen readers' check in CI | Accepted |
 | [0148](0148-widgets.md) | Widgets | Accepted; amended by 0149 |
 | [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151 |
-| [0150](0150-layers.md) | Layers | Accepted |
+| [0150](0150-layers.md) | Layers | Accepted; amended by 0154 |
 | [0151](0151-rich-widgets.md) | Rich widgets | Accepted |
 | [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
 | [0153](0153-tab-and-f6-in-a-games-interface.md) | Tab and F6 in a game's interface | Accepted |
+| [0154](0154-floating-panels-and-held-keys.md) | Floating panels and held keys | Accepted |

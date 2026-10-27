@@ -122,7 +122,7 @@ impl Ui {
     /// not a press of the pointer gives its first element that takes the focus the focus, once
     /// built, and gives it back to what held it as it closes, but a floating panel, which leaves
     /// the focus where it is as it opens, and gives it to nothing as it closes: F6 gives it the
-    /// focus (`docs/adr/0153-tab-and-f6-in-a-games-interface.md`).
+    /// focus (`docs/adr/0154-floating-panels-and-held-keys.md`).
     pub fn open_layer(&mut self, layer: Layer, style: Style) -> ElementId {
         let root = self.add_layer(layer, style);
         // A button or an item of a menu shows that what it opened is open.

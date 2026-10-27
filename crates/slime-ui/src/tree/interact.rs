@@ -311,10 +311,10 @@ impl Ui {
     /// press, or a repeat, reaches first the field that holds the focus, which takes what it types
     /// and edits with; then it gives the command of a shortcut whose chord it is, in the scopes of
     /// the focus, innermost first, then `global` ([`Ui::set_shortcuts`]), a press alone, its
-    /// repeats taken and giving none, so that a chord that toggles does not flicker; else the
-    /// intent that its
-    /// key means: Tab and Shift+Tab next and previous, the arrows a direction, Enter and Space
-    /// accept, Escape cancel. A focus that a press of the pointer gave to anything but a field
+    /// repeats taken and giving none, so that a chord that toggles does not flicker
+    /// (`docs/adr/0154-floating-panels-and-held-keys.md`); else the intent that its key means: Tab
+    /// and Shift+Tab next and previous, the arrows a direction, Enter and Space accept, Escape
+    /// cancel. A focus that a press of the pointer gave to anything but a field
     /// takes none of these keys, nor the widget's own, the arrows of a slider or a list to choose
     /// from, unless it lies in a layer that closes as the user leaves it or in a modal root, or its
     /// widget's layer is open: they reach the program, as with no focus
