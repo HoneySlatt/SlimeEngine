@@ -12,7 +12,9 @@ The color type of the engine's API, and the sRGB transfer function
 - `srgb8_to_linear` and `linear_to_srgb8`: the sRGB transfer function between bytes and linear
   values, which `LinearColor::from_srgb8`, the mipmaps of `slime-gfx` and the cooker's mipmaps use;
   `linear_to_srgb`, the encoding not rounded to a byte, with which the renderer's canvas encodes
-  the colors that it mixes as sRGB values (`docs/adr/0137-the-canvas.md`).
+  the colors that it mixes as sRGB values (`docs/adr/0137-the-canvas.md`), and `srgb_to_linear`,
+  its inverse, with which the interface's color wells read the colors that they pick
+  (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`).
 - `Oklch`: a color's lightness, chroma and hue in Oklab, where equal steps look equal
   (`LinearColor::to_oklch`, `Oklch::to_linear`), and a color brought back into sRGB's gamut by
   lowering its chroma alone (`Oklch::to_linear_in_gamut`): the interface's themes compute their

@@ -91,7 +91,11 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`): sliders on a logarithmic scale and
   from high to low (`Element::logarithmic`, `Element::reversed`), options of a list to choose from
   that are disabled or carry help (`tree::ChoiceOption`), and fields of numbers that the program
-  holds in an `f32` (`Element::single_precision`).
+  holds in an `f32` (`Element::single_precision`); color wells (`Element::color_well`), whose
+  picker, a layer of their own, holds a square of saturation and value, strips of hue and alpha,
+  the channels and the hexadecimal code, the program reading the color as a value
+  (`action::FieldValue::Color`, `Ui::color`); boxes filled with a gradient in the display list
+  (`display::GradientPrimitive`).
 - `look`, built only with the feature `editor-look`, is the editor's look, made for the editor and
   the dev overlay, and drawn by the `widgets` example: its fonts, Geist and Geist Mono, and
   Lucide's icons (`look::register_fonts`, `look::icon`), its style sheet (`look::style_sheet`), and

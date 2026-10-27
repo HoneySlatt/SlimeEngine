@@ -128,11 +128,18 @@ origin as at it ([ADR-0048](adr/0048-rendering-relative-to-the-camera.md),
 spot light (`intensity`). A surface facing such a light d metres away receives intensity / d² *lux*.
 
 **Canvas.** What the renderer draws in two dimensions, after the *views*, into any target: boxes
-with rounded corners and borders, their shadows, and images, each clipped, in the order given
+with rounded corners and borders, their shadows, boxes filled with a gradient between their corners'
+colors ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)), and images, each
+clipped, in the order given
 (`slime_render::Canvas`, `Renderer::draw_canvas`). Into an sRGB target, its colors mix as their
 *sRGB encoding*'s values do, as design tools mix them ([ADR-0137](adr/0137-the-canvas.md)). The
 engine's UI framework draws its *display list* through it, glyphs as images of the *glyph atlas*,
 from M6b.3b ([ADR-0132](adr/0132-the-engines-ui-framework.md)).
+
+**Color well.** A widget of the engine's interface that shows a color, and opens, as it is pressed,
+a *picker* below it: a square of saturation and value, strips of hue and alpha, the color's channels
+and its hexadecimal code (`slime_ui::tree::Kind::ColorWell`,
+[ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)).
 
 **Cascade (cascaded shadow maps).** One of the *shadow maps* that together hold the shadows of a
 directional light: what the camera sees up to the light's shadow distance is split along its axis

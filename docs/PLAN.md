@@ -1198,8 +1198,9 @@ that the look has a light and a high-contrast theme beside its dark one.
   (`slime_devui::interface`), tested without a GPU, measured by `devui.world_panel.100k`, which the
   programs do not use yet. A frame after an entity was renamed, spawned or despawned makes the
   panel's list of entities again, about 7 ms at 100 000 entities
-  ([measurements](measurements.md#m6b8-rx-6900-xt)), as egui's did. The color well and the canvas's
-  gradients are being built.
+  ([measurements](measurements.md#m6b8-rx-6900-xt)), as egui's did. The color well and its picker,
+  drawn with the canvas's gradients, edit the overlay's colors, and the `widgets` example shows one
+  in its light's section, drawn in its images and used by its agent's session.
 
 ### M6b.8b — The overlay over the games' views
 

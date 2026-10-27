@@ -9,7 +9,8 @@ through `slime-render`'s canvas, the glyphs of its texts kept in an atlas
 ## Role
 
 - Turns a `slime_ui::display::DisplayList`, data that knows no GPU, into a `slime_render::Canvas`,
-  and draws it over a target with `Renderer::draw_canvas`: boxes, shadows and images as they are,
+  and draws it over a target with `Renderer::draw_canvas`: boxes, shadows, gradients and images as
+  they are,
   each text's glyphs as images of the atlas.
 - Keeps the glyphs' atlas: textures, pages of coverage for the glyphs of letters and pages of
   colors for emoji, in which etagere places each glyph's image, rasterized by

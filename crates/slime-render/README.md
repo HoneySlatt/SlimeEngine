@@ -26,7 +26,8 @@ instances, as an editor's grid, icons and the box of what is selected, and says 
 drawn at each pixel of an area of a view, a frame or more later (picking). It blends unlit surfaces
 over the others, without sorting them by depth, and does not yet blend physically based ones. It
 draws an interface's canvas over any of its targets: boxes with rounded corners and borders, their
-shadows, and images, each clipped, their colors mixed as sRGB values; text reaches it as images of
+shadows, boxes filled with a gradient between their corners' colors, and images, each clipped, their
+colors mixed as sRGB values; text reaches it as images of
 the glyphs' atlas that `slime-ui-render` keeps.
 
 ## Role

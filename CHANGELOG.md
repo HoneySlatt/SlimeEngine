@@ -13,7 +13,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   fields change a value only when the user changed it, an angle in radians shown in degrees, and
   the world panel (`slime_devui::interface::WorldPanel`), whose list builds only the rows that
   show, its frame over 100 000 entities costing what one over a few does (benchmark
-  `devui.world_panel.100k`); the look styles their rows, links, heading, refusal and swatch.
+  `devui.world_panel.100k`); the look styles their rows, links, heading and refusal.
+- Color wells (ADR-0152): a swatch that opens a picker below it, a square of saturation and value,
+  strips of hue and alpha, the channels and the hexadecimal code, the program reading the color as
+  a value (`Element::color_well`, `FieldValue::Color`), which the dev overlay's editors edit colors
+  with and the example `widgets` shows in its light's section; boxes filled with a gradient between
+  their corners' colors in the display list and the renderer's canvas (`GradientPrimitive`,
+  `Canvas::draw_gradient`); `slime_color::srgb_to_linear`.
 - What the dev overlay's editors need of the interface's widgets (ADR-0152): sliders on a
   logarithmic scale and from high to low (`Element::logarithmic`, `Element::reversed`), options of
   a list to choose from that are disabled, passed over by the keys and the pointer, or carry a
