@@ -1079,7 +1079,17 @@ that the look has a light and a high-contrast theme beside its dark one.
 - **Progress.** [ADR-0151](adr/0151-rich-widgets.md), proposed on 2026-10-27, cuts it in two, rich
   fields, then notifications and the palette of commands, and lists seven choices that wait for the
   owner: expressions, units, a section's header, help from the documentation, notifications, the
-  palette and the sheet of shortcuts. The parts that hold no open choice are being built meanwhile.
+  palette and the sheet of shortcuts. The parts that hold no open choice are built, on 2026-10-27: a
+  field's placeholder (`Element::placeholder`), buttons that toggle (`Element::toggle_button`),
+  controls of segments (`Element::segments`, `Element::segment`), bars of progress, with a share or
+  moving with the clock (`Element::progress`), a tab's count (`Element::counted_tab`), fields of
+  search with a magnifier and a mark that empties them (`Element::search_field`), and a field of
+  numbers' prefix, which drags it, the look coloring the axes' prefixes
+  (`Element::prefixed_number_field`); `slime-app` gives screen readers their roles, states and
+  values, and agents read a field's placeholder. The `widgets` example shows each, in a bar of
+  tools, over its list of entities, in its position and on its console's tab, its images drawn
+  again, and its agent's session uses them. The tests: `slime-ui`'s `tests/rich.rs` and a test of
+  the placeholder in `tests/field.rs`, and `slime-app`'s translation of them.
 
 ### M6b.8 — The dev overlay on the engine's interface
 

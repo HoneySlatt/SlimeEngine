@@ -74,6 +74,11 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   pointer rests on the interface's clock; floating panels (`Element::floating_panel`), which move
   and size their layer (`Ui::layer_place`, `Ui::set_layer_place`). A style's `icons`
   (`style::Icons`) name the glyphs of a font that controls draw in place of their shapes.
+- Rich widgets (`docs/adr/0151-rich-widgets.md`): a field's placeholder
+  (`Element::placeholder`), buttons that toggle (`Element::toggle_button`), controls of segments
+  (`Element::segments`), bars of progress (`Element::progress`), a tab's count
+  (`Element::counted_tab`), fields of search (`Element::search_field`) and a field of numbers'
+  prefix, which the pointer drags (`Element::prefixed_number_field`).
 - `look`, built only with the feature `editor-look`, is the editor's look, made for the editor and
   the dev overlay, and drawn by the `widgets` example: its fonts, Geist and Geist Mono, and
   Lucide's icons (`look::register_fonts`, `look::icon`), its style sheet (`look::style_sheet`), and
