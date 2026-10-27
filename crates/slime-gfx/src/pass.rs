@@ -66,14 +66,6 @@ pub struct RenderPass<'a> {
 }
 
 impl RenderPass<'_> {
-    /// The wgpu pass behind this one, for the engine's tooling only, through the `wgpu` feature
-    /// (ADR-0031): it draws with libraries built on wgpu, such as egui's renderer. Games must not
-    /// use it.
-    #[cfg(feature = "wgpu")]
-    pub fn wgpu_pass(&mut self) -> &mut wgpu::RenderPass<'static> {
-        &mut self.pass
-    }
-
     /// Uses `pipeline` for the next draws.
     pub fn set_pipeline(&mut self, pipeline: &RenderPipeline) {
         self.pass.set_pipeline(&pipeline.pipeline);

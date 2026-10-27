@@ -203,10 +203,11 @@ how it behaves on each graphics API.
 
 ## The `wgpu` feature
 
-For the engine's tooling only (`docs/adr/0031-dev-overlay-with-egui.md`): it re-exports wgpu
-and gives the wgpu objects behind the engine's types (`Gpu::wgpu_device`, `Gpu::wgpu_queue`,
-`RenderPass::wgpu_pass`, `TextureFormat::wgpu_format`), so that `slime-devui` draws egui with
-egui's own wgpu renderer. Games must not enable it.
+For the engine's own tests only (`docs/adr/0031-dev-overlay-with-egui.md`): it gives the wgpu
+device behind the engine's (`Gpu::wgpu_device`), which `slime-app`'s windowed lifecycle test makes
+invalid without telling the engine, as wgpu does before it reports a driver reset. Games must not
+enable it. The dev overlay used it to draw egui until Stage 6b, which rewrote the overlay on the
+engine's interface.
 
 ## Must not
 

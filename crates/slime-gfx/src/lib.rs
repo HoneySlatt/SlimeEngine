@@ -1,11 +1,5 @@
 #![doc = include_str!("../README.md")]
 
-/// wgpu itself, with the `wgpu` feature: for the engine's tooling only (ADR-0031), which draws
-/// with libraries built on wgpu and must use the same wgpu as this crate. Games must not enable
-/// the feature.
-#[cfg(feature = "wgpu")]
-pub use wgpu;
-
 mod bind_group;
 mod depth_target;
 mod error;

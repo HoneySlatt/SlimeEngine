@@ -123,12 +123,6 @@ impl TextureFormat {
         }
     }
 
-    /// The wgpu format, for the engine's tooling only, through the `wgpu` feature (ADR-0031).
-    #[cfg(feature = "wgpu")]
-    pub fn wgpu_format(self) -> wgpu::TextureFormat {
-        self.to_wgpu()
-    }
-
     pub(crate) fn to_wgpu(self) -> wgpu::TextureFormat {
         match self {
             Self::Rgba8UnormSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,

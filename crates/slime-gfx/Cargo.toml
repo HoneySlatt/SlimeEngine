@@ -11,8 +11,8 @@ publish.workspace = true
 workspace = true
 
 [features]
-# Gives the engine's tooling (slime-devui) wgpu itself and the wgpu objects behind the engine's
-# types, to draw with libraries built on wgpu (ADR-0031). Games must not enable it.
+# Gives the engine's own tests the wgpu device behind the engine's, to make it invalid as a driver
+# reset does (ADR-0031). Games must not enable it.
 wgpu = []
 
 [dependencies]
