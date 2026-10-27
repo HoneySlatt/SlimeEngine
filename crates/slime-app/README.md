@@ -125,8 +125,8 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   receives it as `&World` or not at all, so that a presentation that writes the world does not
   compile. `start` once the window and the GPU are open; `on_event` for each event of the window
   that its interface did not take, which returns whether the presentation takes it for itself, as
-  a dev overlay takes the keys typed into a field: the simulation's input then does not see a key
-  or a button put down, and always sees one let go; for each frame, `extract`, which reads the
+  a key that it alone reads: the simulation's input then does not see a key or a button put down,
+  and always sees one let go; for each frame, `extract`, which reads the
   world and makes what the frame draws, then, when the window can show a new image, `render`,
   which draws it into the window's image without the world
   (`docs/adr/0111-the-frame-contract.md`), and `views`, which

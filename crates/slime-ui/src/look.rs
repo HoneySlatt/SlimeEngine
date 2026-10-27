@@ -1,6 +1,6 @@
 //! The editor's look: the fonts and the style made for the interfaces of the engine's editor and
-//! of its dev overlay (`docs/adr/0148-widgets.md`), which the `widgets` example draws in today; the
-//! overlay moves onto the engine's interface at M6b.8, and the editor gains its window at Stage 6c.
+//! of its dev overlay (`docs/adr/0148-widgets.md`), which the `widgets` example and the dev overlay
+//! (`slime-devui`) draw in today; the editor gains its window at Stage 6c.
 //! It is built only with the feature `editor-look`, so that a game that draws neither carries none
 //! of it.
 //!

@@ -162,6 +162,13 @@ fn a_panel_means_a_pane_named_by_its_title() {
     assert!(meaning.state.expanded);
     // Opened by the program, not by a press, it leaves the focus where it was: F6 reaches it.
     assert_eq!(ui.focus(), None);
+    // Another panel opens over it while the keys give it the focus; closed, that panel gives the
+    // focus to nothing, rather than back to this one's, which would take the keys again.
+    ui.set_focus(Some(panel));
+    let (other, inside) = open(&mut ui, root, [300.0, 40.0], "Lights");
+    ui.set_focus(Some(inside));
+    ui.remove(other);
+    assert_eq!(ui.focus(), None);
 }
 
 #[test]

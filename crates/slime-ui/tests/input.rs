@@ -278,7 +278,11 @@ fn shortcuts_name_commands_by_the_key_s_meaning_in_the_scopes_of_the_focus() {
     control.control = true;
     ui.modifiers(control);
     let z = press(KeyCode::KeyW, Key::Character("z".to_owned()));
-    assert_eq!(command(&mut ui, z), ["undo"]);
+    assert_eq!(command(&mut ui, z.clone()), ["undo"]);
+    // Held, it gives its command once: its repeats are taken, and give none.
+    let held = KeyEvent { repeat: true, ..z };
+    assert!(ui.key(&held));
+    assert!(ui.take_actions().is_empty());
     let w = press(KeyCode::KeyZ, Key::Character("w".to_owned()));
     assert!(command(&mut ui, w).is_empty());
     ui.modifiers(Modifiers::default());

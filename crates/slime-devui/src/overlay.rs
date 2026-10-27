@@ -5,7 +5,7 @@
 use slime_gfx::{Gpu, RenderTarget};
 use slime_platform::PhysicalSize;
 use slime_render::{RenderError, RenderStats, Renderer};
-use slime_ui::action::{Action, ActionKind};
+use slime_ui::action::{Action, ActionKind, Intent};
 use slime_ui::look::{self, Colors, Density};
 use slime_ui::shortcuts::Shortcuts;
 use slime_ui::style::{Dimension, FlexDirection, Style};
@@ -119,8 +119,10 @@ impl Overlay {
         &self.ui
     }
 
-    /// The overlay's interface, to build its panels in, to read the actions of
-    /// ([`Ui::take_actions`]), and to give its host (`slime_app::Presentation::ui`).
+    /// The overlay's interface, to build its panels in, and to give its host
+    /// (`slime_app::Presentation::ui`). The overlay holds its tables of shortcuts, its panels'
+    /// chords ([`Overlay::add_panel`]), and reads its actions ([`Overlay::take_actions`]): a
+    /// program that sets other shortcuts there replaces them.
     pub fn ui_mut(&mut self) -> &mut Ui {
         &mut self.ui
     }
@@ -162,9 +164,19 @@ impl Overlay {
 
     /// The actions that the overlay's interface queued since they were last taken, as
     /// [`Ui::take_actions`] gives them, but the commands of the panels' chords, which open and
-    /// close them.
+    /// close them. Escape, the intent to cancel, while one of the panels' elements holds the focus,
+    /// takes the focus away, a field committing what it holds, and gives the keys back to the
+    /// game; its action stays among those given.
     pub fn take_actions(&mut self) -> Vec<Action> {
         let mut actions = self.ui.take_actions();
+        let focus = self.ui.focus();
+        if focus.is_some()
+            && actions.iter().any(|action| {
+                action.kind == ActionKind::Intent(Intent::Cancel) && action.element == focus
+            })
+        {
+            self.ui.set_focus(None);
+        }
         actions.retain(|action| {
             let ActionKind::Command(command) = &action.kind else {
                 return true;
@@ -538,6 +550,26 @@ mod tests {
         );
         assert!(ui.key(&press(NamedKey::F6)));
         assert_eq!(ui.focus(), None, "back to the game");
+        // Escape, while a panel holds the focus, gives the keys back to the game too; a held F1
+        // toggles the panel once.
+        assert!(ui.key(&press(NamedKey::F6)));
+        assert!(ui.key(&press(NamedKey::Escape)));
+        let actions = overlay.take_actions();
+        assert_eq!(overlay.ui().focus(), None);
+        assert!(
+            actions
+                .iter()
+                .any(|action| action.kind == ActionKind::Intent(Intent::Cancel)),
+            "{actions:?}"
+        );
+        let ui = overlay.ui_mut();
+        assert!(ui.key(&press(NamedKey::F1)));
+        assert!(ui.key(&KeyEvent {
+            repeat: true,
+            ..press(NamedKey::F1)
+        }));
+        overlay.take_actions();
+        assert!(!overlay.is_open(statistics));
     }
 
     /// The pixels of `target`, as the GPU holds them.

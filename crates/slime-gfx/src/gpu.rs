@@ -278,8 +278,7 @@ impl Gpu {
             move |error: wgpu::Error| {
                 // Every use of a lost device fails; the loss itself is what matters, and the run
                 // stops on it (ADR-0022). Memory that runs out here ran out in a creation that no
-                // caller hears of, one made by a library built on wgpu such as egui's renderer:
-                // the device is given up as if it were lost, so that the run stops cleanly
+                // caller hears of: the device is given up as if it were lost, so that the run stops cleanly
                 // (ADR-0044). Before that, an error is a bug in the engine or the application, as
                 // with wgpu's default handler.
                 if loss.get().is_some() {

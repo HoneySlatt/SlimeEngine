@@ -207,8 +207,8 @@ pub trait Presentation {
     /// Called for each event of the window that the presentation's interface did not take
     /// ([`ui`](Self::ui)), between frames, before the host's input follows it
     /// ([`Input::handle`](slime_platform::Input::handle)). Returns whether the presentation takes
-    /// the event for itself, as a dev overlay does with the keys typed into a field and the clicks
-    /// on a panel: the simulation's input then does not see a key or a button that it puts down. A
+    /// the event for itself, as a key that it alone reads: the simulation's input then does not see
+    /// a key or a button that it puts down. A
     /// key or a button let go always reaches the input, so that none stays held. The default takes
     /// none.
     ///

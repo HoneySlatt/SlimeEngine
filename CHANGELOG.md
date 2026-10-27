@@ -237,8 +237,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   floating panel takes no keys: they reach the program, as egui's overlay left them, unless the
   focus lies in a menu, a list or a dialog, or the widget's layer is open (ADR-0152); in an
   interface that lets Tab in, Tab goes on from it. The focus that the program gives
-  (`Ui::set_focus`) shows and takes the keys, as an agent's does. A floating panel that opens takes
-  no focus. A field that does not hold the focus shows the start of its text.
+  (`Ui::set_focus`) shows and takes the keys, as an agent's does. A floating panel takes no focus
+  as it opens, and gives the focus to nothing as it closes. A held key gives a shortcut's command
+  once, its repeats giving none. A field that does not hold the focus shows the start of its text.
+  Escape, while the dev overlay holds the focus, gives the keys back to the game.
 - *Hunna Wood*'s dev overlay is in its development build alone, with the `development` feature:
   its build for shipping holds neither the overlay nor the editor's look. Its panel of statistics
   shows the instances that the draw calls draw, as the `scene` example's does.

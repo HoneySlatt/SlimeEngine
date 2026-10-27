@@ -120,8 +120,9 @@ impl Ui {
     /// ([`ActionKind::Dismissed`]). It takes the scale and the direction of the root that holds
     /// what it stands beside or over, and closes with it. A layer opened while the last input was
     /// not a press of the pointer gives its first element that takes the focus the focus, once
-    /// built, but a floating panel, which leaves the focus where it is: F6 gives it the focus
-    /// (`docs/adr/0153-tab-and-f6-in-a-games-interface.md`).
+    /// built, and gives it back to what held it as it closes, but a floating panel, which leaves
+    /// the focus where it is as it opens, and gives it to nothing as it closes: F6 gives it the
+    /// focus (`docs/adr/0153-tab-and-f6-in-a-games-interface.md`).
     pub fn open_layer(&mut self, layer: Layer, style: Style) -> ElementId {
         let root = self.add_layer(layer, style);
         // A button or an item of a menu shows that what it opened is open.
@@ -446,8 +447,8 @@ impl Ui {
     }
 
     /// Closes the layer `root` and the layers that stand over what it holds, the focus going back
-    /// to what held it as it opened; `dismissed` when the user left it, which tells the program,
-    /// for a layer that it opened.
+    /// to what held it as it opened, or to nothing from a floating panel; `dismissed` when the
+    /// user left it, which tells the program, for a layer that it opened.
     pub(crate) fn close_layer(&mut self, root: ElementId, dismissed: bool) {
         // A color well's picker gives the well what was typed or dragged in it first.
         self.picker_closing(root);
@@ -470,10 +471,14 @@ impl Ui {
             .is_some_and(|focus| self.root_of(focus) == Some(root));
         self.remove(root);
         if focused_inside {
-            let back = held
-                .before
-                .filter(|&before| self.focusable(before))
-                .or_else(|| Some(held.layer.place.anchor()).filter(|&a| self.focusable(a)));
+            // A floating panel took the focus from no one as it opened, and gives it to no one.
+            let back = match held.layer.place {
+                Place::Floating { .. } => None,
+                _ => held
+                    .before
+                    .filter(|&before| self.focusable(before))
+                    .or_else(|| Some(held.layer.place.anchor()).filter(|&a| self.focusable(a))),
+            };
             self.focus_on(back);
         }
         if held.quiet {
