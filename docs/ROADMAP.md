@@ -67,10 +67,10 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 |---|---|
 | Engine language | Rust |
 | License | MPL-2.0 |
-| GPU abstraction | wgpu, then native backends, Vulkan and Direct3D 12, at Stage 9c (ADR-0098). Their types stay inside the `gfx` and `render` crates, and the dev overlay, tooling (ADR-0031); the rest of the engine uses engine-owned handles. |
+| GPU abstraction | wgpu, then native backends, Vulkan and Direct3D 12, at Stage 9c (ADR-0098). Their types stay inside the `gfx` and `render` crates, and the engine's own tests, through `slime-gfx`'s `wgpu` feature (ADR-0031); the rest of the engine uses engine-owned handles. |
 | Shaders | WGSL to start |
 | First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS comes later. No mobile platform (ADR-0098). |
-| UI | One framework of the engine's own, GPU-rendered, for the editor and the UI of games: a retained tree of its own, on parley, taffy and AccessKit, drawn by the renderer's canvas (ADR-0098, ADR-0132). egui only for the dev overlay, tooling, until Stage 6b rewrites the overlay on the framework. No Qt or GTK. |
+| UI | One framework of the engine's own, GPU-rendered, for the editor and the UI of games: a retained tree of its own, on parley, taffy and AccessKit, drawn by the renderer's canvas (ADR-0098, ADR-0132). The dev overlay, tooling, runs on it since Stage 6b, which removed egui (ADR-0152). No Qt or GTK. |
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
 | Windowing and input | winit, used only inside `platform`; its types never leave that crate (ADR-0011) |
 | Entity model | The engine's own: entities, components stored by type, and a transform hierarchy, with `f64` translations (ADR-0079) |
@@ -168,7 +168,7 @@ Stage 3 is split in two so that each half ends with a runnable, tested sample.
 - Dev overlay (egui, tooling only, until something does at least as well: ADR-0052)
 - Temporary direct glTF loading
 
-`egui-wgpu` is built against a specific wgpu version: while the engine's tooling draws with egui, upgrading wgpu waits for egui.
+`egui-wgpu` is built against a specific wgpu version: while the engine's tooling drew with egui, until Stage 6b removed it (ADR-0152), upgrading wgpu waited for egui.
 
 **Exit.** A glTF scene renders with textures, depth and simple lighting under a moving camera, with statistics shown in the overlay, covered by image tests.
 
@@ -306,7 +306,7 @@ Stage 6 is split in three parts (ADR-0116, ADR-0131): what the editor stands on,
 
 **Goal.** A real editor, built as a client of the engine, on its UI framework.
 
-- Docking, menu bars, dialogs, and drag and drop (ADR-0131)
+- Docking, dialogs to open and save files, and drag and drop (ADR-0131); menu bars came with Stage 6b (ADR-0150)
 - Viewport, hierarchy, inspector (driven by reflection), gizmos, asset browser
 - Levels made of several scene files, former identities written when the editor moves an entity out of its file, and references to entities of other scenes, `EntityRef` (ADR-0112)
 - Play in the editor, the game running in a child process first (ADR-0097), in its own window, linked to the editor and to tools by the development channel; a change of the game's code starts it again where it was
@@ -480,7 +480,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 
 | System | Requires |
 |---|---|
-| platform | no engine crate (ADR-0004) |
+| platform | input only, the engine's vocabulary of input (ADR-0004, ADR-0142) |
 | gfx | color only (ADR-0079); window handles through the `raw-window-handle` traits, not `platform` |
 | render | gfx, assets, color, reflect, tasks: it loads its own kinds of asset (ADR-0069), describes its materials' parameters by reflection (ADR-0111), on a task pool of its own from Stage 4b (ADR-0072), the engine's, `slime-tasks`, from Stage 6a (ADR-0107). Not world: `slime-world-render`, a bridge between them, builds each frame from the world (ADR-0079) |
 | assets | reflect only (ADR-0069, ADR-0080) |
@@ -488,8 +488,8 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | reflect | its derive macro only (ADR-0080) |
 | serialization | reflect |
 | world | reflect, serialization, assets, color |
-| UI framework | reflect, serialization; headless; drawn by render's canvas through a bridge, `slime-ui-render`, as `slime-world-render` is between world and render (ADR-0132) |
-| editor | world, render, assets, UI framework |
+| UI framework | color, input, reflect, serialization; headless; drawn by render's canvas through a bridge, `slime-ui-render`, as `slime-world-render` is between world and render (ADR-0132) |
+| editor | world, render, assets, UI framework; its core, without its interface, today: app, assets, channel, cook, reflect, serialization, world (ADR-0134) |
 | UI of games | render, input action mapping, UI framework |
 | undo/redo | the world's commands, serialization (ADR-0134) |
 | physics, audio, animation, navigation | world |

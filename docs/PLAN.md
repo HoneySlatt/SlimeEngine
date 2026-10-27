@@ -125,7 +125,7 @@ core, without its interface. Where the engine stands at the start:
 - **Agents read a running game's world, captures, reports and picks**
   ([ADR-0122](adr/0122-the-development-channel.md)), nothing of an interface.
 
-Out of scope: Stage 6c's work, docking, menu bars, dialogs to open and save files, files dropped,
+Out of scope: Stage 6c's work, docking, dialogs to open and save files, files dropped,
 drag and drop between panels, the editor's window and viewport, play in the editor, the hierarchy,
 the inspector beyond the overlay's value editors, `EntityRef`, gizmos, levels of several files and
 the asset browser; several windows of the system (G34); Stage 7's UI for games, animation beyond
@@ -1298,9 +1298,9 @@ uses no private engine API. Released as 0.7 ([ADR-0131](adr/0131-stage-6b-and-st
 The stage is planned in detail with the owner at Stage 6b's close. Its milestones, in an order
 provisional until then:
 
-1. **Docking, menus, dialogs, and drag and drop**
+1. **Docking, dialogs, and drag and drop**
    ([ADR-0132](adr/0132-the-engines-ui-framework.md)): panels docked, in tabs, split, dragged from
-   one place to another, their layout saved; a menu bar; dialogs to open and save, through rfd;
+   one place to another, their layout saved; dialogs to open and save, through rfd;
    drag and drop between panels; files dropped from the system on Windows and X11, and on Wayland
    once winit 0.31 is released.
 2. **The editor's window and its viewport**: the editor's program, and *Hunna Wood*'s editor

@@ -85,8 +85,11 @@ the arrows, its fields typed, selected, copied and composed through input method
 system, and says what it means to agents, who use it through the MCP server as a person does; it
 has the widgets of a panel, check boxes, sliders, sections that fold, tabs, two panels and a
 handle, and scroll bars, and what opens over a panel, menus and their bar, context menus, lists to
-choose from, tooltips and floating panels, and holds the editor's look, its fonts Geist and Geist
-Mono and Lucide's icons, in dark, light and high-contrast themes, behind a feature. The `interface`
+choose from, tooltips and floating panels, rich fields, notifications, a palette of commands and
+color wells ([ADR-0151](docs/adr/0151-rich-widgets.md),
+[ADR-0152](docs/adr/0152-the-dev-overlay-on-the-engines-interface.md)), and holds the editor's look,
+its fonts Geist and Geist Mono and Lucide's icons, in dark, light and high-contrast themes, behind a
+feature. The `interface`
 example builds an interface, with text in eight writing systems, a dark and a light theme, and a
 modal dialog; the `widgets` example, a panel of the editor's kind, with its menus. The dev overlay
 is built on it, in the editor's look, over *Hunna Wood* and the `scene` and `world` examples, and
@@ -151,10 +154,11 @@ opt-level = 3
   points, and [`examples/`](examples/README.md) holds programs to start from: `world` draws a world,
   `scene` drives the renderer by hand.
 - A game that tools and agents drive declares a `development` feature, on by default, which turns
-  on `slime-app/development` and its dev overlay, and is built for shipping with
-  `--no-default-features`, which leaves the development channel and the overlay out, as
-  [`games/hunnawood`](games/hunnawood/Cargo.toml) does
-  ([`crates/slime-app/README.md`](crates/slime-app/README.md)).
+  on `slime-app/development` and the dev overlay, `slime-devui`, an optional dependency of the
+  game, and is built for shipping with `--no-default-features`, which leaves the development channel
+  and the overlay out, as [`games/hunnawood`](games/hunnawood/Cargo.toml) does
+  ([`crates/slime-app/README.md`](crates/slime-app/README.md),
+  [`crates/slime-devui/README.md`](crates/slime-devui/README.md)).
 - Building needs Rust 1.99 or later and, on Linux, the libraries that
   [`CONTRIBUTING.md`](CONTRIBUTING.md#on-linux-without-nix) lists and a [Vulkan
   driver](CONTRIBUTING.md#gpu).
@@ -174,7 +178,8 @@ today has:
 
 - No audio, physics or animation; an interface built as a tree of elements, laid out, styled by
   style sheets and themes, used with the pointer and the keyboard, its fields typed in, its widgets
-  checked, moved, folded and chosen, its menus, lists and floating panels opened, and read and
+  checked, moved, folded and chosen, its menus, lists and floating panels opened, its rich fields,
+  notifications, palette of commands and color wells used, and read and
   used by agents through the MCP server (`slime-ui`), read by screen readers in the examples, games
   leaving them out until Stage 7; and of the editor
   only its core, a library without an interface (`slime-editor`), and its program without a window,
@@ -196,7 +201,7 @@ today has:
   based material refusing it until Stage 9a; with a capped number of lights, and
   shadows from one directional light and from spot lights, none from point lights.
 - One window, which cannot go fullscreen, grab or hide the cursor, or report raw mouse motion; no
-  gamepads, touch input or input methods.
+  gamepads or touch input.
 - A run that stops when the GPU device is lost, unless the game asks to go on with a new one and
   makes its GPU objects again itself.
 - Linux and Windows only, on x86_64.

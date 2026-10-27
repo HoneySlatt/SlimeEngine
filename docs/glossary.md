@@ -3,13 +3,13 @@
 Terms that this project defines, or uses with a narrower meaning than usual. Standard Rust and
 game-development vocabulary is not repeated here. Entries are in alphabetical order.
 
-**Adapter.** A GPU as wgpu sees it, through one graphics API: a discrete or integrated GPU, or a
-software driver such as lavapipe or WARP. The engine opens one adapter's *device* to use it.
-
 **Action (interface).** What a person or an agent does to an interface: a button pressed, an
 *intent* of navigation, or the command of a *shortcut* (`slime_ui::action::Action`). A person's
 input becomes actions; an agent sends them; the program reads them from a queue and does what they
 ask ([ADR-0142](adr/0142-input-and-focus.md)).
+
+**Adapter.** A GPU as wgpu sees it, through one graphics API: a discrete or integrated GPU, or a
+software driver such as lavapipe or WARP. The engine opens one adapter's *device* to use it.
 
 **Adoption (entity).** A game taking an entity out of the scene that spawned it, with its
 descendants whose identities are under its own, and giving it a key of its own
@@ -36,10 +36,6 @@ each *view* chooses ([ADR-0127](adr/0127-the-settings-of-a-view.md)).
 **Application time.** The sum of the deltas of all frames so far (`FrameTime::elapsed`). It
 falls behind wall-clock time when a frame delta is limited, for example after a pause.
 
-**Asset.** Data that a game loads rather than builds in code: a texture, a mesh, a material, a
-scene. Each comes from a *source asset* and reaches the game as *cooked data*
-([ADR-0069](adr/0069-the-asset-pipeline.md)).
-
 **Asset cache.** The GPU objects of the meshes that a game draws, with their materials and
 textures, kept by *asset ID* outside the *world* (`slime_render::AssetCache`): the world names
 assets by ID and holds no GPU object. It loads what *requests* ask for in batches, in the
@@ -60,6 +56,10 @@ least recently held first once the cache passes its kind's budget
 (`slime_render::AssetCache::request`,
 [ADR-0113](adr/0113-asset-requests-residency-and-priorities.md),
 [ADR-0128](adr/0128-asset-requests.md)).
+
+**Asset.** Data that a game loads rather than builds in code: a texture, a mesh, a material, a
+scene. Each comes from a *source asset* and reaches the game as *cooked data*
+([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
 **Attachment (bone).** A component that hangs an entity on a bone of another entity's skeleton,
 naming the entity and the bone; saves and scene files hold it as any reference
@@ -96,14 +96,14 @@ number of bytes, which the GPU decodes as it samples: BC7, one byte per texel, f
 data, and BC5, two channels, for normal maps. Cooked textures are compressed in them
 ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
+**Bloom chain.** The levels of the *bloom*, each half the size of the one before: the scene's light
+filtered down into them, then averaged back up into a blurred copy that the tone-mapping pass
+mixes in.
+
 **Bloom.** The light a lens or the eye scatters around where it lands, which the renderer adds by
 spreading a share of each pixel's exposed light, its strength (`Scene::bloom`), into a halo that
 falls with the square of the distance; energy-conserving: the light is taken from where it lands,
 so that a uniform image is unchanged ([ADR-0040](adr/0040-bloom.md)).
-
-**Bloom chain.** The levels of the *bloom*, each half the size of the one before: the scene's light
-filtered down into them, then averaged back up into a blurred copy that the tone-mapping pass
-mixes in.
 
 **BRDF (bidirectional reflectance distribution function).** How much of the light arriving at a
 surface from one direction it reflects towards another: what the *metallic-roughness model*
@@ -115,8 +115,10 @@ that a surface reflecting f0 at normal incidence reflects f0 A + B of a uniform 
 per process, 32 × 32 ([ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.md)).
 
 **Build for shipping.** A game built without its default features, `--no-default-features`, so
-without `slime-app`'s `development` feature: it holds no *development channel*. The checks build
-*Hunna Wood* so, and fail if it holds one ([ADR-0122](adr/0122-the-development-channel.md)).
+without `slime-app`'s `development` feature and the dev *overlay*: it holds neither the
+*development channel* nor the overlay. The checks build *Hunna Wood* so, and fail if it holds either
+([ADR-0122](adr/0122-the-development-channel.md),
+[ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)).
 
 **Camera-relative rendering.** Drawing in world space moved so that the camera's eye is at the
 origin: the renderer subtracts the eye from every position, all `f64`s, on the CPU, so that the
@@ -133,13 +135,8 @@ colors ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)), and i
 clipped, in the order given
 (`slime_render::Canvas`, `Renderer::draw_canvas`). Into an sRGB target, its colors mix as their
 *sRGB encoding*'s values do, as design tools mix them ([ADR-0137](adr/0137-the-canvas.md)). The
-engine's UI framework draws its *display list* through it, glyphs as images of the *glyph atlas*,
-from M6b.3b ([ADR-0132](adr/0132-the-engines-ui-framework.md)).
-
-**Color well.** A widget of the engine's interface that shows a color, and opens, as it is pressed,
-a *picker* below it: a square of saturation and value, strips of hue and alpha, the color's channels
-and its hexadecimal code (`slime_ui::tree::Kind::ColorWell`,
-[ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)).
+engine's UI framework draws its *display list* through it, glyphs as images of the *glyph atlas*
+([ADR-0132](adr/0132-the-engines-ui-framework.md)).
 
 **Cascade (cascaded shadow maps).** One of the *shadow maps* that together hold the shadows of a
 directional light: what the camera sees up to the light's shadow distance is split along its axis
@@ -168,6 +165,11 @@ dev *overlay* (`slime-devui`), and the benchmarks (`slime-benches`).
 never splits: a letter and its marks, a conjunct of Devanagari, a ligature, an emoji sequence
 ([ADR-0136](adr/0136-the-interfaces-text.md)).
 
+**Color well.** A widget of the engine's interface that shows a color, and opens, as it is pressed,
+a *picker* below it: a square of saturation and value, strips of hue and alpha, the color's channels
+and its hexadecimal code (`slime_ui::tree::Kind::ColorWell`,
+[ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)).
+
 **Command.** A change of the world asked for outside the *phases* of a frame that may make it, by
 the editor, the dev *overlay*, a tool, a load or a *presentation*: a value that names its entities
 by their *persistent identities* (`slime_world::Command`), queued by the *host*, and applied at the
@@ -185,15 +187,15 @@ where it does not, and linear filtering blends the four nearest results
 (`slime_gfx::ComparisonSampler`, [ADR-0033](adr/0033-gpu-layer-for-multi-pass-rendering.md)).
 Shadow maps are read this way. See *percentage-closer filtering*.
 
+**Component ID.** The number by which a *world* knows a *component* type, given in the order types
+are first attached. It stays in the process: files name types through *reflection*
+([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)).
+
 **Component.** A piece of data that an *entity* holds, such as its transform, a light or a collider:
 an entity holds at most one component of each type, and the *world* stores components by type
 ([ADR-0079](adr/0079-the-engines-own-world.md)). Every component type has *reflection*
 ([ADR-0085](adr/0085-reflection.md)), and clones
 ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)).
-
-**Component ID.** The number by which a *world* knows a *component* type, given in the order types
-are first attached. It stays in the process: files name types through *reflection*
-([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)).
 
 **Cooked data.** Files in the engine's own formats that a game loads without parsing or converting
 anything, made from *source assets* by *cooking*. They are never committed: the cooker keeps them
@@ -225,14 +227,14 @@ pixel to pixel (`slime_gfx::DepthBias`). A *shadow map* is drawn with one, so th
 not shadow itself where its depth and the stored one differ only by rounding, which would cover
 it with dark specks (*shadow acne*).
 
-**Depth-only pass.** A render pass without a *render target*, which writes depth only into a
-*depth target*, with pipelines that have no fragment stage (`Gpu::render_depth`): how a *shadow
-map* is drawn.
-
 **Depth target.** A texture holding, for each pixel, the depth of what was drawn there, with
 which a render pass keeps the nearest surface whatever the order the surfaces are drawn in: the
 *depth test* (`slime_gfx::DepthTarget`, `slime_gfx::DepthState`). Later passes can sample it, as
 a *shadow map* is read. Depths are reversed (*reversed depth*).
+
+**Depth-only pass.** A render pass without a *render target*, which writes depth only into a
+*depth target*, with pipelines that have no fragment stage (`Gpu::render_depth`): how a *shadow
+map* is drawn.
 
 **Development channel.** The link between a running game and the tools that drive it: the *MCP*
 server, tests, and from Stage 6c the editor. A game started with a *token* in its environment
@@ -339,16 +341,16 @@ on the CPU into a *cube texture* and its *prefiltered levels* (`slime_render::En
 
 **Example.** A runnable program in the `examples/` directory that demonstrates one feature.
 
-**Exposure.** What the scene's light is multiplied by before it is written into the *HDR* target,
-then tone mapped (`slime_render::Scene::exposure`): a linear factor; 1 leaves it as it is, 2 is one
-photographic stop brighter. The scene pass applies it (*pre-exposure*,
-[ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md)).
-
 **Exposure value (EV100).** A photographer's measure of an *exposure*, in stops, at the
 sensitivity ISO 100: log2(N² / t) for an aperture N and a shutter time t in seconds; one more is
 one stop darker. About 15 for direct sunlight, 7 for a lit room. Its exposure is
 1 / (1.2 × 2^EV100), the convention of Frostbite and Filament; the `scene` example's slider moves in
 it.
+
+**Exposure.** What the scene's light is multiplied by before it is written into the *HDR* target,
+then tone mapped (`slime_render::Scene::exposure`): a linear factor; 1 leaves it as it is, 2 is one
+photographic stop brighter. The scene pass applies it (*pre-exposure*,
+[ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md)).
 
 **Face (font).** One font of a font file, at one point of its variations, a variable font's
 weight among them: what draws a run of *glyphs* ([ADR-0136](adr/0136-the-interfaces-text.md)).
@@ -375,10 +377,6 @@ changed since ([ADR-0087](adr/0087-the-worlds-documents.md),
 blinks as its coverage of the pixel changes from frame to frame. The renderer does not filter them
 (ADR-0040).
 
-**Focus (interface).** The element that the keys reach first, a button or a *field*, which Tab moves
-in the order of the tree and the arrows to the nearest element on screen, within its scope: the top
-*modal root*, or the root that holds it ([ADR-0142](adr/0142-input-and-focus.md)).
-
 **Fixed step.** A duration of time, constant for a run, in which code that must not depend on
 the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or more fixed steps.
 
@@ -386,6 +384,10 @@ the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or mor
 textures a shader reads or how large a buffer is: WebGPU's default limits. A device opens with
 every limit that its adapter offers, and an adapter below the floor is refused, the limit named
 (`slime_gfx::GfxError::BelowFloor`, [ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)).
+
+**Focus (interface).** The element that the keys reach first, a button or a *field*, which Tab moves
+in the order of the tree and the arrows to the nearest element on screen, within its scope: the top
+*modal root*, or the root that holds it ([ADR-0142](adr/0142-input-and-focus.md)).
 
 **Font stack.** The font families that a text's style names, in order of preference: a character
 takes the first font that has it. Without the system's fonts, a character that no font of the
@@ -398,9 +400,6 @@ which the world keeps and saves write, so that references written before find it
 file that holds it then writes, so that saves, overrides and references that named it find it
 ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)), decided and not built yet.
 
-**Frame.** One iteration of the main loop. Its *delta* is the time it represents: the time since
-the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
-
 **Frame contract.** What the world gives the renderer at each frame, and how: a frame that owns
 what it draws, built by `slime-world-render`, drawn in one or more *views*, each object naming a
 material of some *kind* ([ADR-0111](adr/0111-the-frame-contract.md)). The frame that owns what it
@@ -410,6 +409,9 @@ draws, the kinds, the views and their settings are built.
 waits between them, so that the engine asks for at most `AppConfig::max_frame_rate` frames per
 second on average. With the default *present mode*, it alone paces the frames
 ([ADR-0021](adr/0021-frame-pacing.md), which calls it the timer, or the schedule).
+
+**Frame.** One iteration of the main loop. Its *delta* is the time it represents: the time since
+the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
 
 **Frustum culling.** Leaving out of a pass the *instances* that it cannot show: those whose box,
 the smallest box around their mesh, lies outside the volume that the pass's camera or light covers,
@@ -443,9 +445,6 @@ Decided, not built yet.
 hierarchy, as a JSON file with binary buffers, or as one GLB file with everything embedded. The
 cooker, `slime-cook`, imports both ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
-**Glyph.** A shape that a font draws: a letter, a form that a letter takes when it joins its
-neighbours, a ligature of several, a mark, an emoji. *Shaping* turns text into glyphs.
-
 **Glyph atlas.** Textures that hold each *glyph*'s image once, for every text that draws it, in
 pages of coverage for letters and of colors for emoji (`slime_ui_render::UiRenderer`): a glyph is
 rasterized the first time a draw asks for it, and the glyphs that no draw asked for the longest
@@ -455,6 +454,9 @@ leave first once the atlas holds its budget
 **Glyph key.** What names a *glyph*'s image: its *face*, its index there, its size, the *subpixel
 position* of its origin, and its representation, coverage or color. Equal keys share one image
 ([ADR-0136](adr/0136-the-interfaces-text.md)).
+
+**Glyph.** A shape that a font draws: a letter, a form that a letter takes when it joins its
+neighbours, a ligature of several, a mark, an emoji. *Shaping* turns text into glyphs.
 
 **GPU time.** How long the GPU took to run a render pass, measured by timestamps written at its
 start and its end (`slime_gfx::GpuTimer`) and read back a few frames later; `None` on adapters
@@ -521,15 +523,15 @@ and scaled so that the part fills the view, and parts drawn side by side make th
 a split screen of one camera or a magnifier. Its shadows are those of the whole image
 ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)).
 
-**Image-based lighting (IBL).** Lighting surfaces with the light of their whole surroundings, read
-from images of it, here an *environment*, rather than from *punctual lights* alone.
-
 **Image test.** A test that renders offscreen and compares the result with a *reference image*,
 pixel by pixel, within a tolerance that absorbs how drivers round colors and filter textures
 ([ADR-0018](adr/0018-reference-image-tests.md), amended by
 [ADR-0028](adr/0028-image-tests-tolerate-a-few-pixels.md),
 [ADR-0030](adr/0030-image-tests-strict-on-the-reference-driver.md) and
 [ADR-0054](adr/0054-image-tests-allow-0-2-percent-on-other-drivers.md)).
+
+**Image-based lighting (IBL).** Lighting surfaces with the light of their whole surroundings, read
+from images of it, here an *environment*, rather than from *punctual lights* alone.
 
 **Imported target.** A target of the *render graph* that outlives the frame and that the graph
 does not create: the output, which may be a window's image that changes every frame, and the
@@ -541,10 +543,6 @@ engine's types.
 
 **Index buffer.** A buffer of indices into a vertex buffer, so that the triangles of a mesh share
 vertices (`slime_gfx::IndexBuffer`).
-
-**Intent (navigation).** What a key, and later a gamepad, means to an interface whatever the
-program: next, previous, up, down, left, right, accept, cancel (`slime_ui::action::Intent`). The
-interface moves the *focus* for the first six ([ADR-0142](adr/0142-input-and-focus.md)).
 
 **Input (as data).** The keys and mouse buttons held, and those pressed and released since the last
 frame (`slime_platform::Input`), which the *host* keeps from the window's events, or a test from its
@@ -563,6 +561,10 @@ reading its own values, its transform among them, from a storage buffer by its i
 ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). Each pass of the renderer draws so
 the instances of one pipeline, material and mesh that it keeps (`slime_render::Renderer`,
 [ADR-0117](adr/0117-frustum-culling-and-instancing.md)).
+
+**Intent (navigation).** What a key, and later a gamepad, means to an interface whatever the
+program: next, previous, up, down, left, right, accept, cancel (`slime_ui::action::Intent`). The
+interface moves the *focus* for the first six ([ADR-0142](adr/0142-input-and-focus.md)).
 
 **Interpolation factor.** The fraction of a fixed step accumulated but not yet run
 (`FixedStep::alpha`), between 0 and 1. Used to draw a state between the last two fixed steps:
@@ -634,13 +636,13 @@ reload* starts the run again when the layout changes
 ([ADR-0088](adr/0088-saving-and-resuming-a-run.md),
 [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)).
 
-**Leaf card.** A quad textured with leaves, whose texture's alpha cuts them out (an *alpha mask*):
-many of them make the foliage of a tree for a fraction of the triangles that modelled leaves
-would take.
-
 **Leaf (reflection).** A part of a *value* that holds no other parts, which an edit sets whole: a
 number, a boolean, a text, an option, a reference to an asset or an entity, an empty list, or an
 enum whose variant holds no data (`slime_reflect::Registry::leaves`).
+
+**Leaf card.** A quad textured with leaves, whose texture's alpha cuts them out (an *alpha mask*):
+many of them make the foliage of a tree for a fraction of the triangles that modelled leaves
+would take.
 
 **Line (drawings).** A segment between two points of the world that a client draws into a view, as a
 band that faces the camera, a width in the output's pixels wide, its edges smoothed over a pixel
@@ -687,9 +689,9 @@ but not its textures, its sidedness or the kind of its alpha mode (`Material::se
 
 **MCP (Model Context Protocol).** An open protocol through which coding agents, such as Claude
 Code and Codex, call the tools of other programs. The engine's own server, `slime-mcp`, lets them
-drive a running game through its *development channel*; the editor's commands join it at Stage 6b
-([ADR-0099](adr/0099-ai-agents-drive-the-engine.md),
-[ADR-0122](adr/0122-the-development-channel.md)).
+drive a running game through its *development channel*, and edit a level through the editor's
+program ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md),
+[ADR-0122](adr/0122-the-development-channel.md), [ADR-0135](adr/0135-the-editors-program.md)).
 
 **Meaning (interface).** What an interface's tree says to whoever reads it without seeing it, an
 agent or a screen reader: each element that a person reads or uses, its *role*, its name, a
@@ -698,6 +700,10 @@ field's value, its states, the actions it takes now, where it shows and its *pat
 it was last taken is given element by element, each marked as its meaning changes and named by a
 number that the interface never gives again (`Ui::take_meaning_changes`,
 [ADR-0146](adr/0146-screen-readers.md)).
+
+**Menu bar.** The row of an interface's menus, *File*, *View*, whose items open them below; the
+keys move along it and between its menus, and F10 or Alt alone reaches it (`Element::menu_bar`,
+[ADR-0150](adr/0150-layers.md)).
 
 **Mesh.** Triangles given as vertices (a position, a normal, texture coordinates and a *tangent*
 each) and indices, uploaded to the GPU into a *page* (`slime_render::Mesh`, from `MeshData`).
@@ -714,14 +720,6 @@ highlights as wide as the *roughness* (glTF 2.0, Appendix B; ADR-0035).
 coordinates, which glTF's *normal textures* assume; the cooker computes them so
 (`bevy_mikktspace`, [ADR-0069](adr/0069-the-asset-pipeline.md)).
 
-**Menu bar.** The row of an interface's menus, *File*, *View*, whose items open them below; the
-keys move along it and between its menus, and F10 or Alt alone reaches it (`Element::menu_bar`,
-[ADR-0150](adr/0150-layers.md)).
-
-**Modal root.** A root of an interface, a dialog over a window, that keeps the pointer from the
-roots below it and the *focus* among its elements while it is there, and gives the focus back when
-it is removed (`RootSettings::modal`, [ADR-0142](adr/0142-input-and-focus.md)).
-
 **Milestone.** A small, verifiable step of a stage, listed with its goal, its done criteria and
 how to test it in [`docs/PLAN.md`](PLAN.md). Milestones are numbered `M<stage>.<n>`, for example
 M1.3; those of a *pass*, `P<n>`.
@@ -732,11 +730,6 @@ minified texture does not alias. The engine computes them on the CPU when the te
 (`Gpu::create_texture`), in linear light for the sRGB formats, or takes them from the caller
 (`Gpu::create_texture_with_levels`, `Gpu::create_cube_texture`); linear filtering blends two levels.
 
-**Mode of debugging (render).** What a *view* shows in place of the lit scene, to see what the
-renderer computes (`slime_render::DebugMode`): the normal each surface is shaded with, or the share
-of the shadowing lights' light that reaches it, written as colors as they are, without the exposure,
-the bloom or the tone curve ([ADR-0127](adr/0127-the-settings-of-a-view.md)).
-
 **Mirror (source assets).** The copies of the sample game's downloaded *source assets*, attached to
 the releases of a GitHub repository of their own, from which `scripts/fetch-assets.sh` fetches
 them ([ADR-0070](adr/0070-the-sample-games-source-assets.md)).
@@ -744,6 +737,15 @@ them ([ADR-0070](adr/0070-the-sample-games-source-assets.md)).
 **Mirrored instance.** An instance whose transform has a negative determinant, such as a scale of
 −1 along one axis: it turns front faces clockwise on screen, and the renderer culls its other
 faces so that it keeps its front ones, as glTF does (ADR-0035).
+
+**Modal root.** A root of an interface, a dialog over a window, that keeps the pointer from the
+roots below it and the *focus* among its elements while it is there, and gives the focus back when
+it is removed (`RootSettings::modal`, [ADR-0142](adr/0142-input-and-focus.md)).
+
+**Mode of debugging (render).** What a *view* shows in place of the lit scene, to see what the
+renderer computes (`slime_render::DebugMode`): the normal each surface is shaded with, or the share
+of the shadowing lights' light that reaches it, written as colors as they are, without the exposure,
+the bloom or the tone curve ([ADR-0127](adr/0127-the-settings-of-a-view.md)).
 
 **Multiple scattering.** Light that bounces between the microfacets of a rough surface before it
 leaves, which a single-scattering *BRDF* loses: a white rough metal would look grey. The renderer
@@ -782,6 +784,11 @@ triangle's own normal and that axis replaces the incidence's
 it detail without more triangles: red along the tangent, green up the image, blue along the
 normal, each from −1 to 1 stored as 0 to 1 (glTF).
 
+**Notification.** A short message that a program gives the interface, which stacks it at the
+window's bottom end and takes it away after a time that its kind sets, information, success,
+warning or error; screen readers read it as it comes (`Ui::notify`,
+[ADR-0151](adr/0151-rich-widgets.md)).
+
 **Occlusion texture.** A texture whose red channel says how much of the *environment*'s light
 reaches each point of a surface, darkening creases (glTF).
 
@@ -798,11 +805,6 @@ pixel seen along the camera's axis, as a map or a plan is drawn (`slime_render::
 as high as the camera's height, as wide as its aspect makes it, from its near plane to its far one,
 beyond which nothing is seen ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)). See
 *reversed depth*.
-
-**Notification.** A short message that a program gives the interface, which stacks it at the
-window's bottom end and takes it away after a time that its kind sets, information, success,
-warning or error; screen readers read it as it comes (`Ui::notify`,
-[ADR-0151](adr/0151-rich-widgets.md)).
 
 **Overlay (dev).** Panels on the engine's interface, in the editor's look, floating over a
 program's view, to show statistics and tooling over a running game: the frame's figures, the
@@ -912,7 +914,7 @@ divided by 64, so that up to 64 × 65 504 keeps its energy for the *bloom*
 
 **Prefab.** A scene placed many times, each *placement* keeping values of its own, its *overrides*,
 such as a lantern placed along a path: a role that any scene plays, not a kind of file. Stage 5b
-brings them ([ADR-0078](adr/0078-stage-5-in-two-halves.md),
+brought them ([ADR-0078](adr/0078-stage-5-in-two-halves.md),
 [ADR-0089](adr/0089-scenes-and-prefabs.md)).
 
 **Prefiltered levels.** The levels of an *environment*'s *cube texture* past the first: the sky
@@ -924,12 +926,6 @@ surface reflects ([ADR-0039](adr/0039-image-based-lighting-computed-on-the-cpu.m
 multiplies its color and its alpha alike, and an image whose texels are so before they are filtered
 mixes without the dark fringes that a transparent texel's color leaves otherwise. The *canvas*'s
 colors are ([ADR-0137](adr/0137-the-canvas.md)).
-
-**Priority (assets).** How urgently a *request* wants its assets, one of three classes
-(`slime_render::Priority`): *now*, what a view draws and lacks; *soon*, what a game fetches ahead;
-*later*, what is fetched far ahead and the editor's thumbnails. The loads' tasks and their copies to
-the GPU go class by class, then in the order the loads started
-([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)).
 
 **Present (an image).** Hand a drawn image to the window, which shows it at one of the display's
 next refreshes, as the *present mode* says.
@@ -944,6 +940,12 @@ sound (`slime_app::Presentation`). It reads the world, and nothing of the *simul
 world, without writing it, and asks for changes as *commands*
 ([ADR-0107](adr/0107-the-execution-model.md),
 [ADR-0121](adr/0121-a-game-as-a-simulation-and-a-presentation.md)).
+
+**Priority (assets).** How urgently a *request* wants its assets, one of three classes
+(`slime_render::Priority`): *now*, what a view draws and lacks; *soon*, what a game fetches ahead;
+*later*, what is fetched far ahead and the editor's thumbnails. The loads' tasks and their copies to
+the GPU go class by class, then in the order the loads started
+([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)).
 
 **Property path.** Where a part of a reflected *value* is, as fields joined by `.` and indices in
 brackets: `color.r`, `ids[2]` (`slime_reflect::Path`). A field of an enum is one of the variant
@@ -1058,23 +1060,23 @@ target, with its size in *logical pixels*, its scale and the direction of its li
 (`slime_ui::tree::RootSettings`); a root laid out from right to left is mirrored
 ([ADR-0140](adr/0140-the-tree-of-elements.md)).
 
-**Run.** Two things. The running of a game by `slime_app::run`, from its `start` methods to its
-`stop` methods; and, in a game, a play from a new game on, which R starts again, a *save* holds and
-a resume goes on with.
-
 **Run of text (screen readers).** A piece of one line of a field's text, of one direction and of a
 bounded count of characters, through which a screen reader reads the text and follows its caret:
 each character's length, place and width, and where its words start (`slime_ui::tree::TextRun`,
 [ADR-0146](adr/0146-screen-readers.md)). Not a run of *glyphs*.
 
-**Sample.** What demonstrates the exit criterion of a stage: an example up to Stage 3b, the *sample
-game* from Stage 3c. Every stage ends with one.
+**Run.** Two things. The running of a game by `slime_app::run`, from its `start` methods to its
+`stop` methods; and, in a game, a play from a new game on, which R starts again, a *save* holds and
+a resume goes on with.
 
 **Sample (multisampling).** One of the points of a pixel at which *multisample anti-aliasing*
 tests coverage and depth; not the *sample* of a stage.
 
 **Sample game.** The game in `games/` that every stage grows from Stage 3c on, as its *sample*:
 *Nightwatch*, then *Hunna Wood* from Stage 4a ([ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)).
+
+**Sample.** What demonstrates the exit criterion of a stage: an example up to Stage 3b, the *sample
+game* from Stage 3c. Every stage ends with one.
 
 **Sampler.** How shaders read a texture: nearest or linear filtering, and what lies beyond its
 edges (repeat, mirror or clamp) (`slime_gfx::Sampler`).
@@ -1156,6 +1158,10 @@ whether its rectangle covers its whole output, and whether anything is drawn aft
 the image. The *render graph* is built again, and its GPU times start over, when it changes
 ([ADR-0041](adr/0041-render-graph.md)).
 
+**Shaping.** Turning a run of text into the *glyphs* that draw it and their positions: the forms
+that a script's letters take beside each other, ligatures, marks placed on their letters. parley
+shapes the engine's text ([ADR-0136](adr/0136-the-interfaces-text.md)).
+
 **Sheet of shortcuts.** A layer that the interface opens over a window, which lists the chords of
 the tables of shortcuts by scope, each with the name of its command (`Ui::open_shortcut_sheet`,
 [ADR-0151](adr/0151-rich-widgets.md)).
@@ -1165,10 +1171,6 @@ a scope, `global` or the class of an element around the *focus*, read from a tab
 a document cooked from a `.keys` file (`slime_ui::shortcuts::Shortcuts`,
 [ADR-0142](adr/0142-input-and-focus.md)).
 
-**Shaping.** Turning a run of text into the *glyphs* that draw it and their positions: the forms
-that a script's letters take beside each other, ligatures, marks placed on their letters. parley
-shapes the engine's text ([ADR-0136](adr/0136-the-interfaces-text.md)).
-
 **Simulated time.** Frame deltas supplied as a constant duration instead of being measured, so
 that a run gives the same results on every machine. Headless runs use it.
 
@@ -1176,16 +1178,16 @@ that a run gives the same results on every machine. Headless runs use it.
 world on *game time*, from *input* given as data, without a GPU or a window, and asks its *host* to
 stop rather than ending the process ([ADR-0107](adr/0107-the-execution-model.md)).
 
-**Skeleton (crate).** A crate that exists with its documentation and inherits the workspace
-policies, but holds no code yet.
+**Skeleton (crate).** At Stage 0, a crate that existed with its documentation and inherited the
+workspace policies, but held no code yet; no crate is one today.
+
+**Sky pass.** The render pass that draws the *environment* and the *sun's disc* where no surface
+was drawn, after the scene pass.
 
 **Sky.** The procedural daytime sky from which the renderer computes an *environment*
 (`slime_render::Sky`): a gradient from the zenith to the horizon, a haze into the ground below,
 and an optional sun, whose glow, the light the sky scatters around it, it holds. The sun's disc is
 drawn by the *sky pass*, not held.
-
-**Sky pass.** The render pass that draws the *environment* and the *sun's disc* where no surface
-was drawn, after the scene pass.
 
 **Slot (element).** An *element* whose children its own builder gives, by its own *revision*, kept as
 they are when its parent is built again (`Children::add_slot`): a panel
@@ -1280,6 +1282,11 @@ engine *acquires* one, the application draws into it, and the engine *presents* 
 up, which stops the run, when that fails or when it is lost again each time
 ([ADR-0025](adr/0025-giving-up-a-lost-surface.md)).
 
+**Tangent.** A direction in a surface, along which the texture's u coordinate grows. With the
+normal and the *handedness* w (±1, −1 where the texture is mirrored on the surface), it gives the
+bitangent, cross(normal, tangent) × w, and with it the *tangent space* in which *normal textures*
+are stored (`MeshData::tangents`, glTF's convention).
+
 **Task pool.** Threads that run small pieces of work, *tasks*, as they come, each on the first
 thread free. The engine has one, `slime-tasks`, the machine's logical cores but one, whose tasks
 have one of two priorities: a *frame* task, work that the frame being made waits for, such as the
@@ -1287,11 +1294,6 @@ sky's environment, which a free thread takes first; a *background* task, work th
 for, such as a load or the cooker's encoding, which never holds every thread
 ([ADR-0107](adr/0107-the-execution-model.md),
 [ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)).
-
-**Tangent.** A direction in a surface, along which the texture's u coordinate grows. With the
-normal and the *handedness* w (±1, −1 where the texture is mirrored on the surface), it gives the
-bitangent, cross(normal, tangent) × w, and with it the *tangent space* in which *normal textures*
-are stored (`MeshData::tangents`, glTF's convention).
 
 **Termination signal.** A request from outside the process to stop it: SIGINT (Ctrl+C in a
 terminal), SIGTERM (a service manager or `kill`) or SIGHUP (the terminal closing). The first one
@@ -1333,23 +1335,18 @@ Khronos glTF Sample Viewer, which keeps hues and lowers dark and mid tones by up
 meant to balance the reflection of their surroundings that surfaces get from image-based lighting
 ([ADR-0034](adr/0034-hdr-rendering-and-tone-mapping.md)).
 
+**Tooling (engine's).** Code that serves development, not what a game is made of: the dev
+*overlay*, which a game keeps in its development builds and leaves out of its build for shipping,
+as *Hunna Wood* does ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)).
+
 **Tooltip.** A short text, under a title where it has one, that shows below an element once the
 pointer has rested on it, or once the keys gave it the focus, in a *layer* that the pointer passes through; screen
 readers read it as the element's description (`Element::tooltip`,
 [ADR-0150](adr/0150-layers.md)).
 
-**Tooling (engine's).** Code that serves development, not what a game is made of: the dev
-*overlay*, which a game keeps in its development builds and leaves out of its build for shipping,
-as *Hunna Wood* does ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)).
-
 **Transform in the world (global transform).** Where an entity is in the world: its `Transform`
 composed with its ancestors', a translation in `f64`, a rotation and a uniform scale, without its
 *stretch* (`slime_world::GlobalTransform`, [ADR-0083](adr/0083-transforms-and-the-hierarchy.md)).
-
-**Transition (interface).** A change of an element's style shown over a time rather than at once:
-its colors and its opacity going from what they showed to what the new style gives, a section
-growing or shrinking to its height, as the style's `transition` says (`slime_ui::style::Transition`,
-[ADR-0149](adr/0149-the-looks-foundations.md)).
 
 **Transient field.** A field of a reflected type that saves leave out, `#[reflect(transient)]`:
 what a game computes again, such as a value that changes at every frame. It has a default, its
@@ -1361,6 +1358,11 @@ the view's targets divided by a power of two, and whose content lives for one fr
 high-dynamic-range and depth targets and the bloom's levels. It is kept from frame to frame, and
 reused by the graph of the next *shape* that declares it at the same size
 ([ADR-0041](adr/0041-render-graph.md)).
+
+**Transition (interface).** A change of an element's style shown over a time rather than at once:
+its colors and its opacity going from what they showed to what the new style gives, a section
+growing or shrinking to its height, as the style's `transition` says (`slime_ui::style::Transition`,
+[ADR-0149](adr/0149-the-looks-foundations.md)).
 
 **Type registry.** The reflected types that a program describes, by *stable name* and alias, with
 what reads and sets their *values* (`slime_reflect::Registry`). Each *world* keeps one, which holds
@@ -1392,16 +1394,16 @@ effect ([ADR-0087](adr/0087-the-worlds-documents.md)). A level written back as a
 the component, and leaves out only what the run created that holds it, or is under what does
 ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)).
 
+**Upgrade.** The function that brings a value of a reflected type from one version of the type to
+the next, on the value as a *document* holds it, before the type reads it; a type past version 1
+names one, `#[reflect(upgrade = ...)]`, and a reader applies them in turn
+([ADR-0086](adr/0086-serialization.md)).
+
 **Uploader.** The one owner of the copies to the GPU of what loads bring
 (`slime_gfx::Uploader`): the threads that load write textures and vertices into *staging buffers*,
 and the uploader's thread submits their copies after each frame, at most a budget of bytes per
 frame while frames are drawn, so that a frame does not wait for all of a load's copies ([ADR-0107](adr/0107-the-execution-model.md),
 [ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)).
-
-**Upgrade.** The function that brings a value of a reflected type from one version of the type to
-the next, on the value as a *document* holds it, before the type reads it; a type past version 1
-names one, `#[reflect(upgrade = ...)]`, and a reader applies them in turn
-([ADR-0086](adr/0086-serialization.md)).
 
 **Value (reflection).** A reflected value as plain data, without its Rust type: booleans, integers,
 floats of either width, text, structs, enums, options, lists, references to assets and entities
@@ -1430,16 +1432,20 @@ which a rendering technique enters the engine ([ADR-0098](adr/0098-the-games-the
 machines without a GPU, such as the CI runners.
 
 **Widget.** An element of the interface that a person uses, a check box, a slider, a section that
-folds, a bar of tabs, two panels and their handle: an element kind of `slime-ui` that keeps its
-state in the tree, which the program's value replaces only when it changes, with its own input,
-meaning and actions ([ADR-0148](adr/0148-widgets.md)).
-
-**World.** The *entities* of a game, their *components* and their hierarchy, kept by the engine
-(`slime_world::World`); Stage 5a draws what it holds and saves what changed.
-A game, a test or an editor holds as many worlds as it needs
-([ADR-0079](adr/0079-the-engines-own-world.md)).
+folds, a bar of tabs, two panels and their handle, a list to choose from, a button that toggles, a
+color well: an element kind of `slime-ui` that keeps its state in the tree, which the program's
+value replaces only when it changes, with its own input, meaning and actions
+([ADR-0148](adr/0148-widgets.md), [ADR-0150](adr/0150-layers.md),
+[ADR-0151](adr/0151-rich-widgets.md), [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)).
 
 **World panel.** The panel of the dev *overlay* that lists a *world*'s *entities* by name and
 edits the *components* of the one selected through *reflection*, returning each change as a
 *command*, which a *presentation* sends to its *host* (`slime_devui::WorldPanel`,
-[ADR-0081](adr/0081-stage-5a-the-world.md)); tooling, as the rest of the overlay.
+[ADR-0081](adr/0081-stage-5a-the-world.md),
+[ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)); tooling, as the rest of the
+overlay.
+
+**World.** The *entities* of a game, their *components* and their hierarchy, kept by the engine
+(`slime_world::World`); `slime-world-render` draws what it holds, and it saves what changed.
+A game, a test or an editor holds as many worlds as it needs
+([ADR-0079](adr/0079-the-engines-own-world.md)).
