@@ -6,8 +6,8 @@ use std::collections::HashMap;
 
 use slime_gfx::{Gpu, RenderTarget};
 use slime_render::{
-    Canvas, CanvasBox, CanvasImage, CanvasShadow, CanvasStats, ImagePart, ImageQuad, PixelRect,
-    RenderError, Renderer,
+    Canvas, CanvasBox, CanvasGradient, CanvasImage, CanvasShadow, CanvasStats, ImagePart,
+    ImageQuad, PixelRect, RenderError, Renderer,
 };
 use slime_ui::Rect;
 use slime_ui::display::{DisplayList, ImageKey, ImageKind, Primitive};
@@ -123,6 +123,12 @@ impl UiRenderer {
                     fill: shape.fill,
                     border_width: shape.border_width,
                     border: shape.border,
+                    clip,
+                }),
+                Primitive::Gradient(gradient) => canvas.draw_gradient(&CanvasGradient {
+                    rect: pixel_rect(gradient.rect),
+                    radii: gradient.radii,
+                    corners: gradient.corners,
                     clip,
                 }),
                 Primitive::Shadow(shadow) => canvas.draw_shadow(&CanvasShadow {

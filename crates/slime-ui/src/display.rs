@@ -95,6 +95,8 @@ pub enum Primitive {
     Box(BoxPrimitive),
     /// The shadow that a box casts.
     Shadow(ShadowPrimitive),
+    /// A box filled with a gradient.
+    Gradient(GradientPrimitive),
     /// A text.
     Text(TextPrimitive),
     /// A part of an image.
@@ -109,6 +111,7 @@ impl Primitive {
         match self {
             Self::Box(primitive) => primitive.rect,
             Self::Shadow(primitive) => primitive.rect,
+            Self::Gradient(primitive) => primitive.rect,
             Self::Text(primitive) => {
                 let drawn = primitive.layout.drawn_box();
                 Rect::new(
@@ -133,6 +136,11 @@ impl Primitive {
                 primitive.border.a *= opacity;
             }
             Self::Shadow(primitive) => primitive.color.a *= opacity,
+            Self::Gradient(primitive) => {
+                for corner in &mut primitive.corners {
+                    corner.a *= opacity;
+                }
+            }
             Self::Text(primitive) => primitive.color.a *= opacity,
             Self::Image(primitive) => primitive.color.a *= opacity,
         }
@@ -152,6 +160,7 @@ impl Primitive {
                 }
             }
             Self::Image(primitive) => primitive.rect = snap(primitive.rect),
+            Self::Gradient(primitive) => primitive.rect = snap(primitive.rect),
             Self::Shadow(_) | Self::Text(_) => {}
         }
         self
@@ -179,6 +188,19 @@ pub struct BoxPrimitive {
     pub border_width: f32,
     /// Its border's color.
     pub border: LinearColor,
+}
+
+/// A box filled with a gradient: a rectangle with rounded corners, its corners' colors mixed across
+/// it by each point's place, as the interface blends, on their sRGB encoding
+/// (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`). It has no border.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GradientPrimitive {
+    /// Where it lies.
+    pub rect: Rect,
+    /// The radii of its corners, in pixels: top left, top right, bottom right, bottom left.
+    pub radii: [f32; 4],
+    /// Its corners' colors: top left, top right, bottom right, bottom left.
+    pub corners: [LinearColor; 4],
 }
 
 /// The shadow that a box casts, drawn under it: the box, moved, grown and blurred.

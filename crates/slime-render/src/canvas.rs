@@ -1,5 +1,5 @@
-//! The canvas: boxes, their shadows and images, drawn in two dimensions over a target, as an
-//! interface draws (`docs/adr/0137-the-canvas.md`).
+//! The canvas: boxes, their shadows, gradients and images, drawn in two dimensions over a target,
+//! as an interface draws (`docs/adr/0137-the-canvas.md`).
 
 use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
@@ -79,6 +79,22 @@ pub struct CanvasBox {
     pub border_width: f32,
     /// Its border's color.
     pub border: LinearColor,
+    /// The rectangle outside which it is not drawn; none for the whole target.
+    pub clip: Option<PixelRect>,
+}
+
+/// A box filled with a gradient: a rectangle with rounded corners, its corners' colors mixed across
+/// it, each point's the mix of the four by its place, as the target mixes colors: on their sRGB
+/// encoding into an sRGB target, as CSS mixes a gradient, linear into another
+/// (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`). It has no border.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CanvasGradient {
+    /// Where it lies.
+    pub rect: PixelRect,
+    /// The radii of its corners.
+    pub radii: Radii,
+    /// Its corners' colors: top left, top right, bottom right, bottom left.
+    pub corners: [LinearColor; 4],
     /// The rectangle outside which it is not drawn; none for the whole target.
     pub clip: Option<PixelRect>,
 }
@@ -187,6 +203,8 @@ const BOX: u32 = 0;
 const SHADOW: u32 = 1;
 const COVERAGE: u32 = 2;
 const IMAGE: u32 = 3;
+/// A gradient keeps its corners' colors in `color`, `border`, `uv` and `widths` (`canvas.wgsl`).
+const GRADIENT: u32 = 4;
 
 /// A clip that holds every pixel.
 const NO_CLIP: [f32; 4] = [-f32::MAX, -f32::MAX, f32::MAX, f32::MAX];
@@ -226,6 +244,30 @@ impl<'a> Canvas<'a> {
                 clip: clip(shape.clip),
                 widths: [width, 0.0, 0.0, 0.0],
                 kind: [BOX, 0, 0, 0],
+            },
+            None,
+        );
+    }
+
+    /// Draws the gradient `shape`. A gradient of no pixel, or whose rectangle is not finite, draws
+    /// nothing.
+    pub fn draw_gradient(&mut self, shape: &CanvasGradient) {
+        if shape.rect.is_empty() {
+            return;
+        }
+        let edges = shape.rect.edges();
+        let [top_left, top_right, bottom_right, bottom_left] = shape.corners.map(straight);
+        self.push(
+            Item {
+                quad: outward(edges),
+                shape: edges,
+                radii: radii(shape.radii, shape.rect),
+                color: top_left,
+                border: top_right,
+                uv: bottom_right,
+                clip: clip(shape.clip),
+                widths: bottom_left,
+                kind: [GRADIENT, 0, 0, 0],
             },
             None,
         );
@@ -782,10 +824,17 @@ fn item_bytes(items: &[Item], encode: bool) -> Vec<u8> {
         last[slot].1
     };
     for item in items {
-        let border = if item.kind[0] == BOX {
-            mix(item.border, 1)
+        let gradient = item.kind[0] == GRADIENT;
+        let border = match item.kind[0] {
+            BOX => mix(item.border, 1),
+            GRADIENT => mixed(item.border, encode),
+            _ => item.border,
+        };
+        // A gradient's corners are colors, mixed as the target mixes them.
+        let (uv, widths) = if gradient {
+            (mixed(item.uv, encode), mixed(item.widths, encode))
         } else {
-            item.border
+            (item.uv, item.widths)
         };
         for vector in [
             item.quad,
@@ -793,9 +842,9 @@ fn item_bytes(items: &[Item], encode: bool) -> Vec<u8> {
             item.radii,
             mix(item.color, 0),
             border,
-            item.uv,
+            uv,
             item.clip,
-            item.widths,
+            widths,
         ] {
             push_f32s(&mut bytes, &vector);
         }

@@ -30,8 +30,8 @@ pub use cache::{
 };
 pub use camera::{Camera, ImagePart, Projection};
 pub use canvas::{
-    Canvas, CanvasBox, CanvasImage, CanvasShadow, CanvasStats, ImageId, ImageKind, ImageQuad,
-    MAX_CANVAS_ITEMS, PixelRect, Radii,
+    Canvas, CanvasBox, CanvasGradient, CanvasImage, CanvasShadow, CanvasStats, ImageId, ImageKind,
+    ImageQuad, MAX_CANVAS_ITEMS, PixelRect, Radii,
 };
 pub use cooked::{LoadedScene, SceneError, SceneLoad, scene_lights};
 pub use drawings::{DrawList, Drawings, Line};

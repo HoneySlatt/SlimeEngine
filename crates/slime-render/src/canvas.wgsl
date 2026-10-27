@@ -1,5 +1,5 @@
 // The canvas (docs/adr/0137-the-canvas.md): boxes with rounded corners and borders, their shadows,
-// and images, drawn in two dimensions over a target, each a quad of two triangles built from the
+// gradients and images, drawn in two dimensions over a target, each a quad of two triangles built from the
 // vertex's index alone, in the order given, every item clipped to its rectangle. Colors come
 // multiplied by their alpha, and are laid over the target so: into a target of an sRGB format,
 // which the canvas draws into without its encoding, encoded first, so that they mix as sRGB values,
@@ -39,8 +39,9 @@ struct Item {
     // The border's width; for a shadow, the box's shorter side, the approximation's scale, and the
     // inverse of its deviation, 0 for a sharp shadow.
     widths: vec4<f32>,
-    // What the item is (BOX, SHADOW, COVERAGE or IMAGE), then the indices of its transform and of
-    // its layer.
+    // What the item is (BOX, SHADOW, COVERAGE, IMAGE or GRADIENT), then the indices of its transform
+    // and of its layer. A gradient keeps its corners' colors, mixed as the target mixes colors, in
+    // `color`, `border`, `uv` and `widths`: top left, top right, bottom right, bottom left.
     kind: vec4<u32>,
 }
 
@@ -56,6 +57,8 @@ const SHADOW: u32 = 1u;
 const COVERAGE: u32 = 2u;
 // An image of colors, not multiplied by their alpha, drawn faded by the item's alpha.
 const IMAGE: u32 = 3u;
+// A box filled with its corners' colors, mixed across it by each point's place.
+const GRADIENT: u32 = 4u;
 
 @group(0) @binding(0) var<uniform> frame: Frame;
 @group(0) @binding(1) var<storage, read> items: array<Item>;
@@ -185,6 +188,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 shade = item.widths.y * (erf((item.widths.x + distance) * inverse) - erf(distance * inverse));
             }
             color = item.color * shade;
+        }
+        case GRADIENT: {
+            let outer = coverage(rounded_box(p, item.shape, item.radii));
+            let size = max(item.shape.zw - item.shape.xy, vec2<f32>(1e-6));
+            let t = clamp((p - item.shape.xy) / size, vec2<f32>(0.0), vec2<f32>(1.0));
+            let top = mix(item.color, item.border, t.x);
+            let bottom = mix(item.widths, item.uv, t.x);
+            color = mix(top, bottom, t.y) * outer;
         }
         case COVERAGE: {
             // Level 0, the image's own pixels, as an interface draws them.

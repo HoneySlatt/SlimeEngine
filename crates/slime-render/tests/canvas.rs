@@ -1,15 +1,15 @@
 //! The canvas (`docs/adr/0137-the-canvas.md`), read back from a target of floats: a box fills
 //! inside its rounded corners and its border inside its edges; a shadow fades from under its box,
-//! where its offset puts it; a clip cuts what lies outside it; an image is drawn in a color or as
-//! it is, and so is a view's target; items are drawn in their order, few draws for many items;
-//! shapes drawn at twice the scale keep their place; the canvas's shader is replaced with the
-//! others; a lost device stops it, and a new renderer draws it again. Runs on whatever adapter the
-//! machine offers.
+//! where its offset puts it; a gradient mixes its corners' colors; a clip cuts what lies outside
+//! it; an image is drawn in a color or as it is, and so is a view's target; items are drawn in
+//! their order, few draws for many items; shapes drawn at twice the scale keep their place; the
+//! canvas's shader is replaced with the others; a lost device stops it, and a new renderer draws it
+//! again. Runs on whatever adapter the machine offers.
 
 use slime_color::LinearColor;
 use slime_gfx::{FloatImage, GfxError, Gpu, RenderPassDescriptor, RenderTarget, TextureFormat};
 use slime_render::{
-    Canvas, CanvasBox, CanvasImage, CanvasShadow, ImageKind, ImagePart, ImageQuad,
+    Canvas, CanvasBox, CanvasGradient, CanvasImage, CanvasShadow, ImageKind, ImagePart, ImageQuad,
     MAX_CANVAS_ITEMS, PixelRect, RenderError, Renderer, ShaderSources,
 };
 
@@ -730,4 +730,64 @@ fn the_canvas_s_time_on_the_gpu_comes_back_where_the_adapter_times() {
         }
     }
     assert!(timed.is_some(), "no time came back in 20 frames");
+}
+
+#[test]
+fn a_gradient_mixes_its_corners_by_each_point_s_place() {
+    let mut setup = Setup::new();
+    let gpu = setup.gpu.clone();
+    // White, red, black and black at its corners: a square of saturation and value.
+    let mut canvas = Canvas::new();
+    canvas.draw_gradient(&CanvasGradient {
+        rect: PixelRect::new(0.0, 0.0, 64.0, 64.0),
+        radii: [0.0; 4],
+        corners: [
+            LinearColor::WHITE,
+            RED,
+            LinearColor::BLACK,
+            LinearColor::BLACK,
+        ],
+        clip: None,
+    });
+    // Into a target of floats, linear: the corners at the corners, their mixes between.
+    let linear = setup.draw(&canvas);
+    let top_left = pixel(&linear, (0, 0));
+    let top_right = pixel(&linear, (63, 0));
+    assert!(
+        top_left[1] > 0.97 && top_right[1] < 0.03,
+        "{top_left:?} {top_right:?}"
+    );
+    assert!(
+        close(top_right[0], 1.0) || top_right[0] > 0.98,
+        "{top_right:?}"
+    );
+    // Half way across the top: white mixed with red by half, green one half.
+    let middle = pixel(&linear, (32, 0));
+    assert!((middle[1] - 0.5).abs() < 0.03, "{middle:?}");
+    // Half way down the left edge: white mixed with black by half.
+    let down = pixel(&linear, (0, 32));
+    assert!((down[0] - 0.5).abs() < 0.03, "{down:?}");
+    assert!(pixel(&linear, (40, 63))[0] < 0.03, "black at the bottom");
+    // Into an sRGB target, mixed on the encoding, as CSS mixes: half of 255, not linear's 188.
+    let mut renderer =
+        Renderer::new(&gpu, TextureFormat::Rgba8UnormSrgb).expect("the renderer is created");
+    let target = gpu
+        .create_render_target("srgb", SIZE, SIZE, TextureFormat::Rgba8UnormSrgb)
+        .expect("the GPU has memory for it");
+    renderer.draw_canvas(&gpu, &canvas, &target).expect("drawn");
+    let image = gpu.read_render_target(&target).expect("read back");
+    let green = image.pixels[(32 * 4 + 1) as usize];
+    assert!(green.abs_diff(128) <= 3, "{green}");
+    // Rounded and clipped as a box is: its corner left out.
+    let mut canvas = Canvas::new();
+    canvas.draw_gradient(&CanvasGradient {
+        rect: PixelRect::new(0.0, 0.0, 64.0, 64.0),
+        radii: [16.0; 4],
+        corners: [LinearColor::WHITE; 4],
+        clip: Some(PixelRect::new(0.0, 0.0, 64.0, 32.0)),
+    });
+    let rounded = setup.draw(&canvas);
+    assert_eq!(pixel(&rounded, (0, 0))[0], 0.0, "outside its corner");
+    assert!(close(pixel(&rounded, (32, 16))[0], 1.0));
+    assert_eq!(pixel(&rounded, (32, 48))[0], 0.0, "outside its clip");
 }
