@@ -26,14 +26,15 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   released as 0.7 at its close. A study of the editor's design, made by four agents from four
   starting points and measured in prototypes on the owner's machine, led to the owner's sixteen
   decisions on the editor's design, its milestones and their order, which ADR-0155 records. M6c.0
-  is done; next: M6c.1.
+  is done, and M6c.1 was split in two at its start; next: M6c.1a.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M6c.0](#m6c0--before-the-stage) | The development channel answers in milliseconds, CI's checks stay within their limit, and a game that a tool started never outlives it | Done |
-| [M6c.1](#m6c1--the-editors-window) | The editor opens a level in a window of its own, where a person and an agent run the same named operations | Planned |
+| [M6c.1a](#m6c1a--the-window-and-its-operations) | The editor opens a level in a window of its own, where a person and an agent run the same named operations | Planned |
+| [M6c.1b](#m6c1b--dialogs-the-cursor-held-and-the-gpus-identity) | A person opens and saves through the system's dialogs, a viewport can hold the cursor and read the mouse's raw motion, and a GPU object cannot act on another `Gpu`'s | Planned |
 | [M6c.2](#m6c2--the-viewport) | The level shows in a viewport that the user flies through and picks in, drawn again only when what it shows changed | Planned |
 | [M6c.3](#m6c3--move-and-place) | The user moves, turns, scales, creates and deletes, each gesture a single step of the history | Planned |
 | [M6c.4](#m6c4--play-it) | Play runs the level being edited in the game, steps not written included, and the editor's edits reach the running game | Planned |
@@ -102,11 +103,11 @@ Decisions taken when the stage was planned, by the owner on 2026-10-27: the edit
 milestones, their order, the owner's two checkpoints, one release, and the dependencies, in
 [ADR-0155](adr/0155-the-editors-design.md). Each milestone that designs a part records its design
 in a new ADR, which amends ADR-0155 where it changes it; each dependency is added at the milestone
-that first uses it, rfd at M6c.1, `serde_json` in `slime-editor` at M6c.4, notify at M6c.7, what it
+that first uses it, rfd at M6c.1b, `serde_json` in `slime-editor` at M6c.4, notify at M6c.7, what it
 adds to CI's build checked then. Every milestone ends, besides the definition of done, with an
 agent's session in `scripts/check.sh`, in a headless Weston when it is windowed, and image tests of
-the panels that it adds. Any milestone may be cut in two at its start, as Stage 6b's were; M6c.5 and
-M6c.6 are expected to be.
+the panels that it adds. Any milestone may be cut in two at its start, as Stage 6b's were; M6c.1
+was, and M6c.5 and M6c.6 are expected to be.
 
 Risks, whose figures ADR-0155's context gives:
 
@@ -116,7 +117,7 @@ Risks, whose figures ADR-0155's context gives:
   measures `PASSES_PER_SUBMISSION` and the bloom there. The editor and the game running at once,
   two devices on one GPU, and Windows were never measured.
 - **The cursor held and the mouse's raw motion were never run**, on any system: the study read
-  winit's sources. M6c.1 tries them first, by hand, on niri, Hyprland, X11 through XWayland and in
+  winit's sources. M6c.1b tries them first, by hand, on niri, Hyprland, X11 through XWayland and in
   the Windows virtual machine, where relative motion may be missing.
 - **No dialog was opened**: whether niri and Hyprland give `xdg-foreign` v2, without which a dialog
   is not modal to the window, and rfd off the main thread on Windows. A path typed in the palette is
@@ -197,11 +198,15 @@ Risks, whose figures ADR-0155's context gives:
 
 ### M6c.1 — The editor's window
 
+The owner split it in two at its start, on 2026-10-28: the window and its operations, then the
+dialogs, the cursor held and the GPU's identity.
+
+#### M6c.1a — The window and its operations
+
 - **Goal.** The editor opens a level in a window of its own, where a person and an agent run the
   same named operations.
 - **Crates.** `slime-editor`, `slime-app`, `slime-channel`, `slime-mcp`, `slime-ui`,
-  `slime-platform`, `slime-gfx`, `slime-devui`; the `editor` example and
-  `games/hunnawood-editor`; `flake.nix`.
+  `slime-platform`, `slime-devui`; the `editor` example and `games/hunnawood-editor`.
 - **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: the editor's window, a
   presentation of the editor's program that reads the core through a value they share and asks it
   through typed requests, the channel's `Edit` requests going through the same handler; the
@@ -209,19 +214,17 @@ Risks, whose figures ADR-0155's context gives:
   requests that list them and run one by name, version 10 of the protocol, and the MCP server's
   two tools; frames on demand in `slime-app`, and the interface drawn only when it changed; fixed
   regions of panels, the menu bar, a status bar, and the window's title, both showing how many
-  steps are not written; quitting at once, the journal keeping what was not written; the palette
-  scrolling past 12 entries; roots named in paths by their keys, not by their numbers; dialogs to
-  open and save through rfd, on a thread of their own, which fill in for a person the path that an
-  agent gives, and a scrim behind a modal layer; D-Bus's library in the development shell, which rfd
-  loads; the mouse's raw motion and the cursor held, locked on Wayland and Windows, confined, hidden
-  and put back on X11, left free with a word where locking fails; the window's title changed while
-  it runs; `slime-app`'s state and cache directories beside its data directory; each `Gpu` with an
-  identity that its objects carry, an object used with another `Gpu` panicking (G34); the dev
-  overlay's world panel in a region, as the hierarchy and the inspector until M6c.5; on the first
-  run, the program's level opened at once, the examples cooked if missing, the recent levels in the
-  File menu and one hint; the run without a window kept for CI's agents. The dependency rfd 0.17,
-  which [ADR-0132](adr/0132-the-engines-ui-framework.md) approved. The ADR of the design, which
-  says whether the run without a window waits for requests too.
+  steps are not written; quitting at once, the journal keeping what was not written; opening
+  another level in the same window by a path given, which M6c.1b's dialog fills in for a person,
+  saving under another name waiting for M6c.6, where a copy of a level gets its asset ID and its
+  identities; the center of the window empty until M6c.2's viewport, with a word; the palette
+  scrolling past 12 entries; roots named in paths by their keys, not by their numbers; the
+  window's title changed while it runs; `slime-app`'s state and cache directories beside its data
+  directory; the dev overlay's world panel in a region, as the hierarchy and the inspector until
+  M6c.5; on the first run, the program's level opened at once, the examples cooked if missing, the
+  recent levels in the File menu and one hint; the run without a window kept for CI's agents, which
+  runs a frame only when a request comes too, as the owner decided on 2026-10-28. The ADR of the
+  design.
 - **Done when.** Tests without a GPU: the core answers the window's requests and the channel's
   alike; an operation run by its name, by its shortcut and from the palette does the same; the
   operations that change the view enter no history. A check finds every item of a menu and every
@@ -231,11 +234,32 @@ Risks, whose figures ADR-0155's context gives:
 - **How to test.** `cargo test -p slime-editor -p slime-app -p slime-ui -p slime-channel`;
   `cargo run --example editor -- --level <a copy of the yard> --journal <file>`; the MCP server's
   session tests.
-- **By hand.** Dialogs opened and saved on niri, Hyprland and in the Windows virtual machine; the
+- **Debt settled.** The title changed (issue #3, in part); a root's number in paths; the palette's
+  12 entries.
+
+#### M6c.1b — Dialogs, the cursor held and the GPU's identity
+
+- **Goal.** A person opens a level through the system's dialog, a viewport can hold the cursor
+  and read the mouse's raw motion, and a GPU object cannot act on another `Gpu`'s.
+- **Crates.** `slime-editor`, `slime-ui`, `slime-platform`, `slime-app`, `slime-gfx`;
+  `flake.nix`.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: a dialog to open a level
+  through rfd, on a thread of its own, which fills in for a person the path that an agent gives,
+  and a scrim behind a modal layer; D-Bus's library in the development shell, which rfd loads; the
+  mouse's raw motion and the cursor held, locked on Wayland and Windows, confined, hidden and put
+  back on X11, left free with a word where locking fails; each `Gpu` with an identity that its
+  objects carry, an object used with another `Gpu` panicking (G34). The dependency rfd 0.17, which
+  [ADR-0132](adr/0132-the-engines-ui-framework.md) approved.
+- **Done when.** Tests: the operation that opens a level takes a path without a dialog, and the
+  dialog's answer runs the same operation; a modal layer's scrim in an image test; the raw motion
+  read from the platform's events; an object of one `Gpu` used with another panics. CI is green.
+- **How to test.** `cargo test -p slime-editor -p slime-ui -p slime-platform -p slime-gfx`;
+  `cargo run --example editor -- --level <a copy of the yard> --journal <file>`.
+- **By hand.** The dialog opened on niri, Hyprland and in the Windows virtual machine; the
   cursor held and the raw motion on niri, Hyprland, X11 through XWayland and in the Windows virtual
   machine.
-- **Debt settled.** The raw motion, the cursor held and the title changed (issue #3, in part); a
-  root's number in paths; the palette's 12 entries; a modal layer without a scrim; G34.
+- **Debt settled.** The raw motion and the cursor held (issue #3, in part); a modal layer without a
+  scrim; G34.
 
 ### M6c.2 — The viewport
 
@@ -672,8 +696,8 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **Input not reported yet** (issue [#3](https://github.com/HoneySlatt/SlimeEngine/issues/3)):
   touch, touchpad gestures, gamepads, dropped files, the mouse's raw motion. The window cannot grab
   or hide the cursor, go fullscreen, or change its title once created. Input methods and the
-  pointer's shapes came with M6b.6a; M6c.1 brings the raw motion, the cursor held and the title
-  changed, M6c.7 files dropped on Windows and X11, Stage 7 gamepads; files dropped on Wayland wait
+  pointer's shapes came with M6b.6a; M6c.1a brings the title changed, M6c.1b the raw motion and
+  the cursor held, M6c.7 files dropped on Windows and X11, Stage 7 gamepads; files dropped on Wayland wait
   for winit 0.31 ([ADR-0155](adr/0155-the-editors-design.md)).
 - **A compositor that stops answering blocks the engine.** Before the first frame, winit waits for
   the window's first configuration without a timeout, so a termination signal is noticed only when a
@@ -1309,8 +1333,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   layer draws no scrim behind it. A style sheet reads a theme's value in place of every value but a
   text: the look names its icons by their codepoints in its sheet, not in a theme. The bar of menus
   takes Alt let go alone whenever an interface holds one, which a game whose interface holds a bar
-  loses as a key of its own. M6c.1 names roots in paths by their keys and draws a scrim behind a
-  modal layer; M6c.8 docks floating panels.
+  loses as a key of its own. M6c.1a names roots in paths by their keys, M6c.1b draws a scrim
+  behind a modal layer; M6c.8 docks floating panels.
 - **Rich fields** ([ADR-0151](adr/0151-rich-widgets.md)): a press on a focused field's prefix that
   does not drag places its caret at its start; a field's prefix and its unit's symbol are drawn
   whatever their width, cut by nothing; a bar of progress without a share that less motion stills
@@ -1321,7 +1345,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   the root's direction, so that an asymmetric padding is mirrored wrongly from right to left, a
   drift found while placing the fields' marks, which allow for it.
 - **What the editor tells and finds** ([ADR-0151](adr/0151-rich-widgets.md)): the palette shows
-  12 commands at most, until M6c.1 scrolls it, and finds them by letters in order, without
+  12 commands at most, until M6c.1a scrolls it, and finds them by letters in order, without
   forgiving a letter typed wrong; the sheet of shortcuts takes no focus, so that a screen reader
   says nothing as it opens; a notification's mark that closes it is named `close` in English; no
   check runs a screen reader on the live regions of notifications; the stack of notifications turns
@@ -1432,8 +1456,8 @@ determinism between Linux and Windows.
   and each frame walk every entity's ancestors (`set_parent`'s search for a cycle,
   `World::unsaved`, `interpolated_transform`). M6a.3 made `World::is_hidden` read a flag.
 - **A GPU object used with another `Gpu` acts on another object without a word, and no API opens a
-  second window on the same GPU** (G34, medium; M6c.1): each `Gpu` numbers its objects from zero,
-  and a window's surface comes only with a new `Gpu`. M6c.1 settles it: one window per process,
+  second window on the same GPU** (G34, medium; M6c.1b): each `Gpu` numbers its objects from zero,
+  and a window's surface comes only with a new `Gpu`. M6c.1b settles it: one window per process,
   and each `Gpu` with an identity that its objects carry
   ([ADR-0155](adr/0155-the-editors-design.md)).
 - **Between two fixed steps, the children of a turning parent cut the arc's chord while their
