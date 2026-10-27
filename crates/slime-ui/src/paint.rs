@@ -2,7 +2,7 @@
 
 use crate::Rect;
 use crate::display::{
-    BoxPrimitive, DisplayList, ImagePrimitive, Primitive, ShadowPrimitive, TextPrimitive,
+    BoxPrimitive, DisplayList, ImagePrimitive, Primitive, ShadowPrimitive, TextPrimitive, snap,
 };
 use crate::style::{Display, PaintStyle};
 use crate::text::TextBounds;
@@ -175,31 +175,39 @@ fn box_primitives(
 /// laid out left out; a box that scrolls and a list, their scroll bars after their children, over
 /// them.
 pub(crate) fn gather(ui: &Ui, root: ElementId, list: &mut DisplayList) {
-    // An element entered, its own then its children's, or left, what it draws over them.
-    let mut stack = vec![(root, true)];
-    while let Some((id, entered)) = stack.pop() {
+    // An element entered, its own then its children's, or left, what it draws over them; with the
+    // opacity of its ancestors and its own.
+    let mut stack = vec![(root, true, 1.0_f32)];
+    while let Some((id, entered, opacity)) = stack.pop() {
         let Some(node) = ui.node(id) else {
             continue;
         };
+        let clip = node.clip.map(snap);
         if !entered {
             for primitive in ui.bar_primitives(id) {
-                list.push(primitive, node.clip);
+                list.push(primitive.snapped().faded(opacity), clip);
             }
             continue;
         }
         if node.style.layout.display == Display::None {
             continue;
         }
+        let opacity = opacity * node.style.paint.opacity.clamp(0.0, 1.0);
         for (primitive, own) in &node.primitives {
             let clip = match own {
-                Some(own) => Some(crate::layout::intersect(node.clip, *own)),
-                None => node.clip,
+                Some(own) => Some(snap(crate::layout::intersect(node.clip, *own))),
+                None => clip,
             };
-            list.push(primitive.clone(), clip);
+            list.push(primitive.clone().snapped().faded(opacity), clip);
         }
         if matches!(node.element.kind, Kind::Scroll | Kind::List { .. }) {
-            stack.push((id, false));
+            stack.push((id, false, opacity));
         }
-        stack.extend(node.children.iter().rev().map(|&child| (child, true)));
+        stack.extend(
+            node.children
+                .iter()
+                .rev()
+                .map(|&child| (child, true, opacity)),
+        );
     }
 }

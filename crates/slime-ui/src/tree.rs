@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::ops::Range;
 use std::sync::Arc;
+use std::time::Duration;
 
 use slime_color::LinearColor;
 use slime_reflect::{Reflect, Registry, Value};
@@ -23,6 +24,7 @@ mod control;
 mod field;
 mod interact;
 mod meaning;
+mod motion;
 mod scroll_bar;
 
 pub use field::Clipboard;
@@ -513,6 +515,9 @@ pub struct FrameStats {
     pub painted: usize,
     /// The elements in the tree.
     pub elements: usize,
+    /// Whether a transition goes on after this frame: a program that draws only when something
+    /// changes draws the next frame too.
+    pub animating: bool,
 }
 
 /// An element in the arena.
@@ -556,6 +561,12 @@ pub(crate) struct Node {
     /// What a check box or a slider keeps: the value that the program last gave, and a slider's
     /// own.
     pub(crate) control: Option<control::Control>,
+    /// Whether it was styled once: a new element shows its style at once, without a transition.
+    pub(crate) styled: bool,
+    /// The transition of its colors and opacity under way, its style its interpolation.
+    pub(crate) motion: Option<Box<motion::Motion>>,
+    /// A section's growing or shrinking under way.
+    pub(crate) reveal: Option<motion::Reveal>,
 }
 
 /// A place in the arena.
@@ -645,6 +656,12 @@ pub struct Ui {
     meaning_whole: bool,
     /// Whether the elements that mean something at the top of the tree changed.
     top_changed: bool,
+    /// The interface's clock: the time that its program gave it ([`Ui::advance`]).
+    now: Duration,
+    /// Whether transitions end at once ([`Ui::set_reduced_motion`]).
+    reduced_motion: bool,
+    /// The elements whose transition is under way.
+    moving: Vec<ElementId>,
 }
 
 impl Ui {
@@ -671,6 +688,9 @@ impl Ui {
             meant: Vec::new(),
             meaning_whole: true,
             top_changed: false,
+            now: Duration::ZERO,
+            reduced_motion: false,
+            moving: Vec::new(),
         }
     }
 
@@ -945,8 +965,10 @@ impl Ui {
             elements: self.len(),
             ..FrameStats::default()
         };
-        // Styles first: a style that changed lays its element out again. The input's states follow
-        // what they made, a focus hidden or disabled dropped, and are styled in turn.
+        // Transitions move on to the clock; then styles: a style that changed lays its element
+        // out again. The input's states follow what they made, a focus hidden or disabled dropped,
+        // and are styled in turn.
+        self.step_motions();
         stats.styled += self.restyle_marked();
         self.settle_input();
         stats.styled += self.restyle_marked();
@@ -987,6 +1009,7 @@ impl Ui {
         for root in &self.roots {
             paint::gather(self, *root, &mut list);
         }
+        stats.animating = !self.moving.is_empty();
         (list, stats)
     }
 
@@ -1130,14 +1153,17 @@ impl Ui {
         }
         let node = self.node_mut(id).expect("styled above");
         node.changed.style = false;
-        if *node.style != *style {
+        let target = Arc::clone(node.target());
+        if *target != *style {
             // The border's width cuts what scrolls inside: placed again with a layout.
-            let layout = node.style.layout != style.layout
-                || node.style.text.style != style.text.style
-                || node.style.paint.border_width != style.paint.border_width;
-            let shown = node.style.layout.display != style.layout.display;
-            node.style = style;
+            let layout = target.layout != style.layout
+                || target.text.style != style.text.style
+                || target.paint.border_width != style.paint.border_width;
+            let shown = target.layout.display != style.layout.display;
+            let first = !node.styled;
+            node.styled = true;
             node.changed.paint = true;
+            self.show_style(id, style, first);
             if layout {
                 self.mark_layout(id);
             }
@@ -1149,7 +1175,10 @@ impl Ui {
                 self.mark_meaning_above(id);
             }
         } else {
-            node.style = style;
+            node.styled = true;
+            if node.motion.is_none() {
+                node.style = style;
+            }
         }
         true
     }
@@ -1407,7 +1436,17 @@ impl Node {
             primitives: Vec::new(),
             field,
             control,
+            styled: false,
+            motion: None,
+            reveal: None,
         }
+    }
+
+    /// The style that it goes to: its own, or the end of its transition under way.
+    pub(crate) fn target(&self) -> &Arc<Style> {
+        self.motion
+            .as_ref()
+            .map_or(&self.style, |motion| &motion.target)
     }
 
     /// Its content box, its box less its padding, in pixels of the screen.

@@ -24,6 +24,55 @@ pub struct Style {
     /// The parts of a control that are not its box: a check box's mark, a slider's track and
     /// thumb.
     pub control: ControlStyle,
+    /// How a change of its style shows: at once, or over a time
+    /// (`docs/adr/0149-the-looks-foundations.md`).
+    pub transition: Transition,
+}
+
+/// How a change of an element's style shows: its colors and its opacity going from what they showed
+/// to what the new style gives over `duration`, along `easing`, as its state changes under the
+/// pointer, and a section growing or shrinking to its height as it opens or folds. Its layout, its
+/// text's fonts and size, and its border's width change at once.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
+#[reflect(name = "UiTransition", default)]
+pub struct Transition {
+    /// How long a change takes, in seconds: 0, the default, for at once.
+    pub duration: f32,
+    /// How it goes over that time.
+    pub easing: Easing,
+}
+
+/// How a transition goes from its start to its end over its time.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(name = "UiEasing")]
+pub enum Easing {
+    /// At one speed.
+    Linear,
+    /// Fast, then slowing to its end: what a change that answers the user does.
+    #[default]
+    EaseOut,
+    /// Slow at both ends: what a change that moves things does.
+    EaseInOut,
+}
+
+impl Easing {
+    /// How far a transition has gone, from 0 to 1, when `time`, from 0 to 1, of it has passed.
+    #[must_use]
+    pub fn at(self, time: f32) -> f32 {
+        let time = time.clamp(0.0, 1.0);
+        match self {
+            Self::Linear => time,
+            // A cubic that leaves at three times the linear speed and stops at its end.
+            Self::EaseOut => 1.0 - (1.0 - time).powi(3),
+            Self::EaseInOut => {
+                if time < 0.5 {
+                    4.0 * time * time * time
+                } else {
+                    1.0 - (-2.0 * time + 2.0).powi(3) / 2.0
+                }
+            }
+        }
+    }
 }
 
 /// How an element and its children are laid out, by CSS's flexbox or grid, in logical pixels.
@@ -254,6 +303,10 @@ pub struct PaintStyle {
     pub radii: [f32; 4],
     /// The shadow it casts, if any.
     pub shadow: Option<Shadow>,
+    /// How opaque it and what it holds are drawn, from 0, unseen, to 1, the default: the alpha of
+    /// each of their primitives is multiplied by it, and by their ancestors', so that parts of a
+    /// translucent element that overlap show through each other.
+    pub opacity: f32,
 }
 
 impl Default for PaintStyle {
@@ -264,6 +317,7 @@ impl Default for PaintStyle {
             border: LinearColor::rgba(0.0, 0.0, 0.0, 0.0),
             radii: [0.0; 4],
             shadow: None,
+            opacity: 1.0,
         }
     }
 }

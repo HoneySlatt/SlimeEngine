@@ -38,6 +38,14 @@ pub(crate) fn lay_out(ui: &mut Ui, root: ElementId) {
     let mut tree = Tree { ui, scale };
     compute_root_layout(&mut tree, root_node, available);
     round_layout(&mut tree, root_node);
+    // A section that starts to open was laid out open, to measure the height that it grows to:
+    // laid out again at the height that it starts from.
+    if ui.measure_reveals(root) {
+        convert(ui, root, None, settings, false);
+        let mut tree = Tree { ui, scale };
+        compute_root_layout(&mut tree, root_node, available);
+        round_layout(&mut tree, root_node);
+    }
     for list in ui.lists(root) {
         lay_out_rows(ui, list, settings);
     }
@@ -79,6 +87,7 @@ fn convert(
     while let Some((id, row_height, forced)) = stack.pop() {
         let header = section_header(ui, id, scale);
         let panel = split_panel(ui, id);
+        let revealed = ui.reveal_height(id);
         let Some(node) = ui.node_mut(id) else {
             continue;
         };
@@ -132,6 +141,11 @@ fn convert(
                     style.flex_shrink = 1.0;
                 }
                 None => {}
+            }
+            // A section that grows or shrinks takes its height now, what it holds cut to it.
+            if let Some(height) = revealed {
+                style.size.height = TaffyDimension::length(height);
+                style.overflow.y = Overflow::Hidden;
             }
             // A box that scrolls, as CSS's `overflow: hidden`, is as small as its style lets it,
             // whatever its content.
@@ -297,6 +311,10 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
                 Some(intersect(clip, inside)),
             ),
             Kind::List { .. } => (left, top, Some(intersect(clip, inside))),
+            // A section that grows or shrinks cuts what it holds to its height now.
+            Kind::Section { .. } if node.reveal.is_some() => {
+                (left, top, Some(intersect(clip, inside)))
+            }
             _ => (left, top, clip),
         };
         stack.extend(

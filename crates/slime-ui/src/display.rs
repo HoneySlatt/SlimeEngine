@@ -121,6 +121,49 @@ impl Primitive {
             Self::Image(primitive) => primitive.rect,
         }
     }
+
+    /// It drawn `opacity` as opaque: the alpha of its colors multiplied by it.
+    pub(crate) fn faded(mut self, opacity: f32) -> Self {
+        if opacity >= 1.0 {
+            return self;
+        }
+        match &mut self {
+            Self::Box(primitive) => {
+                primitive.fill.a *= opacity;
+                primitive.border.a *= opacity;
+            }
+            Self::Shadow(primitive) => primitive.color.a *= opacity,
+            Self::Text(primitive) => primitive.color.a *= opacity,
+            Self::Image(primitive) => primitive.color.a *= opacity,
+        }
+        self
+    }
+
+    /// It placed on whole pixels of the screen, so that its edges stay crisp at every scale: a box's
+    /// or an image's edges rounded to the nearest pixel, a box's border to whole pixels, one at
+    /// least. A text's origin is rounded where it is drawn, its glyphs placed within it; a shadow,
+    /// blurred, is left as it is.
+    pub(crate) fn snapped(mut self) -> Self {
+        match &mut self {
+            Self::Box(primitive) => {
+                primitive.rect = snap(primitive.rect);
+                if primitive.border_width > 0.0 {
+                    primitive.border_width = primitive.border_width.round().max(1.0);
+                }
+            }
+            Self::Image(primitive) => primitive.rect = snap(primitive.rect),
+            Self::Shadow(_) | Self::Text(_) => {}
+        }
+        self
+    }
+}
+
+/// `rect` with its edges on the nearest whole pixels.
+pub(crate) fn snap(rect: Rect) -> Rect {
+    let (left, top) = (rect.x.round(), rect.y.round());
+    let right = (rect.x + rect.width).round();
+    let bottom = (rect.y + rect.height).round();
+    Rect::new(left, top, right - left, bottom - top)
 }
 
 /// A box: a rectangle with rounded corners, filled, and bordered inside its edges.

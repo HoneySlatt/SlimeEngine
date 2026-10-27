@@ -200,7 +200,10 @@ impl Ui {
         let children = node.children.clone();
         self.change_state(id, |state| state.expanded = open);
         self.mark_paint(id);
-        // Its children's styles say whether they are laid out, drawn and reached.
+        // It grows or shrinks to its height over its transition, if its style has one.
+        self.reveal(id, open);
+        // Its children's styles say whether they are laid out, drawn and reached: shown at once as
+        // it opens, hidden once it has folded.
         for child in children {
             self.mark_style(child);
         }
@@ -216,7 +219,7 @@ impl Ui {
             return false;
         };
         match node.element.kind {
-            Kind::Section { .. } => !node.state.expanded,
+            Kind::Section { .. } => !node.state.expanded && !self.folding(parent),
             Kind::Split { .. } => node.children.iter().position(|&child| child == id) > Some(1),
             _ => false,
         }
