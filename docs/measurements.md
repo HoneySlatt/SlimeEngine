@@ -1158,3 +1158,28 @@ game's release build, which the build for shipping paid then. The benchmarks are
 |---|---|---|
 | `cargo build --release -p hunnawood --no-default-features` | the game alone built again | 6.0 s |
 | `cargo build --release -p hunnawood` | after the build for shipping | 17.0 s |
+
+## M6c.0, Ryzen 7 5800X
+
+Commits `b5adc5a` and `9771c5c`, on 2026-10-27: the development channel's round trip, and the
+agent's session that drives *Hunna Wood* in the checks, on an AMD Ryzen 7 5800X with lavapipe. Each
+message of the channel went out in four writes, on sockets that held a write until the one before was
+acknowledged, which the receiver delays: a request waited for that delay whatever the game's frame
+rate. Written in one write, but for a payload, which follows in a second, and with Nagle's
+algorithm off at both ends, it waits for nothing; no delayed acknowledgement remains in the round
+trip. The round trip is the median of 21 requests that a
+thread answers at once, on the loopback, as `slime-channel`'s test
+`a_request_is_answered_in_well_under_the_delay_of_an_acknowledgement` measures it, the fix undone
+for the first figure.
+
+The session (`slime-mcp`'s test `drive`) waits for a frame of the game at each request, and a frame
+of the zone with its shadows took about 13 s on four of the machine's cores (`taskset -c 0-3`, as
+CI's runners have four), about 25 s on CI's runners, where the session reached its limit of 15
+minutes. It now draws the view without shadows, without anti-aliasing and at half its size, set
+through the MCP server once the game is paused; the game's own runs in the checks still draw the
+zone whole. The benchmarks are not measured.
+
+| Measure | Before | After |
+|---|---|---|
+| a request of the development channel, answered at once, median of 21 | 82 ms | 0.14 ms |
+| the session `drive`, on four cores, lavapipe | 426 s | 21 s |

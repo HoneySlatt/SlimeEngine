@@ -6,6 +6,24 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+### Changed
+
+- A game started with a token (`slime_channel::launch`, as the MCP server starts one) ends once its
+  standard input closes, which the tool holds as a pipe, so that a tool that ends, crashed or not,
+  leaves no game behind; a terminal there is left alone. The run stops as at a termination signal,
+  and `Context::exit_requested` reports it.
+- `scripts/check.sh` has three parts, which CI runs in three jobs side by side: `headless`,
+  `windowed`, which now runs the examples and the windowed lifecycle test only, and `game`,
+  everything that reads *Hunna Wood*'s zone, which it fetches and cooks first; without an argument,
+  it runs the three. The agent's session that drives the game draws its view without shadows, where
+  it waited for a frame of the zone with its shadows at each request.
+
+### Fixed
+
+- The development channel answers a request within the game's next frame: each message went out in
+  pieces that waited for the acknowledgement of the one before, and a request took 82 to 97 ms
+  whatever the game's frame rate. It takes about 0.14 ms on a loopback.
+
 ## [0.6.0] - 2026-10-27
 
 The ninth release, which closes Stage 6b of the roadmap, the engine's interface. The editor's core

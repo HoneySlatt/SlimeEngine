@@ -80,9 +80,9 @@ engine stands at the start:
   the mouse's raw motion, a cursor held or files dropped (issue
   [#3](https://github.com/HoneySlatt/SlimeEngine/issues/3)), and **a frame runs at the scheduled
   rate** whether anything changed or not ([ADR-0021](adr/0021-frame-pacing.md)).
-- **The development channel takes most of a tenth of a second to answer a request**, which
-  Nagle's algorithm costs ([ADR-0155](adr/0155-the-editors-design.md)), and an MCP server drives one
-  program at a time.
+- **An MCP server drives one program at a time.** The development channel took most of a tenth of
+  a second to answer a request, which Nagle's algorithm cost, until M6c.0
+  ([ADR-0155](adr/0155-the-editors-design.md)).
 - **Play does not exist, and a level is one scene file**, without parts, former identities or
   `EntityRef` ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)).
 - ***Hunna Wood*'s zone is laid out by its Blender script**, its trees, rocks and ferns scattered
