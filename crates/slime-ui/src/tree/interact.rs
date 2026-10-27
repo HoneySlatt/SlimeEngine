@@ -436,9 +436,12 @@ impl Ui {
                 // or folds; a tab is chosen.
                 match self.node(id).map(|node| &node.element.kind) {
                     Some(
-                        Kind::CheckBox { .. } | Kind::Section { .. } | Kind::FloatingPanel { .. },
+                        Kind::CheckBox { .. }
+                        | Kind::Section { .. }
+                        | Kind::FloatingPanel { .. }
+                        | Kind::ToggleButton { .. },
                     ) => self.toggle(id),
-                    Some(Kind::Tab { .. }) => self.press_tab(id),
+                    Some(Kind::Tab { .. } | Kind::Segment { .. }) => self.press_tab(id),
                     Some(Kind::MenuItem { .. }) => self.press_menu_item(id),
                     Some(Kind::Choice { .. }) => self.press_choice(id),
                     _ => self.interaction.actions.push(action),
@@ -740,7 +743,8 @@ impl Ui {
     }
 
     /// Whether `id` can be pressed: a button, a check box, a section, a tab, an item of a menu, a
-    /// list to choose from or a floating panel that can hold the focus.
+    /// list to choose from, a floating panel, a button that toggles or a segment that can hold the
+    /// focus.
     pub(super) fn pressable(&self, id: ElementId) -> bool {
         self.focusable(id)
             && self.node(id).is_some_and(|node| {
@@ -753,6 +757,8 @@ impl Ui {
                         | Kind::MenuItem { .. }
                         | Kind::Choice { .. }
                         | Kind::FloatingPanel { .. }
+                        | Kind::ToggleButton { .. }
+                        | Kind::Segment { .. }
                 )
             })
     }

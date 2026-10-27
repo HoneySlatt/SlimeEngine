@@ -127,6 +127,53 @@ style.control.track = "$hover"
 select = { kind = "Section", states = ["FocusVisible"] }
 style.paint.border = "$focus"
 
+[toggle-button]
+select = { kind = "ToggleButton" }
+style.paint = { background = "$raised", border_width = 1, border = "$raised_border", radii = ["$radius_m", "$radius_m", "$radius_m", "$radius_m"] }
+style.layout.padding = { start = "$button_x", end = "$button_x", top = "$button_y", bottom = "$button_y" }
+style.text.style.weight = "$weight_control"
+
+[toggle-button-hovered]
+select = { kind = "ToggleButton", states = ["Hovered"] }
+style.paint.background = "$hover"
+
+[toggle-button-on]
+select = { kind = "ToggleButton", states = ["Checked"] }
+style.paint = { background = "$accent_soft", border = "$accent" }
+
+[toggle-button-focused]
+select = { kind = "ToggleButton", states = ["FocusVisible"] }
+style.paint.border = "$focus"
+
+[segments]
+select = { kind = "Segments" }
+style.paint = { background = "$field", border_width = 1, border = "$raised_border", radii = ["$radius_m", "$radius_m", "$radius_m", "$radius_m"] }
+style.layout.padding = { start = "$space_xs", end = "$space_xs", top = "$space_xs", bottom = "$space_xs" }
+style.layout.gap = [0, "$space_xs"]
+
+[segment]
+select = { kind = "Segment" }
+style.paint = { border_width = 1, border = "$none", radii = ["$radius_s", "$radius_s", "$radius_s", "$radius_s"] }
+style.layout.padding = { start = "$button_x", end = "$button_x", top = "$button_y", bottom = "$button_y" }
+style.text = { style = { weight = "$weight_control" }, color = "$muted" }
+
+[segment-hovered]
+select = { kind = "Segment", states = ["Hovered"] }
+style.text.color = "$text"
+
+[segment-chosen]
+select = { kind = "Segment", states = ["Selected"] }
+style.paint.background = "$raised"
+style.text.color = "$text"
+
+[segment-focused]
+select = { kind = "Segment", states = ["FocusVisible"] }
+style.paint.border = "$focus"
+
+[progress]
+select = { kind = "Progress" }
+style.control = { size = "$control", radius = "$radius_s", track = "$track", fill = "$accent", mark = "$mark" }
+
 [tab-bar]
 select = { kind = "TabBar" }
 style.paint.background = "$bar"
@@ -138,6 +185,7 @@ select = { kind = "Tab" }
 style.paint = { border_width = 1, border = "$none", radii = ["$radius_m", "$radius_m", 0, 0] }
 style.layout.padding = { start = "$tab_x", end = "$tab_x", top = "$tab_y", bottom = "$tab_y" }
 style.text = { style = { weight = "$weight_control" }, color = "$muted" }
+style.control = { size = "$control", radius = "$radius_s", track = "$accent_soft", fill = "$accent", mark = "$text" }
 
 [tab-hovered]
 select = { kind = "Tab", states = ["Hovered"] }

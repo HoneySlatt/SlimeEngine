@@ -213,10 +213,14 @@ pub enum Kind {
         chosen: usize,
     },
     /// A tab of a bar of tabs ([`Kind::TabBar`]): its title, in the middle of its box, as a
-    /// button's label. Rules select the chosen one by the state `Selected`.
+    /// button's label, and its count after it, in a small box, where it has one. Rules select the
+    /// chosen one by the state `Selected`.
     Tab {
         /// Its title.
         title: String,
+        /// A count that it shows after its title, how many lines its panel holds that ask to be
+        /// read (`docs/adr/0151-rich-widgets.md`); none for none.
+        count: Option<u64>,
     },
     /// Two panels, its first two children, side by side or one above the other, and a handle
     /// between them, as thick as half its control's size, which the pointer drags, and the arrows
@@ -277,6 +281,39 @@ pub enum Kind {
         /// Whether it is open, as the program gives it.
         open: bool,
     },
+    /// A button that stays pressed (`docs/adr/0151-rich-widgets.md`): its label, in the middle of
+    /// its box, as a button's. A press, or Enter or Space while it holds the focus, turns it on or
+    /// off, which the program reads as actions
+    /// ([`FieldValue::Checked`](crate::action::FieldValue::Checked)); it keeps what the user
+    /// turned under a check box's rule, and rules select it on by the state `Checked`.
+    ToggleButton {
+        /// Its label.
+        label: String,
+        /// Whether it is on, as the program gives it.
+        on: bool,
+    },
+    /// A control of segments, laid out as a container, whose children are its segments
+    /// ([`Kind::Segment`]), of which one is chosen (`docs/adr/0151-rich-widgets.md`): a press on
+    /// another, or the arrows, Home and End while a segment holds the focus, chooses it, as a bar
+    /// of tabs does, and the program reads the place of the chosen segment as actions
+    /// ([`FieldValue::Chosen`](crate::action::FieldValue::Chosen)), under a check box's rule.
+    Segments {
+        /// The place of the chosen segment among its segments, as the program gives it.
+        chosen: usize,
+    },
+    /// A segment of a control of segments ([`Kind::Segments`]): its title, in the middle of its
+    /// box. Rules select the chosen one by the state `Selected`.
+    Segment {
+        /// Its title.
+        title: String,
+    },
+    /// A bar of progress (`docs/adr/0151-rich-widgets.md`): a track, its part up to its share
+    /// filled; without a share, a part of it that moves across it with the interface's clock, while
+    /// what it shows does not know how far it went. It takes neither the pointer nor the focus.
+    Progress {
+        /// How far it went, from 0 to 1; none while it is not known.
+        share: Option<f32>,
+    },
     /// A list to choose from: its chosen option, in the middle of its box from top to bottom, as
     /// wide as its widest, and a mark at its end. A press, or Enter, Space, Alt+Down or F4 while it
     /// holds the focus, opens the list of its options below it, in a layer of its own, a menu
@@ -310,7 +347,7 @@ pub enum ItemMark {
 impl Kind {
     /// Whether a press of the pointer reaches it, and the focus: a button, a field, a check box, a
     /// slider, a section, a tab, two panels and their handle, an item of a menu, a list to choose
-    /// from, or a floating panel.
+    /// from, a floating panel, a button that toggles or a segment.
     pub(crate) fn takes_pointer(&self) -> bool {
         matches!(
             self,
@@ -325,6 +362,8 @@ impl Kind {
                 | Self::MenuItem { .. }
                 | Self::Choice { .. }
                 | Self::FloatingPanel { .. }
+                | Self::ToggleButton { .. }
+                | Self::Segment { .. }
         )
     }
 }
@@ -472,9 +511,50 @@ impl Element {
         Self::of(
             Kind::Tab {
                 title: title.into(),
+                count: None,
             },
             style,
         )
+    }
+
+    /// A tab of a bar of tabs, with its title and the count that it shows after it.
+    pub fn counted_tab(title: impl Into<String>, count: u64, style: Style) -> Self {
+        Self::of(
+            Kind::Tab {
+                title: title.into(),
+                count: Some(count),
+            },
+            style,
+        )
+    }
+
+    /// A button that stays pressed, with its label, on or off.
+    pub fn toggle_button(label: impl Into<String>, on: bool, style: Style) -> Self {
+        let kind = Kind::ToggleButton {
+            label: label.into(),
+            on,
+        };
+        Self::of(kind, style)
+    }
+
+    /// A control of segments, the segment at `chosen` among those that its builder adds chosen.
+    pub fn segments(chosen: usize, style: Style) -> Self {
+        Self::of(Kind::Segments { chosen }, style)
+    }
+
+    /// A segment of a control of segments, with its title.
+    pub fn segment(title: impl Into<String>, style: Style) -> Self {
+        Self::of(
+            Kind::Segment {
+                title: title.into(),
+            },
+            style,
+        )
+    }
+
+    /// A bar of progress at `share`, from 0 to 1, or moving without one, for none.
+    pub fn progress(share: Option<f32>, style: Style) -> Self {
+        Self::of(Kind::Progress { share }, style)
     }
 
     /// Two panels side by side, or one above the other, the first taking `share` of its length;
@@ -668,9 +748,9 @@ pub struct FrameStats {
     pub painted: usize,
     /// The elements in the tree.
     pub elements: usize,
-    /// Whether a transition goes on after this frame, or the pointer rests where a tooltip will
-    /// show or a submenu open: a program that draws only when something changes draws the next
-    /// frame too.
+    /// Whether a transition goes on after this frame, the pointer rests where a tooltip will show
+    /// or a submenu open, or a bar of progress without a share moves: a program that draws only
+    /// when something changes draws the next frame too.
     pub animating: bool,
 }
 
@@ -812,6 +892,9 @@ pub struct Ui {
     meaning_whole: bool,
     /// Whether the elements that mean something at the top of the tree changed.
     top_changed: bool,
+    /// The bars of progress without a share that the last frame drew, which move with the clock and
+    /// are drawn again each frame.
+    spinning: Vec<ElementId>,
     /// The interface's clock: the time that its program gave it ([`Ui::advance`]).
     now: Duration,
     /// Whether transitions end at once ([`Ui::set_reduced_motion`]).
@@ -844,6 +927,7 @@ impl Ui {
             meant: Vec::new(),
             meaning_whole: true,
             top_changed: false,
+            spinning: Vec::new(),
             now: Duration::ZERO,
             reduced_motion: false,
             moving: Vec::new(),
@@ -1130,6 +1214,10 @@ impl Ui {
         // out again. The input's states follow what they made, a focus hidden or disabled dropped,
         // and are styled in turn.
         self.step_motions();
+        // A bar of progress without a share moves with the clock.
+        for id in std::mem::take(&mut self.spinning) {
+            self.mark_paint(id);
+        }
         // The pointer resting long enough shows a tooltip or opens a submenu.
         self.settle_rest();
         // Layers take their surface from the root that they stand over, those whose anchor went
@@ -1180,7 +1268,7 @@ impl Ui {
         for root in &self.roots {
             paint::gather(self, *root, &mut list);
         }
-        stats.animating = !self.moving.is_empty() || self.resting();
+        stats.animating = !self.moving.is_empty() || self.resting() || !self.spinning.is_empty();
         (list, stats)
     }
 
@@ -1853,7 +1941,20 @@ fn lays_out_again(before: &Element, after: &Element) -> bool {
         (Kind::CheckBox { label: before, .. }, Kind::CheckBox { label: after, .. })
         | (Kind::Section { title: before, .. }, Kind::Section { title: after, .. })
         | (Kind::FloatingPanel { title: before, .. }, Kind::FloatingPanel { title: after, .. })
-        | (Kind::Tab { title: before }, Kind::Tab { title: after }) => before != after,
+        | (Kind::Segment { title: before }, Kind::Segment { title: after })
+        | (Kind::ToggleButton { label: before, .. }, Kind::ToggleButton { label: after, .. }) => {
+            before != after
+        }
+        (
+            Kind::Tab {
+                title: before,
+                count: count_before,
+            },
+            Kind::Tab {
+                title: after,
+                count: count_after,
+            },
+        ) => before != after || count_before != count_after,
         (
             Kind::MenuItem {
                 label: before,
@@ -1911,6 +2012,10 @@ fn kind_name(kind: &Kind) -> KindName {
         Kind::MenuItem { .. } => KindName::MenuItem,
         Kind::Choice { .. } => KindName::Choice,
         Kind::FloatingPanel { .. } => KindName::FloatingPanel,
+        Kind::ToggleButton { .. } => KindName::ToggleButton,
+        Kind::Segments { .. } => KindName::Segments,
+        Kind::Segment { .. } => KindName::Segment,
+        Kind::Progress { .. } => KindName::Progress,
     }
 }
 

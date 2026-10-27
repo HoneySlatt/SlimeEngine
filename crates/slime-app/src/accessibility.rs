@@ -156,7 +156,7 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
         element.set_value(value.clone());
         if matches!(
             meaning.role,
-            Role::SpinButton | Role::Slider | Role::Splitter
+            Role::SpinButton | Role::Slider | Role::Splitter | Role::ProgressIndicator
         ) && let Some(number) = value
             .trim()
             .parse::<f64>()
@@ -193,7 +193,17 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
     if matches!(meaning.role, Role::Tab | Role::ListBoxOption) {
         element.set_selected(meaning.state.selected);
     }
-    if matches!(meaning.role, Role::CheckBox | Role::MenuItemCheckBox) {
+    if meaning.role == Role::RadioButton {
+        element.set_toggled(if meaning.state.selected {
+            Toggled::True
+        } else {
+            Toggled::False
+        });
+    }
+    if matches!(
+        meaning.role,
+        Role::CheckBox | Role::MenuItemCheckBox | Role::ToggleButton
+    ) {
         element.set_toggled(if meaning.state.checked {
             Toggled::True
         } else {
@@ -304,7 +314,7 @@ fn run_nodes(text: &FieldText, nodes: &mut Vec<(NodeId, Node)>) {
     }
 }
 
-/// AccessKit's role of `role`, of the same name.
+/// AccessKit's role of `role`, of the same name, a button for a button that toggles.
 fn role(role: Role) -> AccessRole {
     match role {
         Role::GenericContainer => AccessRole::GenericContainer,
@@ -334,6 +344,11 @@ fn role(role: Role) -> AccessRole {
         Role::ComboBox => AccessRole::ComboBox,
         Role::ListBox => AccessRole::ListBox,
         Role::Pane => AccessRole::Pane,
+        // ARIA's toggle button: a button that AccessKit reads as toggled.
+        Role::ToggleButton => AccessRole::Button,
+        Role::RadioGroup => AccessRole::RadioGroup,
+        Role::RadioButton => AccessRole::RadioButton,
+        Role::ProgressIndicator => AccessRole::ProgressIndicator,
         Role::ListBoxOption => AccessRole::ListBoxOption,
     }
 }

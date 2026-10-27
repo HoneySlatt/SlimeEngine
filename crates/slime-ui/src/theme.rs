@@ -159,6 +159,10 @@ pub(crate) enum KindName {
     MenuItem,
     Choice,
     FloatingPanel,
+    ToggleButton,
+    Segments,
+    Segment,
+    Progress,
 }
 
 /// The states of an element, as a rule names them.

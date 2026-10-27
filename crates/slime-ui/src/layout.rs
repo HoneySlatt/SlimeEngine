@@ -613,6 +613,7 @@ impl taffy::LayoutPartialTree for Tree<'_> {
                 Kind::MenuItem { .. } if in_bar => (0.0, 0.0),
                 Kind::MenuItem { .. } => (control * 3.0, control),
                 Kind::Choice { .. } => (control * 1.5, control),
+                Kind::Progress { .. } => (control * 8.0, control / 2.0),
                 _ => (0.0, 0.0),
             };
             if let Kind::MenuItem { shortcut, .. } = &at.element.kind
@@ -633,6 +634,26 @@ impl taffy::LayoutPartialTree for Tree<'_> {
                     )
                     .width();
                 beside += control * 2.0 + width.ceil();
+            }
+            // A tab's count, after its title, in a box half a mark wider than its digits.
+            let at = tree.ui.node_at(usize::from(node));
+            if let Kind::Tab {
+                count: Some(count), ..
+            } = at.element.kind
+            {
+                let (text_style, scale) = (at.style.text.style.clone(), tree.scale);
+                let ui = &mut *tree.ui;
+                let width = ui
+                    .texts
+                    .get(
+                        &mut ui.fonts,
+                        &count.to_string(),
+                        &text_style,
+                        scale,
+                        TextBounds::default(),
+                    )
+                    .width();
+                beside += width.ceil() + control;
             }
             // A list to choose from is as wide as its widest option.
             let at = tree.ui.node_at(usize::from(node));
@@ -667,8 +688,10 @@ impl taffy::LayoutPartialTree for Tree<'_> {
                 Kind::Label(text) => Some(text.clone()),
                 Kind::Button { label, .. }
                 | Kind::CheckBox { label, .. }
-                | Kind::Tab { title: label }
-                | Kind::MenuItem { label, .. } => Some(label.clone()),
+                | Kind::Tab { title: label, .. }
+                | Kind::MenuItem { label, .. }
+                | Kind::ToggleButton { label, .. }
+                | Kind::Segment { title: label } => Some(label.clone()),
                 // A field as tall as a line of its text, even empty.
                 Kind::TextField { .. } | Kind::NumberField { .. } => {
                     at.field.as_ref().map(|field| match field.text.as_str() {

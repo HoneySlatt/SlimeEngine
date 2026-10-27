@@ -63,13 +63,17 @@ impl Control {
                 state.expanded = open;
                 Some(Self::Toggle { given: open })
             }
+            Kind::ToggleButton { on, .. } => {
+                state.checked = on;
+                Some(Self::Toggle { given: on })
+            }
             // An item of a menu shows the program's state alone: the program turns it.
             Kind::MenuItem { mark, .. } => {
                 let checked = mark == ItemMark::Check(true);
                 state.checked = checked;
                 Some(Self::Toggle { given: checked })
             }
-            Kind::TabBar { chosen } => Some(Self::Choice {
+            Kind::TabBar { chosen } | Kind::Segments { chosen } => Some(Self::Choice {
                 chosen,
                 given: chosen,
             }),
@@ -105,7 +109,10 @@ impl Control {
     /// whether what the element shows changed.
     pub(crate) fn give(&mut self, kind: &Kind, state: &mut ElementState) -> bool {
         match (self, kind) {
-            (Self::Toggle { given }, Kind::CheckBox { checked, .. }) => {
+            (
+                Self::Toggle { given },
+                Kind::CheckBox { checked, .. } | Kind::ToggleButton { on: checked, .. },
+            ) => {
                 if *given == *checked {
                     return false;
                 }
@@ -160,7 +167,10 @@ impl Control {
                 *chosen = program;
                 changed
             }
-            (Self::Choice { chosen, given }, &Kind::TabBar { chosen: program }) => {
+            (
+                Self::Choice { chosen, given },
+                &Kind::TabBar { chosen: program } | &Kind::Segments { chosen: program },
+            ) => {
                 if *given == program {
                     return false;
                 }
@@ -316,14 +326,16 @@ impl Ui {
     }
 
     /// Chooses the tab at `place` of the bar of tabs `bar`, as a press on it does: the builder that
-    /// made the bar runs again at the next build, to show its panel. Nothing happens for a place
-    /// past its tabs, or an element that is no bar of tabs.
+    /// made the bar runs again at the next build, to show its panel. For a control of segments, the
+    /// segment at `place` is chosen, which the program reads as actions, changed then committed.
+    /// Nothing happens for a place past its tabs, or an element that is neither.
     pub fn choose_tab(&mut self, bar: ElementId, place: usize) {
         let Some(node) = self.node_mut(bar) else {
             return;
         };
         let tabs = node.children.len();
         let owner = node.owner;
+        let segments = matches!(node.element.kind, Kind::Segments { .. });
         let Some(Control::Choice { chosen, .. }) = node.control.as_mut() else {
             return;
         };
@@ -332,7 +344,14 @@ impl Ui {
         }
         *chosen = place;
         self.mark_chosen(bar);
-        if let Some(owner) = owner.and_then(|owner| self.node_mut(owner)) {
+        if segments {
+            for kind in [ActionKind::Changed, ActionKind::Committed] {
+                self.interaction.actions.push(Action {
+                    element: Some(bar),
+                    kind: kind(FieldValue::Chosen(place)),
+                });
+            }
+        } else if let Some(owner) = owner.and_then(|owner| self.node_mut(owner)) {
             owner.rebuild = true;
         }
     }
@@ -348,10 +367,11 @@ impl Ui {
         }
     }
 
-    /// The bar of the tab `tab`, and the tab's place among its tabs.
+    /// The bar of the tab `tab`, and the tab's place among its tabs; or the control of the segment
+    /// `tab`, and its place.
     fn tab_place(&self, tab: ElementId) -> Option<(ElementId, usize)> {
         let node = self.node(tab)?;
-        if !matches!(node.element.kind, Kind::Tab { .. }) {
+        if !matches!(node.element.kind, Kind::Tab { .. } | Kind::Segment { .. }) {
             return None;
         }
         let bar = node.parent?;
@@ -519,7 +539,7 @@ impl Ui {
         }
     }
 
-    /// Toggles the check box `id`, as a press does: the program reads
+    /// Toggles the check box or the button that toggles `id`, as a press does: the program reads
     /// [`ActionKind::Changed`] then [`ActionKind::Committed`], whether it is checked now. A section
     /// opens or folds, which only the interface keeps.
     pub(crate) fn toggle(&mut self, id: ElementId) {
@@ -534,7 +554,10 @@ impl Ui {
             self.set_open(id, open);
             return;
         }
-        if !matches!(node.element.kind, Kind::CheckBox { .. }) {
+        if !matches!(
+            node.element.kind,
+            Kind::CheckBox { .. } | Kind::ToggleButton { .. }
+        ) {
             return;
         }
         let checked = !node.state.checked;
@@ -996,6 +1019,83 @@ impl Ui {
                     layout,
                     color: look.color,
                 }));
+            }
+            Kind::Tab {
+                title,
+                count: Some(count),
+            } => {
+                // Its title and its count in a box after it, together in the middle of its box.
+                let (title, count) = (title.clone(), count.to_string());
+                let look = node.style.text.clone();
+                let size = control.size * scale;
+                let layout = |ui: &mut Ui, text: &str| -> std::sync::Arc<TextLayout> {
+                    ui.texts
+                        .get(
+                            &mut ui.fonts,
+                            text,
+                            &look.style,
+                            scale,
+                            TextBounds::default(),
+                        )
+                        .clone()
+                };
+                let (title, count) = (layout(self, &title), layout(self, &count));
+                let gap = size / 2.0;
+                let badge = Rect::new(0.0, 0.0, count.width() + size / 2.0, count.height());
+                let width = title.width() + gap + badge.width;
+                let start = content.x + (content.width - width) / 2.0;
+                let middle = content.y + content.height / 2.0;
+                let (title_x, badge_x) = match direction {
+                    LayoutDirection::LeftToRight => (start, start + title.width() + gap),
+                    LayoutDirection::RightToLeft => (start + badge.width + gap, start),
+                };
+                let badge = Rect::new(
+                    badge_x,
+                    middle - badge.height / 2.0,
+                    badge.width,
+                    badge.height,
+                );
+                primitives.push(filled(badge, badge.height / 2.0 / scale, control.track));
+                primitives.push(Primitive::Text(TextPrimitive {
+                    origin: [badge.x + size / 4.0, badge.y],
+                    layout: count,
+                    color: control.mark,
+                }));
+                primitives.push(Primitive::Text(TextPrimitive {
+                    origin: [title_x, middle - title.height() / 2.0],
+                    layout: title,
+                    color: look.color,
+                }));
+            }
+            Kind::Progress { share } => {
+                let share = *share;
+                let thickness = content.height.min(control.size * scale / 2.0).max(scale);
+                let track = Rect::new(
+                    content.x,
+                    content.y + (content.height - thickness) / 2.0,
+                    content.width,
+                    thickness,
+                );
+                primitives.push(filled(track, control.radius, control.track));
+                // Its share from a line's start; without one, a third of the track that crosses it
+                // every second and a half of the clock.
+                let (from, length) = match share {
+                    Some(share) => (0.0, share.clamp(0.0, 1.0)),
+                    None => {
+                        let turn = (self.now.as_secs_f32() / 1.5).fract();
+                        self.spinning.push(id);
+                        (turn * 1.3 - 0.3, 0.3)
+                    }
+                };
+                let (from, to) = (from.max(0.0), (from + length).min(1.0));
+                if to > from {
+                    let x = match direction {
+                        LayoutDirection::LeftToRight => track.x + from * track.width,
+                        LayoutDirection::RightToLeft => track.x + (1.0 - to) * track.width,
+                    };
+                    let part = Rect::new(x, track.y, (to - from) * track.width, thickness);
+                    primitives.push(filled(part, control.radius, control.fill));
+                }
             }
             Kind::Split { .. } => {
                 if let Some(handle) = self.split_handle(id) {

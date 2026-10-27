@@ -76,6 +76,15 @@ pub enum Role {
     ListBox,
     /// A panel that floats over a window, open or folded ([`ElementState::expanded`]).
     Pane,
+    /// A button that stays pressed, on or not ([`ElementState::checked`]): AccessKit's button,
+    /// toggled.
+    ToggleButton,
+    /// A control of segments.
+    RadioGroup,
+    /// A segment of a control of segments, chosen or not ([`ElementState::selected`]).
+    RadioButton,
+    /// A bar of progress, its value its share where it has one.
+    ProgressIndicator,
     /// An option of that list, chosen or not ([`ElementState::selected`]).
     ListBoxOption,
 }
@@ -111,6 +120,10 @@ impl Role {
             Self::ComboBox => "ComboBox",
             Self::ListBox => "ListBox",
             Self::Pane => "Pane",
+            Self::ToggleButton => "ToggleButton",
+            Self::RadioGroup => "RadioGroup",
+            Self::RadioButton => "RadioButton",
+            Self::ProgressIndicator => "ProgressIndicator",
             Self::ListBoxOption => "ListBoxOption",
         }
     }
@@ -392,10 +405,23 @@ impl Ui {
                 | Kind::CheckBox { label, .. }
                 | Kind::Section { title: label, .. }
                 | Kind::FloatingPanel { title: label, .. }
-                | Kind::Tab { title: label }
-                | Kind::MenuItem { label, .. },
+                | Kind::Tab {
+                    title: label,
+                    count: None,
+                }
+                | Kind::MenuItem { label, .. }
+                | Kind::ToggleButton { label, .. }
+                | Kind::Segment { title: label },
             ) => label.clone(),
             (None, Kind::Label(text)) => text.clone(),
+            // A tab's count is part of its name: `Console (3)`.
+            (
+                None,
+                Kind::Tab {
+                    title,
+                    count: Some(count),
+                },
+            ) => format!("{title} ({count})"),
             (None, _) => String::new(),
         };
         let mut actions = Vec::new();
@@ -436,6 +462,9 @@ impl Ui {
                 Some(field) => Some(field.text.clone()),
                 // A share as its own type writes it, which a widening would lengthen.
                 None => match &element.kind {
+                    Kind::Progress { share } => {
+                        share.map(|share| share.clamp(0.0, 1.0).to_string())
+                    }
                     Kind::Choice { options, .. } => self
                         .chosen(id)
                         .and_then(|chosen| options.get(chosen))
@@ -452,7 +481,7 @@ impl Ui {
                     max: max.max(min),
                     step,
                 }),
-                Kind::Split { .. } => Some(ValueRange {
+                Kind::Split { .. } | Kind::Progress { share: Some(_), .. } => Some(ValueRange {
                     min: 0.0,
                     max: 1.0,
                     step: 0.0,
@@ -510,6 +539,10 @@ impl Ui {
             Kind::MenuItem { .. } => Role::MenuItem,
             Kind::Choice { .. } => Role::ComboBox,
             Kind::FloatingPanel { .. } => Role::Pane,
+            Kind::ToggleButton { .. } => Role::ToggleButton,
+            Kind::Segments { .. } => Role::RadioGroup,
+            Kind::Segment { .. } => Role::RadioButton,
+            Kind::Progress { .. } => Role::ProgressIndicator,
         })
     }
 

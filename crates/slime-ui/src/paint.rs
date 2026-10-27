@@ -59,8 +59,15 @@ fn primitives(
     let text_style = node.style.text.style.clone();
     let color = node.style.text.color;
     match &element.kind {
-        Kind::Label(text) | Kind::Button { label: text, .. } | Kind::Tab { title: text } => {
-            let centred = matches!(element.kind, Kind::Button { .. } | Kind::Tab { .. });
+        Kind::Label(text)
+        | Kind::Button { label: text, .. }
+        | Kind::Tab {
+            title: text,
+            count: None,
+        }
+        | Kind::ToggleButton { label: text, .. }
+        | Kind::Segment { title: text } => {
+            let centred = !matches!(element.kind, Kind::Label(_));
             let text = text.clone();
             let ui = &mut *ui;
             let layout = ui
@@ -113,7 +120,9 @@ fn primitives(
         | Kind::Slider { .. }
         | Kind::Split { .. }
         | Kind::MenuItem { .. }
-        | Kind::Choice { .. } => {
+        | Kind::Choice { .. }
+        | Kind::Progress { .. }
+        | Kind::Tab { .. } => {
             for primitive in ui.control_primitives(id) {
                 primitives.push((primitive, Some(content)));
             }
@@ -130,7 +139,8 @@ fn primitives(
         | Kind::List { .. }
         | Kind::TabBar { .. }
         | Kind::Menu
-        | Kind::MenuBar => {}
+        | Kind::MenuBar
+        | Kind::Segments { .. } => {}
     }
     primitives
 }
