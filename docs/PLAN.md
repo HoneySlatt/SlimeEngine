@@ -1059,7 +1059,14 @@ that the look has a light and a high-contrast theme beside its dark one.
   an option, opens the bar's menus, shows the floating panel and opens a recent level through a
   submenu. CI is green on `87eceae`, the reference images matched on WARP too: `check (headless)`
   took 11 minutes 10 seconds, `check (windowed)` 11 minutes 22 seconds, `windows` 19 minutes 34
-  seconds and `windows-release` 10 minutes 30 seconds, the zone restored from its cache.
+  seconds and `windows-release` 10 minutes 30 seconds, the zone restored from its cache. The review
+  that AGENTS.md asks for, made after, found seven faults, each fixed with a test: a list or a menu
+  opened from a modal layer took no input; a choice that the user kept could pass the options that
+  the program gave after; a layer beside an element's start or end lost its alignment from top to
+  bottom from right to left; a press on the root of a layer at a point did not close it; a layer
+  over a dialog's root was kept within the dialog, not the window; a raised panel went over its own
+  menus, and left screen readers stale paths; Alt after a press hid the bar's focus, and Alt or F10
+  in a bar's menu left it open.
 
 ### M6b.7d — Rich widgets
 
