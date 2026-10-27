@@ -277,9 +277,15 @@ if runs windowed; then
 fi
 
 if runs headless; then
-    step "The game built for shipping holds neither the development channel nor the MCP server (ADR-0122)"
-    if cargo tree --locked -p hunnawood --no-default-features -e normal | grep -E 'slime-(channel|mcp) '; then
+    step "The game built for shipping holds neither the development channel, the MCP server nor the dev overlay (ADR-0122, ADR-0152)"
+    if cargo tree --locked -p hunnawood --no-default-features -e normal | grep -E 'slime-(channel|mcp|devui|ui-render) '; then
         echo "the game built for shipping depends on the crates above"
+        exit 1
+    fi
+    # The interface itself is slime-app's, in every build; the editor's look and its fonts are the
+    # overlay's.
+    if cargo tree --locked -p hunnawood --no-default-features -e features | grep 'slime-ui feature "editor-look"'; then
+        echo "the game built for shipping holds the editor's look"
         exit 1
     fi
     # The next `cargo build` or `cargo run` that names the game builds it again with its default

@@ -11,9 +11,11 @@ use slime_ui::style::{Dimension, FlexDirection, Style};
 use slime_ui::tree::{Element, ElementId, Ui};
 use slime_world::{Command, Entity, PersistentId, Tick, World};
 
-use super::values::{Asked, ValueEditor};
-use crate::world_panel::{LIST_HEIGHT, name};
+use crate::reflected::name;
+use crate::values::{Asked, ValueEditor};
 
+/// The height of the list of entities, in logical pixels, past which it scrolls.
+const LIST_HEIGHT: f32 = 160.0;
 /// The height of a row of the list of entities, in logical pixels.
 const ROW_HEIGHT: f32 = 22.0;
 

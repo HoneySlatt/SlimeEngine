@@ -17,8 +17,10 @@
 //! lists the entities by name and edits their components (`slime-devui`); F3 its panel of the
 //! views, which shows the size each draws at and edits its settings: its render scale,
 //! anti-aliasing, a mode of debugging that shows normals or shadows, and its passes
-//! (`docs/adr/0127-the-settings-of-a-view.md`), which a tool driving the example changes too.
-//! Escape, closing the window or Ctrl+C quits.
+//! (`docs/adr/0127-the-settings-of-a-view.md`), which a tool driving the example changes too. F6
+//! gives the keyboard's focus to the panels, one after the other, then back to the yard: while a
+//! panel holds it, Tab moves it among the panel's elements. Escape, closing the window or Ctrl+C
+//! quits.
 //!
 //! When it quits, it saves its world (`docs/adr/0125-saves-per-scene.md`): what the run changed
 //! since the example settled the world that it spawns at the start, what the panel changed. The
@@ -71,7 +73,7 @@ use slime_app::{
 };
 use slime_assets::{CookedAssets, ManifestWatch};
 use slime_color::LinearColor;
-use slime_devui::{Overlay, WorldPanel, edit_reflected, egui};
+use slime_devui::{Corner, Overlay, PanelId, PanelSpec, ValueEditor, WorldPanel};
 use slime_gfx::{AddressMode, Filter, Gpu, RenderTarget, SamplerDescriptor, TextureFormat};
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, MouseButton, WindowConfig};
 use slime_render::glam::{DAffine3, DMat3, DQuat, DVec3, Vec3};
@@ -80,6 +82,8 @@ use slime_render::{
     Mesh, MeshData, Pick, Projection, RenderStats, Renderer, SampledTexture, Scene, UnlitData,
     View, ViewDraw, ViewSettings, Viewport,
 };
+use slime_ui::style::{FlexDirection, Style};
+use slime_ui::tree::{Element, Ui};
 use slime_world::{Entity, Light, Meshes, PersistentId, SceneLibrary, Tick, Transform, World};
 use slime_world_render::FrameBuilder;
 
@@ -147,12 +151,15 @@ struct YardView {
     settings: [ViewSettings; 2],
     /// Where the last frame drew them into the window's image, by their names.
     shown: Vec<ShownView>,
-    /// The dev overlay, while there is a GPU, and its world panel, shown with F2.
-    overlay: Option<Overlay>,
+    /// The dev overlay: its world panel, shown with F2, and its panel of the views, which edits
+    /// their settings, shown with F3.
+    overlay: Overlay,
+    world_panel: PanelId,
+    views_panel: PanelId,
     panel: WorldPanel,
-    panel_shown: bool,
-    /// Whether the overlay shows the views' settings, with F3.
-    settings_shown: bool,
+    editors: [ValueEditor; 2],
+    /// The revision of what the panel of the views shows.
+    views_revision: u64,
     /// The renderer's asset cache, while there is a GPU.
     cache: Option<AssetCache>,
     /// The requests of the cache of a lost device, which the frame builder's handles hold, for the
@@ -266,11 +273,9 @@ impl Yard {
 }
 
 impl YardView {
-    /// Makes the renderer, its cache and the overlay with the GPU device of `ctx`.
+    /// Makes the renderer and its cache with the GPU device of `ctx`.
     fn open(&mut self, ctx: &Context) -> Result<(), AppError> {
-        if let (Some(gpu), Some(format), Some(window)) =
-            (ctx.gpu(), ctx.surface_format(), ctx.window())
-        {
+        if let (Some(gpu), Some(format)) = (ctx.gpu(), ctx.surface_format()) {
             let renderer = Renderer::new(gpu, format)?;
             self.views = Some((
                 renderer.create_view(gpu, "yard")?,
@@ -284,14 +289,60 @@ impl YardView {
             ));
             self.icon = Some(icon(gpu, &renderer)?);
             self.renderer = Some(renderer);
-            match &mut self.overlay {
-                // Made again after a lost device, keeping what its panels show and where the
-                // cursor is.
-                Some(overlay) => overlay.restore(gpu, format)?,
-                None => self.overlay = Some(Overlay::new(gpu, format, window.scale_factor())?),
-            }
         }
         Ok(())
+    }
+
+    /// Reads what the overlay's panels were asked since the last frame, and builds those shown:
+    /// the world panel's edits sent to the host, applied at the next frame's start, the views'
+    /// settings set.
+    fn build_overlay(&mut self, ctx: &mut Context, world: &World) {
+        let mut actions = self.overlay.take_actions();
+        for command in self.panel.act(&mut actions) {
+            ctx.send(command);
+        }
+        for (editor, settings) in self.editors.iter_mut().zip(&mut self.settings) {
+            editor.apply(&actions, settings);
+        }
+        if let Some(window) = ctx.window() {
+            self.overlay
+                .set_window(window.inner_size(), window.scale_factor());
+        }
+        if let Some(slot) = self.overlay.slot(self.world_panel) {
+            self.panel.build(self.overlay.ui_mut(), slot, world);
+        }
+        let Some(slot) = self.overlay.slot(self.views_panel) else {
+            return;
+        };
+        let sizes = self.views.as_ref().map_or([None; 2], |(yard, map)| {
+            [yard.render_size(), map.render_size()]
+        });
+        self.views_revision += 1;
+        let mut slots = [None; 2];
+        self.overlay
+            .ui_mut()
+            .build(slot, self.views_revision, |children| {
+                for ((index, name), size) in VIEWS.into_iter().enumerate().zip(sizes) {
+                    if let Some((width, height)) = size {
+                        let label = format!("{name}, drawn at {width} × {height} pixels");
+                        let label = Element::label(label, Style::default());
+                        children.add(format!("{name} size"), label, |_| {});
+                    }
+                    let mut column = Style::default();
+                    column.layout.direction = FlexDirection::Column;
+                    slots[index] = Some(children.add_slot(name, Element::container(column)));
+                }
+            });
+        for ((editor, settings), (slot, name)) in self
+            .editors
+            .iter_mut()
+            .zip(&self.settings)
+            .zip(slots.into_iter().zip(VIEWS))
+        {
+            if let Some(slot) = slot {
+                editor.build(self.overlay.ui_mut(), slot, name, settings);
+            }
+        }
     }
 
     /// With `--watch`, once nothing loads, has the cache load again the meshes, materials and
@@ -461,37 +512,34 @@ impl Presentation for YardView {
     }
 
     fn on_event(&mut self, ctx: &mut Context, event: &Event) -> bool {
-        // Escape leaves a text field of the overlay, or closes a menu of it, rather than quit.
-        let typing = self.overlay.as_ref().is_some_and(Overlay::wants_keyboard);
-        if let Some(overlay) = &mut self.overlay {
-            overlay.handle(event);
-        }
-        if let Event::Key(KeyEvent {
-            physical,
-            state: ButtonState::Pressed,
-            repeat: false,
-            ..
-        }) = event
-        {
-            match physical {
-                KeyCode::F2 => self.panel_shown = !self.panel_shown,
-                KeyCode::F3 => self.settings_shown = !self.settings_shown,
-                KeyCode::Tab if !typing => self.select_next = true,
-                KeyCode::Escape if !typing => ctx.request_exit(),
-                _ => {}
-            }
-        }
-        let pointed = self.overlay.as_ref().is_some_and(Overlay::wants_pointer);
+        // The overlay's interface took F2 and F3, which show and hide its panels, the keys that its
+        // fields and its focus take, Escape leaving a field or closing a list among them, and the
+        // presses on its panels: they do not reach the yard. Tab reaches it until F6 gives a
+        // panel the focus.
         match *event {
+            Event::Key(KeyEvent {
+                physical,
+                state: ButtonState::Pressed,
+                repeat: false,
+                ..
+            }) => match physical {
+                KeyCode::Tab => self.select_next = true,
+                KeyCode::Escape => ctx.request_exit(),
+                _ => {}
+            },
             Event::CursorMoved { x, y } => self.cursor = (x, y),
             Event::MouseButton {
                 button: MouseButton::Left,
                 state: ButtonState::Pressed,
-            } if !pointed => self.click = self.pick_at_cursor(),
+            } => self.click = self.pick_at_cursor(),
             _ => {}
         }
-        // The yard's rules read no input; the keys typed into the panel are its own.
-        typing
+        // The yard's rules read no input.
+        false
+    }
+
+    fn ui(&mut self) -> Option<&mut Ui> {
+        Some(self.overlay.ui_mut())
     }
 
     fn extract(&mut self, ctx: &mut Context, world: &World) {
@@ -599,41 +647,7 @@ impl Presentation for YardView {
         scene.exposure = EXPOSURE;
         scene.bloom = BLOOM;
         self.scene = Some((scene, camera, map));
-        let mut commands = Vec::new();
-        if let (Some(overlay), Some(window)) = (&mut self.overlay, ctx.window()) {
-            let (panel, shown) = (&mut self.panel, self.panel_shown);
-            let (settings, views) = (&mut self.settings, &self.views);
-            let sizes = views.as_ref().map_or([None; 2], |(yard, map)| {
-                [yard.render_size(), map.render_size()]
-            });
-            let settings_shown = self.settings_shown;
-            // Built with no panel while hidden, so that egui still takes the events handed to it.
-            overlay.build(window.inner_size(), |context| {
-                if shown {
-                    commands.extend(panel.show(context, world));
-                }
-                if settings_shown {
-                    egui::Window::new("Views")
-                        .default_pos(egui::pos2(12.0, 12.0))
-                        .resizable(false)
-                        .show(context, |ui| {
-                            for ((name, settings), size) in
-                                VIEWS.into_iter().zip(settings.iter_mut()).zip(sizes)
-                            {
-                                ui.heading(name);
-                                if let Some((width, height)) = size {
-                                    ui.label(format!("drawn at {width} × {height} pixels"));
-                                }
-                                edit_reflected(ui, name, settings);
-                            }
-                        });
-                }
-            });
-        }
-        // Applied by the host at the next frame's start: the next frame shows them.
-        for command in commands {
-            ctx.send(command);
-        }
+        self.build_overlay(ctx, world);
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
@@ -685,8 +699,10 @@ impl Presentation for YardView {
                 }
             })
             .collect();
-        if let Some(overlay) = &mut self.overlay {
-            overlay.render(gpu, target);
+        // Over the views, with their renderer.
+        if let Err(error) = self.overlay.draw(gpu, renderer, target) {
+            ctx.exit_with_error(error);
+            return;
         }
         if self.whole {
             self.drawn += 1;
@@ -753,9 +769,7 @@ impl Presentation for YardView {
         self.renderer = None;
         self.views = None;
         self.shown.clear();
-        if let Some(overlay) = &mut self.overlay {
-            overlay.release();
-        }
+        self.overlay.release();
         self.requests = self.cache.take().map(AssetCache::into_requests);
         self.scene = None;
         self.builder.release();
@@ -995,15 +1009,32 @@ fn main() -> ExitCode {
         floated: (f64::INFINITY, f64::NEG_INFINITY),
         watch: watch(),
     };
+    let mut overlay = Overlay::new();
+    let world_panel = overlay.add_panel(PanelSpec {
+        title: "World",
+        chord: "F2",
+        command: "world",
+        corner: Corner::TopEnd,
+        size: [380.0, 640.0],
+    });
+    let views_panel = overlay.add_panel(PanelSpec {
+        title: "Views",
+        chord: "F3",
+        command: "views",
+        corner: Corner::TopStart,
+        size: [400.0, 640.0],
+    });
     let mut view = YardView {
         renderer: None,
         views: None,
         settings: [ViewSettings::default(); 2],
         shown: Vec::new(),
-        overlay: None,
+        overlay,
+        world_panel,
+        views_panel,
         panel: WorldPanel::default(),
-        panel_shown: false,
-        settings_shown: false,
+        editors: Default::default(),
+        views_revision: 0,
         cache: None,
         requests: None,
         cached: assets.clone(),

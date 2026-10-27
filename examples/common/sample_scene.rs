@@ -153,6 +153,12 @@ impl SampleScene {
         self.renderer.set_shaders(gpu, sources)
     }
 
+    /// The renderer, which the `scene` example's dev overlay draws its panel with, after the
+    /// scene.
+    pub fn renderer(&mut self) -> &mut Renderer {
+        &mut self.renderer
+    }
+
     /// How long the CPU took to compute the sky's environment, when the scene was loaded.
     pub fn environment_time(&self) -> Duration {
         self.environment_time

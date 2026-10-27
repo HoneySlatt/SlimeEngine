@@ -9,13 +9,18 @@ use std::time::{Duration, Instant};
 use slime_app::{AppError, Context, Presentation, Reflected, ShownView};
 use slime_assets::{CookedAssets, ManifestWatch};
 use slime_gfx::RenderTarget;
-use slime_platform::{ButtonState, Event, KeyCode, KeyEvent};
+use slime_platform::Event;
+#[cfg(feature = "development")]
+use slime_platform::{ButtonState, KeyCode, KeyEvent};
 use slime_render::glam::Vec2;
 use slime_render::{RenderStats, ShaderSources, ShaderWatch, ViewSettings};
+#[cfg(feature = "development")]
+use slime_ui::tree::Ui;
 use slime_world::World;
 
 use crate::camera;
 use crate::look::Look;
+#[cfg(feature = "development")]
 use crate::overlay::{DevOverlay, GameSpeed};
 use crate::rules::{self, Game};
 use crate::simulation::log_run;
@@ -37,8 +42,10 @@ pub struct Screen {
     settings: ViewSettings,
     /// Where the last frame drew the hero's view, for a tool that captures it.
     shown: Option<ShownView>,
-    /// The dev overlay: the statistics, and the view's settings, on F1, the world panel on F2.
-    overlay: Option<DevOverlay>,
+    /// The dev overlay: the statistics, and the view's settings, on F1, the world panel on F2; in
+    /// a build with the `development` feature.
+    #[cfg(feature = "development")]
+    overlay: DevOverlay,
     /// What the last frame cost.
     stats: RenderStats,
     /// How many frames drew the zone.
@@ -103,7 +110,8 @@ impl Screen {
             view: None,
             settings: ViewSettings::default(),
             shown: None,
-            overlay: None,
+            #[cfg(feature = "development")]
+            overlay: DevOverlay::new(),
             stats: RenderStats::default(),
             drawn: 0,
             frame_limit,
@@ -182,15 +190,42 @@ impl Screen {
     }
 }
 
+impl Screen {
+    /// Builds the dev overlay over the view, from the last frame's statistics and the world, and
+    /// does what it asks: the speed of game time set, the commands sent, the device lost once the
+    /// frame is drawn.
+    #[cfg(feature = "development")]
+    fn build_overlay(&mut self, ctx: &mut Context, world: &World) {
+        let (Some(gpu), Some(window), Some(view)) = (ctx.gpu(), ctx.window(), &self.view) else {
+            return;
+        };
+        let speed = GameSpeed {
+            paused: ctx.paused(),
+            speed: ctx.speed(),
+        };
+        let asked = self.overlay.build(
+            window.inner_size(),
+            window.scale_factor(),
+            &self.stats,
+            gpu.adapter_name(),
+            speed,
+            (&mut self.settings, view.render_size()),
+            world,
+        );
+        self.lose_asked |= asked.lose_device;
+        if let Some(speed) = asked.speed {
+            ctx.set_speed(speed);
+        }
+        // Applied by the host at the next frame's start: the next frame shows them.
+        for command in asked.commands {
+            ctx.send(command);
+        }
+    }
+}
+
 impl Presentation for Screen {
     fn start(&mut self, ctx: &mut Context, world: &World) -> Result<(), AppError> {
         self.open(ctx, world)?;
-        let (Some(gpu), Some(format), Some(window)) =
-            (ctx.gpu(), ctx.surface_format(), ctx.window())
-        else {
-            return Err("Hunna Wood needs a window".into());
-        };
-        self.overlay = Some(DevOverlay::new(gpu, format, window.scale_factor())?);
         if self.frame_limit == Some(0) {
             ctx.request_exit();
         }
@@ -198,40 +233,32 @@ impl Presentation for Screen {
     }
 
     fn on_event(&mut self, ctx: &mut Context, event: &Event) -> bool {
-        let Some(overlay) = &mut self.overlay else {
-            return false;
-        };
-        // As of the last frame, before the event changes it.
-        let (typing, over_a_panel) = (overlay.wants_keyboard(), overlay.wants_pointer());
-        overlay.handle(event);
+        // The overlay's interface took F1 and F2, which show and hide its panels, the keys typed
+        // into its fields and the clicks on its panels: they reach neither this nor the game's
+        // rules.
+        #[cfg(feature = "development")]
         if let Event::Key(KeyEvent {
             physical,
             state: ButtonState::Pressed,
             repeat: false,
             ..
         }) = event
+            && !self.overlay.typing()
         {
             match physical {
-                KeyCode::F1 => overlay.toggle_statistics(),
-                KeyCode::F2 => overlay.toggle_panel(),
-                KeyCode::F3 if !typing => {
+                KeyCode::F3 => {
                     if ctx.paused() {
                         ctx.resume();
                     } else {
                         ctx.pause();
                     }
                 }
-                KeyCode::F4 if !typing => ctx.step(),
+                KeyCode::F4 => ctx.step(),
                 _ => {}
             }
         }
-        // The keys typed into a field of the overlay, or Escape closing a menu of it, and the
-        // clicks on its panels, do not also play.
-        match event {
-            Event::Key(_) => typing,
-            Event::MouseButton { .. } | Event::MouseWheel(_) => over_a_panel,
-            _ => false,
-        }
+        let _ = (ctx, event);
+        false
     }
 
     fn extract(&mut self, ctx: &mut Context, world: &World) {
@@ -249,10 +276,11 @@ impl Presentation for Screen {
         }
         self.watch_shaders(ctx);
         self.watch_assets(ctx);
-        if let Some(overlay) = &mut self.overlay {
-            overlay.frame(ctx.time().real().delta().as_secs_f32());
+        #[cfg(feature = "development")]
+        {
+            self.overlay.frame(ctx.time().real().delta().as_secs_f32());
             for (_, error) in ctx.refused() {
-                overlay.refused(error);
+                self.overlay.refused(error);
             }
         }
         // A handle of the device, which the frame drops: the context changes as the frame goes.
@@ -276,36 +304,16 @@ impl Presentation for Screen {
             .unwrap_or(Look { yaw: 0.0 });
         let camera = camera::follow(look, at, &zone::colliders(world));
         let night = rules::night(world);
-        if let Err(error) = view.extract(&gpu, world, night, alpha, seconds, camera) {
-            // The zone cannot be loaded: the game stops with the error, which `run` logs with its
-            // causes. The device lost, the frame is skipped: the run opens a new one before the
-            // next frame, and `exit_with_error` leaves the loss to it.
+        let extracted = view.extract(&gpu, world, night, alpha, seconds, camera);
+        #[cfg(feature = "development")]
+        if extracted.is_ok() {
+            self.build_overlay(ctx, world);
+        }
+        // The zone cannot be loaded: the game stops with the error, which `run` logs with its
+        // causes. The device lost, the frame is skipped: the run opens a new one before the next
+        // frame, and `exit_with_error` leaves the loss to it.
+        if let Err(error) = extracted {
             ctx.exit_with_error(error);
-            return;
-        }
-        let (Some(overlay), Some(window)) = (&mut self.overlay, ctx.window()) else {
-            return;
-        };
-        let speed = GameSpeed {
-            paused: ctx.paused(),
-            speed: ctx.speed(),
-        };
-        let render_size = view.render_size();
-        let asked = overlay.build(
-            window.inner_size(),
-            &self.stats,
-            gpu.adapter_name(),
-            speed,
-            (&mut self.settings, render_size),
-            world,
-        );
-        self.lose_asked |= asked.lose_device;
-        if let Some(speed) = asked.speed {
-            ctx.set_speed(speed);
-        }
-        // Applied by the host at the next frame's start: the next frame shows them.
-        for command in asked.commands {
-            ctx.send(command);
         }
     }
 
@@ -334,8 +342,12 @@ impl Presentation for Screen {
                 return;
             }
         }
-        if let Some(overlay) = &mut self.overlay {
-            overlay.render(&gpu, target);
+        // Over the view, with its renderer. The device lost, `exit_with_error` leaves the loss to
+        // the run.
+        #[cfg(feature = "development")]
+        if let Err(error) = self.overlay.render(&gpu, view.renderer(), target) {
+            ctx.exit_with_error(error);
+            return;
         }
         let mut lose_now = std::mem::take(&mut self.lose_asked);
         if view.zone_shown() {
@@ -358,6 +370,11 @@ impl Presentation for Screen {
         if view.zone_shown() && self.frame_limit.is_some_and(|limit| self.drawn >= limit) {
             ctx.request_exit();
         }
+    }
+
+    #[cfg(feature = "development")]
+    fn ui(&mut self) -> Option<&mut Ui> {
+        Some(self.overlay.ui_mut())
     }
 
     fn views(&self) -> Vec<ShownView> {
@@ -391,9 +408,8 @@ impl Presentation for Screen {
         // new device opens on the same adapter (ADR-0075). The world, and the run in it, are kept.
         self.view = None;
         self.shown = None;
-        if let Some(overlay) = &mut self.overlay {
-            overlay.release();
-        }
+        #[cfg(feature = "development")]
+        self.overlay.release();
         if let Some(loading) = self.loading.take()
             && loading.shown
         {
@@ -403,12 +419,6 @@ impl Presentation for Screen {
 
     fn gpu_restored(&mut self, ctx: &mut Context, world: &World) -> Result<(), AppError> {
         self.open(ctx, world)?;
-        let (Some(gpu), Some(format)) = (ctx.gpu(), ctx.surface_format()) else {
-            return Err("Hunna Wood needs a window".into());
-        };
-        if let Some(overlay) = &mut self.overlay {
-            overlay.restore(gpu, format)?;
-        }
         self.loading = Some(Loading::default());
         // A reload in progress went with the lost device: the data it loaded is given again.
         if let Some(watch) = &mut self.watch {

@@ -11,13 +11,15 @@
 //!
 //! W, A, S and D move (Z, Q, S and D on a French keyboard), the left and right arrows turn where
 //! the player looks, E rests by the campfire, which turns the day to night and back, R starts
-//! again, F5 saves the run, F9 loads the save, Escape quits. The dev overlay: F1 shows what each
-//! frame costs and the speed of game time, F2 lists the world's entities and edits their
-//! components, F3 pauses game time and lets it run again, F4 runs one step of it while it is
-//! paused.
+//! again, F5 saves the run, F9 loads the save, Escape quits. The dev overlay, in a build with the
+//! `development` feature, the default: F1 shows what each frame costs and the speed of game time,
+//! F2 lists the world's entities and edits their components, F3 pauses game time and lets it run
+//! again, F4 runs one step of it while it is paused, F6 moves the keyboard's focus into its panels
+//! and out.
 
 mod camera;
 mod controls;
+#[cfg(feature = "development")]
 mod overlay;
 mod view;
 

@@ -426,7 +426,9 @@ impl View {
         self.cache.report()
     }
 
-    /// The size the hero's camera is drawn at ([`slime_render::View::render_size`]).
+    /// The size the hero's camera is drawn at ([`slime_render::View::render_size`]), which the dev
+    /// overlay shows.
+    #[cfg(feature = "development")]
     pub fn render_size(&self) -> Option<(u32, u32)> {
         self.shown.render_size()
     }
@@ -448,6 +450,13 @@ impl View {
         let mut draws = [ViewDraw::new(&mut self.shown, camera, target)];
         self.renderer.render(gpu, &scene, &mut draws)?;
         Ok(Some(self.shown.stats()))
+    }
+
+    /// The view's renderer, which the dev overlay draws its panels with after the view
+    /// (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`).
+    #[cfg(feature = "development")]
+    pub fn renderer(&mut self) -> &mut Renderer {
+        &mut self.renderer
     }
 }
 

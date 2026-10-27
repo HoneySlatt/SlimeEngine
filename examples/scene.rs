@@ -5,7 +5,8 @@
 //! farther. A dev overlay shows what each frame costs, with the GPU time of each pass, a slider
 //! that changes the exposure, as a photographer's exposure value, one that changes the bloom's
 //! strength and, for the sample's asset, one that changes how strongly its ring glows, through its
-//! material, found by its name; F1 hides and shows it. It loads the scene in the background, its
+//! material, found by its name; F1 hides and shows it, and F6 gives its sliders the keyboard's
+//! focus, then gives it back to the camera. It loads the scene in the background, its
 //! frames showing the sky's horizon until the scene is loaded. The sample of Stages 3a, 3b, 4a and 4b.
 //! Escape, closing the window or Ctrl+C quits.
 //!
@@ -38,7 +39,7 @@ use std::time::Instant;
 use slime_app::{AppConfig, AppError, Context, Presentation};
 use slime_assets::{AssetId, CookedAssets, ManifestWatch};
 use slime_color::LinearColor;
-use slime_devui::{Overlay, egui};
+use slime_devui::{Corner, Overlay, PanelId, PanelSpec, render_figures};
 use slime_gfx::{RenderPassDescriptor, RenderTarget};
 use slime_platform::{
     ButtonState, Event, KeyCode, KeyEvent, MouseButton, ScrollDelta, WindowConfig,
@@ -47,6 +48,9 @@ use slime_render::glam::DVec3;
 use slime_render::{
     Camera, Material, MaterialValues, RenderStats, Renderer, SceneLoad, ShaderSources, ShaderWatch,
 };
+use slime_ui::action::{Action, ActionKind, FieldValue, Intent};
+use slime_ui::style::Style;
+use slime_ui::tree::{Element, ElementId, Ui};
 use slime_world::World;
 
 use sample_scene::{BLOOM, EXPOSURE, SKY, SampleScene};
@@ -190,9 +194,13 @@ struct SceneExample {
     loading: Option<(Renderer, SceneLoad)>,
     scene: Option<SampleScene>,
     camera: OrbitCamera,
-    overlay: Option<Overlay>,
-    /// Whether the overlay is drawn; F1 toggles it.
-    show_overlay: bool,
+    /// The dev overlay, and its panel of statistics, which F1 shows and hides.
+    overlay: Overlay,
+    statistics: PanelId,
+    /// The sliders of the exposure, the bloom and the ring's glow, as last built, and the
+    /// revision of that build.
+    sliders: [Option<ElementId>; 3],
+    revision: u64,
     /// The time between frames, smoothed, in milliseconds.
     frame_ms: f32,
     /// How many frames drew the scene.
@@ -222,11 +230,131 @@ struct SceneExample {
     reload: Option<SceneLoad>,
 }
 
+impl SceneExample {
+    /// Reads what the overlay's sliders and keys asked since the last frame, and builds its panel
+    /// of statistics, once the scene is loaded. Escape quits while a slider holds the keyboard's
+    /// focus too: the overlay gives it as the intent to cancel.
+    fn build_overlay(&mut self, ctx: &mut Context) {
+        for action in self.overlay.take_actions() {
+            match action {
+                Action {
+                    element: Some(element),
+                    kind:
+                        ActionKind::Changed(FieldValue::Number(value))
+                        | ActionKind::Committed(FieldValue::Number(value)),
+                } => {
+                    let value = value as f32;
+                    match self
+                        .sliders
+                        .iter()
+                        .position(|&slider| slider == Some(element))
+                    {
+                        Some(0) => self.ev100 = value,
+                        Some(1) => self.bloom = value,
+                        Some(2) => self.glow = value,
+                        _ => {}
+                    }
+                }
+                Action {
+                    kind: ActionKind::Intent(Intent::Cancel),
+                    ..
+                } => ctx.request_exit(),
+                _ => {}
+            }
+        }
+        let (Some(gpu), Some(window), Some(scene)) = (ctx.gpu(), ctx.window(), &self.scene) else {
+            return;
+        };
+        self.overlay
+            .set_window(window.inner_size(), window.scale_factor());
+        let Some(slot) = self.overlay.slot(self.statistics) else {
+            return;
+        };
+        let size = window.inner_size();
+        let mut lines = vec![
+            gpu.adapter_name().to_owned(),
+            format!("frame: {:.2} ms", self.frame_ms),
+        ];
+        lines.extend(render_figures(&self.stats));
+        lines.push(format!(
+            "sky computed on the CPU, once the scene was loaded: {:.1} ms",
+            scene.environment_time().as_secs_f64() * 1000.0
+        ));
+        lines.push(format!("{} × {} pixels", size.width, size.height));
+        // In exposure values, so that equal drags are equal photographic stops, from 18 at its
+        // start down to 0; from no bloom to five times the sample's; for a scene with the
+        // sample's ring, how many times as strongly as loaded it glows.
+        let mut sliders = vec![
+            (
+                format!("EV100 {:.1}", self.ev100),
+                "EV100",
+                self.ev100,
+                *EV100_RANGE.end(),
+                *EV100_RANGE.start(),
+                true,
+            ),
+            (
+                format!("bloom {:.3}", self.bloom),
+                "bloom",
+                self.bloom,
+                *BLOOM_RANGE.start(),
+                *BLOOM_RANGE.end(),
+                false,
+            ),
+        ];
+        if self.ring.is_some() {
+            sliders.push((
+                format!("ring's glow × {:.2}", self.glow),
+                "ring's glow",
+                self.glow,
+                *GLOW_RANGE.start(),
+                *GLOW_RANGE.end(),
+                false,
+            ));
+        }
+        self.revision += 1;
+        let mut built = [None; 3];
+        self.overlay
+            .ui_mut()
+            .build(slot, self.revision, |children| {
+                for (index, line) in lines.iter().enumerate() {
+                    children.add(
+                        index,
+                        Element::label(line.as_str(), Style::default()),
+                        |_| {},
+                    );
+                }
+                for (index, (label, name, value, least, most, reversed)) in
+                    sliders.into_iter().enumerate()
+                {
+                    let text = Element::label(label, Style::default());
+                    children.add(format!("{name} label"), text, |_| {});
+                    let mut slider = Element::slider(
+                        f64::from(value),
+                        f64::from(least),
+                        f64::from(most),
+                        0.0,
+                        Style::default(),
+                    )
+                    .named(name);
+                    if reversed {
+                        slider = slider.reversed();
+                    }
+                    built[index] = Some(children.add(name, slider, |_| {}));
+                }
+                children.add(
+                    "hides",
+                    Element::label("F1 hides this", Style::default()),
+                    |_| {},
+                );
+            });
+        self.sliders = built;
+    }
+}
+
 impl Presentation for SceneExample {
     fn start(&mut self, ctx: &mut Context, _world: &World) -> Result<(), AppError> {
-        let (Some(gpu), Some(format), Some(window)) =
-            (ctx.gpu(), ctx.surface_format(), ctx.window())
-        else {
+        let (Some(gpu), Some(format)) = (ctx.gpu(), ctx.surface_format()) else {
             return Err("the scene example needs a window".into());
         };
         // The scene loads in the background: the window shows at once, and the frames take the
@@ -234,7 +362,6 @@ impl Presentation for SceneExample {
         let renderer = Renderer::new(gpu, format)?;
         let load = renderer.load_scene_in_background(gpu, &self.assets, self.scene_id);
         self.loading = Some((renderer, load));
-        self.overlay = Some(Overlay::new(gpu, format, window.scale_factor())?);
         if self.frame_limit == Some(0) {
             ctx.request_exit();
         }
@@ -242,41 +369,25 @@ impl Presentation for SceneExample {
     }
 
     fn on_event(&mut self, ctx: &mut Context, event: &Event) -> bool {
-        let over_a_panel = match &mut self.overlay {
-            Some(overlay) => {
-                overlay.handle(event);
-                self.show_overlay && overlay.wants_pointer()
-            }
-            None => false,
-        };
-        // Presses and the wheel over a panel are the overlay's. Releases and motion still reach
-        // the camera: a drag that starts on the scene ends wherever the button is released.
-        let for_the_overlay = over_a_panel
-            && matches!(
-                event,
-                Event::MouseButton {
-                    state: ButtonState::Pressed,
-                    ..
-                } | Event::MouseWheel(_)
-            );
-        if !for_the_overlay {
-            self.camera.handle(event);
-        }
+        // The overlay's interface took F1, presses and the wheel over its panel and the keys that
+        // its focus takes. The releases of the presses that it did not take and the motion still
+        // reach the camera: a drag that starts on the scene ends wherever the button is released.
+        self.camera.handle(event);
         if let Event::Key(KeyEvent {
-            physical,
+            physical: KeyCode::Escape,
             state: ButtonState::Pressed,
             repeat: false,
             ..
         }) = event
         {
-            match physical {
-                KeyCode::Escape => ctx.request_exit(),
-                KeyCode::F1 => self.show_overlay = !self.show_overlay,
-                _ => {}
-            }
+            ctx.request_exit();
         }
         // The example has no rules, which would read the input.
         false
+    }
+
+    fn ui(&mut self) -> Option<&mut Ui> {
+        Some(self.overlay.ui_mut())
     }
 
     fn extract(&mut self, ctx: &mut Context, _world: &World) {
@@ -382,93 +493,7 @@ impl Presentation for SceneExample {
                 return;
             }
         }
-        let (Some(overlay), Some(window)) = (&mut self.overlay, ctx.window()) else {
-            return;
-        };
-        let show = self.show_overlay;
-        let adapter = gpu.adapter_name();
-        let stats = self.stats;
-        let environment_time = scene.environment_time();
-        let frame_ms = self.frame_ms;
-        let size = window.inner_size();
-        // The overlay's slider changes it; the scene is drawn with it from the next frame.
-        let chosen = &mut self.ev100;
-        let bloom = &mut self.bloom;
-        let has_ring = self.ring.is_some();
-        let glow = &mut self.glow;
-        // Built with no panel while hidden, so that egui still takes the events handed to the
-        // overlay as they come, not all at once when it is shown again.
-        overlay.build(size, |ctx| {
-            if !show {
-                return;
-            }
-            egui::Window::new("Statistics")
-                .default_pos(egui::pos2(12.0, 12.0))
-                .resizable(false)
-                .show(ctx, |ui| {
-                    ui.label(adapter);
-                    ui.label(format!("frame: {frame_ms:.2} ms"));
-                    ui.label(format!(
-                        "render on the CPU: {:.2} ms",
-                        stats.cpu_time.as_secs_f64() * 1000.0
-                    ));
-                    for (pass, time) in [
-                        ("shadow", stats.shadow_gpu_time),
-                        ("spot shadows", stats.spot_shadow_gpu_time),
-                        ("scene", stats.scene_gpu_time),
-                        ("sky", stats.sky_gpu_time),
-                        ("resolve", stats.resolve_gpu_time),
-                        ("bloom", stats.bloom_gpu_time),
-                        ("tone mapping", stats.tone_mapping_gpu_time),
-                    ] {
-                        ui.label(match time {
-                            Some(time) => {
-                                format!("{pass} on the GPU: {:.3} ms", time.as_secs_f64() * 1000.0)
-                            }
-                            None => format!("{pass} on the GPU: not measured"),
-                        });
-                    }
-                    ui.label(format!(
-                        "{} draw calls of {} instances, {} triangles; {} draw calls for shadows",
-                        stats.draw_calls,
-                        stats.instances,
-                        stats.triangles,
-                        stats.shadow_draw_calls + stats.spot_shadow_draw_calls
-                    ));
-                    ui.label(format!(
-                        "sky computed on the CPU, once the scene was loaded: {:.1} ms",
-                        environment_time.as_secs_f64() * 1000.0
-                    ));
-                    ui.label(format!("{} × {} pixels", size.width, size.height));
-                    // In exposure values, so that equal drags are equal photographic stops. Its
-                    // value is shown as a label rather than in a field that takes the keyboard, so
-                    // that Escape and F1 keep their meaning.
-                    let shown = *chosen;
-                    ui.add(
-                        egui::Slider::new(chosen, EV100_RANGE)
-                            .show_value(false)
-                            .text(format!("EV100 {shown:.1}")),
-                    );
-                    // From no bloom to five times the sample's, labelled as the exposure is.
-                    let shown = *bloom;
-                    ui.add(
-                        egui::Slider::new(bloom, BLOOM_RANGE)
-                            .show_value(false)
-                            .text(format!("bloom {shown:.3}")),
-                    );
-                    // For a scene with the sample's ring: how many times as strongly as loaded it
-                    // glows.
-                    if has_ring {
-                        let shown = *glow;
-                        ui.add(
-                            egui::Slider::new(glow, GLOW_RANGE)
-                                .show_value(false)
-                                .text(format!("ring's glow × {shown:.2}")),
-                        );
-                    }
-                    ui.label("F1 hides this");
-                });
-        });
+        self.build_overlay(ctx);
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
@@ -511,8 +536,10 @@ impl Presentation for SceneExample {
             }
         }
         self.drawn += 1;
-        if let Some(overlay) = &mut self.overlay {
-            overlay.render(gpu, target);
+        // Over the scene, with its renderer.
+        if let Err(error) = self.overlay.draw(gpu, scene.renderer(), target) {
+            ctx.exit_with_error(error);
+            return;
         }
         if self.frame_limit.is_some_and(|limit| self.drawn >= limit) {
             ctx.request_exit();
@@ -577,14 +604,25 @@ fn main() -> ExitCode {
     let watch = options
         .watch
         .then(|| ManifestWatch::new(&assets, Instant::now()));
+    let mut overlay = Overlay::new();
+    let statistics = overlay.add_panel(PanelSpec {
+        title: "Statistics",
+        chord: "F1",
+        command: "statistics",
+        corner: Corner::TopStart,
+        size: [420.0, 560.0],
+    });
+    overlay.open(statistics);
     let mut example = SceneExample {
         assets,
         scene_id: options.scene.unwrap_or(sample_scene::SCENE),
         loading: None,
         scene: None,
         camera: OrbitCamera::new(DVec3::ZERO, 1.0, 1.0, 0.0, 0.0),
-        overlay: None,
-        show_overlay: true,
+        overlay,
+        statistics,
+        sliders: [None; 3],
+        revision: 0,
         ev100: ev100(EXPOSURE),
         bloom: BLOOM,
         ring: None,

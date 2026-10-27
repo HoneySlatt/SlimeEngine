@@ -1,13 +1,18 @@
 //! An agent's session, played by this test: it speaks the Model Context Protocol to the engine's MCP
 //! server on its standard input and output, starts *Hunna Wood* through it, pauses and steps it,
-//! reads the hero, changes a value, walks the hero with a scripted key, captures the game's image,
-//! reads its log and stops it (`docs/adr/0122-the-development-channel.md`).
+//! reads the hero, changes a value, walks the hero with a scripted key, saves and loads its run,
+//! opens the dev overlay's panels, sets the speed of game time with one's slider and the hero's
+//! direction with the world panel, captures the game's image, reads its log and stops it
+//! (`docs/adr/0122-the-development-channel.md`,
+//! `docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`).
 //!
 //! It needs a Wayland compositor, the game built (`cargo build -p hunnawood`) beside the server and
 //! its zone cooked in `target/cooked/hunnawood`: `scripts/check.sh` runs it in a headless Weston
 //! with lavapipe, as it runs the windowed lifecycle test (ADR-0024). It is not in the default run of
 //! `cargo test` (`test = false` in Cargo.toml), and has no harness, so that its failures print once.
 
+#[path = "common/interface.rs"]
+mod interface;
 #[path = "common/session.rs"]
 mod session;
 
@@ -15,6 +20,7 @@ use std::path::Path;
 
 use serde_json::json;
 
+use interface::{act, path_of, until};
 use session::{Session, image, server};
 
 fn main() {
@@ -117,6 +123,43 @@ fn main() {
     session.tool("load_game", file);
     let (loaded, _) = session.tool("inspect_entity", json!({ "entity": "hero" }));
     assert_eq!(place(&loaded), place(&walked), "{loaded:?}");
+    // The dev overlay, its panels opened by the commands that F1 and F2 give: its statistics'
+    // slider sets the speed of game time; its world panel, filtered by name, selects the hero, whose
+    // field of the direction it looks in, in degrees, changes it through a command.
+    for panel in ["statistics", "world"] {
+        let (said, _) = session.tool(
+            "act_on_interface",
+            json!({ "action": "command", "command": panel }),
+        );
+        assert_eq!(said, ["done"], "{panel}");
+    }
+    let slider = path_of(&mut session, "Slider", "game time");
+    act(&mut session, "set_value", &slider, json!({ "value": "2" }));
+    until(
+        "the speed that the slider set",
+        || session.tool("game_state", json!({})).0,
+        |state| state[0].contains("at a speed of 2;"),
+    );
+    let filter = path_of(&mut session, "SearchInput", "filter by name");
+    act(
+        &mut session,
+        "set_value",
+        &filter,
+        json!({ "value": "hero" }),
+    );
+    let row = path_of(&mut session, "Button", "hero");
+    act(&mut session, "press", &row, json!({}));
+    let yaw = path_of(&mut session, "SpinButton", "yaw");
+    act(&mut session, "set_value", &yaw, json!({ "value": "90" }));
+    until(
+        "the direction that the world panel set",
+        || {
+            session
+                .tool("inspect_entity", json!({ "entity": "hero" }))
+                .0
+        },
+        |hero| hero[0].contains("yaw = 1.5707"),
+    );
     let (state, _) = session.tool("game_state", json!({}));
     assert!(state[0].contains("paused"), "{state:?}");
     let (_, captured) = session.tool("capture", json!({}));

@@ -4,7 +4,7 @@
 
 use std::hint::black_box;
 
-use slime_devui::interface::WorldPanel;
+use slime_devui::WorldPanel;
 use slime_ui::look::{self, Colors, Density};
 use slime_ui::style::{FlexDirection, Style};
 use slime_ui::text::Fonts;

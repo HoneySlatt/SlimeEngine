@@ -12,9 +12,9 @@ use slime_ui::tree::{Element, ElementId, LayoutDirection, Meaning, Role, RootSet
 use slime_world::glam::{DVec3, Quat, Vec3};
 use slime_world::{Command, Entity, Light, World};
 
-use super::{ValueEditor, WorldPanel};
-use crate::world_panel::tests::world;
-use crate::world_panel::{angles, rotation};
+use crate::reflected::tests::world;
+use crate::reflected::{angles, rotation};
+use crate::{ValueEditor, WorldPanel};
 
 /// An interface in the editor's look, of one root of 420 by 1600 logical pixels at scale 1.
 fn interface() -> (Ui, ElementId) {

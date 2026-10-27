@@ -16,8 +16,9 @@ slime-app.workspace = true
 # The cooked zone and hero, which the game reads by ID.
 slime-assets.workspace = true
 slime-color.workspace = true
-# The engine's dev overlay, for the frame's statistics on F1 and the world panel on F2: tooling.
-slime-devui.workspace = true
+# The engine's dev overlay, for the frame's statistics on F1 and the world panel on F2: tooling,
+# which the build for shipping leaves out (ADR-0152).
+slime-devui = { workspace = true, optional = true }
 slime-gfx.workspace = true
 slime-platform.workspace = true
 # Describes the game's components, as every component is (ADR-0080).
@@ -26,13 +27,15 @@ slime-render.workspace = true
 # The size of the largest save, up to which the game reads its save's file; its tests encode the
 # game's components that their zones carry as typed properties, as the cooker does.
 slime-serialize.workspace = true
+# The elements of the dev overlay's panel of statistics.
+slime-ui = { workspace = true, optional = true }
 # The world that holds the zone, the hero and the run, and what draws it.
 slime-world.workspace = true
 slime-world-render.workspace = true
 tracing.workspace = true
 
 [features]
-# The development channel, through which tools and agents drive the game (ADR-0122); a build for
-# shipping leaves it out, with `--no-default-features`.
+# The development channel, through which tools and agents drive the game (ADR-0122), and the dev
+# overlay (ADR-0152); a build for shipping leaves them out, with `--no-default-features`.
 default = ["development"]
-development = ["slime-app/development"]
+development = ["slime-app/development", "dep:slime-devui", "dep:slime-ui"]

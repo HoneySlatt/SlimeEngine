@@ -1,12 +1,16 @@
 //! The engine's dev overlay (`slime-devui`) over the game: what each frame costs, the settings of
 //! the hero's view and the game's time, shown and hidden with F1, and the world's entities, whose
-//! components F2's panel edits.
-//! Tooling for whoever works on the game, not part of it.
+//! components F2's panel edits. Tooling for whoever works on the game, not part of it: the build for
+//! shipping leaves it out, with the `development` feature
+//! (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`).
 
-use slime_devui::{Overlay, WorldPanel, edit_reflected, egui};
-use slime_gfx::{GfxError, Gpu, RenderTarget, TextureFormat};
-use slime_platform::{Event, PhysicalSize};
-use slime_render::{RenderStats, ViewSettings};
+use slime_devui::{Corner, Overlay, PanelId, PanelSpec, ValueEditor, WorldPanel, render_figures};
+use slime_gfx::{Gpu, RenderTarget};
+use slime_platform::PhysicalSize;
+use slime_render::{RenderError, RenderStats, Renderer, ViewSettings};
+use slime_ui::action::{ActionKind, FieldValue};
+use slime_ui::style::{FlexDirection, Style};
+use slime_ui::tree::{Element, ElementId, Ui};
 use slime_world::{Command, World};
 
 /// The slowest and the fastest that the statistics' slider sets game time to.
@@ -14,13 +18,26 @@ const SPEEDS: std::ops::RangeInclusive<f64> = 0.1..=4.0;
 
 /// The overlay and what it shows.
 pub struct DevOverlay {
-    /// The overlay, released from the loss of the GPU device until a new one replaces it.
     overlay: Overlay,
-    statistics_shown: bool,
+    /// The panel of the frame's statistics, the view's settings and the game's time, on F1.
+    statistics: PanelId,
+    /// The world panel, on F2.
+    world: PanelId,
     panel: WorldPanel,
-    panel_shown: bool,
+    view: ValueEditor,
     /// The frame's duration, in milliseconds, averaged over the last frames.
     frame_ms: f32,
+    /// The elements of the statistics' panel that the game reads, as last built, and the revision
+    /// of that build.
+    built: Option<Built>,
+    revision: u64,
+}
+
+/// The elements of the statistics' panel that the game reads.
+#[derive(Clone, Copy)]
+struct Built {
+    speed: ElementId,
+    lose: ElementId,
 }
 
 /// The speed of the game's time, as the overlay shows it.
@@ -46,52 +63,49 @@ pub struct Asked {
 }
 
 impl DevOverlay {
-    /// The overlay, hidden, for targets of `format` in a window of `scale_factor`; an error once
-    /// the GPU device is lost.
-    pub fn new(gpu: &Gpu, format: TextureFormat, scale_factor: f64) -> Result<Self, GfxError> {
-        Ok(Self {
-            overlay: Overlay::new(gpu, format, scale_factor)?,
-            statistics_shown: false,
+    /// The overlay, its panels hidden.
+    pub fn new() -> Self {
+        let mut overlay = Overlay::new();
+        let statistics = overlay.add_panel(PanelSpec {
+            title: "Hunna Wood",
+            chord: "F1",
+            command: "statistics",
+            corner: Corner::TopStart,
+            size: [400.0, 720.0],
+        });
+        let world = overlay.add_panel(PanelSpec {
+            title: "World",
+            chord: "F2",
+            command: "world",
+            corner: Corner::TopEnd,
+            size: [380.0, 640.0],
+        });
+        Self {
+            overlay,
+            statistics,
+            world,
             panel: WorldPanel::default(),
-            panel_shown: false,
+            view: ValueEditor::default(),
             frame_ms: 0.0,
-        })
+            built: None,
+            revision: 0,
+        }
     }
 
-    /// Drops the overlay's GPU objects, once the GPU device is lost, and keeps what it shows and
-    /// where the cursor is ([`Overlay::release`]); it draws nothing until [`DevOverlay::restore`].
+    /// The overlay's interface, which the game gives its host: the window's events reach it first.
+    pub fn ui_mut(&mut self) -> &mut Ui {
+        self.overlay.ui_mut()
+    }
+
+    /// Whether one of the overlay's fields takes the keys, which F3 and F4 leave to it.
+    pub fn typing(&self) -> bool {
+        self.overlay.ui().text_input().is_some()
+    }
+
+    /// Drops the overlay's GPU objects, once the GPU device is lost, and keeps its panels
+    /// ([`Overlay::release`]).
     pub fn release(&mut self) {
         self.overlay.release();
-    }
-
-    /// Makes the overlay's GPU objects again with `gpu`, a device that replaced a lost one, for
-    /// targets of `format`: its panels shown or hidden as they were. An error once that device is
-    /// lost too.
-    pub fn restore(&mut self, gpu: &Gpu, format: TextureFormat) -> Result<(), GfxError> {
-        self.overlay.restore(gpu, format)
-    }
-
-    /// Hands `event` to the overlay, shown or not, so that it takes events as they come.
-    pub fn handle(&mut self, event: &Event) {
-        self.overlay.handle(event);
-    }
-
-    /// Whether a text field of the overlay has the keyboard ([`Overlay::wants_keyboard`]).
-    pub fn wants_keyboard(&self) -> bool {
-        self.overlay.wants_keyboard()
-    }
-
-    /// Whether the cursor is over a panel shown ([`Overlay::wants_pointer`]).
-    pub fn wants_pointer(&self) -> bool {
-        (self.statistics_shown || self.panel_shown) && self.overlay.wants_pointer()
-    }
-
-    pub fn toggle_statistics(&mut self) {
-        self.statistics_shown = !self.statistics_shown;
-    }
-
-    pub fn toggle_panel(&mut self) {
-        self.panel_shown = !self.panel_shown;
     }
 
     /// Counts a frame of `seconds`.
@@ -104,95 +118,123 @@ impl DevOverlay {
         self.panel.refused(error);
     }
 
-    /// Builds the overlay for an image of `size`, with `stats`, the last frame's, the name of the
-    /// GPU's `adapter`, the game's `time`, the settings of the hero's view, which its widgets
-    /// change, and the size it is drawn at, and the entities of `world`, and returns what it asks
-    /// of the game. [`DevOverlay::render`] draws it.
+    /// Reads what the user did since the last frame, then builds the overlay for a window of `size`
+    /// at `scale_factor`, with `stats`, the last frame's, the name of the GPU's `adapter`, the
+    /// game's `time`, the settings of the hero's view, which its editors change, and the size it is
+    /// drawn at, and the entities of `world`, and returns what it asks of the game.
+    /// [`DevOverlay::render`] draws it.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "what the panels show, each given apart"
+    )]
     pub fn build(
         &mut self,
         size: PhysicalSize,
+        scale_factor: f64,
         stats: &RenderStats,
         adapter: &str,
         time: GameSpeed,
         (settings, render_size): (&mut ViewSettings, Option<(u32, u32)>),
         world: &World,
     ) -> Asked {
-        let frame_ms = self.frame_ms;
-        let (statistics_shown, panel_shown) = (self.statistics_shown, self.panel_shown);
         let mut asked = Asked::default();
-        let (overlay, panel) = (&mut self.overlay, &mut self.panel);
-        // Built with no panel while hidden, so that egui still takes the events handed to it.
-        overlay.build(size, |ctx| {
-            if panel_shown {
-                asked.commands.extend(panel.show(ctx, world));
+        let mut actions = self.overlay.take_actions();
+        asked.commands = self.panel.act(&mut actions);
+        self.view.apply(&actions, settings);
+        for action in &actions {
+            let Some(built) = self.built else {
+                break;
+            };
+            match (&action.kind, action.element) {
+                (
+                    ActionKind::Changed(FieldValue::Number(speed))
+                    | ActionKind::Committed(FieldValue::Number(speed)),
+                    Some(element),
+                ) if element == built.speed => asked.speed = Some(*speed),
+                (ActionKind::Press, Some(element)) if element == built.lose => {
+                    asked.lose_device = true;
+                }
+                _ => {}
             }
-            if !statistics_shown {
-                return;
-            }
-            egui::Window::new("Hunna Wood")
-                .default_pos(egui::pos2(12.0, 12.0))
-                .resizable(false)
-                .show(ctx, |ui| {
-                    ui.label(adapter);
-                    ui.label(format!("{} × {} pixels", size.width, size.height));
-                    ui.label(format!("frame: {frame_ms:.2} ms"));
-                    ui.label(format!(
-                        "render on the CPU: {:.2} ms",
-                        stats.cpu_time.as_secs_f64() * 1000.0
-                    ));
-                    for (pass, time) in [
-                        ("shadow", stats.shadow_gpu_time),
-                        ("spot shadows", stats.spot_shadow_gpu_time),
-                        ("scene", stats.scene_gpu_time),
-                        ("sky", stats.sky_gpu_time),
-                        ("resolve", stats.resolve_gpu_time),
-                        ("bloom", stats.bloom_gpu_time),
-                        ("tone mapping", stats.tone_mapping_gpu_time),
-                    ] {
-                        ui.label(match time {
-                            Some(time) => {
-                                format!("{pass} on the GPU: {:.3} ms", time.as_secs_f64() * 1000.0)
-                            }
-                            None => format!("{pass} on the GPU: not measured"),
-                        });
-                    }
-                    ui.label(format!(
-                        "{} draw calls, {} triangles; {} draw calls for shadows",
-                        stats.draw_calls,
-                        stats.triangles,
-                        stats.shadow_draw_calls + stats.spot_shadow_draw_calls
-                    ));
-                    ui.separator();
-                    if let Some((width, height)) = render_size {
-                        ui.label(format!("the view, drawn at {width} × {height} pixels"));
-                    }
-                    edit_reflected(ui, "view", settings);
-                    ui.separator();
-                    // Its value is shown as a label rather than in a field that takes the
-                    // keyboard, so that the game's keys keep their meaning.
-                    let mut speed = time.speed;
-                    let shown = if time.paused { "paused" } else { "running" };
-                    let label = format!("game time × {speed:.2}, {shown}");
-                    ui.add(
-                        egui::Slider::new(&mut speed, SPEEDS)
-                            .logarithmic(true)
-                            .show_value(false)
-                            .text(label),
+        }
+        self.overlay.set_window(size, scale_factor);
+        if let Some(slot) = self.overlay.slot(self.world) {
+            self.panel.build(self.overlay.ui_mut(), slot, world);
+        }
+        let Some(slot) = self.overlay.slot(self.statistics) else {
+            self.built = None;
+            return asked;
+        };
+        let speed = asked.speed.unwrap_or(time.speed);
+        let mut lines = vec![
+            adapter.to_owned(),
+            format!("{} × {} pixels", size.width, size.height),
+            format!("frame: {:.2} ms", self.frame_ms),
+        ];
+        lines.extend(render_figures(stats));
+        if let Some((width, height)) = render_size {
+            lines.push(format!("the view, drawn at {width} × {height} pixels"));
+        }
+        let shown = if time.paused { "paused" } else { "running" };
+        let speed_label = format!("game time × {speed:.2}, {shown}");
+        self.revision += 1;
+        let mut built = None;
+        let mut view = None;
+        self.overlay
+            .ui_mut()
+            .build(slot, self.revision, |children| {
+                for (index, line) in lines.iter().enumerate() {
+                    children.add(
+                        index,
+                        Element::label(line.as_str(), Style::default()),
+                        |_| {},
                     );
-                    if speed != time.speed {
-                        asked.speed = Some(speed);
-                    }
-                    ui.label("F3 pauses and runs game time, F4 runs one step of it while paused");
-                    asked.lose_device |= ui.button("Lose the GPU device").clicked();
-                    ui.label("F1 hides this");
-                });
-        });
+                }
+                let mut column = Style::default();
+                column.layout.direction = FlexDirection::Column;
+                view = Some(children.add_slot("view", Element::container(column)));
+                children.add(
+                    "speed label",
+                    Element::label(speed_label.as_str(), Style::default()),
+                    |_| {},
+                );
+                let slider =
+                    Element::slider(speed, *SPEEDS.start(), *SPEEDS.end(), 0.0, Style::default())
+                        .logarithmic()
+                        .named("game time");
+                let speed = children.add("speed", slider, |_| {});
+                let hint = "F3 pauses and runs game time, F4 runs one step of it while paused";
+                children.add("hint", Element::label(hint, Style::default()), |_| {});
+                let lose = Element::button("Lose the GPU device", Style::default());
+                let lose = children.add("lose", lose, |_| {});
+                children.add(
+                    "hides",
+                    Element::label("F1 hides this", Style::default()),
+                    |_| {},
+                );
+                built = Some(Built { speed, lose });
+            });
+        self.built = built.or(self.built);
+        if let Some(view) = view {
+            self.view
+                .build(self.overlay.ui_mut(), view, "view", settings);
+        }
         asked
     }
 
-    /// Draws over `target` what [`DevOverlay::build`] made.
-    pub fn render(&mut self, gpu: &Gpu, target: &RenderTarget) {
-        self.overlay.render(gpu, target);
+    /// Draws over `target`, after the view, what [`DevOverlay::build`] made, with `renderer`, the
+    /// view's.
+    ///
+    /// # Errors
+    ///
+    /// As [`Overlay::draw`].
+    pub fn render(
+        &mut self,
+        gpu: &Gpu,
+        renderer: &mut Renderer,
+        target: &RenderTarget,
+    ) -> Result<(), RenderError> {
+        self.overlay.draw(gpu, renderer, target)
     }
 }
 
@@ -222,19 +264,36 @@ mod tests {
                 "an entity holds a {name}"
             );
         }
-        let ctx = egui::Context::default();
-        let mut panel = WorldPanel::default();
+        let mut overlay = DevOverlay::new();
+        overlay.overlay.toggle(overlay.statistics);
+        overlay.overlay.toggle(overlay.world);
+        let mut settings = ViewSettings::default();
+        let time = GameSpeed {
+            paused: false,
+            speed: 1.0,
+        };
+        let size = PhysicalSize {
+            width: 1280,
+            height: 720,
+        };
         for entity in entities {
-            panel.select(entity);
-            // egui sizes the window on the first frame.
+            overlay.panel.select(entity);
             for _ in 0..2 {
-                let mut commands = Vec::new();
-                ctx.run_ui(egui::RawInput::default(), |ui| {
-                    commands.extend(panel.show(ui.ctx(), &world));
-                })
-                .drop_without_applying_deltas();
-                assert_eq!(commands, [], "nothing is touched");
+                let asked = overlay.build(
+                    size,
+                    1.0,
+                    &RenderStats::default(),
+                    "adapter",
+                    time,
+                    (&mut settings, None),
+                    &world,
+                );
+                overlay.ui_mut().frame();
+                assert_eq!(asked.commands, [], "nothing is touched");
+                assert_eq!(asked.speed, None);
+                assert!(!asked.lose_device);
             }
         }
+        assert_eq!(settings, ViewSettings::default());
     }
 }

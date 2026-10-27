@@ -1,6 +1,6 @@
 [package]
 name = "slime-devui"
-description = "SlimeEngine's dev overlay: panels drawn over the engine's frames, with egui until Stage 6b rewrites it on the engine's UI framework."
+description = "SlimeEngine's dev overlay: panels on the engine's interface drawn over a program's view, its statistics, a world panel and editors of reflected values."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,16 +11,18 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-egui.workspace = true
-egui-wgpu.workspace = true
 # The world panel shows asset IDs and colors as such.
 slime-assets.workspace = true
 slime-color.workspace = true
-# The only crate besides slime-gfx that reaches wgpu, to draw egui with it (ADR-0031).
-slime-gfx = { workspace = true, features = ["wgpu"] }
+# The GPU and the target that the overlay draws over.
+slime-gfx.workspace = true
+# The window's size that the panels are laid out over.
 slime-platform.workspace = true
-# The panels on the engine's interface, beside egui's until the programs move onto them (ADR-0152).
-slime-ui.workspace = true
+# The panels on the engine's interface, in the editor's look (ADR-0152), drawn with the canvas of the
+# view's renderer, whose statistics they show.
+slime-render.workspace = true
+slime-ui = { workspace = true, features = ["editor-look"] }
+slime-ui-render.workspace = true
 # The world panel lists a world's entities and edits their components through reflection.
 slime-reflect.workspace = true
 slime-world.workspace = true
@@ -28,6 +30,5 @@ slime-world.workspace = true
 # The README's example implements an application.
 [dev-dependencies]
 slime-app.workspace = true
-# The tests use the panels on the engine's interface as a person does: keys, and the editor's look.
+# The tests use the panels as a person does: the pointer and the keys.
 slime-input.workspace = true
-slime-ui = { workspace = true, features = ["editor-look"] }

@@ -13,7 +13,7 @@ use slime_ui::tree::{Children, ChoiceOption, Element, ElementId, Key, Tooltip, U
 use slime_world::glam::{DVec3, Quat, Vec3};
 use slime_world::{Entity, World};
 
-use crate::world_panel::{WHOLE, angles, initial, name, plain, rotation, set_edits, variant_value};
+use crate::reflected::{WHOLE, angles, initial, name, plain, rotation, set_edits, variant_value};
 
 /// The prefixes of the fields of a vector's components, and the classes that color them.
 const AXES: [(&str, &str); 3] = [("X", "axis-x"), ("Y", "axis-y"), ("Z", "axis-z")];

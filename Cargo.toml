@@ -40,11 +40,6 @@ ktx2 = "0.5.0"
 # `zune-jpeg`. With `KHR_lights_punctual` and `KHR_materials_emissive_strength`, which add no crate
 # (ADR-0037), and `extras`, the custom values of nodes, which a game reads.
 gltf = { version = "1.4.1", default-features = false, features = ["names", "utils", "extras", "KHR_lights_punctual", "KHR_materials_emissive_strength"] }
-# The dev overlay of Stage 3a, tooling only (ADR-0031): egui-wgpu without its default features,
-# which would enable every wgpu backend, and no egui-winit, since the engine translates its own
-# events. Upgrading wgpu waits for an egui release built against it.
-egui = "0.36.2"
-egui-wgpu = { version = "0.36.2", default-features = false }
 # Windows only: asks the console to interpret the escape sequences that color the log. Already
 # built as a dependency of tracing-subscriber.
 nu-ansi-term = "0.50.3"
@@ -123,7 +118,7 @@ swash = "0.2.10"
 icu_properties = "2.4.0"
 # The glyphs' atlas of slime-ui-render (ADR-0132, ADR-0139): places each glyph's image in an atlas
 # page by shelves, and frees it alone, as the least recently used glyphs leave. Brings euclid, its
-# sizes and rectangles, already built for egui.
+# sizes and rectangles.
 etagere = "0.3.0"
 # The layout of slime-ui's tree of elements (ADR-0132): CSS's flexbox and grid, run through taffy's
 # traits on the framework's own arena, without taffy's tree of its own (`taffy_tree`) nor its
