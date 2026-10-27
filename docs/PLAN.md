@@ -52,8 +52,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0148](adr/0148-widgets.md)). The owner cut the rest in three on 2026-10-27
   ([ADR-0149](adr/0149-the-looks-foundations.md)): M6b.7b, the look's foundations, is done;
   M6b.7c, the layers ([ADR-0150](adr/0150-layers.md)), is done. The owner cut the rich widgets in
-  two on 2026-10-27 ([ADR-0151](adr/0151-rich-widgets.md)): M6b.7d, the rich fields, is in
-  progress; M6b.7e, what the editor tells and finds, follows.
+  two on 2026-10-27 ([ADR-0151](adr/0151-rich-widgets.md)): M6b.7d, the rich fields, is built, its
+  CI to run; M6b.7e, what the editor tells and finds, follows.
 
 ## Status
 
@@ -73,7 +73,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.7a](#m6b7a--the-widgets-of-a-panel) | The framework has the widgets that a panel of the dev overlay and of the editor is made of, in the editor's theme | Done |
 | [M6b.7b](#m6b7b--the-looks-foundations) | The editor's look follows one accent in a dark, a light and a high-contrast theme, moves through transitions, and stays crisp at every scale | Done |
 | [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Done |
-| [M6b.7d](#m6b7d--rich-fields) | The framework has the rich fields and buttons that make editing fast | In progress |
+| [M6b.7d](#m6b7d--rich-fields) | The framework has the rich fields and buttons that make editing fast | Built; CI to run |
 | [M6b.7e](#m6b7e--what-the-editor-tells-and-finds) | The framework tells the user what goes on, and finds every command by its name | Planned |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
@@ -1085,23 +1085,33 @@ that the look has a light and a high-contrast theme beside its dark one.
   CI is green.
 - **How to test.** `cargo test -p slime-ui`; the example.
 - **By hand.** The owner tries the example's rich fields.
-- **Progress.** [ADR-0151](adr/0151-rich-widgets.md) was proposed on 2026-10-27, and its parts that
-  held no open choice built: a field's placeholder (`Element::placeholder`), buttons that toggle
+- **Outcome.** Built on 2026-10-27, CI to run. [ADR-0151](adr/0151-rich-widgets.md), proposed
+  first, its parts that held no open choice built meanwhile, then accepted as the owner took its
+  choices: M6b.7d cut in two; expressions with functions; units by families, converted as they are
+  typed; a box that the program builds in a section's header; help that the program gives; and,
+  for M6b.7e, notifications, the palette of commands and the sheet of shortcuts kept by the
+  framework. `slime-ui` gains a field's placeholder (`Element::placeholder`), buttons that toggle
   (`Element::toggle_button`), controls of segments (`Element::segments`, `Element::segment`), bars
-  of progress, with a share or moving with the clock (`Element::progress`), a tab's count
-  (`Element::counted_tab`), fields of search with a magnifier and a mark that empties them
-  (`Element::search_field`), and a field of numbers' prefix, which drags it, the look coloring the
-  axes' prefixes (`Element::prefixed_number_field`); `slime-app` gives screen readers their roles,
-  states and values, and agents read a field's placeholder. The `widgets` example shows each, in a
-  bar of tools, over its list of entities, in its position and on its console's tab, its images
-  drawn again, and its agent's session uses them. The tests: `slime-ui`'s `tests/rich.rs` and a test
-  of the placeholder in `tests/field.rs`, and `slime-app`'s translation of them. A review found a
-  press on a prefix that cut an input method's composition, a bar of progress hidden that kept
-  frames coming, and a placeholder placed apart from the field's text, fixed with tests. The owner
-  took the record's choices the same day, which made it accepted: expressions with functions, units
-  by families, a box that the program builds in a section's header, help given by the program; and, for M6b.7e,
-  notifications, the palette and the sheet of shortcuts kept by the framework. The rest is under
-  way.
+  of progress, with a share or moving with the clock while they show (`Element::progress`), a tab's
+  count (`Element::counted_tab`), fields of search with a magnifier and a mark that empties them
+  (`Element::search_field`), a field of numbers' prefix, which drags it (`Element::prefix`), drags
+  finer with Shift and coarser with Control, expressions read by a parser of its own, which a field
+  commits as their result, units by families, whose base unit a field shows after its number and
+  gives in its value (`Element::units`, `Units`), the box of a section's header
+  (`Element::section_header`), and tooltips of a title and a text (`Element::help`, `Tooltip`).
+  `slime-app` gives screen readers their roles, states and values, a number read before its unit's
+  symbol, and agents read a field's placeholder. The look styles all of them, the axes' prefixes in
+  red, green and blue. The `widgets` example shows each, in a bar of tools, over its list of
+  entities, in its position, in meters, in the light's header, over the material's properties and
+  on its console's tab, its images drawn again, and its agent's session uses them. Two reviews
+  found faults, each fixed with a test: a press on a prefix that cut an input method's
+  composition, a bar of progress hidden that kept frames coming, a placeholder placed apart from
+  the field's text; from right to left, a section's title pushed away from its mark by the box of
+  its header, a title not drawn again as that box changed, a drag that jumped as a modifier
+  changed, angles read in radians in a field of degrees, a text nested deep enough to overflow the
+  stack. The tests: `slime-ui`'s `tests/rich.rs`, the parser's own tests in
+  `src/tree/expression.rs`, a test of the placeholder in `tests/field.rs`, and `slime-app`'s
+  translation of them.
 
 ### M6b.7e — What the editor tells and finds
 
@@ -1227,6 +1237,11 @@ The game is run with `--new --save <a file of its own>`, so that the owner's sav
   which no check of CI draws in a window ([ADR-0137](adr/0137-the-canvas.md),
   [ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
 
+- **M6b.7d, on Linux.** The `widgets` example's rich fields
+  ([ADR-0151](adr/0151-rich-widgets.md)): the segments, Snap and the bars of progress; the search
+  over the list of entities; the position's prefixes dragged, finer with Shift and coarser with
+  Control, and given expressions and units, `1m + 20cm`; the light's Reset in its header; the help
+  over the material's properties.
 - **M6b.7c, on Linux.** The `widgets` example's layers ([ADR-0150](adr/0150-layers.md)): the bar
   of menus with the pointer, passing along it, and with F10, Alt and the arrows; the submenus
   opening as the pointer rests; the menu of an entity's row at the second button and Shift+F10; the
@@ -2052,10 +2067,15 @@ GitHub issues, linked from their entry; this list stays the reference.
   text: the look names its icons by their codepoints in its sheet, not in a theme. The bar of menus
   takes Alt let go alone whenever an interface holds one, which a game whose interface holds a bar
   loses as a key of its own.
-- **Rich widgets** ([ADR-0151](adr/0151-rich-widgets.md)): a press on a focused field's prefix that
-  does not drag places its caret at its start; a field's prefix is drawn whatever its width, cut by
-  nothing; a bar of progress without a share that less motion stills stays still until it is drawn
-  again; the look's fallbacks for a magnifier and a cross, without a font of icons, are one disc.
+- **Rich fields** ([ADR-0151](adr/0151-rich-widgets.md)): a press on a focused field's prefix that
+  does not drag places its caret at its start; a field's prefix and its unit's symbol are drawn
+  whatever their width, cut by nothing; a bar of progress without a share that less motion stills
+  stays still until it is drawn again; the look's fallbacks for a magnifier and a cross, without a
+  font of icons, are one disc. Units are of three families, lengths, angles and times, not masses,
+  speeds or colors. The box of a section's header is placed by the interface after taffy lays it
+  out, which placed it from the wrong box. A content box takes its padding from the left whatever
+  the root's direction, so that an asymmetric padding is mirrored wrongly from right to left, a
+  drift found while placing the fields' marks, which allow for it.
 - **What agents see** ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)): a tool reads an
   interface only in a windowed run, from its last frame, and each ask walks the whole tree. A path
   holds while the roots below its own stay, and a key's name that holds
