@@ -20,6 +20,7 @@ use crate::style::{Display, Style};
 use crate::text::{Fonts, TEXT_CACHE_BUDGET, TextCache};
 use crate::theme::{self, KindName, Rule, StateName, StyleSheet, Theme};
 
+mod choice;
 mod control;
 mod field;
 mod interact;
@@ -248,6 +249,22 @@ pub enum Kind {
         /// What it shows besides its label.
         mark: ItemMark,
     },
+    /// A list to choose from: its chosen option, in the middle of its box from top to bottom, as
+    /// wide as its widest, and a mark at its end. A press, or Enter, Space, Alt+Down or F4 while it
+    /// holds the focus, opens the list of its options below it, in a layer of its own, a menu
+    /// ([`Kind::Menu`]) whose items are its options, the chosen one marked and given the focus when
+    /// the keyboard opened it; the arrows and the pointer move through it, a press or Enter
+    /// chooses, Escape, a press outside or a press on the list to choose from closes it unchanged.
+    /// Closed, the arrows up and down choose the option before or after it, Home and End the first
+    /// and the last. It keeps the user's choice, which the program reads as actions
+    /// ([`FieldValue::Chosen`](crate::action::FieldValue::Chosen)), under a check box's rule; rules
+    /// select it open by the state `Expanded`.
+    Choice {
+        /// Its options.
+        options: Vec<String>,
+        /// The place of the chosen option among them, as the program gives it; kept within them.
+        chosen: usize,
+    },
 }
 
 /// What an item of a menu ([`Kind::MenuItem`]) shows besides its label and its shortcut.
@@ -264,7 +281,8 @@ pub enum ItemMark {
 
 impl Kind {
     /// Whether a press of the pointer reaches it, and the focus: a button, a field, a check box, a
-    /// slider, a section, a tab, two panels and their handle, or an item of a menu.
+    /// slider, a section, a tab, two panels and their handle, an item of a menu, or a list to
+    /// choose from.
     pub(crate) fn takes_pointer(&self) -> bool {
         matches!(
             self,
@@ -277,6 +295,7 @@ impl Kind {
                 | Self::Tab { .. }
                 | Self::Split { .. }
                 | Self::MenuItem { .. }
+                | Self::Choice { .. }
         )
     }
 }
@@ -475,6 +494,11 @@ impl Element {
             mark,
         };
         Self::of(kind, style)
+    }
+
+    /// A list to choose from, of `options`, the one at `chosen` chosen.
+    pub fn choice(options: Vec<String>, chosen: usize, style: Style) -> Self {
+        Self::of(Kind::Choice { options, chosen }, style)
     }
 
     /// An element of `kind` and `style`, of no class.
@@ -1700,7 +1724,7 @@ impl<'a> Children<'a> {
     /// The place of the chosen tab of `bar`, a bar of tabs that this builder added, among its
     /// tabs: the builder shows its panel. 0 for an element that is no bar of tabs.
     pub fn chosen(&self, bar: ElementId) -> usize {
-        self.ui.chosen_tab(bar).unwrap_or(0)
+        self.ui.chosen(bar).unwrap_or(0)
     }
 
     /// Puts the children given in place, removes those not given, and marks the parent laid out
@@ -1762,6 +1786,12 @@ fn lays_out_again(before: &Element, after: &Element) -> bool {
                 ..
             },
         ) => before != after || shortcut_before != shortcut_after,
+        (
+            Kind::Choice {
+                options: before, ..
+            },
+            Kind::Choice { options: after, .. },
+        ) => before != after,
         (Kind::List { .. }, Kind::List { .. }) => before.kind != after.kind,
         _ => false,
     }
@@ -1798,6 +1828,7 @@ fn kind_name(kind: &Kind) -> KindName {
         Kind::Split { .. } => KindName::Split,
         Kind::Menu => KindName::Menu,
         Kind::MenuItem { .. } => KindName::MenuItem,
+        Kind::Choice { .. } => KindName::Choice,
     }
 }
 

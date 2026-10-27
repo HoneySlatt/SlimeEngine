@@ -74,6 +74,7 @@ fn values(ui: &mut Ui) -> Vec<String> {
                 FieldValue::Checked(checked) => format!("{what} {checked}"),
                 FieldValue::Number(number) => format!("{what} {number}"),
                 FieldValue::Text(text) => format!("{what} {text:?}"),
+                FieldValue::Chosen(place) => format!("{what} option {place}"),
             })
         })
         .collect()
@@ -373,7 +374,7 @@ fn a_tab_chosen_by_the_pointer_or_the_keys_shows_its_panel() {
     // A press on the second tab chooses it; the builder runs again, the revision unchanged.
     let second = ui.rect(tabs[1]).expect("laid out");
     click(&mut ui, second.x + 5.0, second.y + 5.0);
-    assert_eq!(ui.chosen_tab(bar), Some(1));
+    assert_eq!(ui.chosen(bar), Some(1));
     build_tabs(&mut ui, root, 0, 0);
     assert_eq!(shown(&ui), "Physics");
     assert!(ui.state(tabs[1]).expect("a tab").selected);
@@ -382,12 +383,12 @@ fn a_tab_chosen_by_the_pointer_or_the_keys_shows_its_panel() {
     // last.
     assert_eq!(ui.focus(), Some(tabs[1]));
     ui.key(&named(NamedKey::ArrowRight));
-    assert_eq!((ui.chosen_tab(bar), ui.focus()), (Some(2), Some(tabs[2])));
+    assert_eq!((ui.chosen(bar), ui.focus()), (Some(2), Some(tabs[2])));
     ui.key(&named(NamedKey::Home));
-    assert_eq!(ui.chosen_tab(bar), Some(0));
+    assert_eq!(ui.chosen(bar), Some(0));
     // The program's choice replaces the user's when it changes.
     build_tabs(&mut ui, root, 1, 0);
-    assert_eq!(ui.chosen_tab(bar), Some(0));
+    assert_eq!(ui.chosen(bar), Some(0));
     build_tabs(&mut ui, root, 2, 2);
     assert_eq!(shown(&ui), "Audio");
     // An agent's press chooses a tab as a person's does; a choice tells the program nothing.
@@ -396,7 +397,7 @@ fn a_tab_chosen_by_the_pointer_or_the_keys_shows_its_panel() {
         element: Some(tabs[1]),
         kind: ActionKind::Press,
     });
-    assert_eq!(ui.chosen_tab(bar), Some(1));
+    assert_eq!(ui.chosen(bar), Some(1));
     assert!(ui.take_actions().is_empty());
 }
 

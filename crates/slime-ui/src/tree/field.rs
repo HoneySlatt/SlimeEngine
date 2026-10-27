@@ -288,6 +288,7 @@ fn value_text(value: &FieldValue) -> String {
         FieldValue::Text(text) => text.clone(),
         FieldValue::Number(number) => number_text(*number),
         FieldValue::Checked(checked) => checked.to_string(),
+        FieldValue::Chosen(place) => place.to_string(),
     }
 }
 
@@ -346,7 +347,9 @@ impl Ui {
     /// root, nor a field of numbers given a text that reads as no finite number, which keeps what
     /// it holds. A slider takes a text that reads as a finite number, kept within its bounds and on
     /// its steps, the program reading the change, if any, then the commit; two panels, the share of
-    /// the first, kept from 0 to 1, which tells the program nothing. The focus stays where it is.
+    /// the first, kept from 0 to 1, which tells the program nothing; a list to choose from, one of
+    /// its options, or else the place of one, from 0, the program reading the change and the commit
+    /// when the choice changed. The focus stays where it is.
     pub fn set_value(&mut self, id: ElementId, text: &str) -> bool {
         if !self.focusable(id) || !self.in_scope(id) {
             return false;
@@ -368,6 +371,14 @@ impl Ui {
                     Ok(share) if share.is_finite() => self.set_share(id, share),
                     _ => false,
                 };
+            }
+            // A list to choose from takes one of its options, or the place of one.
+            Kind::Choice { ref options, .. } => {
+                let place = options
+                    .iter()
+                    .position(|option| option == text)
+                    .or_else(|| text.trim().parse::<usize>().ok());
+                return place.is_some_and(|place| self.choose(id, place));
             }
             _ => {}
         }

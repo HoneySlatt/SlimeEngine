@@ -156,6 +156,36 @@ impl Ui {
         root
     }
 
+    /// Opens a layer as [`Ui::open_layer`] does, that the widget `owner` owns: it closes it, and
+    /// reads that it closed, rather than the program.
+    pub(crate) fn open_owned_layer(
+        &mut self,
+        owner: ElementId,
+        layer: Layer,
+        style: Style,
+    ) -> ElementId {
+        let root = self.open_layer(layer, style);
+        if let Some(held) = self.node_mut(root).and_then(|node| node.layer.as_mut()) {
+            held.owner = Some(owner);
+            // The widget gives the focus as it builds the layer.
+            held.focus_first = false;
+        }
+        root
+    }
+
+    /// The widget that owns the layer `root`; none for one that the program opened, or a root that
+    /// is no layer.
+    pub(crate) fn layer_owner(&self, root: ElementId) -> Option<ElementId> {
+        self.node(root)?.layer.as_ref()?.owner
+    }
+
+    /// The layer that the widget `owner` owns, open.
+    pub(crate) fn owned_layer(&self, owner: ElementId) -> Option<ElementId> {
+        self.layers()
+            .into_iter()
+            .find(|&root| self.layer_owner(root) == Some(owner))
+    }
+
     /// Where the layer `root` stands now; none for a root that is no layer.
     pub fn layer_place(&self, root: ElementId) -> Option<Place> {
         Some(self.node(root)?.layer.as_ref()?.layer.place)

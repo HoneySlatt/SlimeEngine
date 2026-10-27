@@ -67,6 +67,13 @@ pub enum Role {
     /// An item of a menu that turns something on or off, checked or not
     /// ([`ElementState::checked`]).
     MenuItemCheckBox,
+    /// A list to choose from, open or not ([`ElementState::expanded`]), its value its chosen
+    /// option.
+    ComboBox,
+    /// The list of options that a list to choose from opens.
+    ListBox,
+    /// An option of that list, chosen or not ([`ElementState::selected`]).
+    ListBoxOption,
 }
 
 impl Role {
@@ -96,6 +103,9 @@ impl Role {
             Self::Menu => "Menu",
             Self::MenuItem => "MenuItem",
             Self::MenuItemCheckBox => "MenuItemCheckBox",
+            Self::ComboBox => "ComboBox",
+            Self::ListBox => "ListBox",
+            Self::ListBoxOption => "ListBoxOption",
         }
     }
 }
@@ -160,7 +170,8 @@ pub struct Meaning {
     /// Its states.
     pub state: ElementState,
     /// Whether a press opens a layer beside it, which screen readers announce, open or not
-    /// ([`ElementState::expanded`]): an item of a menu that opens a submenu.
+    /// ([`ElementState::expanded`]): an item of a menu that opens a submenu, a list to choose
+    /// from.
     pub popup: bool,
     /// What can be done to it now: none, for an element that a modal root above its own keeps
     /// from input.
@@ -382,7 +393,10 @@ impl Ui {
             if self.focusable(id) {
                 actions.push(ElementAction::Focus);
                 if node.field.is_some()
-                    || matches!(element.kind, Kind::Slider { .. } | Kind::Split { .. })
+                    || matches!(
+                        element.kind,
+                        Kind::Slider { .. } | Kind::Split { .. } | Kind::Choice { .. }
+                    )
                 {
                     actions.push(ElementAction::SetValue);
                 }
@@ -408,10 +422,16 @@ impl Ui {
             value: match node.field.as_ref() {
                 Some(field) => Some(field.text.clone()),
                 // A share as its own type writes it, which a widening would lengthen.
-                None => self
-                    .slider_value(id)
-                    .map(super::field::number_text)
-                    .or_else(|| self.split_share(id).map(|share| share.to_string())),
+                None => match &element.kind {
+                    Kind::Choice { options, .. } => self
+                        .chosen(id)
+                        .and_then(|chosen| options.get(chosen))
+                        .cloned(),
+                    _ => self
+                        .slider_value(id)
+                        .map(super::field::number_text)
+                        .or_else(|| self.split_share(id).map(|share| share.to_string())),
+                },
             },
             range: match element.kind {
                 Kind::Slider { min, max, step, .. } => Some(ValueRange {
@@ -432,7 +452,7 @@ impl Ui {
                 Kind::MenuItem {
                     mark: ItemMark::Submenu,
                     ..
-                }
+                } | Kind::Choice { .. }
             ),
             actions,
             bounds,
@@ -472,6 +492,7 @@ impl Ui {
                 ..
             } => Role::MenuItemCheckBox,
             Kind::MenuItem { .. } => Role::MenuItem,
+            Kind::Choice { .. } => Role::ComboBox,
         })
     }
 

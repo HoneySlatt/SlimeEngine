@@ -574,12 +574,14 @@ impl taffy::LayoutPartialTree for Tree<'_> {
             // What a control lays out besides its text: a check box's box and the gap after it,
             // as wide as half of it; a slider is eight thumbs wide, a thumb tall; an item of a
             // menu, its mark and its chevron, each with its gap, whether it shows them or not, so
-            // that a menu's labels line up, and its shortcut, two marks after its label.
+            // that a menu's labels line up, and its shortcut, two marks after its label; a list to
+            // choose from, its mark and the gap before it.
             let control = at.style.control.size * tree.scale;
             let (mut beside, least) = match at.element.kind {
                 Kind::CheckBox { .. } => (control * 1.5, control),
                 Kind::Slider { .. } => (control * 8.0, control),
                 Kind::MenuItem { .. } => (control * 3.0, control),
+                Kind::Choice { .. } => (control * 1.5, control),
                 _ => (0.0, 0.0),
             };
             if let Kind::MenuItem { shortcut, .. } = &at.element.kind
@@ -600,8 +602,36 @@ impl taffy::LayoutPartialTree for Tree<'_> {
                     .width();
                 beside += control * 2.0 + width.ceil();
             }
+            // A list to choose from is as wide as its widest option.
+            let at = tree.ui.node_at(usize::from(node));
+            let widest = match &at.element.kind {
+                Kind::Choice { options, .. } => {
+                    let (options, text_style, scale) =
+                        (options.clone(), at.style.text.style.clone(), tree.scale);
+                    let ui = &mut *tree.ui;
+                    let mut widest = (0.0, String::new());
+                    for option in options {
+                        let width = ui
+                            .texts
+                            .get(
+                                &mut ui.fonts,
+                                &option,
+                                &text_style,
+                                scale,
+                                TextBounds::default(),
+                            )
+                            .width();
+                        if width > widest.0 {
+                            widest = (width, option);
+                        }
+                    }
+                    Some(widest.1)
+                }
+                _ => None,
+            };
             let at = tree.ui.node_at(usize::from(node));
             let text = match &at.element.kind {
+                Kind::Choice { .. } => widest,
                 Kind::Label(text) => Some(text.clone()),
                 Kind::Button { label, .. }
                 | Kind::CheckBox { label, .. }
@@ -617,7 +647,7 @@ impl taffy::LayoutPartialTree for Tree<'_> {
                 _ => None,
             };
             // A field of one line does not break its text: it scrolls it; nor does an item of a
-            // menu.
+            // menu, nor a list to choose from.
             let breaks = !matches!(
                 at.element.kind,
                 Kind::TextField {
@@ -625,6 +655,7 @@ impl taffy::LayoutPartialTree for Tree<'_> {
                     ..
                 } | Kind::NumberField { .. }
                     | Kind::MenuItem { .. }
+                    | Kind::Choice { .. }
             );
             if !tree.laid_out_children(node).is_empty() {
                 return match display {

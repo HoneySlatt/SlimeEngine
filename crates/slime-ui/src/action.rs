@@ -67,6 +67,8 @@ pub enum FieldValue {
     Number(f64),
     /// Whether a check box is checked.
     Checked(bool),
+    /// The place of a list to choose from's chosen option among its options.
+    Chosen(usize),
 }
 
 /// A navigation intent: what a key, and later a gamepad, means to the interface whatever the

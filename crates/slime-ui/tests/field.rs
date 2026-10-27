@@ -123,6 +123,7 @@ fn shown(value: &FieldValue) -> String {
         FieldValue::Text(text) => format!("{text:?}"),
         FieldValue::Number(number) => format!("{number}"),
         FieldValue::Checked(checked) => format!("{checked}"),
+        FieldValue::Chosen(place) => format!("option {place}"),
     }
 }
 

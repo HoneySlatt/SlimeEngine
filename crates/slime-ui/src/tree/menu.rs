@@ -7,11 +7,15 @@ use super::{ElementId, ItemMark, Kind, LayoutDirection, Place, Ui};
 use crate::action::{Action, ActionKind};
 
 impl Ui {
-    /// A press of the item of a menu `id`: one that opens a submenu reaches the program, which
-    /// opens it, the submenus of the other items of its menu closing, or gives the submenu open
-    /// the focus, to the keyboard; another reaches the program and closes the menus that led to
-    /// it.
+    /// A press of the item of a menu `id`: an option of a list to choose from is chosen; an item
+    /// that opens a submenu reaches the program, which opens it, the submenus of the other items of
+    /// its menu closing, or gives the submenu open the focus, to the keyboard; another reaches the
+    /// program and closes the menus that led to it.
     pub(super) fn press_menu_item(&mut self, id: ElementId) {
+        if let Some(owner) = self.option_owner(id) {
+            self.press_option(owner, id);
+            return;
+        }
         let Some(Kind::MenuItem { mark, .. }) = self.node(id).map(|node| &node.element.kind) else {
             return;
         };

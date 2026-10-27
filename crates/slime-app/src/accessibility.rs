@@ -177,10 +177,14 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
         element.set_expanded(meaning.state.expanded);
     }
     if meaning.popup {
-        element.set_has_popup(HasPopup::Menu);
+        element.set_has_popup(if meaning.role == Role::ComboBox {
+            HasPopup::Listbox
+        } else {
+            HasPopup::Menu
+        });
         element.set_expanded(meaning.state.expanded);
     }
-    if meaning.role == Role::Tab {
+    if matches!(meaning.role, Role::Tab | Role::ListBoxOption) {
         element.set_selected(meaning.state.selected);
     }
     if matches!(meaning.role, Role::CheckBox | Role::MenuItemCheckBox) {
@@ -222,6 +226,9 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
                 element.add_action(AccessAction::SetValue);
                 element.add_action(AccessAction::Increment);
                 element.add_action(AccessAction::Decrement);
+            }
+            ElementAction::SetValue if meaning.role == Role::ComboBox => {
+                element.add_action(AccessAction::SetValue);
             }
             ElementAction::SetValue => {
                 element.add_action(AccessAction::SetValue);
@@ -317,6 +324,9 @@ fn role(role: Role) -> AccessRole {
         Role::Menu => AccessRole::Menu,
         Role::MenuItem => AccessRole::MenuItem,
         Role::MenuItemCheckBox => AccessRole::MenuItemCheckBox,
+        Role::ComboBox => AccessRole::ComboBox,
+        Role::ListBox => AccessRole::ListBox,
+        Role::ListBoxOption => AccessRole::ListBoxOption,
     }
 }
 
@@ -1018,7 +1028,7 @@ mod tests {
         act(&mut ui, &request(section, AccessAction::Expand));
         assert!(ui.state(section).expect("there").expanded);
         act(&mut ui, &request(scene, AccessAction::Click));
-        assert_eq!(ui.chosen_tab(bar), Some(0));
+        assert_eq!(ui.chosen(bar), Some(0));
         // The program reads the slider's change and the check box's, each committed.
         let kinds: Vec<ActionKind> = ui
             .take_actions()

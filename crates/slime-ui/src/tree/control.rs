@@ -22,9 +22,11 @@ pub(crate) enum Control {
         /// The state that the program last gave.
         given: bool,
     },
-    /// A bar of tabs: the place of its chosen tab, and the one that the program last gave.
+    /// A bar of tabs or a list to choose from: the place of its chosen tab or option, and the one
+    /// that the program last gave.
     Choice {
-        /// The place of the chosen tab among the bar's tabs.
+        /// The place of the chosen tab among the bar's tabs, or of the chosen option among the
+        /// list's options.
         chosen: usize,
         /// The place that the program last gave.
         given: usize,
@@ -69,6 +71,16 @@ impl Control {
                 chosen,
                 given: chosen,
             }),
+            Kind::Choice {
+                ref options,
+                chosen,
+            } => {
+                let chosen = chosen.min(options.len().saturating_sub(1));
+                Some(Self::Choice {
+                    chosen,
+                    given: chosen,
+                })
+            }
             Kind::Split { share, .. } => Some(Self::Share {
                 share: unit(share),
                 given: share,
@@ -125,6 +137,22 @@ impl Control {
                 *given = program;
                 let changed = *share != unit(program);
                 *share = unit(program);
+                changed
+            }
+            (
+                Self::Choice { chosen, given },
+                Kind::Choice {
+                    options,
+                    chosen: program,
+                },
+            ) => {
+                let program = (*program).min(options.len().saturating_sub(1));
+                if *given == program {
+                    return false;
+                }
+                *given = program;
+                let changed = *chosen != program;
+                *chosen = program;
                 changed
             }
             (Self::Choice { chosen, given }, &Kind::TabBar { chosen: program }) => {
@@ -261,10 +289,11 @@ impl Ui {
         ))
     }
 
-    /// The place of the chosen tab of the bar of tabs `bar` among its tabs, as the user left it;
-    /// none for an element that is no bar of tabs.
-    pub fn chosen_tab(&self, bar: ElementId) -> Option<usize> {
-        match self.node(bar)?.control? {
+    /// The place of the chosen tab of the bar of tabs `id` among its tabs, or of the chosen option
+    /// of the list to choose from `id` among its options, as the user left it; none for another
+    /// element.
+    pub fn chosen(&self, id: ElementId) -> Option<usize> {
+        match self.node(id)?.control? {
             Control::Choice { chosen, .. } => Some(chosen),
             _ => None,
         }
@@ -294,7 +323,7 @@ impl Ui {
 
     /// Shows which tab of `bar`, a bar of tabs, is chosen, in its tabs' states.
     pub(crate) fn mark_chosen(&mut self, bar: ElementId) {
-        let Some(chosen) = self.chosen_tab(bar) else {
+        let Some(chosen) = self.chosen(bar) else {
             return;
         };
         let tabs = self.children(bar).to_vec();
@@ -829,6 +858,48 @@ impl Ui {
                         color: control.track,
                     }));
                 }
+            }
+            Kind::Choice { options, .. } => {
+                let shown = self
+                    .chosen(id)
+                    .and_then(|chosen| options.get(chosen))
+                    .cloned()
+                    .unwrap_or_default();
+                let look = node.style.text.clone();
+                let size = control.size * scale;
+                let gap = size / 2.0;
+                let middle = content.y + content.height / 2.0;
+                // The mark at the end of a line: a bar across, for a list that opens below.
+                let end = match direction {
+                    LayoutDirection::LeftToRight => content.x + content.width - size,
+                    LayoutDirection::RightToLeft => content.x,
+                };
+                let (long, thin) = (size * 0.5, (size * 0.15).max(scale));
+                let at = Rect::new(end + (size - long) / 2.0, middle - thin / 2.0, long, thin);
+                primitives.push(filled(at, 0.0, control.mark));
+                let width = (content.width - size - gap).max(0.0);
+                let layout: std::sync::Arc<TextLayout> = self
+                    .texts
+                    .get(
+                        &mut self.fonts,
+                        &shown,
+                        &look.style,
+                        scale,
+                        TextBounds::default(),
+                    )
+                    .clone();
+                let area = match direction {
+                    LayoutDirection::LeftToRight => content.x,
+                    LayoutDirection::RightToLeft => content.x + size + gap,
+                };
+                primitives.push(Primitive::Text(TextPrimitive {
+                    origin: [
+                        beside(direction, &layout, area, width),
+                        middle - layout.height() / 2.0,
+                    ],
+                    layout,
+                    color: look.color,
+                }));
             }
             Kind::Split { .. } => {
                 if let Some(handle) = self.split_handle(id) {

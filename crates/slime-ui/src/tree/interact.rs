@@ -297,7 +297,8 @@ impl Ui {
             && (self.slider_key(focus, event)
                 || self.tab_key(focus, event)
                 || self.split_key(focus, event)
-                || self.menu_key(focus, event))
+                || self.menu_key(focus, event)
+                || self.choice_key(focus, event))
         {
             return true;
         }
@@ -360,6 +361,7 @@ impl Ui {
                     Some(Kind::CheckBox { .. } | Kind::Section { .. }) => self.toggle(id),
                     Some(Kind::Tab { .. }) => self.press_tab(id),
                     Some(Kind::MenuItem { .. }) => self.press_menu_item(id),
+                    Some(Kind::Choice { .. }) => self.press_choice(id),
                     _ => self.interaction.actions.push(action),
                 }
             }
@@ -646,8 +648,8 @@ impl Ui {
         true
     }
 
-    /// Whether `id` can be pressed: a button, a check box, a section, a tab or an item of a menu
-    /// that can hold the focus.
+    /// Whether `id` can be pressed: a button, a check box, a section, a tab, an item of a menu or
+    /// a list to choose from that can hold the focus.
     pub(super) fn pressable(&self, id: ElementId) -> bool {
         self.focusable(id)
             && self.node(id).is_some_and(|node| {
@@ -658,6 +660,7 @@ impl Ui {
                         | Kind::Section { .. }
                         | Kind::Tab { .. }
                         | Kind::MenuItem { .. }
+                        | Kind::Choice { .. }
                 )
             })
     }
