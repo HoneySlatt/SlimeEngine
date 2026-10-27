@@ -55,8 +55,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   two on 2026-10-27 ([ADR-0151](adr/0151-rich-widgets.md)): M6b.7d, the rich fields, is done;
   M6b.7e, what the editor tells and finds, is done. The owner cut M6b.8 in two on 2026-10-27
   ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)): M6b.8a, the editors and the
-  world panel on the engine's interface, is in progress; M6b.8b, the overlay over the games' views,
-  follows.
+  world panel on the engine's interface, is done; M6b.8b, the overlay over the games' views, is
+  next.
 
 ## Status
 
@@ -78,7 +78,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Done |
 | [M6b.7d](#m6b7d--rich-fields) | The framework has the rich fields and buttons that make editing fast | Done |
 | [M6b.7e](#m6b7e--what-the-editor-tells-and-finds) | The framework tells the user what goes on, and finds every command by its name | Done |
-| [M6b.8a](#m6b8a--the-editors-and-the-world-panel-on-the-engines-interface) | The dev overlay's editors of reflected values, its world panel and a picker of colors run on the engine's interface | In progress |
+| [M6b.8a](#m6b8a--the-editors-and-the-world-panel-on-the-engines-interface) | The dev overlay's editors of reflected values, its world panel and a picker of colors run on the engine's interface | Done |
 | [M6b.8b](#m6b8b--the-overlay-over-the-games-views) | The dev overlay runs on the engine's interface over *Hunna Wood* and the examples, and egui leaves the engine | Planned |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
 
@@ -1188,9 +1188,10 @@ that the look has a light and a high-contrast theme beside its dark one.
 - **How to test.** `cargo test -p slime-ui -p slime-devui`; `cargo run --release -p slime-benches --
   devui`; `cargo run --example widgets`.
 - **By hand.** The owner tries the `widgets` example's color well.
-- **Progress.** [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md), proposed on
-  2026-10-27 with the checklist of what the overlay does today, its parts that held no open choice
-  built meanwhile, then accepted as the owner took its choices that day: M6b.8 cut in two, the
+- **Outcome.** Done on 2026-10-27, as
+  [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md) decides. The ADR was proposed
+  that day with the checklist of what the overlay does today, its parts that held no open choice
+  built meanwhile, then accepted as the owner took its choices: M6b.8 cut in two, the
   overlay as roots of the program's one interface, a focus that the pointer gave leaving the keys to
   the program, the overlay kept out of the game's shipping build, and the whole picker of colors,
   drawn with gradients in the canvas. Built: the sliders, the options and the fields of single
@@ -1200,7 +1201,18 @@ that the look has a light and a high-contrast theme beside its dark one.
   panel's list of entities again, about 7 ms at 100 000 entities
   ([measurements](measurements.md#m6b8-rx-6900-xt)), as egui's did. The color well and its picker,
   drawn with the canvas's gradients, edit the overlay's colors, and the `widgets` example shows one
-  in its light's section, drawn in its images and used by its agent's session.
+  in its light's section, drawn in its images and used by its agent's session. The reviews found,
+  in the panels, an option's box left disabled once it held a value, an edit after a load sent to
+  the entity that a stale handle named, a NaN that built the panel again at each frame, two fields
+  of one vector committed in one frame, a logarithmic slider that missed its maximum, a list's
+  elements sharing one name and a range in radians told beside degrees; in the color well, a picker
+  opened by the keyboard that kept the focus out of its reach, a second picker leaving the first
+  open, an edit lost as the picker closed, a picker that kept an old color once the program gave
+  another, the strip of alpha rewriting the channels, a channel taking an infinite or negative
+  number, Enter reaching the program from the picker's parts, and marks cut at the edges; all were
+  fixed, held by tests and by the picker's image drawn again. CI is green on `4cfd840`: `check (headless)` took 16 minutes 26 seconds,
+  `check (windowed)` 18 minutes 34 seconds, `windows` 15 minutes 1 second and `windows-release`
+  12 minutes 11 seconds.
 
 ### M6b.8b — The overlay over the games' views
 
@@ -1303,6 +1315,8 @@ The game is run with `--new --save <a file of its own>`, so that the owner's sav
 - **P5, in the Windows virtual machine.** The benchmarks on Direct3D 12, `cargo run --release -p
   slime-benches -- render world loading`; the figures of WARP that the Windows job's log of
   `af512af` prints.
+- **M6b.8a, on Linux.** The `widgets` example's color well: its picker opened by the pointer and by
+  the keyboard, the color changed by its square, its strips, its channels and its code.
 
 ## Releasing
 
