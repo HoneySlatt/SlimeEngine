@@ -3,7 +3,7 @@
 //! path (`docs/adr/0143-what-agents-see-of-the-interface.md`); and what changed in it since it was
 //! last read, which the elements' marks give (`docs/adr/0146-screen-readers.md`).
 
-use super::{ElementId, ElementState, Key, Kind, Node, Ui};
+use super::{ElementId, ElementState, ItemMark, Key, Kind, Node, Ui};
 use crate::Rect;
 use crate::layout;
 use crate::style::Display;
@@ -60,6 +60,13 @@ pub enum Role {
     TabPanel,
     /// Two panels and the handle between them, its value the first panel's share.
     Splitter,
+    /// A menu.
+    Menu,
+    /// An item of a menu, open or not where it opens a submenu ([`ElementState::expanded`]).
+    MenuItem,
+    /// An item of a menu that turns something on or off, checked or not
+    /// ([`ElementState::checked`]).
+    MenuItemCheckBox,
 }
 
 impl Role {
@@ -86,6 +93,9 @@ impl Role {
             Self::Tab => "Tab",
             Self::TabPanel => "TabPanel",
             Self::Splitter => "Splitter",
+            Self::Menu => "Menu",
+            Self::MenuItem => "MenuItem",
+            Self::MenuItemCheckBox => "MenuItemCheckBox",
         }
     }
 }
@@ -149,6 +159,9 @@ pub struct Meaning {
     pub range: Option<ValueRange>,
     /// Its states.
     pub state: ElementState,
+    /// Whether a press opens a layer beside it, which screen readers announce, open or not
+    /// ([`ElementState::expanded`]): an item of a menu that opens a submenu.
+    pub popup: bool,
     /// What can be done to it now: none, for an element that a modal root above its own keeps
     /// from input.
     pub actions: Vec<ElementAction>,
@@ -355,7 +368,8 @@ impl Ui {
                 Kind::Button { label }
                 | Kind::CheckBox { label, .. }
                 | Kind::Section { title: label, .. }
-                | Kind::Tab { title: label },
+                | Kind::Tab { title: label }
+                | Kind::MenuItem { label, .. },
             ) => label.clone(),
             (None, Kind::Label(text)) => text.clone(),
             (None, _) => String::new(),
@@ -413,6 +427,13 @@ impl Ui {
                 _ => None,
             },
             state: node.state,
+            popup: matches!(
+                element.kind,
+                Kind::MenuItem {
+                    mark: ItemMark::Submenu,
+                    ..
+                }
+            ),
             actions,
             bounds,
         })
@@ -445,6 +466,12 @@ impl Ui {
             Kind::TabBar { .. } => Role::TabList,
             Kind::Tab { .. } => Role::Tab,
             Kind::Split { .. } => Role::Splitter,
+            Kind::Menu => Role::Menu,
+            Kind::MenuItem {
+                mark: ItemMark::Check(_),
+                ..
+            } => Role::MenuItemCheckBox,
+            Kind::MenuItem { .. } => Role::MenuItem,
         })
     }
 

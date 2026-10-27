@@ -532,6 +532,7 @@ fn element_summary(meaning: Meaning) -> ElementSummary {
         (checked, "checked"),
         (expanded, "expanded"),
         (selected, "selected"),
+        (meaning.popup, "has_popup"),
     ];
     ElementSummary {
         path: meaning.path,

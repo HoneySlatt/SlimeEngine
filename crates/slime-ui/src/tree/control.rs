@@ -3,7 +3,7 @@
 
 use slime_input::{Key, KeyEvent, NamedKey};
 
-use super::{ElementId, ElementState, Kind, LayoutDirection, Ui};
+use super::{ElementId, ElementState, ItemMark, Kind, LayoutDirection, Ui};
 use crate::Rect;
 use crate::action::{Action, ActionKind, FieldValue};
 use crate::display::{BoxPrimitive, Primitive, TextPrimitive};
@@ -12,11 +12,12 @@ use crate::text::{TextBounds, TextLayout};
 /// How many steps Page Up and Page Down move a slider by.
 const PAGE_STEPS: f64 = 10.0;
 
-/// What a check box or a slider keeps between two builds.
+/// What a check box or a slider keeps between two builds, and what an item of a menu shows of the
+/// program's state.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Control {
-    /// A check box or a section: the state that the program last gave; its state is its
-    /// element's ([`ElementState::checked`], [`ElementState::expanded`]).
+    /// A check box, a section or an item of a menu: the state that the program last gave; its
+    /// state is its element's ([`ElementState::checked`], [`ElementState::expanded`]).
     Toggle {
         /// The state that the program last gave.
         given: bool,
@@ -58,6 +59,12 @@ impl Control {
                 state.expanded = open;
                 Some(Self::Toggle { given: open })
             }
+            // An item of a menu shows the program's state alone: the program turns it.
+            Kind::MenuItem { mark, .. } => {
+                let checked = mark == ItemMark::Check(true);
+                state.checked = checked;
+                Some(Self::Toggle { given: checked })
+            }
             Kind::TabBar { chosen } => Some(Self::Choice {
                 chosen,
                 given: chosen,
@@ -92,6 +99,15 @@ impl Control {
                 let changed = state.checked != *checked;
                 state.checked = *checked;
                 changed
+            }
+            (Self::Toggle { given }, Kind::MenuItem { mark, .. }) => {
+                let checked = *mark == ItemMark::Check(true);
+                if *given == checked {
+                    return false;
+                }
+                *given = checked;
+                state.checked = checked;
+                true
             }
             (Self::Toggle { given }, Kind::Section { open, .. }) => {
                 if *given == *open {
@@ -615,7 +631,8 @@ impl Ui {
     }
 
     /// What a check box or a slider draws, besides its box: a check box's box, its mark and its
-    /// label; a slider's track, the part of it up to its value, and its thumb.
+    /// label; a slider's track, the part of it up to its value, and its thumb; an item of a menu's
+    /// mark, label, shortcut and chevron.
     pub(crate) fn control_primitives(&mut self, id: ElementId) -> Vec<Primitive> {
         let scale = self.scale_of(id);
         let direction = self
@@ -737,6 +754,81 @@ impl Ui {
                     layout,
                     color: look.color,
                 }));
+            }
+            Kind::MenuItem {
+                label,
+                shortcut,
+                mark,
+            } => {
+                let (label, shortcut, mark) = (label.clone(), shortcut.clone(), *mark);
+                let look = node.style.text.clone();
+                let size = control.size * scale;
+                let gap = size / 2.0;
+                let middle = content.y + content.height / 2.0;
+                // The mark at the start of a line, the chevron at its end.
+                let (start, end) = match direction {
+                    LayoutDirection::LeftToRight => (content.x, content.x + content.width - size),
+                    LayoutDirection::RightToLeft => (content.x + content.width - size, content.x),
+                };
+                if mark == ItemMark::Check(true) {
+                    let dot = size * 0.4;
+                    let at = Rect::new(start + (size - dot) / 2.0, middle - dot / 2.0, dot, dot);
+                    primitives.push(filled(at, control.size, control.mark));
+                }
+                if mark == ItemMark::Submenu {
+                    let (thin, long) = ((size * 0.15).max(scale), size * 0.5);
+                    let at = Rect::new(end + (size - thin) / 2.0, middle - long / 2.0, thin, long);
+                    primitives.push(filled(at, 0.0, control.mark));
+                }
+                let shortcut = (!shortcut.is_empty()).then(|| {
+                    self.texts
+                        .get(
+                            &mut self.fonts,
+                            &shortcut,
+                            &look.style,
+                            scale,
+                            TextBounds::default(),
+                        )
+                        .clone()
+                });
+                let room = shortcut
+                    .as_ref()
+                    .map_or(0.0, |layout| layout.width() + 2.0 * size);
+                let width = (content.width - 2.0 * (size + gap) - room).max(0.0);
+                let layout: std::sync::Arc<TextLayout> = self
+                    .texts
+                    .get(
+                        &mut self.fonts,
+                        &label,
+                        &look.style,
+                        scale,
+                        TextBounds::default(),
+                    )
+                    .clone();
+                let area = match direction {
+                    LayoutDirection::LeftToRight => content.x + size + gap,
+                    LayoutDirection::RightToLeft => content.x + content.width - size - gap - width,
+                };
+                primitives.push(Primitive::Text(TextPrimitive {
+                    origin: [
+                        beside(direction, &layout, area, width),
+                        middle - layout.height() / 2.0,
+                    ],
+                    layout,
+                    color: look.color,
+                }));
+                // The shortcut against the chevron's gap, at the end of the line.
+                if let Some(layout) = shortcut {
+                    let x = match direction {
+                        LayoutDirection::LeftToRight => end - gap - layout.width(),
+                        LayoutDirection::RightToLeft => end + size + gap,
+                    };
+                    primitives.push(Primitive::Text(TextPrimitive {
+                        origin: [x, middle - layout.height() / 2.0],
+                        layout,
+                        color: control.track,
+                    }));
+                }
             }
             Kind::Split { .. } => {
                 if let Some(handle) = self.split_handle(id) {

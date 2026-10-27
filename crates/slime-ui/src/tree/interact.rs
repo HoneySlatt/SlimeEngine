@@ -45,11 +45,12 @@ pub(super) struct Interaction {
 
 impl Ui {
     /// The pointer moved to `x` and `y`, in pixels of the screen from the surface's top left
-    /// corner: the button or the field under it is hovered, the one before is no longer, and a
-    /// field that holds the pointer selects or drags its number. A move is never taken: a game
-    /// follows the pointer too.
+    /// corner: the button or the field under it is hovered, the one before is no longer, an item
+    /// of a menu that it comes over takes the focus, and a field that holds the pointer selects or
+    /// drags its number. A move is never taken: a game follows the pointer too.
     pub fn pointer_moved(&mut self, x: f32, y: f32) {
         self.interaction.pointer = Some([x, y]);
+        let hovered = self.interaction.hovered;
         if let Some(held) = self.interaction.bar {
             self.drag_bar(held, x, y);
         }
@@ -64,6 +65,17 @@ impl Ui {
             }
         }
         self.hover();
+        // The item of a menu that the pointer comes over takes the focus, which the keys move on
+        // from, as a press would give it.
+        if let Some(item) = self.interaction.hovered
+            && Some(item) != hovered
+            && self
+                .node(item)
+                .is_some_and(|node| matches!(node.element.kind, Kind::MenuItem { .. }))
+        {
+            self.interaction.by_pointer = true;
+            self.set_focus(Some(item));
+        }
     }
 
     /// The pointer left the surface: nothing is hovered any more.
@@ -196,7 +208,7 @@ impl Ui {
                 }
                 let over = self.pointer_target(Kind::takes_pointer);
                 if over == Some(captured) {
-                    self.act(Action {
+                    self.perform(Action {
                         element: Some(captured),
                         kind: ActionKind::Press,
                     });
@@ -284,7 +296,8 @@ impl Ui {
         if let Some(focus) = self.interaction.focus
             && (self.slider_key(focus, event)
                 || self.tab_key(focus, event)
-                || self.split_key(focus, event))
+                || self.split_key(focus, event)
+                || self.menu_key(focus, event))
         {
             return true;
         }
@@ -327,6 +340,12 @@ impl Ui {
     /// names nothing, is left out.
     pub fn act(&mut self, action: Action) {
         self.interaction.by_pointer = false;
+        self.perform(action);
+    }
+
+    /// Does `action`, as [`Ui::act`] says, for any input: the pointer's, which keeps whether it was
+    /// the last.
+    pub(super) fn perform(&mut self, action: Action) {
         match action.kind {
             ActionKind::Press => {
                 let Some(id) = action
@@ -340,6 +359,7 @@ impl Ui {
                 match self.node(id).map(|node| &node.element.kind) {
                     Some(Kind::CheckBox { .. } | Kind::Section { .. }) => self.toggle(id),
                     Some(Kind::Tab { .. }) => self.press_tab(id),
+                    Some(Kind::MenuItem { .. }) => self.press_menu_item(id),
                     _ => self.interaction.actions.push(action),
                 }
             }
@@ -350,7 +370,7 @@ impl Ui {
                     return;
                 }
                 match focus {
-                    Some(id) if self.pressable(id) => self.act(Action {
+                    Some(id) if self.pressable(id) => self.perform(Action {
                         element: focus,
                         kind: ActionKind::Press,
                     }),
@@ -626,8 +646,8 @@ impl Ui {
         true
     }
 
-    /// Whether `id` can be pressed: a button, a check box, a section or a tab that can hold the
-    /// focus.
+    /// Whether `id` can be pressed: a button, a check box, a section, a tab or an item of a menu
+    /// that can hold the focus.
     pub(super) fn pressable(&self, id: ElementId) -> bool {
         self.focusable(id)
             && self.node(id).is_some_and(|node| {
@@ -637,12 +657,13 @@ impl Ui {
                         | Kind::CheckBox { .. }
                         | Kind::Section { .. }
                         | Kind::Tab { .. }
+                        | Kind::MenuItem { .. }
                 )
             })
     }
 
     /// The elements below `root` that can hold the focus, in the order of the tree.
-    fn focusables(&self, root: ElementId) -> Vec<ElementId> {
+    pub(super) fn focusables(&self, root: ElementId) -> Vec<ElementId> {
         let mut found = Vec::new();
         let mut stack = vec![root];
         while let Some(id) = stack.pop() {

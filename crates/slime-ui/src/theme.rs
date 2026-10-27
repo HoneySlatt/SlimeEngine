@@ -154,6 +154,8 @@ pub(crate) enum KindName {
     TabBar,
     Tab,
     Split,
+    Menu,
+    MenuItem,
 }
 
 /// The states of an element, as a rule names them.

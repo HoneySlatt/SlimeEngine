@@ -354,15 +354,16 @@ impl Default for Shadow {
 #[reflect(name = "UiControl", default)]
 pub struct ControlStyle {
     /// The size of the part that the pointer takes, in logical pixels: the side of a check box's
-    /// box, the width of a slider's thumb, which lay them out.
+    /// box, the width of a slider's thumb, the side of an item of a menu's mark and chevron, which
+    /// lay them out.
     pub size: f32,
     /// The radius of its corners, in logical pixels.
     pub radius: f32,
-    /// A check box's box unchecked, a slider's track.
+    /// A check box's box unchecked, a slider's track, an item of a menu's shortcut.
     pub track: LinearColor,
     /// A check box's box checked, the part of a slider's track up to its value.
     pub fill: LinearColor,
-    /// A check box's mark, a slider's thumb.
+    /// A check box's mark, a slider's thumb, an item of a menu's mark and chevron.
     pub mark: LinearColor,
 }
 

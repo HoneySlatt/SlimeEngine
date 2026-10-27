@@ -462,7 +462,8 @@ pub struct ElementSummary {
     /// for another element.
     pub value: Option<String>,
     /// Its states: `hovered`, `pressed`, `focused`, `disabled`, `checked`, `expanded`,
-    /// `selected`.
+    /// `selected`, and `has_popup` for what a press opens a layer beside, an item of a menu that
+    /// opens a submenu.
     pub states: Vec<String>,
     /// What can be done to it now: `press`, `focus`, `scroll`, `set_value`.
     pub actions: Vec<String>,

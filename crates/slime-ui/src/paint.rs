@@ -109,7 +109,10 @@ fn primitives(
                 primitives.push((primitive, Some(content)));
             }
         }
-        Kind::CheckBox { .. } | Kind::Slider { .. } | Kind::Split { .. } => {
+        Kind::CheckBox { .. }
+        | Kind::Slider { .. }
+        | Kind::Split { .. }
+        | Kind::MenuItem { .. } => {
             for primitive in ui.control_primitives(id) {
                 primitives.push((primitive, Some(content)));
             }
@@ -120,7 +123,7 @@ fn primitives(
                 primitives.push((primitive, None));
             }
         }
-        Kind::Container | Kind::Scroll | Kind::List { .. } | Kind::TabBar { .. } => {}
+        Kind::Container | Kind::Scroll | Kind::List { .. } | Kind::TabBar { .. } | Kind::Menu => {}
     }
     primitives
 }

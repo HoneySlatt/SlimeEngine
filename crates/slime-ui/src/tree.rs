@@ -25,6 +25,7 @@ mod field;
 mod interact;
 mod layer;
 mod meaning;
+mod menu;
 mod motion;
 mod scroll_bar;
 
@@ -225,11 +226,45 @@ pub enum Kind {
         /// it; the second takes the rest, less the handle.
         share: f32,
     },
+    /// A menu, laid out as a container, that holds its items ([`Kind::MenuItem`]), and boxes
+    /// between them that only part them (`docs/adr/0150-layers.md`). The arrows up and down move
+    /// the focus among its items, around, Home and End to the first and the last. A layer that the
+    /// program opens holds it, beside what opens it or at the pointer ([`Ui::open_layer`]).
+    Menu,
+    /// An item of a menu: a mark, its label, the shortcut of its command, then a chevron where it
+    /// opens a submenu, in the middle of its box from top to bottom. The pointer over it gives it
+    /// the focus. A press, or Enter or Space while it holds the focus, reaches the program, and
+    /// closes the menus that the program opened, from the first that led to it, telling the
+    /// program that they closed ([`ActionKind::Dismissed`](crate::action::ActionKind::Dismissed));
+    /// an item that opens a submenu stays, and the arrow towards the end of a line presses it too,
+    /// the program opening the submenu beside it. In a submenu, the arrow towards the start closes
+    /// it, the focus back on its item. Rules select it checked by the state `Checked`, and an item
+    /// whose submenu is open by the state `Expanded`.
+    MenuItem {
+        /// Its label.
+        label: String,
+        /// The chord of its command's shortcut, as the user reads it, `Ctrl+S`; empty for none.
+        shortcut: String,
+        /// What it shows besides its label.
+        mark: ItemMark,
+    },
+}
+
+/// What an item of a menu ([`Kind::MenuItem`]) shows besides its label and its shortcut.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ItemMark {
+    /// Nothing: an item that runs its command.
+    None,
+    /// A tick, where it is checked, as the program gives it: an item that turns something on or
+    /// off, which the program turns as it reads the press.
+    Check(bool),
+    /// A chevron: an item that opens a submenu.
+    Submenu,
 }
 
 impl Kind {
     /// Whether a press of the pointer reaches it, and the focus: a button, a field, a check box, a
-    /// slider, a section, a tab or two panels and their handle.
+    /// slider, a section, a tab, two panels and their handle, or an item of a menu.
     pub(crate) fn takes_pointer(&self) -> bool {
         matches!(
             self,
@@ -241,6 +276,7 @@ impl Kind {
                 | Self::Section { .. }
                 | Self::Tab { .. }
                 | Self::Split { .. }
+                | Self::MenuItem { .. }
         )
     }
 }
@@ -418,6 +454,27 @@ impl Element {
             },
             style,
         )
+    }
+
+    /// A menu, whose builder adds its items.
+    pub fn menu(style: Style) -> Self {
+        Self::of(Kind::Menu, style)
+    }
+
+    /// An item of a menu, with its label, the chord of its shortcut as the user reads it, empty for
+    /// none, and its mark.
+    pub fn menu_item(
+        label: impl Into<String>,
+        shortcut: impl Into<String>,
+        mark: ItemMark,
+        style: Style,
+    ) -> Self {
+        let kind = Kind::MenuItem {
+            label: label.into(),
+            shortcut: shortcut.into(),
+            mark,
+        };
+        Self::of(kind, style)
     }
 
     /// An element of `kind` and `style`, of no class.
@@ -1693,6 +1750,18 @@ fn lays_out_again(before: &Element, after: &Element) -> bool {
         (Kind::CheckBox { label: before, .. }, Kind::CheckBox { label: after, .. })
         | (Kind::Section { title: before, .. }, Kind::Section { title: after, .. })
         | (Kind::Tab { title: before }, Kind::Tab { title: after }) => before != after,
+        (
+            Kind::MenuItem {
+                label: before,
+                shortcut: shortcut_before,
+                ..
+            },
+            Kind::MenuItem {
+                label: after,
+                shortcut: shortcut_after,
+                ..
+            },
+        ) => before != after || shortcut_before != shortcut_after,
         (Kind::List { .. }, Kind::List { .. }) => before.kind != after.kind,
         _ => false,
     }
@@ -1727,6 +1796,8 @@ fn kind_name(kind: &Kind) -> KindName {
         Kind::TabBar { .. } => KindName::TabBar,
         Kind::Tab { .. } => KindName::Tab,
         Kind::Split { .. } => KindName::Split,
+        Kind::Menu => KindName::Menu,
+        Kind::MenuItem { .. } => KindName::MenuItem,
     }
 }
 

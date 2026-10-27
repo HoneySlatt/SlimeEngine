@@ -147,6 +147,12 @@ impl Ui {
                 focus_first,
             }));
         }
+        // A button or an item of a menu shows that what it opened is open.
+        if let Place::Beside { element, .. } = layer.place
+            && self.opens_layers(element)
+        {
+            self.change_state(element, |state| state.expanded = true);
+        }
         root
     }
 
@@ -360,6 +366,11 @@ impl Ui {
                 .or_else(|| Some(held.layer.place.anchor()).filter(|&a| self.focusable(a)));
             self.set_focus(back);
         }
+        if let Place::Beside { element, .. } = held.layer.place
+            && self.opens_layers(element)
+        {
+            self.change_state(element, |state| state.expanded = false);
+        }
         match held.owner {
             Some(owner) => self.owned_layer_closed(owner),
             None if dismissed => self.interaction.actions.push(Action {
@@ -403,6 +414,17 @@ impl Ui {
             }
         }
         None
+    }
+
+    /// Whether `id` is a button or an item of a menu, which shows that the layer open beside it is
+    /// open.
+    fn opens_layers(&self, id: ElementId) -> bool {
+        self.node(id).is_some_and(|node| {
+            matches!(
+                node.element.kind,
+                Kind::Button { .. } | Kind::MenuItem { .. }
+            )
+        })
     }
 
     /// What a widget does as the layer that it owns closes: it is no longer open.

@@ -571,19 +571,42 @@ impl taffy::LayoutPartialTree for Tree<'_> {
             if display == taffy::Display::None {
                 return compute_hidden_layout(tree, node);
             }
-            // What a control lays out besides its text, before it: a check box's box and the gap
-            // after it, as wide as half of it; a slider is eight thumbs wide, a thumb tall.
+            // What a control lays out besides its text: a check box's box and the gap after it,
+            // as wide as half of it; a slider is eight thumbs wide, a thumb tall; an item of a
+            // menu, its mark and its chevron, each with its gap, whether it shows them or not, so
+            // that a menu's labels line up, and its shortcut, two marks after its label.
             let control = at.style.control.size * tree.scale;
-            let (beside, least) = match at.element.kind {
+            let (mut beside, least) = match at.element.kind {
                 Kind::CheckBox { .. } => (control * 1.5, control),
                 Kind::Slider { .. } => (control * 8.0, control),
+                Kind::MenuItem { .. } => (control * 3.0, control),
                 _ => (0.0, 0.0),
             };
+            if let Kind::MenuItem { shortcut, .. } = &at.element.kind
+                && !shortcut.is_empty()
+            {
+                let (shortcut, text_style, scale) =
+                    (shortcut.clone(), at.style.text.style.clone(), tree.scale);
+                let ui = &mut *tree.ui;
+                let width = ui
+                    .texts
+                    .get(
+                        &mut ui.fonts,
+                        &shortcut,
+                        &text_style,
+                        scale,
+                        TextBounds::default(),
+                    )
+                    .width();
+                beside += control * 2.0 + width.ceil();
+            }
+            let at = tree.ui.node_at(usize::from(node));
             let text = match &at.element.kind {
                 Kind::Label(text) => Some(text.clone()),
                 Kind::Button { label, .. }
                 | Kind::CheckBox { label, .. }
-                | Kind::Tab { title: label } => Some(label.clone()),
+                | Kind::Tab { title: label }
+                | Kind::MenuItem { label, .. } => Some(label.clone()),
                 // A field as tall as a line of its text, even empty.
                 Kind::TextField { .. } | Kind::NumberField { .. } => {
                     at.field.as_ref().map(|field| match field.text.as_str() {
@@ -593,13 +616,15 @@ impl taffy::LayoutPartialTree for Tree<'_> {
                 }
                 _ => None,
             };
-            // A field of one line does not break its text: it scrolls it.
+            // A field of one line does not break its text: it scrolls it; nor does an item of a
+            // menu.
             let breaks = !matches!(
                 at.element.kind,
                 Kind::TextField {
                     multiline: false,
                     ..
                 } | Kind::NumberField { .. }
+                    | Kind::MenuItem { .. }
             );
             if !tree.laid_out_children(node).is_empty() {
                 return match display {

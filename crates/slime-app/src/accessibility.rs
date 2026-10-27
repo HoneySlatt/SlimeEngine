@@ -7,7 +7,7 @@
 //! types stay out of `slime-ui`.
 
 use accesskit::{
-    Action as AccessAction, ActionData, ActionRequest, Node, NodeId, Rect as AccessRect,
+    Action as AccessAction, ActionData, ActionRequest, HasPopup, Node, NodeId, Rect as AccessRect,
     Role as AccessRole, ScrollUnit, TextDirection, TextPosition, TextSelection, Toggled, TreeId,
     TreeInfo, TreeUpdate,
 };
@@ -176,10 +176,14 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
     if meaning.role == Role::Details {
         element.set_expanded(meaning.state.expanded);
     }
+    if meaning.popup {
+        element.set_has_popup(HasPopup::Menu);
+        element.set_expanded(meaning.state.expanded);
+    }
     if meaning.role == Role::Tab {
         element.set_selected(meaning.state.selected);
     }
-    if meaning.role == Role::CheckBox {
+    if matches!(meaning.role, Role::CheckBox | Role::MenuItemCheckBox) {
         element.set_toggled(if meaning.state.checked {
             Toggled::True
         } else {
@@ -310,6 +314,9 @@ fn role(role: Role) -> AccessRole {
         Role::Tab => AccessRole::Tab,
         Role::TabPanel => AccessRole::TabPanel,
         Role::Splitter => AccessRole::Splitter,
+        Role::Menu => AccessRole::Menu,
+        Role::MenuItem => AccessRole::MenuItem,
+        Role::MenuItemCheckBox => AccessRole::MenuItemCheckBox,
     }
 }
 
