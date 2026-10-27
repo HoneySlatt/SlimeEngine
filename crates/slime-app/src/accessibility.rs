@@ -475,7 +475,7 @@ mod tests {
     use slime_ui::action::FieldValue;
     use slime_ui::style::{Dimension, FlexDirection, Style};
     use slime_ui::text::Fonts;
-    use slime_ui::tree::{Element, RootSettings};
+    use slime_ui::tree::{Element, ItemMark, RootSettings};
 
     use super::*;
 
@@ -1049,5 +1049,84 @@ mod tests {
                 ActionKind::Committed(FieldValue::Checked(false)),
             ]
         );
+    }
+
+    #[test]
+    fn layers_are_given_with_their_roles_popups_and_descriptions_and_take_a_choice() {
+        let (mut ui, root) = empty();
+        let sized = |width: f32| {
+            let mut style = Style::default();
+            style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(24.0)];
+            style.layout.shrink = 0.0;
+            style.text.style.fonts = vec!["Noto Sans".to_owned()];
+            style
+        };
+        let mut column = Style::default();
+        column.layout.direction = FlexDirection::Column;
+        ui.build(root, 0, |children| {
+            children.add("page", Element::container(column.clone()), |children| {
+                children.add("menu", Element::menu(column), |menu| {
+                    let grid = Element::menu_item("Grid", "G", ItemMark::Check(true), sized(160.0));
+                    menu.add("grid", grid, |_| {});
+                    let recent = Element::menu_item("Recent", "", ItemMark::Submenu, sized(160.0));
+                    menu.add("recent", recent, |_| {});
+                });
+                let options = vec!["Low".to_owned(), "High".to_owned()];
+                let choice = Element::choice(options, 1, sized(120.0))
+                    .named("Quality")
+                    .tooltip("How sharp the shadows are");
+                children.add("choice", choice, |_| {});
+                let pane = Element::floating_panel("Statistics", true, sized(200.0));
+                children.add("pane", pane, |_| {});
+            });
+        });
+        ui.frame();
+        let mut readers = ScreenReaders::new("Example");
+        let changes = ui.take_meaning_changes(true);
+        let numbers: Vec<(ElementId, NodeId)> = changes
+            .nodes
+            .iter()
+            .map(|node| (node.meaning.id, NodeId(node.number)))
+            .collect();
+        let tree = Tree::new(readers.translate(changes, SIZE), true);
+        let state = tree.state();
+        let nodes: Vec<_> = state.root().children().collect();
+        let roles: Vec<AccessRole> = nodes.iter().map(|node| node.role()).collect();
+        assert_eq!(
+            roles,
+            [AccessRole::Menu, AccessRole::ComboBox, AccessRole::Pane]
+        );
+        let items: Vec<_> = nodes[0].children().collect();
+        assert_eq!(items[0].role(), AccessRole::MenuItemCheckBox);
+        assert_eq!(items[0].toggled(), Some(Toggled::True));
+        assert_eq!(items[1].role(), AccessRole::MenuItem);
+        assert_eq!(items[1].data().has_popup(), Some(HasPopup::Menu));
+        assert_eq!(items[1].data().is_expanded(), Some(false));
+        let choice = &nodes[1];
+        assert_eq!(choice.data().has_popup(), Some(HasPopup::Listbox));
+        assert_eq!(
+            choice.data().description(),
+            Some("How sharp the shadows are")
+        );
+        assert_eq!(choice.value().as_deref(), Some("High"));
+        assert_eq!(nodes[2].data().is_expanded(), Some(true));
+
+        // What a screen reader asks: the list given an option by its text.
+        let element = ui.element_by_path("#0/page/choice").expect("built");
+        let number = numbers
+            .iter()
+            .find(|&&(id, _)| id == element)
+            .map(|&(_, number)| number)
+            .expect("an element");
+        act(
+            &mut ui,
+            &ActionRequest {
+                action: AccessAction::SetValue,
+                target_tree: TreeId::ROOT,
+                target_node: number,
+                data: Some(ActionData::Value("Low".into())),
+            },
+        );
+        assert_eq!(ui.chosen(element), Some(0));
     }
 }
