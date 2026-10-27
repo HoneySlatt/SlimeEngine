@@ -1,8 +1,9 @@
 //! An agent's session, played by this test: it speaks the Model Context Protocol to the engine's MCP
-//! server on its standard input and output, starts *Hunna Wood* through it, pauses and steps it,
-//! reads the hero, changes a value, walks the hero with a scripted key, saves and loads its run,
-//! opens the dev overlay's panels, sets the speed of game time with one's slider and the hero's
-//! direction with the world panel, captures the game's image, reads its log and stops it
+//! server on its standard input and output, starts *Hunna Wood* through it, pauses it, draws its
+//! view without shadows, without anti-aliasing and at half its size, steps it, reads the hero,
+//! changes a value, walks the hero with a scripted key, saves and loads its run, opens the dev
+//! overlay's panels, sets the speed of game time with one's slider and the hero's direction with
+//! the world panel, captures the game's image, reads its log and stops it
 //! (`docs/adr/0122-the-development-channel.md`,
 //! `docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`).
 //!
@@ -82,6 +83,20 @@ fn main() {
     let (said, _) = session.tool("start_game", json!({ "command": command }));
     assert!(said[0].contains("hunnawood runs"), "{said:?}");
     session.tool("pause", json!({}));
+    // Each request waits for a frame, and a frame of the zone with its shadows takes 13 to 30 s on
+    // a CPU driver: the view draws without them, without anti-aliasing and at half its size, as an
+    // agent that does not look at the image would set it. The game's own runs draw it whole.
+    for (path, value) in [
+        ("shadows", "false"),
+        ("anti_aliasing", "\"Off\""),
+        ("render_scale", "0.5"),
+    ] {
+        let (said, _) = session.tool(
+            "set_view_settings",
+            json!({ "view": "hero", "path": path, "value": value }),
+        );
+        assert_eq!(said, ["done"], "{path}");
+    }
     let (hero, _) = session.tool("inspect_entity", json!({ "entity": "hero" }));
     assert!(
         hero[0].contains("[Transform]") && hero[0].contains("[hunnawood::Look]"),
