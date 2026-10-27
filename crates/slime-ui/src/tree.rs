@@ -29,6 +29,8 @@ mod layer;
 mod meaning;
 mod menu;
 mod motion;
+mod notify;
+mod palette;
 mod panel;
 mod scroll_bar;
 mod tooltip;
@@ -40,6 +42,8 @@ pub use meaning::{
     ElementAction, FieldText, Meaning, MeaningChanges, MeaningNode, RUN_CHARACTERS, Role,
     RunCharacter, TextRun, ValueRange,
 };
+pub use notify::{Notification, NotificationId, NotificationKind};
+pub use palette::PaletteCommand;
 
 /// An element of a [`Ui`]: the place it holds in the tree's arena, and the generation of that
 /// place, so that the id of an element removed names no other that takes its place.
@@ -871,8 +875,8 @@ pub struct FrameStats {
     /// The elements in the tree.
     pub elements: usize,
     /// Whether a transition goes on after this frame, the pointer rests where a tooltip will show
-    /// or a submenu open, or a bar of progress without a share moves: a program that draws only
-    /// when something changes draws the next frame too.
+    /// or a submenu open, a bar of progress without a share moves, or a notification waits for its
+    /// time to end: a program that draws only when something changes draws the next frame too.
     pub animating: bool,
 }
 
@@ -1017,6 +1021,11 @@ pub struct Ui {
     /// The bars of progress without a share that the last frame drew, which move with the clock and
     /// are drawn again each frame.
     spinning: Vec<ElementId>,
+    /// The palette of commands, while it is open; the sheet of shortcuts's layer, while it is; the
+    /// notifications that show.
+    palette: Option<palette::Palette>,
+    sheet: Option<ElementId>,
+    notices: notify::Notices,
     /// The interface's clock: the time that its program gave it ([`Ui::advance`]).
     now: Duration,
     /// Whether transitions end at once ([`Ui::set_reduced_motion`]).
@@ -1050,6 +1059,9 @@ impl Ui {
             meaning_whole: true,
             top_changed: false,
             spinning: Vec::new(),
+            palette: None,
+            sheet: None,
+            notices: notify::Notices::default(),
             now: Duration::ZERO,
             reduced_motion: false,
             moving: Vec::new(),
@@ -1343,8 +1355,11 @@ impl Ui {
         for id in std::mem::take(&mut self.spinning) {
             self.mark_paint(id);
         }
-        // The pointer resting long enough shows a tooltip or opens a submenu.
+        // The pointer resting long enough shows a tooltip or opens a submenu; notifications whose
+        // time ended go.
         self.settle_rest();
+        self.settle_notices();
+        self.settle_palette();
         // Layers take their surface from the root that they stand over, those whose anchor went
         // close, and those opened by the keyboard give their first element the focus.
         self.settle_layers();
@@ -1393,7 +1408,10 @@ impl Ui {
         for root in &self.roots {
             paint::gather(self, *root, &mut list);
         }
-        stats.animating = !self.moving.is_empty() || self.resting() || !self.spinning.is_empty();
+        stats.animating = !self.moving.is_empty()
+            || self.resting()
+            || !self.spinning.is_empty()
+            || self.notices_waiting();
         (list, stats)
     }
 

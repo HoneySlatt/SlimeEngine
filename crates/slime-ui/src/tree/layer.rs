@@ -98,8 +98,9 @@ pub(crate) struct Held {
     /// Whether its first element that takes the focus takes it once built: it opened by the
     /// keyboard, an agent or the program.
     focus_first: bool,
-    /// Whether it is a tooltip, which the pointer passes through and whose closing tells no one.
-    pub(crate) tooltip: bool,
+    /// Whether the interface opened it for itself: a tooltip, the palette of commands, the sheet of
+    /// shortcuts or the notifications, whose closing tells no one.
+    pub(crate) quiet: bool,
 }
 
 impl Place {
@@ -161,7 +162,7 @@ impl Ui {
                 anchored: Rect::default(),
                 before,
                 focus_first,
-                tooltip: false,
+                quiet: false,
             }));
         }
         root
@@ -445,8 +446,8 @@ impl Ui {
                 .or_else(|| Some(held.layer.place.anchor()).filter(|&a| self.focusable(a)));
             self.set_focus(back);
         }
-        if held.tooltip {
-            self.interaction.tooltip = None;
+        if held.quiet {
+            self.forget_own_layer(root);
             return;
         }
         if let Place::Beside { element, .. } = held.layer.place

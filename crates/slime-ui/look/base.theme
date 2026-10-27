@@ -38,9 +38,10 @@ tab_y = 6
 shadow_y = 6
 shadow_blur = 18
 
-# The least width of a menu, the most of a tooltip.
+# The least width of a menu, the most of a tooltip, the width of a notification.
 menu_width = 180
 tooltip_width = 280
+notification_width = 320
 
 # How long a change takes: one that answers the user, one that moves things.
 fast = 0.12

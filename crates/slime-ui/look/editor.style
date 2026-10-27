@@ -330,6 +330,59 @@ style.control.mark = "$axis_y"
 select = { kind = "NumberField", classes = ["axis-z"] }
 style.control.mark = "$axis_z"
 
+[palette]
+select = { classes = ["palette"] }
+style.paint = { background = "$raised", border_width = 1, border = "$raised_border", radii = ["$radius_l", "$radius_l", "$radius_l", "$radius_l"], shadow = [{ color = "$shadow", offset = [0, "$shadow_y"], blur = "$shadow_blur", spread = 0 }] }
+style.layout.padding = { start = "$space_s", end = "$space_s", top = "$space_s", bottom = "$space_s" }
+style.layout.gap = ["$space_s", 0]
+
+[palette-row-chosen]
+select = { kind = "MenuItem", states = ["Selected"], inside = { class = "palette" } }
+style.paint.background = "$accent_soft"
+
+[sheet]
+select = { classes = ["sheet"] }
+style.paint = { background = "$raised", border_width = 1, border = "$raised_border", radii = ["$radius_l", "$radius_l", "$radius_l", "$radius_l"], shadow = [{ color = "$shadow", offset = [0, "$shadow_y"], blur = "$shadow_blur", spread = 0 }] }
+style.layout.padding = { start = "$space_l", end = "$space_l", top = "$space_l", bottom = "$space_l" }
+style.layout.gap = ["$space_xs", 0]
+
+[sheet-title]
+select = { kind = "Label", classes = ["sheet-title"] }
+style.text.style.weight = "$weight_title"
+
+[sheet-scope]
+select = { kind = "Label", classes = ["sheet-scope"] }
+style.text = { style = { size = "$text_s", weight = "$weight_control" }, color = "$muted" }
+style.layout.margin = { start = 0, end = 0, top = "$space_s", bottom = 0 }
+
+[notification]
+select = { classes = ["notification"] }
+style.paint = { background = "$panel", border_width = 1, border = "$raised_border", radii = ["$radius_m", "$radius_m", "$radius_m", "$radius_m"], shadow = [{ color = "$shadow", offset = [0, "$shadow_y"], blur = "$shadow_blur", spread = 0 }] }
+style.layout.padding = { start = "$space_m", end = "$space_s", top = "$space_s", bottom = "$space_m" }
+style.layout.size = [{ Pixels = "$notification_width" }, "Auto"]
+
+[notification-success]
+select = { classes = ["notification", "success"] }
+style.paint.border = "$success"
+
+[notification-warning]
+select = { classes = ["notification", "warning"] }
+style.paint.border = "$warning"
+
+[notification-error]
+select = { classes = ["notification", "error"] }
+style.paint.border = "$danger"
+
+[notification-close]
+select = { kind = "Button", classes = ["close"] }
+style.paint = { background = "$none", border = "$none" }
+style.layout.padding = { start = "$space_xs", end = "$space_xs", top = 0, bottom = 0 }
+style.text.color = "$muted"
+
+[notification-close-hovered]
+select = { kind = "Button", classes = ["close"], states = ["Hovered"] }
+style.text.color = "$text"
+
 [fixed]
 select = { classes = ["fixed"] }
 style.text.style = { fonts = ["Geist Mono"], size = "$text_mono" }

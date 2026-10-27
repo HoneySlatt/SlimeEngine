@@ -87,6 +87,10 @@ pub enum Role {
     RadioButton,
     /// A bar of progress, its value its share where it has one.
     ProgressIndicator,
+    /// A notification that tells what went on or went well, which screen readers read politely.
+    Status,
+    /// A notification of a warning or an error, which screen readers read at once.
+    Alert,
     /// An option of that list, chosen or not ([`ElementState::selected`]).
     ListBoxOption,
 }
@@ -127,6 +131,8 @@ impl Role {
             Self::RadioGroup => "RadioGroup",
             Self::RadioButton => "RadioButton",
             Self::ProgressIndicator => "ProgressIndicator",
+            Self::Status => "Status",
+            Self::Alert => "Alert",
             Self::ListBoxOption => "ListBoxOption",
         }
     }

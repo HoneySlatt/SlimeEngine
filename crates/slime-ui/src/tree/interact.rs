@@ -89,6 +89,8 @@ impl Ui {
         {
             if self.in_menu_bar(item) {
                 self.hover_bar_item(item);
+            } else if self.hover_palette_row(item) {
+                // The palette's rows are chosen as the pointer passes, its field keeping the focus.
             } else {
                 self.interaction.by_pointer = true;
                 self.set_focus(Some(item));
@@ -374,6 +376,10 @@ impl Ui {
         {
             return true;
         }
+        // The palette's field chooses among the commands found by the arrows and Enter.
+        if self.palette_key(event) {
+            return true;
+        }
         let modal = !self.interaction.modals.is_empty();
         if let Some(field) = self.focused_field()
             && self.field_key(field, event)
@@ -442,6 +448,10 @@ impl Ui {
                 else {
                     return;
                 };
+                // A button of a notification gives its command and closes it.
+                if self.press_notice(id) {
+                    return;
+                }
                 // A check box pressed toggles, which the program reads as its value; a section opens
                 // or folds; a tab is chosen.
                 match self.node(id).map(|node| &node.element.kind) {
@@ -490,6 +500,7 @@ impl Ui {
 
     /// The actions that the program has not taken yet, in the order they came, taken.
     pub fn take_actions(&mut self) -> Vec<Action> {
+        self.drop_palette_actions();
         std::mem::take(&mut self.interaction.actions)
     }
 
@@ -541,6 +552,42 @@ impl Ui {
     pub fn set_shortcuts(&mut self, tables: &[Shortcuts]) -> Result<(), DocumentError> {
         self.interaction.bindings = shortcuts::bindings(tables)?;
         Ok(())
+    }
+
+    /// The chord that gives `command`, as a table writes it, `Ctrl+S`: of the scope `global`
+    /// first, then of the first scope that gives it, the later table's where two do; none for a
+    /// command that no shortcut gives.
+    pub fn command_chord(&self, command: &str) -> Option<String> {
+        let bindings = &self.interaction.bindings;
+        let giving = |binding: &&Binding| binding.command == command;
+        bindings
+            .iter()
+            .rev()
+            .filter(giving)
+            .find(|binding| binding.scope == "global")
+            .or_else(|| bindings.iter().rev().find(giving))
+            .map(|binding| binding.chord.text())
+    }
+
+    /// The shortcuts that the tables give, by scope, each scope's in the order of the tables:
+    /// its name, then each chord, as a table writes it, and its command. A chord that a later
+    /// table gives again in a scope is given once, with the later command.
+    pub fn shortcuts(&self) -> Vec<(String, Vec<(String, String)>)> {
+        let mut scopes: Vec<(String, Vec<(String, String)>)> = Vec::new();
+        for binding in &self.interaction.bindings {
+            let chord = binding.chord.text();
+            let at = match scopes.iter().position(|(scope, _)| *scope == binding.scope) {
+                Some(at) => at,
+                None => {
+                    scopes.push((binding.scope.clone(), Vec::new()));
+                    scopes.len() - 1
+                }
+            };
+            let chords = &mut scopes[at].1;
+            chords.retain(|(held, _)| *held != chord);
+            chords.push((chord, binding.command.clone()));
+        }
+        scopes
     }
 
     /// The element that the pointer would reach at `x` and `y`, in pixels of the screen: the

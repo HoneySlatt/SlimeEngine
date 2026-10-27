@@ -137,6 +137,27 @@ impl Chord {
         Ok(chord)
     }
 
+    /// The chord as a table writes it, `Ctrl+Shift+Z`: its modifiers in that order, then its key,
+    /// a letter in upper case.
+    pub(crate) fn text(&self) -> String {
+        let mut text = String::new();
+        for (held, name) in [
+            (self.control, "Ctrl+"),
+            (self.shift, "Shift+"),
+            (self.alt, "Alt+"),
+            (self.super_key, "Super+"),
+        ] {
+            if held {
+                text.push_str(name);
+            }
+        }
+        match &self.key {
+            ChordKey::Character(character) => text.push_str(&character.to_uppercase()),
+            ChordKey::Named(named) => text.push_str(named.name()),
+        }
+        text
+    }
+
     /// Whether its key is a character without case, `+` or `1`, which some layouts type with
     /// Shift and others without: Shift is left out of what it matches.
     fn caseless(&self) -> bool {

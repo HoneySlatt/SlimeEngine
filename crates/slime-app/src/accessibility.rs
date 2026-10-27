@@ -7,9 +7,9 @@
 //! types stay out of `slime-ui`.
 
 use accesskit::{
-    Action as AccessAction, ActionData, ActionRequest, HasPopup, Node, NodeId, Rect as AccessRect,
-    Role as AccessRole, ScrollUnit, TextDirection, TextPosition, TextSelection, Toggled, TreeId,
-    TreeInfo, TreeUpdate,
+    Action as AccessAction, ActionData, ActionRequest, HasPopup, Live, Node, NodeId,
+    Rect as AccessRect, Role as AccessRole, ScrollUnit, TextDirection, TextPosition, TextSelection,
+    Toggled, TreeId, TreeInfo, TreeUpdate,
 };
 use slime_platform::{Accessibility, PhysicalSize, Window};
 use slime_ui::Rect;
@@ -177,6 +177,12 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
     }
     if let Some(placeholder) = &meaning.placeholder {
         element.set_placeholder(placeholder.as_str());
+    }
+    // A notification is read as it comes: a warning or an error at once.
+    match meaning.role {
+        Role::Status => element.set_live(Live::Polite),
+        Role::Alert => element.set_live(Live::Assertive),
+        _ => {}
     }
     if meaning.popup {
         element.set_has_popup(if meaning.role == Role::ComboBox {
@@ -361,6 +367,8 @@ fn role(role: Role) -> AccessRole {
         Role::RadioGroup => AccessRole::RadioGroup,
         Role::RadioButton => AccessRole::RadioButton,
         Role::ProgressIndicator => AccessRole::ProgressIndicator,
+        Role::Status => AccessRole::Status,
+        Role::Alert => AccessRole::Alert,
         Role::ListBoxOption => AccessRole::ListBoxOption,
     }
 }

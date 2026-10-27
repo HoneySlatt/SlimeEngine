@@ -12,6 +12,10 @@ impl Ui {
     /// its menu closing, or gives the submenu open the focus, to the keyboard; another reaches the
     /// program and closes the menus that led to it.
     pub(super) fn press_menu_item(&mut self, id: ElementId) {
+        if self.palette_row(id) {
+            self.press_palette_row(id);
+            return;
+        }
         if let Some(owner) = self.option_owner(id) {
             self.press_option(owner, id);
             return;

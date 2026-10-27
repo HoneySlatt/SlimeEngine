@@ -55,6 +55,11 @@ impl Ui {
         }
     }
 
+    /// The element that the pointer rests on, the deepest under it.
+    pub(super) fn resting_on(&self) -> Option<ElementId> {
+        self.interaction.rest.on
+    }
+
     /// The pointer pressed, or a key went down: the tooltip goes, and resting where the pointer is
     /// shows it no more. Gives whether one showed.
     pub(super) fn input_hides_tooltip(&mut self) -> bool {
@@ -137,7 +142,7 @@ impl Ui {
         };
         let root = self.add_layer(layer, Style::default());
         if let Some(held) = self.node_mut(root).and_then(|node| node.layer.as_mut()) {
-            held.tooltip = true;
+            held.quiet = true;
         }
         self.build(root, 0, |children| {
             let mut column = Style::default();
