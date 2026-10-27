@@ -10,7 +10,8 @@ style them (`docs/adr/0141-style-sheets-and-themes.md`), the input and the focus
 (`docs/adr/0143-what-agents-see-of-the-interface.md`), fields of text and of numbers
 (`docs/adr/0145-text-edited.md`), what changed in the tree's meaning, which screen readers read
 (`docs/adr/0146-screen-readers.md`), the widgets of a panel and the editor's look
-(`docs/adr/0148-widgets.md`).
+(`docs/adr/0148-widgets.md`), and themes that compute their colors, transitions and the look's
+other foundations (`docs/adr/0149-the-looks-foundations.md`).
 
 ## Role
 
@@ -23,9 +24,18 @@ style them (`docs/adr/0141-style-sheets-and-themes.md`), the input and the focus
   (`tree::Element`) are boxes, labels, parts of images, buttons, boxes that scroll, lists that build
   and lay out only the rows that show, and fields of text and of numbers, each with its classes.
 - `theme::StyleSheet` holds rules that select elements by kind, classes, key, states and ancestor
-  and set a part of their style, and `theme::Theme` the named values that the rules give, read
+  and set a part of their style, and `theme::Theme` the named values that the rules give, which
+  may name each other and compute colors in OKLCH (`mix`, `lighten`, `darken`, `alpha`), read
   from their text or their cooked binary encoding; `Ui::set_style` styles an interface with them,
-  the element's own style over the rules.
+  its themes stacked, the last that gives a name giving its value, and the element's own style
+  over the rules (`docs/adr/0149-the-looks-foundations.md`).
+- A style's `transition` moves a change of it over time: its colors and its opacity, and a
+  section's height as it opens or folds, over the time that the program gives each frame
+  (`Ui::advance`), which `Ui::set_reduced_motion` drops; a frame says whether one goes on
+  (`FrameStats::animating`). A style's paint holds an opacity, which its descendants share; the
+  display list places boxes, images and clips on whole pixels of the screen; a text's style names
+  OpenType features (`TextStyle::features`); an element focused by the keyboard, an agent or the
+  program is in the state `FocusVisible`, one that the pointer focused is not.
 - `Ui` takes a person's input, the pointer, the wheel, the modifiers and the keys in the types of
   `slime-input`, and turns it into `action::Action`s: a button pressed, an intent of navigation, the
   command of a shortcut. The program reads them from a queue (`Ui::take_actions`); an agent sends
@@ -53,10 +63,10 @@ style them (`docs/adr/0141-style-sheets-and-themes.md`), the input and the focus
   and `Selected`.
 - `look`, built only with the feature `editor-look`, is the editor's look, made for the editor and
   the dev overlay, and drawn by the `widgets` example: its fonts, Geist and Geist Mono
-  (`look::register_fonts`), and its style sheet and dark theme (`look::style_sheet`,
-  `look::theme`).
-  Its files are in [`look/`](look/README.md), with the fonts' license, which a program that builds
-  them in ships beside it.
+  (`look::register_fonts`), its style sheet (`look::style_sheet`), and its themes, stacked: a base
+  of scales, a theme of colors, dark, light or high contrast, and a compact one
+  (`look::themes`, `look::Colors`, `look::Density`). Its files are in [`look/`](look/README.md),
+  with the fonts' license, which a program that builds them in ships beside it.
 - `Ui::meaning` says what the tree means, made when asked: each element drawn that means
   something, its `tree::Role`, named as AccessKit names roles, its name, its value, a field's, a
   slider's or two panels' share, its

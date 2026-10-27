@@ -8,6 +8,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- The look's foundations (ADR-0149): a theme's value names another and computes colors in OKLCH,
+  `mix`, `lighten`, `darken` and `alpha`, and themes stack, the last that gives a name giving its
+  value (`slime_color::Oklch`); a style's `transition` moves its colors, its opacity and a
+  section's height over the time that the program gives the interface (`Ui::advance`,
+  `Ui::set_reduced_motion`, `FrameStats::animating`), which `slime-app` gives a presentation's
+  interface each frame; a style's paint holds an opacity, which its descendants share; the state
+  `FocusVisible`, for a focus that the keyboard, an agent or the program gave; boxes, images and
+  clips placed on whole pixels of the screen; OpenType features in a text's style
+  (`TextStyle::features`); the scheme of colors that the system prefers, on Windows
+  (`Window::color_scheme`, `Event::ColorSchemeChanged`). The editor's look stacks a base theme of
+  scales, a theme of colors, dark, light or high contrast, and a compact one (`look::themes`); the
+  example `widgets` switches them with T, D, A and M.
 - Widgets of a panel (ADR-0148): check boxes, sliders, sections that fold, bars of tabs, two panels
   and a handle between them, and scroll bars over a box that scrolls and a list, each an element
   kind of `slime-ui` that keeps its state in the tree, with its meaning, which agents and screen
@@ -161,6 +173,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The benchmark `world.undo.1k`: a subtree of 1 000 entities deleted then restored.
 
 ### Changed
+
+- `Ui::set_style` takes a list of themes, stacked; `look::theme` is `look::themes`. The look's
+  colors are a palette and roles computed from it, its dark theme's colors changed a little.
 
 - With the `accessibility` feature, a window is made hidden and shown once AccessKit's adapter is
   made, on X11 and Windows. The log's default filter keeps zbus at `warn`.

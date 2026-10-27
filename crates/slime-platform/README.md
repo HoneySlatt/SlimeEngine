@@ -45,7 +45,9 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   until a given instant, or exit. On Windows, while the user resizes or moves the window, only
   `event` and `redraw_requested` are called, because the system runs a loop of its own.
 - `Window` is a cheap, clonable handle to the window: its size in physical pixels, its scale
-  factor, `request_redraw` to ask for a chance to draw, `set_ime_allowed` and `set_ime_area` for
+  factor, the scheme of colors that the system prefers where winit tells it, on Windows
+  (`color_scheme`, `Event::ColorSchemeChanged`, `docs/adr/0149-the-looks-foundations.md`),
+  `request_redraw` to ask for a chance to draw, `set_ime_allowed` and `set_ime_area` for
   the input method, `set_cursor` for the pointer's shape, and the `raw-window-handle` traits
   through which a graphics library draws into it.
 - With the `accessibility` feature, the window is made hidden, AccessKit's adapter is made for it,

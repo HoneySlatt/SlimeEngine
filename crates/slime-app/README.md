@@ -141,8 +141,10 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   its interface, if it has one, which a tool reads, acts on and captures element by element
   (`docs/adr/0143-what-agents-see-of-the-interface.md`), and which the run connects to the
   window: each event goes to the interface first, and to `on_event` and the game's input only
-  when the interface did not take it; the interface gets the system's clipboard, and after each
-  frame the window shows the pointer's shape that it asks and allows the input method while one
+  when the interface did not take it; the interface gets the system's clipboard, before each
+  frame the time since the last, by which its transitions go on
+  (`docs/adr/0149-the-looks-foundations.md`), and after each frame the window shows the pointer's
+  shape that it asks and allows the input method while one
   of its fields takes text (`docs/adr/0145-text-edited.md`), and, with the `accessibility`
   feature, screen readers get what changed in what it means;
   `gpu_lost` and `gpu_restored` when the run replaces a lost GPU device, which a game asks for with

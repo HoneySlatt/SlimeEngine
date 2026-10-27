@@ -50,8 +50,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   ([ADR-0146](adr/0146-screen-readers.md)), are done. M6b.7 was cut in two at its start, by the
   owner on 2026-10-26: M6b.7a, the widgets that a panel holds, is done
   ([ADR-0148](adr/0148-widgets.md)). The owner cut the rest in three on 2026-10-27
-  ([ADR-0149](adr/0149-the-looks-foundations.md)): M6b.7b, the look's foundations, is in progress;
-  M6b.7c, the layers, and M6b.7d, the rich widgets, follow.
+  ([ADR-0149](adr/0149-the-looks-foundations.md)): M6b.7b, the look's foundations, is built, its CI
+  to run; M6b.7c, the layers, and M6b.7d, the rich widgets, follow.
 
 ## Status
 
@@ -69,7 +69,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.6a](#m6b6a--text-edited-and-what-the-platform-lacks-for-it) | Text is typed, selected, copied and composed in every writing system, in fields that the program reads as actions | Done |
 | [M6b.6b](#m6b6b--screen-readers) | Screen readers read the interface, and agents read and set what its fields hold | Done |
 | [M6b.7a](#m6b7a--the-widgets-of-a-panel) | The framework has the widgets that a panel of the dev overlay and of the editor is made of, in the editor's theme | Done |
-| [M6b.7b](#m6b7b--the-looks-foundations) | The editor's look follows one accent in a dark, a light and a high-contrast theme, moves through transitions, and stays crisp at every scale | In progress |
+| [M6b.7b](#m6b7b--the-looks-foundations) | The editor's look follows one accent in a dark, a light and a high-contrast theme, moves through transitions, and stays crisp at every scale | Built; CI to run |
 | [M6b.7c](#m6b7c--layers) | The framework has what opens over a panel: popups, tooltips, menus, lists to choose from, floating panels and modal layers | Planned |
 | [M6b.7d](#m6b7d--rich-widgets) | The framework has the rich fields, notifications and the palette of commands that make editing fast | Planned |
 | [M6b.8](#m6b8--the-dev-overlay-on-the-engines-interface) | The dev overlay runs on the engine's interface, and egui leaves the engine | Planned |
@@ -959,6 +959,43 @@ that the look has a light and a high-contrast theme beside its dark one.
 - **How to test.** `cargo test -p slime-color -p slime-ui --features slime-ui/editor-look`; the
   example's image tests, `cargo test -p slime-examples --test widgets`; the example.
 - **By hand.** The owner tries the example's themes, densities, accents and transitions.
+- **Outcome.** Built on 2026-10-27, CI to run. [ADR-0149](adr/0149-the-looks-foundations.md)
+  records the owner's decisions of 2026-10-26 and 2026-10-27: the rest of M6b.7 in three, the
+  look's foundations first; transitions at Stage 6b, declared in the style sheets; themes that
+  compute colors in OKLCH; light and high-contrast themes beside the dark one. `slime-color`
+  converts colors to and from OKLCH and brings them back into sRGB's gamut by lowering their
+  chroma. A theme's value names another, `"$name"`, or calls `mix`, `lighten`, `darken` or `alpha`,
+  in OKLCH; every name and function of the themes is checked as the interface reads them, a value
+  that names itself, a name that no theme gives or a function given what it does not take refusing
+  them; `Ui::set_style` takes the themes stacked, the last that gives a name giving its value and
+  what names it following it. A style's transition moves its colors and its opacity, and a
+  section's height as it opens or folds, the section laid out once open to measure it and cut to
+  its height meanwhile, over the time that the program gives each frame (`Ui::advance`), which
+  `slime-app` gives a presentation's interface; `Ui::set_reduced_motion` drops them, and
+  `FrameStats::animating` says that one goes on; a new element shows its style at once. A style's
+  paint gains an opacity, which multiplies the alpha of what the element and its descendants draw.
+  The state `FocusVisible` holds for a focus that the keyboard, an agent or the program gave, not
+  a press of the pointer. The display list places boxes, images and clips on whole pixels of the
+  screen, a border on whole pixels too. A text's style names OpenType features, which parley
+  applies. `slime-platform` gives the scheme of colors that the system prefers where winit tells
+  it, on Windows. The look's themes stack: a base theme of scales, spacings on a grid of 4 pixels,
+  radii, sizes of text, the controls' sizes and durations; a theme of colors, dark, light or high
+  contrast, a palette and the roles computed from it; a compact theme; the style sheet names roles
+  and scales alone, sets Geist's digits of one width, moves its changes over the base's durations,
+  and draws its rings on `FocusVisible`. The `widgets` example switches the colors, the density,
+  the accent and the motion with T, D, A and M, and follows the system's scheme where the platform
+  tells it. Found while making the light theme's image: the slider's white thumb vanished on a
+  light panel, which a role of its own, `thumb`, fixed. The tests: in `slime-color`, values that
+  Oklab's author gives and colors brought back into the gamut; in `slime-ui`'s `tests/style.rs`,
+  names that name names, colors lightened, darkened, mixed and made translucent in OKLCH, a mix with
+  a grey keeping the color's hue, stacked themes, and themes refused by the value at fault; in
+  `tests/motion.rs`, a color moving over the time given and less motion dropping it, a new element
+  styled at once, opacities multiplied, a section shrinking and growing to its height, the focus
+  shown to the keyboard and not to the pointer, and boxes on whole pixels at scale 1.5; in
+  `tests/look.rs`, Geist's digits of one width with `tnum`, every theme of colors and density
+  styling every kind with text that reads on its surface, and a project's accent followed by what
+  the look computes from it; in `slime-examples`'s `tests/widgets.rs`, the inspector in the light
+  theme and the console in high contrast and compact, beside the dark images drawn again.
 
 ### M6b.7c — Layers
 
@@ -1102,6 +1139,10 @@ The game is run with `--new --save <a file of its own>`, so that the owner's sav
   which no check of CI draws in a window ([ADR-0137](adr/0137-the-canvas.md),
   [ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
 
+- **M6b.7b, on Linux and in the Windows virtual machine.** The `widgets` example's themes of
+  colors, densities, accents and transitions, switched with T, D, A and M
+  ([ADR-0149](adr/0149-the-looks-foundations.md)); in the Windows virtual machine, its colors
+  following the system's dark or light mode.
 - **M6b.7a, on Linux.** The `widgets` example's widgets, used with the pointer and the keyboard
   ([ADR-0148](adr/0148-widgets.md)): check boxes, sliders dragged and moved by their keys, sections
   folded, tabs chosen, handles dragged, the list and the box of properties scrolled by their bars
@@ -1889,8 +1930,19 @@ GitHub issues, linked from their entry; this list stays the reference.
   child is folded; scroll bars show over the content as long as it does not fit, and have no
   arrows. Whether a section is open, which tab is chosen and where a handle stands are the
   interface's alone: they tell the program nothing, and an element that a builder removes forgets
-  them. The editor's look has one theme, dark, and no italic faces; its fonts hold no Greek; it is
-  built into the program, not cooked, and how a game's overlay replaces it is M6b.8's to decide.
+  them. The editor's look has no italic faces; its fonts hold no Greek; it is built into the
+  program, not cooked, and how a game's overlay replaces it is M6b.8's to decide.
+- **The look's foundations** ([ADR-0149](adr/0149-the-looks-foundations.md)): a theme's values are
+  typed only where a rule uses them, so that a name that holds a value of the wrong type is refused
+  where a rule names it, not where the theme gives it; the color functions are four, and work on
+  whole colors, not on their lightness, chroma or hue alone. Transitions move colors, opacity and a
+  section's height, not sizes, places nor what a layout gives; they go on only while the program
+  gives the interface its time, and a section that opens is laid out twice in the frame that
+  starts it. An opacity multiplies each primitive's alpha, rather than drawing the element apart
+  and blending it whole: overlapping parts of a translucent element show through each other, until
+  Stage 7's layers. A shadow is not placed on whole pixels. On Linux, the system's dark or light
+  preference is not read: winit reads no desktop's settings, and the portal of the desktop's
+  settings would need a new dependency; Windows reports it.
 - **What agents see** ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)): a tool reads an
   interface only in a windowed run, from its last frame, and each ask walks the whole tree. A path
   holds while the roots below its own stay, and a key's name that holds

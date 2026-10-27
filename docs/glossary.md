@@ -654,9 +654,10 @@ display's, it covers. The sizes of `WindowConfig` are logical; `Window::inner_si
 `Event::CursorMoved` and render targets are physical. egui calls logical pixels *points*.
 
 **Look (the editor's).** The fonts and the style made for the interfaces of the engine's editor and
-of its dev overlay: Geist and Geist Mono, and a style sheet and a dark *theme*
-(`slime_ui::look`, built with `slime-ui`'s feature `editor-look`;
-[ADR-0148](adr/0148-widgets.md)).
+of its dev overlay: Geist and Geist Mono, a style sheet, and *themes* stacked, a base of scales, one
+of colors, dark, light or high contrast, and a compact one (`slime_ui::look`, built with
+`slime-ui`'s feature `editor-look`; [ADR-0148](adr/0148-widgets.md),
+[ADR-0149](adr/0149-the-looks-foundations.md)).
 
 **Lux (lx).** The unit of *illuminance*, lumens per square metre: the strength of a directional
 light (`illuminance`); about 100 000 for direct sunlight, 400 at sunrise.
@@ -770,6 +771,11 @@ reaches each point of a surface, darkening creases (glTF).
 
 **Offscreen rendering.** Drawing into an image that no window shows, a *render target*, for
 example to read it back to the CPU. Image tests render this way, without a windowing system.
+
+**OKLCH.** A color's lightness, chroma and hue in Oklab, a space of colors in which equal steps
+look equal: the interface's *themes* lighten, darken and mix their colors in it, so that a step of
+lightness looks the same on blue as on yellow (`slime_color::Oklch`,
+[ADR-0149](adr/0149-the-looks-foundations.md)).
 
 **Orthographic projection.** A camera's projection in which what is farther is as large, every
 pixel seen along the camera's axis, as a map or a plan is drawn (`slime_render::Projection`): a box
@@ -1304,6 +1310,11 @@ the `wgpu` feature of `slime-gfx` ([ADR-0031](adr/0031-dev-overlay-with-egui.md)
 **Transform in the world (global transform).** Where an entity is in the world: its `Transform`
 composed with its ancestors', a translation in `f64`, a rotation and a uniform scale, without its
 *stretch* (`slime_world::GlobalTransform`, [ADR-0083](adr/0083-transforms-and-the-hierarchy.md)).
+
+**Transition (interface).** A change of an element's style shown over a time rather than at once:
+its colors and its opacity going from what they showed to what the new style gives, a section
+growing or shrinking to its height, as the style's `transition` says (`slime_ui::style::Transition`,
+[ADR-0149](adr/0149-the-looks-foundations.md)).
 
 **Transient field.** A field of a reflected type that saves leave out, `#[reflect(transient)]`:
 what a game computes again, such as a value that changes at every frame. It has a default, its
