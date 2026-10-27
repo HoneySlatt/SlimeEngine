@@ -14,8 +14,8 @@ use slime_world::{Command, Entity, Name, PersistentId, Tick, World};
 
 /// The width the panel opens with, in points.
 const WIDTH: f32 = 380.0;
-/// The height of the list of entities, in points, past which it scrolls.
-const LIST_HEIGHT: f32 = 160.0;
+/// The height of the list of entities, in points, or logical pixels, past which it scrolls.
+pub(crate) const LIST_HEIGHT: f32 = 160.0;
 /// The height the panel opens with at most, in points; it opens as high as the screen otherwise.
 const HEIGHT: f32 = 640.0;
 /// The types whose values are edited whole, on one line: their parts are numbers that mean little

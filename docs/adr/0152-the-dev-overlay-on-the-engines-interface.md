@@ -106,7 +106,10 @@ proposed, the parts that hold no open choice built meanwhile.
   cannot, an option's box disabled, the row of the entity selected. An angle that a field holds in
   radians is shown and typed in degrees; a unit outside the families that fields of numbers know,
   `cd`, follows its label. Text is set as it is committed, not at each key typed, as egui set it:
-  one command for a name typed, not one for each of its letters. A color is a swatch and its four
+  one command for a name typed, not one for each of its letters. A number is dragged by steps that
+  keep it round, 1 for an integer, which stays one, and for a float the power of ten at most a
+  hundredth of it, where egui dragged an integer by a tenth and a float by a hundredth of itself. A
+  list's elements are named by their places, `weights [1]`. A color is a swatch and its four
   channels until the picker's choice is taken.
 
 **Open choices, for the owner** (each with the recommendation first):

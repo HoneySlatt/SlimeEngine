@@ -1190,7 +1190,9 @@ that the look has a light and a high-contrast theme beside its dark one.
   meanwhile: sliders on a logarithmic scale and from high to low, options of a list to choose from
   that are disabled or carry help, fields of numbers of single precision; the editors of reflected
   values and the world panel on the engine's interface (`slime_devui::interface`), tested without
-  a GPU, measured by `devui.world_panel.100k`, which the programs do not use yet.
+  a GPU, measured by `devui.world_panel.100k`, which the programs do not use yet. A frame after an
+  entity was renamed, spawned or despawned makes the panel's list of entities again, about 7 ms at
+  100 000 entities ([measurements](measurements.md#m6b8-rx-6900-xt)), as egui's did.
 
 ### M6b.9 — Windows check, documentation, release 0.6
 

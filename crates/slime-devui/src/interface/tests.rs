@@ -68,7 +68,7 @@ impl Bench {
     /// and the actions that were not the panel's.
     fn frame(&mut self) -> Vec<Command> {
         let mut actions = self.ui.take_actions();
-        let commands = self.panel.act(&mut actions, &self.world);
+        let commands = self.panel.act(&mut actions);
         assert!(
             actions.is_empty(),
             "every action is the panel's: {actions:?}"
@@ -598,4 +598,127 @@ fn the_entity_selected_is_found_again_by_its_identity_in_a_world_that_replaces_i
         Some(found),
         "kept while no entity has the identity"
     );
+}
+
+#[test]
+fn what_the_review_found_stays_fixed() {
+    // Two fields of one vector committed in one frame: the second sets it from the first.
+    let mut bench = Bench::new();
+    let everything = bench.entities[4];
+    bench.panel.select(everything);
+    bench.frame();
+    let offset_x = bench.find(Role::SpinButton, "offset x").id;
+    let offset_y = bench.find(Role::SpinButton, "offset y").id;
+    assert!(bench.ui.set_value(offset_x, "5"));
+    assert!(bench.ui.set_value(offset_y, "6"));
+    let commands = bench.frame();
+    let world = &bench.world;
+    let last = set(
+        world,
+        everything,
+        "test::Everything",
+        "offset",
+        DVec3::new(5.0, 6.0, 0.0).to_value(),
+    );
+    assert_eq!(commands.last(), Some(&last));
+    // A list's elements, named by their places.
+    for name in ["weights [0]", "weights [1]", "corners [0]", "corners [1]"] {
+        bench.find(Role::SpinButton, name);
+    }
+    // A range in radians, told in degrees beside the field that shows them.
+    let spot = bench.entities[3];
+    bench.panel.select(spot);
+    bench.frame();
+    let help = bench
+        .ui
+        .meaning()
+        .into_iter()
+        .find(|meaning| meaning.name == "inner_cone_angle" && meaning.role == Role::Label)
+        .and_then(|meaning| meaning.description)
+        .expect("the label's help");
+    assert!(help.contains("Range: from 0 to 90, in degrees."), "{help}");
+    // A value that holds a `NaN` is not built again at each frame.
+    let point = bench.entities[2];
+    bench.world.insert(
+        point,
+        Light::Point {
+            color: LinearColor::WHITE,
+            intensity: f32::NAN,
+            range: None,
+        },
+    );
+    bench.panel.select(point);
+    bench.frame();
+    bench.panel.build(&mut bench.ui, bench.root, &bench.world);
+    let (_, stats) = bench.ui.frame();
+    assert_eq!(stats.built, 0, "nothing built again");
+}
+
+#[test]
+fn an_edit_goes_to_the_identity_shown_after_the_world_was_replaced() {
+    let lamp = Light::Point {
+        color: LinearColor::WHITE,
+        intensity: 30.0,
+        range: None,
+    };
+    let mut world = World::new();
+    let first = world.spawn_keyed("lamp").expect("a key");
+    world.insert(first, lamp);
+    let (mut ui, root) = interface();
+    let mut panel = WorldPanel::default();
+    panel.select(first);
+    show(&mut ui, root, &mut panel, &world);
+    let intensity = ui
+        .meaning()
+        .into_iter()
+        .find(|meaning| meaning.name == "intensity" && meaning.role == Role::SpinButton)
+        .expect("the field")
+        .id;
+    assert!(ui.set_value(intensity, "40"));
+    // A load replaced the world before the program read the actions: the handle names the post.
+    let mut replaced = World::new();
+    let post = replaced.spawn_keyed("post").expect("a key");
+    assert_eq!(post, first);
+    let mut actions = ui.take_actions();
+    let commands = panel.act(&mut actions);
+    let [Command::SetProperty { entity, .. }] = commands.as_slice() else {
+        panic!("one edit: {commands:?}");
+    };
+    assert_eq!(entity, &slime_world::PersistentId::new(["lamp"]));
+}
+
+/// A value whose option holds a reference, which has nothing to start holding.
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "test::Pick")]
+struct Pick {
+    target: Option<Entity>,
+}
+
+#[test]
+fn an_options_box_is_enabled_again_once_it_holds_a_value() {
+    let (mut ui, root) = interface();
+    let mut slot = None;
+    ui.build(root, 0, |children| {
+        slot = Some(children.add_slot("pick", Element::container(Style::default())));
+    });
+    let slot = slot.expect("built");
+    let mut editor = ValueEditor::default();
+    let boxed = |ui: &Ui| {
+        let found = ui
+            .meaning()
+            .into_iter()
+            .find(|meaning| meaning.name == "target holds a value")
+            .expect("the box");
+        found.state.disabled
+    };
+    editor.build(&mut ui, slot, "pick", &Pick { target: None });
+    ui.frame();
+    assert!(boxed(&ui), "nothing to start holding");
+    let mut world = World::new();
+    let held = Pick {
+        target: Some(world.spawn()),
+    };
+    editor.build(&mut ui, slot, "pick", &held);
+    ui.frame();
+    assert!(!boxed(&ui), "it empties the option");
 }

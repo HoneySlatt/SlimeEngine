@@ -291,9 +291,14 @@ impl Track {
         }
     }
 
-    /// The value at `along` the track, from 0 at its least value to 1 at its most.
+    /// The value at `along` the track, from 0 at its least value to 1 at its most: its bounds at
+    /// its ends exactly, which a logarithm's power misses by a rounding.
     fn value(self, along: f64) -> f64 {
-        if self.logarithmic {
+        if along <= 0.0 {
+            self.min
+        } else if along >= 1.0 {
+            self.max
+        } else if self.logarithmic {
             self.min * (self.max / self.min).powf(along)
         } else {
             self.min + along * (self.max - self.min)

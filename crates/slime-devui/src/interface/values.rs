@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use slime_assets::AssetId;
 use slime_color::LinearColor;
-use slime_reflect::{FieldInfo, Kind, Path, Reflect, Registry, Value, VariantInfo};
+use slime_reflect::{FieldInfo, Kind, Path, Range, Reflect, Registry, Value, VariantInfo};
 use slime_ui::action::{Action, ActionKind, FieldValue};
 use slime_ui::style::{Align, Dimension, FlexDirection, Style};
 use slime_ui::tree::{Children, ChoiceOption, Element, ElementId, Key, Tooltip, Ui, Units};
@@ -57,9 +57,9 @@ pub struct ValueEditor {
     /// the rotation that they made: computed again from it, they would come back inexact, and past
     /// 90° about X as other angles.
     angles: HashMap<(String, Path), (Quat, [f32; 3])>,
-    /// The elements built last that are disabled: an option's box that has nothing to start
-    /// holding.
-    disabled: Vec<ElementId>,
+    /// The boxes of options built last, each with whether it is disabled, as one that holds nothing
+    /// and has nothing to start holding is.
+    boxes: Vec<(ElementId, bool)>,
     /// The label and the value that the elements were last built for, and the revision of that
     /// build.
     built: Option<(String, Value)>,
@@ -135,7 +135,7 @@ impl ValueEditor {
     /// ([`ValueEditor`] says how each is edited), again only once the label or the value changed.
     /// Their edits are read by [`ValueEditor::apply`].
     ///
-    /// It describes the type at each change, which suits the few small values of an overlay's
+    /// It describes the type at each build, which suits the few small values of an overlay's
     /// panel, such as a view's settings (`slime_render::ViewSettings`).
     ///
     /// # Panics
@@ -143,24 +143,24 @@ impl ValueEditor {
     /// If `slot` names nothing.
     pub fn build<T: Reflect>(&mut self, ui: &mut Ui, slot: ElementId, label: &str, value: &T) {
         let reflected = value.to_value();
-        let now = (label.to_owned(), reflected);
-        if self.built.as_ref() != Some(&now) {
+        // Floats compared by their bits, so that a `NaN` does not build it again at each frame.
+        let same = self
+            .built
+            .as_ref()
+            .is_some_and(|(built, held)| built == label && held.same(&reflected));
+        if !same {
             self.revision += 1;
-            self.built = Some(now);
+            self.built = Some((label.to_owned(), reflected.clone()));
         }
-        let Some((_, reflected)) = &self.built else {
-            return;
-        };
-        let reflected = reflected.clone();
-        let mut registry = Registry::new();
-        registry.register::<T>();
-        let ty = T::type_name();
         let revision = self.revision;
         let mut ran = false;
         ui.build(slot, revision, |children| {
             ran = true;
+            let mut registry = Registry::new();
+            registry.register::<T>();
+            let ty = T::type_name();
             self.edits.clear();
-            self.disabled.clear();
+            self.boxes.clear();
             let mut builder = Builder::new(self, &registry, None, "");
             let path = Path::default();
             builder.part(children, "value", label, &ty, &reflected, At::whole(&path));
@@ -211,7 +211,7 @@ impl ValueEditor {
         components: &[(String, Value)],
     ) {
         self.edits.clear();
-        self.disabled.clear();
+        self.boxes.clear();
         let registry = world.registry();
         for (component, value) in components {
             let component = component.as_str();
@@ -229,13 +229,14 @@ impl ValueEditor {
         }
     }
 
-    /// Disables the elements built last that cannot be used, which a builder cannot do.
+    /// Disables the boxes of options built last that cannot be used, and enables the others,
+    /// which a builder cannot do: a box kept from a build before keeps its state.
     pub(crate) fn settle(&self, ui: &mut Ui) {
-        for &id in &self.disabled {
+        for &(id, disabled) in &self.boxes {
             if let Some(mut state) = ui.state(id)
-                && !state.disabled
+                && state.disabled != disabled
             {
-                state.disabled = true;
+                state.disabled = disabled;
                 ui.set_state(id, state);
             }
         }
@@ -295,6 +296,11 @@ impl ValueEditor {
                 double,
             } => {
                 vector[axis] = number;
+                self.carry(edit, |target| {
+                    if let Target::Component { vector: held, .. } = target {
+                        *held = vector;
+                    }
+                });
                 let [x, y, z] = vector;
                 if double {
                     DVec3::new(x, y, z).to_value()
@@ -309,25 +315,49 @@ impl ValueEditor {
                 let made = rotation(angles);
                 let key = (edit.scope.clone(), edit.path.clone());
                 self.angles.insert(key, (made, angles));
+                self.carry(edit, |target| {
+                    if let Target::Angle { angles: held, .. } = target {
+                        *held = angles;
+                    }
+                });
                 made.to_value()
             }
             Target::Channel { color, channel } => {
                 let mut channels = [color.r, color.g, color.b, color.a];
                 channels[channel] = number as f32;
                 let [r, g, b, a] = channels;
-                LinearColor { r, g, b, a }.to_value()
+                let color = LinearColor { r, g, b, a };
+                self.carry(edit, |target| {
+                    if let Target::Channel { color: held, .. } = target {
+                        *held = color;
+                    }
+                });
+                color.to_value()
             }
             _ => return None,
         })
     }
+
+    /// Updates, with `update`, what the fields of the value that `edit` sets hold of it, as one
+    /// of them sets the value whole: the next field committed before the value is built again
+    /// sets it from this one, rather than taking this one back.
+    fn carry(&mut self, edit: &Edit, update: impl Fn(&mut Target)) {
+        for other in self.edits.values_mut() {
+            if other.scope == edit.scope && other.path == edit.path {
+                update(&mut other.target);
+            }
+        }
+    }
 }
 
-/// Where a value lies: its path, the field that it is, or an element of, and how many options at
-/// its path hold it.
+/// Where a value lies: its path, the field that it is, or an element of, the name of an element
+/// of a list, and how many options at its path hold it.
 #[derive(Clone, Copy)]
 struct At<'p> {
     path: &'p Path,
     field: Option<&'p FieldInfo>,
+    /// For an element of a list, its name: its list's, then its place, `weights [1]`.
+    element: Option<&'p str>,
     wraps: usize,
 }
 
@@ -337,16 +367,20 @@ impl<'p> At<'p> {
         Self {
             path,
             field: None,
+            element: None,
             wraps: 0,
         }
     }
 
-    /// The name that its elements are known by: its field's, or else its type's, `ty`.
+    /// The name that its elements are known by, which agents and screen readers read: an element
+    /// of a list's, or its field's, or else its type's, `ty`.
     fn name<'n>(&self, ty: &'n str) -> &'n str
     where
         'p: 'n,
     {
-        self.field.map_or(ty, |field| field.name.as_str())
+        self.element
+            .or(self.field.map(|field| field.name.as_str()))
+            .unwrap_or(ty)
     }
 
     /// Its field's unit, if it has one.
@@ -358,7 +392,7 @@ impl<'p> At<'p> {
 /// Builds the elements of a value, recording what each edits.
 struct Builder<'a> {
     edits: &'a mut HashMap<ElementId, Edit>,
-    disabled: &'a mut Vec<ElementId>,
+    boxes: &'a mut Vec<(ElementId, bool)>,
     angles: &'a HashMap<(String, Path), (Quat, [f32; 3])>,
     registry: &'a Registry,
     /// The world whose entities a reference names; none for a value outside a world.
@@ -375,7 +409,7 @@ impl<'a> Builder<'a> {
     ) -> Self {
         Self {
             edits: &mut editor.edits,
-            disabled: &mut editor.disabled,
+            boxes: &mut editor.boxes,
             angles: &editor.angles,
             registry,
             world,
@@ -456,9 +490,11 @@ impl<'a> Builder<'a> {
                 for (index, element_value) in elements.iter().enumerate() {
                     let path = at.path.clone().index(index);
                     let label = format!("[{index}]");
+                    let element_name = format!("{name} {label}");
                     let at = At {
                         path: &path,
                         field: at.field,
+                        element: Some(&element_name),
                         wraps: 0,
                     };
                     self.part(children, index, &label, element, element_value, at);
@@ -527,6 +563,7 @@ impl<'a> Builder<'a> {
                 let at = At {
                     path: &path,
                     field: Some(field),
+                    element: None,
                     wraps: 0,
                 };
                 let key = format!("field {}", field.name);
@@ -725,10 +762,8 @@ impl<'a> Builder<'a> {
         let element = Element::check_box("", held.is_some(), Style::default())
             .named(format!("{name} holds a value"));
         let id = children.add("holds", element, |_| {});
-        if held.is_none() && start.is_none() {
-            // Nothing to start holding, as a reference: the box cannot be checked.
-            self.disabled.push(id);
-        }
+        // Nothing to start holding, as a reference: the box cannot be checked.
+        self.boxes.push((id, held.is_none() && start.is_none()));
         self.record(id, at, Target::Option(start));
         if let Some(held) = held {
             children.add("held", Element::container(row(4.0)), |children| {
@@ -763,8 +798,20 @@ impl<'a> Builder<'a> {
 /// whether saves leave it out; none where there is none of them.
 fn described(field: &FieldInfo) -> Option<Tooltip> {
     let mut text = plain(&field.doc);
-    if let Some(range) = field.range {
-        text.push_str(&format!("\nRange: {range}."));
+    // A range in radians, as its field shows them: in degrees.
+    match field.range {
+        Some(range) if field.unit.as_deref() == Some("rad") => {
+            // Rounded as an `f32`, which a bound such as π/2 is: 90, not 90.0000025.
+            let degrees = |radians: f64| f64::from(radians.to_degrees() as f32);
+            let degrees = Range {
+                min: degrees(range.min),
+                max: degrees(range.max),
+                ..range
+            };
+            text.push_str(&format!("\nRange: {degrees}, in degrees."));
+        }
+        Some(range) => text.push_str(&format!("\nRange: {range}.")),
+        None => {}
     }
     if field.transient {
         text.push_str("\nNot saved.");
@@ -796,7 +843,8 @@ fn units(unit: Option<&str>) -> Units {
 }
 
 /// The step of a drag of a number about `number`: the power of ten at most a hundredth of it, and
-/// at least a hundredth, so that a drag of a hundred pixels changes it by about its own size.
+/// at least a hundredth, so that a drag of a hundred pixels changes it by a tenth of its size to
+/// its own size, and gives round numbers.
 fn step(number: f64) -> f64 {
     let about = (number.abs() * 0.01).max(0.01);
     if about.is_finite() {

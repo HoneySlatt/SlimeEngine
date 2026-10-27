@@ -145,7 +145,7 @@ On the engine's interface (`slime_devui::interface`), where the programs do not 
 
 - `interface::WorldPanel::build(&mut ui, parent, &world)`: the world panel built under `parent`,
   a root, a layer or a slot of the program's interface, again only once what it shows changed;
-  `interface::WorldPanel::act(&mut actions, &world)` takes from the actions that the program took
+  `interface::WorldPanel::act(&mut actions)` takes from the actions that the program took
   from the interface (`slime_ui::tree::Ui::take_actions`) those of the panel's elements, and gives
   the commands that they ask for, leaving the others.
 - `interface::ValueEditor::build(&mut ui, slot, label, &value)`: the editors of a value outside a

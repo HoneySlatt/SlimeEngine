@@ -91,8 +91,9 @@ impl Ui {
 
     /// A key reached the list to choose from `id`, which holds the focus: closed, the arrows up and
     /// down choose the option before or after the chosen one, Home and End the first and the last,
-    /// and Alt+Down or F4 open its list; open, the arrows up and down give the chosen option the
-    /// focus. Gives whether it took the key.
+    /// each passing over the options that are disabled, and Alt+Down or F4 open its list; open, the
+    /// arrows up and down give the focus to the chosen option, or to the nearest one that is not
+    /// disabled. Gives whether it took the key.
     pub(super) fn choice_key(&mut self, id: ElementId, event: &KeyEvent) -> bool {
         let Key::Named(named) = event.logical else {
             return false;

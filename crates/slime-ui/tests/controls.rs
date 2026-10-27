@@ -672,3 +672,15 @@ fn a_share_reads_as_its_own_type_writes_it() {
     let meaning = ui.meaning_of(split).expect("it means something");
     assert_eq!(meaning.value.as_deref(), Some("0.7"));
 }
+
+#[test]
+fn a_logarithmic_slider_reaches_its_bounds_exactly() {
+    let (mut ui, _, slider) = interface(
+        LayoutDirection::LeftToRight,
+        Element::slider(1.0, 0.7, 3.0, 0.0, sized(216.0)).logarithmic(),
+    );
+    click(&mut ui, 208.0, 10.0);
+    assert_eq!(ui.slider_value(slider), Some(3.0));
+    click(&mut ui, 8.0, 10.0);
+    assert_eq!(ui.slider_value(slider), Some(0.7));
+}

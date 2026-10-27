@@ -12,12 +12,10 @@ use slime_ui::tree::{Element, ElementId, Ui};
 use slime_world::{Command, Entity, PersistentId, Tick, World};
 
 use super::values::{Asked, ValueEditor};
-use crate::world_panel::name;
+use crate::world_panel::{LIST_HEIGHT, name};
 
 /// The height of a row of the list of entities, in logical pixels.
 const ROW_HEIGHT: f32 = 22.0;
-/// The height of the list of entities, in logical pixels, past which it scrolls.
-const LIST_HEIGHT: f32 = 160.0;
 
 /// A panel that lists the entities of a world by name, with a filter, and shows the one selected:
 /// its persistent identity, the prefab that it places if it is a placement's root
@@ -72,7 +70,7 @@ pub struct WorldPanel {
 }
 
 /// What a build of the panel shows, which a change of builds it again.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 struct Shown {
     /// The world's structure, which the names of the entities that references name follow.
     structure: Tick,
@@ -82,7 +80,7 @@ struct Shown {
 }
 
 /// What the panel shows of the entity selected.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 struct Details {
     entity: Entity,
     name: String,
@@ -91,6 +89,32 @@ struct Details {
     prefab: Option<String>,
     /// Its components, each its name and its value.
     components: Vec<(String, Value)>,
+}
+
+impl Shown {
+    /// Whether it shows what `other` shows, the components' floats compared by their bits, so that
+    /// a `NaN` does not build the panel again at each frame.
+    fn same(&self, other: &Self) -> bool {
+        let details = match (&self.selected, &other.selected) {
+            (Some(a), Some(b)) => {
+                a.entity == b.entity
+                    && a.name == b.name
+                    && a.identity == b.identity
+                    && a.prefab == b.prefab
+                    && a.components.len() == b.components.len()
+                    && a.components
+                        .iter()
+                        .zip(&b.components)
+                        .all(|(a, b)| a.0 == b.0 && a.1.same(&b.1))
+            }
+            (None, None) => true,
+            _ => false,
+        };
+        details
+            && self.structure == other.structure
+            && self.refusal == other.refusal
+            && self.rows == other.rows
+    }
 }
 
 impl Details {
@@ -158,7 +182,11 @@ impl WorldPanel {
             refusal: self.refusal.clone(),
             rows: self.rows_revision,
         };
-        if self.shown.as_ref() != Some(&shown) {
+        if !self
+            .shown
+            .as_ref()
+            .is_some_and(|before| before.same(&shown))
+        {
             self.revision += 1;
             self.shown = Some(shown);
         }
@@ -264,9 +292,15 @@ impl WorldPanel {
     /// Takes from `actions`, the actions that the program took from the interface
     /// (`Ui::take_actions`), those of the panel's elements, and gives the commands that they ask
     /// for, in their order: the filter typed, a row pressed, a reference pressed, which select, and
-    /// the edits of the entity selected, sent only for an entity with an identity. The others are
-    /// left in `actions`, in their order.
-    pub fn act(&mut self, actions: &mut Vec<Action>, world: &World) -> Vec<Command> {
+    /// the edits of the entity that the panel last showed, sent to the identity that it showed,
+    /// which the handle may no longer name after a load, and only for an entity with one. The
+    /// others are left in `actions`, in their order.
+    pub fn act(&mut self, actions: &mut Vec<Action>) -> Vec<Command> {
+        let shown_identity = self
+            .shown
+            .as_ref()
+            .and_then(|shown| shown.selected.as_ref())
+            .and_then(|details| details.identity.clone());
         let mut commands = Vec::new();
         let mut select = None;
         actions.retain(|action| {
@@ -291,8 +325,9 @@ impl WorldPanel {
             match self.editor.asked(action) {
                 Some(Asked::Select(entity)) => select = Some(entity),
                 Some(Asked::Set { scope, path, value }) => {
-                    let id = self.selected.and_then(|entity| world.persistent_id(entity));
-                    if let Some(id) = id {
+                    // The identity of the entity that the fields showed, which the handle may no
+                    // longer name in a world replaced since.
+                    if let Some(id) = shown_identity.clone() {
                         commands.push(Command::SetProperty {
                             entity: id,
                             component: scope,

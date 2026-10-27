@@ -17,7 +17,7 @@ use crate::ui::times;
 
 /// The world panel over a world of 100 000 named entities, the one selected holding a transform
 /// and a light: a frame standing still, one whose world changed, which builds the entity selected
-/// again, and one scrolled by a row.
+/// again, one scrolled by a row, and one after an entity was renamed, which makes the list again.
 pub fn world_panel(_: &mut Context) -> Result<Vec<Row>, String> {
     const ENTITIES: usize = 100_000;
     let mut world = World::new();
@@ -64,7 +64,7 @@ pub fn world_panel(_: &mut Context) -> Result<Vec<Row>, String> {
     panel.select(selected);
     let frame = |ui: &mut Ui, world: &World, panel: &mut WorldPanel| {
         let mut actions = ui.take_actions();
-        black_box(panel.act(&mut actions, world));
+        black_box(panel.act(&mut actions));
         panel.build(ui, root, world);
         black_box(ui.frame());
     };
@@ -94,9 +94,17 @@ pub fn world_panel(_: &mut Context) -> Result<Vec<Row>, String> {
         ui.scroll_to(list, [0.0, offset]);
         frame(&mut ui, &world, &mut panel);
     });
+    // The world's structure moved: the list made again, every name read and filtered.
+    let mut number = 0;
+    let renamed = times(|| {
+        number += 1;
+        world.insert(selected, Name(format!("renamed {number}")));
+        frame(&mut ui, &world, &mut panel);
+    });
     let mut rows = vec![Row::new("elements", stats.elements.to_string())];
     rows.extend(Row::times("a frame standing still", &still));
     rows.extend(Row::times("a frame whose world changed", &changed));
     rows.extend(Row::times("a frame scrolled by a row", &scrolled));
+    rows.extend(Row::times("a frame after an entity was renamed", &renamed));
     Ok(rows)
 }
