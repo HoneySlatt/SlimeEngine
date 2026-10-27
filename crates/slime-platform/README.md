@@ -6,8 +6,9 @@ The engine's link to the operating system's windowing and input services.
 
 Partial. It opens one window, on Wayland or X11 (Linux) and on Windows, reports its events (close
 requested, resized, scale factor changed, focus, keys, the modifier keys held, mouse buttons, cursor
-motion, the cursor entering and leaving, scrolling, and the text that input methods compose, for
-Chinese, Japanese or Korean) and its redraw requests; it allows and places the input method, sets
+motion, the cursor entering and leaving, scrolling, the text that input methods compose, for
+Chinese, Japanese or Korean, and the system's scheme of colors changing, on Windows) and its redraw
+requests; it allows and places the input method, sets
 the pointer's shape, and reads and writes the system's clipboard of text
 (`docs/adr/0145-text-edited.md`). With its `accessibility` feature, the window holds AccessKit's
 adapter, through which screen readers read what it shows (`docs/adr/0146-screen-readers.md`). It
@@ -57,7 +58,7 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   nodes, or no screen reader any more. `Window::update_accessibility` gives the adapter an update
   of the tree, which the event loop applies once the handler's call returns, on its own thread,
   where the adapter stays. Without a screen reader, the adapter does nothing; without a session
-  bus, as in CI, it does not connect.
+  bus, as in CI's runs but its check of screen readers, it does not connect.
 - `Clipboard` reads and writes the system's clipboard of text, through arboard: Wayland's
   protocol of the clipboard's managers where the compositor gives it, X11's otherwise, and
   Windows' own.
@@ -92,20 +93,21 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   they do not combine) and its release does not, so a press and its release can have different
   logical values: track which keys are down by physical code. `KeyCode::name` and
   `KeyCode::from_name` give a key's code as text and back, as tools name keys. `MouseButton`,
-  `ButtonState` and `ScrollDelta` describe the mouse.
+  `ButtonState` and `ScrollDelta` describe the mouse; `Ime`, what an input method composes;
+  `CursorShape`, the pointer's shape that a program asks for.
 - `Input` is the input as data: the keys and the mouse buttons held, and those pressed and released
   since the last frame (`Buttons`), which `Input::handle` follows from the events and
   `Input::end_frame` ends, or that a test presses and releases itself. `slime-app`'s host keeps it
   for a game's simulation (`docs/adr/0107-the-execution-model.md`).
 - `PlatformError` says why the event loop could not run: `Connect` (no windowing system can be
   reached), `SecondEventLoop` (one was already requested in this process), `CreateWindow` or
-  `EventLoop`; winit's own error is its `source()`. When the window could not be created, no
-  `EventHandler` method is called. A Wayland compositor that dies while the loop runs ends it
-  cleanly (`exiting` is called) with `PlatformError::EventLoop`, whose source says only
-  `Exit Failure: <code>`; the cause appears in lines that the Wayland library prints to standard
-  error itself. An X server that dies or closes the connection ends the process instead: the X11
-  library (Xlib) prints that the X connection is broken and exits with status 1, so neither
-  `exiting` nor anything after it runs.
+  `EventLoop`, or why `Clipboard::open` found no clipboard (`Clipboard`); winit's own error is its
+  `source()`. When the window could not be created, no `EventHandler` method is called. A Wayland
+  compositor that dies while the loop runs ends it cleanly (`exiting` is called) with
+  `PlatformError::EventLoop`, whose source says only `Exit Failure: <code>`; the cause appears in
+  lines that the Wayland library prints to standard error itself. An X server that dies or closes
+  the connection ends the process instead: the X11 library (Xlib) prints that the X connection is
+  broken and exits with status 1, so neither `exiting` nor anything after it runs.
 
 On Linux, the windowing system is chosen from the environment, with no fallback from one to the
 other: Wayland if `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set to a non-empty value, otherwise X11

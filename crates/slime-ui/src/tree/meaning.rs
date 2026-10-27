@@ -193,8 +193,10 @@ pub struct Meaning {
     pub name: String,
     /// Its value: what a field holds, as the user left it, the text that an input method composes
     /// included, a field of numbers' text whether or not it reads as a number, then the symbol of
-    /// its unit where it holds a number, `1.5 m`; a slider's number,
-    /// and two panels' first share, as Rust writes them; none for another element.
+    /// its unit where it holds a number, `1.5 m`; a slider's number, two panels' first share and a
+    /// bar of progress's share, as Rust writes them; the option that a list to choose from shows;
+    /// a color well's hexadecimal code, and the value of a part of its picker; none for another
+    /// element.
     pub value: Option<String>,
     /// The bounds and the step of a slider's value, and of two panels' share; none for another
     /// element.

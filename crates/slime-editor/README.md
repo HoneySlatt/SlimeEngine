@@ -45,7 +45,8 @@ comes with Stage 6c, on the engine's UI framework (`docs/adr/0132-the-engines-ui
 `slime-serialize` and `slime-reflect`, for its journal and the comments of levels; `slime-cook`,
 whose metadata files give a level's asset ID, and which writes files whole or not at all;
 `slime-app`, with its `development` feature, on which its program runs, `slime-channel`, whose
-requests it answers, and `slime-assets`, the cooked data of the prefabs that a level places.
+requests it answers, and `slime-assets`, the cooked data of the prefabs that a level places;
+`thiserror`, which derives `EditError`, and `tracing`, the program's log.
 
 ## Must not
 

@@ -41,10 +41,11 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   command of a shortcut. The program reads them from a queue (`Ui::take_actions`); an agent sends
   them (`Ui::act`). The interface moves the focus itself, by Tab in the order of the tree and by the
   arrows to the nearest element on screen, within its scope, and by F6 from one root to the next; a
-  focus that a press of the pointer gave leaves the keys to the program, and a game keeps Tab until
-  its interface holds a focus (`Ui::set_tab_enters`); a root may be a popup at a place of its own,
-  or modal, keeping the input and the focus while it is open. An element's description,
-  its tooltip, and whether a press opens a layer beside it, are part of what it means.
+  focus that a press of the pointer gave to anything but a field leaves the keys to the program, and
+  a game keeps Tab until its interface holds a focus (`Ui::set_tab_enters`,
+  [ADR-0153](../../docs/adr/0153-tab-and-f6-in-a-games-interface.md)); a root may be a popup at a
+  place of its own, or modal, keeping the input and the focus while it is open. An element's
+  description, its tooltip, and whether a press opens a layer beside it, are part of what it means.
 - `shortcuts::Shortcuts` is a table of shortcuts, read from a document: chords of the keys' meaning
   that name commands, in scopes, the classes of the elements around the focus; `Ui::set_shortcuts`
   takes them. Its errors and the style sheets' are a `DocumentError`.
@@ -99,20 +100,21 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   (`action::FieldValue::Color`, `Ui::color`); boxes filled with a gradient in the display list
   (`display::GradientPrimitive`).
 - `look`, built only with the feature `editor-look`, is the editor's look, made for the editor and
-  the dev overlay, and drawn by the `widgets` example: its fonts, Geist and Geist Mono, and
-  Lucide's icons (`look::register_fonts`, `look::icon`), its style sheet (`look::style_sheet`), and
-  its themes, stacked: a base of scales, a theme of colors, dark, light or high contrast, and a
-  compact one (`look::themes`, `look::Colors`, `look::Density`). Its files are in
-  [`look/`](look/README.md), with the fonts' licenses, which a program that builds them in ships
-  beside it.
+  the dev overlay, and drawn by the dev overlay (`slime-devui`) and the `widgets` example: its
+  fonts, Geist and Geist Mono, and Lucide's icons (`look::register_fonts`, `look::icon`), its style
+  sheet (`look::style_sheet`), and its themes, stacked: a base of scales, a theme of colors, dark,
+  light or high contrast, and a compact one (`look::themes`, `look::Colors`, `look::Density`). Its
+  files are in [`look/`](look/README.md), with the fonts' licenses, which a program that builds them
+  in ships beside it.
 - `Ui::meaning` says what the tree means, made when asked: each element drawn that means
   something, its `tree::Role`, named as AccessKit names roles, its name, its value, a field's, a
-  slider's or two panels' share, its
+  slider's, two panels' share, a list to choose from's option, a color well's code or a bar of
+  progress's share, its
   states, the `tree::ElementAction`s that an agent can do to it now, the part of it that shows and
   its path, `#0/bar/open`, which `Ui::element_by_path` reads back. A box that only lays others out
   means nothing; a builder gives an element its role and its name (`Element::role`,
   `Element::named`). `Ui::set_value` gives a field a value, as a person who replaced its text and
-  committed would, and a slider or two panels theirs.
+  committed would, and a slider, two panels, a list to choose from or a color well theirs.
 - `Ui::take_meaning_changes` gives what changed in that meaning since it was last taken, as a
   screen reader's adapter sends it (`tree::MeaningChanges`): each element marked as its meaning
   changes, named by a number that no other element is ever given, with the elements that mean
@@ -136,10 +138,10 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
 - `text::TextCache` keeps laid-out text from one frame to the next within a budget of memory, and
   gives it shared, `Arc<TextLayout>`, so that a display list holds it without copying it.
 - `display::DisplayList` is what an interface draws in a frame, as owned data: boxes, the shadows
-  that boxes cast, texts laid out and parts of images, which it names by keys
-  (`display::ImageKey`) that the program drawing it resolves, each with its clip, its transform
-  and its layer, the identity and the root's until Stage 7. `slime-ui-render` draws it through the
-  renderer's canvas.
+  that boxes cast, boxes filled with a gradient, texts laid out and parts of images, which it names
+  by keys (`display::ImageKey`) that the program drawing it resolves, each with its clip, its
+  transform and its layer, the identity and the root's until Stage 7. `slime-ui-render` draws it
+  through the renderer's canvas.
 - `Rect` is the rectangle the framework speaks in, by its top left corner and its size, as the
   renderer's canvas gives its own.
 

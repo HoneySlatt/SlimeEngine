@@ -7,8 +7,8 @@ The color type of the engine's API, and the sRGB transfer function
 
 - `LinearColor`: four `f32`s, red, green and blue in linear light, without an upper bound, and
   straight alpha. Every color of the engine's API is one: the clear colors of `slime-gfx`, the
-  colors of materials, lights and skies in `slime-render`, and those of a world's lights in
-  `slime-world`.
+  colors of materials, lights and skies in `slime-render`, those of a world's lights in
+  `slime-world`, and those of the interface's styles, themes and color wells in `slime-ui`.
 - `srgb8_to_linear` and `linear_to_srgb8`: the sRGB transfer function between bytes and linear
   values, which `LinearColor::from_srgb8`, the mipmaps of `slime-gfx` and the cooker's mipmaps use;
   `linear_to_srgb`, the encoding not rounded to a byte, with which the renderer's canvas encodes

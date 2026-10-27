@@ -13,7 +13,8 @@
 //! statistics through an item that *View* holds, and opens a recent level through *File*'s submenu,
 //! whose menus then close; it gives a command that the example tells of in a notification, and
 //! finds a command in the palette of commands, which it gives, and opens and closes the sheet of
-//! shortcuts.
+//! shortcuts. It gives the light's color well a hexadecimal code
+//! (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`).
 //!
 //! It needs a Wayland compositor and the example built (`cargo build --example widgets`):
 //! `scripts/check.sh` runs it in a headless Weston with lavapipe, as it runs the `interface` test.

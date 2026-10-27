@@ -86,8 +86,8 @@ macro_rules! named_enum {
         }
 
         impl $engine {
-            /// The variant's name, as the code writes it: how the tools of the development channel,
-            /// and egui, name keys.
+            /// The variant's name, as the code writes it: how the tools of the development channel
+            /// name keys.
             pub fn name(self) -> &'static str {
                 match self {
                     $(Self::$variant => stringify!($variant),)*

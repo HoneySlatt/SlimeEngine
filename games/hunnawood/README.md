@@ -165,13 +165,14 @@ test sets it aside as a save of an earlier version of the engine, and a new run 
 Keys are read by their position on the keyboard, so that the four movement keys sit in the same
 place on every layout. The dev overlay's panels take the clicks that fall on them, and the keys
 while one of their fields or open lists takes them, Escape included, which leaves the field or
-closes the list, or while F6 gave them the keyboard's focus, Tab moving it within a panel then; the
-game sees none of them. A click on a button or a slider of a panel leaves the keys to the game. F1
-and F2 show and hide the panels whatever holds the keys; F3 and F4 work while no field takes them
-([ADR-0153](../../docs/adr/0153-tab-and-f6-in-a-games-interface.md)). The build for shipping,
-`--no-default-features`, has no overlay: F1 to F4 and F6 do nothing there. CI builds the game
-for Windows with the examples: `hunnawood.exe` is in the `slime-examples-windows` artifact of each
-run, with its cooked zone beside it.
+closes the list; while F6 gave them the keyboard's focus, they take the keys that move and use it,
+Tab, the arrows, Enter, Space, and Escape, which gives the keys back to the game. The game sees none
+of those; its other keys still reach it. A click on a button or a slider of a panel leaves the keys
+to the game. F1 and F2 show and hide the panels whatever holds the keys; F3 and F4 work while no
+field takes them ([ADR-0153](../../docs/adr/0153-tab-and-f6-in-a-games-interface.md)). The build for
+shipping, `--no-default-features`, has no overlay: F1 to F4 and F6 do nothing there. CI builds the
+game for Windows with the examples: `hunnawood.exe` is in the `slime-examples-windows` artifact of
+each run, with its cooked zone beside it.
 
 ## How it is made
 

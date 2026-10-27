@@ -48,7 +48,7 @@ const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its dev
      `stop_game` ends it. A game's interface is read and used as a person uses it: \
      `find_elements` lists its elements by role and name, each with its path, `element_at` names \
      the one at a pixel, `act_on_interface` presses, focuses or scrolls one, gives a field, a \
-     slider or two panels a value, or moves the focus, \
+     slider, two panels, a list to choose from or a color well a value, or moves the focus, \
      and `capture_element` shows one. An editor, started as a game is (`cargo run --example \
      editor -- --level <a copy of a level> --journal <a file of its own>`), edits its level: \
      `edit` makes a step of commands, `undo` and `redo` undo and make it again, `select` selects \
@@ -233,8 +233,8 @@ struct ElementAt {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct ActOnInterface {
     /// What to do, whatever its case: `press`, `focus` or `scroll` an element, or `set_value` of a
-    /// field, a slider, two panels or a list to choose from, which must take it, as `find_elements`
-    /// lists; or, without an
+    /// field, a slider, two panels, a list to choose from or a color well, which must take it, as
+    /// `find_elements` lists; or, without an
     /// element, `next`, `previous`, `up`, `down`, `left`, `right` to move the focus as Tab and the
     /// arrows do, `accept` as Enter does, `cancel` as Escape does, `command` to give the command
     /// named `command` as a shortcut does.
@@ -251,7 +251,8 @@ struct ActOnInterface {
     /// and committed would leave it; for a field of numbers, an expression of a finite number, in
     /// a unit of its family where it has one: `2.5`, `sqrt(2)/2`, `10cm`; for a slider, a finite
     /// number; for two panels, the share of the first, from 0 to 1; for a list to choose from, one
-    /// of its options, `High`, or the place of one, from 0.
+    /// of its options, `High`, or the place of one, from 0; for a color well, a hexadecimal code,
+    /// `#ff8000`.
     value: Option<String>,
 }
 
@@ -884,8 +885,8 @@ impl Server {
 
     #[tool(
         description = "Acts in the game's interface as a person would: presses a button, gives an \
-                       element the focus, scrolls a box or a list, or gives a field, a slider or \
-                       two panels a value, as \
+                       element the focus, scrolls a box or a list, or gives a field, a slider, \
+                       two panels, a list to choose from or a color well a value, as \
                        if a person replaced what it holds and committed, which must take it now; \
                        or moves the focus, accepts, cancels or gives a command, as keys do. The \
                        game reads what it asks as its frame goes on."

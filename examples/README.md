@@ -27,7 +27,8 @@ token, as the engine's MCP server ([`crates/slime-mcp`](../crates/slime-mcp/READ
 program, they listen for the tools that drive them; started without one, they do not. They hold
 the adapter of screen readers too, `slime-app`'s `accessibility` feature
 ([ADR-0146](../docs/adr/0146-screen-readers.md)): the window of one that has an interface, as
-`interface` and `widgets` do, gives its tree to Orca on Linux and to Narrator on Windows.
+`interface` and `widgets` do, and `scene` and `world` through their dev overlay, gives its tree to
+Orca on Linux and to Narrator on Windows.
 
 On Windows, the same commands work with the toolchain described in
 [`CONTRIBUTING.md`](../CONTRIBUTING.md#on-windows). Each CI run on GitHub also publishes
@@ -36,11 +37,12 @@ On Windows, the same commands work with the toolchain described in
 game, `hunnawood.exe` ([`games/hunnawood`](../games/hunnawood/README.md)) and its cooked zone, and
 DXC's library and its licence beside them, with which Direct3D 12 compiles their shaders, the
 licenses of the parts of Noto fonts that `interface.exe` embeds, and those of Geist, Geist Mono and
-Lucide, which `widgets.exe` embeds ([ADR-0066](../docs/adr/0066-shipping-dxc-beside-the-programs.md)), to
-run on a Windows machine without a Rust toolchain. They link the C runtime of the MSVC toolchain
-statically, so they start on a fresh Windows install too, without the Visual C++ Redistributable.
-Run them from a terminal (Windows Terminal, PowerShell or cmd): started by a double click, their
-console closes with them, and an error at startup disappears with it.
+Lucide, which `widgets.exe` embeds, and `scene.exe` and `world.exe` in their dev overlay
+([ADR-0066](../docs/adr/0066-shipping-dxc-beside-the-programs.md)), to run on a Windows machine
+without a Rust toolchain. They link the C runtime of the MSVC toolchain statically, so they start on
+a fresh Windows install too, without the Visual C++ Redistributable. Run them from a terminal
+(Windows Terminal, PowerShell or cmd): started by a double click, their console closes with them,
+and an error at startup disappears with it.
 
 The `scene`, `world`, `editor` and `interface` examples read cooked data, which the cooker
 (`slime-cook`, [`crates/slime-cook`](../crates/slime-cook/README.md)) makes from the sources in

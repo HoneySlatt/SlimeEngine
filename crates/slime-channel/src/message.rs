@@ -213,14 +213,16 @@ pub enum InterfaceAction {
         /// The offset from the top.
         y: f32,
     },
-    /// Gives a field, a slider, two panels or a list to choose from a value, as a person who
-    /// replaced what it holds and committed would (`docs/adr/0146-screen-readers.md`,
-    /// `docs/adr/0148-widgets.md`, `docs/adr/0151-rich-widgets.md`): the game reads the change and
-    /// the commit of a field's, a slider's or a list's.
+    /// Gives a field, a slider, two panels, a list to choose from or a color well a value, as a
+    /// person who replaced what it holds and committed would (`docs/adr/0146-screen-readers.md`,
+    /// `docs/adr/0148-widgets.md`, `docs/adr/0151-rich-widgets.md`,
+    /// `docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`): the game reads the change and
+    /// the commit of a field's, a slider's, a list's or a color well's.
     SetValue {
         /// The text; for a field of numbers, an expression of a finite number, in a unit of its
         /// family where it has one, `sqrt(2)/2`, `10cm`; for a slider, a finite number, as Rust
-        /// reads one; for a list to choose from, one of its options or the place of one.
+        /// reads one; for a list to choose from, one of its options or the place of one; for a
+        /// color well, a hexadecimal code, `#ff8000` or `#ff800080`.
         value: String,
     },
     /// Moves the focus to the next element, as Tab does.

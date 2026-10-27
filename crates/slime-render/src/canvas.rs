@@ -168,8 +168,8 @@ pub struct ImageQuad {
     pub clip: Option<PixelRect>,
 }
 
-/// What an interface draws in a frame: boxes, shadows and images, in the order they are added,
-/// each over what was added before it, each clipped to its rectangle
+/// What an interface draws in a frame: boxes, shadows, gradients and images, in the order they are
+/// added, each over what was added before it, each clipped to its rectangle
 /// ([`Renderer::draw_canvas`](crate::Renderer::draw_canvas)). Coordinates are the target's pixels,
 /// from its top left corner, y down. A canvas borrows the images it draws, for the frame.
 #[derive(Debug, Default)]

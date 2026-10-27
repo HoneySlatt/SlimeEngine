@@ -18,7 +18,8 @@ the window's platform layer (`slime-platform`), which translates winit's events 
   for and the window shows.
 - `for_each_key_code!` and `for_each_named_key!` list the names of the key codes and the named
   keys, once: the enums are declared from them, and `slime-platform` translates winit's values by
-  them.
+  them. `KeyCode::name` and `KeyCode::from_name`, and `NamedKey`'s, give each as text and back, as
+  the tools of the development channel name keys.
 
 ## Depends on
 

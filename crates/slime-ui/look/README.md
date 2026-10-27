@@ -1,9 +1,9 @@
 # The editor's look
 
 The fonts, the style sheet and the themes made for the interfaces of the engine's editor and of its
-dev overlay, which the `widgets` example draws in. `slime_ui::look` builds them into a program,
-with the feature `editor-look`; its rustdoc says how a program takes them and stacks them, and
-[ADR-0148](../../../docs/adr/0148-widgets.md) and
+dev overlay, which the `widgets` example and the dev overlay (`slime-devui`) draw in.
+`slime_ui::look` builds them into a program, with the feature `editor-look`; its rustdoc says how a
+program takes them and stacks them, and [ADR-0148](../../../docs/adr/0148-widgets.md) and
 [ADR-0149](../../../docs/adr/0149-the-looks-foundations.md) why they are what they are.
 
 | File | What |
@@ -14,7 +14,7 @@ with the feature `editor-look`; its rustdoc says how a program takes them and st
 | `Lucide.ttf` | Lucide's font of icons, whole, its 2191 icons: `lucide.ttf` of `lucide-font-1.61.0.zip`, Lucide's release 1.61.0 |
 | [`Lucide.codepoints.json`](Lucide.codepoints.json) | The name of each of its icons and its codepoint, from 57400 up, `codepoints.json` of the same archive, which `slime_ui::look::icon` reads |
 | [`Lucide.LICENSE.txt`](Lucide.LICENSE.txt) | Lucide's license, ISC, and the MIT license of the icons that it took from Feather, which it lists, as `LICENSE` of Lucide's repository at its tag `1.61.0` gives them |
-| [`editor.style`](editor.style) | The look's style sheet: labels, buttons, fields, widgets, menus and their bar, lists to choose from and floating panels styled by their kind and their states, and the classes `window`, `bar`, `panel`, `muted`, `fixed`, `tooltip`, `separator` in a menu, `axis-x`, `axis-y` and `axis-z` on fields of numbers, and, on what the interface builds for itself, `palette`, `sheet`, `sheet-title`, `sheet-scope` and `sheet-row`, `notification`, its kinds and its `close` mark, `picker` on a color well's picker, and, on the dev overlay's panels, `row` on a list's buttons, `link`, `heading` and `error` on a label, naming the themes' roles and scales alone, and Lucide's icons that controls draw by their codepoints |
+| [`editor.style`](editor.style) | The look's style sheet: labels, buttons, fields, widgets, menus and their bar, lists to choose from and floating panels styled by their kind and their states, and the classes `window`, `bar`, `panel`, `muted`, `fixed`, `tooltip`, `separator` in a menu, `axis-x`, `axis-y` and `axis-z` on fields of numbers, and, on what the interface builds for itself, `palette`, `sheet`, `sheet-title` and `sheet-scope`, `tooltip-title`, `notification`, its kinds and its `close` mark, `picker` on a color well's picker, and, on the dev overlay's panels, `row` on a list's buttons, `link` on the button of a reference to an entity, `heading` and `error` on a label, naming the themes' roles and scales alone, and Lucide's icons that controls draw by their codepoints |
 | [`base.theme`](base.theme) | The scales that every theme shares: spacings on a grid of 4 pixels, radii, sizes of text, the controls' sizes, paddings and durations |
 | [`dark.theme`](dark.theme) | The dark theme of colors, the look's own: a palette, then the roles that the style sheet names, computed from it |
 | [`light.theme`](light.theme) | The light theme of colors, the same roles |
@@ -44,10 +44,13 @@ keeps the font and its codepoints, unchanged but for their names, and its licens
 | `Lucide.codepoints.json` | `4334dba4768d08a38f12caef18aa2818835f130a85f133f069f7ac5b161d6724` |
 | `Lucide.LICENSE.txt` | `b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57` |
 
-Geist holds the Latin script, Vietnamese included, and Cyrillic, not Greek: the editor falls back
-on the system's fonts for the other writing systems, the overlay, which ships in games, does not
+Geist holds the Latin script, Vietnamese included, and Cyrillic, not Greek: the editor is to fall
+back on the system's fonts for the other writing systems once it draws its interface; the overlay,
+which games carry in their development builds, does not
 (ADR-0133, [ADR-0139](../../../docs/adr/0139-text-drawn-and-the-display-list.md)). Its license
 reserves no name. The italic faces are left out: the look draws none.
 
-A program that builds the look in ships `Geist.OFL.txt` and `Lucide.LICENSE.txt` beside it. The `widgets` example builds it
-in, which the Windows artifact of CI and the releases carry, with the license beside it.
+A program that builds the look in ships `Geist.OFL.txt` and `Lucide.LICENSE.txt` beside it. The
+`widgets` example builds it in, and `scene`, `world` and *Hunna Wood*'s development build in their
+dev overlay; the Windows artifact of CI and the releases carry them, with the licenses beside
+them.

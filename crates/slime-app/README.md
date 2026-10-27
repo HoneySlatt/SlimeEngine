@@ -124,34 +124,33 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
 - `Presentation`: what the player sees, which reads the world and never writes it: every method
   receives it as `&World` or not at all, so that a presentation that writes the world does not
   compile. `start` once the window and the GPU are open; `on_event` for each event of the window
-  that its interface did not take, which returns whether the presentation takes it for itself, as
-  a key that it alone reads: the simulation's input then does not see a key or a button put down,
-  and always sees one let go; for each frame, `extract`, which reads the
-  world and makes what the frame draws, then, when the window can show a new image, `render`,
-  which draws it into the window's image without the world
-  (`docs/adr/0111-the-frame-contract.md`), and `views`, which
-  names the views that it drew there, each with its rectangle (`ShownView`), so that a tool
-  captures one through the development channel (`docs/adr/0126-views-apart-from-the-renderer.md`),
-  with `view_settings` and `set_view_settings`, which hand a tool a view's settings as reflection
+  that its interface did not take, which returns whether the presentation takes it for itself, as a
+  key that it alone reads: the simulation's input then does not see a key or a button put down, and
+  always sees one let go; for each frame, `extract`, which reads the world and makes what the frame
+  draws, then, when the window can show a new image, `render`, which draws it into the window's
+  image without the world (`docs/adr/0111-the-frame-contract.md`), and `views`, which names the
+  views that it drew there, each with its rectangle (`ShownView`), so that a tool captures one
+  through the development channel (`docs/adr/0126-views-apart-from-the-renderer.md`), with
+  `view_settings` and `set_view_settings`, which hand a tool a view's settings as reflection
   describes them (`Reflected`), and take them back changed
   (`docs/adr/0127-the-settings-of-a-view.md`), and `reports`, the named values, as described, that
-  it gives tools, an asset cache's and its views' statistics
-  (`docs/adr/0128-asset-requests.md`), and `pick`, which picks the entity at a pixel of a view for a
-  tool and gives it to a `PickAnswer` once it knows it (`docs/adr/0130-picking.md`), and `ui`,
-  its interface, if it has one, which a tool reads, acts on and captures element by element
-  (`docs/adr/0143-what-agents-see-of-the-interface.md`), and which the run connects to the
-  window: each event goes to the interface first, and to `on_event` and the game's input only
-  when the interface did not take it; the interface gets the system's clipboard, before each
-  frame the time since the last, by which its transitions go on
-  (`docs/adr/0149-the-looks-foundations.md`), and after each frame the window shows the pointer's
-  shape that it asks and allows the input method while one
-  of its fields takes text (`docs/adr/0145-text-edited.md`), and, with the `accessibility`
-  feature, screen readers get what changed in what it means;
-  `gpu_lost` and `gpu_restored` when the run replaces a lost GPU device, which a game asks for with
-  `AppConfig::restore_lost_device`: it drops its GPU objects in the first, before the new device
-  opens, and creates them again in the second
-  (`docs/adr/0075-recovering-from-a-lost-gpu-device.md`); `stop` once. Only windowed runs call
-  it.
+  it gives tools, an asset cache's and its views' statistics (`docs/adr/0128-asset-requests.md`),
+  and `pick`, which picks the entity at a pixel of a view for a tool and gives it to a `PickAnswer`
+  once it knows it (`docs/adr/0130-picking.md`), and `ui`, its interface, if it has one, which a
+  tool reads, acts on and captures element by element
+  (`docs/adr/0143-what-agents-see-of-the-interface.md`), which the presentation draws in `render`
+  itself (`slime-ui-render`), and to which the dev overlay adds its panels as roots
+  (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`); the run connects it to the window:
+  each event goes to the interface first, and to `on_event` and the game's input only when the
+  interface did not take it, but a key or a button let go, which always reaches the input; the
+  interface gets the system's clipboard, before each frame the time since the last, by which its
+  transitions go on (`docs/adr/0149-the-looks-foundations.md`), and after each frame the window
+  shows the pointer's shape that it asks and allows the input method while one of its fields takes
+  text (`docs/adr/0145-text-edited.md`), and, with the `accessibility` feature, screen readers get
+  what changed in what it means; `gpu_lost` and `gpu_restored` when the run replaces a lost GPU
+  device, which a game asks for with `AppConfig::restore_lost_device`: it drops its GPU objects in
+  the first, before the new device opens, and creates them again in the second
+  (`docs/adr/0075-recovering-from-a-lost-gpu-device.md`); `stop` once. Only windowed runs call it.
   - A `start` can fail: it returns `Result<(), AppError>`, where `AppError` is any boxed error (`?`
     converts errors into it). After a failed `start`, no frame runs, neither `stop` is called and
     `run` returns the error. `gpu_restored` can fail too, which stops the run with the error. The
@@ -188,7 +187,8 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
     default) and sleeps in between; a frame runs each time the windowing system lets the window
     draw, which also happens on its own initiative, for example during a resize
     (`docs/adr/0020-rendering-in-the-main-loop.md`). The images are shown as
-    `AppConfig::present_mode` says: by default, each one replaces the image waiting to be shown,
+    `AppConfig::present_mode` says: by default, each one replaces the image waiting to be shown, on
+    windows that offer it, the others falling back to `PresentMode::Fifo`,
     so the display never makes a frame wait, and the schedule alone paces the frames, hidden window
     included (`docs/adr/0021-frame-pacing.md`). With `PresentMode::Fifo`, every image is shown
     in step with the display, which can block a frame: up to one second when the compositor
@@ -211,22 +211,22 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   - The signal handler replaces any other handler the process had for these signals, except one
     installed earlier through the `ctrlc` crate, which is kept. It stays installed after `run`
     returns: a signal then no longer ends the process by itself, and only the second one received
-    in the process ends it (exit code 130).
+    in the process, half a second or more after the first, ends it (exit code 130).
   - On Windows, Ctrl+C and Ctrl+Break in a console stop the run the same way; closing the console
     window ends the process at once, without the `stop` methods, and logging off and shutting down
     end it without them too.
-- `AppConfig`: the window (`None`, the default, runs headless), frame limit, fixed step
-  (1/60 s), maximum fixed steps per frame (8), maximum frame delta (250 ms), maximum frame rate
-  (60), present mode (`PresentMode::Mailbox`) and whether a windowed run replaces a lost GPU device
-  (`restore_lost_device`, `false`). Write it as a struct literal ending with
-  `..AppConfig::default()`.
+- `AppConfig`: the window (`None`, the default, runs headless), the frame limit, the fixed step, the
+  most fixed steps per frame, the longest frame delta, the most frames per second, whether a
+  headless run is paced at that rate (`pace_headless`, as the editor's program is), the present mode
+  and whether a windowed run replaces a lost GPU device (`restore_lost_device`); each field's
+  rustdoc gives its default. Write it as a struct literal ending with `..AppConfig::default()`.
 - `Context`: what the presentation, and whoever drives a host, can ask from the engine: the window
   (`Context::window`), the GPU that draws into it (`Context::gpu`) and the format of its images
   (`Context::surface_format`), all `None` when headless; both times (`Context::time`); game time's
   speed, pause and one step (`set_speed`, `pause`, `resume`, `step`), applied from the next frame,
   and its hold, which a game sets while it is not ready to be played, apart from the pause
   (`hold`, `held`);
-  the commands (`Context::send`), and those that the world refused at this frame's start
+  the commands (`Context::send`), and those that the simulation refused at this frame's start
   (`Context::refused`); stopping the run (`request_exit`), or failing it (`exit_with_error`); and
   whether it is going to stop (`exit_requested`), which reports a termination signal as soon as it
   arrives, even during a `start` or in the middle of a frame.

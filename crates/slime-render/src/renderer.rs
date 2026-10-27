@@ -780,12 +780,13 @@ impl<'a> ViewDraw<'a> {
 /// instances beyond, in the order of the scene's, are left out of every pass, with a warning the
 /// first time a renderer meets such a scene.
 ///
-/// It does not yet smooth the edges that a masked material cuts inside a triangle, or blend
-/// transparent surfaces.
+/// It does not yet smooth the edges that a masked material cuts inside a triangle, nor blend a
+/// physically based material: the unlit kind's blended materials alone are drawn over what is
+/// behind them, unsorted.
 pub struct Renderer {
     /// The output's format.
     format: TextureFormat,
-    /// The kinds of materials it draws (ADR-0111): the physically based one alone.
+    /// The kinds of materials it draws (ADR-0111): the physically based one and the unlit one.
     kinds: Vec<Kind>,
     /// Its pipelines, made from its shaders' sources ([`Renderer::set_shaders`]).
     pipelines: Pipelines,

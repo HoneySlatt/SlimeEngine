@@ -19,13 +19,13 @@ It prints the machine (its logical CPUs, its system, the GPU that the engine ope
 then a Markdown table, one row per figure, which [`scripts/measure.sh`](../scripts/measure.sh)
 completes with the build's figures. A debug build says so: its figures do not compare with a
 release build's. The examples' sample, which the world's benchmarks place, is cooked into
-`target/benches/sample` by the first run.
+`target/benches/sample` at its first use in each run.
 
 ## The benchmarks
 
 Each times a scenario a number of times, and gives the median and the 90th percentile of each
 series, or its median, its slowest or a single time, as each row says, with the number of times.
-The program installs the engine's diagnostics: the engine's warnings and errors reach standard
+The program installs the engine's diagnostics: the engine's log, from `info` up, reaches standard
 error, and `SLIME_TRACE` writes a trace of a run. An argument selects the benchmarks
 whose names start with it, except those run only on request, which an argument selects only when
 it is their whole name.
@@ -66,8 +66,9 @@ after.
   frame's earlier submissions, which lavapipe runs one after the other
   ([`RenderStats::cpu_time`](../crates/slime-render/src/renderer.rs)): it is not a CPU time
   there. `world.transforms.100k`, `world.changes.100k`, `world.children`, `world.placements`,
-  `world.save.100k`, `world.undo.1k`, the `ui.text` and `ui.tree` benchmarks and `loading.batch` do
-  not touch the GPU; the others draw, or make objects on the GPU.
+  `world.save.100k`, `world.undo.1k`, the `ui.text` and `ui.tree` benchmarks,
+  `devui.world_panel.100k` and `loading.batch` do not touch the GPU in what they time; the others
+  draw, or make objects on the GPU.
 - The `ui.text` benchmarks measure what the study of the UI framework measured
   ([ADR-0132](../docs/adr/0132-the-engines-ui-framework.md)), with fonts named rather than found by
   the system's fallback, as the engine lays text out: a figure within 20 % of the study's, or
@@ -78,7 +79,7 @@ after.
   and the median measures those that only move them.
 - `devui.world_panel.100k`'s 90th percentiles compare with the same budget, standing still,
   scrolled, or the entity selected changed: there, the panel's cost does not grow with the world's
-  entities, as the overlay's did on egui (G46). A frame whose world's structure changed, an entity spawned,
+  entities (G46). A frame whose world's structure changed, an entity spawned,
   despawned or renamed, makes the list of entities again, and is measured apart.
 - A frame "until the GPU finished it" includes the wait of `Gpu::wait_idle`, which wakes up to 1 ms
   after the GPU finished: on a GPU whose frames take a few milliseconds, the times of the passes

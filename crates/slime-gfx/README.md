@@ -206,12 +206,11 @@ how it behaves on each graphics API.
 For the engine's own tests only (`docs/adr/0031-dev-overlay-with-egui.md`): it gives the wgpu
 device behind the engine's (`Gpu::wgpu_device`), which `slime-app`'s windowed lifecycle test makes
 invalid without telling the engine, as wgpu does before it reports a driver reset. Games must not
-enable it. The dev overlay used it to draw egui until Stage 6b, which rewrote the overlay on the
-engine's interface.
+enable it.
 
 ## Must not
 
 - Depend on `slime-platform` or any windowing code: windows reach it as `raw-window-handle`
   traits, so that offscreen rendering works without a windowing system.
-- Expose wgpu's types in its public API, except through the `wgpu` feature, to the engine's
-  tooling and the engine's own tests.
+- Expose wgpu's types in its public API, except `Gpu::wgpu_device`, through the `wgpu` feature,
+  for the engine's own tests.

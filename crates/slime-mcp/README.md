@@ -76,15 +76,16 @@ The tools, each described to the agent by the server itself, with its parameters
 - `find_elements`, `element_at`, `act_on_interface` and `capture_element`: the game's interface, as
   its last frame left it (`docs/adr/0143-what-agents-see-of-the-interface.md`). `find_elements`
   lists its elements of a role, `Button`, and whose names hold a text, each by its path, which names
-  it to the other tools, its role, name, what a field, a slider, two panels or a list to choose from
-  hold, its description, which its tooltip gives, the text that a field shows while empty, its
-  states, where it shows, and what it takes now; `element_at` names the one at a pixel of the image
-  that `capture` gives; `act_on_interface` presses, focuses or scrolls one, gives a field a value as
-  a person who replaced its text and committed would (`docs/adr/0146-screen-readers.md`), a slider
-  or two panels theirs (`docs/adr/0148-widgets.md`), and a list to choose from an option
-  (`docs/adr/0150-layers.md`); menus, their bar and floating panels are pressed as buttons are; or
-  it moves the focus, accepts, cancels or gives a command, as keys do; `capture_element` gives the
-  part of the image where one shows.
+  it to the other tools, its role, name, what a field, a slider, two panels, a list to choose from
+  or a color well hold, its description, which its tooltip gives, the text that a field shows while
+  empty, its states, where it shows, and what it takes now; `element_at` names the one at a pixel of
+  the image that `capture` gives; `act_on_interface` presses, focuses or scrolls one, gives a field
+  a value as a person who replaced its text and committed would (`docs/adr/0146-screen-readers.md`),
+  a slider or two panels theirs (`docs/adr/0148-widgets.md`), a list to choose from an option
+  (`docs/adr/0150-layers.md`), and a color well a hexadecimal code, `#ff8000`
+  (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`); menus, their bar and floating
+  panels are pressed as buttons are; or it moves the focus, accepts, cancels or gives a command, as
+  keys do; `capture_element` gives the part of the image where one shows.
 - `read_logs`: the lines of the game's log after a given line.
 - `save_game` and `load_game`: the game's run saved to a file, and loaded from one in place of the
   run, as the game saves and resumes its own runs; a file of the agent's, never the player's save.
@@ -98,9 +99,10 @@ The tools, each described to the agent by the server itself, with its parameters
 - `run_tests`: runs `cargo test` with the arguments given.
 
 `tests/drive.rs` plays an agent's session: it starts *Hunna Wood* through the server, pauses it,
-reads and changes the hero, walks it, saves the run, moves it and loads it back, captures its image
-and reads its log. It needs a Wayland
-compositor and the game's zone cooked: `scripts/check.sh` runs it in a headless Weston.
+reads and changes the hero, walks it, saves the run, moves it and loads it back, opens the dev
+overlay's panels by their commands, sets the speed of game time with a slider and the hero's
+direction with the world panel, captures its image and reads its log. It needs a Wayland
+compositor, the game built and its zone cooked: `scripts/check.sh` runs it in a headless Weston.
 `tests/views.rs` starts the `world` example, which draws the yard and a map in a corner, captures
 the whole image and each view, shows the map's normals, reads the example's reports, and picks the
 entity at a pixel of the map; it needs the examples' assets cooked, in the directory that its first
@@ -112,8 +114,9 @@ as committed, and sees a field of numbers refuse a text that reads as no number;
 `tests/views.rs` needs, and runs beside it. `tests/widgets.rs` starts the `widgets` example and
 uses each widget of a panel through its actions: it unchecks a check box and gives a slider a
 value, which the example tells in its bar, opens a folded section, moves the handle between two
-panels, scrolls the list of entities and chooses a tab; it needs a compositor alone, and runs
-beside the others.
+panels, scrolls the list of entities and chooses a tab, then uses the rich widgets, the menus, the
+floating panel, the notifications, the palette of commands and the color well, as its module's
+documentation lists; it needs a compositor alone, and runs beside the others.
 `tests/edit.rs` starts the `editor` example on a copy of the yard, writes it back unchanged, makes
 steps, undoes and redoes them, writes the level, finds again, as the editor starts again, what it
 did not write, and, the level written, opens it from its file; it needs no compositor, the

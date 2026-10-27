@@ -10,15 +10,15 @@ The protocol, version 9: the host's controls (pause, resume, speed, steps, stop)
 a part of a component, questions on the world, captures of the game's image or of one of its views
 (`docs/adr/0126-views-apart-from-the-renderer.md`), the settings of its views read and changed
 (`docs/adr/0127-the-settings-of-a-view.md`), its reports read (`docs/adr/0128-asset-requests.md`),
-the entity at a pixel of a view picked (`docs/adr/0130-picking.md`), the elements of its
-interface listed by role and name, with what its fields hold, found at a pixel, acted on, a field
-given a value, and captured (`docs/adr/0143-what-agents-see-of-the-interface.md`,
-`docs/adr/0146-screen-readers.md`), scripted keys, the game's state, log and
-frame times, its run saved to a file and loaded from one (`docs/adr/0125-saves-per-scene.md`), and
-an editor's requests (`Request::Edit`): steps of commands as text, undo and redo, its history, its
-journal, its selection and its level written back (`docs/adr/0135-the-editors-program.md`). Only
-programs built with `slime-app`'s `development` feature listen; a build for shipping holds no
-channel.
+the entity at a pixel of a view picked (`docs/adr/0130-picking.md`), the elements of its interface
+listed by role and name, with what its fields hold, found at a pixel, acted on, a field, a slider,
+two panels, a list to choose from or a color well given a value, and captured
+(`docs/adr/0143-what-agents-see-of-the-interface.md`, `docs/adr/0146-screen-readers.md`), scripted
+keys, the game's state, log and frame times, its run saved to a file and loaded from one
+(`docs/adr/0125-saves-per-scene.md`), and an editor's requests (`Request::Edit`): steps of commands
+as text, undo and redo, its history, its journal, its selection and its level written back
+(`docs/adr/0135-the-editors-program.md`). Only programs built with `slime-app`'s `development`
+feature listen; a build for shipping holds no channel.
 
 ## Role
 
@@ -27,7 +27,7 @@ channel.
   accepts a connection only with the token and the same version of the protocol, and tells a
   connection that it refuses why.
 - Messages are reflected values in the engine's binary encoding (`slime-serialize`), each followed
-  by bytes of its own, the pixels of an image. Entities are named by persistent identities, values
+  by bytes of its own, empty but for an image's pixels. Entities are named by persistent identities, values
   given and answered as text in the engine's notation, which the game reads with its types: a tool
   needs none of them.
 - Who starts a game draws its token, 128 bits of the system's randomness, and gives it to the game

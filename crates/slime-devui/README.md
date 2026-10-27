@@ -6,13 +6,12 @@ statistics and tooling over a running game
 
 ## Status
 
-Tooling only. It was egui until Stage 6b, which rewrote it on the engine's interface, in the
-editor's look (`slime_ui::look`), and took egui out of the engine. Its panels float over the
-window, as roots of the program's one interface: the run gives that interface the window's events
-first, so that a press on a panel, or a key that one of its fields takes, does not reach the game;
-agents read and use it through the development channel, and screen readers in a program that
-builds their adapter. A focus that a press gave takes no keys, and Tab reaches the game until F6
-gives a panel the focus
+Tooling only, built on the engine's interface in the editor's look (`slime_ui::look`). Its panels
+float over the window, as roots of the program's one interface: the run gives that interface the
+window's events first, so that a press on a panel, or a key that one of its fields takes, does not
+reach the game; agents read and use it through the development channel, and screen readers in a
+program that builds their adapter. A focus that a press gave takes no keys, and Tab reaches the game
+until F6 gives a panel the focus
 ([ADR-0153](../../docs/adr/0153-tab-and-f6-in-a-games-interface.md)).
 
 Its world panel, `WorldPanel`, lists a world's entities, shows the persistent identity of the one

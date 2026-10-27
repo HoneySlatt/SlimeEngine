@@ -27,7 +27,7 @@ drawn at each pixel of an area of a view, a frame or more later (picking). It bl
 over the others, without sorting them by depth, and does not yet blend physically based ones. It
 draws an interface's canvas over any of its targets: boxes with rounded corners and borders, their
 shadows, boxes filled with a gradient between their corners' colors, and images, each clipped, their
-colors mixed as sRGB values; text reaches it as images of
+colors mixed, into an sRGB target, as their sRGB values; text reaches it as images of
 the glyphs' atlas that `slime-ui-render` keeps.
 
 ## Role
@@ -241,7 +241,9 @@ fn main() -> Result<(), RenderError> {
   the light that each light gives a point.
 - `Canvas::new()` starts what an interface draws in a frame: `draw_box` adds a `CanvasBox`, its
   corners rounded and its border inside its edges, `draw_shadow` the `CanvasShadow` that a box
-  casts, and `draw_image` an `ImageQuad`, a part of an image that `add_image` gave an `ImageId`: a
+  casts, `draw_gradient` a `CanvasGradient`, a box without a border whose corners' colors mix
+  across it ([ADR-0152](../../docs/adr/0152-the-dev-overlay-on-the-engines-interface.md)), and
+  `draw_image` an `ImageQuad`, a part of an image that `add_image` gave an `ImageId`: a
   texture of colors, one of coverage that a color tints (`ImageKind`), or a render target that a
   view drew, as a panel shows it (`CanvasImage`). Each item has its clip, and coordinates are the
   target's pixels (`PixelRect`). `Renderer::draw_canvas(gpu, &canvas, &target)` draws it over the
