@@ -304,3 +304,30 @@ fn the_second_button_or_shift_f10_asks_for_a_context_menu() {
     let actions = ui.take_actions();
     assert_eq!(actions[0].kind, ActionKind::ContextMenu { at: [0.0, 30.0] });
 }
+
+#[test]
+fn a_layer_beside_an_element_of_another_layer_stands_out_of_that_layer() {
+    let (mut ui, _, button) = interface(LayoutDirection::LeftToRight, 0.0);
+    let (layer, item) = open(
+        &mut ui,
+        Place::Beside {
+            element: button,
+            side: Side::Below,
+            along: Along::Start,
+        },
+    );
+    let (above, _) = open(
+        &mut ui,
+        Place::Beside {
+            element: item,
+            side: Side::End,
+            along: Along::Start,
+        },
+    );
+    // After the first layer's item, out of the first layer's box, within the window.
+    let (first, second) = (
+        ui.rect(layer).expect("placed"),
+        ui.rect(above).expect("placed"),
+    );
+    assert_eq!((second.x, second.y), (first.x + 80.0 + 4.0, first.y));
+}

@@ -292,10 +292,8 @@ impl Ui {
         let size = [node.layout.size.width, node.layout.size.height];
         let place = held.layer.place;
         let anchor = self.node(place.anchor())?.rect;
-        let base = self
-            .root_of(place.anchor())
-            .and_then(|base| self.node(base))?;
-        let bounds = base.rect;
+        // Within the window's surface, whose size every layer takes, a submenu's too.
+        let bounds = Rect::new(0.0, 0.0, settings.size[0] * scale, settings.size[1] * scale);
         let rtl = settings.direction == super::LayoutDirection::RightToLeft;
         let gap = GAP * scale;
         let origin = match place {
