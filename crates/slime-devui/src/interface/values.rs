@@ -21,9 +21,6 @@ const AXES: [(&str, &str); 3] = [("X", "axis-x"), ("Y", "axis-y"), ("Z", "axis-z
 /// The prefixes of the fields of a rotation's angles, in the order that turns it: about Y, X, Z.
 const TURNS: [(&str, &str); 3] = [("Y", "axis-y"), ("X", "axis-x"), ("Z", "axis-z")];
 
-/// The prefixes of the fields of a color's channels.
-const CHANNELS: [&str; 4] = ["R", "G", "B", "A"];
-
 /// The share of a row that a part's label takes, before what edits it.
 const LABEL_SHARE: f32 = 0.32;
 
@@ -40,7 +37,8 @@ const LABEL_SHARE: f32 = 0.32;
 /// check box, then the value it holds; a list or an array its rows, which none are added to or
 /// removed from. Vectors, rotations and colors are edited whole, their parts on one line: a vector
 /// as three fields, X, Y and Z, a rotation as three angles in degrees, about Y, then X, from −90°
-/// to 90°, then Z, a color as a swatch and its four channels. A part sits on its label's line
+/// to 90°, then Z, a color as a color well, which commits the color once the pointer lets go of its
+/// picker. A part sits on its label's line
 /// where it fits, or under a section that folds, open at first; its label's tooltip holds its
 /// documentation, its range and whether saves leave it out. A field's unit outside the families
 /// that fields of numbers know, `cd`, follows its label.
@@ -101,8 +99,8 @@ enum Target {
     },
     /// A field of a rotation's angle: the angles shown, about Y, X and Z, and which of them.
     Angle { angles: [f32; 3], turn: usize },
-    /// A field of a color's channel: the color shown, and which of its channels.
-    Channel { color: LinearColor, channel: usize },
+    /// A color well.
+    Color,
     /// A reference's button: the entity that it selects.
     Reference(Entity),
 }
@@ -259,6 +257,7 @@ impl ValueEditor {
             (Target::Text, ActionKind::Committed(FieldValue::Text(text))) => {
                 Value::Text(text.clone())
             }
+            (Target::Color, ActionKind::Committed(FieldValue::Color(color))) => color.to_value(),
             (Target::Variant(values), ActionKind::Committed(FieldValue::Chosen(place))) => {
                 values.get(*place)?.clone()?
             }
@@ -321,18 +320,6 @@ impl ValueEditor {
                     }
                 });
                 made.to_value()
-            }
-            Target::Channel { color, channel } => {
-                let mut channels = [color.r, color.g, color.b, color.a];
-                channels[channel] = number as f32;
-                let [r, g, b, a] = channels;
-                let color = LinearColor { r, g, b, a };
-                self.carry(edit, |target| {
-                    if let Target::Channel { color: held, .. } = target {
-                        *held = color;
-                    }
-                });
-                color.to_value()
             }
             _ => return None,
         })
@@ -686,21 +673,12 @@ impl<'a> Builder<'a> {
                 let Ok(color) = LinearColor::from_value(value) else {
                     return false;
                 };
-                let mut swatch = Style::default();
-                swatch.layout.size = [Dimension::Pixels(20.0), Dimension::Pixels(20.0)];
-                swatch.layout.shrink = 0.0;
-                swatch.paint.background = color;
-                children.add("swatch", Element::container(swatch).class("swatch"), |_| {});
-                let channels = [color.r, color.g, color.b, color.a];
-                for (channel, prefix) in CHANNELS.into_iter().enumerate() {
-                    let element =
-                        Element::number_field(f64::from(channels[channel]), 0.01, growing())
-                            .prefix(prefix)
-                            .single_precision()
-                            .named(format!("{name} {}", prefix.to_lowercase()));
-                    let id = children.add(prefix, element, |_| {});
-                    self.record(id, at, Target::Channel { color, channel });
-                }
+                let mut well = Style::default();
+                well.layout.size[0] = Dimension::Pixels(48.0);
+                well.layout.shrink = 0.0;
+                let element = Element::color_well(color, well).named(name);
+                let id = children.add("value", element, |_| {});
+                self.record(id, at, Target::Color);
                 true
             }
             _ => false,

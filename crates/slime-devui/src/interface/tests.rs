@@ -249,15 +249,11 @@ fn vectors_rotations_and_colors_are_set_whole() {
     assert!(bench.ui.set_value(offset_y, "2"));
     let axis_z = bench.find(Role::SpinButton, "axis z").id;
     assert!(bench.ui.set_value(axis_z, "0.5"));
-    let tint_g = bench.find(Role::SpinButton, "tint g").id;
-    assert!(bench.ui.set_value(tint_g, "0.5"));
+    // A color well takes a hexadecimal code, as an agent gives it.
+    let tint = bench.find(Role::ColorWell, "tint").id;
+    assert!(bench.ui.set_value(tint, "#ff80ff"));
     let world = &bench.world;
-    let tint = LinearColor {
-        r: 1.0,
-        g: 0.5,
-        b: 1.0,
-        a: 1.0,
-    };
+    let tint = LinearColor::rgb(1.0, slime_color::srgb8_to_linear(0x80), 1.0);
     let expected = [
         set(
             world,

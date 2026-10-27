@@ -23,6 +23,9 @@
 //! the count of its warnings and errors; the light's section, whose header holds its type and a
 //! button that resets it; help over the material's properties, a title and a text.
 //!
+//! A color well (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`): the light's color,
+//! whose picker opens below it.
+//!
 //! What the editor tells and finds (`docs/adr/0151-rich-widgets.md`): a notification as a level is
 //! made or saved, Ctrl+N and Ctrl+S; the palette of commands, Ctrl+Shift+P, which finds every
 //! command of the example by its name; the sheet of shortcuts, F1. *View* opens both.
@@ -34,6 +37,7 @@
 //! on the tabs and on that list. The program builds the menus and the panel as their items are
 //! pressed, and forgets them as the interface closes them.
 
+use slime_color::{LinearColor, linear_to_srgb8};
 use slime_ui::action::{ActionKind, FieldValue, Intent};
 use slime_ui::display::DisplayList;
 use slime_ui::look::{self, Colors, Density};
@@ -112,6 +116,8 @@ const HELP: [(&str, &str); 3] = [
 ];
 /// The light's values as it starts, which its section's reset gives back.
 const LIGHT: [f64; 2] = [2.5, 12.0];
+/// The light's first color, a warm white.
+const LIGHT_COLOR: LinearColor = LinearColor::rgb(1.0, 0.72, 0.42);
 /// The axes of the position, their prefixes and their classes.
 const AXES: [(&str, &str); 3] = [("X", "axis-x"), ("Y", "axis-y"), ("Z", "axis-z")];
 /// The accents that A goes through, by their names: the look's own first.
@@ -169,6 +175,8 @@ enum Target {
     Snap,
     Search,
     Position(usize),
+    /// The light's color.
+    LightColor,
 }
 
 /// A menu that the program builds.
@@ -226,6 +234,8 @@ pub struct WidgetsPanel {
     matches: Vec<usize>,
     /// The position, by its axes.
     position: [f64; 3],
+    /// The light's color.
+    light_color: LinearColor,
     /// The items of the bar of menus, by their menus, as the last build gave them.
     bar: Vec<(ElementId, Menu)>,
     /// The layers of the menus open, and their items, by what they do.
@@ -328,6 +338,7 @@ impl WidgetsPanel {
             query: String::new(),
             matches: (0..ENTITIES).collect(),
             position: [1.5, 0.0, -4.2],
+            light_color: LIGHT_COLOR,
             bar: Vec::new(),
             menus: Vec::new(),
             items: Vec::new(),
@@ -453,9 +464,11 @@ impl WidgetsPanel {
                             "snap"
                         }
                         // The others are no check box.
-                        Target::Quality | Target::Tool | Target::Search | Target::Position(_) => {
-                            continue;
-                        }
+                        Target::Quality
+                        | Target::Tool
+                        | Target::Search
+                        | Target::Position(_)
+                        | Target::LightColor => continue,
                     };
                     self.tell(format!("{label} {}", if checked { "on" } else { "off" }));
                 }
@@ -486,6 +499,14 @@ impl WidgetsPanel {
                     self.position[axis] = value;
                     let name = AXES[axis].0.to_lowercase();
                     self.tell(format!("position {name} {value}"));
+                }
+                (ActionKind::Changed(FieldValue::Color(color)), Some(Target::LightColor)) => {
+                    self.light_color = color;
+                }
+                (ActionKind::Committed(FieldValue::Color(color)), Some(Target::LightColor)) => {
+                    self.light_color = color;
+                    let [r, g, b] = [color.r, color.g, color.b].map(linear_to_srgb8);
+                    self.tell(format!("light color #{r:02x}{g:02x}{b:02x}"));
                 }
                 (ActionKind::Command(command), _) => stop |= self.command(&command),
                 (ActionKind::Intent(Intent::Cancel), _) if action.element.is_some() => {
@@ -745,6 +766,7 @@ impl WidgetsPanel {
                 slider.value = value;
             }
         }
+        self.light_color = LIGHT_COLOR;
         self.tell("light reset".to_owned());
     }
 
@@ -782,6 +804,7 @@ impl WidgetsPanel {
             query: &self.query,
             found: self.matches.len(),
             position: self.position,
+            light_color: self.light_color,
             last: &self.last,
         };
         self.ui.build(self.root, self.revision, |children| {
@@ -823,6 +846,7 @@ struct Shown<'a> {
     query: &'a str,
     found: usize,
     position: [f64; 3],
+    light_color: LinearColor,
     last: &'a str,
 }
 
@@ -931,6 +955,18 @@ fn inspector(children: &mut Children<'_>, shown: &Shown<'_>, built: &mut Built) 
                             let reset = Element::button("Reset", Style::default())
                                 .tooltip("Gives the light its first values back");
                             built.reset = Some(slot.add("reset", reset, |_| {}));
+                        });
+                        let mut row = Style::default();
+                        row.layout.gap = [0.0, 8.0];
+                        row.layout.align_items = Align::Center;
+                        children.add("color", Element::container(row), |row| {
+                            row.add("label", Element::label("color", wide(96.0)), |_| {});
+                            let mut style = Style::default();
+                            style.layout.size[0] = Dimension::Pixels(64.0);
+                            let well = Element::color_well(shown.light_color, style).named("color");
+                            built
+                                .targets
+                                .push((row.add("well", well, |_| {}), Target::LightColor));
                         });
                     }
                     for (index, slider) in section.sliders.iter().enumerate() {

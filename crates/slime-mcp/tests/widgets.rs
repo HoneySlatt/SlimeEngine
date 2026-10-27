@@ -273,6 +273,22 @@ fn main() {
                 .is_some_and(|line| line.contains("holding \"2.5\""))
         },
     );
+    // The light's color well, given a hexadecimal code, as its picker's field takes one
+    // (docs/adr/0152-the-dev-overlay-on-the-engines-interface.md).
+    let well = format!("{PROPERTIES}/Light/color/well");
+    let color = line(&mut session, &well).expect("the light's color well");
+    assert!(
+        color.contains("ColorWell `color`, holding \"#ffddad\""),
+        "{color}"
+    );
+    assert!(color.contains("has_popup"), "{color}");
+    act(
+        &mut session,
+        "set_value",
+        &well,
+        json!({ "value": "#3a9bdc" }),
+    );
+    told(&mut session, "light color #3a9bdc");
     let roughness = line(
         &mut session,
         &format!("{PROPERTIES}/Material/roughness/slider"),

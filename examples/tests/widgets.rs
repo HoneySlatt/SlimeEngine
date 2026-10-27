@@ -7,7 +7,8 @@
 //! submenu of recent levels; the floating panel of statistics, the list to choose the quality of
 //! shadows from open, and a tab's tooltip (`docs/adr/0150-layers.md`); a notification of a level
 //! saved and the palette of commands, what is typed finding its commands
-//! (`docs/adr/0151-rich-widgets.md`). Transitions are dropped, so
+//! (`docs/adr/0151-rich-widgets.md`); the light's color well, its picker open on a color typed as
+//! its code (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`). Transitions are dropped, so
 //! that each image shows where they end (`docs/adr/0149-the-looks-foundations.md`).
 //!
 //! The references were drawn with lavapipe, as the triangle's were (`tests/offscreen.rs`). To draw
@@ -207,4 +208,25 @@ fn a_notification_and_the_palette_of_commands_match_their_reference_image() {
     assert!(panel.ui.set_value(field, "sw"));
     panel.handle_actions();
     check(&mut panel, "widgets-told");
+}
+
+#[test]
+fn the_light_s_color_well_and_its_picker_match_their_reference_image() {
+    let mut panel = panel(LayoutDirection::LeftToRight);
+    panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+    press(
+        &mut panel,
+        "#0/window/Inspector/split/properties/Light/color/well",
+    );
+    // A color given as a hexadecimal code, which the well and the picker show.
+    let code = panel
+        .ui
+        .meaning()
+        .into_iter()
+        .find(|meaning| meaning.name == "hexadecimal code")
+        .expect("the picker's code")
+        .id;
+    assert!(panel.ui.set_value(code, "#3a9bdc"));
+    panel.handle_actions();
+    check(&mut panel, "widgets-picker");
 }
