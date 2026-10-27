@@ -56,8 +56,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   M6b.7e, what the editor tells and finds, is done. The owner cut M6b.8 in two on 2026-10-27
   ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)): M6b.8a, the editors and the
   world panel on the engine's interface, is done; M6b.8b, the overlay over the games' views, is
-  built, its CI to run, with the owner's choice on Tab and F6 in a game's interface
-  ([ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)).
+  done, with the owner's choice on Tab and F6 in a game's interface
+  ([ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)). M6b.9, the Windows check and the
+  release of 0.6, is next.
 
 ## Status
 
@@ -80,7 +81,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6b.7d](#m6b7d--rich-fields) | The framework has the rich fields and buttons that make editing fast | Done |
 | [M6b.7e](#m6b7e--what-the-editor-tells-and-finds) | The framework tells the user what goes on, and finds every command by its name | Done |
 | [M6b.8a](#m6b8a--the-editors-and-the-world-panel-on-the-engines-interface) | The dev overlay's editors of reflected values, its world panel and a picker of colors run on the engine's interface | Done |
-| [M6b.8b](#m6b8b--the-overlay-over-the-games-views) | The dev overlay runs on the engine's interface over *Hunna Wood* and the examples, and egui leaves the engine | Built; CI to run |
+| [M6b.8b](#m6b8b--the-overlay-over-the-games-views) | The dev overlay runs on the engine's interface over *Hunna Wood* and the examples, and egui leaves the engine | Done |
 | [M6b.9](#m6b9--windows-check-documentation-release-06) | Stage 6b is done, checked on Windows, and released as 0.6 | Planned |
 
 Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b, 5a, 5b and 6a are done, and so are the audit pass and the
@@ -1238,7 +1239,7 @@ that the look has a light and a high-contrast theme beside its dark one.
   `cargo run --example world`; `cargo run --example scene`.
 - **By hand.** The owner plays *Hunna Wood* with its F1 and F2 panels, uses the `world` and `scene`
   examples' panels, and listens to Orca read the `world` example's.
-- **Outcome.** Built on 2026-10-27, CI to run, as
+- **Outcome.** Done on 2026-10-27, as
   [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md) decides and
   [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md), taken by the owner that day as the
   milestone started, adds: a game's interface takes Tab only once it holds a focus that takes the
@@ -1263,7 +1264,10 @@ that the look has a light and a high-contrast theme beside its dark one.
   a closed panel giving the focus back to what then took the game's keys, each fixed with a test.
   The tests: `slime-devui`'s overlay tests, with and without a GPU, the device lost and replaced;
   `slime-ui`'s `tests/input.rs` and `tests/panels.rs`. What nothing checks yet: a screen reader on
-  the overlay, which the owner's check by hand with Orca covers.
+  the overlay, which the owner's check by hand with Orca covers. CI is green on `0b6f1a9`:
+  `check (headless)` took 14 minutes 56 seconds, `check (windowed)` 23 minutes 31 seconds, longer
+  by the game's agent session that uses the overlay, `windows` 19 minutes 44 seconds and
+  `windows-release` 12 minutes 51 seconds.
 
 ### M6b.9 — Windows check, documentation, release 0.6
 
@@ -1344,6 +1348,9 @@ The game is run with `--new --save <a file of its own>`, so that the owner's sav
   `af512af` prints.
 - **M6b.8a, on Linux.** The `widgets` example's color well: its picker opened by the pointer and by
   the keyboard, the color changed by its square, its strips, its channels and its code.
+- **M6b.8b, on Linux.** *Hunna Wood*'s F1 and F2 panels while playing: the keys left to the game
+  after a click on a button or a slider, F6 into the panels and out, Escape out of a field; the
+  `world` and `scene` examples' panels; Orca reading the `world` example's panels.
 
 ## Releasing
 
