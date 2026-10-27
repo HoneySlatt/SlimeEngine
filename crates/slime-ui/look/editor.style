@@ -383,9 +383,31 @@ style.text.color = "$muted"
 select = { kind = "Button", classes = ["close"], states = ["Hovered"], inside = { class = "notification" } }
 style.text.color = "$text"
 
+# A color well and its picker (docs/adr/0152-the-dev-overlay-on-the-engines-interface.md): the
+# swatch inside a field's frame; the picker raised as a menu is; its square and strips rounded,
+# ringed in the accent while the keyboard's focus is on them.
+[color-well]
+select = { kind = "ColorWell" }
+style.paint = { background = "$field", border_width = 1, border = "$raised_border", radii = ["$radius_m", "$radius_m", "$radius_m", "$radius_m"] }
+style.layout.padding = { start = 2, end = 2, top = 2, bottom = 2 }
+style.control = { size = "$control", radius = "$radius_s", track = "$track", fill = "$accent", mark = "$mark" }
+
+[color-well-focused]
+select = { kind = "ColorWell", states = ["FocusVisible"] }
+style.paint.border = "$focus"
+
+[picker]
+select = { classes = ["picker"] }
+style.paint = { background = "$raised", border_width = 1, border = "$raised_border", radii = ["$radius_l", "$radius_l", "$radius_l", "$radius_l"], shadow = [{ color = "$shadow", offset = [0, "$shadow_y"], blur = "$shadow_blur", spread = 0 }] }
+style.layout.padding = { start = "$space_m", end = "$space_m", top = "$space_m", bottom = "$space_m" }
+
+[color-part]
+select = { kind = "ColorPart" }
+style.control = { size = "$control", radius = "$radius_s", track = "$track", fill = "$accent", mark = "$mark" }
+
 # The dev overlay's panels (docs/adr/0152-the-dev-overlay-on-the-engines-interface.md): a list's
 # rows, which select, the entity selected among them; references, which read as links; a heading;
-# a refusal; a color's swatch, its color the program's.
+# a refusal.
 [row]
 select = { kind = "Button", classes = ["row"] }
 style.paint = { background = "$none", border = "$none", radii = ["$radius_s", "$radius_s", "$radius_s", "$radius_s"] }
@@ -416,12 +438,6 @@ style.text.style.weight = "$weight_title"
 [refusal]
 select = { kind = "Label", classes = ["error"] }
 style.text.color = "$danger"
-
-[swatch]
-select = { classes = ["swatch"] }
-style.paint.border_width = 1
-style.paint.border = "$panel_border"
-style.paint.radii = ["$radius_s", "$radius_s", "$radius_s", "$radius_s"]
 
 [fixed]
 select = { classes = ["fixed"] }

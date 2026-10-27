@@ -126,6 +126,8 @@ fn primitives(
         | Kind::MenuItem { .. }
         | Kind::Choice { .. }
         | Kind::Progress { .. }
+        | Kind::ColorWell { .. }
+        | Kind::ColorPart(_)
         | Kind::Tab { .. } => {
             for primitive in ui.control_primitives(id) {
                 primitives.push((primitive, Some(content)));

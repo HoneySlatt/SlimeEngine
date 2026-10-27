@@ -7,6 +7,8 @@
 //! The interface handles some itself, the intents that move the focus; the others wait in its
 //! queue until the program takes them ([`Ui::take_actions`](crate::tree::Ui::take_actions)).
 
+use slime_color::LinearColor;
+
 use crate::tree::ElementId;
 
 /// An action: what was done, and the element it was done to, if any.
@@ -62,7 +64,8 @@ pub enum ActionKind {
 }
 
 /// What an element that the user gives a value holds: a field's text or number, a check box's or a
-/// button that toggles' state, a slider's number, the choice of a list or of segments.
+/// button that toggles' state, a slider's number, the choice of a list or of segments, a color
+/// well's color.
 #[derive(Clone, Debug, PartialEq)]
 pub enum FieldValue {
     /// A field of text's text.
@@ -74,6 +77,8 @@ pub enum FieldValue {
     /// The place of a list to choose from's chosen option among its options, or of a control of
     /// segments' chosen segment among its segments.
     Chosen(usize),
+    /// A color well's color.
+    Color(LinearColor),
 }
 
 /// A navigation intent: what a key, and later a gamepad, means to the interface whatever the

@@ -48,6 +48,18 @@ pub(crate) enum Control {
         /// The value that the program last gave.
         given: f64,
     },
+    /// A color well: its color, the hue and the saturation that its picker shows, and the color
+    /// that the program last gave.
+    Color {
+        /// Its color.
+        color: LinearColor,
+        /// The hue that its picker shows, in degrees: the color's, or the one kept for a gray.
+        hue: f32,
+        /// The saturation that its picker shows: the color's, or the one kept for black.
+        saturation: f32,
+        /// The color that the program last gave.
+        given: LinearColor,
+    },
 }
 
 impl Control {
@@ -101,6 +113,15 @@ impl Control {
                 value: snapped(value, min, max, step),
                 given: value,
             }),
+            Kind::ColorWell { color } => {
+                let shown = super::color::Hsva::of(color, 0.0, 0.0);
+                Some(Self::Color {
+                    color,
+                    hue: shown.h,
+                    saturation: shown.s,
+                    given: color,
+                })
+            }
             _ => None,
         }
     }
@@ -204,6 +225,25 @@ impl Control {
                 };
                 let changed = shown != *value;
                 *value = shown;
+                changed
+            }
+            (
+                Self::Color {
+                    color,
+                    hue,
+                    saturation,
+                    given,
+                },
+                &Kind::ColorWell { color: program, .. },
+            ) => {
+                if super::color::same(*given, program) {
+                    return false;
+                }
+                *given = program;
+                let changed = !super::color::same(*color, program);
+                *color = program;
+                let shown = super::color::Hsva::of(program, *hue, *saturation);
+                (*hue, *saturation) = (shown.h, shown.s);
                 changed
             }
             _ => false,
@@ -809,6 +849,7 @@ impl Ui {
         };
         let mut primitives = Vec::new();
         match &node.element.kind {
+            Kind::ColorWell { .. } | Kind::ColorPart(_) => return self.color_primitives(id),
             Kind::CheckBox { label, .. } => {
                 let checked = node.state.checked;
                 let size = control.size * scale;

@@ -168,16 +168,25 @@ fn clamped(color: LinearColor) -> LinearColor {
 }
 
 /// The linear value of each sRGB-encoded byte.
-static SRGB_TO_LINEAR: LazyLock<[f32; 256]> = LazyLock::new(|| {
-    std::array::from_fn(|byte| {
-        let encoded = byte as f32 / 255.0;
-        if encoded <= 0.04045 {
-            encoded / 12.92
-        } else {
-            ((encoded + 0.055) / 1.055).powf(2.4)
-        }
-    })
-});
+static SRGB_TO_LINEAR: LazyLock<[f32; 256]> =
+    LazyLock::new(|| std::array::from_fn(|byte| srgb_to_linear(byte as f32 / 255.0)));
+
+/// The linear value of an sRGB-encoded value from 0 to 1, not rounded, decoded with the sRGB
+/// transfer function (IEC 61966-2-1): a straight segment up to 0.04045, then
+/// `((c + 0.055) / 1.055)^2.4`; the inverse of [`linear_to_srgb`].
+///
+/// ```
+/// // sRGB's 188 of 255 is about half the light.
+/// assert!((slime_color::srgb_to_linear(188.0 / 255.0) - 0.5).abs() < 0.005);
+/// ```
+#[must_use]
+pub fn srgb_to_linear(encoded: f32) -> f32 {
+    if encoded <= 0.04045 {
+        encoded / 12.92
+    } else {
+        ((encoded + 0.055) / 1.055).powf(2.4)
+    }
+}
 
 /// The linear value, from 0 to 1, of an sRGB-encoded byte, decoded with the sRGB transfer function
 /// (IEC 61966-2-1): a straight segment up to 0.04045, then `((c + 0.055) / 1.055)^2.4`. A table

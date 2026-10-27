@@ -185,10 +185,11 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
         _ => {}
     }
     if meaning.popup {
-        element.set_has_popup(if meaning.role == Role::ComboBox {
-            HasPopup::Listbox
-        } else {
-            HasPopup::Menu
+        element.set_has_popup(match meaning.role {
+            Role::ComboBox => HasPopup::Listbox,
+            // A color well's picker, a layer of its own fields.
+            Role::ColorWell => HasPopup::Dialog,
+            _ => HasPopup::Menu,
         });
         element.set_expanded(meaning.state.expanded);
     }
@@ -245,7 +246,7 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
                 element.add_action(AccessAction::Increment);
                 element.add_action(AccessAction::Decrement);
             }
-            ElementAction::SetValue if meaning.role == Role::ComboBox => {
+            ElementAction::SetValue if matches!(meaning.role, Role::ComboBox | Role::ColorWell) => {
                 element.add_action(AccessAction::SetValue);
             }
             ElementAction::SetValue => {
@@ -370,6 +371,7 @@ fn role(role: Role) -> AccessRole {
         Role::Status => AccessRole::Status,
         Role::Alert => AccessRole::Alert,
         Role::ListBoxOption => AccessRole::ListBoxOption,
+        Role::ColorWell => AccessRole::ColorWell,
     }
 }
 
@@ -510,6 +512,7 @@ fn scroll_by(ui: &mut Ui, id: ElementId, action: AccessAction, page: bool) {
 #[cfg(test)]
 mod tests {
     use accesskit_consumer::Tree;
+    use slime_color::LinearColor;
     use slime_ui::action::FieldValue;
     use slime_ui::style::{Dimension, FlexDirection, Style};
     use slime_ui::text::Fonts;
@@ -1116,6 +1119,8 @@ mod tests {
                 children.add("choice", choice, |_| {});
                 let pane = Element::floating_panel("Statistics", true, sized(200.0));
                 children.add("pane", pane, |_| {});
+                let well = Element::color_well(LinearColor::WHITE, sized(60.0)).named("Tint");
+                children.add("well", well, |_| {});
             });
         });
         ui.frame();
@@ -1132,8 +1137,16 @@ mod tests {
         let roles: Vec<AccessRole> = nodes.iter().map(|node| node.role()).collect();
         assert_eq!(
             roles,
-            [AccessRole::Menu, AccessRole::ComboBox, AccessRole::Pane]
+            [
+                AccessRole::Menu,
+                AccessRole::ComboBox,
+                AccessRole::Pane,
+                AccessRole::ColorWell
+            ]
         );
+        // A color well: its code, and a picker that it opens.
+        assert_eq!(nodes[3].value().as_deref(), Some("#ffffff"));
+        assert_eq!(nodes[3].data().has_popup(), Some(HasPopup::Dialog));
         let items: Vec<_> = nodes[0].children().collect();
         assert_eq!(items[0].role(), AccessRole::MenuItemCheckBox);
         assert_eq!(items[0].toggled(), Some(Toggled::True));
@@ -1166,6 +1179,23 @@ mod tests {
             },
         );
         assert_eq!(ui.chosen(element), Some(0));
+        // A color well given a code.
+        let element = ui.element_by_path("#0/page/well").expect("built");
+        let number = numbers
+            .iter()
+            .find(|&&(id, _)| id == element)
+            .map(|&(_, number)| number)
+            .expect("an element");
+        act(
+            &mut ui,
+            &ActionRequest {
+                action: AccessAction::SetValue,
+                target_tree: TreeId::ROOT,
+                target_node: number,
+                data: Some(ActionData::Value("#000000".into())),
+            },
+        );
+        assert_eq!(ui.color(element), Some(LinearColor::BLACK));
     }
 
     #[test]

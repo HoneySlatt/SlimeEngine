@@ -304,6 +304,7 @@ fn value_text(value: &FieldValue) -> String {
         FieldValue::Number(number) => number_text(*number),
         FieldValue::Checked(checked) => checked.to_string(),
         FieldValue::Chosen(place) => place.to_string(),
+        FieldValue::Color(color) => super::color::hex(*color),
     }
 }
 
@@ -364,7 +365,8 @@ impl Ui {
     /// its steps, the program reading the change, if any, then the commit; two panels, the share of
     /// the first, kept from 0 to 1, which tells the program nothing; a list to choose from, one of
     /// its options, or else the place of one, from 0, the program reading the change and the commit
-    /// when the choice changed. The focus stays where it is.
+    /// when the choice changed; a color well, a hexadecimal code, `#ff8000`, the program reading the
+    /// change, if any, then the commit. The focus stays where it is.
     pub fn set_value(&mut self, id: ElementId, text: &str) -> bool {
         if !self.focusable(id) || !self.in_scope(id) {
             return false;
@@ -394,6 +396,11 @@ impl Ui {
                     .position(|option| option.label == text)
                     .or_else(|| text.trim().parse::<usize>().ok());
                 return place.is_some_and(|place| self.choose(id, place));
+            }
+            // A color well takes a hexadecimal code, `#ff8000`.
+            Kind::ColorWell { .. } => {
+                return super::color::parse_hex(text)
+                    .is_some_and(|color| self.commit_color(id, color));
             }
             _ => {}
         }

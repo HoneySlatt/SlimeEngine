@@ -744,6 +744,7 @@ impl taffy::LayoutPartialTree for Tree<'_> {
                 Kind::MenuItem { .. } => (control * 3.0, control),
                 Kind::Choice { .. } => (control * 1.5, control),
                 Kind::Progress { .. } => (control * 8.0, control / 2.0),
+                Kind::ColorWell { .. } => (control * 2.5, control),
                 _ => (0.0, 0.0),
             };
             if let Kind::MenuItem { shortcut, .. } = &at.element.kind

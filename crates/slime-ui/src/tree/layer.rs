@@ -527,6 +527,7 @@ impl Ui {
     /// What a widget does as the layer that it owns closes: it is no longer open.
     fn owned_layer_closed(&mut self, owner: ElementId) {
         self.change_state(owner, |state| state.expanded = false);
+        self.forget_picker(owner);
     }
 
     /// Whether `id` is `ancestor` or lies below it.

@@ -210,8 +210,11 @@ struct Pick {
 struct FindElements {
     /// The role of the elements wanted, as AccessKit names roles, whatever its case: `Button`,
     /// `Label`, `Image`, `List`, `ListItem`, `ScrollView`, `Dialog`, `Toolbar`, `Group`,
-    /// `TextInput`, `MultilineTextInput`, `SpinButton`, `CheckBox`, `Slider`, `Details`, `TabList`,
-    /// `Tab`, `TabPanel`, `Splitter`; any if left out.
+    /// `TextInput`, `SearchInput`, `MultilineTextInput`, `SpinButton`, `CheckBox`, `Slider`,
+    /// `Details`, `TabList`, `Tab`, `TabPanel`, `Splitter`, `Menu`, `MenuBar`, `MenuItem`,
+    /// `MenuItemCheckBox`, `ComboBox`, `ListBox`, `ListBoxOption`, `Pane`, `ToggleButton`,
+    /// `RadioGroup`, `RadioButton`, `ProgressIndicator`, `Status`, `Alert`, `ColorWell`; any if
+    /// left out.
     role: Option<String>,
     /// What their names hold, whatever its case: a button's label, a text; any if left out.
     name: Option<String>,

@@ -21,6 +21,7 @@ use crate::text::{Fonts, TEXT_CACHE_BUDGET, TextCache};
 use crate::theme::{self, KindName, Rule, StateName, StyleSheet, Theme};
 
 mod choice;
+mod color;
 mod control;
 pub(crate) mod expression;
 mod field;
@@ -371,6 +372,38 @@ pub enum Kind {
         /// The place of the chosen option among them, as the program gives it; kept within them.
         chosen: usize,
     },
+    /// A color well (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`): a swatch of its
+    /// color, over a checkerboard where its alpha shows it, which a press, or Enter or Space while it
+    /// holds the focus, opens a picker below, in a layer of its own, as a list to choose from opens
+    /// its list. The picker holds a square of saturation and value, a strip of hue and one of alpha
+    /// ([`Kind::ColorPart`]), each dragged by the pointer and moved by the arrows, the color's four
+    /// channels as fields of numbers, shown to three decimals, and its hexadecimal code, which gives
+    /// it whole; Escape, a press outside or a press on
+    /// the well closes it. Hue, saturation and value are read on the color's sRGB encoding, and the
+    /// well keeps the hue of a gray and the saturation of black, which the color cannot give back; a color past 1 in a channel
+    /// is held within 0 and 1 by an edit of its hue, saturation or value, not by one of its
+    /// channels. It keeps the user's color, which the program reads as actions
+    /// ([`FieldValue::Color`](crate::action::FieldValue::Color)), changed while the pointer drags
+    /// and committed once it lets go or a field commits, under a check box's rule; rules select it
+    /// open by the state `Expanded`.
+    ColorWell {
+        /// Its color, as the program gives it.
+        color: LinearColor,
+    },
+    /// A part of a color well's picker, which the interface builds in it: the square of saturation
+    /// and value, or the strip of hue or of alpha, drawn in the colors that it chooses among.
+    ColorPart(ColorPart),
+}
+
+/// A part of a color well's picker ([`Kind::ColorPart`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ColorPart {
+    /// The square of saturation, along it, and value, up it, in the well's hue.
+    Square,
+    /// The strip of hue, from 0° at its start to 360° at its end.
+    Hue,
+    /// The strip of alpha, from clear at its start to opaque at its end.
+    Alpha,
 }
 
 /// An option of a list to choose from ([`Kind::Choice`]).
@@ -455,7 +488,8 @@ pub enum ItemMark {
 impl Kind {
     /// Whether a press of the pointer reaches it, and the focus: a button, a field, a check box, a
     /// slider, a section, a tab, two panels and their handle, an item of a menu, a list to choose
-    /// from, a floating panel, a button that toggles or a segment.
+    /// from, a floating panel, a button that toggles, a segment, a color well or a part of its
+    /// picker.
     pub(crate) fn takes_pointer(&self) -> bool {
         matches!(
             self,
@@ -472,6 +506,8 @@ impl Kind {
                 | Self::FloatingPanel { .. }
                 | Self::ToggleButton { .. }
                 | Self::Segment { .. }
+                | Self::ColorWell { .. }
+                | Self::ColorPart(_)
         )
     }
 }
@@ -761,6 +797,11 @@ impl Element {
             open,
         };
         Self::of(kind, style)
+    }
+
+    /// A color well of `color` ([`Kind::ColorWell`]).
+    pub fn color_well(color: LinearColor, style: Style) -> Self {
+        Self::of(Kind::ColorWell { color }, style)
     }
 
     /// A list to choose from, of `options`, the one at `chosen` chosen: each a label, or a
@@ -1111,6 +1152,8 @@ pub struct Ui {
     /// notifications that show.
     palette: Option<palette::Palette>,
     sheet: Option<ElementId>,
+    /// The picker of colors that a color well opened, while one is open.
+    picker: Option<color::Picker>,
     notices: notify::Notices,
     /// The interface's clock: the time that its program gave it ([`Ui::advance`]).
     now: Duration,
@@ -1147,6 +1190,7 @@ impl Ui {
             spinning: Vec::new(),
             palette: None,
             sheet: None,
+            picker: None,
             notices: notify::Notices::default(),
             now: Duration::ZERO,
             reduced_motion: false,
@@ -2272,6 +2316,8 @@ fn kind_name(kind: &Kind) -> KindName {
         Kind::Segments { .. } => KindName::Segments,
         Kind::Segment { .. } => KindName::Segment,
         Kind::Progress { .. } => KindName::Progress,
+        Kind::ColorWell { .. } => KindName::ColorWell,
+        Kind::ColorPart(_) => KindName::ColorPart,
     }
 }
 

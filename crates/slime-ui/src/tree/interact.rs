@@ -73,6 +73,7 @@ impl Ui {
                     self.field_drag(captured, x, y);
                 }
                 Some(Kind::Slider { .. }) => self.slider_drag(captured, x),
+                Some(Kind::ColorPart(_)) => self.part_drag(captured, x, y),
                 Some(Kind::Split { .. }) => self.split_drag(captured, x, y),
                 _ => {}
             }
@@ -220,8 +221,10 @@ impl Ui {
                     if !self.in_menu_bar(target) {
                         self.set_focus(Some(target));
                     }
-                    // A slider's thumb comes under the pointer, wherever it pressed the track.
+                    // A slider's thumb comes under the pointer, wherever it pressed the track; a
+                    // part of a color's picker takes the color under it.
                     self.slider_drag(target, x);
+                    self.part_drag(target, x, y);
                 }
                 true
             }
@@ -251,9 +254,12 @@ impl Ui {
                     return true;
                 }
                 self.change_state(captured, |state| state.pressed = false);
-                // A slider's drag ends where it is, committed.
+                // A slider's drag ends where it is, committed, and so does a picker's.
                 if let Some(value) = self.slider_value(captured) {
                     self.set_slider(captured, value, true);
+                    return true;
+                }
+                if self.part_release(captured) {
                     return true;
                 }
                 let over = self.pointer_target(Kind::takes_pointer);
@@ -388,6 +394,7 @@ impl Ui {
         }
         if let Some(focus) = self.interaction.focus
             && (self.slider_key(focus, event)
+                || self.part_key(focus, event)
                 || self.tab_key(focus, event)
                 || self.split_key(focus, event)
                 || self.menu_key(focus, event)
@@ -464,6 +471,7 @@ impl Ui {
                     Some(Kind::Tab { .. } | Kind::Segment { .. }) => self.press_tab(id),
                     Some(Kind::MenuItem { .. }) => self.press_menu_item(id),
                     Some(Kind::Choice { .. }) => self.press_choice(id),
+                    Some(Kind::ColorWell { .. }) => self.press_well(id),
                     _ => self.interaction.actions.push(action),
                 }
             }
@@ -501,6 +509,7 @@ impl Ui {
     /// The actions that the program has not taken yet, in the order they came, taken.
     pub fn take_actions(&mut self) -> Vec<Action> {
         self.drop_palette_actions();
+        self.settle_picker_actions();
         std::mem::take(&mut self.interaction.actions)
     }
 
@@ -832,6 +841,7 @@ impl Ui {
                         | Kind::FloatingPanel { .. }
                         | Kind::ToggleButton { .. }
                         | Kind::Segment { .. }
+                        | Kind::ColorWell { .. }
                 )
             })
     }

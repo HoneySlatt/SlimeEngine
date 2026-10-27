@@ -93,6 +93,8 @@ pub enum Role {
     Alert,
     /// An option of that list, chosen or not ([`ElementState::selected`]).
     ListBoxOption,
+    /// A color well, open or not ([`ElementState::expanded`]), its value its hexadecimal code.
+    ColorWell,
 }
 
 impl Role {
@@ -134,6 +136,7 @@ impl Role {
             Self::Status => "Status",
             Self::Alert => "Alert",
             Self::ListBoxOption => "ListBoxOption",
+            Self::ColorWell => "ColorWell",
         }
     }
 }
@@ -444,7 +447,10 @@ impl Ui {
                 if node.field.is_some()
                     || matches!(
                         element.kind,
-                        Kind::Slider { .. } | Kind::Split { .. } | Kind::Choice { .. }
+                        Kind::Slider { .. }
+                            | Kind::Split { .. }
+                            | Kind::Choice { .. }
+                            | Kind::ColorWell { .. }
                     )
                 {
                     actions.push(ElementAction::SetValue);
@@ -489,6 +495,8 @@ impl Ui {
                         .chosen(id)
                         .and_then(|chosen| options.get(chosen))
                         .map(|option| option.label.clone()),
+                    Kind::ColorWell { .. } => self.color(id).map(super::color::hex),
+                    Kind::ColorPart(_) => self.part_value(id),
                     _ => self
                         .slider_value(id)
                         .map(super::field::number_text)
@@ -517,6 +525,7 @@ impl Ui {
                     mark: ItemMark::Submenu,
                     ..
                 } | Kind::Choice { .. }
+                    | Kind::ColorWell { .. }
             ),
             actions,
             bounds,
@@ -568,6 +577,9 @@ impl Ui {
             Kind::Segments { .. } => Role::RadioGroup,
             Kind::Segment { .. } => Role::RadioButton,
             Kind::Progress { .. } => Role::ProgressIndicator,
+            Kind::ColorWell { .. } => Role::ColorWell,
+            // The square and the strips are read as sliders, their values in words.
+            Kind::ColorPart(_) => Role::Slider,
         })
     }
 

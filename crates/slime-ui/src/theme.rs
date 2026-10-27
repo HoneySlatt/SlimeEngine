@@ -164,6 +164,8 @@ pub(crate) enum KindName {
     Segments,
     Segment,
     Progress,
+    ColorWell,
+    ColorPart,
 }
 
 /// The states of an element, as a rule names them.

@@ -76,6 +76,7 @@ fn values(ui: &mut Ui) -> Vec<String> {
                 FieldValue::Number(number) => format!("{what} {number}"),
                 FieldValue::Text(text) => format!("{what} {text:?}"),
                 FieldValue::Chosen(place) => format!("{what} option {place}"),
+                FieldValue::Color(color) => format!("{what} {color:?}"),
             })
         })
         .collect()
