@@ -6,10 +6,12 @@
 //! of entities, and chooses a tab, whose panel then shows, where it unchecks a level of the log. It
 //! uses the rich widgets (`docs/adr/0151-rich-widgets.md`): it chooses a tool among segments, turns
 //! a button that toggles off, searches the list of entities and gives a component of the position a
-//! value. It uses what opens over the panel too (`docs/adr/0150-layers.md`): it chooses the quality
-//! of shadows by the text of an option, reads the list's tooltip as its description, opens the
-//! bar's menus, shows the floating panel of statistics through an item that *View* holds, and opens
-//! a recent level through *File*'s submenu, whose menus then close.
+//! value as an expression of lengths, resets the light by a button of its section's header and
+//! reads a property's help as its description. It uses what opens over the panel too
+//! (`docs/adr/0150-layers.md`): it chooses the quality of shadows by the text of an option, reads
+//! the list's tooltip as its description, opens the bar's menus, shows the floating panel of
+//! statistics through an item that *View* holds, and opens a recent level through *File*'s submenu,
+//! whose menus then close.
 //!
 //! It needs a Wayland compositor and the example built (`cargo build --example widgets`):
 //! `scripts/check.sh` runs it in a headless Weston with lavapipe, as it runs the `interface` test.
@@ -242,9 +244,42 @@ fn main() {
         json!({ "value": "torch" }),
     );
     told(&mut session, "25 entities found");
+    // In meters, given as an expression of lengths.
     let x = format!("{PROPERTIES}/Transform/position/X");
-    act(&mut session, "set_value", &x, json!({ "value": "2.5" }));
+    let field = line(&mut session, &x).expect("the position's first field");
+    assert!(field.contains("holding \"1.5 m\""), "{field}");
+    act(
+        &mut session,
+        "set_value",
+        &x,
+        json!({ "value": "1m + 150cm" }),
+    );
     told(&mut session, "position x 2.5");
+    // The light's header holds a button that resets it; a property's help is its description.
+    act(
+        &mut session,
+        "press",
+        &format!("{PROPERTIES}/Light/header/reset"),
+        json!({}),
+    );
+    told(&mut session, "light reset");
+    until(
+        "the light reset",
+        || line(&mut session, &intensity),
+        |line| {
+            line.as_ref()
+                .is_some_and(|line| line.contains("holding \"2.5\""))
+        },
+    );
+    let roughness = line(
+        &mut session,
+        &format!("{PROPERTIES}/Material/roughness/slider"),
+    )
+    .expect("the roughness");
+    assert!(
+        roughness.contains("described \"roughness: How rough the surface is"),
+        "{roughness}"
+    );
 
     // A list to choose from, read with its tooltip, given an option by its text.
     let quality = format!("{PROPERTIES}/Rendering/shadow quality/choice");

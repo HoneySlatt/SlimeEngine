@@ -124,6 +124,11 @@ select = { kind = "SectionHeader" }
 style.layout.gap = [0, "$space_s"]
 style.layout.align_items = "Center"
 
+[section-header-button]
+select = { kind = "Button", inside = { kind = "SectionHeader" } }
+style.layout.padding = { start = "$space_m", end = "$space_m", top = 0, bottom = 0 }
+style.text.style.size = "$text_s"
+
 [section-hovered]
 select = { kind = "Section", states = ["Hovered"] }
 style.control.track = "$hover"

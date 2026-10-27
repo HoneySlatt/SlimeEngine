@@ -19,7 +19,9 @@
 //! segments that chooses the tool, a button that toggles the snapping, a bar of progress of a cook
 //! that goes on, and one without a share, which moves; a field of search over the list of entities, which keeps the rows whose names
 //! hold what it holds; the position, a vector of three fields, each with its axis's prefix, which
-//! drags it; the console's tab, with the count of its warnings and errors.
+//! drags it, in meters, which reads expressions and units, `1m + 20cm`; the console's tab, with
+//! the count of its warnings and errors; the light's section, whose header holds its type and a
+//! button that resets it; help over the material's properties, a title and a text.
 //!
 //! What opens over the panel (`docs/adr/0150-layers.md`): a bar of menus above the tabs, *File*,
 //! with a submenu of recent levels, and *View*, which shows the floating panel of statistics, and
@@ -37,7 +39,7 @@ use slime_ui::text::Fonts;
 use slime_ui::theme::Theme;
 use slime_ui::tree::{
     Along, Children, Element, ElementId, ItemMark, Layer, LayoutDirection, Place, Role,
-    RootSettings, Side, Ui,
+    RootSettings, Side, Ui, Units,
 };
 
 /// The rows of the list of entities.
@@ -73,6 +75,24 @@ const QUALITIES: [&str; 4] = ["Low", "Medium", "High", "Ultra"];
 const RECENT: [&str; 3] = ["yard.scene", "lamp.scene", "zone.scene"];
 /// The tools that the control of segments chooses from.
 const TOOLS: [&str; 3] = ["Move", "Turn", "Scale"];
+/// The help of the properties that have some, as a program gives it from the documentation of
+/// what a field edits: the property's label and its text.
+const HELP: [(&str, &str); 3] = [
+    (
+        "roughness",
+        "How rough the surface is: 0 reflects as a mirror, 1 scatters the light",
+    ),
+    (
+        "metalness",
+        "Whether the surface is a metal: 0 for none, 1 for a metal",
+    ),
+    (
+        "emission",
+        "The light that the surface gives off, in the color of its emissive texture",
+    ),
+];
+/// The light's values as it starts, which its section's reset gives back.
+const LIGHT: [f64; 2] = [2.5, 12.0];
 /// The axes of the position, their prefixes and their classes.
 const AXES: [(&str, &str); 3] = [("X", "axis-x"), ("Y", "axis-y"), ("Z", "axis-z")];
 /// The accents that A goes through, by their names: the look's own first.
@@ -193,6 +213,8 @@ pub struct WidgetsPanel {
     items: Vec<(ElementId, Item)>,
     /// The layer of the floating panel of statistics, while it is open.
     statistics: Option<ElementId>,
+    /// The button that resets the light, as the last build gave it.
+    reset: Option<ElementId>,
 }
 
 impl WidgetsPanel {
@@ -290,6 +312,7 @@ impl WidgetsPanel {
             menus: Vec::new(),
             items: Vec::new(),
             statistics: None,
+            reset: None,
         };
         panel.style();
         panel
@@ -352,6 +375,10 @@ impl WidgetsPanel {
                         self.menus.retain(|&layer| layer != id);
                         let ui = &self.ui;
                         self.items.retain(|&(each, _)| ui.element(each).is_some());
+                        continue;
+                    }
+                    (ActionKind::Press, ..) if Some(id) == self.reset => {
+                        self.reset_light();
                         continue;
                     }
                     (&ActionKind::ContextMenu { at }, ..) => {
@@ -648,6 +675,20 @@ impl WidgetsPanel {
         self.matches.get(row).copied()
     }
 
+    /// Gives the light its first values back.
+    fn reset_light(&mut self) {
+        if let Some(light) = self
+            .sections
+            .iter_mut()
+            .find(|section| section.title == "Light")
+        {
+            for (slider, value) in light.sliders.iter_mut().zip(LIGHT) {
+                slider.value = value;
+            }
+        }
+        self.tell("light reset".to_owned());
+    }
+
     /// Keeps the entities whose names hold `query`, whatever its case.
     fn search(&mut self, query: String) {
         let lower = query.to_lowercase();
@@ -691,6 +732,7 @@ impl WidgetsPanel {
             self.list = built.list;
             self.targets = built.targets;
             self.bar = built.bar;
+            self.reset = built.reset;
         }
         // The list's rows, in its slot, built when it shows others.
         if let Some(list) = self.list {
@@ -731,6 +773,8 @@ struct Built {
     list: Option<ElementId>,
     targets: Vec<(ElementId, Target)>,
     bar: Vec<(ElementId, Menu)>,
+    /// The button that resets the light, in its section's header.
+    reset: Option<ElementId>,
 }
 
 /// Builds the interface: the bar of menus, the bar of tabs, the panel of the chosen one, and the
@@ -818,6 +862,18 @@ fn inspector(children: &mut Children<'_>, shown: &Shown<'_>, built: &mut Built) 
                     if section.title == "Transform" {
                         position_row(children, shown.position, &mut built.targets);
                     }
+                    // The light's header holds its type and a button that resets it.
+                    if section.title == "Light" {
+                        let slot = Element::section_header(Style::default());
+                        children.add("header", slot, |slot| {
+                            let kind =
+                                Element::label("point light", Style::default()).class("muted");
+                            slot.add("type", kind, |_| {});
+                            let reset = Element::button("Reset", Style::default())
+                                .tooltip("Gives the light its first values back");
+                            built.reset = Some(slot.add("reset", reset, |_| {}));
+                        });
+                    }
                     for (index, slider) in section.sliders.iter().enumerate() {
                         let target = Target::Property {
                             section: section_index,
@@ -855,8 +911,13 @@ fn slider_row(children: &mut Children<'_>, slider: &Slider) -> ElementId {
     let mut id = None;
     children.add(slider.label, Element::container(row), |children| {
         children.add("label", Element::label(slider.label, wide(96.0)), |_| {});
-        let element = Element::slider(slider.value, slider.min, slider.max, slider.step, filling())
-            .named(slider.label);
+        let mut element =
+            Element::slider(slider.value, slider.min, slider.max, slider.step, filling())
+                .named(slider.label);
+        // Help over the property, from the documentation of what it edits.
+        if let Some(&(_, text)) = HELP.iter().find(|(label, _)| *label == slider.label) {
+            element = element.help(slider.label, text);
+        }
         id = Some(children.add("slider", element, |_| {}));
         let value = Element::label(format!("{:.2}", slider.value), wide(48.0)).class("fixed");
         children.add("value", value, |_| {});
@@ -911,7 +972,9 @@ fn position_row(
     children.add("position", group, |children| {
         children.add("label", Element::label("position", wide(96.0)), |_| {});
         for (axis, (&value, (prefix, class))) in position.iter().zip(AXES).enumerate() {
-            let field = Element::prefixed_number_field(prefix, value, 0.1, filling())
+            let field = Element::number_field(value, 0.1, filling())
+                .prefix(prefix)
+                .units(Units::Length)
                 .class(class)
                 .named(format!("position {}", prefix.to_lowercase()));
             targets.push((children.add(prefix, field, |_| {}), Target::Position(axis)));
