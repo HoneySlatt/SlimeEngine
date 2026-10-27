@@ -1110,3 +1110,31 @@ quarters of a core, its frames took 4 to 17 % longer. The build is not measured.
 | `ui.tree.list.100k` | a frame scrolled by 7 pixels, 90th percentile of 15 | 140.8 µs |
 | `ui.tree.list.100k` | a frame standing still, median of 15 | 3.1 µs |
 | `ui.tree.list.100k` | a frame standing still, 90th percentile of 15 | 3.2 µs |
+
+## M6b.8, RX 6900 XT
+
+The dev overlay's world panel on the engine's interface
+([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)), on 2026-10-27, on the CPU
+alone, an AMD Ryzen 7 5800X, before the programs move onto it. egui's world panel cost 125 to
+145 ms a frame over 100 000 entities (G46); this one costs what one over a few entities does: its
+list builds only the rows that show, and it builds the entity selected again only once it changed.
+The machine was not idle, another program building in the background: `ui.tree.list.100k`, run
+beside it, took 2.2 times its figure of M6b.4b while scrolled and 2.3 times standing still, so the
+figures below are above what an idle machine gives. The build is not measured.
+
+16 logical CPUs, linux on x86_64, GPU `AMD Radeon RX 6900 XT (RADV NAVI21)`, a release build.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `ui.tree.list.100k` | elements | 164 |
+| `ui.tree.list.100k` | a frame scrolled by 7 pixels, median of 15 | 122.7 µs |
+| `ui.tree.list.100k` | a frame scrolled by 7 pixels, 90th percentile of 15 | 350.0 µs |
+| `ui.tree.list.100k` | a frame standing still, median of 15 | 7.1 µs |
+| `ui.tree.list.100k` | a frame standing still, 90th percentile of 15 | 7.2 µs |
+| `devui.world_panel.100k` | elements | 61 |
+| `devui.world_panel.100k` | a frame standing still, median of 15 | 4.9 µs |
+| `devui.world_panel.100k` | a frame standing still, 90th percentile of 15 | 5.7 µs |
+| `devui.world_panel.100k` | a frame whose world changed, median of 15 | 113.7 µs |
+| `devui.world_panel.100k` | a frame whose world changed, 90th percentile of 15 | 121.9 µs |
+| `devui.world_panel.100k` | a frame scrolled by a row, median of 15 | 34.6 µs |
+| `devui.world_panel.100k` | a frame scrolled by a row, 90th percentile of 15 | 39.9 µs |

@@ -24,6 +24,12 @@ only when the world's structure moves (`World::structure`). What it edits, and i
 the rustdoc of `WorldPanel`. Its widgets edit a value outside a world too, as a view's settings
 (`docs/adr/0127-the-settings-of-a-view.md`).
 
+Its module `interface` holds the same panels on the engine's interface, `slime-ui`
+(`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`): the editors of reflected values and
+the world panel, built as elements of an interface that the program holds, tested without a GPU,
+beside egui's until the programs move onto them. Their list of entities builds only the rows that
+show, and their fields change a value only when the user changed it.
+
 ## Role
 
 - Draws egui with egui's own wgpu renderer, over the frame the application has drawn, in a pass
@@ -135,12 +141,24 @@ impl Presentation for Statistics {
   ranges. `games/hunnawood`'s overlay, on F1, and the `world` example's views panel, on F3, edit
   their views' settings (`slime_render::ViewSettings`) with it.
 
+On the engine's interface (`slime_devui::interface`), where the programs do not use them yet:
+
+- `interface::WorldPanel::build(&mut ui, parent, &world)`: the world panel built under `parent`,
+  a root, a layer or a slot of the program's interface, again only once what it shows changed;
+  `interface::WorldPanel::act(&mut actions, &world)` takes from the actions that the program took
+  from the interface (`slime_ui::tree::Ui::take_actions`) those of the panel's elements, and gives
+  the commands that they ask for, leaving the others.
+- `interface::ValueEditor::build(&mut ui, slot, label, &value)`: the editors of a value outside a
+  world, in a slot of the program's interface; `interface::ValueEditor::apply(&actions, &mut value)`
+  sets the value as their actions ask, within its fields' ranges.
+
 ## Dependencies
 
 - `egui` and `egui-wgpu`: the UI and its wgpu renderer, the latter without its default features,
   which would enable every wgpu backend.
 - `slime-gfx`, with its `wgpu` feature: the GPU, the render pass and wgpu itself.
 - `slime-platform`: the events to translate.
+- `slime-ui`: the engine's interface, which the panels of the module `interface` are built on.
 - `slime-world` and `slime-reflect`: the world that the world panel lists, and the reflection it
   edits its components and other values through.
 - `slime-assets` and `slime-color`: the asset IDs and the colors that the world panel shows as

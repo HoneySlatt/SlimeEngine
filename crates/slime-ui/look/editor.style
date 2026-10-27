@@ -383,6 +383,46 @@ style.text.color = "$muted"
 select = { kind = "Button", classes = ["close"], states = ["Hovered"], inside = { class = "notification" } }
 style.text.color = "$text"
 
+# The dev overlay's panels (docs/adr/0152-the-dev-overlay-on-the-engines-interface.md): a list's
+# rows, which select, the entity selected among them; references, which read as links; a heading;
+# a refusal; a color's swatch, its color the program's.
+[row]
+select = { kind = "Button", classes = ["row"] }
+style.paint = { background = "$none", border = "$none", radii = ["$radius_s", "$radius_s", "$radius_s", "$radius_s"] }
+style.layout.padding = { start = "$space_s", end = "$space_s", top = 0, bottom = 0 }
+
+[row-hovered]
+select = { kind = "Button", classes = ["row"], states = ["Hovered"] }
+style.paint.background = "$hover"
+
+[row-selected]
+select = { kind = "Button", classes = ["row"], states = ["Selected"] }
+style.paint.background = "$accent_soft"
+
+[link]
+select = { kind = "Button", classes = ["link"] }
+style.paint = { background = "$none", border = "$none" }
+style.layout.padding = { start = 0, end = 0, top = 0, bottom = 0 }
+style.text.color = "$accent"
+
+[link-hovered]
+select = { kind = "Button", classes = ["link"], states = ["Hovered"] }
+style.text.color = "$accent_hover"
+
+[heading]
+select = { kind = "Label", classes = ["heading"] }
+style.text.style.weight = "$weight_title"
+
+[refusal]
+select = { kind = "Label", classes = ["error"] }
+style.text.color = "$danger"
+
+[swatch]
+select = { classes = ["swatch"] }
+style.paint.border_width = 1
+style.paint.border = "$panel_border"
+style.paint.radii = ["$radius_s", "$radius_s", "$radius_s", "$radius_s"]
+
 [fixed]
 select = { classes = ["fixed"] }
 style.text.style = { fonts = ["Geist Mono"], size = "$text_mono" }

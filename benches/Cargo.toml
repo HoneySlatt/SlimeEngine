@@ -19,8 +19,10 @@ slime-color.workspace = true
 slime-cook.workspace = true
 slime-gfx.workspace = true
 slime-render.workspace = true
-# The interface's text (ADR-0136).
-slime-ui.workspace = true
+# The dev overlay's world panel on the engine's interface (ADR-0152).
+slime-devui.workspace = true
+# The interface's text (ADR-0136), and the editor's look, which the world panel is measured in.
+slime-ui = { workspace = true, features = ["editor-look"] }
 # The interface drawn from a display list (ADR-0139).
 slime-ui-render.workspace = true
 slime-world.workspace = true

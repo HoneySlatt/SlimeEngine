@@ -96,11 +96,18 @@ proposed, the parts that hold no open choice built meanwhile.
   committed when the program gives it back. Telling the field, rather than guessing from the
   number, keeps a program that holds an `f64` from seeing its number shortened; the editors of
   reflected values know the type of what they edit.
-- *The editors of reflected values and the world panel* on `slime-ui`, in `slime-devui`, beside the
-  overlay of egui until the programs move, tested without a GPU: the checklist's editors, each field
-  changing the value only when the user changed it (G33); the world panel's rows in a list that
-  builds only those that show, within its budget at 100 000 entities (G46); the edits as commands;
-  every element named and given a role, which agents and screen readers read.
+- *The editors of reflected values and the world panel* on `slime-ui`, in `slime-devui`'s module
+  `interface`, beside the overlay of egui until the programs move, tested without a GPU: the
+  checklist's editors, each field changing the value only when the user changed it (G33); the world
+  panel's rows in a list that builds only those that show, within its budget at 100 000 entities
+  (G46); the edits as commands; every element named and given a role, which agents and screen
+  readers read. Each builds its elements in a slot of the program's interface, by a revision of its
+  own, again only once what it shows changed, so that it can also set the states that a builder
+  cannot, an option's box disabled, the row of the entity selected. An angle that a field holds in
+  radians is shown and typed in degrees; a unit outside the families that fields of numbers know,
+  `cd`, follows its label. Text is set as it is committed, not at each key typed, as egui set it:
+  one command for a name typed, not one for each of its letters. A color is a swatch and its four
+  channels until the picker's choice is taken.
 
 **Open choices, for the owner** (each with the recommendation first):
 

@@ -19,6 +19,8 @@ slime-color.workspace = true
 # The only crate besides slime-gfx that reaches wgpu, to draw egui with it (ADR-0031).
 slime-gfx = { workspace = true, features = ["wgpu"] }
 slime-platform.workspace = true
+# The panels on the engine's interface, beside egui's until the programs move onto them (ADR-0152).
+slime-ui.workspace = true
 # The world panel lists a world's entities and edits their components through reflection.
 slime-reflect.workspace = true
 slime-world.workspace = true
@@ -26,3 +28,6 @@ slime-world.workspace = true
 # The README's example implements an application.
 [dev-dependencies]
 slime-app.workspace = true
+# The tests use the panels on the engine's interface as a person does: keys, and the editor's look.
+slime-input.workspace = true
+slime-ui = { workspace = true, features = ["editor-look"] }

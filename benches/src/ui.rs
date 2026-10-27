@@ -195,7 +195,7 @@ fn labels(count: usize) -> Vec<String> {
 }
 
 /// The times of `RUNS` runs of `run`, after two that are not timed.
-fn times(mut run: impl FnMut()) -> Vec<Duration> {
+pub(crate) fn times(mut run: impl FnMut()) -> Vec<Duration> {
     run();
     run();
     (0..RUNS).map(|_| timed(&mut run).1).collect()

@@ -8,6 +8,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- The dev overlay's panels on the engine's interface (ADR-0152), beside egui's until the programs
+  move onto them: the editors of reflected values (`slime_devui::interface::ValueEditor`), whose
+  fields change a value only when the user changed it, an angle in radians shown in degrees, and
+  the world panel (`slime_devui::interface::WorldPanel`), whose list builds only the rows that
+  show, its frame over 100 000 entities costing what one over a few does (benchmark
+  `devui.world_panel.100k`); the look styles their rows, links, heading, refusal and swatch.
 - What the dev overlay's editors need of the interface's widgets (ADR-0152): sliders on a
   logarithmic scale and from high to low (`Element::logarithmic`, `Element::reversed`), options of
   a list to choose from that are disabled, passed over by the keys and the pointer, or carry a

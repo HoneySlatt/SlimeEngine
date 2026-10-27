@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 mod input;
+pub mod interface;
 mod world_panel;
 
 use std::time::Instant;

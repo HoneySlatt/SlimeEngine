@@ -1187,7 +1187,10 @@ that the look has a light and a high-contrast theme beside its dark one.
   for the owner: the milestone cut in two, the overlay as roots of the program's one interface, the
   keys that a focus given by the pointer leaves to the program, the overlay kept out of the game's
   shipping build, and the picker of colors. The parts that hold no open choice are being built
-  meanwhile.
+  meanwhile: sliders on a logarithmic scale and from high to low, options of a list to choose from
+  that are disabled or carry help, fields of numbers of single precision; the editors of reflected
+  values and the world panel on the engine's interface (`slime_devui::interface`), tested without
+  a GPU, measured by `devui.world_panel.100k`, which the programs do not use yet.
 
 ### M6b.9 — Windows check, documentation, release 0.6
 

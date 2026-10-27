@@ -10,6 +10,7 @@
 //! cargo run --release -p slime-benches -- loading.zone # one run on request, named whole
 //! ```
 
+mod devui;
 mod loading;
 mod measure;
 mod render;
@@ -145,6 +146,13 @@ const BENCHMARKS: &[Benchmark] = &[
         about: "a list of 100 000 rows, of which only those that show are built: scrolled, still",
         on_request: false,
         run: ui::list,
+    },
+    Benchmark {
+        name: "devui.world_panel.100k",
+        about: "the dev overlay's world panel over 100 000 entities: still, the world changed, \
+                scrolled",
+        on_request: false,
+        run: devui::world_panel,
     },
     Benchmark {
         name: "loading.batch",

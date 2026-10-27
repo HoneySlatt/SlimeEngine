@@ -20,7 +20,7 @@ const LIST_HEIGHT: f32 = 160.0;
 const HEIGHT: f32 = 640.0;
 /// The types whose values are edited whole, on one line: their parts are numbers that mean little
 /// alone, and a rotation's would not stay one if set one at a time.
-const WHOLE: [&str; 4] = ["Vec3", "DVec3", "Quat", "LinearColor"];
+pub(crate) const WHOLE: [&str; 4] = ["Vec3", "DVec3", "Quat", "LinearColor"];
 
 /// A panel of the overlay that lists the entities of a world by name, with a filter, and shows the
 /// one selected: its persistent identity, the prefab that it places if it is a placement's root
@@ -223,7 +223,7 @@ impl WorldPanel {
 }
 
 /// What the panel calls `entity`: its name, or its handle if it has none.
-fn name(world: &World, entity: Entity) -> String {
+pub(crate) fn name(world: &World, entity: Entity) -> String {
     match world.get::<Name>(entity) {
         Some(Name(name)) if !name.is_empty() => name.clone(),
         _ => format!("{entity:?}"),
@@ -258,7 +258,7 @@ pub fn edit_reflected<T: Reflect>(ui: &mut egui::Ui, id: &str, value: &mut T) ->
 /// Sets each of `edits`, a part's path and its new value, in `reflected`, the value of `value`,
 /// whose type `registry` describes, and `value` to the result: returns whether one was set. One
 /// that the type refuses, as a number out of its field's range, is left out.
-fn set_edits<T: Reflect>(
+pub(crate) fn set_edits<T: Reflect>(
     registry: &Registry,
     value: &mut T,
     mut reflected: Value,
@@ -651,13 +651,13 @@ fn drag<N: egui::emath::Numeric>(ui: &mut egui::Ui, number: &mut N, unit: Option
 }
 
 /// `rotation`'s angles in degrees, turned about Y, then X, then Z.
-fn angles(rotation: Quat) -> [f32; 3] {
+pub(crate) fn angles(rotation: Quat) -> [f32; 3] {
     let (y, x, z) = rotation.to_euler(EulerRot::YXZ);
     [y, x, z].map(f32::to_degrees)
 }
 
 /// The rotation turned by `angles` in degrees about Y, then X, then Z.
-fn rotation(angles: [f32; 3]) -> Quat {
+pub(crate) fn rotation(angles: [f32; 3]) -> Quat {
     let [y, x, z] = angles.map(f32::to_radians);
     Quat::from_euler(EulerRot::YXZ, y, x, z).normalize()
 }
@@ -685,7 +685,7 @@ fn described(response: egui::Response, field: Option<&FieldInfo>) {
 /// lines joined into paragraphs, but for a list's items, each on a line of its own; a link written
 /// as its text, `[text](target)` and the intra-doc link of a code span, ``[`Name`]``; and code
 /// spans without their backticks.
-fn plain(doc: &str) -> String {
+pub(crate) fn plain(doc: &str) -> String {
     let mut joined = String::with_capacity(doc.len());
     for (index, paragraph) in doc.split("\n\n").enumerate() {
         if index > 0 {
@@ -733,7 +733,7 @@ fn plain(doc: &str) -> String {
 
 /// A value of `variant`, whose fields are those of `values`, the variant that a value holds, of
 /// the same name and type, and start as [`initial`] says otherwise; `None` if one cannot.
-fn variant_value(
+pub(crate) fn variant_value(
     registry: &Registry,
     variant: &VariantInfo,
     values: &[(String, Value)],
@@ -760,7 +760,7 @@ fn variant_value(
 /// the first variant that can start, and for a number the first of 0, 1 and the bounds of `range`
 /// that `range` holds. `None` for a reference to an asset or an entity, which has no value to
 /// start at, and for a value that holds one.
-fn initial(registry: &Registry, ty: &str, range: Option<Range>) -> Option<Value> {
+pub(crate) fn initial(registry: &Registry, ty: &str, range: Option<Range>) -> Option<Value> {
     // Each candidate made a number of the field's kind first, as the world checks it in that kind.
     let number = |of_kind: fn(f64) -> Value| {
         let range = range.unwrap_or(Range::ALL);
@@ -802,7 +802,7 @@ fn initial(registry: &Registry, ty: &str, range: Option<Range>) -> Option<Value>
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use slime_assets::Extra;
     use slime_world::{Component, Extras, Hidden, Light, Meshes, Transform};
 
@@ -857,7 +857,7 @@ mod tests {
 
     /// A world with an entity for each of the engine's components, each variant of a light, and
     /// one for a component that only derives, which refers to the first.
-    fn world() -> (World, Vec<Entity>) {
+    pub(crate) fn world() -> (World, Vec<Entity>) {
         let mut world = World::new();
         let named = world.spawn();
         world.insert(named, Name("door".to_owned()));

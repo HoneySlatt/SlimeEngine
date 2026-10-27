@@ -3157,6 +3157,7 @@ dependencies = [
  "slime-assets",
  "slime-color",
  "slime-cook",
+ "slime-devui",
  "slime-gfx",
  "slime-render",
  "slime-ui",
@@ -3214,8 +3215,10 @@ dependencies = [
  "slime-assets",
  "slime-color",
  "slime-gfx",
+ "slime-input",
  "slime-platform",
  "slime-reflect",
+ "slime-ui",
  "slime-world",
 ]
 
