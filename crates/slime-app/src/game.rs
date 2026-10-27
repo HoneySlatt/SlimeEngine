@@ -261,7 +261,9 @@ pub trait Presentation {
     ///
     /// The run connects it to the window (`docs/adr/0145-text-edited.md`): it gives it each event
     /// of the window first, which neither [`on_event`](Self::on_event) nor the game's input sees
-    /// when the interface takes it; it gives it the system's clipboard; and after each frame drawn,
+    /// when the interface takes it; it gives it the system's clipboard; before each frame, the
+    /// time since the last, by which its transitions go on ([`Ui::advance`]); and after each frame
+    /// drawn,
     /// it shows the pointer's shape that the interface asks, and allows the input method while
     /// one of its fields takes text. The default has none.
     fn ui(&mut self) -> Option<&mut Ui> {

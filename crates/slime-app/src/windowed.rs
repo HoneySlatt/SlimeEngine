@@ -240,6 +240,10 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
             return;
         }
         let now = Instant::now();
+        // The interface's transitions go on by the frame's real time.
+        if let Some(ui) = self.presentation.ui() {
+            ui.advance(now - self.last_frame);
+        }
         self.frames.run_one(
             &mut self.host,
             self.simulation,
