@@ -231,3 +231,4 @@ the ADR linking to it.
 | [0160](0160-two-viewports-and-blenders-way.md) | Two viewports and Blender's way | Accepted |
 | [0161](0161-the-open-step-and-the-handles.md) | The open step and the handles | Accepted |
 | [0162](0162-creating-copying-and-arranging.md) | Creating, copying and arranging | Accepted |
+| [0163](0163-placing-prefabs-and-the-history-panel.md) | Placing prefabs and the history panel | Accepted |
