@@ -1,8 +1,10 @@
 //! *Hunna Wood*'s zone opened in the editor, with the game's types, and written back: its comments,
 //! written by hand, stay above what they describe, and the zone written opens again into the same
-//! world (`docs/adr/0134-the-editors-core.md`); moved by gestures and steps, every step undone,
-//! it is written back as it was (`docs/adr/0161-the-open-step-and-the-handles.md`). It needs the
-//! zone cooked, as `scripts/check.sh` cooks it into `target/cooked/hunnawood`.
+//! world (`docs/adr/0134-the-editors-core.md`); moved by gestures and steps, copied and pasted,
+//! every step undone, it is written back as it was
+//! (`docs/adr/0161-the-open-step-and-the-handles.md`,
+//! `docs/adr/0162-creating-copying-and-arranging.md`). It needs the zone cooked, as
+//! `scripts/check.sh` cooks it into `target/cooked/hunnawood`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -87,8 +89,10 @@ fn the_zone_written_back_keeps_its_comments_and_opens_again_the_same() {
 }
 
 /// The zone moved and scaled by gestures, as the handles give them, three of its placements in
-/// one step, then every step undone: written back, its file is what the zone written unchanged
-/// is, byte for byte (`docs/adr/0161-the-open-step-and-the-handles.md`).
+/// one step, those three copied and pasted twice, then every step undone: written back, its file
+/// is what the zone written unchanged is, byte for byte
+/// (`docs/adr/0161-the-open-step-and-the-handles.md`,
+/// `docs/adr/0162-creating-copying-and-arranging.md`).
 #[test]
 #[ignore = "needs the cooked zone (scripts/check.sh runs it)"]
 fn the_zone_moved_then_every_step_undone_is_written_back_unchanged() {
@@ -154,7 +158,18 @@ fn the_zone_moved_then_every_step_undone_is_written_back_unchanged() {
     editor
         .apply(&mut world, "Move again", commands, None)
         .expect("a step");
-    assert_eq!(editor.done().collect::<Vec<_>>(), ["Move", "Move again"]);
+    // Three placements copied, pasted twice, each paste one step under new identities
+    // (`docs/adr/0162-creating-copying-and-arranging.md`).
+    let copied = editor.copy(&world, &placed[..3]).expect("copied");
+    for _ in 0..2 {
+        let pasted = editor.paste(&mut world, "Paste", &copied).expect("pasted");
+        assert_eq!(pasted.len(), 3);
+        assert!(pasted.iter().all(|id| world.find(id).is_some()));
+    }
+    assert_eq!(
+        editor.done().collect::<Vec<_>>(),
+        ["Move", "Move again", "Paste", "Paste"]
+    );
     while editor.undo(&mut world).expect("undone") {}
     let left_out = editor.write(&mut world).expect("written");
     assert!(left_out.is_empty(), "{left_out:?}");

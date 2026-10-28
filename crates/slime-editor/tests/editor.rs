@@ -1,5 +1,6 @@
 //! The editor's core on a level of its own: steps made, undone and redone, the level written back
-//! with its comments and opened again, a journal played again (`docs/adr/0134-the-editors-core.md`).
+//! with its comments and opened again, a journal played again (`docs/adr/0134-the-editors-core.md`);
+//! what is selected copied and pasted (`docs/adr/0162-creating-copying-and-arranging.md`).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -656,4 +657,72 @@ fn nothing_else_changes_the_level_while_a_gesture_is_open() {
     assert!(busy(editor.redo(&mut world).map(|_| ())));
     assert!(busy(editor.write(&mut world).map(|_| ())));
     assert_eq!(well_s_name(&world), "dragged");
+}
+
+/// The gate and the sign copied, then pasted twice: each paste is one step, which creates them
+/// again under new identities, selects them, and writes into the journal the commands as applied;
+/// one undo takes a paste back; the level written holds the copies beside what they copy. Text that
+/// is not a copy, a copy of nothing, or a step that changes what is there, is refused.
+#[test]
+fn what_is_copied_is_pasted_as_one_step_under_new_identities_each_time() {
+    let yard = Yard::new("paste");
+    let (mut world, mut editor) = yard.open();
+    let journal = yard.directory.join("journal");
+    let held = slime_app::HeldFile::hold(journal.clone()).expect("held");
+    editor.keep_journal(&world, held).expect("kept");
+    let copied = editor
+        .copy(&world, &[id("yard/gate"), id("yard/sign")])
+        .expect("copied");
+    assert!(copied.starts_with("# do\n"), "{copied}");
+    assert!(copied.contains("# command\n"), "{copied}");
+    let first = editor.paste(&mut world, "Paste", &copied).expect("pasted");
+    let second = editor
+        .paste(&mut world, "Paste", &copied)
+        .expect("pasted again");
+    assert_eq!(first.len(), 2);
+    assert_ne!(first, second, "each paste its own identities");
+    assert_eq!(editor.selection(), second.as_slice());
+    let gate = world.find(&first[0]).expect("the gate's copy");
+    assert_eq!(
+        world
+            .get::<slime_world::Transform>(gate)
+            .expect("placed")
+            .translation
+            .x,
+        4.0
+    );
+    // The sign's copy aims at the well, which was not copied.
+    let sign = world.find(&first[1]).expect("the sign's copy");
+    assert_eq!(
+        world.get::<Aim>(sign).map(|aim| aim.at),
+        world.find(&id("yard/well"))
+    );
+    assert_eq!(editor.done().collect::<Vec<_>>(), ["Paste", "Paste"]);
+    let text = level(&mut world, &editor);
+    assert!(
+        text.contains(&format!(
+            "[entities.{}]\nprefab = \"lamp\"",
+            first[0].parts()[1]
+        )),
+        "{text}"
+    );
+    // The journal holds the commands as they were applied, under the new identities.
+    let written = read(&journal);
+    assert!(written.contains(&second[0].to_string()), "{written}");
+    assert!(editor.undo(&mut world).expect("undone"));
+    assert!(world.find(&second[0]).is_none());
+    assert!(world.find(&first[0]).is_some());
+    // A step of a journal that changes what is there, pasted, changes nothing.
+    let foreign = "# do\nlabel = \"Rename\"\n# command\n[SetProperty]\nentity = \"yard/well\"\ncomponent = \"Name\"\npath = \"0\"\nvalue = \"pit\"\n";
+    for refused in ["not a copy", "", foreign] {
+        assert!(matches!(
+            editor.paste(&mut world, "Paste", refused),
+            Err(EditError::Paste(_))
+        ));
+    }
+    assert!(matches!(editor.copy(&world, &[]), Err(EditError::Copy(_))));
+    assert!(matches!(
+        editor.copy(&world, &[id("yard")]),
+        Err(EditError::Copy(_))
+    ));
 }

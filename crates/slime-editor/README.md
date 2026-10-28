@@ -41,6 +41,10 @@ with Stage 6c's next milestones.
   undone as it is cancelled; while it is open, every other change is refused
   (`EditError::Gesture`), and the program keeps a tool's requests waiting
   (`docs/adr/0161-the-open-step-and-the-handles.md`).
+- `Editor::copy` and `Editor::paste`: the text of the commands that create entities again, as a
+  step of the journal writes them, and that text pasted as one step under new identities, the
+  references inside the copy pointed at the copy and a placement's overrides kept
+  (`docs/adr/0162-creating-copying-and-arranging.md`).
 - `OPERATIONS`, `operation(name)`, `SHORTCUTS` and `BLENDER_SHORTCUTS`: the registry of the
   editor's operations, each its name, `file.save`, its label, its parameters and what it changes
   (`Changes`), of which only steps enter the history; the editor's table of shortcuts,

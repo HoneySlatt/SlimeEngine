@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use slime_app::HeldFile;
 use slime_serialize::ReadError;
 use slime_world::{
-    Command, CommandTextError, DocumentError, Entity, PersistentId, SceneError, SceneLibrary,
-    SetAside, World, WorldError,
+    Command, CommandTextError, DocumentError, Entity, PersistentId, Renaming, SceneError,
+    SceneLibrary, SetAside, World, WorldError,
 };
 
 use crate::history::{Held, History, Step};
@@ -248,6 +248,106 @@ impl Editor {
             let text = texts.get(index)?;
             Some(Command::read(text, world, scenes).map_err(|error| text_error(index, error)))
         })
+    }
+
+    /// The text that copies `roots`, entities of the level by their persistent identities, the
+    /// outermost of them with what is below them: the commands that create them again, as
+    /// [`World::creating_commands`] gives them, written as a step of the journal writes them, after
+    /// a line `# do` that names the step `Copy` and selects `roots`, each command after a line
+    /// `# command` (`docs/adr/0162-creating-copying-and-arranging.md`). [`Editor::paste`] reads it.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::Copy`] for nothing to copy, an entity of `roots` that is not alive below the
+    /// level's root, or one below it without a persistent identity; [`EditError::Text`] for a
+    /// command that cannot be written, as [`Command::write`] says.
+    pub fn copy(&self, world: &World, roots: &[PersistentId]) -> Result<String, EditError> {
+        if roots.is_empty() {
+            return Err(EditError::Copy("nothing is selected".to_owned()));
+        }
+        let entities = roots
+            .iter()
+            .map(|id| match world.find(id) {
+                Some(entity) if id.parts()[0] == self.level.key && id.parts().len() > 1 => {
+                    Ok(entity)
+                }
+                _ => Err(EditError::Copy(format!(
+                    "`{id}` is not an entity alive below the level's root"
+                ))),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let commands = world
+            .creating_commands(&entities)
+            .map_err(|error| EditError::Copy(error.to_string()))?;
+        let texts = commands
+            .iter()
+            .enumerate()
+            .map(|(index, command)| {
+                command
+                    .write(world)
+                    .map_err(|error| text_error(index, error))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        journal::step(world, "Copy", Some(roots), &texts)
+    }
+
+    /// Pastes `text`, as [`Editor::copy`] writes it, as one step labelled `label`: each entity that
+    /// its commands create is created under a new identity of the level, through a [`Renaming`],
+    /// so that the references inside the copy point at the copy, a parent that the level does not
+    /// hold is the level's root, and what the copy selected is selected, renamed. Gives what is
+    /// selected after it.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::Paste`] for text that is not one step as [`Editor::copy`] writes it, or whose
+    /// commands change what they do not create ([`Renaming::of_commands`]); as
+    /// [`Editor::apply_text`] otherwise, the level left as it was.
+    ///
+    /// # Panics
+    ///
+    /// As [`Editor::apply`].
+    pub fn paste(
+        &mut self,
+        world: &mut World,
+        label: &str,
+        text: &str,
+    ) -> Result<Vec<PersistentId>, EditError> {
+        let not_a_copy =
+            || EditError::Paste("the text is not commands that the editor copied".into());
+        let entries = journal::entries(world, text).map_err(|_| not_a_copy())?;
+        let [
+            (
+                _,
+                Entry::Do {
+                    selection,
+                    commands,
+                    ..
+                },
+            ),
+        ] = entries.as_slice()
+        else {
+            return Err(not_a_copy());
+        };
+        let renaming = Renaming::of_commands(world, &self.level.key, commands)
+            .map_err(|error| EditError::Paste(error.to_string()))?;
+        let selection: Vec<PersistentId> = selection
+            .iter()
+            .flatten()
+            .map(|id| renaming.renamed(id))
+            .collect();
+        self.make(
+            world,
+            label,
+            Some(selection.clone()),
+            |world, scenes, index| {
+                let text = commands.get(index)?;
+                Some(
+                    Command::read_renamed(text, world, scenes, &renaming)
+                        .map_err(|error| text_error(index, error)),
+                )
+            },
+        )?;
+        Ok(selection)
     }
 
     /// Applies `commands` live, as the gesture under way gives them at a frame, in place of those
@@ -935,6 +1035,12 @@ pub enum EditError {
     /// until the gesture ends or is cancelled ([`Editor::gesture`]).
     #[error("a gesture is under way: it ends or is cancelled first")]
     Gesture,
+    /// What is to be copied cannot be ([`Editor::copy`]): why.
+    #[error("it cannot be copied: {0}")]
+    Copy(String),
+    /// What is to be pasted is not a copy ([`Editor::paste`]): why.
+    #[error("it cannot be pasted: {0}")]
+    Paste(String),
     /// A command of a step would change what is not under the level's root: an entity of another
     /// level, the root itself deleted or moved, or an entity put at the world's root.
     #[error(
