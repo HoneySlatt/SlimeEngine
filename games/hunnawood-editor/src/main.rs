@@ -27,16 +27,20 @@ fn main() -> ExitCode {
             exposure: hunnawood::DAY_EXPOSURE,
             bloom: hunnawood::BLOOM,
         },
-        // The game beside the editor, `cargo build -p hunnawood`, on a new run saved to Play's own
-        // save; it has no run without a window.
+        // The game, which Play builds, on a new run saved to Play's own save, or resuming that
+        // save once its code changed; it has no run without a window.
         play: Some(|played| {
             let mut command = std::process::Command::new(played.program("hunnawood"));
+            command.arg("--assets").arg(played.assets);
+            if !played.resume {
+                command.arg("--new");
+            }
+            command.arg("--save").arg(played.save);
             command
-                .arg("--assets")
-                .arg(played.assets)
-                .args(["--new", "--save"])
-                .arg(played.save);
-            command
+        }),
+        build: Some(slime_editor::Build {
+            directory: PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+            arguments: &["--package", "hunnawood", "--bin", "hunnawood"],
         }),
     })
 }

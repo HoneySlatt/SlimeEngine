@@ -65,6 +65,9 @@ pub(crate) struct State {
     pub(crate) history: u64,
     /// The game that Play runs, as the toolbar shows it (`docs/adr/0164-play.md`).
     pub(crate) play: Playing,
+    /// What Play's build of the game stands at, which the toolbar marks
+    /// (`docs/adr/0166-building-the-game-again.md`).
+    pub(crate) build: BuildMark,
     /// The last lines of the log of the game that Play ran, the oldest first, at most
     /// [`CONSOLE_LINES`], which the console shows; none before Play first ran.
     pub(crate) console: VecDeque<String>,
@@ -96,6 +99,21 @@ pub(crate) enum Playing {
     Starting,
     /// The game runs, its time paused or not, at a speed.
     Running { paused: bool, speed: f64 },
+}
+
+/// What Play's build of the game stands at, which the toolbar marks
+/// (`docs/adr/0166-building-the-game-again.md`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum BuildMark {
+    /// No build runs, and the last one built the game.
+    #[default]
+    None,
+    /// cargo builds the game.
+    Building,
+    /// cargo could not build the game, which plays on its last build.
+    Failed,
+    /// cargo built the game again, as its code changed, and the game started again.
+    BuiltAgain,
 }
 
 /// Something that the window tells the user.

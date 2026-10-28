@@ -986,7 +986,9 @@ handle ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md),
 steps not written included, as private copies of the scenes that the game reads in place of their
 cooked files, the user's files left alone; paused, stepped and stopped from a toolbar, its log in a
 console ([ADR-0164](adr/0164-play.md)). The steps made while it runs are sent to the game as the
-texts of the commands that they applied ([ADR-0165](adr/0165-editing-while-playing.md)).
+texts of the commands that they applied ([ADR-0165](adr/0165-editing-while-playing.md)). Play
+builds the game with cargo as it starts it, and again as its code changes while it runs, the game
+then starting again on a save of its run ([ADR-0166](adr/0166-building-the-game-again.md)).
 
 **Pivot (handles).** The point about which the editor's *handles* stand, turn and scale: the middle
 of the origins of the outermost entities selected, those without an ancestor in the selection

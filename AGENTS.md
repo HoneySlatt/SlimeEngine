@@ -51,7 +51,7 @@ cargo run -p hunnawood -- --new --save <file>             # play a new run, save
 cargo build -p hunnawood --no-default-features           # the game built for shipping, without the development channel and the dev overlay (ADR-0122, ADR-0152)
 cargo run --example editor -- --level <a copy of a level> --journal <file>  # the editor's window on the examples' yard (ADR-0135, ADR-0156); --headless without a window
 cargo run --example editor -- --journal <file> --output <file.png>  # the editor's window drawn into an image, without a window
-cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>  # the game's editor on its zone, Play running `hunnawood`, built first (games/hunnawood-editor/README.md)
+cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>  # the game's editor on its zone, Play building and running `hunnawood` (games/hunnawood-editor/README.md)
 cargo run --example text -- --output <file.png>           # the interface's text in several writing systems, rasterized by the CPU (ADR-0136)
 cargo run --example interface -- --output <file.png>      # an interface built as a tree of elements, styled by a theme: text, boxes, images, a view (ADR-0140, ADR-0141)
 cargo run --example widgets -- --output <file.png>        # the widgets of a panel in the editor's look: check boxes, sliders, sections, tabs, two panels, scroll bars (ADR-0148), menus, a list to choose from, tooltips, a floating panel (ADR-0150), rich fields, notifications, the palette of commands (ADR-0151), a color well (ADR-0152)

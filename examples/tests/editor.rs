@@ -50,6 +50,7 @@ fn program(assets: &Path) -> slime_editor::Program {
             bloom: sample_scene::BLOOM,
         },
         play: None,
+        build: None,
     }
 }
 

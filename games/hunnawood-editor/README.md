@@ -37,9 +37,10 @@ the zone when its cooked data is missing, which takes minutes: the game's README
 
 Play (F5, the toolbar above the viewport) runs the game on the zone as the editor holds it, steps
 not written included, on a new run saved to Play's own save, the user's files and save left alone
-([ADR-0164](../../docs/adr/0164-play.md)): it starts the game's program beside the editor's, which
-is built first, `cargo build -p hunnawood`, and shows the game's log in a console below the
-viewport. The steps made while it runs reach the game, which places the prefabs that they place
+([ADR-0164](../../docs/adr/0164-play.md)): it builds the game's program with cargo, `hunnawood`, as
+it starts it, and again as its code changes while it plays, the game then starting again where its
+run stood ([ADR-0166](../../docs/adr/0166-building-the-game-again.md)), and shows the game's log
+in a console below the viewport. The steps made while it runs reach the game, which places the prefabs that they place
 through its own library of scenes ([ADR-0165](../../docs/adr/0165-editing-while-playing.md)).
 
 `tests/zone.rs` opens the zone, writes it back, checks that every comment of the file stays above

@@ -56,8 +56,8 @@ fn program() -> slime_editor::Program {
             exposure: sample_scene::EXPOSURE,
             bloom: sample_scene::BLOOM,
         },
-        // The `world` example beside the editor, which plays the yard; without a window when the
-        // editor runs without one.
+        // The `world` example, which Play builds, and which plays the yard; without a window when
+        // the editor runs without one. It does not save its runs.
         play: Some(|played| {
             let mut command = std::process::Command::new(played.program("world"));
             command.arg("--assets").arg(played.assets);
@@ -65,6 +65,10 @@ fn program() -> slime_editor::Program {
                 command.arg("--headless");
             }
             command
+        }),
+        build: Some(slime_editor::Build {
+            directory: PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+            arguments: &["--package", "slime-examples", "--example", "world"],
         }),
     }
 }

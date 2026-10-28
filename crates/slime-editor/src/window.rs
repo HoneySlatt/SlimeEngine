@@ -41,7 +41,7 @@ use crate::pane::{Bound, Pane};
 use crate::picking::{self, Wanted};
 use crate::program::Program;
 use crate::session::Session;
-use crate::shared::{Notice, Playing, Request, Shared};
+use crate::shared::{BuildMark, Notice, Playing, Request, Shared};
 use crate::viewport::{self, Framing, Level, Marks, Viewport};
 
 /// An entry of a menu.
@@ -1157,9 +1157,9 @@ impl Model {
         let mut toolbar = (Vec::new(), None);
         let mut console_slot = None;
         let panes = self.panes.len();
-        let (playing, played) = {
+        let (playing, mark, played) = {
             let shared = self.shared.borrow();
-            (shared.play, shared.played)
+            (shared.play, shared.build, shared.played)
         };
         self.ui.build(self.root, self.built, |children| {
             let mut window = column();
@@ -1223,7 +1223,7 @@ impl Model {
                     center.layout.min_size = [Dimension::Pixels(0.0), Dimension::Pixels(0.0)];
                     center.layout.gap = [8.0, 0.0];
                     regions.add("center", Element::container(center), |center| {
-                        toolbar = play_toolbar(center, playing);
+                        toolbar = play_toolbar(center, playing, mark);
                         let mut viewports = Style::default();
                         viewports.layout.grow = 1.0;
                         viewports.layout.min_size =
@@ -1401,11 +1401,13 @@ impl Model {
 
 /// Adds to `center` Play's toolbar as Play stands, `playing`: Play, Pause or Resume, Step, Stop,
 /// and the speeds of game time, one of four segments, the one in use chosen, 1× while no game runs
-/// (`docs/adr/0164-play.md`). Gives its buttons, each with the operation that it runs, and its
-/// control of speeds.
+/// (`docs/adr/0164-play.md`); then the mark of the game's build, `mark`, while cargo builds it or
+/// once it failed (`docs/adr/0166-building-the-game-again.md`). Gives its buttons, each with the
+/// operation that it runs, and its control of speeds.
 fn play_toolbar(
     center: &mut slime_ui::tree::Children<'_>,
     playing: Playing,
+    mark: BuildMark,
 ) -> (Vec<(ElementId, &'static str)>, Option<ElementId>) {
     let mut buttons = Vec::new();
     let mut speeds = None;
@@ -1436,6 +1438,15 @@ fn play_toolbar(
                 segments.add(label, Element::segment(label, Style::default()), |_| {});
             }
         }));
+        let said = match mark {
+            BuildMark::None => None,
+            BuildMark::Building => Some("Building the game…"),
+            BuildMark::Failed => Some("The game's code does not build"),
+            BuildMark::BuiltAgain => Some("Built again"),
+        };
+        if let Some(said) = said {
+            bar.add("build", Element::label(said, Style::default()), |_| {});
+        }
     });
     (buttons, speeds)
 }
@@ -2277,13 +2288,14 @@ mod tests {
 
     impl Yard {
         fn new(name: &str) -> Self {
-            Self::playing(name, None)
+            Self::playing(name, None, None)
         }
 
-        /// The yard, its program playing the game that `play` starts.
+        /// The yard, its program playing the game that `play` starts, built as `build` says.
         fn playing(
             name: &str,
             play: Option<fn(&crate::Played<'_>) -> std::process::Command>,
+            build: Option<crate::Build>,
         ) -> Self {
             let directory = std::env::temp_dir()
                 .join(format!("slime-editor-window-{}-{name}", std::process::id()));
@@ -2318,6 +2330,7 @@ mod tests {
                 register: |_| {},
                 lighting: Lighting::default(),
                 play,
+                build,
             };
             let arguments: Vec<OsString> = vec![
                 "--journal".into(),
@@ -3089,9 +3102,17 @@ mod tests {
     /// The environment variable that makes this test program a stub game, which Play starts.
     const STUB_GAME: &str = "SLIME_EDITOR_STUB_GAME";
 
+    /// The environment variable that makes the stub game say that it resumes its save.
+    const STUB_RESUMES: &str = "SLIME_EDITOR_STUB_RESUMES";
+
+    /// The environment variable that names this test program to the program that a test builds,
+    /// which starts it as the stub game.
+    const STUB_PROGRAM: &str = "SLIME_EDITOR_STUB_PROGRAM";
+
     /// A game that spawns the yard from the cooked data, as Play hands it over, tells the well's
-    /// name in its log, again each time it changes, and runs until it is stopped, or ends after a
-    /// few frames, as a crash, when the cooked data holds a file `crash`.
+    /// name in its log, again each time it changes, saves its runs, a file that says so, unless the
+    /// cooked data holds a file `nosave`, and runs until it is stopped, or ends after a few frames,
+    /// as a crash, when the cooked data holds a file `crash`.
     struct Stub {
         assets: PathBuf,
         frames: u32,
@@ -3130,7 +3151,18 @@ mod tests {
             let mut scenes = slime_world::SceneLibrary::of(assets);
             let yard = scenes.resolve(world.registry(), slime_assets::AssetId::from_u128(1))?;
             world.spawn_scene("yard", &yard)?;
+            if std::env::var_os(STUB_RESUMES).is_some() {
+                tracing::info!("the stub resumes its save");
+            }
             self.tell(world);
+            Ok(())
+        }
+
+        fn save(&mut self, _: &World, file: &std::path::Path) -> Result<(), slime_app::AppError> {
+            if self.assets.join("nosave").exists() {
+                return Err("the stub saves no run here".into());
+            }
+            fs::write(file, "saved")?;
             Ok(())
         }
 
@@ -3176,6 +3208,25 @@ mod tests {
             ])
             .env(STUB_GAME, played.assets)
             .stderr(std::process::Stdio::null());
+        command
+    }
+
+    /// The program that cargo builds for the test of building the game again, which starts this
+    /// test program as the stub game, its standard streams its own: `{}` takes a comment, which a
+    /// change of its code changes.
+    const WRAPPER: &str = "// {}\nfn main() {\n    let stub = std::env::var_os(\"SLIME_EDITOR_STUB_PROGRAM\").expect(\"the stub\");\n    let status = std::process::Command::new(stub)\n        .args([\"--exact\", \"window::tests::stub_game\", \"--nocapture\", \"--test-threads=1\"])\n        .status()\n        .expect(\"the stub runs\");\n    std::process::exit(status.code().unwrap_or(1));\n}\n";
+
+    /// The program that cargo built from [`WRAPPER`], which starts the stub game on the cooked
+    /// data that Play gives, resuming its save when Play says so.
+    fn wrapper_command(played: &crate::Played<'_>) -> std::process::Command {
+        let mut command = std::process::Command::new(played.program("wrapper"));
+        command.env(STUB_GAME, played.assets).env(
+            STUB_PROGRAM,
+            std::env::current_exe().expect("the test program"),
+        );
+        if played.resume {
+            command.env(STUB_RESUMES, "1");
+        }
         command
     }
 
@@ -3228,7 +3279,7 @@ mod tests {
     /// editor running, which tells the user (`docs/adr/0164-play.md`).
     #[test]
     fn play_runs_the_level_as_the_editor_holds_it_and_outlives_its_game() {
-        let mut yard = Yard::playing("play", Some(stub_command));
+        let mut yard = Yard::playing("play", Some(stub_command), None);
         yard.rename("pump");
         let level = yard.directory.join("yard.scene");
         let written = fs::read(&level).expect("the level's file");
@@ -3382,6 +3433,102 @@ mod tests {
             yard.history().0.last().map(String::as_str),
             Some("Create an entity")
         );
+    }
+
+    /// Play builds the game with cargo before it starts it, and ends when it does not build; a
+    /// change of its code while it plays builds it again, and the game starts again on a save of
+    /// its run, the toolbar marking it; a change that does not build is told, the toolbar marking
+    /// it, and the game plays on, until a change builds; a game that does not save its run starts
+    /// a new run on the level as the editor holds it (`docs/adr/0166-building-the-game-again.md`).
+    #[test]
+    fn play_builds_the_game_and_builds_it_again_as_its_code_changes() {
+        let crate_directory =
+            std::env::temp_dir().join(format!("slime-editor-wrapper-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&crate_directory);
+        fs::create_dir_all(crate_directory.join("src")).expect("a directory of the test's own");
+        fs::write(
+            crate_directory.join("Cargo.toml"),
+            "[package]\nname = \"wrapper\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[workspace]\n",
+        )
+        .expect("written");
+        let main = crate_directory.join("src").join("main.rs");
+        fs::write(&main, "fn main() { not rust }\n").expect("written");
+        let build = crate::Build {
+            directory: crate_directory.clone(),
+            arguments: &["--bin", "wrapper"],
+        };
+        let mut yard = Yard::playing("build", Some(wrapper_command), Some(build));
+        let told = |yard: &Yard, line: &str| {
+            yard.shared
+                .borrow()
+                .console
+                .iter()
+                .filter(|each| each.contains(line))
+                .count()
+        };
+        let shown = |yard: &Yard, text: &str| {
+            yard.model
+                .ui
+                .meaning()
+                .iter()
+                .any(|meaning| meaning.name.contains(text))
+        };
+        // A game that does not build does not play.
+        run(&mut yard, "play.start");
+        until(&mut yard, "Play ends", |yard| {
+            yard.shared.borrow().play == Playing::Stopped
+        });
+        yard.frame();
+        assert!(shown(&yard, "the game's code does not build"));
+        fs::write(&main, WRAPPER.replace("{}", "first")).expect("written");
+        run(&mut yard, "play.start");
+        let built = |yard: &Yard| yard.shared.borrow().build == BuildMark::None;
+        let running = |yard: &Yard| matches!(yard.shared.borrow().play, Playing::Running { .. });
+        // The first build takes a few seconds.
+        until(&mut yard, "the game built and running", |yard| {
+            running(yard) && built(yard) && told(yard, "the well is named") == 1
+        });
+        // Its code changed: built again, started again where its run stood.
+        fs::write(&main, WRAPPER.replace("{}", "second")).expect("written");
+        until(&mut yard, "the game built again and resumed", |yard| {
+            running(yard) && told(yard, "the stub resumes its save") == 1
+        });
+        assert!(shown(&yard, "starts again where its run stood"));
+        assert_eq!(yard.shared.borrow().build, BuildMark::BuiltAgain);
+        // A change that does not build: told, marked, and the game plays on.
+        fs::write(&main, "fn main() { not rust }\n").expect("written");
+        until(&mut yard, "the build fails", |yard| {
+            yard.shared.borrow().build == BuildMark::Failed
+        });
+        yard.frame();
+        assert!(shown(&yard, "The game's code does not build"));
+        assert!(running(&yard), "plays on");
+        assert!(told(&yard, "error") > 0, "cargo's errors in the console");
+        // Mended: built again.
+        fs::write(&main, WRAPPER.replace("{}", "third")).expect("written");
+        until(&mut yard, "the game built again once mended", |yard| {
+            running(yard) && told(yard, "the stub resumes its save") == 2
+        });
+        // A game that does not save its run: its new run starts on the level as the editor holds
+        // it, a step made while it played included.
+        fs::write(yard.directory.join("cooked").join("nosave"), "").expect("written");
+        yard.rename("kept");
+        until(&mut yard, "the game sees the rename", |yard| {
+            told(yard, "the well is named kept") == 1
+        });
+        fs::write(&main, WRAPPER.replace("{}", "fourth")).expect("written");
+        until(&mut yard, "a new run on the level as it stands", |yard| {
+            running(yard) && told(yard, "the well is named kept") == 2
+        });
+        assert!(shown(&yard, "starts a new run on the level as it stands"));
+        assert_eq!(told(&yard, "the stub resumes its save"), 2);
+        assert!(!built(&yard), "marked as built again");
+        run(&mut yard, "play.stop");
+        until(&mut yard, "the game stops", |yard| {
+            yard.shared.borrow().play == Playing::Stopped
+        });
+        drop(yard);
+        let _ = fs::remove_dir_all(&crate_directory);
     }
 
     /// Two viewports side by side, each its own camera and settings, the View menu changing the

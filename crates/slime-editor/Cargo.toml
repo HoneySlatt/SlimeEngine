@@ -39,6 +39,8 @@ slime-ui-render.workspace = true
 slime-world.workspace = true
 # What the viewport draws of the world, through its own asset cache (ADR-0158).
 slime-world-render.workspace = true
+# cargo's messages, read as Play builds the game (ADR-0166).
+serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 

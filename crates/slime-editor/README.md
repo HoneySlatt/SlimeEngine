@@ -89,7 +89,10 @@ with Stage 6c's next milestones.
   as the editor holds it, its steps not written handed over as private copies, paused, stepped,
   at a speed and stopped, its log in a console below the viewports (`docs/adr/0164-play.md`);
   the steps made, undone and done again while it runs reach it, the game's refusals told
-  (`docs/adr/0165-editing-while-playing.md`).
+  (`docs/adr/0165-editing-while-playing.md`). Play builds the game with cargo as `Program::build`
+  says, as it starts it and again as its code changes while it plays, the game then starting again
+  on a save of its run (`Played::resume`), a build that fails told
+  (`docs/adr/0166-building-the-game-again.md`).
   Options: `--level`, `--assets`, `--journal`, `--discard`, `--headless`; `run`'s documentation
   says how a journal is chosen and recovered.
 - `window_image(&Program, arguments, operations, selection, scale)`: the window drawn into an image
@@ -108,8 +111,8 @@ requests it answers, and `slime-assets`, the cooked data of the prefabs that a l
 window, `slime-ui`, with the editor's look, `slime-ui-render` and `slime-render`, which draw it,
 `slime-world-render`, what the viewport draws of the world, `slime-gfx` and `slime-color`, the GPU
 and the color an image starts from, `slime-platform`, the window's events, and `slime-devui`, whose
-world panel the window shows; `thiserror`, which derives `EditError`, and `tracing`, the program's
-log.
+world panel the window shows; `serde_json`, which reads cargo's messages as Play builds the game;
+`thiserror`, which derives `EditError`, and `tracing`, the program's log.
 
 ## Must not
 

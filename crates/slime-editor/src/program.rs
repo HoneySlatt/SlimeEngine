@@ -38,11 +38,26 @@ pub struct Program {
     pub register: fn(&mut World),
     /// How the viewport lights the level, as the game lights it, which the editor cannot know.
     pub lighting: Lighting,
-    /// The command that starts the game's program, built already, for Play
-    /// (`docs/adr/0164-play.md`): the editor gives it a token, the private copies of the scenes that
-    /// hold steps not written, and a pipe as its standard input; none for a program that plays no
-    /// game, whose Play is refused.
+    /// The command that starts the game's program for Play (`docs/adr/0164-play.md`): the editor
+    /// gives it a token, the private copies of the scenes that hold steps not written, and a pipe
+    /// as its standard input; none for a program that plays no game, whose Play is refused.
     pub play: Option<fn(&Played<'_>) -> std::process::Command>,
+    /// How cargo builds the game's program, which Play builds as it starts it and again as its
+    /// code changes (`docs/adr/0166-building-the-game-again.md`); none for a program whose game is
+    /// built already, as one shipped, which Play starts as it finds it.
+    pub build: Option<Build>,
+}
+
+/// How cargo builds a game's program, which [`Program::build`] gives
+/// (`docs/adr/0166-building-the-game-again.md`).
+#[derive(Clone, Debug)]
+pub struct Build {
+    /// A directory of the game's workspace, where cargo runs: the editor package's own,
+    /// `env!("CARGO_MANIFEST_DIR")`.
+    pub directory: PathBuf,
+    /// The arguments that name the game's program to cargo:
+    /// `["--package", "hunnawood", "--bin", "hunnawood"]`.
+    pub arguments: &'static [&'static str],
 }
 
 /// What Play hands [`Program::play`], which starts the game on it (`docs/adr/0164-play.md`).
@@ -53,16 +68,28 @@ pub struct Played<'a> {
     /// A save of the editor's own, in a directory of Play's, which the game is to save its run to,
     /// rather than to the user's save.
     pub save: &'a Path,
+    /// Whether the game is to resume the run of `save`, which the game that played before saved
+    /// as its code changed, rather than start a new run
+    /// (`docs/adr/0166-building-the-game-again.md`).
+    pub resume: bool,
     /// Whether the editor runs without a window, as agents run it: the game then runs without one
     /// too, where it can.
     pub headless: bool,
+    /// The game's program that cargo built for Play, if [`Program::build`] gives how, or on
+    /// Windows its copy, which Play starts.
+    pub(crate) built: Option<&'a Path>,
 }
 
 impl Played<'_> {
-    /// The program named `name`, `hunnawood`, beside the editor's own, where cargo builds a
-    /// workspace's programs, its extension on Windows given; `name` alone, which the system's path
-    /// finds, when the editor cannot tell where its own program is.
+    /// The game's program: the one that cargo built for Play, when [`Program::build`] gives how,
+    /// or on Windows its copy, of the same name, which leaves the next build free to replace it
+    /// (`docs/adr/0166-building-the-game-again.md`); otherwise the program named `name`, `hunnawood`, beside the editor's own, where cargo builds
+    /// a workspace's programs, its extension on Windows given, or `name` alone, which the system's
+    /// path finds, when the editor cannot tell where its own program is.
     pub fn program(&self, name: &str) -> PathBuf {
+        if let Some(built) = self.built {
+            return built.to_path_buf();
+        }
         let file = format!("{name}{}", std::env::consts::EXE_SUFFIX);
         std::env::current_exe()
             .ok()
@@ -255,6 +282,7 @@ mod tests {
             register: |_| {},
             lighting: Lighting::default(),
             play: None,
+            build: None,
         }
     }
 

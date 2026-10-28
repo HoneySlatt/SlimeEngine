@@ -20,10 +20,9 @@ use slime_world_render::Picker;
 use crate::editor::{EditError, Editor};
 use crate::handles;
 use crate::operation::{self, Changes, OPERATIONS};
-use crate::play::{Control, Event, Player};
-use crate::program::Played;
+use crate::play::{Control, Event, Game, Player};
 use crate::program::{Options, Program};
-use crate::shared::{CONSOLE_LINES, Notice, Playing, Request, Shared};
+use crate::shared::{BuildMark, CONSOLE_LINES, Notice, Playing, Request, Shared};
 use crate::{journal, level, recent};
 
 /// Why the program has no journal when the environment gives no data directory.
@@ -775,7 +774,9 @@ impl Session {
     /// holds it: the level's scene file as writing it would give, written as a private copy into a
     /// new directory of Play's own, which the game reads in place of its cooked file, whether the
     /// cooked data is older than the file or not, the user's files left alone; and a save of the
-    /// editor's own there. Play's thread starts it, and tells the editor when it runs.
+    /// editor's own there. Play's thread builds it, when the program says how, starts it, and tells
+    /// the editor when it runs; it builds it again as its code changes
+    /// (`docs/adr/0166-building-the-game-again.md`).
     ///
     /// # Errors
     ///
@@ -787,7 +788,7 @@ impl Session {
         if self.player.is_some() {
             return Err("a game plays already: it stops first".into());
         }
-        let start = self.program.play.ok_or("the program plays no game")?;
+        let play = self.program.play.ok_or("the program plays no game")?;
         let waker = self.waker.clone().ok_or("the program has not started")?;
         let editor = self.editor.as_ref().ok_or("no level is open")?;
         // A gesture's live values would reach the game, and not its cancel.
@@ -812,14 +813,13 @@ impl Session {
             let _ = fs::remove_dir_all(&directory);
             return Err(error.into());
         }
-        let save = directory.join("save.toml");
-        let mut command = start(&Played {
-            assets: &self.options.assets,
-            save: &save,
+        let game = Game {
+            play,
+            assets: self.options.assets.clone(),
             headless: self.options.headless,
-        });
-        command.env(slime_world::PLAY_SCENES_ENV_VAR, &directory);
-        self.player = Some(Player::start(command, directory, waker));
+            build: self.program.build.clone(),
+        };
+        self.player = Some(Player::start(game, directory, waker));
         // What the steps made from now on apply, sent to the game once it runs.
         if let Some(editor) = &mut self.editor {
             editor.record_applied(true);
@@ -880,12 +880,15 @@ impl Session {
         Ok(Reply::Done)
     }
 
-    /// Follows what Play's threads told: the game running, game time as the game says it stands,
-    /// the lines of its log, which the console shows and the editor's log writes, a control that
-    /// it refused, and its end, which the user is told of, the editor going on; the editor's log
-    /// says each, which agents read. The window is built again for what changes the toolbar, not
-    /// for lines of the log, which the console follows by its own count.
-    fn follow_play(&mut self) {
+    /// Follows what Play's threads told: the game's build, which the toolbar marks, and whose errors
+    /// the console shows; the game running, game time as the game says it stands, the lines of its
+    /// log, which the console shows and the editor's log writes, a control that it refused; the
+    /// game built again starting again, for which the level, as `world` holds it, is written again
+    /// into Play's directory when the game did not save its run; and its end, which the user is told of, the
+    /// editor going on; the editor's log says each, which agents read. The window is built again
+    /// for what changes the toolbar, not for lines of the log, which the console follows by its own
+    /// count.
+    fn follow_play(&mut self, world: &mut World) {
         let Some(events) = self.player.as_ref().map(Player::events) else {
             return;
         };
@@ -893,6 +896,67 @@ impl Session {
         for event in events {
             changed |= !matches!(event, Event::Log(_));
             match event {
+                Event::Building => {
+                    tracing::info!("Play: cargo builds the game");
+                    self.shared.borrow_mut().build = BuildMark::Building;
+                }
+                Event::Built => {
+                    tracing::info!("Play: the game is built");
+                    self.shared.borrow_mut().build = BuildMark::None;
+                }
+                Event::BuildFailed(lines) => {
+                    for line in &lines {
+                        tracing::warn!(target: "build", "{line}");
+                    }
+                    let running = {
+                        let mut shared = self.shared.borrow_mut();
+                        shared.build = BuildMark::Failed;
+                        for line in lines {
+                            if shared.console.len() == CONSOLE_LINES {
+                                shared.console.pop_front();
+                            }
+                            shared.console.push_back(line);
+                        }
+                        shared.console_revision += 1;
+                        matches!(shared.play, Playing::Running { .. })
+                    };
+                    // As Play starts, its end tells the user.
+                    if running {
+                        let why =
+                            "The game's code does not build: the game plays on its last build";
+                        tracing::warn!("Play: {why}");
+                        self.tell(true, why.to_owned());
+                    }
+                }
+                Event::Restarting { unsaved } => {
+                    self.played = None;
+                    {
+                        let mut shared = self.shared.borrow_mut();
+                        shared.play = Playing::Starting;
+                        shared.build = BuildMark::BuiltAgain;
+                    }
+                    let said = match unsaved {
+                        None => "The game was built again, and starts again where its run stood"
+                            .to_owned(),
+                        Some(why) => self.write_level_again(world).map_or_else(
+                            |error| {
+                                format!(
+                                    "The game was built again, and starts a new run, as it did \
+                                     not save its run ({why}), on the level as Play started, \
+                                     which could not be written again: {error}"
+                                )
+                            },
+                            |()| {
+                                format!(
+                                    "The game was built again, and starts a new run on the level \
+                                     as it stands, as it did not save its run: {why}"
+                                )
+                            },
+                        ),
+                    };
+                    tracing::info!("Play: {said}");
+                    self.tell(false, said);
+                }
                 Event::Started { address, token } => {
                     tracing::info!("Play: the game runs");
                     self.played = Some((address, token));
@@ -928,6 +992,7 @@ impl Session {
                     }
                     self.player = None;
                     self.played = None;
+                    self.shared.borrow_mut().build = BuildMark::None;
                     if let Some(editor) = &mut self.editor {
                         editor.record_applied(false);
                     }
@@ -939,6 +1004,30 @@ impl Session {
         if changed {
             self.publish();
         }
+    }
+
+    /// Writes the level again into Play's directory, as the editor holds it, for the game built again
+    /// that did not save its run, whose new run starts on it, and lets it start, [`Control::Written`]
+    /// (`docs/adr/0166-building-the-game-again.md`): the steps not sent yet, which the level holds,
+    /// are not sent.
+    ///
+    /// # Errors
+    ///
+    /// When the level cannot be written as a scene file, or into Play's directory: the new run
+    /// starts on the level as Play wrote it as it started.
+    fn write_level_again(&mut self, world: &mut World) -> Result<(), AppError> {
+        let (Some(player), Some(editor)) = (&self.player, &mut self.editor) else {
+            return Ok(());
+        };
+        let written = editor.text(world).map_err(AppError::from).and_then(|text| {
+            let file = player.directory().join(format!("{}.scene", editor.asset()));
+            fs::write(file, text).map_err(AppError::from)
+        });
+        if written.is_ok() {
+            editor.take_applied();
+        }
+        player.control(Control::Written);
+        written
     }
 
     /// Sends the game that Play runs, once it runs, the texts of the commands that the steps made,
@@ -1217,7 +1306,7 @@ impl Simulation for Session {
     }
 
     fn update(&mut self, ctx: &mut SimulationContext<'_>, world: &mut World) {
-        self.follow_play();
+        self.follow_play(world);
         let requests = std::mem::take(&mut self.shared.borrow_mut().requests);
         for request in requests {
             if let Err(error) = self.handle(world, request) {
@@ -1421,6 +1510,7 @@ mod tests {
                 register: |_| {},
                 lighting: Lighting::default(),
                 play: None,
+                build: None,
             };
             let mut arguments: Vec<OsString> = arguments.iter().map(OsString::from).collect();
             arguments.extend(["--journal".into(), self.journal().into_os_string()]);

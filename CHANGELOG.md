@@ -103,6 +103,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   the copy, and a placement's overrides, nested ones included, are kept. Blender's way binds
   Shift+D, X and Shift+A. Agents run them by name, `edit.create`, `edit.duplicate`, `edit.copy`,
   `edit.paste`, `edit.delete`, `edit.group`, `edit.repeat` and `edit.nudge_*`.
+- Building the game again (ADR-0166): Play builds the game with cargo as it starts it, as
+  `Program::build` (`Build`) says, in the editor's profile, and again as its code changes while it
+  plays, the game playing on meanwhile; a new build starts again on a save of the run, which the
+  game saves through the development channel and resumes (`Played::resume`), or, for a game that
+  does not save its run, on a new run of the level as the editor holds it, the toolbar marking the
+  game as built again. A build that fails is told, cargo's errors in the console and
+  the toolbar marking it, and the game plays on its last build. On Windows, Play starts a copy of
+  the program, which leaves the next build free to replace it, and cargo and the game open no
+  console window. *Hunna Wood*'s editor and the `editor` example build their games so.
 - Editing while playing (ADR-0165): the steps made, undone and done again in the editor while Play
   runs the game reach it, a step at a time, as the texts of the commands that they applied, a
   gesture's once it ends; a step that the game refuses is told, and so is an undone deletion, which

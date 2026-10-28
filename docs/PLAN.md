@@ -1715,15 +1715,23 @@ GitHub issues, linked from their entry; this list stays the reference.
   browser. A prefab placed again by Repeat goes where the last one stands, on it. The history panel
   builds a row for each step that the history keeps, which a long session makes many, again as the
   steps change, and going to a step journals each undo or redo between.
-- **Play** ([ADR-0164](adr/0164-play.md)): it starts a game's program built already, which M6c.4c
-  builds again. A game that
-  makes its library of scenes before `slime_app::run` starts its log, as *Hunna Wood* and the
-  `world` example do, logs neither the scenes that Play gave nor a file of Play's directory that it
-  left out. The console builds a label for each line that it keeps, 500 at most, again as lines
-  come, and scrolls to the last whenever lines come, even while the user reads older ones. *Hunna
-  Wood* has no run without a window: an agent's editor without one plays it in a window all the
-  same. A control that the game refuses is told, but the toolbar shows what the game says only
-  once it answers the state asked after the control.
+- **Play** ([ADR-0164](adr/0164-play.md)): a game that makes its library of scenes before
+  `slime_app::run` starts its log, as *Hunna Wood* and the `world` example do, logs neither the
+  scenes that Play gave nor a file of Play's directory that it left out. The console builds a label
+  for each line that it keeps, 500 at most, again as lines come, and scrolls to the last whenever
+  lines come, even while the user reads older ones. *Hunna Wood* has no run without a window: an
+  agent's editor without one plays it in a window all the same. A control that the game refuses is
+  told, but the toolbar shows what the game says only once it answers the state asked after the
+  control.
+- **Building the game again** ([ADR-0166](adr/0166-building-the-game-again.md)): the game is built
+  with its package's features alone, which a build of the whole workspace, unifying others, makes
+  cargo build again once; a change of the game's sources is seen by polling the files that cargo
+  lists, and cargo's manifests and locks above them, until notify comes with M6c.7, and a source
+  that the last build did not list, a new file, is seen only with a change of one that it did; a
+  new build that builds but does not start, or crashes as it starts, ends Play, and the run's save
+  goes with Play's directory; cargo stopped during a build leaves its compilers to finish the crate
+  under way; on Windows, that the copy that runs leaves the build free to replace the program, and
+  that cargo and the game open no console window, are not checked yet.
 - **Editing while playing** ([ADR-0165](adr/0165-editing-while-playing.md)): an undone deletion
   does not reach the game, which plays on without what it restored until Play starts it again; a
   step that the game refuses stays applied in the game up to the command refused; a step that

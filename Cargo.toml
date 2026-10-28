@@ -54,7 +54,8 @@ base64 = "0.23"
 rmcp = { version = "3.6.0", default-features = false, features = ["server", "macros", "transport-io"] }
 serde = { version = "1.0.229", features = ["derive"] }
 tokio = { version = "1.53.2", features = ["macros", "rt"] }
-# The MCP server's tests only: they speak JSON-RPC to it. Already built for gltf and rmcp.
+# The MCP server's tests, which speak JSON-RPC to it, and the editor, which reads cargo's messages
+# as Play builds the game (ADR-0166). Already built for gltf and rmcp.
 serde_json = "1.0.154"
 # The development channel's secret token: 128 bits from the system's randomness, which the
 # standard library does not give yet (ADR-0122). Already built for uuid.

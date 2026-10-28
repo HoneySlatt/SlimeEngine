@@ -20,5 +20,5 @@ mod window;
 pub use editor::{EditError, Editor};
 pub use history::HISTORY_BUDGET;
 pub use operation::{BLENDER_SHORTCUTS, Changes, OPERATIONS, Operation, SHORTCUTS, operation};
-pub use program::{Lighting, Played, Program, run};
+pub use program::{Build, Lighting, Played, Program, run};
 pub use window::{IMAGE_SIZE, window_image};

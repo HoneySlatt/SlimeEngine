@@ -3058,6 +3058,7 @@ dependencies = [
 name = "slime-editor"
 version = "0.6.0"
 dependencies = [
+ "serde_json",
  "slime-app",
  "slime-assets",
  "slime-channel",
