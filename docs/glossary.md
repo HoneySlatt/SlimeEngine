@@ -466,9 +466,15 @@ paused, when the *host* runs one fixed step at a time on demand; its fixed steps
 duration at every speed (`slime_app::time::GameTime`, [ADR-0107](adr/0107-the-execution-model.md)).
 The frame's real time times the speed is what it advances by.
 
-**Gizmo.** A handle that an editor draws over a selection to move, turn or scale it with the mouse,
-in the scene or always on top of it ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)).
-Decided, not built yet.
+**Gizmo.** The *handles* that an editor draws over a selection to move, turn or scale it with the
+mouse ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)); the editor's code calls where
+they stand, their *pivot*, their axes and their size, a gizmo (`handles.rs`).
+
+**Handles (editor).** The arrows, squares, rings and cubes that the editor draws over the image of
+its viewport, about the selection's *pivot*, which a drag of the left button moves along an axis or
+in a plane, turns about an axis or scales, each drag one step of the history through an *open step*
+([ADR-0161](adr/0161-the-open-step-and-the-handles.md)). Not the world's entity handles, nor the
+asset cache's *request handles*.
 
 **glTF.** The Khronos Group's format for 3D scenes: meshes, materials, textures and a node
 hierarchy, as a JSON file with binary buffers, or as one GLB file with everything embedded. The
@@ -976,6 +982,10 @@ against the boxes of the meshes that a world places, then their triangles, witho
 handle ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md),
 [ADR-0130](adr/0130-picking.md)).
 
+**Pivot (handles).** The point about which the editor's *handles* stand, turn and scale: the middle
+of the origins of the outermost entities selected, those without an ancestor in the selection
+([ADR-0161](adr/0161-the-open-step-and-the-handles.md)).
+
 **Placement.** A *prefab* placed in a scene, under an ID of that scene, with its *overrides*, or
 while a world runs, under `created/<number>`; the entities of a placement are named through it, as
 `zone/lantern 3/light`. Not an *instance (render)* ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
@@ -1278,6 +1288,11 @@ drawn by the *sky pass*, not held.
 **Slot (element).** An *element* whose children its own builder gives, by its own *revision*, kept as
 they are when its parent is built again (`Children::add_slot`): a panel
 ([ADR-0140](adr/0140-the-tree-of-elements.md)).
+
+**Snapping (editor).** The editor's *handles* moving what they drag by steps: the *pivot* onto the
+world's grid of a quarter of a metre in the world's axes, by quarters of a metre in the selection's,
+turns by fifteen degrees, scales by tenths, while *Edit* > *Snap* is ticked; the user's, never the level's, and never undone
+([ADR-0161](adr/0161-the-open-step-and-the-handles.md)).
 
 **Source asset.** A file that people make or download and that *cooking* imports: a glTF scene, a
 PNG or JPEG image, or a *scene file*. Its *metadata file* is committed beside it; the file itself

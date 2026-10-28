@@ -103,4 +103,11 @@ pub(crate) enum Request {
         name: String,
         arguments: Vec<String>,
     },
+    /// The commands of a person's gesture at this frame, applied live in place of those before
+    /// ([`Editor::gesture`](crate::Editor::gesture)); the window's alone.
+    Gesture(Vec<Command>),
+    /// The gesture ended: what it applied last becomes one step, labelled so.
+    EndGesture(String),
+    /// The gesture cancelled, as Escape cancels it.
+    CancelGesture,
 }

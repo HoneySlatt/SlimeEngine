@@ -9,6 +9,7 @@ use slime_render::ViewSettings;
 use slime_ui::action::SurfaceInput;
 use slime_ui::tree::ElementId;
 
+use crate::handles::Drag;
 use crate::navigation::{Gesture, Navigation};
 use crate::picking::{Selecting, Wanted};
 
@@ -66,6 +67,8 @@ pub(crate) struct Pane {
     pub(crate) settings: ViewSettings,
     /// Whether it draws the wireframe of what is selected (`view.wireframe`).
     pub(crate) wireframe: bool,
+    /// The handle dragged over it, and the button that holds it, while it is.
+    pub(crate) drag: Option<(Drag, MouseButton)>,
 }
 
 impl Default for Pane {
@@ -80,6 +83,7 @@ impl Default for Pane {
             wanted: Vec::new(),
             settings: ViewSettings::default(),
             wireframe: false,
+            drag: None,
         }
     }
 }

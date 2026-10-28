@@ -405,9 +405,10 @@ pub struct OperationSummary {
     /// The names of its parameters, in the order of [`Edit::Run`]'s arguments: `path`.
     pub parameters: Vec<String>,
     /// What it changes: `history`, a step undone or done again; `file`, the level's file or which
-    /// level is open; `selection`, what is selected; `window`, what the editor's window shows;
-    /// `program`, whether it runs. None enters the history: steps are made of commands
-    /// ([`Edit::Step`]).
+    /// level is open; `selection`, what is selected; `level`, the level, by a step that enters the
+    /// history, as dropping what is selected does; `window`, what the editor's window shows;
+    /// `program`, whether it runs. Those of `level` alone make steps, besides the commands of
+    /// [`Edit::Step`].
     pub changes: String,
 }
 

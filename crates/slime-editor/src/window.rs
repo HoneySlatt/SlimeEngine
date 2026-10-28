@@ -18,6 +18,7 @@ use slime_color::LinearColor;
 use slime_devui::WorldPanel;
 use slime_gfx::{Gpu, Image, RenderPassDescriptor, RenderTarget, TextureFormat};
 use slime_platform::{ColorScheme, DialogId, Event, FileChoice};
+use slime_render::glam::{DVec3, Vec2};
 use slime_render::{CanvasImage, DebugMode, Pick, RenderError, Renderer};
 use slime_ui::Rect;
 use slime_ui::action::{Action, ActionKind, FieldValue, SurfaceInput};
@@ -33,6 +34,7 @@ use slime_ui::tree::{
 use slime_ui_render::UiRenderer;
 use slime_world::{Entity, World};
 
+use crate::handles::{Drag, Gizmo, Space, Tool};
 use crate::operation::{self, BLENDER_SHORTCUTS, OPERATIONS, SHORTCUTS};
 use crate::pane::{Bound, Pane};
 use crate::picking::{self, Wanted};
@@ -71,6 +73,15 @@ pub(crate) const MENUS: &[(&str, &[Entry])] = &[
             Entry::Operation("edit.redo"),
             Entry::Separator,
             Entry::Operation("edit.select_none"),
+            Entry::Separator,
+            Entry::Operation("edit.handles_move"),
+            Entry::Operation("edit.handles_turn"),
+            Entry::Operation("edit.handles_scale"),
+            Entry::Operation("edit.handles_local"),
+            Entry::Operation("edit.snap"),
+            Entry::Separator,
+            Entry::Operation("edit.drop"),
+            Entry::Operation("edit.drop_bottom"),
         ],
     ),
     (
@@ -199,6 +210,13 @@ pub(crate) struct Model {
     pub(crate) panes: Vec<Pane>,
     /// The pane that the pointer last pressed in, which the View menu changes and F frames.
     pub(crate) active: usize,
+    /// What the handles do, the axes that they follow, and whether they snap
+    /// (`docs/adr/0161-the-open-step-and-the-handles.md`): the user's, never the level's.
+    pub(crate) tool: Tool,
+    pub(crate) space: Space,
+    pub(crate) snap: bool,
+    /// Pixels of the screen per logical pixel, as the window last laid out.
+    scale: f32,
     /// Whether the keys are Blender's way, laid over the editor's (`view.keys_blender`).
     blender: bool,
 }
@@ -232,6 +250,10 @@ impl Model {
             // The level, framed as it opens.
             panes: vec![Pane::default()],
             active: 0,
+            tool: Tool::default(),
+            space: Space::default(),
+            snap: false,
+            scale: 1.0,
             blender,
         };
         model.set_keys(blender);
@@ -324,6 +346,11 @@ impl Model {
                     if matches!(input, SurfaceInput::Pressed { .. }) {
                         self.active = pane;
                     }
+                    // A handle dragged, or pressed, takes the pointer from the rest.
+                    if let Some(request) = self.handle(pane, input, world) {
+                        requests.extend(request);
+                        continue;
+                    }
                     let ui = &self.ui;
                     let bound = |button, modifiers| {
                         ui.button_command(VIEWPORT_SCOPE, button, modifiers)
@@ -389,13 +416,113 @@ impl Model {
     }
 
     /// What the viewport of `pane` marks of `world`, at `scale` pixels of the screen per logical
-    /// pixel: what the core says is selected, and its wireframe if asked for.
+    /// pixel: what the core says is selected, its wireframe if asked for, and its handles.
     pub(crate) fn marks(&self, pane: usize, world: &World, scale: f32) -> Marks {
+        let dragged = self
+            .panes
+            .get(pane)
+            .and_then(|pane| pane.drag.as_ref())
+            .map(|(drag, _)| drag.part());
         Marks {
             selection: self.selected_entities(world),
             wireframe: self.panes.get(pane).is_some_and(|pane| pane.wireframe),
             scale,
+            handles: self
+                .gizmo(pane, world, scale)
+                .map(|gizmo| (self.tool, gizmo, dragged)),
         }
+    }
+
+    /// Where the handles of what is selected stand in the viewport of `pane`, at `scale` pixels of
+    /// the screen per logical pixel; none without a selection.
+    fn gizmo(&self, pane: usize, world: &World, scale: f32) -> Option<Gizmo> {
+        let rect = self.viewport_rect(pane)?;
+        let camera = self.panes[pane].navigation.camera();
+        let selection = self.selected_entities(world);
+        Gizmo::of(world, &selection, self.space, &camera, rect.height / scale)
+    }
+
+    /// The ray from the camera of `pane` through `at`, in logical pixels from its viewport's
+    /// corner.
+    fn ray(&self, pane: usize, at: [f32; 2]) -> Option<(DVec3, DVec3)> {
+        let rect = self.viewport_rect(pane)?;
+        let (width, height) = (rect.width / self.scale, rect.height / self.scale);
+        let point = Vec2::new(at[0] / width.max(1.0), at[1] / height.max(1.0));
+        Some(
+            self.panes[pane]
+                .navigation
+                .camera()
+                .ray(width / height.max(1.0), point),
+        )
+    }
+
+    /// Drags the handles of what is selected over the viewport of `pane` as `input` asks: a press
+    /// of a button that selects over a handle starts a drag, the pointer's moves give the core
+    /// the drag's commands, which it applies live, and the release ends it as one step
+    /// (`docs/adr/0161-the-open-step-and-the-handles.md`). Gives the requests made, `None` for an
+    /// input that is not the handles'.
+    fn handle(&mut self, pane: usize, input: SurfaceInput, world: &World) -> Option<Vec<Request>> {
+        match input {
+            SurfaceInput::Pressed {
+                button,
+                modifiers,
+                at,
+            } if self.panes[pane].drag.is_none() => {
+                let selects = self
+                    .ui
+                    .button_command(VIEWPORT_SCOPE, button, modifiers)
+                    .and_then(Bound::named)
+                    == Some(Bound::Select);
+                if !selects || self.panes[pane].navigation.holds_cursor() {
+                    return None;
+                }
+                let gizmo = self.gizmo(pane, world, self.scale)?;
+                let ray = self.ray(pane, at)?;
+                let part = gizmo.hit(self.tool, ray)?;
+                let selection = self.selected_entities(world);
+                let drag = Drag::start(world, &selection, (self.tool, part, gizmo), ray)?;
+                self.panes[pane].drag = Some((drag, button));
+                // The gesture opened at once, empty, so that nothing changes what the drag
+                // started from before its first move: an agent's step waits from now on.
+                Some(vec![Request::Gesture(Vec::new())])
+            }
+            SurfaceInput::Moved { at } => {
+                let ray = self.ray(pane, at)?;
+                let (drag, _) = self.panes[pane].drag.as_ref()?;
+                // Where the ray reaches nothing that the part moves along, as along its own axis,
+                // what is dragged stays where it was last taken.
+                let commands = drag.commands(ray, self.snap);
+                if commands.is_empty() {
+                    return Some(Vec::new());
+                }
+                Some(vec![Request::Gesture(commands)])
+            }
+            SurfaceInput::Released { button, .. } => {
+                let pane = &mut self.panes[pane];
+                let (_, held) = pane.drag.as_ref()?;
+                if *held != button {
+                    return Some(Vec::new());
+                }
+                let (drag, _) = pane.drag.take()?;
+                Some(vec![Request::EndGesture(drag.label().to_owned())])
+            }
+            // The wheel and other buttons, while a handle is dragged, do nothing.
+            _ if self.panes[pane].drag.is_some() => Some(Vec::new()),
+            _ => None,
+        }
+    }
+
+    /// Cancels the drag of a handle under way, as Escape does: what it applied is undone. Gives
+    /// whether one was under way.
+    pub(crate) fn cancel_drag(&mut self) -> bool {
+        let dragged = self.panes.iter_mut().any(|pane| pane.drag.take().is_some());
+        if dragged {
+            self.shared
+                .borrow_mut()
+                .requests
+                .push_back(Request::CancelGesture);
+        }
+        dragged
     }
 
     /// The pane whose gesture holds the cursor, if one does: the raw motion turns its camera, and
@@ -489,6 +616,13 @@ impl Model {
                             ("view.wireframe", _) => ItemMark::Check(pane.wireframe),
                             ("view.split", _) => ItemMark::Check(self.panes.len() > 1),
                             ("view.keys_default", _) => ItemMark::Check(!self.blender),
+                            ("edit.handles_move", _) => ItemMark::Check(self.tool == Tool::Move),
+                            ("edit.handles_turn", _) => ItemMark::Check(self.tool == Tool::Turn),
+                            ("edit.handles_scale", _) => ItemMark::Check(self.tool == Tool::Scale),
+                            ("edit.handles_local", _) => {
+                                ItemMark::Check(self.space == Space::Selection)
+                            }
+                            ("edit.snap", _) => ItemMark::Check(self.snap),
                             ("view.keys_blender", _) => ItemMark::Check(self.blender),
                             (_, Some(debug)) => ItemMark::Check(pane.settings.debug == debug),
                             _ => ItemMark::None,
@@ -765,6 +899,16 @@ impl Model {
                     pane.wireframe = !pane.wireframe;
                 }
                 "view.split" => self.split(),
+                "edit.handles_move" => self.tool = Tool::Move,
+                "edit.handles_turn" => self.tool = Tool::Turn,
+                "edit.handles_scale" => self.tool = Tool::Scale,
+                "edit.handles_local" => {
+                    self.space = match self.space {
+                        Space::World => Space::Selection,
+                        Space::Selection => Space::World,
+                    };
+                }
+                "edit.snap" => self.snap = !self.snap,
                 "view.keys_default" => self.choose_keys(false),
                 "view.keys_blender" => self.choose_keys(true),
                 name => match shading(name) {
@@ -778,6 +922,7 @@ impl Model {
     /// Lays the window out at `size`, in logical pixels, and `scale` pixels of the screen per
     /// logical pixel, from what the core shares and from `world`, and gives what to draw.
     pub(crate) fn frame(&mut self, world: &World, size: [f32; 2], scale: f32) -> DisplayList {
+        self.scale = scale;
         self.ui.set_root(self.root, settings(size, scale));
         // The layer that waits stays in the middle of a window whose size changes.
         if let Some(layer) = self.choosing.as_ref().map(|choosing| choosing.layer) {
@@ -828,6 +973,10 @@ impl Model {
     /// first (`view.split`); the window is built again.
     fn split(&mut self) {
         if self.panes.len() > 1 {
+            // A drag in the viewport that goes is cancelled with it.
+            if self.panes[1..].iter().any(|pane| pane.drag.is_some()) {
+                self.cancel_drag();
+            }
             self.panes.truncate(1);
             self.active = 0;
         } else {
@@ -846,9 +995,11 @@ impl Model {
             self.opened = shared.opened;
             self.panel = WorldPanel::default();
             self.selected = None;
-            // Another level, framed as it opens, in every viewport.
+            // Another level, framed as it opens, in every viewport; a drag of the other level's
+            // entities ends with it, whose core held its gesture.
             for pane in &mut self.panes {
                 pane.frame_wanted = true;
+                pane.drag = None;
             }
         }
         let selected = shared
@@ -1583,6 +1734,14 @@ impl Presentation for Window {
                     pane.navigation.motion(*delta);
                 }
             }
+            // Escape cancels a handle dragged, what it moved put back.
+            Event::Key(key)
+                if key.state == slime_platform::ButtonState::Pressed
+                    && key.physical == slime_platform::KeyCode::Escape
+                    && model.cancel_drag() =>
+            {
+                return true;
+            }
             Event::Key(key) => {
                 let down = key.state == slime_platform::ButtonState::Pressed;
                 return model
@@ -1821,7 +1980,7 @@ mod tests {
             for level in ["yard", "garden"] {
                 fs::write(
                     directory.join(format!("{level}.scene")),
-                    "[entities]\nwell = { components = { Name = \"well\" } }\n",
+                    "[entities]\nwell = { components = { Name = \"well\", Transform = {} } }\n",
                 )
                 .expect("the level");
                 fs::write(
@@ -2163,6 +2322,100 @@ mod tests {
             Some("pan")
         );
         assert_eq!(fs::read_to_string(&keys).expect("kept").trim(), "default");
+    }
+
+    /// The point of the screen, in pixels, where the camera of the first pane shows `point`.
+    fn on_screen(model: &Model, point: DVec3) -> (f32, f32) {
+        let rect = model.viewport_rect(0).expect("laid out");
+        let camera = model.panes[0].navigation.camera();
+        let clip = camera
+            .view_projection(rect.width / rect.height)
+            .project_point3(point)
+            .as_vec3();
+        (
+            rect.x + (clip.x + 1.0) / 2.0 * rect.width,
+            rect.y + (1.0 - clip.y) / 2.0 * rect.height,
+        )
+    }
+
+    /// A handle dragged over the viewport moves what is selected live, one step at its release,
+    /// agents' requests waiting from its press to its release; Escape cancels another drag, the
+    /// well put back; a press let go without a move makes no step
+    /// (`docs/adr/0161-the-open-step-and-the-handles.md`).
+    #[test]
+    fn a_handle_dragged_moves_what_is_selected_as_one_step_and_escape_cancels_it() {
+        let mut yard = Yard::new("handles");
+        let well: PersistentId = "yard/well".parse().expect("an identity");
+        yard.shared
+            .borrow_mut()
+            .requests
+            .push_back(Request::Select(vec![well.clone()]));
+        yard.frame();
+        yard.frame();
+        let entity = yard.host.world().find(&well).expect("the well");
+        let x = |yard: &Yard| {
+            yard.host
+                .world()
+                .get::<slime_world::Transform>(entity)
+                .expect("placed")
+                .translation
+                .x
+        };
+        let gizmo = yard
+            .model
+            .gizmo(0, yard.host.world(), 1.0)
+            .expect("the well's handles");
+        let grab = on_screen(&yard.model, gizmo.pivot + DVec3::X * gizmo.size * 0.6);
+        let away = on_screen(&yard.model, gizmo.pivot + DVec3::X * gizmo.size * 1.6);
+        let drag = |yard: &mut Yard, end: bool| {
+            yard.model.ui.pointer_moved(grab.0, grab.1);
+            yard.model
+                .ui
+                .pointer_button(MouseButton::Left, ButtonState::Pressed);
+            yard.frame();
+            assert!(yard.session.edits_wait(), "agents wait from the press on");
+            yard.model.ui.pointer_moved(away.0, away.1);
+            yard.frame();
+            yard.frame();
+            if end {
+                yard.model
+                    .ui
+                    .pointer_button(MouseButton::Left, ButtonState::Released);
+            } else {
+                assert!(yard.model.cancel_drag());
+            }
+            yard.frame();
+            yard.frame();
+        };
+        drag(&mut yard, false);
+        assert_eq!(x(&yard), 0.0, "cancelled");
+        assert!(yard.history().0.is_empty());
+        assert!(!yard.session.edits_wait());
+        // Pressed and let go where it was.
+        yard.model.ui.pointer_moved(grab.0, grab.1);
+        yard.model
+            .ui
+            .pointer_button(MouseButton::Left, ButtonState::Pressed);
+        yard.frame();
+        yard.model
+            .ui
+            .pointer_button(MouseButton::Left, ButtonState::Released);
+        yard.frame();
+        yard.frame();
+        assert!(yard.history().0.is_empty(), "no step");
+        assert!(!yard.session.edits_wait());
+        drag(&mut yard, true);
+        assert!(
+            (x(&yard) - gizmo.size).abs() < 1e-3,
+            "moved a handle's length: {}",
+            x(&yard)
+        );
+        assert_eq!(yard.history().0, ["Move"]);
+        assert!(!yard.session.edits_wait(), "agents go on once it ends");
+        assert!(
+            yard.model.panes[0].wanted.is_empty(),
+            "nothing picked meanwhile"
+        );
     }
 
     /// Two viewports side by side, each its own camera and settings, the View menu changing the

@@ -3,7 +3,8 @@
 //! the modal layer that waits for the system's dialog to open a level, the window dimmed below it
 //! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), and with the sample's pillar
 //! selected, outlined where the scene shows it and dimmed where the wall hides it
-//! (`docs/adr/0159-picking-and-the-selection.md`), and with two viewports side by side
+//! (`docs/adr/0159-picking-and-the-selection.md`), with the handles that move it and those that
+//! turn it (`docs/adr/0161-the-open-step-and-the-handles.md`), and with two viewports side by side
 //! (`docs/adr/0160-two-viewports-and-blenders-way.md`), drawn without a window of the
 //! system by `slime_editor::window_image`, must match the reference images of `tests/reference/`
 //! within a tolerance, at scales 1 and 2. The level is named by a path relative to the examples'
@@ -106,8 +107,20 @@ fn the_window_with_two_viewports_matches_its_reference_image() {
 }
 
 /// The sample's pillar selected, outlined where the scene shows it and dimmed where the wall hides
-/// it (`docs/adr/0159-picking-and-the-selection.md`).
+/// it (`docs/adr/0159-picking-and-the-selection.md`), the handles that move it over the image
+/// (`docs/adr/0161-the-open-step-and-the-handles.md`).
 #[test]
 fn the_window_with_the_pillar_selected_matches_its_reference_image() {
     check("editor-selected", &[], &["yard/sample/pillar"], 1.0);
+}
+
+/// The pillar selected, the handles that turn it in its own axes.
+#[test]
+fn the_window_with_the_turning_handles_matches_its_reference_image() {
+    check(
+        "editor-turn",
+        &["edit.handles_turn", "edit.handles_local"],
+        &["yard/sample/pillar"],
+        1.0,
+    );
 }

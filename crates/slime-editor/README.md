@@ -36,6 +36,11 @@ with Stage 6c's next milestones.
   journal's entries.
 - `Editor::unwritten`: how many steps the level's file does not hold, which the window's title
   and status bar show.
+- `Editor::gesture`, `end_gesture` and `cancel_gesture`: the *open step* of a person's gesture,
+  its commands applied live, neither journaled nor in the history, made one step as it ends or
+  undone as it is cancelled; while it is open, every other change is refused
+  (`EditError::Gesture`), and the program keeps a tool's requests waiting
+  (`docs/adr/0161-the-open-step-and-the-handles.md`).
 - `OPERATIONS`, `operation(name)`, `SHORTCUTS` and `BLENDER_SHORTCUTS`: the registry of the
   editor's operations, each its name, `file.save`, its label, its parameters and what it changes
   (`Changes`), of which only steps enter the history; the editor's table of shortcuts,
@@ -66,9 +71,12 @@ with Stage 6c's next milestones.
   (`docs/adr/0159-picking-and-the-selection.md`). *View* > *Two viewports* shows a second, named
   `viewport 2`, the one navigated drawn at the full rate; *View* > *Keys of Blender* chooses
   Blender's way, kept in the user's state directory for every program of the editor
-  (`docs/adr/0160-two-viewports-and-blenders-way.md`). Options: `--level`, `--assets`,
-  `--journal`, `--discard`, `--headless`; `run`'s documentation says how a journal is chosen and
-  recovered.
+  (`docs/adr/0160-two-viewports-and-blenders-way.md`). Handles move (W), turn (E) and scale (R)
+  what is selected, in the world's axes or the selection's, snapped if *Edit* > *Snap* is ticked,
+  each drag one step that Escape cancels; End drops what is selected on what lies below it, Shift
+  and End its bottom (`docs/adr/0161-the-open-step-and-the-handles.md`). Options: `--level`,
+  `--assets`, `--journal`, `--discard`, `--headless`; `run`'s documentation says how a journal is
+  chosen and recovered.
 - `window_image(&Program, arguments, operations, selection, scale)`: the window drawn into an image
   without a window of the system, as it shows once the level is open, the operations named run
   and the entities named selected, which the image tests compare and the `editor` example's

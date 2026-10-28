@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 mod editor;
+mod handles;
 mod history;
 mod journal;
 mod level;

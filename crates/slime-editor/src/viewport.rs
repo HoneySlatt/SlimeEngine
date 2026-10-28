@@ -26,6 +26,7 @@ use slime_ui::text::{Fonts, GlyphPixels, GlyphRasterizer, TextBounds, TextStyle}
 use slime_world::{Entity, Meshes, Tick, Transform, World};
 use slime_world_render::{FrameBuilder, Picker};
 
+use crate::handles::{self, Gizmo, Part, Tool};
 use crate::program::Lighting;
 
 /// The key of the image of the viewport of the window's pane `pane`, from 0, in the window's
@@ -88,6 +89,9 @@ pub(crate) struct Marks {
     pub(crate) selection: Vec<Entity>,
     pub(crate) wireframe: bool,
     pub(crate) scale: f32,
+    /// The handles drawn over what is selected, where they stand, and the part dragged, if any
+    /// (`docs/adr/0161-the-open-step-and-the-handles.md`).
+    pub(crate) handles: Option<(Tool, Gizmo, Option<Part>)>,
 }
 
 /// What the viewports share, on one GPU device: the level's meshes loaded from the cooked data, the
@@ -97,6 +101,7 @@ pub(crate) struct Level {
     cache: AssetCache,
     builder: FrameBuilder,
     icons: Icons,
+    handles: HandleParts,
     lighting: Lighting,
     /// The cooked data, which the wireframe reads meshes from.
     assets: CookedAssets,
@@ -121,6 +126,7 @@ impl Level {
             cache: AssetCache::new(renderer, assets.clone()),
             builder: FrameBuilder::new(lighting.sky),
             icons: Icons::new(gpu, renderer)?,
+            handles: HandleParts::new(gpu, renderer)?,
             lighting,
             picker: Picker::new(assets.clone()),
             assets,
@@ -501,6 +507,9 @@ impl Viewport {
         };
         let mut scene = frame.scene(camera.eye);
         level.mark(world, &scene, &mut drawings, marks);
+        if let Some((tool, gizmo, dragged)) = marks.handles {
+            level.handles.draw(tool, &gizmo, dragged, &mut drawings);
+        }
         scene.exposure = level.lighting.exposure;
         scene.bloom = level.lighting.bloom;
         self.pending = Some((scene, camera, drawings));
@@ -598,6 +607,78 @@ pub(crate) enum Framing {
     Nothing,
     /// The sphere around it: its center and radius, in metres.
     Sphere(DVec3, f64),
+}
+
+/// The handles' meshes and colors, unlit, opaque and double-sided: red, green and blue for the
+/// axes X, Y and Z, yellow for the part dragged, white for the scale's middle.
+struct HandleParts {
+    arrow: Mesh,
+    stick: Mesh,
+    ring: Mesh,
+    square: Mesh,
+    cube: Mesh,
+    axes: [Material; 3],
+    dragged: Material,
+    middle: Material,
+}
+
+impl HandleParts {
+    fn new(gpu: &Gpu, renderer: &Renderer) -> Result<Self, RenderError> {
+        let meshes = handles::Meshes::new();
+        let material = |name: &str, color: LinearColor| {
+            renderer.create_unlit_material(
+                gpu,
+                name,
+                &UnlitData {
+                    color,
+                    double_sided: true,
+                    ..UnlitData::default()
+                },
+            )
+        };
+        Ok(Self {
+            arrow: renderer.create_mesh(gpu, "handle's arrow", &meshes.arrow)?,
+            stick: renderer.create_mesh(gpu, "handle's stick", &meshes.stick)?,
+            ring: renderer.create_mesh(gpu, "handle's ring", &meshes.ring)?,
+            square: renderer.create_mesh(gpu, "handle's square", &meshes.square)?,
+            cube: renderer.create_mesh(gpu, "handle's middle", &MeshData::cube())?,
+            axes: [
+                material("handle X", LinearColor::rgb(0.9, 0.12, 0.15))?,
+                material("handle Y", LinearColor::rgb(0.25, 0.75, 0.1))?,
+                material("handle Z", LinearColor::rgb(0.12, 0.3, 0.95))?,
+            ],
+            dragged: material("handle dragged", LinearColor::rgb(1.0, 0.8, 0.1))?,
+            middle: material("handle's middle", LinearColor::rgb(0.9, 0.9, 0.9))?,
+        })
+    }
+
+    /// Adds to what is drawn over the image the handles of `tool` that stand as `gizmo` says, the
+    /// part `dragged` in its own color.
+    fn draw(&self, tool: Tool, gizmo: &Gizmo, dragged: Option<Part>, drawings: &mut Drawings) {
+        let mut add = |mesh: &Mesh, part: Part, material: &Material| {
+            let material = if dragged == Some(part) {
+                &self.dragged
+            } else {
+                material
+            };
+            let mut instance = Instance::new(mesh, material, handles::placed(gizmo, part));
+            instance.casts_shadows = false;
+            drawings.over_image.instances.push(instance);
+        };
+        for axis in 0..3 {
+            match tool {
+                Tool::Move => {
+                    add(&self.arrow, Part::Axis(axis), &self.axes[axis]);
+                    add(&self.square, Part::Plane(axis), &self.axes[axis]);
+                }
+                Tool::Turn => add(&self.ring, Part::Ring(axis), &self.axes[axis]),
+                Tool::Scale => add(&self.stick, Part::Axis(axis), &self.axes[axis]),
+            }
+        }
+        if tool == Tool::Scale {
+            add(&self.cube, Part::Center, &self.middle);
+        }
+    }
 }
 
 /// The icons of the lights: a square, and a material for each kind of light, the Lucide glyph of
@@ -751,6 +832,7 @@ mod tests {
             selection,
             wireframe: false,
             scale: 1.0,
+            handles: None,
         }
     }
 

@@ -11,6 +11,8 @@ pub enum Changes {
     File,
     /// What is selected, which is not a step.
     Selection,
+    /// The level, by a step of the history that it makes.
+    Level,
     /// What the editor's window shows, which a program without a window cannot run.
     Window,
     /// The program: quitting it.
@@ -18,12 +20,14 @@ pub enum Changes {
 }
 
 impl Changes {
-    /// The word that names it to agents: `history`, `file`, `selection`, `window`, `program`.
+    /// The word that names it to agents: `history`, `file`, `selection`, `level`, `window`,
+    /// `program`.
     pub fn word(self) -> &'static str {
         match self {
             Self::History => "history",
             Self::File => "file",
             Self::Selection => "selection",
+            Self::Level => "level",
             Self::Window => "window",
             Self::Program => "program",
         }
@@ -88,6 +92,48 @@ pub const OPERATIONS: &[Operation] = &[
         label: "Select nothing",
         parameters: &[],
         changes: Changes::Selection,
+    },
+    Operation {
+        name: "edit.drop",
+        label: "Drop on what lies below",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "edit.drop_bottom",
+        label: "Drop its bottom on what lies below",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "edit.handles_move",
+        label: "Move",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "edit.handles_turn",
+        label: "Turn",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "edit.handles_scale",
+        label: "Scale",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "edit.handles_local",
+        label: "Handles in the selection's axes",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "edit.snap",
+        label: "Snap",
+        parameters: &[],
+        changes: Changes::Window,
     },
     Operation {
         name: "view.frame_selection",

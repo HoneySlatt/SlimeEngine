@@ -1468,6 +1468,18 @@ GitHub issues, linked from their entry; this list stays the reference.
   CPU's work of one when both draw at a frame, as when an agent changes the world. Blender's way
   gives Blender's buttons and a few of its keys, not its modal keys, its pie menus or its numeric
   pad's views.
+- **The editor's handles** ([ADR-0161](adr/0161-the-open-step-and-the-handles.md)): a drag sends a
+  command for each entity moved at each move of the pointer, which the core undoes and applies
+  again, and the viewport draws the level again for each: nothing has measured a drag of a large
+  selection, nor of a placement of many entities. Snapping is ticked in the Edit menu, not held
+  under a key, and in the world's axes moves the pivot onto the world's grid, never by steps from
+  where the drag started; scaling along an axis changes the stretch along the entity's own axis nearest it, which
+  is not the handle's axis when the entity is turned in the world's axes. The pivot is the middle
+  of the origins, not of the bounds. A drop meets meshes only, not colliders nor the ground's grid,
+  and refuses when nothing lies below; it moves each entity on its own, so that two selected one
+  above the other land as if the other did not move. While a person drags, an agent's requests that
+  change the level wait, and through the MCP server, which asks one request at a time, its reads
+  too.
 - **Every multisampled depth target can be read by a shader**
   ([ADR-0159](adr/0159-picking-and-the-selection.md)), so that the outline's frames resolve the
   scene's depth: every view of four samples makes its depth so, whether it outlines or not, which

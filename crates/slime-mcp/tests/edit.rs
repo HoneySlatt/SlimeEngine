@@ -6,7 +6,9 @@
 //! redoes, reads the history and the journal, and writes the level; then stops the editor and
 //! finds again, as it recovers its journal, the step done after the writing and its history; makes
 //! a step that it does not write, and finds it again the same way; and, the level written, starts
-//! the editor once more, which opens the level from its file with nothing to recover.
+//! the editor once more, which opens the level from its file with nothing to recover; there, it
+//! raises three lamps in one step, which one undo puts back, and drops one on the ground by the
+//! operation's name (`docs/adr/0161-the-open-step-and-the-handles.md`).
 //!
 //! It needs the example built (`cargo build --example editor`) beside the server and the examples'
 //! assets cooked, in the directory that its first argument names, or `target/cooked/examples`. It
@@ -224,6 +226,55 @@ fn main() {
     assert!(lamp(&mut session, "lamp 1").contains("x = 5.0"));
     let (said, _) = session.tool("list_entities", json!({ "filter": "torch" }));
     assert!(!said[0].contains("yard/torch-0rdx"), "{said:?}");
+    // Three lamps raised in one step, which one undo puts back
+    // (`docs/adr/0161-the-open-step-and-the-handles.md`).
+    let raised: Vec<String> = ["lamp 1", "lamp 2", "lamp 3"]
+        .iter()
+        .map(|name| {
+            format!(
+                "[SetProperty]\nentity = \"yard/{name}\"\ncomponent = \"Transform\"\npath = \"translation.y\"\nvalue = 2.0\n"
+            )
+        })
+        .collect();
+    session.tool(
+        "edit",
+        json!({ "label": "Raise three lamps", "commands": raised, "selection": ["yard/lamp 2"] }),
+    );
+    for name in ["lamp 1", "lamp 2", "lamp 3"] {
+        assert!(lamp(&mut session, name).contains("y = 2.0"), "{name}");
+    }
+    session.tool("undo", json!({}));
+    for name in ["lamp 1", "lamp 2", "lamp 3"] {
+        assert!(!lamp(&mut session, name).contains("y = 2.0"), "{name}");
+    }
+    // Lamp 2 put up over the sample's floor, then dropped on what lies below by the operation's
+    // name, as End drops it.
+    let over_the_floor: Vec<String> = [("x", 0.5), ("y", 3.0), ("z", 1.5)]
+        .iter()
+        .map(|(axis, value)| {
+            format!(
+                "[SetProperty]\nentity = \"yard/lamp 2\"\ncomponent = \"Transform\"\npath = \"translation.{axis}\"\nvalue = {value:?}\n"
+            )
+        })
+        .collect();
+    session.tool(
+        "edit",
+        json!({ "label": "Put a lamp up", "commands": over_the_floor, "selection": ["yard/lamp 2"] }),
+    );
+    assert!(lamp(&mut session, "lamp 2").contains("y = 3.0"));
+    let (said, _) = session.tool("run_operation", json!({ "name": "edit.drop" }));
+    assert_eq!(said, ["done"]);
+    let (said, _) = session.tool("editor_history", json!({}));
+    assert!(said[0].contains("`Drop on what lies below`"), "{said:?}");
+    // On the sample's floor, which lies at the ground's height: no more than a few centimetres up.
+    let dropped = lamp(&mut session, "lamp 2");
+    let height: f64 = dropped
+        .split("translation = { x = 0.5, y = ")
+        .nth(1)
+        .and_then(|rest| rest.split(',').next())
+        .and_then(|y| y.parse().ok())
+        .unwrap_or_else(|| panic!("a height: {dropped}"));
+    assert!((0.0..0.1).contains(&height), "{dropped}");
     session.tool("stop_game", json!({}));
 
     drop(session);

@@ -78,6 +78,22 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `RenderStats::outline_gpu_time`. `BindingType::MultisampledDepthTexture` in `slime-gfx` reads a
   multisampled depth target sample by sample. `Picker::cast_through` in `slime-world-render` gives
   every entity that a ray meets, the nearest first.
+- Handles in the editor (ADR-0161): *Edit* > *Move*, *Turn* and *Scale* (W, E, R) draw handles over
+  what is selected, which the left button drags along an axis, in a plane, about an axis or from
+  the middle, in the world's axes or, with *Handles in the selection's axes*, the last selected
+  entity's; *Snap* moves the middle onto the world's grid of a quarter of a metre in the world's
+  axes, by quarters of a metre in the selection's, turns by fifteen degrees and scales by tenths.
+  Each drag is one step of the history, which Escape cancels, and the requests of agents that
+  change the level or the selection, values set included, wait until it ends. *Drop on what lies below* (End) and *Drop its bottom
+  on what lies below* (Shift+End) put what is selected down on the first mesh below it, agents
+  running them by name (`edit.drop`, `edit.drop_bottom`).
+- `Editor::gesture`, `Editor::end_gesture` and `Editor::cancel_gesture` in `slime-editor`: an open
+  step, its commands applied live, made one journaled step as it ends; `EditError::Gesture` refuses
+  every other change meanwhile. `Changes::Level` names an operation that makes a step.
+- `Simulation::edits_wait` in `slime-app`, with its `development` feature: the development channel
+  keeps an editor's requests, in their order, while it says that they wait.
+- `Picker::bounds` in `slime-world-render`: the box in the world around an entity's meshes and those
+  below it.
 
 ### Changed
 

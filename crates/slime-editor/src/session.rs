@@ -10,9 +10,13 @@ use std::path::{Path, PathBuf};
 use slime_app::{AppError, HeldFile, Simulation, SimulationContext};
 use slime_assets::CookedAssets;
 use slime_channel::{Edit, EditorHistory, OperationSummary, Reply};
-use slime_world::{Command, PersistentId, SceneLibrary, World};
+use slime_reflect::{Path as ValuePath, Reflect};
+use slime_render::glam::DVec3;
+use slime_world::{Command, Entity, GlobalTransform, PersistentId, SceneLibrary, Transform, World};
+use slime_world_render::Picker;
 
 use crate::editor::{EditError, Editor};
+use crate::handles;
 use crate::operation::{self, Changes, OPERATIONS};
 use crate::program::{Options, Program};
 use crate::shared::{Notice, Request, Shared};
@@ -47,6 +51,9 @@ pub(crate) struct Session {
     /// The directory of the levels' journals, in the user's data directory; none when the
     /// environment gives none, where `--journal` names the first level's alone.
     journals: Option<PathBuf>,
+    /// What casts the rays that drop what is selected, made at the first drop
+    /// (`edit.drop`).
+    picker: Option<Picker>,
 }
 
 impl Session {
@@ -72,6 +79,7 @@ impl Session {
             quit: false,
             recent,
             journals,
+            picker: None,
         }
     }
 
@@ -235,6 +243,8 @@ impl Session {
         *world = fresh;
         self.editor = Some(editor);
         self.journal = journal;
+        // The picker reads the cooked data opened again with the level.
+        self.picker = None;
         self.shared.borrow_mut().opened += 1;
         self.opened(&whole);
         Ok(())
@@ -294,6 +304,18 @@ impl Session {
                 self.editor()?
                     .apply_text(world, &label, &texts, selection)
                     .map(|()| Reply::Done)
+            }
+            Request::Gesture(commands) => self
+                .editor()?
+                .gesture(world, commands)
+                .map(|()| Reply::Done),
+            Request::EndGesture(label) => self
+                .editor()?
+                .end_gesture(world, &label)
+                .map(|()| Reply::Done),
+            Request::CancelGesture => {
+                self.editor()?.cancel_gesture(world);
+                Ok(Reply::Done)
             }
             Request::Apply { label, commands } => self
                 .editor()?
@@ -406,9 +428,85 @@ impl Session {
             "edit.undo" => Request::Undo,
             "edit.redo" => Request::Redo,
             "edit.select_none" => Request::Select(Vec::new()),
+            "edit.drop" | "edit.drop_bottom" => {
+                let bottom = operation.name == "edit.drop_bottom";
+                Request::Apply {
+                    label: operation.label.to_owned(),
+                    commands: self.drops(world, bottom)?,
+                }
+            }
             name => unreachable!("the operation `{name}` has no request"),
         };
         self.answer(world, request)
+    }
+
+    /// The commands that drop each entity selected onto what lies below its origin, or below its
+    /// meshes' lowest point if `bottom`, as the CPU's ray meets it, without physics
+    /// (`docs/adr/0161-the-open-step-and-the-handles.md`): its own meshes and those below it in the
+    /// hierarchy let the ray through. An entity with nothing below it stays.
+    ///
+    /// # Errors
+    ///
+    /// Without a level open, or when nothing lies below what is selected.
+    fn drops(&mut self, world: &World, bottom: bool) -> Result<Vec<Command>, AppError> {
+        let assets = self
+            .shared
+            .borrow()
+            .assets
+            .clone()
+            .ok_or("no level is open")?;
+        let picker = self.picker.get_or_insert_with(|| Picker::new(assets));
+        let selection: Vec<Entity> = self
+            .editor
+            .as_ref()
+            .ok_or("no level is open")?
+            .selection()
+            .iter()
+            .filter_map(|identity| world.find(identity))
+            .collect();
+        let mut commands = Vec::new();
+        for entity in handles::outermost(world, &selection) {
+            let (Some(at), Some(local), Some(id)) = (
+                world.interpolated_transform(entity, 1.0),
+                world.get::<Transform>(entity),
+                world.persistent_id(entity),
+            ) else {
+                continue;
+            };
+            // What the ray starts from: the origin, or the lowest point of what it draws.
+            let from = match bottom.then(|| picker.bounds(world, entity, 1.0)).flatten() {
+                Some((low, _)) => DVec3::new(at.translation.x, low.y, at.translation.z),
+                None => at.translation,
+            };
+            let own = |hit: &Entity| {
+                std::iter::successors(Some(*hit), |&each| world.parent(each))
+                    .any(|each| each == entity)
+            };
+            let Some(hit) = picker
+                .cast_through(world, 1.0, (from, DVec3::NEG_Y))
+                .into_iter()
+                .find(|hit| !own(&hit.entity))
+            else {
+                continue;
+            };
+            let parent = world
+                .parent(entity)
+                .and_then(|parent| world.interpolated_transform(parent, 1.0))
+                .unwrap_or(GlobalTransform::IDENTITY);
+            let mut moved = *local;
+            moved.translation =
+                handles::into_parent(&parent, at.translation - DVec3::Y * hit.distance);
+            commands.push(Command::SetProperty {
+                entity: id,
+                component: "Transform".to_owned(),
+                path: ValuePath::default(),
+                value: moved.to_value(),
+            });
+        }
+        if commands.is_empty() {
+            return Err("nothing lies below what is selected".into());
+        }
+        Ok(commands)
     }
 
     /// Tells the window `text`, a failure or not.
@@ -563,6 +661,19 @@ impl Simulation for Session {
             Err(_) if self.broken.is_some() => Ok(()),
             made => made.map(|_| ()),
         }
+    }
+
+    /// An agent's requests wait while a person's gesture is under way, and from the press that
+    /// starts one, whose request the window sent but the core has not answered yet
+    /// (`docs/adr/0161-the-open-step-and-the-handles.md`).
+    fn edits_wait(&self) -> bool {
+        self.editor.as_ref().is_some_and(Editor::in_gesture)
+            || self
+                .shared
+                .borrow()
+                .requests
+                .iter()
+                .any(|request| matches!(request, Request::Gesture(_)))
     }
 
     fn edit(&mut self, world: &mut World, edit: &Edit) -> Result<Reply, AppError> {
