@@ -26,14 +26,14 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   released as 0.7 at its close. A study of the editor's design, made by four agents from four
   starting points and measured in prototypes on the owner's machine, led to the owner's sixteen
   decisions on the editor's design, its milestones and their order, which ADR-0155 records. M6c.0
-  is done, and M6c.1 was split in two at its start; next: M6c.1a.
+  is done, and M6c.1 was split in two at its start, of which M6c.1a is done; next: M6c.1b.
 
 ## Status
 
 | Milestone | Goal | Status |
 |---|---|---|
 | [M6c.0](#m6c0--before-the-stage) | The development channel answers in milliseconds, CI's checks stay within their limit, and a game that a tool started never outlives it | Done |
-| [M6c.1a](#m6c1a--the-window-and-its-operations) | The editor opens a level in a window of its own, where a person and an agent run the same named operations | Planned |
+| [M6c.1a](#m6c1a--the-window-and-its-operations) | The editor opens a level in a window of its own, where a person and an agent run the same named operations | Done |
 | [M6c.1b](#m6c1b--dialogs-the-cursor-held-and-the-gpus-identity) | A person opens and saves through the system's dialogs, a viewport can hold the cursor and read the mouse's raw motion, and a GPU object cannot act on another `Gpu`'s | Planned |
 | [M6c.2](#m6c2--the-viewport) | The level shows in a viewport that the user flies through and picks in, drawn again only when what it shows changed | Planned |
 | [M6c.3](#m6c3--move-and-place) | The user moves, turns, scales, creates and deletes, each gesture a single step of the history | Planned |
@@ -236,6 +236,42 @@ dialogs, the cursor held and the GPU's identity.
   session tests.
 - **Debt settled.** The title changed (issue #3, in part); a root's number in paths; the palette's
   12 entries.
+- **Outcome.** Done on 2026-10-28, as
+  [ADR-0156](adr/0156-the-editors-window-and-its-operations.md) records. The editor's program opens
+  its level in a window in the editor's look, a menu bar, *File*, *Edit* and *Help*, the dev
+  overlay's world panel in a region on the left, a center that holds no viewport yet, and a status
+  bar, the title and the status bar saying how many steps the level's file does not hold
+  (`Editor::unwritten`); `--headless` runs it without a window. The core and the window share a
+  value, and the window asks the core through requests that the one handler of the development
+  channel's requests answers too. Every action is an operation of one registry
+  (`slime_editor::OPERATIONS`), run by name from the menus, the table of shortcuts
+  (`editor.keys`), the palette and agents, through version 10 of the channel's protocol and the MCP
+  server's `list_operations` and `run_operation`. `slime-app` runs a program's frames on demand
+  (`AppConfig::on_demand`, which replaces the paced run without a window), woken by events, the
+  channel's listener, the interface's needs and deadlines (`Ui::needs_frame`, `Ui::next_change`),
+  `Context::request_frame` and a `Waker`; `slime-app` gives the user's state directory;
+  `slime-ui` names a root by a key in agents' paths and scrolls the palette past 12 commands. The
+  owner decided on 2026-10-28 that the center stays empty until M6c.2, that a level is opened from
+  the window by a path with the recent levels in the File menu while saving under another name waits
+  for M6c.6, and that the run without a window runs on demand too. Measuring the idle editor found
+  it running frame after frame while a notification waited for its end, 281 frames in ten seconds
+  on lavapipe; that end now wakes it once, at its deadline. The review found sixteen faults, each fixed: a test that wrote journals into the
+  user's data directory and sessions that wrote the user's recent levels, now kept in directories
+  of their own; on demand, a list's rows left unbuilt, a submenu opened by the pointer's rest left
+  unshown, and the interface's clock stale after a wait; the world panel left selected when the
+  core selected nothing; a level opened again without the journal that `--journal` names; the
+  palette scrolled too far by keys between two frames; and documents that said other than the code.
+  The tests: the core's requests from the window and the channel alike, an operation by its name,
+  its shortcut, the palette and its menu item, the operations of the selection and the window out
+  of the history, the menus' and `editor.keys`' names in the registry (`slime-editor`'s window
+  tests); the steps not written; image tests of the window at scales 1 and 2
+  (`examples/tests/editor.rs`); and an agent's session in a headless Weston that runs operations
+  by name, opens the File menu and the palette, sees the editor wake for the end of the first
+  run's hint, run no frame for ten seconds alone, and quit (`crates/slime-mcp/tests/edit_window.rs`).
+  What nothing checks yet: the window on Windows, which the owner's check in the virtual machine
+  at Checkpoint A covers. CI is green on `a20c15c`: `check (headless)` took 14 minutes 56 seconds,
+  `check (windowed)` 6 minutes 2 seconds, `check (game)` 5 minutes 15 seconds, `windows` 15 minutes
+  16 seconds and `windows-release` 11 minutes 23 seconds.
 
 #### M6c.1b — Dialogs, the cursor held and the GPU's identity
 
