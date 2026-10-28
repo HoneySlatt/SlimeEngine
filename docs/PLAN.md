@@ -26,7 +26,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   released as 0.7 at its close. A study of the editor's design, made by four agents from four
   starting points and measured in prototypes on the owner's machine, led to the owner's sixteen
   decisions on the editor's design, its milestones and their order, which ADR-0155 records. M6c.0
-  is done, and M6c.1 was split in two at its start, of which M6c.1a is done; next: M6c.1b.
+  is done, and M6c.1 was split in two at its start, M6c.1a and M6c.1b, both done; next: M6c.2.
 
 ## Status
 
@@ -34,7 +34,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M6c.0](#m6c0--before-the-stage) | The development channel answers in milliseconds, CI's checks stay within their limit, and a game that a tool started never outlives it | Done |
 | [M6c.1a](#m6c1a--the-window-and-its-operations) | The editor opens a level in a window of its own, where a person and an agent run the same named operations | Done |
-| [M6c.1b](#m6c1b--dialogs-the-cursor-held-and-the-gpus-identity) | A person opens a level through the system's dialog, a viewport can hold the cursor and read the mouse's raw motion, and a GPU object cannot act on another `Gpu`'s | Planned |
+| [M6c.1b](#m6c1b--dialogs-the-cursor-held-and-the-gpus-identity) | A person opens a level through the system's dialog, a viewport can hold the cursor and read the mouse's raw motion, and a GPU object cannot act on another `Gpu`'s | Done |
 | [M6c.2](#m6c2--the-viewport) | The level shows in a viewport that the user flies through and picks in, drawn again only when what it shows changed | Planned |
 | [M6c.3](#m6c3--move-and-place) | The user moves, turns, scales, creates and deletes, each gesture a single step of the history | Planned |
 | [M6c.4](#m6c4--play-it) | Play runs the level being edited in the game, steps not written included, and the editor's edits reach the running game | Planned |
@@ -298,6 +298,47 @@ dialogs, the cursor held and the GPU's identity.
   machine.
 - **Debt settled.** The raw motion and the cursor held (issue #3, in part); a modal layer without a
   scrim; G34.
+- **Outcome.** Done on 2026-10-28, as
+  [ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md) records. The editor's
+  *Open a level…*, `file.choose` (Ctrl+O, the File menu's first item, the palette), opens a modal
+  layer over the window, which its backdrop dims, with a field for the level's path, and the
+  window opens the system's dialog meanwhile, through rfd on a thread of its own
+  (`slime_platform::Window::choose_file`, `Event::FileChosen`); the file chosen runs `file.open`,
+  the operation that an agent runs with a path. A dialog that answers no file sooner than a person
+  could, where no portal and no `zenity` answer, leaves the layer waiting for the path typed; a
+  program that a tool started opens no dialog of the system, and its layer waits for the path.
+  `slime-ui` gains `PaintStyle::backdrop`, which a layer's root lays over the window below it, and
+  gives a modal layer's root the class `modal`, which the editor's look dims with its theme's
+  scrim. `slime-platform` holds the cursor, hidden (`Window::set_cursor_held`), locked on Wayland
+  and Windows, confined and put back on X11, lets it go as the window loses the focus, and reports
+  the mouse's raw motion while it holds it (`Event::RawMotion`); the `window` example holds it
+  while its right button is held. Each `Gpu` has an identity that its objects carry, a readback
+  included, and a use of an object with another device panics at the caller's line (G34). The
+  review found eleven points, each settled: an agent could still reach the system's dialog through
+  the menu, the palette or Ctrl+O, the channel alone refusing it, which a program that a tool
+  started now settles by opening no dialog; on Windows, winit 0.30 gives a tablet's positions as
+  raw motion, which the rustdoc, the ADR and the debt state; the panic of a mixed object named
+  `slime-gfx`'s line, not the caller's; a readback was not checked; the panics were missing from
+  the methods' documentation; a panic of rfd on its thread left the layer waiting; a lock held
+  across winit's calls could deadlock on Windows; a level named without a directory gave the
+  dialog no directory to start in; and documents that copied facts or said less than the code. The
+  tests: the dialog's answers given by number, a file, none at once, none later, Escape, Cancel and
+  a late answer not heard, and the path typed, in a window that opens dialogs and in one that a
+  tool started (`slime-editor`'s window tests); the backdrop of a modal layer in the look, and none
+  for another (`crates/slime-ui/tests/look.rs`); the window waiting for the dialog in an image test
+  (`examples/tests/editor.rs`, `editor-choose.png`); an agent's session that opens another copy of
+  the yard through *Open a level…*, its path typed (`crates/slime-mcp/tests/edit_window.rs`); the
+  raw motion read from the platform's events; an object of one `Gpu` used with another, and one of
+  a lost device used with its replacement, panicking (`crates/slime-gfx/tests`). What nothing
+  checks yet: the dialog on a desktop, the cursor held and the raw motion, which the owner checks by
+  hand on niri, Hyprland, X11 through XWayland and in the Windows virtual machine. A path mistyped
+  in the layer closes it before `file.open` refuses it, which a notification says. CI's first run found
+  the screen readers' check broken on its Ubuntu runner, where AT-SPI's bus launcher, its path
+  putting `/usr/bin` first, started the system's D-Bus daemon with the development shell's D-Bus
+  library, which it cannot load: its services now run without the shell's library path
+  (`49620a2`). CI is green on `49620a2`: `check (headless)` took 14 minutes 3 seconds,
+  `check (windowed)` 5 minutes 56 seconds, `check (game)` 6 minutes 41 seconds, `windows` 14 minutes
+  40 seconds and `windows-release` 13 minutes 32 seconds.
 
 ### M6c.2 — The viewport
 
