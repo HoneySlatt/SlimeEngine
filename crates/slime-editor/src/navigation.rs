@@ -10,6 +10,8 @@ use slime_platform::{KeyCode, Modifiers, MouseButton};
 use slime_render::glam::DVec3;
 use slime_render::{Camera, Projection};
 
+use crate::picking::DRAG;
+
 /// How far the camera turns for a unit of the mouse's raw motion, in radians: a turn of the whole
 /// way round for some 3 000 units, about a forearm's sweep on a usual mouse.
 const TURN: f64 = 0.002;
@@ -106,6 +108,9 @@ pub(crate) struct Navigation {
     pointer: [f32; 2],
     /// When flying last moved the camera, while a key flies it.
     flown: Option<Instant>,
+    /// How far the mouse moved during the gesture under way, in units of its raw motion or logical
+    /// pixels.
+    moved: f64,
     /// The flying speed, in metres per second.
     speed: f64,
 }
@@ -123,6 +128,7 @@ impl Default for Navigation {
             fast: false,
             pointer: [0.0; 2],
             flown: None,
+            moved: 0.0,
             speed: FLY_SPEED,
         }
     }
@@ -179,6 +185,7 @@ impl Navigation {
         }
         self.gesture = Gesture::of(button, modifiers);
         self.pointer = at;
+        self.moved = 0.0;
         self.gesture.is_some()
     }
 
@@ -200,21 +207,25 @@ impl Navigation {
     }
 
     /// A button that went down over the viewport went up: the gesture that it holds ends, and the
-    /// keys stop flying.
-    pub(crate) fn release(&mut self, button: MouseButton) {
-        if self
-            .gesture
-            .is_some_and(|gesture| gesture.button() == button)
-        {
-            self.gesture = None;
-            self.keys = [false; 6];
-            self.flown = None;
-        }
+    /// keys stop flying. Gives whether it was Alt and a click: an orbit that the mouse moved less
+    /// than a click may ([`DRAG`]), its raw motion's units taken for pixels, which goes through
+    /// what lies behind what is selected (`docs/adr/0159-picking-and-the-selection.md`).
+    pub(crate) fn release(&mut self, button: MouseButton) -> bool {
+        let Some(gesture) = self.gesture.filter(|gesture| gesture.button() == button) else {
+            return false;
+        };
+        self.gesture = None;
+        self.keys = [false; 6];
+        self.flown = None;
+        gesture == Gesture::Orbit && self.moved < f64::from(DRAG)
     }
 
     /// The mouse moved by `delta` of its raw motion, right and down: the gesture under way turns or
     /// moves the camera. Gives whether it moved.
     pub(crate) fn motion(&mut self, [x, y]: [f64; 2]) -> bool {
+        if self.gesture.is_some() {
+            self.moved += x.hypot(y);
+        }
         match self.gesture {
             Some(Gesture::Fly) => {
                 // Turned where it stands: the point that it looks at moves.
@@ -364,8 +375,18 @@ mod tests {
         assert_eq!(navigation.pitch, -PITCH_LIMIT);
         // Another button meanwhile starts nothing.
         assert!(!navigation.press(MouseButton::Middle, Modifiers::default(), [0.0; 2]));
-        navigation.release(MouseButton::Left);
+        assert!(
+            !navigation.release(MouseButton::Left),
+            "it moved: not a click"
+        );
         assert!(!navigation.holds_cursor());
+        // Pressed and let go before the mouse moved, it is Alt and a click.
+        navigation.press(MouseButton::Left, alt(), [0.0; 2]);
+        navigation.motion([1.0, -1.0]);
+        assert!(navigation.release(MouseButton::Left));
+        // Not so for the other gestures.
+        navigation.press(MouseButton::Right, Modifiers::default(), [0.0; 2]);
+        assert!(!navigation.release(MouseButton::Right));
     }
 
     #[test]

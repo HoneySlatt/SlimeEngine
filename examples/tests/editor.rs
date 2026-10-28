@@ -1,7 +1,9 @@
 //! The image tests of the editor's window (`docs/adr/0156-the-editors-window-and-its-operations.md`):
 //! the `editor` example's window on the examples' yard, as it shows once the yard is open, and with
 //! the modal layer that waits for the system's dialog to open a level, the window dimmed below it
-//! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), drawn without a window of the
+//! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), and with the sample's pillar
+//! selected, outlined where the scene shows it and dimmed where the wall hides it
+//! (`docs/adr/0159-picking-and-the-selection.md`), drawn without a window of the
 //! system by `slime_editor::window_image`, must match the reference images of `tests/reference/`
 //! within a tolerance, at scales 1 and 2. The level is named by a path relative to the examples'
 //! package, the directory that the tests run in, which the status bar shows as it is.
@@ -46,8 +48,9 @@ fn program(assets: &Path) -> slime_editor::Program {
     }
 }
 
-/// Draws the window at `scale`, once `operations` ran, and compares it with the reference `name`.
-fn check(name: &str, operations: &[&str], scale: f32) {
+/// Draws the window at `scale`, once `operations` ran and `selection` was selected, and compares it
+/// with the reference `name`.
+fn check(name: &str, operations: &[&str], selection: &[&str], scale: f32) {
     let directory = cooked::directory(name);
     let assets = directory.join("cooked");
     slime_cook::cook(
@@ -59,8 +62,9 @@ fn check(name: &str, operations: &[&str], scale: f32) {
         "--journal".into(),
         directory.join("yard.journal").into_os_string(),
     ];
-    let image = slime_editor::window_image(&program(&assets), arguments, operations, scale)
-        .expect("the window drawn");
+    let image =
+        slime_editor::window_image(&program(&assets), arguments, operations, selection, scale)
+            .expect("the window drawn");
     let [width, height] = slime_editor::IMAGE_SIZE;
     assert_eq!(
         (image.width, image.height),
@@ -80,15 +84,22 @@ fn check(name: &str, operations: &[&str], scale: f32) {
 
 #[test]
 fn the_window_matches_its_reference_image() {
-    check("editor-window", &[], 1.0);
+    check("editor-window", &[], &[], 1.0);
 }
 
 #[test]
 fn the_window_at_scale_2_matches_its_reference_image() {
-    check("editor-window-scale-2", &[], 2.0);
+    check("editor-window-scale-2", &[], &[], 2.0);
 }
 
 #[test]
 fn the_window_waiting_for_the_system_s_dialog_matches_its_reference_image() {
-    check("editor-choose", &["file.choose"], 1.0);
+    check("editor-choose", &["file.choose"], &[], 1.0);
+}
+
+/// The sample's pillar selected, outlined where the scene shows it and dimmed where the wall hides
+/// it (`docs/adr/0159-picking-and-the-selection.md`).
+#[test]
+fn the_window_with_the_pillar_selected_matches_its_reference_image() {
+    check("editor-selected", &[], &["yard/sample/pillar"], 1.0);
 }

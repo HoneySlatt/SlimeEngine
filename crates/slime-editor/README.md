@@ -57,13 +57,18 @@ with Stage 6c's next milestones.
   cache and frame builder, drawn again only when what it shows changed; the right button held
   flies through it with W, A, S, D, Q and E, Alt and the left button orbit, the middle button pans,
   F frames the selection, and tools capture it by the name `viewport`
-  (`docs/adr/0158-the-viewport.md`). Options: `--level`, `--assets`,
+  (`docs/adr/0158-the-viewport.md`). A click selects the outermost placement of what is drawn
+  there, a click again a level deeper, a marquee what it holds, Alt and a click the meshes behind;
+  what is selected is outlined, and the View menu shows the base color, the light alone, the
+  normals, the shadows and the wireframe of the selection; tools pick in the viewport by its name
+  (`docs/adr/0159-picking-and-the-selection.md`). Options: `--level`, `--assets`,
   `--journal`, `--discard`, `--headless`; `run`'s documentation says how a journal is chosen and
   recovered.
-- `window_image(&Program, arguments, operations, scale)`: the window drawn into an image without a
-  window of the system, as it shows once the level is open and the operations named run, which the
-  image tests compare and the `editor` example's `--output` writes; `file.choose` shows the layer
-  that waits for the system's dialog, which no window opens there.
+- `window_image(&Program, arguments, operations, selection, scale)`: the window drawn into an image
+  without a window of the system, as it shows once the level is open, the operations named run
+  and the entities named selected, which the image tests compare and the `editor` example's
+  `--output` writes; `file.choose` shows the layer that waits for the system's dialog, which no
+  window opens there.
 
 ## Depends on
 

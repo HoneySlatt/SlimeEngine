@@ -9,7 +9,10 @@ drives it alike ([ADR-0135](../../docs/adr/0135-the-editors-program.md),
 zone under the game's overcast sky, exposure and bloom by day, which the game's library gives it
 ([ADR-0158](../../docs/adr/0158-the-viewport.md)); every light that the zone places shines there,
 the night's too, which the game's rules hide by day, and the moon, the one light that shows in the
-zone's sky, is the sky's sun ([`docs/PLAN.md`](../../docs/PLAN.md), known debt).
+zone's sky, is the sky's sun ([`docs/PLAN.md`](../../docs/PLAN.md), known debt). A click there
+selects what the zone places whole, a lantern or the land, which holds every tree, rock and fern,
+a click again a level deeper towards what is under the pointer, and what is selected is outlined
+([ADR-0159](../../docs/adr/0159-picking-and-the-selection.md)).
 
 ## Running it
 

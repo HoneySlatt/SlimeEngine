@@ -323,9 +323,9 @@ through the MCP server, which presses a button that changes its world and gives 
 read and used through AT-SPI as a screen reader does, the `widgets` example drawn into an image, run
 in a window and its widgets, menus, list to choose from and floating panel each used by an agent's
 session through the MCP server, the `editor` example's window used by an agent's session through the
-MCP server, its operations run by name, its menu and its palette, which must run no frame while it
-is alone, the `world` example's two views captured, the map's normals shown,
-its reports read and an entity picked at a pixel, by an agent's session through the MCP server, the
+MCP server, its operations run by name, its menu and its palette, an entity picked in its viewport,
+which must run no frame while it is alone, the `world` example's two views captured, the map's
+normals shown, its reports read and an entity picked at a pixel, by an agent's session through the MCP server, the
 `scene` example on a copy of the cooked sample with one byte changed, which must end with an error
 and not a panic, the game (its new runs, one that loses its GPU device after its first frame and
 must go on, one resumed from a copy of its save fixture, and one driven by an agent's session

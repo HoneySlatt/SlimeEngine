@@ -6,6 +6,7 @@ mod journal;
 mod level;
 mod navigation;
 mod operation;
+mod picking;
 mod program;
 mod recent;
 mod session;

@@ -713,6 +713,10 @@ light (`illuminance`); about 100 000 for direct sunlight, 400 at sunrise.
 **Manifest (assets).** The list of what was cooked for a game: each *asset*'s ID, kind, cooked file
 and size, and the IDs it needs to load ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
+**Marquee (editor).** A rectangle that the user drags over the *viewport* with the left button, which
+selects what is drawn inside it, the outermost *placement* of each, as the GPU's *picking* finds it:
+what is hidden is not selected ([ADR-0159](adr/0159-picking-and-the-selection.md)).
+
 **Material.** How a surface looks, with glTF's *metallic-roughness model*: a base color,
 metallic and roughness, normal, occlusion and emissive textures each read with a *sampler*, an
 alpha mode and double-sidedness (`slime_render::Material`, from `MaterialData`;
@@ -777,9 +781,11 @@ roots below it and the *focus* among its elements while it is there, and gives t
 it is removed (`RootSettings::modal`, [ADR-0142](adr/0142-input-and-focus.md)).
 
 **Mode of debugging (render).** What a *view* shows in place of the lit scene, to see what the
-renderer computes (`slime_render::DebugMode`): the normal each surface is shaded with, or the share
-of the shadowing lights' light that reaches it, written as colors as they are, without the exposure,
-the bloom or the tone curve ([ADR-0127](adr/0127-the-settings-of-a-view.md)).
+renderer computes (`slime_render::DebugMode`): the normal each surface is shaded with, the share of
+the shadowing lights' light that reaches it, or its base color, written as colors as they are,
+without the exposure, the bloom or the tone curve; or the light alone, the scene drawn as it is,
+every surface white ([ADR-0127](adr/0127-the-settings-of-a-view.md),
+[ADR-0159](adr/0159-picking-and-the-selection.md)).
 
 **Multiple scattering.** Light that bounces between the microfacets of a rough surface before it
 leaves, which a single-scattering *BRDF* loses: a white rough metal would look grey. The renderer
@@ -855,6 +861,17 @@ pixel seen along the camera's axis, as a map or a plan is drawn (`slime_render::
 as high as the camera's height, as wide as its aspect makes it, from its near plane to its far one,
 beyond which nothing is seen ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)). See
 *reversed depth*.
+
+**Outermost placement.** Of an entity, the *placement* that holds it and that no placement holds,
+`yard/lamp 1` for `yard/lamp 1/post/light`, or the entity itself when it belongs to none
+(`World::placement_root`): what a click in the editor's *viewport* selects first, a click again
+going a level deeper ([ADR-0159](adr/0159-picking-and-the-selection.md)).
+
+**Outline (render).** A line drawn around instances over a *view*'s image, as an editor shows what
+is selected: from a mask of where they are, drawn at the view's *render scale*, and the scene's
+depth *resolved* into one sample, in one color where the scene shows them and another where a
+surface in front hides them (`slime_render::Outline`,
+[ADR-0159](adr/0159-picking-and-the-selection.md)).
 
 **Overlay (dev).** Panels on the engine's interface, in the editor's look, floating over a
 program's view, to show statistics and tooling over a running game: the frame's figures, the
@@ -1089,7 +1106,9 @@ load, or makes the asset *releasable*. It says what became of the asset, and sta
 **Resolve (multisampling).** Averaging the *samples (multisampling)* of each pixel of a multisampled
 *render target* into an ordinary one, which later passes can read. The renderer weighs each sample
 by its brightness, so that the edges of bright surfaces are smooth too
-([ADR-0060](adr/0060-resolving-the-samples-weighed-by-their-brightness.md)).
+([ADR-0060](adr/0060-resolving-the-samples-weighed-by-their-brightness.md)). Its depth is resolved
+for an *outline* by taking the farthest of the samples
+([ADR-0159](adr/0159-picking-and-the-selection.md)).
 
 **Resolved scene.** A scene resolved into what it spawns (`slime_world::ResolvedScene`): its
 entities, each with its parent, its components and its path from the scene's root, the *prefabs*

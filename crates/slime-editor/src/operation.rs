@@ -96,6 +96,42 @@ pub const OPERATIONS: &[Operation] = &[
         changes: Changes::Window,
     },
     Operation {
+        name: "view.shade_lit",
+        label: "Lit",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "view.shade_base_color",
+        label: "Base color",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "view.shade_light",
+        label: "Light alone",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "view.shade_normals",
+        label: "Normals",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "view.shade_shadows",
+        label: "Shadows",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "view.wireframe",
+        label: "Wireframe of the selection",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
         name: "view.palette",
         label: "Find an operation",
         parameters: &[],

@@ -3,7 +3,9 @@
 //! copy of the yard, in a window, lists the operations, makes a step and undoes it by the
 //! operation's name, opens the palette by its name and finds it in the window, opens the File menu
 //! as a person does, runs `file.save` by name, captures the viewport by its name, which the menu's
-//! frames do not draw again and framing a lamp does (`docs/adr/0158-the-viewport.md`), opens
+//! frames do not draw again and framing a lamp does (`docs/adr/0158-the-viewport.md`), picks the
+//! lamp framed in the viewport and nothing in its sky, shows the viewport's base color by the
+//! operation's name, which its settings say (`docs/adr/0159-picking-and-the-selection.md`), opens
 //! another copy of the yard through *Open a
 //! level…*, which opens no dialog of the system in a program that a tool started, its path typed
 //! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), and checks that the editor,
@@ -195,6 +197,31 @@ fn main() {
         "framing the lamp changed the view"
     );
     assert!(draws(&mut session) > drawn);
+    // Picked in the viewport: the lamp framed in its middle, nothing in the sky at its top.
+    let (picked, _) = session.tool(
+        "pick",
+        json!({ "view": "viewport", "x": width / 2, "y": height / 2 }),
+    );
+    assert!(picked[0].starts_with("yard/lamp 1"), "{picked:?}");
+    let (sky, _) = session.tool(
+        "pick",
+        json!({ "view": "viewport", "x": width / 2, "y": 2 }),
+    );
+    assert_eq!(sky, ["nothing is drawn there"]);
+    // The View menu's modes, by their operations' names, as the viewport's settings say.
+    let (said, _) = session.tool("run_operation", json!({ "name": "view.shade_base_color" }));
+    assert_eq!(said, ["done"]);
+    let shading = until(
+        "the base color's mode",
+        || session.tool("game_state", json!({})).0,
+        |state| state[0].contains("debug = \"BaseColor\""),
+    );
+    assert!(
+        shading[0].contains("view `viewport`, its settings:"),
+        "{shading:?}"
+    );
+    let (said, _) = session.tool("run_operation", json!({ "name": "view.shade_lit" }));
+    assert_eq!(said, ["done"]);
     // Open a level…, from the File menu: a program that a tool started opens no dialog of the
     // system, which the agent could not see, and its layer waits for the path, typed.
     let file = path_of(&mut session, "MenuItem", "File");

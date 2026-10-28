@@ -55,6 +55,20 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - A modal layer of `slime-ui` dims the window below it: its root is of the class `modal`, and a
   layer's root lays the backdrop that its style gives (`PaintStyle::backdrop`) over the window,
   which the editor's look gives the theme's scrim.
+- Picking in the editor's viewport (ADR-0159): a click selects the outermost placement of what is
+  drawn there, a click again a level deeper; a drag draws a marquee that selects what it holds;
+  Shift adds to the selection; Alt and a click go through what lies behind. What is selected is
+  outlined, dimmed where something in front hides it, and an entity that draws nothing shows as a
+  box. The View menu shows the scene lit, its base color, its light alone, its normals or its
+  shadows, and the wireframe of what is selected, by operations that agents run too
+  (`view.shade_lit`, `view.shade_base_color`, `view.shade_light`, `view.shade_normals`,
+  `view.shade_shadows`, `view.wireframe`). Tools pick in the viewport by its name.
+- `Drawings::outline` in `slime-render`: a view outlines instances named by their picking numbers
+  over its image, in one color where the scene shows them and another where it hides them, the
+  scene's depth resolved into one sample for it; `DebugMode::BaseColor` and `DebugMode::Light`;
+  `RenderStats::outline_gpu_time`. `BindingType::MultisampledDepthTexture` in `slime-gfx` reads a
+  multisampled depth target sample by sample. `Picker::cast_through` in `slime-world-render` gives
+  every entity that a ray meets, the nearest first.
 
 ### Changed
 
@@ -66,8 +80,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The palette of commands lists every command found, scrolling past the window's height, the
   chosen one kept in sight, where it showed 12 at most.
 - `AppConfig::pace_headless` is gone: `AppConfig::on_demand` replaces it.
-- `slime_editor::window_image` takes the operations to run before it draws, and draws the
-  viewport.
+- `slime_editor::window_image` takes the operations to run before it draws and the entities to
+  select once the level is framed, and draws the viewport.
 - The renderer records a frame's passes sixteen to a submission, a whole frame of the samples in
   one, where it recorded four: measured on a GPU whose memory that the CPU maps is a small window
   that the desktop fills, it costs the CPU least (ADR-0158, `docs/measurements.md`).

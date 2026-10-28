@@ -188,8 +188,9 @@ today has:
   notifications, palette of commands and color wells used, and read and
   used by agents through the MCP server (`slime-ui`), read by screen readers in the examples, games
   leaving them out until Stage 7; and of the editor its core (`slime-editor`) and its program, a
-  window of menus, the world panel and a status bar, without a viewport yet, which a person uses,
-  opening a level through the system's dialog, and agents drive through the MCP server alike.
+  window of menus, the world panel, a viewport flown through, where the user picks what to select,
+  outlined, and a status bar, which a person uses, opening a level through the system's dialog, and
+  agents drive through the MCP server alike.
 - An asset pipeline that imports glTF scenes, scene files and PNG and JPEG images only: the cooker,
   `slime-cook`, makes them cooked data, which the renderer loads whole, in the background while the
   game goes on, as an asset cache's requests ask (`AssetCache::request`) or a scene at a time

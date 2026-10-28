@@ -3,20 +3,25 @@
 //! (`docs/adr/0156-the-editors-window-and-its-operations.md`): a menu bar, fixed regions, the dev
 //! overlay's world panel in the first, a status bar, and the window's title; and the system's dialog
 //! to open a level, a modal layer waiting over the window meanwhile
-//! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`).
+//! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`); the viewport, through which
+//! the user flies and picks what to select (`docs/adr/0158-the-viewport.md`,
+//! `docs/adr/0159-picking-and-the-selection.md`).
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use slime_app::{AppConfig, AppError, Context, Host, Presentation, Reflected, ShownView};
+use slime_app::{
+    AppConfig, AppError, Context, Host, PickAnswer, Presentation, Reflected, ShownView,
+};
 use slime_color::LinearColor;
 use slime_devui::WorldPanel;
 use slime_gfx::{Gpu, Image, RenderPassDescriptor, RenderTarget, TextureFormat};
-use slime_platform::{ColorScheme, DialogId, Event, FileChoice, ScrollDelta};
-use slime_render::{CanvasImage, RenderError, Renderer, ViewSettings};
+use slime_platform::{ColorScheme, DialogId, Event, FileChoice, MouseButton, ScrollDelta};
+use slime_render::{CanvasImage, DebugMode, Pick, RenderError, Renderer, ViewSettings};
+use slime_ui::Rect;
 use slime_ui::action::{Action, ActionKind, FieldValue, SurfaceInput};
-use slime_ui::display::DisplayList;
+use slime_ui::display::{BoxPrimitive, DisplayList};
 use slime_ui::look::{self, Colors, Density};
 use slime_ui::shortcuts::Shortcuts;
 use slime_ui::style::{Dimension, FlexDirection, Justify, Sides, Style};
@@ -30,10 +35,11 @@ use slime_world::{Entity, World};
 
 use crate::navigation::Navigation;
 use crate::operation::{self, OPERATIONS, SHORTCUTS};
+use crate::picking::{self, Selecting, Wanted};
 use crate::program::Program;
 use crate::session::Session;
 use crate::shared::{Notice, Request, Shared};
-use crate::viewport::{self, Framing, Viewport};
+use crate::viewport::{self, Framing, Marks, Viewport};
 
 /// An entry of a menu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -67,7 +73,20 @@ pub(crate) const MENUS: &[(&str, &[Entry])] = &[
             Entry::Operation("edit.select_none"),
         ],
     ),
-    ("View", &[Entry::Operation("view.frame_selection")]),
+    (
+        "View",
+        &[
+            Entry::Operation("view.frame_selection"),
+            Entry::Separator,
+            Entry::Operation("view.shade_lit"),
+            Entry::Operation("view.shade_base_color"),
+            Entry::Operation("view.shade_light"),
+            Entry::Operation("view.shade_normals"),
+            Entry::Operation("view.shade_shadows"),
+            Entry::Separator,
+            Entry::Operation("view.wireframe"),
+        ],
+    ),
     (
         "Help",
         &[
@@ -82,6 +101,24 @@ const SIDE_WIDTH: f32 = 340.0;
 
 /// The width of the layer that waits for the system's dialog to open a level, in logical pixels.
 const CHOOSING_WIDTH: f32 = 460.0;
+
+/// The marquee's fill and border over the viewport (`docs/adr/0159-picking-and-the-selection.md`).
+const MARQUEE_FILL: LinearColor = LinearColor::rgba(1.0, 1.0, 1.0, 0.08);
+const MARQUEE_BORDER: LinearColor = LinearColor::rgba(1.0, 1.0, 1.0, 0.7);
+
+/// The mode of the viewport's shading that the operation `name` shows, if it is one of the View
+/// menu's (`view.shade_lit`, `view.shade_base_color`, `view.shade_light`, `view.shade_normals`,
+/// `view.shade_shadows`).
+fn shading(name: &str) -> Option<DebugMode> {
+    match name {
+        "view.shade_lit" => Some(DebugMode::Off),
+        "view.shade_base_color" => Some(DebugMode::BaseColor),
+        "view.shade_light" => Some(DebugMode::Light),
+        "view.shade_normals" => Some(DebugMode::Normals),
+        "view.shade_shadows" => Some(DebugMode::Shadows),
+        _ => None,
+    }
+}
 
 /// What the layer that waits for the system's dialog says while it waits.
 const CHOOSE: &str = "Choose a level in the system's dialog, or type its path.";
@@ -148,6 +185,18 @@ pub(crate) struct Model {
     pub(crate) navigation: Navigation,
     /// Whether the viewport is to frame the selection at the next frame (`view.frame_selection`).
     pub(crate) frame_wanted: bool,
+    /// The left button held over the viewport without Alt, while it is.
+    selecting: Option<Selecting>,
+    /// Where Alt and the left button went down over the viewport, while they orbit: let go before
+    /// the mouse moved, they go through what lies behind.
+    orbit_from: Option<[f32; 2]>,
+    /// What the left button asked for over the viewport that the window has not asked the
+    /// viewport yet ([`Model::picked`] takes its answer).
+    pub(crate) wanted: Vec<Wanted>,
+    /// How the viewport draws, which the View menu and tools change.
+    pub(crate) settings: ViewSettings,
+    /// Whether the viewport draws the wireframe of what is selected (`view.wireframe`).
+    pub(crate) wireframe: bool,
 }
 
 impl Model {
@@ -176,6 +225,11 @@ impl Model {
             navigation: Navigation::default(),
             // The level, framed as it opens.
             frame_wanted: true,
+            selecting: None,
+            orbit_from: None,
+            wanted: Vec::new(),
+            settings: ViewSettings::default(),
+            wireframe: false,
         };
         model.style();
         model
@@ -232,7 +286,7 @@ impl Model {
         took || made
     }
 
-    /// Moves the viewport's camera as the pointer's `input` on its surface asks.
+    /// Moves the viewport's camera, or picks in it, as the pointer's `input` on its surface asks.
     fn navigate(&mut self, input: SurfaceInput) {
         match input {
             SurfaceInput::Pressed {
@@ -241,12 +295,31 @@ impl Model {
                 at,
             } => {
                 // A gesture that starts before the level opening is framed keeps the camera where
-                // the user takes it.
-                if self.navigation.press(button, modifiers, at) {
+                // the user takes it. A marquee drawn holds the other buttons back.
+                if self.selecting.is_none() && self.navigation.press(button, modifiers, at) {
                     self.frame_wanted = false;
+                    if button == MouseButton::Left {
+                        self.orbit_from = Some(at);
+                    }
+                } else if button == MouseButton::Left
+                    && self.selecting.is_none()
+                    && !self.navigation.holds_cursor()
+                {
+                    self.selecting = Some(Selecting::new(at, modifiers));
                 }
             }
-            SurfaceInput::Released { button, .. } => self.navigation.release(button),
+            SurfaceInput::Released { button, at } => {
+                let left = button == MouseButton::Left;
+                if left && let Some(selecting) = self.selecting.take() {
+                    self.wanted.push(selecting.release(at));
+                }
+                let from = if left { self.orbit_from.take() } else { None };
+                if self.navigation.release(button)
+                    && let Some(at) = from
+                {
+                    self.wanted.push(Wanted::Through { at });
+                }
+            }
             SurfaceInput::Wheel { delta, .. } => self.navigation.wheel(match delta {
                 ScrollDelta::Lines { y, .. } => f64::from(y),
                 // A touchpad's pixels, a line some 40 of them.
@@ -254,9 +327,40 @@ impl Model {
             }),
             // Moves come where the cursor cannot be held; where it is, the raw motion turns it.
             SurfaceInput::Moved { at } => {
+                if let Some(selecting) = &mut self.selecting {
+                    selecting.moved(at);
+                }
                 self.navigation.pointer(at);
             }
         }
+    }
+
+    /// Selects what `found` holds, the entities that `wanted` found, the window having asked the
+    /// viewport (`picking::select`), as the core's selection.
+    pub(crate) fn picked(&mut self, world: &World, wanted: &Wanted, found: &[Entity]) {
+        let selection = picking::select(world, wanted, found, &self.selected_entities(world));
+        let selection = selection
+            .into_iter()
+            .filter_map(|entity| world.persistent_id(entity))
+            .collect();
+        self.shared
+            .borrow_mut()
+            .requests
+            .push_back(Request::Select(selection));
+    }
+
+    /// The marquee being drawn over the viewport, in pixels of the screen.
+    fn marquee(&self, scale: f32) -> Option<Rect> {
+        let (from, to) = self.selecting?.marquee()?;
+        let surface = self.viewport_rect()?;
+        let left = from[0].min(to[0]) * scale;
+        let top = from[1].min(to[1]) * scale;
+        Some(Rect::new(
+            surface.x + left,
+            surface.y + top,
+            (from[0] - to[0]).abs() * scale,
+            (from[1] - to[1]).abs() * scale,
+        ))
     }
 
     /// The viewport's surface's box, in pixels of the screen, once laid out.
@@ -269,6 +373,16 @@ impl Model {
         let rect = self.viewport_rect()?;
         let side = |length: f32| (length.round() as u32).max(1);
         Some((side(rect.width), side(rect.height)))
+    }
+
+    /// What the viewport marks of `world`, at `scale` pixels of the screen per logical pixel: what
+    /// the core says is selected, and its wireframe if asked for.
+    pub(crate) fn marks(&self, world: &World, scale: f32) -> Marks {
+        Marks {
+            selection: self.selected_entities(world),
+            wireframe: self.wireframe,
+            scale,
+        }
     }
 
     /// The entities that the core says are selected, which `world` holds.
@@ -352,10 +466,16 @@ impl Model {
                         let label =
                             operation::operation(name).map_or(name, |operation| operation.label);
                         let chord = self.ui.command_chord(name).unwrap_or_default();
+                        // The viewport's modes, ticked where they are on.
+                        let mark = match (name, shading(name)) {
+                            ("view.wireframe", _) => ItemMark::Check(self.wireframe),
+                            (_, Some(debug)) => ItemMark::Check(self.settings.debug == debug),
+                            _ => ItemMark::None,
+                        };
                         (
                             label.to_owned(),
                             chord,
-                            ItemMark::None,
+                            mark,
                             Some(Item::Run(name, Vec::new())),
                         )
                     }
@@ -611,7 +731,11 @@ impl Model {
                 "view.shortcuts" => self.ui.open_shortcut_sheet("Shortcuts", &commands),
                 "file.choose" => self.choose_level(size),
                 "view.frame_selection" => self.frame_wanted = true,
-                name => tracing::warn!(name, "the window has no operation of that name"),
+                "view.wireframe" => self.wireframe = !self.wireframe,
+                name => match shading(name) {
+                    Some(debug) => self.settings.debug = debug,
+                    None => tracing::warn!(name, "the window has no operation of that name"),
+                },
             }
         }
     }
@@ -648,7 +772,21 @@ impl Model {
         if let Some(slot) = self.slot {
             self.panel.build(&mut self.ui, slot, world);
         }
-        self.ui.frame().0
+        let mut display = self.ui.frame().0;
+        // Over the viewport, under nothing: the pointer is the surface's while it is drawn.
+        if let Some(rect) = self.marquee(scale) {
+            display.push(
+                BoxPrimitive {
+                    rect,
+                    radii: [0.0; 4],
+                    fill: MARQUEE_FILL,
+                    border_width: scale,
+                    border: MARQUEE_BORDER,
+                },
+                self.viewport_rect(),
+            );
+        }
+        display
     }
 
     /// Follows what the core changed: a level opened in place of the other resets the world panel
@@ -834,16 +972,19 @@ pub const IMAGE_SIZE: [u32; 2] = [1280, 800];
 /// draws, and what its image tests compare. The level is opened as the program opens it, its
 /// journal held and written, and the recent levels left as they are; the status bar shows the
 /// level's path as `--level` gives it. `file.choose` shows the layer that waits for the system's
-/// dialog, which no window opens here.
+/// dialog, which no window opens here. Once the level is framed, the entities of `selection`, by
+/// their persistent identities, are selected, which the viewport outlines.
 ///
 /// # Errors
 ///
-/// When the arguments are not the program's, the level cannot be opened, an operation fails, no
-/// GPU adapter is available, or the window cannot be drawn: why, as a sentence.
+/// When the arguments are not the program's, the level cannot be opened, an operation fails, an
+/// identity of `selection` is not one, no GPU adapter is available, or the window cannot be drawn:
+/// why, as a sentence.
 pub fn window_image(
     program: &Program,
     arguments: impl IntoIterator<Item = OsString>,
     operations: &[&str],
+    selection: &[&str],
     scale: f32,
 ) -> Result<Image, String> {
     let options = crate::program::parse(program, arguments)?.ok_or("--help draws no image")?;
@@ -889,15 +1030,34 @@ pub fn window_image(
         .map(|(assets, lighting)| Viewport::new(&gpu, &drawing.renderer, assets, lighting, format))
         .transpose()
         .map_err(|error| error.to_string())?;
+    // The level framed as it opens, then the selection made.
+    model.frame(host.world(), size, scale);
+    if let (Some(viewport), Some(size)) = (&mut viewport, model.viewport_size()) {
+        frame_whole(&gpu, viewport, &mut model, host.world(), size)?;
+    }
+    if !selection.is_empty() {
+        let identities = selection
+            .iter()
+            .map(|identity| {
+                identity
+                    .parse()
+                    .map_err(|error| format!("{identity}: {error}"))
+            })
+            .collect::<Result<_, String>>()?;
+        session
+            .handle(host.world_mut(), Request::Select(identities))
+            .map_err(|error| slime_app::error_chain(&*error))?;
+    }
     // Twice: the world panel's list builds its rows once the first frame laid it out.
     for _ in 0..2 {
         let display = model.frame(host.world(), size, scale);
         if let (Some(viewport), Some(size)) = (&mut viewport, model.viewport_size()) {
-            draw_viewport_whole(
+            draw_whole(
                 &gpu,
                 &mut drawing.renderer,
                 viewport,
-                &mut model,
+                &model.marks(host.world(), scale),
+                &model,
                 host.world(),
                 size,
             )?;
@@ -935,11 +1095,10 @@ pub fn window_image(
 /// How long [`window_image`] waits at most for the meshes that the level places to load.
 const LOADING: std::time::Duration = std::time::Duration::from_secs(60);
 
-/// Draws `viewport` of `size` pixels as the window shows it once the meshes that `world` places
-/// have loaded, the level framed as it opens, for [`window_image`].
-fn draw_viewport_whole(
+/// Frames the level in `viewport` of `size` pixels as it opens, once the meshes that `world`
+/// places have loaded, for [`window_image`].
+fn frame_whole(
     gpu: &Gpu,
-    renderer: &mut Renderer,
     viewport: &mut Viewport,
     model: &mut Model,
     world: &World,
@@ -964,9 +1123,32 @@ fn draw_viewport_whole(
             }
         }
     }
+    Ok(())
+}
+
+/// Draws `viewport` of `size` pixels as the window shows it, marked as `marks` say, once the
+/// meshes that `world` places have loaded, for [`window_image`].
+fn draw_whole(
+    gpu: &Gpu,
+    renderer: &mut Renderer,
+    viewport: &mut Viewport,
+    marks: &Marks,
+    model: &Model,
+    world: &World,
+    size: (u32, u32),
+) -> Result<(), String> {
+    let started = Instant::now();
+    viewport.set_settings(model.settings);
     loop {
         let loading = viewport
-            .prepare(gpu, world, model.navigation.camera(), size, Instant::now())
+            .prepare(
+                gpu,
+                world,
+                model.navigation.camera(),
+                size,
+                marks,
+                Instant::now(),
+            )
             .map_err(|error| error.to_string())?;
         viewport
             .draw(gpu, renderer)
@@ -996,6 +1178,63 @@ impl Drawing {
     }
 }
 
+/// Who asked the viewport what is drawn where.
+enum Asker {
+    /// The user, with the left button.
+    User(Wanted),
+    /// A tool, through the development channel, given the entity drawn at a pixel.
+    Tool(PickAnswer),
+}
+
+/// The area of the viewport's image, in its pixels, that `wanted` asks about, at `scale` pixels per
+/// logical pixel, in an image of `size` pixels: the pixel under a click, the rectangle between a
+/// marquee's corners, at least a pixel, within the image; `None` for what the CPU answers.
+fn area(
+    wanted: &Wanted,
+    scale: f32,
+    (width, height): (u32, u32),
+) -> Option<slime_render::Viewport> {
+    let pixel = |at: [f32; 2]| {
+        [
+            ((at[0] * scale).floor().max(0.0) as u32).min(width - 1),
+            ((at[1] * scale).floor().max(0.0) as u32).min(height - 1),
+        ]
+    };
+    let (from, to) = match *wanted {
+        Wanted::Click { at, .. } => (pixel(at), pixel(at)),
+        Wanted::Marquee { from, to, .. } => {
+            let (from, to) = (pixel(from), pixel(to));
+            (
+                [from[0].min(to[0]), from[1].min(to[1])],
+                [from[0].max(to[0]), from[1].max(to[1])],
+            )
+        }
+        Wanted::Through { .. } => return None,
+    };
+    Some(slime_render::Viewport {
+        x: from[0],
+        y: from[1],
+        width: to[0] - from[0] + 1,
+        height: to[1] - from[1] + 1,
+    })
+}
+
+/// The entities drawn in what a picking found, each once, in the order of its pixels, those that
+/// `world` still holds.
+fn found(world: &World, picked: &slime_render::Picked) -> Vec<Entity> {
+    let mut found: Vec<Entity> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for &number in &picked.numbers {
+        if number != 0
+            && seen.insert(number)
+            && let Some(entity) = Entity::from_bits(number).filter(|&entity| world.contains(entity))
+        {
+            found.push(entity);
+        }
+    }
+    found
+}
+
 /// The editor's window, the presentation of its program.
 pub(crate) struct Window {
     shared: Shared,
@@ -1003,8 +1242,10 @@ pub(crate) struct Window {
     drawing: Option<Drawing>,
     /// The viewport, once a level is open and the GPU there.
     viewport: Option<Viewport>,
-    /// How the viewport draws, which tools change, kept when the GPU device is lost.
-    settings: ViewSettings,
+    /// The pickings asked of the viewport's view that have not come back, each with who asked:
+    /// the user, for what, or a tool, where to answer it
+    /// (`docs/adr/0159-picking-and-the-selection.md`).
+    picks: Vec<(Pick, Asker)>,
     /// What the last extraction laid out, which the frame draws.
     display: Option<DisplayList>,
     /// The title that the window shows.
@@ -1025,7 +1266,7 @@ impl Window {
             model: None,
             drawing: None,
             viewport: None,
-            settings: ViewSettings::default(),
+            picks: Vec::new(),
             display: None,
             title: String::new(),
             cursor_refused: false,
@@ -1112,13 +1353,62 @@ impl Window {
                 }
             }
         }
-        viewport.set_settings(self.settings);
         let camera = model.navigation.camera();
-        match viewport.prepare(gpu, world, camera, size, Instant::now()) {
+        let scale = ctx
+            .window()
+            .map_or(1.0, |window| window.scale_factor() as f32);
+        // What the left button asked: by the GPU, at the frame that draws the viewport next; by
+        // the CPU, at once.
+        for wanted in std::mem::take(&mut model.wanted) {
+            match area(&wanted, scale, size) {
+                Some(area) => self.picks.push((viewport.pick(area), Asker::User(wanted))),
+                None => {
+                    let Wanted::Through { at } = wanted else {
+                        continue;
+                    };
+                    let at = [at[0] * scale, at[1] * scale];
+                    let met = viewport.cast_through(world, &camera, size, at);
+                    model.picked(world, &wanted, &met);
+                }
+            }
+        }
+        viewport.set_settings(model.settings);
+        let marks = model.marks(world, scale);
+        match viewport.prepare(gpu, world, camera, size, &marks, Instant::now()) {
             Ok(true) => ctx.request_frame(),
             Ok(false) => {}
             Err(error) => ctx.exit_with_error(error),
         }
+    }
+
+    /// Takes the answers of the pickings that came back, each to whom asked; asks for the next
+    /// frame while some wait, and for the one at which the core selects what a person's found.
+    fn take_picks(&mut self, ctx: &mut Context, world: &World) {
+        let (Some(model), Some(gpu)) = (&mut self.model, ctx.gpu()) else {
+            return;
+        };
+        let mut waiting = Vec::new();
+        let mut selected = false;
+        for (pick, asker) in std::mem::take(&mut self.picks) {
+            match (pick.take(gpu), asker) {
+                (None, asker) => waiting.push((pick, asker)),
+                (Some(Ok(picked)), Asker::User(wanted)) => {
+                    model.picked(world, &wanted, &found(world, &picked));
+                    selected = true;
+                }
+                (Some(Ok(picked)), Asker::Tool(answer)) => {
+                    answer.give(found(world, &picked).first().copied());
+                }
+                // The tool is told that no answer came, as the answer is dropped.
+                (Some(Err(error)), _) => {
+                    tracing::warn!("a picking in the viewport failed: {error}")
+                }
+            }
+        }
+        if selected || !waiting.is_empty() {
+            ctx.request_frame();
+        }
+        self.picks = waiting;
     }
 }
 
@@ -1197,7 +1487,13 @@ impl Presentation for Window {
                 self.title = title;
             }
         }
+        self.take_picks(ctx, world);
         self.prepare_viewport(ctx, world);
+        // What the left button asked where no viewport could answer, without a level or a GPU
+        // device, is not answered later, against another image.
+        if let Some(model) = &mut self.model {
+            model.wanted.clear();
+        }
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
@@ -1268,19 +1564,44 @@ impl Presentation for Window {
     }
 
     fn view_settings(&self, name: &str) -> Option<Reflected> {
-        (name == viewport::NAME).then(|| Reflected::new(&self.settings))
+        let model = self.model.as_ref()?;
+        (name == viewport::NAME).then(|| Reflected::new(&model.settings))
     }
 
     fn set_view_settings(&mut self, name: &str, settings: &Reflected) -> Result<(), String> {
         if name != viewport::NAME {
             return Err(format!("the editor has no view `{name}`"));
         }
-        self.settings = settings.get().map_err(|error| error.to_string())?;
+        let model = self
+            .model
+            .as_mut()
+            .ok_or("the editor's window is not open yet")?;
+        model.settings = settings.get().map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
+    fn pick(&mut self, view: &str, (x, y): (u32, u32), answer: PickAnswer) -> Result<(), String> {
+        if view != viewport::NAME {
+            return Err(format!("the editor has no view `{view}`"));
+        }
+        let viewport = self
+            .viewport
+            .as_mut()
+            .ok_or("the editor's viewport waits for a level and a GPU device")?;
+        let area = slime_render::Viewport {
+            x,
+            y,
+            width: 1,
+            height: 1,
+        };
+        self.picks.push((viewport.pick(area), Asker::Tool(answer)));
         Ok(())
     }
 
     fn gpu_lost(&mut self, _ctx: &mut Context) {
-        // Every GPU object goes; the viewport is made again once the device is.
+        // Every GPU object goes; the viewport is made again once the device is. The pickings of
+        // the lost device go with it, a tool's told that no answer came.
+        self.picks.clear();
         self.viewport = None;
         self.drawing = None;
     }
@@ -1301,7 +1622,8 @@ mod tests {
 
     use slime_app::Simulation;
     use slime_platform::{ButtonState, Key, KeyCode, KeyEvent, Modifiers, NamedKey};
-    use slime_world::Command;
+    use slime_ui::display::Primitive;
+    use slime_world::{Command, PersistentId};
 
     use super::*;
     use crate::operation::Changes;
@@ -1471,6 +1793,130 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// The left button over the viewport: a click, a drag that draws a marquee, and Alt and a click,
+    /// each asking what is drawn there, and what the viewport found selected in the core
+    /// (`docs/adr/0159-picking-and-the-selection.md`).
+    #[test]
+    fn the_left_button_over_the_viewport_asks_what_is_drawn_there_and_selects_it() {
+        let mut yard = Yard::new("pick");
+        let rect = yard.model.viewport_rect().expect("laid out");
+        let (x, y) = (rect.x + 100.0, rect.y + 80.0);
+        let click = |yard: &mut Yard, modifiers: Modifiers| {
+            yard.model.ui.modifiers(modifiers);
+            yard.model
+                .ui
+                .pointer_button(MouseButton::Left, ButtonState::Pressed);
+            yard.model
+                .ui
+                .pointer_button(MouseButton::Left, ButtonState::Released);
+            yard.model.ui.modifiers(Modifiers::default());
+            yard.frame();
+        };
+        yard.model.ui.pointer_moved(x, y);
+        click(&mut yard, Modifiers::default());
+        let wanted = Wanted::Click {
+            at: [100.0, 80.0],
+            adding: false,
+        };
+        assert_eq!(std::mem::take(&mut yard.model.wanted), [wanted]);
+        // What the viewport found there, selected in the core, and the world panel with it.
+        let well: PersistentId = "yard/well".parse().expect("an identity");
+        let entity = yard.host.world().find(&well).expect("the well");
+        yard.model.picked(yard.host.world(), &wanted, &[entity]);
+        yard.frame();
+        assert_eq!(yard.shared.borrow().selection, [well]);
+        assert_eq!(yard.model.selected, Some(entity));
+        // A drag: the marquee drawn over the viewport while the button is held, its area asked for
+        // as it is let go.
+        yard.model
+            .ui
+            .pointer_button(MouseButton::Left, ButtonState::Pressed);
+        yard.model.ui.pointer_moved(x + 50.0, y + 30.0);
+        yard.frame();
+        let display = yard.model.frame(yard.host.world(), SIZE, 1.0);
+        let marquee = Rect::new(x, y, 50.0, 30.0);
+        assert!(
+            display.items().iter().any(|item| matches!(
+                &item.primitive,
+                Primitive::Box(drawn) if drawn.rect == marquee && drawn.border == MARQUEE_BORDER
+            )),
+            "the marquee drawn"
+        );
+        yard.model
+            .ui
+            .pointer_button(MouseButton::Left, ButtonState::Released);
+        yard.frame();
+        assert_eq!(
+            std::mem::take(&mut yard.model.wanted),
+            [Wanted::Marquee {
+                from: [100.0, 80.0],
+                to: [150.0, 110.0],
+                adding: false
+            }]
+        );
+        // Alt and a click, where the mouse did not move: through what lies behind.
+        let mut alt = Modifiers::default();
+        alt.alt = true;
+        click(&mut yard, alt);
+        assert_eq!(
+            std::mem::take(&mut yard.model.wanted),
+            [Wanted::Through { at: [150.0, 110.0] }]
+        );
+        // The click's pixel and the marquee's area in the viewport's image, at scale 2.
+        let area = |wanted| super::area(&wanted, 2.0, (800, 600)).expect("by the GPU");
+        assert_eq!(
+            area(wanted),
+            slime_render::Viewport {
+                x: 200,
+                y: 160,
+                width: 1,
+                height: 1
+            }
+        );
+        let marquee = Wanted::Marquee {
+            from: [150.0, 110.0],
+            to: [100.0, 380.0],
+            adding: false,
+        };
+        assert_eq!(
+            area(marquee),
+            slime_render::Viewport {
+                x: 200,
+                y: 220,
+                width: 101,
+                height: 380
+            }
+        );
+    }
+
+    #[test]
+    fn the_view_menu_shades_the_viewport_and_draws_the_wireframe_of_the_selection() {
+        let mut yard = Yard::new("shade");
+        let run = |yard: &mut Yard, name: &str| {
+            yard.session
+                .handle(
+                    yard.host.world_mut(),
+                    Request::Run {
+                        name: name.to_owned(),
+                        arguments: Vec::new(),
+                    },
+                )
+                .expect("run");
+            yard.frame();
+        };
+        run(&mut yard, "view.shade_normals");
+        assert_eq!(yard.model.settings.debug, DebugMode::Normals);
+        run(&mut yard, "view.shade_light");
+        assert_eq!(yard.model.settings.debug, DebugMode::Light);
+        run(&mut yard, "view.shade_lit");
+        assert_eq!(yard.model.settings.debug, DebugMode::Off);
+        run(&mut yard, "view.wireframe");
+        assert!(yard.model.wireframe);
+        assert!(yard.model.marks(yard.host.world(), 1.0).wireframe);
+        run(&mut yard, "view.wireframe");
+        assert!(!yard.model.wireframe);
     }
 
     #[test]

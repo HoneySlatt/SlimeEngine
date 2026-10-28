@@ -3,8 +3,9 @@
 //! it opens the yard's scene file, `examples/assets/yard.scene`, the prefabs that it places read
 //! from the examples' cooked data, which it cooks first if it is missing, under the key that the
 //! `world` example spawns it under, `yard`, in a window of its own: a menu bar, the world panel, a
-//! status bar. A person runs its operations from the menus, the shortcuts and the palette
-//! (Ctrl+Shift+P); an agent runs the same through the engine's MCP server
+//! viewport, where the user flies and picks what to select (`docs/adr/0158-the-viewport.md`,
+//! `docs/adr/0159-picking-and-the-selection.md`), a status bar. A person runs its operations from
+//! the menus, the shortcuts and the palette (Ctrl+Shift+P); an agent runs the same through the engine's MCP server
 //! (`crates/slime-mcp/README.md`), and makes steps of commands, undoes and redoes them, selects
 //! entities and writes the yard back. With `--headless`, it runs without a window, for agents alone.
 //! It knows the engine's types only, as a game's editor package knows its game's
@@ -82,9 +83,10 @@ fn main() -> ExitCode {
         arguments.drain(at..=at + 1);
     }
     slime_app::init_diagnostics();
-    let drawn = slime_editor::window_image(&program(), arguments, &[], scale).and_then(|image| {
-        png_file::write(output.as_ref(), &image).map_err(|error| error.to_string())
-    });
+    let drawn =
+        slime_editor::window_image(&program(), arguments, &[], &[], scale).and_then(|image| {
+            png_file::write(output.as_ref(), &image).map_err(|error| error.to_string())
+        });
     match drawn {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {

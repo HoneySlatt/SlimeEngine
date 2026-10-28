@@ -1313,10 +1313,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   ([ADR-0127](adr/0127-the-settings-of-a-view.md)): below 1 the image is blurred, and between 1 and
   2 each pixel averages the four texels nearest its centre, missing others. Stage 9a's temporal
   upscaling is the sharper way; a pass of a sharper filter was rejected.
-- **Two modes of debugging** ([ADR-0127](adr/0127-the-settings-of-a-view.md)): the normals and the
-  shadows. M6c.2b adds base color and light alone, and a wireframe of the selection; a wireframe of
-  the whole scene waits until `PolygonMode::Line` is measured against lines along a mesh's edges,
-  which M6a.10a's drawings give a client to draw ([ADR-0155](adr/0155-the-editors-design.md)).
+- **Four modes of debugging** ([ADR-0127](adr/0127-the-settings-of-a-view.md),
+  [ADR-0159](adr/0159-picking-and-the-selection.md)): the normals, the shadows, the base color and
+  the light alone; the editor draws the wireframe of what is selected as lines over the image, a
+  line for each edge of its meshes, which a large mesh makes many. A wireframe of the whole scene
+  waits until `PolygonMode::Line` is measured against lines along a mesh's edges
+  ([ADR-0155](adr/0155-the-editors-design.md)).
 - **Tiny, very bright sources blink in the bloom** (ADR-0040). Without a firefly filter (Karis's
   average dims the sun's halo and makes it flicker, measured), a highlight smaller than a pixel
   blooms as its coverage of the pixel changes from frame to frame. Temporal anti-aliasing, or a cap
@@ -1364,6 +1366,19 @@ GitHub issues, linked from their entry; this list stays the reference.
   light in its sky, as the sky's sun. Its meshes come from the cooked data as the core read it when
   the level opened, which a level opened later reads again; a mesh cooked again while it is open is
   not, and the world's cameras, which the world does not have yet, have no icons.
+- **Picking in the editor's viewport** ([ADR-0159](adr/0159-picking-and-the-selection.md)): a
+  click and a marquee draw the whole view again for their picking, which a frame answers a frame or
+  two later; Alt and a click cast a ray against meshes alone, so that it goes through no light's
+  icon, which a click selects; what the window marks of the selection is worked out again at each
+  frame that draws the viewport, a walk up from each instance drawn, and the wireframe's lines,
+  one for each edge of the meshes selected, rebuilt at each, which flying a terrain's makes dear;
+  the wireframe and a ray read the meshes that they first meet from the cooked data on the
+  window's thread, which waits for them. Alt and a click are told from an orbit by the mouse's
+  moving less than 4 units of its raw motion, which a mouse of a fine resolution may pass.
+- **Every multisampled depth target can be read by a shader**
+  ([ADR-0159](adr/0159-picking-and-the-selection.md)), so that the outline's frames resolve the
+  scene's depth: every view of four samples makes its depth so, whether it outlines or not, which
+  some GPUs may compress less; nothing has measured it.
 - **A comment within a value written on several lines is lost** when the editor writes the level
   again, but for the end of the value's first line (`slime_serialize::keep_comments`).
 - **The canvas draws nothing turned or scaled** ([ADR-0137](adr/0137-the-canvas.md)): the items'
