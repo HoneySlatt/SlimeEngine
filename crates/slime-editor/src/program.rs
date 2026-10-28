@@ -4,7 +4,7 @@
 //! `docs/adr/0135-the-editors-program.md`, `docs/adr/0156-the-editors-window-and-its-operations.md`).
 
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use slime_app::AppConfig;
@@ -38,6 +38,37 @@ pub struct Program {
     pub register: fn(&mut World),
     /// How the viewport lights the level, as the game lights it, which the editor cannot know.
     pub lighting: Lighting,
+    /// The command that starts the game's program, built already, for Play
+    /// (`docs/adr/0164-play.md`): the editor gives it a token, the private copies of the scenes that
+    /// hold steps not written, and a pipe as its standard input; none for a program that plays no
+    /// game, whose Play is refused.
+    pub play: Option<fn(&Played<'_>) -> std::process::Command>,
+}
+
+/// What Play hands [`Program::play`], which starts the game on it (`docs/adr/0164-play.md`).
+#[derive(Clone, Copy, Debug)]
+pub struct Played<'a> {
+    /// The cooked data that the editor reads, which the game is to read too.
+    pub assets: &'a Path,
+    /// A save of the editor's own, in a directory of Play's, which the game is to save its run to,
+    /// rather than to the user's save.
+    pub save: &'a Path,
+    /// Whether the editor runs without a window, as agents run it: the game then runs without one
+    /// too, where it can.
+    pub headless: bool,
+}
+
+impl Played<'_> {
+    /// The program named `name`, `hunnawood`, beside the editor's own, where cargo builds a
+    /// workspace's programs, its extension on Windows given; `name` alone, which the system's path
+    /// finds, when the editor cannot tell where its own program is.
+    pub fn program(&self, name: &str) -> PathBuf {
+        let file = format!("{name}{}", std::env::consts::EXE_SUFFIX);
+        std::env::current_exe()
+            .ok()
+            .and_then(|own| Some(own.parent()?.join(&file)))
+            .unwrap_or_else(|| PathBuf::from(file))
+    }
 }
 
 /// How the viewport lights the level: the game's sky, exposure and bloom, which its code chooses,
@@ -223,6 +254,7 @@ mod tests {
             sources: None,
             register: |_| {},
             lighting: Lighting::default(),
+            play: None,
         }
     }
 

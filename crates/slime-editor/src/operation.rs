@@ -15,6 +15,8 @@ pub enum Changes {
     Level,
     /// What the editor copied, and the system's clipboard.
     Clipboard,
+    /// The game that Play runs.
+    Play,
     /// What the editor's window shows, which a program without a window cannot run.
     Window,
     /// The program: quitting it.
@@ -23,7 +25,7 @@ pub enum Changes {
 
 impl Changes {
     /// The word that names it to agents: `history`, `file`, `selection`, `level`, `clipboard`,
-    /// `window`, `program`.
+    /// `play`, `window`, `program`.
     pub fn word(self) -> &'static str {
         match self {
             Self::History => "history",
@@ -31,6 +33,7 @@ impl Changes {
             Self::Selection => "selection",
             Self::Level => "level",
             Self::Clipboard => "clipboard",
+            Self::Play => "play",
             Self::Window => "window",
             Self::Program => "program",
         }
@@ -233,6 +236,36 @@ pub const OPERATIONS: &[Operation] = &[
         label: "Snap",
         parameters: &[],
         changes: Changes::Window,
+    },
+    Operation {
+        name: "play.start",
+        label: "Play",
+        parameters: &[],
+        changes: Changes::Play,
+    },
+    Operation {
+        name: "play.pause",
+        label: "Pause or resume",
+        parameters: &[],
+        changes: Changes::Play,
+    },
+    Operation {
+        name: "play.step",
+        label: "Step",
+        parameters: &[],
+        changes: Changes::Play,
+    },
+    Operation {
+        name: "play.speed",
+        label: "Speed of game time",
+        parameters: &["speed"],
+        changes: Changes::Play,
+    },
+    Operation {
+        name: "play.stop",
+        label: "Stop",
+        parameters: &[],
+        changes: Changes::Play,
     },
     Operation {
         name: "view.frame_selection",

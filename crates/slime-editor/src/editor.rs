@@ -145,6 +145,17 @@ impl Editor {
         &self.level.file
     }
 
+    /// The text of the level's scene file as writing it now would give, its comments kept, without
+    /// writing it: what Play hands the game in place of the file (`docs/adr/0164-play.md`).
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::NoLevel`] when the level's root is not alive; [`EditError::Write`] when the
+    /// world cannot be written as a scene file.
+    pub fn text(&self, world: &mut World) -> Result<String, EditError> {
+        self.level.written(world).map(|(text, _)| text)
+    }
+
     /// The level's asset ID, which its metadata file gives: the scene that a placement of the
     /// level in itself would place, which the editor does not offer
     /// (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).

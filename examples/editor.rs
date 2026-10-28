@@ -56,6 +56,16 @@ fn program() -> slime_editor::Program {
             exposure: sample_scene::EXPOSURE,
             bloom: sample_scene::BLOOM,
         },
+        // The `world` example beside the editor, which plays the yard; without a window when the
+        // editor runs without one.
+        play: Some(|played| {
+            let mut command = std::process::Command::new(played.program("world"));
+            command.arg("--assets").arg(played.assets);
+            if played.headless {
+                command.arg("--headless");
+            }
+            command
+        }),
     }
 }
 

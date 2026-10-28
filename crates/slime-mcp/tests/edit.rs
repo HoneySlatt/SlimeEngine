@@ -11,10 +11,13 @@
 //! operation's name (`docs/adr/0161-the-open-step-and-the-handles.md`), then duplicates it, copies
 //! it and pastes it the same way (`docs/adr/0162-creating-copying-and-arranging.md`), places a
 //! lamp by its prefab's file and goes back and forth in the history
-//! (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
+//! (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`); and plays the yard in the `world`
+//! example, which it pauses, steps and stops, reading the game's log in the editor's
+//! (`docs/adr/0164-play.md`).
 //!
-//! It needs the example built (`cargo build --example editor`) beside the server and the examples'
-//! assets cooked, in the directory that its first argument names, or `target/cooked/examples`. It
+//! It needs the examples built (`cargo build --example editor --example world`) beside the server
+//! and the examples' assets cooked, in the directory that its first argument names, or
+//! `target/cooked/examples`. It
 //! needs no compositor: the editor has no window. `scripts/check.sh` runs it; it is not in the
 //! default run of `cargo test` (`test = false` in Cargo.toml), and has no harness, so that its
 //! failures print once.
@@ -39,8 +42,15 @@ fn main() {
     let example = target.join(format!("examples/editor{}", std::env::consts::EXE_SUFFIX));
     assert!(
         example.is_file(),
-        "{} is not built: `cargo build --example editor` first",
+        "{} is not built: `cargo build --example editor --example world` first",
         example.display()
+    );
+    // The game that the editor's Play runs, beside it.
+    let game = target.join(format!("examples/world{}", std::env::consts::EXE_SUFFIX));
+    assert!(
+        game.is_file(),
+        "{} is not built: `cargo build --example editor --example world` first",
+        game.display()
     );
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let assets = std::env::args()
@@ -348,6 +358,40 @@ fn main() {
         let last_done = said[0].contains("`Place a prefab`; steps undone");
         assert_eq!(last_done, placed, "{said:?}");
     }
+    // Play: the `world` example plays the yard as the editor holds it, steps not written included,
+    // without a window, its log in the editor's; paused, stepped, at another speed, then stopped,
+    // by the operations' names (`docs/adr/0164-play.md`).
+    let (said, _) = session.tool("run_operation", json!({ "name": "play.start" }));
+    assert_eq!(said, ["done"]);
+    let played = |session: &mut Session, what: &str| {
+        let started = std::time::Instant::now();
+        loop {
+            let (said, _) = session.tool("read_logs", json!({ "after": 0 }));
+            if said.iter().any(|line| line.contains(what)) {
+                return;
+            }
+            assert!(
+                started.elapsed() < std::time::Duration::from_secs(60),
+                "{what}: {said:?}"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+    };
+    played(&mut session, "Play: the game runs");
+    played(&mut session, "INFO game:");
+    for (name, arguments) in [
+        ("play.pause", vec![]),
+        ("play.step", vec![]),
+        ("play.speed", vec!["0.5"]),
+        ("play.stop", vec![]),
+    ] {
+        let (said, _) = session.tool(
+            "run_operation",
+            json!({ "name": name, "arguments": arguments }),
+        );
+        assert_eq!(said, ["done"], "{name}");
+    }
+    played(&mut session, "Play: the game stopped");
     // What a placement holds but its root cannot be grouped out of it.
     session.tool(
         "select",

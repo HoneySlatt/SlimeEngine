@@ -103,6 +103,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   the copy, and a placement's overrides, nested ones included, are kept. Blender's way binds
   Shift+D, X and Shift+A. Agents run them by name, `edit.create`, `edit.duplicate`, `edit.copy`,
   `edit.paste`, `edit.delete`, `edit.group`, `edit.repeat` and `edit.nudge_*`.
+- Play in the editor (ADR-0164): *Play* (F5), *Pause* (F7), *Step* (F8), the speeds of game time and
+  *Stop* (Shift+F5), in a toolbar above the viewports and the *Play* menu, run the game on the
+  level as the editor holds it, steps not written included, as a private copy that the game reads
+  in place of its cooked file, the user's files left alone; the game's log shows in a console
+  below the viewports, and in the editor's log; a game that crashes leaves the editor running, and
+  one that does not stop when asked is killed ten seconds later.
+  Agents run them by name, `play.start`, `play.pause`, `play.step`, `play.speed` and `play.stop`.
+  `Program::play` gives the command that starts the game (`Played`, `Played::program`), and
+  `Editor::text` the level's text as writing it would give. With `slime-world`'s `development`
+  feature, which `slime-app`'s turns on, `SceneLibrary::of` reads the scene files of the directory
+  that `SLIME_PLAY_SCENES` names (`PLAY_SCENES_ENV_VAR`). `slime_channel::launch_unless` starts a
+  game as `launch` does, but gives the start up once the caller says so.
 - Placing prefabs and the history in the editor (ADR-0163): *Edit* > *Place a prefab…* finds the
   cooked data's scenes in the palette and places the one chosen at the middle of what is selected,
   as `edit.place` does by its asset ID or its source file, `lamp.scene`, `edit.choose_prefab`

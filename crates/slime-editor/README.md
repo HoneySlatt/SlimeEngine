@@ -85,6 +85,9 @@ with Stage 6c's next milestones.
   (`docs/adr/0162-creating-copying-and-arranging.md`). *Edit* > *Place a prefab…* places one of the
   cooked data's scenes, found in the palette, and a panel below the world panel shows the history,
   a press on a row going to its step (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
+  Play (F5, a toolbar above the viewports) runs the game that `Program::play` starts on the level
+  as the editor holds it, its steps not written handed over as private copies, paused, stepped,
+  at a speed and stopped, its log in a console below the viewports (`docs/adr/0164-play.md`).
   Options: `--level`, `--assets`, `--journal`, `--discard`, `--headless`; `run`'s documentation
   says how a journal is chosen and recovered.
 - `window_image(&Program, arguments, operations, selection, scale)`: the window drawn into an image

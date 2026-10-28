@@ -63,6 +63,15 @@ pub(crate) struct State {
     pub(crate) prefabs: Vec<(AssetId, String)>,
     /// Counted up each time the steps done or undone change, which the history panel follows.
     pub(crate) history: u64,
+    /// The game that Play runs, as the toolbar shows it (`docs/adr/0164-play.md`).
+    pub(crate) play: Playing,
+    /// The last lines of the log of the game that Play ran, the oldest first, at most
+    /// [`CONSOLE_LINES`], which the console shows; none before Play first ran.
+    pub(crate) console: VecDeque<String>,
+    /// Counted up each time lines come to the console, which it follows.
+    pub(crate) console_revision: u64,
+    /// Whether Play ran since the program started: the window shows the console then.
+    pub(crate) played: bool,
     /// What the editor copied last ([`Editor::copy`](crate::Editor::copy)), which it pastes
     /// without a window, and which the window puts on the system's clipboard
     /// (`docs/adr/0162-creating-copying-and-arranging.md`).
@@ -72,6 +81,21 @@ pub(crate) struct State {
     pub(crate) copies: u64,
     /// What the window asks of the core, which the core answers at its next update.
     pub(crate) requests: VecDeque<Request>,
+}
+
+/// How many lines of the game's log the console keeps.
+pub(crate) const CONSOLE_LINES: usize = 500;
+
+/// Where Play stands (`docs/adr/0164-play.md`).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) enum Playing {
+    /// No game runs.
+    #[default]
+    Stopped,
+    /// The game starts, and has not said where it listens yet.
+    Starting,
+    /// The game runs, its time paused or not, at a speed.
+    Running { paused: bool, speed: f64 },
 }
 
 /// Something that the window tells the user.

@@ -130,8 +130,9 @@ documentation lists; it needs a compositor alone, and runs beside the others.
 steps, undoes and redoes them, writes the level, finds again, as the editor starts again, what it
 did not write, and, the level written, opens it from its file, where it moves three lamps in one
 step, undoes it, drops a lamp on the ground, duplicates it, copies it and pastes it, places a lamp
-by its prefab's file and goes back and forth in the history, by the operations' names; it needs no
-compositor, the examples' assets cooked. `tests/edit_zone.rs` starts `hunnawood-editor` on a copy
+by its prefab's file and goes back and forth in the history, and plays the yard in the `world`
+example, by the operations' names; it needs no compositor, the examples built and their assets
+cooked. `tests/edit_zone.rs` starts `hunnawood-editor` on a copy
 of *Hunna Wood*'s zone, changes one of the game's components, creates an entity that holds
 another, undoes, redoes and writes the zone; it needs the zone cooked, and `scripts/check.sh` runs
 it with the tests that read the zone.

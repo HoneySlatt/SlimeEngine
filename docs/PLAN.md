@@ -1642,6 +1642,15 @@ GitHub issues, linked from their entry; this list stays the reference.
   browser. A prefab placed again by Repeat goes where the last one stands, on it. The history panel
   builds a row for each step that the history keeps, which a long session makes many, again as the
   steps change, and going to a step journals each undo or redo between.
+- **Play** ([ADR-0164](adr/0164-play.md)): it starts a game's program built already, which M6c.4c
+  builds again; the steps made while the game runs do not reach it, which M6c.4b sends. A game that
+  makes its library of scenes before `slime_app::run` starts its log, as *Hunna Wood* and the
+  `world` example do, logs neither the scenes that Play gave nor a file of Play's directory that it
+  left out. The console builds a label for each line that it keeps, 500 at most, again as lines
+  come, and scrolls to the last whenever lines come, even while the user reads older ones. *Hunna
+  Wood* has no run without a window: an agent's editor without one plays it in a window all the
+  same. A control that the game refuses is told, but the toolbar shows what the game says only
+  once it answers the state asked after the control.
 - **Every multisampled depth target can be read by a shader**
   ([ADR-0159](adr/0159-picking-and-the-selection.md)), so that the outline's frames resolve the
   scene's depth: every view of four samples makes its depth so, whether it outlines or not, which

@@ -27,5 +27,16 @@ fn main() -> ExitCode {
             exposure: hunnawood::DAY_EXPOSURE,
             bloom: hunnawood::BLOOM,
         },
+        // The game beside the editor, `cargo build -p hunnawood`, on a new run saved to Play's own
+        // save; it has no run without a window.
+        play: Some(|played| {
+            let mut command = std::process::Command::new(played.program("hunnawood"));
+            command
+                .arg("--assets")
+                .arg(played.assets)
+                .args(["--new", "--save"])
+                .arg(played.save);
+            command
+        }),
     })
 }

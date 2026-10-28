@@ -141,9 +141,9 @@ if runs headless; then
         --journal target/editor-check.journal --output target/editor.png
     # An agent's session through the MCP server edits a copy of the yard with the `editor` example,
     # run without its window: steps made, undone and redone, some by the operations' names, the
-    # level written back and opened again, a step not written recovered from the journal (ADR-0135,
-    # ADR-0156).
-    cargo build --locked --example editor
+    # level written back and opened again, a step not written recovered from the journal, and the
+    # yard played in the `world` example without its window (ADR-0135, ADR-0156, ADR-0164).
+    cargo build --locked --example editor --example world
     env -u WAYLAND_DISPLAY -u DISPLAY \
         timeout -k 10 300 cargo test --locked -p slime-mcp --test edit -- "$cooked/first"
 fi

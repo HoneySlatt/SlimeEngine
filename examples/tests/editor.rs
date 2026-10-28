@@ -49,6 +49,7 @@ fn program(assets: &Path) -> slime_editor::Program {
             exposure: sample_scene::EXPOSURE,
             bloom: sample_scene::BLOOM,
         },
+        play: None,
     }
 }
 

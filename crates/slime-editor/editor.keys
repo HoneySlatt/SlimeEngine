@@ -30,6 +30,10 @@ Delete = "edit.delete"
 "Ctrl+ArrowDown" = "edit.nudge_back"
 "Ctrl+PageUp" = "edit.nudge_up"
 "Ctrl+PageDown" = "edit.nudge_down"
+F5 = "play.start"
+"Shift+F5" = "play.stop"
+F7 = "play.pause"
+F8 = "play.step"
 
 # What the buttons of the mouse do over the viewport: a gesture that moves the camera while the
 # button is held, `fly`, `orbit` or `pan`, or `select`, a click or a marquee, or `through`, a click

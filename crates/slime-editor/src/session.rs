@@ -7,7 +7,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use slime_app::{AppError, HeldFile, Simulation, SimulationContext};
+use slime_app::{AppError, HeldFile, Simulation, SimulationContext, Waker};
 use slime_assets::{AssetId, AssetKind, CookedAssets};
 use slime_channel::{Edit, EditorHistory, OperationSummary, Reply};
 use slime_reflect::{Path as ValuePath, Reflect};
@@ -20,8 +20,10 @@ use slime_world_render::Picker;
 use crate::editor::{EditError, Editor};
 use crate::handles;
 use crate::operation::{self, Changes, OPERATIONS};
+use crate::play::{Control, Event, Player};
+use crate::program::Played;
 use crate::program::{Options, Program};
-use crate::shared::{Notice, Request, Shared};
+use crate::shared::{CONSOLE_LINES, Notice, Playing, Request, Shared};
 use crate::{journal, level, recent};
 
 /// Why the program has no journal when the environment gives no data directory.
@@ -58,6 +60,12 @@ pub(crate) struct Session {
     picker: Option<Picker>,
     /// The last operation that made a step, with its arguments, which `edit.repeat` runs again.
     last: Option<(&'static str, Vec<String>)>,
+    /// The game that Play runs, while it runs, and how many times Play started, which names its
+    /// directories (`docs/adr/0164-play.md`).
+    player: Option<Player>,
+    plays: u32,
+    /// What wakes the program's loop from Play's thread, as the program starts.
+    waker: Option<Waker>,
 }
 
 impl Session {
@@ -85,6 +93,9 @@ impl Session {
             journals,
             picker: None,
             last: None,
+            player: None,
+            plays: 0,
+            waker: None,
         }
     }
 
@@ -496,6 +507,10 @@ impl Session {
             "edit.group" => self.grouped(world)?,
             "edit.place" => self.placed(world, &arguments[0])?,
             "edit.go_to_step" => return self.go_to_step(world, &arguments[0]),
+            "play.start" => return self.play(world),
+            "play.pause" | "play.step" | "play.speed" | "play.stop" => {
+                return self.control(operation.name, &arguments);
+            }
             "edit.repeat" => {
                 let (name, arguments) = self.last.clone().ok_or("no operation made a step yet")?;
                 return self.run(world, name, arguments);
@@ -740,6 +755,161 @@ impl Session {
         })
     }
 
+    /// Starts the game that the program plays (`docs/adr/0164-play.md`), on the level as the editor
+    /// holds it: the level's scene file as writing it would give, written as a private copy into a
+    /// new directory of Play's own, which the game reads in place of its cooked file, whether the
+    /// cooked data is older than the file or not, the user's files left alone; and a save of the
+    /// editor's own there. Play's thread starts it, and tells the editor when it runs.
+    ///
+    /// # Errors
+    ///
+    /// For a program that plays no game, a game that plays already, without a level open, for a
+    /// level that cannot be written as a scene file ([`Editor::text`]), and when Play's directory
+    /// cannot be made or written, which is removed then.
+    fn play(&mut self, world: &mut World) -> Result<Reply, AppError> {
+        if self.player.is_some() {
+            return Err("a game plays already: it stops first".into());
+        }
+        let start = self.program.play.ok_or("the program plays no game")?;
+        let waker = self.waker.clone().ok_or("the program has not started")?;
+        let editor = self.editor.as_ref().ok_or("no level is open")?;
+        let text = editor.text(world)?;
+        // A directory that no other program made, of a name that it could not have guessed.
+        let random = std::hash::BuildHasher::hash_one(
+            &std::collections::hash_map::RandomState::new(),
+            (std::process::id(), self.plays),
+        );
+        let directory = std::env::temp_dir().join(format!(
+            "slime-editor-play-{}-{}-{random:016x}",
+            std::process::id(),
+            self.plays
+        ));
+        self.plays += 1;
+        fs::create_dir(&directory)?;
+        let written = fs::write(directory.join(format!("{}.scene", editor.asset())), text);
+        if let Err(error) = written {
+            let _ = fs::remove_dir_all(&directory);
+            return Err(error.into());
+        }
+        let save = directory.join("save.toml");
+        let mut command = start(&Played {
+            assets: &self.options.assets,
+            save: &save,
+            headless: self.options.headless,
+        });
+        command.env(slime_world::PLAY_SCENES_ENV_VAR, &directory);
+        self.player = Some(Player::start(command, directory, waker));
+        let mut shared = self.shared.borrow_mut();
+        shared.play = Playing::Starting;
+        shared.played = true;
+        shared.console.clear();
+        shared.console_revision += 1;
+        Ok(Reply::Done)
+    }
+
+    /// Asks the game that Play runs to pause or resume, step, run at a speed or stop, as the
+    /// operation `name` says, `arguments` the speed's.
+    ///
+    /// # Errors
+    ///
+    /// When no game plays, while one starts but to stop it, and for a speed that is not a finite
+    /// number above zero.
+    fn control(&mut self, name: &str, arguments: &[String]) -> Result<Reply, AppError> {
+        let player = self
+            .player
+            .as_ref()
+            .ok_or("no game plays: Play starts one")?;
+        let mut shared = self.shared.borrow_mut();
+        if name == "play.stop" {
+            player.control(Control::Stop);
+            return Ok(Reply::Done);
+        }
+        let Playing::Running { paused, speed } = shared.play else {
+            return Err("the game starts: it runs first".into());
+        };
+        shared.play = match name {
+            "play.pause" => {
+                player.control(Control::Pause(!paused));
+                Playing::Running {
+                    paused: !paused,
+                    speed,
+                }
+            }
+            "play.step" => {
+                player.control(Control::Step);
+                Playing::Running {
+                    paused: true,
+                    speed,
+                }
+            }
+            _ => {
+                let speed: f64 = arguments[0]
+                    .parse()
+                    .ok()
+                    .filter(|speed: &f64| speed.is_finite() && *speed > 0.0)
+                    .ok_or_else(|| format!("`{}` is not a speed above zero", arguments[0]))?;
+                player.control(Control::Speed(speed));
+                Playing::Running { paused, speed }
+            }
+        };
+        Ok(Reply::Done)
+    }
+
+    /// Follows what Play's threads told: the game running, game time as the game says it stands,
+    /// the lines of its log, which the console shows and the editor's log writes, a control that
+    /// it refused, and its end, which the user is told of, the editor going on; the editor's log
+    /// says each, which agents read. The window is built again for what changes the toolbar, not
+    /// for lines of the log, which the console follows by its own count.
+    fn follow_play(&mut self) {
+        let Some(events) = self.player.as_ref().map(Player::events) else {
+            return;
+        };
+        let mut changed = false;
+        for event in events {
+            changed |= !matches!(event, Event::Log(_));
+            match event {
+                Event::Started => {
+                    tracing::info!("Play: the game runs");
+                    self.shared.borrow_mut().play = Playing::Running {
+                        paused: false,
+                        speed: 1.0,
+                    };
+                }
+                Event::Time { paused, speed } => {
+                    self.shared.borrow_mut().play = Playing::Running { paused, speed };
+                }
+                Event::Log(lines) => {
+                    let mut shared = self.shared.borrow_mut();
+                    for line in lines {
+                        tracing::info!(target: "game", "{line}");
+                        if shared.console.len() == CONSOLE_LINES {
+                            shared.console.pop_front();
+                        }
+                        shared.console.push_back(line);
+                    }
+                    shared.console_revision += 1;
+                }
+                Event::Refused(why) => {
+                    tracing::warn!("Play: the game refused: {why}");
+                    self.tell(true, format!("The game refused: {why}"));
+                }
+                Event::Ended { how, cleanly } => {
+                    if cleanly {
+                        tracing::info!("Play: {how}");
+                    } else {
+                        tracing::warn!("Play: {how}");
+                    }
+                    self.player = None;
+                    self.shared.borrow_mut().play = Playing::Stopped;
+                    self.tell(!cleanly, how);
+                }
+            }
+        }
+        if changed {
+            self.publish();
+        }
+    }
+
     /// Puts in the shared value the prefabs that the level just opened can place
     /// ([`prefabs`]).
     fn list_prefabs(&mut self, world: &World) {
@@ -929,7 +1099,12 @@ fn request_of(edit: &Edit) -> Result<Request, AppError> {
 }
 
 impl Simulation for Session {
-    fn start(&mut self, _: &mut SimulationContext<'_>, world: &mut World) -> Result<(), AppError> {
+    fn start(
+        &mut self,
+        ctx: &mut SimulationContext<'_>,
+        world: &mut World,
+    ) -> Result<(), AppError> {
+        self.waker = Some(ctx.waker());
         (self.program.register)(world);
         if let Some(sources) = &self.program.sources
             && !self.options.assets.exists()
@@ -979,6 +1154,7 @@ impl Simulation for Session {
     }
 
     fn update(&mut self, ctx: &mut SimulationContext<'_>, world: &mut World) {
+        self.follow_play();
         let requests = std::mem::take(&mut self.shared.borrow_mut().requests);
         for request in requests {
             if let Err(error) = self.handle(world, request) {
@@ -1176,6 +1352,7 @@ mod tests {
                 sources: None,
                 register: |_| {},
                 lighting: Lighting::default(),
+                play: None,
             };
             let mut arguments: Vec<OsString> = arguments.iter().map(OsString::from).collect();
             arguments.extend(["--journal".into(), self.journal().into_os_string()]);

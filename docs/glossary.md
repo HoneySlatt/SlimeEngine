@@ -982,6 +982,11 @@ against the boxes of the meshes that a world places, then their triangles, witho
 handle ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md),
 [ADR-0130](adr/0130-picking.md)).
 
+**Play (editor).** The editor running the game's program on the level as the editor holds it,
+steps not written included, as private copies of the scenes that the game reads in place of their
+cooked files, the user's files left alone; paused, stepped and stopped from a toolbar, its log in a
+console ([ADR-0164](adr/0164-play.md)).
+
 **Pivot (handles).** The point about which the editor's *handles* stand, turn and scale: the middle
 of the origins of the outermost entities selected, those without an ancestor in the selection
 ([ADR-0161](adr/0161-the-open-step-and-the-handles.md)).

@@ -41,7 +41,7 @@ use crate::pane::{Bound, Pane};
 use crate::picking::{self, Wanted};
 use crate::program::Program;
 use crate::session::Session;
-use crate::shared::{Notice, Request, Shared};
+use crate::shared::{Notice, Playing, Request, Shared};
 use crate::viewport::{self, Framing, Level, Marks, Viewport};
 
 /// An entry of a menu.
@@ -114,6 +114,15 @@ pub(crate) const MENUS: &[(&str, &[Entry])] = &[
         ],
     ),
     (
+        "Play",
+        &[
+            Entry::Operation("play.start"),
+            Entry::Operation("play.pause"),
+            Entry::Operation("play.step"),
+            Entry::Operation("play.stop"),
+        ],
+    ),
+    (
         "Help",
         &[
             Entry::Operation("view.palette"),
@@ -127,6 +136,9 @@ const SIDE_WIDTH: f32 = 340.0;
 
 /// The height of the history panel, below the world panel, in logical pixels.
 const HISTORY_HEIGHT: f32 = 200.0;
+
+/// The height of the console, below the viewports once Play ran, in logical pixels.
+const CONSOLE_HEIGHT: f32 = 160.0;
 
 /// What the palette's command that places a prefab starts with, its asset ID following.
 const PLACE: &str = "edit.place:";
@@ -241,6 +253,12 @@ pub(crate) struct Model {
     /// done that it goes to (`edit.go_to_step`).
     history_slot: Option<ElementId>,
     history: Vec<(ElementId, usize)>,
+    /// The buttons of Play's toolbar, each with the operation that it runs, and its control of the
+    /// speeds of game time.
+    toolbar: Vec<(ElementId, &'static str)>,
+    speeds: Option<ElementId>,
+    /// The console's slot of lines, once built, while Play has run.
+    console_slot: Option<ElementId>,
 }
 
 impl Model {
@@ -280,6 +298,9 @@ impl Model {
             copies: 0,
             history_slot: None,
             history: Vec::new(),
+            toolbar: Vec::new(),
+            speeds: None,
+            console_slot: None,
         };
         model.set_keys(blender);
         model.style();
@@ -598,6 +619,27 @@ impl Model {
                 name: name.clone(),
                 arguments: Vec::new(),
             }),
+            (ActionKind::Press, Some(id))
+                if let Some((_, name)) = self.toolbar.iter().find(|(button, _)| *button == id) =>
+            {
+                Some(Request::Run {
+                    name: (*name).to_owned(),
+                    arguments: Vec::new(),
+                })
+            }
+            (ActionKind::Committed(FieldValue::Chosen(place)), Some(id))
+                if Some(id) == self.speeds =>
+            {
+                Some(Request::Run {
+                    name: "play.speed".to_owned(),
+                    arguments: vec![
+                        SPEEDS
+                            .get(*place)
+                            .map_or(1.0, |&(_, value)| value)
+                            .to_string(),
+                    ],
+                })
+            }
             (ActionKind::Press, Some(id))
                 if let Some(&(_, steps)) = self.history.iter().find(|&&(row, _)| row == id) =>
             {
@@ -1112,7 +1154,13 @@ impl Model {
         let mut slot = None;
         let mut surfaces = Vec::new();
         let mut history_slot = None;
+        let mut toolbar = (Vec::new(), None);
+        let mut console_slot = None;
         let panes = self.panes.len();
+        let (playing, played) = {
+            let shared = self.shared.borrow();
+            (shared.play, shared.played)
+        };
         self.ui.build(self.root, self.built, |children| {
             let mut window = column();
             window.layout.grow = 1.0;
@@ -1169,16 +1217,49 @@ impl Model {
                             history_slot = Some(panel.add_slot("steps", Element::scroll(content)));
                         });
                     });
-                    // Each viewport's surface, side by side.
-                    for pane in 0..panes {
-                        let mut center = Style::default();
-                        center.layout.grow = 1.0;
-                        center.layout.min_size[0] = Dimension::Pixels(0.0);
-                        let name = viewport::name(pane);
-                        let center = Element::surface(viewport::image_key(pane), center)
-                            .named(name.as_str());
-                        surfaces.push(regions.add(name.as_str(), center, |_| {}));
-                    }
+                    // Play's toolbar, the viewports side by side, and the game's log once Play ran.
+                    let mut center = column();
+                    center.layout.grow = 1.0;
+                    center.layout.min_size = [Dimension::Pixels(0.0), Dimension::Pixels(0.0)];
+                    center.layout.gap = [8.0, 0.0];
+                    regions.add("center", Element::container(center), |center| {
+                        toolbar = play_toolbar(center, playing);
+                        let mut viewports = Style::default();
+                        viewports.layout.grow = 1.0;
+                        viewports.layout.min_size =
+                            [Dimension::Pixels(0.0), Dimension::Pixels(0.0)];
+                        viewports.layout.gap = [8.0, 8.0];
+                        let row = Element::container(viewports);
+                        center.add("viewports", row, |viewports| {
+                            for pane in 0..panes {
+                                let mut surface = Style::default();
+                                surface.layout.grow = 1.0;
+                                surface.layout.min_size[0] = Dimension::Pixels(0.0);
+                                let name = viewport::name(pane);
+                                let surface = Element::surface(viewport::image_key(pane), surface)
+                                    .named(name.as_str());
+                                surfaces.push(viewports.add(name.as_str(), surface, |_| {}));
+                            }
+                        });
+                        if played {
+                            let mut panel = column();
+                            panel.layout.size[1] = Dimension::Pixels(CONSOLE_HEIGHT);
+                            panel.layout.shrink = 0.0;
+                            panel.layout.gap = [4.0, 0.0];
+                            panel.layout.padding = Sides::all(8.0);
+                            let panel = Element::container(panel).class("panel").named("console");
+                            center.add("console", panel, |panel| {
+                                let title = Element::label("The game's log", Style::default())
+                                    .class("heading");
+                                panel.add("title", title, |_| {});
+                                let mut lines = column();
+                                lines.layout.grow = 1.0;
+                                lines.layout.min_size[1] = Dimension::Pixels(0.0);
+                                console_slot =
+                                    Some(panel.add_slot("lines", Element::scroll(lines)));
+                            });
+                        }
+                    });
                 });
                 let mut line = Style::default();
                 line.layout.padding = Sides::all(6.0);
@@ -1198,8 +1279,11 @@ impl Model {
         if slot.is_some() {
             self.slot = slot;
             self.history_slot = history_slot;
+            (self.toolbar, self.speeds) = toolbar;
+            self.console_slot = console_slot;
         }
         self.build_history();
+        self.build_console();
         if !surfaces.is_empty() {
             for (pane, surface) in self.panes.iter_mut().zip(surfaces) {
                 pane.surface = Some(surface);
@@ -1247,6 +1331,29 @@ impl Model {
         self.history = rows;
     }
 
+    /// Builds the console's lines again when lines came: the last lines of the game's log, the
+    /// oldest first, in the editor's monospaced text, scrolled to the last
+    /// (`docs/adr/0164-play.md`).
+    fn build_console(&mut self) {
+        let Some(slot) = self.console_slot else {
+            return;
+        };
+        let shared = self.shared.borrow();
+        let mut built = false;
+        self.ui.build(slot, shared.console_revision, |lines| {
+            built = true;
+            for (number, line) in shared.console.iter().enumerate() {
+                let label = Element::label(line.as_str(), Style::default()).class("fixed");
+                lines.add(number, label, |_| {});
+            }
+        });
+        // The last line in sight, as lines come.
+        if built {
+            drop(shared);
+            self.ui.scroll_to(slot, [0.0, f32::MAX]);
+        }
+    }
+
     /// The texts of the status bar, each with its key: the level's file, the steps that it does
     /// not hold, and what is selected.
     fn status(&self) -> Vec<(&'static str, String)> {
@@ -1291,6 +1398,50 @@ impl Model {
         title
     }
 }
+
+/// Adds to `center` Play's toolbar as Play stands, `playing`: Play, Pause or Resume, Step, Stop,
+/// and the speeds of game time, one of four segments, the one in use chosen, 1× while no game runs
+/// (`docs/adr/0164-play.md`). Gives its buttons, each with the operation that it runs, and its
+/// control of speeds.
+fn play_toolbar(
+    center: &mut slime_ui::tree::Children<'_>,
+    playing: Playing,
+) -> (Vec<(ElementId, &'static str)>, Option<ElementId>) {
+    let mut buttons = Vec::new();
+    let mut speeds = None;
+    let mut bar = Style::default();
+    bar.layout.gap = [0.0, 6.0];
+    center.add("play", Element::container(bar).named("play"), |bar| {
+        let (paused, speed) = match playing {
+            Playing::Running { paused, speed } => (paused, speed),
+            Playing::Starting | Playing::Stopped => (false, 1.0),
+        };
+        let pause = if paused { "Resume" } else { "Pause" };
+        for (key, label, name) in [
+            ("start", "Play", "play.start"),
+            ("pause", pause, "play.pause"),
+            ("step", "Step", "play.step"),
+            ("stop", "Stop", "play.stop"),
+        ] {
+            let button = bar.add(key, Element::button(label, Style::default()), |_| {});
+            buttons.push((button, name));
+        }
+        let chosen = SPEEDS
+            .iter()
+            .position(|&(_, value)| value == speed)
+            .unwrap_or(2);
+        let segments = Element::segments(chosen, Style::default()).named("speed of game time");
+        speeds = Some(bar.add("speeds", segments, |segments| {
+            for (label, _) in SPEEDS {
+                segments.add(label, Element::segment(label, Style::default()), |_| {});
+            }
+        }));
+    });
+    (buttons, speeds)
+}
+
+/// The speeds of game time that Play's toolbar offers, each with its label.
+const SPEEDS: [(&str, f64); 4] = [("¼×", 0.25), ("½×", 0.5), ("1×", 1.0), ("2×", 2.0)];
 
 /// Which menu [`Model::open_menu`] opens.
 #[derive(Clone, Copy)]
@@ -2126,6 +2277,14 @@ mod tests {
 
     impl Yard {
         fn new(name: &str) -> Self {
+            Self::playing(name, None)
+        }
+
+        /// The yard, its program playing the game that `play` starts.
+        fn playing(
+            name: &str,
+            play: Option<fn(&crate::Played<'_>) -> std::process::Command>,
+        ) -> Self {
             let directory = std::env::temp_dir()
                 .join(format!("slime-editor-window-{}-{name}", std::process::id()));
             let _ = fs::remove_dir_all(&directory);
@@ -2158,6 +2317,7 @@ mod tests {
                 sources: None,
                 register: |_| {},
                 lighting: Lighting::default(),
+                play,
             };
             let arguments: Vec<OsString> = vec![
                 "--journal".into(),
@@ -2829,7 +2989,7 @@ mod tests {
     /// asset ID (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
     #[test]
     fn a_row_of_the_history_panel_goes_to_its_step_and_a_prefab_is_chosen_in_the_palette() {
-        let mut yard = Yard::new("history");
+        let mut yard = Yard::new("history rows");
         run(&mut yard, "edit.create");
         run(&mut yard, "edit.create");
         let marked = |yard: &Yard| -> Vec<usize> {
@@ -2924,6 +3084,202 @@ mod tests {
             .unwrap_or_else(|error| panic!("{name}: {error}"));
         yard.frame();
         yard.frame();
+    }
+
+    /// The environment variable that makes this test program a stub game, which Play starts.
+    const STUB_GAME: &str = "SLIME_EDITOR_STUB_GAME";
+
+    /// A game that spawns the yard from the cooked data, as Play hands it over, tells the well's
+    /// name in its log, and runs until it is stopped, or ends after a few frames, as a crash, when
+    /// the cooked data holds a file `crash`.
+    struct Stub {
+        assets: PathBuf,
+        frames: u32,
+    }
+
+    impl slime_app::Simulation for Stub {
+        fn start(
+            &mut self,
+            _: &mut slime_app::SimulationContext<'_>,
+            world: &mut World,
+        ) -> Result<(), slime_app::AppError> {
+            let assets = slime_assets::CookedAssets::open(&self.assets)?;
+            let mut scenes = slime_world::SceneLibrary::of(assets);
+            let yard = scenes.resolve(world.registry(), slime_assets::AssetId::from_u128(1))?;
+            world.spawn_scene("yard", &yard)?;
+            let well = world
+                .find(&"yard/well".parse().expect("an identity"))
+                .ok_or("no well")?;
+            let name = world
+                .get::<slime_world::Name>(well)
+                .map(|name| name.0.clone())
+                .unwrap_or_default();
+            tracing::info!("the well is named {name}");
+            Ok(())
+        }
+
+        fn update(&mut self, _: &mut slime_app::SimulationContext<'_>, _: &mut World) {
+            self.frames += 1;
+            if self.frames == 50 && self.assets.join("crash").exists() {
+                std::process::exit(3);
+            }
+            // Headless frames run back to back: a little rest each keeps the test light.
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    }
+
+    /// The stub game, when Play starts this test program as one; nothing otherwise. With a file
+    /// `slow` in the cooked data, it waits half a minute before it starts, as a game that loads.
+    #[test]
+    fn stub_game() {
+        let Some(assets) = std::env::var_os(STUB_GAME) else {
+            return;
+        };
+        if PathBuf::from(&assets).join("slow").exists() {
+            std::thread::sleep(std::time::Duration::from_secs(30));
+        }
+        let mut stub = Stub {
+            assets: PathBuf::from(assets),
+            frames: 0,
+        };
+        slime_app::run(&mut stub, &mut (), &AppConfig::default()).expect("the stub game runs");
+    }
+
+    /// This test program, as the stub game on the cooked data that Play gives.
+    fn stub_command(played: &crate::Played<'_>) -> std::process::Command {
+        let mut command =
+            std::process::Command::new(std::env::current_exe().expect("the test program"));
+        command
+            .args([
+                "--exact",
+                "window::tests::stub_game",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(STUB_GAME, played.assets)
+            .stderr(std::process::Stdio::null());
+        command
+    }
+
+    /// Frames of `yard` until `done` holds, at most for half a minute.
+    fn until(yard: &mut Yard, what: &str, done: impl Fn(&Yard) -> bool) {
+        let started = std::time::Instant::now();
+        while !done(yard) {
+            assert!(
+                started.elapsed() < std::time::Duration::from_secs(30),
+                "{what}: not within half a minute; console: {:?}",
+                yard.shared.borrow().console
+            );
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            yard.frame();
+        }
+    }
+
+    /// A press of the left button in the middle of `element`, as a person's.
+    fn click(yard: &mut Yard, element: ElementId) {
+        let rect = yard.model.ui.rect(element).expect("laid out");
+        yard.model
+            .ui
+            .pointer_moved(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0);
+        yard.model
+            .ui
+            .pointer_button(MouseButton::Left, ButtonState::Pressed);
+        yard.model
+            .ui
+            .pointer_button(MouseButton::Left, ButtonState::Released);
+        yard.frame();
+    }
+
+    /// The button of Play's toolbar that runs `name`.
+    fn button(yard: &Yard, name: &str) -> ElementId {
+        yard.model
+            .toolbar
+            .iter()
+            .find(|(_, each)| *each == name)
+            .map(|&(button, _)| button)
+            .expect("on the toolbar")
+    }
+
+    /// Play starts the game on the level as the editor holds it, a step not written included, the
+    /// user's file left as it was; the toolbar's buttons and speeds, pressed, pause, step, change the
+    /// speed and stop it, the toolbar showing game time as the game says it stands; a game that is
+    /// stopped while it starts ends at once; a game that crashes leaves the editor running, which
+    /// tells the user (`docs/adr/0164-play.md`).
+    #[test]
+    fn play_runs_the_level_as_the_editor_holds_it_and_outlives_its_game() {
+        let mut yard = Yard::playing("play", Some(stub_command));
+        yard.rename("pump");
+        let level = yard.directory.join("yard.scene");
+        let written = fs::read(&level).expect("the level's file");
+        let pressed = button(&yard, "play.start");
+        click(&mut yard, pressed);
+        until(&mut yard, "the game runs on the step not written", |yard| {
+            let shared = yard.shared.borrow();
+            matches!(shared.play, Playing::Running { .. })
+                && shared
+                    .console
+                    .iter()
+                    .any(|line| line.contains("the well is named pump"))
+        });
+        let pressed = button(&yard, "play.pause");
+        click(&mut yard, pressed);
+        let pressed = button(&yard, "play.step");
+        click(&mut yard, pressed);
+        let quarter = yard
+            .model
+            .ui
+            .children(yard.model.speeds.expect("the speeds"))[0];
+        click(&mut yard, quarter);
+        until(
+            &mut yard,
+            "the game says it is paused at a quarter",
+            |yard| {
+                yard.shared.borrow().play
+                    == Playing::Running {
+                        paused: true,
+                        speed: 0.25,
+                    }
+            },
+        );
+        let pressed = button(&yard, "play.stop");
+        click(&mut yard, pressed);
+        until(&mut yard, "the game stops", |yard| {
+            yard.shared.borrow().play == Playing::Stopped
+        });
+        assert_eq!(
+            fs::read(&level).expect("the level's file"),
+            written,
+            "left alone"
+        );
+        // A game slow to start, stopped before it said where it listens: at once.
+        let slow = yard.directory.join("cooked").join("slow");
+        fs::write(&slow, "").expect("written");
+        run(&mut yard, "play.start");
+        run(&mut yard, "play.stop");
+        let asked = std::time::Instant::now();
+        until(&mut yard, "the slow game stops", |yard| {
+            yard.shared.borrow().play == Playing::Stopped
+        });
+        assert!(asked.elapsed() < std::time::Duration::from_secs(5));
+        fs::remove_file(&slow).expect("removed");
+        // A game that crashes while it runs: the editor goes on, and says how it ended.
+        fs::write(yard.directory.join("cooked").join("crash"), "").expect("written");
+        run(&mut yard, "play.start");
+        until(&mut yard, "the crash is seen", |yard| {
+            yard.shared.borrow().play == Playing::Stopped
+        });
+        yard.frame();
+        assert!(
+            yard.model.ui.meaning().iter().any(|meaning| {
+                meaning.name.contains("the game ended") && meaning.name.contains('3')
+            }),
+            "told"
+        );
+        run(&mut yard, "edit.create");
+        assert_eq!(
+            yard.history().0.last().map(String::as_str),
+            Some("Create an entity")
+        );
     }
 
     /// Two viewports side by side, each its own camera and settings, the View menu changing the
