@@ -30,7 +30,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   two at its start too, of which M6c.2a is done, and M6c.2b in two again at its start, M6c.2b and
   M6c.2c, both done; M6c.3 was split in two at its start, M6c.3a and M6c.3b, of which M6c.3a is
   done, and M6c.3b in two again at its start, M6c.3b and M6c.3c, all done; M6c.4 was split in
-  three at its start, M6c.4a, M6c.4b and M6c.4c, of which M6c.4a is done; next: M6c.4b.
+  three at its start, M6c.4a, M6c.4b and M6c.4c, of which M6c.4a and M6c.4b are done; next:
+  M6c.4c.
 
 ## Status
 
@@ -46,7 +47,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.3b](#m6c3b--create-and-arrange) | The user creates, duplicates, deletes, copies, groups and nudges what is selected, each a step | Done |
 | [M6c.3c](#m6c3c--place-prefabs-and-see-the-history) | The user places prefabs and sees the history | Done |
 | [M6c.4a](#m6c4a--play-the-level) | Play runs the level being edited in the game, steps not written included, paused, stepped and stopped from a toolbar, its log in a console | Done |
-| [M6c.4b](#m6c4b--edit-while-playing) | The editor's edits reach the running game, and agents drive both programs | Planned |
+| [M6c.4b](#m6c4b--edit-while-playing) | The editor's edits reach the running game, and agents drive both programs | Done |
 | [M6c.4c](#m6c4c--build-the-game-again-and-measure-play) | A game whose code changed is built again and started on a save of its run, and Play's time is measured | Planned |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
 | [M6c.5](#m6c5--find-and-change) | The user finds any entity in a hierarchy, changes its components in an inspector, and arranges the panels in regions of tabs | Planned |
@@ -738,6 +739,34 @@ engine reads them where every game makes its library of scenes.
 - **How to test.** `cargo test -p slime-editor -p slime-app`; the MCP server's session tests.
 - **By hand.** Edits while playing, on Linux.
 - **Debt settled.** An MCP server that drives one program at a time.
+- **Outcome.** Done on 2026-10-28, as [ADR-0165](adr/0165-editing-while-playing.md) records. While
+  Play runs the game, the editor's core records the texts of the commands that each step made,
+  undone or done again applied (`Editor::record_applied`, `Editor::take_applied`), and the session
+  sends them after each request that it answers, a step at a time, as a request of the development
+  channel, `Request::Apply`, at version 11 of its protocol, which the game reads as its world is and
+  applies through its rules, placing prefabs through the library of scenes that it gives
+  (`Simulation::scenes`); the steps made while the game starts are sent once it runs. A refusal is
+  told, and so is an undone deletion, whose restoration has no text and does not reach the game.
+  The editor says where the game that it plays listens, with its token (`Edit::Played`), and the
+  MCP server's `drive_played_game` points the game's tools at that game and back, the editor's tools
+  reaching the editor all along. The review found faults, each fixed: another level opened while
+  the game played, which silently stopped the sending; one refusal that held up every step sent
+  with it; documents that said that every tool of the game follows the switch, where `stop_game`
+  stops the editor, as they now say; a toolbar that went stale when an agent paused the game
+  itself, which Play's thread now follows by asking the game's time at each look; Play started
+  during a gesture, whose cancel would not reach the game; an editor that refused the placements
+  that a tool applies; and gaps in the documentation and the tests, filled. The tests: the texts recorded step by step (`slime-editor`'s
+  `tests/editor.rs`); a step made while the game starts, a rename, an undo, a deletion and its undo,
+  a refusal, another level refused and Play refused during a gesture, against the stub game
+  (`slime-editor`'s unit tests); the commands applied up to the first refused (`slime-app`'s
+  `tests/channel.rs`); and an agent that drives the `world` example while the editor plays it, a
+  step that raises a lamp and places another reaching the game, a value set reaching the game alone,
+  the token never shown, and the tools pointed back at the editor once the game stops
+  (`crates/slime-mcp/tests/edit.rs`). What nothing checks yet: edits while playing by hand, on
+  Linux and in the Windows virtual machine. Known debt: see "Editing while playing" in [Known
+  debt](#known-debt). CI is green on `ff64197`: `check (headless)` took 15 minutes 31 seconds,
+  `check (windowed)` 4 minutes 27 seconds, `check (game)` 5 minutes 41 seconds, `windows` 17
+  minutes 33 seconds and `windows-release` 14 minutes 9 seconds.
 
 #### M6c.4c — Build the game again and measure Play
 
