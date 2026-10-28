@@ -223,10 +223,11 @@ the ADR linking to it.
 | [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
 | [0153](0153-tab-and-f6-in-a-games-interface.md) | Tab and F6 in a game's interface | Accepted |
 | [0154](0154-floating-panels-and-held-keys.md) | Floating panels and held keys | Accepted |
-| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156, 0158, 0159, 0160, 0161 |
+| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156, 0158, 0159, 0160, 0161, 0162 |
 | [0156](0156-the-editors-window-and-its-operations.md) | The editor's window and its operations | Accepted |
 | [0157](0157-dialogs-the-cursor-held-and-the-gpus-identity.md) | Dialogs, the cursor held and the GPU's identity | Accepted |
 | [0158](0158-the-viewport.md) | The viewport | Accepted; amended by 0159, 0160 |
 | [0159](0159-picking-and-the-selection.md) | Picking and the selection | Accepted; amended by 0160 |
 | [0160](0160-two-viewports-and-blenders-way.md) | Two viewports and Blender's way | Accepted |
 | [0161](0161-the-open-step-and-the-handles.md) | The open step and the handles | Accepted |
+| [0162](0162-creating-copying-and-arranging.md) | Creating, copying and arranging | Accepted |

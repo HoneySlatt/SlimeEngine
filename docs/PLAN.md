@@ -29,7 +29,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   is done, and M6c.1 was split in two at its start, M6c.1a and M6c.1b, both done; M6c.2 was split in
   two at its start too, of which M6c.2a is done, and M6c.2b in two again at its start, M6c.2b and
   M6c.2c, both done; M6c.3 was split in two at its start, M6c.3a and M6c.3b, of which M6c.3a is
-  done; next: M6c.3b.
+  done, and M6c.3b in two again at its start, M6c.3b and M6c.3c; next: M6c.3b.
 
 ## Status
 
@@ -42,7 +42,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.2b](#m6c2b--picking-and-the-selection) | The user picks in the viewport and sees what is selected outlined | Done |
 | [M6c.2c](#m6c2c--a-second-viewport-and-blenders-way) | A second viewport shows the level, and Blender's way is a preset of the keys and the mouse's buttons | Done |
 | [M6c.3a](#m6c3a--move-with-handles) | The user moves, turns and scales what is selected with handles, each gesture a single step of the history | Done |
-| [M6c.3b](#m6c3b--create-and-arrange) | The user creates, duplicates, deletes, copies, groups and places prefabs, each a step, and sees the history | Planned |
+| [M6c.3b](#m6c3b--create-and-arrange) | The user creates, duplicates, deletes, copies, groups and nudges what is selected, each a step | Planned |
+| [M6c.3c](#m6c3c--place-prefabs-and-see-the-history) | The user places prefabs and sees the history | Planned |
 | [M6c.4](#m6c4--play-it) | Play runs the level being edited in the game, steps not written included, and the editor's edits reach the running game | Planned |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
 | [M6c.5](#m6c5--find-and-change) | The user finds any entity in a hierarchy, changes its components in an inspector, and arranges the panels in regions of tabs | Planned |
@@ -519,7 +520,8 @@ at its start, the same day, the second viewport and Blender's way in a third
 ### M6c.3 — Move and place
 
 Split in two at its start, on 2026-10-28, as [ADR-0155](adr/0155-the-editors-design.md) allows:
-the open step and the handles, then creating and arranging.
+the open step and the handles, then creating and arranging; the second in two again at its start,
+the same day, placing prefabs and the history panel in a third.
 
 #### M6c.3a — Move with handles
 
@@ -581,18 +583,29 @@ the open step and the handles, then creating and arranging.
 
 #### M6c.3b — Create and arrange
 
-- **Goal.** The user creates, duplicates, deletes, copies, groups and places prefabs, each a step,
-  and sees the history.
-- **Crates.** `slime-editor`, `slime-world`; the `editor` example.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: creating, duplicating
-  (Ctrl+D, the references inside the copy pointed at the copy, nested overrides kept), deleting,
-  copying and pasting as commands' text on the system's clipboard, repeating the last operation,
-  grouping (Ctrl+G) and nudging; "Place prefab…" from the manifest's scenes; the history panel.
-  The ADR of the design, if one is needed.
+- **Goal.** The user creates, duplicates, deletes, copies, groups and nudges what is selected,
+  each a step.
+- **Crates.** `slime-editor`, `slime-world`, `slime-ui`; the `editor` example.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: creating an empty entity;
+  deleting; duplicating (Ctrl+D), the references inside the copy pointed at the copy, nested
+  overrides kept; copying and pasting as commands' text on the system's clipboard; repeating the
+  last operation; grouping (Ctrl+G); nudging with Ctrl and the arrows. The ADR of the design.
 - **Done when.** Tests of duplicating, its references and overrides, of copying and pasting, of
-  grouping; an agent duplicates and places a prefab by the operations' names; CI is green.
+  grouping, of nudging; an agent duplicates, copies and pastes by the operations' names; the zone
+  written back unchanged once every step is undone; CI is green.
 - **How to test.** `cargo test -p slime-editor -p slime-world`; the MCP server's session tests.
-- **By hand.** Creating, duplicating and placing in the yard and the zone.
+- **By hand.** Creating, duplicating, copying between the yard and the zone, grouping and nudging.
+
+#### M6c.3c — Place prefabs and see the history
+
+- **Goal.** The user places prefabs and sees the history.
+- **Crates.** `slime-editor`; the `editor` example.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: "Place prefab…" from the
+  manifest's scenes; the history panel. The ADR of the design, if one is needed.
+- **Done when.** An agent places a prefab by the operation's name; image tests of the history
+  panel; CI is green.
+- **How to test.** `cargo test -p slime-editor`; the MCP server's session tests.
+- **By hand.** Placing prefabs in the yard and the zone; the history panel.
 
 ### M6c.4 — Play it
 
