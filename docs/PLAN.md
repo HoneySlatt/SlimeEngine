@@ -29,8 +29,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   is done, and M6c.1 was split in two at its start, M6c.1a and M6c.1b, both done; M6c.2 was split in
   two at its start too, of which M6c.2a is done, and M6c.2b in two again at its start, M6c.2b and
   M6c.2c, both done; M6c.3 was split in two at its start, M6c.3a and M6c.3b, of which M6c.3a is
-  done, and M6c.3b in two again at its start, M6c.3b and M6c.3c, of which M6c.3b is done; next:
-  M6c.3c.
+  done, and M6c.3b in two again at its start, M6c.3b and M6c.3c, all done; next: M6c.4.
 
 ## Status
 
@@ -44,7 +43,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.2c](#m6c2c--a-second-viewport-and-blenders-way) | A second viewport shows the level, and Blender's way is a preset of the keys and the mouse's buttons | Done |
 | [M6c.3a](#m6c3a--move-with-handles) | The user moves, turns and scales what is selected with handles, each gesture a single step of the history | Done |
 | [M6c.3b](#m6c3b--create-and-arrange) | The user creates, duplicates, deletes, copies, groups and nudges what is selected, each a step | Done |
-| [M6c.3c](#m6c3c--place-prefabs-and-see-the-history) | The user places prefabs and sees the history | Planned |
+| [M6c.3c](#m6c3c--place-prefabs-and-see-the-history) | The user places prefabs and sees the history | Done |
 | [M6c.4](#m6c4--play-it) | Play runs the level being edited in the game, steps not written included, and the editor's edits reach the running game | Planned |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
 | [M6c.5](#m6c5--find-and-change) | The user finds any entity in a hierarchy, changes its components in an inspector, and arranges the panels in regions of tabs | Planned |
@@ -639,6 +638,32 @@ the same day, placing prefabs and the history panel in a third.
   panel; CI is green.
 - **How to test.** `cargo test -p slime-editor`; the MCP server's session tests.
 - **By hand.** Placing prefabs in the yard and the zone; the history panel.
+- **Outcome.** Done on 2026-10-28, as
+  [ADR-0163](adr/0163-placing-prefabs-and-the-history-panel.md) records. *Edit* > *Place a
+  prefab…* opens the palette on the cooked data's scenes and scene files, the level left out, each
+  named by its source file, the scenes of one file by the file and the scene's name, listed as the
+  level opens; the one chosen is placed, as `edit.place` places it by its asset ID or its name, at
+  the middle of what is selected or at the world's origin, and selected; a prefab that places the
+  level is refused (`ResolvedScene::places`). A panel below the world panel shows the history, a
+  row before the first step kept, the steps done, the steps undone dimmed, the step that the level
+  stands at marked; a press on a row goes to its step, as `edit.go_to_step` does, each undo or
+  redo between journaled. The review found faults, each fixed: the panel's rows built again at
+  each frame of a drag; a glTF file of several scenes listed as one name twice; a placement's
+  command written by hand as text, which escaped nothing; a prefab that places the level, which
+  would then hold itself; the prefabs listed again at each request; the first row's label, wrong
+  once the history forgets; an empty palette without a word; and a test of the palette that
+  checked nothing, filled with what it misses. The tests: what a scene places
+  (`crates/slime-world/tests/commands.rs`); the prefabs listed, a row of the panel pressed, the
+  palette of prefabs and its choice (`slime-editor`'s unit tests); the history panel in an image
+  test (`examples/tests/reference/editor-history.png`), every reference of the window drawn again
+  for the panel; and an agent that places a lamp by its file and by its asset ID, is refused the
+  level and what the cooked data does not hold, and goes back and forth in the history
+  (`crates/slime-mcp/tests/edit.rs`). What nothing checks yet: placing prefabs and the history
+  panel by hand, in the yard and the zone, and in the Windows virtual machine. Known debt: see
+  "Placing prefabs and the history panel" in [Known debt](#known-debt). CI is green on `b5b350b`:
+  `check (headless)` took 14 minutes 25 seconds, `check (windowed)` 5 minutes 25 seconds,
+  `check (game)` 6 minutes 24 seconds, `windows` 14 minutes 52 seconds and `windows-release` 17
+  minutes 7 seconds.
 
 ### M6c.4 — Play it
 
