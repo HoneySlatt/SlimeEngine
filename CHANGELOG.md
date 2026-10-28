@@ -60,6 +60,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The palette of commands lists every command found, scrolling past the window's height, the
   chosen one kept in sight, where it showed 12 at most.
 - `AppConfig::pace_headless` is gone: `AppConfig::on_demand` replaces it.
+- The renderer records a frame's passes sixteen to a submission, a whole frame of the samples in
+  one, where it recorded four: measured on a GPU whose memory that the CPU maps is a small window
+  that the desktop fills, it costs the CPU least (ADR-0158, `docs/measurements.md`).
 - `slime_editor::window_image` takes the operations to run before it draws.
 - `slime_channel::Listener::open` takes what wakes the game as a request comes.
 

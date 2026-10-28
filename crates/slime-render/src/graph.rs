@@ -19,12 +19,11 @@ use slime_gfx::{
 use crate::renderer::Pass;
 
 /// The most passes one submission takes: the frame's passes are recorded in order, this many to a
-/// submission. Fewer submissions cost the CPU less (on an RX 6900 XT, about 35 µs each with its
-/// timer), but on a GPU whose memory that the CPU can map is a 256 MiB window (no resizable BAR),
-/// nearly filled by the desktop's programs, one submission of a whole bloomed frame spent up to
-/// 8 ms in the kernel in one frame of ten, where submissions of up to six passes never did
-/// (ADR-0041).
-const PASSES_PER_SUBMISSION: usize = 4;
+/// submission, a whole frame of the samples in one. Fewer submissions cost the CPU less, the most on
+/// a GPU whose memory that the CPU can map is a 256 MiB window (no resizable BAR) that the desktop's
+/// programs fill, without the occasional stall in the kernel that ADR-0041 measured for a whole
+/// frame at M3b.8 and kept four passes against (ADR-0158; the figures in `docs/measurements.md`).
+const PASSES_PER_SUBMISSION: usize = 16;
 /// A target of a graph, render or depth target: what a pass samples.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct TargetId(usize);

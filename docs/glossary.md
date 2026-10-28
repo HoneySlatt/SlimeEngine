@@ -1323,8 +1323,8 @@ file, whose ID is derived from the file's ID, its kind and its name
 
 **Submission.** Recorded GPU work handed to the GPU at once (`slime_gfx::Gpu::submit`, or the single
 pass of `Gpu::render`): one call into the driver, and a unit of synchronization on the GPU. Each
-costs CPU time, so the renderer records its passes four to a submission
-([ADR-0041](adr/0041-render-graph.md)).
+costs CPU time, so the renderer records its passes sixteen to a submission, a whole frame of the
+samples in one ([ADR-0158](adr/0158-the-viewport.md)).
 
 **Subpixel position.** One of the positions between two pixels at which a *glyph*'s origin is
 rasterized, across the line, so that glyphs are spaced as their advances say rather than rounded

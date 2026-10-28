@@ -1183,3 +1183,45 @@ zone whole. The benchmarks are not measured.
 |---|---|---|
 | a request of the development channel, answered at once, median of 21 | 82 ms | 0.14 ms |
 | the session `drive`, on four cores, lavapipe | 426 s | 21 s |
+
+## M6c.2a, RX 6900 XT
+
+On 2026-10-28, before the commits of M6c.2a: what `PASSES_PER_SUBMISSION`
+(`crates/slime-render/src/graph.rs`) and the bloom cost the CPU of `Renderer::render` while the
+desktop fills the GPU's memory that the CPU maps, where an editor's viewport draws
+([ADR-0155](adr/0155-the-editors-design.md), [ADR-0158](adr/0158-the-viewport.md)). On an AMD Ryzen
+7 5800X and an RX 6900 XT through RADV (Mesa 26.2.4), whose memory that the CPU maps is a window of
+256 MiB without resizable BAR, which the owner's desktop and its programs held whole at each run
+(`mem_info_vis_vram_used` at 268 435 456 bytes before each). A release build, the benchmark
+`render.instances.10k` (`benches/README.md`), its scene's bloom at its strength of 0.04 or at 0,
+`PASSES_PER_SUBMISSION` changed for each run and given back after. Medians of 30 frames, in
+milliseconds of CPU, at 1280 × 800, 1920 × 1080 and 3840 × 2160; the GPU's passes, summed, took
+0.18, 0.26 and 0.69 ms whatever the passes per submission. A second run of 4, 8 and 16 with the
+bloom gave the 90th percentiles of the last table, and medians within 0.2 ms of the first's.
+
+| Passes per submission | Bloom | 1280 × 800 | 1920 × 1080 | 3840 × 2160 |
+|---|---|---|---|---|
+| 1 | on | 8.26 | 8.88 | 9.72 |
+| 2 | on | 5.30 | 6.13 | 6.64 |
+| 4, today's | on | 4.23 | 4.68 | 5.30 |
+| 8 | on | 3.77 | 4.43 | 4.82 |
+| 16, a whole frame | on | 3.51 | 4.12 | 4.65 |
+| 1 | off | 3.67 | 3.62 | 3.57 |
+| 2 | off | 2.94 | 2.97 | 2.97 |
+| 4, today's | off | 2.92 | 2.96 | 2.87 |
+| 8 | off | 2.67 | 2.61 | 2.59 |
+| 16, a whole frame | off | 2.63 | 2.53 | 2.51 |
+
+| Passes per submission, bloom on | 1280 × 800, 90th percentile | 1920 × 1080 | 3840 × 2160 |
+|---|---|---|---|
+| 4, today's | 4.59 | 5.18 | 5.44 |
+| 8 | 3.90 | 4.52 | 5.05 |
+| 16, a whole frame | 3.68 | 4.32 | 4.91 |
+
+What it says: in the stall, a frame's CPU grows with its submissions, the bloom's many small passes
+the most of them; a whole frame in one submission costs least, and its 90th percentile shows none of
+the occasional 8 ms that [ADR-0041](adr/0041-render-graph.md) measured for it at M3b.8, so that the
+reason to keep 4 holds no longer on this machine. The owner chose 16 on 2026-10-28
+([ADR-0158](adr/0158-the-viewport.md)), which the benchmarks measure from M6c.2a's commits on. The
+viewport draws only when what it shows changes, which hides most of it: flying draws it at every
+frame, at some 4 to 5 ms of CPU here.

@@ -116,8 +116,9 @@ Risks, whose figures ADR-0155's context gives:
 - **[ADR-0041](adr/0041-render-graph.md)'s stall decides how the editor feels on machines without
   resizable BAR**, the owner's included: a view drawn again costs several milliseconds of CPU once
   the desktop fills the GPU's memory that the CPU maps. Drawing on demand hides most of it; M6c.2a
-  measures `PASSES_PER_SUBMISSION` and the bloom there. The editor and the game running at once,
-  two devices on one GPU, and Windows were never measured.
+  measured `PASSES_PER_SUBMISSION` and the bloom there ([`docs/measurements.md`](measurements.md)).
+  The editor and the game running at once, two devices on one GPU, and Windows were never
+  measured.
 - **The cursor held and the mouse's raw motion were never run**, on any system: the study read
   winit's sources. M6c.1b tries them first, by hand, on niri, Hyprland, X11 through XWayland and in
   the Windows virtual machine, where relative motion may be missing.
@@ -1219,18 +1220,14 @@ GitHub issues, linked from their entry; this list stays the reference.
   reflections of the sky (49 at M3b.6, before the bloom; 33 before the shadow map followed the
   camera and the output was dithered). A change that adds fine or reflective detail may exceed it;
   measure it again then.
-- **Four passes per submission is a number measured on one machine** (ADR-0041). On the owner's
-  RX 6900 XT (RADV), whose memory that the CPU can map is a 256 MiB window, one submission of a
-  whole bloomed frame stalled in the kernel once the desktop's programs and a test program filled
-  that window to 241 MiB (a mean 2.4 ms, 8 ms in one frame of ten, at 1920 × 1080); submissions of
-  2 to 6 passes did not, 8 did. The cause in the kernel is not established; Direct3D 12 and other
-  GPUs are not measured, and a GPU with resizable BAR has no such window. To measure: the CPU time
-  of `render` at 1920 × 1080 with the sample's bloom, for several values of
-  `PASSES_PER_SUBMISSION` in `crates/slime-render/src/graph.rs`, with the window filled to
-  several levels, by the desktop's programs or by a program that allocates device-local,
-  host-visible memory (on Linux, `mem_info_vis_vram_used` in the GPU's sysfs directory tells how
-  full it is). M6c.2a measures it so, the bloom on and off, since the editor's viewports meet the
-  stall ([ADR-0155](adr/0155-the-editors-design.md)).
+- **Sixteen passes per submission is a number measured on one machine**
+  ([ADR-0158](adr/0158-the-viewport.md)). On the owner's RX 6900 XT (RADV), whose memory that the
+  CPU can map is a 256 MiB window that the desktop's programs filled whole, a whole bloomed frame in
+  one submission cost the CPU least, without the occasional stall in the kernel that ADR-0041
+  measured for it at M3b.8 and kept four passes against ([`docs/measurements.md`](measurements.md));
+  the owner chose sixteen on 2026-10-28. Direct3D 12 and other GPUs are not measured: the Windows
+  virtual machine checks it at a checkpoint, and a stall that came back would show as such spikes in
+  `render.instances.10k`'s 90th percentile.
 - **The render graph trusts what a pass says it samples from imported targets** (ADR-0041). The
   groups that sample transient targets are built from the declarations, but the scene pass's group
   holding the shadow atlases is built by the renderer: a pass that binds an imported target must

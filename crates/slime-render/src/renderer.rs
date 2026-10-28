@@ -296,7 +296,7 @@ pub struct RenderStats {
     pub triangles: u64,
     /// How long the view's part of [`Renderer::render`] took on the CPU: working out what it draws,
     /// packing its values, making its targets when they change, recording its passes and
-    /// submitting them, four to a submission (ADR-0041); not what the call does once for every
+    /// submitting them, sixteen to a submission (ADR-0158); not what the call does once for every
     /// view, checking the lights, creating the atlases and renewing the uploader's budget. It
     /// includes any wait inside a submission: lavapipe runs a submission only once the previous one
     /// is done, so on lavapipe it holds the GPU work of the frame's earlier submissions, and in a
@@ -304,15 +304,16 @@ pub struct RenderStats {
     /// targets at a new size.
     pub cpu_time: Duration,
     /// How long the GPU took to draw the scene into the high-dynamic-range target: the latest time
-    /// that has come back, a few frames old. The passes of a frame are timed four to a submission
-    /// (ADR-0041): the times of the passes of one submission come from the same frame, those of
-    /// different submissions can come from different frames, usually consecutive ones. `None` on
-    /// adapters that cannot time their work ([`Gpu::can_time`](slime_gfx::Gpu::can_time)), until
-    /// the first time comes back, and for a few frames after the view's passes or targets change
-    /// (the size of its targets, its anti-aliasing, a pass turned on or off, by its settings or
-    /// by the scene, its place first among the views of a call that draw shadows or not), until
-    /// the submission that holds the pass has its first time. A view whose frame changes at every
-    /// call, its passes turned on and off in turn for example, gets no tone-mapping or bloom time.
+    /// that has come back, a few frames old. The passes of a frame are timed sixteen to a
+    /// submission (ADR-0158): the times of the passes of one submission come from the same frame,
+    /// those of different submissions can come from different frames, usually consecutive ones.
+    /// `None` on adapters that cannot time their work
+    /// ([`Gpu::can_time`](slime_gfx::Gpu::can_time)), until the first time comes back, and for a
+    /// few frames after the view's passes or targets change (the size of its targets, its
+    /// anti-aliasing, a pass turned on or off, by its settings or by the scene, its place first
+    /// among the views of a call that draw shadows or not), until the submission that holds the
+    /// pass has its first time. A view whose frame changes at every call, its passes turned on and
+    /// off in turn for example, gets no tone-mapping or bloom time.
     pub scene_gpu_time: Option<Duration>,
     /// How long the GPU took for the tone-mapping pass, under the same rules. On Vulkan, each time
     /// runs from the end of the work before the pass to its end, so the times of a frame do not
@@ -1597,9 +1598,9 @@ impl Renderer {
     /// colors as they are: a view that covers its
     /// target clears it first, one that draws into a part of it leaves the rest as it was. When the
     /// client draws over the image, a last pass lays its lines over the view's rectangle. A render
-    /// graph orders each view's passes, and they are recorded in that order, four to a submission
-    /// named after the view and its target (ADR-0041), one view after the other; the work runs on
-    /// the GPU after this method returns.
+    /// graph orders each view's passes, and they are recorded in that order, sixteen to a
+    /// submission named after the view and its target (ADR-0041, ADR-0158), one view after the
+    /// other; the work runs on the GPU after this method returns.
     ///
     /// What the views share is drawn once or in turn (ADR-0126): every view draws the same lights,
     /// those that the renderer can draw from every view's camera; the first view that draws
