@@ -60,8 +60,9 @@ game.join().expect("the game answered");
 
 - `Token`: the secret, drawn with `Token::generate`, written as 32 hexadecimal digits, compared in
   a time that does not depend on where two tokens differ; its `Debug` form hides it.
-- `Listener::open(token, program)`: the game's end, which `slime-app`'s `run` opens when the
-  environment gives a token; `Listener::next` gives a request that waits, which the game answers
+- `Listener::open(token, program, wake)`: the game's end, which `slime-app`'s `run` opens when the
+  environment gives a token, and which calls `wake` as each request comes, so that a game that
+  waits runs a frame; `Listener::next` gives a request that waits, which the game answers
   with `Incoming::answer`, or with `Incoming::answer_with` when the reply carries an image's
   pixels.
 - `launch(&mut command, timeout)`: starts a game with a new token, and waits for it to say where it

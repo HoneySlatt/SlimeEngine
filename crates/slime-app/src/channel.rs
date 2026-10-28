@@ -69,6 +69,7 @@ fn watch_standard_input() {
             let _ = std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink());
             tracing::info!("the tool that started the game ended: the run stops");
             TOOL_ENDED.store(true, Ordering::Relaxed);
+            crate::wake::wake_current();
         });
     if let Err(error) = watching {
         tracing::warn!(%error, "the game cannot watch for the end of the tool that started it");
@@ -78,7 +79,8 @@ fn watch_standard_input() {
 impl DevChannel {
     /// Listens when the environment gives a token ([`TOKEN_ENV_VAR`]), and writes where it listens
     /// on the standard output; `None` without a token, or when it cannot listen, which the log says.
-    pub(crate) fn open() -> Option<Self> {
+    /// Each request that comes wakes the run through `waker`.
+    pub(crate) fn open(waker: crate::Waker) -> Option<Self> {
         let text = std::env::var(TOKEN_ENV_VAR).ok()?;
         let token = match text.parse::<Token>() {
             Ok(token) => token,
@@ -91,7 +93,7 @@ impl DevChannel {
             .ok()
             .and_then(|path| Some(path.file_stem()?.to_string_lossy().into_owned()))
             .unwrap_or_default();
-        let listener = match Listener::open(token, &program) {
+        let listener = match Listener::open(token, &program, move || waker.wake()) {
             Ok(listener) => listener,
             Err(error) => {
                 tracing::error!(%error, "the development channel cannot listen");
@@ -207,6 +209,12 @@ impl DevChannel {
     /// Whether a capture waits for this frame's image.
     pub(crate) fn wants_capture(&self) -> bool {
         !self.captures.is_empty()
+    }
+
+    /// Whether what a tool asked waits for the next frame: a capture, the steps asked for, or a
+    /// picking that the presentation answers a frame or more later.
+    pub(crate) fn waiting(&self) -> bool {
+        !self.captures.is_empty() || !self.steps.is_empty() || !self.picks.is_empty()
     }
 
     /// Answers the captures that wait with `target`, the frame's image, drawn and not yet shown, or

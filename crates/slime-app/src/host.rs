@@ -12,6 +12,7 @@ use crate::error::AppError;
 use crate::game::Simulation;
 use crate::signal;
 use crate::time::{FixedStep, FrameClock, GameClock, Time};
+use crate::wake::Waker;
 
 /// What runs a game's [`Simulation`] (`docs/adr/0107-the-execution-model.md`): it owns the world,
 /// real time and game time, the input and the commands queued, and runs the first four phases of
@@ -157,17 +158,19 @@ impl Host {
             input: &self.input,
             time: &self.context.time,
             exit: &mut self.context.exit,
+            waker: &self.context.waker,
         };
         (ctx, &mut self.world)
     }
 }
 
-/// What the host gives a [`Simulation`] with the world: the input, both times, and the run's stop.
-/// It holds no GPU and no window.
+/// What the host gives a [`Simulation`] with the world: the input, both times, the run's stop and
+/// its waker. It holds no GPU and no window.
 pub struct SimulationContext<'a> {
     input: &'a Input,
     time: &'a Time,
     exit: &'a mut Exit,
+    waker: &'a Waker,
 }
 
 impl SimulationContext<'_> {
@@ -196,6 +199,11 @@ impl SimulationContext<'_> {
     pub fn exit_requested(&self) -> bool {
         self.exit.requested()
     }
+
+    /// The run's [`Waker`]: [`Context::waker`].
+    pub fn waker(&self) -> Waker {
+        self.waker.clone()
+    }
 }
 
 /// What the host gives a presentation, and whoever drives it: the window and the GPU when it has
@@ -213,6 +221,10 @@ pub struct Context {
     commands: Vec<Command>,
     /// The commands that the simulation refused at this frame's start, and why.
     refused: Vec<(Command, AppError)>,
+    /// Wakes the run from other threads.
+    waker: Waker,
+    /// Whether the program asked for another frame since the run last looked.
+    frame_requested: bool,
 }
 
 impl Context {
@@ -226,7 +238,26 @@ impl Context {
             clock,
             commands: Vec::new(),
             refused: Vec::new(),
+            waker: Waker::default(),
+            frame_requested: false,
         }
+    }
+
+    /// Asks for another frame, in a run whose frames run on demand
+    /// ([`AppConfig::on_demand`](crate::AppConfig::on_demand)): what the program changed, or
+    /// asked of another part, shows or is answered then. Any other run runs its frames anyway.
+    pub fn request_frame(&mut self) {
+        self.frame_requested = true;
+    }
+
+    /// Whether the program asked for another frame since the last call, which forgets it.
+    pub(crate) fn take_frame_request(&mut self) -> bool {
+        std::mem::take(&mut self.frame_requested)
+    }
+
+    /// The run's [`Waker`], with which another thread asks it for a frame: a load that ended.
+    pub fn waker(&self) -> Waker {
+        self.waker.clone()
     }
 
     /// Asks the engine to stop. The current frame finishes, then the presentation's and the

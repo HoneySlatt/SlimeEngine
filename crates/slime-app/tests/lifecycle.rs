@@ -3,6 +3,8 @@
 //! with a presentation, is checked by `windowed_lifecycle.rs`, which `scripts/check.sh` runs in a
 //! headless compositor (ADR-0024), and the errors of a windowed run by `windowed_errors.rs`.
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use slime_app::{AppConfig, AppError, Host, RunError, Simulation, SimulationContext, run};
@@ -407,30 +409,63 @@ fn a_refused_command_changes_nothing_and_is_handed_back_for_one_frame() {
 }
 
 #[test]
-fn a_paced_headless_run_waits_for_each_frame_and_still_steps_one_fixed_step_each() {
-    let mut game = Recorder::default();
+fn a_headless_run_on_demand_runs_a_frame_only_when_something_asks_for_one() {
+    /// Woken four times, 40 ms apart, from a thread of its own, then once more, 200 ms later, to
+    /// stop.
+    #[derive(Default)]
+    struct Woken {
+        frames: u32,
+        steps: u32,
+        done: Arc<AtomicBool>,
+        thread: Option<std::thread::JoinHandle<()>>,
+    }
+    impl Simulation for Woken {
+        fn start(
+            &mut self,
+            ctx: &mut SimulationContext<'_>,
+            _: &mut World,
+        ) -> Result<(), AppError> {
+            let (waker, done) = (ctx.waker(), Arc::clone(&self.done));
+            self.thread = Some(std::thread::spawn(move || {
+                for _ in 0..4 {
+                    std::thread::sleep(Duration::from_millis(40));
+                    waker.wake();
+                }
+                std::thread::sleep(Duration::from_millis(200));
+                done.store(true, Ordering::SeqCst);
+                waker.wake();
+            }));
+            Ok(())
+        }
+        fn fixed_step(&mut self, _: &mut SimulationContext<'_>, _: &mut World) {
+            self.steps += 1;
+        }
+        fn update(&mut self, ctx: &mut SimulationContext<'_>, _: &mut World) {
+            self.frames += 1;
+            if self.done.load(Ordering::SeqCst) {
+                ctx.request_exit();
+            }
+        }
+    }
+    let mut woken = Woken::default();
     let config = AppConfig {
         max_frame_rate: 100,
-        pace_headless: true,
-        ..config(Some(6))
+        on_demand: true,
+        ..AppConfig::default()
     };
     let started = std::time::Instant::now();
-    run(&mut game, &mut (), &config).expect("this game starts");
-    // Six frames, scheduled 10 ms apart: the last starts 50 ms after the first.
+    run(&mut woken, &mut (), &config).expect("this program starts");
+    woken.thread.take().expect("started").join().expect("woken");
     assert!(
-        started.elapsed() >= Duration::from_millis(50),
+        started.elapsed() >= Duration::from_millis(360),
         "{:?}",
         started.elapsed()
     );
-    let steps = game
-        .calls
-        .iter()
-        .filter(|call| matches!(call, Call::FixedStep(_)))
-        .count();
-    assert_eq!(
-        steps, 6,
-        "one fixed step per frame, as an unpaced headless run"
-    );
+    // The first frame, then one for each of the five wakes, 40 ms apart or more, of which two
+    // might merge on a loaded machine: a run that missed its wakes would run fewer, and one paced
+    // at 100 frames per second would have run 36.
+    assert!((4..=6).contains(&woken.frames), "{} frames", woken.frames);
+    assert_eq!(woken.steps, woken.frames, "one fixed step per frame");
 }
 
 /// A simulation that keeps the commands sent to it rather than applying them to the world, as an

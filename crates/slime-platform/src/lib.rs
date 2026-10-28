@@ -15,7 +15,7 @@ pub use accessibility::Accessibility;
 pub use clipboard::Clipboard;
 pub use error::PlatformError;
 pub use event::Event;
-pub use event_loop::{EventHandler, LoopControl, run_event_loop};
+pub use event_loop::{EventHandler, LoopControl, Waker, run_event_loop};
 pub use held::{Buttons, Input};
 pub use slime_input::{
     ButtonState, CursorShape, Ime, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey,

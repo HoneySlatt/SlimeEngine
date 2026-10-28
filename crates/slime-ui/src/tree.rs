@@ -1125,6 +1125,9 @@ pub struct Ui {
     built: usize,
     /// The lists whose rows changed, and nothing else: their rows are laid out again alone.
     relaid: Vec<ElementId>,
+    /// The builders asked to run again though their revision did not move: a list that shows rows
+    /// that its builder has not built, a bar of tabs whose chosen tab changed.
+    asked: Vec<ElementId>,
     /// The elements whose content scrolled: what lies below them is placed again.
     scrolled: Vec<ElementId>,
     /// The elements whose style is to be made again.
@@ -1182,6 +1185,7 @@ impl Ui {
             texts: TextCache::new(TEXT_CACHE_BUDGET),
             built: 0,
             relaid: Vec::new(),
+            asked: Vec::new(),
             scrolled: Vec::new(),
             restyled: Vec::new(),
             interaction: Interaction::default(),
@@ -1354,6 +1358,7 @@ impl Ui {
         let node = self.node_mut(parent).expect("built above");
         node.built = Some(revision);
         node.rebuild = false;
+        self.asked.retain(|&asked| asked != parent);
     }
 
     /// Styles the elements with the rules of `sheets`, in their order and the order of their
@@ -1510,6 +1515,10 @@ impl Ui {
             elements: self.len(),
             ..FrameStats::default()
         };
+        // The builders asked that are gone, or that a build ran, are asked no more.
+        let mut asked = std::mem::take(&mut self.asked);
+        asked.retain(|&id| self.node(id).is_some_and(|node| node.rebuild));
+        self.asked = asked;
         // Transitions move on to the clock; then styles: a style that changed lays its element
         // out again. The input's states follow what they made, a focus hidden or disabled dropped,
         // and are styled in turn.
@@ -1572,11 +1581,40 @@ impl Ui {
         for root in &self.roots {
             paint::gather(self, *root, &mut list);
         }
-        stats.animating = !self.moving.is_empty()
-            || self.resting()
-            || !self.spinning.is_empty()
-            || self.notices_waiting();
+        stats.animating = self.animating() || self.next_change().is_some();
         (list, stats)
+    }
+
+    /// Whether the interface moves on its own and needs every frame though nothing else changes: a
+    /// transition goes on, or a bar of progress without a share moves. A program that draws only
+    /// when something changes asks for the next frame while it holds, and for one after
+    /// [`Ui::next_change`].
+    pub fn animating(&self) -> bool {
+        !self.moving.is_empty() || !self.spinning.is_empty()
+    }
+
+    /// Whether the interface needs the next frame, though nothing else changes: it moves
+    /// ([`Ui::animating`]), or a builder must run again, a list showing rows that its builder has
+    /// not built since it scrolled or was laid out, which the program's next [`Ui::build`] runs. A
+    /// program that draws only when something changes asks for the next frame while it holds, and
+    /// for one after [`Ui::next_change`].
+    pub fn needs_frame(&self) -> bool {
+        self.animating()
+            || self
+                .asked
+                .iter()
+                .any(|&id| self.node(id).is_some_and(|node| node.rebuild))
+    }
+
+    /// How long, on the interface's clock ([`Ui::advance`]), until it changes on its own, though
+    /// it does not move meanwhile: the pointer rests where a tooltip will show or a submenu open,
+    /// or a notification waits for its time to end. A program that draws only when something
+    /// changes asks for a frame then; none when nothing waits.
+    pub fn next_change(&self) -> Option<Duration> {
+        self.rest_remaining()
+            .into_iter()
+            .chain(self.notice_remaining())
+            .min()
     }
 
     pub(crate) fn node(&self, id: ElementId) -> Option<&Node> {
@@ -1938,10 +1976,18 @@ impl Ui {
         } else {
             node.owner
         };
-        if let Some(builder) = builder
-            && let Some(builder) = self.node_mut(builder)
-        {
-            builder.rebuild = true;
+        if let Some(builder) = builder {
+            self.ask_build(builder);
+        }
+    }
+
+    /// Asks the builder of `id` to run again at the next [`Ui::build`] of it, whatever its revision.
+    pub(crate) fn ask_build(&mut self, id: ElementId) {
+        if let Some(node) = self.node_mut(id) {
+            node.rebuild = true;
+            if !self.asked.contains(&id) {
+                self.asked.push(id);
+            }
         }
     }
 

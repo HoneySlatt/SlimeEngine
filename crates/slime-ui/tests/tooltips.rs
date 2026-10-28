@@ -78,6 +78,26 @@ fn key(ui: &mut Ui, named: NamedKey) -> bool {
 }
 
 #[test]
+fn the_interface_says_when_a_rest_will_show_a_tooltip_without_needing_frames_meanwhile() {
+    let (mut ui, _, _) = interface();
+    assert_eq!(ui.next_change(), None, "nothing waits");
+    assert!(!ui.needs_frame());
+    ui.pointer_moved(50.0, 15.0);
+    ui.frame();
+    assert_eq!(ui.next_change(), Some(Duration::from_millis(500)));
+    assert!(!ui.needs_frame(), "a rest needs no frame before its end");
+    ui.advance(Duration::from_millis(300));
+    assert_eq!(ui.next_change(), Some(Duration::from_millis(200)));
+    wait(&mut ui, 200);
+    assert!(tooltip(&ui).is_some());
+    assert_eq!(ui.next_change(), None, "shown: nothing more waits");
+    // Resting on what has no tooltip waits for nothing.
+    ui.pointer_moved(50.0, 250.0);
+    ui.frame();
+    assert_eq!(ui.next_change(), None);
+}
+
+#[test]
 fn a_tooltip_shows_below_its_element_once_the_pointer_has_rested_on_it() {
     let (mut ui, _, [save, _]) = interface();
     ui.pointer_moved(50.0, 15.0);

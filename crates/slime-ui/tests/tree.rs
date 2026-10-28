@@ -403,15 +403,22 @@ fn a_list_of_100_000_rows_builds_lays_out_and_draws_only_the_rows_that_show() {
     let list = build(&mut ui, 0);
     ui.frame();
     assert_eq!(ui.children(list).len(), 0);
+    // A program that draws only when something changes runs the next frame for them.
+    assert!(ui.needs_frame(), "its rows wait for the builder");
     build(&mut ui, 0);
     let (_, stats) = ui.frame();
     assert_eq!((stats.built, stats.layouts, stats.lists), (1, 0, 1));
     assert_eq!(ui.children(list).len(), 15);
+    assert!(!ui.needs_frame());
     assert_eq!(stats.elements, 2 + 15);
     let row = ui.children(list)[3];
     assert_eq!(ui.rect(row), Some(Rect::new(0.0, 60.0, 400.0, 20.0)));
     // Scrolled far: the rows that show then, at their places, cut to the list.
     ui.scroll_to(list, [0.0, 20.0 * 50_000.0 + 10.0]);
+    assert!(
+        ui.needs_frame(),
+        "scrolled, other rows wait for the builder"
+    );
     build(&mut ui, 0);
     let (display, stats) = ui.frame();
     assert_eq!((stats.built, stats.layouts, stats.lists), (1, 0, 1));

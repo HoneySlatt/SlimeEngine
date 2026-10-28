@@ -67,15 +67,18 @@ impl Ui {
         self.hide_tooltip()
     }
 
-    /// Whether the pointer rests where a tooltip will show or a submenu open, which the clock must
-    /// move on for.
-    pub(crate) fn resting(&self) -> bool {
+    /// How long the pointer must rest still before a tooltip shows or a submenu opens where it
+    /// rests, on the interface's clock; none when it rests where neither will.
+    pub(crate) fn rest_remaining(&self) -> Option<Duration> {
         let rest = &self.interaction.rest;
-        let Some(on) = rest.on else {
-            return false;
-        };
-        (!rest.tip_done && self.tooltip_of(on).is_some())
-            || (!rest.menu_done && self.is_menu_item(on))
+        let on = rest.on?;
+        let rested = self.now.saturating_sub(rest.since);
+        let menu = (!rest.menu_done && self.is_menu_item(on)).then_some(SUBMENU_REST);
+        let tip = (!rest.tip_done && self.tooltip_of(on).is_some()).then_some(TOOLTIP_REST);
+        menu.into_iter()
+            .chain(tip)
+            .min()
+            .map(|rest| rest.saturating_sub(rested))
     }
 
     /// What the pointer resting does once it has rested long enough on the interface's clock: an

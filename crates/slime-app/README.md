@@ -178,9 +178,7 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   (`docs/adr/0012-clean-shutdown-on-termination-signals.md`).
   - Headless: frames run back to back with simulated time: each frame represents one fixed step,
     so runs are deterministic. Neither the windowing system nor the GPU is touched, and the
-    presentation is not called. `AppConfig::pace_headless` schedules them at
-    `AppConfig::max_frame_rate` instead, the loop sleeping in between, as the editor's program,
-    which waits for its tools, asks (`docs/adr/0135-the-editors-program.md`).
+    presentation is not called.
   - With a window, `run` must be called from the main thread (it panics otherwise). The window and
     the GPU exist before the `start` methods. Frames represent the real time between them. The
     engine asks for a frame on average at most `AppConfig::max_frame_rate` times per second (60 by
@@ -193,6 +191,14 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
     included (`docs/adr/0021-frame-pacing.md`). With `PresentMode::Fifo`, every image is shown
     in step with the display, which can block a frame: up to one second when the compositor
     rarely shows a hidden window.
+  - On demand, with a window or without: `AppConfig::on_demand` runs a frame only when something
+    asks for one, the loop waiting meanwhile, as the editor's program does
+    (`docs/adr/0156-the-editors-window-and-its-operations.md`): an event of the window, a request
+    of the development channel, the presentation's interface while it moves or once its next change
+    is due (`Ui::needs_frame`, `Ui::next_change`), the program through `Context::request_frame`, or
+    another thread through a `Waker` (`Context::waker`, `SimulationContext::waker`); a termination
+    signal and the end of the tool that started the program wake it too. The frames asked one after
+    another follow the schedule of `AppConfig::max_frame_rate`. A game keeps its scheduled frames.
   - It returns a `RunError`: `Init` when a `start` fails, `App` when `gpu_restored` failed or the
     game passed an error to `exit_with_error`, `Platform` when the window cannot be opened (for
     example without a display server) or its event loop fails, `Gfx` when no GPU can draw into the
@@ -216,8 +222,8 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
     window ends the process at once, without the `stop` methods, and logging off and shutting down
     end it without them too.
 - `AppConfig`: the window (`None`, the default, runs headless), the frame limit, the fixed step, the
-  most fixed steps per frame, the longest frame delta, the most frames per second, whether a
-  headless run is paced at that rate (`pace_headless`, as the editor's program is), the present mode
+  most fixed steps per frame, the longest frame delta, the most frames per second, whether frames
+  run only when something asks for one (`on_demand`, as the editor's program runs), the present mode
   and whether a windowed run replaces a lost GPU device (`restore_lost_device`); each field's
   rustdoc gives its default. Write it as a struct literal ending with `..AppConfig::default()`.
 - `Context`: what the presentation, and whoever drives a host, can ask from the engine: the window

@@ -133,11 +133,20 @@ impl Ui {
         self.notices.shown.iter().map(|(id, ..)| *id).collect()
     }
 
-    /// Whether a notification waits for its time to end, which the clock must move on for.
-    pub(super) fn notices_waiting(&self) -> bool {
-        self.notices.shown.iter().any(|(_, notification, _)| {
-            notification.progress.is_none() && notification.kind.time().is_some()
-        })
+    /// How long until the first notification whose time runs ends, on the interface's clock; none
+    /// when none waits for its end. The one under the pointer counts its time again at each frame,
+    /// so that it ends only once the pointer leaves it, which a frame follows.
+    pub(crate) fn notice_remaining(&self) -> Option<Duration> {
+        let rested = self.resting_on().and_then(|on| self.notice_of(on));
+        self.notices
+            .shown
+            .iter()
+            .filter(|(id, notification, _)| notification.progress.is_none() && Some(*id) != rested)
+            .filter_map(|(_, notification, since)| {
+                let shown = self.now.saturating_sub(*since);
+                Some(notification.kind.time()?.saturating_sub(shown))
+            })
+            .min()
     }
 
     /// Takes away the notifications whose time ended, counted again while the pointer rests on

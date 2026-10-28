@@ -10,6 +10,7 @@ use crate::error::RunError;
 use crate::game::{Presentation, Simulation};
 use crate::host::{Context, ExitReason, Host};
 use crate::signal;
+use crate::wake;
 use crate::windowed::{next_due, run_windowed};
 
 /// How [`run`] runs a game.
@@ -47,8 +48,8 @@ pub struct AppConfig {
     /// frames are scheduled at this rate and the loop sleeps between them. This schedule paces the
     /// frames (`docs/adr/0021-frame-pacing.md`); the windowing system can ask for more, for
     /// example while the window is being resized, and with [`PresentMode::Fifo`] the display can
-    /// slow them down. Headless runs ignore it, but those that [`AppConfig::pace_headless`] paces.
-    /// Default: 60.
+    /// slow them down. Headless runs ignore it, but those whose frames run on demand
+    /// ([`AppConfig::on_demand`]). Default: 60.
     pub max_frame_rate: u32,
     /// With a window, how it shows the images drawn by [`Presentation::render`]. Headless runs
     /// ignore it. Default: [`PresentMode::Mailbox`], which never makes a frame wait for the
@@ -60,12 +61,20 @@ pub struct AppConfig {
     /// game that does not create its objects again stops cleanly, with
     /// [`GfxError::DeviceLost`](slime_gfx::GfxError::DeviceLost).
     pub restore_lost_device: bool,
-    /// Without a window, whether frames are scheduled at [`AppConfig::max_frame_rate`], the loop
-    /// sleeping between them, as a program that waits for tools does, an editor without a window
-    /// (`docs/adr/0134-the-editors-core.md`); each frame still represents one fixed step. Windowed
-    /// runs ignore it, which are paced anyway. Default: `false`, so that tests and benchmarks run
-    /// their frames back to back.
-    pub pace_headless: bool,
+    /// Whether a frame runs only when something asks for one, the loop waiting meanwhile, as an
+    /// editor does (`docs/adr/0156-the-editors-window-and-its-operations.md`): an event of the
+    /// window, a request of the development channel or its work that waits for a frame, the
+    /// presentation's interface while it needs the next frame
+    /// ([`Ui::needs_frame`](slime_ui::tree::Ui::needs_frame)) and once its next change is due
+    /// ([`Ui::next_change`](slime_ui::tree::Ui::next_change)),
+    /// the program through [`Context::request_frame`] or, from another thread, a
+    /// [`Waker`](crate::Waker); a termination signal and the end of the tool that started the
+    /// program wake it too, to stop. The frames asked one after another are scheduled at
+    /// [`AppConfig::max_frame_rate`], with a window or without; without one, each still represents
+    /// one fixed step. Default: `false`: a windowed run schedules its frames whether anything
+    /// changed or not, as a game does, and a headless one runs them back to back, as tests and
+    /// benchmarks do.
+    pub on_demand: bool,
 }
 
 impl Default for AppConfig {
@@ -79,7 +88,7 @@ impl Default for AppConfig {
             max_frame_rate: 60,
             present_mode: PresentMode::default(),
             restore_lost_device: false,
-            pace_headless: false,
+            on_demand: false,
         }
     }
 }
@@ -116,7 +125,7 @@ impl Default for AppConfig {
 /// does not report.
 ///
 /// - **Headless** ([`AppConfig::window`] is `None`): frames run back to back, as fast as the
-///   machine allows, or at [`AppConfig::max_frame_rate`] when [`AppConfig::pace_headless`] says,
+///   machine allows, or, on demand ([`AppConfig::on_demand`]), when something asks for one,
 ///   with simulated time: each frame represents exactly one fixed step, so it runs
 ///   exactly one fixed step at a speed of 1, and every run gives the same times (as long as the
 ///   fixed step is not longer than the maximum frame delta, which would limit it). The windowing
@@ -176,7 +185,7 @@ impl Default for AppConfig {
 /// # Panics
 ///
 /// If `config.fixed_step`, `config.max_fixed_steps_per_frame` or `config.max_frame_delta` is
-/// zero. With a window, or [`AppConfig::pace_headless`], also if `config.max_frame_rate` is zero.
+/// zero. With a window, or [`AppConfig::on_demand`], also if `config.max_frame_rate` is zero.
 /// With a window, also if the window's width or height is zero or above 16 384 logical pixels, if
 /// its title contains a NUL byte, or if `run` is not called from the main thread. On Linux, also
 /// when the windowing library cannot load libxkbcommon, or libxkbcommon-x11 on X11 (see
@@ -193,6 +202,7 @@ pub fn run(
         None => run_headless(simulation, config),
         Some(window) => run_windowed(simulation, presentation, config, window),
     };
+    wake::set_current(None);
     if let Err(error) = &result {
         tracing::error!("the run failed: {}", error_chain(error));
     }
@@ -200,21 +210,33 @@ pub fn run(
 }
 
 fn run_headless(simulation: &mut impl Simulation, config: &AppConfig) -> Result<(), RunError> {
-    let mut frames = Frames::new(config);
     let mut host = Host::new(config);
+    let mut frames = Frames::new(config, &host.context);
 
-    let period = config.pace_headless.then(|| {
-        assert!(config.max_frame_rate > 0, "a paced run has a frame rate");
+    let period = config.on_demand.then(|| {
+        assert!(
+            config.max_frame_rate > 0,
+            "a run on demand has a frame rate"
+        );
         Duration::from_secs(1) / config.max_frame_rate
     });
     tracing::debug!(?config, "running headless");
     host.start(simulation).map_err(RunError::Init)?;
+    let waker = host.context.waker();
     let mut due = Instant::now();
+    // The first frame runs at once.
+    let mut wanted = true;
     let reason = loop {
         if let Some(reason) = frames.check_stop(&mut host.context, None, false) {
             break reason;
         }
         if let Some(period) = period {
+            wanted |= waker.take() | host.context.take_frame_request();
+            if !wanted {
+                // A signal, the tool's end or a request wakes it, which the loop then sees.
+                waker.wait();
+                continue;
+            }
             let now = Instant::now();
             if now < due {
                 std::thread::sleep(due - now);
@@ -222,6 +244,7 @@ fn run_headless(simulation: &mut impl Simulation, config: &AppConfig) -> Result<
             due = next_due(due, Instant::now(), period);
         }
         frames.run_one(&mut host, simulation, &mut (), config.fixed_step, None);
+        wanted = host.context.take_frame_request() || frames.waiting();
     };
     tracing::info!(frames = frames.count(), "stopping: {reason}");
     host.stop(simulation);
@@ -245,12 +268,16 @@ pub(crate) struct Frames {
 }
 
 impl Frames {
-    pub(crate) fn new(config: &AppConfig) -> Self {
+    /// The frames of a run whose context is `ctx`, whose waker the development channel's listener
+    /// wakes as a request comes, and which a signal or the end of the tool that started the
+    /// program wakes from now on.
+    pub(crate) fn new(config: &AppConfig, ctx: &Context) -> Self {
+        wake::set_current(Some(ctx.waker()));
         Self {
             count: 0,
             limit: config.frame_limit,
             #[cfg(feature = "development")]
-            channel: crate::channel::DevChannel::open(),
+            channel: crate::channel::DevChannel::open(ctx.waker()),
             shown: crate::interface::Shown::default(),
             #[cfg(feature = "accessibility")]
             screen_readers: crate::accessibility::ScreenReaders::new(
@@ -265,6 +292,20 @@ impl Frames {
     /// The number of frames run so far.
     pub(crate) fn count(&self) -> u64 {
         self.count
+    }
+
+    /// Whether work of the run waits for the next frame: what the development channel was asked,
+    /// a capture or steps.
+    pub(crate) fn waiting(&self) -> bool {
+        #[cfg(feature = "development")]
+        if self
+            .channel
+            .as_ref()
+            .is_some_and(crate::channel::DevChannel::waiting)
+        {
+            return true;
+        }
+        false
     }
 
     /// Why no further frame must run, if that is the case. A termination signal received since the

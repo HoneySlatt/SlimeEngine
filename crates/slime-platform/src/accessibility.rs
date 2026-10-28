@@ -9,6 +9,8 @@ use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
 use winit::window::WindowId;
 
+use crate::event_loop::UserEvent;
+
 /// What a screen reader asks of a window ([`Event::Accessibility`](crate::Event::Accessibility)),
 /// through AccessKit's adapter, which the window holds from before it shows.
 #[derive(Clone, Debug, PartialEq)]
@@ -41,7 +43,7 @@ impl Adapter {
     pub(crate) fn new(
         event_loop: &ActiveEventLoop,
         window: &winit::window::Window,
-        proxy: EventLoopProxy<accesskit_winit::Event>,
+        proxy: EventLoopProxy<UserEvent>,
     ) -> Self {
         let asked = Arc::new(AtomicBool::new(false));
         let activation = Activation {
@@ -86,7 +88,7 @@ impl Adapter {
 /// tree, which the handler gives later.
 struct Activation {
     window: WindowId,
-    proxy: EventLoopProxy<accesskit_winit::Event>,
+    proxy: EventLoopProxy<UserEvent>,
     asked: Arc<AtomicBool>,
 }
 
@@ -98,7 +100,7 @@ impl ActivationHandler for Activation {
             window_event: accesskit_winit::WindowEvent::InitialTreeRequested,
         };
         // A loop that has ended asks for nothing.
-        let _ = self.proxy.send_event(event);
+        let _ = self.proxy.send_event(event.into());
         None
     }
 }

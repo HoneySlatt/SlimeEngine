@@ -16,6 +16,7 @@ mod log_lines;
 mod signal;
 pub mod time;
 mod trace;
+mod wake;
 mod windowed;
 
 pub use app::{AppConfig, run};
@@ -25,6 +26,7 @@ pub use error::{AppError, RunError};
 pub use game::{PickAnswer, Presentation, Reflected, ShownView, Simulation};
 pub use host::{Context, Host, SimulationContext};
 pub use trace::TRACE_ENV_VAR;
+pub use wake::Waker;
 
 /// Which types may cross threads (`docs/ARCHITECTURE.md`, "Threads"): checked when the tests are
 /// compiled.
@@ -40,5 +42,6 @@ mod threads {
         send_and_sync::<Context>();
         send_and_sync::<AppConfig>();
         send_and_sync::<RunError>();
+        send_and_sync::<Waker>();
     }
 }

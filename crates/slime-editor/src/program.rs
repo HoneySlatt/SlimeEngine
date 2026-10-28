@@ -55,8 +55,8 @@ const DIRECTORY: &str = "slime-editor";
 /// ended: it opens the level of `--level`, or the program's, into a world, holds its journal and
 /// listens on the development channel when it is started with a token, as a game does
 /// (`docs/adr/0122-the-development-channel.md`), so that a tool or an agent drives it through
-/// [`Edit`] requests. It has no window: its frames are paced at the engine's default rate
-/// ([`AppConfig::pace_headless`]), and it runs no game's rules.
+/// [`Edit`] requests. It has no window: it runs a frame only when a request comes
+/// ([`AppConfig::on_demand`]), and it runs no game's rules.
 ///
 /// Its journal is `slime-editor/<the level's asset ID>.journal` in the user's data directory
 /// ([`slime_app::data_directory`]), or `<asset ID>.2.journal` and on for a copy of the level, which
@@ -87,7 +87,7 @@ pub fn run(program: &Program) -> ExitCode {
     };
     let mut session = Session::new(program, options);
     let config = AppConfig {
-        pace_headless: true,
+        on_demand: true,
         ..AppConfig::default()
     };
     match slime_app::run(&mut session, &mut (), &config) {

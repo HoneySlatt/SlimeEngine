@@ -8,8 +8,8 @@ Partial. It opens one window, on Wayland or X11 (Linux) and on Windows, reports 
 requested, resized, scale factor changed, focus, keys, the modifier keys held, mouse buttons, cursor
 motion, the cursor entering and leaving, scrolling, the text that input methods compose, for
 Chinese, Japanese or Korean, and the system's scheme of colors changing, on Windows) and its redraw
-requests; it allows and places the input method, sets
-the pointer's shape, and reads and writes the system's clipboard of text
+requests; it allows and places the input method, sets the pointer's shape, changes the window's
+title, wakes its loop from other threads, and reads and writes the system's clipboard of text
 (`docs/adr/0145-text-edited.md`). With its `accessibility` feature, the window holds AccessKit's
 adapter, through which screen readers read what it shows (`docs/adr/0146-screen-readers.md`). It
 does not report yet: touch screens, touchpad gestures, gamepads, or files dropped on the window.
@@ -43,14 +43,16 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
 - `EventHandler` is what the event loop calls back: `window_created` once, then `event` for each
   event, `redraw_requested` when the window should be drawn, and `about_to_wait` whenever all
   pending events are handled, then `exiting` once. `about_to_wait` returns a `LoopControl`: wait
-  until a given instant, or exit. On Windows, while the user resizes or moves the window, only
+  until a given instant, wait for the next event however long it takes, or exit. On Windows, while the user resizes or moves the window, only
   `event` and `redraw_requested` are called, because the system runs a loop of its own.
 - `Window` is a cheap, clonable handle to the window: its size in physical pixels, its scale
   factor, the scheme of colors that the system prefers where winit tells it, on Windows
   (`color_scheme`, `Event::ColorSchemeChanged`, `docs/adr/0149-the-looks-foundations.md`),
   `request_redraw` to ask for a chance to draw, `set_ime_allowed` and `set_ime_area` for
-  the input method, `set_cursor` for the pointer's shape, and the `raw-window-handle` traits
-  through which a graphics library draws into it.
+  the input method, `set_cursor` for the pointer's shape, `set_title` for its title, `waker` for a
+  `Waker` with which another thread wakes the event loop, and the `raw-window-handle` traits
+  through which a graphics library draws into it
+  (`docs/adr/0156-the-editors-window-and-its-operations.md`).
 - With the `accessibility` feature, the window is made hidden, AccessKit's adapter is made for it,
   then it shows, so that screen readers see it from the start; Wayland, which shows a window with
   its first frame, ignores the first step. A screen reader's requests arrive as

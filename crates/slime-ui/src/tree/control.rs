@@ -456,8 +456,8 @@ impl Ui {
                     kind: kind(FieldValue::Chosen(place)),
                 });
             }
-        } else if let Some(owner) = owner.and_then(|owner| self.node_mut(owner)) {
-            owner.rebuild = true;
+        } else if let Some(owner) = owner {
+            self.ask_build(owner);
         }
     }
 

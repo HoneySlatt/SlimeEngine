@@ -316,6 +316,11 @@ fn notifications_stack_at_the_bottom_end_and_go_after_their_kinds_time() {
     });
     let (_, stats) = ui.frame();
     assert!(stats.animating, "a notification waits for its time");
+    // The success's five seconds, the error staying until it is closed; no frame needed meanwhile.
+    assert_eq!(ui.next_change(), Some(Duration::from_secs(5)));
+    assert!(!ui.needs_frame());
+    ui.advance(Duration::from_secs(2));
+    assert_eq!(ui.next_change(), Some(Duration::from_secs(3)));
     let stack = ui
         .element_by_path("notifications/notifications")
         .expect("the stack");
@@ -355,6 +360,8 @@ fn the_pointer_resting_keeps_a_notification_and_its_buttons_give_commands() {
         .expect("it");
     let rect = ui.rect(card).expect("laid out");
     ui.pointer_moved(rect.x + 5.0, rect.y + 5.0);
+    // The one under the pointer waits for nothing, which a frame would end.
+    assert_eq!(ui.next_change(), None);
     for _ in 0..4 {
         ui.advance(Duration::from_secs(2));
         ui.frame();

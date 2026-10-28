@@ -49,16 +49,44 @@ pub trait EventHandler {
 pub enum LoopControl {
     /// Wait for new events, and wake up at this instant at the latest.
     WaitUntil(Instant),
+    /// Wait for new events, however long they take: an event of the window, or a [`Waker`]'s.
+    Wait,
     /// End the loop: [`EventHandler::exiting`] is called next.
     Exit,
 }
 
-/// What reaches the event loop from other threads: what screen readers ask, through AccessKit's
-/// adapter, with the `accessibility` feature; nothing without it.
+/// What reaches the event loop from other threads: a wake ([`Waker::wake`]), and, with the
+/// `accessibility` feature, what screen readers ask, through AccessKit's adapter.
+#[derive(Debug)]
+pub(crate) enum UserEvent {
+    Wake,
+    #[cfg(feature = "accessibility")]
+    Accessibility(accesskit_winit::Event),
+}
+
 #[cfg(feature = "accessibility")]
-type UserEvent = accesskit_winit::Event;
-#[cfg(not(feature = "accessibility"))]
-type UserEvent = ();
+impl From<accesskit_winit::Event> for UserEvent {
+    fn from(event: accesskit_winit::Event) -> Self {
+        Self::Accessibility(event)
+    }
+}
+
+/// Wakes the event loop from any thread, so that [`EventHandler::about_to_wait`] runs again: what
+/// another thread finished, a request that came, can then be seen. Clones wake the same loop; a
+/// loop that ended wakes for nothing. Built on winit's user events, the one way to wake its loop in
+/// winit 0.30.
+#[derive(Clone, Debug)]
+pub struct Waker {
+    proxy: winit::event_loop::EventLoopProxy<UserEvent>,
+}
+
+impl Waker {
+    /// Wakes the loop. Wakes asked for before the loop runs again are merged into one.
+    pub fn wake(&self) {
+        // A loop that has ended has nothing to wake.
+        let _ = self.proxy.send_event(UserEvent::Wake);
+    }
+}
 
 /// The largest width or height a window can be asked for, in logical pixels: larger than any
 /// display. Times the scale factor, it can still exceed the 65 535 physical pixels that X11
@@ -120,7 +148,6 @@ pub fn run_event_loop(
         window: None,
         translator: Translator::default(),
         error: None,
-        #[cfg(feature = "accessibility")]
         proxy: event_loop.create_proxy(),
         #[cfg(feature = "accessibility")]
         accessibility: None,
@@ -138,8 +165,7 @@ struct WinitAdapter<'a, H> {
     window: Option<Window>,
     translator: Translator,
     error: Option<PlatformError>,
-    /// Where AccessKit's adapter sends what screen readers ask, from its own threads.
-    #[cfg(feature = "accessibility")]
+    /// Where other threads wake the loop, and AccessKit's adapter sends what screen readers ask.
     proxy: winit::event_loop::EventLoopProxy<UserEvent>,
     /// AccessKit's adapter of the window, made before the window shows.
     #[cfg(feature = "accessibility")]
@@ -196,7 +222,12 @@ impl<H: EventHandler> ApplicationHandler<UserEvent> for WinitAdapter<'_, H> {
                     ));
                     window.set_visible(true);
                 }
-                let window = Window::new(window);
+                let window = Window::new(
+                    window,
+                    Waker {
+                        proxy: self.proxy.clone(),
+                    },
+                );
                 let size = window.inner_size();
                 tracing::info!(
                     backend = backend_name(event_loop),
@@ -234,21 +265,27 @@ impl<H: EventHandler> ApplicationHandler<UserEvent> for WinitAdapter<'_, H> {
         self.update_accessibility();
     }
 
-    #[cfg(feature = "accessibility")]
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
-        use crate::Accessibility;
-        use accesskit_winit::WindowEvent as Asked;
+        match event {
+            // A wake has done its work: the loop runs `about_to_wait` again.
+            UserEvent::Wake => {}
+            #[cfg(feature = "accessibility")]
+            UserEvent::Accessibility(event) => {
+                use crate::Accessibility;
+                use accesskit_winit::WindowEvent as Asked;
 
-        if self.window.is_none() {
-            return;
+                if self.window.is_none() {
+                    return;
+                }
+                let asked = match event.window_event {
+                    Asked::InitialTreeRequested => Accessibility::TreeRequested,
+                    Asked::ActionRequested(request) => Accessibility::Action(request),
+                    Asked::AccessibilityDeactivated => Accessibility::Deactivated,
+                };
+                self.handler.event(Event::Accessibility(asked));
+                self.update_accessibility();
+            }
         }
-        let asked = match event.window_event {
-            Asked::InitialTreeRequested => Accessibility::TreeRequested,
-            Asked::ActionRequested(request) => Accessibility::Action(request),
-            Asked::AccessibilityDeactivated => Accessibility::Deactivated,
-        };
-        self.handler.event(Event::Accessibility(asked));
-        self.update_accessibility();
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
@@ -263,6 +300,7 @@ impl<H: EventHandler> ApplicationHandler<UserEvent> for WinitAdapter<'_, H> {
             LoopControl::WaitUntil(instant) => {
                 event_loop.set_control_flow(ControlFlow::WaitUntil(instant));
             }
+            LoopControl::Wait => event_loop.set_control_flow(ControlFlow::Wait),
             LoopControl::Exit => end(event_loop),
         }
     }

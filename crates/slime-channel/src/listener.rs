@@ -57,10 +57,18 @@ impl Listener {
     /// once: more are closed unread. Later messages hold at most `slime_serialize::MAX_SIZE` bytes;
     /// a longer one closes its connection, with the reason.
     ///
+    /// `wake` is called, on the thread of the connection, each time a request is queued: a game
+    /// that waits for something to do runs a frame then, which answers it.
+    ///
     /// # Errors
     ///
     /// When the system gives no port to listen on, or no thread to accept the connections.
-    pub fn open(token: Token, program: &str) -> io::Result<Self> {
+    pub fn open(
+        token: Token,
+        program: &str,
+        wake: impl Fn() + Send + Sync + 'static,
+    ) -> io::Result<Self> {
+        let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(wake);
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))?;
         let address = listener.local_addr()?;
         let (requests, incoming) = mpsc::channel();
@@ -82,11 +90,15 @@ impl Listener {
                         continue;
                     }
                     let waits = Waiting(Arc::clone(&waiting));
-                    let (token, program, requests) =
-                        (token.clone(), program.clone(), requests.clone());
+                    let (token, program, requests, wake) = (
+                        token.clone(),
+                        program.clone(),
+                        requests.clone(),
+                        Arc::clone(&wake),
+                    );
                     let spawned = thread::Builder::new()
                         .name("slime dev channel connection".to_owned())
-                        .spawn(move || serve(stream, waits, &token, &program, &requests));
+                        .spawn(move || serve(stream, waits, &token, &program, &requests, &*wake));
                     if let Err(error) = spawned {
                         tracing::warn!(%error, "a connection to the development channel is dropped");
                     }
@@ -153,14 +165,15 @@ impl Read for Until<'_> {
 }
 
 /// Serves a connection: checks its first message, then hands its requests to the game, through
-/// `requests`, and writes the game's answers, until the connection or the game ends. `waits` counts
-/// it among the connections that wait for their first message, until it came.
+/// `requests`, waking it, and writes the game's answers, until the connection or the game ends.
+/// `waits` counts it among the connections that wait for their first message, until it came.
 fn serve(
     mut stream: TcpStream,
     waits: Waiting,
     token: &Token,
     program: &str,
     requests: &Sender<Incoming>,
+    wake: &(dyn Fn() + Send + Sync),
 ) {
     let checked = handshake(&mut stream, token);
     drop(waits);
@@ -198,6 +211,9 @@ fn serve(
         let (answer, payload) = match request {
             Ok(request) => {
                 let sent = requests.send(Incoming { request, answer });
+                if sent.is_ok() {
+                    wake();
+                }
                 match sent.ok().and_then(|()| answered.recv().ok()) {
                     Some(answer) => answer,
                     None => (
@@ -296,7 +312,7 @@ mod tests {
     #[test]
     fn a_connection_without_the_token_or_of_another_version_is_refused_with_a_reason() {
         let token = Token::generate().expect("random bits");
-        let listener = Listener::open(token.clone(), "test").expect("a port");
+        let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
         let address = listener.address();
         assert!(address.ip().is_loopback());
         let refused = |reply: Reply, why: &str| match reply {
@@ -321,7 +337,7 @@ mod tests {
     #[test]
     fn connections_that_send_no_hello_are_bounded_in_number_and_in_time() {
         let token = Token::generate().expect("random bits");
-        let listener = Listener::open(token.clone(), "test").expect("a port");
+        let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
         let silent: Vec<TcpStream> = (0..MAX_WAITING)
             .map(|_| TcpStream::connect(listener.address()).expect("listening"))
             .collect();
@@ -356,7 +372,7 @@ mod tests {
     #[test]
     fn a_request_is_answered_in_well_under_the_delay_of_an_acknowledgement() {
         let token = Token::generate().expect("random bits");
-        let listener = Listener::open(token.clone(), "test").expect("a port");
+        let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
         let mut client = Client::connect(listener.address(), &token).expect("accepted");
         let stop = Arc::new(AtomicBool::new(false));
         // The game's side: answers each request at once, with a payload as a capture has.
@@ -395,7 +411,7 @@ mod tests {
     #[test]
     fn a_request_to_a_game_that_stopped_is_answered_so() {
         let token = Token::generate().expect("random bits");
-        let listener = Listener::open(token.clone(), "test").expect("a port");
+        let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
         let mut client = Client::connect(listener.address(), &token).expect("accepted");
         drop(listener);
         let (reply, _) = client.request(&Request::State).expect("answered");
@@ -410,7 +426,7 @@ mod tests {
     #[test]
     fn a_second_hello_is_no_request() {
         let token = Token::generate().expect("random bits");
-        let listener = Listener::open(token.clone(), "test").expect("a port");
+        let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
         let mut stream = TcpStream::connect(listener.address()).expect("listening");
         let welcome = send_on(&mut stream, &hello(&token));
         assert!(matches!(welcome, Reply::Welcome { .. }), "{welcome:?}");
@@ -422,7 +438,7 @@ mod tests {
     #[test]
     fn a_message_too_long_closes_the_connection_with_the_reason() {
         let token = Token::generate().expect("random bits");
-        let listener = Listener::open(token.clone(), "test").expect("a port");
+        let listener = Listener::open(token.clone(), "test", || {}).expect("a port");
         let mut stream = TcpStream::connect(listener.address()).expect("listening");
         let welcome = send_on(&mut stream, &hello(&token));
         assert!(matches!(welcome, Reply::Welcome { .. }), "{welcome:?}");

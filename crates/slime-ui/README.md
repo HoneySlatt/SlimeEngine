@@ -33,7 +33,10 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
 - A style's `transition` moves a change of it over time: its colors and its opacity, and a
   section's height as it opens or folds, over the time that the program gives each frame
   (`Ui::advance`), which `Ui::set_reduced_motion` drops; a frame says whether one goes on
-  (`FrameStats::animating`). A style's paint holds an opacity, which its descendants share; the
+  (`FrameStats::animating`), and a program that draws only when something changes reads whether the
+  interface moves (`Ui::animating`) or needs the next frame for the rows of a list
+  (`Ui::needs_frame`), and when it next changes on its own, a tooltip's rest or a
+  notification's end (`Ui::next_change`). A style's paint holds an opacity, which its descendants share; the
   display list places boxes, images and clips on whole pixels of the screen; a text's style names
   OpenType features (`TextStyle::features`); an element focused by the keyboard, an agent or the
   program is in the state `FocusVisible`, one that the pointer focused is not.

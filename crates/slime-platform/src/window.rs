@@ -7,6 +7,8 @@ use raw_window_handle::{
 };
 use slime_input::CursorShape;
 
+use crate::Waker;
+
 /// The settings of the window that [`run_event_loop`](crate::run_event_loop) creates.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WindowConfig {
@@ -52,15 +54,17 @@ pub struct PhysicalSize {
 /// On Windows, the windowing library destroys windows from inside the event loop, so the window
 /// still open when the loop ends is hidden then, and released only when the process exits.
 ///
-/// It cannot yet go fullscreen, grab or hide the cursor, change its title once created, or report
-/// the mouse's raw motion, which games that turn a camera with the mouse need. It sets the
-/// pointer's shape and places the input method, which it allows while a field takes text.
+/// It cannot yet go fullscreen, grab or hide the cursor, or report the mouse's raw motion, which
+/// games that turn a camera with the mouse need. It changes its title, sets the pointer's shape and
+/// places the input method, which it allows while a field takes text, and gives a [`Waker`] of its
+/// event loop.
 ///
 /// It implements the [`raw-window-handle`](raw_window_handle) traits, through which graphics
 /// libraries draw into a window without knowing the windowing library that created it.
 #[derive(Clone, Debug)]
 pub struct Window {
     inner: Arc<winit::window::Window>,
+    waker: Waker,
     /// The updates of the tree that screen readers read, which the event loop gives the adapter
     /// once the handler's call returns: the adapter stays on the thread of the event loop.
     #[cfg(feature = "accessibility")]
@@ -68,9 +72,10 @@ pub struct Window {
 }
 
 impl Window {
-    pub(crate) fn new(window: winit::window::Window) -> Self {
+    pub(crate) fn new(window: winit::window::Window, waker: Waker) -> Self {
         Self {
             inner: Arc::new(window),
+            waker,
             #[cfg(feature = "accessibility")]
             accessibility: Arc::default(),
         }
@@ -141,6 +146,24 @@ impl Window {
     /// resized.
     pub fn request_redraw(&self) {
         self.inner.request_redraw();
+    }
+
+    /// Changes the title that the compositor shows, as [`WindowConfig::title`] says.
+    ///
+    /// # Panics
+    ///
+    /// If `title` contains a NUL byte.
+    pub fn set_title(&self, title: &str) {
+        assert!(
+            !title.contains('\0'),
+            "the window title must not contain NUL bytes"
+        );
+        self.inner.set_title(title);
+    }
+
+    /// A [`Waker`] of the event loop that runs the window, which another thread wakes it with.
+    pub fn waker(&self) -> Waker {
+        self.waker.clone()
     }
 
     /// Allows the input method, or forbids it: while it is allowed, the keys that it reads compose
