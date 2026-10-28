@@ -74,7 +74,9 @@ fn draw(
 - `Picker::new(assets)` picks by the CPU, without a GPU: `cast(world, alpha, ray)` gives the entity
   whose mesh a ray meets first (`Hit`), the ray that `Camera::ray` gives through a pixel, reading
   the meshes from the cooked data at its first cast in a world that names them, and keeping their
-  boxes, and the triangles of those that rays meet, while the world names them.
+  boxes, and the triangles of those that rays meet, while the world names them; `cast_through`
+  gives every entity that the ray meets, the nearest first, which the editor goes through
+  (`docs/adr/0159-picking-and-the-selection.md`).
 
 The rustdoc holds the contracts: what is drawn, and what building a frame costs.
 

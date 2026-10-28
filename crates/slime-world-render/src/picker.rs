@@ -60,14 +60,31 @@ impl Picker {
     /// meets first, where the world places it at `fraction` of a fixed step, as
     /// `slime-app`'s `GameTime::alpha` gives it; `None` if it meets none. A camera's
     /// [`ray`](slime_render::Camera::ray) through a pixel gives what is drawn there.
-    pub fn cast(
+    pub fn cast(&mut self, world: &World, fraction: f64, ray: (DVec3, DVec3)) -> Option<Hit> {
+        self.meet_entities(world, fraction, ray, true).pop()
+    }
+
+    /// Every entity of `world` whose mesh the ray meets, as [`Picker::cast`] places them, each
+    /// once, where the ray first meets it, the nearest first: what lies behind what `cast` gives,
+    /// through which an editor goes a click after another (ADR-0159). It reads every mesh whose box
+    /// the ray meets, where `cast` leaves out those beyond the nearest that it met.
+    pub fn cast_through(&mut self, world: &World, fraction: f64, ray: (DVec3, DVec3)) -> Vec<Hit> {
+        let mut hits = self.meet_entities(world, fraction, ray, false);
+        hits.sort_by(|a, b| a.distance.total_cmp(&b.distance));
+        hits
+    }
+
+    /// The entities that the ray meets, each with where it first meets it, in the world's order:
+    /// the nearest alone if `nearest`.
+    fn meet_entities(
         &mut self,
         world: &World,
         fraction: f64,
         (origin, direction): (DVec3, DVec3),
-    ) -> Option<Hit> {
+        nearest: bool,
+    ) -> Vec<Hit> {
         let mut named = HashSet::new();
-        let mut first: Option<Hit> = None;
+        let mut hits: Vec<Hit> = Vec::new();
         for (entity, (meshes, transform)) in world.query::<(&Meshes, &Transform)>() {
             named.extend(meshes.ids.iter().copied());
             if world.is_hidden(entity) {
@@ -85,15 +102,25 @@ impl Picker {
             if !(start.is_finite() && step.is_finite()) {
                 continue;
             }
+            // The nearest that the entity's meshes met, or, for the nearest entity alone, than
+            // the one met before.
+            let mut met: Option<f64> = None;
             for &id in &meshes.ids {
-                let nearest = first.map_or(f64::INFINITY, |hit| hit.distance);
-                if let Some(distance) = self.meet(id, start, step, nearest) {
-                    first = Some(Hit { entity, distance });
+                let before = hits.last().filter(|_| nearest).map(|hit| hit.distance);
+                let bound = met.or(before).unwrap_or(f64::INFINITY);
+                if let Some(distance) = self.meet(id, start, step, bound) {
+                    met = Some(distance);
                 }
+            }
+            if let Some(distance) = met {
+                if nearest {
+                    hits.clear();
+                }
+                hits.push(Hit { entity, distance });
             }
         }
         self.meshes.retain(|id, _| named.contains(id));
-        first
+        hits
     }
 
     /// How far along the ray from `start` by `step`, in the mesh's space, the mesh `id` is first

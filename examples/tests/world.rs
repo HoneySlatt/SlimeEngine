@@ -187,7 +187,8 @@ fn target(gpu: &Gpu) -> RenderTarget {
 /// Picking by the GPU, through the frame builder's numbers, and by the CPU, a ray through each
 /// pixel's centre, name the same entity on a grid of pixels over the sample, which no masked
 /// material cuts out (`docs/adr/0130-picking.md`): but a few pixels on the edges of what is drawn,
-/// where rounding takes a pixel's centre to one side or the other.
+/// where rounding takes a pixel's centre to one side or the other. Cast through, the ray meets the
+/// same entity first, then those behind it, each once, the nearest first.
 #[test]
 fn picking_by_the_gpu_and_by_the_cpu_name_the_same_entities() {
     let gpu = gpu();
@@ -206,6 +207,7 @@ fn picking_by_the_gpu_and_by_the_cpu_name_the_same_entities() {
         .expect("the picking draws");
     let mut picker = Picker::new(sample().clone());
     let (mut named, mut differ, mut entities) = (0, Vec::new(), std::collections::HashSet::new());
+    let mut behind = 0;
     for y in (0..SIZE).step_by(4) {
         for x in (0..SIZE).step_by(4) {
             let by_gpu = Entity::from_bits(picked.at(x, y));
@@ -213,9 +215,19 @@ fn picking_by_the_gpu_and_by_the_cpu_name_the_same_entities() {
                 (x as f32 + 0.5) / SIZE as f32,
                 (y as f32 + 0.5) / SIZE as f32,
             );
-            let by_cpu = picker
-                .cast(&world, 0.0, camera.ray(1.0, centre))
-                .map(|hit| hit.entity);
+            let ray = camera.ray(1.0, centre);
+            let by_cpu = picker.cast(&world, 0.0, ray).map(|hit| hit.entity);
+            let through = picker.cast_through(&world, 0.0, ray);
+            assert_eq!(through.first().map(|hit| hit.entity), by_cpu);
+            let once: std::collections::HashSet<_> = through.iter().map(|hit| hit.entity).collect();
+            assert!(
+                once.len() == through.len()
+                    && through
+                        .windows(2)
+                        .all(|pair| pair[0].distance <= pair[1].distance),
+                "{through:?}"
+            );
+            behind += usize::from(through.len() > 1);
             entities.extend(by_gpu);
             named += usize::from(by_gpu.is_some());
             if by_gpu != by_cpu {
@@ -225,6 +237,7 @@ fn picking_by_the_gpu_and_by_the_cpu_name_the_same_entities() {
     }
     assert!(entities.len() >= 4, "{} entities picked", entities.len());
     assert!(named > 500, "{named} pixels on something");
+    assert!(behind > 0, "no ray met two entities");
     assert!(
         differ.len() * 100 <= named,
         "{} of {named} differ: {differ:?}",
