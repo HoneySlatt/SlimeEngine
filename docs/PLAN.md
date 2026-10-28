@@ -28,7 +28,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   decisions on the editor's design, its milestones and their order, which ADR-0155 records. M6c.0
   is done, and M6c.1 was split in two at its start, M6c.1a and M6c.1b, both done; M6c.2 was split in
   two at its start too, of which M6c.2a is done, and M6c.2b in two again at its start, M6c.2b and
-  M6c.2c, of which M6c.2b is done; next: M6c.2c.
+  M6c.2c, both done; next: M6c.3.
 
 ## Status
 
@@ -39,7 +39,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.1b](#m6c1b--dialogs-the-cursor-held-and-the-gpus-identity) | A person opens a level through the system's dialog, a viewport can hold the cursor and read the mouse's raw motion, and a GPU object cannot act on another `Gpu`'s | Done |
 | [M6c.2a](#m6c2a--the-viewport-and-its-navigation) | The level shows in a viewport that the user flies through, drawn again only when what it shows changed | Done |
 | [M6c.2b](#m6c2b--picking-and-the-selection) | The user picks in the viewport and sees what is selected outlined | Done |
-| [M6c.2c](#m6c2c--a-second-viewport-and-blenders-way) | A second viewport shows the level, and Blender's way is a preset of the keys and the mouse's buttons | Planned |
+| [M6c.2c](#m6c2c--a-second-viewport-and-blenders-way) | A second viewport shows the level, and Blender's way is a preset of the keys and the mouse's buttons | Done |
 | [M6c.3](#m6c3--move-and-place) | The user moves, turns, scales, creates and deletes, each gesture a single step of the history | Planned |
 | [M6c.4](#m6c4--play-it) | Play runs the level being edited in the game, steps not written included, and the editor's edits reach the running game | Planned |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
@@ -481,6 +481,36 @@ at its start, the same day, the second viewport and Blender's way in a third
 - **How to test.** `cargo test -p slime-ui -p slime-editor`;
   `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
 - **By hand.** Two viewports, and Blender's way, on niri and Hyprland.
+- **Outcome.** Done on 2026-10-28, as [ADR-0160](adr/0160-two-viewports-and-blenders-way.md)
+  records. A chord of a table of shortcuts may name a button of the mouse, which the program reads
+  (`Ui::button_command`), its named modifiers held whatever others are, the one that names the
+  most winning; the editor's table binds there what each button does over a viewport, a gesture,
+  `fly`, `orbit` or `pan`, or what selects, `select` and `through`. *View* > *Keys of Blender* lays
+  `editor-blender.keys` over it, the middle button orbiting, Shift and the middle button panning,
+  Alt and the left button going through what lies behind without orbiting, Alt+A selecting
+  nothing, F3 finding an operation and the period framing the selection; the choice is kept in the
+  user's state directory for every program of the editor. *View* > *Two viewports* shows a second
+  viewport beside the first, each a pane of the window with its own camera, settings and view,
+  sharing the level's meshes, frame builder, icons and picker; the View menu changes the one last
+  pressed in, and tools name them `viewport` and `viewport 2`. While one is navigated, the other
+  draws at most every tenth of a second, a picking and a new image at once. The review found five
+  faults, each fixed: a second viewport made during a gesture that took the gesture and its keys
+  held, which kept the cursor held; the pickings of a viewport taken away, never answered, the
+  editor drawing frames without end; a resting viewport that asked for frames back to back rather
+  than one at the end of its rest, and left a new image black meanwhile; the mouse's buttons shown
+  as commands of keys; and Home, which frames everything in Blender, bound to framing the
+  selection; and gaps in the tests and the documentation, filled. The tests: the buttons' chords
+  (`crates/slime-ui/tests/surface.rs`); Blender's way and its choice kept, two viewports, a split
+  during a gesture (`slime-editor`'s unit tests); a viewport's rest and its pickings on the GPU;
+  the window with two viewports, in an image test
+  (`examples/tests/reference/editor-two-viewports.png`); and an agent's session that captures the
+  second viewport and reads its report (`crates/slime-mcp/tests/edit_window.rs`). What nothing
+  checks yet: two viewports and Blender's way by hand on niri and Hyprland, and in the Windows
+  virtual machine. Known debt: two viewports build the world's frame each for itself, and
+  Blender's way leaves out its modal keys, its pie menus and its numeric pad's views. CI is green
+  on `271cdd7`: `check (headless)` took 11 minutes 40 seconds, `check (windowed)` 6 minutes 1
+  second, `check (game)` 6 minutes 14 seconds, `windows` 17 minutes 32 seconds and
+  `windows-release` 14 minutes 33 seconds.
 
 ### M6c.3 — Move and place
 
