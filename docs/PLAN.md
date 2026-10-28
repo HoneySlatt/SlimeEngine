@@ -30,8 +30,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   two at its start too, of which M6c.2a is done, and M6c.2b in two again at its start, M6c.2b and
   M6c.2c, both done; M6c.3 was split in two at its start, M6c.3a and M6c.3b, of which M6c.3a is
   done, and M6c.3b in two again at its start, M6c.3b and M6c.3c, all done; M6c.4 was split in
-  three at its start, M6c.4a, M6c.4b and M6c.4c, of which M6c.4a and M6c.4b are done; next:
-  M6c.4c.
+  three at its start, M6c.4a, M6c.4b and M6c.4c, of which M6c.4a and M6c.4b are done, and M6c.4c
+  in two again at its start, M6c.4c and M6c.4d; next: M6c.4c.
 
 ## Status
 
@@ -48,7 +48,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.3c](#m6c3c--place-prefabs-and-see-the-history) | The user places prefabs and sees the history | Done |
 | [M6c.4a](#m6c4a--play-the-level) | Play runs the level being edited in the game, steps not written included, paused, stepped and stopped from a toolbar, its log in a console | Done |
 | [M6c.4b](#m6c4b--edit-while-playing) | The editor's edits reach the running game, and agents drive both programs | Done |
-| [M6c.4c](#m6c4c--build-the-game-again-and-measure-play) | A game whose code changed is built again and started on a save of its run, and Play's time is measured | Planned |
+| [M6c.4c](#m6c4c--build-the-game-again) | Play builds the game before it starts it, and a game whose code changed while it runs is built again and started on a save of its run | Planned |
+| [M6c.4d](#m6c4d--measure-play) | Play's time to control is measured on the zone and on a level of 100 000 entities | Planned |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
 | [M6c.5](#m6c5--find-and-change) | The user finds any entity in a hierarchy, changes its components in an inspector, and arranges the panels in regions of tabs | Planned |
 | [M6c.6](#m6c6--levels-of-several-files-and-links) | A level is made of several files, which the editor writes together, and an entity refers to entities of other files | Planned |
@@ -673,6 +674,7 @@ the same day, placing prefabs and the history panel in a third.
 
 Split in three at its start, on 2026-10-28, as [ADR-0155](adr/0155-the-editors-design.md) allows:
 Play itself; edits while playing and agents driving both programs; the game built again and Play
+measured, the last cut in two again at its start, the same day: the game built again; Play
 measured. The owner chose, on 2026-10-28, how the scenes are handed over: the editor writes private
 copies into a directory of its own, which an environment variable names to the game, and the
 engine reads them where every game makes its library of scenes.
@@ -768,23 +770,37 @@ engine reads them where every game makes its library of scenes.
   `check (windowed)` 4 minutes 27 seconds, `check (game)` 5 minutes 41 seconds, `windows` 17
   minutes 33 seconds and `windows-release` 14 minutes 9 seconds.
 
-#### M6c.4c — Build the game again and measure Play
+#### M6c.4c — Build the game again
 
-- **Goal.** A game whose code changed is built again and started on a save of its run, and Play's
-  time is measured.
+- **Goal.** Play builds the game before it starts it, and a game whose code changed while it runs
+  is built again and started on a save of its run.
+- **Crates.** `slime-editor`; `games/hunnawood-editor`; the `editor` example.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: the game's program built by
+  cargo as Play starts it, and built again when its code changes while it runs, then started on a
+  save of its run, a mark on Play saying so; the build read from cargo's messages in JSON, its
+  errors in the console, and the executable started itself, without a console window on Windows.
+  The dependency `serde_json` in `slime-editor`, already in the lock. The ADR of the design.
+- **Done when.** A change of a game's code while it plays built again and the game started again,
+  on a save of its run where the game saves its runs; a build that fails told, the game playing on;
+  CI is green.
+- **How to test.** `cargo test -p slime-editor`; the MCP server's session tests;
+  `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
+- **By hand.** A change of the game's rules built and started again, on Linux; in the Windows
+  virtual machine, a build while the game runs, which Windows may keep from replacing a running
+  program.
+
+#### M6c.4d — Measure Play
+
+- **Goal.** Play's time to control is measured on the zone and on a level of 100 000 entities.
 - **Crates.** `slime-editor`; `games/hunnawood-editor`.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: a game whose code changed
-  built again and started on a save of its run, a mark on Play saying so, the build read from
-  cargo's messages in JSON and the executable started itself, without a console window on Windows;
-  Play's time to control measured from the click on the zone and on a generated level of 100 000
-  entities, against ADR-0110's 3 seconds; "keep this value", a value read in the running game made
-  a step of the level, if the milestone has room. The dependency `serde_json` in `slime-editor`,
-  already in the lock. The ADR of the design, if one is needed.
-- **Done when.** A change of a stub game's code built again and started on a save; the figures in
-  [`docs/measurements.md`](measurements.md); CI is green.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: Play's time to control
+  measured from the click on the zone and on a generated level of 100 000 entities, against
+  ADR-0110's 3 seconds; "keep this value", a value read in the running game made a step of the
+  level, if the milestone has room.
+- **Done when.** The figures in [`docs/measurements.md`](measurements.md); CI is green.
 - **How to test.** `cargo test -p slime-editor`;
   `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
-- **By hand.** A change of the game's rules built and started again, on Linux.
+- **By hand.** Play's time on the zone, on the owner's machine.
 - **Debt settled.** An entity that a run created, wrote into its level and destroyed coming back
   ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)).
 
