@@ -55,7 +55,11 @@ const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its dev
      entities, `editor_history` says its steps and selection, `editor_journal` gives its journal, \
      `write_level` writes the level back to its file, `list_operations` lists every action of its \
      menus, shortcuts and palette, and `run_operation` runs one by its name, as a person does. \
-     An editor opens a window unless it is started with `--headless`. `cook` and `run_tests` run \
+     Once an editor plays its level (`run_operation` `play.start`), `drive_played_game` points \
+     the game's tools at the game that it plays, and back at the editor; the editor's tools reach \
+     the editor all along, and a step that it makes reaches the game a moment after it answers. \
+     `stop_game` ends the editor, and the game that it plays with it; `play.stop` ends that game \
+     alone. An editor opens a window unless it is started with `--headless`. `cook` and `run_tests` run \
      in the repository's root, where the server runs.";
 
 /// The game that the server drives, if one runs.
@@ -67,6 +71,9 @@ struct Game {
     token: Token,
     /// The file that holds the game's standard error, its log.
     log: PathBuf,
+    /// A connection to the game that the program, an editor, plays, while the game's tools drive
+    /// it (`drive_played_game`, `docs/adr/0165-editing-while-playing.md`).
+    played: Option<Client>,
 }
 
 /// The server: at most one game at a time.
@@ -276,6 +283,14 @@ struct CaptureElement {
     element: String,
 }
 
+/// What `drive_played_game` takes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct DrivePlayed {
+    /// Whether the game's tools drive the game that the editor plays, `true`, or the editor again,
+    /// `false`.
+    played: bool,
+}
+
 /// What `read_logs` takes.
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct ReadLogs {
@@ -403,9 +418,12 @@ fn wait(child: &mut Child, timeout: Duration) -> Option<ExitStatus> {
 
 impl Server {
     /// Asks the game `request`, on a thread that may wait, so that the server goes on answering,
-    /// and gives its reply as a result. A game that ended is forgotten, its end told; after a
-    /// request that failed, a new connection replaces the one that the game's late answer would
-    /// throw out of step.
+    /// and gives its reply as a result: the game that an editor plays while the game's tools
+    /// drive it, but for the editor's requests (`docs/adr/0165-editing-while-playing.md`), the
+    /// program that `start_game` started otherwise. A game that ended is forgotten, its end told;
+    /// after a request to the program that failed, a new connection replaces the one that the
+    /// game's late answer would throw out of step; after one to the game that an editor plays
+    /// that failed, the game's tools drive the editor again.
     async fn ask(&self, request: Request) -> Result<CallToolResult, McpError> {
         let game = Arc::clone(&self.game);
         let answer = tokio::task::spawn_blocking(move || {
@@ -416,6 +434,20 @@ impl Server {
             if let Some(ended) = running.ended() {
                 *slot = None;
                 return Err(ended);
+            }
+            // What is not an editor's request reaches the game that the editor plays, while the
+            // game's tools drive it.
+            if !matches!(request, Request::Edit { .. })
+                && let Some(played) = running.played.as_mut()
+            {
+                return played.request(&request).map_err(|error| {
+                    running.played = None;
+                    format!(
+                        "the game that the editor plays does not answer ({}): the game's tools \
+                         drive the editor again",
+                        causes(&error)
+                    )
+                });
             }
             let error = match running.client.request(&request) {
                 Ok(answer) => return Ok(answer),
@@ -717,6 +749,7 @@ impl Server {
                 address: launched.address,
                 token: launched.token,
                 log,
+                played: None,
             });
             Ok(said)
         })
@@ -725,7 +758,10 @@ impl Server {
         Ok(started.map_or_else(failure, text))
     }
 
-    #[tool(description = "Asks the game to stop, as closing its window would, and waits for it.")]
+    #[tool(
+        description = "Asks the game that `start_game` started to stop, as closing its window \
+                       would, and waits for it: an editor ends with the game that it plays."
+    )]
     async fn stop_game(&self) -> Result<CallToolResult, McpError> {
         let game = Arc::clone(&self.game);
         let stopped = tokio::task::spawn_blocking(move || -> Result<String, String> {
@@ -1097,6 +1133,55 @@ impl Server {
             edit: Edit::Journal,
         })
         .await
+    }
+
+    #[tool(
+        description = "In an editor that plays its level (`play.start`, once the game runs), points \
+                       the game's tools at the game that it plays, `played: true`, or back at the \
+                       editor, `played: false`; the editor's tools always reach the editor, and \
+                       `stop_game` stops the editor, `play.stop` the game. A step that the editor \
+                       makes reaches the game a moment after the editor answers. The server \
+                       connects to the game with what the editor gives of it."
+    )]
+    async fn drive_played_game(
+        &self,
+        Parameters(DrivePlayed { played }): Parameters<DrivePlayed>,
+    ) -> Result<CallToolResult, McpError> {
+        let game = Arc::clone(&self.game);
+        let answer = tokio::task::spawn_blocking(move || {
+            let mut slot = game.lock().unwrap_or_else(PoisonError::into_inner);
+            let Some(running) = slot.as_mut() else {
+                return Err("no program runs: start an editor with `start_game`".to_owned());
+            };
+            if !played {
+                running.played = None;
+                return Ok("the game's tools drive the editor again".to_owned());
+            }
+            let edit = Request::Edit { edit: Edit::Played };
+            let (address, token) = match running.client.request(&edit) {
+                Ok((Reply::Played { address, token }, _)) => (address, token),
+                Ok((Reply::Failed { message }, _)) => return Err(message),
+                Ok(_) => return Err("the program gave no game that it plays".to_owned()),
+                Err(error) => return Err(causes(&error)),
+            };
+            let address: SocketAddr = address
+                .parse()
+                .map_err(|error| format!("the editor gave no address: {error}"))?;
+            let token: Token = token
+                .parse()
+                .map_err(|error| format!("the editor gave no token: {error}"))?;
+            let client = Client::connect(address, &token).map_err(|error| causes(&error))?;
+            running.played = Some(client);
+            Ok(format!(
+                "the game's tools drive the game that the editor plays, which listens at {address}"
+            ))
+        })
+        .await
+        .map_err(|error| McpError::internal_error(error.to_string(), None))?;
+        Ok(match answer {
+            Ok(said) => text(said),
+            Err(why) => failure(why),
+        })
     }
 
     #[tool(

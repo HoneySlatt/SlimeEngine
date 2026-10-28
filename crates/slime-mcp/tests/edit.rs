@@ -13,7 +13,8 @@
 //! lamp by its prefab's file and goes back and forth in the history
 //! (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`); and plays the yard in the `world`
 //! example, which it pauses, steps and stops, reading the game's log in the editor's
-//! (`docs/adr/0164-play.md`).
+//! (`docs/adr/0164-play.md`), and drives with the game's tools while a step made in the editor,
+//! which places a lamp, reaches it, until it stops (`docs/adr/0165-editing-while-playing.md`).
 //!
 //! It needs the examples built (`cargo build --example editor --example world`) beside the server
 //! and the examples' assets cooked, in the directory that its first argument names, or
@@ -361,6 +362,9 @@ fn main() {
     // Play: the `world` example plays the yard as the editor holds it, steps not written included,
     // without a window, its log in the editor's; paused, stepped, at another speed, then stopped,
     // by the operations' names (`docs/adr/0164-play.md`).
+    let (said, result) = session.try_tool("drive_played_game", json!({ "played": true }));
+    assert_eq!(result["isError"], json!(true), "{said:?}");
+    assert!(said[0].contains("no game plays"), "{said:?}");
     let (said, _) = session.tool("run_operation", json!({ "name": "play.start" }));
     assert_eq!(said, ["done"]);
     let played = |session: &mut Session, what: &str| {
@@ -379,17 +383,90 @@ fn main() {
     };
     played(&mut session, "Play: the game runs");
     played(&mut session, "INFO game:");
+    // The game's tools drive the game that the editor plays, the editor's the editor still: a step
+    // made meanwhile reaches the game, a value set reaches the game alone; then the editor again
+    // (`docs/adr/0165-editing-while-playing.md`).
+    let (said, _) = session.tool("drive_played_game", json!({ "played": true }));
+    assert!(
+        said[0].contains("drive the game that the editor plays"),
+        "{said:?}"
+    );
+    // The game's token, 32 hexadecimal digits, is the server's alone.
+    let token = |said: &str| {
+        said.split(|c: char| !c.is_ascii_hexdigit())
+            .any(|word| word.len() >= 32)
+    };
+    assert!(!token(&said[0]), "{said:?}");
+    // A step that raises a lamp and places another, which the game places through its own
+    // library of scenes.
+    session.tool(
+        "edit",
+        json!({
+            "label": "Raise a lamp while it plays",
+            "commands": [
+                "[SetProperty]\nentity = \"yard/lamp 3\"\ncomponent = \"Transform\"\npath = \"translation.y\"\nvalue = 4.0\n",
+                format!("[Place]\nentity = \"yard/lamp-p1ay\"\nparent = \"yard\"\nprefab = \"{LAMP}\"\n"),
+            ],
+        }),
+    );
+    let started = std::time::Instant::now();
+    while !lamp(&mut session, "lamp 3").contains("y = 4.0") {
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(30),
+            "the step reaches the game"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    let (said, _) = session.tool("list_entities", json!({ "filter": "lamp-p1ay" }));
+    assert!(
+        said[0].contains("yard/lamp-p1ay"),
+        "placed in the game: {said:?}"
+    );
+    session.tool(
+        "set_property",
+        json!({
+            "entity": "yard/lamp 3",
+            "component": "Transform",
+            "path": "translation.z",
+            "value": "9.0",
+        }),
+    );
+    assert!(lamp(&mut session, "lamp 3").contains("z = 9.0"));
+    let (said, _) = session.tool("drive_played_game", json!({ "played": false }));
+    assert_eq!(said, ["the game's tools drive the editor again"]);
+    let in_editor = lamp(&mut session, "lamp 3");
+    assert!(
+        in_editor.contains("y = 4.0") && !in_editor.contains("z = 9.0"),
+        "{in_editor}"
+    );
     for (name, arguments) in [
         ("play.pause", vec![]),
         ("play.step", vec![]),
         ("play.speed", vec!["0.5"]),
-        ("play.stop", vec![]),
     ] {
         let (said, _) = session.tool(
             "run_operation",
             json!({ "name": name, "arguments": arguments }),
         );
         assert_eq!(said, ["done"], "{name}");
+    }
+    // Stopped while the game's tools drive it: the first that finds it gone points them back at
+    // the editor, once the game, which says that it stopped meanwhile, closed its channel.
+    session.tool("drive_played_game", json!({ "played": true }));
+    let (said, _) = session.tool("run_operation", json!({ "name": "play.stop" }));
+    assert_eq!(said, ["done"]);
+    let started = std::time::Instant::now();
+    loop {
+        let (said, result) = session.try_tool("game_state", json!({}));
+        if result["isError"] == json!(true) && said[0] != "the game has stopped" {
+            assert!(said[0].contains("drive the editor again"), "{said:?}");
+            break;
+        }
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(30),
+            "the game stops"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(100));
     }
     played(&mut session, "Play: the game stopped");
     // What a placement holds but its root cannot be grouped out of it.

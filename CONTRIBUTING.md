@@ -242,7 +242,9 @@ environment of a headless Weston, `XDG_RUNTIME_DIR` and `WAYLAND_DISPLAY`, with
 server's test. The editor's program is driven the same way: the server starts it with `start_game`,
 as a game, on a copy of a level and with a journal of the agent's (`--level`, `--journal`), and its
 editor's tools edit the level, `run_operation` running any operation of its menus by name. It opens
-its window as a game does, in the server's environment; `--headless` runs it without one.
+its window as a game does, in the server's environment; `--headless` runs it without one. Once its
+Play runs the game, `drive_played_game` points the server's game tools at that game, the editor's
+tools still reaching the editor ([ADR-0165](docs/adr/0165-editing-while-playing.md)).
 
 A build for shipping leaves the channel and the dev overlay out: name the game alone, without its
 default features, `cargo build --release -p hunnawood --no-default-features`. A build of the whole

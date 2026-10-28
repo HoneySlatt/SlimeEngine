@@ -103,6 +103,17 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   the copy, and a placement's overrides, nested ones included, are kept. Blender's way binds
   Shift+D, X and Shift+A. Agents run them by name, `edit.create`, `edit.duplicate`, `edit.copy`,
   `edit.paste`, `edit.delete`, `edit.group`, `edit.repeat` and `edit.nudge_*`.
+- Editing while playing (ADR-0165): the steps made, undone and done again in the editor while Play
+  runs the game reach it, a step at a time, as the texts of the commands that they applied, a
+  gesture's once it ends; a step that the game refuses is told, and so is an undone deletion, which
+  does not reach the game. Another level does not open while the game plays, nor does Play start
+  during a gesture; the toolbar follows game time as another tool changes it. The development
+  channel, at version 11 of its protocol, applies the world's commands from their texts
+  (`Request::Apply`), placing prefabs through the library of scenes that a game gives
+  (`Simulation::scenes`, of development builds), and an editor says where the game that it plays
+  listens (`Edit::Played`, `Reply::Played`). The MCP server's `drive_played_game` points the game's
+  tools at the game that the editor plays, the editor's tools still reaching the editor.
+  `Editor::record_applied` and `Editor::take_applied` give the texts that the steps applied.
 - Play in the editor (ADR-0164): *Play* (F5), *Pause* (F7), *Step* (F8), the speeds of game time and
   *Stop* (Shift+F5), in a toolbar above the viewports and the *Play* menu, run the game on the
   level as the editor holds it, steps not written included, as a private copy that the game reads

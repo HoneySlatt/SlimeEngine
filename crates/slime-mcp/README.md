@@ -13,8 +13,9 @@ captured, the settings of its views changed, its reports read, the entity at a p
 interface read and used, its log and its frames' times read, its run saved and loaded, stopped. An
 editor too, started as a game is, its level edited through steps of commands, undone and redone,
 its history and journal read, its selection set and its level written back
-(`docs/adr/0135-the-editors-program.md`). Assets cooked and tests run. No mouse in scripted input
-yet: an interface is used through its elements' actions.
+(`docs/adr/0135-the-editors-program.md`), and the game that its Play runs driven with the game's
+tools beside it (`docs/adr/0165-editing-while-playing.md`). Assets cooked and tests run. No mouse
+in scripted input yet: an interface is used through its elements' actions.
 
 ## Role
 
@@ -24,7 +25,9 @@ yet: an interface is used through its elements' actions.
   development channel that the game opens; the game's standard error, its log, goes to a file of
   the system's temporary directory, which `start_game` names and which stays there once the game
   ended. A game still running when the agent goes is stopped. After a request that failed, the
-  server opens a new connection to the game, so that a late answer is not read as the next one's.
+  server opens a new connection to the game, so that a late answer is not read as the next one's;
+  after one to the game that an editor plays that failed, it drops that connection, and the game's
+  tools drive the editor again.
 - Runs the engine's cooker and `cargo test` in the directory where it runs: run it from the
   repository's root.
 
@@ -103,6 +106,13 @@ The tools, each described to the agent by the server itself, with its parameters
   opens no dialog of the system, which an agent could not see: *Open a level…* waits for the
   level's path, typed in its field, or the agent gives it `file.open`
   (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`).
+- `drive_played_game`: once an editor's Play runs the game (`play.start`), points the game's tools
+  at that game, `played: true`, connecting to it with the address and the token that the editor
+  gives, which the agent never sees, or back at the editor, `played: false`; the editor's tools
+  reach the editor all along, and a played game that no longer answers points the game's tools
+  back at the editor. A step that the editor makes reaches the game a moment after the editor
+  answers. `stop_game` stops the editor, which ends the game that it plays, and `play.stop` that
+  game alone (`docs/adr/0165-editing-while-playing.md`).
 - `cook`: cooks a directory of source assets, which a game started with `--watch` loads again.
 - `run_tests`: runs `cargo test` with the arguments given.
 
@@ -131,7 +141,8 @@ steps, undoes and redoes them, writes the level, finds again, as the editor star
 did not write, and, the level written, opens it from its file, where it moves three lamps in one
 step, undoes it, drops a lamp on the ground, duplicates it, copies it and pastes it, places a lamp
 by its prefab's file and goes back and forth in the history, and plays the yard in the `world`
-example, by the operations' names; it needs no compositor, the examples built and their assets
+example, by the operations' names, driving the game with the game's tools while a step made in the
+editor reaches it; it needs no compositor, the examples built and their assets
 cooked. `tests/edit_zone.rs` starts `hunnawood-editor` on a copy
 of *Hunna Wood*'s zone, changes one of the game's components, creates an entity that holds
 another, undoes, redoes and writes the zone; it needs the zone cooked, and `scripts/check.sh` runs

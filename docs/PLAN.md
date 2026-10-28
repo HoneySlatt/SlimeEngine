@@ -1009,10 +1009,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   the mouse nor text, which an agent gives an interface through its elements' actions instead
   ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)); a run without a window has no image
   to capture; the measurements that the channel gives are the frames' times, and the reports that
-  a game gives, its views' statistics among them;
-  an MCP server drives one game at a time, until M6c.4; a component that refers to an entity
-  without a persistent identity is read, the reference written as no entity, `""`, and written back
-  so, no longer naming it. A window's image is created with the copy-source usage wherever the system
+  a game gives, its views' statistics among them; a component that refers to an entity without a
+  persistent identity is read, the reference written as no entity, `""`, and written back so, no
+  longer naming it. A window's image is created with the copy-source usage wherever the system
   offers it, at every frame, whether or not a tool captures it: what that costs
   a driver is not measured. Each later milestone exposes its system to the channel
   ([ADR-0116](adr/0116-stage-6-in-two-halves.md)).
@@ -1672,7 +1671,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   builds a row for each step that the history keeps, which a long session makes many, again as the
   steps change, and going to a step journals each undo or redo between.
 - **Play** ([ADR-0164](adr/0164-play.md)): it starts a game's program built already, which M6c.4c
-  builds again; the steps made while the game runs do not reach it, which M6c.4b sends. A game that
+  builds again. A game that
   makes its library of scenes before `slime_app::run` starts its log, as *Hunna Wood* and the
   `world` example do, logs neither the scenes that Play gave nor a file of Play's directory that it
   left out. The console builds a label for each line that it keeps, 500 at most, again as lines
@@ -1680,6 +1679,11 @@ GitHub issues, linked from their entry; this list stays the reference.
   Wood* has no run without a window: an agent's editor without one plays it in a window all the
   same. A control that the game refuses is told, but the toolbar shows what the game says only
   once it answers the state asked after the control.
+- **Editing while playing** ([ADR-0165](adr/0165-editing-while-playing.md)): an undone deletion
+  does not reach the game, which plays on without what it restored until Play starts it again; a
+  step that the game refuses stays applied in the game up to the command refused; a step that
+  sets what the game's run changed overrides the run without a word; a gesture reaches the game
+  once it ends, not as it drags.
 - **Every multisampled depth target can be read by a shader**
   ([ADR-0159](adr/0159-picking-and-the-selection.md)), so that the outline's frames resolve the
   scene's depth: every view of four samples makes its depth so, whether it outlines or not, which
