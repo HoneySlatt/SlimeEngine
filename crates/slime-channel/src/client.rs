@@ -5,7 +5,7 @@ use std::net::{SocketAddr, TcpStream};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use slime_reflect::Reflect;
 use slime_serialize::MAX_SIZE;
@@ -124,6 +124,23 @@ pub struct Launched {
 /// within `timeout`: a program built without the development channel never does. The game is
 /// stopped then.
 pub fn launch(command: &mut Command, timeout: Duration) -> Result<Launched, ChannelError> {
+    launch_unless(command, timeout, || false)
+}
+
+/// Starts the game that `command` runs, as [`launch`] does, but gives up once `cancelled` says so,
+/// which it asks every twentieth of a second while it waits: what an editor that plays a game
+/// does, whose user stops the game before it said where it listens
+/// (`docs/adr/0164-play.md`).
+///
+/// # Errors
+///
+/// As [`launch`]; [`ChannelError::NotListening`] too once `cancelled` gave up. The game is stopped
+/// then.
+pub fn launch_unless(
+    command: &mut Command,
+    timeout: Duration,
+    cancelled: impl Fn() -> bool,
+) -> Result<Launched, ChannelError> {
     let token = Token::generate()?;
     let mut child = command
         .env(TOKEN_ENV_VAR, token.to_string())
@@ -161,21 +178,34 @@ pub fn launch(command: &mut Command, timeout: Duration) -> Result<Launched, Chan
         let _ = child.wait();
         return Err(error.into());
     }
-    match address.recv_timeout(timeout) {
-        Ok(address) => Ok(Launched {
-            child,
-            address,
-            token,
-        }),
-        Err(error) => {
-            let _ = child.kill();
-            let why = match child.wait() {
-                Ok(status) if error == mpsc::RecvTimeoutError::Disconnected => {
-                    format!("it ended ({status}) without saying where it listens")
-                }
-                _ => format!("it did not say where it listens within {timeout:?}"),
-            };
-            Err(ChannelError::NotListening(why))
+    let until = Instant::now() + timeout;
+    let error = loop {
+        let left = until.saturating_duration_since(Instant::now());
+        match address.recv_timeout(left.min(Duration::from_millis(50))) {
+            Ok(address) => {
+                return Ok(Launched {
+                    child,
+                    address,
+                    token,
+                });
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) if cancelled() => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(ChannelError::NotListening(
+                    "it was stopped before it said where it listens".to_owned(),
+                ));
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) if !left.is_zero() => {}
+            Err(error) => break error,
         }
-    }
+    };
+    let _ = child.kill();
+    let why = match child.wait() {
+        Ok(status) if error == mpsc::RecvTimeoutError::Disconnected => {
+            format!("it ended ({status}) without saying where it listens")
+        }
+        _ => format!("it did not say where it listens within {timeout:?}"),
+    };
+    Err(ChannelError::NotListening(why))
 }

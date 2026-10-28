@@ -72,6 +72,8 @@ game.join().expect("the game answered");
   holds, and the game ends once it closes, so that no game outlives the tool that started it.
   Both ends send each message at once, Nagle's algorithm off, so that a request is answered
   within the game's next frame rather than after tens of milliseconds of acknowledgements.
+  `launch_unless` gives the start up once the caller says so, as an editor's Play does when its
+  user stops a game that is still starting (`docs/adr/0164-play.md`).
 
 The rustdoc holds the contracts: each request and its reply, the limits, the errors.
 

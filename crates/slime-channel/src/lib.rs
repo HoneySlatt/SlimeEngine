@@ -7,7 +7,7 @@ mod message;
 mod token;
 mod wire;
 
-pub use client::{Client, Launched, launch};
+pub use client::{Client, Launched, launch, launch_unless};
 pub use error::ChannelError;
 pub use listener::{Incoming, Listener};
 pub use message::{
