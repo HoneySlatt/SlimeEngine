@@ -123,6 +123,59 @@ impl Picker {
         hits
     }
 
+    /// The box, in the world's axes, around the meshes of `entity` of `world` and of the entities
+    /// below it, as [`Picker::cast`] places them, those hidden left out as a cast leaves them; none
+    /// for an entity that places no mesh shown, or none that can be read. It reads each mesh's box
+    /// from the cooked data the first time, as a cast does (ADR-0161).
+    pub fn bounds(
+        &mut self,
+        world: &World,
+        entity: Entity,
+        fraction: f64,
+    ) -> Option<(DVec3, DVec3)> {
+        let mut joined: Option<(DVec3, DVec3)> = None;
+        let mut stack = vec![entity];
+        while let Some(each) = stack.pop() {
+            if world.is_hidden(each) {
+                continue;
+            }
+            stack.extend(world.children(each));
+            let (Some(meshes), Some(transform), Some(at)) = (
+                world.get::<Meshes>(each),
+                world.get::<Transform>(each),
+                world.interpolated_transform(each, fraction),
+            ) else {
+                continue;
+            };
+            let placed = at.to_affine(transform.stretch);
+            for &id in &meshes.ids {
+                let assets = &self.assets;
+                let read = self.meshes.entry(id).or_insert_with(|| Read {
+                    bounds: read(assets, id).map(|(bounds, _)| bounds),
+                    triangles: None,
+                });
+                let Some((low, high)) = read.bounds else {
+                    continue;
+                };
+                for corner in 0..8 {
+                    let pick = |bit: u32, axis: usize| {
+                        f64::from(if corner & bit == 0 {
+                            low[axis]
+                        } else {
+                            high[axis]
+                        })
+                    };
+                    let point =
+                        placed.transform_point3(DVec3::new(pick(1, 0), pick(2, 1), pick(4, 2)));
+                    joined = Some(joined.map_or((point, point), |(low, high)| {
+                        (low.min(point), high.max(point))
+                    }));
+                }
+            }
+        }
+        joined
+    }
+
     /// How far along the ray from `start` by `step`, in the mesh's space, the mesh `id` is first
     /// met, if nearer than `nearest`; reading what it lacks of the mesh.
     fn meet(&mut self, id: AssetId, start: DVec3, step: DVec3, nearest: f64) -> Option<f64> {

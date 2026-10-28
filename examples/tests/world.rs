@@ -245,6 +245,35 @@ fn picking_by_the_gpu_and_by_the_cpu_name_the_same_entities() {
     );
 }
 
+/// The box that the CPU's picker gives around the sample's root, around its meshes and those of
+/// every entity below it, is the box that the renderer loads around the sample; one of its nodes
+/// alone lies inside it, and the sun, which places no mesh, has none, nor the pillar hidden
+/// (`docs/adr/0161-the-open-step-and-the-handles.md`).
+#[test]
+fn the_picker_s_box_around_the_sample_is_the_renderer_s() {
+    let (bounds, _) = loaded(&gpu());
+    let mut world = world();
+    let root = world
+        .find(&PersistentId::new(["sample"]))
+        .expect("the sample's root");
+    let mut picker = Picker::new(sample().clone());
+    let (low, high) = picker.bounds(&world, root, 0.0).expect("it places meshes");
+    assert!(
+        low.distance(bounds.min) < 1e-4 && high.distance(bounds.max) < 1e-4,
+        "{low} {high} against {} {}",
+        bounds.min,
+        bounds.max
+    );
+    let (pillar_low, pillar_high) = picker
+        .bounds(&world, entity(&world, "pillar"), 0.0)
+        .expect("the pillar places a mesh");
+    assert!(pillar_low.cmpge(low).all() && pillar_high.cmple(high).all());
+    assert!(pillar_high.distance(pillar_low) < high.distance(low));
+    assert_eq!(picker.bounds(&world, entity(&world, "sun"), 0.0), None);
+    world.insert(entity(&world, "pillar"), Hidden);
+    assert_eq!(picker.bounds(&world, entity(&world, "pillar"), 0.0), None);
+}
+
 #[test]
 fn the_sample_drawn_from_a_world_is_the_sample_the_renderer_loads() {
     let gpu = gpu();

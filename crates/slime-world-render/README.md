@@ -76,7 +76,9 @@ fn draw(
   the meshes from the cooked data at its first cast in a world that names them, and keeping their
   boxes, and the triangles of those that rays meet, while the world names them; `cast_through`
   gives every entity that the ray meets, the nearest first, which the editor goes through
-  (`docs/adr/0159-picking-and-the-selection.md`).
+  (`docs/adr/0159-picking-and-the-selection.md`); `bounds` the box in the world around an
+  entity's meshes and those below it, from which the editor drops what is selected
+  (`docs/adr/0161-the-open-step-and-the-handles.md`).
 
 The rustdoc holds the contracts: what is drawn, and what building a frame costs.
 

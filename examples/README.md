@@ -135,7 +135,8 @@ The log level of every example is set by the `SLIME_LOG` environment variable, f
   drawn from the cache made again with the lost one's requests, and from one made without them,
   the world untouched; a frame built on one thread drawn on
   another, once its cache and builder are dropped, as on the first; picking by the GPU and by
-  the CPU naming the same entities on a grid of its pixels. Without a GPU, it spawns the
+  the CPU naming the same entities on a grid of its pixels; the CPU's picker giving the box around
+  the sample that the renderer loads. Without a GPU, it spawns the
   cooked yard, its lamps placed with their overrides, their lights placed in the world, and changes
   the lamp in a copy of the sources, cooks it
   again and carries a run into the yard spawned anew: every lamp follows but where the yard
