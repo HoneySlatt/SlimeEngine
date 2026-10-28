@@ -4,6 +4,7 @@ mod base;
 mod change;
 mod command;
 mod components;
+mod copying;
 mod deletion;
 mod document;
 mod entity;
@@ -23,7 +24,7 @@ mod world;
 mod write_back;
 
 pub use change::{Mut, Removals, Tick, Ticks};
-pub use command::{Command, CommandTextError, Identities};
+pub use command::{Command, CommandTextError, Identities, Renaming};
 pub use components::{Driven, Extras, Hidden, Light, Meshes, Name, Persistence, Unsaved};
 pub use deletion::Deleted;
 pub use document::{DocumentError, Loaded, SetAside};

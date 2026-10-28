@@ -12,6 +12,7 @@ use crate::error::WorldError;
 use crate::identity::PersistentId;
 use crate::library::{ResolvedScene, SceneError, SceneLibrary};
 use crate::world::World;
+use crate::write_back::unsuffixed;
 
 /// A change of the world asked for outside the phases of a frame that may make it, by the editor,
 /// the dev overlay, a tool or a game's presentation, which reads the world without writing it: the
@@ -314,7 +315,7 @@ impl World {
     }
 
     /// The stable name of the component type named `component`, by its name or an alias.
-    fn component_name(&self, component: &str) -> String {
+    pub(crate) fn component_name(&self, component: &str) -> String {
         self.registry
             .get(component)
             .map_or_else(|| component.to_owned(), |ty| ty.info().name.clone())
@@ -488,8 +489,36 @@ impl Command {
         world: &World,
         scenes: &mut SceneLibrary,
     ) -> Result<Self, CommandTextError> {
+        Self::read_with(text, world, scenes, None)
+    }
+
+    /// The command that `text` writes, read as [`Command::read`] reads it, every identity that it
+    /// names, of an entity, a parent or within a value, renamed by `renaming`: what pastes commands
+    /// copied under new identities (`docs/adr/0162-creating-copying-and-arranging.md`). A parent
+    /// that `renaming` leaves as it is and that `world` does not hold is the root of the level that
+    /// `renaming` names, as when pasting into another level.
+    ///
+    /// # Errors
+    ///
+    /// As [`Command::read`].
+    pub fn read_renamed(
+        text: &str,
+        world: &World,
+        scenes: &mut SceneLibrary,
+        renaming: &Renaming,
+    ) -> Result<Self, CommandTextError> {
+        Self::read_with(text, world, scenes, Some(renaming))
+    }
+
+    /// [`Command::read`], through `renaming` if there is one.
+    fn read_with(
+        text: &str,
+        world: &World,
+        scenes: &mut SceneLibrary,
+        renaming: Option<&Renaming>,
+    ) -> Result<Self, CommandTextError> {
         let registry = world.registry();
-        let names = Identities(world);
+        let names = Renamed { world, renaming };
         let mut document =
             Document::parse(registry, text, Mode::Strict).map_err(CommandTextError::Read)?;
         let kinds = || {
@@ -535,6 +564,18 @@ impl Command {
         let entity = reader
             .identity("entity")?
             .ok_or_else(|| reader.missing("entity"))?;
+        // A parent renamed, or that the level holds; the level's root otherwise.
+        let parent = |reader: &mut Reader<'_, '_>| -> Result<_, CommandTextError> {
+            let parent = reader.raw_identity("parent")?;
+            Ok(match (renaming, parent) {
+                (Some(renaming), Some(parent))
+                    if !renaming.renames(&parent) && world.find(&parent).is_none() =>
+                {
+                    Some(PersistentId::new([renaming.key.as_str()]))
+                }
+                (_, parent) => parent.map(|parent| reader.names.renamed(parent)),
+            })
+        };
         Ok(match kind {
             "SetProperty" => {
                 let component = reader
@@ -557,7 +598,7 @@ impl Command {
                 }
             }
             "Create" => {
-                let parent = reader.identity("parent")?;
+                let parent = parent(&mut reader)?;
                 let rank = reader.rank()?;
                 if reader
                     .document
@@ -586,7 +627,7 @@ impl Command {
                 }
             }
             "Place" => {
-                let parent = reader.identity("parent")?;
+                let parent = parent(&mut reader)?;
                 let rank = reader.rank()?;
                 let Some(Value::Asset(id)) = reader.value("prefab", "AssetId")? else {
                     return Err(reader.missing("prefab"));
@@ -660,7 +701,7 @@ fn part_type(
 /// Reads the keys of a command's table.
 struct Reader<'d, 'a> {
     document: &'d mut Document<'a>,
-    names: &'d Identities<'a>,
+    names: &'d Renamed<'a>,
     kind: &'static str,
 }
 
@@ -680,8 +721,13 @@ impl Reader<'_, '_> {
         })
     }
 
-    /// The persistent identity at `key`, if the table holds one.
+    /// The persistent identity at `key`, if the table holds one, renamed if the reading renames.
     fn identity(&mut self, key: &str) -> Result<Option<PersistentId>, CommandTextError> {
+        Ok(self.raw_identity(key)?.map(|id| self.names.renamed(id)))
+    }
+
+    /// The persistent identity at `key`, if the table holds one, as the text names it.
+    fn raw_identity(&mut self, key: &str) -> Result<Option<PersistentId>, CommandTextError> {
         self.text(key)?
             .map(|text| {
                 text.parse()
@@ -701,6 +747,145 @@ impl Reader<'_, '_> {
     /// The error of a table without `key`.
     fn missing(&self, key: &str) -> CommandTextError {
         CommandTextError::Invalid(format!("`{}` has no `{key}`", self.kind))
+    }
+}
+
+/// Names a world's entities as [`Identities`] does, a reading renaming the identities that it reads
+/// through a [`Renaming`], if it has one.
+struct Renamed<'w> {
+    world: &'w World,
+    renaming: Option<&'w Renaming>,
+}
+
+impl Renamed<'_> {
+    /// `id`, renamed if the reading renames.
+    fn renamed(&self, id: PersistentId) -> PersistentId {
+        match self.renaming {
+            Some(renaming) => renaming.renamed(&id),
+            None => id,
+        }
+    }
+}
+
+impl References for Renamed<'_> {
+    fn name(&self, entity: u64) -> Option<String> {
+        Identities(self.world).name(entity)
+    }
+
+    fn entity(&self, name: &str) -> Option<u64> {
+        if name.is_empty() {
+            return Some(Entity::NONE.to_bits());
+        }
+        let id = self.renamed(name.parse().ok()?);
+        Some(self.world.find(&id)?.to_bits())
+    }
+
+    fn asset_name(&self, id: u128) -> Option<String> {
+        Identities(self.world).asset_name(id)
+    }
+
+    fn asset(&self, name: &str) -> Option<u128> {
+        Identities(self.world).asset(name)
+    }
+}
+
+/// New identities for what copied commands create, so that they create it again beside what they
+/// copied, in the level of the scene spawned under `key`
+/// (`docs/adr/0162-creating-copying-and-arranging.md`): each entity that a [`Command::Create`] or
+/// a [`Command::Place`] names gets a new identity of that level, from the old one's ID, as
+/// [`World::new_id`] makes one; [`Command::read_renamed`] reads the commands through it.
+#[derive(Clone, Debug)]
+pub struct Renaming {
+    /// The key of the level that the commands create in.
+    key: String,
+    /// Each identity that a command creates, and its new one.
+    renamed: Vec<(PersistentId, PersistentId)>,
+}
+
+impl Renaming {
+    /// The new identities of what `texts`, the commands that [`World::creating_commands`] gives as
+    /// [`Command::write`] writes them, create in `world`, under the scene spawned under `key`, none
+    /// of them held by an entity of `world`. Each command creates what it copies, or deletes,
+    /// inserts into or removes from what a command before it created, so that reading them through
+    /// the renaming changes nothing that they did not create.
+    ///
+    /// # Errors
+    ///
+    /// [`CommandTextError::Invalid`] for a text that is not a command, as [`Command::read`] says,
+    /// or one that changes what no command before it created, its index in `texts` from 0 named.
+    ///
+    /// # Panics
+    ///
+    /// If `key` cannot be a part of an identity, as [`World::new_id`] says.
+    pub fn of_commands(world: &World, key: &str, texts: &[&str]) -> Result<Self, CommandTextError> {
+        let mut renaming = Self {
+            key: key.to_owned(),
+            renamed: Vec::new(),
+        };
+        for (index, text) in texts.iter().enumerate() {
+            let invalid = |why: &dyn std::fmt::Display| {
+                CommandTextError::Invalid(format!("command {index}: {why}"))
+            };
+            let mut document = Document::parse(world.registry(), text, Mode::Strict)
+                .map_err(|error| invalid(&error))?;
+            let [kind] = document
+                .keys(&[])
+                .try_into()
+                .map_err(|_| invalid(&"a command is one table, named after its kind"))?;
+            let Some(Value::Text(old)) = document
+                .read(&[kind.as_str(), "entity"], "String", None)
+                .map_err(|error| invalid(&error))?
+            else {
+                return Err(invalid(&format!("`{kind}` has no `entity`")));
+            };
+            let old: PersistentId = old.parse().map_err(|error| invalid(&error))?;
+            match kind.as_str() {
+                "Create" | "Place" => {}
+                "Delete" | "Insert" | "Remove" if renaming.renames(&old) => continue,
+                _ => {
+                    return Err(invalid(&format!(
+                        "`{kind}` of `{old}` changes what the commands do not create"
+                    )));
+                }
+            }
+            let name = old.parts().last().map_or("entity", |id| unsuffixed(id));
+            let new = loop {
+                let new = world.new_id(key, name);
+                if renaming.renamed.iter().all(|(_, taken)| *taken != new) {
+                    break new;
+                }
+            };
+            renaming.renamed.push((old, new));
+        }
+        Ok(renaming)
+    }
+
+    /// The new identity of `id`: of the entity that a command creates, or of one that its
+    /// identity extends, as a placement's entities extend its root's, the longest such first;
+    /// `id` itself otherwise.
+    pub fn renamed(&self, id: &PersistentId) -> PersistentId {
+        self.renamed
+            .iter()
+            .filter(|(old, _)| id.parts().starts_with(old.parts()))
+            .max_by_key(|(old, _)| old.parts().len())
+            .map_or_else(
+                || id.clone(),
+                |(old, new)| {
+                    PersistentId::new(
+                        new.parts()
+                            .iter()
+                            .chain(&id.parts()[old.parts().len()..])
+                            .map(String::as_str),
+                    )
+                },
+            )
+    }
+
+    /// Whether `id` is renamed: an entity that a command creates, or one of those below it.
+    pub fn renames(&self, id: &PersistentId) -> bool {
+        self.renamed
+            .iter()
+            .any(|(old, _)| id.parts().starts_with(old.parts()))
     }
 }
 

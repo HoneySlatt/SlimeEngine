@@ -1106,6 +1106,11 @@ the tone mapping stretches over the rectangle; above 1, more, which it averages
 which can be read back to the CPU and sampled by later passes, or the image of a window for one
 frame, which can be neither.
 
+**Renaming (commands).** The new identities that pasted *commands* create what they copied under,
+one of the level for each entity that a command creates, which the identities that they name
+afterwards follow, references included (`slime_world::Renaming`, `Command::read_renamed`,
+[ADR-0162](adr/0162-creating-copying-and-arranging.md)).
+
 **Report (development channel).** A named value that a game gives the tools that drive it, described
 by *reflection*: its *asset cache*'s requests and memory, its views' statistics
 (`slime_app::Presentation::reports`, [ADR-0128](adr/0128-asset-requests.md)).

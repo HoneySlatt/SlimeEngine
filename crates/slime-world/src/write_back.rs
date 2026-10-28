@@ -108,7 +108,7 @@ pub(crate) fn id_base(name: Option<&str>) -> String {
 /// of the entity named, and `attempt`, which another draw for the same entity counts up.
 pub(crate) fn random_id(random: &RandomState, base: &str, salt: u32, attempt: u64) -> String {
     let mut bits = random.hash_one((salt, attempt));
-    let letters: String = (0..4)
+    let letters: String = (0..SUFFIX)
         .map(|_| {
             let digit = (bits % 36) as u32;
             bits /= 36;
@@ -116,6 +116,28 @@ pub(crate) fn random_id(random: &RandomState, base: &str, salt: u32, attempt: u6
         })
         .collect();
     format!("{base}-{letters}")
+}
+
+/// How many letters or digits end an ID that [`random_id`] makes, after a dash.
+const SUFFIX: usize = 4;
+
+/// `id` without the dash and the letters and digits that [`random_id`] ends an ID with, so that a
+/// copy of a copy does not grow a suffix at each copy: those whose letters hold a digit, which
+/// most of its suffixes do, and few words, so that `stone-wall` keeps its last word.
+pub(crate) fn unsuffixed(id: &str) -> &str {
+    match id.rsplit_once('-') {
+        Some((base, suffix))
+            if !base.is_empty()
+                && suffix.len() == SUFFIX
+                && suffix
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+                && suffix.chars().any(|c| c.is_ascii_digit()) =>
+        {
+            base
+        }
+        _ => id,
+    }
 }
 
 /// The entity of a [`SetAside`] report: its persistent identity, or its handle if it has none.
@@ -452,7 +474,7 @@ impl World {
 
     /// The ID of an entity that a scene file written from the world holds a record of: the ID that
     /// the world gave it, else the last of its identity.
-    fn file_id(&self, entity: Entity) -> String {
+    pub(crate) fn file_id(&self, entity: Entity) -> String {
         let node = &self.nodes[entity.index() as usize];
         match (&node.written_id, &node.identity) {
             (Some(id), _) => id.to_string(),
@@ -766,7 +788,7 @@ impl World {
 
     /// The records of `placement`'s prefab, each with the entity of the world that has its identity
     /// under the placement's root, `root`, if one is alive.
-    fn placed<'p>(
+    pub(crate) fn placed<'p>(
         &self,
         root: Entity,
         placement: &'p Placement,

@@ -168,7 +168,10 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   referring to entities by identity. `Command::write` and `Command::read` give a command's text,
   its entities by their identities (`Identities`)
   (`docs/adr/0121-a-game-as-a-simulation-and-a-presentation.md`,
-  `docs/adr/0134-the-editors-core.md`).
+  `docs/adr/0134-the-editors-core.md`). `World::creating_commands` gives the commands that create
+  subtrees again as they are, placements with what differs from their prefabs, and
+  `Command::read_renamed` reads them under new identities, which a `Renaming` gives, so that the
+  editor copies, pastes and duplicates (`docs/adr/0162-creating-copying-and-arranging.md`).
 - `World::settle` makes what the world holds the base that its saves compare it with: a game
   settles it once it made the start of a run, and again once it prepared a scene that it spawned
   since. `World::save(about)` writes what the run changed since: the scenes under keys and the

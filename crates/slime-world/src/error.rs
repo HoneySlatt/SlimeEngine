@@ -51,6 +51,9 @@ pub enum WorldError {
          then an ID that a scene file can hold"
     )]
     NotInScene(PersistentId),
+    /// An entity that has no persistent identity, by which a command would name it.
+    #[error("{0:?} has no persistent identity, by which a command would name it")]
+    NoIdentity(Entity),
     /// A key that no scene or entity is spawned under: empty, holding `/`, or `created`, under
     /// which the world names the entities it creates outside scenes.
     #[error("`{0}` cannot be a key: it is empty, holds `/`, or is `created`")]

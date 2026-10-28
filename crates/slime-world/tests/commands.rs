@@ -1,12 +1,13 @@
 //! Commands done, undone and done again, and written as text: each leaves the scene file that the
 //! world writes as it was, identities, ranks and references included
-//! (`docs/adr/0109-stable-references-and-undo.md`).
+//! (`docs/adr/0109-stable-references-and-undo.md`); and the commands that create again what the
+//! world holds, read under new identities (`docs/adr/0162-creating-copying-and-arranging.md`).
 
 use slime_assets::AssetId;
 use slime_reflect::{Reflect, Value};
 use slime_world::{
-    Command, CommandTextError, Component, Entity, Hidden, Name, PersistentId, SceneLibrary,
-    Transform, World, WorldError,
+    Command, CommandTextError, Component, Entity, Hidden, Name, PersistentId, Renaming,
+    SceneLibrary, Transform, World, WorldError,
 };
 
 /// What an entity looks at.
@@ -452,4 +453,286 @@ fn a_prefab_placed_is_written_as_a_file_places_it() {
         !text.contains("[removed.components]"),
         "no override of the prefab: {text}"
     );
+}
+
+/// The texts of the commands that create again `roots` of `world`.
+fn copied(world: &World, roots: &[Entity]) -> Vec<String> {
+    world
+        .creating_commands(roots)
+        .expect("copied")
+        .iter()
+        .map(|command| command.write(world).expect("written"))
+        .collect()
+}
+
+/// `texts`, commands, read under new identities of the level spawned under `key` in `target` and
+/// applied there; the renaming that they were read through.
+fn pasted(texts: &[String], target: &mut World, key: &str, scenes: &mut SceneLibrary) -> Renaming {
+    let texts: Vec<&str> = texts.iter().map(String::as_str).collect();
+    let renaming = Renaming::of_commands(target, key, &texts).expect("renamed");
+    for text in texts {
+        let command = Command::read_renamed(text, target, scenes, &renaming)
+            .unwrap_or_else(|error| panic!("{text}: {error}"));
+        target.apply(&command).expect("applied");
+    }
+    renaming
+}
+
+/// Copies of two placements, a well and a sign, under new identities: the placements keep their
+/// overrides, the one that lost its light loses it too, the well's children come with it, and the
+/// sign's reference to the bucket, copied with it, points at the copy, the original's at the
+/// original; the file written holds the copies as it holds what they copy.
+#[test]
+fn what_is_copied_is_created_again_under_new_identities_its_overrides_and_references_kept() {
+    let (mut world, mut scenes, root) = yard();
+    let find = |world: &World, text: &str| world.find(&id(text)).expect(text);
+    // The gate's light loses its glow, and a flag is put up on the gate's post, beside its prefab.
+    for command in [
+        Command::Remove {
+            entity: id("yard/gate/light"),
+            component: "test::Glow".to_owned(),
+        },
+        Command::Create {
+            entity: id("yard/flag-k3f9"),
+            parent: Some(id("yard/gate/post")),
+            rank: None,
+            components: vec![("Name".to_owned(), Name("flag".to_owned()).to_value())],
+        },
+    ] {
+        world.apply(&command).expect("applied");
+    }
+    let roots =
+        ["yard/gate", "yard/porch", "yard/well", "yard/sign"].map(|text| find(&world, text));
+    let before = file(&mut world, root);
+    // A root given twice is copied once.
+    assert_eq!(
+        copied(&world, &[roots[2], roots[2]]),
+        copied(&world, &[roots[2]])
+    );
+    let texts = copied(&world, &roots);
+    let renaming = pasted(&texts, &mut world, "yard", &mut scenes);
+    let copy = |text: &str| renaming.renamed(&id(text));
+    let gate = copy("yard/gate");
+    assert!(gate.to_string().starts_with("yard/gate-"), "{gate}");
+    assert_eq!(copy("yard/gate/light").parts()[..2], gate.parts()[..]);
+    let new: std::collections::HashSet<_> = ["yard/gate", "yard/porch", "yard/well", "yard/sign"]
+        .map(copy)
+        .into_iter()
+        .collect();
+    assert_eq!(new.len(), 4, "one new identity each");
+    // The flag, created on the post, created again on the copy's post, under an identity of its own.
+    let flag = world
+        .find(&copy("yard/flag-k3f9"))
+        .expect("the flag's copy");
+    assert!(copy("yard/flag-k3f9").to_string().starts_with("yard/flag-"));
+    assert_eq!(world.parent(flag), world.find(&copy("yard/gate/post")));
+    let at = |world: &World, text: &PersistentId| world.find(text).expect("copied");
+    assert_eq!(
+        world
+            .get::<Transform>(at(&world, &gate))
+            .expect("placed")
+            .translation
+            .x,
+        4.0
+    );
+    assert_eq!(
+        world.get::<Glow>(at(&world, &copy("yard/gate/light"))),
+        None,
+        "removed, as the gate's"
+    );
+    assert_eq!(
+        world.find(&copy("yard/porch/light")),
+        None,
+        "lost, as the porch's"
+    );
+    let well = at(&world, &copy("yard/well"));
+    let children: Vec<String> = world
+        .children(well)
+        .map(|child| world.get::<Name>(child).expect("named").0.clone())
+        .collect();
+    assert_eq!(children, ["bucket", "rope"]);
+    let bucket = at(&world, &copy("yard/bucket"));
+    assert_eq!(world.parent(bucket), Some(well));
+    assert_eq!(
+        world.get::<Aim>(at(&world, &copy("yard/sign"))),
+        Some(&Aim { at: bucket })
+    );
+    assert_eq!(
+        world.get::<Aim>(find(&world, "yard/sign")),
+        Some(&Aim {
+            at: find(&world, "yard/bucket")
+        })
+    );
+    // The file holds what it held, and the copies as it holds what they copy.
+    let after = file(&mut world, root);
+    let new_id = |text: &str| copy(text).parts()[1].clone();
+    for (old, new) in [
+        ("gate", new_id("yard/gate")),
+        ("porch", new_id("yard/porch")),
+    ] {
+        assert!(
+            after.contains(&format!("[entities.{new}]\nprefab = \"lamp\"")),
+            "{old}: {after}"
+        );
+    }
+    assert!(
+        after.contains(&format!("[changed.{}.Transform]", new_id("yard/gate"))),
+        "{after}"
+    );
+    assert!(
+        after.contains(&format!("\"{}/light\"", new_id("yard/porch"))),
+        "removed as the porch's light: {after}"
+    );
+    // The list of what is removed holds the porch's light and its copy's.
+    assert!(after.contains("\"porch/light\""), "{after}");
+    for line in before
+        .lines()
+        .filter(|line| !line.starts_with("entities = ["))
+    {
+        assert!(after.contains(line), "{line} kept");
+    }
+}
+
+/// A sign copied alone keeps aiming at the bucket, which was not copied; pasted into another level,
+/// whose parent is not there, it goes under that level's root.
+#[test]
+fn a_reference_outside_the_copy_stays_and_a_paste_elsewhere_goes_under_the_level_s_root() {
+    let (mut world, mut scenes, _) = yard();
+    let sign = world.find(&id("yard/sign")).expect("the sign");
+    let bucket = world.find(&id("yard/bucket")).expect("the bucket");
+    let texts = copied(&world, &[sign]);
+    let renaming = pasted(&texts, &mut world, "yard", &mut scenes);
+    let copy = world
+        .find(&renaming.renamed(&id("yard/sign")))
+        .expect("copied");
+    assert_eq!(world.get::<Aim>(copy), Some(&Aim { at: bucket }));
+    // Into a garden, where the well, its bucket and rope come under the garden's root.
+    let mut garden = World::new();
+    garden.register::<Aim>();
+    garden.register::<Glow>();
+    scenes.insert_file(AssetId::from_u128(3), "garden", "");
+    let scene = scenes
+        .resolve(garden.registry(), AssetId::from_u128(3))
+        .expect("the garden");
+    let root = garden.spawn_scene("garden", &scene).expect("spawned");
+    let well = world.find(&id("yard/well")).expect("the well");
+    let texts = copied(&world, &[well]);
+    let renaming = pasted(&texts, &mut garden, "garden", &mut scenes);
+    let copy = garden
+        .find(&renaming.renamed(&id("yard/well")))
+        .expect("pasted");
+    assert!(
+        renaming
+            .renamed(&id("yard/well"))
+            .to_string()
+            .starts_with("garden/well-")
+    );
+    assert_eq!(garden.parent(copy), Some(root));
+    assert_eq!(garden.children(copy).count(), 2);
+}
+
+/// A house that places a lamp, its light dimmed by the house, placed in a garden that dims it more:
+/// copied, the house's copy keeps the garden's override of the light within it, and the file
+/// writes it for the copy as it writes it for the house.
+#[test]
+fn a_copy_keeps_the_overrides_of_a_placement_within_a_placement() {
+    let mut scenes = library();
+    let house = AssetId::from_u128(4);
+    scenes.insert_file(
+        house,
+        "house",
+        r#"
+[assets]
+lamp = { id = "00000000-0000-0000-0000-000000000002", path = "lamp.scene" }
+
+[entities.porch]
+prefab = "lamp"
+
+[changed."porch/light"."test::Glow"]
+intensity = 20.0
+"#,
+    );
+    scenes.insert_file(
+        AssetId::from_u128(5),
+        "garden",
+        r#"
+[assets]
+house = { id = "00000000-0000-0000-0000-000000000004", path = "house.scene" }
+
+[entities.home]
+prefab = "house"
+
+[changed."home/porch/light"."test::Glow"]
+intensity = 5.0
+"#,
+    );
+    let mut world = World::new();
+    world.register::<Aim>();
+    world.register::<Glow>();
+    let scene = scenes
+        .resolve(world.registry(), AssetId::from_u128(5))
+        .expect("the garden");
+    let root = world.spawn_scene("garden", &scene).expect("spawned");
+    let home = world.find(&id("garden/home")).expect("the home");
+    let texts = copied(&world, &[home]);
+    let renaming = pasted(&texts, &mut world, "garden", &mut scenes);
+    let light = world
+        .find(&renaming.renamed(&id("garden/home/porch/light")))
+        .expect("the copy's light");
+    assert_eq!(world.get::<Glow>(light), Some(&Glow { intensity: 5.0 }));
+    let text = file(&mut world, root);
+    let new = renaming.renamed(&id("garden/home")).parts()[1].clone();
+    assert!(
+        text.contains(&format!(
+            "[changed.\"{new}/porch/light\"]\n\"test::Glow\" = {{ intensity = 5.0 }}"
+        )),
+        "{text}"
+    );
+}
+
+/// A renaming gives the identity that a command creates its own new one, and an identity that
+/// extends one created the new one of the longest that it extends; it refuses commands that change
+/// what they do not create, as a step of a journal pasted would.
+#[test]
+fn a_renaming_follows_the_longest_identity_created_and_refuses_what_changes_the_rest() {
+    let (world, _, _) = yard();
+    let place = |entity: &str| {
+        format!(
+            "[Place]\nentity = \"{entity}\"\nparent = \"yard\"\nprefab = \"00000000-0000-0000-0000-000000000002\"\n"
+        )
+    };
+    let texts = [place("yard/shed"), place("yard/shed/lamp")];
+    let texts: Vec<&str> = texts.iter().map(String::as_str).collect();
+    let renaming = Renaming::of_commands(&world, "yard", &texts).expect("renamed");
+    let shed = renaming.renamed(&id("yard/shed"));
+    let lamp = renaming.renamed(&id("yard/shed/lamp"));
+    assert_eq!(
+        lamp.parts().len(),
+        2,
+        "its own, not under the shed's: {lamp}"
+    );
+    assert!(lamp.to_string().starts_with("yard/lamp-"), "{lamp}");
+    assert_eq!(
+        renaming.renamed(&id("yard/shed/lamp/light")),
+        PersistentId::new(lamp.parts().iter().map(String::as_str).chain(["light"]))
+    );
+    assert_eq!(
+        renaming.renamed(&id("yard/shed/post")),
+        PersistentId::new(shed.parts().iter().map(String::as_str).chain(["post"]))
+    );
+    assert_eq!(renaming.renamed(&id("yard/well")), id("yard/well"));
+    // A deletion of what they created is theirs; of anything else, or a value set, is refused.
+    let delete = |entity: &str| format!("[Delete]\nentity = \"{entity}\"\n");
+    let ok = [place("yard/shed"), delete("yard/shed/light")];
+    let ok: Vec<&str> = ok.iter().map(String::as_str).collect();
+    assert!(Renaming::of_commands(&world, "yard", &ok).is_ok());
+    for refused in [
+        delete("yard/well"),
+        "[SetProperty]\nentity = \"yard/well\"\ncomponent = \"Name\"\npath = \"0\"\nvalue = \"pit\"\n".to_owned(),
+    ] {
+        let texts = [place("yard/shed"), refused];
+        let texts: Vec<&str> = texts.iter().map(String::as_str).collect();
+        let error = Renaming::of_commands(&world, "yard", &texts).expect_err("refused");
+        assert!(error.to_string().contains("command 1"), "{error}");
+    }
 }
