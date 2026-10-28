@@ -36,8 +36,10 @@ editor's tools and its operations, run by name (`crates/slime-mcp/README.md`). I
 the zone when its cooked data is missing, which takes minutes: the game's README says how.
 
 `tests/zone.rs` opens the zone, writes it back, checks that every comment of the file stays above
-what it describes, and opens it again; it needs the zone cooked, and `scripts/check.sh` runs it with
-the game's tests that read the zone (`cargo test -p hunnawood-editor -- --ignored`), as it runs
+what it describes, and opens it again; then moves and scales three of its placements, as the
+handles do, frame by frame through a gesture made one step, cancels another, makes a step as an
+agent does, undoes every step, and finds the zone written back as it was written first; it needs
+the zone cooked, and `scripts/check.sh` runs it with the game's tests that read the zone (`cargo test -p hunnawood-editor -- --ignored`), as it runs
 the MCP server's session on a copy of the zone (`crates/slime-mcp/README.md`).
 
 ## Dependencies

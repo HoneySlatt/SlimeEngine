@@ -1300,6 +1300,7 @@ dependencies = [
  "hunnawood",
  "slime-assets",
  "slime-editor",
+ "slime-reflect",
  "slime-world",
 ]
 

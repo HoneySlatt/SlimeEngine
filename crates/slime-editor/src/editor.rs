@@ -45,6 +45,16 @@ pub struct Editor {
     recovered: usize,
     /// Where the level stands against its file.
     written: Written,
+    /// The gesture under way, its open step, if one is.
+    gesture: Option<Gesture>,
+}
+
+/// A gesture's open step (`docs/adr/0155-the-editors-design.md`, D3): the commands that it applied
+/// last, live, and the inverses that undo them, the last first.
+#[derive(Debug, Default)]
+struct Gesture {
+    commands: Vec<Command>,
+    undo: Vec<Command>,
 }
 
 /// Where a level stands against its file, in steps of the history: how far the level is from the
@@ -119,6 +129,7 @@ impl Editor {
             journaled: Vec::new(),
             recovered: 0,
             written: Written::default(),
+            gesture: None,
         }
     }
 
@@ -239,6 +250,133 @@ impl Editor {
         })
     }
 
+    /// Applies `commands` live, as the gesture under way gives them at a frame, in place of those
+    /// that it applied before, which are undone first (`docs/adr/0155-the-editors-design.md`, D3):
+    /// the level shows them at once, but they are neither journaled nor in the history, until
+    /// [`Editor::end_gesture`] makes them one step, or [`Editor::cancel_gesture`] undoes them.
+    /// A gesture opens with its first call. While one is open, nothing else changes the level:
+    /// [`Editor::apply`], [`Editor::undo`], [`Editor::redo`] and [`Editor::write`] refuse, with
+    /// [`EditError::Gesture`], so that an agent's requests wait for it to end.
+    ///
+    /// # Errors
+    ///
+    /// As [`Editor::apply`] refuses a command, which leaves the level as the gesture's commands
+    /// before had it.
+    ///
+    /// # Panics
+    ///
+    /// If a command's inverse no longer applies to undo what the gesture applied, which only a
+    /// world changed apart from the editor brings.
+    pub fn gesture(&mut self, world: &mut World, commands: Vec<Command>) -> Result<(), EditError> {
+        // What the gesture applied before, undone, and what applies it again.
+        let before = self.undo_gesture(world);
+        match self.apply_live(world, &commands) {
+            Ok(undo) => {
+                self.gesture = Some(Gesture { commands, undo });
+                Ok(())
+            }
+            Err(error) => {
+                let undo = self
+                    .apply_live(world, &before)
+                    .expect("what a gesture applied applies again");
+                self.gesture = Some(Gesture {
+                    commands: before,
+                    undo,
+                });
+                Err(error)
+            }
+        }
+    }
+
+    /// Whether a gesture is under way ([`Editor::gesture`]).
+    pub fn in_gesture(&self) -> bool {
+        self.gesture.is_some()
+    }
+
+    /// Ends the gesture under way: what it applied last becomes one step labelled `label`, made as
+    /// [`Editor::apply`] makes it, journaled, what is selected kept. A gesture that applied nothing
+    /// makes no step; without a gesture, nothing is done.
+    ///
+    /// # Errors
+    ///
+    /// As [`Editor::apply`]: a command refused leaves the level as it was before the gesture; a
+    /// journal that cannot be written, once the step is made.
+    ///
+    /// # Panics
+    ///
+    /// As [`Editor::gesture`].
+    pub fn end_gesture(&mut self, world: &mut World, label: &str) -> Result<(), EditError> {
+        if self.gesture.is_none() {
+            return Ok(());
+        }
+        let commands = self.undo_gesture(world);
+        if commands.is_empty() {
+            return Ok(());
+        }
+        self.apply(world, label, commands, None)
+    }
+
+    /// Cancels the gesture under way, as Escape does: what it applied is undone, and no step made.
+    ///
+    /// # Panics
+    ///
+    /// As [`Editor::gesture`].
+    pub fn cancel_gesture(&mut self, world: &mut World) {
+        self.undo_gesture(world);
+    }
+
+    /// Undoes what the gesture under way applied, which closes it, and gives its commands.
+    fn undo_gesture(&mut self, world: &mut World) -> Vec<Command> {
+        let Some(gesture) = self.gesture.take() else {
+            return Vec::new();
+        };
+        for inverse in gesture.undo {
+            world
+                .apply(&inverse)
+                .expect("what a gesture applied undoes");
+        }
+        gesture.commands
+    }
+
+    /// Applies `commands` as a step's are checked and applied, and gives their inverses, the last
+    /// first; when one is refused, those before it are undone.
+    fn apply_live(
+        &mut self,
+        world: &mut World,
+        commands: &[Command],
+    ) -> Result<Vec<Command>, EditError> {
+        let mut undo = Vec::with_capacity(commands.len());
+        for (index, command) in commands.iter().enumerate() {
+            let applied = self.check(index, command).and_then(|()| {
+                world.apply(command).map_err(|error| EditError::Refused {
+                    index,
+                    error: Box::new(error),
+                })
+            });
+            match applied {
+                Ok(inverse) => undo.push(inverse),
+                Err(error) => {
+                    for inverse in undo.into_iter().rev() {
+                        world
+                            .apply(&inverse)
+                            .expect("a command's inverse applies right after it");
+                    }
+                    return Err(error);
+                }
+            }
+        }
+        undo.reverse();
+        Ok(undo)
+    }
+
+    /// Refuses with [`EditError::Gesture`] while a gesture is under way.
+    fn no_gesture(&self) -> Result<(), EditError> {
+        if self.gesture.is_some() {
+            return Err(EditError::Gesture);
+        }
+        Ok(())
+    }
+
     /// Makes a step of the commands that `next` gives, one at a time, by their indices, until it
     /// gives none.
     fn make(
@@ -248,6 +386,7 @@ impl Editor {
         selection: Option<Vec<PersistentId>>,
         mut next: impl FnMut(&World, &mut SceneLibrary, usize) -> Option<Next>,
     ) -> Result<(), EditError> {
+        self.no_gesture()?;
         let mut texts = Vec::new();
         let mut undo: Vec<Held> = Vec::new();
         for index in 0.. {
@@ -365,6 +504,7 @@ impl Editor {
     /// If a command's inverse no longer applies to put the world back after a refusal, which only
     /// a world changed apart from the editor brings.
     pub fn undo(&mut self, world: &mut World) -> Result<bool, EditError> {
+        self.no_gesture()?;
         let Some(step) = self.history.pop_done() else {
             return Ok(false);
         };
@@ -414,6 +554,7 @@ impl Editor {
     ///
     /// As [`Editor::undo`].
     pub fn redo(&mut self, world: &mut World) -> Result<bool, EditError> {
+        self.no_gesture()?;
         let Some(step) = self.history.pop_undone() else {
             return Ok(false);
         };
@@ -596,6 +737,7 @@ impl Editor {
     /// over it; [`EditError::Io`] if the file cannot be read or written; [`EditError::Journal`] if
     /// the journal cannot be written, once the level is.
     pub fn write(&mut self, world: &mut World) -> Result<Vec<SetAside>, EditError> {
+        self.no_gesture()?;
         let left_out = self.level.write(world)?;
         self.written.written();
         let selection = self.selection.clone();
@@ -789,6 +931,10 @@ pub enum EditError {
     /// A step without commands.
     #[error("a step holds one command at least")]
     Empty,
+    /// A gesture is under way, an open step that changes the level live: nothing else changes it
+    /// until the gesture ends or is cancelled ([`Editor::gesture`]).
+    #[error("a gesture is under way: it ends or is cancelled first")]
+    Gesture,
     /// A command of a step would change what is not under the level's root: an entity of another
     /// level, the root itself deleted or moved, or an entity put at the world's root.
     #[error(

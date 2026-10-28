@@ -17,6 +17,8 @@ hunnawood.workspace = true
 slime-editor.workspace = true
 
 [dev-dependencies]
-# The zone's test: the cooked zone, the world it opens into, and the level written back.
+# The zone's tests: the cooked zone, the world it opens into, the level written back, and the
+# transforms that its moves set.
 slime-assets.workspace = true
+slime-reflect.workspace = true
 slime-world.workspace = true

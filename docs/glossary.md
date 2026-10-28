@@ -847,7 +847,8 @@ built yet.
 **Open step (editor).** The *commands* of a gesture that a person makes, a handle or a slider
 dragged, which the editor's core applies to the level at once but neither journals nor keeps in its
 history until the gesture ends: letting go makes them one *step*, Escape undoes them. Agents' steps
-wait while one is open ([ADR-0155](adr/0155-the-editors-design.md)). Decided, not built yet.
+wait while one is open (`Editor::gesture`, [ADR-0155](adr/0155-the-editors-design.md),
+[ADR-0161](adr/0161-the-open-step-and-the-handles.md)).
 
 **Operation (editor).** One of the actions of the editor, named in one registry with its label and
 its parameters, `file.save`, which menus, shortcuts, the palette and agents run alike, by its name;

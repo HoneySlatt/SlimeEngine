@@ -134,8 +134,10 @@ Risks, whose figures ADR-0155's context gives:
   entities. M6c.4 measures Play from the click; on Windows, a running executable may block the
   link. [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)'s second condition, that what the
   editor inspects through the channel is enough, cannot be tested before M6c.0's fix.
-- **The open step and the order of the channel's requests**: what the journal holds after a crash
-  during a drag, and how agents' steps that waited are applied. M6c.3 writes their tests first.
+- **The open step and the order of the channel's requests**: M6c.3a's tests settled them: a crash
+  during a drag loses the drag alone, which the journal never held, and agents' steps that waited
+  are applied after it, in their order
+  ([ADR-0161](adr/0161-the-open-step-and-the-handles.md)).
 - **Writing several files whole or not at all**, beside `World::carry` and saves per scene
   ([ADR-0125](adr/0125-saves-per-scene.md)), and **opening leniently by splicing text** back: both
   unproven, M6c.6a starts with them.

@@ -541,3 +541,119 @@ fn the_history_forgets_the_steps_undone_then_the_oldest_done_past_its_budget_but
     let well = world.find(&id("yard/well")).expect("the well");
     assert_eq!(world.get::<Name>(well), Some(&Name("well 1".to_owned())));
 }
+
+/// What sets the well's name to `name`, as a gesture gives it at each frame.
+fn name_the_well(name: &str) -> Command {
+    Command::SetProperty {
+        entity: id("yard/well"),
+        component: "Name".to_owned(),
+        path: "0".parse().expect("a path"),
+        value: slime_reflect::Value::Text(name.to_owned()),
+    }
+}
+
+/// The well's name in `world`.
+fn well_s_name(world: &World) -> String {
+    let well = world.find(&id("yard/well")).expect("the well");
+    world.get::<Name>(well).expect("named").0.clone()
+}
+
+/// An open step (`docs/adr/0155-the-editors-design.md`, D3): a gesture's commands applied live,
+/// each in place of the last, neither journaled nor in the history; cancelled, the level as it was;
+/// ended, one step, journaled, which undoes whole.
+#[test]
+fn an_open_step_applies_live_is_cancelled_and_ends_as_one_journaled_step() {
+    let yard = Yard::new("open");
+    let journal = yard.directory.join("journal");
+    let (mut world, mut editor) = yard.open();
+    let held = slime_app::HeldFile::hold(journal.clone()).expect("held");
+    editor.keep_journal(&world, held).expect("kept");
+    let named = well_s_name(&world);
+    let before = read(&journal);
+    for name in ["a", "ab", "abc"] {
+        editor
+            .gesture(&mut world, vec![name_the_well(name)])
+            .expect("applied live");
+        assert_eq!(well_s_name(&world), name);
+    }
+    assert!(editor.in_gesture());
+    assert_eq!(editor.done().len(), 0, "not in the history");
+    assert_eq!(read(&journal), before, "not journaled");
+    assert_eq!(editor.unwritten(), 0);
+    // Cancelled, as Escape cancels it.
+    editor.cancel_gesture(&mut world);
+    assert!(!editor.in_gesture());
+    assert_eq!(well_s_name(&world), named);
+    // Again, then ended: one step, of its last commands alone.
+    for name in ["x", "xy"] {
+        editor
+            .gesture(&mut world, vec![name_the_well(name)])
+            .expect("applied live");
+    }
+    editor
+        .end_gesture(&mut world, "Name the well")
+        .expect("made");
+    assert!(!editor.in_gesture());
+    assert_eq!(well_s_name(&world), "xy");
+    assert_eq!(editor.done().collect::<Vec<_>>(), ["Name the well"]);
+    assert_eq!(editor.unwritten(), 1);
+    let text = read(&journal);
+    assert_eq!(text.matches("SetProperty").count(), 1, "{text}");
+    editor.undo(&mut world).expect("undone");
+    assert_eq!(well_s_name(&world), named);
+    // A gesture's command that the world refuses leaves the level as the gesture had it.
+    editor
+        .gesture(&mut world, vec![name_the_well("kept")])
+        .expect("applied live");
+    let refused = Command::SetProperty {
+        entity: id("yard/nothing"),
+        component: "Name".to_owned(),
+        path: "0".parse().expect("a path"),
+        value: slime_reflect::Value::Text("no".to_owned()),
+    };
+    assert!(editor.gesture(&mut world, vec![refused]).is_err());
+    assert_eq!(well_s_name(&world), "kept");
+    editor.cancel_gesture(&mut world);
+    assert_eq!(well_s_name(&world), named);
+}
+
+/// A crash during a drag loses the drag alone: the journal holds the steps made before it.
+#[test]
+fn a_crash_during_a_gesture_loses_the_gesture_alone() {
+    let yard = Yard::new("crash");
+    let journal = yard.directory.join("journal");
+    let (mut world, mut editor) = yard.open();
+    let held = slime_app::HeldFile::hold(journal.clone()).expect("held");
+    editor.keep_journal(&world, held).expect("kept");
+    rename_the_well(&mut world, &mut editor, "made");
+    editor
+        .gesture(&mut world, vec![name_the_well("dragged")])
+        .expect("applied live");
+    let text = read(&journal);
+    let (again, recovered) = yard.recover(&text).expect("recovered");
+    assert_eq!(well_s_name(&again), "made");
+    assert_eq!(recovered.done().collect::<Vec<_>>(), ["Name the well made"]);
+}
+
+/// While a gesture is open, what would change the level otherwise is refused, so that the caller
+/// waits for it to end: a step, an undo, a redo, a writing.
+#[test]
+fn nothing_else_changes_the_level_while_a_gesture_is_open() {
+    let yard = Yard::new("busy");
+    let (mut world, mut editor) = yard.open();
+    rename_the_well(&mut world, &mut editor, "first");
+    editor
+        .gesture(&mut world, vec![name_the_well("dragged")])
+        .expect("applied live");
+    let busy = |result: Result<(), EditError>| matches!(result, Err(EditError::Gesture));
+    assert!(busy(editor.apply(
+        &mut world,
+        "Name it",
+        vec![name_the_well("other")],
+        None
+    )));
+    assert!(busy(editor.undo(&mut world).map(|_| ())));
+    assert!(busy(editor.redo(&mut world).map(|_| ())));
+    assert!(busy(editor.write(&mut world).map(|_| ())));
+    assert_eq!(well_s_name(&world), "dragged");
+}
