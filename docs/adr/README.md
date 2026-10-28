@@ -197,13 +197,13 @@ the ADR linking to it.
 | [0126](0126-views-apart-from-the-renderer.md) | Views apart from the renderer | Accepted; amended by 0127 |
 | [0127](0127-the-settings-of-a-view.md) | The settings of a view | Accepted; amended by 0128, 0158, 0159 |
 | [0128](0128-asset-requests.md) | Asset requests | Accepted |
-| [0129](0129-drawing-for-the-editor.md) | Drawing for the editor | Accepted; amended by 0159 |
+| [0129](0129-drawing-for-the-editor.md) | Drawing for the editor | Accepted; amended by 0159 and 0161 |
 | [0130](0130-picking.md) | Picking | Accepted |
 | [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amended by 0134, 0137, 0140, 0142, 0145, 0148, 0149, 0152 and 0155 |
 | [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted; amended by 0137, 0140, 0143, 0145, 0146, 0148 and 0149 |
 | [0133](0133-font-files-under-the-open-font-license.md) | Font files under the SIL Open Font License | Accepted; amended by 0139 |
 | [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 and 0155 |
-| [0135](0135-the-editors-program.md) | The editor's program | Accepted; amended by 0156 |
+| [0135](0135-the-editors-program.md) | The editor's program | Accepted; amended by 0156 and 0161 |
 | [0136](0136-the-interfaces-text.md) | The interface's text | Accepted |
 | [0137](0137-the-canvas.md) | The canvas | Accepted; amended by 0152 |
 | [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted |
@@ -223,9 +223,10 @@ the ADR linking to it.
 | [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
 | [0153](0153-tab-and-f6-in-a-games-interface.md) | Tab and F6 in a game's interface | Accepted |
 | [0154](0154-floating-panels-and-held-keys.md) | Floating panels and held keys | Accepted |
-| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156, 0158, 0159, 0160 |
+| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156, 0158, 0159, 0160, 0161 |
 | [0156](0156-the-editors-window-and-its-operations.md) | The editor's window and its operations | Accepted |
 | [0157](0157-dialogs-the-cursor-held-and-the-gpus-identity.md) | Dialogs, the cursor held and the GPU's identity | Accepted |
 | [0158](0158-the-viewport.md) | The viewport | Accepted; amended by 0159, 0160 |
 | [0159](0159-picking-and-the-selection.md) | Picking and the selection | Accepted; amended by 0160 |
 | [0160](0160-two-viewports-and-blenders-way.md) | Two viewports and Blender's way | Accepted |
+| [0161](0161-the-open-step-and-the-handles.md) | The open step and the handles | Accepted |

@@ -6,7 +6,9 @@
   journal that a crash leaves, the shape of the program, the level's file named in its journal, and
   a level not written over once changed apart from the editor); amended by
   [0156](0156-the-editors-window-and-its-operations.md) (the program opens a window, and its run
-  without a window runs its frames on demand)
+  without a window runs its frames on demand) and [0161](0161-the-open-step-and-the-handles.md) (a
+  tool's requests that change the level or its selection wait while a person's gesture is under
+  way)
 - Date: 2026-10-23
 
 ## Context

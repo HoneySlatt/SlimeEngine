@@ -28,7 +28,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   decisions on the editor's design, its milestones and their order, which ADR-0155 records. M6c.0
   is done, and M6c.1 was split in two at its start, M6c.1a and M6c.1b, both done; M6c.2 was split in
   two at its start too, of which M6c.2a is done, and M6c.2b in two again at its start, M6c.2b and
-  M6c.2c, both done; next: M6c.3.
+  M6c.2c, both done; M6c.3 was split in two at its start, M6c.3a and M6c.3b; next: M6c.3a.
 
 ## Status
 
@@ -40,7 +40,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.2a](#m6c2a--the-viewport-and-its-navigation) | The level shows in a viewport that the user flies through, drawn again only when what it shows changed | Done |
 | [M6c.2b](#m6c2b--picking-and-the-selection) | The user picks in the viewport and sees what is selected outlined | Done |
 | [M6c.2c](#m6c2c--a-second-viewport-and-blenders-way) | A second viewport shows the level, and Blender's way is a preset of the keys and the mouse's buttons | Done |
-| [M6c.3](#m6c3--move-and-place) | The user moves, turns, scales, creates and deletes, each gesture a single step of the history | Planned |
+| [M6c.3a](#m6c3a--move-with-handles) | The user moves, turns and scales what is selected with handles, each gesture a single step of the history | Planned |
+| [M6c.3b](#m6c3b--create-and-arrange) | The user creates, duplicates, deletes, copies, groups and places prefabs, each a step, and sees the history | Planned |
 | [M6c.4](#m6c4--play-it) | Play runs the level being edited in the game, steps not written included, and the editor's edits reach the running game | Planned |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
 | [M6c.5](#m6c5--find-and-change) | The user finds any entity in a hierarchy, changes its components in an inspector, and arranges the panels in regions of tabs | Planned |
@@ -514,19 +515,22 @@ at its start, the same day, the second viewport and Blender's way in a third
 
 ### M6c.3 — Move and place
 
-- **Goal.** The user moves, turns, scales, creates, duplicates and deletes what the level holds,
-  each gesture a single step of the history.
-- **Crates.** `slime-editor`, `slime-render`, `slime-world`; the `editor` example.
+Split in two at its start, on 2026-10-28, as [ADR-0155](adr/0155-the-editors-design.md) allows:
+the open step and the handles, then creating and arranging.
+
+#### M6c.3a — Move with handles
+
+- **Goal.** The user moves, turns and scales what is selected with handles, each gesture a single
+  step of the history.
+- **Crates.** `slime-editor`, `slime-render`, `slime-world-render`; the `editor` example.
 - **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: the core's open step, a
   gesture applied live, cancelled by Escape, made one step as it ends, the requests of agents
   waiting meanwhile; handles to move, turn and scale, the engine's own, drawn over the image with a
   depth of their own, in the world's axes or the selection's, about a pivot, onto the world's
-  uniform scale and its stretch; snapping by increments of distance, angle and scale, and to an
-  absolute grid; End and Shift+End dropping the selection on what lies below, by the CPU's picker;
-  creating, duplicating (Ctrl+D, the references inside the copy pointed at the copy, nested
-  overrides kept), deleting, copying and pasting as commands' text on the system's clipboard,
-  repeating the last operation, grouping (Ctrl+G) and nudging; "Place prefab…" from the
-  manifest's scenes; the history panel. The ADR of the design.
+  uniform scale and its stretch; snapping by increments of angle and scale, and to the world's grid
+  in the world's axes, by increments of distance in the selection's
+  ([ADR-0161](adr/0161-the-open-step-and-the-handles.md)); End and Shift+End dropping the
+  selection on what lies below, by the CPU's picker. The ADR of the design.
 - **Done when.** Tests of the core written first: an open step applied live, cancelled, and made one
   journaled step; an agent's step that waited applied after it; a crash during a drag losing the
   drag alone. Tests of the handles' mathematics; image tests of the handles; an agent moves three
@@ -536,6 +540,21 @@ at its start, the same day, the second viewport and Blender's way in a third
 - **By hand.** The handles' feel, their hit areas and the snapping, in the yard and the zone.
 - **Debt settled.** Instances over the image, with a depth of their own
   ([ADR-0129](adr/0129-drawing-for-the-editor.md)).
+
+#### M6c.3b — Create and arrange
+
+- **Goal.** The user creates, duplicates, deletes, copies, groups and places prefabs, each a step,
+  and sees the history.
+- **Crates.** `slime-editor`, `slime-world`; the `editor` example.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: creating, duplicating
+  (Ctrl+D, the references inside the copy pointed at the copy, nested overrides kept), deleting,
+  copying and pasting as commands' text on the system's clipboard, repeating the last operation,
+  grouping (Ctrl+G) and nudging; "Place prefab…" from the manifest's scenes; the history panel.
+  The ADR of the design, if one is needed.
+- **Done when.** Tests of duplicating, its references and overrides, of copying and pasting, of
+  grouping; an agent duplicates and places a prefab by the operations' names; CI is green.
+- **How to test.** `cargo test -p slime-editor -p slime-world`; the MCP server's session tests.
+- **By hand.** Creating, duplicating and placing in the yard and the zone.
 
 ### M6c.4 — Play it
 

@@ -23,9 +23,11 @@
   [0158](0158-the-viewport.md) (the `.keys` preset in Blender's way comes with M6c.2b's picking;
   an agent frames the viewport by an operation's name) and
   [0159](0159-picking-and-the-selection.md) (Alt and a click told from an orbit by the mouse's
-  stillness; the second viewport and Blender's way in M6c.2c) and
+  stillness; the second viewport and Blender's way in M6c.2c),
   [0160](0160-two-viewports-and-blenders-way.md) (the check of the editor's tables leaves out what
-  the mouse's buttons do)
+  the mouse's buttons do) and [0161](0161-the-open-step-and-the-handles.md) (snapping moves the
+  pivot onto the world's grid in the world's axes, by increments in the selection's alone, and an
+  operation turns it on and off)
 - Date: 2026-10-27
 
 ## Context

@@ -6,7 +6,8 @@
   layer; the first point after the sky; the scene's depth resolved and a part of a texture written
   wait for their first user; the milestone in two); amended by
   [0159](0159-picking-and-the-selection.md) (what a client draws gains an outline, for which the
-  scene's depth is resolved)
+  scene's depth is resolved) and [0161](0161-the-open-step-and-the-handles.md) (unlit instances
+  over the image, with a depth of their own)
 - Date: 2026-10-22
 
 ## Context
