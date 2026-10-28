@@ -6,8 +6,10 @@
   settings are built), [0122](0122-the-development-channel.md) (version 4 of the protocol: a view's
   settings read and changed) and [0126](0126-views-apart-from-the-renderer.md) (a view's targets
   made again once its size holds still); amended by [0128](0128-asset-requests.md)
-  (`ReflectedSettings` becomes `Reflected`, which reports use too) and
-  [0158](0158-the-viewport.md) (a view says when its new size has held still)
+  (`ReflectedSettings` becomes `Reflected`, which reports use too),
+  [0158](0158-the-viewport.md) (a view says when its new size has held still) and
+  [0159](0159-picking-and-the-selection.md) (the modes of debugging of the base color and of the
+  light alone)
 - Date: 2026-10-22
 
 ## Context

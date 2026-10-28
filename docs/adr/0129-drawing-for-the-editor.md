@@ -4,7 +4,9 @@
   view's graph), [0111](0111-the-frame-contract.md) (the unlit kind of material, the second) and
   [0115](0115-what-the-gpu-layer-gives-the-editor.md) (lines drawn by the renderer, not by the GPU
   layer; the first point after the sky; the scene's depth resolved and a part of a texture written
-  wait for their first user; the milestone in two)
+  wait for their first user; the milestone in two); amended by
+  [0159](0159-picking-and-the-selection.md) (what a client draws gains an outline, for which the
+  scene's depth is resolved)
 - Date: 2026-10-22
 
 ## Context

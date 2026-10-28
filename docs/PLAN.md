@@ -27,7 +27,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   starting points and measured in prototypes on the owner's machine, led to the owner's sixteen
   decisions on the editor's design, its milestones and their order, which ADR-0155 records. M6c.0
   is done, and M6c.1 was split in two at its start, M6c.1a and M6c.1b, both done; M6c.2 was split in
-  two at its start too, of which M6c.2a is done; next: M6c.2b.
+  two at its start too, of which M6c.2a is done, and M6c.2b in two again at its start, M6c.2b and
+  M6c.2c; next: M6c.2b.
 
 ## Status
 
@@ -37,7 +38,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.1a](#m6c1a--the-window-and-its-operations) | The editor opens a level in a window of its own, where a person and an agent run the same named operations | Done |
 | [M6c.1b](#m6c1b--dialogs-the-cursor-held-and-the-gpus-identity) | A person opens a level through the system's dialog, a viewport can hold the cursor and read the mouse's raw motion, and a GPU object cannot act on another `Gpu`'s | Done |
 | [M6c.2a](#m6c2a--the-viewport-and-its-navigation) | The level shows in a viewport that the user flies through, drawn again only when what it shows changed | Done |
-| [M6c.2b](#m6c2b--picking-and-the-selection) | The user picks in the viewport, the selection outlined, and a second viewport shows the level | Planned |
+| [M6c.2b](#m6c2b--picking-and-the-selection) | The user picks in the viewport and sees what is selected outlined | Planned |
+| [M6c.2c](#m6c2c--a-second-viewport-and-blenders-way) | A second viewport shows the level, and Blender's way is a preset of the keys and the mouse's buttons | Planned |
 | [M6c.3](#m6c3--move-and-place) | The user moves, turns, scales, creates and deletes, each gesture a single step of the history | Planned |
 | [M6c.4](#m6c4--play-it) | Play runs the level being edited in the game, steps not written included, and the editor's edits reach the running game | Planned |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
@@ -346,7 +348,9 @@ dialogs, the cursor held and the GPU's identity.
 ### M6c.2 — The viewport
 
 Split in two at its start, on 2026-10-28, as [ADR-0155](adr/0155-the-editors-design.md) allows:
-the viewport and its navigation, then picking and the selection.
+the viewport and its navigation, then picking and the selection; the second part cut in two again
+at its start, the same day, the second viewport and Blender's way in a third
+([ADR-0159](adr/0159-picking-and-the-selection.md)).
 
 #### M6c.2a — The viewport and its navigation
 
@@ -411,23 +415,37 @@ the viewport and its navigation, then picking and the selection.
 
 #### M6c.2b — Picking and the selection
 
-- **Goal.** The user picks in the viewport, the selection outlined, and a second viewport shows the
-  level.
-- **Crates.** `slime-render`, `slime-world-render`, `slime-editor`.
+- **Goal.** The user picks in the viewport and sees what is selected outlined.
+- **Crates.** `slime-gfx`, `slime-render`, `slime-world-render`, `slime-editor`.
 - **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: a click that picks by the
   GPU, the outermost placement first and a level deeper at the second click, Alt and a click
   through what lies behind by the CPU's ray, a marquee selecting what its area holds; the selection
   outlined, the scene's depth resolved, its hidden part dimmed, an entity without a mesh drawn as
   its transform's unit box; the modes of debugging base color and light alone, and a wireframe of
-  the selection; a second viewport, the one navigated alone drawn at the full rate; a `.keys`
-  preset in Blender's way, its mouse's buttons with it. The ADR of the design.
+  the selection. The ADR of the design. The second viewport and the `.keys` preset in Blender's way
+  moved to M6c.2c at its start ([ADR-0159](adr/0159-picking-and-the-selection.md)).
 - **Done when.** Image tests on lavapipe of the outline and its hidden part; an agent picks in a
   viewport; CI is green.
 - **How to test.** `cargo test -p slime-render -p slime-world-render -p slime-editor`;
   `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
-- **By hand.** Picking in the zone on niri, Hyprland and X11 through XWayland.
+- **By hand.** Picking in the zone on niri, Hyprland and X11 through XWayland; Alt and a click
+  with a mouse of a fine resolution, which must not read it as an orbit.
 - **Debt settled.** The scene's depth resolved
   ([ADR-0129](adr/0129-drawing-for-the-editor.md)); the outline; the two modes of debugging.
+
+#### M6c.2c — A second viewport and Blender's way
+
+- **Goal.** A second viewport shows the level, and Blender's way is a preset of the keys and the
+  mouse's buttons.
+- **Crates.** `slime-ui`, `slime-editor`.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: a second viewport, the one
+  navigated alone drawn at the full rate; a `.keys` preset in Blender's way, its mouse's buttons
+  with it. The ADR of the design, if one is needed.
+- **Done when.** Tests of the viewports' rates and of the preset's buttons; an agent captures each
+  viewport by its name; CI is green.
+- **How to test.** `cargo test -p slime-ui -p slime-editor`;
+  `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
+- **By hand.** Two viewports, and Blender's way, on niri and Hyprland.
 
 ### M6c.3 — Move and place
 

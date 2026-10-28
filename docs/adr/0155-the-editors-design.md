@@ -19,9 +19,11 @@
   owner's two checkpoints) and [0134](0134-the-editors-core.md) (a gesture made one step through an
   open step); amended by [0156](0156-the-editors-window-and-its-operations.md) (an operation's
   shortcut lives in the editor's table of shortcuts; the cache directory waits for its first user;
-  the loop's wake is built on a user event of winit 0.30's, the one way it has) and
+  the loop's wake is built on a user event of winit 0.30's, the one way it has),
   [0158](0158-the-viewport.md) (the `.keys` preset in Blender's way comes with M6c.2b's picking;
-  an agent frames the viewport by an operation's name)
+  an agent frames the viewport by an operation's name) and
+  [0159](0159-picking-and-the-selection.md) (Alt and a click told from an orbit by the mouse's
+  stillness; the second viewport and Blender's way in M6c.2c)
 - Date: 2026-10-27
 
 ## Context

@@ -183,7 +183,7 @@ the ADR linking to it.
 | [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted; amended by 0125 and 0155 |
 | [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted; amended by 0120 and 0128 |
 | [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amended by 0120 and 0138 |
-| [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted; amended by 0117, 0129, 0130 and 0132 |
+| [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted; amended by 0117, 0129, 0130, 0132 and 0159 |
 | [0116](0116-stage-6-in-two-halves.md) | Stage 6 in two halves | Accepted; amended by 0124, 0126 and 0131 |
 | [0117](0117-frustum-culling-and-instancing.md) | Frustum culling and instancing | Accepted; amended by 0128 and 0138 |
 | [0118](0118-the-task-pool-and-the-copies-to-the-gpu.md) | The task pool and the copies to the GPU | Accepted |
@@ -195,9 +195,9 @@ the ADR linking to it.
 | [0124](0124-driven-components-keys-and-created-entities-in-levels.md) | Driven components, start keys and created entities written into levels | Accepted; amended by 0125 |
 | [0125](0125-saves-per-scene.md) | Saves per scene, scenes unloaded and adoption | Accepted |
 | [0126](0126-views-apart-from-the-renderer.md) | Views apart from the renderer | Accepted; amended by 0127 |
-| [0127](0127-the-settings-of-a-view.md) | The settings of a view | Accepted; amended by 0128, 0158 |
+| [0127](0127-the-settings-of-a-view.md) | The settings of a view | Accepted; amended by 0128, 0158, 0159 |
 | [0128](0128-asset-requests.md) | Asset requests | Accepted |
-| [0129](0129-drawing-for-the-editor.md) | Drawing for the editor | Accepted |
+| [0129](0129-drawing-for-the-editor.md) | Drawing for the editor | Accepted; amended by 0159 |
 | [0130](0130-picking.md) | Picking | Accepted |
 | [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amended by 0134, 0137, 0140, 0142, 0145, 0148, 0149, 0152 and 0155 |
 | [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted; amended by 0137, 0140, 0143, 0145, 0146, 0148 and 0149 |
@@ -223,7 +223,8 @@ the ADR linking to it.
 | [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
 | [0153](0153-tab-and-f6-in-a-games-interface.md) | Tab and F6 in a game's interface | Accepted |
 | [0154](0154-floating-panels-and-held-keys.md) | Floating panels and held keys | Accepted |
-| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156, 0158 |
+| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156, 0158, 0159 |
 | [0156](0156-the-editors-window-and-its-operations.md) | The editor's window and its operations | Accepted |
 | [0157](0157-dialogs-the-cursor-held-and-the-gpus-identity.md) | Dialogs, the cursor held and the GPU's identity | Accepted |
-| [0158](0158-the-viewport.md) | The viewport | Accepted |
+| [0158](0158-the-viewport.md) | The viewport | Accepted; amended by 0159 |
+| [0159](0159-picking-and-the-selection.md) | Picking and the selection | Accepted |

@@ -4,7 +4,8 @@
   comes with M6c.2b's picking, and an agent frames the viewport by an operation's name rather than
   flying it with scripted keys), [0127](0127-the-settings-of-a-view.md) (a view says when its new
   size has held still) and [0041](0041-render-graph.md) (sixteen passes to a submission, where it
-  kept four)
+  kept four); amended by [0159](0159-picking-and-the-selection.md) (Blender's way comes with
+  M6c.2c)
 - Date: 2026-10-28
 
 ## Context

@@ -8,8 +8,9 @@
   type), [0129](0129-drawing-for-the-editor.md) (lines drawn by the renderer; the first point
   after the sky; the scene's depth resolved and a part of a texture written wait for their first
   user; the milestone in two), [0130](0130-picking.md) (how picking by the GPU and by the CPU are
-  built) and [0132](0132-the-engines-ui-framework.md) (a texture of one channel, and a
-  scissor apart from the viewport)
+  built), [0132](0132-the-engines-ui-framework.md) (a texture of one channel, and a
+  scissor apart from the viewport) and [0159](0159-picking-and-the-selection.md) (the scene's depth
+  resolved into its farthest sample, in the frames that outline alone)
 - Date: 2026-10-20
 
 ## Context
