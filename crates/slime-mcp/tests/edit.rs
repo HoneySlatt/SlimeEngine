@@ -8,7 +8,8 @@
 //! a step that it does not write, and finds it again the same way; and, the level written, starts
 //! the editor once more, which opens the level from its file with nothing to recover; there, it
 //! raises three lamps in one step, which one undo puts back, and drops one on the ground by the
-//! operation's name (`docs/adr/0161-the-open-step-and-the-handles.md`).
+//! operation's name (`docs/adr/0161-the-open-step-and-the-handles.md`), then duplicates it, copies
+//! it and pastes it the same way (`docs/adr/0162-creating-copying-and-arranging.md`).
 //!
 //! It needs the example built (`cargo build --example editor`) beside the server and the examples'
 //! assets cooked, in the directory that its first argument names, or `target/cooked/examples`. It
@@ -275,6 +276,37 @@ fn main() {
         .and_then(|y| y.parse().ok())
         .unwrap_or_else(|| panic!("a height: {dropped}"));
     assert!((0.0..0.1).contains(&height), "{dropped}");
+    // Lamp 2 duplicated, then copied and pasted, by the operations' names, each a step that
+    // selects what it created, a placement of the lamp beside the others.
+    for (name, label) in [
+        ("edit.duplicate", "Duplicate"),
+        ("edit.copy", ""),
+        ("edit.paste", "Paste"),
+    ] {
+        let (said, _) = session.tool("run_operation", json!({ "name": name }));
+        assert_eq!(said, ["done"], "{name}");
+        if label.is_empty() {
+            continue;
+        }
+        let (said, _) = session.tool("editor_history", json!({}));
+        assert!(said[0].contains(&format!("`{label}`")), "{said:?}");
+        assert!(said[0].contains("selected: `yard/lamp 2-"), "{said:?}");
+    }
+    let (said, _) = session.tool("list_entities", json!({ "filter": "lamp 2-" }));
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert_eq!(
+        said[0].matches(" (lamp 2-").count(),
+        2,
+        "two placements: {said:?}"
+    );
+    // What a placement holds but its root cannot be grouped out of it.
+    session.tool(
+        "select",
+        json!({ "selection": ["yard/lamp 1/post", "yard/lamp 3"] }),
+    );
+    let (said, result) = session.try_tool("run_operation", json!({ "name": "edit.group" }));
+    assert_eq!(result["isError"], json!(true), "{said:?}");
+    assert!(said[0].contains("belongs to a placement"), "{said:?}");
     session.tool("stop_game", json!({}));
 
     drop(session);

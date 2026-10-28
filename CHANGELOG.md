@@ -94,6 +94,19 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   keeps an editor's requests, in their order, while it says that they wait.
 - `Picker::bounds` in `slime-world-render`: the box in the world around an entity's meshes and those
   below it.
+- Creating and arranging in the editor (ADR-0162): *Edit* > *Create an entity* (Ctrl+Shift+N),
+  *Duplicate* (Ctrl+D), *Copy* and *Paste* through the system's clipboard (Ctrl+C, Ctrl+V),
+  *Delete* (Delete), *Group* (Ctrl+G) and *Repeat the last operation* (Shift+R); Ctrl and the arrows,
+  Page Up and Page Down, nudge what is selected by a quarter of a metre along the world's axes. A
+  copy is the text of the commands that create what is selected again, as a step of the journal
+  writes them, which pasting reads under new identities: the references inside the copy point at
+  the copy, and a placement's overrides, nested ones included, are kept. Blender's way binds
+  Shift+D, X and Shift+A. Agents run them by name, `edit.create`, `edit.duplicate`, `edit.copy`,
+  `edit.paste`, `edit.delete`, `edit.group`, `edit.repeat` and `edit.nudge_*`.
+- `World::creating_commands`, `Renaming`, `Command::read_renamed` and `WorldError::NoIdentity` in
+  `slime-world`; `Editor::copy`, `Editor::paste`, `EditError::Copy`, `EditError::Paste` and
+  `Changes::Clipboard` in `slime-editor`; `Ui::clipboard_text` and `Ui::set_clipboard_text` in
+  `slime-ui`.
 
 ### Changed
 

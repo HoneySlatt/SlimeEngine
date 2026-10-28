@@ -78,9 +78,12 @@ with Stage 6c's next milestones.
   (`docs/adr/0160-two-viewports-and-blenders-way.md`). Handles move (W), turn (E) and scale (R)
   what is selected, in the world's axes or the selection's, snapped if *Edit* > *Snap* is ticked,
   each drag one step that Escape cancels; End drops what is selected on what lies below it, Shift
-  and End its bottom (`docs/adr/0161-the-open-step-and-the-handles.md`). Options: `--level`,
-  `--assets`, `--journal`, `--discard`, `--headless`; `run`'s documentation says how a journal is
-  chosen and recovered.
+  and End its bottom (`docs/adr/0161-the-open-step-and-the-handles.md`). *Edit* creates an entity
+  (Ctrl+Shift+N), duplicates (Ctrl+D), copies and pastes through the system's clipboard (Ctrl+C,
+  Ctrl+V), deletes (Delete), groups (Ctrl+G) and repeats the last operation (Shift+R), and Ctrl and
+  the arrows, Page Up and Page Down nudge what is selected (`docs/adr/0162-creating-copying-and-arranging.md`). Options:
+  `--level`, `--assets`, `--journal`, `--discard`, `--headless`; `run`'s documentation says how a
+  journal is chosen and recovered.
 - `window_image(&Program, arguments, operations, selection, scale)`: the window drawn into an image
   without a window of the system, as it shows once the level is open, the operations named run
   and the entities named selected, which the image tests compare and the `editor` example's

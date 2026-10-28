@@ -12,7 +12,9 @@ use slime_assets::CookedAssets;
 use slime_channel::{Edit, EditorHistory, OperationSummary, Reply};
 use slime_reflect::{Path as ValuePath, Reflect};
 use slime_render::glam::DVec3;
-use slime_world::{Command, Entity, GlobalTransform, PersistentId, SceneLibrary, Transform, World};
+use slime_world::{
+    Command, Entity, GlobalTransform, Name, PersistentId, SceneLibrary, Transform, World,
+};
 use slime_world_render::Picker;
 
 use crate::editor::{EditError, Editor};
@@ -54,6 +56,8 @@ pub(crate) struct Session {
     /// What casts the rays that drop what is selected, made at the first drop
     /// (`edit.drop`).
     picker: Option<Picker>,
+    /// The last operation that made a step, with its arguments, which `edit.repeat` runs again.
+    last: Option<(&'static str, Vec<String>)>,
 }
 
 impl Session {
@@ -80,6 +84,7 @@ impl Session {
             recent,
             journals,
             picker: None,
+            last: None,
         }
     }
 
@@ -317,10 +322,18 @@ impl Session {
                 self.editor()?.cancel_gesture(world);
                 Ok(Reply::Done)
             }
-            Request::Apply { label, commands } => self
+            Request::Apply {
+                label,
+                commands,
+                selection,
+            } => self
                 .editor()?
-                .apply(world, &label, commands, None)
+                .apply(world, &label, commands, selection)
                 .map(|()| Reply::Done),
+            Request::Paste { label, text } => self
+                .editor()?
+                .paste(world, &label, &text)
+                .map(|_| Reply::Done),
             Request::Undo => match self.editor()?.undo(world) {
                 Ok(false) => return Err("no step is done".into()),
                 undone => undone.map(|_| Reply::Done),
@@ -405,7 +418,13 @@ impl Session {
             )
             .into());
         }
-        if operation.changes == Changes::Window {
+        // A window pastes what the system's clipboard holds, which it reads.
+        if operation.changes == Changes::Window
+            || (operation.name == "edit.paste" && self.shared.borrow().window)
+        {
+            if operation.changes == Changes::Level {
+                self.last = Some((operation.name, arguments));
+            }
             let mut shared = self.shared.borrow_mut();
             if !shared.window {
                 return Err(
@@ -433,11 +452,235 @@ impl Session {
                 Request::Apply {
                     label: operation.label.to_owned(),
                     commands: self.drops(world, bottom)?,
+                    selection: None,
+                }
+            }
+            "edit.copy" => {
+                let text = self.copied(world)?;
+                let mut shared = self.shared.borrow_mut();
+                shared.clipboard = Some(text);
+                shared.copies += 1;
+                return Ok(Reply::Done);
+            }
+            "edit.paste" => {
+                let text = self.shared.borrow().clipboard.clone();
+                Request::Paste {
+                    label: operation.label.to_owned(),
+                    text: text.ok_or("nothing was copied")?,
+                }
+            }
+            "edit.duplicate" => Request::Paste {
+                label: operation.label.to_owned(),
+                text: self.copied(world)?,
+            },
+            "edit.create" => self.created(world)?,
+            "edit.delete" => {
+                let commands: Vec<Command> = self
+                    .outermost(world)?
+                    .into_iter()
+                    .filter_map(|entity| world.persistent_id(entity))
+                    .map(|entity| Command::Delete { entity })
+                    .collect();
+                Request::Apply {
+                    label: operation.label.to_owned(),
+                    commands,
+                    selection: Some(Vec::new()),
+                }
+            }
+            "edit.group" => self.grouped(world)?,
+            "edit.repeat" => {
+                let (name, arguments) = self.last.clone().ok_or("no operation made a step yet")?;
+                return self.run(world, name, arguments);
+            }
+            name if name.starts_with("edit.nudge_") => {
+                let direction = match name {
+                    "edit.nudge_left" => DVec3::NEG_X,
+                    "edit.nudge_right" => DVec3::X,
+                    "edit.nudge_forward" => DVec3::NEG_Z,
+                    "edit.nudge_back" => DVec3::Z,
+                    "edit.nudge_up" => DVec3::Y,
+                    _ => DVec3::NEG_Y,
+                };
+                Request::Apply {
+                    label: operation.label.to_owned(),
+                    commands: self.nudged(world, direction * handles::SNAP_DISTANCE)?,
+                    selection: None,
                 }
             }
             name => unreachable!("the operation `{name}` has no request"),
         };
-        self.answer(world, request)
+        let reply = self.answer(world, request)?;
+        if operation.changes == Changes::Level {
+            self.last = Some((operation.name, arguments));
+        }
+        Ok(reply)
+    }
+
+    /// The outermost of the entities selected below the level's root, each without an ancestor
+    /// among them (`docs/adr/0162-creating-copying-and-arranging.md`).
+    ///
+    /// # Errors
+    ///
+    /// Without a level open, or when nothing below the level's root is selected.
+    fn outermost(&self, world: &World) -> Result<Vec<Entity>, AppError> {
+        let editor = self.editor.as_ref().ok_or("no level is open")?;
+        let selected: Vec<Entity> = editor
+            .selection()
+            .iter()
+            .filter(|id| id.parts().len() > 1)
+            .filter_map(|id| world.find(id))
+            .collect();
+        let outermost = handles::outermost(world, &selected);
+        if outermost.is_empty() {
+            return Err("nothing below the level's root is selected".into());
+        }
+        Ok(outermost)
+    }
+
+    /// The text that copies the outermost of what is selected ([`Editor::copy`]).
+    fn copied(&self, world: &World) -> Result<String, AppError> {
+        let roots: Vec<PersistentId> = self
+            .outermost(world)?
+            .into_iter()
+            .filter_map(|entity| world.persistent_id(entity))
+            .collect();
+        let editor = self.editor.as_ref().ok_or("no level is open")?;
+        Ok(editor.copy(world, &roots)?)
+    }
+
+    /// The step that creates an entity named `entity` at the level's root, at the middle of what is
+    /// selected or at the origin, and selects it.
+    fn created(&self, world: &World) -> Result<Request, AppError> {
+        let editor = self.editor.as_ref().ok_or("no level is open")?;
+        let root = editor.root(world).ok_or("the level's root is not alive")?;
+        let at = self
+            .outermost(world)
+            .ok()
+            .and_then(|selected| handles::middle(world, &selected))
+            .unwrap_or(DVec3::ZERO);
+        let id = editor.new_id(world, "entity");
+        let transform = Transform {
+            translation: handles::into_parent(&handles::placed_at(world, Some(root)), at),
+            ..Transform::IDENTITY
+        };
+        Ok(Request::Apply {
+            label: "Create an entity".to_owned(),
+            commands: vec![Command::Create {
+                entity: id.clone(),
+                parent: Some(PersistentId::new([editor.key()])),
+                rank: None,
+                components: vec![
+                    ("Name".to_owned(), Name("entity".to_owned()).to_value()),
+                    ("Transform".to_owned(), transform.to_value()),
+                ],
+            }],
+            selection: Some(vec![id]),
+        })
+    }
+
+    /// The step that puts the outermost of what is selected under a new entity named `group`, at
+    /// their middle, under the parent that they share or at the level's root, each where it was in
+    /// the world, and selects the group.
+    ///
+    /// # Errors
+    ///
+    /// As [`Session::outermost`], and for an entity that a placement holds but for its root, which
+    /// a scene file cannot move out of its place.
+    fn grouped(&self, world: &World) -> Result<Request, AppError> {
+        let selected = self.outermost(world)?;
+        if let Some(&held) = selected.iter().find(|&&entity| {
+            world
+                .placement_root(entity)
+                .is_some_and(|root| root != entity)
+        }) {
+            let id = world.persistent_id(held).map(|id| id.to_string());
+            return Err(format!(
+                "`{}` belongs to a placement, out of which it cannot be moved",
+                id.unwrap_or_default()
+            )
+            .into());
+        }
+        let editor = self.editor.as_ref().ok_or("no level is open")?;
+        let root = editor.root(world).ok_or("the level's root is not alive")?;
+        let first = world.parent(selected[0]);
+        let parent = if selected.iter().all(|&entity| world.parent(entity) == first) {
+            first.unwrap_or(root)
+        } else {
+            root
+        };
+        let parent_id = world
+            .persistent_id(parent)
+            .ok_or("the parent has no identity")?;
+        let around = handles::placed_at(world, Some(parent));
+        let pivot = handles::middle(world, &selected).unwrap_or(around.translation);
+        let id = editor.new_id(world, "group");
+        // The group turned and scaled as its parent is, where the middle is.
+        let group = GlobalTransform {
+            translation: pivot,
+            ..around
+        };
+        let mut commands = vec![Command::Create {
+            entity: id.clone(),
+            parent: Some(parent_id),
+            rank: None,
+            components: vec![
+                ("Name".to_owned(), Name("group".to_owned()).to_value()),
+                (
+                    "Transform".to_owned(),
+                    Transform {
+                        translation: handles::into_parent(&around, pivot),
+                        ..Transform::IDENTITY
+                    }
+                    .to_value(),
+                ),
+            ],
+        }];
+        for entity in selected {
+            let Some(entity_id) = world.persistent_id(entity) else {
+                continue;
+            };
+            commands.push(Command::Reparent {
+                entity: entity_id.clone(),
+                parent: Some(id.clone()),
+                rank: None,
+            });
+            // Where it was in the world, if it is placed.
+            if let (Some(local), Some(at)) = (
+                world.get::<Transform>(entity),
+                world.interpolated_transform(entity, 1.0),
+            ) {
+                let moved = Transform {
+                    translation: handles::into_parent(&group, at.translation),
+                    rotation: (group.rotation.as_dquat().inverse() * at.rotation.as_dquat())
+                        .normalize()
+                        .as_quat(),
+                    scale: at.scale / group.scale.max(f32::EPSILON),
+                    ..*local
+                };
+                commands.push(set_transform(entity_id, &moved));
+            }
+        }
+        Ok(Request::Apply {
+            label: "Group".to_owned(),
+            commands,
+            selection: Some(vec![id]),
+        })
+    }
+
+    /// The commands that move the outermost of what is selected by `by`, in the world.
+    fn nudged(&self, world: &World, by: DVec3) -> Result<Vec<Command>, AppError> {
+        Ok(self
+            .outermost(world)?
+            .into_iter()
+            .filter_map(|entity| {
+                let id = world.persistent_id(entity)?;
+                let mut moved = *world.get::<Transform>(entity)?;
+                let at = world.interpolated_transform(entity, 1.0)?;
+                let parent = handles::placed_at(world, world.parent(entity));
+                moved.translation = handles::into_parent(&parent, at.translation + by);
+                Some(set_transform(id, &moved))
+            })
+            .collect())
     }
 
     /// The commands that drop each entity selected onto what lies below its origin, or below its
@@ -489,19 +732,11 @@ impl Session {
             else {
                 continue;
             };
-            let parent = world
-                .parent(entity)
-                .and_then(|parent| world.interpolated_transform(parent, 1.0))
-                .unwrap_or(GlobalTransform::IDENTITY);
+            let parent = handles::placed_at(world, world.parent(entity));
             let mut moved = *local;
             moved.translation =
                 handles::into_parent(&parent, at.translation - DVec3::Y * hit.distance);
-            commands.push(Command::SetProperty {
-                entity: id,
-                component: "Transform".to_owned(),
-                path: ValuePath::default(),
-                value: moved.to_value(),
-            });
+            commands.push(set_transform(id, &moved));
         }
         if commands.is_empty() {
             return Err("nothing lies below what is selected".into());
@@ -655,6 +890,7 @@ impl Simulation for Session {
         let request = Request::Apply {
             label,
             commands: vec![command.clone()],
+            selection: None,
         };
         match self.handle(world, request) {
             // The step is made: the program stops, as `broke` says.
@@ -679,6 +915,16 @@ impl Simulation for Session {
     fn edit(&mut self, world: &mut World, edit: &Edit) -> Result<Reply, AppError> {
         let request = request_of(edit)?;
         self.handle(world, request)
+    }
+}
+
+/// The command that sets `entity`'s whole transform to `transform`.
+fn set_transform(entity: PersistentId, transform: &Transform) -> Command {
+    Command::SetProperty {
+        entity,
+        component: "Transform".to_owned(),
+        path: ValuePath::default(),
+        value: transform.to_value(),
     }
 }
 

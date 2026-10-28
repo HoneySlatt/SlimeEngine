@@ -1,13 +1,17 @@
 # Blender's way: what it changes of the editor's shortcuts (`editor.keys`), laid over them, which
 # View > Keys of Blender turns on (`docs/adr/0160-two-viewports-and-blenders-way.md`). The middle
 # button orbits, Shift and the middle button pan, Alt and the left button go through what lies
-# behind and orbit no more, Alt+A selects nothing, F3 finds an operation, and the period frames
-# what is selected, as the numeric pad's does where it types a period.
+# behind and orbit no more, Alt+A selects nothing, F3 finds an operation, the period frames what
+# is selected, as the numeric pad's does where it types a period, Shift+D duplicates, X deletes and
+# Shift+A creates an entity.
 
 [global]
 "Alt+A" = "edit.select_none"
 F3 = "view.palette"
 "." = "view.frame_selection"
+"Shift+D" = "edit.duplicate"
+X = "edit.delete"
+"Shift+A" = "edit.create"
 
 [viewport]
 MiddleButton = "orbit"

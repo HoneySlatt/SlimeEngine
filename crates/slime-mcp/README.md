@@ -129,8 +129,8 @@ documentation lists; it needs a compositor alone, and runs beside the others.
 `tests/edit.rs` starts the `editor` example on a copy of the yard, writes it back unchanged, makes
 steps, undoes and redoes them, writes the level, finds again, as the editor starts again, what it
 did not write, and, the level written, opens it from its file, where it moves three lamps in one
-step, undoes it, and drops a lamp on the ground by the operation's name; it needs no compositor, the
-examples' assets cooked. `tests/edit_zone.rs` starts `hunnawood-editor` on a copy
+step, undoes it, drops a lamp on the ground, duplicates it, copies it and pastes it by the
+operations' names; it needs no compositor, the examples' assets cooked. `tests/edit_zone.rs` starts `hunnawood-editor` on a copy
 of *Hunna Wood*'s zone, changes one of the game's components, creates an entity that holds
 another, undoes, redoes and writes the zone; it needs the zone cooked, and `scripts/check.sh` runs
 it with the tests that read the zone.

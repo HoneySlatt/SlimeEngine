@@ -13,6 +13,8 @@ pub enum Changes {
     Selection,
     /// The level, by a step of the history that it makes.
     Level,
+    /// What the editor copied, and the system's clipboard.
+    Clipboard,
     /// What the editor's window shows, which a program without a window cannot run.
     Window,
     /// The program: quitting it.
@@ -20,14 +22,15 @@ pub enum Changes {
 }
 
 impl Changes {
-    /// The word that names it to agents: `history`, `file`, `selection`, `level`, `window`,
-    /// `program`.
+    /// The word that names it to agents: `history`, `file`, `selection`, `level`, `clipboard`,
+    /// `window`, `program`.
     pub fn word(self) -> &'static str {
         match self {
             Self::History => "history",
             Self::File => "file",
             Self::Selection => "selection",
             Self::Level => "level",
+            Self::Clipboard => "clipboard",
             Self::Window => "window",
             Self::Program => "program",
         }
@@ -92,6 +95,84 @@ pub const OPERATIONS: &[Operation] = &[
         label: "Select nothing",
         parameters: &[],
         changes: Changes::Selection,
+    },
+    Operation {
+        name: "edit.create",
+        label: "Create an entity",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "edit.delete",
+        label: "Delete",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "edit.duplicate",
+        label: "Duplicate",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "edit.copy",
+        label: "Copy",
+        parameters: &[],
+        changes: Changes::Clipboard,
+    },
+    Operation {
+        name: "edit.paste",
+        label: "Paste",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "edit.group",
+        label: "Group",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "edit.repeat",
+        label: "Repeat the last operation",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "edit.nudge_left",
+        label: "Nudge left",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "edit.nudge_right",
+        label: "Nudge right",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "edit.nudge_forward",
+        label: "Nudge forward",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "edit.nudge_back",
+        label: "Nudge back",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "edit.nudge_up",
+        label: "Nudge up",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "edit.nudge_down",
+        label: "Nudge down",
+        parameters: &[],
+        changes: Changes::Level,
     },
     Operation {
         name: "edit.drop",

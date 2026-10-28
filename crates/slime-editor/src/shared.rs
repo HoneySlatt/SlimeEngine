@@ -57,6 +57,13 @@ pub(crate) struct State {
     pub(crate) notices: Vec<Notice>,
     /// The window's operations that the core was asked to run, which the window runs.
     pub(crate) window_operations: VecDeque<&'static str>,
+    /// What the editor copied last ([`Editor::copy`](crate::Editor::copy)), which it pastes
+    /// without a window, and which the window puts on the system's clipboard
+    /// (`docs/adr/0162-creating-copying-and-arranging.md`).
+    pub(crate) clipboard: Option<String>,
+    /// How many copies the editor made, counted up at each, so that the window puts each on the
+    /// system's clipboard once.
+    pub(crate) copies: u64,
     /// What the window asks of the core, which the core answers at its next update.
     pub(crate) requests: VecDeque<Request>,
 }
@@ -80,11 +87,19 @@ pub(crate) enum Request {
         commands: Vec<String>,
         selection: Option<Vec<PersistentId>>,
     },
-    /// A step of commands given as values, whole or not at all: what the window's world panel
-    /// changes.
+    /// A step of commands given as values, whole or not at all, which selects `selection` after it
+    /// if it is given: what the window's world panel changes, and what the operations make.
     Apply {
         label: String,
         commands: Vec<Command>,
+        selection: Option<Vec<PersistentId>>,
+    },
+    /// Commands copied, pasted as a step labelled `label`
+    /// ([`Editor::paste`](crate::Editor::paste)):
+    /// what the window read on the system's clipboard, or what the editor copied.
+    Paste {
+        label: String,
+        text: String,
     },
     Undo,
     Redo,

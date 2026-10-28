@@ -71,6 +71,14 @@ pub(crate) const MENUS: &[(&str, &[Entry])] = &[
         &[
             Entry::Operation("edit.undo"),
             Entry::Operation("edit.redo"),
+            Entry::Operation("edit.repeat"),
+            Entry::Separator,
+            Entry::Operation("edit.create"),
+            Entry::Operation("edit.duplicate"),
+            Entry::Operation("edit.copy"),
+            Entry::Operation("edit.paste"),
+            Entry::Operation("edit.delete"),
+            Entry::Operation("edit.group"),
             Entry::Separator,
             Entry::Operation("edit.select_none"),
             Entry::Separator,
@@ -219,6 +227,8 @@ pub(crate) struct Model {
     scale: f32,
     /// Whether the keys are Blender's way, laid over the editor's (`view.keys_blender`).
     blender: bool,
+    /// How many copies the core made when the window last put one on the system's clipboard.
+    copies: u64,
 }
 
 impl Model {
@@ -255,6 +265,7 @@ impl Model {
             snap: false,
             scale: 1.0,
             blender,
+            copies: 0,
         };
         model.set_keys(blender);
         model.style();
@@ -325,6 +336,7 @@ impl Model {
             requests.push(Request::Apply {
                 label,
                 commands: vec![command],
+                selection: None,
             });
         }
         if self.panel.selected() != self.selected {
@@ -909,6 +921,22 @@ impl Model {
                     };
                 }
                 "edit.snap" => self.snap = !self.snap,
+                // What the system's clipboard holds, or, without one, what the editor copied.
+                "edit.paste" => {
+                    // A copy that the core made since the last frame first.
+                    self.put_copy();
+                    let text = self
+                        .ui
+                        .clipboard_text()
+                        .or_else(|| self.shared.borrow().clipboard.clone())
+                        .unwrap_or_default();
+                    let label =
+                        operation::operation("edit.paste").map_or("Paste", |paste| paste.label);
+                    self.shared.borrow_mut().requests.push_back(Request::Paste {
+                        label: label.to_owned(),
+                        text,
+                    });
+                }
                 "view.keys_default" => self.choose_keys(false),
                 "view.keys_blender" => self.choose_keys(true),
                 name => match shading(name) {
@@ -986,10 +1014,22 @@ impl Model {
         self.shared.borrow_mut().revision += 1;
     }
 
+    /// Puts what the core copied last on the system's clipboard, once.
+    fn put_copy(&mut self) {
+        let shared = self.shared.borrow();
+        if shared.copies != self.copies {
+            self.copies = shared.copies;
+            if let Some(text) = &shared.clipboard {
+                self.ui.set_clipboard_text(text);
+            }
+        }
+    }
+
     /// Follows what the core changed: a level opened in place of the other resets the world panel
     /// and is framed in the viewport; a selection that the core changed, an undo or an agent's,
     /// selects in the panel.
     fn follow_the_core(&mut self, world: &World) {
+        self.put_copy();
         let shared = self.shared.borrow();
         if shared.opened != self.opened {
             self.opened = shared.opened;
@@ -1947,6 +1987,7 @@ mod tests {
 
     use slime_app::Simulation;
     use slime_platform::{ButtonState, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey};
+    use slime_reflect::Reflect;
     use slime_ui::display::Primitive;
     use slime_world::{Command, PersistentId};
 
@@ -2418,6 +2459,263 @@ mod tests {
         );
     }
 
+    /// The operations that create and arrange, run by their names as the menus and the keys run
+    /// them, each a step: a duplicate in place, nudged, the nudge repeated, the well and its
+    /// duplicate grouped where they were, the group copied and pasted, through the window, which
+    /// pastes what the editor copied without a clipboard of the system, deleted, and an entity
+    /// created (`docs/adr/0162-creating-copying-and-arranging.md`).
+    #[test]
+    fn what_is_selected_is_duplicated_nudged_grouped_copied_pasted_and_deleted_each_a_step() {
+        let mut yard = Yard::new("arrange");
+        let run = |yard: &mut Yard, name: &str| {
+            yard.session
+                .handle(
+                    yard.host.world_mut(),
+                    Request::Run {
+                        name: name.to_owned(),
+                        arguments: Vec::new(),
+                    },
+                )
+                .unwrap_or_else(|error| panic!("{name}: {error}"));
+            yard.frame();
+            yard.frame();
+        };
+        let selected = |yard: &Yard| yard.shared.borrow().selection.clone();
+        let x = |yard: &Yard, id: &PersistentId| {
+            let world = yard.host.world();
+            let entity = world.find(id).expect("alive");
+            world
+                .interpolated_transform(entity, 1.0)
+                .expect("placed")
+                .translation
+                .x
+        };
+        let well: PersistentId = "yard/well".parse().expect("an identity");
+        yard.shared
+            .borrow_mut()
+            .requests
+            .push_back(Request::Select(vec![well.clone()]));
+        yard.frame();
+        run(&mut yard, "edit.duplicate");
+        let [copy] = selected(&yard).try_into().expect("the duplicate selected");
+        assert_ne!(copy, well);
+        assert!(copy.to_string().starts_with("yard/well-"), "{copy}");
+        run(&mut yard, "edit.nudge_right");
+        run(&mut yard, "edit.repeat");
+        assert!((x(&yard, &copy) - 0.5).abs() < 1e-9);
+        assert_eq!(x(&yard, &well), 0.0);
+        yard.shared
+            .borrow_mut()
+            .requests
+            .push_back(Request::Select(vec![well.clone(), copy.clone()]));
+        yard.frame();
+        run(&mut yard, "edit.group");
+        let [group] = selected(&yard).try_into().expect("the group selected");
+        let world = yard.host.world();
+        let grouped = world.find(&group).expect("the group");
+        assert_eq!(world.children(grouped).count(), 2);
+        assert!((x(&yard, &group) - 0.25).abs() < 1e-9, "at their middle");
+        assert_eq!(x(&yard, &well), 0.0, "where it was");
+        assert!((x(&yard, &copy) - 0.5).abs() < 1e-9, "where it was");
+        run(&mut yard, "edit.copy");
+        assert!(yard.shared.borrow().clipboard.is_some());
+        run(&mut yard, "edit.paste");
+        let [pasted] = selected(&yard).try_into().expect("the paste selected");
+        assert_ne!(pasted, group);
+        let world = yard.host.world();
+        assert_eq!(
+            world.children(world.find(&pasted).expect("pasted")).count(),
+            2
+        );
+        run(&mut yard, "edit.delete");
+        assert!(selected(&yard).is_empty());
+        assert!(yard.host.world().find(&pasted).is_none());
+        run(&mut yard, "edit.create");
+        let [created] = selected(&yard).try_into().expect("the entity selected");
+        assert!(created.to_string().starts_with("yard/entity-"), "{created}");
+        assert_eq!(
+            yard.history().0,
+            [
+                "Duplicate",
+                "Nudge right",
+                "Nudge right",
+                "Group",
+                "Paste",
+                "Delete",
+                "Create an entity"
+            ]
+        );
+    }
+
+    /// Runs the operation `name` as a person does, then two frames, the window's included.
+    fn run(yard: &mut Yard, name: &str) {
+        yard.session
+            .handle(
+                yard.host.world_mut(),
+                Request::Run {
+                    name: name.to_owned(),
+                    arguments: Vec::new(),
+                },
+            )
+            .unwrap_or_else(|error| panic!("{name}: {error}"));
+        yard.frame();
+        yard.frame();
+    }
+
+    /// Where the entity `id` is in the world.
+    fn placed(yard: &Yard, id: &PersistentId) -> slime_world::GlobalTransform {
+        let world = yard.host.world();
+        world
+            .interpolated_transform(world.find(id).expect("alive"), 1.0)
+            .expect("placed")
+    }
+
+    /// A clipboard of the system that a test holds.
+    #[derive(Clone, Default)]
+    struct Board(std::sync::Arc<std::sync::Mutex<Option<String>>>);
+
+    impl slime_ui::tree::Clipboard for Board {
+        fn text(&mut self) -> Option<String> {
+            self.0.lock().expect("not poisoned").clone()
+        }
+
+        fn set_text(&mut self, text: &str) {
+            *self.0.lock().expect("not poisoned") = Some(text.to_owned());
+        }
+    }
+
+    /// Under a base turned a quarter about Y and twice as large: a post grouped with the well stays
+    /// where it was in the world, the group at their middle; nudged, it moves a quarter of a metre
+    /// along the world's X; an entity created goes where it is; a paste repeated pastes again; and
+    /// a paste right after a copy, before the window put the copy on the system's clipboard, which
+    /// held something else, pastes the copy (`docs/adr/0162-creating-copying-and-arranging.md`).
+    #[test]
+    fn what_is_grouped_nudged_and_created_under_a_turned_parent_stays_where_it_is_in_the_world() {
+        let mut yard = Yard::new("turned");
+        let board = Board::default();
+        board
+            .0
+            .lock()
+            .expect("not poisoned")
+            .replace("a word".to_owned());
+        yard.model.ui.set_clipboard(Box::new(board.clone()));
+        let id = |text: &str| -> PersistentId { text.parse().expect("an identity") };
+        let (base, post, well) = (id("yard/base-k3f9"), id("yard/post-k3f9"), id("yard/well"));
+        let transform = |translation: DVec3, quarter: bool, scale: f32| {
+            slime_world::Transform {
+                translation,
+                rotation: if quarter {
+                    slime_world::glam::Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)
+                } else {
+                    slime_world::glam::Quat::IDENTITY
+                },
+                scale,
+                ..slime_world::Transform::IDENTITY
+            }
+            .to_value()
+        };
+        yard.shared.borrow_mut().requests.push_back(Request::Apply {
+            label: "A post on a base".to_owned(),
+            commands: vec![
+                Command::Create {
+                    entity: base.clone(),
+                    parent: Some(id("yard")),
+                    rank: None,
+                    components: vec![(
+                        "Transform".to_owned(),
+                        transform(DVec3::new(1.0, 0.0, 0.0), true, 2.0),
+                    )],
+                },
+                Command::Create {
+                    entity: post.clone(),
+                    parent: Some(base.clone()),
+                    rank: None,
+                    components: vec![(
+                        "Transform".to_owned(),
+                        transform(DVec3::new(1.0, 0.0, 0.0), false, 1.0),
+                    )],
+                },
+            ],
+            selection: Some(vec![post.clone(), well.clone()]),
+        });
+        yard.frame();
+        let (post_at, well_at) = (placed(&yard, &post), placed(&yard, &well));
+        assert!(post_at.translation.distance(DVec3::new(1.0, 0.0, -2.0)) < 1e-6);
+        run(&mut yard, "edit.group");
+        let near = |a: DVec3, b: DVec3| a.distance(b) < 1e-5;
+        assert!(near(placed(&yard, &post).translation, post_at.translation));
+        assert!(
+            placed(&yard, &post)
+                .rotation
+                .abs_diff_eq(post_at.rotation, 1e-5)
+        );
+        assert!(near(placed(&yard, &well).translation, well_at.translation));
+        let [group] = yard
+            .shared
+            .borrow()
+            .selection
+            .clone()
+            .try_into()
+            .expect("the group selected");
+        assert!(near(
+            placed(&yard, &group).translation,
+            (post_at.translation + well_at.translation) / 2.0
+        ));
+        yard.shared
+            .borrow_mut()
+            .requests
+            .push_back(Request::Select(vec![post.clone()]));
+        yard.frame();
+        run(&mut yard, "edit.nudge_right");
+        assert!(near(
+            placed(&yard, &post).translation,
+            post_at.translation + DVec3::new(0.25, 0.0, 0.0)
+        ));
+        run(&mut yard, "edit.create");
+        let [created] = yard
+            .shared
+            .borrow()
+            .selection
+            .clone()
+            .try_into()
+            .expect("the entity selected");
+        assert!(near(
+            placed(&yard, &created).translation,
+            post_at.translation + DVec3::new(0.25, 0.0, 0.0)
+        ));
+        // Copied and pasted at once, before a frame; then the paste repeated.
+        yard.shared
+            .borrow_mut()
+            .requests
+            .push_back(Request::Select(vec![post.clone()]));
+        yard.frame();
+        for name in ["edit.copy", "edit.paste"] {
+            yard.session
+                .handle(
+                    yard.host.world_mut(),
+                    Request::Run {
+                        name: name.to_owned(),
+                        arguments: Vec::new(),
+                    },
+                )
+                .expect(name);
+        }
+        yard.frame();
+        yard.frame();
+        run(&mut yard, "edit.repeat");
+        let done = yard.history().0;
+        assert_eq!(done[done.len() - 2..], ["Paste", "Paste"], "{done:?}");
+        assert!(
+            board
+                .0
+                .lock()
+                .expect("not poisoned")
+                .as_deref()
+                .is_some_and(|text| text.starts_with("# do")),
+            "the copy on the system's clipboard"
+        );
+    }
+
     /// Two viewports side by side, each its own camera and settings, the View menu changing the
     /// one last pressed in (`docs/adr/0160-two-viewports-and-blenders-way.md`).
     #[test]
@@ -2667,6 +2965,7 @@ mod tests {
                 path: "0".parse::<slime_reflect::Path>().expect("a path"),
                 value: slime_reflect::Value::Text("old well".to_owned()),
             }],
+            selection: None,
         });
         yard.frame();
         yard.frame();

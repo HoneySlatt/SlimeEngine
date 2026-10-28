@@ -1529,6 +1529,20 @@ GitHub issues, linked from their entry; this list stays the reference.
   above the other land as if the other did not move. While a person drags, an agent's requests that
   change the level wait, and through the MCP server, which asks one request at a time, its reads
   too.
+- **Creating and arranging in the editor** ([ADR-0162](adr/0162-creating-copying-and-arranging.md)):
+  what is duplicated and pasted goes last among its parent's children, in place; a copy's root
+  that its original named after its ID is named after its new ID, `lamp 2-r39l`. Nudging moves
+  along the world's axes, whichever way the viewer looks. Repeating runs the last operation that
+  made a step, not a drag of the handles. Grouping refuses an entity that a placement holds but for
+  its root. A copy carries every component of what it creates but placements, of which it carries
+  what differs from their prefabs, and the entities that saves leave out too; pasting reads any
+  text that the system's clipboard holds, and refuses what is not a copy or changes what it does
+  not create. A copy keeps an ID's last word of four letters, and drops one that holds a digit,
+  which the editor's IDs end with: one of four letters that the editor made stays, `torch-abcd`,
+  and grows a suffix at each copy. With a window, an agent's `edit.paste` is answered before the
+  window pastes, at the next frame. A shortcut that a field of one line does not take reaches the
+  editor while the field holds the focus: Ctrl and the up arrow in a number of the world panel
+  nudges what is selected, and Ctrl+D duplicates it.
 - **Every multisampled depth target can be read by a shader**
   ([ADR-0159](adr/0159-picking-and-the-selection.md)), so that the outline's frames resolve the
   scene's depth: every view of four samples makes its depth so, whether it outlines or not, which

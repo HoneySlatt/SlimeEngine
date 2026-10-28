@@ -90,20 +90,12 @@ impl Gizmo {
         camera: &Camera,
         height: f32,
     ) -> Option<Self> {
-        let placed: Vec<GlobalTransform> = outermost(world, selection)
-            .into_iter()
-            .filter_map(|entity| world.interpolated_transform(entity, 1.0))
-            .collect();
+        let pivot = middle(world, &outermost(world, selection))?;
         // The last entity selected, whether or not it is among those moved.
         let last = selection
             .iter()
             .rev()
             .find_map(|&entity| world.interpolated_transform(entity, 1.0))?;
-        let pivot = placed
-            .iter()
-            .map(|placed| placed.translation)
-            .sum::<DVec3>()
-            / placed.len() as f64;
         let rotation = match space {
             Space::World => DQuat::IDENTITY,
             Space::Selection => last.rotation.as_dquat(),
@@ -186,6 +178,25 @@ pub(crate) fn outermost(world: &World, selection: &[Entity]) -> Vec<Entity> {
                 .all(|ancestor| !selection.contains(&ancestor))
         })
         .collect()
+}
+
+/// Where the middle of the origins of `entities`, entities of `world`, is in the world, as the
+/// frame draws them; none for none placed.
+pub(crate) fn middle(world: &World, entities: &[Entity]) -> Option<DVec3> {
+    let origins: Vec<DVec3> = entities
+        .iter()
+        .filter_map(|&entity| world.interpolated_transform(entity, 1.0))
+        .map(|placed| placed.translation)
+        .collect();
+    (!origins.is_empty()).then(|| origins.iter().sum::<DVec3>() / origins.len() as f64)
+}
+
+/// Where `entity` of `world` is in the world, as the frame draws it: the world's origin for none,
+/// as for the parent of an entity at the world's root, or one not placed.
+pub(crate) fn placed_at(world: &World, entity: Option<Entity>) -> GlobalTransform {
+    entity
+        .and_then(|entity| world.interpolated_transform(entity, 1.0))
+        .unwrap_or(GlobalTransform::IDENTITY)
 }
 
 /// The two axes other than `index`, in their order.
@@ -303,10 +314,7 @@ impl Drag {
         let held: Vec<Held> = outermost(world, selection)
             .into_iter()
             .filter_map(|entity| {
-                let parent = world
-                    .parent(entity)
-                    .and_then(|parent| world.interpolated_transform(parent, 1.0))
-                    .unwrap_or(GlobalTransform::IDENTITY);
+                let parent = placed_at(world, world.parent(entity));
                 Some(Held {
                     id: world.persistent_id(entity)?,
                     local: *world.get::<Transform>(entity)?,

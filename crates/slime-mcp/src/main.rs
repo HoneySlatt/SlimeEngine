@@ -1107,8 +1107,8 @@ impl Server {
     #[tool(
         description = "An editor's operations, every action that its menus, its shortcuts and its \
                        palette run: each name, its parameters, its label, and what it changes: \
-                       the history, the level's file, the selection, the level by a step, the \
-                       window or the program."
+                       the history, the level's file, the selection, the level by a step, what \
+                       it copied, the window or the program."
     )]
     async fn list_operations(&self) -> Result<CallToolResult, McpError> {
         self.ask(Request::Edit {

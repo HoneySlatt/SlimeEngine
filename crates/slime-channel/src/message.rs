@@ -406,9 +406,9 @@ pub struct OperationSummary {
     pub parameters: Vec<String>,
     /// What it changes: `history`, a step undone or done again; `file`, the level's file or which
     /// level is open; `selection`, what is selected; `level`, the level, by a step that enters the
-    /// history, as dropping what is selected does; `window`, what the editor's window shows;
-    /// `program`, whether it runs. Those of `level` alone make steps, besides the commands of
-    /// [`Edit::Step`].
+    /// history, as dropping what is selected does; `clipboard`, what the editor copied; `window`,
+    /// what the editor's window shows; `program`, whether it runs. Those of `level` alone make
+    /// steps, besides the commands of [`Edit::Step`].
     pub changes: String,
 }
 
