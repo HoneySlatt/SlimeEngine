@@ -35,7 +35,7 @@ fn interface() -> (Ui, ElementId) {
     };
     let mut column = Style::default();
     column.layout.direction = FlexDirection::Column;
-    let root = ui.add_root(settings, column);
+    let root = ui.add_root("main", settings, column);
     (ui, root)
 }
 

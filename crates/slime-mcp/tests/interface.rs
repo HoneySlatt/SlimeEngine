@@ -87,11 +87,11 @@ fn main() {
         |said| said.first().is_some_and(|text| text.contains("; at (")),
     );
     assert!(
-        line(&toolbar, "#0/window/bar").contains("Toolbar `bar`"),
+        line(&toolbar, "main/window/bar").contains("Toolbar `bar`"),
         "{toolbar:?}"
     );
     let (buttons, _) = session.tool("find_elements", json!({ "role": "Button" }));
-    let second = line(&buttons, "#0/window/bar/#1");
+    let second = line(&buttons, "main/window/bar/#1");
     let name = second
         .split('`')
         .nth(1)
@@ -102,14 +102,14 @@ fn main() {
         "find_elements",
         json!({ "role": "button", "name": name.to_uppercase() }),
     );
-    assert_eq!(line(&found, "#0/window/bar/#1"), second);
+    assert_eq!(line(&found, "main/window/bar/#1"), second);
 
     // Pressed, it counts a press in the world, by a command that the next frame applies.
     let (presses, _) = session.tool("inspect_entity", json!({ "entity": "presses" }));
     assert!(presses[0].contains("count = 0"), "{presses:?}");
     let (said, _) = session.tool(
         "act_on_interface",
-        json!({ "action": "press", "element": "#0/window/bar/#1" }),
+        json!({ "action": "press", "element": "main/window/bar/#1" }),
     );
     assert_eq!(said, ["done"]);
     until(
@@ -124,8 +124,10 @@ fn main() {
     // The button's part of the image, as `find_elements` placed it, and the button found at its
     // middle.
     let [x, y, width, height] = bounds(second);
-    let (said, captured) =
-        session.tool("capture_element", json!({ "element": "#0/window/bar/#1" }));
+    let (said, captured) = session.tool(
+        "capture_element",
+        json!({ "element": "main/window/bar/#1" }),
+    );
     let (captured_width, captured_height, pixels) = image(&captured);
     assert_eq!(
         (captured_width, captured_height),
@@ -142,7 +144,7 @@ fn main() {
         "element_at",
         json!({ "x": x + width / 2, "y": y + height / 2 }),
     );
-    assert!(at[0].starts_with("#0/window/bar/#1 — Button"), "{at:?}");
+    assert!(at[0].starts_with("main/window/bar/#1 — Button"), "{at:?}");
 
     // Tab, as an agent sends it: a button takes the focus.
     let (said, _) = session.tool("act_on_interface", json!({ "action": "next" }));
@@ -155,7 +157,7 @@ fn main() {
     // What an element does not take is refused, and says what it takes.
     let (refused, result) = session.try_tool(
         "act_on_interface",
-        json!({ "action": "press", "element": "#0/window/bar" }),
+        json!({ "action": "press", "element": "main/window/bar" }),
     );
     assert_eq!(result["isError"], json!(true), "{refused:?}");
     assert!(refused[0].contains("takes no `press`"), "{refused:?}");
@@ -166,7 +168,7 @@ fn main() {
     // Escape, as an agent sends it, closes it.
     session.tool(
         "act_on_interface",
-        json!({ "action": "press", "element": "#0/window/bar/#0" }),
+        json!({ "action": "press", "element": "main/window/bar/#0" }),
     );
     let dialog = until(
         "the dialog open",
@@ -180,10 +182,10 @@ fn main() {
                 .is_some_and(|text| text.contains("Dialog `dialog`"))
         },
     );
-    assert!(dialog[0].starts_with("#1/"), "{dialog:?}");
+    assert!(dialog[0].starts_with("dialog/"), "{dialog:?}");
     let (buttons, _) = session.tool("find_elements", json!({ "role": "Button" }));
     assert!(
-        !line(&buttons, "#0/window/bar/#1").contains("takes"),
+        !line(&buttons, "main/window/bar/#1").contains("takes"),
         "{buttons:?}"
     );
     session.tool("act_on_interface", json!({ "action": "cancel" }));

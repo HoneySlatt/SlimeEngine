@@ -37,7 +37,7 @@ impl Ui {
             modal: false,
             dismiss: true,
         };
-        let root = self.open_owned_layer(id, layer, Style::default());
+        let root = self.open_owned_layer(id, "choices", layer, Style::default());
         // As wide as the list to choose from, at least; read as a list of options.
         let mut style = Style::default();
         style.layout.direction = FlexDirection::Column;

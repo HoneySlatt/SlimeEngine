@@ -256,7 +256,7 @@ impl WidgetsPanel {
         let mut ui = Ui::new(fonts);
         ui.set_shortcuts(&[Shortcuts::from_text("widgets.keys", KEYS)])
             .expect("the example's shortcuts are valid");
-        let root = ui.add_root(settings([1.0, 1.0], 1.0, direction), column());
+        let root = ui.add_root("main", settings([1.0, 1.0], 1.0, direction), column());
         let slider = |label, value, min, max, step| Slider {
             label,
             value,
@@ -685,7 +685,7 @@ impl WidgetsPanel {
             modal: false,
             dismiss: true,
         };
-        let layer = self.ui.open_layer(layer, Style::default());
+        let layer = self.ui.open_layer("menu", layer, Style::default());
         let entries = self.entries(menu);
         let mut items = Vec::new();
         self.ui.build(layer, 0, |children| {
@@ -723,7 +723,7 @@ impl WidgetsPanel {
             modal: false,
             dismiss: false,
         };
-        let layer = self.ui.open_layer(layer, Style::default());
+        let layer = self.ui.open_layer("statistics", layer, Style::default());
         self.ui.build(layer, 0, |children| {
             let mut style = column();
             style.layout.gap = [4.0, 0.0];

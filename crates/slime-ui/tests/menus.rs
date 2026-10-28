@@ -45,7 +45,7 @@ impl Menu {
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root(settings, column());
+        let root = ui.add_root("main", settings, column());
         let mut button = None;
         ui.build(root, 0, |children| {
             button = Some(children.add("file", Element::button("File", column()), |_| {}));
@@ -127,6 +127,7 @@ impl Menu {
 /// label, a shortcut and a mark: the layer.
 fn open_menu(ui: &mut Ui, place: Place, items: &[(&str, &str, ItemMark)]) -> ElementId {
     let layer = ui.open_layer(
+        "layer",
         Layer {
             place,
             modal: false,

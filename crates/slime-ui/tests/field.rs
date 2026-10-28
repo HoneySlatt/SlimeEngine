@@ -49,7 +49,7 @@ fn interface(element: Element) -> (Ui, ElementId, ElementId, ElementId) {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root(settings, Style::default());
+    let root = ui.add_root("main", settings, Style::default());
     let (mut field, mut button) = (None, None);
     ui.build(root, 0, |children| {
         field = Some(children.add("field", element, |_| {}));

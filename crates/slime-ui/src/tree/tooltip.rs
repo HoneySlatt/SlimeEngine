@@ -140,7 +140,7 @@ impl Ui {
             modal: false,
             dismiss: false,
         };
-        let root = self.add_quiet_layer(layer, Style::default());
+        let root = self.add_quiet_layer("tooltip", layer, Style::default());
         self.build(root, 0, |children| {
             let mut column = Style::default();
             column.layout.direction = FlexDirection::Column;

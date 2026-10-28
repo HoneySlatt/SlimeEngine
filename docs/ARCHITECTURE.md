@@ -1379,7 +1379,8 @@ through its traits on the tree's arena:
 
 ```text
 Ui::new(fonts)                                an interface, its texts laid out with fonts
-ui.add_root(settings, style)                  a root: a size, a scale, a direction
+ui.add_root(key, settings, style)             a root: its key in paths, a size, a scale, a
+                                              direction
 ui.build(parent, revision, |children| ...)    the builder runs when revision moved, or when a list
 │                                             below it shows other rows
 ├── children.add(key, element, |children| ...)   matched with the element of that key and kind
@@ -1482,8 +1483,8 @@ interface lays out a layer's content, then places it from its anchor's box withi
 turned or moved where it lacks room, and lays it out again when its anchor moves:
 
 ```text
-ui.open_layer(Layer { place, modal, dismiss })  a root over the others, its scale and direction
-                                                its anchor's root's
+ui.open_layer(key, Layer { place, modal, dismiss })  a root over the others, named by key, its
+                                                    scale and direction its anchor's root's
 frame: settle_rest                              the pointer resting: a tooltip shown, a submenu
                                                 opened by a press, as the program reads it
        settle_layers                            surfaces taken from the anchors' roots; layers

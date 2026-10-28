@@ -100,7 +100,7 @@ fn styled(themes: &[Theme], elements: Vec<Element>) -> (Ui, Vec<ElementId>) {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root(settings, Style::default());
+    let root = ui.add_root("main", settings, Style::default());
     let mut ids = Vec::new();
     ui.build(root, 0, |children| {
         for (index, element) in elements.into_iter().enumerate() {
@@ -177,7 +177,7 @@ fn a_chosen_tab_takes_the_panels_color_and_the_others_a_quieter_text() {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root(settings, Style::default());
+    let root = ui.add_root("main", settings, Style::default());
     let mut tabs = Vec::new();
     ui.build(root, 0, |children| {
         children.add("tabs", bar, |bar| {

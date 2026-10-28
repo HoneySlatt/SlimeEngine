@@ -617,7 +617,7 @@ struct Editor {
 impl Editor {
     fn new(fonts: Fonts, labels: Vec<String>) -> Self {
         let mut ui = Ui::new(fonts);
-        let root = ui.add_root(SCREEN, column());
+        let root = ui.add_root("main", SCREEN, column());
         ui.set_style(
             &[StyleSheet::from_text("editor.style", EDITOR_STYLE)],
             &[theme(false)],
@@ -783,7 +783,7 @@ pub fn list(_: &mut Context) -> Result<Vec<Row>, String> {
     const ROWS: usize = 100_000;
     let labels = labels(1_000);
     let mut ui = Ui::new(latin()?);
-    let root = ui.add_root(SCREEN, column());
+    let root = ui.add_root("main", SCREEN, column());
     let mut list = None;
     let mut build = |ui: &mut Ui| {
         ui.build(root, 0, |children| {

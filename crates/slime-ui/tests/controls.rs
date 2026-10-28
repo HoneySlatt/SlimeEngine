@@ -41,7 +41,7 @@ fn interface(direction: LayoutDirection, element: Element) -> (Ui, ElementId, El
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root(settings, Style::default());
+    let root = ui.add_root("main", settings, Style::default());
     let mut id = None;
     ui.build(root, 0, |children| {
         id = Some(children.add("control", element, |_| {}));
@@ -335,7 +335,7 @@ fn section(open: bool) -> (Ui, ElementId, ElementId, ElementId) {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root(settings, Style::default());
+    let root = ui.add_root("main", settings, Style::default());
     let (mut folding, mut button) = (None, None);
     let mut style = sized(200.0);
     style.layout.size[1] = Dimension::Auto;
@@ -431,7 +431,7 @@ fn build_tabs(ui: &mut Ui, root: ElementId, revision: u64, chosen: usize) -> Ele
 /// The text of the panel that the tabs show.
 fn shown(ui: &Ui) -> String {
     let text = ui
-        .element_by_path("#0/panel/text")
+        .element_by_path("main/panel/text")
         .expect("the panel's text");
     ui.meaning_of(text).expect("a text").name
 }
@@ -446,7 +446,7 @@ fn a_tab_chosen_by_the_pointer_or_the_keys_shows_its_panel() {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root(settings, Style::default());
+    let root = ui.add_root("main", settings, Style::default());
     let bar = build_tabs(&mut ui, root, 0, 0);
     let tabs = ui.children(bar).to_vec();
     assert_eq!(ui.meaning_of(bar).expect("a bar").role, Role::TabList);
@@ -495,7 +495,7 @@ fn a_split_shares_its_length_and_its_handle_is_dragged_and_moved_by_the_keys() {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root(settings, Style::default());
+    let root = ui.add_root("main", settings, Style::default());
     let mut whole = Style::default();
     whole.layout.size = [Dimension::Pixels(400.0), Dimension::Pixels(300.0)];
     ui.build(root, 0, |children| {
@@ -505,9 +505,9 @@ fn a_split_shares_its_length_and_its_handle_is_dragged_and_moved_by_the_keys() {
         });
     });
     ui.frame();
-    let split = ui.element_by_path("#0/split").expect("built");
-    let left = ui.element_by_path("#0/split/left").expect("built");
-    let right = ui.element_by_path("#0/split/right").expect("built");
+    let split = ui.element_by_path("main/split").expect("built");
+    let left = ui.element_by_path("main/split/left").expect("built");
+    let right = ui.element_by_path("main/split/right").expect("built");
     // The first panel takes a quarter, the handle the next 8 pixels, the second the rest.
     assert_eq!(ui.rect(left).map(|rect| rect.width), Some(100.0));
     assert_eq!(
@@ -547,7 +547,7 @@ fn a_box_whose_content_does_not_fit_shows_a_scroll_bar_that_scrolls_it() {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root(settings, Style::default());
+    let root = ui.add_root("main", settings, Style::default());
     let mut boxed = Style::default();
     boxed.layout.size = [Dimension::Pixels(100.0), Dimension::Pixels(40.0)];
     boxed.layout.direction = slime_ui::style::FlexDirection::Column;
@@ -594,7 +594,7 @@ fn a_third_child_of_two_panels_is_neither_drawn_nor_reached() {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root(settings, Style::default());
+    let root = ui.add_root("main", settings, Style::default());
     let mut whole = Style::default();
     whole.layout.size = [Dimension::Pixels(400.0), Dimension::Pixels(300.0)];
     ui.build(root, 0, |children| {
@@ -605,7 +605,7 @@ fn a_third_child_of_two_panels_is_neither_drawn_nor_reached() {
         });
     });
     ui.frame();
-    let third = ui.element_by_path("#0/split/third").expect("built");
+    let third = ui.element_by_path("main/split/third").expect("built");
     assert_eq!(ui.meaning_of(third), None);
     ui.key(&named(NamedKey::Tab));
     assert_ne!(ui.focus(), Some(third));

@@ -539,7 +539,7 @@ mod tests {
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root(settings, Style::default());
+        let root = ui.add_root("main", settings, Style::default());
         (ui, root)
     }
 
@@ -549,7 +549,7 @@ mod tests {
         let (mut ui, root) = empty();
         build(&mut ui, root, "ready");
         ui.frame();
-        let open = ui.element_by_path("#0/page/bar/open").expect("built");
+        let open = ui.element_by_path("main/page/bar/open").expect("built");
         ui.set_focus(Some(open));
         ui.frame();
         (ui, root)
@@ -651,7 +651,7 @@ mod tests {
             Some("saved at last")
         );
         // The bar's name taken away: its buttons move to the window, as AccessKit takes it.
-        let bar = ui.element_by_path("#0/page/bar").expect("built");
+        let bar = ui.element_by_path("main/page/bar").expect("built");
         let mut element = ui.element(bar).expect("the bar").clone();
         element.name = None;
         ui.build(root, 99, |children| {
@@ -696,8 +696,8 @@ mod tests {
     #[test]
     fn what_a_screen_reader_asks_reaches_the_interface_as_a_person_s_input() {
         let (mut ui, _) = interface();
-        let save = ui.element_by_path("#0/page/bar/save").expect("built");
-        let name = ui.element_by_path("#0/page/name").expect("built");
+        let save = ui.element_by_path("main/page/bar/save").expect("built");
+        let name = ui.element_by_path("main/page/name").expect("built");
         let changes = ui.take_meaning_changes(true);
         let number = |id: ElementId| {
             changes
@@ -798,7 +798,7 @@ mod tests {
             origin: [100.0, 100.0],
             modal: true,
         };
-        let dialog = ui.add_root(settings, Style::default());
+        let dialog = ui.add_root("dialog", settings, Style::default());
         ui.build(dialog, 0, |children| {
             let dialog = Element::container(Style::default()).role(Role::Dialog);
             children.add("dialog", dialog, |children| {
@@ -828,7 +828,7 @@ mod tests {
     #[test]
     fn a_click_on_a_disabled_button_does_nothing() {
         let (mut ui, _) = interface();
-        let save = ui.element_by_path("#0/page/bar/save").expect("built");
+        let save = ui.element_by_path("main/page/bar/save").expect("built");
         let mut state = ui.state(save).expect("a button");
         state.disabled = true;
         ui.set_state(save, state);
@@ -872,7 +872,7 @@ mod tests {
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root(settings, Style::default());
+        let root = ui.add_root("main", settings, Style::default());
         let mut style = Style::default();
         style.layout.size = [Dimension::Pixels(200.0), Dimension::Pixels(100.0)];
         style.text.style.fonts = vec!["Noto Sans".to_owned()];
@@ -1047,11 +1047,11 @@ mod tests {
         // What a screen reader asks: the slider a step up, the check box clicked, the section
         // opened, the first tab clicked.
         let [slider, check, section, scene, bar] = [
-            "#0/page/slider",
-            "#0/page/check",
-            "#0/page/section",
-            "#0/page/tabs/Scene",
-            "#0/page/tabs",
+            "main/page/slider",
+            "main/page/check",
+            "main/page/section",
+            "main/page/tabs/Scene",
+            "main/page/tabs",
         ]
         .map(|path| ui.element_by_path(path).expect("built"));
         let number = |id: ElementId| {
@@ -1163,7 +1163,7 @@ mod tests {
         assert_eq!(nodes[2].data().is_expanded(), Some(true));
 
         // What a screen reader asks: the list given an option by its text.
-        let element = ui.element_by_path("#0/page/choice").expect("built");
+        let element = ui.element_by_path("main/page/choice").expect("built");
         let number = numbers
             .iter()
             .find(|&&(id, _)| id == element)
@@ -1180,7 +1180,7 @@ mod tests {
         );
         assert_eq!(ui.chosen(element), Some(0));
         // A color well given a code.
-        let element = ui.element_by_path("#0/page/well").expect("built");
+        let element = ui.element_by_path("main/page/well").expect("built");
         let number = numbers
             .iter()
             .find(|&&(id, _)| id == element)

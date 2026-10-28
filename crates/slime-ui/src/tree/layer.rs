@@ -3,7 +3,7 @@
 //! the user leaves them, a press outside them and outside what opened them, or Escape; and that
 //! give the focus back to what held it as they close.
 
-use super::{ElementId, Kind, RootSettings, Ui};
+use super::{ElementId, Key, Kind, RootSettings, Ui};
 use crate::Rect;
 use crate::action::{Action, ActionKind};
 use crate::style::Style;
@@ -114,7 +114,8 @@ impl Place {
 }
 
 impl Ui {
-    /// Opens a layer, a root over the others of `style`, placed as `layer` says each frame: built
+    /// Opens a layer, a root over the others of `style`, named `key` in paths as [`Ui::add_root`]
+    /// says, placed as `layer` says each frame: built
     /// as any root is ([`Ui::build`]), and closed by [`Ui::remove`] or, for a layer that closes as
     /// the user leaves it, by the interface, which tells the program
     /// ([`ActionKind::Dismissed`]). It takes the scale and the direction of the root that holds
@@ -123,8 +124,8 @@ impl Ui {
     /// built, and gives it back to what held it as it closes, but a floating panel, which leaves
     /// the focus where it is as it opens, and gives it to nothing as it closes: F6 gives it the
     /// focus (`docs/adr/0154-floating-panels-and-held-keys.md`).
-    pub fn open_layer(&mut self, layer: Layer, style: Style) -> ElementId {
-        let root = self.add_layer(layer, style);
+    pub fn open_layer(&mut self, key: impl Into<Key>, layer: Layer, style: Style) -> ElementId {
+        let root = self.add_layer(key.into(), layer, style);
         // A button or an item of a menu shows that what it opened is open.
         if let Place::Beside { element, .. } = layer.place
             && self.opens_layers(element)
@@ -135,7 +136,7 @@ impl Ui {
     }
 
     /// Adds the root of a layer, as [`Ui::open_layer`] says, without telling what it stands beside.
-    pub(crate) fn add_layer(&mut self, layer: Layer, style: Style) -> ElementId {
+    pub(crate) fn add_layer(&mut self, key: Key, layer: Layer, style: Style) -> ElementId {
         let settings = self
             .root_of(layer.place.anchor())
             .and_then(|root| self.node(root)?.root)
@@ -151,6 +152,7 @@ impl Ui {
         let focus_first =
             !self.interaction.by_pointer && !matches!(layer.place, Place::Floating { .. });
         let root = self.add_root(
+            key,
             RootSettings {
                 size: self.surface_size(),
                 origin: [0.0; 2],
@@ -175,8 +177,8 @@ impl Ui {
     /// Adds a layer that the interface opens for itself, as [`Ui::open_layer`] does but that gives
     /// the focus to none of its elements and tells no one as it closes: a tooltip, the palette of
     /// commands, the sheet of shortcuts, the notifications.
-    pub(crate) fn add_quiet_layer(&mut self, layer: Layer, style: Style) -> ElementId {
-        let root = self.add_layer(layer, style);
+    pub(crate) fn add_quiet_layer(&mut self, key: &str, layer: Layer, style: Style) -> ElementId {
+        let root = self.add_layer(Key::from(key), layer, style);
         if let Some(held) = self.node_mut(root).and_then(|node| node.layer.as_mut()) {
             held.quiet = true;
             held.focus_first = false;
@@ -189,10 +191,11 @@ impl Ui {
     pub(crate) fn open_owned_layer(
         &mut self,
         owner: ElementId,
+        key: &str,
         layer: Layer,
         style: Style,
     ) -> ElementId {
-        let root = self.add_layer(layer, style);
+        let root = self.add_layer(Key::from(key), layer, style);
         if let Some(held) = self.node_mut(root).and_then(|node| node.layer.as_mut()) {
             held.owner = Some(owner);
             // The widget gives the focus as it builds the layer.

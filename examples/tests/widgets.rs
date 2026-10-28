@@ -119,7 +119,7 @@ fn the_console_in_high_contrast_and_compact_matches_its_reference_image() {
     let mut panel = panel(LayoutDirection::LeftToRight);
     panel.set_look(Colors::HighContrast, Density::Compact);
     panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
-    press(&mut panel, "#0/window/tabs/Console");
+    press(&mut panel, "main/window/tabs/Console");
     check(&mut panel, "widgets-contrast-compact");
 }
 
@@ -127,8 +127,8 @@ fn the_console_in_high_contrast_and_compact_matches_its_reference_image() {
 fn the_console_with_a_level_hidden_matches_its_reference_image() {
     let mut panel = panel(LayoutDirection::LeftToRight);
     panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
-    press(&mut panel, "#0/window/tabs/Console");
-    press(&mut panel, "#0/window/Console/split/levels/info");
+    press(&mut panel, "main/window/tabs/Console");
+    press(&mut panel, "main/window/Console/split/levels/info");
     check(&mut panel, "widgets-console");
 }
 
@@ -136,7 +136,7 @@ fn the_console_with_a_level_hidden_matches_its_reference_image() {
 fn the_inspector_from_the_right_with_its_widgets_used_matches_its_reference_image() {
     let mut panel = panel(LayoutDirection::RightToLeft);
     panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
-    let properties = "#0/window/Inspector/split/properties";
+    let properties = "main/window/Inspector/split/properties";
     press(&mut panel, &format!("{properties}/Transform"));
     press(&mut panel, &format!("{properties}/Physics"));
     press(
@@ -156,8 +156,8 @@ fn the_inspector_from_the_right_with_its_widgets_used_matches_its_reference_imag
 fn the_bars_menu_and_its_submenu_match_their_reference_image() {
     let mut panel = panel(LayoutDirection::LeftToRight);
     panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
-    press(&mut panel, "#0/window/menus/File");
-    press(&mut panel, "#1/menu/Recent");
+    press(&mut panel, "main/window/menus/File");
+    press(&mut panel, "menu/menu/Recent");
     check(&mut panel, "widgets-menus");
 }
 
@@ -165,16 +165,16 @@ fn the_bars_menu_and_its_submenu_match_their_reference_image() {
 fn a_floating_panel_a_list_open_and_a_tooltip_match_their_reference_image() {
     let mut panel = panel(LayoutDirection::LeftToRight);
     panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
-    press(&mut panel, "#0/window/menus/View");
-    press(&mut panel, "#1/menu/Statistics");
+    press(&mut panel, "main/window/menus/View");
+    press(&mut panel, "menu/menu/Statistics");
     press(
         &mut panel,
-        "#0/window/Inspector/split/properties/Rendering/shadow quality/choice",
+        "main/window/Inspector/split/properties/Rendering/shadow quality/choice",
     );
     // The pointer rests on the console's tab for longer than a tooltip waits.
     let tab = panel
         .ui
-        .element_by_path("#0/window/tabs/Console")
+        .element_by_path("main/window/tabs/Console")
         .and_then(|tab| panel.ui.rect(tab))
         .expect("the console's tab");
     panel
@@ -203,7 +203,7 @@ fn a_notification_and_the_palette_of_commands_match_their_reference_image() {
     // What is typed in the palette's field finds the commands.
     let field = panel
         .ui
-        .element_by_path("#2/palette/search")
+        .element_by_path("palette/palette/search")
         .expect("the palette's field");
     assert!(panel.ui.set_value(field, "sw"));
     panel.handle_actions();
@@ -216,7 +216,7 @@ fn the_light_s_color_well_and_its_picker_match_their_reference_image() {
     panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
     press(
         &mut panel,
-        "#0/window/Inspector/split/properties/Light/color/well",
+        "main/window/Inspector/split/properties/Light/color/well",
     );
     // A color given as a hexadecimal code, which the well and the picker show.
     let code = panel

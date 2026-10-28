@@ -43,7 +43,7 @@ fn interface() -> (Ui, ElementId, [ElementId; 2]) {
     };
     let mut column = style(None);
     column.layout.direction = FlexDirection::Column;
-    let root = ui.add_root(settings, column);
+    let root = ui.add_root("main", settings, column);
     let mut buttons = Vec::new();
     ui.build(root, 0, |children| {
         let save = Element::button("Save", style(Some(100.0))).tooltip("Save the level");
@@ -62,7 +62,7 @@ fn wait(ui: &mut Ui, millis: u64) {
 
 /// The tooltip's layer, the root after the first, if one shows.
 fn tooltip(ui: &Ui) -> Option<ElementId> {
-    ui.element_by_path("#1/tooltip")
+    ui.element_by_path("tooltip/tooltip")
 }
 
 fn key(ui: &mut Ui, named: NamedKey) -> bool {
@@ -163,6 +163,7 @@ fn screen_readers_read_it_as_its_elements_description_and_not_twice() {
 fn an_item_of_a_menu_opens_its_submenu_as_the_pointer_rests_on_it() {
     let (mut ui, root, _) = interface();
     let layer = ui.open_layer(
+        "layer",
         Layer {
             place: Place::At {
                 over: root,
@@ -201,6 +202,7 @@ fn an_item_of_a_menu_opens_its_submenu_as_the_pointer_rests_on_it() {
     );
     // The program opens it; the pointer resting on the other item closes it.
     let submenu = ui.open_layer(
+        "layer",
         Layer {
             place: Place::Beside {
                 element: items[1],

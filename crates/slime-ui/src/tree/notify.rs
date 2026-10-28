@@ -196,7 +196,7 @@ impl Ui {
                     dismiss: false,
                 };
                 // It takes the focus from no one.
-                let root = self.add_quiet_layer(layer, Style::default());
+                let root = self.add_quiet_layer("notifications", layer, Style::default());
                 self.notices.root = Some(root);
                 root
             }

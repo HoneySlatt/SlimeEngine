@@ -15,8 +15,9 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
 
 ## Role
 
-- `tree::Ui` is an interface: its roots, each a surface of a size, a scale and a direction, and
-  their trees of elements, kept from one frame to the next in an arena. `Ui::build` runs a builder
+- `tree::Ui` is an interface: its roots, each named by a key and a surface of a size, a scale and
+  a direction (`Ui::add_root`), and their trees of elements, kept from one frame to the next in an
+  arena. `Ui::build` runs a builder
   when the revision that it reads moved, and matches the elements it adds with those before by their
   keys, so that their state and scroll survive; `Ui::frame` styles again the elements that changed,
   lays out by flexbox and grid the roots where something changed, mirrored for a root laid out from
@@ -86,8 +87,9 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   (`Element::section_header`); tooltips of a title and a text (`Element::help`, `tree::Tooltip`).
 - What the editor tells and finds (`docs/adr/0151-rich-widgets.md`): notifications stacked at
   the window's bottom end (`Ui::notify`, `tree::Notification`); the palette of commands, which
-  finds a program's commands by name and gives the chosen one as a shortcut's command
-  (`Ui::open_palette`, `tree::PaletteCommand`); the sheet of shortcuts
+  finds a program's commands by name, scrolling past what the window's height holds, and gives the
+  chosen one as a shortcut's command (`Ui::open_palette`, `tree::PaletteCommand`); the sheet of
+  shortcuts
   (`Ui::open_shortcut_sheet`); a command's chord and the shortcuts by scope (`Ui::command_chord`,
   `Ui::shortcuts`).
 - What the dev overlay's editors of reflected values need
@@ -111,7 +113,10 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   slider's, two panels' share, a list to choose from's option, a color well's code or a bar of
   progress's share, its
   states, the `tree::ElementAction`s that an agent can do to it now, the part of it that shows and
-  its path, `#0/bar/open`, which `Ui::element_by_path` reads back. A box that only lays others out
+  its path, the key of its root then its own keys, `editor/window/menus/File`, which
+  `Ui::element_by_path` reads back; the interface's own layers are named `palette`, `shortcuts`,
+  `tooltip`, `notifications`, `choices` and `colors`, and a key that an open root holds gets a
+  variant, `menu-2` (`docs/adr/0156-the-editors-window-and-its-operations.md`). A box that only lays others out
   means nothing; a builder gives an element its role and its name (`Element::role`,
   `Element::named`). `Ui::set_value` gives a field a value, as a person who replaced its text and
   committed would, and a slider, two panels, a list to choose from or a color well theirs.

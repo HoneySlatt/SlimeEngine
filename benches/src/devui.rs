@@ -59,7 +59,7 @@ pub fn world_panel(_: &mut Context) -> Result<Vec<Row>, String> {
     };
     let mut column = Style::default();
     column.layout.direction = FlexDirection::Column;
-    let root = ui.add_root(settings, column);
+    let root = ui.add_root("main", settings, column);
     let mut panel = WorldPanel::default();
     panel.select(selected);
     let frame = |ui: &mut Ui, world: &World, panel: &mut WorldPanel| {

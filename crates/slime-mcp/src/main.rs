@@ -239,7 +239,7 @@ struct ActOnInterface {
     /// arrows do, `accept` as Enter does, `cancel` as Escape does, `command` to give the command
     /// named `command` as a shortcut does.
     action: String,
-    /// The element, by the path that `find_elements` gives: `#0/bar/open`.
+    /// The element, by the path that `find_elements` gives: `main/bar/open`.
     element: Option<String>,
     /// For `scroll`, the offset from the start of the content, in logical pixels.
     x: Option<f32>,

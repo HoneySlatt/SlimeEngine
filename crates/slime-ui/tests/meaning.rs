@@ -55,7 +55,11 @@ fn summary(meaning: &Meaning) -> (String, Role, String, Vec<ElementAction>) {
 /// hidden button, and a list whose rows show: what its root holds, and its root.
 fn interface() -> (Ui, ElementId) {
     let mut ui = ui();
-    let root = ui.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+    let root = ui.add_root(
+        "main",
+        settings(400.0, 300.0, [0.0; 2], false),
+        Style::default(),
+    );
     let mut column = Style::default();
     column.layout.direction = FlexDirection::Column;
     let build = |ui: &mut Ui| {
@@ -120,7 +124,9 @@ fn interface() -> (Ui, ElementId) {
     ui.frame();
     build(&mut ui);
     ui.frame();
-    let save = ui.element_by_path("#0/page/bar/save").expect("the button");
+    let save = ui
+        .element_by_path("main/page/bar/save")
+        .expect("the button");
     let mut disabled = ui.state(save).expect("an element");
     disabled.disabled = true;
     ui.set_state(save, disabled);
@@ -138,47 +144,52 @@ fn each_element_that_means_something_has_its_role_name_actions_and_path() {
     assert_eq!(
         summaries[..10],
         [
-            (text("#0/page/bar"), Role::Toolbar, text("tools"), vec![]),
+            (text("main/page/bar"), Role::Toolbar, text("tools"), vec![]),
             (
-                text("#0/page/bar/open"),
+                text("main/page/bar/open"),
                 Role::Button,
                 text("open"),
                 press.clone()
             ),
-            (text("#0/page/bar/save"), Role::Button, text("save"), vec![]),
-            (text("#0/page/status"), Role::Label, text("ready"), vec![]),
             (
-                text("#0/page/layout/panel"),
+                text("main/page/bar/save"),
+                Role::Button,
+                text("save"),
+                vec![]
+            ),
+            (text("main/page/status"), Role::Label, text("ready"), vec![]),
+            (
+                text("main/page/layout/panel"),
                 Role::Group,
                 text("panel"),
                 vec![]
             ),
             (
-                text("#0/page/scroll"),
+                text("main/page/scroll"),
                 Role::ScrollView,
                 text(""),
                 vec![ElementAction::Scroll]
             ),
             (
-                text("#0/page/scroll/first"),
+                text("main/page/scroll/first"),
                 Role::Button,
                 text("first"),
                 press.clone()
             ),
             (
-                text("#0/page/scroll/second"),
+                text("main/page/scroll/second"),
                 Role::Button,
                 text("second"),
                 press.clone()
             ),
             (
-                text("#0/page/scroll/third"),
+                text("main/page/scroll/third"),
                 Role::Button,
                 text("third"),
                 press
             ),
             (
-                text("#0/page/list"),
+                text("main/page/list"),
                 Role::List,
                 text(""),
                 vec![ElementAction::Scroll]
@@ -194,9 +205,9 @@ fn each_element_that_means_something_has_its_role_name_actions_and_path() {
     assert_eq!(
         rows,
         [
-            ("#0/page/list/#0", Role::ListItem),
-            ("#0/page/list/#1", Role::ListItem),
-            ("#0/page/list/#2", Role::ListItem),
+            ("main/page/list/#0", Role::ListItem),
+            ("main/page/list/#1", Role::ListItem),
+            ("main/page/list/#2", Role::ListItem),
         ]
     );
     let save = &meaning[2];
@@ -230,14 +241,17 @@ fn an_element_is_found_by_its_path_and_at_a_pixel() {
         "",
         "0/page",
         "#1/page",
+        "other/page",
         "#+0/page",
-        "#0/page/",
-        "#0/page/nothing",
-        "#0/page/list/#999",
+        "main/page/",
+        "main/page/nothing",
+        "main/page/list/#999",
     ] {
         assert_eq!(ui.element_by_path(wrong), None, "{wrong}");
     }
-    let open = ui.element_by_path("#0/page/bar/open").expect("the button");
+    let open = ui
+        .element_by_path("main/page/bar/open")
+        .expect("the button");
     assert_eq!(
         ui.meaning_at(50.0, 20.0).map(|meaning| meaning.id),
         Some(open)
@@ -247,6 +261,7 @@ fn an_element_is_found_by_its_path_and_at_a_pixel() {
     assert_eq!(ui.meaning_at(300.0, 80.0), None);
     // Under a modal root, the elements below take no action, and the pointer finds the dialog.
     let modal = ui.add_root(
+        "confirm",
         settings(200.0, 100.0, [100.0, 100.0], true),
         Style::default(),
     );
@@ -261,16 +276,18 @@ fn an_element_is_found_by_its_path_and_at_a_pixel() {
         });
     });
     ui.frame();
-    let no = ui.element_by_path("#1/dialog/#no").expect("named `#no`");
-    assert_eq!(ui.path_text(no).as_deref(), Some("#1/dialog/#no"));
+    let no = ui
+        .element_by_path("confirm/dialog/#no")
+        .expect("named `#no`");
+    assert_eq!(ui.path_text(no).as_deref(), Some("confirm/dialog/#no"));
     let below = ui.meaning_of(open).expect("drawn");
     assert!(below.actions.is_empty(), "{below:?}");
     let dialog = ui.meaning_at(250.0, 180.0).expect("the dialog");
     assert_eq!(
         (dialog.path.as_str(), dialog.role),
-        ("#1/dialog", Role::Dialog)
+        ("confirm/dialog", Role::Dialog)
     );
-    let ok = ui.element_by_path("#1/dialog/ok").expect("the button");
+    let ok = ui.element_by_path("confirm/dialog/ok").expect("the button");
     let ok = ui.meaning_of(ok).expect("drawn");
     assert_eq!(ok.actions, [ElementAction::Press, ElementAction::Focus]);
     assert!(ok.state.focused, "the modal root took the focus");
@@ -279,7 +296,11 @@ fn an_element_is_found_by_its_path_and_at_a_pixel() {
 #[test]
 fn a_name_or_a_role_changed_draws_nothing_again() {
     let mut ui = ui();
-    let root = ui.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+    let root = ui.add_root(
+        "main",
+        settings(400.0, 300.0, [0.0; 2], false),
+        Style::default(),
+    );
     let build = |ui: &mut Ui, revision: u64, name: &str, role: Role| {
         ui.build(root, revision, |children| {
             let panel = Element::container(sized(100.0, 40.0))
@@ -296,7 +317,7 @@ fn a_name_or_a_role_changed_draws_nothing_again() {
     build(&mut ui, 2, "after", Role::Toolbar);
     let (_, stats) = ui.frame();
     assert_eq!((stats.layouts, stats.painted), (0, 0));
-    let panel = ui.element_by_path("#0/panel").expect("the panel");
+    let panel = ui.element_by_path("main/panel").expect("the panel");
     assert_eq!(
         ui.meaning_of(panel)
             .map(|meaning| (meaning.name, meaning.role)),
@@ -307,7 +328,11 @@ fn a_name_or_a_role_changed_draws_nothing_again() {
 #[test]
 fn an_element_shows_only_within_its_root() {
     let mut ui = ui();
-    let root = ui.add_root(settings(100.0, 30.0, [0.0; 2], false), Style::default());
+    let root = ui.add_root(
+        "main",
+        settings(100.0, 30.0, [0.0; 2], false),
+        Style::default(),
+    );
     ui.build(root, 0, |children| {
         for name in ["inside", "across", "beyond"] {
             children.add(name, Element::button(name, sized(80.0, 30.0)), |_| {});

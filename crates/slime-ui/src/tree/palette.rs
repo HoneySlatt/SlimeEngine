@@ -14,9 +14,6 @@ use crate::style::{Dimension, FlexDirection, Style};
 const WIDTH: f32 = 520.0;
 const TOP: f32 = 64.0;
 
-/// How many of the commands found the palette shows at most.
-const SHOWN: usize = 12;
-
 /// A command that the palette of commands finds, or that the sheet of shortcuts names.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PaletteCommand {
@@ -54,10 +51,11 @@ impl Ui {
     /// [`ActionKind::Command`], as a shortcut's, and closes the palette; Escape and a press outside
     /// close it. A command is found where the letters typed come in its name in their order,
     /// whatever their case, the names where they start words and follow each other first; with
-    /// nothing typed, every command, in their order; 12 at most.
+    /// nothing typed, every command, in their order. They scroll within most of the window's
+    /// height, the chosen one kept in sight.
     pub fn open_palette(&mut self, hint: &str, commands: Vec<PaletteCommand>) {
         self.close_palette();
-        let Some(root) = self.own_layer() else {
+        let Some(root) = self.own_layer("palette") else {
             return;
         };
         let mut column = Style::default();
@@ -65,6 +63,7 @@ impl Ui {
         column.layout.size[0] = Dimension::Pixels(WIDTH);
         let (mut field, mut list) = (None, None);
         let hint = hint.to_owned();
+        let surface = self.surface_size();
         self.build(root, 0, |children| {
             let palette = super::Element::container(column.clone()).class("palette");
             children.add("palette", palette, |palette| {
@@ -72,7 +71,10 @@ impl Ui {
                     .placeholder(hint)
                     .named("command");
                 field = Some(palette.add("search", search, |_| {}));
-                let commands = super::Element::container(column).role(Role::ListBox);
+                let mut rows = column;
+                rows.layout.size[0] = Dimension::Auto;
+                rows.layout.max_size[1] = Dimension::Pixels((surface[1] - 3.0 * TOP).max(120.0));
+                let commands = super::Element::scroll(rows).role(Role::ListBox);
                 list = Some(palette.add("commands", commands, |_| {}));
             });
         });
@@ -124,7 +126,7 @@ impl Ui {
     /// scrolls within the window's height. Escape and a press outside close it.
     pub fn open_shortcut_sheet(&mut self, title: &str, commands: &[PaletteCommand]) {
         self.close_shortcut_sheet();
-        let Some(root) = self.own_layer() else {
+        let Some(root) = self.own_layer("shortcuts") else {
             return;
         };
         let mut column = Style::default();
@@ -192,14 +194,14 @@ impl Ui {
     /// Adds a layer that the interface opens for itself, below the window's top, in its middle,
     /// that closes as the user leaves it and tells no one as it closes; none without a window's
     /// root to open it over.
-    fn own_layer(&mut self) -> Option<ElementId> {
+    fn own_layer(&mut self, key: &str) -> Option<ElementId> {
         let place = self.own_place()?;
         let layer = Layer {
             place,
             modal: false,
             dismiss: true,
         };
-        Some(self.add_quiet_layer(layer, Style::default()))
+        Some(self.add_quiet_layer(key, layer, Style::default()))
     }
 
     /// Where the palette and the sheet stand: their top start corner below the window's top, so
@@ -269,7 +271,7 @@ impl Ui {
         let Some(palette) = self.palette.as_ref() else {
             return false;
         };
-        let count = palette.found.len().min(SHOWN);
+        let count = palette.found.len();
         match event.logical {
             Key::Named(NamedKey::ArrowDown | NamedKey::ArrowUp) if count > 0 => {
                 let down = event.logical == Key::Named(NamedKey::ArrowDown);
@@ -423,7 +425,6 @@ impl Ui {
         let rows: Vec<(String, String)> = palette
             .found
             .iter()
-            .take(SHOWN)
             .map(|&place| {
                 let command = &palette.commands[place];
                 let chord = self.command_chord(&command.command).unwrap_or_default();
@@ -444,15 +445,39 @@ impl Ui {
         self.mark_chosen_command();
     }
 
-    /// Shows which row of the palette is the chosen one, by the state `Selected`.
+    /// Shows which row of the palette is the chosen one, by the state `Selected`, and scrolls the
+    /// rows so that it shows, as they were last laid out.
     fn mark_chosen_command(&mut self) {
         let Some(palette) = self.palette.as_ref() else {
             return;
         };
-        let (rows, chosen) = (self.children(palette.list).to_vec(), palette.chosen);
-        for (place, row) in rows.into_iter().enumerate() {
+        let (list, chosen) = (palette.list, palette.chosen);
+        let rows = self.children(list).to_vec();
+        for (place, &row) in rows.iter().enumerate() {
             self.change_state(row, |state| state.selected = place == chosen);
         }
+        let (Some(view), Some(first), Some(row), Some([across, down])) = (
+            self.rect(list),
+            rows.first().and_then(|&row| self.rect(row)),
+            rows.get(chosen).and_then(|&row| self.rect(row)),
+            self.scroll(list),
+        ) else {
+            return;
+        };
+        // The row's place among the rows, which scrolling does not move, so that several keys
+        // before a layout scroll to the last one's row, not by each one's distance.
+        let scale = self.scale_of(list);
+        let top = (row.y - first.y) / scale;
+        let bottom = top + row.height / scale;
+        let height = view.height / scale;
+        let down = if top < down {
+            top
+        } else if bottom > down + height {
+            bottom - height
+        } else {
+            return;
+        };
+        self.scroll_to(list, [across, down]);
     }
 
     /// Whether `id` is a row of the palette.

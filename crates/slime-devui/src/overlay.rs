@@ -103,7 +103,7 @@ impl Overlay {
         )
         .expect("the look's documents are valid, as slime-ui's tests check");
         ui.set_tab_enters(false);
-        let window = ui.add_root(settings([1.0, 1.0], 1.0), Style::default());
+        let window = ui.add_root("overlay", settings([1.0, 1.0], 1.0), Style::default());
         Self {
             ui,
             window,
@@ -250,7 +250,8 @@ impl Overlay {
             modal: false,
             dismiss: false,
         };
-        let root = self.ui.open_layer(layer, Style::default());
+        // Named in paths by the command that opens it: `statistics/panel/content/speed`.
+        let root = self.ui.open_layer(spec.command, layer, Style::default());
         let mut slot = None;
         self.ui.build(root, 0, |children| {
             let panel = Element::floating_panel(spec.title, true, Style::default());

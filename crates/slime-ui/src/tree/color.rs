@@ -215,7 +215,7 @@ impl Ui {
             modal: false,
             dismiss: true,
         };
-        let root = self.open_owned_layer(id, layer, Style::default());
+        let root = self.open_owned_layer(id, "colors", layer, Style::default());
         self.picker = Some(Picker {
             well: id,
             parts: Vec::new(),

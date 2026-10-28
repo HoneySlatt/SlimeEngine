@@ -39,7 +39,11 @@ fn button() -> Element {
 /// An interface whose root holds three buttons in a row, at 0, 100 and 200.
 fn row() -> (Ui, Vec<ElementId>) {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+    let root = ui.add_root(
+        "main",
+        settings(400.0, 300.0, [0.0; 2], false),
+        Style::default(),
+    );
     let mut buttons = Vec::new();
     ui.build(root, 0, |children| {
         for index in 0..3_usize {
@@ -138,7 +142,11 @@ fn an_agent_s_actions_reach_the_queue_as_a_person_s() {
 #[test]
 fn tab_moves_the_focus_in_the_order_of_the_tree_and_the_arrows_to_the_nearest_on_screen() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+    let root = ui.add_root(
+        "main",
+        settings(400.0, 300.0, [0.0; 2], false),
+        Style::default(),
+    );
     let mut grid = Style::default();
     grid.layout.display = Display::Grid;
     grid.layout.columns = vec![Track::Pixels(100.0); 3];
@@ -177,6 +185,7 @@ fn a_modal_root_takes_the_pointer_and_the_focus_and_gives_the_focus_back_when_it
     let (mut ui, buttons) = row();
     ui.set_focus(Some(buttons[1]));
     let modal = ui.add_root(
+        "main",
         settings(200.0, 100.0, [100.0, 100.0], true),
         Style::default(),
     );
@@ -217,7 +226,11 @@ fn a_modal_root_takes_the_pointer_and_the_focus_and_gives_the_focus_back_when_it
 #[test]
 fn the_wheel_scrolls_the_box_under_the_pointer() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+    let root = ui.add_root(
+        "main",
+        settings(400.0, 300.0, [0.0; 2], false),
+        Style::default(),
+    );
     let mut scroll = None;
     ui.build(root, 0, |children| {
         let mut style = sized(200.0, 100.0);
@@ -245,7 +258,11 @@ fn the_wheel_scrolls_the_box_under_the_pointer() {
 #[test]
 fn shortcuts_name_commands_by_the_key_s_meaning_in_the_scopes_of_the_focus() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+    let root = ui.add_root(
+        "main",
+        settings(400.0, 300.0, [0.0; 2], false),
+        Style::default(),
+    );
     let mut buttons = Vec::new();
     ui.build(root, 0, |children| {
         children.add(
@@ -377,6 +394,7 @@ fn shift_is_left_out_of_a_character_without_case_and_a_letter_of_another_script_
 fn the_focus_moves_within_its_root_and_starts_in_the_top_root_that_can_take_it() {
     let (mut ui, below) = row();
     let above = ui.add_root(
+        "main",
         settings(400.0, 100.0, [0.0, 200.0], false),
         Style::default(),
     );
@@ -409,7 +427,11 @@ fn the_focus_moves_within_its_root_and_starts_in_the_top_root_that_can_take_it()
     );
     // A top root with nothing to focus leaves it to the one below.
     ui.remove(above);
-    let empty = ui.add_root(settings(100.0, 100.0, [0.0; 2], false), Style::default());
+    let empty = ui.add_root(
+        "main",
+        settings(100.0, 100.0, [0.0; 2], false),
+        Style::default(),
+    );
     ui.frame();
     ui.set_focus(None);
     ui.key(&named(NamedKey::Tab));
@@ -420,7 +442,11 @@ fn the_focus_moves_within_its_root_and_starts_in_the_top_root_that_can_take_it()
 #[test]
 fn a_disabled_or_hidden_button_is_not_pressed_and_loses_the_focus() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+    let root = ui.add_root(
+        "main",
+        settings(400.0, 300.0, [0.0; 2], false),
+        Style::default(),
+    );
     let build = |ui: &mut Ui, revision: u64, display: Display| {
         let mut buttons = Vec::new();
         let mut panel = Style::default();
@@ -489,7 +515,11 @@ fn modal_roots_closed_in_either_order_give_the_focus_back_to_what_it_was_before_
         ui.set_focus(Some(buttons[1]));
         let mut modals = Vec::new();
         for _ in 0..2 {
-            let modal = ui.add_root(settings(200.0, 100.0, [0.0; 2], true), Style::default());
+            let modal = ui.add_root(
+                "main",
+                settings(200.0, 100.0, [0.0; 2], true),
+                Style::default(),
+            );
             ui.build(modal, 0, |children| {
                 children.add("ok", button(), |_| {});
             });
@@ -536,7 +566,11 @@ fn a_press_without_the_release_of_the_one_before_lets_go_of_what_that_one_held()
 #[test]
 fn the_hover_follows_what_moves_under_a_still_pointer() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+    let root = ui.add_root(
+        "main",
+        settings(400.0, 300.0, [0.0; 2], false),
+        Style::default(),
+    );
     let mut buttons = Vec::new();
     ui.build(root, 0, |children| {
         for index in 0..3_usize {
@@ -564,7 +598,7 @@ fn the_pointer_and_the_wheel_find_their_way_in_a_root_from_right_to_left() {
     let mut ui = Ui::new(Fonts::new());
     let mut root_settings = settings(300.0, 200.0, [100.0, 50.0], false);
     root_settings.direction = LayoutDirection::RightToLeft;
-    let root = ui.add_root(root_settings, Style::default());
+    let root = ui.add_root("main", root_settings, Style::default());
     let mut first = None;
     let mut scroll = None;
     let mut items = Vec::new();
@@ -613,7 +647,11 @@ fn a_rule_selects_the_element_that_holds_the_focus() {
 #[test]
 fn a_press_on_what_the_interface_draws_is_its_own_and_a_modal_root_takes_every_press_and_key() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+    let root = ui.add_root(
+        "main",
+        settings(400.0, 300.0, [0.0; 2], false),
+        Style::default(),
+    );
     // A panel with a fill, at the left, and a box without one, at the right: the game's.
     let mut panel = sized(200.0, 300.0);
     panel.paint.background = slime_color::LinearColor::rgba(0.1, 0.1, 0.1, 1.0);
@@ -644,7 +682,11 @@ fn a_press_on_what_the_interface_draws_is_its_own_and_a_modal_root_takes_every_p
     ui.pointer_moved(300.0, 100.0);
     assert!(ui.pointer_button(MouseButton::Left, ButtonState::Released));
     // A modal root takes every press, every wheel and every key pressed, not their releases.
-    let modal = ui.add_root(settings(100.0, 100.0, [0.0; 2], true), Style::default());
+    let modal = ui.add_root(
+        "main",
+        settings(100.0, 100.0, [0.0; 2], true),
+        Style::default(),
+    );
     ui.frame();
     assert_eq!(both(&mut ui, MouseButton::Left), (true, true));
     assert!(ui.wheel(ScrollDelta::Lines { x: 0.0, y: 1.0 }));
@@ -715,6 +757,7 @@ fn a_focus_that_a_press_gave_leaves_the_keys_to_the_program_but_tab_goes_on_from
 fn a_game_s_interface_takes_tab_once_it_holds_the_focus_and_f6_moves_between_its_roots() {
     let (mut ui, below) = row();
     let above = ui.add_root(
+        "main",
         settings(400.0, 100.0, [0.0, 200.0], false),
         Style::default(),
     );
@@ -758,7 +801,11 @@ fn a_game_s_interface_takes_tab_once_it_holds_the_focus_and_f6_moves_between_its
     assert_eq!(ui.focus(), Some(buttons[0]));
     // A modal root takes Tab whatever the setting, and keeps the focus from F6.
     ui.set_focus(None);
-    let modal = ui.add_root(settings(400.0, 300.0, [0.0; 2], true), Style::default());
+    let modal = ui.add_root(
+        "main",
+        settings(400.0, 300.0, [0.0; 2], true),
+        Style::default(),
+    );
     let mut ok = None;
     ui.build(modal, 0, |children| {
         ok = Some(children.add("ok", button(), |_| {}));
@@ -770,7 +817,11 @@ fn a_game_s_interface_takes_tab_once_it_holds_the_focus_and_f6_moves_between_its
     assert_eq!(ui.focus(), ok);
     // With no root that holds an element to focus, F6 is the game's.
     let mut empty = Ui::new(Fonts::new());
-    empty.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+    empty.add_root(
+        "main",
+        settings(400.0, 300.0, [0.0; 2], false),
+        Style::default(),
+    );
     empty.frame();
     assert!(!empty.key(&named(NamedKey::F6)));
 }
@@ -778,7 +829,11 @@ fn a_game_s_interface_takes_tab_once_it_holds_the_focus_and_f6_moves_between_its
 #[test]
 fn a_release_of_a_press_the_interface_did_not_take_is_not_taken_and_an_empty_label_takes_none() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+    let root = ui.add_root(
+        "main",
+        settings(400.0, 300.0, [0.0; 2], false),
+        Style::default(),
+    );
     let mut panel = sized(200.0, 300.0);
     panel.paint.background = slime_color::LinearColor::rgba(0.1, 0.1, 0.1, 1.0);
     // A label of no text, stretched across the right half: it draws nothing.
@@ -810,7 +865,11 @@ fn a_label_takes_the_presses_that_fall_on_its_glyphs_not_those_past_them() {
         let mut fonts = Fonts::new();
         fonts.register(font.clone()).expect("a font");
         let mut ui = Ui::new(fonts);
-        let root = ui.add_root(settings(400.0, 300.0, [0.0; 2], false), Style::default());
+        let root = ui.add_root(
+            "main",
+            settings(400.0, 300.0, [0.0; 2], false),
+            Style::default(),
+        );
         let mut style = sized(300.0, 20.0);
         style.text.style.fonts = vec!["Noto Sans".to_owned()];
         style.text.style.alignment = alignment;

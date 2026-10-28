@@ -23,7 +23,7 @@ fn interface(direction: LayoutDirection) -> (Ui, ElementId) {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root(settings, Style::default());
+    let root = ui.add_root("main", settings, Style::default());
     ui.frame();
     (ui, root)
 }
@@ -32,6 +32,7 @@ fn interface(direction: LayoutDirection) -> (Ui, ElementId) {
 /// that holds a box of 50 by 50: the layer and the panel.
 fn open(ui: &mut Ui, over: ElementId, origin: [f32; 2], title: &str) -> (ElementId, ElementId) {
     let layer = ui.open_layer(
+        "layer",
         Layer {
             place: Place::Floating {
                 over,
@@ -185,6 +186,7 @@ fn a_raised_panel_keeps_the_menu_that_it_opened_above_it() {
     ui.frame();
     let button = button.expect("built");
     let menu = ui.open_layer(
+        "layer",
         Layer {
             place: Place::Beside {
                 element: button,

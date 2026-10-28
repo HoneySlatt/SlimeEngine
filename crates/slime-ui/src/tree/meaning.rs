@@ -323,8 +323,11 @@ impl Ui {
     /// of a walk of the tree.
     pub fn meaning(&self) -> Vec<Meaning> {
         let mut found = Vec::new();
-        for (number, &root) in self.roots.iter().enumerate() {
-            let mut stack = vec![(root, Key::Index(number as u64).to_string())];
+        for &root in &self.roots {
+            let Some(key) = self.node(root).map(|node| node.key.to_string()) else {
+                continue;
+            };
+            let mut stack = vec![(root, key)];
             while let Some((id, path)) = stack.pop() {
                 let Some(node) = self.node(id) else {
                     continue;
@@ -370,15 +373,14 @@ impl Ui {
         None
     }
 
-    /// The path of `id` as text: the number of its root, in the order the roots stack, then its
-    /// keys ([`Ui::path`]), joined by `/`, a name written as it is and a number after `#`:
-    /// `#0/bar/open`, `#0/content/list/#57`. A root's number changes when a root below it is
-    /// removed, and when a press raises a floating panel's layer; a key's name that holds `/`, or that `#` and digits make, cannot be read back
+    /// The path of `id` as text: the key of its root ([`Ui::add_root`]), then its keys
+    /// ([`Ui::path`]), joined by `/`, a name written as it is and a number after `#`:
+    /// `window/bar/open`, `window/content/list/#57`, `palette/palette/search` for the palette of
+    /// commands. A key's name that holds `/`, or that `#` and digits make, cannot be read back
     /// ([`Ui::element_by_path`]).
     pub fn path_text(&self, id: ElementId) -> Option<String> {
         let root = self.root_of(id)?;
-        let number = self.roots.iter().position(|&each| each == root)?;
-        let mut text = Key::Index(number as u64).to_string();
+        let mut text = self.node(root)?.key.to_string();
         for key in self.path(id)? {
             text.push('/');
             text.push_str(&key.to_string());
@@ -394,13 +396,14 @@ impl Ui {
                 .filter(|digits| !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
                 .and_then(|digits| digits.parse::<u64>().ok())
         };
+        let key = |part: &str| number(part).map_or_else(|| Key::from(part), Key::Index);
         let mut parts = path.split('/');
+        let first = key(parts.next()?);
         let root = *self
             .roots
-            .get(usize::try_from(number(parts.next()?)?).ok()?)?;
-        let keys: Vec<Key> = parts
-            .map(|part| number(part).map_or_else(|| Key::from(part), Key::Index))
-            .collect();
+            .iter()
+            .find(|&&root| self.node(root).is_some_and(|node| node.key == first))?;
+        let keys: Vec<Key> = parts.map(key).collect();
         self.find(root, &keys)
     }
 

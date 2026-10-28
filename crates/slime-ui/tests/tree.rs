@@ -89,7 +89,7 @@ fn a_flexbox_row_is_laid_out_and_mirrored_from_right_to_left() {
         (LayoutDirection::RightToLeft, 1.0),
         (LayoutDirection::LeftToRight, 2.0),
     ] {
-        let root = ui.add_root(root(400.0, 300.0, scale, direction), style.clone());
+        let root = ui.add_root("main", root(400.0, 300.0, scale, direction), style.clone());
         let mut ids = Vec::new();
         ui.build(root, 0, |children| {
             ids.push(children.add("a", Element::container(sized(50.0, 40.0)), |_| {}));
@@ -149,7 +149,7 @@ fn a_grid_is_laid_out_and_mirrored_from_right_to_left() {
     };
     let mut rects = Vec::new();
     for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
-        let root = ui.add_root(root(300.0, 200.0, 1.0, direction), style.clone());
+        let root = ui.add_root("main", root(300.0, 200.0, 1.0, direction), style.clone());
         let mut ids = Vec::new();
         ui.build(root, 0, |children| {
             ids.push(children.add("a", Element::container(Style::default()), |_| {}));
@@ -199,7 +199,11 @@ fn a_label_is_as_large_as_its_text_and_breaks_its_lines_in_a_narrow_box() {
         },
         ..Style::default()
     };
-    let root = ui.add_root(root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight), style);
+    let root = ui.add_root(
+        "main",
+        root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
+        style,
+    );
     let words = "Some words that take more than one line";
     let (mut wide, mut narrow) = (None, None);
     ui.build(root, 0, |children| {
@@ -248,6 +252,7 @@ fn a_label_is_as_large_as_its_text_and_breaks_its_lines_in_a_narrow_box() {
 fn a_panel_built_again_keeps_its_elements_and_their_states_by_their_keys() {
     let mut ui = ui();
     let root = ui.add_root(
+        "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
         Style::default(),
     );
@@ -294,6 +299,7 @@ fn a_panel_built_again_keeps_its_elements_and_their_states_by_their_keys() {
 fn two_siblings_of_one_key_are_refused() {
     let mut ui = ui();
     let root = ui.add_root(
+        "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
         Style::default(),
     );
@@ -307,6 +313,7 @@ fn two_siblings_of_one_key_are_refused() {
 fn a_frame_where_nothing_changed_lays_out_and_draws_nothing() {
     let mut ui = ui();
     let root = ui.add_root(
+        "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
         Style::default(),
     );
@@ -369,6 +376,7 @@ fn a_frame_where_nothing_changed_lays_out_and_draws_nothing() {
 fn a_list_of_100_000_rows_builds_lays_out_and_draws_only_the_rows_that_show() {
     let mut ui = ui();
     let root = ui.add_root(
+        "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
         Style::default(),
     );
@@ -453,6 +461,7 @@ fn a_box_that_scrolls_moves_its_content_cut_to_its_edges_without_laying_it_out()
         ..Style::default()
     };
     let root = ui.add_root(
+        "main",
         root(200.0, 300.0, 1.0, LayoutDirection::LeftToRight),
         column.clone(),
     );
@@ -521,7 +530,7 @@ fn the_display_list_draws_each_element_before_its_children_as_its_state_and_dire
     for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
         let mut ui_root = filled(LinearColor::WHITE);
         ui_root.layout.align_items = Align::Start;
-        let root = ui.add_root(root(200.0, 100.0, 2.0, direction), ui_root);
+        let root = ui.add_root("main", root(200.0, 100.0, 2.0, direction), ui_root);
         let mut button = None;
         ui.build(root, 0, |children| {
             let mut panel = sized(100.0, 50.0);
@@ -583,7 +592,7 @@ fn the_display_list_draws_each_element_before_its_children_as_its_state_and_dire
 fn a_root_at_another_scale_is_laid_out_again_in_its_pixels() {
     let mut ui = ui();
     let settings = root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight);
-    let root = ui.add_root(settings, Style::default());
+    let root = ui.add_root("main", settings, Style::default());
     let mut panel = None;
     ui.build(root, 0, |children| {
         panel = Some(children.add("panel", Element::container(sized(100.0, 50.0)), |_| {}));
@@ -611,6 +620,7 @@ fn a_root_at_another_scale_is_laid_out_again_in_its_pixels() {
 fn a_panel_in_a_slot_is_built_by_its_own_revision_and_kept_when_its_parent_is_built_again() {
     let mut ui = ui();
     let root = ui.add_root(
+        "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
         Style::default(),
     );
@@ -651,6 +661,7 @@ fn grows() -> Style {
 fn a_list_in_a_slot_builds_its_rows_with_its_own_builder_and_lays_out_only_them() {
     let mut ui = ui();
     let root = ui.add_root(
+        "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
         Style::default(),
     );
@@ -698,6 +709,7 @@ fn a_list_in_a_slot_builds_its_rows_with_its_own_builder_and_lays_out_only_them(
 fn a_list_in_the_rows_of_another_shows_its_rows_after_the_other_scrolls() {
     let mut ui = ui();
     let root = ui.add_root(
+        "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
         Style::default(),
     );
@@ -749,6 +761,7 @@ fn a_list_in_the_rows_of_another_shows_its_rows_after_the_other_scrolls() {
 fn what_an_element_whose_display_is_none_holds_takes_no_space() {
     let mut ui = ui();
     let root = ui.add_root(
+        "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
         Style::default(),
     );
@@ -778,7 +791,7 @@ fn what_an_element_whose_display_is_none_holds_takes_no_space() {
 fn a_root_turned_to_the_other_direction_draws_every_element_again_mirrored() {
     let mut ui = ui();
     let settings = root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight);
-    let root = ui.add_root(settings, Style::default());
+    let root = ui.add_root("main", settings, Style::default());
     ui.build(root, 0, |children| {
         let mut bar = filled(LinearColor::WHITE);
         bar.layout.size = [Dimension::Share(1.0), Dimension::Pixels(50.0)];
@@ -811,6 +824,7 @@ fn a_root_turned_to_the_other_direction_draws_every_element_again_mirrored() {
 fn a_root_of_no_scale_is_refused() {
     let mut ui = ui();
     ui.add_root(
+        "main",
         root(400.0, 300.0, 0.0, LayoutDirection::LeftToRight),
         Style::default(),
     );
@@ -820,6 +834,7 @@ fn a_root_of_no_scale_is_refused() {
 fn a_box_that_scrolls_from_right_to_left_scrolls_from_its_start_and_cuts_inside_its_border() {
     let mut ui = ui();
     let root = ui.add_root(
+        "main",
         root(200.0, 100.0, 1.0, LayoutDirection::RightToLeft),
         Style::default(),
     );

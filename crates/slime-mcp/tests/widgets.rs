@@ -35,7 +35,7 @@ use interface::{act, path_of, until};
 use session::{Session, server};
 
 /// Where the inspector's properties are.
-const PROPERTIES: &str = "#0/window/Inspector/split/properties";
+const PROPERTIES: &str = "main/window/Inspector/split/properties";
 
 /// The line, as `find_elements` writes it, of the element at `path`; none where no element is
 /// there.
@@ -52,7 +52,7 @@ fn line(session: &mut Session, path: &str) -> Option<String> {
 fn told(session: &mut Session, told: &str) {
     until(
         told,
-        || line(session, "#0/window/status/last"),
+        || line(session, "main/window/status/last"),
         |line| {
             line.as_ref()
                 .is_some_and(|line| line.contains(&format!("Label `{told}`")))
@@ -89,7 +89,7 @@ fn main() {
     // Its tooltip read as its description.
     assert!(
         tabs[0].starts_with(
-            "#0/window/tabs/Inspector — Tab `Inspector`, described \"The entities and their \
+            "main/window/tabs/Inspector — Tab `Inspector`, described \"The entities and their \
              properties\", selected"
         ),
         "{tabs:?}"
@@ -146,7 +146,7 @@ fn main() {
     assert!(section.contains(", expanded"), "{section}");
 
     // The handle between the two panels, moved: the first takes half.
-    let split = "#0/window/Inspector/split";
+    let split = "main/window/Inspector/split";
     let panels = line(&mut session, split).expect("the two panels");
     assert!(
         panels.contains("Splitter `inspector`, holding \"0.32\""),
@@ -163,9 +163,9 @@ fn main() {
     );
 
     // The list of entities, scrolled: its first rows leave, as the list builds those that show.
-    let first = "#0/window/Inspector/split/entities/list/#0";
+    let first = "main/window/Inspector/split/entities/list/#0";
     assert!(line(&mut session, first).is_some());
-    let list = "#0/window/Inspector/split/entities/list";
+    let list = "main/window/Inspector/split/entities/list";
     act(
         &mut session,
         "scroll",
@@ -183,16 +183,16 @@ fn main() {
     act(
         &mut session,
         "press",
-        "#0/window/tools/tool/Turn",
+        "main/window/tools/tool/Turn",
         json!({}),
     );
     told(&mut session, "tool turn");
-    let snap = line(&mut session, "#0/window/tools/snap").expect("the button that toggles");
+    let snap = line(&mut session, "main/window/tools/snap").expect("the button that toggles");
     assert!(snap.contains("ToggleButton `Snap`"), "{snap}");
     assert!(snap.contains(", checked"), "{snap}");
-    act(&mut session, "press", "#0/window/tools/snap", json!({}));
+    act(&mut session, "press", "main/window/tools/snap", json!({}));
     told(&mut session, "snap off");
-    let search = "#0/window/Inspector/split/entities/search";
+    let search = "main/window/Inspector/split/entities/search";
     let field = line(&mut session, search).expect("the field of search");
     assert!(
         field.contains(
@@ -283,7 +283,7 @@ fn main() {
     told(&mut session, "shadows low");
 
     // The bar's menu View, opened: its item shows the floating panel of statistics.
-    act(&mut session, "press", "#0/window/menus/View", json!({}));
+    act(&mut session, "press", "main/window/menus/View", json!({}));
     let statistics = path_of(&mut session, "MenuItemCheckBox", "Statistics");
     act(&mut session, "press", &statistics, json!({}));
     told(&mut session, "statistics shown");
@@ -292,7 +292,7 @@ fn main() {
     assert!(pane.contains(", expanded"), "{pane}");
 
     // File's submenu of recent levels, through its item: a level opened, the menus closed.
-    act(&mut session, "press", "#0/window/menus/File", json!({}));
+    act(&mut session, "press", "main/window/menus/File", json!({}));
     let recent = path_of(&mut session, "MenuItem", "Recent");
     let item = line(&mut session, &recent).expect("the item");
     assert!(item.contains("has_popup"), "{item}");
@@ -346,7 +346,7 @@ fn main() {
     );
 
     // Another tab chosen: its panel shows, the inspector's leaves.
-    act(&mut session, "press", "#0/window/tabs/Console", json!({}));
+    act(&mut session, "press", "main/window/tabs/Console", json!({}));
     let panel = until(
         "the console shown",
         || {
@@ -358,9 +358,9 @@ fn main() {
     );
     // One panel, the console's: the inspector's left with its tab.
     assert_eq!(panel[0].lines().count(), 1, "{panel:?}");
-    let tab = line(&mut session, "#0/window/tabs/Console").expect("the tab");
+    let tab = line(&mut session, "main/window/tabs/Console").expect("the tab");
     assert!(tab.contains(", selected"), "{tab}");
-    let console = line(&mut session, "#0/window/Console/split").expect("the console's panels");
+    let console = line(&mut session, "main/window/Console/split").expect("the console's panels");
     assert!(
         console.contains("Splitter `console`, holding \"0.75\""),
         "{console}"
@@ -368,7 +368,7 @@ fn main() {
     act(
         &mut session,
         "press",
-        "#0/window/Console/split/levels/info",
+        "main/window/Console/split/levels/info",
         json!({}),
     );
     told(&mut session, "info off");

@@ -37,7 +37,7 @@ impl Well {
         let mut column = Style::default();
         column.layout.direction = FlexDirection::Column;
         column.text.style.fonts = vec!["Noto Sans".to_owned()];
-        let root = ui.add_root(settings, column);
+        let root = ui.add_root("main", settings, column);
         let mut well = Self {
             ui,
             root,

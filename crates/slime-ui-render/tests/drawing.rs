@@ -541,7 +541,7 @@ fn a_tree_of_elements_is_drawn_where_its_layout_places_it_and_mirrored_from_righ
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root(settings, row);
+        let root = ui.add_root("main", settings, row);
         let mut ids = Vec::new();
         ui.build(root, 0, |children| {
             for (index, (color, width)) in colors

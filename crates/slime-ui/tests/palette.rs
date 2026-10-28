@@ -52,7 +52,7 @@ fn interface() -> (Ui, ElementId) {
     };
     let mut style = Style::default();
     style.text.style.fonts = vec!["Noto Sans".to_owned()];
-    let root = ui.add_root(settings, style);
+    let root = ui.add_root("main", settings, style);
     ui.frame();
     (ui, root)
 }
@@ -95,7 +95,7 @@ fn type_text(ui: &mut Ui, text: &str) {
 
 /// The names of the palette's rows, as they show.
 fn rows(ui: &Ui) -> Vec<String> {
-    let Some(list) = ui.element_by_path("#1/palette/commands") else {
+    let Some(list) = ui.element_by_path("palette/palette/commands") else {
         return Vec::new();
     };
     ui.children(list)
@@ -137,11 +137,15 @@ fn the_palette_finds_commands_by_what_is_typed_and_gives_the_chosen_one() {
     ui.open_palette("Type a command", commands());
     ui.frame();
     assert!(ui.palette_open());
-    let field = ui.element_by_path("#1/palette/search").expect("its field");
+    let field = ui
+        .element_by_path("palette/palette/search")
+        .expect("its field");
     assert_eq!(ui.focus(), Some(field));
     assert_eq!(rows(&ui).len(), 4, "every command, with nothing typed");
     // Each row shows its command's chord.
-    let first = ui.element_by_path("#1/palette/commands/#0").expect("a row");
+    let first = ui
+        .element_by_path("palette/palette/commands/#0")
+        .expect("a row");
     assert!(matches!(
         ui.element(first).map(|element| &element.kind),
         Some(slime_ui::tree::Kind::MenuItem { shortcut, .. }) if shortcut == "Ctrl+S"
@@ -165,12 +169,16 @@ fn the_arrows_choose_a_press_gives_and_escape_closes_the_palette() {
     ui.frame();
     key(&mut ui, Key::Named(NamedKey::ArrowDown), None);
     key(&mut ui, Key::Named(NamedKey::ArrowDown), None);
-    let chosen = ui.element_by_path("#1/palette/commands/#2").expect("a row");
+    let chosen = ui
+        .element_by_path("palette/palette/commands/#2")
+        .expect("a row");
     assert!(ui.state(chosen).expect("there").selected);
     key(&mut ui, Key::Named(NamedKey::ArrowUp), None);
     key(&mut ui, Key::Named(NamedKey::ArrowUp), None);
     key(&mut ui, Key::Named(NamedKey::ArrowUp), None);
-    let last = ui.element_by_path("#1/palette/commands/#3").expect("a row");
+    let last = ui
+        .element_by_path("palette/palette/commands/#3")
+        .expect("a row");
     assert!(ui.state(last).expect("there").selected, "around");
     // A press on a row gives its command.
     let rect = ui.rect(chosen).expect("laid out");
@@ -188,24 +196,109 @@ fn the_arrows_choose_a_press_gives_and_escape_closes_the_palette() {
 }
 
 #[test]
+fn the_palette_scrolls_past_its_height_and_keeps_the_chosen_command_in_sight() {
+    let (mut ui, _) = interface();
+    let many: Vec<PaletteCommand> = (0..60)
+        .map(|number| PaletteCommand {
+            name: format!("Command number {number}"),
+            command: format!("command-{number}"),
+        })
+        .collect();
+    ui.open_palette("Type a command", many);
+    ui.frame();
+    assert_eq!(rows(&ui).len(), 60, "every command found, not twelve");
+    let list = ui
+        .element_by_path("palette/palette/commands")
+        .expect("its rows");
+    let view = ui.rect(list).expect("laid out");
+    assert!(view.height < 600.0, "within the window: {view:?}");
+    let inside = |ui: &Ui, row: ElementId| {
+        let rect = ui.rect(row).expect("laid out");
+        rect.y >= view.y - 0.5 && rect.y + rect.height <= view.y + view.height + 0.5
+    };
+    for _ in 0..45 {
+        key(&mut ui, Key::Named(NamedKey::ArrowDown), None);
+    }
+    let chosen = ui
+        .element_by_path("palette/palette/commands/#45")
+        .expect("a row");
+    assert!(ui.state(chosen).expect("there").selected);
+    assert!(inside(&ui, chosen), "scrolled to the chosen one");
+    let first = ui
+        .element_by_path("palette/palette/commands/#0")
+        .expect("a row");
+    assert!(!inside(&ui, first), "the first scrolled out of sight");
+    // Back up to the first, in sight again.
+    for _ in 0..45 {
+        key(&mut ui, Key::Named(NamedKey::ArrowUp), None);
+    }
+    assert!(inside(&ui, first), "back to the first");
+    // Up past the first goes around to the last, scrolled to.
+    key(&mut ui, Key::Named(NamedKey::ArrowUp), None);
+    let last = ui
+        .element_by_path("palette/palette/commands/#59")
+        .expect("a row");
+    assert!(ui.state(last).expect("there").selected);
+    assert!(inside(&ui, last), "around to the last, in sight");
+    // Down from the first, a frame after each key, until the chosen row is the last in sight.
+    key(&mut ui, Key::Named(NamedKey::ArrowDown), None);
+    let row = |ui: &Ui, place: usize| {
+        ui.element_by_path(&format!("palette/palette/commands/#{place}"))
+            .expect("a row")
+    };
+    let mut chosen = 0;
+    while inside(&ui, row(&ui, chosen + 1)) {
+        key(&mut ui, Key::Named(NamedKey::ArrowDown), None);
+        chosen += 1;
+    }
+    // Two keys before a frame scroll to the second one's row, no further.
+    for _ in 0..2 {
+        ui.key(&KeyEvent {
+            physical: KeyCode::Unidentified,
+            logical: Key::Named(NamedKey::ArrowDown),
+            text: None,
+            state: ButtonState::Pressed,
+            repeat: false,
+        });
+    }
+    ui.frame();
+    chosen += 2;
+    assert!(ui.state(row(&ui, chosen)).expect("there").selected);
+    assert!(inside(&ui, row(&ui, chosen)), "the chosen one in sight");
+    let shown = ui.rect(row(&ui, chosen)).expect("laid out");
+    assert!(
+        (shown.y + shown.height - (view.y + view.height)).abs() < 0.5,
+        "the chosen one at the bottom, scrolled no further: {shown:?} in {view:?}"
+    );
+    key(&mut ui, Key::Named(NamedKey::Enter), None);
+    assert_eq!(
+        actions(&mut ui),
+        [ActionKind::Command(format!("command-{chosen}"))]
+    );
+}
+
+#[test]
 fn the_sheet_lists_the_shortcuts_by_scope_and_escape_closes_it() {
     let (mut ui, _) = interface();
     ui.open_shortcut_sheet("Keyboard shortcuts", &commands());
     ui.frame();
-    let sheet = ui.element_by_path("#1/sheet").expect("the sheet");
+    let sheet = ui.element_by_path("shortcuts/sheet").expect("the sheet");
     let meaning = ui.meaning_of(sheet).expect("drawn");
     assert_eq!(
         (meaning.role, meaning.name.as_str()),
         (Role::Dialog, "Keyboard shortcuts")
     );
     let save = ui
-        .element_by_path("#1/sheet/shortcuts/0 Ctrl+S/name")
+        .element_by_path("shortcuts/sheet/shortcuts/0 Ctrl+S/name")
         .expect("the row of save");
     assert_eq!(ui.meaning_of(save).expect("drawn").name, "Save the level");
     // A command that no name is given for shows as it is.
-    assert!(ui.element_by_path("#1/sheet/shortcuts/0 F1/name").is_some());
+    assert!(
+        ui.element_by_path("shortcuts/sheet/shortcuts/0 F1/name")
+            .is_some()
+    );
     key(&mut ui, Key::Named(NamedKey::Escape), None);
-    assert!(ui.element_by_path("#1/sheet").is_none());
+    assert!(ui.element_by_path("shortcuts/sheet").is_none());
 }
 
 #[test]
@@ -223,12 +316,14 @@ fn notifications_stack_at_the_bottom_end_and_go_after_their_kinds_time() {
     });
     let (_, stats) = ui.frame();
     assert!(stats.animating, "a notification waits for its time");
-    let stack = ui.element_by_path("#1/notifications").expect("the stack");
+    let stack = ui
+        .element_by_path("notifications/notifications")
+        .expect("the stack");
     let rect = ui.rect(stack).expect("laid out");
     assert_eq!(rect.x + rect.width, 800.0 - 16.0);
     assert_eq!(rect.y + rect.height, 600.0 - 16.0);
     let card = ui
-        .element_by_path(&format!("#1/notifications/#{}", 0))
+        .element_by_path(&format!("notifications/notifications/#{}", 0))
         .expect("the first");
     let meaning = ui.meaning_of(card).expect("drawn");
     assert_eq!(
@@ -242,7 +337,7 @@ fn notifications_stack_at_the_bottom_end_and_go_after_their_kinds_time() {
     assert!(!ui.close_notification(saved));
     assert!(ui.close_notification(failed));
     ui.frame();
-    assert!(ui.element_by_path("#1/notifications").is_none());
+    assert!(ui.element_by_path("notifications/notifications").is_none());
 }
 
 #[test]
@@ -255,7 +350,9 @@ fn the_pointer_resting_keeps_a_notification_and_its_buttons_give_commands() {
         ..Notification::default()
     });
     ui.frame();
-    let card = ui.element_by_path("#1/notifications/#0").expect("it");
+    let card = ui
+        .element_by_path("notifications/notifications/#0")
+        .expect("it");
     let rect = ui.rect(card).expect("laid out");
     ui.pointer_moved(rect.x + 5.0, rect.y + 5.0);
     for _ in 0..4 {
@@ -268,7 +365,7 @@ fn the_pointer_resting_keeps_a_notification_and_its_buttons_give_commands() {
         "kept while the pointer rests on it"
     );
     let button = ui
-        .element_by_path("#1/notifications/#0/buttons/#0")
+        .element_by_path("notifications/notifications/#0/buttons/#0")
         .expect("its button");
     let rect = ui.rect(button).expect("laid out");
     ui.pointer_moved(rect.x + 5.0, rect.y + 5.0);
@@ -326,12 +423,14 @@ fn a_notification_takes_the_focus_from_no_one_and_an_update_shows_at_once() {
     );
     ui.frame();
     // Its text shows at once, and its time starts again: it is not gone for the time before.
-    let card = ui.element_by_path("#1/notifications/#0").expect("it");
+    let card = ui
+        .element_by_path("notifications/notifications/#0")
+        .expect("it");
     assert_eq!(ui.meaning_of(card).expect("drawn").name, "Cooked");
     assert_eq!(ui.notifications(), [cooking]);
     // Its mark closes it.
     let close = ui
-        .element_by_path("#1/notifications/#0/line/close")
+        .element_by_path("notifications/notifications/#0/line/close")
         .expect("its mark");
     let rect = ui.rect(close).expect("laid out");
     ui.pointer_moved(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0);

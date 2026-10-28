@@ -144,7 +144,7 @@ mod tests {
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root(settings, Style::default());
+        let root = ui.add_root("main", settings, Style::default());
         let mut style = Style::default();
         style.layout.size = [Dimension::Pixels(200.0), Dimension::Pixels(30.0)];
         ui.build(root, 0, |children| {

@@ -44,7 +44,7 @@ impl Choice {
         let mut column = Style::default();
         column.layout.direction = FlexDirection::Column;
         column.text.style.fonts = vec!["Noto Sans".to_owned()];
-        let root = ui.add_root(settings, column);
+        let root = ui.add_root("main", settings, column);
         let mut choice = Self {
             ui,
             root,
@@ -93,8 +93,8 @@ impl Choice {
 
     /// The list open below the list to choose from, and its options; none while it is closed.
     fn list(&self) -> Option<(ElementId, Vec<ElementId>)> {
-        let list = self.ui.element_by_path("#1")?;
-        let menu = self.ui.element_by_path("#1/options")?;
+        let list = self.ui.element_by_path("choices")?;
+        let menu = self.ui.element_by_path("choices/options")?;
         Some((list, self.ui.children(menu).to_vec()))
     }
 
@@ -306,6 +306,7 @@ fn a_choice_kept_by_the_user_stays_among_fewer_options() {
 fn a_list_to_choose_from_in_a_modal_layer_opens_and_chooses() {
     let mut choice = Choice::new(0);
     let dialog = choice.ui.open_layer(
+        "layer",
         slime_ui::tree::Layer {
             place: slime_ui::tree::Place::Floating {
                 over: choice.root,
@@ -331,7 +332,7 @@ fn a_list_to_choose_from_in_a_modal_layer_opens_and_chooses() {
     choice.click(x, y);
     let menu = choice
         .ui
-        .element_by_path("#2/options")
+        .element_by_path("choices/options")
         .expect("its list, over the dialog");
     let options = choice.ui.children(menu).to_vec();
     // The keys move into the list, and the pointer chooses there.

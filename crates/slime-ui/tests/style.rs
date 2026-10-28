@@ -19,7 +19,7 @@ fn ui() -> (Ui, ElementId) {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root(settings, Style::default());
+    let root = ui.add_root("main", settings, Style::default());
     (ui, root)
 }
 

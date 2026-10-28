@@ -44,7 +44,7 @@ fn interface() -> (Ui, ElementId) {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root(settings, Style::default());
+    let root = ui.add_root("main", settings, Style::default());
     (ui, root)
 }
 
@@ -333,7 +333,7 @@ fn a_bar_without_a_share_stops_moving_once_hidden_or_given_one() {
     let (_, stats) = ui.frame();
     assert!(stats.animating);
     // Folded, what the section holds does not show: nothing moves.
-    let section = ui.element_by_path("#0/cook").expect("built");
+    let section = ui.element_by_path("main/cook").expect("built");
     ui.set_open(section, false);
     ui.frame();
     let (_, stats) = ui.frame();
@@ -363,7 +363,7 @@ fn from_right_to_left_a_fields_prefix_and_marks_stand_at_its_right_and_left() {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root(settings, Style::default());
+    let root = ui.add_root("main", settings, Style::default());
     let mut ids = Vec::new();
     ui.build(root, 0, |children| {
         let x = Element::number_field(1.0, 0.1, style(Some(120.0))).prefix("X");
@@ -544,7 +544,7 @@ fn a_sections_header_holds_its_box_at_its_end_whose_presses_do_not_fold_it() {
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root(settings, Style::default());
+        let root = ui.add_root("main", settings, Style::default());
         let mut ids = (None, None);
         ui.build(root, 0, |children| {
             let mut section_style = style(Some(300.0));
@@ -610,9 +610,9 @@ fn a_tooltip_of_a_title_and_a_text_is_read_as_both() {
     ui.advance(Duration::from_millis(600));
     ui.frame();
     let title = ui
-        .element_by_path("#1/tooltip/title")
+        .element_by_path("tooltip/tooltip/title")
         .expect("the tooltip's title");
-    assert!(ui.element_by_path("#1/tooltip/text").is_some());
+    assert!(ui.element_by_path("tooltip/tooltip/text").is_some());
     assert!(
         ui.element(title)
             .is_some_and(|element| element.classes.contains(&"tooltip-title".to_owned()))
@@ -641,7 +641,7 @@ fn a_sections_title_keeps_beside_its_mark_and_leaves_the_room_of_its_headers_box
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root(settings, Style::default());
+        let root = ui.add_root("main", settings, Style::default());
         let build = |ui: &mut Ui, revision: u64, button: Option<f32>| {
             let mut id = None;
             ui.build(root, revision, |children| {
@@ -665,7 +665,7 @@ fn a_sections_title_keeps_beside_its_mark_and_leaves_the_room_of_its_headers_box
         build(&mut ui, 1, Some(60.0));
         let beside_box = drawn_text(&mut ui, "Light").expect("its title");
         assert_eq!(alone, beside_box, "{direction:?}");
-        let held = ui.element_by_path("#0/light/box/reset").expect("built");
+        let held = ui.element_by_path("main/light/box/reset").expect("built");
         let button = ui.rect(held).expect("laid out");
         let rect = ui.rect(section).expect("laid out");
         match direction {

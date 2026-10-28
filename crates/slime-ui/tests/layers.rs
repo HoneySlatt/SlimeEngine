@@ -25,7 +25,7 @@ fn interface(direction: LayoutDirection, top: f32) -> (Ui, ElementId, ElementId)
     let mut column = Style::default();
     column.layout.direction = FlexDirection::Column;
     column.layout.padding.top = top;
-    let root = ui.add_root(settings, column);
+    let root = ui.add_root("main", settings, column);
     let mut button = None;
     ui.build(root, 0, |children| {
         button = Some(children.add("open", Element::button("", sized(100.0, 30.0)), |_| {}));
@@ -45,6 +45,7 @@ fn sized(width: f32, height: f32) -> Style {
 /// Opens a layer of `place` that closes as the user leaves it, holding a button of 80 by 120.
 fn open(ui: &mut Ui, place: Place) -> (ElementId, ElementId) {
     let layer = ui.open_layer(
+        "layer",
         Layer {
             place,
             modal: false,
@@ -336,6 +337,7 @@ fn a_layer_beside_an_element_of_another_layer_stands_out_of_that_layer() {
 fn a_modal_layer_keeps_the_input_and_the_focus_until_it_closes() {
     let (mut ui, root, button) = interface(LayoutDirection::LeftToRight, 0.0);
     let dialog = ui.open_layer(
+        "layer",
         Layer {
             place: Place::Floating {
                 over: root,
@@ -416,6 +418,7 @@ fn a_layer_over_a_root_placed_within_the_window_stays_within_the_window() {
     column.layout.direction = FlexDirection::Column;
     column.layout.padding.top = 70.0;
     let dialog = ui.add_root(
+        "main",
         RootSettings {
             size: [200.0, 100.0],
             scale: 1.0,

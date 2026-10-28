@@ -1171,7 +1171,7 @@ mod tests {
                 origin: [0.0; 2],
                 modal: false,
             };
-            let root = ui.add_root(settings, Style::default());
+            let root = ui.add_root("main", settings, Style::default());
             let mut style = Style::default();
             style.layout.size = [Dimension::Pixels(100.0), Dimension::Pixels(40.0)];
             style.layout.shrink = 0.0;
@@ -1226,11 +1226,11 @@ mod tests {
         assert_eq!(
             paths,
             [
-                "#0/open",
-                "#0/save",
-                "#0/close",
-                "#0/notes/top",
-                "#0/notes/below"
+                "main/open",
+                "main/save",
+                "main/close",
+                "main/notes/top",
+                "main/notes/below"
             ]
         );
         assert_eq!(buttons[1].states, ["disabled"]);
@@ -1239,36 +1239,36 @@ mod tests {
         assert_eq!(buttons[2].bounds, Some([200, 0, 100, 40]));
         let open = found(&mut panel, "", "PEN");
         assert_eq!(open.len(), 1, "{open:?}");
-        assert_eq!(open[0].path, "#0/open");
-        let shown = shown_element(Some(&panel.ui), "#0/close").expect("shown");
+        assert_eq!(open[0].path, "main/open");
+        let shown = shown_element(Some(&panel.ui), "main/close").expect("shown");
         assert_eq!(
             (shown.x, shown.y, shown.width, shown.height),
             (200, 0, 100, 40)
         );
         // The box that scrolls cuts its second button whole: it does not show, until scrolled to.
         for (path, ui, problem) in [
-            ("#0/notes/below", Some(&panel.ui), "does not show"),
-            ("#0/nothing", Some(&panel.ui), "no element"),
-            ("#0/open", None, "no interface"),
+            ("main/notes/below", Some(&panel.ui), "does not show"),
+            ("main/nothing", Some(&panel.ui), "no element"),
+            ("main/open", None, "no interface"),
         ] {
             let error = shown_element(ui, path).expect_err(path);
             assert!(error.contains(problem), "{error}");
         }
         let scroll = |x, y| InterfaceAction::Scroll { x, y };
         for (element, action, problem) in [
-            ("#0/save", InterfaceAction::Press, "takes no `press` now"),
-            ("#0/open", scroll(0.0, 40.0), "takes no `scroll` now"),
-            ("#0/notes", scroll(f32::NAN, 40.0), "is no offset"),
-            ("#0/nothing", InterfaceAction::Press, "no element"),
+            ("main/save", InterfaceAction::Press, "takes no `press` now"),
+            ("main/open", scroll(0.0, 40.0), "takes no `scroll` now"),
+            ("main/notes", scroll(f32::NAN, 40.0), "is no offset"),
+            ("main/nothing", InterfaceAction::Press, "no element"),
             ("", InterfaceAction::Focus, "needs an element"),
-            ("#0/open", InterfaceAction::Next, "names no element"),
+            ("main/open", InterfaceAction::Next, "names no element"),
         ] {
             let error = act(&mut panel, element, &action).expect_err(element);
             assert!(error.contains(problem), "{error}");
         }
-        act(&mut panel, "#0/notes", &scroll(0.0, 40.0)).expect("scrolled");
-        act(&mut panel, "#0/open", &InterfaceAction::Press).expect("pressed");
-        act(&mut panel, "#0/open", &InterfaceAction::Focus).expect("focused");
+        act(&mut panel, "main/notes", &scroll(0.0, 40.0)).expect("scrolled");
+        act(&mut panel, "main/open", &InterfaceAction::Press).expect("pressed");
+        act(&mut panel, "main/open", &InterfaceAction::Focus).expect("focused");
         act(&mut panel, "", &InterfaceAction::Next).expect("moved");
         let command = InterfaceAction::Command {
             name: "undo".to_owned(),
@@ -1287,7 +1287,7 @@ mod tests {
         panel.ui.frame();
         let buttons = found(&mut panel, "Button", "");
         assert_eq!(buttons[2].states, ["focused"], "over the disabled button");
-        let below = shown_element(Some(&panel.ui), "#0/notes/below").expect("scrolled to");
+        let below = shown_element(Some(&panel.ui), "main/notes/below").expect("scrolled to");
         assert_eq!((below.x, below.y, below.height), (300, 0, 40));
         // The fraction of a pixel that a bound covers counts whole.
         let part = covering("", Rect::new(10.5, 0.25, 20.0, 9.5));

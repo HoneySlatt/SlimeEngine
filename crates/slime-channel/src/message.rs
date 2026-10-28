@@ -182,7 +182,7 @@ pub enum Request {
     /// for an action that the element does not take now, as a disabled button's press, and for an
     /// offset that is not finite.
     Act {
-        /// The element, by its path, `#0/bar/open`; empty for an action of no element, a
+        /// The element, by its path, `main/bar/open`; empty for an action of no element, a
         /// navigation intent or a command.
         element: String,
         /// What to do.
@@ -457,7 +457,7 @@ pub struct EntitySummary {
 #[derive(Clone, Debug, PartialEq, Reflect)]
 #[reflect(name = "ChannelElement")]
 pub struct ElementSummary {
-    /// Its path, which names it from one frame to the next: `#0/bar/open`.
+    /// Its path, which names it from one frame to the next: `main/bar/open`.
     pub path: String,
     /// Its role, as AccessKit names it: `Button`.
     pub role: String,
@@ -636,11 +636,11 @@ mod tests {
             },
             Request::ElementAt { x: 40, y: 12 },
             Request::Act {
-                element: text("#0/bar/open"),
+                element: text("main/bar/open"),
                 action: InterfaceAction::Press,
             },
             Request::Act {
-                element: text("#0/content/list"),
+                element: text("main/content/list"),
                 action: InterfaceAction::Scroll { x: 0.0, y: 120.0 },
             },
             Request::Act {
@@ -648,11 +648,11 @@ mod tests {
                 action: InterfaceAction::Command { name: text("undo") },
             },
             Request::Act {
-                element: text("#0/bar/name"),
+                element: text("main/bar/name"),
                 action: InterfaceAction::SetValue { value: text("Ada") },
             },
             Request::CaptureElement {
-                element: text("#1/dialog"),
+                element: text("dialog/dialog"),
             },
         ];
         for request in requests {
@@ -716,7 +716,7 @@ mod tests {
             Reply::Elements {
                 elements: vec![
                     ElementSummary {
-                        path: text("#0/bar/open"),
+                        path: text("main/bar/open"),
                         role: text("Button"),
                         name: text("open"),
                         value: None,
@@ -727,7 +727,7 @@ mod tests {
                         bounds: Some([0, 0, 120, 28]),
                     },
                     ElementSummary {
-                        path: text("#0/content/list/#57"),
+                        path: text("main/content/list/#57"),
                         role: text("ListItem"),
                         name: String::new(),
                         value: None,
@@ -738,7 +738,7 @@ mod tests {
                         bounds: None,
                     },
                     ElementSummary {
-                        path: text("#0/bar/scale"),
+                        path: text("main/bar/scale"),
                         role: text("SpinButton"),
                         name: text("scale"),
                         value: Some(text("12.5")),

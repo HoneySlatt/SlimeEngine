@@ -276,7 +276,7 @@ impl Interface {
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root(settings, column());
+        let root = ui.add_root("main", settings, column());
         let mut interface = Self {
             shapes: Shapes::new(gpu, format)?,
             viewport: None,
@@ -433,7 +433,7 @@ impl Interface {
             origin: [0.0; 2],
             modal: true,
         };
-        let root = self.ui.add_root(settings, column());
+        let root = self.ui.add_root("dialog", settings, column());
         let mut close = None;
         self.ui.build(root, 0, |children| {
             let mut scrim = Style::default();

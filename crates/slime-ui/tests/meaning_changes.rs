@@ -152,7 +152,7 @@ fn build(ui: &mut Ui, root: ElementId, revision: u64) {
 #[test]
 fn the_changes_hold_what_changed_and_applied_give_the_whole_tree() {
     let mut ui = ui();
-    let root = ui.add_root(settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), Style::default());
     build(&mut ui, root, 1);
     ui.frame();
     let mut held = Held::default();
@@ -183,30 +183,34 @@ fn the_changes_hold_what_changed_and_applied_give_the_whole_tree() {
     assert_eq!(step(&mut ui, &mut held), (Vec::new(), false));
 
     // A text's words: that text alone.
-    let status = ui.element_by_path("#0/page/status").expect("the text");
+    let status = ui.element_by_path("main/page/status").expect("the text");
     let status_number = number(&mut ui, status);
     build(&mut ui, root, 3);
     ui.frame();
     let (changed, top) = step(&mut ui, &mut held);
     // The second panel is new, below a box that means nothing: the top changed with it.
     assert!(top);
-    let second = ui.element_by_path("#0/page/layout/second").expect("built");
+    let second = ui
+        .element_by_path("main/page/layout/second")
+        .expect("built");
     let second_number = number(&mut ui, second);
     assert_eq!(changed, sorted(vec![status_number, second_number]));
 
     // The pointer over a button: its state.
-    let open = ui.element_by_path("#0/page/bar/open").expect("the button");
+    let open = ui
+        .element_by_path("main/page/bar/open")
+        .expect("the button");
     let open_number = number(&mut ui, open);
     ui.pointer_moved(10.0, 10.0);
     ui.frame();
     assert_eq!(step(&mut ui, &mut held), (vec![open_number], false));
 
     // A scroll: what moved below the box that scrolls.
-    let scroll = ui.element_by_path("#0/page/scroll").expect("the box");
+    let scroll = ui.element_by_path("main/page/scroll").expect("the box");
     let moved: Vec<u64> = ["first", "next"]
         .map(|name| {
             let id = ui
-                .element_by_path(&format!("#0/page/scroll/{name}"))
+                .element_by_path(&format!("main/page/scroll/{name}"))
                 .expect("a button");
             number(&mut ui, id)
         })
@@ -216,7 +220,7 @@ fn the_changes_hold_what_changed_and_applied_give_the_whole_tree() {
     assert_eq!(step(&mut ui, &mut held), (sorted(moved), false));
 
     // A field typed in: the field, its value and its runs.
-    let field = ui.element_by_path("#0/page/field").expect("the field");
+    let field = ui.element_by_path("main/page/field").expect("the field");
     let field_number = number(&mut ui, field);
     ui.pointer_moved(10.0, 200.0);
     ui.set_focus(Some(field));
@@ -243,12 +247,12 @@ fn the_changes_hold_what_changed_and_applied_give_the_whole_tree() {
 #[test]
 fn a_modal_root_makes_the_changes_whole_as_it_opens_and_closes() {
     let mut ui = ui();
-    let root = ui.add_root(settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), Style::default());
     build(&mut ui, root, 1);
     ui.frame();
     let mut held = Held::default();
     held.apply(ui.take_meaning_changes(false));
-    let dialog = ui.add_root(settings(true), Style::default());
+    let dialog = ui.add_root("main", settings(true), Style::default());
     ui.build(dialog, 0, |children| {
         let box_of = Element::container(sized(200.0, 100.0)).role(Role::Dialog);
         children.add("dialog", box_of, |children| {
@@ -261,7 +265,9 @@ fn a_modal_root_makes_the_changes_whole_as_it_opens_and_closes() {
     held.apply(changes);
     assert_eq!(held, whole(&mut ui));
     // The buttons below take nothing; the dialog is at the top, last.
-    let open = ui.element_by_path("#0/page/bar/open").expect("the button");
+    let open = ui
+        .element_by_path("main/page/bar/open")
+        .expect("the button");
     let open_number = number(&mut ui, open);
     assert!(held.nodes[&open_number].meaning.actions.is_empty());
     let last = *held.top.last().expect("a top");
@@ -278,7 +284,7 @@ fn a_modal_root_makes_the_changes_whole_as_it_opens_and_closes() {
 #[test]
 fn a_box_hidden_leaves_the_tree_and_shown_again_comes_back_whole() {
     let mut ui = ui();
-    let root = ui.add_root(settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), Style::default());
     let build = |ui: &mut Ui, revision: u64, display: Display| {
         ui.build(root, revision, |children| {
             let mut style = sized(300.0, 100.0);
@@ -310,7 +316,7 @@ fn a_box_hidden_leaves_the_tree_and_shown_again_comes_back_whole() {
 #[test]
 fn numbers_name_one_element_or_run_each_and_find_it_again() {
     let mut ui = ui();
-    let root = ui.add_root(settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), Style::default());
     build(&mut ui, root, 1);
     ui.frame();
     let changes = ui.take_meaning_changes(true);
@@ -335,14 +341,14 @@ fn numbers_name_one_element_or_run_each_and_find_it_again() {
         }
     }
     // An element removed and another made in its place: a new number.
-    let status = ui.element_by_path("#0/page/status").expect("the text");
+    let status = ui.element_by_path("main/page/status").expect("the text");
     let before = number(&mut ui, status);
     ui.remove(status);
     ui.build(root, 9, |children| {
         children.add("again", Element::label("again", sized(100.0, 20.0)), |_| {});
     });
     ui.frame();
-    let again = ui.element_by_path("#0/again").expect("built");
+    let again = ui.element_by_path("main/again").expect("built");
     assert_ne!(number(&mut ui, again), before);
     assert_eq!(ui.element_by_number(before), None);
 }
@@ -350,7 +356,7 @@ fn numbers_name_one_element_or_run_each_and_find_it_again() {
 #[test]
 fn changes_that_no_one_takes_are_kept_within_bounds_and_then_whole() {
     let mut ui = ui();
-    let root = ui.add_root(settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), Style::default());
     build(&mut ui, root, 1);
     ui.frame();
     ui.take_meaning_changes(false);
@@ -378,7 +384,7 @@ fn changes_that_no_one_takes_are_kept_within_bounds_and_then_whole() {
 /// `multiline`, its selection from `anchor` to `focus`.
 fn runs(text: &str, width: f32, multiline: bool, selection: Option<(usize, usize)>) -> FieldText {
     let mut ui = ui();
-    let root = ui.add_root(settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), Style::default());
     let mut field = None;
     let element = if multiline {
         Element::text_area(text, sized(width, 200.0))
@@ -506,12 +512,14 @@ fn sorted(mut numbers: Vec<u64>) -> Vec<u64> {
 #[test]
 fn a_press_on_a_button_changes_its_state_alone() {
     let mut ui = ui();
-    let root = ui.add_root(settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), Style::default());
     build(&mut ui, root, 1);
     ui.frame();
     let mut held = Held::default();
     held.apply(ui.take_meaning_changes(false));
-    let open = ui.element_by_path("#0/page/bar/open").expect("the button");
+    let open = ui
+        .element_by_path("main/page/bar/open")
+        .expect("the button");
     let open_number = number(&mut ui, open);
     ui.pointer_moved(10.0, 10.0);
     ui.frame();
@@ -526,7 +534,7 @@ fn a_press_on_a_button_changes_its_state_alone() {
 #[test]
 fn a_box_named_comes_between_its_children_and_the_element_above_them() {
     let mut ui = ui();
-    let root = ui.add_root(settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), Style::default());
     let build = |ui: &mut Ui, revision: u64, name: Option<&str>| {
         ui.build(root, revision, |children| {
             let mut group = Element::container(sized(200.0, 50.0));
@@ -564,7 +572,7 @@ fn a_box_named_comes_between_its_children_and_the_element_above_them() {
 #[test]
 fn rows_built_by_a_scroll_another_kind_under_a_key_and_a_disabled_button_keep_the_tree_whole() {
     let mut ui = ui();
-    let root = ui.add_root(settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), Style::default());
     let build = |ui: &mut Ui, revision: u64, kind_of_second: bool| {
         ui.build(root, revision, |children| {
             children.add(
@@ -595,7 +603,7 @@ fn rows_built_by_a_scroll_another_kind_under_a_key_and_a_disabled_button_keep_th
     let mut held = Held::default();
     held.apply(ui.take_meaning_changes(false));
     // Other rows shown by a scroll: the list's builder runs again, rows come and go.
-    let list = ui.element_by_path("#0/list").expect("the list");
+    let list = ui.element_by_path("main/list").expect("the list");
     ui.scroll_to(list, [0.0, 400.0]);
     build(&mut ui, 0, true);
     ui.frame();
@@ -608,13 +616,13 @@ fn rows_built_by_a_scroll_another_kind_under_a_key_and_a_disabled_button_keep_th
         .collect();
     assert_eq!(rows.first().map(String::as_str), Some("row 20"));
     // Another kind under the same key: another element, of another number.
-    let button = ui.element_by_path("#0/second").expect("the button");
+    let button = ui.element_by_path("main/second").expect("the button");
     let before = number(&mut ui, button);
     build(&mut ui, 1, false);
     ui.frame();
     step(&mut ui, &mut held);
     assert!(!held.nodes.contains_key(&before));
-    let label = ui.element_by_path("#0/second").expect("the text");
+    let label = ui.element_by_path("main/second").expect("the text");
     assert_eq!(
         held.nodes[&number(&mut ui, label)].meaning.role,
         Role::Label
@@ -623,7 +631,7 @@ fn rows_built_by_a_scroll_another_kind_under_a_key_and_a_disabled_button_keep_th
     build(&mut ui, 2, true);
     ui.frame();
     step(&mut ui, &mut held);
-    let button = ui.element_by_path("#0/second").expect("the button");
+    let button = ui.element_by_path("main/second").expect("the button");
     let mut state = ui.state(button).expect("a button");
     state.disabled = true;
     ui.set_state(button, state);
@@ -638,10 +646,10 @@ fn rows_built_by_a_scroll_another_kind_under_a_key_and_a_disabled_button_keep_th
 }
 
 #[test]
-fn a_root_resized_or_removed_below_others_changes_what_it_shows_and_their_paths() {
+fn a_root_resized_or_removed_below_others_changes_what_it_shows_but_not_their_paths() {
     let mut ui = ui();
-    let first = ui.add_root(settings(false), Style::default());
-    let second = ui.add_root(settings(false), Style::default());
+    let first = ui.add_root("first", settings(false), Style::default());
+    let second = ui.add_root("second", settings(false), Style::default());
     for root in [first, second] {
         ui.build(root, 0, |children| {
             children.add("wide", Element::button("wide", sized(350.0, 30.0)), |_| {});
@@ -660,10 +668,10 @@ fn a_root_resized_or_removed_below_others_changes_what_it_shows_and_their_paths(
     );
     ui.frame();
     step(&mut ui, &mut held);
-    let wide = ui.element_by_path("#0/wide").expect("the button");
+    let wide = ui.element_by_path("first/wide").expect("the button");
     let bounds = held.nodes[&number(&mut ui, wide)].meaning.bounds;
     assert_eq!(bounds.map(|bounds| bounds.width), Some(200.0));
-    // The first root removed: the second's elements are named from #0 on.
+    // The first root removed: the second's elements keep their paths, named by its key.
     ui.remove(first);
     ui.frame();
     step(&mut ui, &mut held);
@@ -672,13 +680,52 @@ fn a_root_resized_or_removed_below_others_changes_what_it_shows_and_their_paths(
         .values()
         .map(|node| node.meaning.path.as_str())
         .collect();
-    assert_eq!(paths, ["#0/wide"]);
+    assert_eq!(paths, ["second/wide"]);
+}
+
+#[test]
+fn a_root_is_named_by_its_key_and_a_key_already_held_by_a_variant_of_it() {
+    let mut ui = ui();
+    let roots = [
+        ui.add_root("main", settings(false), Style::default()),
+        ui.add_root("main", settings(false), Style::default()),
+        ui.add_root(3_u64, settings(false), Style::default()),
+        ui.add_root(3_u64, settings(false), Style::default()),
+    ];
+    for root in roots {
+        ui.build(root, 0, |children| {
+            children.add("wide", Element::button("wide", sized(350.0, 30.0)), |_| {});
+        });
+    }
+    ui.frame();
+    let paths: Vec<String> = roots
+        .iter()
+        .map(|&root| {
+            let wide = ui.children(root)[0];
+            ui.path_text(wide).expect("a path")
+        })
+        .collect();
+    assert_eq!(paths, ["main/wide", "main-2/wide", "#3/wide", "#4/wide"]);
+    for (path, root) in paths.iter().zip(roots) {
+        assert_eq!(ui.element_by_path(path), Some(ui.children(root)[0]));
+    }
+    // A key let go is free again.
+    ui.remove(roots[0]);
+    let again = ui.add_root("main", settings(false), Style::default());
+    ui.build(again, 0, |children| {
+        children.add("wide", Element::button("wide", sized(350.0, 30.0)), |_| {});
+    });
+    ui.frame();
+    assert_eq!(
+        ui.path_text(ui.children(again)[0]).as_deref(),
+        Some("main/wide")
+    );
 }
 
 #[test]
 fn widgets_used_change_what_they_mean_and_keep_the_tree_whole() {
     let mut ui = ui();
-    let root = ui.add_root(settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), Style::default());
     let mut column = sized(400.0, 300.0);
     column.layout.direction = FlexDirection::Column;
     let build = |ui: &mut Ui| {
@@ -709,10 +756,10 @@ fn widgets_used_change_what_they_mean_and_keep_the_tree_whole() {
     build(&mut ui);
     let mut held = whole(&mut ui);
     let path = |ui: &Ui, path: &str| ui.element_by_path(path).expect("built");
-    let (check, slider) = (path(&ui, "#0/page/check"), path(&ui, "#0/page/slider"));
+    let (check, slider) = (path(&ui, "main/page/check"), path(&ui, "main/page/slider"));
     let (section, light) = (
-        path(&ui, "#0/page/section"),
-        path(&ui, "#0/page/tabs/light"),
+        path(&ui, "main/page/section"),
+        path(&ui, "main/page/tabs/light"),
     );
     let numbers = [check, slider, section].map(|id| number(&mut ui, id));
 

@@ -1101,7 +1101,7 @@ struct Slot {
 ///     origin: [0.0; 2],
 ///     modal: false,
 /// };
-/// let root = ui.add_root(settings, Style::default());
+/// let root = ui.add_root("main", settings, Style::default());
 /// let mut style = Style::default();
 /// style.layout.size = [Dimension::Pixels(100.0), Dimension::Pixels(50.0)];
 /// let mut panel = None;
@@ -1217,18 +1217,23 @@ impl Ui {
         &mut self.fonts
     }
 
-    /// Adds a root: a surface of `settings`, its element a container of `style`, whose size is
-    /// the root's.
+    /// Adds a root, named `key` in the paths of its elements ([`Ui::path_text`]): a surface of
+    /// `settings`, its element a container of `style`, whose size is the root's. A key that an open
+    /// root holds already is followed by `-2`, `-3` and on, a number by the next number free, so
+    /// that each root's is its own.
     ///
     /// # Panics
     ///
     /// If the settings' scale is not a finite number above 0.
-    pub fn add_root(&mut self, settings: RootSettings, style: Style) -> ElementId {
+    pub fn add_root(
+        &mut self,
+        key: impl Into<Key>,
+        settings: RootSettings,
+        style: Style,
+    ) -> ElementId {
         assert_scale(settings.scale);
-        let mut node = Node::new(
-            Key::Index(self.roots.len() as u64),
-            Element::container(style),
-        );
+        let key = self.free_root_key(key.into());
+        let mut node = Node::new(key, Element::container(style));
         node.root = Some(settings);
         let id = self.insert(node);
         self.roots.push(id);
@@ -1238,6 +1243,26 @@ impl Ui {
             self.opened_modal(id);
         }
         id
+    }
+
+    /// `key`, or, when an open root holds it, the first of its variants that none holds, as
+    /// [`Ui::add_root`] says.
+    fn free_root_key(&self, key: Key) -> Key {
+        let held = |key: &Key| {
+            self.roots
+                .iter()
+                .any(|&root| self.node(root).is_some_and(|node| node.key == *key))
+        };
+        if !held(&key) {
+            return key;
+        }
+        (2..)
+            .map(|count: u64| match &key {
+                Key::Name(name) => Key::from(format!("{name}-{count}")),
+                Key::Index(index) => Key::Index(index + count - 1),
+            })
+            .find(|variant| !held(variant))
+            .expect("a variant is free past every root")
     }
 
     /// Changes a root's size, scale or direction: it is laid out again, and, for another scale or

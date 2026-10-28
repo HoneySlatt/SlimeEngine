@@ -43,7 +43,7 @@ impl Window {
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root(settings, style(true));
+        let root = ui.add_root("main", settings, style(true));
         let (mut items, mut button) = (Vec::new(), None);
         ui.build(root, 0, |children| {
             children.add("bar", Element::menu_bar(style(false)), |bar| {
@@ -82,6 +82,7 @@ impl Window {
     /// items, `one` and `two`.
     fn open_menu(&mut self, item: ElementId) -> (ElementId, Vec<ElementId>) {
         let layer = self.ui.open_layer(
+            "layer",
             Layer {
                 place: Place::Beside {
                     element: item,
