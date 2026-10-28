@@ -26,7 +26,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   released as 0.7 at its close. A study of the editor's design, made by four agents from four
   starting points and measured in prototypes on the owner's machine, led to the owner's sixteen
   decisions on the editor's design, its milestones and their order, which ADR-0155 records. M6c.0
-  is done, and M6c.1 was split in two at its start, M6c.1a and M6c.1b, both done; next: M6c.2.
+  is done, and M6c.1 was split in two at its start, M6c.1a and M6c.1b, both done; M6c.2 was split in
+  two at its start too; next: M6c.2a.
 
 ## Status
 
@@ -35,7 +36,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.0](#m6c0--before-the-stage) | The development channel answers in milliseconds, CI's checks stay within their limit, and a game that a tool started never outlives it | Done |
 | [M6c.1a](#m6c1a--the-window-and-its-operations) | The editor opens a level in a window of its own, where a person and an agent run the same named operations | Done |
 | [M6c.1b](#m6c1b--dialogs-the-cursor-held-and-the-gpus-identity) | A person opens a level through the system's dialog, a viewport can hold the cursor and read the mouse's raw motion, and a GPU object cannot act on another `Gpu`'s | Done |
-| [M6c.2](#m6c2--the-viewport) | The level shows in a viewport that the user flies through and picks in, drawn again only when what it shows changed | Planned |
+| [M6c.2a](#m6c2a--the-viewport-and-its-navigation) | The level shows in a viewport that the user flies through, drawn again only when what it shows changed | Planned |
+| [M6c.2b](#m6c2b--picking-and-the-selection) | The user picks in the viewport, the selection outlined, and a second viewport shows the level | Planned |
 | [M6c.3](#m6c3--move-and-place) | The user moves, turns, scales, creates and deletes, each gesture a single step of the history | Planned |
 | [M6c.4](#m6c4--play-it) | Play runs the level being edited in the game, steps not written included, and the editor's edits reach the running game | Planned |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
@@ -107,13 +109,13 @@ that first uses it, rfd at M6c.1b, `serde_json` in `slime-editor` at M6c.4, noti
 adds to CI's build checked then. Every milestone ends, besides the definition of done, with an
 agent's session in `scripts/check.sh`, in a headless Weston when it is windowed, and image tests of
 the panels that it adds. Any milestone may be cut in two at its start, as Stage 6b's were; M6c.1
-was, and M6c.5 and M6c.6 are expected to be.
+and M6c.2 were, and M6c.5 and M6c.6 are expected to be.
 
 Risks, whose figures ADR-0155's context gives:
 
 - **[ADR-0041](adr/0041-render-graph.md)'s stall decides how the editor feels on machines without
   resizable BAR**, the owner's included: a view drawn again costs several milliseconds of CPU once
-  the desktop fills the GPU's memory that the CPU maps. Drawing on demand hides most of it; M6c.2
+  the desktop fills the GPU's memory that the CPU maps. Drawing on demand hides most of it; M6c.2a
   measures `PASSES_PER_SUBMISSION` and the bloom there. The editor and the game running at once,
   two devices on one GPU, and Windows were never measured.
 - **The cursor held and the mouse's raw motion were never run**, on any system: the study read
@@ -342,31 +344,52 @@ dialogs, the cursor held and the GPU's identity.
 
 ### M6c.2 — The viewport
 
-- **Goal.** The level shows in a viewport that the user flies through and picks in, the selection
-  outlined, drawn again only when what it shows changed.
-- **Crates.** `slime-ui`, `slime-render`, `slime-world-render`, `slime-editor`; the benchmarks.
+Split in two at its start, on 2026-10-28, as [ADR-0155](adr/0155-the-editors-design.md) allows:
+the viewport and its navigation, then picking and the selection.
+
+#### M6c.2a — The viewport and its navigation
+
+- **Goal.** The level shows in a viewport that the user flies through, drawn again only when what
+  it shows changed.
+- **Crates.** `slime-ui`, `slime-render`, `slime-editor`; the benchmarks.
 - **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: `Kind::Surface`, an element
   kind that gives the program the pointer's actions and holds the pointer during a drag, single-key
-  shortcuts suspended while the right button flies; navigation, flying with the right button held
-  and W, A, S, D, Q, E, orbiting with Alt and the left button, panning with the middle one, F
-  framing the selection, and a `.keys` preset in Blender's way; the grid; icons of lights and
-  cameras from Lucide's glyphs; a click that picks by the GPU, the outermost placement first and a
-  level deeper at the second click, Alt and a click through what lies behind by the CPU's ray, a
-  marquee selecting what its area holds; the selection outlined, the scene's depth resolved, its
-  hidden part dimmed, an entity without a mesh drawn as its transform's unit box; the modes of
-  debugging base color and light alone, and a wireframe of the selection; each viewport drawn again
-  only when its camera, the world, the selection, its settings or its assets changed, and once more
-  `RESIZE_DELAY` after its size last changed; a second viewport, the one navigated alone drawn at
-  the full rate; `PASSES_PER_SUBMISSION` and the bloom measured while the desktop fills the GPU's
-  memory that the CPU maps. The ADR of the design.
-- **Done when.** Image tests on lavapipe of the grid, the icons, the outline and its hidden part;
-  an agent picks in a viewport and captures it; an idle editor's viewports draw nothing; the
-  frame's costs at the hardware tiers' sizes, in [`docs/measurements.md`](measurements.md); CI is
-  green.
+  shortcuts suspended while the right button flies; the level drawn in the window's center by the
+  editor's own asset cache and frame builder, through a view whose image the interface shows;
+  navigation, flying with the right button held and W, A, S, D, Q, E, the cursor held and the raw
+  motion read, orbiting with Alt and the left button, panning with the middle one, F framing the
+  selection, and a `.keys` preset in Blender's way; the grid; icons of lights and cameras from
+  Lucide's glyphs; the viewport drawn again only when its camera, the world, the selection, its
+  settings or its assets changed, and once more `RESIZE_DELAY` after its size last changed; the
+  viewport named for agents, who capture it and change its settings; `PASSES_PER_SUBMISSION` and
+  the bloom measured while the desktop fills the GPU's memory that the CPU maps. The ADR of the
+  design.
+- **Done when.** Image tests on lavapipe of the grid and the icons; an agent captures the viewport
+  and flies it with scripted keys; an idle editor's viewport draws nothing; the frame's costs at
+  the hardware tiers' sizes, in [`docs/measurements.md`](measurements.md); CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-render -p slime-editor`;
   `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
-- **By hand.** Flying, orbiting and picking in the zone on niri, Hyprland and X11 through XWayland.
-- **Debt settled.** A view's new size waiting for its next frame; the scene's depth resolved
+- **By hand.** Flying and orbiting in the zone on niri, Hyprland and X11 through XWayland.
+- **Debt settled.** A view's new size waiting for its next frame.
+
+#### M6c.2b — Picking and the selection
+
+- **Goal.** The user picks in the viewport, the selection outlined, and a second viewport shows the
+  level.
+- **Crates.** `slime-render`, `slime-world-render`, `slime-editor`.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: a click that picks by the
+  GPU, the outermost placement first and a level deeper at the second click, Alt and a click
+  through what lies behind by the CPU's ray, a marquee selecting what its area holds; the selection
+  outlined, the scene's depth resolved, its hidden part dimmed, an entity without a mesh drawn as
+  its transform's unit box; the modes of debugging base color and light alone, and a wireframe of
+  the selection; a second viewport, the one navigated alone drawn at the full rate. The ADR of the
+  design.
+- **Done when.** Image tests on lavapipe of the outline and its hidden part; an agent picks in a
+  viewport; CI is green.
+- **How to test.** `cargo test -p slime-render -p slime-world-render -p slime-editor`;
+  `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
+- **By hand.** Picking in the zone on niri, Hyprland and X11 through XWayland.
+- **Debt settled.** The scene's depth resolved
   ([ADR-0129](adr/0129-drawing-for-the-editor.md)); the outline; the two modes of debugging.
 
 ### M6c.3 — Move and place
@@ -995,7 +1018,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   mouse, so that an agent picks through the MCP server's `pick` tool, not by clicking.
 - **What a client draws into a view is lines and instances in the scene, and lines over the image**
   ([ADR-0129](adr/0129-drawing-for-the-editor.md)). The scene's depth resolved for an outline comes
-  with M6c.2, and instances over the image, which need a depth of their own, with M6c.3's handles.
+  with M6c.2b, and instances over the image, which need a depth of their own, with M6c.3's handles.
   A line that lies on a surface may be hidden by it in places; blended surfaces are drawn in no
   particular order until Stage 9a sorts them. The `world` example selects with Tab from the
   keyboard alone: scripted keys reach a game's input, which its simulation reads, not its
@@ -1206,7 +1229,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   `PASSES_PER_SUBMISSION` in `crates/slime-render/src/graph.rs`, with the window filled to
   several levels, by the desktop's programs or by a program that allocates device-local,
   host-visible memory (on Linux, `mem_info_vis_vram_used` in the GPU's sysfs directory tells how
-  full it is). M6c.2 measures it so, the bloom on and off, since the editor's viewports meet the
+  full it is). M6c.2a measures it so, the bloom on and off, since the editor's viewports meet the
   stall ([ADR-0155](adr/0155-the-editors-design.md)).
 - **The render graph trusts what a pass says it samples from imported targets** (ADR-0041). The
   groups that sample transient targets are built from the declarations, but the scene pass's group
@@ -1235,14 +1258,14 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A view's new size waits for its next frame after `RESIZE_DELAY`**
   ([ADR-0127](adr/0127-the-settings-of-a-view.md)): a view drawn only when something changes, as an
   editor's viewport may be, keeps its image stretched until it is drawn again `RESIZE_DELAY` after
-  its size last changed. The editor's viewports draw again then, from M6c.2
+  its size last changed. The editor's viewports draw again then, from M6c.2a
   ([ADR-0155](adr/0155-the-editors-design.md)).
 - **A render scale reads the scene's light bilinearly**
   ([ADR-0127](adr/0127-the-settings-of-a-view.md)): below 1 the image is blurred, and between 1 and
   2 each pixel averages the four texels nearest its centre, missing others. Stage 9a's temporal
   upscaling is the sharper way; a pass of a sharper filter was rejected.
 - **Two modes of debugging** ([ADR-0127](adr/0127-the-settings-of-a-view.md)): the normals and the
-  shadows. M6c.2 adds base color and light alone, and a wireframe of the selection; a wireframe of
+  shadows. M6c.2b adds base color and light alone, and a wireframe of the selection; a wireframe of
   the whole scene waits until `PolygonMode::Line` is measured against lines along a mesh's edges,
   which M6a.10a's drawings give a client to draw ([ADR-0155](adr/0155-the-editors-design.md)).
 - **Tiny, very bright sources blink in the bloom** (ADR-0040). Without a firefly filter (Karis's
