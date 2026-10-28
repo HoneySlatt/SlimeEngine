@@ -343,6 +343,21 @@ impl Ui {
         self.clipboard.is_some()
     }
 
+    /// The text that the interface's clipboard holds, for a program that copies and pastes without
+    /// a field, as an editor copies what is selected
+    /// (`docs/adr/0162-creating-copying-and-arranging.md`); none without a clipboard, or when it
+    /// holds no text.
+    pub fn clipboard_text(&mut self) -> Option<String> {
+        self.clipboard.as_mut()?.text()
+    }
+
+    /// Puts `text` on the interface's clipboard, in place of what it held; nothing without one.
+    pub fn set_clipboard_text(&mut self, text: &str) {
+        if let Some(clipboard) = &mut self.clipboard {
+            clipboard.set_text(text);
+        }
+    }
+
     /// The text that the field `id` holds now, as the user left it, the text that an input
     /// method composes included; none for an element that is no field.
     pub fn field_text(&self, id: ElementId) -> Option<&str> {

@@ -219,6 +219,10 @@ fn text_is_copied_cut_and_pasted_through_the_clipboard() {
     chord(&mut ui, control(), &typed("a"));
     chord(&mut ui, control(), &typed("v"));
     assert_eq!(ui.field_text(field), Some("one two"));
+    // The program reads and writes the same clipboard.
+    assert_eq!(ui.clipboard_text().as_deref(), Some("one\ntwo"));
+    ui.set_clipboard_text("from the program");
+    assert_eq!(board.0.lock().unwrap().as_deref(), Some("from the program"));
 }
 
 #[test]

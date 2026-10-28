@@ -58,7 +58,8 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   `DocumentError`.
 - A field (`Element::text_field`, `Element::text_area`, `Element::number_field`) keeps what the
   user types, selects with the keys and the pointer, undoes, copies and pastes through the clipboard
-  that the program gives (`tree::Clipboard`, `Ui::set_clipboard`), and composes through an input
+  that the program gives (`tree::Clipboard`, `Ui::set_clipboard`), which the program reads and
+  writes too (`Ui::clipboard_text`, `Ui::set_clipboard_text`), and composes through an input
   method (`Ui::ime`); its text is laid out as a label's, parley moving its selection. The program
   reads it as actions, changed and committed (`action::FieldValue`), and the window asks it for
   the pointer's shape and where text is typed (`Ui::cursor`, `Ui::text_input`). The input calls
