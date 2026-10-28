@@ -28,7 +28,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   decisions on the editor's design, its milestones and their order, which ADR-0155 records. M6c.0
   is done, and M6c.1 was split in two at its start, M6c.1a and M6c.1b, both done; M6c.2 was split in
   two at its start too, of which M6c.2a is done, and M6c.2b in two again at its start, M6c.2b and
-  M6c.2c; next: M6c.2b.
+  M6c.2c, of which M6c.2b is done; next: M6c.2c.
 
 ## Status
 
@@ -38,7 +38,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.1a](#m6c1a--the-window-and-its-operations) | The editor opens a level in a window of its own, where a person and an agent run the same named operations | Done |
 | [M6c.1b](#m6c1b--dialogs-the-cursor-held-and-the-gpus-identity) | A person opens a level through the system's dialog, a viewport can hold the cursor and read the mouse's raw motion, and a GPU object cannot act on another `Gpu`'s | Done |
 | [M6c.2a](#m6c2a--the-viewport-and-its-navigation) | The level shows in a viewport that the user flies through, drawn again only when what it shows changed | Done |
-| [M6c.2b](#m6c2b--picking-and-the-selection) | The user picks in the viewport and sees what is selected outlined | Planned |
+| [M6c.2b](#m6c2b--picking-and-the-selection) | The user picks in the viewport and sees what is selected outlined | Done |
 | [M6c.2c](#m6c2c--a-second-viewport-and-blenders-way) | A second viewport shows the level, and Blender's way is a preset of the keys and the mouse's buttons | Planned |
 | [M6c.3](#m6c3--move-and-place) | The user moves, turns, scales, creates and deletes, each gesture a single step of the history | Planned |
 | [M6c.4](#m6c4--play-it) | Play runs the level being edited in the game, steps not written included, and the editor's edits reach the running game | Planned |
@@ -426,12 +426,47 @@ at its start, the same day, the second viewport and Blender's way in a third
   moved to M6c.2c at its start ([ADR-0159](adr/0159-picking-and-the-selection.md)).
 - **Done when.** Image tests on lavapipe of the outline and its hidden part; an agent picks in a
   viewport; CI is green.
-- **How to test.** `cargo test -p slime-render -p slime-world-render -p slime-editor`;
+- **How to test.** `cargo test -p slime-gfx -p slime-render -p slime-world-render -p slime-editor`;
   `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
 - **By hand.** Picking in the zone on niri, Hyprland and X11 through XWayland; Alt and a click
   with a mouse of a fine resolution, which must not read it as an orbit.
 - **Debt settled.** The scene's depth resolved
   ([ADR-0129](adr/0129-drawing-for-the-editor.md)); the outline; the two modes of debugging.
+- **Outcome.** Done on 2026-10-28, as [ADR-0159](adr/0159-picking-and-the-selection.md) records,
+  cut in two at its start: the second viewport and Blender's way moved to M6c.2c. In the editor's
+  viewport, a click selects the outermost placement of what is drawn there, a click again a level
+  deeper towards it, a drag draws a marquee that selects what it holds, Shift adds, and Alt and a
+  click, let go before the mouse moved, go through what lies behind by the CPU's ray
+  (`Picker::cast_through`); the icons of the lights are picked as their lights. What is selected
+  is outlined, dimmed where something in front hides it, an entity that draws nothing shown as the
+  box that its transform places; the View menu shows the scene lit, its base color, its light
+  alone, its normals or its shadows, and the wireframe of the selection, by operations that agents
+  run too; tools pick in the viewport by its name. In the engine: `Drawings::outline`, three passes
+  that run only when a view outlines something, the scene's depth resolved into its farthest
+  sample, a mask culled as the scene is, and the outline over the image; `DebugMode::BaseColor` and
+  `DebugMode::Light`; a multisampled depth target read sample by sample
+  (`BindingType::MultisampledDepthTexture`). The review found five faults, each fixed: a click's
+  selection that waited for the next event to show; two pickings asked before one frame, the
+  second never drawn and the editor drawing frames without end; the back of a single-sided surface
+  outlined; clicks made without a viewport answered later against another image; and an outline a
+  pixel and a half wide for a width of two; and gaps in the tests and the documentation, filled.
+  The tests: the outline, its hidden part, its width at another render scale, a client's
+  instances and a lit surface whose back is culled (`crates/slime-render/tests/outline.rs`); the
+  two modes (`tests/settings.rs`); a multisampled depth read sample by sample (`slime-gfx`'s
+  `tests/multisampling.rs`); casting through the sample (`examples/tests/world.rs`); the rules of
+  picking, the left button's gestures, the View menu, the pickings that a viewport draws and the
+  box of what draws nothing (`slime-editor`'s unit tests, the last on the GPU); the editor's window
+  with the sample's pillar selected, outlined and dimmed behind the wall, in an image test
+  (`examples/tests/reference/editor-selected.png`); and an agent's session that picks the lamp
+  framed in the viewport and shows its base color by name
+  (`crates/slime-mcp/tests/edit_window.rs`). What nothing checks yet: picking by hand on niri,
+  Hyprland and X11 through XWayland, Alt and a click with a mouse of a fine resolution, the outline
+  on Direct3D 12 by hand in the Windows virtual machine, and its cost at 3840 × 2160 with many
+  entities selected (known debt, with the others that the review listed: picking's costs, a
+  terrain's wireframe rebuilt at each frame that draws, every multisampled depth target readable).
+  CI is green on `00766ea`: `check (headless)` took 16 minutes 21 seconds, `check (windowed)` 5
+  minutes 17 seconds, `check (game)` 4 minutes 12 seconds, `windows` 17 minutes 30 seconds and
+  `windows-release` 14 minutes 36 seconds.
 
 #### M6c.2c — A second viewport and Blender's way
 
