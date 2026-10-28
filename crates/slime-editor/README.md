@@ -92,7 +92,8 @@ with Stage 6c's next milestones.
   (`docs/adr/0165-editing-while-playing.md`). Play builds the game with cargo as `Program::build`
   says, as it starts it and again as its code changes while it plays, the game then starting again
   on a save of its run (`Played::resume`), a build that fails told
-  (`docs/adr/0166-building-the-game-again.md`).
+  (`docs/adr/0166-building-the-game-again.md`); the editor's log says how long the game took to
+  give control, its time no longer held, which `slime-benches`' `play` benchmarks read.
   Options: `--level`, `--assets`, `--journal`, `--discard`, `--headless`; `run`'s documentation
   says how a journal is chosen and recovered.
 - `window_image(&Program, arguments, operations, selection, scale)`: the window drawn into an image

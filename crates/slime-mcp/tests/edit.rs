@@ -383,6 +383,7 @@ fn main() {
     };
     played(&mut session, "Play: the game runs");
     played(&mut session, "INFO game:");
+    played(&mut session, "Play: the game gave control");
     // The game's tools drive the game that the editor plays, the editor's the editor still: a step
     // made meanwhile reaches the game, a value set reaches the game alone; then the editor again
     // (`docs/adr/0165-editing-while-playing.md`).

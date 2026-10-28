@@ -988,7 +988,10 @@ cooked files, the user's files left alone; paused, stepped and stopped from a to
 console ([ADR-0164](adr/0164-play.md)). The steps made while it runs are sent to the game as the
 texts of the commands that they applied ([ADR-0165](adr/0165-editing-while-playing.md)). Play
 builds the game with cargo as it starts it, and again as its code changes while it runs, the game
-then starting again on a save of its run ([ADR-0166](adr/0166-building-the-game-again.md)).
+then starting again on a save of its run ([ADR-0166](adr/0166-building-the-game-again.md)). Its
+*time to control* runs from the request to play to the first state of the game whose time it no
+longer holds, which [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md) bounds on the game's
+largest level.
 
 **Pivot (handles).** The point about which the editor's *handles* stand, turn and scale: the middle
 of the origins of the outermost entities selected, those without an ancestor in the selection

@@ -1225,3 +1225,38 @@ reason to keep 4 holds no longer on this machine. The owner chose 16 on 2026-10-
 ([ADR-0158](adr/0158-the-viewport.md)), which the benchmarks measure from M6c.2a's commits on. The
 viewport draws only when what it shows changes, which hides most of it: flying draws it at every
 frame, at some 4 to 5 ms of CPU here.
+
+## M6c.4d, RX 6900 XT
+
+On 2026-10-28, from the commits of M6c.4d: Play's time to control, from the request to play to the
+first state of the game whose time it no longer holds, which Play measures and the editor's log
+says, as `cargo run [--release] -p slime-benches -- play.zone play.level.100k` reads it from an
+editor run without its window (`benches/README.md`): five runs after a first, which builds the game
+and fills the system's caches. Of each time, the editor took a part writing the level, before Play's
+thread starts, and cargo a part finding nothing to build. *Hunna Wood*'s zone is played in a window
+on the owner's compositor, drawn by the RX 6900 XT; the level of 100 000 entities by the `world`
+example, without a window. Release builds the editor and the game in release, debug in the default
+profile. Two runs of the benchmarks, on the owner's desktop, gave medians apart by up to 0.4 s on
+the level of 100 000 entities in release and 1.4 s in debug; the table holds the last of each.
+
+| Measure | Release | Debug |
+|---|---|---|
+| Play on the zone, to control, median of 5 | 0.60 s | 1.15 s |
+| Play on the zone, to control, 90th percentile of 5 | 0.94 s | 1.26 s |
+| of it, the editor writing the zone, median of 5 | 0.004 s | 0.018 s |
+| of it, cargo finding nothing to build, median of 5 | 0.16 s | 0.14 s |
+| Play on a level of 100 000 entities, to control, median of 5 | 1.95 s | 7.61 s |
+| Play on a level of 100 000 entities, to control, 90th percentile of 5 | 2.22 s | 9.35 s |
+| of it, the editor writing the level, median of 5 | 0.60 s | 2.68 s |
+| of it, cargo finding nothing to build, median of 5 | 0.20 s | 0.24 s |
+
+What it says: on the game's largest level, the zone, Play gives control well within the budget of
+[ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md), in either build, so that the game stays a
+process of its own. The level of 100 000 entities is within it in release, and far over it in
+debug: the editor writing the level takes a third of the time, and the game's start, reading the
+level and spawning it without optimizations, most of the rest. That level is the examples' yard with
+100 000 entities more, a name for each of their 1 000 parents and a parent for each of the others,
+none drawn: entities with a transform each would not fit one scene file, which holds at most
+`slime_serialize::MAX_VALUES` values. In a headless Weston, the machine's Vulkan driver refuses the
+window's surface, and the game draws with llvmpipe: Play on the zone took 8.6 s there, which
+measures the CPU's drawing, not Play.

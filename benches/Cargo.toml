@@ -15,6 +15,8 @@ workspace = true
 slime-app.workspace = true
 slime-assets.workspace = true
 slime-color.workspace = true
+# Starts an editor's program and asks it to play, for Play's time to control (ADR-0166).
+slime-channel.workspace = true
 # Cooks the examples' sample, whose meshes the world's benchmarks place.
 slime-cook.workspace = true
 slime-gfx.workspace = true

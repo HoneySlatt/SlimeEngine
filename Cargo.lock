@@ -2987,6 +2987,7 @@ version = "0.6.0"
 dependencies = [
  "slime-app",
  "slime-assets",
+ "slime-channel",
  "slime-color",
  "slime-cook",
  "slime-devui",

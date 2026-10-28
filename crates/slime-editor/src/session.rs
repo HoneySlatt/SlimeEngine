@@ -785,6 +785,8 @@ impl Session {
     /// ([`Editor::text`]), and when Play's directory cannot be made or written, which is removed
     /// then.
     fn play(&mut self, world: &mut World) -> Result<Reply, AppError> {
+        // What the time to control counts from.
+        let asked = std::time::Instant::now();
         if self.player.is_some() {
             return Err("a game plays already: it stops first".into());
         }
@@ -818,6 +820,7 @@ impl Session {
             assets: self.options.assets.clone(),
             headless: self.options.headless,
             build: self.program.build.clone(),
+            asked,
         };
         self.player = Some(Player::start(game, directory, waker));
         // What the steps made from now on apply, sent to the game once it runs.
@@ -965,6 +968,30 @@ impl Session {
                         speed: 1.0,
                     };
                     self.send_applied();
+                }
+                Event::Controlled {
+                    after,
+                    writing,
+                    building,
+                    again,
+                } => {
+                    let (after, writing, building) = (
+                        after.as_secs_f64(),
+                        writing.as_secs_f64(),
+                        building.as_secs_f64(),
+                    );
+                    if again {
+                        tracing::info!(
+                            "Play: the game built again gave control {after:.3} s after its build, \
+                             which took {building:.3} s"
+                        );
+                    } else {
+                        tracing::info!(
+                            "Play: the game gave control {after:.3} s after Play was asked, \
+                             {writing:.3} s of it writing the level and {building:.3} s building \
+                             the game"
+                        );
+                    }
                 }
                 Event::Time { paused, speed } => {
                     self.shared.borrow_mut().play = Playing::Running { paused, speed };

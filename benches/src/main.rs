@@ -13,6 +13,7 @@
 mod devui;
 mod loading;
 mod measure;
+mod play;
 mod render;
 mod ui;
 mod world;
@@ -172,6 +173,20 @@ const BENCHMARKS: &[Benchmark] = &[
                 each, loaded while frames are drawn",
         on_request: true,
         run: loading::zone,
+    },
+    Benchmark {
+        name: "play.zone",
+        about: "Play's time to control on Hunna Wood's zone, cooked in target/cooked/hunnawood, from \
+                its editor built beside this program, in a window",
+        on_request: true,
+        run: play::zone,
+    },
+    Benchmark {
+        name: "play.level.100k",
+        about: "Play's time to control on the examples' yard with 100 000 entities more, from the \
+                `editor` example built beside this program, without a window",
+        on_request: true,
+        run: play::level,
     },
 ];
 

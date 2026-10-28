@@ -10,6 +10,7 @@ their public API.
 cargo run --release -p slime-benches                   # every benchmark not run only on request
 cargo run --release -p slime-benches -- world loading  # those whose names start so
 cargo run --release -p slime-benches -- loading.zone   # one run only on request, named whole
+cargo run --release -p slime-benches -- play.zone      # Play's time to control, in a window
 cargo run --release -p slime-benches -- --list         # every name, and what it measures
 VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo run --release -p slime-benches   # on lavapipe
 scripts/measure.sh "<title>" >> docs/measurements.md   # with the build's figures, as a milestone does
@@ -55,6 +56,8 @@ it is their whole name.
 | `loading.batch` | A load of meshes started, on the calling thread, with a manifest of 10 000, then 100 000 assets | G25, B4-F03 |
 | `loading.textures` | 16 squares, each drawn with a material of its own whose base color is a texture of 4096 × 4096 texels in BC7, every level of detail with it, 341 MiB in all, written once into `target/benches/textures` without the cooker, loaded and drawn as `loading.zone` is: the case of the audit's B4-F01 | B4-F01 |
 | `loading.zone` | The meshes of *Hunna Wood*'s zone, cooked in `target/cooked/hunnawood`, each placed once on a grid and drawn by day, under a sun that casts shadows, at 1280 × 720, while they load with their materials and textures, then once loaded, each frame waited for on the GPU, after frames that made the renderer's targets, its shadows' atlas and the sky, so that a load is not mixed with what a first frame costs: the time from the opening of the cooked zone until a frame draws them whole, the render CPU during the load and after, and the longest frame during the load, built, drawn and waited for. The zone's bytes, not its scene, whose components only the game registers. On request only, since it needs the zone fetched and cooked, as [*Hunna Wood*'s README](../games/hunnawood/README.md) says | B4-F01, B1-F06 |
+| `play.zone` | Play's time to control on *Hunna Wood*'s zone: `hunnawood-editor`, built beside this program, started without its window on a copy of the zone, with a journal, data and state of the run's own, plays it five times after a first, which builds the game and fills the system's caches; for each, the time from the request to play to the first state of the game whose time it no longer holds, which Play measures and the editor's log says, and its parts that the editor took writing the level and cargo finding nothing to build. *Hunna Wood* runs in a window only: run it where a compositor draws with the GPU, as a desktop's, not in a headless Weston, where the machine's Vulkan driver refuses the window's surface and the game draws with llvmpipe. The editor's log is kept in `target/benches/play-zone/editor.log`. On request only, since it needs the zone cooked, its editor built and a compositor | [ADR-0110](../docs/adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0166](../docs/adr/0166-building-the-game-again.md) |
+| `play.level.100k` | The same with the `editor` example on the examples' yard with 100 000 entities more, a name for each of their 1 000 parents and a parent for each of the others, none drawn, written into `target/benches/play-level`, which the `world` example plays without a window: entities with a transform each would not fit one scene file (`slime_serialize::MAX_VALUES`). On request only, since it needs the example built | [ADR-0110](../docs/adr/0110-how-the-editor-runs-a-games-code.md), [ADR-0166](../docs/adr/0166-building-the-game-again.md) |
 
 The last column names the findings of the audit of 0.4, described in `docs/PLAN.md` until 0.5
 (`git show v0.5.0:docs/PLAN.md`), or the decision, whose changes the benchmark measures before and
@@ -73,6 +76,11 @@ after.
   ([ADR-0132](../docs/adr/0132-the-engines-ui-framework.md)), with fonts named rather than found by
   the system's fallback, as the engine lays text out: a figure within 20 % of the study's, or
   under it, is as the study found.
+- The `play` benchmarks start the editor's program of the build that they run in, beside them, which
+  plays the game built in the same profile: `cargo run -p slime-benches -- play.zone` measures a
+  debug build, the one that a developer plays most. Their medians compare with the time within which
+  [ADR-0110](../docs/adr/0110-how-the-editor-runs-a-games-code.md) asks that Play give control on
+  the game's largest level.
 - `ui.tree.list.100k`'s 90th percentile compares with the budget of a list's frame that
   [ADR-0140](../docs/adr/0140-the-tree-of-elements.md) sets on the development machine, an AMD
   Ryzen 7 5800X: scrolled by 7 pixels a frame over rows of 20, one frame in three builds rows,

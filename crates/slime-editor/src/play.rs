@@ -31,6 +31,11 @@ pub(crate) const STOP_TIMEOUT: Duration = Duration::from_secs(10);
 /// is asked.
 const POLL: Duration = Duration::from_millis(200);
 
+/// How long the thread waits for a control between two questions of how the game's time stands,
+/// while it measures the time to control: the game answering at the start of its frames, it asks
+/// once a frame.
+const MEASURE: Duration = Duration::from_millis(5);
+
 /// How often the thread looks whether the game's sources changed, while the game runs.
 const WATCH: Duration = Duration::from_secs(1);
 
@@ -70,6 +75,17 @@ pub(crate) enum Event {
     Restarting { unsaved: Option<String> },
     /// The game listens, and answers: where, and its token, which a tool connects to it with.
     Started { address: String, token: String },
+    /// The game gave control, its game time no longer held, as when its zone loaded and drew, for
+    /// the first time since it started, as the thread found it, to within a frame of the game's:
+    /// `after` Play was asked, `writing` of it the editor writing the level and `building` cargo
+    /// building the game; or `again`, `after` its build again ended, as the thread found it ended,
+    /// to within [`POLL`], `building` before it (`docs/adr/0166-building-the-game-again.md`).
+    Controlled {
+        after: Duration,
+        writing: Duration,
+        building: Duration,
+        again: bool,
+    },
     /// Game time as the game says it stands, after a control and once another tool changed it:
     /// paused or not, and its speed.
     Time { paused: bool, speed: f64 },
@@ -92,6 +108,9 @@ pub(crate) struct Game {
     pub(crate) headless: bool,
     /// How cargo builds the game, [`Program::build`](crate::Program::build).
     pub(crate) build: Option<Build>,
+    /// When Play was asked, before the editor wrote the level: what the time to control counts
+    /// from; the thread starts once the level is written.
+    pub(crate) asked: Instant,
 }
 
 /// The game's process, once it said where it listens, which a stop kills when it does not end in
@@ -211,6 +230,8 @@ fn drive(
     // The controls asked while the game builds or starts, but a stop, kept for the drive: a step
     // sent while the game built again starts again reaches the new game.
     let pending = RefCell::new(VecDeque::new());
+    // The level written, as the thread starts.
+    let thread_started = Instant::now();
     // A stop asked, or the editor gone, while the game builds or starts gives it up.
     let stopped = || {
         loop {
@@ -221,8 +242,9 @@ fn drive(
             }
         }
     };
-    // The program that cargo built, and its sources, which the thread watches.
+    // The program that cargo built, when, and its sources, which the thread watches.
     let mut built = None;
+    let mut built_at = None;
     let mut sources = None;
     if let Some(build) = &game.build {
         tell(Event::Building);
@@ -257,6 +279,7 @@ fn drive(
                 tell(Event::Built);
                 sources = Some(Sources::of(&program, cargo.since));
                 built = Some(program);
+                built_at = Some(Instant::now());
             }
             Err(lines) => {
                 tell(Event::BuildFailed(lines));
@@ -288,6 +311,16 @@ fn drive(
             return;
         }
     };
+    // The time to control under measure: since when, its parts writing the level and building the
+    // game, and whether the game was built again.
+    let mut measuring = Some((
+        game.asked,
+        thread_started.duration_since(game.asked),
+        built_at
+            .unwrap_or(thread_started)
+            .duration_since(thread_started),
+        false,
+    ));
     // Game time as last told: running at its speed, as the game starts.
     let mut time = (false, 1.0);
     // The build under way, and when the sources were last looked at.
@@ -295,7 +328,9 @@ fn drive(
     let mut looked = Instant::now();
     loop {
         let waiting = pending.borrow_mut().pop_front();
-        let control = match waiting.map_or_else(|| asked.recv_timeout(POLL), Ok) {
+        // While the time to control is measured, the game is asked how its time stands often.
+        let poll = if measuring.is_some() { MEASURE } else { POLL };
+        let control = match waiting.map_or_else(|| asked.recv_timeout(poll), Ok) {
             Ok(control) => Some(control),
             Err(RecvTimeoutError::Timeout) => None,
             // The build under way, dropped, is stopped.
@@ -335,9 +370,11 @@ fn drive(
         // The build under way, once it ended: a program other than the one that runs starts again
         // on a save of the run; a build that failed leaves the game playing.
         if let Some(outcome) = cargo.as_mut().and_then(Cargo::finished) {
-            let since = cargo
-                .take()
-                .map_or_else(SystemTime::now, |cargo| cargo.since);
+            let ended = Instant::now();
+            let (since, building) = cargo.take().map_or_else(
+                || (SystemTime::now(), Duration::ZERO),
+                |cargo| (cargo.since, ended.duration_since(cargo.started)),
+            );
             match outcome {
                 Ok(program) => {
                     tell(Event::Built);
@@ -382,6 +419,7 @@ fn drive(
                                 return;
                             }
                         };
+                        measuring = Some((ended, Duration::ZERO, building, true));
                         // Game time as it stood, which the new game is told, and the toolbar
                         // once the game answers how it stands.
                         if time.0 {
@@ -421,14 +459,26 @@ fn drive(
         }
         // Game time as the game says it stands: after a control, which the game may have
         // refused, and as another tool changes it.
-        if let Ok((Reply::State { state }, _)) = client.request(&Request::State)
-            && (control.is_some() || time != (state.paused, state.speed))
-        {
-            time = (state.paused, state.speed);
-            tell(Event::Time {
-                paused: state.paused,
-                speed: state.speed,
-            });
+        if let Ok((Reply::State { state }, _)) = client.request(&Request::State) {
+            if control.is_some() || time != (state.paused, state.speed) {
+                time = (state.paused, state.speed);
+                tell(Event::Time {
+                    paused: state.paused,
+                    speed: state.speed,
+                });
+            }
+            // The first state whose time the game no longer holds gives control, whether the
+            // user paused it or not.
+            if !state.held
+                && let Some((since, writing, building, again)) = measuring.take()
+            {
+                tell(Event::Controlled {
+                    after: since.elapsed(),
+                    writing,
+                    building,
+                    again,
+                });
+            }
         }
         if let Some(status) = status(process) {
             tell(Event::Ended {
@@ -634,6 +684,8 @@ struct Cargo {
     child: Child,
     /// When it started: a source changed since, while it built, is built again.
     since: SystemTime,
+    /// When it started, as the time that it builds is counted.
+    started: Instant,
     /// The program that its messages say it built.
     program: Option<JoinHandle<Option<PathBuf>>>,
     /// The lines that it writes on its standard error, its errors among them.
@@ -663,7 +715,7 @@ impl Cargo {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         no_console(&mut command);
-        let since = SystemTime::now();
+        let (since, started) = (SystemTime::now(), Instant::now());
         let mut child = command.spawn()?;
         let stdout = child.stdout.take().map(BufReader::new);
         let stderr = child.stderr.take().map(BufReader::new);
@@ -682,6 +734,7 @@ impl Cargo {
         Ok(Self {
             child,
             since,
+            started,
             program: Some(program),
             errors: Some(errors),
         })

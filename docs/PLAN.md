@@ -1762,6 +1762,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   goes with Play's directory; cargo stopped during a build leaves its compilers to finish the crate
   under way; on Windows, that the copy that runs leaves the build free to replace the program, and
   that cargo and the game open no console window, are not checked yet.
+- **Play's time to control** ([`docs/measurements.md`](measurements.md), M6c.4d): a level of
+  100 000 entities gives control far over ADR-0110's budget in a debug build, the editor writing
+  the level and the game reading and spawning it without optimizations; such a level fits one scene
+  file only with entities that hold little (`slime_serialize::MAX_VALUES`), which levels of several
+  files, M6c.6, are to settle. Play asks the game how its time stands at each of its frames until
+  it gives control, which a game that holds its time long, as behind a menu, pays for meanwhile.
 - **Editing while playing** ([ADR-0165](adr/0165-editing-while-playing.md)): an undone deletion
   does not reach the game, which plays on without what it restored until Play starts it again; a
   step that the game refuses stays applied in the game up to the command refused; a step that

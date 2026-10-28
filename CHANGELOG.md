@@ -103,6 +103,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   the copy, and a placement's overrides, nested ones included, are kept. Blender's way binds
   Shift+D, X and Shift+A. Agents run them by name, `edit.create`, `edit.duplicate`, `edit.copy`,
   `edit.paste`, `edit.delete`, `edit.group`, `edit.repeat` and `edit.nudge_*`.
+- Play's time to control: the editor's log says how long the game took, from the request to play,
+  to give control, its time no longer held, and of it how long the editor took to write the level
+  and cargo to build the game;
+  the benchmarks `play.zone` and `play.level.100k`, on request, read it from an editor run without
+  its window, on *Hunna Wood*'s zone and on the examples' yard with 100 000 entities more
+  (`docs/measurements.md`).
 - Building the game again (ADR-0166): Play builds the game with cargo as it starts it, as
   `Program::build` (`Build`) says, in the editor's profile, and again as its code changes while it
   plays, the game playing on meanwhile; a new build starts again on a save of the run, which the
