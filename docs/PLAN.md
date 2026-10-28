@@ -332,13 +332,13 @@ dialogs, the cursor held and the GPU's identity.
   a lost device used with its replacement, panicking (`crates/slime-gfx/tests`). What nothing
   checks yet: the dialog on a desktop, the cursor held and the raw motion, which the owner checks by
   hand on niri, Hyprland, X11 through XWayland and in the Windows virtual machine. A path mistyped
-  in the layer closes it before `file.open` refuses it, which a notification says. CI's first run found
-  the screen readers' check broken on its Ubuntu runner, where AT-SPI's bus launcher, its path
+  in the layer closes it before `file.open` refuses it, which a notification says. CI's first run
+  found the screen readers' check broken on its Ubuntu runner, where AT-SPI's bus launcher, its path
   putting `/usr/bin` first, started the system's D-Bus daemon with the development shell's D-Bus
-  library, which it cannot load: its services now run without the shell's library path
-  (`49620a2`). CI is green on `49620a2`: `check (headless)` took 14 minutes 3 seconds,
-  `check (windowed)` 5 minutes 56 seconds, `check (game)` 6 minutes 41 seconds, `windows` 14 minutes
-  40 seconds and `windows-release` 13 minutes 32 seconds.
+  library, which it cannot load: its services now run without the shell's library path (`49620a2`).
+  CI is green on `49620a2`: `check (headless)` took 14 minutes 3 seconds, `check (windowed)` 5
+  minutes 56 seconds, `check (game)` 6 minutes 41 seconds, `windows` 14 minutes 40 seconds and
+  `windows-release` 13 minutes 32 seconds.
 
 ### M6c.2 — The viewport
 
