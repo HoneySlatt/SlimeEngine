@@ -20,6 +20,11 @@ style.icons = { font = "lucide", tick = "\uE06C", down = "\uE06D", right = "\uE0
 select = { classes = ["window"] }
 style.paint.background = "$background"
 
+# What lies below a modal layer, which takes no input while it is open, dimmed.
+[modal]
+select = { classes = ["modal"] }
+style.paint.backdrop = "$scrim"
+
 [bar]
 select = { classes = ["bar"] }
 style.paint.background = "$bar"

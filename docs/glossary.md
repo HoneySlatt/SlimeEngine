@@ -65,6 +65,11 @@ scene. Each comes from a *source asset* and reaches the game as *cooked data*
 naming the entity and the bone; saves and scene files hold it as any reference
 ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)). Decided, not built yet.
 
+**Backdrop (interface).** The fill that a *layer*'s root lays over the whole window below it,
+behind its own box: a modal layer's, which the editor's look gives its theme's scrim, dims what takes
+no input while it is open (`PaintStyle::backdrop`,
+[ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md)).
+
 **Base (save).** What a *world* held when the game *settled* it, which its *saves* compare it
 with: the world keeps a copy of each value at its first change after its entity was settled, and
 the identity of each entity settled that the run destroys, so that a save costs what changed

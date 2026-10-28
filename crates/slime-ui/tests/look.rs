@@ -2,9 +2,10 @@
 //! `docs/adr/0149-the-looks-foundations.md`): its fonts registered under their families, which hold
 //! the writing systems that it promises, at the weights that it asks of their variable fonts, their
 //! digits of one width; its style sheet and stacked themes, which style each kind of element, its
-//! states and its classes, in each theme of colors and density, a project's accent followed by what
-//! the look computes from it; Lucide's icons, by name, and the controls' ticks and chevrons drawn
-//! from them. Built with the feature `editor-look` alone.
+//! states and its classes, and dim what lies below a modal layer, in each theme of colors and
+//! density, a project's accent followed by what the look computes from it; Lucide's icons, by name,
+//! and the controls' ticks and chevrons drawn from them. Built with the feature `editor-look`
+//! alone.
 
 use slime_color::{LinearColor, Oklch};
 use slime_ui::display::Primitive;
@@ -311,4 +312,47 @@ fn the_look_styles_what_opens_over_a_panel() {
     assert_eq!(style(3).layout.max_size[0], Dimension::Pixels(280.0));
     assert!(style(4).paint.shadow.is_some());
     assert_ne!(style(5).paint.background, style(0).paint.background);
+}
+
+#[test]
+fn a_modal_layer_dims_the_window_below_it_and_another_does_not() {
+    use slime_ui::Rect;
+    use slime_ui::tree::{Layer, Place};
+    let themes = look::themes(Colors::Dark, Density::Comfortable);
+    let (mut ui, ids) = styled(&themes, vec![Element::button("Open", Style::default())]);
+    // The boxes that cover the whole window of 800 by 600, with the layer of `modal` open.
+    let mut covering = |modal: bool| {
+        let place = Place::Floating {
+            over: ids[0],
+            origin: [200.0, 150.0],
+            size: [300.0, 200.0],
+        };
+        let layer = ui.open_layer(
+            "layer",
+            Layer {
+                place,
+                modal,
+                dismiss: true,
+            },
+            Style::default(),
+        );
+        let (list, _) = ui.frame();
+        ui.remove(layer);
+        let window = Rect::new(0.0, 0.0, 800.0, 600.0);
+        list.items()
+            .iter()
+            .filter_map(|item| match &item.primitive {
+                Primitive::Box(primitive) if primitive.rect == window => Some(primitive.fill),
+                _ => None,
+            })
+            .collect::<Vec<LinearColor>>()
+    };
+    // The dark theme's scrim, black at three fifths: behind the layer, over the window.
+    let scrim = covering(true);
+    assert_eq!(scrim.len(), 1);
+    assert!(near(
+        scrim[0],
+        LinearColor::rgba(0.0, 0.0, 0.0, 0x99 as f32 / 255.0)
+    ));
+    assert!(covering(false).is_empty());
 }

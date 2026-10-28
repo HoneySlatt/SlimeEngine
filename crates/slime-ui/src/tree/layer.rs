@@ -78,7 +78,9 @@ pub struct Layer {
     /// Where it stands.
     pub place: Place,
     /// Whether it is modal: while it is open, the roots below it take no input, and the focus stays
-    /// among its elements, as a modal root's does.
+    /// among its elements, as a modal root's does. A modal layer's root is of the class `modal`,
+    /// which a style sheet gives a backdrop ([`PaintStyle::backdrop`](crate::style::PaintStyle::backdrop))
+    /// that dims what lies below it, as the editor's look does.
     pub modal: bool,
     /// Whether it closes as the user leaves it: a press outside it and outside the element that it
     /// stands beside, or Escape while the focus is in it, on that element or nowhere.
@@ -162,6 +164,10 @@ impl Ui {
             style,
         );
         if let Some(node) = self.node_mut(root) {
+            // What lies below a modal layer takes no input: a style sheet dims it.
+            if layer.modal {
+                node.element.classes.push("modal".to_owned());
+            }
             node.layer = Some(Box::new(Held {
                 layer,
                 owner: None,

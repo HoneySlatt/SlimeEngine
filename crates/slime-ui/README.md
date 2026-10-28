@@ -72,7 +72,9 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
 - Layers (`docs/adr/0150-layers.md`): roots over the others that the interface places
   (`Ui::open_layer`, `tree::Layer`, `tree::Place`), beside an element, at a point or floating, kept
   within the window, closed as the user leaves them, which the program reads
-  (`action::ActionKind::Dismissed`). Menus (`Element::menu`, `Element::menu_item`, `tree::ItemMark`)
+  (`action::ActionKind::Dismissed`); a modal layer's root, of the class `modal`, lays the backdrop
+  that its style gives (`style::PaintStyle::backdrop`) over the window below it, which the editor's
+  look dims (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`). Menus (`Element::menu`, `Element::menu_item`, `tree::ItemMark`)
   and a bar of menus (`Element::menu_bar`) that the keys move through, whose items' presses the
   program reads to open their submenus or do their commands; context menus that the pointer's second
   button and Shift+F10 ask for (`action::ActionKind::ContextMenu`); lists to choose from

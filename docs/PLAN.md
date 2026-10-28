@@ -1367,12 +1367,11 @@ GitHub issues, linked from their entry; this list stays the reference.
   closing it. A tooltip shows for the keys' focus alone, not the program's, and is not placed
   beside the pointer. A floating panel has a least size of its own, no docking, and does not keep
   its place against a window that shrinks, where it is placed within the window but keeps what the
-  user left. A modal layer draws no scrim behind it. A style sheet reads a theme's value in place of every value but a
-  text: the look names its icons by their codepoints in its sheet, not in a theme. The bar of menus
-  takes Alt let go alone whenever an interface holds one, which a game whose interface holds a bar
-  loses as a key of its own. M6c.1b draws a scrim behind a modal layer; M6c.8 docks floating
-  panels. Since M6c.1a, a root is named in paths by its key, not by its number among the roots,
-  which a raised floating layer changed.
+  user left. A style sheet reads a theme's value in place of every value but a text: the look names
+  its icons by their codepoints in its sheet, not in a theme. The bar of menus takes Alt let go
+  alone whenever an interface holds one, which a game whose interface holds a bar loses as a key of
+  its own. M6c.8 docks floating panels. Since M6c.1a, a root is named in paths by its key, not by
+  its number among the roots, which a raised floating layer changed.
 - **Rich fields** ([ADR-0151](adr/0151-rich-widgets.md)): a press on a focused field's prefix that
   does not drag places its caret at its start; a field's prefix and its unit's symbol are drawn
   whatever their width, cut by nothing; a bar of progress without a share that less motion stills

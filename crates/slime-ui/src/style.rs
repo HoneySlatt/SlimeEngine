@@ -333,6 +333,11 @@ pub struct PaintStyle {
     /// each of their primitives is multiplied by it, and by their ancestors', so that parts of a
     /// translucent element that overlap show through each other.
     pub opacity: f32,
+    /// The fill that a layer's root lays over the whole window below it, behind its own box: a
+    /// modal layer's scrim, which dims what takes no input while it is open
+    /// ([`Layer::modal`](crate::tree::Layer::modal)). Only a layer's root draws it, under its opacity;
+    /// transparent, the default, for none.
+    pub backdrop: LinearColor,
 }
 
 impl Default for PaintStyle {
@@ -344,6 +349,7 @@ impl Default for PaintStyle {
             radii: [0.0; 4],
             shadow: None,
             opacity: 1.0,
+            backdrop: LinearColor::rgba(0.0, 0.0, 0.0, 0.0),
         }
     }
 }

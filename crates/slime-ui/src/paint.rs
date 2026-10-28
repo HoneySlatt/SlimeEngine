@@ -205,8 +205,27 @@ fn box_primitives(
 
 /// Adds to `list` what `root` and the elements below it draw, each before its children, those not
 /// laid out left out; a box that scrolls and a list, their scroll bars after their children, over
-/// them.
+/// them; a layer's backdrop first, over the whole window.
 pub(crate) fn gather(ui: &Ui, root: ElementId, list: &mut DisplayList) {
+    // A layer's backdrop covers the window, whose size the layer takes, which changes without
+    // drawing the layer again: made at each gathering rather than kept.
+    if let Some(node) = ui.node(root)
+        && node.layer.is_some()
+        && node.style.layout.display != Display::None
+        && node.style.paint.backdrop.a > 0.0
+        && let Some(settings) = node.root
+    {
+        let [width, height] = settings.size.map(|length| length * settings.scale);
+        let backdrop = Primitive::Box(BoxPrimitive {
+            rect: Rect::new(0.0, 0.0, width, height),
+            radii: [0.0; 4],
+            fill: node.style.paint.backdrop,
+            border_width: 0.0,
+            border: node.style.paint.backdrop,
+        });
+        let opacity = node.style.paint.opacity.clamp(0.0, 1.0);
+        list.push(backdrop.snapped().faded(opacity), None);
+    }
     // An element entered, its own then its children's, or left, what it draws over them; with the
     // opacity of its ancestors and its own.
     let mut stack = vec![(root, true, 1.0_f32)];
