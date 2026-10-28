@@ -20,7 +20,7 @@ mod wake;
 mod windowed;
 
 pub use app::{AppConfig, run};
-pub use data::{HeldFile, data_directory, set_aside};
+pub use data::{HeldFile, data_directory, set_aside, state_directory};
 pub use diagnostics::{DEFAULT_LOG_FILTER, LOG_ENV_VAR, error_chain, init_diagnostics};
 pub use error::{AppError, RunError};
 pub use game::{PickAnswer, Presentation, Reflected, ShownView, Simulation};
