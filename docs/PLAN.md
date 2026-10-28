@@ -27,7 +27,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   starting points and measured in prototypes on the owner's machine, led to the owner's sixteen
   decisions on the editor's design, its milestones and their order, which ADR-0155 records. M6c.0
   is done, and M6c.1 was split in two at its start, M6c.1a and M6c.1b, both done; M6c.2 was split in
-  two at its start too; next: M6c.2a.
+  two at its start too, of which M6c.2a is done; next: M6c.2b.
 
 ## Status
 
@@ -36,7 +36,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.0](#m6c0--before-the-stage) | The development channel answers in milliseconds, CI's checks stay within their limit, and a game that a tool started never outlives it | Done |
 | [M6c.1a](#m6c1a--the-window-and-its-operations) | The editor opens a level in a window of its own, where a person and an agent run the same named operations | Done |
 | [M6c.1b](#m6c1b--dialogs-the-cursor-held-and-the-gpus-identity) | A person opens a level through the system's dialog, a viewport can hold the cursor and read the mouse's raw motion, and a GPU object cannot act on another `Gpu`'s | Done |
-| [M6c.2a](#m6c2a--the-viewport-and-its-navigation) | The level shows in a viewport that the user flies through, drawn again only when what it shows changed | Planned |
+| [M6c.2a](#m6c2a--the-viewport-and-its-navigation) | The level shows in a viewport that the user flies through, drawn again only when what it shows changed | Done |
 | [M6c.2b](#m6c2b--picking-and-the-selection) | The user picks in the viewport, the selection outlined, and a second viewport shows the level | Planned |
 | [M6c.3](#m6c3--move-and-place) | The user moves, turns, scales, creates and deletes, each gesture a single step of the history | Planned |
 | [M6c.4](#m6c4--play-it) | Play runs the level being edited in the game, steps not written included, and the editor's edits reach the running game | Planned |
@@ -374,6 +374,40 @@ the viewport and its navigation, then picking and the selection.
   `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
 - **By hand.** Flying and orbiting in the zone on niri, Hyprland and X11 through XWayland.
 - **Debt settled.** A view's new size waiting for its next frame.
+- **Outcome.** Done on 2026-10-28, as [ADR-0158](adr/0158-the-viewport.md) records. The editor's
+  window shows the level in its center through a surface, `slime-ui`'s new `Kind::Surface`, which
+  shows an image that the program draws and gives it the pointer, the keys without Control, Alt or
+  Super reaching the program while a button pressed over it is held. The viewport draws the level
+  with its own asset cache, frame builder and view, under the light that the program gives
+  (`Program::lighting`), again only when the world, the camera, the size, the settings or the meshes
+  changed, and once a new size has held still (`View::resize_due`, `Context::request_frame_at`).
+  The right button held flies with W, A, S, D, Q and E, the cursor held and the raw motion read; Alt
+  and the left button orbit, the middle button pans, the wheel comes nearer, F frames the selection
+  or the level, which is framed so as it opens; where the cursor cannot be held, the camera follows
+  it. A grid lies on the ground and the lights show Lucide's icons; `Line::grid` and `facing` moved
+  from the `world` example into `slime-render`. Tools capture the viewport by its name, change its
+  settings, and read in its report how many times it drew. `PASSES_PER_SUBMISSION` and the bloom
+  were measured in the stall ([`docs/measurements.md`](measurements.md)): a whole frame in one
+  submission cost least, and the owner chose sixteen passes to a submission on 2026-10-28, where
+  ADR-0041 had chosen four. The `.keys` preset in Blender's way moved to M6c.2b, and an agent frames
+  the viewport by the operation's name, scripted keys reaching the simulation's input. The review
+  found nine faults, each fixed: a surface left holding the pointer when its button was let go
+  after the pointer left the window; a camera that a refused hold left still, and a hold tried at
+  every frame; Shift that stuck, and flying stalled by keys that cancelled out; Alt during a gesture
+  giving the bar of menus the focus; a selection that drew nothing left out of the framing; the
+  cooked data not read again for a level opened later; a framing that could override the user's
+  first gesture; and a framing that cut a narrow viewport's sides. The tests: the surface's
+  pointer, keys, wheel and Alt (`crates/slime-ui/tests/surface.rs`); navigation, its gestures,
+  keys, wheel and framing (`slime-editor`'s unit tests); a view's due resize (`slime-render`'s);
+  the editor's window drawn with its viewport, waiting for the dialog too, in image tests
+  (`examples/tests/editor.rs`); and an agent's session that captures the viewport, sees a menu's
+  frames leave it undrawn and framing a lamp draw it again (`crates/slime-mcp/tests/edit_window.rs`).
+  What nothing checks yet: flying, orbiting and the cursor held by hand on niri, Hyprland and X11
+  through XWayland, and sixteen passes to a submission on Direct3D 12 in the Windows virtual
+  machine. Known debt: the viewport shows every light that a level places, the night's of *Hunna
+  Wood*'s zone too. CI is green on `7d51d93`: `check (headless)` took 14 minutes 21 seconds,
+  `check (windowed)` 4 minutes 12 seconds, `check (game)` 5 minutes 14 seconds, `windows` 16
+  minutes 48 seconds and `windows-release` 10 minutes 54 seconds.
 
 #### M6c.2b — Picking and the selection
 
