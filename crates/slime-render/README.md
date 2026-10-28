@@ -140,7 +140,9 @@ fn main() -> Result<(), RenderError> {
   `ViewSettings` (`View::set_settings`) say how it draws: its render scale, its `AntiAliasing`, a
   `DebugMode`, and whether it draws the shadows, the sky and the bloom
   ([ADR-0127](../../docs/adr/0127-the-settings-of-a-view.md)); they are described by reflection,
-  for the tools that change them.
+  for the tools that change them. A new size takes its targets once it has held still for
+  `RESIZE_DELAY`, which `View::resize_due` says to a program that draws the view only when
+  something changes ([ADR-0158](../../docs/adr/0158-the-viewport.md)).
 - `Renderer::set_shaders(gpu, &ShaderSources)` makes the renderer's pipelines again from new WGSL
   sources, all or none, so that a game sees a shader change while it runs; `ShaderSources` holds
   the embedded sources or those of the shaders' files, and `ShaderWatch` tells a game when the
@@ -216,15 +218,15 @@ fn main() -> Result<(), RenderError> {
 - `Renderer::render(gpu, &scene, &mut [ViewDraw])` draws a scene through each view, in passes (the
   directional light's shadows, the spot lights' shadows, scene, sky, after the sky the blended
   surfaces and what a client draws in the scene, resolve, bloom, tone mapping, and over the image
-  what a client draws over it),
-  and keeps in each view its `RenderStats`: draw calls, instances, triangles, and the CPU and GPU
-  time of its passes. A `ViewDraw` gives a view its camera, its target and, as a `Viewport`, the
-  rectangle of the target that it draws into, the whole target by default, and, as `Drawings`,
-  what a client draws into it besides the scene: in the scene, `Line`s, each a width in pixels
-  wide, and instances, hidden by what is in front of them; over the image, lines, over everything
-  (ADR-0129). Each pass leaves out the instances that it does not see (frustum culling), and draws
-  those of one mesh and one material that one pipeline draws together, with one draw call
-  (instancing).
+  what a client draws over it), and keeps in each view its `RenderStats`: draw calls, instances,
+  triangles, and the CPU and GPU time of its passes. A `ViewDraw` gives a view its camera, its
+  target and, as a `Viewport`, the rectangle of the target that it draws into, the whole target by
+  default, and, as `Drawings`, what a client draws into it besides the scene: in the scene, `Line`s,
+  each a width in pixels wide, and instances, hidden by what is in front of them; over the image,
+  lines, over everything (ADR-0129). `Line::grid` gives the lines of a grid on the ground, and
+  `facing` the transform of a square that faces the camera, an icon's. Each pass leaves out the
+  instances that it does not see (frustum culling), and draws those of one mesh and one material
+  that one pipeline draws together, with one draw call (instancing).
 - `View::pick(area)` asks which instance is drawn nearest at each pixel of an area of the view: the
   next frame draws each instance's `Instance::pick`, a number that the client gives it, and the
   returned `Pick` gives them (`Picked`) a frame or more later, never holding up a frame

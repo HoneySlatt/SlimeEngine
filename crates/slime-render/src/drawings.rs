@@ -2,7 +2,7 @@
 //! width in pixels wide and instances, at the two points of the view's frame that ADR-0115 opens to
 //! it, in the scene and over its image.
 
-use glam::DVec3;
+use glam::{DAffine3, DMat3, DQuat, DVec3};
 use slime_color::LinearColor;
 use slime_gfx::{
     BindGroup, BindGroupEntry, BindGroupLayout, BindingResource, GfxError, Gpu, StorageBuffer,
@@ -31,6 +31,66 @@ pub struct Line {
     /// Its width, in the pixels of the view's output: at a render scale other than 1, the same on
     /// screen ([`ViewSettings::render_scale`](crate::ViewSettings::render_scale)).
     pub width: f32,
+}
+
+impl Line {
+    /// The lines of a grid on the horizontal plane at `height`, one each `spacing` metres along each
+    /// axis, on the multiples of `spacing`, as far as `reach` metres from the multiple nearest
+    /// `center` along each axis, each of `color` and `width`: a grid on the ground, of
+    /// 2 × (2 × ⌊`reach` / `spacing`⌋ + 1) lines, which the caller keeps few, a view drawing each.
+    /// None for a `spacing` or a `reach` that is not a finite number above 0.
+    #[must_use]
+    pub fn grid(
+        center: DVec3,
+        height: f64,
+        reach: f64,
+        spacing: f64,
+        color: LinearColor,
+        width: f32,
+    ) -> Vec<Line> {
+        if !(spacing.is_finite() && spacing > 0.0 && reach.is_finite() && reach > 0.0) {
+            return Vec::new();
+        }
+        let steps = (reach / spacing).floor() as i64;
+        let (x, z) = (
+            (center.x / spacing).round() * spacing,
+            (center.z / spacing).round() * spacing,
+        );
+        let extent = steps as f64 * spacing;
+        let line = |from: DVec3, to: DVec3| Line {
+            from,
+            to,
+            color,
+            width,
+        };
+        (-steps..=steps)
+            .flat_map(|step| {
+                let step = step as f64 * spacing;
+                [
+                    line(
+                        DVec3::new(x + step, height, z - extent),
+                        DVec3::new(x + step, height, z + extent),
+                    ),
+                    line(
+                        DVec3::new(x - extent, height, z + step),
+                        DVec3::new(x + extent, height, z + step),
+                    ),
+                ]
+            })
+            .collect()
+    }
+}
+
+/// The transform of a square of `side` metres at `position` that faces a camera at `eye`, upright,
+/// as the icon of a light faces the camera: a square that faces +Z, as
+/// [`MeshData::square`](crate::MeshData::square) makes it, its +Z turned towards the camera and its
+/// +Y kept up as far as it can be.
+#[must_use]
+pub fn facing(position: DVec3, eye: DVec3, side: f64) -> DAffine3 {
+    let back = (eye - position).normalize_or(DVec3::Z);
+    let right = DVec3::Y.cross(back).normalize_or(DVec3::X);
+    let rotation = DQuat::from_mat3(&DMat3::from_cols(right, back.cross(right), back));
+    DAffine3::from_scale_rotation_translation(DVec3::splat(side), rotation, position)
 }
 
 /// What a client draws at the first point of a view's frame, in the scene ([`Drawings`]).

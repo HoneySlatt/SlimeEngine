@@ -499,6 +499,16 @@ impl View {
             .as_ref()
             .map(|frame| (frame.shape.width, frame.shape.height))
     }
+
+    /// When the size that its rectangle asks of its targets, which differs from theirs, will have
+    /// held still for [`RESIZE_DELAY`]: a frame drawn then makes them at that size, which a program
+    /// that draws the view only when something changes asks for then
+    /// (`slime_app::Context::request_frame_at`). `None` while they have the size that the last
+    /// frame asked for.
+    #[must_use]
+    pub fn resize_due(&self) -> Option<Instant> {
+        self.resizing.map(|(_, since)| since + RESIZE_DELAY)
+    }
 }
 
 /// How a view draws (ADR-0111, ADR-0127): the scale it renders at, its anti-aliasing, a mode of
@@ -636,6 +646,7 @@ fn settled_size(
     match *resizing {
         Some((asked, since)) if asked == wanted => {
             if now.saturating_duration_since(since) >= RESIZE_DELAY {
+                *resizing = None;
                 wanted
             } else {
                 current
@@ -4460,10 +4471,14 @@ mod tests {
             (640, 360)
         );
         assert_eq!(
+            resizing.map(|(_, since)| since + RESIZE_DELAY),
+            Some(held(200))
+        );
+        assert_eq!(
             settled_size(Some((640, 360)), &mut resizing, (659, 360), held(200)),
             (659, 360)
         );
-        // Made: it asks for what they have.
+        // Made, nothing more is due: it asks for what they have.
         assert_eq!(
             settled_size(Some((659, 360)), &mut resizing, (659, 360), held(216)),
             (659, 360)

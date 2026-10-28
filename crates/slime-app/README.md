@@ -193,12 +193,14 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
     rarely shows a hidden window.
   - On demand, with a window or without: `AppConfig::on_demand` runs a frame only when something
     asks for one, the loop waiting meanwhile, as the editor's program does
-    (`docs/adr/0156-the-editors-window-and-its-operations.md`): an event of the window, a request
-    of the development channel, the presentation's interface while it moves or once its next change
-    is due (`Ui::needs_frame`, `Ui::next_change`), the program through `Context::request_frame`, or
-    another thread through a `Waker` (`Context::waker`, `SimulationContext::waker`); a termination
-    signal and the end of the tool that started the program wake it too. The frames asked one after
-    another follow the schedule of `AppConfig::max_frame_rate`. A game keeps its scheduled frames.
+    (`docs/adr/0156-the-editors-window-and-its-operations.md`): an event of the window, a request of
+    the development channel, the presentation's interface while it moves or once its next change is
+    due (`Ui::needs_frame`, `Ui::next_change`), the program through `Context::request_frame`, or at
+    a time that it gives through `Context::request_frame_at`, a view's new size that has held still
+    ([ADR-0158](../../docs/adr/0158-the-viewport.md)), or another thread through a `Waker`
+    (`Context::waker`, `SimulationContext::waker`); a termination signal and the end of the tool
+    that started the program wake it too. The frames asked one after another follow the schedule of
+    `AppConfig::max_frame_rate`. A game keeps its scheduled frames.
   - It returns a `RunError`: `Init` when a `start` fails, `App` when `gpu_restored` failed or the
     game passed an error to `exit_with_error`, `Platform` when the window cannot be opened (for
     example without a display server) or its event loop fails, `Gfx` when no GPU can draw into the

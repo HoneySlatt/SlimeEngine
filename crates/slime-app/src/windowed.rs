@@ -86,7 +86,8 @@ struct WindowedDriver<'a, S, P> {
     /// Whether something asked for a frame that has not run yet, when frames run on demand.
     wanted: bool,
     /// When the presentation's interface changes on its own, which a frame then shows, when frames
-    /// run on demand: a tooltip that shows, a notification that ends (`Ui::next_change`).
+    /// run on demand: a tooltip that shows, a notification that ends (`Ui::next_change`); or when
+    /// the presentation asked for a frame (`Context::request_frame_at`), the earlier.
     change_due: Option<Instant>,
     /// Whether both `start` methods succeeded, which makes both `stop` methods due at the end.
     started: bool,
@@ -281,10 +282,15 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         self.last_frame = now;
         self.next_frame = next_due(self.next_frame, now, self.frame_period);
         let ui = self.presentation.ui();
-        self.change_due = ui
+        let interface_due = ui
             .as_ref()
             .and_then(|ui| ui.next_change())
             .map(|after| now + after);
+        // The earlier of the interface's change and the time that the presentation asked for.
+        self.change_due = match (interface_due, self.host.context.take_frame_due()) {
+            (Some(interface), Some(asked)) => Some(interface.min(asked)),
+            (due, None) | (None, due) => due,
+        };
         self.wanted = ui.is_some_and(|ui| ui.needs_frame())
             || self.host.context.take_frame_request()
             || self.frames.waiting();

@@ -76,11 +76,11 @@ use slime_color::LinearColor;
 use slime_devui::{Corner, Overlay, PanelId, PanelSpec, ValueEditor, WorldPanel};
 use slime_gfx::{AddressMode, Filter, Gpu, RenderTarget, SamplerDescriptor, TextureFormat};
 use slime_platform::{ButtonState, Event, KeyCode, KeyEvent, MouseButton, WindowConfig};
-use slime_render::glam::{DAffine3, DMat3, DQuat, DVec3, Vec3};
+use slime_render::glam::{DVec3, Vec3};
 use slime_render::{
     AlphaMode, AssetCache, AssetRequests, Camera, DrawList, Drawings, Instance, Line, Material,
     Mesh, MeshData, Pick, Projection, RenderStats, Renderer, SampledTexture, Scene, UnlitData,
-    View, ViewDraw, ViewSettings, Viewport,
+    View, ViewDraw, ViewSettings, Viewport, facing,
 };
 use slime_ui::style::{FlexDirection, Style};
 use slime_ui::tree::{Element, Ui};
@@ -829,41 +829,12 @@ fn pixel(x: u32, y: u32) -> Viewport {
 /// metre along each axis, as far as the yard reaches.
 fn grid((center, radius): (DVec3, f32)) -> Vec<Line> {
     let reach = f64::from(radius.ceil());
-    let (x, z) = (center.x.round(), center.z.round());
-    let line = |from: DVec3, to: DVec3| Line {
-        from,
-        to,
-        color: GRID_COLOR,
-        width: GRID_WIDTH,
-    };
-    (-(reach as i32)..=reach as i32)
-        .flat_map(|step| {
-            let step = f64::from(step);
-            [
-                line(
-                    DVec3::new(x + step, GRID_HEIGHT, z - reach),
-                    DVec3::new(x + step, GRID_HEIGHT, z + reach),
-                ),
-                line(
-                    DVec3::new(x - reach, GRID_HEIGHT, z + step),
-                    DVec3::new(x + reach, GRID_HEIGHT, z + step),
-                ),
-            ]
-        })
-        .collect()
+    Line::grid(center, GRID_HEIGHT, reach, 1.0, GRID_COLOR, GRID_WIDTH)
 }
 
 /// The square of a light's icon at `position`, turned to face a camera at `eye`, upright.
 fn icon_facing(square: &Mesh, material: &Material, position: DVec3, eye: DVec3) -> Instance {
-    // The square faces +Z: its +Z turned towards the camera, its +Y kept up.
-    let back = (eye - position).normalize_or(DVec3::Z);
-    let right = DVec3::Y.cross(back).normalize_or(DVec3::X);
-    let rotation = DQuat::from_mat3(&DMat3::from_cols(right, back.cross(right), back));
-    let mut instance = Instance::new(
-        square,
-        material,
-        DAffine3::from_scale_rotation_translation(DVec3::splat(ICON_SIDE), rotation, position),
-    );
+    let mut instance = Instance::new(square, material, facing(position, eye, ICON_SIDE));
     instance.casts_shadows = false;
     instance
 }

@@ -1,7 +1,7 @@
 //! The host: what runs a game's simulation, and owns its world, its times, its input and the
 //! commands queued for it (`docs/adr/0107-the-execution-model.md`).
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use slime_gfx::{GfxError, Gpu, TextureFormat};
 use slime_platform::{Input, Window};
@@ -225,6 +225,8 @@ pub struct Context {
     waker: Waker,
     /// Whether the program asked for another frame since the run last looked.
     frame_requested: bool,
+    /// The earliest time at which the program asked for a frame since the run last looked.
+    frame_due: Option<Instant>,
 }
 
 impl Context {
@@ -240,6 +242,7 @@ impl Context {
             refused: Vec::new(),
             waker: Waker::default(),
             frame_requested: false,
+            frame_due: None,
         }
     }
 
@@ -253,6 +256,21 @@ impl Context {
     /// Whether the program asked for another frame since the last call, which forgets it.
     pub(crate) fn take_frame_request(&mut self) -> bool {
         std::mem::take(&mut self.frame_requested)
+    }
+
+    /// Asks for a frame at `at`, or as soon as can be once it has passed, in a run with a window
+    /// whose frames run on demand ([`AppConfig::on_demand`](crate::AppConfig::on_demand)): what
+    /// changes then without an event, a view's new size that has held still
+    /// (`slime_render::View::resize_due`), shows at that frame. Of several times asked for before
+    /// a frame, the earliest holds; a frame that runs before it, for another reason, forgets it,
+    /// and the program asks again if it still needs it. Any other run runs its frames anyway.
+    pub fn request_frame_at(&mut self, at: Instant) {
+        self.frame_due = Some(self.frame_due.map_or(at, |due| due.min(at)));
+    }
+
+    /// The time at which the program asked for a frame since the last call, which forgets it.
+    pub(crate) fn take_frame_due(&mut self) -> Option<Instant> {
+        self.frame_due.take()
     }
 
     /// The run's [`Waker`], with which another thread asks it for a frame: a load that ended.

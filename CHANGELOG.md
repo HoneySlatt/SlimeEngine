@@ -44,6 +44,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `Element::surface` in `slime-ui`: an element that shows an image that the program draws and gives
   it the pointer, as `ActionKind::Surface`, the keys reaching the program while a button pressed
   over it is held.
+- `Context::request_frame_at` in `slime-app`, a frame at a given time; `View::resize_due`,
+  `Line::grid` and `facing` in `slime-render`.
 - A modal layer of `slime-ui` dims the window below it: its root is of the class `modal`, and a
   layer's root lays the backdrop that its style gives (`PaintStyle::backdrop`) over the window,
   which the editor's look gives the theme's scrim.
