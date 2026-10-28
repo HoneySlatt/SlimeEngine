@@ -8,7 +8,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use slime_app::{AppError, HeldFile, Simulation, SimulationContext};
-use slime_assets::CookedAssets;
+use slime_assets::{AssetId, AssetKind, CookedAssets};
 use slime_channel::{Edit, EditorHistory, OperationSummary, Reply};
 use slime_reflect::{Path as ValuePath, Reflect};
 use slime_render::glam::DVec3;
@@ -252,6 +252,7 @@ impl Session {
         self.picker = None;
         self.shared.borrow_mut().opened += 1;
         self.opened(&whole);
+        self.list_prefabs(world);
         Ok(())
     }
 
@@ -271,8 +272,13 @@ impl Session {
         let mut shared = self.shared.borrow_mut();
         if let Some(editor) = &self.editor {
             shared.level = Some(editor.file().to_owned());
-            shared.done = editor.done().map(str::to_owned).collect();
-            shared.undone = editor.undone().map(str::to_owned).collect();
+            let done: Vec<String> = editor.done().map(str::to_owned).collect();
+            let undone: Vec<String> = editor.undone().map(str::to_owned).collect();
+            if done != shared.done || undone != shared.undone {
+                shared.history += 1;
+            }
+            shared.done = done;
+            shared.undone = undone;
             shared.unwritten = editor.unwritten();
             shared.selection = editor.selection().to_vec();
         }
@@ -488,6 +494,8 @@ impl Session {
                 }
             }
             "edit.group" => self.grouped(world)?,
+            "edit.place" => self.placed(world, &arguments[0])?,
+            "edit.go_to_step" => return self.go_to_step(world, &arguments[0]),
             "edit.repeat" => {
                 let (name, arguments) = self.last.clone().ok_or("no operation made a step yet")?;
                 return self.run(world, name, arguments);
@@ -665,6 +673,114 @@ impl Session {
             commands,
             selection: Some(vec![id]),
         })
+    }
+
+    /// The step that places the prefab `prefab`, its asset ID or its name, as the palette shows
+    /// it, at the level's root, its root at the middle of what is selected or at the world's
+    /// origin, not turned nor scaled, under an identity named after its file, and selects it
+    /// (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
+    ///
+    /// # Errors
+    ///
+    /// Without a level open, for a prefab that the level cannot place, one that cannot be resolved,
+    /// and one that places the level, which would then hold itself.
+    fn placed(&mut self, world: &World, prefab: &str) -> Result<Request, AppError> {
+        let asked: Option<AssetId> = prefab.parse().ok();
+        let (id, name) = self
+            .shared
+            .borrow()
+            .prefabs
+            .iter()
+            .find(|(id, name)| name == prefab || asked == Some(*id))
+            .cloned()
+            .ok_or_else(|| format!("`{prefab}` is not a prefab that the level can place"))?;
+        let at = self
+            .outermost(world)
+            .ok()
+            .and_then(|selected| handles::middle(world, &selected))
+            .unwrap_or(DVec3::ZERO);
+        let editor = self.editor.as_mut().ok_or("no level is open")?;
+        let root = editor.root(world).ok_or("the level's root is not alive")?;
+        let resolved = editor
+            .scenes()
+            .resolve(world.registry(), id)
+            .map_err(|error| format!("`{name}` cannot be placed: {error}"))?;
+        if resolved.places(editor.asset()) {
+            return Err(format!("`{name}` places the level, which would then hold itself").into());
+        }
+        // Named after its file's name, without its directories and its extensions.
+        let file = name.split(": ").next().unwrap_or(&name);
+        let base = file
+            .rsplit('/')
+            .next()
+            .and_then(|file| file.split('.').next())
+            .filter(|base| !base.is_empty())
+            .unwrap_or("prefab");
+        let placement = editor.new_id(world, base);
+        let transform = Transform {
+            translation: handles::into_parent(&handles::placed_at(world, Some(root)), at),
+            ..Transform::IDENTITY
+        };
+        Ok(Request::Apply {
+            label: "Place a prefab".to_owned(),
+            commands: vec![
+                Command::Place {
+                    entity: placement.clone(),
+                    parent: Some(PersistentId::new([editor.key()])),
+                    rank: None,
+                    prefab: resolved,
+                },
+                Command::Insert {
+                    entity: placement.clone(),
+                    component: "Transform".to_owned(),
+                    value: transform.to_value(),
+                },
+            ],
+            selection: Some(vec![placement]),
+        })
+    }
+
+    /// Puts in the shared value the prefabs that the level just opened can place
+    /// ([`prefabs`]).
+    fn list_prefabs(&mut self, world: &World) {
+        let assets = self.shared.borrow().assets.clone();
+        let (Some(assets), Some(editor)) = (assets, self.editor.as_mut()) else {
+            return;
+        };
+        let level = editor.asset();
+        let listed = prefabs(&assets, level, editor.scenes(), world.registry());
+        self.shared.borrow_mut().prefabs = listed;
+    }
+
+    /// Undoes or does again the steps that bring the level to where `steps`, a count of steps done
+    /// after the first kept, puts it, each journaled as an undo or a redo: what a row of the
+    /// history panel goes to (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
+    ///
+    /// # Errors
+    ///
+    /// Without a level open, for a count that is not a number or that is more than the steps done
+    /// and undone, and as an undo or a redo fails: the level then stays at the step reached, the
+    /// undos and redos before journaled.
+    fn go_to_step(&mut self, world: &mut World, steps: &str) -> Result<Reply, AppError> {
+        let editor = self.editor.as_ref().ok_or("no level is open")?;
+        let (done, undone) = (editor.done().count(), editor.undone().count());
+        let steps: usize = steps
+            .parse()
+            .map_err(|_| format!("`{steps}` is not a count of steps"))?;
+        if steps > done + undone {
+            return Err(format!(
+                "the history holds {} steps, done and undone: none goes to {steps}",
+                done + undone
+            )
+            .into());
+        }
+        for _ in steps..done {
+            self.answer(world, Request::Undo)?;
+        }
+        for _ in done..steps {
+            self.answer(world, Request::Redo)?;
+        }
+        Ok(Reply::Done)
     }
 
     /// The commands that move the outermost of what is selected by `by`, in the world.
@@ -854,6 +970,7 @@ impl Simulation for Session {
         self.editor = Some(editor);
         self.journal = journal;
         self.opened(&level::whole(&level));
+        self.list_prefabs(world);
         if first_run {
             self.tell(false, HINT.to_owned());
         }
@@ -918,6 +1035,40 @@ impl Simulation for Session {
     }
 }
 
+/// The prefabs of `assets` that a level of the asset ID `level` can place: the scenes and the scene
+/// files but the level, each named by its source file, in their order; a file of several scenes,
+/// as a glTF file may be, names each by the file and the scene's name, `props.glb: tree`, which
+/// `scenes` resolves, or its asset ID where it cannot.
+fn prefabs(
+    assets: &CookedAssets,
+    level: AssetId,
+    scenes: &mut SceneLibrary,
+    registry: &slime_reflect::Registry,
+) -> Vec<(AssetId, String)> {
+    let mut prefabs: Vec<(AssetId, String)> = assets
+        .manifest()
+        .iter()
+        .filter(|(id, entry)| {
+            *id != level && matches!(entry.kind, AssetKind::Scene | AssetKind::SceneFile)
+        })
+        .map(|(id, entry)| (id, entry.source.clone()))
+        .collect();
+    prefabs.sort_by(|a, b| a.1.cmp(&b.1));
+    let shared: Vec<bool> = prefabs
+        .iter()
+        .map(|(_, source)| prefabs.iter().filter(|(_, other)| other == source).count() > 1)
+        .collect();
+    for ((id, name), shared) in prefabs.iter_mut().zip(shared) {
+        if shared {
+            let scene = scenes
+                .resolve(registry, *id)
+                .map_or_else(|_| id.to_string(), |scene| scene.name().to_owned());
+            *name = format!("{name}: {scene}");
+        }
+    }
+    prefabs
+}
+
 /// The command that sets `entity`'s whole transform to `transform`.
 fn set_transform(entity: PersistentId, transform: &Transform) -> Command {
     Command::SetProperty {
@@ -935,6 +1086,49 @@ mod tests {
     use slime_app::{AppConfig, Host};
 
     use super::*;
+
+    /// The prefabs that a level can place: the scenes and the scene files of the cooked data but the
+    /// level, by their sources, in their order; the scenes of one file named by the file and each
+    /// scene, or by its asset ID where it cannot be resolved
+    /// (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
+    #[test]
+    fn the_prefabs_are_the_scenes_but_the_level_each_named_once() {
+        let directory =
+            std::env::temp_dir().join(format!("slime-editor-prefabs-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir_all(&directory).expect("a directory");
+        let mut manifest = slime_assets::Manifest::new();
+        let entry = |kind, source: &str| slime_assets::ManifestEntry {
+            kind,
+            file: format!("{}.cooked", source.replace(['/', '.'], "_")),
+            size: 0,
+            needs: Vec::new(),
+            source: source.to_owned(),
+        };
+        let id = AssetId::from_u128;
+        manifest.insert(id(1), entry(AssetKind::SceneFile, "yard.scene"));
+        manifest.insert(id(2), entry(AssetKind::SceneFile, "lamp.scene"));
+        manifest.insert(id(3), entry(AssetKind::Scene, "props.glb"));
+        manifest.insert(id(4), entry(AssetKind::Scene, "props.glb"));
+        manifest.insert(id(5), entry(AssetKind::Mesh, "props.glb"));
+        manifest.insert(id(6), entry(AssetKind::Scene, "a/sample.glb"));
+        fs::write(
+            directory.join(slime_assets::MANIFEST_FILE),
+            manifest.to_bytes(),
+        )
+        .expect("written");
+        let assets = CookedAssets::open(&directory).expect("opened");
+        let world = World::new();
+        let mut scenes = SceneLibrary::of(assets.clone());
+        let listed = prefabs(&assets, id(1), &mut scenes, world.registry());
+        let names: Vec<&str> = listed.iter().map(|(_, name)| name.as_str()).collect();
+        let (three, four) = (
+            format!("props.glb: {}", id(3)),
+            format!("props.glb: {}", id(4)),
+        );
+        assert_eq!(names, ["a/sample.glb", "lamp.scene", &three, &four]);
+        let _ = fs::remove_dir_all(&directory);
+    }
     use crate::program::Lighting;
 
     /// A yard of its own, without prefabs, and empty cooked data, in a directory of the test's own.

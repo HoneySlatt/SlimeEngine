@@ -4,6 +4,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use slime_assets::AssetId;
 use slime_serialize::keep_comments;
 use slime_world::{PersistentId, SceneLibrary, SetAside, World};
 
@@ -13,6 +14,8 @@ use crate::editor::EditError;
 /// is spawned under, and the text of its file as the editor last read or wrote it, whose comments it
 /// keeps.
 pub(crate) struct Level {
+    /// The level's asset ID, which its metadata file gives.
+    pub(crate) id: AssetId,
     pub(crate) file: PathBuf,
     pub(crate) whole: PathBuf,
     pub(crate) key: String,
@@ -59,6 +62,7 @@ impl Level {
             .spawn_scene(key, &scene)
             .map_err(|error| EditError::Spawn(Box::new(error)))?;
         Ok(Self {
+            id,
             file: file.to_owned(),
             whole: whole(file),
             key: key.to_owned(),

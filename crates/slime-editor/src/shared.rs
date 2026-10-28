@@ -7,7 +7,7 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use slime_assets::CookedAssets;
+use slime_assets::{AssetId, CookedAssets};
 use slime_world::{Command, PersistentId};
 
 use crate::program::Lighting;
@@ -57,6 +57,12 @@ pub(crate) struct State {
     pub(crate) notices: Vec<Notice>,
     /// The window's operations that the core was asked to run, which the window runs.
     pub(crate) window_operations: VecDeque<&'static str>,
+    /// The prefabs that the level can place, the cooked data's scenes but the level, each by its
+    /// asset ID and its name, the source file that it was cooked from, in their order, listed as
+    /// the level opens (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
+    pub(crate) prefabs: Vec<(AssetId, String)>,
+    /// Counted up each time the steps done or undone change, which the history panel follows.
+    pub(crate) history: u64,
     /// What the editor copied last ([`Editor::copy`](crate::Editor::copy)), which it pastes
     /// without a window, and which the window puts on the system's clipboard
     /// (`docs/adr/0162-creating-copying-and-arranging.md`).

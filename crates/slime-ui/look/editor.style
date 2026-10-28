@@ -433,6 +433,11 @@ style.paint.background = "$hover"
 select = { kind = "Button", classes = ["row"], states = ["Selected"] }
 style.paint.background = "$accent_soft"
 
+# A row of what is undone, as the editor's history shows a step undone.
+[row-undone]
+select = { kind = "Button", classes = ["row", "undone"] }
+style.text.color = "$muted"
+
 [link]
 select = { kind = "Button", classes = ["link"] }
 style.paint = { background = "$none", border = "$none" }

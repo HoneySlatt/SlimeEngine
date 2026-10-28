@@ -81,9 +81,12 @@ with Stage 6c's next milestones.
   and End its bottom (`docs/adr/0161-the-open-step-and-the-handles.md`). *Edit* creates an entity
   (Ctrl+Shift+N), duplicates (Ctrl+D), copies and pastes through the system's clipboard (Ctrl+C,
   Ctrl+V), deletes (Delete), groups (Ctrl+G) and repeats the last operation (Shift+R), and Ctrl and
-  the arrows, Page Up and Page Down nudge what is selected (`docs/adr/0162-creating-copying-and-arranging.md`). Options:
-  `--level`, `--assets`, `--journal`, `--discard`, `--headless`; `run`'s documentation says how a
-  journal is chosen and recovered.
+  the arrows, Page Up and Page Down nudge what is selected
+  (`docs/adr/0162-creating-copying-and-arranging.md`). *Edit* > *Place a prefab…* places one of the
+  cooked data's scenes, found in the palette, and a panel below the world panel shows the history,
+  a press on a row going to its step (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
+  Options: `--level`, `--assets`, `--journal`, `--discard`, `--headless`; `run`'s documentation
+  says how a journal is chosen and recovered.
 - `window_image(&Program, arguments, operations, selection, scale)`: the window drawn into an image
   without a window of the system, as it shows once the level is open, the operations named run
   and the entities named selected, which the image tests compare and the `editor` example's

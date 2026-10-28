@@ -2,8 +2,9 @@
 //! `docs/adr/0135-the-editors-program.md`, `docs/adr/0156-the-editors-window-and-its-operations.md`):
 //! it opens the yard's scene file, `examples/assets/yard.scene`, the prefabs that it places read
 //! from the examples' cooked data, which it cooks first if it is missing, under the key that the
-//! `world` example spawns it under, `yard`, in a window of its own: a menu bar, the world panel, a
-//! viewport, where the user flies and picks what to select (`docs/adr/0158-the-viewport.md`,
+//! `world` example spawns it under, `yard`, in a window of its own: a menu bar, the world panel and
+//! the history below it (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`), a viewport,
+//! where the user flies and picks what to select (`docs/adr/0158-the-viewport.md`,
 //! `docs/adr/0159-picking-and-the-selection.md`), a status bar. A person runs its operations from
 //! the menus, the shortcuts and the palette (Ctrl+Shift+P); an agent runs the same through the engine's MCP server
 //! (`crates/slime-mcp/README.md`), and makes steps of commands, undoes and redoes them, selects

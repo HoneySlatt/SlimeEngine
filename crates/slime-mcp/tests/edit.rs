@@ -9,7 +9,9 @@
 //! the editor once more, which opens the level from its file with nothing to recover; there, it
 //! raises three lamps in one step, which one undo puts back, and drops one on the ground by the
 //! operation's name (`docs/adr/0161-the-open-step-and-the-handles.md`), then duplicates it, copies
-//! it and pastes it the same way (`docs/adr/0162-creating-copying-and-arranging.md`).
+//! it and pastes it the same way (`docs/adr/0162-creating-copying-and-arranging.md`), places a
+//! lamp by its prefab's file and goes back and forth in the history
+//! (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
 //!
 //! It needs the example built (`cargo build --example editor`) beside the server and the examples'
 //! assets cooked, in the directory that its first argument names, or `target/cooked/examples`. It
@@ -299,6 +301,53 @@ fn main() {
         2,
         "two placements: {said:?}"
     );
+    // A lamp placed by its prefab's source file, as the palette of prefabs places it; the history
+    // gone one step back, then forth (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
+    let (said, _) = session.tool(
+        "run_operation",
+        json!({ "name": "edit.place", "arguments": ["lamp.scene"] }),
+    );
+    assert_eq!(said, ["done"]);
+    let (said, _) = session.tool("editor_history", json!({}));
+    assert!(
+        said[0].contains("`Place a prefab`") && said[0].contains("selected: `yard/lamp-"),
+        "{said:?}"
+    );
+    // Placed again by its asset ID, as the palette places it, where the lamp just placed stands;
+    // the level itself, and what the cooked data does not hold, refused.
+    let (said, _) = session.tool(
+        "run_operation",
+        json!({ "name": "edit.place", "arguments": [LAMP] }),
+    );
+    assert_eq!(said, ["done"]);
+    for refused in ["yard.scene", "nothing.scene"] {
+        let (said, result) = session.try_tool(
+            "run_operation",
+            json!({ "name": "edit.place", "arguments": [refused] }),
+        );
+        assert_eq!(result["isError"], json!(true), "{refused}: {said:?}");
+        assert!(
+            said[0].contains("is not a prefab that the level can place"),
+            "{said:?}"
+        );
+    }
+    session.tool("undo", json!({}));
+    let (said, _) = session.tool("editor_history", json!({}));
+    let done = said[0]
+        .split("steps done, the oldest first: ")
+        .nth(1)
+        .and_then(|rest| rest.split(';').next())
+        .map_or(0, |steps| steps.matches('`').count() / 2);
+    for (steps, placed) in [(done - 1, false), (done, true)] {
+        let (said, _) = session.tool(
+            "run_operation",
+            json!({ "name": "edit.go_to_step", "arguments": [steps.to_string()] }),
+        );
+        assert_eq!(said, ["done"]);
+        let (said, _) = session.tool("editor_history", json!({}));
+        let last_done = said[0].contains("`Place a prefab`; steps undone");
+        assert_eq!(last_done, placed, "{said:?}");
+    }
     // What a placement holds but its root cannot be grouped out of it.
     session.tool(
         "select",

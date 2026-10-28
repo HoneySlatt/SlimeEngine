@@ -5,6 +5,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use slime_app::HeldFile;
+use slime_assets::AssetId;
 use slime_serialize::ReadError;
 use slime_world::{
     Command, CommandTextError, DocumentError, Entity, PersistentId, Renaming, SceneError,
@@ -142,6 +143,13 @@ impl Editor {
     /// The level's scene file.
     pub fn file(&self) -> &Path {
         &self.level.file
+    }
+
+    /// The level's asset ID, which its metadata file gives: the scene that a placement of the
+    /// level in itself would place, which the editor does not offer
+    /// (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
+    pub fn asset(&self) -> AssetId {
+        self.level.id
     }
 
     /// The root of the level in `world`, if it is alive.

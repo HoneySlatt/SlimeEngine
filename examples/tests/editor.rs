@@ -4,7 +4,9 @@
 //! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), and with the sample's pillar
 //! selected, outlined where the scene shows it and dimmed where the wall hides it
 //! (`docs/adr/0159-picking-and-the-selection.md`), with the handles that move it and those that
-//! turn it (`docs/adr/0161-the-open-step-and-the-handles.md`), and with two viewports side by side
+//! turn it (`docs/adr/0161-the-open-step-and-the-handles.md`), with a step done and one undone in
+//! the history panel (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`), and with two
+//! viewports side by side
 //! (`docs/adr/0160-two-viewports-and-blenders-way.md`), drawn without a window of the
 //! system by `slime_editor::window_image`, must match the reference images of `tests/reference/`
 //! within a tolerance, at scales 1 and 2. The level is named by a path relative to the examples'
@@ -112,6 +114,18 @@ fn the_window_with_two_viewports_matches_its_reference_image() {
 #[test]
 fn the_window_with_the_pillar_selected_matches_its_reference_image() {
     check("editor-selected", &[], &["yard/sample/pillar"], 1.0);
+}
+
+/// Two entities created, the second undone: the history panel shows the step done, marked, and
+/// the step undone, dimmed (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
+#[test]
+fn the_window_with_its_history_matches_its_reference_image() {
+    check(
+        "editor-history",
+        &["edit.create", "edit.create", "edit.undo"],
+        &["yard/sample/pillar"],
+        1.0,
+    );
 }
 
 /// The pillar selected, the handles that turn it in its own axes.

@@ -5,7 +5,8 @@
 //! to open a level, a modal layer waiting over the window meanwhile
 //! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`); the viewport, through which
 //! the user flies and picks what to select (`docs/adr/0158-the-viewport.md`,
-//! `docs/adr/0159-picking-and-the-selection.md`).
+//! `docs/adr/0159-picking-and-the-selection.md`); and the history panel, below the world panel
+//! (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -74,6 +75,7 @@ pub(crate) const MENUS: &[(&str, &[Entry])] = &[
             Entry::Operation("edit.repeat"),
             Entry::Separator,
             Entry::Operation("edit.create"),
+            Entry::Operation("edit.choose_prefab"),
             Entry::Operation("edit.duplicate"),
             Entry::Operation("edit.copy"),
             Entry::Operation("edit.paste"),
@@ -122,6 +124,12 @@ pub(crate) const MENUS: &[(&str, &[Entry])] = &[
 
 /// The width of the region on the window's start, which holds the world panel, in logical pixels.
 const SIDE_WIDTH: f32 = 340.0;
+
+/// The height of the history panel, below the world panel, in logical pixels.
+const HISTORY_HEIGHT: f32 = 200.0;
+
+/// What the palette's command that places a prefab starts with, its asset ID following.
+const PLACE: &str = "edit.place:";
 
 /// The width of the layer that waits for the system's dialog to open a level, in logical pixels.
 const CHOOSING_WIDTH: f32 = 460.0;
@@ -229,6 +237,10 @@ pub(crate) struct Model {
     blender: bool,
     /// How many copies the core made when the window last put one on the system's clipboard.
     copies: u64,
+    /// The history panel's slot of rows, once built, and its rows, each with the count of steps
+    /// done that it goes to (`edit.go_to_step`).
+    history_slot: Option<ElementId>,
+    history: Vec<(ElementId, usize)>,
 }
 
 impl Model {
@@ -266,6 +278,8 @@ impl Model {
             scale: 1.0,
             blender,
             copies: 0,
+            history_slot: None,
+            history: Vec::new(),
         };
         model.set_keys(blender);
         model.style();
@@ -575,10 +589,23 @@ impl Model {
             }
         }
         match (&action.kind, action.element) {
+            // A prefab chosen in the palette, by its asset ID.
+            (ActionKind::Command(name), _) if name.starts_with(PLACE) => Some(Request::Run {
+                name: "edit.place".to_owned(),
+                arguments: vec![name[PLACE.len()..].to_owned()],
+            }),
             (ActionKind::Command(name), _) => Some(Request::Run {
                 name: name.clone(),
                 arguments: Vec::new(),
             }),
+            (ActionKind::Press, Some(id))
+                if let Some(&(_, steps)) = self.history.iter().find(|&&(row, _)| row == id) =>
+            {
+                Some(Request::Run {
+                    name: "edit.go_to_step".to_owned(),
+                    arguments: vec![steps.to_string()],
+                })
+            }
             (ActionKind::Press, Some(id)) => {
                 if let Some(&(_, menu)) = self.bar.iter().find(|&&(item, _)| item == id) {
                     self.open_menu(id, Side::Below, Menu::Bar(menu));
@@ -895,6 +922,29 @@ impl Model {
                 .collect();
             match name {
                 "view.palette" => self.ui.open_palette("Find an operation", commands),
+                "edit.choose_prefab" => {
+                    let prefabs: Vec<PaletteCommand> = self
+                        .shared
+                        .borrow()
+                        .prefabs
+                        .iter()
+                        .map(|(id, name)| PaletteCommand {
+                            name: name.clone(),
+                            command: format!("{PLACE}{id}"),
+                        })
+                        .collect();
+                    if prefabs.is_empty() {
+                        let mut shared = self.shared.borrow_mut();
+                        shared.notices.push(Notice {
+                            failure: false,
+                            text: "The cooked data holds no prefab that the level can place."
+                                .to_owned(),
+                        });
+                        shared.revision += 1;
+                    } else {
+                        self.ui.open_palette("Find a prefab", prefabs);
+                    }
+                }
                 "view.shortcuts" => {
                     // What the buttons do over a viewport too, by their names.
                     let mut commands = commands;
@@ -1061,6 +1111,7 @@ impl Model {
         let mut bar = Vec::new();
         let mut slot = None;
         let mut surfaces = Vec::new();
+        let mut history_slot = None;
         let panes = self.panes.len();
         self.ui.build(self.root, self.built, |children| {
             let mut window = column();
@@ -1081,18 +1132,42 @@ impl Model {
                 regions.layout.gap = [8.0, 8.0];
                 regions.layout.padding = Sides::all(8.0);
                 children.add("regions", Element::container(regions), |regions| {
-                    let mut side = column();
-                    side.layout.size[0] = Dimension::Pixels(SIDE_WIDTH);
-                    side.layout.shrink = 0.0;
-                    side.layout.gap = [8.0, 0.0];
-                    side.layout.padding = Sides::all(8.0);
-                    let side = Element::container(side).class("panel").named("world");
-                    regions.add("world", side, |side| {
-                        let title = Element::label("World", Style::default()).class("heading");
-                        side.add("title", title, |_| {});
-                        let mut content = column();
-                        content.layout.grow = 1.0;
-                        slot = Some(side.add_slot("panel", Element::scroll(content)));
+                    // The world panel, and the history panel below it.
+                    let mut column_of_panels = column();
+                    column_of_panels.layout.size[0] = Dimension::Pixels(SIDE_WIDTH);
+                    column_of_panels.layout.shrink = 0.0;
+                    column_of_panels.layout.gap = [8.0, 0.0];
+                    let panels = Element::container(column_of_panels);
+                    regions.add("panels", panels, |panels| {
+                        let mut side = column();
+                        side.layout.grow = 1.0;
+                        side.layout.min_size[1] = Dimension::Pixels(0.0);
+                        side.layout.gap = [8.0, 0.0];
+                        side.layout.padding = Sides::all(8.0);
+                        let side = Element::container(side).class("panel").named("world");
+                        panels.add("world", side, |side| {
+                            let title = Element::label("World", Style::default()).class("heading");
+                            side.add("title", title, |_| {});
+                            let mut content = column();
+                            content.layout.grow = 1.0;
+                            slot = Some(side.add_slot("panel", Element::scroll(content)));
+                        });
+                        // The history's rows, in a slot of their own, built as it changes.
+                        let mut panel = column();
+                        panel.layout.size[1] = Dimension::Pixels(HISTORY_HEIGHT);
+                        panel.layout.shrink = 0.0;
+                        panel.layout.gap = [8.0, 0.0];
+                        panel.layout.padding = Sides::all(8.0);
+                        let panel = Element::container(panel).class("panel").named("history");
+                        panels.add("history", panel, |panel| {
+                            let title =
+                                Element::label("History", Style::default()).class("heading");
+                            panel.add("title", title, |_| {});
+                            let mut content = column();
+                            content.layout.grow = 1.0;
+                            content.layout.min_size[1] = Dimension::Pixels(0.0);
+                            history_slot = Some(panel.add_slot("steps", Element::scroll(content)));
+                        });
                     });
                     // Each viewport's surface, side by side.
                     for pane in 0..panes {
@@ -1122,12 +1197,54 @@ impl Model {
         }
         if slot.is_some() {
             self.slot = slot;
+            self.history_slot = history_slot;
         }
+        self.build_history();
         if !surfaces.is_empty() {
             for (pane, surface) in self.panes.iter_mut().zip(surfaces) {
                 pane.surface = Some(surface);
             }
         }
+    }
+
+    /// Builds the history panel's rows again when the history changed: a row before the first
+    /// step kept, then a row for each step done, the oldest first, and for each step undone, the
+    /// next to do again first, those dimmed, each going to the count of steps done that it shows;
+    /// the row of the steps done marked (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
+    fn build_history(&mut self) {
+        let Some(slot) = self.history_slot else {
+            return;
+        };
+        let shared = self.shared.borrow();
+        let mut rows = None;
+        self.ui.build(slot, shared.history, |steps| {
+            let labels = std::iter::once(("Before the first step kept", false))
+                .chain(shared.done.iter().map(|label| (label.as_str(), false)))
+                .chain(shared.undone.iter().map(|label| (label.as_str(), true)));
+            let mut built = Vec::new();
+            for (count, (label, undone)) in labels.enumerate() {
+                let mut row = Element::button(label, Style::default()).class("row");
+                if undone {
+                    row = row.class("undone");
+                }
+                built.push((steps.add(count, row, |_| {}), count));
+            }
+            rows = Some(built);
+        });
+        let Some(rows) = rows else {
+            return;
+        };
+        let done = shared.done.len();
+        drop(shared);
+        for &(row, steps) in &rows {
+            if let Some(mut state) = self.ui.state(row)
+                && state.selected != (steps == done)
+            {
+                state.selected = steps == done;
+                self.ui.set_state(row, state);
+            }
+        }
+        self.history = rows;
     }
 
     /// The texts of the status bar, each with its key: the level's file, the steps that it does
@@ -2549,17 +2666,7 @@ mod tests {
 
     /// Runs the operation `name` as a person does, then two frames, the window's included.
     fn run(yard: &mut Yard, name: &str) {
-        yard.session
-            .handle(
-                yard.host.world_mut(),
-                Request::Run {
-                    name: name.to_owned(),
-                    arguments: Vec::new(),
-                },
-            )
-            .unwrap_or_else(|error| panic!("{name}: {error}"));
-        yard.frame();
-        yard.frame();
+        run_with(yard, name, &[]);
     }
 
     /// Where the entity `id` is in the world.
@@ -2714,6 +2821,109 @@ mod tests {
                 .is_some_and(|text| text.starts_with("# do")),
             "the copy on the system's clipboard"
         );
+    }
+
+    /// The history panel shows a row before the first step, then each step, the one that the level
+    /// stands at marked; a press on a row goes to it, undoing or doing again the steps between; the
+    /// prefabs that the level can place are found in the palette, and one chosen is placed by its
+    /// asset ID (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
+    #[test]
+    fn a_row_of_the_history_panel_goes_to_its_step_and_a_prefab_is_chosen_in_the_palette() {
+        let mut yard = Yard::new("history");
+        run(&mut yard, "edit.create");
+        run(&mut yard, "edit.create");
+        let marked = |yard: &Yard| -> Vec<usize> {
+            yard.model
+                .history
+                .iter()
+                .filter(|&&(row, _)| yard.model.ui.state(row).is_some_and(|state| state.selected))
+                .map(|&(_, steps)| steps)
+                .collect()
+        };
+        assert_eq!(yard.model.history.len(), 3);
+        assert_eq!(marked(&yard), [2]);
+        // A press on the row before the first step undoes both.
+        let (row, _) = yard.model.history[0];
+        let rect = yard.model.ui.rect(row).expect("laid out");
+        yard.model
+            .ui
+            .pointer_moved(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0);
+        yard.model
+            .ui
+            .pointer_button(MouseButton::Left, ButtonState::Pressed);
+        yard.model
+            .ui
+            .pointer_button(MouseButton::Left, ButtonState::Released);
+        yard.frame();
+        yard.frame();
+        let (done, undone) = yard.history();
+        assert!(done.is_empty());
+        assert_eq!(undone.len(), 2);
+        assert_eq!(marked(&yard), [0]);
+        // Then to the second step, both done again.
+        run_with(&mut yard, "edit.go_to_step", &["2"]);
+        assert_eq!(yard.history().0.len(), 2);
+        assert!(
+            yard.session
+                .handle(
+                    yard.host.world_mut(),
+                    Request::Run {
+                        name: "edit.go_to_step".to_owned(),
+                        arguments: vec!["3".to_owned()],
+                    },
+                )
+                .is_err(),
+            "no third step"
+        );
+        // Without a prefab, the palette does not open, and the user is told why.
+        run(&mut yard, "edit.choose_prefab");
+        assert!(!yard.model.ui.palette_open());
+        assert!(
+            yard.model
+                .ui
+                .meaning()
+                .iter()
+                .any(|meaning| meaning.name.contains("no prefab")),
+            "told in a notification"
+        );
+        // The palette of prefabs, and one chosen.
+        let lamp = slime_assets::AssetId::from_u128(7);
+        yard.shared.borrow_mut().prefabs = vec![(lamp, "lamp.scene".to_owned())];
+        run(&mut yard, "edit.choose_prefab");
+        assert!(yard.model.ui.palette_open());
+        assert!(
+            yard.model.ui.meaning().iter().any(|meaning| {
+                meaning.path.starts_with("palette") && meaning.name.contains("lamp.scene")
+            }),
+            "the prefab found in the palette"
+        );
+        let chosen = Action {
+            element: None,
+            kind: ActionKind::Command(format!("{PLACE}{lamp}")),
+        };
+        assert!(matches!(
+            yard.model.request_of(&chosen),
+            Some(Request::Run { name, arguments })
+                if name == "edit.place" && arguments == [lamp.to_string()]
+        ));
+    }
+
+    /// Runs the operation `name` with `arguments`, then two frames.
+    fn run_with(yard: &mut Yard, name: &str, arguments: &[&str]) {
+        yard.session
+            .handle(
+                yard.host.world_mut(),
+                Request::Run {
+                    name: name.to_owned(),
+                    arguments: arguments
+                        .iter()
+                        .map(|&argument| argument.to_owned())
+                        .collect(),
+                },
+            )
+            .unwrap_or_else(|error| panic!("{name}: {error}"));
+        yard.frame();
+        yard.frame();
     }
 
     /// Two viewports side by side, each its own camera and settings, the View menu changing the

@@ -1576,6 +1576,13 @@ GitHub issues, linked from their entry; this list stays the reference.
   window pastes, at the next frame. A shortcut that a field of one line does not take reaches the
   editor while the field holds the focus: Ctrl and the up arrow in a number of the world panel
   nudges what is selected, and Ctrl+D duplicates it.
+- **Placing prefabs and the history panel**
+  ([ADR-0163](adr/0163-placing-prefabs-and-the-history-panel.md)): a prefab placed takes a transform
+  of its own at its root, which replaces the turn and the scale that its prefab gives its root;
+  the palette names the prefabs by their source files, without thumbnails, which wait for the asset
+  browser. A prefab placed again by Repeat goes where the last one stands, on it. The history panel
+  builds a row for each step that the history keeps, which a long session makes many, again as the
+  steps change, and going to a step journals each undo or redo between.
 - **Every multisampled depth target can be read by a shader**
   ([ADR-0159](adr/0159-picking-and-the-selection.md)), so that the outline's frames resolve the
   scene's depth: every view of four samples makes its depth so, whether it outlines or not, which

@@ -175,6 +175,24 @@ pub const OPERATIONS: &[Operation] = &[
         changes: Changes::Level,
     },
     Operation {
+        name: "edit.choose_prefab",
+        label: "Place a prefab…",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "edit.place",
+        label: "Place a prefab",
+        parameters: &["prefab"],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "edit.go_to_step",
+        label: "Go to a step of the history",
+        parameters: &["steps"],
+        changes: Changes::History,
+    },
+    Operation {
         name: "edit.drop",
         label: "Drop on what lies below",
         parameters: &[],

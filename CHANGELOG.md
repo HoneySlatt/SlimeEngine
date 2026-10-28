@@ -103,6 +103,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   the copy, and a placement's overrides, nested ones included, are kept. Blender's way binds
   Shift+D, X and Shift+A. Agents run them by name, `edit.create`, `edit.duplicate`, `edit.copy`,
   `edit.paste`, `edit.delete`, `edit.group`, `edit.repeat` and `edit.nudge_*`.
+- Placing prefabs and the history in the editor (ADR-0163): *Edit* > *Place a prefab…* finds the
+  cooked data's scenes in the palette and places the one chosen at the middle of what is selected,
+  as `edit.place` does by its asset ID or its source file, `lamp.scene`, `edit.choose_prefab`
+  opening the palette; a panel below the world panel shows the history, the steps undone dimmed,
+  and a press on a row goes to its step, as `edit.go_to_step` does. `Editor::asset` gives the
+  level's asset ID, and `ResolvedScene::places` in `slime-world` whether a scene places another.
 - `World::creating_commands`, `Renaming`, `Command::read_renamed` and `WorldError::NoIdentity` in
   `slime-world`; `Editor::copy`, `Editor::paste`, `EditError::Copy`, `EditError::Paste` and
   `Changes::Clipboard` in `slime-editor`; `Ui::clipboard_text` and `Ui::set_clipboard_text` in
