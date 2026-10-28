@@ -31,7 +31,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   M6c.2c, both done; M6c.3 was split in two at its start, M6c.3a and M6c.3b, of which M6c.3a is
   done, and M6c.3b in two again at its start, M6c.3b and M6c.3c, all done; M6c.4 was split in
   three at its start, M6c.4a, M6c.4b and M6c.4c, of which M6c.4a and M6c.4b are done, and M6c.4c
-  in two again at its start, M6c.4c, done, and M6c.4d; next: M6c.4d.
+  in two again at its start, M6c.4c and M6c.4d, both done; next: Checkpoint A.
 
 ## Status
 
@@ -49,7 +49,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.4a](#m6c4a--play-the-level) | Play runs the level being edited in the game, steps not written included, paused, stepped and stopped from a toolbar, its log in a console | Done |
 | [M6c.4b](#m6c4b--edit-while-playing) | The editor's edits reach the running game, and agents drive both programs | Done |
 | [M6c.4c](#m6c4c--build-the-game-again) | Play builds the game before it starts it, and a game whose code changed while it runs is built again and started on a save of its run | Done |
-| [M6c.4d](#m6c4d--measure-play) | Play's time to control is measured on the zone and on a level of 100 000 entities | Planned |
+| [M6c.4d](#m6c4d--measure-play) | Play's time to control is measured on the zone and on a level of 100 000 entities | Done |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
 | [M6c.5](#m6c5--find-and-change) | The user finds any entity in a hierarchy, changes its components in an inspector, and arranges the panels in regions of tabs | Planned |
 | [M6c.6](#m6c6--levels-of-several-files-and-links) | A level is made of several files, which the editor writes together, and an entity refers to entities of other files | Planned |
@@ -833,6 +833,31 @@ engine reads them where every game makes its library of scenes.
 - **By hand.** Play's time on the zone, on the owner's machine.
 - **Debt settled.** An entity that a run created, wrote into its level and destroyed coming back
   ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)).
+- **Outcome.** Done on 2026-10-28, without "keep this value", which it had no room for. Play
+  measures its time to control, from the request to play to the first state of the game whose time
+  it no longer holds, asking the game how its time stands at each of its frames meanwhile, and the
+  editor's log says it, with its parts writing the level and building the game. Two benchmarks of
+  `slime-benches`, on request, read it from an editor run without its window: `play.zone`, on
+  *Hunna Wood*'s zone, in a window, and `play.level.100k`, on the examples' yard with 100 000
+  entities more. On the owner's machine, the zone gives control well within ADR-0110's budget in
+  either build, so that the game stays a process of its own; the level of 100 000 entities is
+  within it in release, and far over it in debug, the editor writing the level and the game
+  spawning it unoptimized ([`docs/measurements.md`](measurements.md)). Found on the way: such a
+  level fits one scene file only with entities that hold little, a file holding at most
+  `slime_serialize::MAX_VALUES` values; and in a headless Weston, the machine's Vulkan driver
+  refuses the window's surface, and the game draws with llvmpipe, which the benchmark's
+  documentation says. "Keep this value", a value of the running game made a step of the level,
+  needs to choose what a step keeps, a component's value or an entity's, as the inspector of M6c.5
+  will show them: it waits for Checkpoint A, which adjusts the plan, and the debt of
+  [ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md) with it. The review
+  found faults, each fixed: the time counted from Play's thread rather than from the request, which
+  left out the editor writing the level; a pause during the load, which kept the measure open; the
+  zone's benchmark refused on Windows; failures that it did not see; and figures copied out of their
+  home. The tests: the editor's log gives the time to control in the agent's session that plays the
+  yard (`crates/slime-mcp/tests/edit.rs`), and the benchmarks read its line (`slime-benches`' unit
+  test). CI is green on `cb8d694`: `check (headless)` took 16 minutes 23 seconds, `check
+  (windowed)` 6 minutes 23 seconds, `check (game)` 6 minutes 49 seconds, `windows` 18 minutes 10
+  seconds and `windows-release` 14 minutes 15 seconds.
 
 ### Checkpoint A — The owner tries the editor
 
