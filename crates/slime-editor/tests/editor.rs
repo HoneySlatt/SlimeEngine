@@ -208,6 +208,66 @@ fn a_level_changed_written_and_opened_again_holds_the_changes_and_its_comments()
     assert_eq!(level(&mut again, &editor_again), level(&mut world, &editor));
 }
 
+/// A step that renames the well `name`.
+fn rename_the_well(world: &mut World, editor: &mut Editor, name: &str) {
+    let text = format!(
+        "[SetProperty]\nentity = \"yard/well\"\ncomponent = \"Name\"\npath = \"0\"\nvalue = \"{name}\"\n"
+    );
+    editor
+        .apply_text(world, &format!("Name the well {name}"), &[&text], None)
+        .expect("made");
+}
+
+#[test]
+fn the_steps_that_the_file_does_not_hold_are_counted_from_its_last_writing() {
+    let yard = Yard::new("unwritten");
+    let (mut world, mut editor) = yard.open();
+    assert_eq!(editor.unwritten(), 0);
+    for name in ["a", "b", "c"] {
+        rename_the_well(&mut world, &mut editor, name);
+    }
+    assert_eq!(editor.unwritten(), 3);
+    editor.undo(&mut world).expect("undone");
+    assert_eq!(editor.unwritten(), 2);
+    editor.redo(&mut world).expect("redone");
+    assert_eq!(editor.unwritten(), 3, "undone and done again");
+    editor.write(&mut world).expect("written");
+    assert_eq!(editor.unwritten(), 0);
+    // Undone below what is written: the file holds steps that the level does not.
+    editor.undo(&mut world).expect("undone");
+    editor.undo(&mut world).expect("undone");
+    assert_eq!(editor.unwritten(), 2);
+    // A step made there forks from it: the two undone, which the file holds, and the new one.
+    rename_the_well(&mut world, &mut editor, "d");
+    assert_eq!(editor.unwritten(), 3);
+    editor.undo(&mut world).expect("undone");
+    editor.undo(&mut world).expect("undone");
+    assert_eq!(
+        editor.unwritten(),
+        3,
+        "two below the fork, and the fork's own"
+    );
+    // A recovered editor counts as the one that crashed did.
+    let journal = yard.directory.join("unwritten.journal");
+    let (mut world, mut editor) = yard.open();
+    editor
+        .keep_journal(
+            &world,
+            slime_app::HeldFile::hold(journal.clone()).expect("held"),
+        )
+        .expect("kept");
+    for name in ["e", "f"] {
+        rename_the_well(&mut world, &mut editor, name);
+    }
+    editor.write(&mut world).expect("written");
+    rename_the_well(&mut world, &mut editor, "g");
+    drop(editor);
+    let (_, recovered) = yard
+        .recover(&read(&journal))
+        .expect("recovered from its journal");
+    assert_eq!(recovered.unwritten(), 1);
+}
+
 #[test]
 fn steps_undo_and_redo_whole_and_select_again_what_they_selected() {
     let yard = Yard::new("undo");

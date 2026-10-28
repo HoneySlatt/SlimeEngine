@@ -43,6 +43,47 @@ pub struct Editor {
     journaled: Vec<PersistentId>,
     /// How many entries of a journal [`Editor::recover`] played.
     recovered: usize,
+    /// Where the level stands against its file.
+    written: Written,
+}
+
+/// Where a level stands against its file, in steps of the history: how far the level is from the
+/// level as last written, or as opened before any writing.
+#[derive(Clone, Copy, Debug, Default)]
+struct Written {
+    /// The steps done since the level was opened, less those undone.
+    position: i64,
+    /// `position` when the level was last written.
+    at: i64,
+    /// The lowest position at which a step was made below `at` since the level was written, which
+    /// left the level as written out of the history's reach: from there, the steps to undo to the
+    /// fork and those to undo from it back to `at` both differ from the file.
+    fork: Option<i64>,
+}
+
+impl Written {
+    fn made(&mut self) {
+        if self.position < self.at {
+            self.fork = Some(
+                self.fork
+                    .map_or(self.position, |fork| fork.min(self.position)),
+            );
+        }
+        self.position += 1;
+    }
+
+    fn written(&mut self) {
+        self.at = self.position;
+        self.fork = None;
+    }
+
+    fn unwritten(self) -> usize {
+        let steps = match self.fork {
+            Some(fork) => (self.at - fork) + (self.position - fork).abs(),
+            None => (self.position - self.at).abs(),
+        };
+        usize::try_from(steps).unwrap_or(usize::MAX)
+    }
 }
 
 impl Editor {
@@ -77,6 +118,7 @@ impl Editor {
             journal: None,
             journaled: Vec::new(),
             recovered: 0,
+            written: Written::default(),
         }
     }
 
@@ -265,6 +307,7 @@ impl Editor {
             },
             true,
         );
+        self.written.made();
         self.journal(world, &before, || {
             journal::step(world, label, selection.as_deref(), &texts)
         })
@@ -340,6 +383,7 @@ impl Editor {
                     before,
                     after,
                 });
+                self.written.position -= 1;
                 self.journal(world, &current, || Ok("# undo\n".to_owned()))?;
                 Ok(true)
             }
@@ -391,6 +435,7 @@ impl Editor {
                     },
                     false,
                 );
+                self.written.position += 1;
                 self.journal(world, &current, || Ok("# redo\n".to_owned()))?;
                 Ok(true)
             }
@@ -506,6 +551,13 @@ impl Editor {
         &self.selection
     }
 
+    /// How many steps the level's file does not hold: those done since it was last written, or
+    /// opened, and those undone below it; once a step is made after undoing below it, both those
+    /// undone to the fork and those done since. A step undone and done again counts none.
+    pub fn unwritten(&self) -> usize {
+        self.written.unwritten()
+    }
+
     /// How many entries of a journal the editor played again as it was recovered
     /// ([`Editor::recover`]); 0 for an editor opened from its level's file.
     pub fn recovered(&self) -> usize {
@@ -545,6 +597,7 @@ impl Editor {
     /// the journal cannot be written, once the level is.
     pub fn write(&mut self, world: &mut World) -> Result<Vec<SetAside>, EditError> {
         let left_out = self.level.write(world)?;
+        self.written.written();
         let selection = self.selection.clone();
         self.journal(world, &selection, || Ok("# written\n".to_owned()))?;
         Ok(left_out)
@@ -653,6 +706,7 @@ impl Editor {
             }
             Entry::Written => {
                 (self.level.text, _) = self.level.written(world)?;
+                self.written.written();
                 let selection = self.selection.clone();
                 self.journal(world, &selection, || Ok("# written\n".to_owned()))
             }
