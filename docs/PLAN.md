@@ -29,7 +29,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   is done, and M6c.1 was split in two at its start, M6c.1a and M6c.1b, both done; M6c.2 was split in
   two at its start too, of which M6c.2a is done, and M6c.2b in two again at its start, M6c.2b and
   M6c.2c, both done; M6c.3 was split in two at its start, M6c.3a and M6c.3b, of which M6c.3a is
-  done, and M6c.3b in two again at its start, M6c.3b and M6c.3c; next: M6c.3b.
+  done, and M6c.3b in two again at its start, M6c.3b and M6c.3c, of which M6c.3b is done; next:
+  M6c.3c.
 
 ## Status
 
@@ -42,7 +43,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.2b](#m6c2b--picking-and-the-selection) | The user picks in the viewport and sees what is selected outlined | Done |
 | [M6c.2c](#m6c2c--a-second-viewport-and-blenders-way) | A second viewport shows the level, and Blender's way is a preset of the keys and the mouse's buttons | Done |
 | [M6c.3a](#m6c3a--move-with-handles) | The user moves, turns and scales what is selected with handles, each gesture a single step of the history | Done |
-| [M6c.3b](#m6c3b--create-and-arrange) | The user creates, duplicates, deletes, copies, groups and nudges what is selected, each a step | Planned |
+| [M6c.3b](#m6c3b--create-and-arrange) | The user creates, duplicates, deletes, copies, groups and nudges what is selected, each a step | Done |
 | [M6c.3c](#m6c3c--place-prefabs-and-see-the-history) | The user places prefabs and sees the history | Planned |
 | [M6c.4](#m6c4--play-it) | Play runs the level being edited in the game, steps not written included, and the editor's edits reach the running game | Planned |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
@@ -595,6 +596,38 @@ the same day, placing prefabs and the history panel in a third.
   written back unchanged once every step is undone; CI is green.
 - **How to test.** `cargo test -p slime-editor -p slime-world`; the MCP server's session tests.
 - **By hand.** Creating, duplicating, copying between the yard and the zone, grouping and nudging.
+- **Outcome.** Done on 2026-10-28, as [ADR-0162](adr/0162-creating-copying-and-arranging.md)
+  records. `World::creating_commands` gives the commands that create subtrees again as they are,
+  a placement as `Place` and what differs from its prefab, any other entity as `Create`, the
+  components that refer within the copy inserted last; `Command::read_renamed` reads them under
+  the new identities that a `Renaming` gives, which refuses commands that change what they do not
+  create. The editor's core copies them as a step of the journal writes them (`Editor::copy`) and
+  pastes them as one step (`Editor::paste`). *Edit* creates an entity (Ctrl+Shift+N), duplicates
+  (Ctrl+D), copies and pastes through the system's clipboard (Ctrl+C, Ctrl+V), deletes (Delete),
+  groups (Ctrl+G) and repeats the last operation (Shift+R); Ctrl and the arrows, Page Up and Page
+  Down nudge along the world's axes; Blender's way binds Shift+D, X and Shift+A. The arrows alone
+  were left out of nudging: a shortcut comes before the arrows that move through a list. The
+  review found one fault of weight, fixed: a paste applied whatever commands the clipboard held, a
+  step of a journal moving or deleting what the level held; and smaller ones, fixed too: a paste
+  right after a copy, before a frame, read the clipboard's older text; Repeat after a paste
+  through the window repeated the operation before it; Group left out an entity without a
+  transform; an identity renamed through a shorter one that it extends; a parent's fallback to the
+  level's root tested the renamed identity; a root given twice made a paste fail; an entity of a
+  placement moved out of its place made a paste fail; and gaps in the documentation and the tests,
+  filled. The tests: copying and renaming, a placement's overrides kept, nested ones included, a
+  component removed, a child added under a placed entity, a paste into another level, a renaming
+  that refuses what changes the rest (`crates/slime-world/tests/commands.rs`); the interface's
+  clipboard read and written (`crates/slime-ui/tests/field.rs`); copying and pasting in the core,
+  a foreign step refused (`crates/slime-editor/tests/editor.rs`); every operation by name, and
+  grouping, nudging and creating under a turned and scaled parent, a paste right after a copy
+  (`slime-editor`'s unit tests); an agent that duplicates, copies, pastes and is refused a group
+  of a placement's member (`crates/slime-mcp/tests/edit.rs`); and the zone copied, pasted, every
+  step undone, written back as it was (`games/hunnawood-editor/tests/zone.rs`). What nothing
+  checks yet: creating, duplicating, copying between the yard and the zone, grouping and nudging
+  by hand, and in the Windows virtual machine. Known debt: see "Creating and arranging in the
+  editor" in [Known debt](#known-debt). CI is green on `95b7bbc`: `check (headless)` took 15
+  minutes 46 seconds, `check (windowed)` 4 minutes 47 seconds, `check (game)` 10 minutes 2
+  seconds, `windows` 21 minutes 12 seconds and `windows-release` 16 minutes.
 
 #### M6c.3c — Place prefabs and see the history
 
