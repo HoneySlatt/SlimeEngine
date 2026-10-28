@@ -397,6 +397,19 @@ pub enum Kind {
     /// A part of a color well's picker, which the interface builds in it: the square of saturation
     /// and value, or the strip of hue or of alpha, drawn in the colors that it chooses among.
     ColorPart(ColorPart),
+    /// A surface that the program draws and moves through with the pointer, an editor's viewport:
+    /// its image drawn into its whole box, as an image of colors, over its border and padding, if
+    /// any, and the pointer's
+    /// presses, moves and wheel over it given to the program as actions
+    /// ([`ActionKind::Surface`](crate::action::ActionKind::Surface)), which the interface takes. A
+    /// button pressed over it holds the pointer until it is let go, wherever it goes: the surface's
+    /// moves come meanwhile, and the keys without Control, Alt or Super reach the program, typing
+    /// in no field and running no shortcut, so that the keys that fly through it fly
+    /// (`docs/adr/0158-the-viewport.md`).
+    Surface {
+        /// The image that the program draws, which the program that draws the display list gives.
+        image: ImageKey,
+    },
 }
 
 /// A part of a color well's picker ([`Kind::ColorPart`]).
@@ -593,6 +606,12 @@ impl Element {
             color: LinearColor::WHITE,
         };
         Self::of(kind, style)
+    }
+
+    /// A surface that the program draws into `image` and moves through with the pointer
+    /// ([`Kind::Surface`]).
+    pub fn surface(image: ImageKey, style: Style) -> Self {
+        Self::of(Kind::Surface { image }, style)
     }
 
     /// A button with its label.
@@ -2398,6 +2417,7 @@ fn kind_name(kind: &Kind) -> KindName {
         Kind::Progress { .. } => KindName::Progress,
         Kind::ColorWell { .. } => KindName::ColorWell,
         Kind::ColorPart(_) => KindName::ColorPart,
+        Kind::Surface { .. } => KindName::Surface,
     }
 }
 

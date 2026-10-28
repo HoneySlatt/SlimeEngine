@@ -96,6 +96,17 @@ fn primitives(
                 None,
             ));
         }
+        // A surface's image fills its box, where the pointer's places are counted from.
+        Kind::Surface { image } => primitives.push((
+            Primitive::Image(ImagePrimitive {
+                rect,
+                image: *image,
+                part: Rect::new(0.0, 0.0, 1.0, 1.0),
+                kind: crate::display::ImageKind::Color,
+                color: slime_color::LinearColor::WHITE,
+            }),
+            None,
+        )),
         Kind::Image {
             image,
             part,

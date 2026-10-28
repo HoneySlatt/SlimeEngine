@@ -6,7 +6,7 @@ use slime_input::{ButtonState, Key, KeyEvent, Modifiers, MouseButton, NamedKey, 
 
 use super::{ElementId, ElementState, Kind, LayoutDirection, Node, Ui};
 use crate::DocumentError;
-use crate::action::{Action, ActionKind, Intent};
+use crate::action::{Action, ActionKind, Intent, SurfaceInput};
 use crate::shortcuts::{self, Binding, Shortcuts};
 use crate::style::Display;
 
@@ -51,6 +51,11 @@ pub(super) struct Interaction {
     alt_alone: bool,
     /// The floating panel that the pointer holds by its bar or its corner.
     panel: Option<super::panel::Grab>,
+    /// The surface that holds the pointer, with the buttons that went down over it and are held.
+    surface: Option<(ElementId, Vec<MouseButton>)>,
+    /// Where the pointer last was on the surface that holds it, which a release after the pointer
+    /// left gives.
+    surface_at: [f32; 2],
 }
 
 impl Ui {
@@ -60,6 +65,14 @@ impl Ui {
     /// drags its number. A move is never taken: a game follows the pointer too.
     pub fn pointer_moved(&mut self, x: f32, y: f32) {
         self.interaction.pointer = Some([x, y]);
+        if let Some((surface, _)) = self.interaction.surface {
+            let at = self.on_surface(surface, [x, y]);
+            self.interaction.surface_at = at;
+            self.interaction.actions.push(Action {
+                element: Some(surface),
+                kind: ActionKind::Surface(SurfaceInput::Moved { at }),
+            });
+        }
         let hovered = self.interaction.hovered;
         if let Some(held) = self.interaction.bar {
             self.drag_bar(held, x, y);
@@ -131,6 +144,9 @@ impl Ui {
                     self.raise_panel(hit);
                 }
             }
+        }
+        if self.surface_button(button, state) {
+            return true;
         }
         match state {
             // A press on a scroll bar holds its thumb, or pages along its track.
@@ -280,6 +296,18 @@ impl Ui {
     /// scroll, and, as a press, over what the interface draws or while a modal root is open.
     pub fn wheel(&mut self, delta: ScrollDelta) -> bool {
         self.input_hides_tooltip();
+        let surface = match self.interaction.surface {
+            Some((surface, _)) => Some(surface),
+            None => self.surface_under_pointer(),
+        };
+        if let (Some(surface), Some(pointer)) = (surface, self.interaction.pointer) {
+            let at = self.on_surface(surface, pointer);
+            self.interaction.actions.push(Action {
+                element: Some(surface),
+                kind: ActionKind::Surface(SurfaceInput::Wheel { delta, at }),
+            });
+            return true;
+        }
         let Some(target) =
             self.pointer_target(|kind| matches!(kind, Kind::Scroll | Kind::List { .. }))
         else {
@@ -338,11 +366,19 @@ impl Ui {
             let alone = std::mem::take(&mut self.interaction.alt_alone);
             return alt && alone && self.toggle_menu_bar();
         }
+        // Alt pressed while a surface holds the pointer is a gesture's, not the bar of menus'.
         if alt {
-            self.interaction.alt_alone = true;
+            self.interaction.alt_alone = self.interaction.surface.is_none();
             return false;
         }
         self.interaction.alt_alone = false;
+        // While a surface holds the pointer, the keys that fly through it reach the program.
+        let modifiers = self.interaction.modifiers;
+        if self.interaction.surface.is_some()
+            && !(modifiers.control || modifiers.alt || modifiers.super_key)
+        {
+            return false;
+        }
         self.interaction.by_pointer = false;
         // A key hides the tooltip that shows; Escape does nothing more.
         if self.input_hides_tooltip() && event.logical == Key::Named(NamedKey::Escape) {
@@ -360,6 +396,85 @@ impl Ui {
             self.show_tooltip(focus);
         }
         taken
+    }
+
+    /// Gives a button of the mouse to the surface that holds the pointer, or that it goes down
+    /// over, as [`Kind::Surface`] says; gives whether a surface took it.
+    fn surface_button(&mut self, button: MouseButton, state: ButtonState) -> bool {
+        // A release after the pointer left still lets the surface go, where the pointer was last.
+        let pointer = self.interaction.pointer;
+        let input = match state {
+            ButtonState::Pressed => {
+                let Some(pointer) = pointer else {
+                    return false;
+                };
+                let surface = match self.interaction.surface {
+                    Some((surface, _)) => surface,
+                    None => match self.surface_under_pointer() {
+                        Some(surface) => {
+                            self.interaction.surface = Some((surface, Vec::new()));
+                            // The keys that fly through it type in no field.
+                            if self.interaction.modals.is_empty() {
+                                self.focus_on(None);
+                            }
+                            surface
+                        }
+                        None => return false,
+                    },
+                };
+                if let Some((_, buttons)) = &mut self.interaction.surface
+                    && !buttons.contains(&button)
+                {
+                    buttons.push(button);
+                }
+                let at = self.on_surface(surface, pointer);
+                self.interaction.surface_at = at;
+                (
+                    surface,
+                    SurfaceInput::Pressed {
+                        button,
+                        at,
+                        modifiers: self.interaction.modifiers,
+                    },
+                )
+            }
+            ButtonState::Released => {
+                let Some((surface, buttons)) = &mut self.interaction.surface else {
+                    return false;
+                };
+                let Some(place) = buttons.iter().position(|&held| held == button) else {
+                    return false;
+                };
+                buttons.swap_remove(place);
+                let surface = *surface;
+                if buttons.is_empty() {
+                    self.interaction.surface = None;
+                }
+                let at = pointer.map_or(self.interaction.surface_at, |pointer| {
+                    self.on_surface(surface, pointer)
+                });
+                (surface, SurfaceInput::Released { button, at })
+            }
+        };
+        self.interaction.actions.push(Action {
+            element: Some(input.0),
+            kind: ActionKind::Surface(input.1),
+        });
+        true
+    }
+
+    /// The surface under the pointer that takes it, if any.
+    fn surface_under_pointer(&self) -> Option<ElementId> {
+        self.pointer_target(|kind| matches!(kind, Kind::Surface { .. }))
+            .filter(|&surface| self.in_scope(surface))
+    }
+
+    /// `pointer`, in pixels of the screen, in logical pixels from the top left corner of
+    /// `surface`'s box.
+    fn on_surface(&self, surface: ElementId, [x, y]: [f32; 2]) -> [f32; 2] {
+        let scale = self.scale_of(surface);
+        let rect = self.node(surface).map(|node| node.rect).unwrap_or_default();
+        [(x - rect.x) / scale, (y - rect.y) / scale]
     }
 
     /// What a key's press does, as [`Ui::key`] says, once the tooltip is hidden.
@@ -622,7 +737,8 @@ impl Ui {
             | ActionKind::Changed(_)
             | ActionKind::Committed(_)
             | ActionKind::ContextMenu { .. }
-            | ActionKind::Dismissed => {
+            | ActionKind::Dismissed
+            | ActionKind::Surface(_) => {
                 self.interaction.actions.push(action);
             }
             ActionKind::Intent(intent) => self.move_focus(intent),

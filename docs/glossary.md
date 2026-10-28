@@ -1334,6 +1334,10 @@ to whole pixels ([ADR-0136](adr/0136-the-interfaces-text.md)).
 radiance gives a surface facing it the sun's illuminance; it lights nothing, the scene's
 directional light carrying the sun's light.
 
+**Surface (interface).** An element of an interface that shows an image that the program draws, an
+editor's *viewport*, and gives the program the pointer over it (`slime_ui::tree::Kind::Surface`,
+[ADR-0158](adr/0158-the-viewport.md)). Not the GPU's *surface*.
+
 **Surface.** The link between the GPU and a window: the images the window shows. Each frame, the
 engine *acquires* one, the application draws into it, and the engine *presents* it
 (`slime_gfx::Surface`). The graphics API can report it *lost*: it is then created again, and given

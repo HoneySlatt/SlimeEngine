@@ -60,6 +60,10 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   reads it as actions, changed and committed (`action::FieldValue`), and the window asks it for
   the pointer's shape and where text is typed (`Ui::cursor`, `Ui::text_input`). The input calls
   give whether the interface took the event, which a game then leaves.
+- A surface (`Element::surface`) shows an image that the program draws, an editor's viewport, and
+  gives the program the pointer over it as actions (`action::SurfaceInput`): a button pressed over
+  it holds the pointer until it is let go, and the keys without Control, Alt or Super reach the
+  program meanwhile ([ADR-0158](../../docs/adr/0158-the-viewport.md)).
 - Widgets, each an element kind that keeps its state in the tree: check boxes
   (`Element::check_box`) and sliders (`Element::slider`), whose values the program reads as
   actions, changed and committed (`action::FieldValue`), the program's value replacing the user's

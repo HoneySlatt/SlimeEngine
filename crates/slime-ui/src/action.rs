@@ -8,6 +8,7 @@
 //! queue until the program takes them ([`Ui::take_actions`](crate::tree::Ui::take_actions)).
 
 use slime_color::LinearColor;
+use slime_input::{Modifiers, MouseButton, ScrollDelta};
 
 use crate::tree::ElementId;
 
@@ -61,6 +62,46 @@ pub enum ActionKind {
     /// or over removed, for any layer. The action's element is the layer's root, which no longer
     /// exists (`docs/adr/0150-layers.md`).
     Dismissed,
+    /// What the pointer did on a surface, the action's element
+    /// ([`Kind::Surface`](crate::tree::Kind::Surface)).
+    Surface(SurfaceInput),
+}
+
+/// What the pointer did on a surface ([`ActionKind::Surface`]), where it was in logical pixels from
+/// the surface's top left corner, which may lie outside it while a button holds the pointer.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SurfaceInput {
+    /// A button went down over the surface, with the modifier keys held then: it holds the pointer
+    /// until it is let go.
+    Pressed {
+        /// The button.
+        button: MouseButton,
+        /// Where the pointer was.
+        at: [f32; 2],
+        /// The modifier keys held.
+        modifiers: Modifiers,
+    },
+    /// The pointer moved while a button that went down over the surface is held.
+    Moved {
+        /// Where it is.
+        at: [f32; 2],
+    },
+    /// A button that went down over the surface went up, wherever the pointer was, or after it
+    /// left the window, where it last was on the surface: the platform lets the window's buttons
+    /// go as it loses the focus.
+    Released {
+        /// The button.
+        button: MouseButton,
+        /// Where the pointer was.
+        at: [f32; 2],
+    },
+    /// The wheel turned over the surface.
+    Wheel {
+        /// How far, as the platform reports it.
+        delta: ScrollDelta,
+        /// Where the pointer was.
+        at: [f32; 2],
+    },
 }
 
 /// What an element that the user gives a value holds: a field's text or number, a check box's or a

@@ -41,6 +41,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The cursor held (ADR-0157): `Window::set_cursor_held` holds the cursor, hidden, where it is, and
   lets it go, as the window does itself when it loses the focus; `Event::RawMotion` reports the
   mouse's raw motion meanwhile. The `window` example holds it while its right button is held.
+- `Element::surface` in `slime-ui`: an element that shows an image that the program draws and gives
+  it the pointer, as `ActionKind::Surface`, the keys reaching the program while a button pressed
+  over it is held.
 - A modal layer of `slime-ui` dims the window below it: its root is of the class `modal`, and a
   layer's root lays the backdrop that its style gives (`PaintStyle::backdrop`) over the window,
   which the editor's look gives the theme's scrim.

@@ -401,13 +401,14 @@ impl Interface {
                     self.scale = scale;
                     self.tell(format!("scale {scale}"));
                 }
-                // It holds no check box, list to choose from nor color well, and opens no menu nor
-                // layer that closes as the user leaves it.
+                // It holds no check box, list to choose from, color well nor surface, and opens no
+                // menu nor layer that closes as the user leaves it.
                 ActionKind::Committed(
                     FieldValue::Checked(_) | FieldValue::Chosen(_) | FieldValue::Color(_),
                 )
                 | ActionKind::ContextMenu { .. }
-                | ActionKind::Dismissed => {}
+                | ActionKind::Dismissed
+                | ActionKind::Surface(_) => {}
             }
         }
         stop

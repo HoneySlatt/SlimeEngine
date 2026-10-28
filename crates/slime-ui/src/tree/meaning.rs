@@ -549,7 +549,8 @@ impl Ui {
             Kind::Container if element.name.is_some() => Role::Group,
             Kind::Container | Kind::SectionHeader => Role::GenericContainer,
             Kind::Label(_) => Role::Label,
-            Kind::Image { .. } => Role::Image,
+            // What a surface shows is the program's image, which its name says.
+            Kind::Image { .. } | Kind::Surface { .. } => Role::Image,
             Kind::Button { .. } => Role::Button,
             Kind::Scroll => Role::ScrollView,
             Kind::List { .. } => Role::List,
