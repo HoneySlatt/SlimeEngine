@@ -30,7 +30,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   two at its start too, of which M6c.2a is done, and M6c.2b in two again at its start, M6c.2b and
   M6c.2c, both done; M6c.3 was split in two at its start, M6c.3a and M6c.3b, of which M6c.3a is
   done, and M6c.3b in two again at its start, M6c.3b and M6c.3c, all done; M6c.4 was split in
-  three at its start, M6c.4a, M6c.4b and M6c.4c; next: M6c.4a.
+  three at its start, M6c.4a, M6c.4b and M6c.4c, of which M6c.4a is done; next: M6c.4b.
 
 ## Status
 
@@ -45,7 +45,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.3a](#m6c3a--move-with-handles) | The user moves, turns and scales what is selected with handles, each gesture a single step of the history | Done |
 | [M6c.3b](#m6c3b--create-and-arrange) | The user creates, duplicates, deletes, copies, groups and nudges what is selected, each a step | Done |
 | [M6c.3c](#m6c3c--place-prefabs-and-see-the-history) | The user places prefabs and sees the history | Done |
-| [M6c.4a](#m6c4a--play-the-level) | Play runs the level being edited in the game, steps not written included, paused, stepped and stopped from a toolbar, its log in a console | Planned |
+| [M6c.4a](#m6c4a--play-the-level) | Play runs the level being edited in the game, steps not written included, paused, stepped and stopped from a toolbar, its log in a console | Done |
 | [M6c.4b](#m6c4b--edit-while-playing) | The editor's edits reach the running game, and agents drive both programs | Planned |
 | [M6c.4c](#m6c4c--build-the-game-again-and-measure-play) | A game whose code changed is built again and started on a save of its run, and Play's time is measured | Planned |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
@@ -695,6 +695,35 @@ engine reads them where every game makes its library of scenes.
 - **How to test.** `cargo test -p slime-editor -p slime-world`;
   `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
 - **By hand.** Play, Pause, Step and Stop, on Linux.
+- **Outcome.** Done on 2026-10-28, as [ADR-0164](adr/0164-play.md) records. With `slime-world`'s
+  `development` feature, which `slime-app`'s turns on, `SceneLibrary::of` reads the scene files of
+  the directory that `SLIME_PLAY_SCENES` names in place of their cooked files. Play writes the
+  level's text as the editor holds it into a new directory of its own, with a save of its own,
+  starts the game that `Program::play` gives, *Hunna Wood* beside its editor and the `world`
+  example beside the `editor` example, and drives it from threads of its own: the controls sent,
+  game time asked after each and shown, the game's standard error read as its log, a stop's watch
+  killing a game that does not end within ten seconds; `slime_channel::launch_unless` gives a
+  start up once Stop is asked. A toolbar above the viewports, the *Play* menu and F5, Shift+F5, F7
+  and F8 play, pause, step, set the speed of game time and stop; a console below the viewports
+  shows the game's log, which the editor's log writes too. The review found four faults of weight,
+  each fixed: the toolbar's speeds, toggles that sent nothing; the cooked level played once the
+  file was written, older than the file; a hung game that Stop could not end for ten minutes, and
+  that outlived the editor; and a test of a crash that Windows' exit status would fail. It found
+  smaller ones, fixed too: a stop while the game starts that waited two minutes; Play's directory
+  left behind by an editor that quits; a console that showed its first lines; the last lines of a
+  game's log, and a panic's, lost; the toolbar's state guessed rather than read from the game; a
+  directory of a name that another program could make first; and gaps in the documentation and
+  the tests, filled. A test of the history panel, which shared its directory with another since
+  M6c.3c, takes one of its own. The tests: Play's scenes in the library
+  (`slime-world`'s unit tests); Play against a stub game, the toolbar's buttons and speeds
+  pressed, game time as the game says it stands, a start stopped, a crash
+  (`slime-editor`'s unit tests); the toolbar in every image test of the window; and an agent that
+  plays the yard in the `world` example, pauses, steps, sets the speed, stops and reads the game's
+  log (`crates/slime-mcp/tests/edit.rs`). What nothing checks yet: Play by hand on Linux, with
+  *Hunna Wood* and the yard, and in the Windows virtual machine. Known debt: see "Play" in [Known
+  debt](#known-debt). CI is green on `dd44fe6`: `check (headless)` took 12 minutes 41 seconds,
+  `check (windowed)` 6 minutes 18 seconds, `check (game)` 9 minutes 40 seconds, `windows` 18
+  minutes 39 seconds and `windows-release` 17 minutes 7 seconds.
 
 #### M6c.4b — Edit while playing
 
