@@ -28,7 +28,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   decisions on the editor's design, its milestones and their order, which ADR-0155 records. M6c.0
   is done, and M6c.1 was split in two at its start, M6c.1a and M6c.1b, both done; M6c.2 was split in
   two at its start too, of which M6c.2a is done, and M6c.2b in two again at its start, M6c.2b and
-  M6c.2c, both done; M6c.3 was split in two at its start, M6c.3a and M6c.3b; next: M6c.3a.
+  M6c.2c, both done; M6c.3 was split in two at its start, M6c.3a and M6c.3b, of which M6c.3a is
+  done; next: M6c.3b.
 
 ## Status
 
@@ -40,7 +41,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.2a](#m6c2a--the-viewport-and-its-navigation) | The level shows in a viewport that the user flies through, drawn again only when what it shows changed | Done |
 | [M6c.2b](#m6c2b--picking-and-the-selection) | The user picks in the viewport and sees what is selected outlined | Done |
 | [M6c.2c](#m6c2c--a-second-viewport-and-blenders-way) | A second viewport shows the level, and Blender's way is a preset of the keys and the mouse's buttons | Done |
-| [M6c.3a](#m6c3a--move-with-handles) | The user moves, turns and scales what is selected with handles, each gesture a single step of the history | Planned |
+| [M6c.3a](#m6c3a--move-with-handles) | The user moves, turns and scales what is selected with handles, each gesture a single step of the history | Done |
 | [M6c.3b](#m6c3b--create-and-arrange) | The user creates, duplicates, deletes, copies, groups and places prefabs, each a step, and sees the history | Planned |
 | [M6c.4](#m6c4--play-it) | Play runs the level being edited in the game, steps not written included, and the editor's edits reach the running game | Planned |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
@@ -542,6 +543,41 @@ the open step and the handles, then creating and arranging.
 - **By hand.** The handles' feel, their hit areas and the snapping, in the yard and the zone.
 - **Debt settled.** Instances over the image, with a depth of their own
   ([ADR-0129](adr/0129-drawing-for-the-editor.md)).
+- **Outcome.** Done on 2026-10-28, as [ADR-0161](adr/0161-the-open-step-and-the-handles.md)
+  records. The editor's core holds an open step: `Editor::gesture` applies a gesture's commands
+  live, in place of those it applied before, neither journaled nor in the history;
+  `end_gesture` makes them one step, `cancel_gesture` undoes them, and every other change is
+  refused meanwhile. The development channel keeps a tool's requests that change an editor's level
+  or its selection, values set included, while `Simulation::edits_wait` says so, and answers them
+  in their order once the gesture ends; the editor says so from the press on a handle. *Edit* >
+  *Move*, *Turn* and *Scale* (W, E, R) draw handles over the viewport's image, unlit instances with
+  a depth of their own (`Drawings::over_image` is now a `DrawList`), in the world's axes or the
+  last selected entity's, about the middle of the origins of the outermost of what is selected;
+  *Snap* lands the pivot on the world's grid of a quarter of a metre in the world's axes, by
+  quarters of a metre in the selection's, turns by fifteen degrees and scales by tenths. End and
+  Shift+End drop what is selected, its origin or its bottom (`Picker::bounds`), on the first mesh
+  below it. The review found two faults of weight, each fixed: a drag of a plane's square, snapped,
+  moved what it dragged off its plane; a value that a tool set during a drag was refused rather
+  than kept. It found smaller ones, fixed too: an agent's step that could slip between the press
+  and the first move; a drag that jumped back where the ray reached nothing; a drag in a viewport
+  taken away, which left the gesture open; a scale from the middle that a press near the pivot
+  made many times too strong; a drop that read the cooked data of the level opened first; and
+  hidden entities counted in the box that Shift+End drops; and gaps in the documentation and the
+  tests, filled. The tests: the open step, a crash during it and nothing else changing the level
+  meanwhile (`crates/slime-editor/tests/editor.rs`); the handles' mathematics and a drag in the
+  window, which agents wait for from its press to its release (`slime-editor`'s unit tests); a
+  tool's edits and values set waiting, its reads not (`crates/slime-app/tests/channel.rs`);
+  instances over the image (`crates/slime-render/tests/drawings.rs`); the picker's box
+  (`examples/tests/world.rs`); the handles in two image tests
+  (`examples/tests/reference/editor-selected.png`, `editor-turn.png`); an agent that moves three
+  lamps in one step, undoes it and drops a lamp on the floor (`crates/slime-mcp/tests/edit.rs`);
+  and the zone moved by gestures and steps, every step undone, written back as it was
+  (`games/hunnawood-editor/tests/zone.rs`). What nothing checks yet: the handles' feel, their hit
+  areas and the snapping by hand, in the yard and the zone, and in the Windows virtual machine;
+  Escape tested through the model, not through a key of the window. Known debt: see "The editor's
+  handles" in [Known debt](#known-debt). CI is green on `55258a9`: `check (headless)` took 12
+  minutes 26 seconds, `check (windowed)` 6 minutes 19 seconds, `check (game)` 7 minutes,
+  `windows` 14 minutes 58 seconds and `windows-release` 10 minutes 36 seconds.
 
 #### M6c.3b — Create and arrange
 
