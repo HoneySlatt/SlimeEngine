@@ -23,7 +23,9 @@
   [0158](0158-the-viewport.md) (the `.keys` preset in Blender's way comes with M6c.2b's picking;
   an agent frames the viewport by an operation's name) and
   [0159](0159-picking-and-the-selection.md) (Alt and a click told from an orbit by the mouse's
-  stillness; the second viewport and Blender's way in M6c.2c)
+  stillness; the second viewport and Blender's way in M6c.2c) and
+  [0160](0160-two-viewports-and-blenders-way.md) (the check of the editor's tables leaves out what
+  the mouse's buttons do)
 - Date: 2026-10-27
 
 ## Context

@@ -6,7 +6,8 @@
   [0115](0115-what-the-gpu-layer-gives-the-editor.md) (the scene's depth resolved into its
   farthest sample, by the outline's frames alone), [0129](0129-drawing-for-the-editor.md) (what a
   client draws gains an outline) and [0127](0127-the-settings-of-a-view.md) (two modes of debugging
-  more)
+  more); amended by [0160](0160-two-viewports-and-blenders-way.md) (the buttons that select are
+  the table of shortcuts')
 - Date: 2026-10-28
 
 ## Context

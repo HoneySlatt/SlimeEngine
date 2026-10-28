@@ -5,7 +5,8 @@
   flying it with scripted keys), [0127](0127-the-settings-of-a-view.md) (a view says when its new
   size has held still) and [0041](0041-render-graph.md) (sixteen passes to a submission, where it
   kept four); amended by [0159](0159-picking-and-the-selection.md) (Blender's way comes with
-  M6c.2c)
+  M6c.2c) and [0160](0160-two-viewports-and-blenders-way.md) (the mouse's buttons bound by the table
+  of shortcuts)
 - Date: 2026-10-28
 
 ## Context

@@ -475,7 +475,7 @@ at its start, the same day, the second viewport and Blender's way in a third
 - **Crates.** `slime-ui`, `slime-editor`.
 - **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: a second viewport, the one
   navigated alone drawn at the full rate; a `.keys` preset in Blender's way, its mouse's buttons
-  with it. The ADR of the design, if one is needed.
+  with it. The ADR of the design ([ADR-0160](adr/0160-two-viewports-and-blenders-way.md)).
 - **Done when.** Tests of the viewports' rates and of the preset's buttons; an agent captures each
   viewport by its name; CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-editor`;
