@@ -1,18 +1,21 @@
 //! The editor's window: a presentation of its program, on the engine's interface in the editor's
 //! look, which reads what the core shares and asks it through requests
 //! (`docs/adr/0156-the-editors-window-and-its-operations.md`): a menu bar, fixed regions, the dev
-//! overlay's world panel in the first, a status bar, and the window's title.
+//! overlay's world panel in the first, a status bar, and the window's title; and the system's dialog
+//! to open a level, a modal layer waiting over the window meanwhile
+//! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`).
 
 use std::ffi::OsString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use slime_app::{AppConfig, AppError, Context, Host, Presentation};
 use slime_color::LinearColor;
 use slime_devui::WorldPanel;
 use slime_gfx::{Gpu, Image, RenderPassDescriptor, RenderTarget, TextureFormat};
-use slime_platform::{ColorScheme, Event};
+use slime_platform::{ColorScheme, DialogId, Event, FileChoice};
 use slime_render::{RenderError, Renderer};
-use slime_ui::action::{Action, ActionKind};
+use slime_ui::action::{Action, ActionKind, FieldValue};
 use slime_ui::display::DisplayList;
 use slime_ui::look::{self, Colors, Density};
 use slime_ui::shortcuts::Shortcuts;
@@ -20,7 +23,7 @@ use slime_ui::style::{Align, Dimension, FlexDirection, Justify, Sides, Style};
 use slime_ui::text::Fonts;
 use slime_ui::tree::{
     Along, Element, ElementId, ItemMark, Key, Layer, LayoutDirection, Notification,
-    NotificationKind, PaletteCommand, Place, RootSettings, Side, Ui,
+    NotificationKind, PaletteCommand, Place, Role, RootSettings, Side, Ui,
 };
 use slime_ui_render::UiRenderer;
 use slime_world::{Entity, World};
@@ -28,7 +31,7 @@ use slime_world::{Entity, World};
 use crate::operation::{self, OPERATIONS, SHORTCUTS};
 use crate::program::Program;
 use crate::session::Session;
-use crate::shared::{Request, Shared};
+use crate::shared::{Notice, Request, Shared};
 
 /// An entry of a menu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,6 +49,7 @@ pub(crate) const MENUS: &[(&str, &[Entry])] = &[
     (
         "File",
         &[
+            Entry::Operation("file.choose"),
             Entry::Recent,
             Entry::Operation("file.save"),
             Entry::Separator,
@@ -76,6 +80,23 @@ const SIDE_WIDTH: f32 = 340.0;
 /// What the center of the window says until it holds a viewport.
 const NO_VIEWPORT: &str = "No viewport yet: the level shows in the world panel.";
 
+/// The width of the layer that waits for the system's dialog to open a level, in logical pixels.
+const CHOOSING_WIDTH: f32 = 460.0;
+
+/// What the layer that waits for the system's dialog says while it waits.
+const CHOOSE: &str = "Choose a level in the system's dialog, or type its path.";
+
+/// What it says where no dialog showed.
+const NO_DIALOG_SHOWED: &str = "No dialog of the system showed: type the level's path.";
+
+/// What it says in a program that opens no dialog of the system, which a tool started.
+const TYPE_THE_PATH: &str = "Type the level's path.";
+
+/// How soon a dialog of the system that answers no file answers before a person could have: none
+/// showed, where neither the desktop's portal nor `zenity` answers. The layer that waits stays
+/// then, for the level's path to be typed, where a cancel closes it.
+const NO_DIALOG: Duration = Duration::from_millis(500);
+
 /// What an item of an open menu does.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Item {
@@ -83,6 +104,19 @@ enum Item {
     Run(&'static str, Vec<String>),
     /// Opens the submenu of the recent levels.
     Recent,
+}
+
+/// The modal layer that waits over the window for the system's dialog to open a level, where the
+/// level's path can be typed too.
+struct Choosing {
+    layer: ElementId,
+    field: ElementId,
+    open: ElementId,
+    cancel: ElementId,
+    /// Whether the window is yet to open the system's dialog ([`Model::dialog_wanted`]).
+    wanted: bool,
+    /// The system's dialog that the window opened, and when, until it answers.
+    dialog: Option<(DialogId, Instant)>,
 }
 
 /// What the window shows and how it turns what the user does into the core's requests, without a
@@ -106,6 +140,8 @@ pub(crate) struct Model {
     /// The entity that the world panel last selected, which the core's selection follows.
     selected: Option<Entity>,
     colors: Colors,
+    /// The layer that waits for the system's dialog, while it is open.
+    choosing: Option<Choosing>,
 }
 
 impl Model {
@@ -129,6 +165,7 @@ impl Model {
             opened: 0,
             selected: None,
             colors: Colors::Dark,
+            choosing: None,
         };
         model.style();
         model
@@ -181,8 +218,30 @@ impl Model {
         took || made
     }
 
-    /// The request that `action` makes, after the menus that it opens or closes.
+    /// The request that `action` makes, after the menus and the layers that it opens or closes.
     fn request_of(&mut self, action: &Action) -> Option<Request> {
+        if let Some(choosing) = &self.choosing
+            && let Some(id) = action.element
+        {
+            match &action.kind {
+                ActionKind::Press if id == choosing.open => return self.open_typed(),
+                // Enter, not the focus leaving the field for Cancel.
+                ActionKind::Committed(FieldValue::Text(_))
+                    if id == choosing.field && self.ui.focus() == Some(id) =>
+                {
+                    return self.open_typed();
+                }
+                ActionKind::Press if id == choosing.cancel => {
+                    self.close_choosing();
+                    return None;
+                }
+                ActionKind::Dismissed if id == choosing.layer => {
+                    self.choosing = None;
+                    return None;
+                }
+                _ => {}
+            }
+        }
         match (&action.kind, action.element) {
             (ActionKind::Command(name), _) => Some(Request::Run {
                 name: name.clone(),
@@ -300,9 +359,180 @@ impl Model {
         self.items.extend(items);
     }
 
-    /// Runs the window's operations that the core was asked to run: the palette, the sheet of
-    /// shortcuts.
-    fn run_window_operations(&mut self) {
+    /// Opens the layer that waits over the window, `size` logical pixels, for the system's dialog
+    /// to open a level, which the window opens ([`Model::dialog_wanted`]); one at a time.
+    fn choose_level(&mut self, size: [f32; 2]) {
+        if self.choosing.is_some() {
+            return;
+        }
+        let layer = Layer {
+            place: self.choosing_place(size),
+            modal: true,
+            dismiss: true,
+        };
+        let layer = self.ui.open_layer("choose", layer, Style::default());
+        let dialogs = self.shared.borrow().dialogs;
+        let said = if dialogs { CHOOSE } else { TYPE_THE_PATH };
+        let (field, open, cancel) = self.build_choosing(layer, said, 0);
+        self.ui.set_focus(Some(field));
+        self.choosing = Some(Choosing {
+            layer,
+            field,
+            open,
+            cancel,
+            wanted: dialogs,
+            dialog: None,
+        });
+    }
+
+    /// Where the layer that waits for the system's dialog stands over a window of `size` logical
+    /// pixels: in the middle across, a quarter of the way down.
+    fn choosing_place(&self, size: [f32; 2]) -> Place {
+        let point = [
+            ((size[0] - CHOOSING_WIDTH) / 2.0).max(0.0).round(),
+            (size[1] / 4.0).round(),
+        ];
+        Place::At {
+            over: self.root,
+            point,
+        }
+    }
+
+    /// Builds the layer that waits for the system's dialog, `layer`, for `revision`, saying `said`:
+    /// its field and its buttons Open and Cancel.
+    fn build_choosing(
+        &mut self,
+        layer: ElementId,
+        said: &str,
+        revision: u64,
+    ) -> (ElementId, ElementId, ElementId) {
+        let mut built = None;
+        self.ui.build(layer, revision, |children| {
+            let mut dialog = column();
+            dialog.layout.size[0] = Dimension::Pixels(CHOOSING_WIDTH);
+            let dialog = Element::container(dialog)
+                .class("dialog")
+                .role(Role::Dialog)
+                .named("Open a level");
+            children.add("dialog", dialog, |dialog| {
+                let title = Element::label("Open a level", Style::default()).class("heading");
+                dialog.add("title", title, |_| {});
+                dialog.add("said", Element::label(said, Style::default()), |_| {});
+                let field = Element::text_field("", Style::default()).named("Level's path");
+                let field = dialog.add("path", field, |_| {});
+                let mut row = Style::default();
+                row.layout.justify = Justify::End;
+                row.layout.gap = [0.0, 8.0];
+                let mut buttons = None;
+                dialog.add("buttons", Element::container(row), |row| {
+                    let cancel = Element::button("Cancel", Style::default());
+                    let cancel = row.add("cancel", cancel, |_| {});
+                    let open = row.add("open", Element::button("Open", Style::default()), |_| {});
+                    buttons = Some((open, cancel));
+                });
+                let (open, cancel) = buttons.expect("built above");
+                built = Some((field, open, cancel));
+            });
+        });
+        built.expect("built above")
+    }
+
+    /// The request to open the level whose path the waiting layer's field holds, which closes the
+    /// layer; none while the field is empty.
+    fn open_typed(&mut self) -> Option<Request> {
+        let field = self.choosing.as_ref()?.field;
+        let path = self.ui.field_text(field)?.trim().to_owned();
+        if path.is_empty() {
+            return None;
+        }
+        self.close_choosing();
+        Some(Request::Run {
+            name: "file.open".to_owned(),
+            arguments: vec![path],
+        })
+    }
+
+    fn close_choosing(&mut self) {
+        if let Some(choosing) = self.choosing.take() {
+            self.ui.remove(choosing.layer);
+        }
+    }
+
+    /// The system's dialog that the window is to open for the layer that waits, once: a level's
+    /// scene file, from the open level's directory.
+    pub(crate) fn dialog_wanted(&mut self) -> Option<FileChoice> {
+        let choosing = self.choosing.as_mut().filter(|choosing| choosing.wanted)?;
+        choosing.wanted = false;
+        let directory = self
+            .shared
+            .borrow()
+            .level
+            .as_deref()
+            .and_then(Path::parent)
+            // A level named without a directory lies in the current one.
+            .map(|directory| match directory.as_os_str().is_empty() {
+                true => Path::new("."),
+                false => directory,
+            })
+            .and_then(|directory| std::path::absolute(directory).ok());
+        Some(FileChoice {
+            title: "Open a level".to_owned(),
+            filters: vec![("Levels".to_owned(), vec!["scene".to_owned()])],
+            directory,
+        })
+    }
+
+    /// Notes that the window opened the system's dialog `dialog`, at `now`, for the layer that
+    /// waits.
+    pub(crate) fn dialog_opened(&mut self, dialog: DialogId, now: Instant) {
+        if let Some(choosing) = &mut self.choosing {
+            choosing.dialog = Some((dialog, now));
+        }
+    }
+
+    /// Hears the system's dialog `dialog` answer `file`, at `now`: the file chosen opens, as
+    /// `file.open` opens a path, and no file closes the layer that waits, but where the dialog
+    /// answered sooner than a person could have ([`NO_DIALOG`]): the layer says so, and waits for
+    /// the path typed. A dialog that the layer did not open, or that it closed without, is not
+    /// heard.
+    pub(crate) fn file_chosen(&mut self, dialog: DialogId, file: Option<PathBuf>, now: Instant) {
+        let Some(choosing) = &mut self.choosing else {
+            return;
+        };
+        let Some((_, opened)) = choosing.dialog.filter(|&(asked, _)| asked == dialog) else {
+            return;
+        };
+        match file {
+            Some(file) => {
+                self.close_choosing();
+                let mut shared = self.shared.borrow_mut();
+                match file.into_os_string().into_string() {
+                    Ok(path) => shared.requests.push_back(Request::Run {
+                        name: "file.open".to_owned(),
+                        arguments: vec![path],
+                    }),
+                    Err(file) => shared.notices.push(Notice {
+                        failure: true,
+                        text: format!(
+                            "{}: the editor opens a level whose path is Unicode text",
+                            Path::new(&file).display()
+                        ),
+                    }),
+                }
+            }
+            None if now.saturating_duration_since(opened) < NO_DIALOG => {
+                choosing.dialog = None;
+                let (layer, field) = (choosing.layer, choosing.field);
+                self.build_choosing(layer, NO_DIALOG_SHOWED, 1);
+                self.ui.set_focus(Some(field));
+            }
+            None => self.close_choosing(),
+        }
+    }
+
+    /// Runs the window's operations that the core was asked to run, over a window of `size`
+    /// logical pixels: the palette, the sheet of shortcuts, the system's dialog to open a level.
+    fn run_window_operations(&mut self, size: [f32; 2]) {
         let operations = std::mem::take(&mut self.shared.borrow_mut().window_operations);
         for name in operations {
             let commands: Vec<PaletteCommand> = OPERATIONS
@@ -316,6 +546,7 @@ impl Model {
             match name {
                 "view.palette" => self.ui.open_palette("Find an operation", commands),
                 "view.shortcuts" => self.ui.open_shortcut_sheet("Shortcuts", &commands),
+                "file.choose" => self.choose_level(size),
                 name => tracing::warn!(name, "the window has no operation of that name"),
             }
         }
@@ -325,7 +556,12 @@ impl Model {
     /// logical pixel, from what the core shares and from `world`, and gives what to draw.
     pub(crate) fn frame(&mut self, world: &World, size: [f32; 2], scale: f32) -> DisplayList {
         self.ui.set_root(self.root, settings(size, scale));
-        self.run_window_operations();
+        // The layer that waits stays in the middle of a window whose size changes.
+        if let Some(layer) = self.choosing.as_ref().map(|choosing| choosing.layer) {
+            let place = self.choosing_place(size);
+            self.ui.set_layer_place(layer, place);
+        }
+        self.run_window_operations(size);
         let notices = std::mem::take(&mut self.shared.borrow_mut().notices);
         for notice in notices {
             self.ui.notify(Notification {
@@ -527,22 +763,28 @@ pub const IMAGE_SIZE: [u32; 2] = [1280, 800];
 /// The window of the editor's `program` opened on its level as `arguments` say, as the program
 /// takes them ([`run`](crate::run): `--level`, `--assets`, `--journal`, `--discard`), drawn into an
 /// image of [`IMAGE_SIZE`] logical pixels at `scale` pixels per logical pixel, as it shows once the
-/// level is open, on the GPU that [`Gpu::new`] opens, without a window of the system: what the
-/// `editor` example's `--output` draws, and what its image tests compare. The level is opened as the
-/// program opens it, its journal held and written, and the recent levels left as they are; the
-/// status bar shows the level's path as `--level` gives it.
+/// level is open and the operations named `operations` run, without arguments, on the GPU that
+/// [`Gpu::new`] opens, without a window of the system: what the `editor` example's `--output`
+/// draws, and what its image tests compare. The level is opened as the program opens it, its
+/// journal held and written, and the recent levels left as they are; the status bar shows the
+/// level's path as `--level` gives it. `file.choose` shows the layer that waits for the system's
+/// dialog, which no window opens here.
 ///
 /// # Errors
 ///
-/// When the arguments are not the program's, the level cannot be opened, no GPU adapter is
-/// available, or the window cannot be drawn: why, as a sentence.
+/// When the arguments are not the program's, the level cannot be opened, an operation fails, no
+/// GPU adapter is available, or the window cannot be drawn: why, as a sentence.
 pub fn window_image(
     program: &Program,
     arguments: impl IntoIterator<Item = OsString>,
+    operations: &[&str],
     scale: f32,
 ) -> Result<Image, String> {
     let options = crate::program::parse(program, arguments)?.ok_or("--help draws no image")?;
     let shared = Shared::default();
+    // Drawn as a person sees it, waiting for the dialog that no window opens here.
+    shared.borrow_mut().window = true;
+    shared.borrow_mut().dialogs = true;
     let mut session = Session::new(
         program,
         options,
@@ -553,6 +795,15 @@ pub fn window_image(
     let mut host = Host::new(&AppConfig::default());
     host.start(&mut session)
         .map_err(|error| slime_app::error_chain(&*error))?;
+    for name in operations {
+        let run = Request::Run {
+            name: (*name).to_owned(),
+            arguments: Vec::new(),
+        };
+        session
+            .handle(host.world_mut(), run)
+            .map_err(|error| slime_app::error_chain(&*error))?;
+    }
     let mut model = Model::new(shared);
     model.ui.set_reduced_motion(true);
     let gpu = Gpu::new().map_err(|error| slime_app::error_chain(&error))?;
@@ -644,11 +895,19 @@ impl Presentation for Window {
     }
 
     fn on_event(&mut self, _ctx: &mut Context, event: &Event) -> bool {
-        if let (Event::ColorSchemeChanged(scheme), Some(model)) = (event, &mut self.model) {
-            model.set_colors(match scheme {
+        let Some(model) = &mut self.model else {
+            return false;
+        };
+        match event {
+            Event::ColorSchemeChanged(scheme) => model.set_colors(match scheme {
                 ColorScheme::Dark => Colors::Dark,
                 ColorScheme::Light => Colors::Light,
-            });
+            }),
+            // What it asks, the core answers at the frame that the event runs.
+            Event::FileChosen { dialog, file } => {
+                model.file_chosen(*dialog, file.clone(), Instant::now());
+            }
+            _ => {}
         }
         false
     }
@@ -670,6 +929,9 @@ impl Presentation for Window {
             self.display = Some(model.frame(world, size, scale));
             // What the interface did as it laid out, a submenu opened by the pointer's rest.
             again |= model.act(world);
+            if let Some(choice) = model.dialog_wanted() {
+                model.dialog_opened(window.choose_file(choice), Instant::now());
+            }
         }
         if again {
             ctx.request_frame();
@@ -782,6 +1044,7 @@ mod tests {
                 .expect("not --help");
             let shared = Shared::default();
             shared.borrow_mut().window = true;
+            shared.borrow_mut().dialogs = true;
             let mut session = Session::new(
                 &program,
                 options,
@@ -1101,5 +1364,170 @@ mod tests {
             Path::new(&history.journal),
             yard.directory.join("yard.journal")
         );
+    }
+
+    impl Yard {
+        /// Runs `file.choose`, as its shortcut or its item runs it: the layer that waits opens, and
+        /// the window is to open the system's dialog, as the number `dialog`, at `opened`.
+        fn choose(&mut self, dialog: u64, opened: Instant) -> FileChoice {
+            self.shared.borrow_mut().requests.push_back(Request::Run {
+                name: "file.choose".to_owned(),
+                arguments: Vec::new(),
+            });
+            self.frame();
+            let choice = self
+                .model
+                .dialog_wanted()
+                .expect("the system's dialog wanted");
+            assert!(self.model.dialog_wanted().is_none(), "wanted once");
+            self.model.dialog_opened(DialogId(dialog), opened);
+            choice
+        }
+
+        /// The element of the layer that waits for the system's dialog at `path`, below its dialog.
+        fn waiting(&self, path: &str) -> Option<ElementId> {
+            self.model
+                .ui
+                .element_by_path(&format!("choose/dialog/{path}"))
+        }
+
+        fn level(&self) -> PathBuf {
+            self.shared.borrow().level.clone().expect("a level open")
+        }
+    }
+
+    #[test]
+    fn the_level_chosen_in_the_system_s_dialog_opens_as_its_path_given_to_file_open() {
+        let mut yard = Yard::new("chosen");
+        let start = Instant::now();
+        let choice = yard.choose(7, start);
+        assert_eq!(
+            choice.filters,
+            [("Levels".to_owned(), vec!["scene".to_owned()])]
+        );
+        assert_eq!(choice.directory.as_deref(), yard.level().parent());
+        assert!(yard.waiting("path").is_some());
+        assert_eq!(
+            yard.model.ui.focus(),
+            yard.waiting("path"),
+            "the path can be typed at once"
+        );
+        // Another dialog's answer is not heard; the layer's opens the level, as `file.open` would.
+        let garden = yard.directory.join("garden.scene");
+        let later = start + Duration::from_secs(3);
+        yard.model
+            .file_chosen(DialogId(8), Some(garden.clone()), later);
+        assert!(yard.waiting("path").is_some());
+        yard.model
+            .file_chosen(DialogId(7), Some(garden.clone()), later);
+        yard.frame();
+        yard.frame();
+        assert_eq!(yard.level(), garden);
+        assert!(yard.model.ui.element_by_path("choose").is_none());
+    }
+
+    #[test]
+    fn a_program_that_a_tool_started_opens_no_dialog_and_waits_for_the_path() {
+        let mut yard = Yard::new("driven");
+        yard.shared.borrow_mut().dialogs = false;
+        // Run by its name through the development channel, as an agent runs it.
+        yard.session
+            .edit(
+                yard.host.world_mut(),
+                &slime_channel::Edit::Run {
+                    name: "file.choose".to_owned(),
+                    arguments: Vec::new(),
+                },
+            )
+            .expect("run");
+        yard.frame();
+        assert!(
+            yard.model.dialog_wanted().is_none(),
+            "no dialog of the system"
+        );
+        let said = yard.waiting("said").expect("what the layer says");
+        assert!(
+            matches!(&yard.model.ui.element(said).expect("a label").kind,
+                slime_ui::tree::Kind::Label(text) if text == TYPE_THE_PATH)
+        );
+        let field = yard.waiting("path").expect("the field");
+        let garden = yard.directory.join("garden.scene");
+        assert!(
+            yard.model
+                .ui
+                .set_value(field, &garden.display().to_string())
+        );
+        yard.frame();
+        yard.frame();
+        assert_eq!(yard.level(), garden);
+    }
+
+    #[test]
+    fn where_no_dialog_shows_the_level_s_path_is_typed() {
+        let mut yard = Yard::new("typed");
+        let start = Instant::now();
+        yard.choose(1, start);
+        // No file, sooner than a person answers: no dialog showed, and the layer says so.
+        yard.model
+            .file_chosen(DialogId(1), None, start + Duration::from_millis(20));
+        yard.frame();
+        let said = yard.waiting("said").expect("what the layer says");
+        assert!(
+            matches!(&yard.model.ui.element(said).expect("a label").kind,
+                slime_ui::tree::Kind::Label(text) if text == NO_DIALOG_SHOWED)
+        );
+        let field = yard.waiting("path").expect("the field");
+        assert_eq!(yard.model.ui.focus(), Some(field));
+        // Open, while the field is empty, opens nothing.
+        let open = yard.waiting("buttons/open").expect("Open");
+        yard.model.ui.act(Action {
+            element: Some(open),
+            kind: ActionKind::Press,
+        });
+        yard.frame();
+        assert!(yard.waiting("path").is_some());
+        // The path given, as Enter gives it, opens the level.
+        let garden = yard.directory.join("garden.scene");
+        assert!(
+            yard.model
+                .ui
+                .set_value(field, &garden.display().to_string())
+        );
+        yard.frame();
+        yard.frame();
+        assert_eq!(yard.level(), garden);
+        assert!(yard.model.ui.element_by_path("choose").is_none());
+    }
+
+    #[test]
+    fn a_dialog_cancelled_opens_nothing_and_one_left_is_not_heard() {
+        let mut yard = Yard::new("cancelled");
+        let yard_level = yard.level();
+        let start = Instant::now();
+        yard.choose(1, start);
+        // No file, later than a person answers: cancelled, the layer closes.
+        yard.model
+            .file_chosen(DialogId(1), None, start + Duration::from_secs(2));
+        yard.frame();
+        assert!(yard.model.ui.element_by_path("choose").is_none());
+        // Escape closes the layer too; the dialog's answer after it is not heard.
+        yard.choose(2, start);
+        yard.key(Key::Named(NamedKey::Escape), false);
+        assert!(yard.model.ui.element_by_path("choose").is_none());
+        let garden = yard.directory.join("garden.scene");
+        yard.model
+            .file_chosen(DialogId(2), Some(garden), start + Duration::from_secs(2));
+        yard.frame();
+        yard.frame();
+        assert_eq!(yard.level(), yard_level);
+        // Cancel does as Escape.
+        yard.choose(3, start);
+        let cancel = yard.waiting("buttons/cancel").expect("Cancel");
+        yard.model.ui.act(Action {
+            element: Some(cancel),
+            kind: ActionKind::Press,
+        });
+        yard.frame();
+        assert!(yard.model.ui.element_by_path("choose").is_none());
     }
 }

@@ -34,7 +34,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 |---|---|---|
 | [M6c.0](#m6c0--before-the-stage) | The development channel answers in milliseconds, CI's checks stay within their limit, and a game that a tool started never outlives it | Done |
 | [M6c.1a](#m6c1a--the-window-and-its-operations) | The editor opens a level in a window of its own, where a person and an agent run the same named operations | Done |
-| [M6c.1b](#m6c1b--dialogs-the-cursor-held-and-the-gpus-identity) | A person opens and saves through the system's dialogs, a viewport can hold the cursor and read the mouse's raw motion, and a GPU object cannot act on another `Gpu`'s | Planned |
+| [M6c.1b](#m6c1b--dialogs-the-cursor-held-and-the-gpus-identity) | A person opens a level through the system's dialog, a viewport can hold the cursor and read the mouse's raw motion, and a GPU object cannot act on another `Gpu`'s | Planned |
 | [M6c.2](#m6c2--the-viewport) | The level shows in a viewport that the user flies through and picks in, drawn again only when what it shows changed | Planned |
 | [M6c.3](#m6c3--move-and-place) | The user moves, turns, scales, creates and deletes, each gesture a single step of the history | Planned |
 | [M6c.4](#m6c4--play-it) | Play runs the level being edited in the game, steps not written included, and the editor's edits reach the running game | Planned |
@@ -120,8 +120,10 @@ Risks, whose figures ADR-0155's context gives:
   winit's sources. M6c.1b tries them first, by hand, on niri, Hyprland, X11 through XWayland and in
   the Windows virtual machine, where relative motion may be missing.
 - **No dialog was opened**: whether niri and Hyprland give `xdg-foreign` v2, without which a dialog
-  is not modal to the window, and rfd off the main thread on Windows. A path typed in the palette is
-  the fallback.
+  is not modal to the window, and rfd off the main thread on Windows. M6c.1b's tests give the
+  window the dialog's answers; the dialog itself is opened by hand. A path typed in the layer that
+  waits for the dialog is the fallback
+  ([ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md)).
 - **Play's figures are partial**: caches warm, nothing built, written or cooked, no level of 100 000
   entities. M6c.4 measures Play from the click; on Windows, a running executable may block the
   link. [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)'s second condition, that what the

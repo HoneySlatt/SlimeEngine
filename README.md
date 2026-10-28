@@ -71,30 +71,30 @@ entity adopted, taken out of its level, outlives it. The `world` example draws i
 of it from above in a corner, and selects what a click picks. Since 0.5, on `main`, the editor's
 core, a library without an interface (`slime-editor`), changes a level through commands that name
 its entities by their persistent identities, undoes and redoes them, journals them, and writes the
-level back with its comments; its program, without a window, which an agent drives through the MCP
-server, opens the examples' yard or *Hunna Wood*'s zone. The UI framework, `slime-ui`, lays text out
-in every writing system and rasterizes its glyphs on the CPU, which the `text` example writes to an
-image; the renderer draws an interface's canvas, boxes with rounded corners and borders, their
-shadows and images, clipped, over a window or a view's image, its colors mixed as design tools mix
-them, and `slime-ui-render` draws a display list of `slime-ui` through it, the glyphs of its texts
-kept in an atlas. `slime-ui` keeps an interface as a tree of elements, built by code when what it
-shows changes, laid out by flexbox and grid, from left to right or mirrored, its lists building
-only the rows that show, and styles it with style sheets and themes, cooked as scenes are and
-loaded again when they change, and takes the pointer and the keyboard, its focus moved by Tab and
-the arrows, its fields typed, selected, copied and composed through input methods in every writing
-system, and says what it means to agents, who use it through the MCP server as a person does; it
-has the widgets of a panel, check boxes, sliders, sections that fold, tabs, two panels and a
-handle, and scroll bars, and what opens over a panel, menus and their bar, context menus, lists to
-choose from, tooltips and floating panels, rich fields, notifications, a palette of commands and
-color wells ([ADR-0151](docs/adr/0151-rich-widgets.md),
+level back with its comments; its program, in a window of its own or without one, which a person
+uses and an agent drives through the MCP server, opens the examples' yard or *Hunna Wood*'s zone.
+The UI framework, `slime-ui`, lays text out in every writing system and rasterizes its glyphs on the
+CPU, which the `text` example writes to an image; the renderer draws an interface's canvas, boxes
+with rounded corners and borders, their shadows and images, clipped, over a window or a view's
+image, its colors mixed as design tools mix them, and `slime-ui-render` draws a display list of
+`slime-ui` through it, the glyphs of its texts kept in an atlas. `slime-ui` keeps an interface as a
+tree of elements, built by code when what it shows changes, laid out by flexbox and grid, from left
+to right or mirrored, its lists building only the rows that show, and styles it with style sheets
+and themes, cooked as scenes are and loaded again when they change, and takes the pointer and the
+keyboard, its focus moved by Tab and the arrows, its fields typed, selected, copied and composed
+through input methods in every writing system, and says what it means to agents, who use it through
+the MCP server as a person does; it has the widgets of a panel, check boxes, sliders, sections that
+fold, tabs, two panels and a handle, and scroll bars, and what opens over a panel, menus and their
+bar, context menus, lists to choose from, tooltips and floating panels, rich fields, notifications,
+a palette of commands and color wells ([ADR-0151](docs/adr/0151-rich-widgets.md),
 [ADR-0152](docs/adr/0152-the-dev-overlay-on-the-engines-interface.md)), and holds the editor's look,
 its fonts Geist and Geist Mono and Lucide's icons, in dark, light and high-contrast themes, behind a
-feature. The `interface`
-example builds an interface, with text in eight writing systems, a dark and a light theme, and a
-modal dialog; the `widgets` example, a panel of the editor's kind, with its menus. The dev overlay
-is built on it, in the editor's look, over *Hunna Wood* and the `scene` and `world` examples, and
-egui has left the engine. [`docs/PLAN.md`](docs/PLAN.md) says what comes next, Stage 6c, the
-editor, planned in [ADR-0155](docs/adr/0155-the-editors-design.md). It lists the known debt too.
+feature. The `interface` example builds an interface, with text in eight writing systems, a dark and
+a light theme, and a modal dialog; the `widgets` example, a panel of the editor's kind, with its
+menus. The dev overlay is built on it, in the editor's look, over *Hunna Wood* and the `scene` and
+`world` examples, and egui has left the engine. [`docs/PLAN.md`](docs/PLAN.md) says what comes next,
+Stage 6c, the editor, planned in [ADR-0155](docs/adr/0155-the-editors-design.md). It lists the known
+debt too.
 
 ## Getting started
 
@@ -188,8 +188,8 @@ today has:
   notifications, palette of commands and color wells used, and read and
   used by agents through the MCP server (`slime-ui`), read by screen readers in the examples, games
   leaving them out until Stage 7; and of the editor its core (`slime-editor`) and its program, a
-  window of menus, the world panel and a status bar, without a viewport yet, which a person uses and
-  agents drive through the MCP server alike.
+  window of menus, the world panel and a status bar, without a viewport yet, which a person uses,
+  opening a level through the system's dialog, and agents drive through the MCP server alike.
 - An asset pipeline that imports glTF scenes, scene files and PNG and JPEG images only: the cooker,
   `slime-cook`, makes them cooked data, which the renderer loads whole, in the background while the
   game goes on, as an asset cache's requests ask (`AssetCache::request`) or a scene at a time

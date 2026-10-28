@@ -183,7 +183,8 @@ if runs windowed; then
         timeout -k 10 300 cargo test --locked -p slime-mcp --test widgets ||
         { cat "$runtime/slime-check.log"; exit 1; }
     # The editor's window used by an agent's session through the MCP server: operations run by
-    # name, its menu and its palette, the first run's hint, and no frame while it is alone (ADR-0156).
+    # name, its menu and its palette, a level opened by its path typed where no dialog of the
+    # system opens, the first run's hint, and no frame while it is alone (ADR-0156, ADR-0157).
     cargo build --locked --example editor
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 300 cargo test --locked -p slime-mcp --test edit_window -- "$cooked/first" ||

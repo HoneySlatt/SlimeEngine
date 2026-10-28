@@ -19,6 +19,10 @@ pub(crate) struct State {
     pub(crate) program: &'static str,
     /// Whether the program has a window, which runs the window's operations.
     pub(crate) window: bool,
+    /// Whether the window opens the system's dialogs: not in a program that a tool started with a
+    /// token, whose agent gives paths and could not see a dialog on its own compositor
+    /// (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`).
+    pub(crate) dialogs: bool,
     /// The level's scene file, once it is open.
     pub(crate) level: Option<PathBuf>,
     /// How many levels were opened in place of the first, each in a world of its own, which the

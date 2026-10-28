@@ -48,6 +48,12 @@ pub struct Operation {
 /// editor's table of shortcuts' ([`SHORTCUTS`]), the one place that binds keys.
 pub const OPERATIONS: &[Operation] = &[
     Operation {
+        name: "file.choose",
+        label: "Open a level…",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
         name: "file.open",
         label: "Open a level",
         parameters: &["path"],

@@ -98,7 +98,10 @@ The tools, each described to the agent by the server itself, with its parameters
 - `list_operations` and `run_operation`: an editor's operations, every action that its menus, its
   shortcuts and its palette run, listed with their parameters and what they change, and one run
   by its name with its arguments, as a person runs it
-  (`docs/adr/0156-the-editors-window-and-its-operations.md`).
+  (`docs/adr/0156-the-editors-window-and-its-operations.md`). An editor that the server started
+  opens no dialog of the system, which an agent could not see: *Open a level…* waits for the
+  level's path, typed in its field, or the agent gives it `file.open`
+  (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`).
 - `cook`: cooks a directory of source assets, which a game started with `--watch` loads again.
 - `run_tests`: runs `cargo test` with the arguments given.
 

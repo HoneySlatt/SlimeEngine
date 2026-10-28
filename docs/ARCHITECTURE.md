@@ -1366,8 +1366,20 @@ frame: reads shared ◀───────────────────
 
 The registry of operations (`slime_editor::OPERATIONS`) names every action; the menus are lists of
 them, the table of shortcuts, `editor.keys`, binds keys to their names, and the palette lists those
-without parameters. A window's operation, the palette or the sheet of shortcuts, reaches the window
-through the shared value, and is refused without a window.
+without parameters. A window's operation, the palette, the sheet of shortcuts or the system's
+dialog to open a level, reaches the window through the shared value, and is refused without a
+window. The dialog fills in the path that an agent gives `file.open` itself
+([ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md)):
+
+```text
+file.choose (Ctrl+O, File, the palette, an agent by name)
+└── the window: a modal layer over the window, its backdrop dimming it, a field for the path
+    └── extract, unless a tool started the program: Window::choose_file(FileChoice) → DialogId
+        └── a thread of its own: rfd's dialog (the portal through libdbus, zenity; Windows')
+            └── the loop's proxy → Event::FileChosen { dialog, file }
+                └── on_event: a file → the layer closed, Request::Run { file.open, [path] }
+                              none → closed, or, sooner than a person answers, the path typed
+```
 
 ### Laying out text
 

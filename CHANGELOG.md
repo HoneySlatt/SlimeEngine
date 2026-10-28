@@ -32,6 +32,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `slime_app::state_directory`, the user's state directory; `Window::set_title` and
   `Window::waker` in `slime-platform`, and `LoopControl::Wait`; `WorldPanel::deselect` in
   `slime-devui`.
+- The system's dialog to open a level (ADR-0157): the editor's *Open a level…*, `file.choose`
+  (Ctrl+O, the File menu, the palette), opens it behind a modal layer where the level's path can be
+  typed too, and runs `file.open` with the file chosen; an editor that a tool started opens no
+  dialog of the system, and the layer waits for the path. `slime_platform::Window::choose_file`
+  opens the system's dialog to choose a file, through rfd, and its answer arrives as
+  `Event::FileChosen`.
 - The cursor held (ADR-0157): `Window::set_cursor_held` holds the cursor, hidden, where it is, and
   lets it go, as the window does itself when it loses the focus; `Event::RawMotion` reports the
   mouse's raw motion meanwhile. The `window` example holds it while its right button is held.
@@ -49,6 +55,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The palette of commands lists every command found, scrolling past the window's height, the
   chosen one kept in sight, where it showed 12 at most.
 - `AppConfig::pace_headless` is gone: `AppConfig::on_demand` replaces it.
+- `slime_editor::window_image` takes the operations to run before it draws.
 - `slime_channel::Listener::open` takes what wakes the game as a request comes.
 
 - A game started with a token (`slime_channel::launch`, as the MCP server starts one) ends once its

@@ -71,7 +71,7 @@ fn main() -> ExitCode {
         arguments.drain(at..=at + 1);
     }
     slime_app::init_diagnostics();
-    let drawn = slime_editor::window_image(&program(), arguments, scale).and_then(|image| {
+    let drawn = slime_editor::window_image(&program(), arguments, &[], scale).and_then(|image| {
         png_file::write(output.as_ref(), &image).map_err(|error| error.to_string())
     });
     match drawn {

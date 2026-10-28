@@ -48,13 +48,18 @@ milestone brings, with the editor's other panels.
   demand (`AppConfig::on_demand`). It opens the level, keeps its journal in the user's data
   directory, one per level's file, held by this program alone, and recovers it as it starts when it
   holds steps that the level's file does not; a journal that it cannot read, play again or write
-  stops it. It opens another level by `file.open`, keeps the levels opened last in the user's state
-  directory for the File menu, and tells one hint at its first run. Options: `--level`, `--assets`,
+  stops it. It opens another level by `file.open`, given a path, or by `file.choose` (Ctrl+O),
+  which opens the system's dialog behind a modal layer where the path can be typed too, and runs
+  `file.open` with the file chosen; started by a tool, it opens no dialog, and the layer waits for
+  the path (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`). It keeps the
+  levels opened last in the user's state directory for the File menu, and tells one hint at its
+  first run. Options: `--level`, `--assets`,
   `--journal`, `--discard`, `--headless`; `run`'s documentation says how a journal is chosen and
   recovered.
-- `window_image(&Program, arguments, scale)`: the window drawn into an image without a window of
-  the system, as it shows once the level is open, which the image tests compare and the `editor`
-  example's `--output` writes.
+- `window_image(&Program, arguments, operations, scale)`: the window drawn into an image without a
+  window of the system, as it shows once the level is open and the operations named run, which the
+  image tests compare and the `editor` example's `--output` writes; `file.choose` shows the layer
+  that waits for the system's dialog, which no window opens there.
 
 ## Depends on
 

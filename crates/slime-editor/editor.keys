@@ -2,6 +2,7 @@
 # (`crates/slime-editor/src/operation.rs`, `docs/adr/0156-the-editors-window-and-its-operations.md`).
 
 [global]
+"Ctrl+O" = "file.choose"
 "Ctrl+S" = "file.save"
 "Ctrl+Q" = "file.quit"
 "Ctrl+Z" = "edit.undo"

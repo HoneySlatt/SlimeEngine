@@ -59,7 +59,9 @@ pub(crate) struct Options {
 /// (`docs/adr/0156-the-editors-window-and-its-operations.md`), holds its journal and listens on the
 /// development channel when it is started with a token, as a game does
 /// (`docs/adr/0122-the-development-channel.md`), so that a tool or an agent drives it through
-/// [`Edit`](slime_channel::Edit) requests, its operations run by name among them. With
+/// [`Edit`](slime_channel::Edit) requests, its operations run by name among them; started so, it
+/// opens no dialog of the system, which the agent could not see: *Open a level…* waits for the
+/// level's path typed (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`). With
 /// `--headless`, it runs without a window, for tools and agents alone. Either way, it runs a frame
 /// only when something asks for one ([`AppConfig::on_demand`]), and runs no game's rules. Closing
 /// the window, or the operation `file.quit`, quits at once: the journal keeps what the level's file
@@ -120,7 +122,10 @@ pub fn run(program: &Program) -> ExitCode {
     let ran = if headless {
         slime_app::run(&mut session, &mut (), &config)
     } else {
-        shared.borrow_mut().window = true;
+        let mut state = shared.borrow_mut();
+        state.window = true;
+        state.dialogs = std::env::var_os(slime_channel::TOKEN_ENV_VAR).is_none();
+        drop(state);
         slime_app::run(&mut session, &mut Window::new(shared), &config)
     };
     match ran {

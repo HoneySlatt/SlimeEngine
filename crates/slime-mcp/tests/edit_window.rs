@@ -2,9 +2,11 @@
 //! (`docs/adr/0156-the-editors-window-and-its-operations.md`): it starts the `editor` example on a
 //! copy of the yard, in a window, lists the operations, makes a step and undoes it by the
 //! operation's name, opens the palette by its name and finds it in the window, opens the File menu
-//! as a person does, runs `file.save` by name, and checks that the editor, left alone, wakes for
-//! the end of the first run's hint and runs no frame for ten seconds after it, then quits it by
-//! name.
+//! as a person does, runs `file.save` by name, opens another copy of the yard through *Open a
+//! level…*, which opens no dialog of the system in a program that a tool started, its path typed
+//! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), and checks that the editor,
+//! left alone, wakes for the end of the first run's hint and runs no frame for ten seconds after
+//! it, then quits it by name.
 //!
 //! It needs a Wayland compositor, the example built (`cargo build --example editor`) and the
 //! examples' assets cooked, in the directory that its first argument names, or
@@ -54,14 +56,18 @@ fn main() {
     let directory = Path::new(env!("CARGO_TARGET_TMPDIR")).join("slime-mcp-edit-window");
     let _ = fs::remove_dir_all(&directory);
     fs::create_dir_all(&directory).expect("a directory of the test's own");
+    // Two copies of the yard: the first opened, the second through Open a level….
     let original = workspace.join("examples/assets/yard.scene");
     let level = directory.join("yard.scene");
-    fs::copy(&original, &level).expect("the yard copied");
-    fs::copy(
-        original.with_extension("scene.meta"),
-        directory.join("yard.scene.meta"),
-    )
-    .expect("its metadata copied");
+    let other = directory.join("other yard.scene");
+    for copy in [&level, &other] {
+        fs::copy(&original, copy).expect("the yard copied");
+        fs::copy(
+            original.with_extension("scene.meta"),
+            copy.with_extension("scene.meta"),
+        )
+        .expect("its metadata copied");
+    }
     let command = json!([
         example.to_str().expect("a path of text"),
         "--level",
@@ -141,6 +147,20 @@ fn main() {
         "the menu's Save wrote the level: {said:?}"
     );
     path_of(&mut session, "Label", "all written");
+    // Open a level…, from the File menu: a program that a tool started opens no dialog of the
+    // system, which the agent could not see, and its layer waits for the path, typed.
+    let file = path_of(&mut session, "MenuItem", "File");
+    act(&mut session, "press", &file, json!({}));
+    let choose = path_of(&mut session, "MenuItem", "Open a level");
+    act(&mut session, "press", &choose, json!({}));
+    path_of(&mut session, "Label", "Type the level's path");
+    let field = path_of(&mut session, "TextInput", "Level's path");
+    assert!(field.starts_with("choose/"), "{field}");
+    let other = other.to_str().expect("a path of text");
+    act(&mut session, "set_value", &field, json!({ "value": other }));
+    path_of(&mut session, "Label", other);
+    let (said, _) = session.tool("editor_history", json!({}));
+    assert!(said[0].contains("other yard.scene"), "{said:?}");
     // Left alone, once the menu's closing transition has ended, the editor runs no frame: each of
     // these two requests wakes one.
     std::thread::sleep(Duration::from_secs(1));

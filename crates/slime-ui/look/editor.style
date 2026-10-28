@@ -351,6 +351,13 @@ style.paint = { background = "$raised", border_width = 1, border = "$raised_bord
 style.layout.padding = { start = "$space_l", end = "$space_l", top = "$space_l", bottom = "$space_l" }
 style.layout.gap = ["$space_xs", 0]
 
+# A dialog over the window, as the one that waits for the system's dialog to open a level.
+[dialog]
+select = { classes = ["dialog"] }
+style.paint = { background = "$raised", border_width = 1, border = "$raised_border", radii = ["$radius_l", "$radius_l", "$radius_l", "$radius_l"], shadow = [{ color = "$shadow", offset = [0, "$shadow_y"], blur = "$shadow_blur", spread = 0 }] }
+style.layout.padding = { start = "$space_l", end = "$space_l", top = "$space_l", bottom = "$space_l" }
+style.layout.gap = ["$space_m", "$space_m"]
+
 [sheet-title]
 select = { kind = "Label", classes = ["sheet-title"] }
 style.text.style.weight = "$weight_title"
