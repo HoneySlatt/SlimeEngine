@@ -40,6 +40,8 @@ static NEXT_ID: AtomicU64 = AtomicU64::new(0);
 /// At most four submissions can wait for their times: while four do, the passes of the next ones go
 /// untimed.
 pub struct GpuTimer {
+    /// The identity of the device that created it, which each use checks.
+    pub(crate) gpu: crate::gpu::GpuId,
     /// Tells this timer apart from the others in a submission.
     id: u64,
     query_set: wgpu::QuerySet,
@@ -100,6 +102,7 @@ impl Gpu {
         let (query_set, slots) = self.create(label, || self.create_timer_objects(label, passes))?;
         let (sender, mapped) = mpsc::channel();
         Ok(Some(GpuTimer {
+            gpu: self.id,
             id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             query_set,
             passes,

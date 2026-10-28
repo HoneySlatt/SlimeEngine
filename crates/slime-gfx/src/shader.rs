@@ -9,6 +9,8 @@ use crate::gpu::Gpu;
 /// longer uses it.
 #[derive(Clone, Debug)]
 pub struct ShaderModule {
+    /// The identity of the device that created it, which each use checks.
+    pub(crate) gpu: crate::gpu::GpuId,
     pub(crate) module: wgpu::ShaderModule,
 }
 
@@ -35,7 +37,10 @@ impl Gpu {
                 })
         })?;
         match error {
-            None => Ok(ShaderModule { module }),
+            None => Ok(ShaderModule {
+                gpu: self.id,
+                module,
+            }),
             Some(error) => Err(GfxError::Shader {
                 label: label.to_owned(),
                 message: error.to_string().trim_end().to_owned(),

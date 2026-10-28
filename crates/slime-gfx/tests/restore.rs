@@ -89,7 +89,7 @@ fn a_new_device_draws_what_the_lost_one_drew() {
 }
 
 #[test]
-#[should_panic(expected = "wgpu error")]
+#[should_panic(expected = "a render target of another GPU device")]
 fn an_object_of_the_lost_device_is_refused_by_the_new_one() {
     let lost = gpu();
     let old_target = target(&lost);

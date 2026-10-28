@@ -12,6 +12,8 @@ use crate::gpu::Gpu;
 /// longer uses it.
 #[derive(Clone, Debug)]
 pub struct StorageBuffer {
+    /// The identity of the device that created it, which each use checks.
+    pub(crate) gpu: crate::gpu::GpuId,
     pub(crate) buffer: wgpu::Buffer,
     label: String,
     size: u64,
@@ -50,6 +52,7 @@ impl Gpu {
             )
         })?;
         Ok(StorageBuffer {
+            gpu: self.id,
             buffer,
             label: label.to_owned(),
             size,
@@ -65,7 +68,11 @@ impl Gpu {
     ///
     /// If `contents` is empty, if `offset` or the length of `contents` is not a multiple of 4
     /// bytes, which GPU copies require, or if the range reaches beyond the buffer.
+    ///
+    /// If an object that it is given belongs to another `Gpu` than this one and its clones.
+    #[track_caller]
     pub fn write_storage_buffer(&self, buffer: &StorageBuffer, offset: u64, contents: &[u8]) {
+        self.id.owns(buffer.gpu, "a storage buffer");
         write_range("storage", &buffer.label, buffer.size, offset, contents);
         self.queue.write_buffer(&buffer.buffer, offset, contents);
     }

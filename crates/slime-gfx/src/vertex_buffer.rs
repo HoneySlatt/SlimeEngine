@@ -13,6 +13,8 @@ use crate::storage_buffer::write_range;
 /// longer uses it.
 #[derive(Clone, Debug)]
 pub struct VertexBuffer {
+    /// The identity of the device that created it, which each use checks.
+    pub(crate) gpu: crate::gpu::GpuId,
     pub(crate) buffer: wgpu::Buffer,
     pub(crate) label: String,
     pub(crate) size: u64,
@@ -45,6 +47,7 @@ impl Gpu {
             self.create_buffer_with(label, contents, VERTEX_USES)
         })?;
         Ok(VertexBuffer {
+            gpu: self.id,
             buffer,
             label: label.to_owned(),
             size: contents.len() as u64,
@@ -75,6 +78,7 @@ impl Gpu {
             self.create_zeroed_buffer(label, size, VERTEX_USES)
         })?;
         Ok(VertexBuffer {
+            gpu: self.id,
             buffer,
             label: label.to_owned(),
             size,
@@ -90,7 +94,11 @@ impl Gpu {
     ///
     /// If `contents` is empty, if `offset` or the length of `contents` is not a multiple of 4
     /// bytes, which GPU copies require, or if the range reaches beyond the buffer.
+    ///
+    /// If an object that it is given belongs to another `Gpu` than this one and its clones.
+    #[track_caller]
     pub fn write_vertex_buffer(&self, buffer: &VertexBuffer, offset: u64, contents: &[u8]) {
+        self.id.owns(buffer.gpu, "a vertex buffer");
         write_range("vertex", &buffer.label, buffer.size, offset, contents);
         self.queue.write_buffer(&buffer.buffer, offset, contents);
     }

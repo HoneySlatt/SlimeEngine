@@ -13,6 +13,8 @@ use crate::storage_buffer::write_range;
 /// longer uses it.
 #[derive(Clone, Debug)]
 pub struct IndexBuffer {
+    /// The identity of the device that created it, which each use checks.
+    pub(crate) gpu: crate::gpu::GpuId,
     pub(crate) buffer: wgpu::Buffer,
     pub(crate) label: String,
     count: u32,
@@ -54,6 +56,7 @@ impl Gpu {
             self.create_buffer_with(label, &index_bytes(indices), INDEX_USES)
         })?;
         Ok(IndexBuffer {
+            gpu: self.id,
             buffer,
             label: label.to_owned(),
             count,
@@ -83,6 +86,7 @@ impl Gpu {
             self.create_zeroed_buffer(label, u64::from(count) * 4, INDEX_USES)
         })?;
         Ok(IndexBuffer {
+            gpu: self.id,
             buffer,
             label: label.to_owned(),
             count,
@@ -97,7 +101,11 @@ impl Gpu {
     /// # Panics
     ///
     /// If `indices` is empty, or the range reaches beyond the buffer.
+    ///
+    /// If an object that it is given belongs to another `Gpu` than this one and its clones.
+    #[track_caller]
     pub fn write_index_buffer(&self, buffer: &IndexBuffer, first: u32, indices: &[u32]) {
+        self.id.owns(buffer.gpu, "an index buffer");
         let (offset, contents) = (u64::from(first) * 4, index_bytes(indices));
         let size = u64::from(buffer.count) * 4;
         write_range("index", &buffer.label, size, offset, &contents);

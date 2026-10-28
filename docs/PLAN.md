@@ -1490,11 +1490,6 @@ determinism between Linux and Windows.
 - **A very deep hierarchy costs quadratic time** (G32, medium; M6c.5): spawning, loading, saving
   and each frame walk every entity's ancestors (`set_parent`'s search for a cycle,
   `World::unsaved`, `interpolated_transform`). M6a.3 made `World::is_hidden` read a flag.
-- **A GPU object used with another `Gpu` acts on another object without a word, and no API opens a
-  second window on the same GPU** (G34, medium; M6c.1b): each `Gpu` numbers its objects from zero,
-  and a window's surface comes only with a new `Gpu`. M6c.1b settles it: one window per process,
-  and each `Gpu` with an identity that its objects carry
-  ([ADR-0155](adr/0155-the-editors-design.md)).
 - **Between two fixed steps, the children of a turning parent cut the arc's chord while their
   siblings stay on it** (G38, low; Stage 7): a child moved by its parent is drawn in a straight line
   between its two positions. Interpolating through the hierarchy is to decide before skeletal

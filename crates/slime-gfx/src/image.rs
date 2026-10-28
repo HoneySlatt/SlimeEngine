@@ -52,6 +52,9 @@ impl Gpu {
     ///
     /// If `target` is `Rgba16Float`, which [`Gpu::read_float_render_target`] reads, or
     /// `Rg32Uint`, which [`Gpu::read_render_target_later`] reads, or is multisampled.
+    ///
+    /// If an object that it is given belongs to another `Gpu` than this one and its clones.
+    #[track_caller]
     pub fn read_render_target(&self, target: &RenderTarget) -> Result<Image, GfxError> {
         assert!(
             target.format() != TextureFormat::Rgba16Float,
@@ -102,6 +105,9 @@ impl Gpu {
     ///
     /// If `target` is not `Rgba16Float` (the image of a window never is), or is multisampled: only
     /// targets created by [`Gpu::create_render_target`] can be read back.
+    ///
+    /// If an object that it is given belongs to another `Gpu` than this one and its clones.
+    #[track_caller]
     pub fn read_float_render_target(&self, target: &RenderTarget) -> Result<FloatImage, GfxError> {
         assert!(
             target.format() == TextureFormat::Rgba16Float,
@@ -136,12 +142,14 @@ impl Gpu {
     /// [`read_texels`](Self::read_texels), copying the rows in bands, each into a buffer of at
     /// most `largest_buffer` bytes, so that any target can be read back: a float target of
     /// 8192 × 8192 pixels needs 512 MiB, twice the largest buffer of the engine's floor.
+    #[track_caller]
     fn read_texels_in_bands(
         &self,
         target: &RenderTarget,
         bytes_per_pixel: u32,
         largest_buffer: u64,
     ) -> Result<Vec<u8>, GfxError> {
+        self.id.owns(target.gpu, "a render target");
         self.check()?;
         let readback_error =
             |source: Box<dyn std::error::Error + Send + Sync>| GfxError::Readback {

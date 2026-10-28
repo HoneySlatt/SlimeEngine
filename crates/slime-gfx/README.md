@@ -134,8 +134,11 @@ fn main() -> Result<(), GfxError> {
   and `Surface::restore` does it for a window, whose surface it creates again; nothing else may hold
   the lost device then, since Direct3D 12 would not open the new one on the same adapter;
   `Gpu::lose` loses a device on purpose, for tests and tools (ADR-0075). Clones of a `Gpu` share its
-  device, so that threads create GPU objects through it (ADR-0073). `Gpu::can_sample_bc` says
-  whether it samples block-compressed textures.
+  device, so that threads create GPU objects through it (ADR-0073). Each device that opens has an
+  identity of its own, which every object that it creates carries: an object used with another
+  `Gpu` than its own, or than its clones, panics, where wgpu would act on the other device's object
+  of the same number (ADR-0157). `Gpu::can_sample_bc` says whether it samples block-compressed
+  textures.
 - Every method that creates a GPU object returns a `Result`: a buffer, texture or timer that the
   GPU's memory cannot hold is `GfxError::OutOfMemory`, so that a game can free memory or ask for
   less (ADR-0044); the `SLIME_GPU_MEMORY_BUDGET` environment variable (`MEMORY_BUDGET_ENV_VAR`)

@@ -76,6 +76,8 @@ pub struct SamplerDescriptor {
 /// longer uses it.
 #[derive(Clone, Debug)]
 pub struct Sampler {
+    /// The identity of the device that created it, which each use checks.
+    pub(crate) gpu: crate::gpu::GpuId,
     pub(crate) sampler: wgpu::Sampler,
 }
 
@@ -93,6 +95,8 @@ pub struct Sampler {
 /// longer uses it.
 #[derive(Clone, Debug)]
 pub struct ComparisonSampler {
+    /// The identity of the device that created it, which each use checks.
+    pub(crate) gpu: crate::gpu::GpuId,
     pub(crate) sampler: wgpu::Sampler,
 }
 
@@ -126,7 +130,10 @@ impl Gpu {
                 ..wgpu::SamplerDescriptor::default()
             })
         })?;
-        Ok(ComparisonSampler { sampler })
+        Ok(ComparisonSampler {
+            gpu: self.id,
+            sampler,
+        })
     }
 
     /// Creates a sampler. `label` names it in error messages and in GPU capture tools.
@@ -152,6 +159,9 @@ impl Gpu {
                 ..wgpu::SamplerDescriptor::default()
             })
         })?;
-        Ok(Sampler { sampler })
+        Ok(Sampler {
+            gpu: self.id,
+            sampler,
+        })
     }
 }

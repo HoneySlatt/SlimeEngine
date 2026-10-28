@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::bind_group::BindGroup;
 use crate::depth_target::DepthTarget;
-use crate::gpu::{Gpu, submit};
+use crate::gpu::{Gpu, GpuId, submit};
 use crate::index_buffer::IndexBuffer;
 use crate::pipeline::RenderPipeline;
 use crate::render_target::RenderTarget;
@@ -56,18 +56,54 @@ pub struct DepthPassDescriptor<'a> {
     pub timer: Option<&'a GpuTimer>,
 }
 
+impl RenderPassDescriptor<'_> {
+    /// Checks that its targets and its timer belong to the device `gpu`, as [`GpuId::owns`] says.
+    #[track_caller]
+    fn owned_by(&self, gpu: GpuId) {
+        gpu.owns(self.target.gpu, "a render target");
+        if let Some(depth) = self.depth {
+            gpu.owns(depth.gpu, "a depth target");
+        }
+        if let Some(resolve) = self.resolve {
+            gpu.owns(resolve.gpu, "a render target");
+        }
+        if let Some(timer) = self.timer {
+            gpu.owns(timer.gpu, "a timer");
+        }
+    }
+}
+
+impl DepthPassDescriptor<'_> {
+    /// Checks that its depth target and its timer belong to the device `gpu`.
+    #[track_caller]
+    fn owned_by(&self, gpu: GpuId) {
+        gpu.owns(self.depth.gpu, "a depth target");
+        if let Some(timer) = self.timer {
+            gpu.owns(timer.gpu, "a timer");
+        }
+    }
+}
+
 /// The drawing commands of one render pass, recorded inside [`Gpu::render`], [`Gpu::render_depth`],
 /// [`Commands::render`] or [`Commands::render_depth`]. The lifetime is the closure's: a pass cannot
 /// be kept beyond it.
 #[derive(Debug)]
 pub struct RenderPass<'a> {
+    /// The device whose commands record it.
+    gpu: GpuId,
     pass: wgpu::RenderPass<'static>,
     closure: PhantomData<&'a mut ()>,
 }
 
 impl RenderPass<'_> {
     /// Uses `pipeline` for the next draws.
+    ///
+    /// # Panics
+    ///
+    /// If `pipeline` belongs to another `Gpu` than the pass's.
+    #[track_caller]
     pub fn set_pipeline(&mut self, pipeline: &RenderPipeline) {
+        self.gpu.owns(pipeline.gpu, "a pipeline");
         self.pass.set_pipeline(&pipeline.pipeline);
     }
 
@@ -77,7 +113,13 @@ impl RenderPass<'_> {
     /// ([`BindingType::UniformBuffer`](crate::BindingType::UniformBuffer)), in the order of the
     /// bindings, each a multiple of [`Gpu::uniform_offset_alignment`]; it is empty for a group
     /// without any.
+    ///
+    /// # Panics
+    ///
+    /// If `group` belongs to another `Gpu` than the pass's.
+    #[track_caller]
     pub fn set_bind_group(&mut self, index: u32, group: &BindGroup, offsets: &[u32]) {
+        self.gpu.owns(group.gpu, "a bind group");
         self.pass.set_bind_group(index, &group.group, offsets);
     }
 
@@ -98,12 +140,24 @@ impl RenderPass<'_> {
     }
 
     /// Reads the vertices of the next draws from `buffer`, at the pipeline's vertex buffer `slot`.
+    ///
+    /// # Panics
+    ///
+    /// If `buffer` belongs to another `Gpu` than the pass's.
+    #[track_caller]
     pub fn set_vertex_buffer(&mut self, slot: u32, buffer: &VertexBuffer) {
+        self.gpu.owns(buffer.gpu, "a vertex buffer");
         self.pass.set_vertex_buffer(slot, buffer.buffer.slice(..));
     }
 
     /// Reads the indices of the next indexed draws from `buffer`.
+    ///
+    /// # Panics
+    ///
+    /// If `buffer` belongs to another `Gpu` than the pass's.
+    #[track_caller]
     pub fn set_index_buffer(&mut self, buffer: &IndexBuffer) {
+        self.gpu.owns(buffer.gpu, "an index buffer");
         self.pass
             .set_index_buffer(buffer.buffer.slice(..), wgpu::IndexFormat::Uint32);
     }
@@ -149,6 +203,8 @@ impl RenderPass<'_> {
 /// they were recorded, each seeing what the passes before it drew. `submit` lends them to its
 /// closure only, so that every pass recorded is submitted.
 pub struct Commands {
+    /// The device that records and submits them.
+    gpu: GpuId,
     encoder: wgpu::CommandEncoder,
     /// One entry per timer that the passes name: the passes it times, read back once submitted.
     timed: Vec<TimedSubmission>,
@@ -184,6 +240,7 @@ impl Gpu {
     /// this method, with a message that names the pass.
     pub fn submit(&self, label: &str, record: impl FnOnce(&mut Commands)) {
         let mut commands = Commands {
+            gpu: self.id,
             encoder: self
                 .device
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) }),
@@ -192,6 +249,7 @@ impl Gpu {
         };
         record(&mut commands);
         let Commands {
+            gpu: _,
             mut encoder,
             timed,
             drawn,
@@ -226,11 +284,14 @@ impl Gpu {
     /// # Panics
     ///
     /// As [`Commands::render`] says.
+    #[track_caller]
     pub fn render(
         &self,
         descriptor: &RenderPassDescriptor<'_>,
         record: impl FnOnce(&mut RenderPass<'_>),
     ) {
+        // Here, where the caller's line is known, rather than in the closure.
+        descriptor.owned_by(self.id);
         self.submit(&descriptor.target.label, |commands| {
             commands.render(descriptor, record);
         });
@@ -242,11 +303,13 @@ impl Gpu {
     /// # Panics
     ///
     /// As [`Commands::render_depth`] says.
+    #[track_caller]
     pub fn render_depth(
         &self,
         descriptor: &DepthPassDescriptor<'_>,
         record: impl FnOnce(&mut RenderPass<'_>),
     ) {
+        descriptor.owned_by(self.id);
         self.submit(&descriptor.depth.label, |commands| {
             commands.render_depth(descriptor, record);
         });
@@ -271,11 +334,15 @@ impl Commands {
     /// with a pipeline that has a vertex layout and no vertex buffer set; a bind group that holds
     /// the pass's own target or depth target, since a pass cannot sample what it draws into.
     /// These are bugs in the caller.
+    ///
+    /// If a target or the timer of `descriptor` belongs to another `Gpu` than the commands'.
+    #[track_caller]
     pub fn render(
         &mut self,
         descriptor: &RenderPassDescriptor<'_>,
         record: impl FnOnce(&mut RenderPass<'_>),
     ) {
+        descriptor.owned_by(self.gpu);
         let target = descriptor.target;
         if let Some(depth) = descriptor.depth {
             assert!(
@@ -337,11 +404,15 @@ impl Commands {
     /// (it draws only in [`Commands::render`]), a pipeline without a depth test, a draw with a
     /// pipeline that has a vertex layout and no vertex buffer set, or a bind group that holds
     /// `descriptor.depth`. These are bugs in the caller.
+    ///
+    /// If the depth target or the timer of `descriptor` belongs to another `Gpu` than the commands'.
+    #[track_caller]
     pub fn render_depth(
         &mut self,
         descriptor: &DepthPassDescriptor<'_>,
         record: impl FnOnce(&mut RenderPass<'_>),
     ) {
+        descriptor.owned_by(self.gpu);
         let depth = wgpu::RenderPassDepthStencilAttachment {
             view: &descriptor.depth.view,
             depth_ops: Some(wgpu::Operations {
@@ -407,6 +478,7 @@ impl Commands {
             // The pass ends when this block does, before the encoder records anything else, which
             // is what wgpu asks of a pass freed from the encoder's lifetime.
             record(&mut RenderPass {
+                gpu: self.gpu,
                 pass: pass.forget_lifetime(),
                 closure: PhantomData,
             });

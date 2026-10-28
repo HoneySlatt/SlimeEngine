@@ -1,5 +1,6 @@
 //! Opening the GPU: the adapter, the device and its queue.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock, PoisonError, RwLock};
 use std::time::Duration;
 
@@ -23,16 +24,15 @@ const DEFAULT_BACKENDS: wgpu::Backends = wgpu::Backends::VULKAN;
 /// The work that a clone submits waits while the device's window surface is configured, which wgpu
 /// would otherwise fail: a resize of the window during a load does not lose the surface.
 ///
-/// Every object a `Gpu` creates belongs to its device: using one with a `Gpu` that another call to
-/// [`Gpu::new`] or [`Gpu::new_for_window`] opened is a bug that neither the engine nor wgpu
-/// reliably catches. Each of those calls opens its own wgpu instance, whose objects are numbered
-/// from zero, so the call may panic inside wgpu, or act on the object of the other `Gpu` that has
-/// the same number: a render target read back with another `Gpu` can return the pixels of that
-/// `Gpu`'s own target. A device opened to replace a lost one ([`Gpu::restore`],
-/// [`Surface::restore`](crate::Surface::restore)) shares its instance, where wgpu refuses an object
-/// of the lost device: that use panics as the bug it is.
+/// Every object a `Gpu` creates belongs to its device, and carries the device's identity: using one
+/// with a `Gpu` that another call to [`Gpu::new`] or [`Gpu::new_for_window`] opened, or that
+/// replaced a lost one ([`Gpu::restore`], [`Surface::restore`](crate::Surface::restore)), panics,
+/// where wgpu, each of whose instances numbers its objects from zero, would act on the other
+/// device's object of the same number (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`).
 #[derive(Clone, Debug)]
 pub struct Gpu {
+    /// The device's identity, which every object it creates carries.
+    pub(crate) id: GpuId,
     pub(crate) device: wgpu::Device,
     pub(crate) queue: wgpu::Queue,
     /// The wgpu instance that opened the device, which opens the device that replaces it.
@@ -48,6 +48,33 @@ pub struct Gpu {
     /// another thread submits while it waits for the GPU, as threads that load a scene do
     /// (ADR-0074).
     pub(crate) submissions: Arc<RwLock<()>>,
+}
+
+/// The identity of a GPU device, which no other device that the process opens has, and which each
+/// object that it creates carries, so that an object used with another device is found.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct GpuId(u64);
+
+impl GpuId {
+    /// An identity that no device of the process has had.
+    fn new() -> Self {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        Self(NEXT.fetch_add(1, Ordering::Relaxed))
+    }
+
+    /// Checks that `what`, an object that the device of `owner` created, belongs to this device.
+    ///
+    /// # Panics
+    ///
+    /// If another device created it: a bug of the program, which would act on another object.
+    #[track_caller]
+    pub(crate) fn owns(self, owner: GpuId, what: &str) {
+        assert!(
+            owner == self,
+            "{what} of another GPU device used with this one: every object belongs to the `Gpu` \
+             that created it, and to its clones"
+        );
+    }
 }
 
 /// Why a GPU device was lost ([`GfxError::DeviceLost`]).
@@ -296,6 +323,7 @@ impl Gpu {
         }));
 
         let gpu = Self {
+            id: GpuId::new(),
             device,
             queue,
             instance: instance.clone(),

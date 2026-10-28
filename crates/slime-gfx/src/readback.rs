@@ -15,6 +15,8 @@ use crate::render_target::RenderTarget;
 /// Dropping it before they come back gives up the copy.
 #[derive(Debug)]
 pub struct Readback {
+    /// The identity of the device that copies the texels, which each read checks.
+    gpu: crate::gpu::GpuId,
     label: String,
     buffer: wgpu::Buffer,
     /// What wgpu said of the mapping, once it said it.
@@ -44,7 +46,11 @@ impl Gpu {
     /// If `target` is multisampled, or if its texels, each row padded to 256 bytes, take more than
     /// the largest buffer the device allows (256 MiB at least: an `Rg32Uint` target of 4096 × 4096
     /// texels takes 128 MiB).
+    ///
+    /// If an object that it is given belongs to another `Gpu` than this one and its clones.
+    #[track_caller]
     pub fn read_render_target_later(&self, target: &RenderTarget) -> Result<Readback, GfxError> {
+        self.id.owns(target.gpu, "a render target");
         assert!(
             target.texture.sample_count() == 1,
             "render target `{}` is multisampled: read the target that a pass resolves it into",
@@ -109,6 +115,7 @@ impl Gpu {
             let _ = sender.send(result);
         });
         Ok(Readback {
+            gpu: self.id,
             label: target.label.clone(),
             buffer,
             mapped,
@@ -131,7 +138,13 @@ impl Readback {
     /// [`GfxError::DeviceLost`] once the device is lost, whether the texels came back or not:
     /// nothing read from a lost device is trusted; [`GfxError::Readback`] if wgpu could not map
     /// them otherwise.
+    ///
+    /// # Panics
+    ///
+    /// If `gpu` is not the `Gpu` that made the readback, nor one of its clones.
+    #[track_caller]
     pub fn try_read(&self, gpu: &Gpu) -> Option<Result<Vec<u8>, GfxError>> {
+        gpu.id.owns(self.gpu, "a readback");
         if let Err(error) = gpu.check() {
             return Some(Err(error));
         }

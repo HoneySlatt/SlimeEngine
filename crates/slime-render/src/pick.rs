@@ -77,6 +77,12 @@ impl Pick {
     /// [`RenderError::Gfx`] with `GfxError::DeviceLost` once the device is lost, whether the
     /// picking was drawn or not: nothing is trusted from a lost device; with another error if the
     /// GPU could not create what the picking needed, or copy its image back.
+    ///
+    /// # Panics
+    ///
+    /// If the picking was drawn by another `Gpu` than `gpu` and its clones: a picking asked of a
+    /// device that was lost goes with it, rather than being taken from the device that replaced it.
+    #[track_caller]
     pub fn take(&self, gpu: &Gpu) -> Option<Result<Picked, RenderError>> {
         let mut state = lock(&self.state);
         match &mut *state {

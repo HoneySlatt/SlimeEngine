@@ -65,6 +65,8 @@ fn choose_present_mode(requested: PresentMode, offered: &[wgpu::PresentMode]) ->
 ///
 /// The surface keeps the window alive: drop it before the windowing system's connection closes.
 pub struct Surface {
+    /// The device that draws into it, whose identity its images carry.
+    gpu: crate::gpu::GpuId,
     surface: wgpu::Surface<'static>,
     instance: wgpu::Instance,
     /// Kept to create the surface again if it is lost.
@@ -247,6 +249,7 @@ impl Surface {
                 .collect(),
         };
         let mut surface = Surface {
+            gpu: gpu.id,
             surface,
             instance,
             window,
@@ -415,7 +418,7 @@ impl Surface {
             }
         };
         self.losses_in_a_row = 0;
-        let target = RenderTarget::new(texture.texture.clone(), label, self.format);
+        let target = RenderTarget::new(self.gpu, texture.texture.clone(), label, self.format);
         self.frame_outstanding.store(true, Ordering::Relaxed);
         self.image = Some(texture.texture.clone());
         Some(SurfaceFrame {

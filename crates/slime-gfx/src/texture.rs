@@ -23,6 +23,8 @@ use crate::upload::{Staged, StagedCopy};
 /// longer uses it.
 #[derive(Clone, Debug)]
 pub struct Texture {
+    /// The identity of the device that created it, which each use checks.
+    pub(crate) gpu: crate::gpu::GpuId,
     texture: wgpu::Texture,
     pub(crate) view: wgpu::TextureView,
     width: u32,
@@ -380,6 +382,7 @@ impl Gpu {
             ..wgpu::TextureViewDescriptor::default()
         });
         let texture = Texture {
+            gpu: self.id,
             texture,
             view,
             width,
@@ -406,6 +409,9 @@ impl Gpu {
     ///
     /// If `texture` is a cube texture or of a block-compressed format, if the rectangle reaches
     /// beyond it, or if `pixels` does not hold exactly the rectangle's bytes.
+    ///
+    /// If an object that it is given belongs to another `Gpu` than this one and its clones.
+    #[track_caller]
     pub fn write_texture(
         &self,
         texture: &Texture,
@@ -413,6 +419,7 @@ impl Gpu {
         (width, height): (u32, u32),
         pixels: &[u8],
     ) {
+        self.id.owns(texture.gpu, "a texture");
         assert!(
             texture.texture.depth_or_array_layers() == 1 && !texture.format.is_block_compressed(),
             "a part of a texture of one image, not of blocks, is written, not of {:?}, {} images",

@@ -1,6 +1,7 @@
 //! Opening the GPU without a window, on whatever adapter the machine offers: lavapipe when
 //! `VK_DRIVER_FILES` points at it (as `scripts/check.sh` does), WARP on Windows machines without
-//! a GPU (as in CI), the machine's GPU otherwise; and failing to, without any graphics API.
+//! a GPU (as in CI), the machine's GPU otherwise; and failing to, without any graphics API. An object
+//! of one device used with another panics (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`).
 
 use std::process::Command;
 
@@ -13,6 +14,32 @@ fn opens_a_device_and_runs_work_without_a_window() {
     eprintln!("adapter: {}", gpu.adapter_name());
     assert!(!gpu.adapter_name().is_empty());
     gpu.wait_idle().expect("the GPU finishes its work");
+}
+
+#[test]
+fn an_object_used_with_another_device_than_its_own_panics() {
+    let open = || {
+        slime_gfx::Gpu::new()
+            .expect("a GPU adapter must be available; CONTRIBUTING.md lists the drivers")
+    };
+    let (mine, other) = (open(), open());
+    let buffer = mine
+        .create_uniform_buffer("mine", &[0; 16])
+        .expect("the GPU has memory for it");
+    // A clone is the same device.
+    mine.clone().write_uniform_buffer(&buffer, &[1; 16]);
+    let used = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        other.write_uniform_buffer(&buffer, &[2; 16]);
+    }));
+    let message = used.expect_err("another device's object refused");
+    let message = message
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .unwrap_or_default();
+    assert!(
+        message.contains("a uniform buffer of another GPU device"),
+        "{message}"
+    );
 }
 
 /// wgpu reads `WGPU_BACKEND` from the environment, which a test changes safely only for a process

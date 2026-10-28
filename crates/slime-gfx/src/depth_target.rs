@@ -29,6 +29,8 @@ pub(crate) const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth3
 /// longer uses it.
 #[derive(Clone, Debug)]
 pub struct DepthTarget {
+    /// The identity of the device that created it, which each use checks.
+    pub(crate) gpu: crate::gpu::GpuId,
     pub(crate) view: wgpu::TextureView,
     pub(crate) label: String,
     width: u32,
@@ -131,6 +133,7 @@ impl Gpu {
         // The view keeps the texture alive.
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         Ok(DepthTarget {
+            gpu: self.id,
             view,
             label: label.to_owned(),
             width,

@@ -98,6 +98,8 @@ pub struct BindGroupLayoutEntry {
 /// longer uses it.
 #[derive(Clone, Debug)]
 pub struct BindGroupLayout {
+    /// The identity of the device that created it, which each use checks.
+    pub(crate) gpu: crate::gpu::GpuId,
     pub(crate) layout: wgpu::BindGroupLayout,
 }
 
@@ -152,6 +154,8 @@ pub struct BindGroupEntry<'a> {
 /// Clones refer to the same group, which keeps its resources alive.
 #[derive(Clone, Debug)]
 pub struct BindGroup {
+    /// The identity of the device that created it, which each use checks.
+    pub(crate) gpu: crate::gpu::GpuId,
     pub(crate) group: wgpu::BindGroup,
 }
 
@@ -236,7 +240,10 @@ impl Gpu {
                     entries: &entries,
                 })
         })?;
-        Ok(BindGroupLayout { layout })
+        Ok(BindGroupLayout {
+            gpu: self.id,
+            layout,
+        })
     }
 
     /// Creates a bind group of `layout` holding `entries`: one per entry of the layout, each of
@@ -256,12 +263,31 @@ impl Gpu {
     /// a `DepthTexture` binding, or a [`Sampler`] at a `ComparisonSampler` binding or the reverse.
     /// Also if a render target is the image of a window, which cannot be sampled. These are bugs in
     /// the caller, which wgpu rejects (ADR-0016).
+    ///
+    /// If an object that it is given belongs to another `Gpu` than this one and its clones.
+    #[track_caller]
     pub fn create_bind_group(
         &self,
         label: &str,
         layout: &BindGroupLayout,
         entries: &[BindGroupEntry<'_>],
     ) -> Result<BindGroup, GfxError> {
+        self.id.owns(layout.gpu, "a bind group layout");
+        for entry in entries {
+            let (owner, what) = match entry.resource {
+                BindingResource::UniformBuffer(buffer)
+                | BindingResource::UniformBufferRange { buffer, .. } => {
+                    (buffer.gpu, "a uniform buffer")
+                }
+                BindingResource::StorageBuffer(buffer) => (buffer.gpu, "a storage buffer"),
+                BindingResource::Texture(texture) => (texture.gpu, "a texture"),
+                BindingResource::Sampler(sampler) => (sampler.gpu, "a sampler"),
+                BindingResource::RenderTarget(target) => (target.gpu, "a render target"),
+                BindingResource::DepthTarget(depth) => (depth.gpu, "a depth target"),
+                BindingResource::ComparisonSampler(sampler) => (sampler.gpu, "a sampler"),
+            };
+            self.id.owns(owner, what);
+        }
         let entries: Vec<wgpu::BindGroupEntry<'_>> = entries
             .iter()
             .map(|entry| wgpu::BindGroupEntry {
@@ -307,7 +333,10 @@ impl Gpu {
                 entries: &entries,
             })
         })?;
-        Ok(BindGroup { group })
+        Ok(BindGroup {
+            gpu: self.id,
+            group,
+        })
     }
 }
 
@@ -333,7 +362,12 @@ mod tests {
             usage: crate::surface::WINDOW_IMAGE_USAGE,
             view_formats: &[wgpu::TextureFormat::Bgra8Unorm],
         });
-        RenderTarget::new(texture, "window, frame 1", TextureFormat::Bgra8UnormSrgb)
+        RenderTarget::new(
+            gpu.id,
+            texture,
+            "window, frame 1",
+            TextureFormat::Bgra8UnormSrgb,
+        )
     }
 
     #[test]

@@ -11,6 +11,8 @@ use crate::gpu::Gpu;
 /// longer uses it.
 #[derive(Clone, Debug)]
 pub struct UniformBuffer {
+    /// The identity of the device that created it, which each use checks.
+    pub(crate) gpu: crate::gpu::GpuId,
     pub(crate) buffer: wgpu::Buffer,
     label: String,
     /// The length of the contents given at creation, in bytes: what every write has, or holds,
@@ -59,6 +61,7 @@ impl Gpu {
             )
         })?;
         Ok(UniformBuffer {
+            gpu: self.id,
             buffer,
             label: label.to_owned(),
             size: contents.len(),
@@ -72,7 +75,11 @@ impl Gpu {
     /// # Panics
     ///
     /// If `contents` does not have the size the buffer was created with.
+    ///
+    /// If an object that it is given belongs to another `Gpu` than this one and its clones.
+    #[track_caller]
     pub fn write_uniform_buffer(&self, buffer: &UniformBuffer, contents: &[u8]) {
+        self.id.owns(buffer.gpu, "a uniform buffer");
         assert!(
             contents.len() == buffer.size,
             "uniform buffer `{}` holds {} bytes, but {} were written",
@@ -92,7 +99,11 @@ impl Gpu {
     ///
     /// If `contents` is empty, longer than the buffer, or its length is not a multiple of 4 bytes,
     /// which GPU copies require.
+    ///
+    /// If an object that it is given belongs to another `Gpu` than this one and its clones.
+    #[track_caller]
     pub fn write_uniform_buffer_start(&self, buffer: &UniformBuffer, contents: &[u8]) {
+        self.id.owns(buffer.gpu, "a uniform buffer");
         assert!(
             !contents.is_empty()
                 && contents.len() <= buffer.size

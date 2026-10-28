@@ -161,6 +161,8 @@ impl TextureFormat {
 /// longer uses it.
 #[derive(Clone, Debug)]
 pub struct RenderTarget {
+    /// The identity of the device that created it, which each use checks.
+    pub(crate) gpu: crate::gpu::GpuId,
     pub(crate) texture: wgpu::Texture,
     pub(crate) view: wgpu::TextureView,
     pub(crate) label: String,
@@ -204,6 +206,7 @@ impl RenderTarget {
     pub fn without_srgb(&self) -> Option<RenderTarget> {
         let format = self.format.without_srgb()?;
         Some(RenderTarget {
+            gpu: self.gpu,
             texture: self.texture.clone(),
             view: self.texture.create_view(&wgpu::TextureViewDescriptor {
                 format: Some(format.to_wgpu()),
@@ -344,14 +347,20 @@ impl Gpu {
                 view_formats: unencoded.as_slice(),
             })
         })?;
-        Ok(RenderTarget::new(texture, label, format))
+        Ok(RenderTarget::new(self.id, texture, label, format))
     }
 }
 
 impl RenderTarget {
-    pub(crate) fn new(texture: wgpu::Texture, label: &str, format: TextureFormat) -> Self {
+    pub(crate) fn new(
+        gpu: crate::gpu::GpuId,
+        texture: wgpu::Texture,
+        label: &str,
+        format: TextureFormat,
+    ) -> Self {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         Self {
+            gpu,
             texture,
             view,
             label: label.to_owned(),

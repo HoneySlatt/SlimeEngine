@@ -360,6 +360,9 @@ impl Uploader {
     ///
     /// If a write is empty, starts at a byte that is not a multiple of 4, holds a number of bytes
     /// that is not, or reaches beyond its target, as [`Gpu::write_vertex_buffer`] says.
+    ///
+    /// If a buffer written belongs to another `Gpu` than the uploader's.
+    #[track_caller]
     pub fn buffers(
         &self,
         label: &str,
@@ -376,14 +379,18 @@ impl Uploader {
         for &(target, offset, bytes) in writes {
             let (kind, name, to, size) = match target {
                 UploadTarget::Vertices(buffer) => {
+                    shared.gpu.id.owns(buffer.gpu, "a vertex buffer");
                     ("vertex", &buffer.label, &buffer.buffer, buffer.size)
                 }
-                UploadTarget::Indices(buffer) => (
-                    "index",
-                    &buffer.label,
-                    &buffer.buffer,
-                    u64::from(buffer.count()) * 4,
-                ),
+                UploadTarget::Indices(buffer) => {
+                    shared.gpu.id.owns(buffer.gpu, "an index buffer");
+                    (
+                        "index",
+                        &buffer.label,
+                        &buffer.buffer,
+                        u64::from(buffer.count()) * 4,
+                    )
+                }
             };
             write_range(kind, name, size, offset, bytes);
             for (index, piece) in bytes.chunks(budget).enumerate() {

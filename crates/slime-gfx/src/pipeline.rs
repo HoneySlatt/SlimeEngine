@@ -222,6 +222,8 @@ pub struct FragmentState<'a> {
 /// longer uses it.
 #[derive(Clone, Debug)]
 pub struct RenderPipeline {
+    /// The identity of the device that created it, which each use checks.
+    pub(crate) gpu: crate::gpu::GpuId,
     pub(crate) pipeline: wgpu::RenderPipeline,
 }
 
@@ -243,10 +245,19 @@ impl Gpu {
     /// ([`Gpu::check`]), including when creating the pipeline loses it: on Vulkan, wgpu treats a
     /// driver that fails to create it (which a conformant one does only when it runs out of
     /// memory) as a lost device.
+    ///
+    /// # Panics
+    ///
+    /// If an object that it is given belongs to another `Gpu` than this one and its clones.
+    #[track_caller]
     pub fn create_render_pipeline(
         &self,
         descriptor: &RenderPipelineDescriptor<'_>,
     ) -> Result<RenderPipeline, GfxError> {
+        self.id.owns(descriptor.shader.gpu, "a shader module");
+        for layout in descriptor.bind_group_layouts {
+            self.id.owns(layout.gpu, "a bind group layout");
+        }
         self.check()?;
         let attributes: Vec<wgpu::VertexAttribute> = descriptor
             .vertex_layout
@@ -341,7 +352,10 @@ impl Gpu {
                 })
         })?;
         match error {
-            None => Ok(RenderPipeline { pipeline }),
+            None => Ok(RenderPipeline {
+                gpu: self.id,
+                pipeline,
+            }),
             Some(error) => Err(GfxError::Pipeline {
                 label: descriptor.label.to_owned(),
                 message: error.to_string().trim_end().to_owned(),

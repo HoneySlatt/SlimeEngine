@@ -57,6 +57,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- A GPU object used with another `Gpu` than the one that created it, or its clones, panics, where
+  it acted on that other device's object of the same number without a word (G34, ADR-0157).
 - The development channel answers a request within the game's next frame: each message went out in
   pieces that waited for the acknowledgement of the one before, and a request took 82 to 97 ms
   whatever the game's frame rate. It takes about 0.14 ms on a loopback.
