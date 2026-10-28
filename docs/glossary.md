@@ -1246,7 +1246,10 @@ the tables of shortcuts by scope, each with the name of its command (`Ui::open_s
 **Shortcut.** A chord, modifiers and a key named by its meaning, `Ctrl+Z`, that names a command in
 a scope, `global` or the class of an element around the *focus*, read from a table of shortcuts,
 a document cooked from a `.keys` file (`slime_ui::shortcuts::Shortcuts`,
-[ADR-0142](adr/0142-input-and-focus.md)).
+[ADR-0142](adr/0142-input-and-focus.md)). A chord may name a button of the mouse in place of a
+key, `Shift+MiddleButton`: it runs no command of its own, and the program reads what it names, as
+the editor reads what each button does over its viewport (`Ui::button_command`,
+[ADR-0160](adr/0160-two-viewports-and-blenders-way.md)).
 
 **Simulated time.** Frame deltas supplied as a constant duration instead of being measured, so
 that a run gives the same results on every machine. Headless runs use it.

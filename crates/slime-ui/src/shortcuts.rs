@@ -25,8 +25,23 @@
 //! layouts and without on others: its chord does not name Shift, and matches either way. A layout
 //! of another script than the Latin one types no Latin letter: there, a chord of a letter is the
 //! key at that letter's position on a QWERTY keyboard.
+//!
+//! A chord may end with a button of the mouse in place of a key, `LeftButton`, `RightButton`,
+//! `MiddleButton`, `BackButton` or `ForwardButton`: it names what a press of that button does in a
+//! scope that the program reads itself ([`Ui::button_command`](crate::tree::Ui::button_command)),
+//! as an editor's viewport reads which button orbits
+//! (`docs/adr/0160-two-viewports-and-blenders-way.md`). A button's chord holds while the modifiers
+//! that it names are held, whatever others are, and of those that hold, the one that names the most
+//! wins, of two that name as many the later in the tables: `LeftButton` selects with Shift held
+//! too, unless `Shift+LeftButton` names another command.
+//!
+//! ```toml
+//! [viewport]
+//! MiddleButton = "orbit"
+//! "Shift+MiddleButton" = "pan"
+//! ```
 
-use slime_input::{Key, KeyEvent, Modifiers, NamedKey};
+use slime_input::{Key, KeyEvent, Modifiers, MouseButton, NamedKey};
 use slime_reflect::{Problem, Registry, Value};
 
 use crate::DocumentError;
@@ -82,12 +97,22 @@ pub(crate) struct Chord {
     key: ChordKey,
 }
 
-/// The key of a chord: a character, in lower case, or a named key.
+/// The key of a chord: a character, in lower case, a named key, or a button of the mouse.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ChordKey {
     Character(String),
     Named(NamedKey),
+    Button(MouseButton),
 }
+
+/// The buttons of the mouse that a chord names, by their names.
+const BUTTONS: [(&str, MouseButton); 5] = [
+    ("LeftButton", MouseButton::Left),
+    ("RightButton", MouseButton::Right),
+    ("MiddleButton", MouseButton::Middle),
+    ("BackButton", MouseButton::Back),
+    ("ForwardButton", MouseButton::Forward),
+];
 
 impl Chord {
     /// The chord that `text` writes, `Ctrl+Shift+Z`, or why it writes none.
@@ -103,13 +128,17 @@ impl Chord {
             control: false,
             alt: false,
             super_key: false,
-            key: match NamedKey::from_name(key) {
-                Some(named) => ChordKey::Named(named),
-                None if key.chars().count() == 1 => ChordKey::Character(key.to_lowercase()),
-                None => {
+            key: match (
+                NamedKey::from_name(key),
+                BUTTONS.iter().find(|(name, _)| *name == key),
+            ) {
+                (Some(named), _) => ChordKey::Named(named),
+                (None, Some(&(_, button))) => ChordKey::Button(button),
+                (None, None) if key.chars().count() == 1 => ChordKey::Character(key.to_lowercase()),
+                (None, None) => {
                     return Err(format!(
-                        "`{text}` does not end with a key: a character, or the name of a key, as \
-                         `Delete` or `F2`"
+                        "`{text}` does not end with a key: a character, the name of a key, as \
+                         `Delete` or `F2`, or of a button, as `LeftButton`"
                     ));
                 }
             },
@@ -154,8 +183,33 @@ impl Chord {
         match &self.key {
             ChordKey::Character(character) => text.push_str(&character.to_uppercase()),
             ChordKey::Named(named) => text.push_str(named.name()),
+            ChordKey::Button(button) => text.push_str(
+                BUTTONS
+                    .iter()
+                    .find(|(_, each)| each == button)
+                    .map(|(name, _)| *name)
+                    .expect("a chord names one of the buttons that it reads"),
+            ),
         }
         text
+    }
+
+    /// Whether it names a button of the mouse, which runs no command as a key does.
+    pub(crate) fn is_button(&self) -> bool {
+        matches!(self.key, ChordKey::Button(_))
+    }
+
+    /// How many modifiers it names, if a press of `button` with `modifiers` held is it: its button,
+    /// the modifiers that it names held, whatever others are.
+    pub(crate) fn holds(&self, button: MouseButton, modifiers: Modifiers) -> Option<usize> {
+        let named = [
+            (self.shift, modifiers.shift),
+            (self.control, modifiers.control),
+            (self.alt, modifiers.alt),
+            (self.super_key, modifiers.super_key),
+        ];
+        (self.key == ChordKey::Button(button) && named.iter().all(|&(named, held)| held || !named))
+            .then(|| named.iter().filter(|(named, _)| *named).count())
     }
 
     /// Whether its key is a character without case, `+` or `1`, which some layouts type with
@@ -163,7 +217,7 @@ impl Chord {
     fn caseless(&self) -> bool {
         match &self.key {
             ChordKey::Character(character) => character.to_uppercase() == *character,
-            ChordKey::Named(_) => false,
+            ChordKey::Named(_) | ChordKey::Button(_) => false,
         }
     }
 

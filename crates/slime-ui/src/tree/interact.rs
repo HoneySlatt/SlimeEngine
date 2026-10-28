@@ -811,16 +811,24 @@ impl Ui {
         Ok(())
     }
 
-    /// The chord that gives `command`, as a table writes it, `Ctrl+S`: of the scope `global`
-    /// first, then of the first scope that gives it, in the order of [`Ui::shortcuts`]; a chord that
-    /// a later table gives another command in its scope gives this one no more. None for a command
-    /// that no shortcut gives.
+    /// The chord of a key that gives `command`, as a table writes it, `Ctrl+S`: of the scope
+    /// `global` first, then of the first scope that gives it, in the order of [`Ui::shortcuts`]; a
+    /// chord that a later table gives another command in its scope gives this one no more. None
+    /// for a command that no key's shortcut gives: a button's chord gives none of its own
+    /// ([`Ui::button_command`]).
     pub fn command_chord(&self, command: &str) -> Option<String> {
         let scopes = self.shortcuts();
+        let buttons: Vec<String> = self
+            .interaction
+            .bindings
+            .iter()
+            .filter(|binding| binding.chord.is_button())
+            .map(|binding| binding.chord.text())
+            .collect();
         let chord = |(_, chords): &(String, Vec<(String, String)>)| {
             chords
                 .iter()
-                .find(|(_, each)| each == command)
+                .find(|(chord, each)| each == command && !buttons.contains(chord))
                 .map(|(chord, _)| chord.clone())
         };
         scopes
@@ -828,6 +836,33 @@ impl Ui {
             .find(|(scope, _)| scope == "global")
             .and_then(chord)
             .or_else(|| scopes.iter().find_map(chord))
+    }
+
+    /// The command that a press of `button` with `modifiers` held gives in `scope`, which the
+    /// program reads itself, as an editor's viewport reads which button orbits: of the chords of
+    /// the button whose modifiers are held, whatever others are, the one that names the most, of
+    /// two that name as many the later in the tables. None if no chord of the button holds
+    /// ([`Shortcuts`]).
+    pub fn button_command(
+        &self,
+        scope: &str,
+        button: MouseButton,
+        modifiers: Modifiers,
+    ) -> Option<&str> {
+        self.interaction
+            .bindings
+            .iter()
+            .rev()
+            .filter(|binding| binding.scope == scope)
+            .filter_map(|binding| Some((binding.chord.holds(button, modifiers)?, binding)))
+            .fold(
+                None,
+                |best: Option<(usize, &Binding)>, (named, binding)| match best {
+                    Some((most, _)) if most >= named => best,
+                    _ => Some((named, binding)),
+                },
+            )
+            .map(|(_, binding)| binding.command.as_str())
     }
 
     /// The shortcuts that the tables give, by scope, each scope's in the order of the tables:

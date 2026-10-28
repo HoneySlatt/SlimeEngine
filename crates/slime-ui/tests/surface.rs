@@ -1,7 +1,9 @@
 //! A surface, without a GPU (`docs/adr/0158-the-viewport.md`): the pointer's presses, moves, wheel
 //! and releases over it given to the program, a button pressed over it holding the pointer until
 //! it is let go, the keys without Control, Alt or Super reaching the program meanwhile, typing in no
-//! field and running no shortcut, and its image drawn into its box.
+//! field and running no shortcut, and its image drawn into its box; and the chords of the mouse's
+//! buttons that a program reads from a table of shortcuts, with more modifiers held, the most named
+//! winning (`docs/adr/0160-two-viewports-and-blenders-way.md`).
 
 use slime_input::{
     ButtonState, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey, ScrollDelta,
@@ -252,4 +254,59 @@ fn the_wheel_over_a_surface_reaches_it_and_elsewhere_does_not() {
     ui.pointer_moved(20.0, 10.0);
     ui.wheel(delta);
     assert!(surface_inputs(&mut ui).is_empty());
+}
+
+#[test]
+fn a_button_s_chord_holds_with_more_modifiers_held_and_the_most_named_wins() {
+    let mut ui = Ui::new(Fonts::new());
+    let table = "[viewport]\nLeftButton = \"select\"\n\"Alt+LeftButton\" = \"orbit\"\n\
+                 MiddleButton = \"pan\"\n\"Shift+MiddleButton\" = \"slide\"\n";
+    ui.set_shortcuts(&[Shortcuts::from_text("keys", table)])
+        .expect("a table");
+    let held = |shift: bool, alt: bool| {
+        let mut modifiers = Modifiers::default();
+        modifiers.shift = shift;
+        modifiers.alt = alt;
+        modifiers
+    };
+    let command = |button, modifiers| ui.button_command("viewport", button, modifiers);
+    assert_eq!(
+        command(MouseButton::Left, held(false, false)),
+        Some("select")
+    );
+    // Shift held too, which no chord of the left button names: it still selects.
+    assert_eq!(
+        command(MouseButton::Left, held(true, false)),
+        Some("select")
+    );
+    assert_eq!(command(MouseButton::Left, held(true, true)), Some("orbit"));
+    assert_eq!(
+        command(MouseButton::Middle, held(true, false)),
+        Some("slide")
+    );
+    assert_eq!(command(MouseButton::Right, held(false, false)), None);
+    assert_eq!(
+        ui.button_command("global", MouseButton::Left, held(false, false)),
+        None
+    );
+    // A later table wins for one chord, and the chords read as they are written.
+    let blender = "[viewport]\nMiddleButton = \"orbit\"\n";
+    ui.set_shortcuts(&[
+        Shortcuts::from_text("keys", table),
+        Shortcuts::from_text("blender", blender),
+    ])
+    .expect("tables");
+    assert_eq!(
+        ui.button_command("viewport", MouseButton::Middle, held(false, false)),
+        Some("orbit")
+    );
+    let scopes = ui.shortcuts();
+    assert!(
+        scopes[0]
+            .1
+            .contains(&("Alt+LeftButton".to_owned(), "orbit".to_owned()))
+    );
+    // A button that no chord can name is refused.
+    let wrong = Shortcuts::from_text("wrong", "[viewport]\nWheelButton = \"zoom\"\n");
+    assert!(ui.set_shortcuts(&[wrong]).is_err());
 }

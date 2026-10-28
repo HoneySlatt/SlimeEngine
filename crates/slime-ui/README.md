@@ -52,7 +52,10 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   description, its tooltip, and whether a press opens a layer beside it, are part of what it means.
 - `shortcuts::Shortcuts` is a table of shortcuts, read from a document: chords of the keys' meaning
   that name commands, in scopes, the classes of the elements around the focus; `Ui::set_shortcuts`
-  takes them. Its errors and the style sheets' are a `DocumentError`.
+  takes them. A chord may name a button of the mouse, whose command the program reads,
+  `Ui::button_command`, as the editor reads which button orbits its viewport
+  (`docs/adr/0160-two-viewports-and-blenders-way.md`). Its errors and the style sheets' are a
+  `DocumentError`.
 - A field (`Element::text_field`, `Element::text_area`, `Element::number_field`) keeps what the
   user types, selects with the keys and the pointer, undoes, copies and pastes through the clipboard
   that the program gives (`tree::Clipboard`, `Ui::set_clipboard`), and composes through an input
