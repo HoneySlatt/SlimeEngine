@@ -46,15 +46,18 @@ trap 'kill "${pids[@]}" 2>/dev/null || true' EXIT
 # The AT-SPI bus and its registry, which a desktop's session would start; then AT-SPI turned on, as
 # a screen reader turns it on, which AccessKit's adapter waits for. The bus keeps that setting in
 # GSettings, whose memory alone holds it here: dconf, which a desktop's session runs, is not.
-GSETTINGS_BACKEND=memory "$SLIME_AT_SPI/libexec/at-spi-bus-launcher" --launch-immediately \
-    >"$logs/bus.log" 2>&1 &
+# The services of AT-SPI run the system's D-Bus daemon where it has one, their path putting
+# /usr/bin first: without the development shell's libraries, D-Bus's among them, which a daemon of
+# another build cannot load.
+env -u LD_LIBRARY_PATH GSETTINGS_BACKEND=memory "$SLIME_AT_SPI/libexec/at-spi-bus-launcher" \
+    --launch-immediately >"$logs/bus.log" 2>&1 &
 pids+=("$!")
 for _ in $(seq 100); do
     gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \
         --method org.a11y.Bus.GetAddress >/dev/null 2>&1 && break
     sleep 0.1
 done
-"$SLIME_AT_SPI/libexec/at-spi2-registryd" >"$logs/registry.log" 2>&1 &
+env -u LD_LIBRARY_PATH "$SLIME_AT_SPI/libexec/at-spi2-registryd" >"$logs/registry.log" 2>&1 &
 pids+=("$!")
 # The registry must answer on the AT-SPI bus before the example announces itself to it.
 address=$(gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \
