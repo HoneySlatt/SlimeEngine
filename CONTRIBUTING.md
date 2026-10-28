@@ -54,7 +54,9 @@ libraries, which are loaded at run time: libxkbcommon for both windowing systems
 libwayland-client for Wayland; libX11, libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11
 for X11. Without libxkbcommon, or libxkbcommon-x11 on X11, the examples panic instead of
 reporting that the windowing system cannot be reached. A program that asks for the system's fonts
-loads libfontconfig, and finds none without it. Most desktop distributions install them already.
+loads libfontconfig, and finds none without it. The editor's dialog to open a level loads
+libdbus-1, through which it asks the desktop's portal, or runs `zenity`; without either, the editor
+waits for the level's path typed. Most desktop distributions install them already.
 
 ### On Windows
 

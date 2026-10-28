@@ -22,6 +22,8 @@ accesskit_winit = { workspace = true, optional = true }
 # The system's clipboard, of text (ADR-0145).
 arboard.workspace = true
 raw-window-handle.workspace = true
+# The system's dialogs to choose a file, run on threads of their own (ADR-0157).
+rfd.workspace = true
 # The engine's vocabulary of input, which the platform translates winit's events into (ADR-0142).
 slime-input.workspace = true
 thiserror.workspace = true

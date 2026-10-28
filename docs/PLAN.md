@@ -730,9 +730,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   (GNOME), the title bar has no text, because winit's text renderer depends on an unmaintained
   crate (ADR-0011).
 - **Input not reported yet** (issue [#3](https://github.com/HoneySlatt/SlimeEngine/issues/3)):
-  touch, touchpad gestures, gamepads, dropped files, the mouse's raw motion. The window cannot grab
-  or hide the cursor, or go fullscreen. Input methods and the pointer's shapes came with M6b.6a,
-  the title changed with M6c.1a; M6c.1b brings the raw motion and the cursor held, M6c.7 files dropped on Windows and X11, Stage 7 gamepads; files dropped on Wayland wait
+  touch, touchpad gestures, gamepads, dropped files. The window cannot go fullscreen. Input methods
+  and the pointer's shapes came with M6b.6a, the title changed with M6c.1a, the mouse's raw motion
+  and the cursor held with M6c.1b
+  ([ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md)); on Windows, winit 0.30
+  reports as raw motion the positions that a virtual machine's tablet or a remote desktop gives.
+  M6c.7 brings files dropped on Windows and X11, Stage 7 gamepads; files dropped on Wayland wait
   for winit 0.31 ([ADR-0155](adr/0155-the-editors-design.md)).
 - **A compositor that stops answering blocks the engine.** Before the first frame, winit waits for
   the window's first configuration without a timeout, so a termination signal is noticed only when a

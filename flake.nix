@@ -49,10 +49,11 @@
         SLIME_AT_SPI = "${pkgs.at-spi2-core}";
 
         # winit (in slime-platform) and wgpu (in slime-gfx) open the windowing system's libraries and
-        # the Vulkan loader at run time instead of linking them, and fontique (in slime-ui)
-        # fontconfig, which finds the system's fonts for a program that asks for them.
-        # NixOS has no global library directory, so the dynamic loader has to be told where they
-        # are.
+        # the Vulkan loader at run time instead of linking them, fontique (in slime-ui)
+        # fontconfig, which finds the system's fonts for a program that asks for them, and rfd (in
+        # slime-platform) D-Bus's library, through which it asks the desktop's portal for a dialog
+        # (ADR-0157). NixOS has no global library directory, so the dynamic loader has to be told
+        # where they are.
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
           pkgs.wayland
           pkgs.libxkbcommon
@@ -62,6 +63,7 @@
           pkgs.libxcb
           pkgs.vulkan-loader
           pkgs.fontconfig
+          pkgs.dbus.lib
         ];
 
         # The Vulkan driver of Mesa that renders on the CPU (lavapipe). scripts/check.sh points the

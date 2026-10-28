@@ -1,11 +1,12 @@
 //! The application window.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
 };
 use slime_input::CursorShape;
+use winit::dpi::PhysicalPosition;
 
 use crate::Waker;
 
@@ -37,6 +38,24 @@ impl Default for WindowConfig {
     }
 }
 
+/// Where the cursor last was over the window, and where the window holds it, if it does.
+#[derive(Debug, Default)]
+struct Cursor {
+    position: Option<PhysicalPosition<f64>>,
+    held: Option<Held>,
+}
+
+/// How the window holds the cursor ([`Window::set_cursor_held`]).
+#[derive(Clone, Copy, Debug)]
+struct Held {
+    /// Where the cursor was as it was held, in whole physical pixels of the content area, so that
+    /// a position put back is the one reported then.
+    position: PhysicalPosition<f64>,
+    /// Whether the cursor is put back there after each motion, and as it is let go, on X11, which
+    /// cannot lock it.
+    warp: bool,
+}
+
 /// A size in physical pixels, the pixels of the display.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PhysicalSize {
@@ -54,10 +73,10 @@ pub struct PhysicalSize {
 /// On Windows, the windowing library destroys windows from inside the event loop, so the window
 /// still open when the loop ends is hidden then, and released only when the process exits.
 ///
-/// It cannot yet go fullscreen, grab or hide the cursor, or report the mouse's raw motion, which
-/// games that turn a camera with the mouse need. It changes its title, sets the pointer's shape and
-/// places the input method, which it allows while a field takes text, and gives a [`Waker`] of its
-/// event loop.
+/// It cannot yet go fullscreen. It holds the cursor, hidden, while the mouse's raw motion turns a
+/// camera ([`Window::set_cursor_held`]), opens the system's dialog to choose a file
+/// ([`Window::choose_file`]), changes its title, sets the pointer's shape and places the input
+/// method, which it allows while a field takes text, and gives a [`Waker`] of its event loop.
 ///
 /// It implements the [`raw-window-handle`](raw_window_handle) traits, through which graphics
 /// libraries draw into a window without knowing the windowing library that created it.
@@ -65,6 +84,8 @@ pub struct PhysicalSize {
 pub struct Window {
     inner: Arc<winit::window::Window>,
     waker: Waker,
+    /// Where the cursor last was, and whether the window holds it.
+    cursor: Arc<Mutex<Cursor>>,
     /// The updates of the tree that screen readers read, which the event loop gives the adapter
     /// once the handler's call returns: the adapter stays on the thread of the event loop.
     #[cfg(feature = "accessibility")]
@@ -76,6 +97,7 @@ impl Window {
         Self {
             inner: Arc::new(window),
             waker,
+            cursor: Arc::default(),
             #[cfg(feature = "accessibility")]
             accessibility: Arc::default(),
         }
@@ -164,6 +186,105 @@ impl Window {
     /// A [`Waker`] of the event loop that runs the window, which another thread wakes it with.
     pub fn waker(&self) -> Waker {
         self.waker.clone()
+    }
+
+    /// Opens the system's dialog to choose a file to open, as `choice` says, the window its parent,
+    /// on a thread of its own: the event loop goes on meanwhile, and the answer arrives as
+    /// [`Event::FileChosen`](crate::Event::FileChosen) with the number given here. On Linux, the
+    /// desktop's portal shows it, through D-Bus's library, which the process loads then; `zenity`
+    /// shows it where no portal answers, and no dialog shows where neither does, which answers as
+    /// a cancel, as a text of `choice` that holds a NUL character does. A dialog of the portal is modal to the window where the compositor gives Wayland's
+    /// `xdg-foreign` protocol. On Windows, the system's own dialog shows it. The program cannot
+    /// close the dialog: only the user does.
+    pub fn choose_file(&self, choice: crate::FileChoice) -> crate::DialogId {
+        crate::dialog::choose_file(self.clone(), choice, self.waker.proxy.clone())
+    }
+
+    /// Holds the cursor, hidden, where it is, so that the mouse's raw motion
+    /// ([`Event::RawMotion`](crate::Event::RawMotion)) moves what the program moves with it, a
+    /// camera, without the cursor meeting an edge; or lets it go, shown again where it was held.
+    /// On Wayland and Windows the windowing system locks it; on X11, which cannot, it is confined to
+    /// the window and put back where it was held after each motion, which then reports no
+    /// [`Event::CursorMoved`](crate::Event::CursorMoved). Holding it again, or letting go of a
+    /// cursor that is free, does nothing. A program lets it go as the button that holds it is let
+    /// go; the window lets it go as it loses the focus, before
+    /// [`Event::Focused`](crate::Event::Focused) reports it, so that it is not kept from the
+    /// window that the user went to.
+    ///
+    /// # Errors
+    ///
+    /// [`PlatformError::HoldCursor`](crate::PlatformError::HoldCursor) when the windowing system
+    /// refuses to hold it: the cursor stays free and shown, and the program can say so.
+    pub fn set_cursor_held(&self, held: bool) -> Result<(), crate::PlatformError> {
+        use winit::window::CursorGrabMode;
+
+        // The lock is never held across winit's calls: on Windows, a call from another thread
+        // waits for the event loop's thread, which may be waiting for the lock in `cursor_moved`.
+        let (was, position) = {
+            let mut cursor = self.lock_cursor();
+            if held == cursor.held.is_some() {
+                return Ok(());
+            }
+            (cursor.held.take(), cursor.position)
+        };
+        if let Some(at) = was {
+            // Locked, it shows again where it was; confined, it is put back there.
+            if at.warp {
+                let _ = self.inner.set_cursor_position(at.position);
+            }
+            if let Err(error) = self.inner.set_cursor_grab(CursorGrabMode::None) {
+                tracing::warn!(%error, "the cursor's hold cannot be let go");
+            }
+            self.inner.set_cursor_visible(true);
+            return Ok(());
+        }
+        let position = position.unwrap_or_else(|| {
+            let size = self.inner.inner_size();
+            PhysicalPosition::new(f64::from(size.width) / 2.0, f64::from(size.height) / 2.0)
+        });
+        let position = PhysicalPosition::new(position.x.round(), position.y.round());
+        let warp = match self.inner.set_cursor_grab(CursorGrabMode::Locked) {
+            Ok(()) => false,
+            // X11 cannot lock it: confined, and put back where it was held after each motion.
+            Err(winit::error::ExternalError::NotSupported(_)) => {
+                self.inner
+                    .set_cursor_grab(CursorGrabMode::Confined)
+                    .map_err(|error| crate::PlatformError::HoldCursor(Box::new(error)))?;
+                true
+            }
+            Err(error) => return Err(crate::PlatformError::HoldCursor(Box::new(error))),
+        };
+        self.inner.set_cursor_visible(false);
+        self.lock_cursor().held = Some(Held { position, warp });
+        Ok(())
+    }
+
+    fn lock_cursor(&self) -> std::sync::MutexGuard<'_, Cursor> {
+        self.cursor.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Whether the window holds the cursor ([`Window::set_cursor_held`]).
+    pub fn cursor_held(&self) -> bool {
+        self.lock_cursor().held.is_some()
+    }
+
+    /// Notes that the cursor moved to `position`, and gives whether the motion is reported: not
+    /// while the window holds the cursor, where on X11 it is put back where it was held.
+    pub(crate) fn cursor_moved(&self, position: PhysicalPosition<f64>) -> bool {
+        let held = {
+            let mut cursor = self.lock_cursor();
+            if cursor.held.is_none() {
+                cursor.position = Some(position);
+            }
+            cursor.held
+        };
+        let Some(held) = held else {
+            return true;
+        };
+        if held.warp && position != held.position {
+            let _ = self.inner.set_cursor_position(held.position);
+        }
+        false
     }
 
     /// Allows the input method, or forbids it: while it is allowed, the keys that it reads compose

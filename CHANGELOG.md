@@ -32,6 +32,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `slime_app::state_directory`, the user's state directory; `Window::set_title` and
   `Window::waker` in `slime-platform`, and `LoopControl::Wait`; `WorldPanel::deselect` in
   `slime-devui`.
+- The cursor held (ADR-0157): `Window::set_cursor_held` holds the cursor, hidden, where it is, and
+  lets it go, as the window does itself when it loses the focus; `Event::RawMotion` reports the
+  mouse's raw motion meanwhile. The `window` example holds it while its right button is held.
 
 ### Changed
 

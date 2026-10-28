@@ -40,6 +40,7 @@ are set in `[workspace.dependencies]` of the root [`Cargo.toml`](../Cargo.toml).
 | [tokio](https://crates.io/crates/tokio) | `slime-mcp` | The asynchronous runtime that `rmcp` runs on, on one thread (features `macros` and `rt`); the requests to the game wait on its threads for blocking work | None: `rmcp` runs on it | MIT | M6a.6 |
 | [pollster](https://crates.io/crates/pollster) | `slime-gfx` | Waits for wgpu's requests, which are futures: opening the GPU, and the errors caught while a shader module or pipeline is created ([ADR-0016](adr/0016-gpu-layer-with-wgpu.md)) | A hand-written executor | MIT OR Apache-2.0 | M2.1 |
 | [raw-window-handle](https://crates.io/crates/raw-window-handle) | `slime-platform`, `slime-gfx` | The standard traits through which a graphics library draws into a window created by another library: `slime_platform::Window` implements them on purpose ([ADR-0011](adr/0011-windowing-with-winit.md)), and `slime-gfx` draws into any window that implements them ([ADR-0020](adr/0020-rendering-in-the-main-loop.md)). `slime-gfx` enables its `alloc` feature, for the implementations on `Arc`. | None: it is the interface wgpu accepts | MIT OR Apache-2.0 OR Zlib | M1.4 |
+| [rfd](https://crates.io/crates/rfd) | `slime-platform` | The system's dialog to choose a file, which the editor opens a level through, run on a thread of its own ([ADR-0132](adr/0132-the-engines-ui-framework.md), [ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md)). On Linux, the desktop's portal, through D-Bus's library, which it loads as it runs, and `zenity` where no portal answers; the dialog given the window as its parent through Wayland's `xdg-foreign` (its default features `xdg-portal` and `wayland`, which bring the Wayland crates that winit already builds, and pollster 0.4 beside the workspace's 1.0); on Windows, the system's own dialog, through COM | A file browser drawn by the engine, without the desktop's places, its portals in sandboxes, nor what screen readers know of the system's dialog; the portal reached through zbus and ashpd, dozens of crates | MIT | M6c.1b |
 | [thiserror](https://crates.io/crates/thiserror) | `slime-app`, `slime-assets`, `slime-channel`, `slime-cook`, `slime-editor`, `slime-gfx`, `slime-platform`, `slime-render`, `slime-serialize`, `slime-ui`, `slime-world` | Derives `Display` and `Error` for engine error enums ([ADR-0008](adr/0008-errors-logging-and-assertions.md)) | Hand-written implementations | MIT OR Apache-2.0 | M1.4 |
 | [toml_edit](https://crates.io/crates/toml_edit) | `slime-serialize` | Parses TOML documents, the engine's text format for sources and saves, and gives where each key and value lies in the text, so that errors say their line and column ([ADR-0080](adr/0080-reflection-and-serialization.md), [ADR-0086](adr/0086-serialization.md)). Its parser only (feature `parse`), which brings `toml_parser`, `winnow` and `toml_datetime`, all MIT OR Apache-2.0; without its writer, since the engine writes its documents itself, and without `serde`. Already in the lock file, for winit on Android | `toml`, which reads through `serde`; a TOML parser of our own | MIT OR Apache-2.0 | M5a.7 |
 | [tracing](https://crates.io/crates/tracing) | `slime-app`, `slime-channel`, `slime-editor`, `slime-gfx`, `slime-platform`, `slime-render`, `slime-ui`, `slime-ui-render`, `slime-world`, `slime-world-render`, examples, `hunnawood` | Logging macros and profiling spans for all engine code ([ADR-0008](adr/0008-errors-logging-and-assertions.md)). Built without its default `attributes` feature, which pulls in a proc-macro stack. | `log`, which has no spans | MIT | M1.1 |
@@ -52,9 +53,9 @@ are set in `[workspace.dependencies]` of the root [`Cargo.toml`](../Cargo.toml).
 
 ## System libraries
 
-winit, wgpu and fontique do not link these libraries: they open them at run time, only when a
-window is created, the GPU is opened or the system's fonts are asked for, so a headless run needs
-none of them. They are part of the
+winit, wgpu, fontique and rfd do not link these libraries: they open them at run time, only when a
+window is created, the GPU is opened, the system's fonts are asked for or a dialog of the system
+opens, so a headless run needs none of them. They are part of the
 operating system, not of SlimeEngine; the Nix shell puts them on the loader path
 (`LD_LIBRARY_PATH` in [`flake.nix`](../flake.nix)).
 
@@ -65,6 +66,7 @@ operating system, not of SlimeEngine; the Nix shell puts them on the loader path
 | libX11, libX11-xcb, libXcursor, libXi, libxcb | X11 |
 | libvulkan (the Vulkan loader) and a Vulkan driver (Mesa's RADV, ANV or NVK, or a vendor driver) | The GPU on Linux, through wgpu |
 | libfontconfig | The system's fonts on Linux, for a program that asks for them (`slime_ui::text::Fonts::with_system_fonts`), through fontique |
+| libdbus-1 | The system's dialogs on Linux, asked of the desktop's portal (`slime_platform::Window::choose_file`), through rfd; without it, or without a portal, rfd runs `zenity`, and no dialog shows where neither is there |
 
 On Windows, Direct3D 12 and WARP, its software driver, are part of the operating system.
 

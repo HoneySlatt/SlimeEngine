@@ -221,6 +221,10 @@ when its vertices wind counter-clockwise on screen. The renderer chooses it per 
 material's double-sidedness and from whether the instance is *mirrored* (ADR-0035). Not to be
 confused with *frustum culling*.
 
+**Cursor held.** The cursor that a window keeps, hidden, where it was while the *raw motion* of the
+mouse turns what a program turns with it, a camera (`Window::set_cursor_held`,
+[ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md)).
+
 **Debug group.** A named section of the commands of a render pass, shown by GPU capture tools such
 as RenderDoc (`RenderPass::debug_group`).
 
@@ -1012,6 +1016,9 @@ some types, with those components, `&T` to read one and `&mut T` to change it th
 **Rank (hierarchy).** An entity's place among its parent's children, the first at 0: what a
 *command* that creates or moves an entity gives, and what a deletion records, so that undoing it
 puts each entity back where it was (`World::set_parent_at`, `World::rank`).
+
+**Raw motion.** The mouse's own motion, before the system's acceleration, which no edge of the
+screen stops, reported while the window holds the cursor alone (`Event::RawMotion`, *cursor held*).
 
 **Readback.** A copy of a *render target*'s texels to the CPU. `Gpu::read_render_target` waits
 for the GPU to finish what was submitted before; `Gpu::read_render_target_later` starts the copy

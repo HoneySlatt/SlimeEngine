@@ -3,6 +3,7 @@
 #[cfg(feature = "accessibility")]
 mod accessibility;
 mod clipboard;
+mod dialog;
 mod error;
 mod event;
 mod event_loop;
@@ -13,6 +14,7 @@ mod window;
 #[cfg(feature = "accessibility")]
 pub use accessibility::Accessibility;
 pub use clipboard::Clipboard;
+pub use dialog::{DialogId, FileChoice};
 pub use error::PlatformError;
 pub use event::Event;
 pub use event_loop::{EventHandler, LoopControl, Waker, run_event_loop};

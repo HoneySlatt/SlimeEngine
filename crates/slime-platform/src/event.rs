@@ -12,7 +12,8 @@ use crate::window::{ColorScheme, PhysicalSize};
 ///
 /// Keys arrive while the window has the keyboard focus. Mouse input arrives while the cursor is
 /// over the window, and outside it while a button pressed over the window is held (see
-/// [`CursorMoved`](Self::CursorMoved)). The engine does not report yet: gamepads, touch screens,
+/// [`CursorMoved`](Self::CursorMoved)); the mouse's raw motion, while the window holds the cursor
+/// ([`RawMotion`](Self::RawMotion)). The engine does not report yet: gamepads, touch screens,
 /// touchpad gestures, or files dropped on the window.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -93,6 +94,17 @@ pub enum Event {
         /// the content area's height or more below it.
         y: f64,
     },
+    /// The mouse moved while the window holds the cursor
+    /// ([`Window::set_cursor_held`](crate::Window::set_cursor_held)), by `delta`: the mouse's own
+    /// motion, in its device's units, before the system's acceleration, to the right and down,
+    /// which no edge of the screen stops. It is not reported while the cursor is free, where
+    /// [`CursorMoved`](Self::CursorMoved) says where the cursor is. On Windows, a pointer that
+    /// gives positions rather than motion, as a virtual machine's tablet or a remote desktop's
+    /// does, gives them here as if they were motion: winit 0.30 does not tell them apart.
+    RawMotion {
+        /// How far it moved, to the right then down.
+        delta: [f64; 2],
+    },
     /// The cursor entered the window.
     CursorEntered,
     /// The cursor left the window.
@@ -104,6 +116,14 @@ pub enum Event {
     /// ([`Window::set_ime_allowed`](crate::Window::set_ime_allowed)). The keys that it reads give
     /// no text of their own then.
     Ime(Ime),
+    /// The system's dialog that [`Window::choose_file`](crate::Window::choose_file) opened was
+    /// answered: the file chosen, or none when the user cancelled it, or when no dialog could open.
+    FileChosen {
+        /// The dialog, as `choose_file` named it.
+        dialog: crate::DialogId,
+        /// The file chosen.
+        file: Option<std::path::PathBuf>,
+    },
     /// A screen reader asked something of what the window shows, through AccessKit's adapter
     /// (`docs/adr/0146-screen-readers.md`).
     #[cfg(feature = "accessibility")]
@@ -300,6 +320,17 @@ impl Translator {
                 state: ButtonState::Released,
             });
         }
+    }
+}
+
+/// The event that a device's `event` gives while the window holds the cursor: the mouse's raw
+/// motion; nothing for the others, which reach the window as its own events.
+pub(crate) fn raw_motion(event: &winit::event::DeviceEvent) -> Option<Event> {
+    match *event {
+        winit::event::DeviceEvent::MouseMotion { delta: (x, y) } => {
+            Some(Event::RawMotion { delta: [x, y] })
+        }
+        _ => None,
     }
 }
 
@@ -689,5 +720,30 @@ mod tests {
             events(&mut translator, changed(ModifiersState::empty())),
             []
         );
+    }
+
+    #[test]
+    fn the_mouse_s_raw_motion_is_read_from_its_device_s_events_alone() {
+        use winit::event::{DeviceEvent, ElementState, MouseScrollDelta};
+        assert_eq!(
+            raw_motion(&DeviceEvent::MouseMotion { delta: (3.5, -2.0) }),
+            Some(Event::RawMotion { delta: [3.5, -2.0] })
+        );
+        // The wheel and the buttons reach the window as its own events.
+        for other in [
+            DeviceEvent::MouseWheel {
+                delta: MouseScrollDelta::LineDelta(0.0, 1.0),
+            },
+            DeviceEvent::Button {
+                button: 1,
+                state: ElementState::Pressed,
+            },
+            DeviceEvent::Motion {
+                axis: 0,
+                value: 3.5,
+            },
+        ] {
+            assert_eq!(raw_motion(&other), None, "{other:?}");
+        }
     }
 }

@@ -60,6 +60,11 @@ pub enum LoopControl {
 #[derive(Debug)]
 pub(crate) enum UserEvent {
     Wake,
+    /// The answer of the system's dialog ([`Window::choose_file`](crate::Window::choose_file)).
+    FileChosen {
+        dialog: crate::DialogId,
+        file: Option<std::path::PathBuf>,
+    },
     #[cfg(feature = "accessibility")]
     Accessibility(accesskit_winit::Event),
 }
@@ -77,7 +82,7 @@ impl From<accesskit_winit::Event> for UserEvent {
 /// winit 0.30.
 #[derive(Clone, Debug)]
 pub struct Waker {
-    proxy: winit::event_loop::EventLoopProxy<UserEvent>,
+    pub(crate) proxy: winit::event_loop::EventLoopProxy<UserEvent>,
 }
 
 impl Waker {
@@ -254,8 +259,18 @@ impl<H: EventHandler> ApplicationHandler<UserEvent> for WinitAdapter<'_, H> {
         if let Some(adapter) = &mut self.accessibility {
             adapter.process_event(window.winit(), &event);
         }
-        #[cfg(not(feature = "accessibility"))]
-        let _ = window;
+        // A held cursor reports its raw motion, not where it is, which on X11 it is put back to.
+        if let WindowEvent::CursorMoved { position, .. } = event
+            && !window.cursor_moved(position)
+        {
+            return;
+        }
+        // A window without the focus lets the cursor go: X11's grab and Windows' clip would keep
+        // it, hidden, from the window that the user went to.
+        // Letting go never fails: what winit refuses then is logged.
+        if event == WindowEvent::Focused(false) {
+            let _ = window.set_cursor_held(false);
+        }
         if matches!(event, WindowEvent::RedrawRequested) {
             self.handler.redraw_requested();
         } else {
@@ -265,10 +280,30 @@ impl<H: EventHandler> ApplicationHandler<UserEvent> for WinitAdapter<'_, H> {
         self.update_accessibility();
     }
 
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
+        // The mouse's raw motion, while the window holds the cursor alone: X11 and Windows send it
+        // at every motion while the window has the focus, the cursor held or not.
+        if self.window.as_ref().is_some_and(Window::cursor_held)
+            && let Some(event) = crate::event::raw_motion(&event)
+        {
+            self.handler.event(event);
+        }
+    }
+
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
         match event {
             // A wake has done its work: the loop runs `about_to_wait` again.
             UserEvent::Wake => {}
+            UserEvent::FileChosen { dialog, file } => {
+                if self.window.is_some() {
+                    self.handler.event(Event::FileChosen { dialog, file });
+                }
+            }
             #[cfg(feature = "accessibility")]
             UserEvent::Accessibility(event) => {
                 use crate::Accessibility;

@@ -35,4 +35,11 @@ pub enum PlatformError {
     /// of the clipboard nor an X server.
     #[error("cannot open the system's clipboard")]
     Clipboard(#[source] Source),
+    /// The windowing system refused to hold the cursor
+    /// ([`Window::set_cursor_held`](crate::Window::set_cursor_held)): on Wayland, a compositor
+    /// without the protocol that constrains the pointer; on X11, a pointer that another program
+    /// holds, or a window that does not show; on Windows, the system's refusal. The cursor stays
+    /// free.
+    #[error("the cursor cannot be held")]
+    HoldCursor(#[source] Source),
 }

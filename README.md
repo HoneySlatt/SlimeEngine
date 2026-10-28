@@ -206,8 +206,8 @@ today has:
   one material together, with blended transparency for unlit materials only, unsorted, a physically
   based material refusing it until Stage 9a; with a capped number of lights, and
   shadows from one directional light and from spot lights, none from point lights.
-- One window, which cannot go fullscreen, grab or hide the cursor, or report raw mouse motion; no
-  gamepads or touch input.
+- One window, which cannot go fullscreen, and opens a dialog of the system to open a file but none
+  to save one; no gamepads or touch input.
 - A run that stops when the GPU device is lost, unless the game asks to go on with a new one and
   makes its GPU objects again itself.
 - Linux and Windows only, on x86_64.

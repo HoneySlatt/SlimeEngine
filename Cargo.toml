@@ -92,6 +92,10 @@ winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "
 # (`image-data`, which brings the `image` crate), with the Wayland protocol of the compositors that
 # give it (`wayland-data-control`), X11's otherwise.
 arboard = { version = "3.7.0", default-features = false, features = ["wayland-data-control"] }
+# The system's dialogs to choose a file, in slime-platform (ADR-0132, ADR-0157): on Linux the
+# desktop's portal, through D-Bus's library loaded at run time, the dialog given the window as its
+# parent through Wayland's xdg-foreign (its default features); Windows' own dialog through COM.
+rfd = "0.17.2"
 # What the interface means, read by screen readers through AccessKit (ADR-0132, ADR-0146): its tree,
 # which slime-app translates the interface's meaning into, and its adapter for winit's windows in
 # slime-platform, both behind their `accessibility` feature. The adapter without its default

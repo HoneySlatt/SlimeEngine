@@ -9,10 +9,13 @@ requested, resized, scale factor changed, focus, keys, the modifier keys held, m
 motion, the cursor entering and leaving, scrolling, the text that input methods compose, for
 Chinese, Japanese or Korean, and the system's scheme of colors changing, on Windows) and its redraw
 requests; it allows and places the input method, sets the pointer's shape, changes the window's
-title, wakes its loop from other threads, and reads and writes the system's clipboard of text
-(`docs/adr/0145-text-edited.md`). With its `accessibility` feature, the window holds AccessKit's
+title, wakes its loop from other threads, reads and writes the system's clipboard of text
+(`docs/adr/0145-text-edited.md`), holds the cursor and reports the mouse's raw motion meanwhile,
+and opens the system's dialog to choose a file to open
+(`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`). With its `accessibility` feature, the window holds AccessKit's
 adapter, through which screen readers read what it shows (`docs/adr/0146-screen-readers.md`). It
-does not report yet: touch screens, touchpad gestures, gamepads, or files dropped on the window.
+does not report yet: touch screens, touchpad gestures, gamepads, or files dropped on the window;
+it opens no dialog to save a file yet.
 
 ## Role
 
@@ -53,6 +56,12 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   `Waker` with which another thread wakes the event loop, and the `raw-window-handle` traits
   through which a graphics library draws into it
   (`docs/adr/0156-the-editors-window-and-its-operations.md`).
+- `Window::set_cursor_held` holds the cursor, hidden, where it is, while the mouse's raw motion
+  (`Event::RawMotion`) turns what the program turns with it, a camera, or lets it go; its rustdoc
+  says how each system holds it. `Window::choose_file` opens the system's dialog to choose a file
+  (`FileChoice`), through rfd, on a thread of its own, the loop going on meanwhile; its answer
+  arrives as `Event::FileChosen`, named by the `DialogId` that the call gave
+  (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`).
 - With the `accessibility` feature, the window is made hidden, AccessKit's adapter is made for it,
   then it shows, so that screen readers see it from the start; Wayland, which shows a window with
   its first frame, ignores the first step. A screen reader's requests arrive as
@@ -103,7 +112,8 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
   for a game's simulation (`docs/adr/0107-the-execution-model.md`).
 - `PlatformError` says why the event loop could not run: `Connect` (no windowing system can be
   reached), `SecondEventLoop` (one was already requested in this process), `CreateWindow` or
-  `EventLoop`, or why `Clipboard::open` found no clipboard (`Clipboard`); winit's own error is its
+  `EventLoop`, why `Clipboard::open` found no clipboard (`Clipboard`), or why the cursor cannot be
+  held (`HoldCursor`); winit's own error is its
   `source()`. When the window could not be created, no `EventHandler` method is called. A Wayland
   compositor that dies while the loop runs ends it cleanly (`exiting` is called) with
   `PlatformError::EventLoop`, whose source says only `Exit Failure: <code>`; the cause appears in
@@ -126,6 +136,7 @@ compositor first reports a keyboard, which can happen while the loop runs.
 
 - `winit`: windows, events and input on each windowing system.
 - `arboard`: the system's clipboard, without its images, with its Wayland feature.
+- `rfd`: the system's dialogs to choose a file.
 - `accesskit` and `accesskit_winit`, with the `accessibility` feature only: the tree that screen
   readers read, and its adapter for winit's windows.
 - `slime-input`: the engine's vocabulary of input, which the events carry.
