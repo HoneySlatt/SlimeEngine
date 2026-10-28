@@ -649,6 +649,18 @@ impl ResolvedScene {
         self.0.records.len()
     }
 
+    /// Whether the scene places the scene `id`, at any depth: a level placed in a prefab that it
+    /// places would hold itself, which resolving it again refuses
+    /// (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
+    pub fn places(&self, id: AssetId) -> bool {
+        self.0.records.iter().any(|record| {
+            record
+                .placement
+                .as_ref()
+                .is_some_and(|placement| placement.prefab.id() == id || placement.prefab.places(id))
+        })
+    }
+
     /// Whether the scene spawns no entity: never, as it spawns its root at least.
     pub fn is_empty(&self) -> bool {
         self.0.records.is_empty()

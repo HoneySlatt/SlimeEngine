@@ -736,3 +736,32 @@ fn a_renaming_follows_the_longest_identity_created_and_refuses_what_changes_the_
         assert!(error.to_string().contains("command 1"), "{error}");
     }
 }
+
+/// A resolved scene says which scenes it places, at any depth.
+#[test]
+fn a_scene_says_what_it_places() {
+    let (world, mut scenes, _) = yard();
+    let yard = scenes.resolve(world.registry(), YARD).expect("the yard");
+    let lamp = scenes.resolve(world.registry(), LAMP).expect("the lamp");
+    assert!(yard.places(LAMP));
+    assert!(!lamp.places(YARD));
+    assert!(!yard.places(YARD));
+    scenes.insert_file(
+        AssetId::from_u128(6),
+        "street",
+        r#"
+[assets]
+yard = { id = "00000000-0000-0000-0000-000000000001", path = "yard.scene" }
+
+[entities.number_9]
+prefab = "yard"
+"#,
+    );
+    let street = scenes
+        .resolve(world.registry(), AssetId::from_u128(6))
+        .expect("the street");
+    assert!(
+        street.places(YARD) && street.places(LAMP),
+        "within the yard too"
+    );
+}
