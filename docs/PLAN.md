@@ -31,7 +31,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   M6c.2c, both done; M6c.3 was split in two at its start, M6c.3a and M6c.3b, of which M6c.3a is
   done, and M6c.3b in two again at its start, M6c.3b and M6c.3c, all done; M6c.4 was split in
   three at its start, M6c.4a, M6c.4b and M6c.4c, of which M6c.4a and M6c.4b are done, and M6c.4c
-  in two again at its start, M6c.4c and M6c.4d; next: M6c.4c.
+  in two again at its start, M6c.4c, done, and M6c.4d; next: M6c.4d.
 
 ## Status
 
@@ -48,7 +48,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.3c](#m6c3c--place-prefabs-and-see-the-history) | The user places prefabs and sees the history | Done |
 | [M6c.4a](#m6c4a--play-the-level) | Play runs the level being edited in the game, steps not written included, paused, stepped and stopped from a toolbar, its log in a console | Done |
 | [M6c.4b](#m6c4b--edit-while-playing) | The editor's edits reach the running game, and agents drive both programs | Done |
-| [M6c.4c](#m6c4c--build-the-game-again) | Play builds the game before it starts it, and a game whose code changed while it runs is built again and started on a save of its run | Planned |
+| [M6c.4c](#m6c4c--build-the-game-again) | Play builds the game before it starts it, and a game whose code changed while it runs is built again and started on a save of its run | Done |
 | [M6c.4d](#m6c4d--measure-play) | Play's time to control is measured on the zone and on a level of 100 000 entities | Planned |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
 | [M6c.5](#m6c5--find-and-change) | The user finds any entity in a hierarchy, changes its components in an inspector, and arranges the panels in regions of tabs | Planned |
@@ -788,6 +788,36 @@ engine reads them where every game makes its library of scenes.
 - **By hand.** A change of the game's rules built and started again, on Linux; in the Windows
   virtual machine, a build while the game runs, which Windows may keep from replacing a running
   program.
+- **Outcome.** Done on 2026-10-28, as [ADR-0166](adr/0166-building-the-game-again.md) records. A
+  program gives how cargo builds its game (`Program::build`, `Build`); Play's thread runs cargo in
+  the editor's profile before it starts the game, reads its messages in JSON through `serde_json`
+  for the program built, and ends Play, cargo's errors in the console, when it does not build.
+  While the game runs, the thread polls the sources that cargo lists beside the program, and
+  cargo's manifests and locks above them; when one changed, cargo builds again while the game plays
+  on, and a program other than the one that runs starts again on a save of the run, which the game
+  saves through the development channel and resumes (`Played::resume`), or, for a game that does
+  not save its run, on the level as the editor holds it, which the editor writes again first. The
+  toolbar marks the build, a failure and a game built again. On Windows, a copy of the program and
+  of the libraries beside it runs, and cargo and the game open no console window. *Hunna Wood*'s
+  editor and the `editor` example build their games so. The review found faults of weight, each
+  fixed: the steps sent while the game built again started again, which the start's watch for a
+  stop threw away; a game that does not save its run started again on the level as Play first wrote
+  it, without the steps made since; a program that another build had replaced, which Play did not
+  start again; the copy on Windows, which ran without the shader compiler beside it, and piled up at
+  each start; a change of cargo's manifests, which nothing saw. It found smaller ones, fixed too:
+  the mark that the game was built again, which ADR-0155 asks for; why a game did not save its
+  run, which the user was not told; and stale documentation and missing tests. The tests: the files
+  of dependencies, cargo's messages and the profile read (`slime-editor`'s unit tests); and a
+  program that cargo builds from a crate of the test's own, which starts the stub game: a build that
+  fails as Play starts, a change that builds again and starts the game again on its save, a change
+  that does not build, the game playing on, a change that mends it, and a game that does not save
+  its run started again on the level with a step made while it played (`slime-editor`'s unit
+  tests, on Linux and on Windows in CI). What nothing checks yet: a change of *Hunna Wood*'s rules
+  built and started again by hand, on Linux and in the Windows virtual machine, where the console
+  windows that do not open are to see. Known debt: see "Building the game again" in [Known
+  debt](#known-debt). CI is green on `b271491`: `check (headless)` took 16 minutes 35 seconds,
+  `check (windowed)` 4 minutes 24 seconds, `check (game)` 6 minutes 47 seconds, `windows` 18
+  minutes 19 seconds and `windows-release` 13 minutes 3 seconds.
 
 #### M6c.4d — Measure Play
 
