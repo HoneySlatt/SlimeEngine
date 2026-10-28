@@ -66,6 +66,8 @@ pub(crate) struct Session {
     plays: u32,
     /// What wakes the program's loop from Play's thread, as the program starts.
     waker: Option<Waker>,
+    /// Where the game that Play runs listens, and its token, once it runs.
+    played: Option<(String, String)>,
 }
 
 impl Session {
@@ -96,6 +98,7 @@ impl Session {
             player: None,
             plays: 0,
             waker: None,
+            played: None,
         }
     }
 
@@ -240,7 +243,8 @@ impl Session {
     /// world that replaces `world`: the level open stays as it is when the new one cannot be
     /// opened, and its journal keeps what its file does not hold, which opening it again
     /// recovers. The level that the program opened first keeps the journal that `--journal`
-    /// names; another has its own. Opening the level that is open does nothing.
+    /// names; another has its own. Opening the level that is open does nothing; opening another
+    /// while Play runs the game is refused (`docs/adr/0165-editing-while-playing.md`).
     fn open_other(&mut self, world: &mut World, level: &Path) -> Result<(), AppError> {
         let whole = level::whole(level);
         if self
@@ -249,6 +253,10 @@ impl Session {
             .is_some_and(|editor| level::whole(editor.file()) == whole)
         {
             return Ok(());
+        }
+        // The game plays the level open, which the steps made from now on would no longer reach.
+        if self.player.is_some() {
+            return Err("a game plays the level open: Stop it first".into());
         }
         let journal = (whole == level::whole(&self.options.level))
             .then(|| self.options.journal.clone())
@@ -310,6 +318,7 @@ impl Session {
         request: Request,
     ) -> Result<Reply, AppError> {
         let answered = self.answer(world, request);
+        self.send_applied();
         self.publish();
         answered
     }
@@ -359,6 +368,13 @@ impl Session {
                 Ok(false) => return Err("no step is undone".into()),
                 redone => redone.map(|_| Reply::Done),
             },
+            Request::Played => {
+                let (address, token) = self
+                    .played
+                    .clone()
+                    .ok_or("no game plays: Play starts one, which answers once it runs")?;
+                Ok(Reply::Played { address, token })
+            }
             Request::History => {
                 let editor = self.editor()?;
                 Ok(Reply::History {
@@ -763,9 +779,10 @@ impl Session {
     ///
     /// # Errors
     ///
-    /// For a program that plays no game, a game that plays already, without a level open, for a
-    /// level that cannot be written as a scene file ([`Editor::text`]), and when Play's directory
-    /// cannot be made or written, which is removed then.
+    /// For a program that plays no game, a game that plays already, without a level open, while a
+    /// gesture is under way, for a level that cannot be written as a scene file
+    /// ([`Editor::text`]), and when Play's directory cannot be made or written, which is removed
+    /// then.
     fn play(&mut self, world: &mut World) -> Result<Reply, AppError> {
         if self.player.is_some() {
             return Err("a game plays already: it stops first".into());
@@ -773,6 +790,10 @@ impl Session {
         let start = self.program.play.ok_or("the program plays no game")?;
         let waker = self.waker.clone().ok_or("the program has not started")?;
         let editor = self.editor.as_ref().ok_or("no level is open")?;
+        // A gesture's live values would reach the game, and not its cancel.
+        if editor.in_gesture() {
+            return Err("a gesture is under way: it ends first".into());
+        }
         let text = editor.text(world)?;
         // A directory that no other program made, of a name that it could not have guessed.
         let random = std::hash::BuildHasher::hash_one(
@@ -799,6 +820,10 @@ impl Session {
         });
         command.env(slime_world::PLAY_SCENES_ENV_VAR, &directory);
         self.player = Some(Player::start(command, directory, waker));
+        // What the steps made from now on apply, sent to the game once it runs.
+        if let Some(editor) = &mut self.editor {
+            editor.record_applied(true);
+        }
         let mut shared = self.shared.borrow_mut();
         shared.play = Playing::Starting;
         shared.played = true;
@@ -868,12 +893,14 @@ impl Session {
         for event in events {
             changed |= !matches!(event, Event::Log(_));
             match event {
-                Event::Started => {
+                Event::Started { address, token } => {
                     tracing::info!("Play: the game runs");
+                    self.played = Some((address, token));
                     self.shared.borrow_mut().play = Playing::Running {
                         paused: false,
                         speed: 1.0,
                     };
+                    self.send_applied();
                 }
                 Event::Time { paused, speed } => {
                     self.shared.borrow_mut().play = Playing::Running { paused, speed };
@@ -900,6 +927,10 @@ impl Session {
                         tracing::warn!("Play: {how}");
                     }
                     self.player = None;
+                    self.played = None;
+                    if let Some(editor) = &mut self.editor {
+                        editor.record_applied(false);
+                    }
                     self.shared.borrow_mut().play = Playing::Stopped;
                     self.tell(!cleanly, how);
                 }
@@ -907,6 +938,37 @@ impl Session {
         }
         if changed {
             self.publish();
+        }
+    }
+
+    /// Sends the game that Play runs, once it runs, the texts of the commands that the steps made,
+    /// undone and done again since the last call applied (`docs/adr/0165-editing-while-playing.md`):
+    /// the game applies them as they come, a step at a time, and a refusal is told. An undone
+    /// deletion, whose restoration no text holds, does not reach the game, which the user is told.
+    fn send_applied(&mut self) {
+        let Some(player) = &self.player else {
+            return;
+        };
+        if !matches!(self.shared.borrow().play, Playing::Running { .. }) {
+            return;
+        }
+        let Some(editor) = &mut self.editor else {
+            return;
+        };
+        let applied = editor.take_applied();
+        let restored = applied.iter().flatten().any(Option::is_none);
+        let steps: Vec<Vec<String>> = applied
+            .into_iter()
+            .map(|texts| texts.into_iter().flatten().collect::<Vec<_>>())
+            .filter(|texts| !texts.is_empty())
+            .collect();
+        if !steps.is_empty() {
+            player.control(Control::Apply(steps));
+        }
+        if restored {
+            let why = "An undone deletion does not reach the game, which plays on without it";
+            tracing::warn!("Play: {why}");
+            self.tell(true, why.to_owned());
         }
     }
 
@@ -1091,6 +1153,7 @@ fn request_of(edit: &Edit) -> Result<Request, AppError> {
         Edit::Select { selection } => Request::Select(identities(selection)?),
         Edit::Write => Request::Write,
         Edit::Operations => Request::Operations,
+        Edit::Played => Request::Played,
         Edit::Run { name, arguments } => Request::Run {
             name: name.clone(),
             arguments: arguments.clone(),
@@ -1208,6 +1271,11 @@ impl Simulation for Session {
     fn edit(&mut self, world: &mut World, edit: &Edit) -> Result<Reply, AppError> {
         let request = request_of(edit)?;
         self.handle(world, request)
+    }
+
+    /// The level's library, through which the commands that a tool sends as text place prefabs.
+    fn scenes(&mut self) -> Option<&mut SceneLibrary> {
+        self.editor.as_mut().map(Editor::scenes)
     }
 }
 

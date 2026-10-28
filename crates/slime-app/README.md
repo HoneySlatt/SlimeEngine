@@ -121,9 +121,11 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   a tool, at the start of a frame: by default to the world, while the editor makes steps of them;
   `edit`, with the `development` feature, answers an editor's requests, which a game leaves to its
   default refusal (`docs/adr/0135-the-editors-program.md`), and `edits_wait` says when those that
-  change the level or the selection wait, with the values that tools set, as while a person drags
-  a handle in the editor, the channel keeping them meanwhile
-  (`docs/adr/0161-the-open-step-and-the-handles.md`).
+  change the level or the selection wait, with the values that tools set and the commands that
+  they apply, as while a person drags a handle in the editor, the channel keeping them meanwhile
+  (`docs/adr/0161-the-open-step-and-the-handles.md`); `scenes`, with the `development` feature,
+  gives the game's library of scenes, through which the commands that an editor sends the game
+  that it plays place prefabs (`docs/adr/0165-editing-while-playing.md`).
 - `Presentation`: what the player sees, which reads the world and never writes it: every method
   receives it as `&World` or not at all, so that a presentation that writes the world does not
   compile. `start` once the window and the GPU are open; `on_event` for each event of the window

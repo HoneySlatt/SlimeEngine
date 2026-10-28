@@ -645,6 +645,9 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
                 left_out.join("\n")
             )
         }),
+        Reply::Played { address, .. } => text(format!(
+            "the editor plays a game, which listens at {address}"
+        )),
         Reply::Welcome { .. } | Reply::Refused { .. } => {
             failure("the game answered as to a connection's start")
         }

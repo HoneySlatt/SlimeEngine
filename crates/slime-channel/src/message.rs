@@ -151,6 +151,15 @@ pub enum Request {
         /// The file, a path on the game's machine.
         file: String,
     },
+    /// Applies `commands`, each the text of a command of the world (`slime_world::Command::write`),
+    /// read as the game's world is when it comes and applied through the game's rules, in their
+    /// order: what an editor sends the game that it plays (`docs/adr/0165-editing-while-playing.md`).
+    /// It fails at the first command that the game refuses, saying which and why, those before it
+    /// applied and those after it not. An editor makes each command a step of its own.
+    Apply {
+        /// The commands, as text.
+        commands: Vec<String>,
+    },
     /// Asks an editor, a program that edits a level rather than plays it
     /// (`docs/adr/0135-the-editors-program.md`). It fails in a game, which is not an editor.
     Edit {
@@ -282,6 +291,9 @@ pub enum Edit {
     /// The editor's operations, every action that its menus, its shortcuts, its palette and agents
     /// run by name: [`Reply::Operations`].
     Operations,
+    /// Where the game that the editor plays listens, and its token, which a tool connects to it
+    /// with: [`Reply::Played`]. It fails while no game plays, or one starts.
+    Played,
     /// Runs the operation `name` with `arguments`, each given as text, in the order of the
     /// operation's parameters: the operation's reply, [`Reply::Done`] or what it gives, as
     /// [`Reply::Written`] for writing the level.
@@ -386,6 +398,13 @@ pub enum Reply {
     Written {
         /// What was left out.
         left_out: Vec<String>,
+    },
+    /// Where the game that an editor plays listens, and its token.
+    Played {
+        /// Its address, as `127.0.0.1:41899`.
+        address: String,
+        /// Its token, as text.
+        token: String,
     },
     /// An editor's operations, in the order of its registry.
     Operations {
@@ -625,6 +644,10 @@ mod tests {
             Request::Save {
                 file: text("/tmp/run.toml"),
             },
+            Request::Apply {
+                commands: vec![text("[Delete]\nentity = \"zone/door\"\n")],
+            },
+            Request::Edit { edit: Edit::Played },
             Request::Load {
                 file: text("/tmp/run.toml"),
             },
@@ -827,6 +850,10 @@ mod tests {
             },
             Reply::Written {
                 left_out: vec![text("zone/door: a component of no known type")],
+            },
+            Reply::Played {
+                address: text("127.0.0.1:41899"),
+                token: text("0123"),
             },
             Reply::Operations {
                 operations: vec![OperationSummary {

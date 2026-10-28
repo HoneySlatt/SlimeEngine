@@ -500,6 +500,12 @@ impl Simulation for Yard {
             Err(error) => ctx.exit_with_error(error),
         }
     }
+
+    /// The yard's library, through which an editor that plays the yard places prefabs while it
+    /// runs (`docs/adr/0165-editing-while-playing.md`).
+    fn scenes(&mut self) -> Option<&mut SceneLibrary> {
+        Some(&mut self.scenes)
+    }
 }
 
 impl Presentation for YardView {

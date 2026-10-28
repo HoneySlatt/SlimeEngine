@@ -151,13 +151,24 @@ pub trait Simulation {
         Err("the program is not an editor: it plays its level, and edits none".into())
     }
 
+    /// The library of scenes through which the commands that a tool sends place prefabs, as an
+    /// editor's Play sends the steps made while the game runs
+    /// (`docs/adr/0165-editing-while-playing.md`): a game that keeps one gives it, so that a prefab
+    /// placed in the editor while it plays is placed in its world too. By default, none, which
+    /// refuses those commands.
+    #[cfg(feature = "development")]
+    fn scenes(&mut self) -> Option<&mut slime_world::SceneLibrary> {
+        None
+    }
+
     /// Whether what a tool asks of an editor that changes its level or what it selects waits: as
     /// an editor's requests do while a person's gesture is under way
     /// (`docs/adr/0161-the-open-step-and-the-handles.md`). The development channel keeps them, the
-    /// editor's requests but those that read its history, its journal or its operations, and the
-    /// values set, in their order, and answers them at the first frame at which it no longer does,
-    /// through [`edit`](Self::edit) and [`apply`](Self::apply); the tool waits meanwhile. What a
-    /// tool reads is answered at once. By default, never.
+    /// editor's requests but those that read its history, its journal, its operations or the game
+    /// that it plays, and the values set and commands applied, in their order, and answers them at
+    /// the first frame at which it no longer does, through [`edit`](Self::edit) and
+    /// [`apply`](Self::apply); the tool waits meanwhile. What a tool reads is answered at once. By
+    /// default, never.
     #[cfg(feature = "development")]
     fn edits_wait(&self) -> bool {
         false

@@ -233,3 +233,4 @@ the ADR linking to it.
 | [0162](0162-creating-copying-and-arranging.md) | Creating, copying and arranging | Accepted |
 | [0163](0163-placing-prefabs-and-the-history-panel.md) | Placing prefabs and the history panel | Accepted |
 | [0164](0164-play.md) | Play | Accepted |
+| [0165](0165-editing-while-playing.md) | Editing while playing | Accepted |

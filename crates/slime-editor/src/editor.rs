@@ -48,6 +48,10 @@ pub struct Editor {
     written: Written,
     /// The gesture under way, its open step, if one is.
     gesture: Option<Gesture>,
+    /// The texts of the commands that each step made, undone or done again applied since they
+    /// were last taken, while they are recorded ([`Editor::record_applied`]); none for a
+    /// restoration, which no text holds.
+    applied: Option<Vec<Vec<Option<String>>>>,
 }
 
 /// A gesture's open step (`docs/adr/0155-the-editors-design.md`, D3): the commands that it applied
@@ -131,6 +135,7 @@ impl Editor {
             recovered: 0,
             written: Written::default(),
             gesture: None,
+            applied: None,
         }
     }
 
@@ -143,6 +148,33 @@ impl Editor {
     /// The level's scene file.
     pub fn file(&self) -> &Path {
         &self.level.file
+    }
+
+    /// Records the texts of the commands that the editor applies to the level from now on, while
+    /// `on`, those of each step made, undone or done again, as they were applied, which
+    /// [`Editor::take_applied`] takes: what Play sends the game that it runs
+    /// (`docs/adr/0165-editing-while-playing.md`). Off, it records nothing, and forgets what it
+    /// recorded.
+    pub fn record_applied(&mut self, on: bool) {
+        self.applied = on.then(Vec::new);
+    }
+
+    /// The texts of the commands applied to the level since the last call, while they are
+    /// recorded ([`Editor::record_applied`]): for each step made, undone or done again, in their
+    /// order, those of its commands, in their order; none for a restoration, which an undone
+    /// deletion applies, and which no text holds.
+    pub fn take_applied(&mut self) -> Vec<Vec<Option<String>>> {
+        self.applied
+            .as_mut()
+            .map(std::mem::take)
+            .unwrap_or_default()
+    }
+
+    /// Adds `sent`, the texts of what a step applied, if there are any, to what is recorded.
+    fn record(&mut self, sent: Option<Vec<Option<String>>>) {
+        if let (Some(applied), Some(sent)) = (&mut self.applied, sent) {
+            applied.push(sent);
+        }
     }
 
     /// The text of the level's scene file as writing it now would give, its comments kept, without
@@ -551,6 +583,11 @@ impl Editor {
         if texts.is_empty() {
             return Err(EditError::Empty);
         }
+        let sent = self
+            .applied
+            .is_some()
+            .then(|| texts.iter().cloned().map(Some).collect());
+        self.record(sent);
         undo.reverse();
         let before = self.selection.clone();
         if let Some(selection) = &selection {
@@ -633,8 +670,10 @@ impl Editor {
             before,
             after,
         } = step;
+        let sent = self.applied.is_some().then(|| texts_of(&commands));
         match self.run(world, commands) {
             Ok(redo) => {
+                self.record(sent);
                 let current = std::mem::replace(&mut self.selection, before.clone());
                 self.history.push_undone(Step {
                     label,
@@ -683,8 +722,10 @@ impl Editor {
             before,
             after,
         } = step;
+        let sent = self.applied.is_some().then(|| texts_of(&commands));
         match self.run(world, commands) {
             Ok(undo) => {
+                self.record(sent);
                 let current = std::mem::replace(&mut self.selection, after.clone());
                 self.history.push_done(
                     Step {
@@ -988,6 +1029,17 @@ fn held(world: &World, inverse: Command) -> Result<Held, Box<(Command, CommandTe
             Err(error) => Err(Box::new((inverse, error))),
         },
     }
+}
+
+/// The texts of `commands`, a step's as the history holds them: none for a restoration.
+fn texts_of(commands: &[Held]) -> Vec<Option<String>> {
+    commands
+        .iter()
+        .map(|held| match held {
+            Held::Text(text) => Some(text.clone()),
+            Held::Restore(_) => None,
+        })
+        .collect()
 }
 
 /// The error of the command `index` of a step whose text cannot be read or written: a refusal, for

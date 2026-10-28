@@ -1,6 +1,7 @@
 //! The editor's core on a level of its own: steps made, undone and redone, the level written back
 //! with its comments and opened again, a journal played again (`docs/adr/0134-the-editors-core.md`);
-//! what is selected copied and pasted (`docs/adr/0162-creating-copying-and-arranging.md`).
+//! what is selected copied and pasted (`docs/adr/0162-creating-copying-and-arranging.md`); the texts
+//! of what the steps applied, which Play sends the game (`docs/adr/0165-editing-while-playing.md`).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -725,4 +726,70 @@ fn what_is_copied_is_pasted_as_one_step_under_new_identities_each_time() {
         editor.copy(&world, &[id("yard")]),
         Err(EditError::Copy(_))
     ));
+}
+
+/// While recorded, the texts of what each step applied, a gesture's once it ends, an undo's
+/// inverses and a redo's commands again, in their order; none for a restoration; nothing once no
+/// longer recorded (`docs/adr/0165-editing-while-playing.md`).
+#[test]
+fn the_texts_of_what_the_steps_applied_are_recorded_while_asked() {
+    let yard = Yard::new("applied");
+    let (mut world, mut editor) = yard.open();
+    let named = well_s_name(&world);
+    rename_the_well(&mut world, &mut editor, "unseen");
+    editor.record_applied(true);
+    assert!(editor.take_applied().is_empty(), "nothing before");
+    // Whether `text` is a command of `kind`, written as a table or inline, that gives `value`.
+    let is = |text: &Option<String>, kind: &str, value: Option<&str>| {
+        text.as_deref().is_some_and(|text| {
+            text.trim_start_matches('[').starts_with(kind)
+                && value.is_none_or(|value| text.contains(&format!("value = \"{value}\"")))
+        })
+    };
+    for name in ["a", "ab"] {
+        editor
+            .gesture(&mut world, vec![name_the_well(name)])
+            .expect("applied live");
+    }
+    assert!(
+        editor.take_applied().is_empty(),
+        "not while the gesture is open"
+    );
+    editor
+        .end_gesture(&mut world, "Name the well")
+        .expect("made");
+    // Each step's texts as a slice, which a pattern matches.
+    fn slices(applied: &[Vec<Option<String>>]) -> Vec<&[Option<String>]> {
+        applied.iter().map(Vec::as_slice).collect()
+    }
+    let ended = editor.take_applied();
+    assert!(
+        matches!(slices(&ended)[..], [[text]] if is(text, "SetProperty", Some("ab"))),
+        "{ended:?}"
+    );
+    editor.undo(&mut world).expect("undone");
+    editor.redo(&mut world).expect("done again");
+    let again = editor.take_applied();
+    assert!(
+        matches!(slices(&again)[..], [[undone], [redone]]
+            if is(undone, "SetProperty", Some("unseen")) && is(redone, "SetProperty", Some("ab"))),
+        "{again:?}"
+    );
+    // A deletion undone: its restoration has no text.
+    light_the_well(&mut world, &mut editor);
+    let made = editor.take_applied();
+    assert!(
+        matches!(slices(&made)[..], [[created, deleted]]
+            if is(created, "Create", None) && is(deleted, "Delete", None)),
+        "{made:?}"
+    );
+    editor.undo(&mut world).expect("undone");
+    let undone = editor.take_applied();
+    assert!(
+        matches!(slices(&undone)[..], [[None, deleted]] if is(deleted, "Delete", None)),
+        "{undone:?}"
+    );
+    editor.record_applied(false);
+    rename_the_well(&mut world, &mut editor, named.as_str());
+    assert!(editor.take_applied().is_empty(), "no longer recorded");
 }

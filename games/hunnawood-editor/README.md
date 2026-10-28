@@ -39,7 +39,8 @@ Play (F5, the toolbar above the viewport) runs the game on the zone as the edito
 not written included, on a new run saved to Play's own save, the user's files and save left alone
 ([ADR-0164](../../docs/adr/0164-play.md)): it starts the game's program beside the editor's, which
 is built first, `cargo build -p hunnawood`, and shows the game's log in a console below the
-viewport.
+viewport. The steps made while it runs reach the game, which places the prefabs that they place
+through its own library of scenes ([ADR-0165](../../docs/adr/0165-editing-while-playing.md)).
 
 `tests/zone.rs` opens the zone, writes it back, checks that every comment of the file stays above
 what it describes, and opens it again; then moves and scales three of its placements, as the

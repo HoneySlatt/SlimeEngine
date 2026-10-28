@@ -19,7 +19,7 @@ use slime_serialize::{Composer, Document, Mode};
 use slime_ui::Rect;
 use slime_ui::action::{Action, ActionKind, Intent};
 use slime_ui::tree::{ElementAction, ElementState, Meaning, Ui};
-use slime_world::{Command, Entity, Identities, Name, PersistentId, World};
+use slime_world::{Command, Entity, Identities, Name, PersistentId, SceneLibrary, World};
 
 use crate::game::{PickAnswer, PickSlot, Presentation, Reflected, ShownView, Simulation};
 use crate::host::Host;
@@ -421,6 +421,7 @@ impl DevChannel {
             Request::Edit { edit } => simulation
                 .edit(host.world_mut(), edit)
                 .unwrap_or_else(|error| failed(crate::error_chain(&*error))),
+            Request::Apply { commands } => apply(host.world_mut(), simulation, commands),
         }
     }
 
@@ -973,14 +974,43 @@ fn read_value(
 }
 
 /// Whether `request` changes an editor's level or what it selects, which waits while its simulation
-/// says so ([`Simulation::edits_wait`]): an editor's requests, but those that only read, and a
-/// value set, which an editor makes a step of.
+/// says so ([`Simulation::edits_wait`]): an editor's requests, but those that only read, and the
+/// values set and commands applied, which an editor makes steps of.
 fn changes_an_editor(request: &Request) -> bool {
     match request {
-        Request::Edit { edit } => !matches!(edit, Edit::History | Edit::Journal | Edit::Operations),
-        Request::SetProperty { .. } => true,
+        Request::Edit { edit } => !matches!(
+            edit,
+            Edit::History | Edit::Journal | Edit::Operations | Edit::Played
+        ),
+        Request::SetProperty { .. } | Request::Apply { .. } => true,
         _ => false,
     }
+}
+
+/// Applies `commands`, the texts of the world's commands, each read as `world` is when it comes,
+/// through `simulation`'s library of scenes for those that place a prefab, and applied through its
+/// rules ([`Simulation::apply`]), in their order (`docs/adr/0165-editing-while-playing.md`): it
+/// fails at the first that cannot be read or that the rules refuse, those after it not applied.
+fn apply(world: &mut World, simulation: &mut dyn Simulation, commands: &[String]) -> Reply {
+    for (index, text) in commands.iter().enumerate() {
+        let read = {
+            let mut none = SceneLibrary::new();
+            let scenes = simulation.scenes().unwrap_or(&mut none);
+            Command::read(text, world, scenes)
+        };
+        let applied = read.map_err(|error| error.to_string()).and_then(|command| {
+            simulation
+                .apply(world, &command)
+                .map_err(|error| crate::error_chain(&*error))
+        });
+        if let Err(why) = applied {
+            let left = commands.len() - index - 1;
+            return failed(format!(
+                "command {index}: {why}; the commands after it, {left}, not applied"
+            ));
+        }
+    }
+    Reply::Done
 }
 
 #[cfg(test)]

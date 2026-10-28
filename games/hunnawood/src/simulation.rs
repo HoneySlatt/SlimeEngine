@@ -253,6 +253,13 @@ impl Simulation for HunnaWood {
         self.save_run(world);
     }
 
+    /// The game's library, through which its editor places prefabs while it plays the zone
+    /// (`docs/adr/0165-editing-while-playing.md`).
+    #[cfg(feature = "development")]
+    fn scenes(&mut self) -> Option<&mut SceneLibrary> {
+        Some(&mut self.scenes)
+    }
+
     fn save(&mut self, world: &World, file: &Path) -> Result<(), AppError> {
         self.save_to(world, file)?;
         log_run(

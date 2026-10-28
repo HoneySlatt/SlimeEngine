@@ -1,8 +1,8 @@
 //! The development channel of a headless run (`docs/adr/0122-the-development-channel.md`): a run
 //! started with a token listens and says where; a tool that gives the token pauses, steps and stops
-//! it, reads and changes its world, presses its keys, reads its log, and saves and loads its run;
-//! one without the token is refused; a tool's edits wait while the simulation says so; a run
-//! started without a token says nothing and does not listen.
+//! it, reads and changes its world, also by the texts of commands, presses its keys, reads its log,
+//! and saves and loads its run; one without the token is refused; a tool's edits wait while the
+//! simulation says so; a run started without a token says nothing and does not listen.
 //!
 //! A run reads its token from its environment, which only a process's start sets, so each test runs
 //! this test program again as a child, restricted to the run, its environment set.
@@ -244,6 +244,37 @@ fn a_tool_with_the_token_drives_a_headless_run() {
             "{wrong}"
         );
     }
+    // Commands applied as their texts say, in their order, up to the first refused.
+    let set = |entity: &str, intensity: f64| {
+        format!(
+            "[SetProperty]\nentity = \"{entity}\"\ncomponent = \"Light\"\npath = \"intensity\"\nvalue = {intensity:?}\n"
+        )
+    };
+    let commands = vec![
+        set("lantern", 20.0),
+        set("nowhere", 1.0),
+        set("lantern", 3.0),
+    ];
+    let reply = ask(&mut client, Request::Apply { commands });
+    assert!(
+        matches!(&reply, Reply::Failed { message }
+            if message.starts_with("command 1:") && message.contains("after it, 1, not applied")),
+        "{reply:?}"
+    );
+    let Reply::Entity { components, .. } = ask(
+        &mut client,
+        Request::Entity {
+            entity: "lantern".to_owned(),
+        },
+    ) else {
+        panic!("the lantern");
+    };
+    assert!(
+        components
+            .iter()
+            .any(|component| component.value.contains("intensity = 20.0")),
+        "{components:?}"
+    );
     let Reply::Entities { entities, more } = ask(
         &mut client,
         Request::Entities {

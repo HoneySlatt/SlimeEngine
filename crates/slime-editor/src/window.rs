@@ -3090,11 +3090,34 @@ mod tests {
     const STUB_GAME: &str = "SLIME_EDITOR_STUB_GAME";
 
     /// A game that spawns the yard from the cooked data, as Play hands it over, tells the well's
-    /// name in its log, and runs until it is stopped, or ends after a few frames, as a crash, when
-    /// the cooked data holds a file `crash`.
+    /// name in its log, again each time it changes, and runs until it is stopped, or ends after a
+    /// few frames, as a crash, when the cooked data holds a file `crash`.
     struct Stub {
         assets: PathBuf,
         frames: u32,
+        /// The well's name as last told, none once it is gone.
+        named: Option<String>,
+    }
+
+    impl Stub {
+        /// Tells the well's name, or that it is gone, when it changed since it was last told.
+        fn tell(&mut self, world: &World) {
+            let name = world
+                .find(&"yard/well".parse().expect("an identity"))
+                .map(|well| {
+                    world
+                        .get::<slime_world::Name>(well)
+                        .map(|name| name.0.clone())
+                        .unwrap_or_default()
+                });
+            if name != self.named {
+                match &name {
+                    Some(name) => tracing::info!("the well is named {name}"),
+                    None => tracing::info!("the well is gone"),
+                }
+                self.named = name;
+            }
+        }
     }
 
     impl slime_app::Simulation for Stub {
@@ -3107,18 +3130,12 @@ mod tests {
             let mut scenes = slime_world::SceneLibrary::of(assets);
             let yard = scenes.resolve(world.registry(), slime_assets::AssetId::from_u128(1))?;
             world.spawn_scene("yard", &yard)?;
-            let well = world
-                .find(&"yard/well".parse().expect("an identity"))
-                .ok_or("no well")?;
-            let name = world
-                .get::<slime_world::Name>(well)
-                .map(|name| name.0.clone())
-                .unwrap_or_default();
-            tracing::info!("the well is named {name}");
+            self.tell(world);
             Ok(())
         }
 
-        fn update(&mut self, _: &mut slime_app::SimulationContext<'_>, _: &mut World) {
+        fn update(&mut self, _: &mut slime_app::SimulationContext<'_>, world: &mut World) {
+            self.tell(world);
             self.frames += 1;
             if self.frames == 50 && self.assets.join("crash").exists() {
                 std::process::exit(3);
@@ -3141,6 +3158,7 @@ mod tests {
         let mut stub = Stub {
             assets: PathBuf::from(assets),
             frames: 0,
+            named: None,
         };
         slime_app::run(&mut stub, &mut (), &AppConfig::default()).expect("the stub game runs");
     }
@@ -3201,26 +3219,110 @@ mod tests {
     }
 
     /// Play starts the game on the level as the editor holds it, a step not written included, the
-    /// user's file left as it was; the toolbar's buttons and speeds, pressed, pause, step, change the
-    /// speed and stop it, the toolbar showing game time as the game says it stands; a game that is
-    /// stopped while it starts ends at once; a game that crashes leaves the editor running, which
-    /// tells the user (`docs/adr/0164-play.md`).
+    /// user's file left as it was; the steps made while it starts, and made, undone and done again
+    /// while it runs reach it, but for an undone deletion, which the user is told of, as of a step
+    /// that the game refuses, no other level opens meanwhile, and Play does not start during a
+    /// gesture (`docs/adr/0165-editing-while-playing.md`); the toolbar's buttons and speeds,
+    /// pressed, pause, step, change the speed and stop it, the toolbar showing game time as the
+    /// game says it stands; a game that is stopped while it starts ends at once; a game that crashes leaves the
+    /// editor running, which tells the user (`docs/adr/0164-play.md`).
     #[test]
     fn play_runs_the_level_as_the_editor_holds_it_and_outlives_its_game() {
         let mut yard = Yard::playing("play", Some(stub_command));
         yard.rename("pump");
         let level = yard.directory.join("yard.scene");
         let written = fs::read(&level).expect("the level's file");
+        // Not during a gesture, whose cancel would not reach the game.
+        let world = yard.host.world_mut();
+        yard.session
+            .handle(world, Request::Gesture(Vec::new()))
+            .expect("opened");
+        let refused = yard.session.handle(
+            yard.host.world_mut(),
+            Request::Run {
+                name: "play.start".to_owned(),
+                arguments: Vec::new(),
+            },
+        );
+        assert!(
+            refused.is_err_and(|error| error.to_string().contains("gesture")),
+            "refused"
+        );
+        yard.session
+            .handle(yard.host.world_mut(), Request::CancelGesture)
+            .expect("cancelled");
         let pressed = button(&yard, "play.start");
         click(&mut yard, pressed);
-        until(&mut yard, "the game runs on the step not written", |yard| {
-            let shared = yard.shared.borrow();
-            matches!(shared.play, Playing::Running { .. })
-                && shared
-                    .console
-                    .iter()
-                    .any(|line| line.contains("the well is named pump"))
+        // A step made while the game starts reaches it once it runs, after the level as Play
+        // wrote it. The press is answered at the next frame.
+        yard.frame();
+        assert_eq!(yard.shared.borrow().play, Playing::Starting);
+        yard.rename("early");
+        let told = |yard: &Yard, line: &str| {
+            yard.shared
+                .borrow()
+                .console
+                .iter()
+                .filter(|each| each.contains(line))
+                .count()
+        };
+        until(
+            &mut yard,
+            "the game runs on the steps not written",
+            |yard| {
+                matches!(yard.shared.borrow().play, Playing::Running { .. })
+                    && told(yard, "the well is named pump") == 1
+                    && told(yard, "the well is named early") == 1
+            },
+        );
+        // Edits made while it runs reach it, an undo too.
+        yard.rename("tap");
+        until(&mut yard, "the game sees the rename", |yard| {
+            told(yard, "the well is named tap") == 1
         });
+        run(&mut yard, "edit.undo");
+        until(&mut yard, "the game sees the undo", |yard| {
+            told(yard, "the well is named early") == 2
+        });
+        // Another level, which the game does not play, is not opened meanwhile.
+        let other = yard.directory.join("other.scene");
+        let refused = yard.session.handle(
+            yard.host.world_mut(),
+            Request::Run {
+                name: "file.open".to_owned(),
+                arguments: vec![other.display().to_string()],
+            },
+        );
+        assert!(
+            refused.is_err_and(|error| error.to_string().contains("Stop it first")),
+            "refused"
+        );
+        // A deletion reaches it; its undo does not, which the user is told, and a rename of the
+        // entity that it lacks then is refused, which the user is told too.
+        yard.session
+            .handle(
+                yard.host.world_mut(),
+                Request::Select(vec!["yard/well".parse().expect("an identity")]),
+            )
+            .expect("selected");
+        run(&mut yard, "edit.delete");
+        until(&mut yard, "the game sees the deletion", |yard| {
+            told(yard, "the well is gone") == 1
+        });
+        let shown = |yard: &Yard, text: &str| {
+            yard.model
+                .ui
+                .meaning()
+                .iter()
+                .any(|meaning| meaning.name.contains(text))
+        };
+        run(&mut yard, "edit.undo");
+        assert!(shown(&yard, "An undone deletion does not reach the game"));
+        yard.rename("spout");
+        until(&mut yard, "the game refuses the rename", |yard| {
+            shown(yard, "The game refused: command 0")
+        });
+        assert_eq!(told(&yard, "the well is named spout"), 0);
         let pressed = button(&yard, "play.pause");
         click(&mut yard, pressed);
         let pressed = button(&yard, "play.step");

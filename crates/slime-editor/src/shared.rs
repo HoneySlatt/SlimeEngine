@@ -143,6 +143,8 @@ pub(crate) enum Request {
     Write,
     /// The operations, listed.
     Operations,
+    /// Where the game that Play runs listens, and its token.
+    Played,
     /// An operation run by its name, with its arguments as text.
     Run {
         name: String,

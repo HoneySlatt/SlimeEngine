@@ -21,12 +21,16 @@ const START_TIMEOUT: Duration = Duration::from_secs(120);
 /// How long the game may take to end once it is asked to stop, before it is killed.
 pub(crate) const STOP_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// How often the thread looks whether the game ended, while nothing is asked.
+/// How often the thread looks whether the game ended, and asks how its time stands, while nothing
+/// is asked.
 const POLL: Duration = Duration::from_millis(200);
 
 /// What the editor asks of the game that it plays.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Control {
+    /// The texts of the commands that steps applied while the game runs, for each step in their
+    /// order, sent one step at a time, so that a step that the game refuses holds up no other.
+    Apply(Vec<Vec<String>>),
     /// Game time stands still, or runs again.
     Pause(bool),
     /// Game time paused, then one fixed step run.
@@ -40,9 +44,10 @@ pub(crate) enum Control {
 /// What Play's threads tell the editor of the game that it plays.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Event {
-    /// The game listens, and answers.
-    Started,
-    /// Game time as the game says it stands, after a control: paused or not, and its speed.
+    /// The game listens, and answers: where, and its token, which a tool connects to it with.
+    Started { address: String, token: String },
+    /// Game time as the game says it stands, after a control and once another tool changed it:
+    /// paused or not, and its speed.
     Time { paused: bool, speed: f64 },
     /// Lines of the game's log, the oldest first, as it wrote them to its standard error.
     Log(Vec<String>),
@@ -103,8 +108,9 @@ impl Player {
     /// [`STOP_TIMEOUT`] later if it has not ended by then, whatever the thread that drives it
     /// waits on.
     pub(crate) fn control(&self, control: Control) {
+        let stop = control == Control::Stop;
         let _ = self.controls.send(control);
-        if control == Control::Stop {
+        if stop {
             let process = Arc::clone(&self.process);
             let _ = thread::Builder::new()
                 .name("play stop".to_owned())
@@ -197,19 +203,30 @@ fn drive(
             return;
         }
     };
-    tell(Event::Started);
+    tell(Event::Started {
+        address: address.to_string(),
+        token: token.to_string(),
+    });
+    // Game time as last told: running at its speed, as the game starts.
+    let mut time = (false, 1.0);
     loop {
         let control = match asked.recv_timeout(POLL) {
             Ok(control) => Some(control),
             Err(RecvTimeoutError::Timeout) => None,
             Err(RecvTimeoutError::Disconnected) => return,
         };
-        let requests = match control {
+        let requests = match &control {
             None => Vec::new(),
+            Some(Control::Apply(steps)) => steps
+                .iter()
+                .map(|commands| Request::Apply {
+                    commands: commands.clone(),
+                })
+                .collect(),
             Some(Control::Pause(true)) => vec![Request::Pause],
             Some(Control::Pause(false)) => vec![Request::Resume],
             Some(Control::Step) => vec![Request::Pause, Request::Step { steps: 1 }],
-            Some(Control::Speed(speed)) => vec![Request::Speed { speed }],
+            Some(Control::Speed(speed)) => vec![Request::Speed { speed: *speed }],
             Some(Control::Stop) => vec![Request::Stop],
         };
         for request in &requests {
@@ -228,10 +245,12 @@ fn drive(
             }));
             return;
         }
-        // Game time as the game says it stands, after the control.
-        if control.is_some()
-            && let Ok((Reply::State { state }, _)) = client.request(&Request::State)
+        // Game time as the game says it stands: after a control, which the game may have
+        // refused, and as another tool changes it.
+        if let Ok((Reply::State { state }, _)) = client.request(&Request::State)
+            && (control.is_some() || time != (state.paused, state.speed))
         {
+            time = (state.paused, state.speed);
             tell(Event::Time {
                 paused: state.paused,
                 speed: state.speed,
