@@ -896,6 +896,11 @@ finds every command that the program names by the letters typed, in their order,
 chosen one to the program as a shortcut gives its command (`Ui::open_palette`,
 [ADR-0151](adr/0151-rich-widgets.md)).
 
+**Pane (editor).** A part of the editor's window that holds a *viewport (editor)*: its surface, its
+camera and how the user moves it, what its buttons pick, its settings. Two panes show the level
+side by side; the View menu changes the one last pressed in
+([ADR-0160](adr/0160-two-viewports-and-blenders-way.md)).
+
 **Part (level).** A scene file that a level places and that the editor edits in place, writing it to
 its own file, named in a table of the level's file of its own, `[parts.<id>]`; what a level places
 otherwise is a *prefab* ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md),
@@ -1510,8 +1515,10 @@ overlay and a tool driving a game read and change them
 
 **Viewport (editor).** The part of the editor's window that shows a *view* of the level being
 edited, drawn into a target of its own, which the interface's *canvas* shows through a *surface
-(interface)*, and drawn again only when what it shows changes; the user flies through it
-([ADR-0155](adr/0155-the-editors-design.md), [ADR-0158](adr/0158-the-viewport.md)).
+(interface)*, and drawn again only when what it shows changes; the user flies through it and picks
+in it. The window shows one or two, each in a *pane (editor)*
+([ADR-0155](adr/0155-the-editors-design.md), [ADR-0158](adr/0158-the-viewport.md),
+[ADR-0160](adr/0160-two-viewports-and-blenders-way.md)).
 
 **Visual target.** A reference image that a game sets for its look, on its target *hardware tier*
 at its frame rate: the gap between the game's image and its targets is the measured problem by

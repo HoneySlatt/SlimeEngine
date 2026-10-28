@@ -63,6 +63,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   shadows, and the wireframe of what is selected, by operations that agents run too
   (`view.shade_lit`, `view.shade_base_color`, `view.shade_light`, `view.shade_normals`,
   `view.shade_shadows`, `view.wireframe`). Tools pick in the viewport by its name.
+- Two viewports and Blender's way in the editor (ADR-0160): *View* > *Two viewports* shows a second
+  viewport beside the first, each with its own camera and settings, the one navigated drawn at the
+  full rate and the other at most ten times a second meanwhile; tools name it `viewport 2`. *View* >
+  *Keys of Blender* lays Blender's way over the editor's shortcuts, the middle button orbiting,
+  Shift and the middle button panning, Alt and the left button going through what lies behind
+  without orbiting, kept for the next start in the user's state directory. What the mouse's buttons do over the viewport is
+  written in the editor's table of shortcuts (`editor.keys`, `slime_editor::BLENDER_SHORTCUTS`).
+- A table of shortcuts of `slime-ui` binds the mouse's buttons too, `MiddleButton`,
+  `"Shift+MiddleButton"`, which a program reads with `Ui::button_command`.
 - `Drawings::outline` in `slime-render`: a view outlines instances named by their picking numbers
   over its image, in one color where the scene shows them and another where it hides them, the
   scene's depth resolved into one sample for it; `DebugMode::BaseColor` and `DebugMode::Light`;

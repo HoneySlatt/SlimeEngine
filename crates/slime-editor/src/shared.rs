@@ -46,7 +46,11 @@ pub(crate) struct State {
     pub(crate) selection: Vec<PersistentId>,
     /// The levels opened last, the last first, by their whole paths.
     pub(crate) recent: Vec<PathBuf>,
-    /// Counted up each time the core changes what the window shows.
+    /// The file of the user's state directory that keeps which keys the user chose, Blender's way
+    /// or not; none in tests and without a state directory.
+    pub(crate) keys: Option<PathBuf>,
+    /// Counted up each time the core changes what the window shows, and as the window shows
+    /// another number of viewports (`view.split`): the window builds its interface again then.
     pub(crate) revision: u64,
     /// What the window tells the user, as the core said it: the first run's hint, a request that
     /// failed.

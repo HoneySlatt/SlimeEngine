@@ -5,7 +5,9 @@
 //! as a person does, runs `file.save` by name, captures the viewport by its name, which the menu's
 //! frames do not draw again and framing a lamp does (`docs/adr/0158-the-viewport.md`), picks the
 //! lamp framed in the viewport and nothing in its sky, shows the viewport's base color by the
-//! operation's name, which its settings say (`docs/adr/0159-picking-and-the-selection.md`), opens
+//! operation's name, which its settings say (`docs/adr/0159-picking-and-the-selection.md`), shows
+//! two viewports and captures the second by its name
+//! (`docs/adr/0160-two-viewports-and-blenders-way.md`), opens
 //! another copy of the yard through *Open a
 //! level…*, which opens no dialog of the system in a program that a tool started, its path typed
 //! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), and checks that the editor,
@@ -221,6 +223,21 @@ fn main() {
         "{shading:?}"
     );
     let (said, _) = session.tool("run_operation", json!({ "name": "view.shade_lit" }));
+    assert_eq!(said, ["done"]);
+    // Two viewports, the second captured and reported by its name, then one again
+    // (`docs/adr/0160-two-viewports-and-blenders-way.md`).
+    let (said, _) = session.tool("run_operation", json!({ "name": "view.split" }));
+    assert_eq!(said, ["done"]);
+    let second = until(
+        "the second viewport drawn",
+        || session.try_tool("capture", json!({ "view": "viewport 2" })),
+        |(_, result)| result["isError"] != json!(true),
+    );
+    let (width, _, _) = image(&second.1);
+    assert!(width > 200, "{width}");
+    let (said, _) = session.tool("read_report", json!({ "name": "viewport 2" }));
+    assert!(said[0].contains("draws = "), "{said:?}");
+    let (said, _) = session.tool("run_operation", json!({ "name": "view.split" }));
     assert_eq!(said, ["done"]);
     // Open a level…, from the File menu: a program that a tool started opens no dialog of the
     // system, which the agent could not see, and its layer waits for the path, typed.

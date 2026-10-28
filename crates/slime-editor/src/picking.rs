@@ -1,18 +1,19 @@
-//! Picking in the viewport (`docs/adr/0159-picking-and-the-selection.md`): what the left button
-//! asks for over it, a click, a drag that draws a marquee, or Alt and a click, which goes through
-//! what lies behind; and what each selects of what is found there. It needs no GPU: the window asks
-//! the viewport what is drawn where, the GPU answering a click and a marquee a frame or two later
-//! and the CPU's ray Alt and a click at once, and hands the entities found back here.
+//! Picking in a viewport (`docs/adr/0159-picking-and-the-selection.md`): what a button that selects
+//! asks for over it, the left one by default, a click, a drag that draws a marquee, or a click
+//! through what lies behind, Alt and a click; and what each selects of what is found there. It
+//! needs no GPU: the window asks the viewport what is drawn where, the GPU answering a click and a
+//! marquee a frame or two later and the CPU's ray Alt and a click at once, and hands the entities
+//! found back here.
 
-use slime_platform::Modifiers;
+use slime_platform::{Modifiers, MouseButton};
 use slime_world::{Entity, World};
 
 /// How far the pointer moves with the left button held, in logical pixels, before a click becomes
 /// a marquee, and the mouse during Alt and the left button before a click becomes an orbit.
 pub(crate) const DRAG: f32 = 4.0;
 
-/// What the left button asked for over the viewport, once let go, its points in logical pixels
-/// from the viewport's corner.
+/// What a button that selects asked for over the viewport, once let go, its points in logical
+/// pixels from the viewport's corner.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Wanted {
     /// A click: what is drawn at the point; with Shift, added to what is selected, or taken out of
@@ -28,25 +29,44 @@ pub(crate) enum Wanted {
     Through { at: [f32; 2] },
 }
 
-/// The left button held over the viewport without Alt, from its press.
+/// A button held over the viewport that the table of shortcuts binds to `select`, or to `through`,
+/// from its press (`docs/adr/0160-two-viewports-and-blenders-way.md`).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Selecting {
     from: [f32; 2],
     to: [f32; 2],
     adding: bool,
-    /// Whether the pointer went [`DRAG`] away from the press: a marquee, from then on.
+    /// The button held.
+    button: MouseButton,
+    /// Whether it goes through what lies behind, a click alone.
+    through: bool,
+    /// Whether the pointer went [`DRAG`] away from the press: a marquee, from then on, or nothing
+    /// for a click through.
     dragged: bool,
 }
 
 impl Selecting {
-    /// Pressed at `at` with `modifiers` held: Shift adds to what is selected.
-    pub(crate) fn new(at: [f32; 2], modifiers: Modifiers) -> Self {
+    /// `button` pressed at `at` with `modifiers` held, to select, or to go `through` what lies
+    /// behind: Shift adds to what is selected.
+    pub(crate) fn new(
+        at: [f32; 2],
+        modifiers: Modifiers,
+        button: MouseButton,
+        through: bool,
+    ) -> Self {
         Self {
             from: at,
             to: at,
             adding: modifiers.shift,
+            button,
+            through,
             dragged: false,
         }
+    }
+
+    /// The button held.
+    pub(crate) fn button(&self) -> MouseButton {
+        self.button
     }
 
     /// The pointer moved to `at`.
@@ -57,24 +77,25 @@ impl Selecting {
 
     /// The marquee's corners, once the pointer has gone far enough to draw one.
     pub(crate) fn marquee(&self) -> Option<([f32; 2], [f32; 2])> {
-        self.dragged.then_some((self.from, self.to))
+        (self.dragged && !self.through).then_some((self.from, self.to))
     }
 
-    /// Let go at `at`: what it asks for.
-    pub(crate) fn release(mut self, at: [f32; 2]) -> Wanted {
+    /// Let go at `at`: what it asks for; nothing for a click through that the pointer dragged.
+    pub(crate) fn release(mut self, at: [f32; 2]) -> Option<Wanted> {
         self.moved(at);
-        if self.dragged {
-            Wanted::Marquee {
+        Some(match (self.through, self.dragged) {
+            (true, true) => return None,
+            (true, false) => Wanted::Through { at: self.from },
+            (false, true) => Wanted::Marquee {
                 from: self.from,
                 to: self.to,
                 adding: self.adding,
-            }
-        } else {
-            Wanted::Click {
+            },
+            (false, false) => Wanted::Click {
                 at: self.from,
                 adding: self.adding,
-            }
-        }
+            },
+        })
     }
 }
 
@@ -326,27 +347,39 @@ well = { components = { Name = "well" } }
     fn a_press_becomes_a_marquee_once_the_pointer_goes_far_enough() {
         let mut shift = Modifiers::default();
         shift.shift = true;
-        let mut selecting = Selecting::new([10.0, 10.0], shift);
+        let mut selecting = Selecting::new([10.0, 10.0], shift, MouseButton::Left, false);
         selecting.moved([12.0, 11.0]);
         assert_eq!(selecting.marquee(), None);
         assert_eq!(
             selecting.release([12.0, 11.0]),
-            Wanted::Click {
+            Some(Wanted::Click {
                 at: [10.0, 10.0],
                 adding: true
-            }
+            })
         );
-        let mut selecting = Selecting::new([10.0, 10.0], Modifiers::default());
+        let mut selecting =
+            Selecting::new([10.0, 10.0], Modifiers::default(), MouseButton::Left, false);
         selecting.moved([30.0, 5.0]);
         assert_eq!(selecting.marquee(), Some(([10.0, 10.0], [30.0, 5.0])));
         // Back near the press, it is a marquee still.
         assert_eq!(
             selecting.release([11.0, 10.0]),
-            Wanted::Marquee {
+            Some(Wanted::Marquee {
                 from: [10.0, 10.0],
                 to: [11.0, 10.0],
                 adding: false
-            }
+            })
         );
+        // A click through, as Blender's way binds one: no marquee, and nothing once dragged.
+        let through = Selecting::new([10.0, 10.0], Modifiers::default(), MouseButton::Left, true);
+        assert_eq!(
+            through.release([11.0, 10.0]),
+            Some(Wanted::Through { at: [10.0, 10.0] })
+        );
+        let mut through =
+            Selecting::new([10.0, 10.0], Modifiers::default(), MouseButton::Left, true);
+        through.moved([30.0, 5.0]);
+        assert_eq!(through.marquee(), None);
+        assert_eq!(through.release([30.0, 5.0]), None);
     }
 }

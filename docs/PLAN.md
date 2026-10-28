@@ -1410,6 +1410,11 @@ GitHub issues, linked from their entry; this list stays the reference.
   the wireframe and a ray read the meshes that they first meet from the cooked data on the
   window's thread, which waits for them. Alt and a click are told from an orbit by the mouse's
   moving less than 4 units of its raw motion, which a mouse of a fine resolution may pass.
+- **Two viewports build their frames apart** ([ADR-0160](adr/0160-two-viewports-and-blenders-way.md)):
+  they share the level's meshes, but each that draws builds the world's frame for itself, twice the
+  CPU's work of one when both draw at a frame, as when an agent changes the world. Blender's way
+  gives Blender's buttons and a few of its keys, not its modal keys, its pie menus or its numeric
+  pad's views.
 - **Every multisampled depth target can be read by a shader**
   ([ADR-0159](adr/0159-picking-and-the-selection.md)), so that the outline's frames resolve the
   scene's depth: every view of four samples makes its depth so, whether it outlines or not, which

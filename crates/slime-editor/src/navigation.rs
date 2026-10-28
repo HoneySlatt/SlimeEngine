@@ -1,12 +1,13 @@
-//! How the viewport's camera moves (`docs/adr/0158-the-viewport.md`): it flies with the right button
-//! held and W, A, S, D, Q, E, orbits with Alt and the left button, pans with the middle one, and
-//! frames what is selected; the cursor is held meanwhile, the mouse's raw motion turning it. It
-//! needs no GPU and no window: the window gives it the surface's actions, the raw motion and the
-//! keys, and draws from its camera.
+//! How a viewport's camera moves (`docs/adr/0158-the-viewport.md`): it flies, W, A, S, D, Q and E
+//! moving it, orbits and pans while the button that the table of shortcuts binds to each is held,
+//! the right button, Alt and the left button and the middle one by default
+//! (`docs/adr/0160-two-viewports-and-blenders-way.md`), and frames what is selected; the cursor is
+//! held meanwhile, the mouse's raw motion turning it. It needs no GPU and no window: the window
+//! gives it the surface's actions, the raw motion and the keys, and draws from its camera.
 
 use std::time::{Duration, Instant};
 
-use slime_platform::{KeyCode, Modifiers, MouseButton};
+use slime_platform::{KeyCode, MouseButton};
 use slime_render::glam::DVec3;
 use slime_render::{Camera, Projection};
 
@@ -44,34 +45,27 @@ const LONGEST_STEP: Duration = Duration::from_millis(100);
 /// The nearest that the camera comes to the point that it looks at, in metres.
 const NEAREST: f64 = 0.05;
 
-/// The gesture that moves the camera, while its button is held.
+/// The gesture that moves the camera, while the button that started it is held, which the table of
+/// shortcuts binds (`docs/adr/0160-two-viewports-and-blenders-way.md`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Gesture {
-    /// The right button: the mouse turns the camera where it stands, the keys move it.
+pub(crate) enum Gesture {
+    /// `fly`: the mouse turns the camera where it stands, the keys move it.
     Fly,
-    /// Alt and the left button: the mouse turns the camera around the point that it looks at.
+    /// `orbit`: the mouse turns the camera around the point that it looks at.
     Orbit,
-    /// The middle button: the mouse moves the camera and the point that it looks at, side to side
-    /// and up and down.
+    /// `pan`: the mouse moves the camera and the point that it looks at, side to side and up and
+    /// down.
     Pan,
 }
 
 impl Gesture {
-    /// The gesture that `button`, pressed with `modifiers` held, starts, if any.
-    fn of(button: MouseButton, modifiers: Modifiers) -> Option<Self> {
-        match button {
-            MouseButton::Right => Some(Self::Fly),
-            MouseButton::Left if modifiers.alt => Some(Self::Orbit),
-            MouseButton::Middle => Some(Self::Pan),
+    /// The gesture that a button's chord names `name` in the table of shortcuts, if it is one.
+    pub(crate) fn named(name: &str) -> Option<Self> {
+        match name {
+            "fly" => Some(Self::Fly),
+            "orbit" => Some(Self::Orbit),
+            "pan" => Some(Self::Pan),
             _ => None,
-        }
-    }
-
-    fn button(self) -> MouseButton {
-        match self {
-            Self::Fly => MouseButton::Right,
-            Self::Orbit => MouseButton::Left,
-            Self::Pan => MouseButton::Middle,
         }
     }
 }
@@ -98,8 +92,8 @@ pub(crate) struct Navigation {
     pitch: f64,
     /// How far the camera stands from the point that it looks at, in metres.
     distance: f64,
-    /// The gesture under way, while its button is held.
-    gesture: Option<Gesture>,
+    /// The gesture under way, while the button that started it is held, and that button.
+    gesture: Option<(Gesture, MouseButton)>,
     /// The flying keys held, in the order of [`FLY_KEYS`], and whether Shift is.
     keys: [bool; 6],
     fast: bool,
@@ -148,6 +142,19 @@ impl Navigation {
         DVec3::new(cos_yaw, 0.0, sin_yaw)
     }
 
+    /// A navigation whose camera stands and looks as this one's does, flying as fast, no gesture
+    /// under way nor key held.
+    pub(crate) fn looking_as(&self) -> Self {
+        Self {
+            pivot: self.pivot,
+            yaw: self.yaw,
+            pitch: self.pitch,
+            distance: self.distance,
+            speed: self.speed,
+            ..Self::default()
+        }
+    }
+
     /// Where the camera stands.
     pub(crate) fn eye(&self) -> DVec3 {
         self.pivot - self.forward() * self.distance
@@ -169,24 +176,20 @@ impl Navigation {
 
     /// Whether it flies: the keys that fly reach it, not the interface.
     pub(crate) fn flying(&self) -> bool {
-        self.gesture == Some(Gesture::Fly)
+        self.gesture
+            .is_some_and(|(gesture, _)| gesture == Gesture::Fly)
     }
 
-    /// A button went down over the viewport at `at`, in logical pixels, with `modifiers` held: the
-    /// gesture that it starts, if none is under way. Gives whether one started.
-    pub(crate) fn press(
-        &mut self,
-        button: MouseButton,
-        modifiers: Modifiers,
-        at: [f32; 2],
-    ) -> bool {
+    /// `button` went down over the viewport at `at`, in logical pixels, which starts `gesture`, if
+    /// none is under way. Gives whether it started.
+    pub(crate) fn press(&mut self, gesture: Gesture, button: MouseButton, at: [f32; 2]) -> bool {
         if self.gesture.is_some() {
             return false;
         }
-        self.gesture = Gesture::of(button, modifiers);
+        self.gesture = Some((gesture, button));
         self.pointer = at;
         self.moved = 0.0;
-        self.gesture.is_some()
+        true
     }
 
     /// The pointer moved to `at` on the viewport, in logical pixels, during a gesture: where the
@@ -207,11 +210,12 @@ impl Navigation {
     }
 
     /// A button that went down over the viewport went up: the gesture that it holds ends, and the
-    /// keys stop flying. Gives whether it was Alt and a click: an orbit that the mouse moved less
-    /// than a click may ([`DRAG`]), its raw motion's units taken for pixels, which goes through
-    /// what lies behind what is selected (`docs/adr/0159-picking-and-the-selection.md`).
+    /// keys stop flying. Gives whether it was an orbit that the mouse moved less than a click may
+    /// ([`DRAG`]), its raw motion's units taken for pixels: of the left button, as Alt and the left
+    /// button orbit by default, a click that goes through what lies behind what is selected
+    /// (`docs/adr/0159-picking-and-the-selection.md`).
     pub(crate) fn release(&mut self, button: MouseButton) -> bool {
-        let Some(gesture) = self.gesture.filter(|gesture| gesture.button() == button) else {
+        let Some((gesture, _)) = self.gesture.filter(|&(_, held)| held == button) else {
             return false;
         };
         self.gesture = None;
@@ -226,7 +230,7 @@ impl Navigation {
         if self.gesture.is_some() {
             self.moved += x.hypot(y);
         }
-        match self.gesture {
+        match self.gesture.map(|(gesture, _)| gesture) {
             Some(Gesture::Fly) => {
                 // Turned where it stands: the point that it looks at moves.
                 let eye = self.eye();
@@ -331,17 +335,11 @@ mod tests {
         a.distance(b) < 1e-9
     }
 
-    fn alt() -> Modifiers {
-        let mut modifiers = Modifiers::default();
-        modifiers.alt = true;
-        modifiers
-    }
-
     #[test]
     fn the_right_button_flies_turning_where_the_camera_stands() {
         let mut navigation = Navigation::default();
         let eye = navigation.eye();
-        assert!(navigation.press(MouseButton::Right, Modifiers::default(), [0.0; 2]));
+        assert!(navigation.press(Gesture::Fly, MouseButton::Right, [0.0; 2]));
         assert!(navigation.holds_cursor());
         assert!(navigation.motion([300.0, -100.0]));
         assert!(near(navigation.eye(), eye), "turned where it stands");
@@ -364,9 +362,7 @@ mod tests {
     fn alt_and_the_left_button_orbit_around_the_point_looked_at() {
         let mut navigation = Navigation::default();
         let (pivot, distance) = (navigation.pivot, navigation.distance);
-        // The left button alone starts no gesture: it picks.
-        assert!(!navigation.press(MouseButton::Left, Modifiers::default(), [0.0; 2]));
-        assert!(navigation.press(MouseButton::Left, alt(), [0.0; 2]));
+        assert!(navigation.press(Gesture::Orbit, MouseButton::Left, [0.0; 2]));
         navigation.motion([500.0, 200.0]);
         assert!(near(navigation.pivot, pivot));
         assert!((navigation.eye().distance(pivot) - distance).abs() < 1e-9);
@@ -374,18 +370,18 @@ mod tests {
         navigation.motion([0.0, 100_000.0]);
         assert_eq!(navigation.pitch, -PITCH_LIMIT);
         // Another button meanwhile starts nothing.
-        assert!(!navigation.press(MouseButton::Middle, Modifiers::default(), [0.0; 2]));
+        assert!(!navigation.press(Gesture::Pan, MouseButton::Middle, [0.0; 2]));
         assert!(
             !navigation.release(MouseButton::Left),
             "it moved: not a click"
         );
         assert!(!navigation.holds_cursor());
         // Pressed and let go before the mouse moved, it is Alt and a click.
-        navigation.press(MouseButton::Left, alt(), [0.0; 2]);
+        navigation.press(Gesture::Orbit, MouseButton::Left, [0.0; 2]);
         navigation.motion([1.0, -1.0]);
         assert!(navigation.release(MouseButton::Left));
         // Not so for the other gestures.
-        navigation.press(MouseButton::Right, Modifiers::default(), [0.0; 2]);
+        navigation.press(Gesture::Fly, MouseButton::Right, [0.0; 2]);
         assert!(!navigation.release(MouseButton::Right));
     }
 
@@ -393,7 +389,7 @@ mod tests {
     fn the_middle_button_pans_the_camera_and_what_it_looks_at_together() {
         let mut navigation = Navigation::default();
         let (eye, pivot) = (navigation.eye(), navigation.pivot);
-        navigation.press(MouseButton::Middle, Modifiers::default(), [0.0; 2]);
+        navigation.press(Gesture::Pan, MouseButton::Middle, [0.0; 2]);
         navigation.motion([100.0, 0.0]);
         let moved = navigation.pivot - pivot;
         assert!(near(navigation.eye() - eye, moved), "both moved alike");
@@ -411,7 +407,7 @@ mod tests {
         let distance = navigation.distance;
         navigation.wheel(1.0);
         assert!((navigation.distance - distance / WHEEL_STEP).abs() < 1e-9);
-        navigation.press(MouseButton::Right, Modifiers::default(), [0.0; 2]);
+        navigation.press(Gesture::Fly, MouseButton::Right, [0.0; 2]);
         navigation.wheel(2.0);
         assert!((navigation.speed - FLY_SPEED * WHEEL_STEP * WHEEL_STEP).abs() < 1e-9);
         navigation.wheel(-1000.0);
@@ -438,7 +434,7 @@ mod tests {
     fn where_the_cursor_is_free_its_moves_turn_the_camera() {
         let mut navigation = Navigation::default();
         let yaw = navigation.yaw;
-        navigation.press(MouseButton::Left, alt(), [100.0, 100.0]);
+        navigation.press(Gesture::Orbit, MouseButton::Left, [100.0, 100.0]);
         assert!(navigation.pointer([150.0, 100.0]));
         let turned = (yaw + 50.0 * TURN).rem_euclid(std::f64::consts::TAU);
         assert!((navigation.yaw - turned).abs() < 1e-9);
@@ -449,7 +445,7 @@ mod tests {
         let mut navigation = Navigation::default();
         let start = Instant::now();
         let at = |milliseconds| start + Duration::from_millis(milliseconds);
-        navigation.press(MouseButton::Right, Modifiers::default(), [0.0; 2]);
+        navigation.press(Gesture::Fly, MouseButton::Right, [0.0; 2]);
         navigation.key(KeyCode::KeyW, true, at(0));
         navigation.key(KeyCode::KeyS, true, at(0));
         assert!(!navigation.advance(at(20)), "W and S cancel out");

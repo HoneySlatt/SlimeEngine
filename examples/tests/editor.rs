@@ -3,7 +3,8 @@
 //! the modal layer that waits for the system's dialog to open a level, the window dimmed below it
 //! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), and with the sample's pillar
 //! selected, outlined where the scene shows it and dimmed where the wall hides it
-//! (`docs/adr/0159-picking-and-the-selection.md`), drawn without a window of the
+//! (`docs/adr/0159-picking-and-the-selection.md`), and with two viewports side by side
+//! (`docs/adr/0160-two-viewports-and-blenders-way.md`), drawn without a window of the
 //! system by `slime_editor::window_image`, must match the reference images of `tests/reference/`
 //! within a tolerance, at scales 1 and 2. The level is named by a path relative to the examples'
 //! package, the directory that the tests run in, which the status bar shows as it is.
@@ -95,6 +96,13 @@ fn the_window_at_scale_2_matches_its_reference_image() {
 #[test]
 fn the_window_waiting_for_the_system_s_dialog_matches_its_reference_image() {
     check("editor-choose", &["file.choose"], &[], 1.0);
+}
+
+/// Two viewports side by side, the second as the first sees
+/// (`docs/adr/0160-two-viewports-and-blenders-way.md`).
+#[test]
+fn the_window_with_two_viewports_matches_its_reference_image() {
+    check("editor-two-viewports", &["view.split"], &[], 1.0);
 }
 
 /// The sample's pillar selected, outlined where the scene shows it and dimmed where the wall hides

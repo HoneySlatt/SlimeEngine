@@ -108,9 +108,10 @@ pub(crate) struct Options {
 ///
 /// The levels that it opened last, which its File menu lists, are kept in
 /// `slime-editor/<program's name>.recent` in the user's state directory
-/// ([`slime_app::state_directory`]); the first run, which finds none, tells the user one hint. When
-/// the program's cooked data is missing and it names its sources ([`Program::sources`]), it cooks
-/// them first.
+/// ([`slime_app::state_directory`]); the first run, which finds none, tells the user one hint. The
+/// keys that the user chose, Blender's way or not, are kept in `slime-editor/keys` there, for every
+/// program of the editor. When the program's cooked data is missing and it names its sources
+/// ([`Program::sources`]), it cooks them first.
 ///
 /// Options: `--level <file>`, `--assets <directory>`, `--journal <file>`, `--discard`,
 /// `--headless`.
@@ -134,6 +135,9 @@ pub fn run(program: &Program) -> ExitCode {
             .join(DIRECTORY)
             .join(format!("{}.recent", program.name))
     });
+    // One choice of keys for every program of the editor: a person's hands are the same.
+    shared.borrow_mut().keys =
+        slime_app::state_directory().map(|directory| directory.join(DIRECTORY).join("keys"));
     let headless = options.headless;
     let mut session = Session::new(program, options, shared.clone(), recent, journals());
     let config = AppConfig {

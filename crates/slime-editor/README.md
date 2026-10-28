@@ -36,10 +36,12 @@ with Stage 6c's next milestones.
   journal's entries.
 - `Editor::unwritten`: how many steps the level's file does not hold, which the window's title
   and status bar show.
-- `OPERATIONS`, `operation(name)` and `SHORTCUTS`: the registry of the editor's operations, each
-  its name, `file.save`, its label, its parameters and what it changes (`Changes`), of which only
-  steps enter the history, and the editor's table of shortcuts, `editor.keys`, which binds keys to
-  operations' names.
+- `OPERATIONS`, `operation(name)`, `SHORTCUTS` and `BLENDER_SHORTCUTS`: the registry of the
+  editor's operations, each its name, `file.save`, its label, its parameters and what it changes
+  (`Changes`), of which only steps enter the history; the editor's table of shortcuts,
+  `editor.keys`, which binds keys to operations' names and the mouse's buttons to what they do over
+  the viewport; and what Blender's way changes of it, `editor-blender.keys`, laid over it when the
+  user chooses it.
 - `run(&Program)`: the editor's program, which a game's editor package calls with the game's
   level, key, cooked data and types, and the `editor` example with the yard's. An application of
   `slime-app` whose simulation is the editor's core and whose presentation is its window, both
@@ -61,7 +63,10 @@ with Stage 6c's next milestones.
   there, a click again a level deeper, a marquee what it holds, Alt and a click the meshes behind;
   what is selected is outlined, and the View menu shows the base color, the light alone, the
   normals, the shadows and the wireframe of the selection; tools pick in the viewport by its name
-  (`docs/adr/0159-picking-and-the-selection.md`). Options: `--level`, `--assets`,
+  (`docs/adr/0159-picking-and-the-selection.md`). *View* > *Two viewports* shows a second, named
+  `viewport 2`, the one navigated drawn at the full rate; *View* > *Keys of Blender* chooses
+  Blender's way, kept in the user's state directory for every program of the editor
+  (`docs/adr/0160-two-viewports-and-blenders-way.md`). Options: `--level`, `--assets`,
   `--journal`, `--discard`, `--headless`; `run`'s documentation says how a journal is chosen and
   recovered.
 - `window_image(&Program, arguments, operations, selection, scale)`: the window drawn into an image
