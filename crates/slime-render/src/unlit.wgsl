@@ -7,8 +7,10 @@
 const HEADROOM: f32 = 64.0;
 
 // The modes of debugging, as in shader.wgsl: the normals, or the share of the shadowing lights'
-// light that reaches a surface, all of it for an unlit one.
+// light that reaches a surface, all of it for an unlit one. The base color and the light alone
+// show its color, as the scene does.
 const DEBUG_NORMALS: u32 = 1u;
+const DEBUG_SHADOWS: u32 = 2u;
 
 // The start of shader.wgsl's FrameUniform, all that this shader reads of it.
 struct FrameUniform {
@@ -89,7 +91,7 @@ fn fs_main(
         let normal = normalize(select(-input.normal, input.normal, facing));
         return vec4<f32>((normal * 0.5 + 0.5) / HEADROOM, alpha);
     }
-    if frame.debug != 0u {
+    if frame.debug == DEBUG_SHADOWS {
         return vec4<f32>(vec3<f32>(1.0 / HEADROOM), alpha);
     }
     return vec4<f32>(color.rgb / HEADROOM, alpha);

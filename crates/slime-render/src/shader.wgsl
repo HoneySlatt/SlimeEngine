@@ -40,10 +40,12 @@ const DIRECTIONAL: u32 = 0u;
 // Light::tile of a light without a tile of the spot lights' shadow atlas: NO_TILE in light.rs, which
 // a unit test compares with it.
 const NO_TILE: u32 = 0xffffffffu;
-// FrameUniform::debug of the modes of debugging that show the normals and the shadows:
-// DebugMode::value in renderer.rs, which a unit test compares with them.
+// FrameUniform::debug of the modes of debugging that show the normals, the shadows, the base
+// color and the light alone: DebugMode::value in renderer.rs, which a unit test compares with them.
 const DEBUG_NORMALS: u32 = 1u;
 const DEBUG_SHADOWS: u32 = 2u;
+const DEBUG_BASE_COLOR: u32 = 3u;
+const DEBUG_LIGHT: u32 = 4u;
 // The square of the distance, in square metres, within which a point or spot light gives what it
 // gives 1 cm away, as Filament and Bevy do: the inverse square of the distance would grow without
 // bound at the light.
@@ -122,8 +124,10 @@ struct FrameUniform {
     // The index in `lights` of the light that the cascades shadow, the scene's first directional
     // light that casts shadows; light_count or more when none is.
     shadowed_light: u32,
-    // What the view shows (DebugMode in renderer.rs): 0 the scene, lit; DEBUG_NORMALS or
-    // DEBUG_SHADOWS a mode of debugging, whose colors the tone-mapping pass writes as they are.
+    // What the view shows (DebugMode in renderer.rs): 0 the scene, lit; DEBUG_NORMALS,
+    // DEBUG_SHADOWS or DEBUG_BASE_COLOR a mode of debugging, whose colors the tone-mapping pass
+    // writes as they are; DEBUG_LIGHT the light alone, every surface white, tone mapped as the
+    // scene is.
     debug: u32,
     // For an orthographic camera, xyz the unit direction towards it, the same everywhere, and w 1;
     // 0 in perspective, where it lies at the frame's origin.
@@ -344,8 +348,13 @@ fn fs_main(
         textureSample(metallic_roughness_texture, metallic_roughness_sampler, input.uv);
     let encoded_normal = textureSample(normal_texture, normal_sampler, input.uv).xy;
     let occlusion = textureSample(occlusion_texture, occlusion_sampler, input.uv).r;
-    let emitted = material.emissive
-        * textureSample(emissive_texture, emissive_sampler, input.uv).rgb;
+    // The light alone lights a white surface that is not metallic, and that emits nothing.
+    let light_alone = frame.debug == DEBUG_LIGHT;
+    let emitted = select(
+        material.emissive * textureSample(emissive_texture, emissive_sampler, input.uv).rgb,
+        vec3<f32>(0.0),
+        light_alone,
+    );
     // The normal of the triangle itself, flat, which shadows are looked up off: the surface that
     // shadow maps hold, where a smooth normal leans across a facet. A pixel that sees the
     // triangle edge on has none, and moves the point nowhere.
@@ -356,7 +365,16 @@ fn fs_main(
     if base.a < material.alpha_cutoff {
         discard;
     }
-    let metallic = clamp(material.metallic * metallic_roughness.b, 0.0, 1.0);
+    // Written as it is, without exposure, as the normals are below.
+    if frame.debug == DEBUG_BASE_COLOR {
+        return vec4<f32>(base.rgb / HEADROOM, 1.0);
+    }
+    let albedo = select(base.rgb, vec3<f32>(1.0), light_alone);
+    let metallic = select(
+        clamp(material.metallic * metallic_roughness.b, 0.0, 1.0),
+        0.0,
+        light_alone,
+    );
     let roughness = clamp(material.roughness * metallic_roughness.g, MIN_ROUGHNESS, 1.0);
     let normal = shading_normal(
         input.normal,
@@ -423,7 +441,7 @@ fn fs_main(
             }
         }
         direct += min(light.color * attenuation, vec3<f32>(LARGEST_LIGHT))
-            * reflected(base.rgb, metallic, roughness, normal, l, to_camera);
+            * reflected(albedo, metallic, roughness, normal, l, to_camera);
     }
     if frame.debug == DEBUG_SHADOWS {
         return vec4<f32>(shadow * spots_lit * cascade_tint(cascade) / HEADROOM, 1.0);
@@ -432,7 +450,7 @@ fn fs_main(
     // level is read from the material's roughness itself: the shading's lower bound avoids 0 / 0
     // in the distribution, which a lookup does not compute, and a mirror reads level 0.
     let surroundings = clamp(material.roughness * metallic_roughness.g, 0.0, 1.0);
-    let indirect = environment_light(base.rgb, metallic, surroundings, normal, to_camera)
+    let indirect = environment_light(albedo, metallic, surroundings, normal, to_camera)
         * (1.0 + material.occlusion_strength * (occlusion - 1.0));
     // Exposed here, in 32-bit floats, before the half-precision target: light in physical units
     // reaches hundreds of thousands, which half precision does not hold (ADR-0037). Surfaces are

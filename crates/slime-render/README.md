@@ -14,8 +14,8 @@ one directional light around each view's camera, drawn in four cascades, and of 
 that casts them. It draws in high dynamic range, then exposes the light, spreads a bloom around it,
 tone maps it and dithers it into the output, and reports what each frame cost on the CPU and the
 GPU. It smooths the edges of what it draws with four samples per pixel, or not, as each view
-chooses, which also chooses the scale it renders at, a mode of debugging that shows normals or
-shadows, and whether it draws the shadows, the sky and the bloom; a view whose size changes makes
+chooses, which also chooses the scale it renders at, a mode of debugging that shows normals,
+shadows, the base color or the light alone, and whether it draws the shadows, the sky and the bloom; a view whose size changes makes
 its targets again once the size holds still. It loads cooked scenes in the background, and again
 when their cooked data changes, and keeps the meshes that a game draws by their asset IDs in a
 cache, which requests of a priority ask for and their handles hold, within budgets of memory once

@@ -65,8 +65,9 @@ The tools, each described to the agent by the server itself, with its parameters
 - `capture`: the image that the game shows, or the part of it that one of its views draws, named
   as `game_state` lists them (`docs/adr/0126-views-apart-from-the-renderer.md`), as a PNG image.
 - `set_view_settings`: a part of a view's settings, as `game_state` writes them, its render scale,
-  anti-aliasing, passes, or a mode of debugging that shows the normals or the shadows, `debug` set
-  to `"Normals"` (`docs/adr/0127-the-settings-of-a-view.md`).
+  anti-aliasing, passes, or a mode of debugging that shows the normals, the shadows, the base color
+  or the light alone, `debug` set to `"Normals"` (`docs/adr/0127-the-settings-of-a-view.md`,
+  `docs/adr/0159-picking-and-the-selection.md`).
 - `read_report`: one of the game's reports, as `game_state` lists them: `assets`, its asset cache's
   requests by priority and its memory against its budgets; `views`, its views' statistics
   (`docs/adr/0128-asset-requests.md`).

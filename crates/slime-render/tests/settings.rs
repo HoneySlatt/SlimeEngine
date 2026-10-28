@@ -442,6 +442,58 @@ fn the_shadows_mode_shows_the_light_that_reaches_each_surface() {
     );
 }
 
+/// The base color's mode shows each surface's color as it is, unlit and unshadowed; the light
+/// alone's shows the scene as it is lit, every surface white.
+#[test]
+fn the_base_color_and_the_light_alone_show_the_color_and_the_light_apart() {
+    let gpu = gpu();
+    let mut renderer = Renderer::new(&gpu, FORMAT).expect("the renderer is created");
+    let things = Things::new(&gpu, &renderer);
+    let red = renderer
+        .create_material(
+            &gpu,
+            "red",
+            &MaterialData {
+                base_color: LinearColor::rgb(0.8, 0.2, 0.1),
+                ..MaterialData::default()
+            },
+        )
+        .expect("the GPU has memory for it");
+    let white = things.floor_and_cube(vec![sun()]);
+    let mut colored = white.clone();
+    for instance in &mut colored.instances {
+        instance.material = red.clone();
+    }
+    let mut base = view(&gpu, &renderer, |settings| {
+        settings.debug = DebugMode::BaseColor;
+    });
+    let image = draw(&gpu, &mut renderer, &colored, &mut base, above(), (64, 64));
+    for (x, y) in [LIT, SHADOWED] {
+        assert_close(
+            pixel(&image, x, y),
+            [0.8, 0.2, 0.1],
+            2e-3,
+            "the floor's color",
+        );
+    }
+    let stats = timed(&gpu, &mut renderer, &colored, &mut base, above(), (64, 64));
+    assert_eq!(stats.shadow_draw_calls, 0, "no shadows");
+    // The light alone on red surfaces draws what the scene draws on white ones.
+    let mut lit = view(&gpu, &renderer, |_| {});
+    let expected = draw(&gpu, &mut renderer, &white, &mut lit, above(), (64, 64));
+    let mut light = view(&gpu, &renderer, |settings| {
+        settings.debug = DebugMode::Light;
+    });
+    let image = draw(&gpu, &mut renderer, &colored, &mut light, above(), (64, 64));
+    for (x, y) in [LIT, SHADOWED] {
+        assert_close(pixel(&image, x, y), pixel(&expected, x, y), 2e-3, "white");
+    }
+    assert!(
+        pixel(&image, LIT.0, LIT.1)[0] > pixel(&image, SHADOWED.0, SHADOWED.1)[0] + 0.1,
+        "the cube's shadow shows"
+    );
+}
+
 /// A view without shadows draws what a scene whose lights cast none draws, and draws no shadow
 /// pass; one without sky is black where no surface is; one without bloom draws what a scene
 /// without bloom draws. The first view that draws shadows draws the spot lights' tiles for the

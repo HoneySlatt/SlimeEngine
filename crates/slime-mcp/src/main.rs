@@ -42,7 +42,7 @@ const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its dev
      `list_entities` and `inspect_entity` read its world, `set_property` changes it; `press_key` and \
      `release_key` play it; `capture` shows its image or one of its views, and \
      `set_view_settings` changes how a view draws, its scale, anti-aliasing, passes or a mode of \
-     debugging that shows normals or shadows; `pick` names the entity drawn at a pixel of its \
+     debugging that shows normals, shadows, the base color or the light alone; `pick` names the entity drawn at a pixel of its \
      image or of a view; `read_report` reads its reports, as its asset cache's; \
      `read_logs` reads its log; `save_game` and `load_game` save its run to a file and load it; \
      `stop_game` ends it. A game's interface is read and used as a person uses it: \

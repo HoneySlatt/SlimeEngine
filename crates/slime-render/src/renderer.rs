@@ -582,7 +582,7 @@ pub enum AntiAliasing {
 
 /// What a view's image shows (ADR-0127): the scene, or a mode of debugging, whose colors are
 /// written as they are, without the exposure, the bloom or the tone curve, and without the sky: black where
-/// no surface is.
+/// no surface is; but for [`DebugMode::Light`], drawn as the scene is.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 #[reflect(name = "DebugMode")]
 #[non_exhaustive]
@@ -602,13 +602,22 @@ pub enum DebugMode {
     /// the nearest the camera: red, green, blue, then yellow; white beyond the last, and without a
     /// directional light that casts shadows. All white in a view that draws no shadows.
     Shadows,
+    /// The color of each surface's material, its texture applied, in linear values: what light
+    /// would show of it under a white light of one, without shading. The unlit kind's color, as
+    /// it shows in the scene. The view draws no shadows then (ADR-0159).
+    BaseColor,
+    /// The light alone: the scene drawn as it is, its exposure, sky, bloom and tone curve
+    /// included, every surface of the physically based kind white, not metallic and without
+    /// emission, its roughness, normal and occlusion kept, so that what lights it shows apart from
+    /// the colors that it lights. The unlit kind shows as in the scene (ADR-0159).
+    Light,
 }
 
 impl ViewSettings {
-    /// Whether the view draws shadows: those it asks for, unless it shows the normals, which no
-    /// shadow changes.
+    /// Whether the view draws shadows: those it asks for, unless it shows the normals or the base
+    /// color, which no shadow changes.
     fn draws_shadows(&self) -> bool {
-        self.shadows && self.debug != DebugMode::Normals
+        self.shadows && !matches!(self.debug, DebugMode::Normals | DebugMode::BaseColor)
     }
 }
 
@@ -619,7 +628,15 @@ impl DebugMode {
             Self::Off => 0,
             Self::Normals => 1,
             Self::Shadows => 2,
+            Self::BaseColor => 3,
+            Self::Light => 4,
         }
+    }
+
+    /// Whether its colors are written as they are, without the exposure, the sky, the bloom and
+    /// the tone curve: those of every mode but the scene's and the light alone.
+    fn as_they_are(self) -> bool {
+        !matches!(self, Self::Off | Self::Light)
     }
 }
 
@@ -1852,7 +1869,7 @@ impl Renderer {
         let wanted = scaled_size(viewport, settings.render_scale, gpu.max_texture_dimension());
         let (width, height) = settled_size(view.render_size(), &mut view.resizing, wanted, started);
         // A mode of debugging shows its colors as they are, where no surface is black.
-        let debugging = settings.debug != DebugMode::Off;
+        let debugging = settings.debug.as_they_are();
         let bloom =
             settings.bloom && !debugging && scene.bloom > 0.0 && bloom_levels(width, height) > 0;
         // An 8-bit output is dithered by one of its 255 steps; a floating-point one is not.
@@ -4161,11 +4178,23 @@ mod tests {
         for (name, mode) in [
             ("DEBUG_NORMALS", DebugMode::Normals),
             ("DEBUG_SHADOWS", DebugMode::Shadows),
+            ("DEBUG_BASE_COLOR", DebugMode::BaseColor),
+            ("DEBUG_LIGHT", DebugMode::Light),
         ] {
             let declared = format!("const {name}: u32 = {}u;", mode.value());
             assert!(
                 ShaderSources::embedded().scene.contains(&declared),
                 "shader.wgsl lacks `{declared}`"
+            );
+        }
+        for (name, mode) in [
+            ("DEBUG_NORMALS", DebugMode::Normals),
+            ("DEBUG_SHADOWS", DebugMode::Shadows),
+        ] {
+            let declared = format!("const {name}: u32 = {}u;", mode.value());
+            assert!(
+                ShaderSources::embedded().unlit.contains(&declared),
+                "unlit.wgsl lacks `{declared}`"
             );
         }
     }
