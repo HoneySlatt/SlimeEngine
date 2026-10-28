@@ -89,7 +89,7 @@ the ADR linking to it.
 | [0018](0018-reference-image-tests.md) | Reference image tests | Accepted; amended by 0028, 0030 |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
 | [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022, 0025, 0043 and 0107 |
-| [0021](0021-frame-pacing.md) | Frame pacing | Accepted; amended by 0155 |
+| [0021](0021-frame-pacing.md) | Frame pacing | Accepted; amended by 0155 and 0156 |
 | [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted; amended by 0025, 0044, 0075 and 0103 |
 | [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |
 | [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted; extended on 2026-10-13 |
@@ -203,7 +203,7 @@ the ADR linking to it.
 | [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted; amended by 0137, 0140, 0143, 0145, 0146, 0148 and 0149 |
 | [0133](0133-font-files-under-the-open-font-license.md) | Font files under the SIL Open Font License | Accepted; amended by 0139 |
 | [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 and 0155 |
-| [0135](0135-the-editors-program.md) | The editor's program | Accepted |
+| [0135](0135-the-editors-program.md) | The editor's program | Accepted; amended by 0156 |
 | [0136](0136-the-interfaces-text.md) | The interface's text | Accepted |
 | [0137](0137-the-canvas.md) | The canvas | Accepted; amended by 0152 |
 | [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted |
@@ -211,7 +211,7 @@ the ADR linking to it.
 | [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amended by 0141, 0143 and 0146 |
 | [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted; amended by 0149 |
 | [0142](0142-input-and-focus.md) | Input and focus | Accepted; amended by 0145, 0150, 0152, 0153 and 0154 |
-| [0143](0143-what-agents-see-of-the-interface.md) | What agents see of the interface | Accepted; amended by 0146 |
+| [0143](0143-what-agents-see-of-the-interface.md) | What agents see of the interface | Accepted; amended by 0146 and 0156 |
 | [0144](0144-the-cooked-zones-key-in-ci.md) | The cooked zone's key in CI | Accepted |
 | [0145](0145-text-edited.md) | Text edited | Accepted |
 | [0146](0146-screen-readers.md) | Screen readers | Accepted; amended by 0147 |
@@ -223,4 +223,5 @@ the ADR linking to it.
 | [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
 | [0153](0153-tab-and-f6-in-a-games-interface.md) | Tab and F6 in a game's interface | Accepted |
 | [0154](0154-floating-panels-and-held-keys.md) | Floating panels and held keys | Accepted |
-| [0155](0155-the-editors-design.md) | The editor's design | Accepted |
+| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156 |
+| [0156](0156-the-editors-window-and-its-operations.md) | The editor's window and its operations | Accepted |

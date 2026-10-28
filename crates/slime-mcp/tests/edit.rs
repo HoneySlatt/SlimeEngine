@@ -56,6 +56,7 @@ fn main() {
     let journal = directory.join("yard.journal");
     let command = json!([
         example.to_str().expect("a path of text"),
+        "--headless",
         "--level",
         level.to_str().expect("a path of text"),
         "--assets",
@@ -117,9 +118,27 @@ fn main() {
         said.contains("x = -3.5") && !said.contains("-5.0"),
         "undone: {said}"
     );
-    session.tool("undo", json!({}));
+    // Undone by the operation's name, as a person undoes it from the menu or with Ctrl+Z.
+    let (said, _) = session.tool("list_operations", json!({}));
+    assert!(
+        said[0].contains("edit.undo: Undo; changes the history")
+            && said[0].contains("file.open (path): Open a level; changes the file"),
+        "{said:?}"
+    );
+    let (said, _) = session.tool("run_operation", json!({ "name": "edit.undo" }));
+    assert_eq!(said, ["done"]);
     let (said, _) = session.tool("list_entities", json!({ "filter": "torch" }));
     assert!(!said[0].contains("yard/torch-0rdx"), "undone: {said:?}");
+    // Without a window, the window's operations are refused, and no step enters the history.
+    let (said, result) = session.try_tool("run_operation", json!({ "name": "view.palette" }));
+    assert_eq!(result["isError"], json!(true), "{said:?}");
+    assert!(said[0].contains("needs the editor's window"), "{said:?}");
+    let (said, result) = session.try_tool(
+        "run_operation",
+        json!({ "name": "file.open", "arguments": [] }),
+    );
+    assert_eq!(result["isError"], json!(true), "{said:?}");
+    assert!(said[0].contains("takes 1 arguments"), "{said:?}");
     session.tool("redo", json!({}));
     let (said, _) = session.tool("editor_history", json!({}));
     assert!(
@@ -140,8 +159,13 @@ fn main() {
     ] {
         assert!(said[0].contains(entry), "{entry}: {said:?}");
     }
-    let (said, _) = session.tool("write_level", json!({}));
+    let (said, _) = session.tool("run_operation", json!({ "name": "file.save" }));
     assert_eq!(said, ["the level is written, whole"]);
+    let (said, _) = session.tool("editor_history", json!({}));
+    assert!(
+        said[0].contains("steps that the level's file does not hold: 0;"),
+        "{said:?}"
+    );
     let written = fs::read_to_string(&level).expect("written");
     assert!(
         written.contains("torch-0rdx")

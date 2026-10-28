@@ -1,0 +1,12 @@
+# The editor's shortcuts: each chord, and the name of the operation that it runs
+# (`crates/slime-editor/src/operation.rs`, `docs/adr/0156-the-editors-window-and-its-operations.md`).
+
+[global]
+"Ctrl+S" = "file.save"
+"Ctrl+Q" = "file.quit"
+"Ctrl+Z" = "edit.undo"
+"Ctrl+Shift+Z" = "edit.redo"
+"Ctrl+Y" = "edit.redo"
+"Ctrl+Shift+A" = "edit.select_none"
+"Ctrl+Shift+P" = "view.palette"
+F1 = "view.shortcuts"

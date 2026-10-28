@@ -279,6 +279,18 @@ pub enum Edit {
     },
     /// Writes the level back to its file: [`Reply::Written`].
     Write,
+    /// The editor's operations, every action that its menus, its shortcuts, its palette and agents
+    /// run by name: [`Reply::Operations`].
+    Operations,
+    /// Runs the operation `name` with `arguments`, each given as text, in the order of the
+    /// operation's parameters: the operation's reply, [`Reply::Done`] or what it gives, as
+    /// [`Reply::Written`] for writing the level.
+    Run {
+        /// The operation's name: `edit.undo`.
+        name: String,
+        /// Its arguments, as text: a path for `file.open`.
+        arguments: Vec<String>,
+    },
 }
 
 /// What a game answers to a [`Request`].
@@ -375,6 +387,28 @@ pub enum Reply {
         /// What was left out.
         left_out: Vec<String>,
     },
+    /// An editor's operations, in the order of its registry.
+    Operations {
+        /// The operations.
+        operations: Vec<OperationSummary>,
+    },
+}
+
+/// An operation of an editor, as [`Reply::Operations`] lists it.
+#[derive(Clone, Debug, PartialEq, Reflect)]
+#[reflect(name = "ChannelOperation")]
+pub struct OperationSummary {
+    /// The name that runs it: `file.save`.
+    pub name: String,
+    /// What a person reads in a menu or the palette: `Save`.
+    pub label: String,
+    /// The names of its parameters, in the order of [`Edit::Run`]'s arguments: `path`.
+    pub parameters: Vec<String>,
+    /// What it changes: `history`, a step undone or done again; `file`, the level's file or which
+    /// level is open; `selection`, what is selected; `window`, what the editor's window shows;
+    /// `program`, whether it runs. None enters the history: steps are made of commands
+    /// ([`Edit::Step`]).
+    pub changes: String,
 }
 
 /// An editor's level, history and selection, as [`Reply::History`] gives them.
@@ -394,6 +428,9 @@ pub struct EditorHistory {
     pub recovered: u64,
     /// The editor's journal, a path on its machine.
     pub journal: String,
+    /// How many steps the level's file does not hold, as the editor counts them
+    /// (`slime_editor::Editor::unwritten`).
+    pub unwritten: u64,
 }
 
 /// A game's state, as a frame's start finds it.
@@ -630,6 +667,15 @@ mod tests {
                 },
             },
             Request::Edit { edit: Edit::Write },
+            Request::Edit {
+                edit: Edit::Operations,
+            },
+            Request::Edit {
+                edit: Edit::Run {
+                    name: text("file.open"),
+                    arguments: vec![text("/levels/yard.scene")],
+                },
+            },
             Request::Elements {
                 role: text("Button"),
                 name: text("open"),
@@ -772,6 +818,7 @@ mod tests {
                     selection: vec![text("zone/door")],
                     recovered: 4,
                     journal: text("/data/yard.journal"),
+                    unwritten: 2,
                 },
             },
             Reply::Journal {
@@ -779,6 +826,14 @@ mod tests {
             },
             Reply::Written {
                 left_out: vec![text("zone/door: a component of no known type")],
+            },
+            Reply::Operations {
+                operations: vec![OperationSummary {
+                    name: text("file.open"),
+                    label: text("Open"),
+                    parameters: vec![text("path")],
+                    changes: text("file"),
+                }],
             },
         ];
         for reply in replies {

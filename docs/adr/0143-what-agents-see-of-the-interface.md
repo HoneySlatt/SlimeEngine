@@ -5,7 +5,9 @@
   value comes with the first element that holds one) and [0140](0140-the-tree-of-elements.md) (each
   element carries the mark of its meaning from the milestone that builds the screen readers'
   adapter, not from this one); amended by [0146](0146-screen-readers.md) (an element's value, an
-  agent's action that sets it, and the changes of the meaning, which the marks give)
+  agent's action that sets it, and the changes of the meaning, which the marks give) and
+  [0156](0156-the-editors-window-and-its-operations.md) (a root named in paths by its key, not its
+  number)
 - Date: 2026-10-25
 
 ## Context

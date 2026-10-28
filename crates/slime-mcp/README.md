@@ -95,6 +95,10 @@ The tools, each described to the agent by the server itself, with its parameters
   of commands given as text, whole or not at all, undone and done again, entities selected, the
   steps done and undone, the selection and what the editor recovered as it started, its journal,
   and the level written back, with what its file could not hold.
+- `list_operations` and `run_operation`: an editor's operations, every action that its menus, its
+  shortcuts and its palette run, listed with their parameters and what they change, and one run
+  by its name with its arguments, as a person runs it
+  (`docs/adr/0156-the-editors-window-and-its-operations.md`).
 - `cook`: cooks a directory of source assets, which a game started with `--watch` loads again.
 - `run_tests`: runs `cargo test` with the arguments given.
 

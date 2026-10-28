@@ -318,10 +318,12 @@ one range each: the views of the tiles that the renderer's shadow passes draw
 ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)).
 
 **Editor's program.** The editor's process, `slime_editor::run`: an application of the engine whose
-*simulation* is the editor's core, without a window until Stage 6c, which opens a level, keeps its
-*journal*, and answers through the *development channel* the tools and agents that edit the level;
-a game's editor package calls it with the game's types, the `editor` example with the engine's
-([ADR-0135](adr/0135-the-editors-program.md)).
+*simulation* is the editor's core and whose *presentation* is its window, or none with
+`--headless`, which opens a level, keeps its *journal*, and answers a person through its window
+and the tools and agents that edit the level through the *development channel* alike; a game's
+editor package calls it with the game's types, the `editor` example with the engine's
+([ADR-0135](adr/0135-the-editors-program.md),
+[ADR-0156](adr/0156-the-editors-window-and-its-operations.md)).
 
 **Element (interface).** A part of an interface of the engine's UI framework, in its tree: a box, a
 label, an image, a button, a box that scrolls or a list, with its typed style
@@ -426,9 +428,10 @@ second on average. With the default *present mode*, it alone paces the frames
 the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
 
 **Frames on demand.** A program's loop that runs a frame only when something asks for one, an event
-of the window, a request of the *development channel*, a timer of the interface, a load or a cook
-that ends, rather than at the scheduled rate: an idle editor runs none
-([ADR-0155](adr/0155-the-editors-design.md)). Decided, not built yet.
+of the window, a request of the *development channel*, the interface while it moves or once its
+next change is due, the program or another thread through a waker, rather than at the scheduled
+rate: an idle editor runs none (`AppConfig::on_demand`,
+[ADR-0156](adr/0156-the-editors-window-and-its-operations.md)).
 
 **Frustum culling.** Leaving out of a pass the *instances* that it cannot show: those whose box,
 the smallest box around their mesh, lies outside the volume that the pass's camera or light covers,
@@ -831,11 +834,12 @@ dragged, which the editor's core applies to the level at once but neither journa
 history until the gesture ends: letting go makes them one *step*, Escape undoes them. Agents' steps
 wait while one is open ([ADR-0155](adr/0155-the-editors-design.md)). Decided, not built yet.
 
-**Operation (editor).** One of the actions of the editor, named in one registry with its label, its
-shortcut and its parameters, which menus, shortcuts, the palette, toolbars and agents run alike, by
-its name; those that change the level are *steps*, those that change only the view are not. Not a
-world's *command*, which an operation may make ([ADR-0155](adr/0155-the-editors-design.md)).
-Decided, not built yet.
+**Operation (editor).** One of the actions of the editor, named in one registry with its label and
+its parameters, `file.save`, which menus, shortcuts, the palette and agents run alike, by its name;
+its shortcut lives in the editor's table of shortcuts. Those that make a step enter the history,
+those that change the selection or the window do not. Not a world's *command*, which an operation
+may make (`slime_editor::OPERATIONS`, [ADR-0155](adr/0155-the-editors-design.md),
+[ADR-0156](adr/0156-the-editors-window-and-its-operations.md)).
 
 **Orthographic projection.** A camera's projection in which what is farther is as large, every
 pixel seen along the camera's axis, as a map or a plan is drawn (`slime_render::Projection`): a box

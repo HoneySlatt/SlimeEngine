@@ -1,7 +1,8 @@
 # 0021. Frame pacing
 
 - Status: Accepted; amended by [0155](0155-the-editors-design.md) (a program may run its frames
-  only when something asks for one)
+  only when something asks for one) and [0156](0156-the-editors-window-and-its-operations.md) (how:
+  `AppConfig::on_demand`, which replaces the paced run without a window)
 - Date: 2026-10-12
 
 ## Context

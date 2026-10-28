@@ -4,7 +4,9 @@
   sent to a host go through its simulation), [0122](0122-the-development-channel.md) (version 7 of
   the protocol, as built) and [0134](0134-the-editors-core.md) (what the program does with the
   journal that a crash leaves, the shape of the program, the level's file named in its journal, and
-  a level not written over once changed apart from the editor)
+  a level not written over once changed apart from the editor); amended by
+  [0156](0156-the-editors-window-and-its-operations.md) (the program opens a window, and its run
+  without a window runs its frames on demand)
 - Date: 2026-10-23
 
 ## Context

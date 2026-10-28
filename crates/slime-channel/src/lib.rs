@@ -12,13 +12,13 @@ pub use error::ChannelError;
 pub use listener::{Incoming, Listener};
 pub use message::{
     ComponentText, Edit, EditorHistory, ElementSummary, EntitySummary, GameState, Hello,
-    InterfaceAction, LogLine, Reply, Request, ViewSummary,
+    InterfaceAction, LogLine, OperationSummary, Reply, Request, ViewSummary,
 };
 pub use token::Token;
 
 /// The version of the protocol: a tool and a game of other versions refuse each other, rather
 /// than misread each other's messages.
-pub const PROTOCOL_VERSION: u32 = 9;
+pub const PROTOCOL_VERSION: u32 = 10;
 
 /// The environment variable that gives a game its token: a game started without it does not
 /// listen. A game started with it ends once its standard input closes, but when that input is a

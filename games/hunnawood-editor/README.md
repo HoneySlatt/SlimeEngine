@@ -1,10 +1,11 @@
 # hunnawood-editor
 
 *Hunna Wood*'s editor: the engine's editor (`slime-editor`), which knows the game's types through
-its library ([ADR-0110](../../docs/adr/0110-how-the-editor-runs-a-games-code.md)). Today the
-editor's program without a window, which opens the game's zone and waits for a tool, an agent
-through the engine's MCP server, to change it; its window comes with Stage 6c
-([ADR-0135](../../docs/adr/0135-the-editors-program.md)).
+its library ([ADR-0110](../../docs/adr/0110-how-the-editor-runs-a-games-code.md)): the editor's
+program, which opens the game's zone in a window of its own, its menus, the world panel and a
+status bar, where a person changes it and a tool, an agent through the engine's MCP server, drives
+it alike ([ADR-0135](../../docs/adr/0135-the-editors-program.md),
+[ADR-0156](../../docs/adr/0156-the-editors-window-and-its-operations.md)).
 
 ## Running it
 
@@ -18,11 +19,14 @@ the repository.
 cargo run -p hunnawood-editor -- --level /tmp/zone/zone.scene --journal /tmp/zone.journal
 ```
 
-The options are the editor's program's (`slime_editor::run`): `--level`, `--assets`, `--journal`
-and `--discard`. Its journal, `slime-editor/<the zone's asset ID>.journal` in the user's data
-directory, or one of its own for a copy of the zone, unless `--journal` names another file, keeps what it did not write, which it recovers as
-it starts again. Ctrl+C stops it. An agent starts it through the MCP server's `start_game`, as it
-starts the game, and drives it with the server's editor's tools (`crates/slime-mcp/README.md`).
+The options are the editor's program's (`slime_editor::run`): `--level`, `--assets`, `--journal`,
+`--discard` and `--headless`, which runs it without a window. Its journal,
+`slime-editor/<the zone's asset ID>.journal` in the user's data directory, or one of its own for a
+copy of the zone, unless `--journal` names another file, keeps what it did not write, which it
+recovers as it starts again. Closing the window, Ctrl+Q or Ctrl+C quits at once. An agent starts it
+through the MCP server's `start_game`, as it starts the game, and drives it with the server's
+editor's tools and its operations, run by name (`crates/slime-mcp/README.md`). It does not cook
+the zone when its cooked data is missing, which takes minutes: the game's README says how.
 
 `tests/zone.rs` opens the zone, writes it back, checks that every comment of the file stays above
 what it describes, and opens it again; it needs the zone cooked, and `scripts/check.sh` runs it with

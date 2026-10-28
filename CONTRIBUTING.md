@@ -239,7 +239,8 @@ environment of a headless Weston, `XDG_RUNTIME_DIR` and `WAYLAND_DISPLAY`, with
 `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"` so that lavapipe draws it, as `scripts/check.sh` runs the
 server's test. The editor's program is driven the same way: the server starts it with `start_game`,
 as a game, on a copy of a level and with a journal of the agent's (`--level`, `--journal`), and its
-editor's tools edit the level; it has no window.
+editor's tools edit the level, `run_operation` running any operation of its menus by name. It opens
+its window as a game does, in the server's environment; `--headless` runs it without one.
 
 A build for shipping leaves the channel and the dev overlay out: name the game alone, without its
 default features, `cargo build --release -p hunnawood --no-default-features`. A build of the whole
@@ -313,12 +314,15 @@ metadata file of its own, [ADR-0069](docs/adr/0069-the-asset-pipeline.md)), the 
 cooked twice and compared, then a third time, which must cook nothing, the sample game's zone
 fetched and cooked, the tests that read it, *Hunna Wood*'s editor's included, and an agent's session
 through the MCP server that edits a copy of the zone with that editor, the samples with no display
-server available, and an agent's session that edits a copy of the examples' yard with the `editor`
-example, the windowed samples, the `interface` example's interface used by an agent's session
+server available, the `editor` example's window drawn into an image, and an agent's session that
+edits a copy of the examples' yard with the `editor` example run without its window, the windowed
+samples, the `interface` example's interface used by an agent's session
 through the MCP server, which presses a button that changes its world and gives a field a value, and
 read and used through AT-SPI as a screen reader does, the `widgets` example drawn into an image, run
 in a window and its widgets, menus, list to choose from and floating panel each used by an agent's
-session through the MCP server, the `world` example's two views captured, the map's normals shown,
+session through the MCP server, the `editor` example's window used by an agent's session through the
+MCP server, its operations run by name, its menu and its palette, which must run no frame while it
+is alone, the `world` example's two views captured, the map's normals shown,
 its reports read and an entity picked at a pixel, by an agent's session through the MCP server, the
 `scene` example on a copy of the cooked sample with one byte changed, which must end with an error
 and not a panic, the game (its new runs, one that loses its GPU device after its first frame and

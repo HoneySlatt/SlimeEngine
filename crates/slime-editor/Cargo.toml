@@ -1,6 +1,6 @@
 [package]
 name = "slime-editor"
-description = "SlimeEngine's editor: its core, which changes a level through commands, undoes and redoes them, and journals them."
+description = "SlimeEngine's editor: its core, which changes a level through commands, undoes and redoes them, and journals them, and its window."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -16,12 +16,25 @@ workspace = true
 slime-app = { workspace = true, features = ["development"] }
 slime-assets.workspace = true
 slime-channel.workspace = true
+# The color that a drawing of the window into an image starts from.
+slime-color.workspace = true
 # Levels are read through the cooker's metadata files, and written as it writes files, whole or not
 # at all (ADR-0134).
 slime-cook.workspace = true
+# The dev overlay's world panel, which the window shows as the hierarchy and the inspector until
+# they come (ADR-0156).
+slime-devui.workspace = true
+# The window's drawing: the GPU, the renderer's canvas, the interface's bridge to it, and the
+# window's events (ADR-0156).
+slime-gfx.workspace = true
+slime-platform.workspace = true
+slime-render.workspace = true
 # The values that commands carry, and the comments of a level kept when it is written (ADR-0134).
 slime-reflect.workspace = true
 slime-serialize.workspace = true
+# The window's interface, in the editor's look (ADR-0148, ADR-0156).
+slime-ui = { workspace = true, features = ["editor-look"] }
+slime-ui-render.workspace = true
 # The world that the editor changes, its commands and its levels (ADR-0109).
 slime-world.workspace = true
 thiserror.workspace = true

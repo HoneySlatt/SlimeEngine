@@ -53,8 +53,10 @@ const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its dev
      editor -- --level <a copy of a level> --journal <a file of its own>`), edits its level: \
      `edit` makes a step of commands, `undo` and `redo` undo and make it again, `select` selects \
      entities, `editor_history` says its steps and selection, `editor_journal` gives its journal, \
-     and `write_level` writes the level back to its file. `cook` and `run_tests` run in the \
-     repository's root, where the server runs.";
+     `write_level` writes the level back to its file, `list_operations` lists every action of its \
+     menus, shortcuts and palette, and `run_operation` runs one by its name, as a person does. \
+     An editor opens a window unless it is started with `--headless`. `cook` and `run_tests` run \
+     in the repository's root, where the server runs.";
 
 /// The game that the server drives, if one runs.
 struct Game {
@@ -109,6 +111,17 @@ struct EditStep {
 struct Select {
     /// The entities to select, by persistent identity; empty for none.
     selection: Vec<String>,
+}
+
+/// What `run_operation` takes.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct RunOperation {
+    /// The operation's name, as `list_operations` lists it: `edit.undo`, `file.open`.
+    name: String,
+    /// Its arguments, as text, in the order of its parameters: a level's path for `file.open`;
+    /// left out for none.
+    #[serde(default)]
+    arguments: Vec<String>,
 }
 
 /// What `step` takes.
@@ -595,16 +608,35 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
             };
             text(format!(
                 "level {}; steps done, the oldest first: {}; steps undone, the next to redo first: \
-                 {}; selected: {}; entries of a journal recovered at the start: {}; journal {}",
+                 {}; selected: {}; steps that the level's file does not hold: {}; entries of a \
+                 journal recovered at the start: {}; journal {}",
                 history.level,
                 list(&history.done),
                 list(&history.undone),
                 list(&history.selection),
+                history.unwritten,
                 history.recovered,
                 history.journal
             ))
         }
         Reply::Journal { text: journal } => text(journal),
+        Reply::Operations { operations } => text(
+            operations
+                .iter()
+                .map(|operation| {
+                    let parameters = if operation.parameters.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" ({})", operation.parameters.join(", "))
+                    };
+                    format!(
+                        "{}{parameters}: {}; changes the {}",
+                        operation.name, operation.label, operation.changes
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+        ),
         Reply::Written { left_out } => text(if left_out.is_empty() {
             "the level is written, whole".to_owned()
         } else {
@@ -1070,6 +1102,33 @@ impl Server {
     )]
     async fn write_level(&self) -> Result<CallToolResult, McpError> {
         self.ask(Request::Edit { edit: Edit::Write }).await
+    }
+
+    #[tool(
+        description = "An editor's operations, every action that its menus, its shortcuts and its \
+                       palette run: each name, its parameters, its label, and what it changes: \
+                       the history, the level's file, the selection, the window or the program."
+    )]
+    async fn list_operations(&self) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Edit {
+            edit: Edit::Operations,
+        })
+        .await
+    }
+
+    #[tool(
+        description = "In an editor, runs an operation by its name, as `list_operations` lists it, \
+                       with its arguments as text in the order of its parameters, as a person runs \
+                       it from a menu, a shortcut or the palette."
+    )]
+    async fn run_operation(
+        &self,
+        Parameters(RunOperation { name, arguments }): Parameters<RunOperation>,
+    ) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Edit {
+            edit: Edit::Run { name, arguments },
+        })
+        .await
     }
 
     #[tool(

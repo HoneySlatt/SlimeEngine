@@ -50,15 +50,23 @@ name = "widgets"
 test = false
 harness = false
 
-# Edits a copy of the examples' yard through the `editor` example, which has no window, and needs
-# the examples' cooked assets: `scripts/check.sh` runs it with the samples (ADR-0135).
+# Edits a copy of the examples' yard through the `editor` example run without its window, and
+# needs the examples' cooked assets: `scripts/check.sh` runs it with the samples (ADR-0135).
 [[test]]
 name = "edit"
 test = false
 harness = false
 
-# Edits a copy of Hunna Wood's zone through its editor package, which has no window, and needs the
-# zone cooked: `scripts/check.sh` runs it with the tests that read the zone (ADR-0135).
+# Uses the `editor` example's window, its operations run by name, its menus and its palette, and
+# checks that it runs no frame while alone; it needs a compositor and the examples' cooked assets:
+# `scripts/check.sh` runs it in a headless Weston (ADR-0156).
+[[test]]
+name = "edit_window"
+test = false
+harness = false
+
+# Edits a copy of Hunna Wood's zone through its editor package run without its window, and needs
+# the zone cooked: `scripts/check.sh` runs it with the tests that read the zone (ADR-0135).
 [[test]]
 name = "edit_zone"
 test = false

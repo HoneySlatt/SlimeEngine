@@ -6,7 +6,44 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+### Added
+
+- The editor's window (ADR-0156): the editor's program, `slime_editor::run`, opens its level in a
+  window of its own in the editor's look, a menu bar, *File*, *Edit* and *Help*, the dev overlay's
+  world panel on the left, a center that holds no viewport yet, and a status bar; the window's
+  title and the status bar say how many steps the level's file does not hold
+  (`Editor::unwritten`). Closing it quits at once, the journal keeping what was not written.
+  `--headless` runs it without a window, as before. Its first run opens the program's level at
+  once, cooks the examples first if they are missing (`Program::sources`), and tells one hint; the
+  levels opened last are listed in the File menu, kept in the user's state directory.
+  `slime_editor::window_image` draws the window into an image without a window of the system,
+  which the `editor` example writes with `--output`.
+- The editor's operations: every action of its menus, shortcuts and palette is an operation that
+  `slime_editor::OPERATIONS` names, `file.open`, `file.save`, `file.quit`, `edit.undo`,
+  `edit.redo`, `edit.select_none`, `view.palette` and `view.shortcuts`, bound to keys by the
+  editor's table of shortcuts, `editor.keys`. The development channel, at version 10 of its
+  protocol, lists them and runs one by name (`Edit::Operations`, `Edit::Run`), and the MCP server
+  gains `list_operations` and `run_operation`. `file.open` opens another level in the same window.
+- Frames on demand: `AppConfig::on_demand` runs a frame only when something asks for one, an
+  event, a request of the development channel, the interface while it moves or once its next
+  change is due (`Ui::needs_frame`, `Ui::next_change`), `Context::request_frame`, or another thread
+  through a `slime_app::Waker` (`Context::waker`, `SimulationContext::waker`); the editor runs so,
+  and runs no frame while it is left alone.
+- `slime_app::state_directory`, the user's state directory; `Window::set_title` and
+  `Window::waker` in `slime-platform`, and `LoopControl::Wait`; `WorldPanel::deselect` in
+  `slime-devui`.
+
 ### Changed
+
+- `Ui::add_root` and `Ui::open_layer` take a key, which names the root in agents' paths,
+  `editor/window/menus/File`, where its number among the roots named it, which a raised floating
+  panel or a closed layer changed; the interface's own layers are named `palette`, `shortcuts`,
+  `tooltip`, `notifications`, `choices` and `colors`, and the dev overlay's panels by their
+  commands.
+- The palette of commands lists every command found, scrolling past the window's height, the
+  chosen one kept in sight, where it showed 12 at most.
+- `AppConfig::pace_headless` is gone: `AppConfig::on_demand` replaces it.
+- `slime_channel::Listener::open` takes what wakes the game as a request comes.
 
 - A game started with a token (`slime_channel::launch`, as the MCP server starts one) ends once its
   standard input closes, which the tool holds as a pipe, so that a tool that ends, crashed or not,

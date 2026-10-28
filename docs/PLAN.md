@@ -695,9 +695,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   crate (ADR-0011).
 - **Input not reported yet** (issue [#3](https://github.com/HoneySlatt/SlimeEngine/issues/3)):
   touch, touchpad gestures, gamepads, dropped files, the mouse's raw motion. The window cannot grab
-  or hide the cursor, go fullscreen, or change its title once created. Input methods and the
-  pointer's shapes came with M6b.6a; M6c.1a brings the title changed, M6c.1b the raw motion and
-  the cursor held, M6c.7 files dropped on Windows and X11, Stage 7 gamepads; files dropped on Wayland wait
+  or hide the cursor, or go fullscreen. Input methods and the pointer's shapes came with M6b.6a,
+  the title changed with M6c.1a; M6c.1b brings the raw motion and the cursor held, M6c.7 files dropped on Windows and X11, Stage 7 gamepads; files dropped on Wayland wait
   for winit 0.31 ([ADR-0155](adr/0155-the-editors-design.md)).
 - **A compositor that stops answering blocks the engine.** Before the first frame, winit waits for
   the window's first configuration without a timeout, so a termination signal is noticed only when a
@@ -1329,12 +1328,12 @@ GitHub issues, linked from their entry; this list stays the reference.
   closing it. A tooltip shows for the keys' focus alone, not the program's, and is not placed
   beside the pointer. A floating panel has a least size of its own, no docking, and does not keep
   its place against a window that shrinks, where it is placed within the window but keeps what the
-  user left. A press that raises a floating layer changes the numbers of the roots in paths. A modal
-  layer draws no scrim behind it. A style sheet reads a theme's value in place of every value but a
+  user left. A modal layer draws no scrim behind it. A style sheet reads a theme's value in place of every value but a
   text: the look names its icons by their codepoints in its sheet, not in a theme. The bar of menus
   takes Alt let go alone whenever an interface holds one, which a game whose interface holds a bar
-  loses as a key of its own. M6c.1a names roots in paths by their keys, M6c.1b draws a scrim
-  behind a modal layer; M6c.8 docks floating panels.
+  loses as a key of its own. M6c.1b draws a scrim behind a modal layer; M6c.8 docks floating
+  panels. Since M6c.1a, a root is named in paths by its key, not by its number among the roots,
+  which a raised floating layer changed.
 - **Rich fields** ([ADR-0151](adr/0151-rich-widgets.md)): a press on a focused field's prefix that
   does not drag places its caret at its start; a field's prefix and its unit's symbol are drawn
   whatever their width, cut by nothing; a bar of progress without a share that less motion stills
@@ -1344,9 +1343,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   out, which placed it from the wrong box. A content box takes its padding from the left whatever
   the root's direction, so that an asymmetric padding is mirrored wrongly from right to left, a
   drift found while placing the fields' marks, which allow for it.
-- **What the editor tells and finds** ([ADR-0151](adr/0151-rich-widgets.md)): the palette shows
-  12 commands at most, until M6c.1a scrolls it, and finds them by letters in order, without
-  forgiving a letter typed wrong; the sheet of shortcuts takes no focus, so that a screen reader
+- **What the editor tells and finds** ([ADR-0151](adr/0151-rich-widgets.md)): the palette finds
+  commands by letters in order, without forgiving a letter typed wrong (it scrolls past 12 since
+  M6c.1a); the sheet of shortcuts takes no focus, so that a screen reader
   says nothing as it opens; a notification's mark that closes it is named `close` in English; no
   check runs a screen reader on the live regions of notifications; the stack of notifications turns
   from its corner as a layer at a point does, which holds for a stack wider and taller than its

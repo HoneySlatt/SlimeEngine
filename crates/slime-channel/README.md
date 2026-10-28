@@ -6,7 +6,7 @@ engine's MCP server, tests, and later the editor
 
 ## Status
 
-The protocol, version 9: the host's controls (pause, resume, speed, steps, stop), commands that set
+The protocol, version 10: the host's controls (pause, resume, speed, steps, stop), commands that set
 a part of a component, questions on the world, captures of the game's image or of one of its views
 (`docs/adr/0126-views-apart-from-the-renderer.md`), the settings of its views read and changed
 (`docs/adr/0127-the-settings-of-a-view.md`), its reports read (`docs/adr/0128-asset-requests.md`),
@@ -17,7 +17,8 @@ two panels, a list to choose from or a color well given a value, and captured
 keys, the game's state, log and frame times, its run saved to a file and loaded from one
 (`docs/adr/0125-saves-per-scene.md`), and an editor's requests (`Request::Edit`): steps of commands
 as text, undo and redo, its history, its journal, its selection and its level written back
-(`docs/adr/0135-the-editors-program.md`). Only programs built with `slime-app`'s `development`
+(`docs/adr/0135-the-editors-program.md`), and its operations listed and run by name
+(`docs/adr/0156-the-editors-window-and-its-operations.md`). Only programs built with `slime-app`'s `development`
 feature listen; a build for shipping holds no channel.
 
 ## Role
@@ -40,7 +41,7 @@ use std::thread;
 use slime_channel::{Client, Listener, Reply, Request, Token};
 
 let token = Token::generate().expect("random bits");
-let listener = Listener::open(token.clone(), "my game").expect("a port");
+let listener = Listener::open(token.clone(), "my game", || {}).expect("a port");
 let address = listener.address();
 // A game answers at the start of its frames; here, a thread answers one request.
 let game = thread::spawn(move || loop {

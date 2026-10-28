@@ -17,10 +17,20 @@ pub struct Session {
 
 impl Session {
     /// Starts the server in `workspace`, and opens the conversation as an agent named `client`
-    /// does; returns the session, the server's process and the result of `initialize`.
+    /// does; returns the session, the server's process and the result of `initialize`. The
+    /// server, and the programs it starts, which inherit its environment, keep their data and
+    /// their state in a directory of the session's own, emptied first, never in the user's: an
+    /// editor's journals and its recent levels, a game's saves.
     pub fn start(workspace: &Path, client: &str) -> (Self, Child, Value) {
+        let user = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("slime-mcp-user-{client}"));
+        let _ = std::fs::remove_dir_all(&user);
+        let (data, state) = (user.join("data"), user.join("state"));
         let mut child = Command::new(server())
             .current_dir(workspace)
+            .env("XDG_DATA_HOME", &data)
+            .env("XDG_STATE_HOME", &state)
+            .env("APPDATA", &data)
+            .env("LOCALAPPDATA", &state)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()

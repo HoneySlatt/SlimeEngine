@@ -41,6 +41,7 @@ fn main() {
     let level = directory.join("zone.scene");
     let command = json!([
         editor.to_str().expect("a path of text"),
+        "--headless",
         "--level",
         level.to_str().expect("a path of text"),
         "--assets",

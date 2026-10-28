@@ -69,6 +69,7 @@ if runs headless; then
     cargo clippy --locked -p slime-mcp --test interface -- -D warnings
     cargo clippy --locked -p slime-mcp --test widgets -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit -- -D warnings
+    cargo clippy --locked -p slime-mcp --test edit_window -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit_zone -- -D warnings
     # The game built for shipping, without the development channel (ADR-0122): the code that stands in
     # for the channel is compiled only there.
@@ -82,6 +83,7 @@ if runs headless; then
     cargo clippy --locked -p slime-mcp --test interface --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test widgets --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit --target x86_64-pc-windows-msvc -- -D warnings
+    cargo clippy --locked -p slime-mcp --test edit_window --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit_zone --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p hunnawood --no-default-features --all-targets --target x86_64-pc-windows-msvc -- -D warnings
 
@@ -131,9 +133,16 @@ if runs headless; then
         cargo run --locked --example widgets -- --output target/widgets.png
     # The interface's text, laid out and rasterized by the CPU into an image (ADR-0136).
     cargo run --locked --example text -- --output target/text.png
+    # The editor's window on the yard, drawn into an image without a window, its journal one of the
+    # check's own (ADR-0156).
+    rm -f target/editor-check.journal
+    env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        cargo run --locked --example editor -- --assets "$cooked/first" \
+        --journal target/editor-check.journal --output target/editor.png
     # An agent's session through the MCP server edits a copy of the yard with the `editor` example,
-    # which has no window: steps made, undone and redone, the level written back and opened again,
-    # a step not written recovered from the journal (ADR-0135).
+    # run without its window: steps made, undone and redone, some by the operations' names, the
+    # level written back and opened again, a step not written recovered from the journal (ADR-0135,
+    # ADR-0156).
     cargo build --locked --example editor
     env -u WAYLAND_DISPLAY -u DISPLAY \
         timeout -k 10 300 cargo test --locked -p slime-mcp --test edit -- "$cooked/first"
@@ -172,6 +181,12 @@ if runs windowed; then
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check \
         VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 300 cargo test --locked -p slime-mcp --test widgets ||
+        { cat "$runtime/slime-check.log"; exit 1; }
+    # The editor's window used by an agent's session through the MCP server: operations run by
+    # name, its menu and its palette, the first run's hint, and no frame while it is alone (ADR-0156).
+    cargo build --locked --example editor
+    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        timeout -k 10 300 cargo test --locked -p slime-mcp --test edit_window -- "$cooked/first" ||
         { cat "$runtime/slime-check.log"; exit 1; }
     # A client of AT-SPI, the service that Orca reads, reads and uses the same example as a screen
     # reader does, on a bus of D-Bus of its own (ADR-0146, ADR-0147).
@@ -241,8 +256,9 @@ if runs game; then
     cargo run --locked --release -p slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood
     # Its editor's too, which writes the zone back with its comments (ADR-0135).
     VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test --locked -p hunnawood -p hunnawood-editor -- --ignored
-    # An agent's session through the MCP server edits a copy of the zone with the game's editor, which
-    # has no window: a component of the game changed, an entity created, undone, redone, written back.
+    # An agent's session through the MCP server edits a copy of the zone with the game's editor, run
+    # without its window: a component of the game changed, an entity created, undone, redone,
+    # written back.
     cargo build --locked -p hunnawood-editor
     env -u WAYLAND_DISPLAY -u DISPLAY timeout -k 10 300 cargo test --locked -p slime-mcp --test edit_zone
 

@@ -161,6 +161,16 @@ impl WorldPanel {
         self.refusal = None;
     }
 
+    /// Shows no entity's components, as when nothing is selected.
+    pub fn deselect(&mut self) {
+        if self.selected.is_some() {
+            self.editor.forget_angles();
+        }
+        self.selected = None;
+        self.selected_id = None;
+        self.refusal = None;
+    }
+
     /// Shows `error`, why the world refused an edit, until the panel asks for another one.
     pub fn refused(&mut self, error: &dyn fmt::Display) {
         self.refusal = Some(error.to_string());

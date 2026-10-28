@@ -17,7 +17,9 @@
   standard input closes), [0123](0123-the-linux-checks-in-two-jobs.md) (the Linux checks in three
   jobs), [0131](0131-stage-6b-and-stage-6c.md) (Stage 6c's milestones, their order and the
   owner's two checkpoints) and [0134](0134-the-editors-core.md) (a gesture made one step through an
-  open step)
+  open step); amended by [0156](0156-the-editors-window-and-its-operations.md) (an operation's
+  shortcut lives in the editor's table of shortcuts; the cache directory waits for its first user;
+  the loop's wake is built on a user event of winit 0.30's, the one way it has)
 - Date: 2026-10-27
 
 ## Context
