@@ -81,6 +81,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `Drawings::over_image` in `slime-render` is a `DrawList`, lines and now instances of the unlit
+  kind, drawn over the image with a depth of their own, so that the nearer hides the farther, where
+  it held lines alone.
 - `Ui::add_root` and `Ui::open_layer` take a key, which names the root in agents' paths,
   `editor/window/menus/File`, where its number among the roots named it, which a raised floating
   panel or a closed layer changed; the interface's own layers are named `palette`, `shortcuts`,

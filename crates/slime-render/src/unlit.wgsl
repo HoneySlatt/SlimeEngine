@@ -97,6 +97,17 @@ fn fs_main(
     return vec4<f32>(color.rgb / HEADROOM, alpha);
 }
 
+// What a client draws over the view's image (ADR-0161): its color as it is, in the output's colors,
+// after tone mapping, whatever the mode of debugging.
+@fragment
+fn fs_over_image(input: VertexOutput) -> @location(0) vec4<f32> {
+    let color = material.color * textureSample(color_texture, color_sampler, input.uv);
+    if color.a < material.alpha_cutoff {
+        discard;
+    }
+    return vec4<f32>(color.rgb, select(1.0, color.a, material.blended > 0.5));
+}
+
 // Picking (ADR-0130), as in shader.wgsl: through the view of the picked area, which group 3 holds
 // at the binding of the shadow passes' views; a blended surface is picked where its alpha reaches
 // one half, as if it were masked there.

@@ -636,11 +636,17 @@ impl Presentation for YardView {
                     lines: grid(self.framing),
                     instances: icons,
                 },
-                over_image: selected.clone(),
+                over_image: DrawList {
+                    lines: selected.clone(),
+                    ..DrawList::default()
+                },
                 ..Drawings::default()
             },
             Drawings {
-                over_image: selected,
+                over_image: DrawList {
+                    lines: selected,
+                    ..DrawList::default()
+                },
                 ..Drawings::default()
             },
         ];

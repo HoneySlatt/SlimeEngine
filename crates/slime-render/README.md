@@ -224,8 +224,10 @@ fn main() -> Result<(), RenderError> {
   target and, as a `Viewport`, the rectangle of the target that it draws into, the whole target by
   default, and, as `Drawings`, what a client draws into it besides the scene: in the scene, `Line`s,
   each a width in pixels wide, and instances, hidden by what is in front of them; over the image,
-  lines, over everything (ADR-0129); and an `Outline` around instances named by their picking
-  numbers, in one color where the scene shows them and another where it hides them, for which
+  over everything, instances of the unlit kind, with a depth of their own so that the nearer hides
+  the farther, as an editor's handles do, then lines (ADR-0129,
+  [ADR-0161](../../docs/adr/0161-the-open-step-and-the-handles.md)); and an `Outline` around
+  instances named by their picking numbers, in one color where the scene shows them and another where it hides them, for which
   the frame resolves the scene's depth into one sample
   ([ADR-0159](../../docs/adr/0159-picking-and-the-selection.md)). `Line::grid` gives the lines of a grid on the ground, and
   `facing` the transform of a square that faces the camera, an icon's. Each pass leaves out the

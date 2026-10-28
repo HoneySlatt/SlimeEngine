@@ -368,8 +368,8 @@ pub struct RenderStats {
     /// draws in the scene ([`ViewDraw::drawings`]), under the same rules as `scene_gpu_time`;
     /// `None` too for a frame that draws none of them.
     pub after_sky_gpu_time: Option<Duration>,
-    /// How long the GPU took to draw what a client draws over the view's image, under the same
-    /// rules; `None` too for a frame that draws nothing there.
+    /// How long the GPU took to draw what a client draws over the view's image, its depth's clear
+    /// included, under the same rules; `None` too for a frame that draws nothing there.
     pub over_image_gpu_time: Option<Duration>,
     /// How long the GPU took to draw the outline ([`Drawings::outline`]): the scene's depth
     /// resolved into one sample, the mask, and the outline over the image, summed, under the same
@@ -439,6 +439,9 @@ pub struct View {
     /// rectangle starts in its output and how many of the mask's texels make a pixel of it, and
     /// its width, written at every frame that outlines something.
     outline_settings: UniformBuffer,
+    /// The depth of what a client draws over the image, at its output's size, made by the first
+    /// frame that draws over it, and again for an output of another size (ADR-0161).
+    over_image_depth: Option<DepthTarget>,
     /// The pickings asked of it that it has not drawn yet, the oldest first ([`View::pick`]).
     picks: Vec<Arc<Mutex<PickState>>>,
     /// The lines that a client draws into it, made by the first frame that draws one, and made
@@ -787,22 +790,24 @@ impl<'a> ViewDraw<'a> {
 /// each pixel of the view's rectangle, bilinearly between its texels when the view's targets are
 /// not the rectangle's size ([`ViewSettings::render_scale`]), mixes the blurred copy in by the
 /// scene's bloom strength and maps the light to the output's range with Khronos PBR Neutral, or
-/// writes a mode of debugging's colors as they are ([`DebugMode`]). Two passes more run only when
+/// writes a mode of debugging's colors as they are ([`DebugMode`]). Passes more run only when
 /// they draw something (ADR-0129): after the sky pass, over the scene's targets and with its
 /// depth, one draws the scene's blended surfaces, which write no depth and which the sky would
 /// otherwise cover, and what a client draws in the scene ([`ViewDraw::drawings`]); after the
-/// tone-mapping pass, one draws what a client draws over the view's rectangle of its output. Three
+/// tone-mapping pass, one clears a depth target of the output's size, and one draws with it what a
+/// client draws over the view's rectangle of its output (ADR-0161). Three
 /// more run only when a client outlines instances that the view draws ([`Drawings::outline`],
 /// ADR-0159): after the pass after the sky, one resolves the scene's depth into one sample, the
 /// farthest of four, when the view has four, and one draws the outline's mask, compared with that
 /// depth; after the tone-mapping pass, one lays the outline over the view's rectangle, before what
 /// a client draws there.
 ///
-/// The renderer owns what every view shares: seven shaders and forty-three pipelines. Each kind of
+/// The renderer owns what every view shares: seven shaders and forty-nine pipelines. Each kind of
 /// material has three for the scene pass, which differ by the faces they cull and among which each
 /// draw chooses (ADR-0035), and the same three for targets of one sample per pixel; the physically
 /// based kind two for the shadow pass (the second discards what masked materials discard), the
-/// unlit kind, which casts no shadows, none, but six more for its blended materials. The sky pass
+/// unlit kind, which casts no shadows, none, but six more for its blended materials, and six for
+/// what a client draws over the image, opaque and blended, one for each culling. The sky pass
 /// has one for each number of samples, as the lines drawn in the scene do; the resolve pass, the
 /// bloom (down and up), the tone-mapping pass, the lines drawn over the image, the depth's resolve
 /// and the outline one each; and each kind three for picking, one for each culling, into a target
@@ -960,6 +965,8 @@ pub(crate) enum Pass {
     ToneMapping,
     /// The outline over the view's image, around what its mask covers.
     Outline,
+    /// The depth of what a client draws over the view's image cleared.
+    OverImageDepth,
     /// What a client draws over the view's image ([`Drawings::over_image`]).
     OverImage,
 }
@@ -1001,6 +1008,9 @@ struct Prepared {
     /// those that it draws in the scene ([`Drawings::outline`]).
     outline_draws: Vec<Batch>,
     outline_drawing_draws: Vec<Batch>,
+    /// The draws of the instances that a client draws over the image, each `first` an index in
+    /// those ([`Drawings::over_image`]), those of blended materials last.
+    over_image_draws: Vec<Batch>,
     /// How many of a client's lines it draws in the scene, and over the image, and how many it left
     /// out beyond what the device's storage buffers hold.
     lines: (u32, u32),
@@ -1439,6 +1449,7 @@ impl Renderer {
             shadow_views_group,
             tone_mapping_settings,
             outline_settings,
+            over_image_depth: None,
             picks: Vec::new(),
             lines: None,
             stats: RenderStats::default(),
@@ -2127,7 +2138,19 @@ impl Renderer {
         // scene pass's pipelines and in its order of draws: their values follow the scene's in
         // the buffer, as many as it has room for, and their draws follow the shadow passes' in the
         // list.
-        let extra = drawings.map_or(&[][..], |drawings| &drawings.in_scene.instances[..]);
+        // Those drawn over the image follow, culled and placed alike, their draws apart
+        // (ADR-0161).
+        let in_scene = drawings.map_or(0, |drawings| drawings.in_scene.instances.len());
+        let extra: Vec<&Instance> = drawings
+            .map(|drawings| {
+                drawings
+                    .in_scene
+                    .instances
+                    .iter()
+                    .chain(&drawings.over_image.instances)
+                    .collect()
+            })
+            .unwrap_or_default();
         reuse(drawing_models, extra.len());
         drawing_models.extend(
             extra
@@ -2157,8 +2180,31 @@ impl Renderer {
         }
         reuse(drawing_keys, extra.len());
         // No shadow pass draws them: their keys of the shadow passes stay empty.
-        draw_keys(extra, drawing_passes, drawing_keys, &mut Vec::new());
-        let drawing_draws = batches(drawing_keys.iter().copied(), drawing_values_of, list);
+        draw_keys(
+            extra.iter().copied(),
+            drawing_passes,
+            drawing_keys,
+            &mut Vec::new(),
+        );
+        let drawing_draws = batches(
+            drawing_keys
+                .iter()
+                .copied()
+                .filter(|&key| slot_of(key) < in_scene),
+            drawing_values_of,
+            list,
+        );
+        // Over the image, the unlit kind's alone, each batch's first counted among those.
+        let mut over_image_draws = batches(
+            drawing_keys.iter().copied().filter(|&key| {
+                slot_of(key) >= in_scene && extra[slot_of(key)].material.inner.kind == UNLIT
+            }),
+            drawing_values_of,
+            list,
+        );
+        for batch in &mut over_image_draws {
+            batch.first -= in_scene;
+        }
         // The outline's mask draws those that the client outlines, among those that the scene
         // pass and the pass after the sky draw, in their order (ADR-0159).
         let outline = drawings
@@ -2180,7 +2226,7 @@ impl Renderer {
             drawing_keys
                 .iter()
                 .copied()
-                .filter(|&key| outlined(&extra[slot_of(key)])),
+                .filter(|&key| slot_of(key) < in_scene && outlined(extra[slot_of(key)])),
             drawing_values_of,
             list,
         );
@@ -2224,6 +2270,7 @@ impl Renderer {
             .chain(
                 extra
                     .iter()
+                    .copied()
                     .zip(drawing_models.iter().zip(drawing_values_of.iter())),
             );
         for (instance, (&model, &value_of)) in all {
@@ -2274,7 +2321,7 @@ impl Renderer {
             let (in_scene, left_out) =
                 pack_lines(&drawings.in_scene.lines, origin, segments, most_segments);
             let (over_image, more_left_out) = pack_lines(
-                &drawings.over_image,
+                &drawings.over_image.lines,
                 origin,
                 segments,
                 most_segments - in_scene,
@@ -2450,6 +2497,18 @@ impl Renderer {
             view.frame_group = (environment.clone(), group);
         }
 
+        // The depth over the image, at its output's size, whose clear the frame's graph runs.
+        if (lines.1 > 0 || !over_image_draws.is_empty())
+            && view.over_image_depth.as_ref().is_none_or(|depth| {
+                (depth.width(), depth.height()) != (draw.target.width(), draw.target.height())
+            })
+        {
+            view.over_image_depth = Some(gpu.create_depth_target(
+                "over the image",
+                draw.target.width(),
+                draw.target.height(),
+            )?);
+        }
         let shape = Shape {
             width,
             height,
@@ -2460,7 +2519,7 @@ impl Renderer {
             bloom,
             whole: viewport == Viewport::whole(draw.target),
             after_sky: !blended_draws.is_empty() || !drawing_draws.is_empty() || lines.0 > 0,
-            over_image: lines.1 > 0,
+            over_image: lines.1 > 0 || !over_image_draws.is_empty(),
             outline: outlines,
         };
         if view.frame.as_ref().is_none_or(|frame| frame.shape != shape) {
@@ -2489,6 +2548,7 @@ impl Renderer {
             drawing_draws,
             outline_draws,
             outline_drawing_draws,
+            over_image_draws,
             lines,
             lines_left_out,
             pick,
@@ -2517,6 +2577,9 @@ impl Renderer {
             if let (true, Some(atlas)) = (drawn, atlas) {
                 imported.push(Imported::Depth(atlas));
             }
+        }
+        if let (true, Some(depth)) = (prepared.shape.over_image, &view.over_image_depth) {
+            imported.push(Imported::Depth(depth));
         }
         let groups = ViewGroups {
             frame: &view.frame_group.1,
@@ -2817,6 +2880,8 @@ impl Renderer {
                     render_pass.draw(0..prepared.lines.0 * 6);
                 }
             }
+            // The pass clears the depth over the image, and draws nothing.
+            Pass::OverImageDepth => {}
             Pass::OverImage => render_pass.debug_group("drawings over the image", |render_pass| {
                 if let Some(Viewport {
                     x,
@@ -2827,14 +2892,41 @@ impl Renderer {
                 {
                     render_pass.set_viewport(x, y, width, height);
                 }
-                let lines = groups
-                    .lines
-                    .expect("a view that draws lines has their buffers");
-                render_pass.set_pipeline(&self.pipelines.lines_over_image);
+                // The client's unlit instances, nearest first among themselves, then its lines over
+                // them all.
                 render_pass.set_bind_group(0, groups.frame, &[]);
-                render_pass.set_bind_group(1, &lines.groups[1], &[]);
+                render_pass.set_bind_group(2, groups.instances, &[]);
+                let over = groups
+                    .drawings
+                    .map_or(&[][..], |drawings| &drawings.over_image.instances[..]);
+                let mut bound = Bound::default();
+                for batch in &prepared.over_image_draws {
+                    let instance = &over[batch.first];
+                    let cull = scene_cull(instance);
+                    let blended = instance.material.inner.blended;
+                    let pipeline = scene_pipeline(UNLIT, cull, blended);
+                    if bound.pipeline != Some(pipeline) {
+                        let pipelines = &self.pipelines.over_image[usize::from(blended)];
+                        render_pass.set_pipeline(pipelines.get(cull));
+                        bound.pipeline = Some(pipeline);
+                    }
+                    draw(
+                        render_pass,
+                        &mut bound,
+                        instance,
+                        true,
+                        batch.instances.clone(),
+                    );
+                }
                 let (in_scene, over_image) = prepared.lines;
-                render_pass.draw(in_scene * 6..(in_scene + over_image) * 6);
+                if over_image > 0 {
+                    let lines = groups
+                        .lines
+                        .expect("a view that draws lines has their buffers");
+                    render_pass.set_pipeline(&self.pipelines.lines_over_image);
+                    render_pass.set_bind_group(1, &lines.groups[1], &[]);
+                    render_pass.draw(in_scene * 6..(in_scene + over_image) * 6);
+                }
             }),
             Pass::Sky => {
                 render_pass.set_pipeline(self.pipelines.sky.get(prepared.shape.multisampled));
@@ -2962,6 +3054,7 @@ impl Renderer {
                     | Pass::Scene
                     | Pass::Sky
                     | Pass::AfterSky
+                    | Pass::OverImageDepth
                     | Pass::OverImage => return Ok(None),
                     Pass::Resolve => (
                         "resolve".to_owned(),
@@ -3071,6 +3164,7 @@ fn fold_gpu_times(
 ) {
     let mut bloom: Option<Option<Duration>> = None;
     let mut outline: Option<Option<Duration>> = None;
+    let mut over_image: Option<Option<Duration>> = None;
     for (index, pass) in passes.enumerate() {
         let time = time(index);
         let sum = |sum: Option<Option<Duration>>| {
@@ -3089,11 +3183,12 @@ fn fold_gpu_times(
             Pass::BloomDown(_) | Pass::BloomUp(_) => bloom = sum(bloom),
             Pass::DepthResolve | Pass::OutlineMask | Pass::Outline => outline = sum(outline),
             Pass::ToneMapping => stats.tone_mapping_gpu_time = time,
-            Pass::OverImage => stats.over_image_gpu_time = time,
+            Pass::OverImageDepth | Pass::OverImage => over_image = sum(over_image),
         }
     }
     stats.bloom_gpu_time = bloom.flatten();
     stats.outline_gpu_time = outline.flatten();
+    stats.over_image_gpu_time = over_image.flatten();
 }
 
 /// The graph of a frame of `shape`, declared in the order the passes run, not compiled yet.
@@ -3105,6 +3200,9 @@ fn declare_frame(shape: Shape) -> Graph {
     let spot_atlas = shape
         .spot_shadows
         .then(|| graph.import_depth("spot shadow atlas"));
+    let over_depth = shape
+        .over_image
+        .then(|| graph.import_depth("depth over the image"));
     // The scene and the sky are drawn at four samples per pixel, which smooths the edges of what
     // they draw (ADR-0056), then resolved into a target of one sample that the later passes
     // sample; without anti-aliasing, into that target itself, of one label in both shapes, so that
@@ -3279,13 +3377,19 @@ fn declare_frame(shape: Shape) -> Graph {
             [Some(mask.into()), None],
         ));
     }
-    // Over the view's image, in its rectangle.
-    if shape.over_image {
+    // Over the view's image, in its rectangle, with a depth of its own, cleared first by a pass
+    // of its own: a pass that keeps the image clears no depth (ADR-0161).
+    if let Some(depth) = over_depth {
+        graph.add_pass(pass(
+            Pass::OverImageDepth,
+            Draws::Depth(depth),
+            [None, None],
+        ));
         graph.add_pass(pass(
             Pass::OverImage,
             Draws::Color {
                 target: output,
-                depth: None,
+                depth: Some(depth),
                 clear: false,
                 resolve: None,
             },
@@ -3482,6 +3586,9 @@ struct Pipelines {
     lines: Sampled<RenderPipeline>,
     /// Draws a client's lines over the view's image.
     lines_over_image: RenderPipeline,
+    /// Draws a client's unlit instances over the view's image, with the depth over it, opaque and
+    /// blended, each for each culling (ADR-0161).
+    over_image: [ScenePipelines; 2],
     /// Resolves the scene's depth into one sample, the farthest.
     depth_resolve: RenderPipeline,
     /// Draws the outline over the view's image, around its mask.
@@ -3571,6 +3678,7 @@ impl Pipelines {
                 .expect("every file's module is made first")
                 .1
         };
+        let unlit = &kinds[UNLIT];
         let kinds = kinds
             .iter()
             .map(|kind| KindPipelines::new(gpu, module(kind.kind.shader(sources).0), layouts, kind))
@@ -3601,9 +3709,13 @@ impl Pipelines {
             multisampled: sky("sky", true)?,
             single: sky("sky, one sample", false)?,
         };
-        // Laid over what is drawn, by their alpha and the share of each pixel they cover; in the
-        // scene, where they are as near as what is there or nearer, without writing their depth.
-        let lines = |label: &str, target_format: TextureFormat, in_scene: Option<bool>| {
+        // Laid over what is drawn, by their alpha and the share of each pixel they cover, without
+        // writing their depth: in the scene, where they are as near as what is there or nearer;
+        // over the image, over everything, the instances drawn there too.
+        let lines = |label: &str,
+                     target_format: TextureFormat,
+                     multisampled: bool,
+                     compare: DepthCompare| {
             gpu.create_render_pipeline(&RenderPipelineDescriptor {
                 label,
                 shader: &lines_shader,
@@ -3615,20 +3727,63 @@ impl Pipelines {
                     blend: Some(Blend::Alpha),
                 }),
                 bind_group_layouts: &[&layouts.frame, &layouts.lines],
-                depth: in_scene.map(|_| DepthState {
-                    compare: DepthCompare::GreaterEqual,
+                depth: Some(DepthState {
+                    compare,
                     write: false,
                     bias: DepthBias::default(),
                 }),
                 cull: CullMode::None,
-                multisampled: in_scene.unwrap_or(false),
+                multisampled,
             })
         };
         let lines_in_scene = Sampled {
-            multisampled: lines("lines", HDR_FORMAT, Some(true))?,
-            single: lines("lines, one sample", HDR_FORMAT, Some(false))?,
+            multisampled: lines("lines", HDR_FORMAT, true, DepthCompare::GreaterEqual)?,
+            single: lines(
+                "lines, one sample",
+                HDR_FORMAT,
+                false,
+                DepthCompare::GreaterEqual,
+            )?,
         };
-        let lines_over_image = lines("lines over the image", format, None)?;
+        let lines_over_image = lines("lines over the image", format, false, DepthCompare::Always)?;
+        // The unlit kind over the image, in the output's colors, nearer than what it drew before.
+        let over_image = |label: &str, cull: CullMode, blended: bool| {
+            gpu.create_render_pipeline(&RenderPipelineDescriptor {
+                label,
+                shader: module(unlit.kind.shader(sources).0),
+                vertex_entry_point: "vs_main",
+                vertex_layout: Some(VERTEX_LAYOUT),
+                fragment: Some(FragmentState {
+                    entry_point: "fs_over_image",
+                    target_format: Some(format),
+                    blend: blended.then_some(Blend::Alpha),
+                }),
+                bind_group_layouts: &[&layouts.frame, &unlit.layout, &layouts.instance],
+                depth: Some(DepthState {
+                    compare: DepthCompare::Greater,
+                    write: !blended,
+                    bias: DepthBias::default(),
+                }),
+                cull,
+                multisampled: false,
+            })
+        };
+        let over_image_pipelines = |blended: bool| -> Result<ScenePipelines, GfxError> {
+            Ok(ScenePipelines {
+                back_culled: over_image(
+                    "over the image, back faces culled",
+                    CullMode::Back,
+                    blended,
+                )?,
+                front_culled: over_image(
+                    "over the image, front faces culled",
+                    CullMode::Front,
+                    blended,
+                )?,
+                unculled: over_image("over the image, no face culled", CullMode::None, blended)?,
+            })
+        };
+        let over_image = [over_image_pipelines(false)?, over_image_pipelines(true)?];
         // The passes that cover their target with one triangle, without depth.
         let fullscreen = |label: &str,
                           shader: &ShaderModule,
@@ -3684,6 +3839,7 @@ impl Pipelines {
             )?,
             lines: lines_in_scene,
             lines_over_image,
+            over_image,
             // Writes each pixel's depth whatever the depth target held, cleared before.
             depth_resolve: gpu.create_render_pipeline(&RenderPipelineDescriptor {
                 label: "depth resolve",
@@ -4157,37 +4313,40 @@ fn place_values(passes: &mut [u32], most: u32, values_of: &mut Vec<u32>) -> (u32
 /// the same from one frame to the next, whatever the addresses of their materials and meshes and
 /// whatever the others that the passes draw, so that two surfaces at the same depth are drawn the
 /// same way.
-fn draw_keys(
-    instances: &[Instance],
+fn draw_keys<'a>(
+    instances: impl IntoIterator<Item = &'a Instance>,
     passes: &[u32],
     scene: &mut Vec<u128>,
     shadows: &mut Vec<u128>,
 ) {
     keys(
-        instances.iter().zip(passes).map(|(instance, &passes)| {
-            let in_scene = passes & SCENE_PASS != 0;
-            Draw {
-                // Worked out only for the instances drawn: it normalizes the transform's axes.
-                scene_pipeline: if in_scene {
-                    scene_pipeline(
+        instances
+            .into_iter()
+            .zip(passes)
+            .map(|(instance, &passes)| {
+                let in_scene = passes & SCENE_PASS != 0;
+                Draw {
+                    // Worked out only for the instances drawn: it normalizes the transform's axes.
+                    scene_pipeline: if in_scene {
+                        scene_pipeline(
+                            instance.material.inner.kind,
+                            scene_cull(instance),
+                            instance.material.inner.blended,
+                        )
+                    } else {
+                        0
+                    },
+                    shadow_pipeline: shadow_pipeline(
                         instance.material.inner.kind,
-                        scene_cull(instance),
-                        instance.material.inner.blended,
-                    )
-                } else {
-                    0
-                },
-                shadow_pipeline: shadow_pipeline(
-                    instance.material.inner.kind,
-                    instance.material.inner.masked,
-                ),
-                masked: instance.material.inner.masked,
-                material: instance.material.identity(),
-                mesh: instance.mesh.identity(),
-                in_scene,
-                in_shadows: passes & !SCENE_PASS != 0,
-            }
-        }),
+                        instance.material.inner.masked,
+                    ),
+                    masked: instance.material.inner.masked,
+                    material: instance.material.identity(),
+                    mesh: instance.mesh.identity(),
+                    in_scene,
+                    in_shadows: passes & !SCENE_PASS != 0,
+                }
+            }),
         scene,
         shadows,
     );
@@ -4814,6 +4973,7 @@ mod tests {
                     expected.push(Pass::Outline);
                 }
                 if shape.over_image {
+                    expected.push(Pass::OverImageDepth);
                     expected.push(Pass::OverImage);
                 }
                 let passes: Vec<Pass> = graph

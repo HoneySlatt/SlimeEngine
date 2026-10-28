@@ -96,14 +96,16 @@ pub fn facing(position: DVec3, eye: DVec3, side: f64) -> DAffine3 {
     DAffine3::from_scale_rotation_translation(DVec3::splat(side), rotation, position)
 }
 
-/// What a client draws at the first point of a view's frame, in the scene ([`Drawings`]).
+/// What a client draws at one point of a view's frame, in the scene or over the image
+/// ([`Drawings`], which says how each point draws them).
 #[derive(Clone, Debug, Default)]
 pub struct DrawList {
-    /// The lines, laid over what the scene and the instances draw, in their order.
+    /// The lines, laid over what the instances draw, in their order.
     pub lines: Vec<Line>,
-    /// The instances, of any kind of material, an unlit one for an icon or a handle: drawn as the
-    /// scene's are, with their depth, lit and shadowed as they are, but casting no shadow, and not
-    /// counted when the directional light's cascades are fitted to what casts shadows.
+    /// The instances, an unlit one for an icon or a handle. In the scene, of any kind of material:
+    /// drawn as the scene's are, with their depth, lit and shadowed as they are, but casting no
+    /// shadow, and not counted when the directional light's cascades are fitted to what casts
+    /// shadows. Over the image, of the unlit kind alone.
     pub instances: Vec<Instance>,
 }
 
@@ -117,9 +119,10 @@ pub struct Drawings {
     /// on a surface may be hidden by it in places: lift it off a little.
     pub in_scene: DrawList,
     /// Drawn over the view's image once tone mapped, over everything, in the output's colors, as
-    /// the box around what is selected is: lines alone until the editor's handles need instances
-    /// there.
-    pub over_image: Vec<Line>,
+    /// an editor's handles and the box around what is selected are (ADR-0161): instances of the
+    /// unlit kind alone, with a depth of their own, so that the nearer hides the farther, those of
+    /// another kind left out; then the lines, over the instances too.
+    pub over_image: DrawList,
     /// The outline drawn around instances over the view's image, as around what an editor
     /// selected: none by default.
     pub outline: Outline,

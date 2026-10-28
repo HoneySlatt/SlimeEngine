@@ -209,7 +209,7 @@ impl Level {
             for from in 0..8 {
                 for axis in [1, 2, 4] {
                     if from & axis == 0 {
-                        drawings.over_image.push(Line {
+                        drawings.over_image.lines.push(Line {
                             from: corner(from),
                             to: corner(from | axis),
                             color: outline.seen,
@@ -220,7 +220,7 @@ impl Level {
             }
         }
         if marks.wireframe {
-            self.wireframe(world, &marked, marks.scale, &mut drawings.over_image);
+            self.wireframe(world, &marked, marks.scale, &mut drawings.over_image.lines);
         }
     }
 
@@ -869,13 +869,13 @@ mod tests {
             &mut drawings,
             &marks(vec![entity]),
         );
-        assert_eq!(drawings.over_image.len(), 12, "a box's edges");
+        assert_eq!(drawings.over_image.lines.len(), 12, "a box's edges");
         assert!(
             drawings.outline.picks.is_empty(),
             "nothing drawn to outline"
         );
         // Two metres a side, around where it stands.
-        for line in &drawings.over_image {
+        for line in &drawings.over_image.lines {
             for end in [line.from, line.to] {
                 let offset = (end - DVec3::new(1.0, 2.0, 3.0)).abs();
                 assert!(offset.abs_diff_eq(DVec3::ONE, 1e-9), "{end}");

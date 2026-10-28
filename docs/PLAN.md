@@ -1155,12 +1155,14 @@ GitHub issues, linked from their entry; this list stays the reference.
   from the cooked data that its `Picker` was made with, not again when it changes. Lines are not
   picked. *Hunna Wood* does not pick yet: a tool's picking in it is refused. Scripted input has no
   mouse, so that an agent picks through the MCP server's `pick` tool, not by clicking.
-- **What a client draws into a view is lines and instances in the scene, and lines over the image**
-  ([ADR-0129](adr/0129-drawing-for-the-editor.md)), and **an outline around instances**
+- **What a client draws into a view is lines and instances, in the scene and over the image**
+  ([ADR-0129](adr/0129-drawing-for-the-editor.md),
+  [ADR-0161](adr/0161-the-open-step-and-the-handles.md)), and **an outline around instances**
   ([ADR-0159](adr/0159-picking-and-the-selection.md)), for which a frame resolves the scene's
-  depth; instances over the image, which need a depth of their own, come with M6c.3's handles. The
-  outline's cost has not been measured at 3840 × 2160 with many entities selected: at its widest,
-  each pixel of the view reads its mask 289 times.
+  depth. Over the image, the unlit kind's instances alone are drawn, the others left out without a
+  warning, with a depth target as large as the view's output, whichever rectangle the view draws
+  into. The outline's cost has not been measured at 3840 × 2160 with many entities selected: at its
+  widest, each pixel of the view reads its mask 289 times.
   A line that lies on a surface may be hidden by it in places; blended surfaces are drawn in no
   particular order until Stage 9a sorts them. The `world` example selects with Tab from the
   keyboard alone: scripted keys reach a game's input, which its simulation reads, not its

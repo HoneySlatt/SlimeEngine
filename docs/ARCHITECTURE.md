@@ -572,7 +572,9 @@ renderer = Renderer::new(&gpu, format)                 the output's format; its 
 │                                                      of samples; the resolve's, the bloom's two
 │                                                      (down and up), the tone-mapping one (each
 │                                                      a fullscreen triangle) and the lines'
-│                                                      over the image; for each kind, three
+│                                                      over the image; the unlit kind's six over
+│                                                      the image, opaque and blended, one for
+│                                                      each culling (ADR-0161); for each kind, three
 │                                                      for picking, one for each culling, into
 │                                                      an Rg32Uint target; the BRDF
 │                                                      table, computed once per process; a black
@@ -660,8 +662,9 @@ renderer = Renderer::new(&gpu, format)                 the output's format; its 
     │   instances as a storage buffer holds the values of, the last left out with a warning
     ├── the instances' storage buffers, bind group 2 ← each instance that a pass draws: its
     │   relative transform, normal matrix and handedness (−1 when it mirrors), in the scene's
-    │   order, then those of the client's instances in the scene (Drawings::in_scene) that the
-    │   camera sees; and for each draw of each pass, where the values of its instances are;
+    │   order, then those of the client's instances in the scene (Drawings::in_scene) and over
+    │   the image (Drawings::over_image) that the camera sees; and for each draw of each pass,
+    │   where the values of its instances are;
     │   grown when a frame needs it, shrunk back after a peak
     ├── the client's lines (drawings.rs), those in the scene then those over the image, relative
     │   to the camera, into the view's buffer of segments, made by the first frame that draws one
@@ -745,8 +748,11 @@ renderer = Renderer::new(&gpu, format)                 the output's format; its 
     │   │   target (outline.wgsl): each pixel outside the mask, within the outline's width of a
     │   │   texel that it covers, laid over by the outline's color where the scene shows what is
     │   │   outlined nearby, and by the hidden part's otherwise, fading over its last pixel
-    │   └── when the client draws over the image: the pass of its lines into the view's
-    │       rectangle of the target, as in the scene, but over everything, in the output's colors
+    │   └── when the client draws over the image: a pass that clears a depth target of the
+    │       output's size, the view's own, then a pass into the view's rectangle of the target,
+    │       with that depth: the client's unlit instances, nearer than what they drew before
+    │       (fs_over_image, in the output's colors), then its lines, as in the scene, but over
+    │       everything (ADR-0161)
     ├── when a picking was asked of the view: in a submission of its own, the instances that the
     │   scene pass and the pass after the sky drew, each kind's vs_pick and fs_pick through the
     │   area's view, each instance's number (Instance::pick) into an Rg32Uint target of the

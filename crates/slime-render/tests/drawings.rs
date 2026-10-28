@@ -5,8 +5,9 @@
 //! instances drawn in the scene are hidden by what is in front of them, and a blended one is laid
 //! over what is behind it; a line on the ground that runs away from the camera keeps its width all
 //! along; a view drawn into a rectangle of its output draws its lines over the image there; a line that runs behind the camera draws its part in front; the
-//! drawings' passes run only in the views that have drawings. Runs on whatever adapter the machine
-//! offers.
+//! drawings' passes run only in the views that have drawings; unlit instances over the image hide
+//! one another by their depth, over everything, a blended one laid over them, those of another
+//! kind left out. Runs on whatever adapter the machine offers.
 
 #[path = "common/tone_curve.rs"]
 #[expect(
@@ -19,8 +20,8 @@ use slime_color::LinearColor;
 use slime_gfx::{FloatImage, Gpu, TextureFormat};
 use slime_render::glam::{DAffine3, DVec3};
 use slime_render::{
-    AlphaMode, Camera, DrawList, Drawings, Instance, Line, Mesh, MeshData, Renderer, Scene,
-    UnlitData, View, ViewDraw, ViewSettings, Viewport,
+    AlphaMode, Camera, DrawList, Drawings, Instance, Line, MaterialData, Mesh, MeshData, Renderer,
+    Scene, UnlitData, View, ViewDraw, ViewSettings, Viewport,
 };
 
 use tone_curve::tone_map;
@@ -146,7 +147,10 @@ fn a_line_over_the_image_is_its_width_in_pixels_wide_in_its_color_over_everythin
     let scene = Scene::new([drawing.square(GREEN, AlphaMode::Opaque, 2.0, 0.0)]);
     let mut view = drawing.view(ViewSettings::default());
     let drawings = Drawings {
-        over_image: vec![across(RED, 4.0, -1.0)],
+        over_image: DrawList {
+            lines: vec![across(RED, 4.0, -1.0)],
+            ..DrawList::default()
+        },
         ..Drawings::default()
     };
     let image = drawing.draw(&scene, &mut view, &drawings);
@@ -282,7 +286,10 @@ fn a_view_drawn_into_a_rectangle_draws_its_lines_over_the_image_there() {
         .create_render_target("halves", SIZE, SIZE, FORMAT)
         .expect("the GPU has memory for it");
     let drawings = Drawings {
-        over_image: vec![across(RED, 4.0, 0.0)],
+        over_image: DrawList {
+            lines: vec![across(RED, 4.0, 0.0)],
+            ..DrawList::default()
+        },
         ..Drawings::default()
     };
     // The right half, half as wide as it is high: the line across it, through its middle.
@@ -327,7 +334,10 @@ fn a_line_that_runs_behind_the_camera_draws_its_part_in_front_of_it() {
     };
     for drawings in [
         Drawings {
-            over_image: vec![line],
+            over_image: DrawList {
+                lines: vec![line],
+                ..DrawList::default()
+            },
             ..Drawings::default()
         },
         Drawings {
@@ -361,11 +371,90 @@ fn the_drawings_passes_run_only_in_the_views_that_have_drawings() {
     let mut view = drawing.view(ViewSettings::default());
     let without = drawing.draw(&scene, &mut view, &Drawings::default());
     let drawings = Drawings {
-        over_image: vec![across(RED, 2.0, 0.0)],
+        over_image: DrawList {
+            lines: vec![across(RED, 2.0, 0.0)],
+            ..DrawList::default()
+        },
         ..Drawings::default()
     };
     let with = drawing.draw(&scene, &mut view, &drawings);
     let empty = drawing.draw(&scene, &mut view, &Drawings::default());
     assert_ne!(with.pixels, without.pixels);
     assert_eq!(empty.pixels, without.pixels);
+}
+
+/// Unlit instances over the image (`docs/adr/0161-the-open-step-and-the-handles.md`): over the
+/// scene, whatever lies in front of them there, in their colors as they are, the nearer hiding the
+/// farther whatever their order, and the lines over them all; a blended one laid over what is
+/// behind it, and one of the physically based kind left out.
+#[test]
+fn instances_over_the_image_hide_one_another_by_their_depth_over_everything() {
+    let mut drawing = Drawing::new();
+    // A green square in the scene, in front of the instances drawn over the image.
+    let scene = Scene::new([drawing.square(GREEN, AlphaMode::Opaque, 4.0, 2.0)]);
+    let mut view = drawing.view(ViewSettings::default());
+    let blue = LinearColor::rgb(0.0, 0.0, 0.8);
+    let row = SIZE / 2 - 8;
+    // The red square nearer, and the blue one behind it, wider, given in either order.
+    for red_last in [true, false] {
+        let mut instances = vec![
+            drawing.square(blue, AlphaMode::Opaque, 2.0, -1.0),
+            drawing.square(RED, AlphaMode::Opaque, 1.0, 0.0),
+        ];
+        if !red_last {
+            instances.reverse();
+        }
+        let drawings = Drawings {
+            over_image: DrawList {
+                instances,
+                lines: vec![across(LinearColor::rgb(1.0, 1.0, 1.0), 2.0, 0.5)],
+            },
+            ..Drawings::default()
+        };
+        let image = drawing.draw(&scene, &mut view, &drawings);
+        let (middle, beside) = (pixel(&image, (SIZE / 2, row)), pixel(&image, (20, row)));
+        assert!(near(middle, [1.0, 0.0, 0.0]), "the red square: {middle:?}");
+        assert!(
+            near(beside, [0.0, 0.0, 0.8]),
+            "the blue one beside it: {beside:?}"
+        );
+        // The line across the middle row lies over both.
+        let line = pixel(&image, (SIZE / 2, SIZE / 2));
+        assert!(near(line, [1.0, 1.0, 1.0]), "{line:?}");
+    }
+    // Half a white laid over the scene; nearer, a square of the physically based kind, left out.
+    let before = pixel(
+        &drawing.draw(&scene, &mut view, &Drawings::default()),
+        (20, row),
+    );
+    let lit = drawing
+        .renderer
+        .create_material(&drawing.gpu, "lit", &MaterialData::default())
+        .expect("the material is valid");
+    let drawings = Drawings {
+        over_image: DrawList {
+            instances: vec![
+                Instance::new(
+                    &drawing.square,
+                    &lit,
+                    DAffine3::from_translation(DVec3::new(0.0, 0.0, 0.5))
+                        * DAffine3::from_scale(DVec3::splat(2.0)),
+                ),
+                drawing.square(
+                    LinearColor {
+                        a: 0.5,
+                        ..LinearColor::WHITE
+                    },
+                    AlphaMode::Blend,
+                    2.0,
+                    0.0,
+                ),
+            ],
+            lines: Vec::new(),
+        },
+        ..Drawings::default()
+    };
+    let half = pixel(&drawing.draw(&scene, &mut view, &drawings), (20, row));
+    let expected = before.map(|channel| channel * 0.5 + 0.5);
+    assert!(near(half, expected), "{half:?}, from {before:?}");
 }
