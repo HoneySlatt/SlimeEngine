@@ -637,6 +637,7 @@ impl Presentation for YardView {
                     instances: icons,
                 },
                 over_image: selected.clone(),
+                ..Drawings::default()
             },
             Drawings {
                 over_image: selected,

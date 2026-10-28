@@ -34,7 +34,7 @@ pub use canvas::{
     ImageQuad, MAX_CANVAS_ITEMS, PixelRect, Radii,
 };
 pub use cooked::{LoadedScene, SceneError, SceneLoad, scene_lights};
-pub use drawings::{DrawList, Drawings, Line, facing};
+pub use drawings::{DrawList, Drawings, Line, OUTLINE_REACH, Outline, facing};
 pub use environment::{Environment, Sky};
 pub use error::RenderError;
 pub use light::{DirectionalLight, Light, MAX_LIGHTS, PointLight, SpotLight};

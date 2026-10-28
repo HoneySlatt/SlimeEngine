@@ -557,6 +557,19 @@ impl Graph {
         }
     }
 
+    /// The transient depth target `target`, for the bind groups that read it.
+    ///
+    /// # Panics
+    ///
+    /// If `target` is imported or a render target, or the targets are not created yet.
+    pub(crate) fn depth(&self, target: impl Into<TargetId>) -> &DepthTarget {
+        let target = &self.targets[target.into().0];
+        match &target.created {
+            Some(Created::Depth(created)) => created,
+            _ => panic!("`{}` is not a created depth target", target.label),
+        }
+    }
+
     /// The passes' declarations, in the order they run once compiled.
     pub(crate) fn declarations(&self) -> &[PassDeclaration] {
         &self.passes

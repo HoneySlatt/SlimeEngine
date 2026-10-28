@@ -1,6 +1,9 @@
 //! What a client, an editor or a tool, draws into a view besides the scene (ADR-0129): lines a
 //! width in pixels wide and instances, at the two points of the view's frame that ADR-0115 opens to
-//! it, in the scene and over its image.
+//! it, in the scene and over its image; and an outline around instances, over its image
+//! (ADR-0159).
+
+use std::collections::HashSet;
 
 use glam::{DAffine3, DMat3, DQuat, DVec3};
 use slime_color::LinearColor;
@@ -117,6 +120,58 @@ pub struct Drawings {
     /// the box around what is selected is: lines alone until the editor's handles need instances
     /// there.
     pub over_image: Vec<Line>,
+    /// The outline drawn around instances over the view's image, as around what an editor
+    /// selected: none by default.
+    pub outline: Outline,
+}
+
+/// The outline that a view draws around instances, over its image once tone mapped, before what a
+/// client draws there ([`Drawings::over_image`]), as an editor outlines what is selected
+/// (ADR-0159). The instances, the scene's and those that a client draws in the scene
+/// ([`Drawings::in_scene`]), are named by their picking numbers ([`Instance::pick`]), so that a
+/// client need not tell them apart from the scene's: an entity's whole, what a frame builder
+/// draws of it.
+///
+/// Each frame that outlines something draws, at the view's render scale, a mask of where the
+/// instances are, those that the camera sees, nearest first, and whether the scene shows each
+/// there, its own surfaces in front, or hides it: its depth against the scene's, resolved into one
+/// sample when the view has four, the farthest of them. Over the image, each pixel that the mask
+/// does not cover, less than `width` pixels and one from the centre of one that it covers, takes
+/// `seen` where the scene shows some of what is outlined nearby, and `hidden` where it shows none
+/// of it, fading over the last pixel. What a masked material cuts out, and the faces that the
+/// scene pass culls, are not outlined; a blended surface is, where its alpha reaches one half, as
+/// picking finds it. Neither lines nor what the scene does not draw is outlined.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Outline {
+    /// The picking numbers of the instances outlined; 0 outlines nothing. Empty by default: no
+    /// outline, and none of its passes.
+    pub picks: HashSet<u64>,
+    /// Its color where the scene shows what it outlines, with its alpha, which lays it over the
+    /// image: linear values in the output's colors, as lines over the image are, each kept within
+    /// 0 to 1.
+    pub seen: LinearColor,
+    /// Its color where the scene hides what it outlines, behind other surfaces.
+    pub hidden: LinearColor,
+    /// Its width, in the output's pixels, from 0.5 to [`OUTLINE_REACH`]: how many pixels beside what
+    /// it outlines, along a row or a column, it covers whole, a fraction covering the next in part;
+    /// a value beyond, or one that is not a number, is kept within.
+    pub width: f32,
+}
+
+/// The widest outline, in the output's pixels ([`Outline::width`]): each pixel near what is
+/// outlined reads the mask this far around it.
+pub const OUTLINE_REACH: f32 = 8.0;
+
+impl Default for Outline {
+    /// No instance outlined, in a light orange, half as opaque where hidden, two pixels wide.
+    fn default() -> Self {
+        Self {
+            picks: HashSet::new(),
+            seen: LinearColor::rgba(1.0, 0.45, 0.08, 1.0),
+            hidden: LinearColor::rgba(1.0, 0.45, 0.08, 0.5),
+            width: 2.0,
+        }
+    }
 }
 
 /// The size of a segment as `Segment` in `lines.wgsl` lays it out: one end and the width (16

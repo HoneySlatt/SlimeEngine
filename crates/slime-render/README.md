@@ -22,8 +22,9 @@ cache, which requests of a priority ask for and their handles hold, within budge
 nothing holds them; a material's values change while a game runs, and so do the renderer's shaders.
 It leaves out of each pass what that pass does not see, and draws the instances of one mesh
 and one material together. It draws into a view what a client draws besides the scene, lines and
-instances, as an editor's grid, icons and the box of what is selected, and says which instance is
-drawn at each pixel of an area of a view, a frame or more later (picking). It blends unlit surfaces
+instances, as an editor's grid, icons and the box of what is selected, and an outline around
+instances, dimmed where the scene hides them, as around what an editor selects; and says which
+instance is drawn at each pixel of an area of a view, a frame or more later (picking). It blends unlit surfaces
 over the others, without sorting them by depth, and does not yet blend physically based ones. It
 draws an interface's canvas over any of its targets: boxes with rounded corners and borders, their
 shadows, boxes filled with a gradient between their corners' colors, and images, each clipped, their
@@ -223,7 +224,10 @@ fn main() -> Result<(), RenderError> {
   target and, as a `Viewport`, the rectangle of the target that it draws into, the whole target by
   default, and, as `Drawings`, what a client draws into it besides the scene: in the scene, `Line`s,
   each a width in pixels wide, and instances, hidden by what is in front of them; over the image,
-  lines, over everything (ADR-0129). `Line::grid` gives the lines of a grid on the ground, and
+  lines, over everything (ADR-0129); and an `Outline` around instances named by their picking
+  numbers, in one color where the scene shows them and another where it hides them, for which
+  the frame resolves the scene's depth into one sample
+  ([ADR-0159](../../docs/adr/0159-picking-and-the-selection.md)). `Line::grid` gives the lines of a grid on the ground, and
   `facing` the transform of a square that faces the camera, an icon's. Each pass leaves out the
   instances that it does not see (frustum culling), and draws those of one mesh and one material
   that one pipeline draws together, with one draw call (instancing).

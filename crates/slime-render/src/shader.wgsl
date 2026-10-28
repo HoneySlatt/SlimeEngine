@@ -335,6 +335,45 @@ fn fs_pick(input: PickVertex) -> @location(0) vec2<u32> {
     return input.pick;
 }
 
+// The outline's mask (ADR-0159): the instances that a client outlines, drawn as the scene pass
+// draws them, nearest first, each pixel covered marking in its green channel that it is, and in its
+// red whether the scene shows it there: whether its depth is not farther than the scene's depth,
+// resolved into one sample, its farthest, within the change of its own depth across the pixel and
+// a share of it for rounding. What a mask cuts out is not covered, as in picking.
+@group(3) @binding(4) var scene_depth: texture_depth_2d;
+
+// How much farther than the scene's depth an outlined surface is still seen, as a share of its
+// depth: what rounding moves a depth by, between this pass and the scene's.
+const OUTLINE_SLACK: f32 = 1e-5;
+
+struct OutlineVertex {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+}
+
+@vertex
+fn vs_outline(
+    @location(0) position: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+    @builtin(instance_index) index: u32,
+) -> OutlineVertex {
+    let model = instances[drawn[index]].model;
+    return OutlineVertex(frame.view_proj * (model * vec4<f32>(position, 1.0)), uv);
+}
+
+@fragment
+fn fs_outline(input: OutlineVertex) -> @location(0) vec4<f32> {
+    let depth = input.clip_position.z;
+    let slack = fwidth(depth) + depth * OUTLINE_SLACK;
+    let alpha = material.base_color.a
+        * textureSample(base_color_texture, base_color_sampler, input.uv).a;
+    if alpha < material.alpha_cutoff {
+        discard;
+    }
+    let scene = textureLoad(scene_depth, vec2<u32>(input.clip_position.xy), 0);
+    return vec4<f32>(select(0.0, 1.0, depth + slack >= scene), 1.0, 0.0, 1.0);
+}
+
 @fragment
 fn fs_main(
     input: VertexOutput,

@@ -130,3 +130,37 @@ fn fs_pick(input: PickVertex) -> @location(0) vec2<u32> {
     }
     return input.pick;
 }
+
+// The outline's mask (ADR-0159), as in shader.wgsl; a blended surface is covered where its alpha
+// reaches one half, as in picking.
+@group(3) @binding(4) var scene_depth: texture_depth_2d;
+
+// As in shader.wgsl.
+const OUTLINE_SLACK: f32 = 1e-5;
+
+struct OutlineVertex {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+}
+
+@vertex
+fn vs_outline(
+    @location(0) position: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+    @builtin(instance_index) index: u32,
+) -> OutlineVertex {
+    let model = instances[drawn[index]].model;
+    return OutlineVertex(frame.view_proj * (model * vec4<f32>(position, 1.0)), uv);
+}
+
+@fragment
+fn fs_outline(input: OutlineVertex) -> @location(0) vec4<f32> {
+    let depth = input.clip_position.z;
+    let slack = fwidth(depth) + depth * OUTLINE_SLACK;
+    let alpha = (material.color * textureSample(color_texture, color_sampler, input.uv)).a;
+    if alpha < max(material.alpha_cutoff, material.blended * 0.5) {
+        discard;
+    }
+    let scene = textureLoad(scene_depth, vec2<u32>(input.clip_position.xy), 0);
+    return vec4<f32>(select(0.0, 1.0, depth + slack >= scene), 1.0, 0.0, 1.0);
+}

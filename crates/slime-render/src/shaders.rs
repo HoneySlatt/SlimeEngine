@@ -20,7 +20,7 @@ pub struct ShaderSources {
     pub tone_mapping: String,
     /// `bloom.wgsl`: the bloom's passes, down and up.
     pub bloom: String,
-    /// `resolve.wgsl`: the resolve pass.
+    /// `resolve.wgsl`: the resolve passes, of the scene's light and of its depth (ADR-0159).
     pub resolve: String,
     /// `unlit.wgsl`: the scene pass's unlit materials (ADR-0129).
     pub unlit: String,
@@ -28,6 +28,8 @@ pub struct ShaderSources {
     pub lines: String,
     /// `canvas.wgsl`: the canvas, which an interface draws over a target (ADR-0137).
     pub canvas: String,
+    /// `outline.wgsl`: the outline that a client draws around instances (ADR-0159).
+    pub outline: String,
 }
 
 impl ShaderSources {
@@ -48,6 +50,7 @@ impl ShaderSources {
             unlit: include_str!("unlit.wgsl").to_owned(),
             lines: include_str!("lines.wgsl").to_owned(),
             canvas: include_str!("canvas.wgsl").to_owned(),
+            outline: include_str!("outline.wgsl").to_owned(),
         }
     }
 
@@ -71,6 +74,7 @@ impl ShaderSources {
             unlit: read("unlit.wgsl")?,
             lines: read("lines.wgsl")?,
             canvas: read("canvas.wgsl")?,
+            outline: read("outline.wgsl")?,
         })
     }
 }
@@ -167,6 +171,7 @@ mod tests {
                 ("unlit.wgsl", &sources.unlit),
                 ("lines.wgsl", &sources.lines),
                 ("canvas.wgsl", &sources.canvas),
+                ("outline.wgsl", &sources.outline),
             ] {
                 fs::write(directory.join(name), text).expect("written");
             }

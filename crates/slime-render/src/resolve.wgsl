@@ -35,3 +35,19 @@ fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
     }
     return vec4<f32>(light / weights, 1.0);
 }
+
+// The scene's depth resolved into one sample (ADR-0115, ADR-0159), which the outline's mask
+// compares its depth with: one triangle covers the depth target of one sample per pixel, and each
+// pixel takes the farthest of the depths of the samples under it, the least, depth being reversed
+// (ADR-0047), so that a surface seen in part of a pixel counts as seen there.
+@group(0) @binding(0) var depth_samples: texture_depth_multisampled_2d;
+
+@fragment
+fn fs_depth(@builtin(position) position: vec4<f32>) -> @builtin(frag_depth) f32 {
+    let texel = vec2<u32>(position.xy);
+    var farthest = 1.0;
+    for (var sample = 0u; sample < textureNumSamples(depth_samples); sample++) {
+        farthest = min(farthest, textureLoad(depth_samples, texel, sample));
+    }
+    return farthest;
+}

@@ -203,7 +203,7 @@ impl Viewport {
                 ),
                 instances: icons,
             },
-            over_image: Vec::new(),
+            ..Drawings::default()
         };
         let mut scene = frame.scene(camera.eye);
         scene.exposure = self.lighting.exposure;
