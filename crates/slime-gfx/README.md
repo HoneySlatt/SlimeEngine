@@ -173,8 +173,10 @@ fn main() -> Result<(), GfxError> {
   targets of `MULTISAMPLE_COUNT` samples per pixel, which pipelines built `multisampled` draw into;
   `RenderPassDescriptor::resolve` names the target of one sample that the pass averages them into
   as it ends (ADR-0059); a later pass's shader can also read them sample by sample, at a
-  `BindingType::MultisampledTexture` binding (ADR-0060). `RenderTarget::is_multisampled` tells them
-  from targets of one sample.
+  `BindingType::MultisampledTexture` binding (ADR-0060), and a depth target's at a
+  `BindingType::MultisampledDepthTexture` one, as the outline's pass that resolves the scene's depth
+  does ([ADR-0159](../../docs/adr/0159-picking-and-the-selection.md)).
+  `RenderTarget::is_multisampled` tells them from targets of one sample.
 - `Gpu::write_texture` writes a part of a texture's first level, as the interface's atlas writes
   each glyph into its page ([ADR-0139](../../docs/adr/0139-text-drawn-and-the-display-list.md)).
 - `RenderTarget::without_srgb` gives an sRGB target, a window's image included, seen through the

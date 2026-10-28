@@ -76,6 +76,10 @@ pub enum BindingType {
     /// A [`DepthTarget`], declared `texture_depth_2d` in WGSL: read with `textureLoad`, or
     /// compared with a reference depth through a [`ComparisonSampler`] (`textureSampleCompare`).
     DepthTexture,
+    /// A [`DepthTarget`] of several samples per pixel ([`Gpu::create_multisampled_depth_target`]),
+    /// declared `texture_depth_multisampled_2d` in WGSL: read sample by sample with `textureLoad`,
+    /// as a pass that resolves it into one sample does.
+    MultisampledDepthTexture,
     /// A [`ComparisonSampler`], declared `sampler_comparison` in WGSL.
     ComparisonSampler,
 }
@@ -132,7 +136,8 @@ pub enum BindingResource<'a> {
     /// group keeps this target: a target created again (at a new size) needs a new group.
     RenderTarget(&'a RenderTarget),
     /// A depth target created by [`Gpu::create_depth_target`], for a [`BindingType::DepthTexture`]
-    /// binding: a multisampled one cannot be bound. A pass that binds it cannot draw into it. The
+    /// binding, or by [`Gpu::create_multisampled_depth_target`], for a
+    /// [`BindingType::MultisampledDepthTexture`] one. A pass that binds it cannot draw into it. The
     /// group keeps this depth target, as above.
     DepthTarget(&'a DepthTarget),
     /// A comparison sampler, for a [`BindingType::ComparisonSampler`] binding.
@@ -226,6 +231,11 @@ impl Gpu {
                         view_dimension: wgpu::TextureViewDimension::D2,
                         multisampled: false,
                     },
+                    BindingType::MultisampledDepthTexture => wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: true,
+                    },
                     BindingType::ComparisonSampler => {
                         wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison)
                     }
@@ -260,7 +270,8 @@ impl Gpu {
     /// layout: a binding missing, a buffer or range smaller than its binding's size, or a
     /// resource of another kind than its entry declares, such as a depth target at a `Texture`
     /// binding, a cube texture at a `Texture` binding or the reverse, a render target or texture at
-    /// a `DepthTexture` binding, or a [`Sampler`] at a `ComparisonSampler` binding or the reverse.
+    /// a `DepthTexture` binding, a depth target of one sample at a `MultisampledDepthTexture` binding
+    /// or the reverse, or a [`Sampler`] at a `ComparisonSampler` binding or the reverse.
     /// Also if a render target is the image of a window, which cannot be sampled. These are bugs in
     /// the caller, which wgpu rejects (ADR-0016).
     ///

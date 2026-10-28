@@ -22,8 +22,10 @@ pub(crate) const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth3
 /// of it. It cannot be read back to the CPU.
 ///
 /// A depth target of several samples per pixel ([`Gpu::create_multisampled_depth_target`]) holds a
-/// depth for each sample, for the passes that draw into a multisampled render target: passes only
-/// test and write it, and no shader reads it.
+/// depth for each sample, for the passes that draw into a multisampled render target; shaders of
+/// later passes read it sample by sample, through a
+/// [`BindingType::MultisampledDepthTexture`](crate::BindingType::MultisampledDepthTexture) binding
+/// (`texture_depth_multisampled_2d`), as a pass that resolves it into one sample does.
 ///
 /// Clones refer to the same texture, which is freed when the last clone is dropped and the GPU no
 /// longer uses it.
@@ -80,8 +82,8 @@ impl Gpu {
 
     /// Creates a depth target of `width` × `height` pixels of [`MULTISAMPLE_COUNT`] samples each,
     /// the size of the multisampled render target of the passes that test depth with it. Passes
-    /// test and write a depth for each sample; no shader can read it. `label` names it in error
-    /// messages and in GPU capture tools.
+    /// test and write a depth for each sample, which shaders of later passes read sample by
+    /// sample. `label` names it in error messages and in GPU capture tools.
     ///
     /// # Errors
     ///
@@ -101,7 +103,7 @@ impl Gpu {
             width,
             height,
             MULTISAMPLE_COUNT,
-            wgpu::TextureUsages::RENDER_ATTACHMENT,
+            wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         )
     }
 

@@ -221,7 +221,7 @@ fn a_multisampled_target_is_not_bound_as_a_texture_of_one_sample() {
 
 #[test]
 #[should_panic(expected = "expects multisampled = false")]
-fn a_multisampled_depth_target_cannot_be_bound() {
+fn a_multisampled_depth_target_is_not_bound_as_a_depth_texture_of_one_sample() {
     let gpu = gpu();
     let depth = gpu
         .create_multisampled_depth_target("depth", WIDTH, HEIGHT)
@@ -398,4 +398,118 @@ fn a_later_pass_reads_each_sample_of_a_multisampled_target() {
         })
         .collect();
     assert_eq!(covered, [0.0, 3.0, 2.0, 0.0, 4.0, 1.0, 0.0, 0.0]);
+}
+
+#[test]
+fn a_later_pass_reads_each_sample_of_a_multisampled_depth_target() {
+    let gpu = gpu();
+    let depth_test = DepthState {
+        compare: DepthCompare::Greater,
+        write: true,
+        bias: DepthBias::default(),
+    };
+    let pipeline = pipeline(&gpu, true, Some(depth_test));
+    let samples = multisampled_target(&gpu);
+    let depth = gpu
+        .create_multisampled_depth_target("depth", WIDTH, HEIGHT)
+        .expect("the GPU has memory for it");
+    let layout = gpu
+        .create_bind_group_layout(
+            "depth samples",
+            &[BindGroupLayoutEntry {
+                binding: 0,
+                visible_to: ShaderStages::Fragment,
+                ty: BindingType::MultisampledDepthTexture,
+            }],
+        )
+        .expect("the GPU has memory for it");
+    let group = gpu
+        .create_bind_group(
+            "depth samples",
+            &layout,
+            &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::DepthTarget(&depth),
+            }],
+        )
+        .expect("the GPU has memory for it");
+    // Each sample's depth in one channel of the output.
+    let shader = gpu
+        .create_shader_module(
+            "depth samples",
+            "@group(0) @binding(0) var depth: texture_depth_multisampled_2d;
+
+             @vertex
+             fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+                 let corner = vec2<f32>(f32((i & 1u) * 4u) - 1.0, f32((i & 2u) * 2u) - 1.0);
+                 return vec4<f32>(corner, 0.0, 1.0);
+             }
+
+             @fragment
+             fn fs_main(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
+                 let texel = vec2<u32>(position.xy);
+                 return vec4<f32>(
+                     textureLoad(depth, texel, 0),
+                     textureLoad(depth, texel, 1),
+                     textureLoad(depth, texel, 2),
+                     textureLoad(depth, texel, 3),
+                 );
+             }",
+        )
+        .expect("the shader compiles");
+    let reader = gpu
+        .create_render_pipeline(&RenderPipelineDescriptor {
+            label: "depth samples",
+            shader: &shader,
+            vertex_entry_point: "vs_main",
+            vertex_layout: None,
+            fragment: Some(FragmentState {
+                entry_point: "fs_main",
+                target_format: Some(TextureFormat::Rgba16Float),
+                blend: None,
+            }),
+            bind_group_layouts: &[&layout],
+            depth: None,
+            cull: CullMode::None,
+            multisampled: false,
+        })
+        .expect("the pipeline is valid");
+    let read = resolved_target(&gpu);
+    gpu.submit("depth samples", |commands| {
+        // The red rectangle at depth 0.75 over the first pixel and a half, the green one at 0.25
+        // over the rest.
+        let drawn = RenderPassDescriptor {
+            target: &samples,
+            clear: Some(LinearColor::BLACK),
+            depth: Some(&depth),
+            timer: None,
+            resolve: None,
+        };
+        commands.render(&drawn, |pass| {
+            pass.set_pipeline(&pipeline);
+            pass.draw(12..24);
+        });
+        let reading = RenderPassDescriptor {
+            target: &read,
+            depth: None,
+            ..drawn
+        };
+        commands.render(&reading, |pass| {
+            pass.set_pipeline(&reader);
+            pass.set_bind_group(0, &group, &[]);
+            pass.draw(0..3);
+        });
+    });
+    let image = gpu
+        .read_float_render_target(&read)
+        .expect("the read target is read back");
+    let row = &image.pixels[..(WIDTH * 4) as usize];
+    // The first pixel's samples all hold the red rectangle's depth; the second's, the samples in
+    // its left half the red's and those in its right half the green's, in whichever order the
+    // pattern numbers them; the others, the green's.
+    assert_eq!(&row[..4], [0.75; 4]);
+    let mut second = row[4..8].to_vec();
+    second.sort_by(f32::total_cmp);
+    assert_eq!(second, [0.25, 0.25, 0.75, 0.75]);
+    assert!(row[8..].iter().all(|&depth| depth == 0.25), "{row:?}");
 }
