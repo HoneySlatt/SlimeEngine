@@ -109,7 +109,7 @@ the ADR linking to it.
 | [0038](0038-shadow-mapping.md) | Shadow mapping | Accepted; amended by 0039, 0041, 0047, 0049, 0050, 0061, 0063, 0064 and 0126 |
 | [0039](0039-image-based-lighting-computed-on-the-cpu.md) | Image-based lighting computed on the CPU | Accepted; amended by 0041 |
 | [0040](0040-bloom.md) | Bloom | Accepted; amended by 0041 |
-| [0041](0041-render-graph.md) | The render graph | Accepted; amended by 0111, 0115, 0126 and 0129 |
+| [0041](0041-render-graph.md) | The render graph | Accepted; amended by 0111, 0115, 0126, 0129 and 0158 |
 | [0042](0042-lights-beyond-the-most-drawn-and-checked-scene-values.md) | Lights beyond the most drawn, and checked scene values | Accepted; amended by 0102 and 0106 |
 | [0043](0043-application-errors-during-a-run.md) | Application errors during a run | Accepted |
 | [0044](0044-running-out-of-gpu-memory.md) | Running out of GPU memory | Accepted |
@@ -195,7 +195,7 @@ the ADR linking to it.
 | [0124](0124-driven-components-keys-and-created-entities-in-levels.md) | Driven components, start keys and created entities written into levels | Accepted; amended by 0125 |
 | [0125](0125-saves-per-scene.md) | Saves per scene, scenes unloaded and adoption | Accepted |
 | [0126](0126-views-apart-from-the-renderer.md) | Views apart from the renderer | Accepted; amended by 0127 |
-| [0127](0127-the-settings-of-a-view.md) | The settings of a view | Accepted; amended by 0128 |
+| [0127](0127-the-settings-of-a-view.md) | The settings of a view | Accepted; amended by 0128, 0158 |
 | [0128](0128-asset-requests.md) | Asset requests | Accepted |
 | [0129](0129-drawing-for-the-editor.md) | Drawing for the editor | Accepted |
 | [0130](0130-picking.md) | Picking | Accepted |
@@ -223,6 +223,7 @@ the ADR linking to it.
 | [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
 | [0153](0153-tab-and-f6-in-a-games-interface.md) | Tab and F6 in a game's interface | Accepted |
 | [0154](0154-floating-panels-and-held-keys.md) | Floating panels and held keys | Accepted |
-| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156 |
+| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156, 0158 |
 | [0156](0156-the-editors-window-and-its-operations.md) | The editor's window and its operations | Accepted |
 | [0157](0157-dialogs-the-cursor-held-and-the-gpus-identity.md) | Dialogs, the cursor held and the GPU's identity | Accepted |
+| [0158](0158-the-viewport.md) | The viewport | Accepted |

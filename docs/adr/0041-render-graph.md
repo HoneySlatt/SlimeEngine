@@ -7,7 +7,8 @@
   [0111](0111-the-frame-contract.md) (views apart from the renderer, a part of the graph each),
   [0115](0115-what-the-gpu-layer-gives-the-editor.md) (points where a client inserts its draws),
   [0126](0126-views-apart-from-the-renderer.md) (a graph for each view) and
-  [0129](0129-drawing-for-the-editor.md) (the passes of a client's drawings)
+  [0129](0129-drawing-for-the-editor.md) (the passes of a client's drawings) and
+  [0158](0158-the-viewport.md) (sixteen passes to a submission, where it kept four)
 - Date: 2026-10-14
 
 ## Context
