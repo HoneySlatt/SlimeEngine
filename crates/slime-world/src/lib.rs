@@ -32,6 +32,8 @@ pub use entity::Entity;
 pub use error::WorldError;
 pub use hierarchy::Children;
 pub use identity::{ParsePersistentIdError, PersistentId};
+#[cfg(feature = "development")]
+pub use library::PLAY_SCENES_ENV_VAR;
 pub use library::{
     MAX_ENTITIES, MAX_NESTING, MAX_SCENE_SIZE, Placement, ResolvedScene, SceneError, SceneLibrary,
 };

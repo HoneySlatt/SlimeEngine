@@ -128,6 +128,12 @@ impl std::fmt::Debug for SceneLibrary {
     }
 }
 
+/// The environment variable that names, in a development build, the directory of the scene files
+/// that an editor's Play hands a game in place of their cooked files ([`SceneLibrary::of`],
+/// `docs/adr/0164-play.md`).
+#[cfg(feature = "development")]
+pub const PLAY_SCENES_ENV_VAR: &str = "SLIME_PLAY_SCENES";
+
 impl SceneLibrary {
     /// A library that holds no scene.
     pub fn new() -> Self {
@@ -138,10 +144,61 @@ impl SceneLibrary {
     /// each read from its cooked file when it is first resolved
     /// (`docs/adr/0095-cooked-scene-files.md`). A scene inserted by hand stands for one of the same
     /// ID in `assets`, until a reload changes it.
+    ///
+    /// With the `development` feature, which development builds have, the scene files of the
+    /// directory that the environment variable `SLIME_PLAY_SCENES` names (`PLAY_SCENES_ENV_VAR`),
+    /// each named after its asset ID, `<id>.scene`, are inserted in place of those of `assets`: the
+    /// private copies of the scenes that an editor's Play hands the game, as the editor holds them
+    /// (`docs/adr/0164-play.md`). A file that cannot be read, or whose name is no asset ID, is left
+    /// out with a warning.
     pub fn of(assets: CookedAssets) -> Self {
-        Self {
+        #[cfg_attr(
+            not(feature = "development"),
+            expect(unused_mut, reason = "nothing to insert")
+        )]
+        let mut library = Self {
             assets: Some(assets),
             ..Self::default()
+        };
+        #[cfg(feature = "development")]
+        if let Some(directory) = std::env::var_os(PLAY_SCENES_ENV_VAR) {
+            library.insert_play_scenes(std::path::Path::new(&directory));
+        }
+        library
+    }
+
+    /// Inserts the scene files of `directory`, each named `<id>.scene` after its asset ID, as
+    /// [`SceneLibrary::of`] does with the private copies of Play.
+    #[cfg(feature = "development")]
+    fn insert_play_scenes(&mut self, directory: &std::path::Path) {
+        let entries = match std::fs::read_dir(directory) {
+            Ok(entries) => entries,
+            Err(error) => {
+                tracing::warn!(directory = %directory.display(), %error, "Play's scenes cannot be read");
+                return;
+            }
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let id = name
+                .strip_suffix(".scene")
+                .and_then(|id| id.parse::<AssetId>().ok());
+            match (id, std::fs::read_to_string(&path)) {
+                (Some(id), Ok(text)) => {
+                    tracing::info!(%id, "a scene given by Play, in place of its cooked file");
+                    self.insert_file(id, name, text);
+                }
+                (None, _) => {
+                    tracing::warn!(file = %path.display(), "not a scene of Play: its name is no asset ID")
+                }
+                (_, Err(error)) => {
+                    tracing::warn!(file = %path.display(), %error, "a scene of Play cannot be read")
+                }
+            }
         }
     }
 
@@ -816,4 +873,42 @@ pub enum SceneError {
         #[source]
         error: LoadError,
     },
+}
+
+#[cfg(all(test, feature = "development"))]
+mod tests {
+    use super::*;
+    use crate::world::World;
+
+    /// The scene files of Play's directory stand for the scenes of the same IDs; a file whose name
+    /// is no asset ID is left out (`docs/adr/0164-play.md`).
+    #[test]
+    fn the_scenes_that_play_gives_stand_for_their_cooked_files() {
+        let directory =
+            std::env::temp_dir().join(format!("slime-world-play-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&directory);
+        std::fs::create_dir_all(&directory).expect("a directory");
+        let id = AssetId::from_u128(9);
+        std::fs::write(
+            directory.join(format!("{id}.scene")),
+            "[entities.well.components]\nName = \"the well, renamed\"\n",
+        )
+        .expect("written");
+        std::fs::write(directory.join("notes.txt"), "not a scene").expect("written");
+        let mut library = SceneLibrary::new();
+        library.insert_play_scenes(&directory);
+        let mut world = World::new();
+        let scene = library
+            .resolve(world.registry(), id)
+            .expect("given by Play");
+        world.spawn_scene("yard", &scene).expect("spawned");
+        let well = world
+            .find(&"yard/well".parse().expect("an identity"))
+            .expect("the well");
+        assert_eq!(
+            world.get::<Name>(well),
+            Some(&Name("the well, renamed".to_owned()))
+        );
+        let _ = std::fs::remove_dir_all(&directory);
+    }
 }

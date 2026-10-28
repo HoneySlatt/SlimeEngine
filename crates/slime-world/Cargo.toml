@@ -20,3 +20,8 @@ slime-reflect.workspace = true
 slime-serialize.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+
+[features]
+# What development builds read that a build for shipping leaves out: the scenes that an editor's
+# Play hands a game as private copies (ADR-0164), which `slime-app`'s `development` feature turns on.
+development = []

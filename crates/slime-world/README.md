@@ -121,7 +121,9 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
   the text of scene files (`insert_file`). It resolves one (`SceneLibrary::resolve`) into a
   `ResolvedScene`: its entities, the prefabs that it places resolved with it, and their overrides
   applied, those whose target the prefab no longer has set aside (`ResolvedScene::set_aside`);
-  `ResolvedScene::places` says whether it places another scene, at any depth.
+  `ResolvedScene::places` says whether it places another scene, at any depth. With the
+  `development` feature, `SceneLibrary::of` reads the scene files that an editor's Play hands a game
+  in place of their cooked files (`docs/adr/0164-play.md`).
   `ResolvedScene::from_cooked` resolves a glTF scene alone, an entity per node with its
   `Transform`, `Name`, `Meshes`, `Light`, `Extras` and its typed components, read through a
   registry. `outline` reads a scene file's layout without the types of its values, as the cooker

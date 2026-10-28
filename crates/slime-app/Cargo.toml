@@ -38,7 +38,7 @@ tracing-subscriber = { workspace = true, features = ["tracing-log"] }
 # The development channel: a program started with a token listens for the tools that drive it
 # (ADR-0110, ADR-0122). A game turns it on by default, and a build for shipping leaves it out
 # (`--no-default-features`).
-development = ["dep:slime-channel", "dep:slime-serialize"]
+development = ["dep:slime-channel", "dep:slime-serialize", "slime-world/development"]
 # Screen readers read what a presentation's interface means, through AccessKit's adapter of the
 # window (ADR-0146): built into the examples, and into the editor once it has a window, left out of
 # games until Stage 7.
