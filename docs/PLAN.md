@@ -359,15 +359,17 @@ the viewport and its navigation, then picking and the selection.
   editor's own asset cache and frame builder, through a view whose image the interface shows;
   navigation, flying with the right button held and W, A, S, D, Q, E, the cursor held and the raw
   motion read, orbiting with Alt and the left button, panning with the middle one, F framing the
-  selection, and a `.keys` preset in Blender's way; the grid; icons of lights and cameras from
-  Lucide's glyphs; the viewport drawn again only when its camera, the world, the selection, its
-  settings or its assets changed, and once more `RESIZE_DELAY` after its size last changed; the
-  viewport named for agents, who capture it and change its settings; `PASSES_PER_SUBMISSION` and
-  the bloom measured while the desktop fills the GPU's memory that the CPU maps. The ADR of the
-  design.
+  selection; the grid; icons of lights from Lucide's glyphs, cameras' waiting for the world's
+  cameras; the viewport drawn again only when its camera, the world, its settings or its assets
+  changed, and once more `RESIZE_DELAY` after its size last changed; the viewport named for
+  agents, who capture it and change its settings; `PASSES_PER_SUBMISSION` and the bloom measured
+  while the desktop fills the GPU's memory that the CPU maps. The ADR of the design. The `.keys`
+  preset in Blender's way moved to M6c.2b at its start, since it changes the mouse's buttons,
+  which picking brings ([ADR-0158](adr/0158-the-viewport.md)).
 - **Done when.** Image tests on lavapipe of the grid and the icons; an agent captures the viewport
-  and flies it with scripted keys; an idle editor's viewport draws nothing; the frame's costs at
-  the hardware tiers' sizes, in [`docs/measurements.md`](measurements.md); CI is green.
+  and frames the selection by the operation's name, scripted keys reaching the simulation's input
+  rather than the window; an idle editor's viewport draws nothing; the frame's costs at the
+  hardware tiers' sizes, in [`docs/measurements.md`](measurements.md); CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-render -p slime-editor`;
   `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
 - **By hand.** Flying and orbiting in the zone on niri, Hyprland and X11 through XWayland.
@@ -383,8 +385,8 @@ the viewport and its navigation, then picking and the selection.
   through what lies behind by the CPU's ray, a marquee selecting what its area holds; the selection
   outlined, the scene's depth resolved, its hidden part dimmed, an entity without a mesh drawn as
   its transform's unit box; the modes of debugging base color and light alone, and a wireframe of
-  the selection; a second viewport, the one navigated alone drawn at the full rate. The ADR of the
-  design.
+  the selection; a second viewport, the one navigated alone drawn at the full rate; a `.keys`
+  preset in Blender's way, its mouse's buttons with it. The ADR of the design.
 - **Done when.** Image tests on lavapipe of the outline and its hidden part; an agent picks in a
   viewport; CI is green.
 - **How to test.** `cargo test -p slime-render -p slime-world-render -p slime-editor`;
@@ -1252,11 +1254,6 @@ GitHub issues, linked from their entry; this list stays the reference.
   newer timers. A window's edge dragged no longer does it, its size held until it is let go, nor
   does a view drawn into rectangles of two sizes in turn, which draws one of them stretched: use
   one view per size.
-- **A view's new size waits for its next frame after `RESIZE_DELAY`**
-  ([ADR-0127](adr/0127-the-settings-of-a-view.md)): a view drawn only when something changes, as an
-  editor's viewport may be, keeps its image stretched until it is drawn again `RESIZE_DELAY` after
-  its size last changed. The editor's viewports draw again then, from M6c.2a
-  ([ADR-0155](adr/0155-the-editors-design.md)).
 - **A render scale reads the scene's light bilinearly**
   ([ADR-0127](adr/0127-the-settings-of-a-view.md)): below 1 the image is blurred, and between 1 and
   2 each pixel averages the four texels nearest its centre, missing others. Stage 9a's temporal
@@ -1306,6 +1303,12 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **The editor does not follow the prefabs that change on disk while it edits**
   ([ADR-0134](adr/0134-the-editors-core.md)): its library holds the cooked scenes as it opened them.
   M6c.6 follows them.
+- **The editor's viewport shows every light that a level places**
+  ([ADR-0158](adr/0158-the-viewport.md)): which lights shine is a game's rules', which the editor
+  runs none of. *Hunna Wood*'s zone shows its night's lanterns lit by day, and its moon, the one
+  light in its sky, as the sky's sun. Its meshes come from the cooked data as the core read it when
+  the level opened, which a level opened later reads again; a mesh cooked again while it is open is
+  not, and the world's cameras, which the world does not have yet, have no icons.
 - **A comment within a value written on several lines is lost** when the editor writes the level
   again, but for the end of the value's first line (`slime_serialize::keep_comments`).
 - **The canvas draws nothing turned or scaled** ([ADR-0137](adr/0137-the-canvas.md)): the items'

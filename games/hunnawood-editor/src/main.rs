@@ -21,5 +21,11 @@ fn main() -> ExitCode {
         assets: hunnawood::assets::default_directory(),
         sources: None,
         register: hunnawood::rules::register,
+        // Lit as the game lights the zone by day.
+        lighting: slime_editor::Lighting {
+            sky: Some(hunnawood::OVERCAST),
+            exposure: hunnawood::DAY_EXPOSURE,
+            bloom: hunnawood::BLOOM,
+        },
     })
 }

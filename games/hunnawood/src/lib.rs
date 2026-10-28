@@ -23,6 +23,9 @@ mod controls;
 mod overlay;
 mod view;
 
+// How the game lights its zone by day, which its editor lights it with too.
+pub use view::{BLOOM, DAY_EXPOSURE, OVERCAST};
+
 pub mod assets;
 pub mod look;
 pub mod rules;

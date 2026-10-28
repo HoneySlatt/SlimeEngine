@@ -7,7 +7,10 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use slime_assets::CookedAssets;
 use slime_world::{Command, PersistentId};
+
+use crate::program::Lighting;
 
 /// The value that the core and the window share, on the thread that runs both.
 pub(crate) type Shared = Rc<RefCell<State>>;
@@ -25,6 +28,11 @@ pub(crate) struct State {
     pub(crate) dialogs: bool,
     /// The level's scene file, once it is open.
     pub(crate) level: Option<PathBuf>,
+    /// The cooked data whose meshes the level places, which the viewport loads, once a level is
+    /// open.
+    pub(crate) assets: Option<CookedAssets>,
+    /// How the viewport lights the level.
+    pub(crate) lighting: Option<Lighting>,
     /// How many levels were opened in place of the first, each in a world of its own, which the
     /// window's world panel follows.
     pub(crate) opened: u64,

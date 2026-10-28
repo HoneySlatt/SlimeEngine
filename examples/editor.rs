@@ -24,6 +24,12 @@
 
 #[path = "common/png_file.rs"]
 mod png_file;
+#[path = "common/sample_scene.rs"]
+#[expect(
+    dead_code,
+    reason = "the editor lights the yard with the sample's sky, exposure and bloom alone"
+)]
+mod sample_scene;
 
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -43,6 +49,11 @@ fn program() -> slime_editor::Program {
             "/assets"
         ))),
         register: |_| {},
+        lighting: slime_editor::Lighting {
+            sky: Some(sample_scene::SKY),
+            exposure: sample_scene::EXPOSURE,
+            bloom: sample_scene::BLOOM,
+        },
     }
 }
 

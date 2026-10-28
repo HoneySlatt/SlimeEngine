@@ -32,7 +32,7 @@ use crate::zone::{Flickers, TimeOfDay, descends};
 /// An overcast sky, in nits: grey, brighter overhead than at the horizon, which lights the ground
 /// with about 5 000 lux; the sun shows no disc through the clouds. The ground below the horizon is
 /// dark soil of albedo about 0.12, lit by the sun and the sky: 0.12 × (9 000 + 5 000) / π ≈ 530.
-const OVERCAST: Sky = Sky {
+pub const OVERCAST: Sky = Sky {
     zenith: LinearColor::rgb(2000.0, 2100.0, 2300.0),
     horizon: LinearColor::rgb(1500.0, 1550.0, 1600.0),
     ground: LinearColor::rgb(540.0, 530.0, 500.0),
@@ -40,7 +40,7 @@ const OVERCAST: Sky = Sky {
 };
 /// What the scene's light is multiplied by by day: a white matte surface facing the sun, which
 /// receives about 17 000 lux from it and the sky, shows at about 0.7, the light of a grey day.
-const DAY_EXPOSURE: f32 = std::f32::consts::PI / 25_000.0;
+pub const DAY_EXPOSURE: f32 = std::f32::consts::PI / 25_000.0;
 /// The night sky, in nits: a dark blue, lighter towards the horizon, around the moon's disc, which
 /// the zone's moon gives; the ground below the horizon nearly black.
 const NIGHT_SKY: Sky = Sky {
@@ -54,7 +54,7 @@ const NIGHT_SKY: Sky = Sky {
 /// 0.8 lux alone light stays dim but readable.
 const NIGHT_EXPOSURE: f32 = 0.3;
 /// The bloom's strength, as in the engine's samples.
-const BLOOM: f32 = 0.04;
+pub const BLOOM: f32 = 0.04;
 /// The names of the zone's materials that the view changes: the campfire's flames and embers, which
 /// flicker, and the key's brass, which pulses at night (`games/hunnawood/zone/props.py`).
 const FLAMES: &str = "flames";

@@ -41,6 +41,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The cursor held (ADR-0157): `Window::set_cursor_held` holds the cursor, hidden, where it is, and
   lets it go, as the window does itself when it loses the focus; `Event::RawMotion` reports the
   mouse's raw motion meanwhile. The `window` example holds it while its right button is held.
+- The editor's viewport (ADR-0158): the level shows in the window's center, under the game's sky,
+  exposure and bloom, with a grid on the ground and the icons of its lights, drawn again only when
+  what it shows changes. The right button held flies through it with W, A, S, D, Q and E, the cursor held; Alt
+  and the left button orbit, the middle button pans, the wheel comes nearer, and F, *View* > *Frame
+  the selection*, frames what is selected, or the whole level. Tools capture it and change its
+  settings by the name `viewport`, and read how many times it drew in the report `viewport`.
 - `Element::surface` in `slime-ui`: an element that shows an image that the program draws and gives
   it the pointer, as `ActionKind::Surface`, the keys reaching the program while a button pressed
   over it is held.
@@ -60,10 +66,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - The palette of commands lists every command found, scrolling past the window's height, the
   chosen one kept in sight, where it showed 12 at most.
 - `AppConfig::pace_headless` is gone: `AppConfig::on_demand` replaces it.
+- `slime_editor::window_image` takes the operations to run before it draws, and draws the
+  viewport.
 - The renderer records a frame's passes sixteen to a submission, a whole frame of the samples in
   one, where it recorded four: measured on a GPU whose memory that the CPU maps is a small window
   that the desktop fills, it costs the CPU least (ADR-0158, `docs/measurements.md`).
-- `slime_editor::window_image` takes the operations to run before it draws.
+- `slime_editor::Program` gains `lighting`, how the viewport lights the level, which a game's
+  editor package gives as the game lights it.
 - `slime_channel::Listener::open` takes what wakes the game as a request comes.
 
 - A game started with a token (`slime_channel::launch`, as the MCP server starts one) ends once its

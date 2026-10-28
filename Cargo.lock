@@ -3071,6 +3071,7 @@ dependencies = [
  "slime-ui",
  "slime-ui-render",
  "slime-world",
+ "slime-world-render",
  "thiserror 2.0.21",
  "tracing",
 ]

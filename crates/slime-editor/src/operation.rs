@@ -90,6 +90,12 @@ pub const OPERATIONS: &[Operation] = &[
         changes: Changes::Selection,
     },
     Operation {
+        name: "view.frame_selection",
+        label: "Frame the selection",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
         name: "view.palette",
         label: "Find an operation",
         parameters: &[],

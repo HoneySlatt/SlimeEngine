@@ -9,17 +9,17 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use slime_app::{AppConfig, AppError, Context, Host, Presentation};
+use slime_app::{AppConfig, AppError, Context, Host, Presentation, Reflected, ShownView};
 use slime_color::LinearColor;
 use slime_devui::WorldPanel;
 use slime_gfx::{Gpu, Image, RenderPassDescriptor, RenderTarget, TextureFormat};
-use slime_platform::{ColorScheme, DialogId, Event, FileChoice};
-use slime_render::{RenderError, Renderer};
-use slime_ui::action::{Action, ActionKind, FieldValue};
+use slime_platform::{ColorScheme, DialogId, Event, FileChoice, ScrollDelta};
+use slime_render::{CanvasImage, RenderError, Renderer, ViewSettings};
+use slime_ui::action::{Action, ActionKind, FieldValue, SurfaceInput};
 use slime_ui::display::DisplayList;
 use slime_ui::look::{self, Colors, Density};
 use slime_ui::shortcuts::Shortcuts;
-use slime_ui::style::{Align, Dimension, FlexDirection, Justify, Sides, Style};
+use slime_ui::style::{Dimension, FlexDirection, Justify, Sides, Style};
 use slime_ui::text::Fonts;
 use slime_ui::tree::{
     Along, Element, ElementId, ItemMark, Key, Layer, LayoutDirection, Notification,
@@ -28,10 +28,12 @@ use slime_ui::tree::{
 use slime_ui_render::UiRenderer;
 use slime_world::{Entity, World};
 
+use crate::navigation::Navigation;
 use crate::operation::{self, OPERATIONS, SHORTCUTS};
 use crate::program::Program;
 use crate::session::Session;
 use crate::shared::{Notice, Request, Shared};
+use crate::viewport::{self, Framing, Viewport};
 
 /// An entry of a menu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -65,6 +67,7 @@ pub(crate) const MENUS: &[(&str, &[Entry])] = &[
             Entry::Operation("edit.select_none"),
         ],
     ),
+    ("View", &[Entry::Operation("view.frame_selection")]),
     (
         "Help",
         &[
@@ -76,9 +79,6 @@ pub(crate) const MENUS: &[(&str, &[Entry])] = &[
 
 /// The width of the region on the window's start, which holds the world panel, in logical pixels.
 const SIDE_WIDTH: f32 = 340.0;
-
-/// What the center of the window says until it holds a viewport.
-const NO_VIEWPORT: &str = "No viewport yet: the level shows in the world panel.";
 
 /// The width of the layer that waits for the system's dialog to open a level, in logical pixels.
 const CHOOSING_WIDTH: f32 = 460.0;
@@ -142,6 +142,12 @@ pub(crate) struct Model {
     colors: Colors,
     /// The layer that waits for the system's dialog, while it is open.
     choosing: Option<Choosing>,
+    /// The viewport's surface, once built.
+    surface: Option<ElementId>,
+    /// How the viewport's camera moves, and where it is.
+    pub(crate) navigation: Navigation,
+    /// Whether the viewport is to frame the selection at the next frame (`view.frame_selection`).
+    pub(crate) frame_wanted: bool,
 }
 
 impl Model {
@@ -166,6 +172,10 @@ impl Model {
             selected: None,
             colors: Colors::Dark,
             choosing: None,
+            surface: None,
+            navigation: Navigation::default(),
+            // The level, framed as it opens.
+            frame_wanted: true,
         };
         model.style();
         model
@@ -209,6 +219,10 @@ impl Model {
             requests.push(Request::Select(selection));
         }
         for action in actions {
+            if let ActionKind::Surface(input) = action.kind {
+                self.navigate(input);
+                continue;
+            }
             if let Some(request) = self.request_of(&action) {
                 requests.push(request);
             }
@@ -216,6 +230,55 @@ impl Model {
         let made = !requests.is_empty();
         self.shared.borrow_mut().requests.extend(requests);
         took || made
+    }
+
+    /// Moves the viewport's camera as the pointer's `input` on its surface asks.
+    fn navigate(&mut self, input: SurfaceInput) {
+        match input {
+            SurfaceInput::Pressed {
+                button,
+                modifiers,
+                at,
+            } => {
+                // A gesture that starts before the level opening is framed keeps the camera where
+                // the user takes it.
+                if self.navigation.press(button, modifiers, at) {
+                    self.frame_wanted = false;
+                }
+            }
+            SurfaceInput::Released { button, .. } => self.navigation.release(button),
+            SurfaceInput::Wheel { delta, .. } => self.navigation.wheel(match delta {
+                ScrollDelta::Lines { y, .. } => f64::from(y),
+                // A touchpad's pixels, a line some 40 of them.
+                ScrollDelta::Pixels { y, .. } => y / 40.0,
+            }),
+            // Moves come where the cursor cannot be held; where it is, the raw motion turns it.
+            SurfaceInput::Moved { at } => {
+                self.navigation.pointer(at);
+            }
+        }
+    }
+
+    /// The viewport's surface's box, in pixels of the screen, once laid out.
+    pub(crate) fn viewport_rect(&self) -> Option<slime_ui::Rect> {
+        self.ui.rect(self.surface?)
+    }
+
+    /// The size of the viewport's image, in pixels of the screen: its surface's, at least 1 by 1.
+    pub(crate) fn viewport_size(&self) -> Option<(u32, u32)> {
+        let rect = self.viewport_rect()?;
+        let side = |length: f32| (length.round() as u32).max(1);
+        Some((side(rect.width), side(rect.height)))
+    }
+
+    /// The entities that the core says are selected, which `world` holds.
+    pub(crate) fn selected_entities(&self, world: &World) -> Vec<Entity> {
+        self.shared
+            .borrow()
+            .selection
+            .iter()
+            .filter_map(|identity| world.find(identity))
+            .collect()
     }
 
     /// The request that `action` makes, after the menus and the layers that it opens or closes.
@@ -547,6 +610,7 @@ impl Model {
                 "view.palette" => self.ui.open_palette("Find an operation", commands),
                 "view.shortcuts" => self.ui.open_shortcut_sheet("Shortcuts", &commands),
                 "file.choose" => self.choose_level(size),
+                "view.frame_selection" => self.frame_wanted = true,
                 name => tracing::warn!(name, "the window has no operation of that name"),
             }
         }
@@ -587,14 +651,17 @@ impl Model {
         self.ui.frame().0
     }
 
-    /// Follows what the core changed: a level opened in place of the other resets the world panel;
-    /// a selection that the core changed, an undo or an agent's, selects in the panel.
+    /// Follows what the core changed: a level opened in place of the other resets the world panel
+    /// and is framed in the viewport; a selection that the core changed, an undo or an agent's,
+    /// selects in the panel.
     fn follow_the_core(&mut self, world: &World) {
         let shared = self.shared.borrow();
         if shared.opened != self.opened {
             self.opened = shared.opened;
             self.panel = WorldPanel::default();
             self.selected = None;
+            // Another level, framed as it opens.
+            self.frame_wanted = true;
         }
         let selected = shared
             .selection
@@ -614,6 +681,7 @@ impl Model {
         let status = self.status();
         let mut bar = Vec::new();
         let mut slot = None;
+        let mut surface = None;
         self.ui.build(self.root, self.built, |children| {
             let mut window = column();
             window.layout.grow = 1.0;
@@ -648,13 +716,8 @@ impl Model {
                     });
                     let mut center = Style::default();
                     center.layout.grow = 1.0;
-                    center.layout.justify = Justify::Center;
-                    center.layout.align_items = Align::Center;
-                    let center = Element::container(center).class("panel").named("viewport");
-                    regions.add("viewport", center, |center| {
-                        let word = Element::label(NO_VIEWPORT, Style::default()).class("muted");
-                        center.add("word", word, |_| {});
-                    });
+                    let center = Element::surface(viewport::IMAGE, center).named("viewport");
+                    surface = Some(regions.add("viewport", center, |_| {}));
                 });
                 let mut line = Style::default();
                 line.layout.padding = Sides::all(6.0);
@@ -673,6 +736,9 @@ impl Model {
         }
         if slot.is_some() {
             self.slot = slot;
+        }
+        if surface.is_some() {
+            self.surface = surface;
         }
     }
 
@@ -814,9 +880,28 @@ pub fn window_image(
         .create_render_target("editor's window", physical[0], physical[1], format)
         .map_err(|error| error.to_string())?;
     let size = IMAGE_SIZE.map(|side| side as f32);
+    let (assets, lighting) = {
+        let shared = model.shared.borrow();
+        (shared.assets.clone(), shared.lighting)
+    };
+    let mut viewport = assets
+        .zip(lighting)
+        .map(|(assets, lighting)| Viewport::new(&gpu, &drawing.renderer, assets, lighting, format))
+        .transpose()
+        .map_err(|error| error.to_string())?;
     // Twice: the world panel's list builds its rows once the first frame laid it out.
     for _ in 0..2 {
         let display = model.frame(host.world(), size, scale);
+        if let (Some(viewport), Some(size)) = (&mut viewport, model.viewport_size()) {
+            draw_viewport_whole(
+                &gpu,
+                &mut drawing.renderer,
+                viewport,
+                &mut model,
+                host.world(),
+                size,
+            )?;
+        }
         gpu.render(
             &RenderPassDescriptor {
                 target: &target,
@@ -827,6 +912,7 @@ pub fn window_image(
             },
             |_| {},
         );
+        let image = viewport.as_ref().and_then(Viewport::image);
         drawing
             .bridge
             .draw(
@@ -834,13 +920,65 @@ pub fn window_image(
                 &mut drawing.renderer,
                 model.ui.fonts(),
                 &display,
-                |_| None,
+                |key| match (key, image) {
+                    (viewport::IMAGE, Some(image)) => Some(CanvasImage::Target(image)),
+                    _ => None,
+                },
                 &target,
             )
             .map_err(|error| error.to_string())?;
     }
     gpu.read_render_target(&target)
         .map_err(|error| error.to_string())
+}
+
+/// How long [`window_image`] waits at most for the meshes that the level places to load.
+const LOADING: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Draws `viewport` of `size` pixels as the window shows it once the meshes that `world` places
+/// have loaded, the level framed as it opens, for [`window_image`].
+fn draw_viewport_whole(
+    gpu: &Gpu,
+    renderer: &mut Renderer,
+    viewport: &mut Viewport,
+    model: &mut Model,
+    world: &World,
+    size: (u32, u32),
+) -> Result<(), String> {
+    let started = Instant::now();
+    while model.frame_wanted {
+        match viewport
+            .bounds(gpu, world, &model.selected_entities(world))
+            .map_err(|error| error.to_string())?
+        {
+            Framing::Loading if started.elapsed() > LOADING => {
+                return Err("the level's meshes did not load within a minute".to_owned());
+            }
+            Framing::Loading => std::thread::sleep(std::time::Duration::from_millis(5)),
+            Framing::Nothing => model.frame_wanted = false,
+            Framing::Sphere(center, radius) => {
+                model
+                    .navigation
+                    .frame(center, radius, f64::from(size.0) / f64::from(size.1));
+                model.frame_wanted = false;
+            }
+        }
+    }
+    loop {
+        let loading = viewport
+            .prepare(gpu, world, model.navigation.camera(), size, Instant::now())
+            .map_err(|error| error.to_string())?;
+        viewport
+            .draw(gpu, renderer)
+            .map_err(|error| error.to_string())?;
+        if !loading {
+            return Ok(());
+        }
+        if started.elapsed() > LOADING {
+            return Err("the level's meshes did not load within a minute".to_owned());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
 }
 
 /// What draws the window's interface.
@@ -863,10 +1001,21 @@ pub(crate) struct Window {
     shared: Shared,
     model: Option<Model>,
     drawing: Option<Drawing>,
+    /// The viewport, once a level is open and the GPU there.
+    viewport: Option<Viewport>,
+    /// How the viewport draws, which tools change, kept when the GPU device is lost.
+    settings: ViewSettings,
     /// What the last extraction laid out, which the frame draws.
     display: Option<DisplayList>,
     /// The title that the window shows.
     title: String,
+    /// Whether the windowing system refused to hold the cursor, which the user was told once.
+    cursor_refused: bool,
+    /// Whether the window tried to hold the cursor for the gesture under way, once for each.
+    cursor_tried: bool,
+    /// How many levels the core had opened in place of the first when the viewport last took the
+    /// cooked data.
+    viewport_opened: u64,
 }
 
 impl Window {
@@ -875,8 +1024,100 @@ impl Window {
             shared,
             model: None,
             drawing: None,
+            viewport: None,
+            settings: ViewSettings::default(),
             display: None,
             title: String::new(),
+            cursor_refused: false,
+            cursor_tried: false,
+            viewport_opened: 0,
+        }
+    }
+
+    /// Holds the cursor while a gesture of the viewport moves the camera, once for each gesture,
+    /// and lets it go after; tells the user once if the windowing system refuses, the cursor left
+    /// free and the camera following it.
+    fn hold_cursor(&mut self, window: &slime_platform::Window, held: bool) {
+        if !held {
+            self.cursor_tried = false;
+            if window.cursor_held() {
+                let _ = window.set_cursor_held(false);
+            }
+            return;
+        }
+        if window.cursor_held() || std::mem::replace(&mut self.cursor_tried, true) {
+            return;
+        }
+        if let Err(error) = window.set_cursor_held(true)
+            && !std::mem::replace(&mut self.cursor_refused, true)
+        {
+            self.shared.borrow_mut().notices.push(Notice {
+                failure: true,
+                text: format!(
+                    "{}: the cursor stays free, and the camera follows it",
+                    slime_app::error_chain(&error)
+                ),
+            });
+        }
+    }
+
+    /// Makes the viewport ready to draw this frame, made first once a level is open: what it
+    /// shows changed, or its meshes still load, which asks for the next frame.
+    fn prepare_viewport(&mut self, ctx: &mut Context, world: &World) {
+        let (Some(model), Some(drawing), Some(gpu), Some(format)) = (
+            &mut self.model,
+            &self.drawing,
+            ctx.gpu(),
+            ctx.surface_format(),
+        ) else {
+            return;
+        };
+        let shared = self.shared.borrow();
+        let (Some(assets), Some(lighting), opened) =
+            (shared.assets.clone(), shared.lighting, shared.opened)
+        else {
+            return;
+        };
+        drop(shared);
+        match &mut self.viewport {
+            None => match Viewport::new(gpu, &drawing.renderer, assets, lighting, format) {
+                Ok(viewport) => self.viewport = Some(viewport),
+                Err(error) => {
+                    ctx.exit_with_error(error);
+                    return;
+                }
+            },
+            // A level opened since: the cooked data as the core read it then, which may hold what
+            // was cooked since the first.
+            Some(viewport) if opened != self.viewport_opened => viewport.reload(gpu, assets),
+            Some(_) => {}
+        }
+        self.viewport_opened = opened;
+        let (Some(viewport), Some(size)) = (&mut self.viewport, model.viewport_size()) else {
+            return;
+        };
+        if model.frame_wanted {
+            match viewport.bounds(gpu, world, &model.selected_entities(world)) {
+                Ok(Framing::Loading) => {}
+                Ok(framing) => {
+                    model.frame_wanted = false;
+                    if let Framing::Sphere(center, radius) = framing {
+                        let aspect = f64::from(size.0) / f64::from(size.1);
+                        model.navigation.frame(center, radius, aspect);
+                    }
+                }
+                Err(error) => {
+                    ctx.exit_with_error(error);
+                    return;
+                }
+            }
+        }
+        viewport.set_settings(self.settings);
+        let camera = model.navigation.camera();
+        match viewport.prepare(gpu, world, camera, size, Instant::now()) {
+            Ok(true) => ctx.request_frame(),
+            Ok(false) => {}
+            Err(error) => ctx.exit_with_error(error),
         }
     }
 }
@@ -899,6 +1140,15 @@ impl Presentation for Window {
             return false;
         };
         match event {
+            // The mouse's raw motion turns the camera, and the keys fly it, while the cursor is held.
+            Event::RawMotion { delta } => {
+                model.navigation.motion(*delta);
+            }
+            Event::Key(key) => {
+                let down = key.state == slime_platform::ButtonState::Pressed;
+                return model.navigation.key(key.physical, down, Instant::now());
+            }
+            Event::ModifiersChanged(modifiers) => model.navigation.set_fast(modifiers.shift),
             Event::ColorSchemeChanged(scheme) => model.set_colors(match scheme {
                 ColorScheme::Dark => Colors::Dark,
                 ColorScheme::Light => Colors::Light,
@@ -933,38 +1183,105 @@ impl Presentation for Window {
                 model.dialog_opened(window.choose_file(choice), Instant::now());
             }
         }
+        // The keys that fly the camera move it at every frame while they are held.
+        again |= model.navigation.advance(Instant::now());
+        let held = model.navigation.holds_cursor();
+        let title = model.title();
         if again {
             ctx.request_frame();
         }
-        let Some(window) = ctx.window() else {
-            return;
-        };
-        let title = model.title();
-        if title != self.title {
-            window.set_title(&title);
-            self.title = title;
+        if let Some(window) = ctx.window().cloned() {
+            self.hold_cursor(&window, held);
+            if title != self.title {
+                window.set_title(&title);
+                self.title = title;
+            }
         }
+        self.prepare_viewport(ctx, world);
     }
 
     fn render(&mut self, ctx: &mut Context, target: &RenderTarget) {
-        let (Some(model), Some(drawing), Some(display), Some(gpu)) =
-            (&self.model, &mut self.drawing, &self.display, ctx.gpu())
-        else {
+        let (Some(model), Some(drawing), Some(display), Some(gpu)) = (
+            &self.model,
+            &mut self.drawing,
+            &self.display,
+            ctx.gpu().cloned(),
+        ) else {
             return;
         };
+        let gpu = &gpu;
+        if let Some(viewport) = &mut self.viewport {
+            match viewport.draw(gpu, &mut drawing.renderer) {
+                // A new size that has not held still yet is drawn once it has.
+                Ok(Some(due)) => ctx.request_frame_at(due),
+                Ok(None) => {}
+                Err(error) => {
+                    ctx.exit_with_error(error);
+                    return;
+                }
+            }
+        }
+        let image = self.viewport.as_ref().and_then(Viewport::image);
         if let Err(error) = drawing.bridge.draw(
             gpu,
             &mut drawing.renderer,
             model.ui.fonts(),
             display,
-            |_| None,
+            |key| match (key, image) {
+                (viewport::IMAGE, Some(image)) => Some(CanvasImage::Target(image)),
+                _ => None,
+            },
             target,
         ) {
             ctx.exit_with_error(error);
         }
     }
 
+    fn views(&self) -> Vec<ShownView> {
+        let (Some(model), Some(_)) = (&self.model, &self.viewport) else {
+            return Vec::new();
+        };
+        model
+            .viewport_rect()
+            .map(|rect| ShownView {
+                name: viewport::NAME.to_owned(),
+                x: rect.x.round() as u32,
+                y: rect.y.round() as u32,
+                width: rect.width.round() as u32,
+                height: rect.height.round() as u32,
+            })
+            .into_iter()
+            .collect()
+    }
+
+    fn reports(&self) -> Vec<(String, Reflected)> {
+        self.viewport
+            .as_ref()
+            .map(|viewport| {
+                (
+                    viewport::NAME.to_owned(),
+                    Reflected::new(&viewport.report()),
+                )
+            })
+            .into_iter()
+            .collect()
+    }
+
+    fn view_settings(&self, name: &str) -> Option<Reflected> {
+        (name == viewport::NAME).then(|| Reflected::new(&self.settings))
+    }
+
+    fn set_view_settings(&mut self, name: &str, settings: &Reflected) -> Result<(), String> {
+        if name != viewport::NAME {
+            return Err(format!("the editor has no view `{name}`"));
+        }
+        self.settings = settings.get().map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
     fn gpu_lost(&mut self, _ctx: &mut Context) {
+        // Every GPU object goes; the viewport is made again once the device is.
+        self.viewport = None;
         self.drawing = None;
     }
 
@@ -988,6 +1305,7 @@ mod tests {
 
     use super::*;
     use crate::operation::Changes;
+    use crate::program::Lighting;
 
     const SIZE: [f32; 2] = [1280.0, 800.0];
 
@@ -1034,6 +1352,7 @@ mod tests {
                 assets: directory.join("cooked"),
                 sources: None,
                 register: |_| {},
+                lighting: Lighting::default(),
             };
             let arguments: Vec<OsString> = vec![
                 "--journal".into(),

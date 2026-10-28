@@ -1486,10 +1486,10 @@ whether it draws the shadows, the sky and the bloom. Described by reflection, th
 overlay and a tool driving a game read and change them
 ([ADR-0127](adr/0127-the-settings-of-a-view.md)).
 
-**Viewport (editor).** A panel of the editor that shows a *view* of the level being edited, drawn
-into a target of its own, which the interface's *canvas* shows, and drawn again only when what it
-shows changes ([ADR-0132](adr/0132-the-engines-ui-framework.md),
-[ADR-0155](adr/0155-the-editors-design.md)). Decided, not built yet.
+**Viewport (editor).** The part of the editor's window that shows a *view* of the level being
+edited, drawn into a target of its own, which the interface's *canvas* shows through a *surface
+(interface)*, and drawn again only when what it shows changes; the user flies through it
+([ADR-0155](adr/0155-the-editors-design.md), [ADR-0158](adr/0158-the-viewport.md)).
 
 **Visual target.** A reference image that a game sets for its look, on its target *hardware tier*
 at its frame rate: the gap between the game's image and its targets is the measured problem by

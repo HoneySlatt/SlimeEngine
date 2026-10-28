@@ -11,3 +11,4 @@
 "Ctrl+Shift+A" = "edit.select_none"
 "Ctrl+Shift+P" = "view.palette"
 F1 = "view.shortcuts"
+F = "view.frame_selection"

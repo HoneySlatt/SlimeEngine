@@ -37,6 +37,8 @@ slime-ui = { workspace = true, features = ["editor-look"] }
 slime-ui-render.workspace = true
 # The world that the editor changes, its commands and its levels (ADR-0109).
 slime-world.workspace = true
+# What the viewport draws of the world, through its own asset cache (ADR-0158).
+slime-world-render.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 

@@ -61,6 +61,7 @@ impl Session {
         journals: Option<PathBuf>,
     ) -> Self {
         shared.borrow_mut().program = program.name;
+        shared.borrow_mut().lighting = Some(program.lighting);
         Self {
             program: program.clone(),
             options,
@@ -129,6 +130,8 @@ impl Session {
                 self.options.assets.display()
             )
         })?;
+        // The viewport loads the meshes that the level places from the same data.
+        self.shared.borrow_mut().assets = Some(assets.clone());
         let scenes = SceneLibrary::of(assets);
         let journal = self.journal_file(world, level, &whole, journal)?;
         let held = HeldFile::hold(journal.clone())?;
@@ -575,6 +578,7 @@ mod tests {
     use slime_app::{AppConfig, Host};
 
     use super::*;
+    use crate::program::Lighting;
 
     /// A yard of its own, without prefabs, and empty cooked data, in a directory of the test's own.
     struct Yard {
@@ -620,6 +624,7 @@ mod tests {
                 assets: self.directory.join("cooked"),
                 sources: None,
                 register: |_| {},
+                lighting: Lighting::default(),
             };
             let mut arguments: Vec<OsString> = arguments.iter().map(OsString::from).collect();
             arguments.extend(["--journal".into(), self.journal().into_os_string()]);

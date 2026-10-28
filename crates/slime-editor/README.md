@@ -7,8 +7,8 @@ palette and agents, by name; and its program, in a window of its own on the engi
 or without one, which a person uses and tools and agents drive through the development channel
 alike (`docs/adr/0135-the-editors-program.md`,
 `docs/adr/0156-the-editors-window-and-its-operations.md`). The window shows a menu bar, the dev
-overlay's world panel and a status bar; its center holds no viewport yet, which Stage 6c's next
-milestone brings, with the editor's other panels.
+overlay's world panel, a viewport in its center and a status bar; the editor's other panels come
+with Stage 6c's next milestones.
 
 ## Role
 
@@ -53,7 +53,11 @@ milestone brings, with the editor's other panels.
   `file.open` with the file chosen; started by a tool, it opens no dialog, and the layer waits for
   the path (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`). It keeps the
   levels opened last in the user's state directory for the File menu, and tells one hint at its
-  first run. Options: `--level`, `--assets`,
+  first run. Its viewport shows the level, lit as `Program::lighting` says, through its own asset
+  cache and frame builder, drawn again only when what it shows changed; the right button held
+  flies through it with W, A, S, D, Q and E, Alt and the left button orbit, the middle button pans,
+  F frames the selection, and tools capture it by the name `viewport`
+  (`docs/adr/0158-the-viewport.md`). Options: `--level`, `--assets`,
   `--journal`, `--discard`, `--headless`; `run`'s documentation says how a journal is chosen and
   recovered.
 - `window_image(&Program, arguments, operations, scale)`: the window drawn into an image without a
@@ -67,11 +71,12 @@ milestone brings, with the editor's other panels.
 `slime-serialize` and `slime-reflect`, for its journal and the comments of levels; `slime-cook`,
 whose metadata files give a level's asset ID, and which writes files whole or not at all;
 `slime-app`, with its `development` feature, on which its program runs, `slime-channel`, whose
-requests it answers, and `slime-assets`, the cooked data of the prefabs that a level places; for
-its window, `slime-ui`, with the editor's look, `slime-ui-render` and `slime-render`, which draw
-it, `slime-gfx` and `slime-color`, the GPU and the color an image starts from, `slime-platform`,
-the window's events, and `slime-devui`, whose world panel the window shows; `thiserror`, which
-derives `EditError`, and `tracing`, the program's log.
+requests it answers, and `slime-assets`, the cooked data of the prefabs that a level places; for its
+window, `slime-ui`, with the editor's look, `slime-ui-render` and `slime-render`, which draw it,
+`slime-world-render`, what the viewport draws of the world, `slime-gfx` and `slime-color`, the GPU
+and the color an image starts from, `slime-platform`, the window's events, and `slime-devui`, whose
+world panel the window shows; `thiserror`, which derives `EditError`, and `tracing`, the program's
+log.
 
 ## Must not
 

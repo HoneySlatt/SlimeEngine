@@ -2,7 +2,9 @@
 //! (`docs/adr/0156-the-editors-window-and-its-operations.md`): it starts the `editor` example on a
 //! copy of the yard, in a window, lists the operations, makes a step and undoes it by the
 //! operation's name, opens the palette by its name and finds it in the window, opens the File menu
-//! as a person does, runs `file.save` by name, opens another copy of the yard through *Open a
+//! as a person does, runs `file.save` by name, captures the viewport by its name, which the menu's
+//! frames do not draw again and framing a lamp does (`docs/adr/0158-the-viewport.md`), opens
+//! another copy of the yard through *Open a
 //! level…*, which opens no dialog of the system in a program that a tool started, its path typed
 //! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), and checks that the editor,
 //! left alone, wakes for the end of the first run's hint and runs no frame for ten seconds after
@@ -17,7 +19,6 @@
 #[path = "common/interface.rs"]
 mod interface;
 #[path = "common/session.rs"]
-#[expect(dead_code, reason = "this session captures nothing")]
 mod session;
 
 use std::fs;
@@ -27,7 +28,18 @@ use std::time::Duration;
 use serde_json::json;
 
 use interface::{act, path_of, until};
-use session::{Session, server};
+use session::{Session, image, server};
+
+/// How many times the viewport drew its image, as its report says.
+fn draws(session: &mut Session) -> u64 {
+    let (said, _) = session.tool("read_report", json!({ "name": "viewport" }));
+    said[0]
+        .split("draws = ")
+        .nth(1)
+        .and_then(|rest| rest.split(|c: char| !c.is_ascii_digit()).next())
+        .and_then(|number| number.parse().ok())
+        .unwrap_or_else(|| panic!("no draws in {said:?}"))
+}
 
 /// The frame that `game_state` says the editor is at.
 fn frame(session: &mut Session) -> u64 {
@@ -147,6 +159,42 @@ fn main() {
         "the menu's Save wrote the level: {said:?}"
     );
     path_of(&mut session, "Label", "all written");
+    // The viewport, captured by its name once the yard's meshes have loaded, which the editor
+    // draws again only when what it shows changes: the frames of a menu opened and closed leave
+    // it as it is; framing a lamp draws it again, closer.
+    let captured = until(
+        "the yard loaded in the viewport",
+        || {
+            let first = image(&session.tool("capture", json!({ "view": "viewport" })).1);
+            let second = image(&session.tool("capture", json!({ "view": "viewport" })).1);
+            (first == second).then_some(first)
+        },
+        Option::is_some,
+    )
+    .expect("found above");
+    let (width, height, yard) = captured;
+    assert!(width > 400 && height > 300, "{width} × {height}");
+    let drawn = draws(&mut session);
+    let file = path_of(&mut session, "MenuItem", "File");
+    act(&mut session, "press", &file, json!({}));
+    path_of(&mut session, "MenuItem", "Save");
+    session.tool("act_on_interface", json!({ "action": "cancel" }));
+    assert_eq!(
+        draws(&mut session),
+        drawn,
+        "the menu drew the viewport again"
+    );
+    let (said, _) = session.tool("select", json!({ "selection": ["yard/lamp 1"] }));
+    assert_eq!(said, ["done"]);
+    let (said, _) = session.tool("run_operation", json!({ "name": "view.frame_selection" }));
+    assert_eq!(said, ["done"]);
+    let (_, captured) = session.tool("capture", json!({ "view": "viewport" }));
+    assert_ne!(
+        image(&captured).2,
+        yard,
+        "framing the lamp changed the view"
+    );
+    assert!(draws(&mut session) > drawn);
     // Open a level…, from the File menu: a program that a tool started opens no dialog of the
     // system, which the agent could not see, and its layer waits for the path, typed.
     let file = path_of(&mut session, "MenuItem", "File");

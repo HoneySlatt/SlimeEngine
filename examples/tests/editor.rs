@@ -19,6 +19,12 @@
 mod cooked;
 #[path = "../common/reference_image.rs"]
 mod reference_image;
+#[path = "../common/sample_scene.rs"]
+#[expect(
+    dead_code,
+    reason = "the editor lights the yard with the sample's sky, exposure and bloom alone"
+)]
+mod sample_scene;
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -32,6 +38,11 @@ fn program(assets: &Path) -> slime_editor::Program {
         assets: assets.to_owned(),
         sources: None,
         register: |_| {},
+        lighting: slime_editor::Lighting {
+            sky: Some(sample_scene::SKY),
+            exposure: sample_scene::EXPOSURE,
+            bloom: sample_scene::BLOOM,
+        },
     }
 }
 

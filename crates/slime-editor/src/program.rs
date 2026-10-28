@@ -36,6 +36,33 @@ pub struct Program {
     /// Registers the game's component types in a world, before the level is opened; nothing for a
     /// program of the engine's types only.
     pub register: fn(&mut World),
+    /// How the viewport lights the level, as the game lights it, which the editor cannot know.
+    pub lighting: Lighting,
+}
+
+/// How the viewport lights the level: the game's sky, exposure and bloom, which its code chooses,
+/// and which a game's editor package gives the editor (`docs/adr/0158-the-viewport.md`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Lighting {
+    /// The sky around the level, as `slime_world_render::FrameBuilder::new` takes it; none for a
+    /// black sky.
+    pub sky: Option<slime_render::Sky>,
+    /// The scene's exposure, as `slime_render::Scene::exposure` says.
+    pub exposure: f32,
+    /// The bloom's strength, as `slime_render::Scene::bloom` says.
+    pub bloom: f32,
+}
+
+impl Default for Lighting {
+    /// No sky, an exposure of 1 and no bloom: the level's own lights alone, their light shown as it
+    /// is, which tests start from.
+    fn default() -> Self {
+        Self {
+            sky: None,
+            exposure: 1.0,
+            bloom: 0.0,
+        }
+    }
 }
 
 /// The editor's directory of journals in the user's data directory, if the environment gives one.
@@ -191,6 +218,7 @@ mod tests {
             assets: PathBuf::from("cooked"),
             sources: None,
             register: |_| {},
+            lighting: Lighting::default(),
         }
     }
 
