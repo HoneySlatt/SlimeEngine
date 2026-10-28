@@ -232,3 +232,4 @@ the ADR linking to it.
 | [0161](0161-the-open-step-and-the-handles.md) | The open step and the handles | Accepted |
 | [0162](0162-creating-copying-and-arranging.md) | Creating, copying and arranging | Accepted |
 | [0163](0163-placing-prefabs-and-the-history-panel.md) | Placing prefabs and the history panel | Accepted |
+| [0164](0164-play.md) | Play | Accepted |

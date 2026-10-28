@@ -29,7 +29,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   is done, and M6c.1 was split in two at its start, M6c.1a and M6c.1b, both done; M6c.2 was split in
   two at its start too, of which M6c.2a is done, and M6c.2b in two again at its start, M6c.2b and
   M6c.2c, both done; M6c.3 was split in two at its start, M6c.3a and M6c.3b, of which M6c.3a is
-  done, and M6c.3b in two again at its start, M6c.3b and M6c.3c, all done; next: M6c.4.
+  done, and M6c.3b in two again at its start, M6c.3b and M6c.3c, all done; M6c.4 was split in
+  three at its start, M6c.4a, M6c.4b and M6c.4c; next: M6c.4a.
 
 ## Status
 
@@ -44,7 +45,9 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.3a](#m6c3a--move-with-handles) | The user moves, turns and scales what is selected with handles, each gesture a single step of the history | Done |
 | [M6c.3b](#m6c3b--create-and-arrange) | The user creates, duplicates, deletes, copies, groups and nudges what is selected, each a step | Done |
 | [M6c.3c](#m6c3c--place-prefabs-and-see-the-history) | The user places prefabs and sees the history | Done |
-| [M6c.4](#m6c4--play-it) | Play runs the level being edited in the game, steps not written included, and the editor's edits reach the running game | Planned |
+| [M6c.4a](#m6c4a--play-the-level) | Play runs the level being edited in the game, steps not written included, paused, stepped and stopped from a toolbar, its log in a console | Planned |
+| [M6c.4b](#m6c4b--edit-while-playing) | The editor's edits reach the running game, and agents drive both programs | Planned |
+| [M6c.4c](#m6c4c--build-the-game-again-and-measure-play) | A game whose code changed is built again and started on a save of its run, and Play's time is measured | Planned |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
 | [M6c.5](#m6c5--find-and-change) | The user finds any entity in a hierarchy, changes its components in an inspector, and arranges the panels in regions of tabs | Planned |
 | [M6c.6](#m6c6--levels-of-several-files-and-links) | A level is made of several files, which the editor writes together, and an entity refers to entities of other files | Planned |
@@ -667,34 +670,65 @@ the same day, placing prefabs and the history panel in a third.
 
 ### M6c.4 — Play it
 
-- **Goal.** Play runs the level being edited in the game, steps not written included, and the
-  editor's edits reach the running game.
-- **Crates.** `slime-editor`, `slime-app`, `slime-world`, `slime-channel`, `slime-mcp`;
-  `games/hunnawood` and `games/hunnawood-editor`.
+Split in three at its start, on 2026-10-28, as [ADR-0155](adr/0155-the-editors-design.md) allows:
+Play itself; edits while playing and agents driving both programs; the game built again and Play
+measured. The owner chose, on 2026-10-28, how the scenes are handed over: the editor writes private
+copies into a directory of its own, which an environment variable names to the game, and the
+engine reads them where every game makes its library of scenes.
+
+#### M6c.4a — Play the level
+
+- **Goal.** Play runs the level being edited in the game, steps not written included, paused,
+  stepped and stopped from a toolbar, its log in a console.
+- **Crates.** `slime-editor`, `slime-world`, `slime-app`; `games/hunnawood-editor`; the `editor`
+  example.
 - **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: Play's states and its
-  controls, Play, Pause, Step, Speed and Stop, in a toolbar; the game started through
-  `slime_channel::launch`, with a token and a save of the editor's own, given the scenes that hold
-  steps not written as private copies, through an option of development builds that the engine
-  handles for every game, the user's files left alone; the steps made while it runs sent to it as
-  commands, those it refuses shown; a console of its log; a game whose code changed built again and
-  started on a save of its run, a mark on Play saying so, the build read from cargo's messages in
-  JSON and the executable started itself, without a console window on Windows; the MCP server
-  driving two programs, the editor and the game it plays; Play's time to control measured from the
-  click on the zone and on a generated level of 100 000 entities, against ADR-0110's 3 seconds;
-  "keep this value", a value read in the running game made a step of the level, if the milestone has
-  room. The dependency `serde_json` in `slime-editor`, already in the lock. The ADR of the design,
-  which says how the scenes are handed over.
+  controls, Play, Pause, Step, Speed and Stop, in a toolbar; the game's program, built already,
+  started through `slime_channel::launch`, with a token and a save of the editor's own, given the
+  scenes that hold steps not written as private copies, through an option of development builds
+  that the engine handles for every game, the user's files left alone; a console of its log; a
+  game that ends or crashes leaving the editor running. The ADR of the design, which says how the
+  scenes are handed over.
 - **Done when.** Play's states tested against a stub game; an agent plays, pauses, steps, reads the
-  log and stops; a game that crashes leaves the editor running; an edit while playing reaches the
-  game, and one that the game refuses is shown; Play leaves the user's files as they were; the
-  figures in [`docs/measurements.md`](measurements.md); CI is green.
-- **How to test.** `cargo test -p slime-editor -p slime-app`;
+  log and stops by the operations' names; a game that crashes leaves the editor running; Play
+  leaves the user's files as they were; CI is green.
+- **How to test.** `cargo test -p slime-editor -p slime-world`;
   `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
-- **By hand.** Play, edits while playing, and a change of the game's rules built and started again,
-  on Linux.
+- **By hand.** Play, Pause, Step and Stop, on Linux.
+
+#### M6c.4b — Edit while playing
+
+- **Goal.** The editor's edits reach the running game, and agents drive both programs.
+- **Crates.** `slime-editor`, `slime-app`, `slime-channel`, `slime-mcp`.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: the steps made while the
+  game runs sent to it as commands, over a request of the development channel that a running game
+  answers, those it refuses shown; the MCP server driving two programs, the editor and the game it
+  plays. The ADR of the design, if one is needed.
+- **Done when.** An edit while playing reaches the game, and one that the game refuses is shown; an
+  agent drives the game that the editor plays; CI is green.
+- **How to test.** `cargo test -p slime-editor -p slime-app`; the MCP server's session tests.
+- **By hand.** Edits while playing, on Linux.
+- **Debt settled.** An MCP server that drives one program at a time.
+
+#### M6c.4c — Build the game again and measure Play
+
+- **Goal.** A game whose code changed is built again and started on a save of its run, and Play's
+  time is measured.
+- **Crates.** `slime-editor`; `games/hunnawood-editor`.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: a game whose code changed
+  built again and started on a save of its run, a mark on Play saying so, the build read from
+  cargo's messages in JSON and the executable started itself, without a console window on Windows;
+  Play's time to control measured from the click on the zone and on a generated level of 100 000
+  entities, against ADR-0110's 3 seconds; "keep this value", a value read in the running game made
+  a step of the level, if the milestone has room. The dependency `serde_json` in `slime-editor`,
+  already in the lock. The ADR of the design, if one is needed.
+- **Done when.** A change of a stub game's code built again and started on a save; the figures in
+  [`docs/measurements.md`](measurements.md); CI is green.
+- **How to test.** `cargo test -p slime-editor`;
+  `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
+- **By hand.** A change of the game's rules built and started again, on Linux.
 - **Debt settled.** An entity that a run created, wrote into its level and destroyed coming back
-  ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)); an MCP server
-  that drives one program at a time.
+  ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)).
 
 ### Checkpoint A — The owner tries the editor
 
