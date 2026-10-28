@@ -8,7 +8,7 @@ use std::sync::{Arc, PoisonError};
 use std::time::Duration;
 
 use slime_channel::{
-    ANNOUNCEMENT, ComponentText, ElementSummary, EntitySummary, GameState, Incoming,
+    ANNOUNCEMENT, ComponentText, Edit, ElementSummary, EntitySummary, GameState, Incoming,
     InterfaceAction, Listener, LogLine, MAX_ELEMENTS, MAX_ENTITIES, MAX_LOG_LINES, Reply, Request,
     TOKEN_ENV_VAR, Token, ViewSummary,
 };
@@ -49,6 +49,10 @@ pub(crate) struct DevChannel {
     /// The steps asked for, each with the count of steps run that answers it: answered once the
     /// frames have run them.
     steps: Vec<(Incoming, u64)>,
+    /// The requests that change an editor's level or what it selects, asked for while the
+    /// simulation said that they wait ([`Simulation::edits_wait`]), in their order: answered at the
+    /// first frame at which it no longer does.
+    edits: VecDeque<Incoming>,
     /// The time between the starts of the last frames.
     frames: VecDeque<Duration>,
 }
@@ -109,6 +113,7 @@ impl DevChannel {
         Some(Self {
             listener,
             captures: Vec::new(),
+            edits: VecDeque::new(),
             picks: Vec::new(),
             steps: Vec::new(),
             frames: VecDeque::new(),
@@ -171,7 +176,29 @@ impl DevChannel {
             }
         }
         self.picks = waiting;
+        // The edits that waited, in their order, once they no longer do.
+        while !simulation.edits_wait()
+            && let Some(incoming) = self.edits.pop_front()
+        {
+            let reply = self.reply(
+                host,
+                simulation,
+                presentation,
+                &views,
+                frames,
+                incoming.request(),
+                windowed,
+            );
+            incoming.answer(reply);
+        }
         while let Some(incoming) = self.listener.next() {
+            // An edit waits while the simulation says so, and behind those that wait already.
+            if changes_an_editor(incoming.request())
+                && (simulation.edits_wait() || !self.edits.is_empty())
+            {
+                self.edits.push_back(incoming);
+                continue;
+            }
             if matches!(
                 incoming.request(),
                 Request::Capture { .. } | Request::CaptureElement { .. }
@@ -211,10 +238,14 @@ impl DevChannel {
         !self.captures.is_empty()
     }
 
-    /// Whether what a tool asked waits for the next frame: a capture, the steps asked for, or a
-    /// picking that the presentation answers a frame or more later.
+    /// Whether what a tool asked waits for the next frame: a capture, the steps asked for, a
+    /// picking that the presentation answers a frame or more later, or an edit that waits for the
+    /// simulation.
     pub(crate) fn waiting(&self) -> bool {
-        !self.captures.is_empty() || !self.steps.is_empty() || !self.picks.is_empty()
+        !self.captures.is_empty()
+            || !self.steps.is_empty()
+            || !self.picks.is_empty()
+            || !self.edits.is_empty()
     }
 
     /// Answers the captures that wait with `target`, the frame's image, drawn and not yet shown, or
@@ -938,6 +969,17 @@ fn read_value(
         Some(inner) => read(ty, text)
             .or_else(|_| read(&inner, text).map(|value| Value::Option(Some(Box::new(value))))),
         None => read(ty, text),
+    }
+}
+
+/// Whether `request` changes an editor's level or what it selects, which waits while its simulation
+/// says so ([`Simulation::edits_wait`]): an editor's requests, but those that only read, and a
+/// value set, which an editor makes a step of.
+fn changes_an_editor(request: &Request) -> bool {
+    match request {
+        Request::Edit { edit } => !matches!(edit, Edit::History | Edit::Journal | Edit::Operations),
+        Request::SetProperty { .. } => true,
+        _ => false,
     }
 }
 

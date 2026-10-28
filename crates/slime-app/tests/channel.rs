@@ -1,8 +1,8 @@
 //! The development channel of a headless run (`docs/adr/0122-the-development-channel.md`): a run
 //! started with a token listens and says where; a tool that gives the token pauses, steps and stops
 //! it, reads and changes its world, presses its keys, reads its log, and saves and loads its run;
-//! one without the token is refused; a run started without a token says nothing and does not
-//! listen.
+//! one without the token is refused; a tool's edits wait while the simulation says so; a run
+//! started without a token says nothing and does not listen.
 //!
 //! A run reads its token from its environment, which only a process's start sets, so each test runs
 //! this test program again as a child, restricted to the run, its environment set.
@@ -300,6 +300,118 @@ fn a_tool_with_the_token_drives_a_headless_run() {
     );
 
     assert_eq!(ask(&mut client, Request::Stop), Reply::Done);
+    let status = launched.child.wait().expect("the run ends");
+    assert!(status.success(), "{status}");
+}
+
+/// An editor whose gesture is under way while W is held, and whose steps, named by a digit, are
+/// written after the lantern's x: 0, then 1, then 12 for the steps `1` and `2`.
+#[derive(Default)]
+struct Holder {
+    gesture: bool,
+}
+
+impl Simulation for Holder {
+    fn start(
+        &mut self,
+        ctx: &mut SimulationContext<'_>,
+        world: &mut World,
+    ) -> Result<(), AppError> {
+        Lantern.start(ctx, world)
+    }
+
+    fn update(&mut self, ctx: &mut SimulationContext<'_>, _world: &mut World) {
+        self.gesture = ctx.input().keys().held(KeyCode::KeyW);
+        thread::sleep(Duration::from_millis(1));
+    }
+
+    fn edit(&mut self, world: &mut World, edit: &slime_channel::Edit) -> Result<Reply, AppError> {
+        let slime_channel::Edit::Step { label, .. } = edit else {
+            return Err("steps alone".into());
+        };
+        let digit: f64 = label.parse()?;
+        let lantern = lantern(world);
+        let mut transform = world.get_mut::<Transform>(lantern).expect("placed");
+        transform.translation.x = transform.translation.x * 10.0 + digit;
+        Ok(Reply::Done)
+    }
+
+    fn edits_wait(&self) -> bool {
+        self.gesture
+    }
+}
+
+/// A tool's edits and the values it sets wait while the simulation says so, in their order, and
+/// are answered once it no longer does; what the tool reads meanwhile is answered at once
+/// (`docs/adr/0161-the-open-step-and-the-handles.md`).
+#[test]
+fn a_tool_s_edits_wait_while_the_simulation_says_so() {
+    if std::env::var_os(CHILD_ENV).is_some() {
+        run(&mut Holder::default(), &mut (), &AppConfig::default()).expect("the run starts");
+        return;
+    }
+    let mut launched = launch(
+        &mut command("a_tool_s_edits_wait_while_the_simulation_says_so"),
+        Duration::from_secs(60),
+    )
+    .expect("the run listens");
+    let connect = || Client::connect(launched.address, &launched.token).expect("accepted");
+    let mut reader = connect();
+    let step = |label: &str| Request::Edit {
+        edit: slime_channel::Edit::Step {
+            label: label.to_owned(),
+            commands: Vec::new(),
+            selection: None,
+        },
+    };
+    // Answered at once while nothing is under way.
+    assert_eq!(ask(&mut reader, step("1")), Reply::Done);
+    assert_eq!(x(&mut reader), 1.0);
+    let w = || "KeyW".to_owned();
+    assert_eq!(ask(&mut reader, Request::Press { key: w() }), Reply::Done);
+    // Two edits, the second asked once the first waits.
+    let edits: Vec<_> = ["2", "3"]
+        .into_iter()
+        .map(|label| {
+            let mut client = connect();
+            let request = step(label);
+            let edit = thread::spawn(move || ask(&mut client, request));
+            thread::sleep(Duration::from_millis(100));
+            edit
+        })
+        .collect();
+    // A value set waits too; a read of the history is answered at once, as the simulation answers
+    // it (this one refuses all but steps).
+    let mut client = connect();
+    let dim = thread::spawn(move || {
+        ask(
+            &mut client,
+            Request::SetProperty {
+                entity: "lantern".to_owned(),
+                component: "Light".to_owned(),
+                path: "intensity".to_owned(),
+                value: "12.5".to_owned(),
+            },
+        )
+    });
+    let history = Request::Edit {
+        edit: slime_channel::Edit::History,
+    };
+    assert!(matches!(ask(&mut reader, history), Reply::Failed { .. }));
+    thread::sleep(Duration::from_millis(100));
+    assert_eq!(
+        x(&mut reader),
+        1.0,
+        "nothing applied while the gesture is under way"
+    );
+    assert!(edits.iter().all(|edit| !edit.is_finished()) && !dim.is_finished());
+    assert_eq!(ask(&mut reader, Request::Release { key: w() }), Reply::Done);
+    for edit in edits {
+        assert_eq!(edit.join().expect("answered"), Reply::Done);
+    }
+    assert_eq!(dim.join().expect("answered"), Reply::Done);
+    assert_eq!(x(&mut reader), 123.0, "applied in their order");
+    assert_eq!(ask(&mut reader, Request::Stop), Reply::Done);
     let status = launched.child.wait().expect("the run ends");
     assert!(status.success(), "{status}");
 }

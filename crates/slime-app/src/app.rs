@@ -295,7 +295,7 @@ impl Frames {
     }
 
     /// Whether work of the run waits for the next frame: what the development channel was asked,
-    /// a capture or steps.
+    /// a capture, steps, a picking or an edit.
     pub(crate) fn waiting(&self) -> bool {
         #[cfg(feature = "development")]
         if self

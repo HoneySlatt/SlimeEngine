@@ -150,6 +150,18 @@ pub trait Simulation {
         let _ = (world, edit);
         Err("the program is not an editor: it plays its level, and edits none".into())
     }
+
+    /// Whether what a tool asks of an editor that changes its level or what it selects waits: as
+    /// an editor's requests do while a person's gesture is under way
+    /// (`docs/adr/0161-the-open-step-and-the-handles.md`). The development channel keeps them, the
+    /// editor's requests but those that read its history, its journal or its operations, and the
+    /// values set, in their order, and answers them at the first frame at which it no longer does,
+    /// through [`edit`](Self::edit) and [`apply`](Self::apply); the tool waits meanwhile. What a
+    /// tool reads is answered at once. By default, never.
+    #[cfg(feature = "development")]
+    fn edits_wait(&self) -> bool {
+        false
+    }
 }
 
 /// A game with no rules, as a program that only draws.
