@@ -12,7 +12,7 @@ use slime_reflect::{Problem, Reflect, ReflectError, Registry, Value};
 use slime_serialize::{Composer, Document, Mode, ReadError, ReadProblem, References};
 
 use crate::change::Tick;
-use crate::components::{Driven, Name, Unsaved};
+use crate::components::{Driven, Name};
 use crate::entity::Entity;
 use crate::identity::{CREATED as CREATED_KEY, PersistentId};
 use crate::library::{MAX_ENTITIES, MAX_SCENE_SIZE, ResolvedScene, SceneLibrary, placed_size};
@@ -96,7 +96,7 @@ pub enum DocumentError {
     /// version of the game that creates them in another order would apply the save's changes to
     /// others. A game creates what its start needs under a key, an entity with
     /// [`World::spawn_keyed`] and a prefab with [`World::spawn_scene`] rather than
-    /// [`World::spawn_placement`], or leaves it out of saves ([`Unsaved`])
+    /// [`World::spawn_placement`], or leaves it out of saves ([`Unsaved`](crate::Unsaved))
     /// (`docs/adr/0109-stable-references-and-undo.md`).
     #[error(
         "the start created, without a key, {}: a save cannot name them for good; create them with \
@@ -381,7 +381,7 @@ impl World {
     /// - What the world keeps of the scenes that it unloaded, by key and asset, laid out as what it
     ///   saves of the scenes that it holds ([`World::unload_scene`]).
     ///
-    /// Entities are named by their persistent identities. Those that hold [`Unsaved`], or whose
+    /// Entities are named by their persistent identities. Those that hold [`Unsaved`](crate::Unsaved), or whose
     /// ancestor does, are left out, as are the fields marked transient: an entity settled that the
     /// world leaves out is not removed, and loading keeps it as the start has it. A reference to an
     /// entity is its persistent identity, and one to an entity destroyed or left out is `""`, no
@@ -723,7 +723,7 @@ impl World {
     /// `None` if there is none: an entity that one of them saves and the other does not have, by its
     /// persistent identity; and of the entities that both save, another parent, other components,
     /// or a component's value, floats compared by their bits and references to entities by the
-    /// identities they refer to. The entities that hold [`Unsaved`], or whose ancestor does, the
+    /// identities they refer to. The entities that hold [`Unsaved`](crate::Unsaved), or whose ancestor does, the
     /// fields marked transient are left out, as a save leaves them out, and so are the values of the
     /// components that an entity of this world marks driven ([`Driven`]), which a system computes
     /// again, whatever a save holds of them. It tells whether a world loaded from a save is the
@@ -1234,7 +1234,7 @@ impl World {
     /// Destroys the entities of `scene`, spawned under `key`, and forgets the scene; adds their
     /// identities to `gone`. What is under them and not of the scene, another scene's entity, a
     /// placement or an entity created outside scenes, is taken out of them first, but what a save
-    /// leaves out ([`Unsaved`]): the save removes it, or says where it went when the run left the
+    /// leaves out ([`Unsaved`](crate::Unsaved)): the save removes it, or says where it went when the run left the
     /// level, as a hero that walked out of it.
     pub(crate) fn despawn_scene(
         &mut self,
@@ -1543,23 +1543,16 @@ impl World {
     }
 
     /// The entities that a save holds, by their persistent identities: all but those that hold
-    /// [`Unsaved`], or whose ancestor does.
+    /// [`Unsaved`](crate::Unsaved), or whose ancestor does.
     fn saved_entities(&self) -> BTreeMap<PersistentId, Entity> {
         let mut entities = self.named_entities();
         entities.retain(|_, &mut entity| !self.unsaved(entity));
         entities
     }
 
-    /// Whether the entity, or one of its ancestors, holds [`Unsaved`].
+    /// Whether the entity, or one of its ancestors, holds [`Unsaved`](crate::Unsaved), as the world keeps it.
     pub(crate) fn unsaved(&self, entity: Entity) -> bool {
-        let mut next = Some(entity);
-        while let Some(entity) = next {
-            if self.get::<Unsaved>(entity).is_some() {
-                return true;
-            }
-            next = self.parent(entity);
-        }
-        false
+        self.contains(entity) && self.nodes[entity.index() as usize].unsaved
     }
 
     /// The names of the types of the components that `entity` holds, in their order.
@@ -2089,7 +2082,7 @@ enum SpawningAs {
 impl World {
     /// The scenes spawned under keys, the last under each, and the placements, that a save names,
     /// the scenes first, each in the order of its root's identity. It names a scene under a key,
-    /// unless entities of it live of which it leaves out every one ([`Unsaved`]): one of which no
+    /// unless entities of it live of which it leaves out every one ([`Unsaved`](crate::Unsaved)): one of which no
     /// entity lives is one that the run destroyed, whose entities it removes. It names a placement
     /// of which it holds an entity. Its root, which the save holds, is enough: the records are
     /// looked through only when it does not.
@@ -2192,7 +2185,7 @@ mod tests {
     use slime_assets::{AssetId, CookedScene, SceneNode};
 
     use super::*;
-    use crate::{Hidden, Meshes, Name, ResolvedScene, Transform};
+    use crate::{Hidden, Meshes, Name, ResolvedScene, Transform, Unsaved};
 
     /// `scene` resolved, as a game resolves a glTF scene that it spawns alone.
     fn resolved(scene: &CookedScene) -> ResolvedScene {

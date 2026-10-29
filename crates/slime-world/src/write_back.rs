@@ -734,6 +734,10 @@ impl World {
         ) {
             return false;
         }
+        // Below a root that nothing leaves unsaved, the flag that the world keeps says it at once.
+        if !self.unsaved(root) {
+            return self.unsaved(entity);
+        }
         let mut next = Some(entity);
         while let Some(entity) = next.filter(|&entity| entity != root) {
             if self.get::<Unsaved>(entity).is_some() {

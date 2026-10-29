@@ -3,7 +3,7 @@
 use std::iter::FusedIterator;
 
 use crate::change::Tick;
-use crate::components::Hidden;
+use crate::components::{Hidden, Unsaved};
 use crate::entity::Entity;
 use crate::error::WorldError;
 use crate::transform::{GlobalTransform, Transform};
@@ -118,7 +118,9 @@ impl World {
     /// Makes `parent` the parent of `child`, its last child, or puts `child` at the root for
     /// `None`. The child keeps its [`Transform`], now relative to its new parent, so that where it
     /// is in the world changes with it. A child already where it goes, its parent's last child or
-    /// at the root, stays as it is, and the world's structure with it ([`World::structure`]).
+    /// at the root, stays as it is, and the world's structure with it ([`World::structure`]). It
+    /// walks the parent's ancestors, for a cycle, only for a child that has children itself: a
+    /// hierarchy spawned from its root down costs no walk.
     ///
     /// # Errors
     ///
@@ -188,7 +190,12 @@ impl World {
             }
         }
         if let Some(parent) = parent {
+            // An entity without children is the ancestor of none: a hierarchy spawned from its root
+            // down gives each its parent without a walk of the parent's ancestors (G32).
             let mut ancestor = Some(parent);
+            if self.nodes[child.index() as usize].first_child.is_none() {
+                ancestor = ancestor.filter(|&parent| parent == child);
+            }
             while let Some(entity) = ancestor {
                 if entity == child {
                     return Err(WorldError::Cycle { child, parent });
@@ -220,11 +227,12 @@ impl World {
             self.nodes[child.index() as usize].parent_kept = Some(before);
         }
         self.structure = self.next_tick();
+        self.changes.carriers_known = false;
         leave_parent(&mut self.nodes, child);
         if let Some(parent) = parent {
             join_parent(&mut self.nodes, child, parent, rank);
         }
-        self.update_hidden(child.index());
+        self.update_inherited(child.index());
         if self.nodes[child.index() as usize].stale {
             // Stale already, perhaps through its old parent, whose subtree no longer holds it.
             self.changes.stale.push(child.index());
@@ -263,10 +271,11 @@ impl World {
         self.contains(entity) && self.nodes[entity.index() as usize].hidden
     }
 
-    /// Sets whether the slot's entity is hidden, by itself or through an ancestor, from the
-    /// [`Hidden`] it holds and its parent's flag, and its descendants' after it, down to those
-    /// whose flag stays as it was.
-    pub(crate) fn update_hidden(&mut self, slot: u32) {
+    /// Sets the flags that the slot's entity inherits, whether it is hidden and whether it is left
+    /// unsaved, by itself or through an ancestor, from the [`Hidden`] and the [`Unsaved`] that it
+    /// holds and its parent's flags, and its descendants' after it, down to those whose flags stay
+    /// as they were.
+    pub(crate) fn update_inherited(&mut self, slot: u32) {
         let Self {
             nodes,
             storages,
@@ -274,23 +283,30 @@ impl World {
             ..
         } = self;
         let hidden = storage_in::<Hidden>(component_ids, storages);
-        let flag = |nodes: &[Node], slot: u32| {
-            hidden.is_some_and(|hidden| hidden.get(slot).is_some())
-                || nodes[slot as usize]
-                    .parent
-                    .is_some_and(|parent| nodes[parent.index() as usize].hidden)
+        let unsaved = storage_in::<Unsaved>(component_ids, storages);
+        // Whether the flags changed, once set.
+        let set = |nodes: &mut [Node], slot: u32| {
+            let parent = nodes[slot as usize]
+                .parent
+                .map(|parent| &nodes[parent.index() as usize]);
+            let flags = (
+                hidden.is_some_and(|hidden| hidden.get(slot).is_some())
+                    || parent.is_some_and(|parent| parent.hidden),
+                unsaved.is_some_and(|unsaved| unsaved.get(slot).is_some())
+                    || parent.is_some_and(|parent| parent.unsaved),
+            );
+            let node = &mut nodes[slot as usize];
+            let changed = (node.hidden, node.unsaved) != flags;
+            (node.hidden, node.unsaved) = flags;
+            changed
         };
-        let hides = flag(nodes, slot);
-        if hides == nodes[slot as usize].hidden {
+        if !set(nodes, slot) {
             return;
         }
-        nodes[slot as usize].hidden = hides;
         // Empty for an entity without children, as most are: nothing to allocate then.
         let mut next: Vec<u32> = children_of(nodes, slot).map(Entity::index).collect();
         while let Some(slot) = next.pop() {
-            let hides = flag(nodes, slot);
-            if hides != nodes[slot as usize].hidden {
-                nodes[slot as usize].hidden = hides;
+            if set(nodes, slot) {
                 next.extend(children_of(nodes, slot).map(Entity::index));
             }
         }

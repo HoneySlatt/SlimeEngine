@@ -19,7 +19,12 @@ impl World {
         for &(slot, _) in &self.changes.moved {
             self.nodes[slot as usize].moved = 0;
         }
+        for &slot in &self.changes.carried {
+            self.nodes[slot as usize].carried = 0;
+        }
         self.changes.moved.clear();
+        self.changes.carried.clear();
+        self.changes.carriers_known = false;
         self.changes.in_step = true;
     }
 
@@ -32,6 +37,32 @@ impl World {
         for entity in mem::take(&mut self.changes.teleported) {
             self.drawn_where_it_is(entity);
         }
+        self.mark_carried();
+    }
+
+    /// Marks each entity that did not move during the step just ended with the nearest of its
+    /// ancestors that did, if one did ([`World::interpolated_transform`]): each that moved marks
+    /// those below it as far as one that moved too, which marks its own, so that each entity is
+    /// read once, however deep (G32).
+    fn mark_carried(&mut self) {
+        let mut next: Vec<(u32, u32)> = Vec::new();
+        for (index, &(slot, _)) in self.changes.moved.iter().enumerate() {
+            let record = u32::try_from(index + 1).expect("fewer moves than slots");
+            // Not teleported since, nor destroyed and its slot given to another.
+            if self.nodes[slot as usize].moved == record {
+                next.extend(children_of(&self.nodes, slot).map(|child| (child.index(), record)));
+            }
+        }
+        while let Some((slot, record)) = next.pop() {
+            let node = &mut self.nodes[slot as usize];
+            if node.moved != 0 {
+                continue;
+            }
+            node.carried = record;
+            self.changes.carried.push(slot);
+            next.extend(children_of(&self.nodes, slot).map(|child| (child.index(), record)));
+        }
+        self.changes.carriers_known = true;
     }
 
     /// Makes `entity` and its descendants be drawn where they are at the end of the fixed step going
@@ -44,6 +75,7 @@ impl World {
             self.changes.teleported.push(entity);
         } else {
             self.drawn_where_it_is(entity);
+            self.changes.carriers_known = false;
         }
     }
 
@@ -75,6 +107,10 @@ impl World {
     /// counts as a change; reaching one without writing it does not. An entity given another parent
     /// during a step is drawn from where it was to where it goes. A stretch, which `GlobalTransform`
     /// does not hold, is drawn as it is now. `None` if the entity is not alive or has no `Transform`.
+    ///
+    /// It reads at once the ancestor that carries the entity, which the end of the step marks; from
+    /// a change of parent, a teleport outside a step, or a change outside a step of an entity that
+    /// moved during it, until the next step ends, it walks the entity's ancestors to find it.
     pub fn interpolated_transform(&self, entity: Entity, fraction: f64) -> Option<GlobalTransform> {
         let now = self.global_transform(entity)?;
         if self.changes.moved.is_empty() {
@@ -86,20 +122,27 @@ impl World {
             let (_, before) = self.changes.moved[node.moved as usize - 1];
             return Some(before.lerp(&now, fraction));
         }
-        let mut ancestor = node.parent;
-        while let Some(parent) = ancestor {
-            let node = &self.nodes[parent.index() as usize];
-            if node.moved != 0 {
-                let (_, before) = self.changes.moved[node.moved as usize - 1];
-                let parent_now = self.slot_global(parent);
-                let Some(relative) = now.relative_to(&parent_now) else {
-                    return Some(now);
-                };
-                return Some(before.lerp(&parent_now, fraction).compose(&relative));
-            }
-            ancestor = node.parent;
+        // The nearest ancestor that moved: marked at the step's end, or found by a walk once a
+        // change since left the marks behind.
+        let carrier = if self.changes.carriers_known {
+            node.carried
+        } else {
+            std::iter::successors(node.parent, |&parent| {
+                self.nodes[parent.index() as usize].parent
+            })
+            .map(|parent| self.nodes[parent.index() as usize].moved)
+            .find(|&moved| moved != 0)
+            .unwrap_or(0)
+        };
+        if carrier == 0 {
+            return Some(now);
         }
-        Some(now)
+        let (slot, before) = self.changes.moved[carrier as usize - 1];
+        let parent_now = self.slot_global(self.entities.at(slot));
+        let Some(relative) = now.relative_to(&parent_now) else {
+            return Some(now);
+        };
+        Some(before.lerp(&parent_now, fraction).compose(&relative))
     }
 }
 
@@ -335,6 +378,48 @@ mod tests {
             .translation;
         let expected = DVec3::new(10.0 + 0.5f64.sqrt(), 0.0, -(0.5f64.sqrt()));
         assert!((half - expected).length() < 1e-6, "{half}");
+    }
+
+    /// The descendants of an entity teleported during a step, under an ancestor that moved, are
+    /// carried by that ancestor, as the step's end marks them, however deep; a change of parent
+    /// outside a step leaves the marks behind, and the walk that replaces them finds the same
+    /// (G32).
+    #[test]
+    fn what_a_teleport_leaves_is_carried_by_the_ancestor_that_moved_however_deep() {
+        let mut world = World::new();
+        let chain: Vec<crate::Entity> = (0..50)
+            .map(|_| {
+                let entity = world.spawn();
+                world.insert(entity, at(1.0));
+                entity
+            })
+            .collect();
+        for pair in chain.windows(2) {
+            world.set_parent(pair[1], Some(pair[0])).expect("alive");
+        }
+        world.update_transforms();
+        world.begin_fixed_step();
+        world
+            .get_mut::<Transform>(chain[0])
+            .expect("placed")
+            .translation
+            .x = 11.0;
+        world.teleport(chain[1]);
+        world.end_fixed_step();
+        assert!(world.changes.carriers_known);
+        // The root halfway from 1 to 11, each below it one further.
+        let carried = |world: &World, count: usize| {
+            for (depth, &entity) in chain.iter().enumerate().take(count).skip(1) {
+                let x = drawn(world, entity, 0.5);
+                assert!((x - (6.0 + depth as f64)).abs() < 1e-9, "{depth}: {x}");
+            }
+        };
+        carried(&world, chain.len());
+        let last = chain[chain.len() - 1];
+        world.set_parent(last, None).expect("alive");
+        assert!(!world.changes.carriers_known);
+        assert_eq!(drawn(&world, last, 0.5), 1.0, "carried no more");
+        carried(&world, chain.len() - 1);
     }
 
     #[test]

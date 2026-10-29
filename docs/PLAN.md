@@ -2174,9 +2174,6 @@ determinism between Linux and Windows.
   medium; M6c.6): it never counts the entities that the file gives once its placements resolve,
   which the reader refuses beyond `MAX_ENTITIES`, nor what they take, refused beyond
   `MAX_SCENE_SIZE`.
-- **A very deep hierarchy costs quadratic time** (G32, medium; M6c.5): spawning, loading, saving
-  and each frame walk every entity's ancestors (`set_parent`'s search for a cycle,
-  `World::unsaved`, `interpolated_transform`). M6a.3 made `World::is_hidden` read a flag.
 - **Between two fixed steps, the children of a turning parent cut the arc's chord while their
   siblings stay on it** (G38, low; Stage 7): a child moved by its parent is drawn in a straight line
   between its two positions. Interpolating through the hierarchy is to decide before skeletal

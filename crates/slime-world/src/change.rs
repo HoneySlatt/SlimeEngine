@@ -309,7 +309,7 @@ mod tests {
 
     use super::*;
     use crate::entity::Entities;
-    use crate::{Hidden, Light};
+    use crate::{Hidden, Light, Unsaved};
 
     #[test]
     fn a_log_forgets_its_older_half_and_says_so_to_the_readers_that_needed_it() {
@@ -503,5 +503,26 @@ mod tests {
         world.despawn(other);
         let next = world.spawn();
         assert!(!world.is_hidden(next));
+    }
+
+    #[test]
+    fn the_unsaved_flag_follows_unsaved_and_changes_of_parent() {
+        let mut world = World::new();
+        let [root, child, grandchild, other] = std::array::from_fn(|_| world.spawn());
+        world.set_parent(child, Some(root)).expect("alive");
+        world.set_parent(grandchild, Some(child)).expect("alive");
+        let unsaved = |world: &World| [root, child, grandchild, other].map(|e| world.unsaved(e));
+        assert_eq!(unsaved(&world), [false; 4]);
+        world.insert(root, Unsaved);
+        assert_eq!(unsaved(&world), [true, true, true, false]);
+        world.insert(other, Unsaved);
+        world.remove::<Unsaved>(root);
+        world.set_parent(child, Some(other)).expect("alive");
+        assert_eq!(unsaved(&world), [false, true, true, true]);
+        world.set_parent(child, None).expect("alive");
+        assert_eq!(unsaved(&world), [false, false, false, true]);
+        world.despawn(other);
+        let next = world.spawn();
+        assert!(!world.unsaved(next), "a slot taken again starts saved");
     }
 }

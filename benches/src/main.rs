@@ -108,6 +108,12 @@ const BENCHMARKS: &[Benchmark] = &[
         run: world::undo,
     },
     Benchmark {
+        name: "world.deep",
+        about: "a hierarchy 10 000 deep spawned from its root down, saved, and drawn after its root moved",
+        on_request: false,
+        run: world::deep,
+    },
+    Benchmark {
         name: "world.sky",
         about: "frames built around a sun that does not move, between two fixed steps",
         on_request: false,

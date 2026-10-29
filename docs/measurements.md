@@ -1290,3 +1290,21 @@ about a millisecond at 100 000 entities, which a frame that spawns or reparents 
 search reads every name, some 5 ms, once the typing paused: a frame that it runs in passes a list's
 budget, and stays within one of a display at 60 Hz; it took 9 ms before it compared names without
 copying them. The world panel's frame after a rename takes a tenth of what it did.
+
+## M6c.5b, Ryzen 7 5800X
+
+On 2026-10-29, on the CPU alone, in a release build, as
+`cargo run --release -p slime-benches -- world.deep` measures them: a hierarchy 10 000 deep, each
+entity the child of the one before (`benches/README.md`), before and after G32's walks of every
+entity's ancestors were made linear ([ADR-0168](adr/0168-rearranging-the-hierarchy.md)). Before is
+the world of `c2288c8` measured by the same benchmark.
+
+| Measure | Before | After |
+|---|---|---|
+| 10 000 entities spawned, each the child of the one before, once | 122.95 ms | 5.62 ms |
+| `World::save`, each moved, median of 5 | 337.16 ms | 60.33 ms |
+| `World::interpolated_transform` of each, carried by its root, median of 20 | 160.81 ms | 432.2 µs |
+
+What it says: each of the three walks cost the square of the hierarchy's depth, and costs it no
+longer. What the save still takes is that of 10 000 entities changed, whatever their depth: a flat
+world of as many, each moved, takes as long, and twice as many take some 2.3 times as long.

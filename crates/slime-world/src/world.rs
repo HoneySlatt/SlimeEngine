@@ -178,9 +178,15 @@ pub(crate) struct Node {
     pub(crate) stale: bool,
     /// Whether the entity, or one of its ancestors, holds [`Hidden`].
     pub(crate) hidden: bool,
+    /// Whether the entity, or one of its ancestors, holds [`Unsaved`].
+    pub(crate) unsaved: bool,
     /// Its index in [`Changes::moved`] plus one, if its transform in the world changed during the
     /// last fixed step; 0 if it did not, or changed outside a step since.
     pub(crate) moved: u32,
+    /// The index in [`Changes::moved`] plus one of the nearest of its ancestors whose transform in
+    /// the world changed during the last fixed step, which carries it, if it did not change itself;
+    /// 0 for none. Read while [`Changes::carriers_known`] holds.
+    pub(crate) carried: u32,
     /// What the scene that spawned it placed here, if it is a placement's root.
     pub(crate) placement: Option<Arc<Placement>>,
     /// The tick at which it was settled, at or before which its values are the base that a save
@@ -300,6 +306,12 @@ pub(crate) struct Changes {
     pub(crate) moved: Vec<(u32, GlobalTransform)>,
     /// The entities teleported during the fixed step going on.
     pub(crate) teleported: Vec<Entity>,
+    /// The slots whose [`Node::carried`] the end of the last fixed step marked.
+    pub(crate) carried: Vec<u32>,
+    /// Whether each node's [`Node::carried`] holds what it says: from the end of a fixed step until,
+    /// outside a step, an entity that moved during it changes again, is teleported, or an entity
+    /// changes parent.
+    pub(crate) carriers_known: bool,
 }
 
 impl Changes {
@@ -309,6 +321,10 @@ impl Changes {
     fn went_stale(&mut self, node: &mut Node, slot: u32) {
         node.stale = true;
         if !self.in_step {
+            // Its descendants are no longer carried by it.
+            if node.moved != 0 {
+                self.carriers_known = false;
+            }
             node.moved = 0;
         } else if node.moved == 0 {
             self.moved.push((slot, node.global));
@@ -741,12 +757,13 @@ impl World {
 
     /// Keeps what the world derives from the components that the slot holds, once one of
     /// `type_id` was attached, replaced or detached: where a transform's entity and their
-    /// descendants are in the world is computed again, and whether a subtree is hidden.
+    /// descendants are in the world is computed again, and whether a subtree is hidden or left
+    /// unsaved.
     pub(crate) fn held_changed(&mut self, type_id: TypeId, slot: u32) {
         if type_id == TypeId::of::<Transform>() {
             mark_stale(&mut self.nodes, &mut self.changes, slot);
-        } else if type_id == TypeId::of::<Hidden>() {
-            self.update_hidden(slot);
+        } else if type_id == TypeId::of::<Hidden>() || type_id == TypeId::of::<Unsaved>() {
+            self.update_inherited(slot);
         }
     }
 

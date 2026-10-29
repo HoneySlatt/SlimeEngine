@@ -1,6 +1,7 @@
 //! The world's benchmarks: a frame built from many entities, their transforms, a reader of what
 //! changed among many, a large hierarchy changed, a scene file of many placements resolved, and
-//! frames built around a sun that does not move, and a subtree deleted then restored.
+//! frames built around a sun that does not move, a subtree deleted then restored, and a very deep
+//! hierarchy.
 
 use std::collections::HashMap;
 use std::thread;
@@ -181,6 +182,78 @@ pub fn children(_context: &mut Context) -> Result<Vec<Row>, String> {
             ms(duration),
         ));
     }
+    Ok(rows)
+}
+
+/// How deep [`deep`]'s hierarchy is.
+const DEPTH: usize = 10_000;
+
+/// A hierarchy [`DEPTH`] deep, each entity with a key and a transform, and the child of the one
+/// before it:
+/// spawned from its root down, each given its parent as it is spawned, once; settled, each moved,
+/// then saved five times; then, after a fixed step that moved its root and teleported the root's
+/// child, which leaves the child's descendants carried by the root, where each of its entities is
+/// drawn halfway to the next step, twenty times. Each walk of every entity's ancestors costs it the
+/// square of its depth (G32).
+pub fn deep(_context: &mut Context) -> Result<Vec<Row>, String> {
+    let mut world = World::new();
+    let mut entities = Vec::with_capacity(DEPTH);
+    let (spawned, duration) = timed(|| {
+        let mut parent = None;
+        for at in 0..DEPTH {
+            let entity = world.spawn_keyed(&format!("e{at}"))?;
+            world.insert(entity, Transform::from_translation(DVec3::X));
+            world.set_parent(entity, parent)?;
+            entities.push(entity);
+            parent = Some(entity);
+        }
+        Ok::<_, slime_world::WorldError>(())
+    });
+    spawned.map_err(|error| error.to_string())?;
+    if world.parent(entities[DEPTH - 1]) != Some(entities[DEPTH - 2]) {
+        return Err("the hierarchy is not a chain".to_owned());
+    }
+    world.settle();
+    for &entity in &entities {
+        if let Some(mut transform) = world.get_mut::<Transform>(entity) {
+            transform.translation.y = 1.0;
+        }
+    }
+    let mut saves = Vec::new();
+    for _ in 0..5 {
+        let (saved, duration) = timed(|| world.save(&Default::default()));
+        saved.map_err(|error| error.to_string())?;
+        saves.push(duration);
+    }
+    world.update_transforms();
+    world.begin_fixed_step();
+    if let Some(mut transform) = world.get_mut::<Transform>(entities[0]) {
+        transform.translation.z = 1.0;
+    }
+    world.teleport(entities[1]);
+    world.end_fixed_step();
+    let mut drawn = Vec::new();
+    for _ in 0..20 {
+        let (placed, duration) = timed(|| {
+            entities
+                .iter()
+                .filter_map(|&entity| world.interpolated_transform(entity, 0.5))
+                .count()
+        });
+        if placed != DEPTH {
+            return Err(format!("{placed} of {DEPTH} entities placed"));
+        }
+        drawn.push(duration);
+    }
+    let mut rows = vec![Row::new(
+        format!("{DEPTH} entities spawned, each the child of the one before, once"),
+        ms(duration),
+    )];
+    rows.extend(Row::times("`World::save`, each moved", &saves));
+    rows.extend(Row::times(
+        "`World::interpolated_transform` of each, carried by its root",
+        &drawn,
+    ));
     Ok(rows)
 }
 

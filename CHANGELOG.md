@@ -8,6 +8,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+
+
+- The benchmark `world.deep`, a hierarchy 10 000 deep spawned, saved and drawn between two steps.
 - The editor's hierarchy (ADR-0167): the level's entities as a tree in the window's left column,
   above the components of what is selected, its rows built where they show, a placement's root
   marked, folded and unfolded, a click selecting, Ctrl adding and Shift selecting the rows between, the arrows moving the selection
@@ -207,6 +210,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Fixed
 
+- A very deep hierarchy costs time in its depth, no longer in its square (G32): an entity without
+  children is given a parent without a search of the parent's ancestors, the world keeps whether
+  `Unsaved` leaves an entity out as it keeps whether it is hidden, and the end of each fixed step
+  marks the ancestor that moved which carries each entity that did not. At 10 000 deep, spawning
+  takes some twenty times less, a save of every entity moved some five times less, and the frame's
+  interpolation some three hundred times less (`docs/measurements.md`).
 - A GPU object used with another `Gpu` than the one that created it, or its clones, panics, where
   it acted on that other device's object of the same number without a word (G34, ADR-0157).
 - The development channel answers a request within the game's next frame: each message went out in
