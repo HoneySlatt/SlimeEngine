@@ -180,6 +180,59 @@ fn tab_moves_the_focus_in_the_order_of_the_tree_and_the_arrows_to_the_nearest_on
     assert!(!ui.state(cells[3]).unwrap().focused);
 }
 
+/// The focus that Tab moves out of a box that scrolls is scrolled into view, and a list shows a
+/// row by its number, built or not (`docs/adr/0167-the-hierarchy.md`).
+#[test]
+fn the_focus_that_keys_move_and_a_row_asked_for_are_scrolled_into_view() {
+    let mut ui = Ui::new(Fonts::new());
+    let root = ui.add_root(
+        "main",
+        settings(400.0, 300.0, [0.0; 2], false),
+        Style::default(),
+    );
+    let mut column = sized(100.0, 100.0);
+    column.layout.direction = FlexDirection::Column;
+    let (mut scroll, mut buttons, mut list) = (None, Vec::new(), None);
+    ui.build(root, 0, |children| {
+        scroll = Some(children.add("scroll", Element::scroll(column), |children| {
+            for index in 0..10_usize {
+                let mut tall = sized(100.0, 40.0);
+                tall.layout.shrink = 0.0;
+                buttons.push(children.add(index, Element::button("", tall), |_| {}));
+            }
+        }));
+        list = Some(children.add_slot("list", Element::list(1_000, 20.0, sized(100.0, 100.0))));
+    });
+    let (scroll, list) = (scroll.expect("built"), list.expect("built"));
+    ui.frame();
+    // Buttons 40 high in a box 100 high: the fourth is out of view until Tab reaches it.
+    for _ in 0..4 {
+        ui.key(&named(NamedKey::Tab));
+    }
+    assert_eq!(ui.focus(), Some(buttons[3]));
+    assert_eq!(ui.scroll(scroll), Some([0.0, 4.0 * 40.0 - 100.0]));
+    ui.frame();
+    // Back to the first: scrolled to its top.
+    let mut shift = Modifiers::default();
+    shift.shift = true;
+    ui.modifiers(shift);
+    for _ in 0..3 {
+        ui.key(&named(NamedKey::Tab));
+    }
+    assert_eq!(ui.focus(), Some(buttons[0]));
+    assert_eq!(ui.scroll(scroll), Some([0.0, 0.0]));
+    // A row far down, built or not: as little as shows it whole.
+    ui.show_row(list, 500);
+    assert_eq!(ui.scroll(list), Some([0.0, 501.0 * 20.0 - 100.0]));
+    ui.frame();
+    ui.show_row(list, 10);
+    assert_eq!(ui.scroll(list), Some([0.0, 200.0]));
+    ui.show_row(list, 12);
+    assert_eq!(ui.scroll(list), Some([0.0, 200.0]), "it shows already");
+    ui.show_row(list, 5_000);
+    assert_eq!(ui.scroll(list), Some([0.0, 200.0]), "past the end");
+}
+
 #[test]
 fn a_modal_root_takes_the_pointer_and_the_focus_and_gives_the_focus_back_when_it_closes() {
     let (mut ui, buttons) = row();

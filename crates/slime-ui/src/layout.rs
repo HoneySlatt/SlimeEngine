@@ -428,6 +428,7 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
             continue;
         };
         node.scroll = within(node.scroll, &node.element.kind, &layout, scale);
+        node.laid_scroll = node.scroll;
         // Content is cut inside the border, as CSS cuts it at the padding's edge.
         let border = node.style.paint.border_width * scale;
         let inside = Rect::new(

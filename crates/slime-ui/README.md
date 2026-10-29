@@ -131,7 +131,11 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   `tooltip`, `notifications`, `choices` and `colors`, and a key that an open root holds gets a
   variant, `menu-2` (`docs/adr/0156-the-editors-window-and-its-operations.md`). A box that only lays others out
   means nothing; a builder gives an element its role and its name (`Element::role`,
-  `Element::named`). `Ui::set_value` gives a field a value, as a person who replaced its text and
+  `Element::named`), and an item of a tree its level and whether it opens (`Element::level`,
+  `Element::expandable`, `docs/adr/0167-the-hierarchy.md`): a tree is a list whose rows its program
+  flattens, given the role `Role::Tree`. `Ui::show_row` scrolls a list so that a row shows, by its
+  number, built or not, and `Ui::scroll_into_view` scrolls the boxes around an element so that it
+  shows, as the focus that the keys move is. `Ui::set_value` gives a field a value, as a person who replaced its text and
   committed would, and a slider, two panels, a list to choose from or a color well theirs.
 - `Ui::take_meaning_changes` gives what changed in that meaning since it was last taken, as a
   screen reader's adapter sends it (`tree::MeaningChanges`): each element marked as its meaning

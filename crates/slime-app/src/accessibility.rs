@@ -169,8 +169,11 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
             element.set_numeric_value_step(range.step);
         }
     }
-    if matches!(meaning.role, Role::Details | Role::Pane) {
+    if meaning.expandable || matches!(meaning.role, Role::Details | Role::Pane) {
         element.set_expanded(meaning.state.expanded);
+    }
+    if let Some(level) = meaning.level {
+        element.set_level(level);
     }
     if let Some(description) = &meaning.description {
         element.set_description(description.as_str());
@@ -193,7 +196,10 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
         });
         element.set_expanded(meaning.state.expanded);
     }
-    if matches!(meaning.role, Role::Tab | Role::ListBoxOption) {
+    if matches!(
+        meaning.role,
+        Role::Tab | Role::ListBoxOption | Role::ListItem | Role::TreeItem
+    ) {
         element.set_selected(meaning.state.selected);
     }
     if meaning.role == Role::RadioButton {
@@ -343,6 +349,8 @@ fn role(role: Role) -> AccessRole {
         Role::ScrollView => AccessRole::ScrollView,
         Role::List => AccessRole::List,
         Role::ListItem => AccessRole::ListItem,
+        Role::Tree => AccessRole::Tree,
+        Role::TreeItem => AccessRole::TreeItem,
         Role::Dialog => AccessRole::Dialog,
         Role::Toolbar => AccessRole::Toolbar,
         Role::TextInput => AccessRole::TextInput,

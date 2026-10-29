@@ -349,3 +349,77 @@ fn an_element_shows_only_within_its_root() {
         ]
     );
 }
+
+/// A list given the role of a tree, its rows items at their levels, those that hold others open or
+/// not and selected or not, as the editor's hierarchy builds them (`docs/adr/0167-the-hierarchy.md`).
+#[test]
+fn a_tree_s_items_mean_their_levels_and_whether_they_open() {
+    let mut ui = ui();
+    let root = ui.add_root(
+        "main",
+        settings(400.0, 300.0, [0.0; 2], false),
+        Style::default(),
+    );
+    let mut tree = None;
+    ui.build(root, 0, |children| {
+        let list = Element::list(3, 20.0, sized(200.0, 100.0))
+            .role(Role::Tree)
+            .named("hierarchy");
+        tree = Some(children.add_slot("tree", list));
+    });
+    let tree = tree.expect("built");
+    // Laid out first, so that the list knows which rows show.
+    ui.frame();
+    let mut rows = Vec::new();
+    ui.build(tree, 0, |children| {
+        for row in children.rows() {
+            let item = Element::container(Style::default())
+                .role(Role::TreeItem)
+                .named(format!("entity {row}"))
+                .level(if row == 0 { 1 } else { 2 });
+            let item = if row == 0 { item.expandable() } else { item };
+            rows.push(children.add(row, item, |_| {}));
+        }
+    });
+    ui.set_state(
+        rows[0],
+        ElementState {
+            expanded: true,
+            ..ElementState::default()
+        },
+    );
+    ui.set_state(
+        rows[1],
+        ElementState {
+            selected: true,
+            ..ElementState::default()
+        },
+    );
+    ui.frame();
+    let meaning = ui.meaning();
+    let tree = meaning
+        .iter()
+        .find(|meaning| meaning.name == "hierarchy")
+        .expect("the tree");
+    assert_eq!(tree.role, Role::Tree);
+    let item = |name: &str| {
+        meaning
+            .iter()
+            .find(|meaning| meaning.name == name)
+            .expect("an item")
+    };
+    let (first, second) = (item("entity 0"), item("entity 1"));
+    assert_eq!(
+        (
+            first.role,
+            first.level,
+            first.expandable,
+            first.state.expanded
+        ),
+        (Role::TreeItem, Some(1), true, true)
+    );
+    assert_eq!(
+        (second.level, second.expandable, second.state.selected),
+        (Some(2), false, true)
+    );
+}

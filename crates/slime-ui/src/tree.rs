@@ -584,6 +584,12 @@ pub struct Element {
     /// screen readers read as its placeholder (`docs/adr/0151-rich-widgets.md`); `None` for none,
     /// and for an element that is no field.
     pub placeholder: Option<String>,
+    /// Its level in a tree, from 1 for the tree's top items, which screen readers read
+    /// (`docs/adr/0167-the-hierarchy.md`); `None` for an element that has none.
+    pub level: Option<usize>,
+    /// Whether it opens and closes, open or not as its state says ([`ElementState::expanded`]), as
+    /// an item of a tree that holds others: screen readers say so of it.
+    pub expandable: bool,
 }
 
 impl Element {
@@ -849,6 +855,8 @@ impl Element {
             name: None,
             tooltip: None,
             placeholder: None,
+            level: None,
+            expandable: false,
         }
     }
 
@@ -863,6 +871,23 @@ impl Element {
     #[must_use]
     pub fn role(mut self, role: Role) -> Self {
         self.role = Some(role);
+        self
+    }
+
+    /// The element at `level` in a tree, from 1 for the tree's top items, as an item of a tree
+    /// ([`Role::TreeItem`]) is: screen readers read it (`docs/adr/0167-the-hierarchy.md`).
+    #[must_use]
+    pub fn level(mut self, level: usize) -> Self {
+        self.level = Some(level);
+        self
+    }
+
+    /// The element, which opens and closes, open or not as its state says
+    /// ([`ElementState::expanded`]), as an item of a tree that holds others: screen readers say
+    /// so of it (`docs/adr/0167-the-hierarchy.md`).
+    #[must_use]
+    pub fn expandable(mut self) -> Self {
+        self.expandable = true;
         self
     }
 
@@ -1053,6 +1078,9 @@ pub(crate) struct Node {
     pub(crate) rows_built: Range<usize>,
     /// How far its content is scrolled, in logical pixels, for a box that scrolls or a list.
     pub(crate) scroll: [f32; 2],
+    /// How far its content was scrolled as it was last laid out, which the boxes of its content
+    /// were placed by.
+    pub(crate) laid_scroll: [f32; 2],
     pub(crate) changed: Changed,
     /// What flexbox and grid know of it.
     pub(crate) taffy: taffy::Style,
@@ -1462,6 +1490,78 @@ impl Ui {
     /// How far the content of `id` is scrolled, in logical pixels.
     pub fn scroll(&self, id: ElementId) -> Option<[f32; 2]> {
         self.node(id).map(|node| node.scroll)
+    }
+
+    /// Scrolls `list`, a list, as little as it can so that its row `row` shows whole, as the list
+    /// was last laid out, whether the row is built or not (`docs/adr/0167-the-hierarchy.md`): a
+    /// list that then shows other rows has its builder run again at the next [`Ui::build`].
+    /// Nothing happens for an id that names no list, nor for a row past its end.
+    pub fn show_row(&mut self, list: ElementId, row: usize) {
+        let Some(node) = self.node(list) else {
+            return;
+        };
+        let Kind::List { rows, row_height } = node.element.kind else {
+            return;
+        };
+        if row >= rows {
+            return;
+        }
+        let height = node.rect.height / self.scale_of(list);
+        let [x, y] = node.scroll;
+        let top = row as f32 * row_height;
+        let offset = if top < y {
+            top
+        } else if top + row_height > y + height {
+            top + row_height - height
+        } else {
+            return;
+        };
+        self.scroll_to(list, [x, offset]);
+    }
+
+    /// Scrolls the boxes that scroll around `id`, and the lists, as little as each can so that
+    /// `id` shows whole, its start and top first where it is larger than one, as the last
+    /// [`Ui::frame`] laid them out (`docs/adr/0167-the-hierarchy.md`); the focus that the keys move
+    /// is scrolled into view so. Nothing happens for an id that names nothing.
+    pub fn scroll_into_view(&mut self, id: ElementId) {
+        let Some(mut rect) = self.rect(id) else {
+            return;
+        };
+        let mut at = self.node(id).and_then(|node| node.parent);
+        while let Some(ancestor) = at {
+            let Some(node) = self.node(ancestor) else {
+                return;
+            };
+            at = node.parent;
+            if !matches!(node.element.kind, Kind::Scroll | Kind::List { .. }) {
+                continue;
+            }
+            let view = node.rect;
+            // The content placed as it was last laid out, moved by the scroll asked since.
+            let scale = self.scale_of(ancestor);
+            let [x, y] = node.scroll;
+            rect.x -= (x - node.laid_scroll[0]) * scale;
+            rect.y -= (y - node.laid_scroll[1]) * scale;
+            // How far the element is out of the view along an axis, in pixels of the screen.
+            let along = |start: f32, size: f32, view_start: f32, view_size: f32| {
+                if start < view_start || size > view_size {
+                    start - view_start
+                } else if start + size > view_start + view_size {
+                    start + size - view_start - view_size
+                } else {
+                    0.0
+                }
+            };
+            let dx = along(rect.x, rect.width, view.x, view.width);
+            let dy = along(rect.y, rect.height, view.y, view.height);
+            if dx == 0.0 && dy == 0.0 {
+                continue;
+            }
+            self.scroll_to(ancestor, [x + dx / scale, y + dy / scale]);
+            // The element moved within its ancestor, as the ancestors further out see it.
+            rect.x -= dx;
+            rect.y -= dy;
+        }
     }
 
     /// The box of `id` on its root after the last [`Ui::frame`], in pixels of the screen.
@@ -2052,6 +2152,7 @@ impl Node {
             owner: None,
             rows_built: 0..0,
             scroll: [0.0; 2],
+            laid_scroll: [0.0; 2],
             changed: Changed {
                 style: true,
                 layout: true,

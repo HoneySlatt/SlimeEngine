@@ -35,6 +35,12 @@ pub enum Role {
     List,
     /// A row of a list: a container that a list holds, unless it is given another role.
     ListItem,
+    /// A tree: a list whose rows its program flattened from a tree, each at its level
+    /// ([`Element::level`](super::Element::level), `docs/adr/0167-the-hierarchy.md`).
+    Tree,
+    /// An item of a tree, at its level, open or not where it holds others
+    /// ([`ElementState::expanded`]), selected or not ([`ElementState::selected`]).
+    TreeItem,
     /// A dialog, which a modal root holds.
     Dialog,
     /// A bar of buttons.
@@ -109,6 +115,8 @@ impl Role {
             Self::ScrollView => "ScrollView",
             Self::List => "List",
             Self::ListItem => "ListItem",
+            Self::Tree => "Tree",
+            Self::TreeItem => "TreeItem",
             Self::Dialog => "Dialog",
             Self::Toolbar => "Toolbar",
             Self::TextInput => "TextInput",
@@ -209,6 +217,12 @@ pub struct Meaning {
     /// The text that a field shows while it holds nothing
     /// ([`Element::placeholder`](super::Element::placeholder)); none for none.
     pub placeholder: Option<String>,
+    /// Its level in a tree, from 1 for the tree's top items ([`Element::level`](super::Element::level));
+    /// none for an element that has none.
+    pub level: Option<usize>,
+    /// Whether it opens and closes, open or not ([`ElementState::expanded`]), as a section, or an
+    /// item of a tree that holds others ([`Element::expandable`](super::Element::expandable)).
+    pub expandable: bool,
     /// Whether a press opens a layer beside it, which screen readers announce, open or not
     /// ([`ElementState::expanded`]): an item of a menu that opens a submenu, a list to choose
     /// from.
@@ -524,6 +538,8 @@ impl Ui {
             state: node.state,
             description: element.tooltip.as_ref().map(super::Tooltip::description),
             placeholder: element.placeholder.clone().filter(|_| node.field.is_some()),
+            level: element.level,
+            expandable: element.expandable || matches!(element.kind, Kind::Section { .. }),
             popup: matches!(
                 element.kind,
                 Kind::MenuItem {

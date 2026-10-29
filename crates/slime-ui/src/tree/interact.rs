@@ -1057,6 +1057,7 @@ impl Ui {
                 _ => return,
             };
             self.focus_on(Some(first));
+            self.scroll_into_view(first);
             return;
         };
         let next = match intent {
@@ -1069,6 +1070,7 @@ impl Ui {
         };
         if let Some(next) = next {
             self.focus_on(Some(next));
+            self.scroll_into_view(next);
         }
     }
 
