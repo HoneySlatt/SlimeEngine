@@ -31,7 +31,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   M6c.2c, both done; M6c.3 was split in two at its start, M6c.3a and M6c.3b, of which M6c.3a is
   done, and M6c.3b in two again at its start, M6c.3b and M6c.3c, all done; M6c.4 was split in
   three at its start, M6c.4a, M6c.4b and M6c.4c, of which M6c.4a and M6c.4b are done, and M6c.4c
-  in two again at its start, M6c.4c and M6c.4d, both done; next: Checkpoint A.
+  in two again at its start, M6c.4c and M6c.4d, both done; Checkpoint A is done on Linux, its
+  part in the Windows virtual machine to come; next: M6c.5.
 
 ## Status
 
@@ -50,7 +51,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.4b](#m6c4b--edit-while-playing) | The editor's edits reach the running game, and agents drive both programs | Done |
 | [M6c.4c](#m6c4c--build-the-game-again) | Play builds the game before it starts it, and a game whose code changed while it runs is built again and started on a save of its run | Done |
 | [M6c.4d](#m6c4d--measure-play) | Play's time to control is measured on the zone and on a level of 100 000 entities | Done |
-| [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Planned |
+| [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Done on Linux; the Windows virtual machine to come |
 | [M6c.5](#m6c5--find-and-change) | The user finds any entity in a hierarchy, changes its components in an inspector, and arranges the panels in regions of tabs | Planned |
 | [M6c.6](#m6c6--levels-of-several-files-and-links) | A level is made of several files, which the editor writes together, and an entity refers to entities of other files | Planned |
 | [M6c.7](#m6c7--build-from-a-kit) | The user builds a level from a kit of prefabs found in an asset browser, and *Hunna Wood*'s zone is made so | Planned |
@@ -866,6 +867,15 @@ engine reads them where every game makes its library of scenes.
   game's child process and the system's firewall, the dialogs.
 - **Result.** A list of frictions, and this plan adjusted: what to cut, if the stage runs long, is
   decided here.
+- **Outcome.** On Linux, on 2026-10-29: the owner flew through the zone, selected, rearranged it
+  and played it, and found it all working. One friction: flying through the zone was slow, at
+  5 m/s whatever the level, its speed shown nowhere and lost at each start. The viewport now flies
+  at first at a speed that suits the level's size, or at the one last used in it, which the user's
+  state directory keeps for each level, and the status bar shows it while it flies
+  (`slime-editor`'s `navigation` and `speeds`). The plan holds without a cut; the owner placed
+  "keep this value" with the inspector, in M6c.5b, and left Play's time to control on a level of
+  100 000 entities until M6c.6 measures it again. The Windows virtual machine's part waits for the
+  owner, whose report the milestones that follow answer.
 
 ### M6c.5 — Find and change
 
