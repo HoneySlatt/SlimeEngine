@@ -49,6 +49,9 @@ pub(crate) struct State {
     /// The file of the user's state directory that keeps which keys the user chose, Blender's way
     /// or not; none in tests and without a state directory.
     pub(crate) keys: Option<PathBuf>,
+    /// The file of the user's state directory that keeps the flying speed last used in each level
+    /// (`crate::speeds`); none in tests and without a state directory.
+    pub(crate) speeds: Option<PathBuf>,
     /// Counted up each time the core changes what the window shows, and as the window shows
     /// another number of viewports (`view.split`): the window builds its interface again then.
     pub(crate) revision: u64,

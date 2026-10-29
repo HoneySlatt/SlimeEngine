@@ -55,6 +55,9 @@ pub(crate) struct Pane {
     pub(crate) navigation: Navigation,
     /// Whether it is to frame the selection at the next frame (`view.frame_selection`).
     pub(crate) frame_wanted: bool,
+    /// Whether its flying speed is to be the level's as its framing finds the level's size, the
+    /// level just opened ([`Model::framed`](crate::window::Model::framed)).
+    pub(crate) speed_wanted: bool,
     /// A button that selects held over it, while it is.
     selecting: Option<Selecting>,
     /// Where an orbit of the left button started, while it orbits: let go before the mouse moved,
@@ -78,6 +81,7 @@ impl Default for Pane {
             surface: None,
             navigation: Navigation::default(),
             frame_wanted: true,
+            speed_wanted: true,
             selecting: None,
             orbit_from: None,
             wanted: Vec::new(),
@@ -95,6 +99,7 @@ impl Pane {
         Self {
             navigation: self.navigation.looking_as(),
             frame_wanted: self.frame_wanted,
+            speed_wanted: self.speed_wanted,
             settings: self.settings,
             wireframe: self.wireframe,
             ..Self::default()

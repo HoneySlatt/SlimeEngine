@@ -154,6 +154,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- The editor's viewport flies at first at a speed that suits the level's size, at least 5 m/s,
+  rather than 5 m/s whatever the level, or at the speed last used in it, which the user's state
+  directory keeps for each level; the status bar shows the speed while the viewport flies.
 - `Drawings::over_image` in `slime-render` is a `DrawList`, lines and now instances of the unlit
   kind, drawn over the image with a depth of their own, so that the nearer hides the farther, where
   it held lines alone.

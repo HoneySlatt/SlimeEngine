@@ -26,8 +26,13 @@ const PITCH_LIMIT: f64 = 1.55;
 /// far.
 const PAN: f64 = 0.0015;
 
-/// The speed of flying at first, in metres per second, a brisk walk's thrice.
+/// The speed of flying at first, in metres per second, a brisk walk's thrice, and the least at which
+/// a level flies as it opens ([`level_speed`]).
 const FLY_SPEED: f64 = 5.0;
+
+/// How long flying at the speed with which a level opens takes to cross the sphere around the level,
+/// in seconds ([`level_speed`]).
+const LEVEL_CROSSING: f64 = 10.0;
 
 /// The bounds of the flying speed that the wheel changes, in metres per second.
 const FLY_SPEEDS: (f64, f64) = (0.1, 500.0);
@@ -296,6 +301,29 @@ impl Navigation {
         true
     }
 
+    /// The flying speed, in metres per second, without Shift's.
+    pub(crate) fn speed(&self) -> f64 {
+        self.speed
+    }
+
+    /// Flies at `speed` metres per second from now on, within the bounds that the wheel keeps to.
+    pub(crate) fn set_speed(&mut self, speed: f64) {
+        self.speed = speed.clamp(FLY_SPEEDS.0, FLY_SPEEDS.1);
+    }
+
+    /// The speed at which the camera flies while the gesture of flying is under way ([`flying`]),
+    /// Shift's included; none otherwise.
+    ///
+    /// [`flying`]: Navigation::flying
+    pub(crate) fn flying_speed(&self) -> Option<f64> {
+        let speed = if self.fast {
+            self.speed * FAST
+        } else {
+            self.speed
+        };
+        self.flying().then_some(speed)
+    }
+
     /// The wheel turned by `lines`, up positive: flying, it changes the speed; otherwise, it comes
     /// nearer the point that the camera looks at, or goes farther.
     pub(crate) fn wheel(&mut self, lines: f64) {
@@ -314,6 +342,13 @@ impl Navigation {
         self.pivot = center;
         self.distance = (radius.max(NEAREST) / half_view(aspect).sin()).max(NEAREST);
     }
+}
+
+/// The speed at which a level whose sphere has `radius` metres flies as it opens, in metres per
+/// second: across the sphere in [`LEVEL_CROSSING`] seconds, and at least [`FLY_SPEED`], within the
+/// bounds that the wheel keeps to.
+pub(crate) fn level_speed(radius: f64) -> f64 {
+    (2.0 * radius / LEVEL_CROSSING).clamp(FLY_SPEED, FLY_SPEEDS.1)
 }
 
 /// Half the field of view of the renderer's default lens across the narrower side of an image
@@ -399,6 +434,17 @@ mod tests {
             moved.dot(navigation.forward()).abs() < 1e-9,
             "level, not forward"
         );
+    }
+
+    #[test]
+    fn a_level_flies_across_in_ten_seconds_as_it_opens_and_never_slower_than_at_first() {
+        assert_eq!(level_speed(3.0), FLY_SPEED);
+        assert!((level_speed(400.0) - 80.0).abs() < 1e-9);
+        assert_eq!(level_speed(1e9), FLY_SPEEDS.1);
+        let mut navigation = Navigation::default();
+        navigation.set_speed(1e9);
+        assert_eq!(navigation.speed(), FLY_SPEEDS.1);
+        assert_eq!(navigation.flying_speed(), None, "not flying");
     }
 
     #[test]

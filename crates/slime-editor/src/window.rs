@@ -42,6 +42,7 @@ use crate::picking::{self, Wanted};
 use crate::program::Program;
 use crate::session::Session;
 use crate::shared::{BuildMark, Notice, Playing, Request, Shared};
+use crate::speeds;
 use crate::viewport::{self, Framing, Level, Marks, Viewport};
 
 /// An entry of a menu.
@@ -238,6 +239,9 @@ pub(crate) struct Model {
     pub(crate) panes: Vec<Pane>,
     /// The pane that the pointer last pressed in, which the View menu changes and F frames.
     pub(crate) active: usize,
+    /// The speed at which a viewport flies, Shift's included, while one does, as the status bar
+    /// says it.
+    flight: Option<f64>,
     /// What the handles do, the axes that they follow, and whether they snap
     /// (`docs/adr/0161-the-open-step-and-the-handles.md`): the user's, never the level's.
     pub(crate) tool: Tool,
@@ -290,6 +294,7 @@ impl Model {
             // The level, framed as it opens.
             panes: vec![Pane::default()],
             active: 0,
+            flight: None,
             tool: Tool::default(),
             space: Space::default(),
             snap: false,
@@ -1063,6 +1068,7 @@ impl Model {
                 buttons: Vec::new(),
             });
         }
+        self.follow_flight();
         let revision = self.shared.borrow().revision;
         if revision != self.built {
             self.built = revision;
@@ -1131,6 +1137,7 @@ impl Model {
             // entities ends with it, whose core held its gesture.
             for pane in &mut self.panes {
                 pane.frame_wanted = true;
+                pane.speed_wanted = true;
                 pane.drag = None;
             }
         }
@@ -1362,7 +1369,7 @@ impl Model {
             || "no level".to_owned(),
             |level| level.display().to_string(),
         );
-        vec![
+        let mut status = vec![
             ("level", level),
             ("unwritten", steps_not_written(shared.unwritten)),
             (
@@ -1373,7 +1380,75 @@ impl Model {
                     count => format!("{count} entities selected"),
                 },
             ),
-        ]
+        ];
+        if let Some(speed) = self.flight {
+            status.push(("flying", flying(speed)));
+        }
+        status
+    }
+
+    /// Frames, in pane `pane`, a sphere around `center` of `radius` metres, the viewport `aspect`
+    /// times as wide as it is tall; a level just opened sets the pane's flying speed too, the speed
+    /// last used in it, which the user's state keeps, or one that suits its size
+    /// (`navigation::level_speed`).
+    pub(crate) fn framed(&mut self, pane: usize, center: DVec3, radius: f64, aspect: f64) {
+        let kept = if self.panes[pane].speed_wanted {
+            let shared = self.shared.borrow();
+            let speeds = shared
+                .speeds
+                .as_deref()
+                .and_then(|file| speeds::read(file).ok());
+            shared
+                .level
+                .as_deref()
+                .and_then(|level| speeds::of(&speeds?, level))
+        } else {
+            None
+        };
+        let pane = &mut self.panes[pane];
+        pane.navigation.frame(center, radius, aspect);
+        if std::mem::take(&mut pane.speed_wanted) {
+            let speed = kept.unwrap_or_else(|| crate::navigation::level_speed(radius));
+            pane.navigation.set_speed(speed);
+        }
+    }
+
+    /// Follows the flight of the viewports: the status bar says the speed while one flies, built
+    /// again as it changes, and the speed is kept for the level, in the user's state, once the
+    /// flight ends.
+    fn follow_flight(&mut self) {
+        let flight = self
+            .panes
+            .iter()
+            .find_map(|pane| pane.navigation.flying_speed());
+        if flight == self.flight {
+            return;
+        }
+        let ended = flight.is_none();
+        self.flight = flight;
+        self.shared.borrow_mut().revision += 1;
+        let flown = self
+            .panes
+            .get(self.active)
+            .map(|pane| pane.navigation.speed());
+        let (file, level) = {
+            let shared = self.shared.borrow();
+            (shared.speeds.clone(), shared.level.clone())
+        };
+        let (true, Some(speed), Some(file), Some(level)) = (ended, flown, file, level) else {
+            return;
+        };
+        let kept = speeds::read(&file)
+            .and_then(|speeds| speeds::write(&file, &speeds::flown(&speeds, &level, speed)));
+        if let Err(error) = kept {
+            self.shared.borrow_mut().notices.push(Notice {
+                failure: true,
+                text: format!(
+                    "the flying speed is not kept for the next start: {}: {error}",
+                    file.display()
+                ),
+            });
+        }
     }
 
     /// The window's title: the level's file's name, the steps that the file does not hold, and the
@@ -1461,6 +1536,15 @@ enum Menu {
     Bar(usize),
     /// The levels opened last.
     Recent,
+}
+
+/// The speed at which a viewport flies, in metres per second, as the status bar says it.
+fn flying(speed: f64) -> String {
+    if speed < 10.0 {
+        format!("flying at {speed:.1} m/s")
+    } else {
+        format!("flying at {speed:.0} m/s")
+    }
 }
 
 /// How many steps the level's file does not hold, as the status bar and the title say it.
@@ -1648,8 +1732,7 @@ fn frame_whole(
 ) -> Result<(), String> {
     let started = Instant::now();
     let selection = model.selected_entities(world);
-    let pane = &mut model.panes[pane];
-    while pane.frame_wanted {
+    while model.panes[pane].frame_wanted {
         match level
             .bounds(gpu, world, &selection)
             .map_err(|error| error.to_string())?
@@ -1658,11 +1741,10 @@ fn frame_whole(
                 return Err("the level's meshes did not load within a minute".to_owned());
             }
             Framing::Loading => std::thread::sleep(std::time::Duration::from_millis(5)),
-            Framing::Nothing => pane.frame_wanted = false,
+            Framing::Nothing => model.panes[pane].frame_wanted = false,
             Framing::Sphere(center, radius) => {
-                pane.navigation
-                    .frame(center, radius, f64::from(size.0) / f64::from(size.1));
-                pane.frame_wanted = false;
+                model.framed(pane, center, radius, f64::from(size.0) / f64::from(size.1));
+                model.panes[pane].frame_wanted = false;
             }
         }
     }
@@ -1919,15 +2001,14 @@ impl Window {
             let Some(size) = model.viewport_size(index) else {
                 continue;
             };
-            let pane = &mut model.panes[index];
-            if pane.frame_wanted {
+            if model.panes[index].frame_wanted {
                 match level.bounds(gpu, world, &model_selection(&self.shared, world)) {
                     Ok(Framing::Loading) => {}
                     Ok(framing) => {
-                        pane.frame_wanted = false;
+                        model.panes[index].frame_wanted = false;
                         if let Framing::Sphere(center, radius) = framing {
                             let aspect = f64::from(size.0) / f64::from(size.1);
-                            pane.navigation.frame(center, radius, aspect);
+                            model.framed(index, center, radius, aspect);
                         }
                     }
                     Err(error) => {
@@ -1936,6 +2017,7 @@ impl Window {
                     }
                 }
             }
+            let pane = &mut model.panes[index];
             let camera = pane.navigation.camera();
             // What its buttons asked: by the GPU, at the frame that draws the viewport next; by
             // the CPU, at once.
@@ -3529,6 +3611,55 @@ mod tests {
         });
         drop(yard);
         let _ = fs::remove_dir_all(&crate_directory);
+    }
+
+    /// A level flies at first at a speed that suits its size, or at the one last used in it, which
+    /// the status bar says while the viewport flies and the user's state keeps once it stops.
+    #[test]
+    fn the_flying_speed_suits_the_level_shows_and_is_kept() {
+        let mut yard = Yard::new("flying");
+        let speeds = yard.directory.join("state").join("speeds");
+        yard.shared.borrow_mut().speeds = Some(speeds.clone());
+        // Framed as it opens: a speed of its size.
+        yard.model.framed(0, DVec3::ZERO, 400.0, 1.6);
+        let first = crate::navigation::level_speed(400.0);
+        assert_eq!(yard.model.panes[0].navigation.speed(), first);
+        // Flown, the wheel turned: the status bar says it, the state keeps it once it stops.
+        let rect = yard.model.viewport_rect(0).expect("laid out");
+        let shown = |yard: &Yard| {
+            yard.model
+                .ui
+                .meaning()
+                .iter()
+                .any(|meaning| meaning.name.starts_with("flying at"))
+        };
+        yard.model
+            .ui
+            .pointer_moved(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0);
+        yard.model
+            .ui
+            .pointer_button(MouseButton::Right, ButtonState::Pressed);
+        yard.model
+            .ui
+            .wheel(slime_platform::ScrollDelta::Lines { x: 0.0, y: 2.0 });
+        yard.frame();
+        yard.frame();
+        let flown = yard.model.panes[0].navigation.speed();
+        assert!(flown > first, "{flown}");
+        assert!(shown(&yard), "the status bar says the speed");
+        yard.model
+            .ui
+            .pointer_button(MouseButton::Right, ButtonState::Released);
+        yard.frame();
+        yard.frame();
+        assert!(!shown(&yard));
+        let level = yard.shared.borrow().level.clone().expect("a level");
+        let kept = speeds::read(&speeds).expect("kept");
+        assert_eq!(speeds::of(&kept, &level), Some(flown));
+        // The level opened again flies as it was left, whatever its size.
+        yard.model.panes[0].speed_wanted = true;
+        yard.model.framed(0, DVec3::ZERO, 3.0, 1.6);
+        assert_eq!(yard.model.panes[0].navigation.speed(), flown);
     }
 
     /// Two viewports side by side, each its own camera and settings, the View menu changing the

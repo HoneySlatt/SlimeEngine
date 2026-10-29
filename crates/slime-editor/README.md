@@ -66,8 +66,10 @@ with Stage 6c's next milestones.
   levels opened last in the user's state directory for the File menu, and tells one hint at its
   first run. Its viewport shows the level, lit as `Program::lighting` says, through its own asset
   cache and frame builder, drawn again only when what it shows changed; the right button held
-  flies through it with W, A, S, D, Q and E, Alt and the left button orbit, the middle button pans,
-  F frames the selection, and tools capture it by the name `viewport`
+  flies through it with W, A, S, D, Q and E, at a speed that suits the level's size as it opens,
+  or the one last used in it, kept in the user's state directory, which the wheel changes, Shift
+  quickens and the status bar shows while it flies; Alt and the left button orbit, the middle
+  button pans, F frames the selection, and tools capture it by the name `viewport`
   (`docs/adr/0158-the-viewport.md`). A click selects the outermost placement of what is drawn
   there, a click again a level deeper, a marquee what it holds, Alt and a click the meshes behind;
   what is selected is outlined, and the View menu shows the base color, the light alone, the

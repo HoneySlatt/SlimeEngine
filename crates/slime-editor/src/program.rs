@@ -196,6 +196,9 @@ pub fn run(program: &Program) -> ExitCode {
     // One choice of keys for every program of the editor: a person's hands are the same.
     shared.borrow_mut().keys =
         slime_app::state_directory().map(|directory| directory.join(DIRECTORY).join("keys"));
+    // One file of speeds for every program, by level.
+    shared.borrow_mut().speeds =
+        slime_app::state_directory().map(|directory| directory.join(DIRECTORY).join("speeds"));
     let headless = options.headless;
     let mut session = Session::new(program, options, shared.clone(), recent, journals());
     let config = AppConfig {

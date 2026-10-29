@@ -14,6 +14,7 @@ mod program;
 mod recent;
 mod session;
 mod shared;
+mod speeds;
 mod viewport;
 mod window;
 
