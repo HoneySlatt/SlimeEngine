@@ -433,6 +433,20 @@ style.paint.background = "$hover"
 select = { kind = "Button", classes = ["row"], states = ["Selected"] }
 style.paint.background = "$accent_soft"
 
+# The mark that folds and unfolds an item of a tree, a row's too, drawn in Lucide, which holds its
+# chevrons (docs/adr/0167-the-hierarchy.md).
+[fold]
+select = { kind = "Button", classes = ["fold"] }
+style.text.style.fonts = ["lucide"]
+style.text.color = "$muted"
+style.layout.padding = { start = 0, end = 0, top = 0, bottom = 0 }
+
+# An icon that a label shows, drawn in Lucide, as a tree's mark of a placement.
+[icon]
+select = { kind = "Label", classes = ["icon"] }
+style.text.style.fonts = ["lucide"]
+style.text.color = "$muted"
+
 # A row of what is undone, as the editor's history shows a step undone.
 [row-undone]
 select = { kind = "Button", classes = ["row", "undone"] }

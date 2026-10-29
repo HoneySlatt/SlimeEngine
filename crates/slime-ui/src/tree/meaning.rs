@@ -220,8 +220,9 @@ pub struct Meaning {
     /// Its level in a tree, from 1 for the tree's top items ([`Element::level`](super::Element::level));
     /// none for an element that has none.
     pub level: Option<usize>,
-    /// Whether it opens and closes, open or not ([`ElementState::expanded`]), as a section, or an
-    /// item of a tree that holds others ([`Element::expandable`](super::Element::expandable)).
+    /// Whether it opens and closes, open or not ([`ElementState::expanded`]), as a section, a
+    /// floating panel that folds, or an item of a tree that holds others
+    /// ([`Element::expandable`](super::Element::expandable)).
     pub expandable: bool,
     /// Whether a press opens a layer beside it, which screen readers announce, open or not
     /// ([`ElementState::expanded`]): an item of a menu that opens a submenu, a list to choose
@@ -539,7 +540,11 @@ impl Ui {
             description: element.tooltip.as_ref().map(super::Tooltip::description),
             placeholder: element.placeholder.clone().filter(|_| node.field.is_some()),
             level: element.level,
-            expandable: element.expandable || matches!(element.kind, Kind::Section { .. }),
+            expandable: element.expandable
+                || matches!(
+                    element.kind,
+                    Kind::Section { .. } | Kind::FloatingPanel { .. }
+                ),
             popup: matches!(
                 element.kind,
                 Kind::MenuItem {

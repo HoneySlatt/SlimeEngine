@@ -233,6 +233,36 @@ fn the_focus_that_keys_move_and_a_row_asked_for_are_scrolled_into_view() {
     assert_eq!(ui.scroll(list), Some([0.0, 200.0]), "past the end");
 }
 
+/// At two pixels a logical pixel, an element is scrolled into view by logical pixels, and a list
+/// not laid out yet shows a row at its top (`docs/adr/0167-the-hierarchy.md`).
+#[test]
+fn scrolling_into_view_counts_logical_pixels_and_a_list_not_laid_out_shows_a_row_at_its_top() {
+    let mut ui = Ui::new(Fonts::new());
+    let mut doubled = settings(400.0, 300.0, [0.0; 2], false);
+    doubled.scale = 2.0;
+    let root = ui.add_root("main", doubled, Style::default());
+    let mut column = sized(100.0, 100.0);
+    column.layout.direction = FlexDirection::Column;
+    let (mut scroll, mut buttons, mut list) = (None, Vec::new(), None);
+    ui.build(root, 0, |children| {
+        scroll = Some(children.add("scroll", Element::scroll(column), |children| {
+            for index in 0..10_usize {
+                let mut tall = sized(100.0, 40.0);
+                tall.layout.shrink = 0.0;
+                buttons.push(children.add(index, Element::button("", tall), |_| {}));
+            }
+        }));
+        list = Some(children.add_slot("list", Element::list(1_000, 20.0, sized(100.0, 100.0))));
+    });
+    let (scroll, list) = (scroll.expect("built"), list.expect("built"));
+    // Before any layout: the row at the list's top.
+    ui.show_row(list, 50);
+    assert_eq!(ui.scroll(list), Some([0.0, 1_000.0]));
+    ui.frame();
+    ui.scroll_into_view(buttons[5]);
+    assert_eq!(ui.scroll(scroll), Some([0.0, 6.0 * 40.0 - 100.0]));
+}
+
 #[test]
 fn a_modal_root_takes_the_pointer_and_the_focus_and_gives_the_focus_back_when_it_closes() {
     let (mut ui, buttons) = row();

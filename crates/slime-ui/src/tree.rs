@@ -1493,8 +1493,9 @@ impl Ui {
     }
 
     /// Scrolls `list`, a list, as little as it can so that its row `row` shows whole, as the list
-    /// was last laid out, whether the row is built or not (`docs/adr/0167-the-hierarchy.md`): a
-    /// list that then shows other rows has its builder run again at the next [`Ui::build`].
+    /// was last laid out, whether the row is built or not, or to the row's top for a list not laid
+    /// out yet (`docs/adr/0167-the-hierarchy.md`): a list that then shows other rows has its
+    /// builder run again at the next [`Ui::build`].
     /// Nothing happens for an id that names no list, nor for a row past its end.
     pub fn show_row(&mut self, list: ElementId, row: usize) {
         let Some(node) = self.node(list) else {
@@ -1509,7 +1510,8 @@ impl Ui {
         let height = node.rect.height / self.scale_of(list);
         let [x, y] = node.scroll;
         let top = row as f32 * row_height;
-        let offset = if top < y {
+        // A list not laid out yet shows the row at its top.
+        let offset = if top < y || height <= 0.0 {
             top
         } else if top + row_height > y + height {
             top + row_height - height

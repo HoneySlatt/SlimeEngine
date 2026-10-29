@@ -169,7 +169,7 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
             element.set_numeric_value_step(range.step);
         }
     }
-    if meaning.expandable || matches!(meaning.role, Role::Details | Role::Pane) {
+    if meaning.expandable {
         element.set_expanded(meaning.state.expanded);
     }
     if let Some(level) = meaning.level {
@@ -225,6 +225,8 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
     if meaning.state.disabled {
         element.set_disabled();
     }
+    // What a screen reader reads may be out of view: it asks for it shown.
+    element.add_action(AccessAction::ScrollIntoView);
     for action in &meaning.actions {
         match action {
             ElementAction::Press if matches!(meaning.role, Role::Details | Role::Pane) => {
@@ -417,6 +419,8 @@ fn act(ui: &mut Ui, request: &ActionRequest) {
         }
         // A field clicked takes the focus, as a press of the pointer gives it.
         (AccessAction::Click | AccessAction::Focus, _) => ui.set_focus(Some(id)),
+        // The boxes that scroll around it moved so that it shows (`docs/adr/0167-the-hierarchy.md`).
+        (AccessAction::ScrollIntoView, _) => ui.scroll_into_view(id),
         (AccessAction::SetValue, Some(ActionData::Value(text))) => {
             ui.set_value(id, text);
         }
@@ -1204,6 +1208,85 @@ mod tests {
             },
         );
         assert_eq!(ui.color(element), Some(LinearColor::BLACK));
+    }
+
+    /// A tree's items are given with their levels, opened or not where they hold others, and
+    /// selected or not; a request to show one scrolls it into view
+    /// (`docs/adr/0167-the-hierarchy.md`).
+    #[test]
+    fn a_tree_s_items_are_given_with_their_levels_and_shown_when_asked() {
+        let (mut ui, root) = empty();
+        let mut list = Style::default();
+        list.layout.size = [Dimension::Pixels(200.0), Dimension::Pixels(40.0)];
+        let mut tree = None;
+        ui.build(root, 0, |children| {
+            let element = Element::list(10, 20.0, list)
+                .role(Role::Tree)
+                .named("hierarchy");
+            tree = Some(children.add_slot("tree", element));
+        });
+        let tree = tree.expect("built");
+        ui.frame();
+        let mut items = Vec::new();
+        ui.build(tree, 0, |rows| {
+            for row in rows.rows() {
+                let mut item = Element::container(Style::default())
+                    .role(Role::TreeItem)
+                    .named(format!("item {row}"))
+                    .level(row + 1);
+                if row == 0 {
+                    item = item.expandable();
+                }
+                items.push(rows.add(row, item, |_| {}));
+            }
+        });
+        let mut state = ui.state(items[0]).expect("built");
+        (state.expanded, state.selected) = (true, true);
+        ui.set_state(items[0], state);
+        ui.frame();
+        let mut readers = ScreenReaders::new("Example");
+        let changes = ui.take_meaning_changes(true);
+        let second = changes
+            .nodes
+            .iter()
+            .find(|node| node.meaning.id == items[1])
+            .map(|node| NodeId(node.number))
+            .expect("the second item");
+        let accessible = Tree::new(readers.translate(changes, SIZE), true);
+        let state = accessible.state();
+        let tree_node = state.root().children().next().expect("the tree");
+        assert_eq!(tree_node.role(), AccessRole::Tree);
+        let nodes: Vec<_> = tree_node.children().collect();
+        assert_eq!(nodes[0].role(), AccessRole::TreeItem);
+        assert_eq!(
+            (
+                nodes[0].level(),
+                nodes[0].data().is_expanded(),
+                nodes[0].is_selected()
+            ),
+            (Some(1), Some(true), Some(true))
+        );
+        assert_eq!(
+            (nodes[1].level(), nodes[1].data().is_expanded()),
+            (Some(2), None),
+            "a leaf neither opens nor closes"
+        );
+        assert!(
+            nodes[1]
+                .data()
+                .supports_action(AccessAction::ScrollIntoView)
+        );
+        // A screen reader asks for the second item shown: the list scrolls as little as shows it.
+        act(
+            &mut ui,
+            &ActionRequest {
+                action: AccessAction::ScrollIntoView,
+                target_tree: TreeId::ROOT,
+                target_node: second,
+                data: None,
+            },
+        );
+        assert_eq!(ui.scroll(tree), Some([0.0, 0.0]), "it shows already");
     }
 
     #[test]

@@ -335,6 +335,12 @@ impl Ui {
         self.interaction.modifiers = modifiers;
     }
 
+    /// The modifiers held, as [`Ui::modifiers`] last gave them: what a press of a row selects by,
+    /// with Ctrl or Shift (`docs/adr/0167-the-hierarchy.md`).
+    pub fn held_modifiers(&self) -> Modifiers {
+        self.interaction.modifiers
+    }
+
     /// A key went down or up; gives whether the interface took it, which a game then leaves. A
     /// press, or a repeat, reaches first the field that holds the focus, which takes what it types
     /// and edits with; then it gives the command of a shortcut whose chord it is, in the scopes of
