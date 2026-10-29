@@ -848,7 +848,7 @@ engine reads them where every game makes its library of scenes.
   refuses the window's surface, and the game draws with llvmpipe, which the benchmark's
   documentation says. "Keep this value", a value of the running game made a step of the level,
   needs to choose what a step keeps, a component's value or an entity's, as the inspector of M6c.5
-  will show them: it waits for Checkpoint A, which adjusts the plan, and the debt of
+  will show them: the owner placed it with the inspector, in M6c.5b, on 2026-10-29, and the debt of
   [ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md) with it. The review
   found faults, each fixed: the time counted from Play's thread rather than from the request, which
   left out the editor writing the level; a pause during the load, which kept the measure open; the
@@ -887,7 +887,10 @@ engine reads them where every game makes its library of scenes.
   - *M6c.5b, the inspector.* `slime-devui`'s builder of an entity's components made public; the
     inspector on it: components added and removed; several entities selected, a mixed value shown
     as "—", a check box's third state; overrides marked by a bar and a bold label, Revert and Apply
-    for each field; driven fields read-only; the interim world panel retired.
+    for each field; driven fields read-only; the interim world panel retired. "Keep this value", a
+    value read in the game that Play runs made a step of the level, from the inspector, what a step
+    keeps, a field's value, a component's or an entity's, decided in the part's design: the owner
+    placed it here on 2026-10-29, M6c.4d having had no room for it.
   The ADR of each part's design.
 - **Done when.** A benchmark, `editor.hierarchy.100k`, within a list's budget
   ([ADR-0140](adr/0140-the-tree-of-elements.md)) standing still, scrolled and after a rename; an
@@ -900,7 +903,9 @@ engine reads them where every game makes its library of scenes.
 - **Debt settled.** G32; a list's rows not selected; the focus moved not scrolling its element
   into view, and nothing scrolling an element into view for screen readers; a check box without a
   third state; a row of a list found by its number; the world panel's list made again at each
-  rename.
+  rename; an entity that a run created, wrote into its level and destroyed coming back
+  ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)), which a value
+  that the editor keeps, rather than a run that writes its level, settles.
 
 ### M6c.6 — Levels of several files, and links
 
@@ -929,7 +934,11 @@ engine reads them where every game makes its library of scenes.
   steps across files; a failure injected between two renames leaves the files as they were, or
   names those written; one edit changes one hunk of a file; a level with an unknown component
   opened, changed and written back with that component's text unchanged; an agent splits the yard
-  into parts and links an entity across two; CI is green.
+  into parts and links an entity across two; Play's time to control measured again in a debug
+  build on a level of 100 000 entities, in parts, which M6c.4d found over
+  [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)'s budget in one file, to say whether
+  the editor's writing of a level or the game's spawning of it needs work, as the owner chose on
+  2026-10-29 ([`docs/measurements.md`](measurements.md)); CI is green.
 - **How to test.** `cargo test -p slime-world -p slime-serialize -p slime-editor`; the MCP server's
   session tests.
 - **By hand.** The owner moves an entity from one part of the zone to another, and links two parts.
@@ -1549,8 +1558,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   is carried into the file cooked again**
   ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)): the save no
   longer names it, and the file holds it. A save that names the written identities of what the run
-  destroyed would settle it; the editor writes levels through its commands from M6b.1a, and play in
-  the editor, M6c.4, settles it ([ADR-0155](adr/0155-the-editors-design.md)).
+  destroyed would settle it; the editor writes levels through its commands from M6b.1a, and a value
+  of the running game that the editor keeps, "keep this value", settles it with the inspector,
+  M6c.5b ([ADR-0155](adr/0155-the-editors-design.md)).
 - **A game's preparation of a scene that a save spawns may change only the scene's entities**
   ([ADR-0125](adr/0125-saves-per-scene.md)): what it creates, under a key or as a placement, is the
   run's, which a save holds, and which loading the save creates before it prepares the scene, so
@@ -1791,7 +1801,8 @@ GitHub issues, linked from their entry; this list stays the reference.
   100 000 entities gives control far over ADR-0110's budget in a debug build, the editor writing
   the level and the game reading and spawning it without optimizations; such a level fits one scene
   file only with entities that hold little (`slime_serialize::MAX_VALUES`), which levels of several
-  files, M6c.6, are to settle. Play asks the game how its time stands at each of its frames until
+  files, M6c.6, are to settle; the owner chose, on 2026-10-29, to leave it until M6c.6 measures it
+  again. Play asks the game how its time stands at each of its frames until
   it gives control, which a game that holds its time long, as behind a menu, pays for meanwhile.
 - **Editing while playing** ([ADR-0165](adr/0165-editing-while-playing.md)): an undone deletion
   does not reach the game, which plays on without what it restored until Play starts it again; a
