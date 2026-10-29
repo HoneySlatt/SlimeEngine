@@ -1002,9 +1002,10 @@ start, the same day: the drags and the keys that reparent; the eye and the lock.
 - **Crates.** `slime-world-render`, `slime-editor`.
 - **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: an eye and a lock for each
   row of the hierarchy, the user's, never the level's, the editor hiding nothing through
-  `World::is_hidden`: what is hidden neither drawn nor picked, what is locked not picked, whether
-  in the viewport, through a marquee, by an agent, or under what is dropped; the frame builder told
-  what to leave out. The ADR of its design, if one is needed.
+  `World::is_hidden`: what is hidden neither drawn nor picked, in the viewport, through a marquee,
+  by an agent, nor under what is dropped; what is locked drawn, not picked, but what is dropped
+  lands on it; the frame builder and the picker told what to leave out. The ADR of its design,
+  [ADR-0169](adr/0169-the-eye-and-the-lock.md).
 - **Done when.** What is hidden is not drawn nor picked, and what is locked not picked, in the
   viewport's tests and by an agent; CI is green.
 - **How to test.** `cargo test -p slime-world-render -p slime-editor`.
