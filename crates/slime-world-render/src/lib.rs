@@ -59,9 +59,9 @@ pub use picker::{Hit, Picker};
 /// # Costs
 ///
 /// Building a frame walks the entities that hold meshes or lights, and looks each mesh up in the
-/// cache; when anything moved during the last fixed step, it also walks the ancestors of each
-/// entity that did not move itself, to draw it with the nearest that did
-/// ([`World::interpolated_transform`]). Making the sky's environment again costs what
+/// cache; each entity that did not move during the last fixed step is drawn with the nearest of
+/// its ancestors that did, which the world reads at once but between two steps after a change of
+/// parent or a teleport, when it walks the entity's ancestors ([`World::interpolated_transform`]). Making the sky's environment again costs what
 /// [`Environment::new`] does, tens of milliseconds: a sun that moves at every frame
 /// makes it again at every frame.
 pub struct FrameBuilder {
