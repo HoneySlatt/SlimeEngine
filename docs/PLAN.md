@@ -34,7 +34,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   in two again at its start, M6c.4c and M6c.4d, both done; Checkpoint A is done on Linux, its
   part in the Windows virtual machine to come; M6c.5 was split in four at its start, M6c.5a,
   M6c.5b, M6c.5c and M6c.5d, of which M6c.5a is done, and M6c.5b in two again at its start,
-  M6c.5b and M6c.5c, the regions and the inspector becoming M6c.5d and M6c.5e; next: M6c.5b.
+  M6c.5b and M6c.5c, the regions and the inspector becoming M6c.5d and M6c.5e, of which M6c.5b is
+  done; next: M6c.5c.
 
 ## Status
 
@@ -55,7 +56,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.4d](#m6c4d--measure-play) | Play's time to control is measured on the zone and on a level of 100 000 entities | Done |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Done on Linux; the Windows virtual machine to come |
 | [M6c.5a](#m6c5a--the-hierarchy) | The user finds any entity in a hierarchy, which follows the world's tree, folds, selects, renames and searches | Done |
-| [M6c.5b](#m6c5b--rearrange-the-hierarchy) | The user reparents entities by dragging them in the hierarchy and with Alt and the arrows | Planned |
+| [M6c.5b](#m6c5b--rearrange-the-hierarchy) | The user reparents entities by dragging them in the hierarchy and with Alt and the arrows | Done |
 | [M6c.5c](#m6c5c--the-eye-and-the-lock) | The user hides entities from the viewport and locks them against picking, as the user's state, never the level's | Planned |
 | [M6c.5d](#m6c5d--regions-of-tabs) | The user arranges the panels in regions of tabs | Planned |
 | [M6c.5e](#m6c5e--the-inspector) | The user changes the components of what is selected in an inspector, and keeps a value of the running game | Planned |
@@ -965,6 +966,34 @@ start, the same day: the drags and the keys that reparent; the eye and the lock.
   session tests; `cargo run --release -p slime-benches -- world`.
 - **By hand.** Reparenting by drags in the zone.
 - **Debt settled.** G32.
+- **Outcome.** Done on 2026-10-29, as [ADR-0168](adr/0168-rearranging-the-hierarchy.md) records;
+  the milestone was cut in two at its start, the eye and the lock becoming M6c.5c. `slime-ui` drags
+  an element made draggable onto the elements that take drops, shows the program where it would
+  drop, from the target's top to its bottom, and goes on once the element dragged is built away;
+  agents drop through the development channel, at version 12 of its protocol, and the MCP server's
+  `act_on_interface`. The hierarchy's rows are dragged before, after or into each other, a line or
+  the row's box showing where, carrying what is selected; Alt and the arrows move what is selected
+  among its siblings, beside its parent or into the sibling above, as operations of the level that
+  agents and a program without its window run too; each move is a step, each entity kept where it
+  is in the world, and the level's root and what a placement holds but for its root stay. G32 is
+  settled: at 10 000 deep, spawning went from 123 ms to 5.6 ms, a save of every entity moved from
+  337 ms to 60 ms and a frame's interpolation from 161 ms to 0.4 ms
+  ([`docs/measurements.md`](measurements.md)). The review found two faults of weight, each fixed: a
+  drag whose row was built away, scrolled out of sight, never ended and took the next click; a drop
+  before or after one of the rows that it carried was refused. It found smaller ones, fixed too:
+  the drag and the keys disagreeing on the level's root selected, the place of a drop asked again
+  without the selection, the threshold of a drag in two units, a place out of 0 to 1 that the
+  channel took, and misplaced comments. The tests: the drag, its end with its element built away,
+  Escape and the agents' drop (`slime-ui`), the inherited flag of `Unsaved` and what a teleport
+  leaves carried (`slime-world`), the ranks of several moves, the refusals and the keys' moves
+  (`slime-editor`'s `arrange`), a drop's step (`slime-editor`'s hierarchy), the drags, the drop
+  line, the refusal onto a child and Alt and the arrows through the window; an agent drops a row
+  through the MCP server in the editor's window, and moves a lamp by the keys' operations without
+  it. What nothing checks yet: reparenting by drags on the zone, by hand, and in the Windows
+  virtual machine. Known debt: see "Rearranging the hierarchy" in [Known debt](#known-debt).
+  CI is green on `b7952a9`: `check (headless)` took 16 minutes 37 seconds, `check (windowed)` 6
+  minutes 28 seconds, `check (game)` 9 minutes 45 seconds, `windows` 17 minutes 25 seconds and
+  `windows-release` 13 minutes 43 seconds.
 
 #### M6c.5c — The eye and the lock
 
