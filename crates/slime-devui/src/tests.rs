@@ -10,7 +10,7 @@ use slime_ui::style::{FlexDirection, Style};
 use slime_ui::text::Fonts;
 use slime_ui::tree::{Element, ElementId, LayoutDirection, Meaning, Role, RootSettings, Ui};
 use slime_world::glam::{DVec3, Quat, Vec3};
-use slime_world::{Command, Entity, Light, World};
+use slime_world::{Command, Entity, Light, Name, World};
 
 use crate::reflected::tests::world;
 use crate::reflected::{angles, rotation};
@@ -417,6 +417,36 @@ fn a_list_of_many_entities_builds_only_the_rows_that_show() {
         .count();
     // A list 160 pixels high, of rows 22 high, shows eight of them, and builds no others.
     assert!((1..=10).contains(&rows), "{rows} rows built");
+}
+
+#[test]
+fn a_rename_reads_the_names_again_without_making_the_list_again() {
+    let (mut ui, root) = interface();
+    let mut world = World::new();
+    let well = world.spawn();
+    world.insert(well, Name("well".to_owned()));
+    let mut panel = WorldPanel::default();
+    show(&mut ui, root, &mut panel, &world);
+    show(&mut ui, root, &mut panel, &world);
+    let listed = panel.listing;
+    world.get_mut::<Name>(well).expect("named").0 = "pump".to_owned();
+    show(&mut ui, root, &mut panel, &world);
+    show(&mut ui, root, &mut panel, &world);
+    assert!(
+        names(&ui).iter().any(|name| name == "pump"),
+        "{:?}",
+        names(&ui)
+    );
+    assert_eq!(panel.listing, listed + 1, "the names read again");
+    assert!(
+        panel
+            .listed
+            .is_some_and(|(structure, _)| structure == world.structure())
+    );
+    world.remove::<Name>(well);
+    show(&mut ui, root, &mut panel, &world);
+    show(&mut ui, root, &mut panel, &world);
+    assert!(!names(&ui).iter().any(|name| name == "pump"), "a name lost");
 }
 
 /// Settings outside a world, as a view's.

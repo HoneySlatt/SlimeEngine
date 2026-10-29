@@ -106,7 +106,8 @@ assert_eq!(world.get::<Velocity>(cart).expect("held").0, 5.0);
 - `World::tick` is the world's tick now, which a reader keeps; `World::changed` gives the components
   of a type written or added after a tick, skipping the blocks of values that did not change;
   `World::removed` and `World::destroyed`, what left after it; `World::structure`, the tick at
-  which entities last came, went, changed parent or name; `World::ticks`, a component's ticks.
+  which entities last came, went or changed parent, and `World::names`, the one at which a name
+  last changed (`docs/adr/0167-the-hierarchy.md`); `World::ticks`, a component's ticks.
 - `World::set_parent`, `parent` and `children` keep the hierarchy, `children` an iterator over an
   entity's children in their order, each linked to its siblings, so that one leaves its parent in
   constant time (`docs/adr/0106-the-measured-quick-wins.md`); `World::set_parent_at` puts a child

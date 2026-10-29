@@ -285,14 +285,21 @@ impl World {
         self.destroyed.since(since)
     }
 
-    /// The latest tick at which an entity was spawned or destroyed, changed parent, or was given,
-    /// changed or lost its [`Name`]: a list of the world's entities, as an editor shows it, is made
-    /// again only when it is after the tick of the list.
+    /// The latest tick at which an entity was spawned or destroyed, or changed parent: a list of
+    /// the world's entities, as an editor shows it, is made again only when it is after the tick of
+    /// the list. A rename does not move it, but [`World::names`]
+    /// (`docs/adr/0167-the-hierarchy.md`).
     pub fn structure(&self) -> Tick {
-        let names = self
-            .storage::<Name>()
-            .map_or(Tick::default(), |names| names.changed());
-        self.structure.max(names)
+        self.structure
+    }
+
+    /// The latest tick at which an entity was given, changed or lost its [`Name`]: a list of the
+    /// world's entities reads again the names of those whose `Name` changed since
+    /// ([`World::changed`], [`World::removed`]) only when it is after the tick of its names
+    /// (`docs/adr/0167-the-hierarchy.md`).
+    pub fn names(&self) -> Tick {
+        self.storage::<Name>()
+            .map_or(Tick::default(), |names| names.changed())
     }
 }
 
@@ -423,44 +430,45 @@ mod tests {
     }
 
     #[test]
-    fn the_structure_moves_when_entities_come_go_move_or_are_renamed_and_only_then() {
+    fn the_structure_moves_when_entities_come_go_or_move_and_the_names_when_they_are_renamed() {
         let (mut world, entities) = lights(2);
-        let mut read = world.structure();
+        let (mut structure, mut names) = (world.structure(), world.names());
+        // Which of the two ticks moved since the last call.
         let mut moved = |world: &World| {
-            let now = world.structure();
-            let moved = now > read;
-            read = now;
+            let now = (world.structure(), world.names());
+            let moved = (now.0 > structure, now.1 > names);
+            (structure, names) = now;
             moved
         };
         world.insert(entities[0], point(3.0));
         *world.get_mut::<Light>(entities[1]).expect("held") = point(4.0);
         world.remove::<Light>(entities[1]);
-        assert!(!moved(&world), "components other than names");
+        assert_eq!(moved(&world), (false, false), "components other than names");
         let child = world.spawn();
-        assert!(moved(&world), "spawned");
+        assert_eq!(moved(&world), (true, false), "spawned");
         world
             .set_parent(child, Some(entities[0]))
             .expect("both alive");
-        assert!(moved(&world), "a new parent");
+        assert_eq!(moved(&world), (true, false), "a new parent");
         world
             .set_parent(child, Some(entities[0]))
             .expect("both alive");
-        assert!(!moved(&world), "the parent it had");
+        assert_eq!(moved(&world), (false, false), "the parent it had");
         world.insert(child, Name("lamp".to_owned()));
-        assert!(moved(&world), "named");
+        assert_eq!(moved(&world), (false, true), "named");
         world.get_mut::<Name>(child).expect("named").0.push('s');
-        assert!(moved(&world), "renamed");
+        assert_eq!(moved(&world), (false, true), "renamed");
         assert!(
             !world
                 .get_mut::<Name>(child)
                 .expect("named")
                 .set_if_differs(Name("lamps".to_owned()))
         );
-        assert!(!moved(&world), "renamed as it was");
+        assert_eq!(moved(&world), (false, false), "renamed as it was");
         world.remove::<Name>(child);
-        assert!(moved(&world), "a name lost");
+        assert_eq!(moved(&world), (false, true), "a name lost");
         world.despawn(entities[0]);
-        assert!(moved(&world), "destroyed");
+        assert!(moved(&world).0, "destroyed");
     }
 
     #[test]

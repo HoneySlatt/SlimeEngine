@@ -1366,9 +1366,11 @@ where a field that its type does not have is an error; leniently for a save, whi
 version of a program may have written, where such a field is left out with a warning
 ([ADR-0080](adr/0080-reflection-and-serialization.md)).
 
-**Structure counter.** The latest *tick* at which a world's entities were spawned or destroyed,
-changed parent or name (`World::structure`), so that a list of the entities is made again only
-then ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)).
+**Structure counter.** The latest *tick* at which a world's entities were spawned or destroyed, or
+changed parent (`World::structure`), so that a list of the entities is made again only then
+([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)); a rename moves the tick of the names
+instead (`World::names`), after which a list reads again the names that changed
+([ADR-0167](adr/0167-the-hierarchy.md)).
 
 **Style sheet.** A document of rules that style an interface's *elements*: each selects elements by
 kind, *classes*, *key*, states and ancestor, and sets a part of their style, its fields given or

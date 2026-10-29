@@ -9,7 +9,7 @@ use slime_reflect::Value;
 use slime_ui::action::{Action, ActionKind, FieldValue};
 use slime_ui::style::{Dimension, FlexDirection, Style};
 use slime_ui::tree::{Element, ElementId, Ui};
-use slime_world::{Command, Entity, PersistentId, Tick, World};
+use slime_world::{Command, Entity, Name, PersistentId, Tick, World};
 
 use crate::reflected::name;
 use crate::values::{Asked, ValueEditor};
@@ -49,11 +49,15 @@ pub struct WorldPanel {
     /// Each entity listed, what the panel calls it, and that in lower case for the filter.
     list: Vec<(Entity, String, String)>,
     /// The world's structure, and its number of entities, when the list was made.
-    listed: Option<(Tick, usize)>,
-    /// The places in the list of the entities that the filter keeps, and the filter and the list
-    /// that they were found for.
+    pub(crate) listed: Option<(Tick, usize)>,
+    /// The world's names when the list's names were last read (`World::names`).
+    named: Tick,
+    /// Counted up each time the list is made again or its names read again.
+    pub(crate) listing: u64,
+    /// The places in the list of the entities that the filter keeps, and the filter and the count
+    /// of the list that they were found for.
     matches: Vec<usize>,
-    matched: Option<(String, Option<(Tick, usize)>)>,
+    matched: Option<(String, u64)>,
     /// The entity selected, by its handle, which may be of a world replaced since, and its
     /// identity, once the panel showed it.
     selected: Option<Entity>,
@@ -74,8 +78,9 @@ pub struct WorldPanel {
 /// What a build of the panel shows, which a change of builds it again.
 #[derive(Debug)]
 struct Shown {
-    /// The world's structure, which the names of the entities that references name follow.
-    structure: Tick,
+    /// The world's structure and names, which the names of the entities that references name
+    /// follow.
+    structure: (Tick, Tick),
     selected: Option<Details>,
     refusal: Option<String>,
     rows: u64,
@@ -189,7 +194,7 @@ impl WorldPanel {
         self.list_entities(world);
         let selected = self.find_selected(world);
         let shown = Shown {
-            structure: world.structure(),
+            structure: (world.structure(), world.names()),
             selected: selected.map(|entity| Details::of(world, entity)),
             refusal: self.refusal.clone(),
             rows: self.rows_revision,
@@ -361,8 +366,9 @@ impl WorldPanel {
         commands
     }
 
-    /// Makes the list of entities again where the world's structure moved, and finds again those
-    /// that the filter keeps where the list or the filter changed.
+    /// Makes the list of entities again where the world's structure moved, reads again the names
+    /// that changed where the world's names moved, and finds again those that the filter keeps
+    /// where the list, its names or the filter changed.
     fn list_entities(&mut self, world: &World) {
         let now = Some((world.structure(), world.len()));
         if self.listed != now {
@@ -375,8 +381,14 @@ impl WorldPanel {
                 })
                 .collect();
             self.listed = now;
+            self.named = world.names();
+            self.listing += 1;
+        } else if world.names() != self.named {
+            self.read_names(world);
+            self.named = world.names();
+            self.listing += 1;
         }
-        let matched = Some((self.filter.clone(), self.listed));
+        let matched = Some((self.filter.clone(), self.listing));
         if self.matched != matched {
             let filter = self.filter.to_lowercase();
             self.matches = (0..self.list.len())
@@ -384,6 +396,30 @@ impl WorldPanel {
                 .collect();
             self.matched = matched;
             self.rows_revision += 1;
+        }
+    }
+
+    /// Reads again the names of the entities listed whose `Name` changed or went since the names
+    /// were last read, or every name when the world no longer knows which went.
+    fn read_names(&mut self, world: &World) {
+        let renamed: Option<Vec<Entity>> = world.removed::<Name>(self.named).map(|removed| {
+            removed
+                .map(|(entity, _)| entity)
+                .chain(
+                    world
+                        .changed::<Name>(self.named)
+                        .map(|(entity, _, _)| entity),
+                )
+                .collect()
+        });
+        for (entity, shown, lower) in &mut self.list {
+            if renamed
+                .as_ref()
+                .is_none_or(|renamed| renamed.contains(entity))
+            {
+                *shown = name(world, *entity);
+                *lower = shown.to_lowercase();
+            }
         }
     }
 
