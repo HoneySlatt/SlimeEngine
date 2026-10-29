@@ -13,6 +13,8 @@ use slime_ui::style::{Dimension, FlexDirection, Style};
 use slime_ui::tree::{Element, ElementId, Role, Ui};
 use slime_world::{Command, Entity, Name, PersistentId, Tick, World};
 
+use crate::arrange::{self, Spot};
+use crate::handles;
 use crate::shared::Request;
 
 /// The height of a row, in logical pixels.
@@ -40,6 +42,49 @@ struct Row {
     children: bool,
 }
 
+/// Where what is dropped on a row goes: before its entity, among its siblings, after it, or into
+/// it, as its last children (`docs/adr/0168-rearranging-the-hierarchy.md`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Place {
+    Before,
+    After,
+    Into,
+}
+
+impl Place {
+    /// The place of a drop `at` a row's height from its top, 0, to its bottom, 1: its top quarter
+    /// before, its bottom quarter after, between into.
+    fn at(at: f32) -> Self {
+        if at < 0.25 {
+            Self::Before
+        } else if at > 0.75 {
+            Self::After
+        } else {
+            Self::Into
+        }
+    }
+
+    /// The parent under which what is dropped on `target`'s row goes, and its spot among the
+    /// parent's children; none before or after a root.
+    fn spot(self, world: &World, target: Entity) -> Option<(Entity, Spot)> {
+        Some(match self {
+            Self::Before => (world.parent(target)?, Spot::Before(target)),
+            Self::After => (world.parent(target)?, Spot::After(target)),
+            Self::Into => (target, Spot::Last),
+        })
+    }
+}
+
+/// How a row shows: whether a field renames its entity, whether the search found it, whether its
+/// children show, and where a drag would drop on it.
+#[derive(Clone, Copy, Debug)]
+struct Look {
+    renaming: bool,
+    found: bool,
+    open: bool,
+    drop: Option<Place>,
+}
+
 /// The elements of a row built last.
 #[derive(Clone, Copy, Debug)]
 struct Built {
@@ -56,6 +101,7 @@ struct Shown {
     names: Tick,
     selection: Vec<Entity>,
     renaming: Option<Entity>,
+    drop: Option<(Entity, Place)>,
 }
 
 /// The editor's hierarchy (`docs/adr/0167-the-hierarchy.md`): the world's entities as a tree of
@@ -102,7 +148,17 @@ pub struct Hierarchy {
     search_field: Option<ElementId>,
     list: Option<ElementId>,
     built: Vec<Built>,
+    /// The element that the drag under way started from, and its entity, which the drag keeps once
+    /// its row is built away, scrolled out of sight.
+    dragged: Option<(ElementId, Entity)>,
+    /// The drag's entity, its target and the place in it, with the world's structure and what is
+    /// selected, and where what it carries would go, which a drag asks once for each.
+    drop_spot: Option<(DropAsked, Option<(Entity, Spot)>)>,
 }
+
+/// What the place of a drop depends on: the entity dragged, the target, the place in it, the
+/// world's structure and what is selected.
+type DropAsked = (Entity, Entity, Place, Tick, Vec<Entity>);
 
 impl Hierarchy {
     /// A level opened in place of the other: nothing folded or searched of the other is kept; the
@@ -138,6 +194,18 @@ impl Hierarchy {
             self.changes += 1;
         }
         self.run_search(world, now);
+        // The focus follows its row's entity where the structure moved it, as a drop or Alt and
+        // an arrow do: the rows are built again by their places.
+        if self
+            .made
+            .is_some_and(|(structure, _)| structure != world.structure())
+            && let Some(focused) = ui.focus()
+            && let Some(row) = self.built.iter().find(|row| row.name == focused)
+        {
+            self.focus = Some(row.entity);
+            // A selection made elsewhere meanwhile shows first.
+            self.reveal.get_or_insert(row.entity);
+        }
         if let Some(entity) = self.reveal {
             for ancestor in ancestors(world, entity) {
                 if self.open.insert(ancestor) {
@@ -184,11 +252,27 @@ impl Hierarchy {
         let Some(list) = self.list else {
             return;
         };
+        let drop = ui.dragging().and_then(|dragging| {
+            let source = self.source_of(dragging.source)?;
+            let target = self.entity_of(dragging.target?)?;
+            let place = Place::at(dragging.at);
+            let asked = (source, target, place, world.structure(), selection.to_vec());
+            let spot = match &self.drop_spot {
+                Some((before, spot)) if *before == asked => *spot,
+                _ => {
+                    let spot = drop_spot(world, &dragged(world, source, selection), target, place);
+                    self.drop_spot = Some((asked, spot));
+                    spot
+                }
+            };
+            spot.map(|_| (target, place))
+        });
         let shown = Shown {
             rows: self.made_rows,
             names: world.names(),
             selection: selection.to_vec(),
             renaming: self.renaming,
+            drop,
         };
         if self.shown.as_ref() != Some(&shown) {
             self.rows_revision += 1;
@@ -201,16 +285,15 @@ impl Hierarchy {
                 let Some(&row) = self.rows.get(index) else {
                     continue;
                 };
-                let open = self.open.contains(&row.entity);
-                rows.push(build_row(
-                    children,
-                    index,
-                    row,
-                    world,
-                    self.renaming,
-                    &self.found,
-                    open,
-                ));
+                let look = Look {
+                    renaming: self.renaming == Some(row.entity),
+                    found: self.found.is_some(),
+                    open: self.open.contains(&row.entity),
+                    drop: drop
+                        .filter(|&(target, _)| target == row.entity)
+                        .map(|(_, place)| place),
+                };
+                rows.push(build_row(children, index, row, world, look));
             }
             built = Some(rows);
         });
@@ -267,8 +350,9 @@ impl Hierarchy {
     }
 
     /// Takes from `actions` those of the hierarchy's elements: the search typed, a row pressed,
-    /// which selects as `modifiers` say, with `selection` selected now, a fold pressed, and the
-    /// rename's field committed or given up. Gives the core's requests that they make.
+    /// which selects as `modifiers` say, with `selection` selected now, a fold pressed, the rename's
+    /// field committed or given up, and a row dropped on another. Gives the core's requests that
+    /// they make.
     pub(crate) fn act(
         &mut self,
         actions: &mut Vec<Action>,
@@ -289,6 +373,15 @@ impl Hierarchy {
                     return true;
                 };
                 self.set_search(text, now);
+                return false;
+            }
+            if let ActionKind::Dropped { source, at } = action.kind {
+                let (Some(source), Some(target)) =
+                    (self.source_of(source), self.entity_of(element))
+                else {
+                    return true;
+                };
+                requests.extend(self.dropped(world, selection, source, target, Place::at(at)));
                 return false;
             }
             if let Some(row) = self.built.iter().find(|row| row.fold == Some(element)) {
@@ -327,6 +420,42 @@ impl Hierarchy {
             false
         });
         requests
+    }
+
+    /// The step that moves what a drag of `source`'s row carries, `selection` selected, to `place`
+    /// in `target`'s row, unfolded when it goes into it, and selects `source` if it was not
+    /// (`docs/adr/0168-rearranging-the-hierarchy.md`); none where nothing may or does move.
+    fn dropped(
+        &mut self,
+        world: &World,
+        selection: &[Entity],
+        source: Entity,
+        target: Entity,
+        place: Place,
+    ) -> Option<Request> {
+        let dragged = arrange::tree_order(world, &dragged(world, source, selection));
+        let (parent, first) = drop_spot(world, &dragged, target, place)?;
+        // In their order: each after the one before it, when they go after the target.
+        let mut spot = first;
+        let mut moves = Vec::new();
+        for &entity in &dragged {
+            moves.push((entity, parent, spot));
+            if let Spot::After(_) = spot {
+                spot = Spot::After(entity);
+            }
+        }
+        let commands = arrange::moved(world, &moves);
+        if commands.is_empty() {
+            return None;
+        }
+        if place == Place::Into && self.open.insert(target) {
+            self.changes += 1;
+        }
+        Some(Request::Apply {
+            label: "Move in the hierarchy".to_owned(),
+            commands,
+            selection: (!selection.contains(&source)).then(|| identities(world, &[source])),
+        })
     }
 
     /// What a press of `entity`'s row selects, `selection` selected now: the entity alone; with
@@ -431,6 +560,27 @@ impl Hierarchy {
         self.typed.map(|typed| typed + SEARCH_PAUSE)
     }
 
+    /// The entity of the drag's row of `element`, the one that the drag under way started from,
+    /// kept once its row is built away, or the one of a row built.
+    fn source_of(&mut self, element: ElementId) -> Option<Entity> {
+        if let Some((started, entity)) = self.dragged
+            && started == element
+        {
+            return Some(entity);
+        }
+        let entity = self.entity_of(element)?;
+        self.dragged = Some((element, entity));
+        Some(entity)
+    }
+
+    /// The entity of the row of `element`, its item or its name, if it was built.
+    fn entity_of(&self, element: ElementId) -> Option<Entity> {
+        self.built
+            .iter()
+            .find(|row| row.item == element || row.name == element)
+            .map(|row| row.entity)
+    }
+
     /// The place of `entity`'s row, if it shows.
     fn index_of(&self, entity: Entity) -> Option<usize> {
         self.rows.iter().position(|row| row.entity == entity)
@@ -461,81 +611,102 @@ impl Hierarchy {
     }
 }
 
-/// Adds `row`, the row of number `index`, to `children`: its indent, the mark that folds or unfolds
-/// it if it has children, and its name, or the field that renames it; a row that the search found
-/// says the path of its parent too.
+/// Adds `row`, the row of number `index`, to `children`, as `shows` says: its indent, the mark that
+/// folds or unfolds it if it has children, and its name, or the field that renames it; a row that
+/// the search found says the path of its parent too; a line above or below it, or its box, shows
+/// where a drag would drop on it.
 fn build_row(
     children: &mut slime_ui::tree::Children<'_>,
     index: usize,
     row: Row,
     world: &World,
-    renaming: Option<Entity>,
-    found: &Option<Vec<Entity>>,
-    open: bool,
+    shows: Look,
 ) -> Built {
     let mut style = Style::default();
-    style.layout.direction = FlexDirection::Row;
+    style.layout.direction = FlexDirection::Column;
     let name = entity_name(world, row.entity);
     let mut item = Element::container(style)
         .role(Role::TreeItem)
         .named(name.clone())
-        .level(row.depth + 1);
+        .level(row.depth + 1)
+        .drop_target();
     if row.children {
         item = item.expandable();
     }
+    if shows.drop == Some(Place::Into) {
+        item = item.class("drop-into");
+    }
+    // A line where the drop would put what is dragged, from the row's name.
+    let line = |children: &mut slime_ui::tree::Children<'_>, key: &'static str| {
+        let mut style = Style::default();
+        style.layout.size[1] = Dimension::Pixels(2.0);
+        style.layout.shrink = 0.0;
+        style.layout.margin.start = row.depth as f32 * INDENT + FOLD_WIDTH;
+        children.add(key, Element::container(style).class("drop-line"), |_| {});
+    };
     let (mut fold, mut name_element) = (None, None);
     let element = children.add(index, item, |children| {
-        let mut indent = Style::default();
-        indent.layout.size[0] = Dimension::Pixels(row.depth as f32 * INDENT);
-        indent.layout.shrink = 0.0;
-        children.add("indent", Element::container(indent), |_| {});
-        let mut mark = Style::default();
-        mark.layout.size[0] = Dimension::Pixels(FOLD_WIDTH);
-        mark.layout.shrink = 0.0;
-        if row.children {
-            let chevron = if open {
-                "chevron-down"
-            } else {
-                "chevron-right"
-            };
-            let icon = look::icon(chevron).map(String::from).unwrap_or_default();
-            let name = if open { "fold" } else { "unfold" };
-            let button = Element::button(icon, mark)
-                .class("row")
-                .class("fold")
-                .named(name);
-            fold = Some(children.add("fold", button, |_| {}));
-        } else {
-            children.add("leaf", Element::container(mark), |_| {});
+        if shows.drop == Some(Place::Before) {
+            line(children, "before");
         }
-        let mut grows = Style::default();
-        grows.layout.grow = 1.0;
-        let shown = match found {
-            Some(_) => match world.parent(row.entity) {
-                Some(parent) => format!("{name}  —  {}", path_of(world, parent)),
-                None => name.clone(),
-            },
-            None => name.clone(),
-        };
-        let element = if renaming == Some(row.entity) {
-            // Its name, or nothing for an entity without one, not its handle.
-            let text = world
-                .get::<Name>(row.entity)
-                .map_or_else(String::new, |name| name.0.clone());
-            Element::text_field(text, grows).named("rename")
-        } else {
-            Element::button(shown, grows)
-                .class("row")
-                .named(name.as_str())
-        };
-        name_element = Some(children.add("name", element, |_| {}));
-        // A placement's root, marked as what a prefab placed.
-        if world.placement(row.entity).is_some() {
-            let icon = look::icon("package").map(String::from).unwrap_or_default();
-            let mark = Element::label(icon, Style::default())
-                .class("icon")
-                .named("placement");
-            children.add("placement", mark, |_| {});
+        let mut content = Style::default();
+        content.layout.direction = FlexDirection::Row;
+        content.layout.grow = 1.0;
+        content.layout.min_size[1] = Dimension::Pixels(0.0);
+        children.add("content", Element::container(content), |children| {
+            let mut indent = Style::default();
+            indent.layout.size[0] = Dimension::Pixels(row.depth as f32 * INDENT);
+            indent.layout.shrink = 0.0;
+            children.add("indent", Element::container(indent), |_| {});
+            let mut mark = Style::default();
+            mark.layout.size[0] = Dimension::Pixels(FOLD_WIDTH);
+            mark.layout.shrink = 0.0;
+            if row.children {
+                let chevron = if shows.open {
+                    "chevron-down"
+                } else {
+                    "chevron-right"
+                };
+                let icon = look::icon(chevron).map(String::from).unwrap_or_default();
+                let name = if shows.open { "fold" } else { "unfold" };
+                let button = Element::button(icon, mark)
+                    .class("row")
+                    .class("fold")
+                    .named(name);
+                fold = Some(children.add("fold", button, |_| {}));
+            } else {
+                children.add("leaf", Element::container(mark), |_| {});
+            }
+            let mut grows = Style::default();
+            grows.layout.grow = 1.0;
+            let shown = match world.parent(row.entity) {
+                Some(parent) if shows.found => format!("{name}  —  {}", path_of(world, parent)),
+                _ => name.clone(),
+            };
+            let element = if shows.renaming {
+                // Its name, or nothing for an entity without one, not its handle.
+                let text = world
+                    .get::<Name>(row.entity)
+                    .map_or_else(String::new, |name| name.0.clone());
+                Element::text_field(text, grows).named("rename")
+            } else {
+                Element::button(shown, grows)
+                    .class("row")
+                    .named(name.as_str())
+                    .draggable()
+            };
+            name_element = Some(children.add("name", element, |_| {}));
+            // A placement's root, marked as what a prefab placed.
+            if world.placement(row.entity).is_some() {
+                let icon = look::icon("package").map(String::from).unwrap_or_default();
+                let mark = Element::label(icon, Style::default())
+                    .class("icon")
+                    .named("placement");
+                children.add("placement", mark, |_| {});
+            }
+        });
+        if shows.drop == Some(Place::After) {
+            line(children, "after");
         }
     });
     Built {
@@ -544,6 +715,43 @@ fn build_row(
         fold,
         name: name_element.unwrap_or(element),
     }
+}
+
+/// What a drag of `source`'s row carries, `selection` selected: the outermost of what is selected
+/// below the level's root, as the operations move it, when the row is selected; its entity alone
+/// otherwise.
+fn dragged(world: &World, source: Entity, selection: &[Entity]) -> Vec<Entity> {
+    if selection.contains(&source) {
+        handles::outermost_below_root(world, selection)
+    } else {
+        vec![source]
+    }
+}
+
+/// Where `dragged`, what a drag carries, goes once dropped at `place` in `target`'s row: the parent
+/// and the first one's spot among its children, or none where one of them may not go
+/// ([`arrange::refusal`]). Dropped before or after one of its own, it goes where that one stands,
+/// before the first of its siblings after it that the drag does not carry.
+fn drop_spot(
+    world: &World,
+    dragged: &[Entity],
+    target: Entity,
+    place: Place,
+) -> Option<(Entity, Spot)> {
+    let (parent, mut spot) = place.spot(world, target)?;
+    if place != Place::Into && dragged.contains(&target) {
+        let carried: HashSet<Entity> = dragged.iter().copied().collect();
+        spot = world
+            .children(parent)
+            .skip_while(|&child| child != target)
+            .find(|child| !carried.contains(child))
+            .map_or(Spot::Last, Spot::Before);
+    }
+    let allowed = !dragged.is_empty()
+        && dragged
+            .iter()
+            .all(|&entity| arrange::refusal(world, entity, parent, spot).is_none());
+    allowed.then_some((parent, spot))
 }
 
 /// The world's roots: its entities without a parent, in the world's order.
@@ -716,6 +924,64 @@ mod tests {
         );
         assert!(flatten(&world, &open)[1].children);
         assert!(!flatten(&world, &open)[3].children);
+    }
+
+    /// The step of a drop: what is selected carried in its order, after a row each after the one
+    /// before it, beside one of its own where that one stands; an entity not selected carried
+    /// alone, and selected; into one of its own, nothing.
+    #[test]
+    fn a_drop_carries_what_is_selected_in_its_order() {
+        let mut world = World::new();
+        let yard = world.spawn();
+        let [a, b, c, d] = ["a", "b", "c", "d"].map(|name| {
+            let entity = world.spawn();
+            world.insert(entity, Name(name.to_owned()));
+            world.set_parent(entity, Some(yard)).expect("alive");
+            entity
+        });
+        let mut hierarchy = Hierarchy::default();
+        let mut dropping = |world: &mut World, selection: &[Entity], source, target, place| {
+            let Some(Request::Apply {
+                commands,
+                selection: selected,
+                ..
+            }) = hierarchy.dropped(world, selection, source, target, place)
+            else {
+                return None;
+            };
+            for command in &commands {
+                world.apply(command).expect("applied");
+            }
+            Some(selected)
+        };
+        let names = |world: &World| {
+            world
+                .children(yard)
+                .map(|child| world.get::<Name>(child).expect("named").0.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            dropping(&mut world, &[c, a], a, d, Place::After),
+            Some(None)
+        );
+        assert_eq!(names(&world), ["b", "d", "a", "c"]);
+        // Onto a's top quarter, a carried too: where a stands, before c.
+        assert_eq!(
+            dropping(&mut world, &[b, a], b, a, Place::Before),
+            Some(None)
+        );
+        assert_eq!(names(&world), ["d", "b", "a", "c"]);
+        let selected = dropping(&mut world, &[a, c], d, b, Place::Into).expect("a step");
+        let d_id = world.persistent_id(d).expect("an identity");
+        assert_eq!(selected, Some(vec![d_id]), "the entity dragged selected");
+        assert_eq!(world.children(b).collect::<Vec<_>>(), [d]);
+        assert_eq!(dropping(&mut world, &[a, c], a, c, Place::Into), None);
+        assert_eq!(
+            dropping(&mut world, &[b], b, d, Place::Into),
+            None,
+            "into its child"
+        );
+        assert!(hierarchy.open.contains(&b), "unfolded as d went into it");
     }
 
     #[test]

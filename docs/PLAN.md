@@ -55,7 +55,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.4d](#m6c4d--measure-play) | Play's time to control is measured on the zone and on a level of 100 000 entities | Done |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Done on Linux; the Windows virtual machine to come |
 | [M6c.5a](#m6c5a--the-hierarchy) | The user finds any entity in a hierarchy, which follows the world's tree, folds, selects, renames and searches | Done |
-| [M6c.5b](#m6c5b--rearrange-the-hierarchy) | The user reparents entities by dragging them in the hierarchy and with Alt and the arrows, and hides and locks them | Planned |
+| [M6c.5b](#m6c5b--rearrange-the-hierarchy) | The user reparents entities by dragging them in the hierarchy and with Alt and the arrows | Planned |
 | [M6c.5c](#m6c5c--the-eye-and-the-lock) | The user hides entities from the viewport and locks them against picking, as the user's state, never the level's | Planned |
 | [M6c.5d](#m6c5d--regions-of-tabs) | The user arranges the panels in regions of tabs | Planned |
 | [M6c.5e](#m6c5e--the-inspector) | The user changes the components of what is selected in an inspector, and keeps a value of the running game | Planned |
@@ -1896,7 +1896,13 @@ GitHub issues, linked from their entry; this list stays the reference.
   measures, the search some 5 ms at 100 000 entities; the arrows move the selection only while a
   row holds the focus; a press of a row reads Ctrl and Shift as the frame finds them held, not as
   the press found them, since a button's press carries no modifiers; no double click renames, F2
-  does. Reparenting by drags and keys comes with M6c.5b, the eye and the lock with M6c.5c.
+  does. The eye and the lock come with M6c.5c.
+- **Rearranging the hierarchy** ([ADR-0168](adr/0168-rearranging-the-hierarchy.md)): a drag shows
+  where it drops, not what it carries; it drops on a row only, not below the last, and does not
+  scroll the list as it nears its edges, which the wheel does meanwhile; Alt and the arrows run only
+  while a row holds the focus, as the arrows do. Between two steps of a game, after a change of
+  parent or a teleport, a frame's interpolation walks each entity's ancestors again until the next
+  step ends.
 - **Play** ([ADR-0164](adr/0164-play.md)): a game that makes its library of scenes before
   `slime_app::run` starts its log, as *Hunna Wood* and the `world` example do, logs neither the
   scenes that Play gave nor a file of Play's directory that it left out. The console builds a label

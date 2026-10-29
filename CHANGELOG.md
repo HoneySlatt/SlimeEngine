@@ -8,7 +8,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
-
+- Rearranging the editor's hierarchy (ADR-0168): a row dragged onto another goes before it, after
+  it or into it, as a line or the row's box shows, what is selected with it when it is selected;
+  Alt and the arrows, while a row holds the focus, move what is selected before its previous
+  sibling, after its next, beside its parent or into the sibling above (`hierarchy.move_up`,
+  `hierarchy.move_down`, `hierarchy.outdent`, `hierarchy.indent`, which agents and a program
+  without its window run too); each move one step, each entity kept where it is in the world; the
+  level's root, and what a placement holds but for its root, stay.
 - Drag and drop in `slime-ui`: `Element::draggable`, `Element::drop_target`, `Ui::dragging`,
   `Ui::drop`, `ActionKind::Dropped` and `ElementAction::Drop`; agents drop through the development
   channel, at version 12 of its protocol (`InterfaceAction::Drop`), and the MCP server's

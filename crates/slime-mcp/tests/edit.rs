@@ -14,7 +14,9 @@
 //! (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`); and plays the yard in the `world`
 //! example, which it pauses, steps and stops, reading the game's log in the editor's
 //! (`docs/adr/0164-play.md`), and drives with the game's tools while a step made in the editor,
-//! which places a lamp, reaches it, until it stops (`docs/adr/0165-editing-while-playing.md`).
+//! which places a lamp, reaches it, until it stops (`docs/adr/0165-editing-while-playing.md`); and
+//! moves a lamp into the one above it and out again by the operations of Alt and the arrows
+//! (`docs/adr/0168-rearranging-the-hierarchy.md`).
 //!
 //! It needs the examples built (`cargo build --example editor --example world`) beside the server
 //! and the examples' assets cooked, in the directory that its first argument names, or
@@ -478,6 +480,19 @@ fn main() {
     let (said, result) = session.try_tool("run_operation", json!({ "name": "edit.group" }));
     assert_eq!(result["isError"], json!(true), "{said:?}");
     assert!(said[0].contains("belongs to a placement"), "{said:?}");
+    // A lamp moved into the one above it and out again by the keys' operations, each a step
+    // (`docs/adr/0168-rearranging-the-hierarchy.md`).
+    session.tool("select", json!({ "selection": ["yard/lamp 3"] }));
+    for name in ["hierarchy.indent", "hierarchy.outdent"] {
+        let (said, _) = session.tool("run_operation", json!({ "name": name }));
+        assert_eq!(said, ["done"], "{name}");
+    }
+    let (said, _) = session.tool("editor_history", json!({}));
+    assert!(
+        said[0].contains("Move into the sibling above")
+            && said[0].contains("Move out of the parent"),
+        "{said:?}"
+    );
     session.tool("stop_game", json!({}));
 
     drop(session);

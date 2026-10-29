@@ -1,7 +1,8 @@
 //! An agent's session with the editor's window through the engine's MCP server
 //! (`docs/adr/0156-the-editors-window-and-its-operations.md`): it starts the `editor` example on a
 //! copy of the yard, in a window, lists the operations, makes a step and undoes it by the
-//! operation's name, opens the palette by its name and finds it in the window, opens the File menu
+//! operation's name, drops a row of the hierarchy before another and undoes it
+//! (`docs/adr/0168-rearranging-the-hierarchy.md`), opens the palette by its name and finds it in the window, opens the File menu
 //! as a person does, runs `file.save` by name, captures the viewport by its name, which the menu's
 //! frames do not draw again and framing a lamp does (`docs/adr/0158-the-viewport.md`), picks the
 //! lamp framed in the viewport and nothing in its sky, shows the viewport's base color by the
@@ -144,6 +145,22 @@ fn main() {
         "{said:?}"
     );
     // Undone, the level is its file again.
+    path_of(&mut session, "Label", "all written");
+    // A row of the hierarchy dropped before another, as an agent drops it, by the paths of the
+    // row's name and of the other row: one step, undone.
+    let dragged = path_of(&mut session, "TreeItem", "lamp 2");
+    let onto = path_of(&mut session, "TreeItem", "lamp 1");
+    act(
+        &mut session,
+        "drop",
+        &format!("{dragged}/content/name"),
+        json!({ "onto": onto, "at": 0.1 }),
+    );
+    path_of(&mut session, "Label", "1 step not written");
+    let (said, _) = session.tool("editor_history", json!({}));
+    assert!(said[0].contains("Move in the hierarchy"), "{said:?}");
+    let (said, _) = session.tool("run_operation", json!({ "name": "edit.undo" }));
+    assert_eq!(said, ["done"]);
     path_of(&mut session, "Label", "all written");
     // The window's operations run in the window: the palette, found by its field.
     let (said, _) = session.tool("run_operation", json!({ "name": "view.palette" }));

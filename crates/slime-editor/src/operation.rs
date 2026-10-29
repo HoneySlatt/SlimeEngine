@@ -340,6 +340,31 @@ pub const OPERATIONS: &[Operation] = &[
         parameters: &[],
         changes: Changes::Window,
     },
+    // Rearranging it (`docs/adr/0168-rearranging-the-hierarchy.md`).
+    Operation {
+        name: "hierarchy.move_up",
+        label: "Move up among the siblings",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "hierarchy.move_down",
+        label: "Move down among the siblings",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "hierarchy.outdent",
+        label: "Move out of the parent",
+        parameters: &[],
+        changes: Changes::Level,
+    },
+    Operation {
+        name: "hierarchy.indent",
+        label: "Move into the sibling above",
+        parameters: &[],
+        changes: Changes::Level,
+    },
     Operation {
         name: "view.split",
         label: "Two viewports",

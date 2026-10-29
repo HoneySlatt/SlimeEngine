@@ -3949,6 +3949,158 @@ mod tests {
         assert_eq!(selected(&yard), ["well"]);
     }
 
+    /// A row of the hierarchy dragged onto another goes before it, into it or after it, as the
+    /// line or the box under the pointer shows, where it was in the world; a drag onto its own
+    /// child shows nothing and makes nothing; Alt and the arrows move what is selected, the focus
+    /// following its row (`docs/adr/0168-rearranging-the-hierarchy.md`).
+    #[test]
+    fn the_hierarchy_rearranges_by_drags_and_keys() {
+        use slime_ui::tree::{Key as Part, Role};
+        let mut yard = Yard::new("hierarchy drags");
+        yard.session
+            .handle(
+                yard.host.world_mut(),
+                Request::Step {
+                    label: "Grow".to_owned(),
+                    commands: vec![
+                        "[Create]\nentity = \"yard/lamp-a1b2\"\nparent = \"yard\"\n\n[Create.components]\nName = \"lamp\"\nTransform = { translation = { x = 2.0, y = 0.0, z = 0.0 } }\n".to_owned(),
+                        "[Create]\nentity = \"yard/post-c3d4\"\nparent = \"yard\"\n\n[Create.components]\nName = \"post\"\nTransform = { translation = { x = 0.0, y = 1.0, z = 0.0 } }\n".to_owned(),
+                    ],
+                    selection: None,
+                },
+            )
+            .expect("made");
+        yard.frame();
+        yard.frame();
+        let item = |yard: &Yard, name: &str| {
+            yard.model
+                .ui
+                .meaning()
+                .iter()
+                .find(|meaning| meaning.role == Role::TreeItem && meaning.name == name)
+                .unwrap_or_else(|| panic!("the row of {name}"))
+                .id
+        };
+        let name = |yard: &Yard, row: &str| {
+            let item = item(yard, row);
+            let path = [Part::from("content"), Part::from("name")];
+            yard.model.ui.find(item, &path).expect("its name")
+        };
+        let children = |yard: &Yard, parent: &str| {
+            let world = yard.host.world();
+            let parent = world
+                .find(&parent.parse().expect("an identity"))
+                .expect("alive");
+            world
+                .children(parent)
+                .filter_map(|child| world.get::<slime_world::Name>(child))
+                .map(|name| name.0.clone())
+                .collect::<Vec<_>>()
+        };
+        // Pressed on a row's name, moved past a few pixels onto `at` of another's height.
+        let drag = |yard: &mut Yard, from: ElementId, onto: ElementId, at: f32| {
+            let from = yard.model.ui.rect(from).expect("laid out");
+            let onto = yard.model.ui.rect(onto).expect("laid out");
+            let ui = &mut yard.model.ui;
+            ui.pointer_moved(from.x + from.width / 2.0, from.y + from.height / 2.0);
+            ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+            ui.pointer_moved(onto.x + onto.width / 2.0, onto.y + onto.height * at);
+            yard.frame();
+        };
+        let release = |yard: &mut Yard| {
+            yard.model
+                .ui
+                .pointer_button(MouseButton::Left, ButtonState::Released);
+            yard.frame();
+            yard.frame();
+        };
+        let shows = |yard: &Yard, row: &str, part: &str| {
+            yard.model
+                .ui
+                .find(item(yard, row), &[Part::from(part)])
+                .is_some()
+        };
+        assert_eq!(children(&yard, "yard"), ["well", "lamp", "post"]);
+        // Onto the lamp's top quarter: a line above it, then the post before it.
+        let (post, lamp) = (name(&yard, "post"), item(&yard, "lamp"));
+        drag(&mut yard, post, lamp, 0.1);
+        assert!(shows(&yard, "lamp", "before"), "a line above the lamp");
+        release(&mut yard);
+        assert!(!shows(&yard, "lamp", "before"), "the line gone");
+        assert_eq!(children(&yard, "yard"), ["well", "post", "lamp"]);
+        assert_eq!(
+            yard.history().0.last().map(String::as_str),
+            Some("Move in the hierarchy")
+        );
+        // Onto its middle: into it, unfolded, where it was in the world.
+        let (post, lamp) = (name(&yard, "post"), item(&yard, "lamp"));
+        drag(&mut yard, post, lamp, 0.5);
+        release(&mut yard);
+        assert_eq!(children(&yard, "yard/lamp-a1b2"), ["post"]);
+        let at = placed(&yard, &"yard/post-c3d4".parse().expect("an identity"));
+        assert!(
+            (at.translation - DVec3::Y).length() < 1e-6,
+            "kept where it was: {at:?}"
+        );
+        assert!(
+            yard.model
+                .ui
+                .meaning()
+                .iter()
+                .any(|meaning| meaning.role == Role::TreeItem && meaning.name == "post"),
+            "the lamp unfolded"
+        );
+        // The lamp onto its own child: nothing shows, nothing moves.
+        let steps = yard.history().0.len();
+        let (lamp, post) = (name(&yard, "lamp"), item(&yard, "post"));
+        drag(&mut yard, lamp, post, 0.5);
+        assert!(
+            !shows(&yard, "post", "before") && !shows(&yard, "post", "after"),
+            "no line"
+        );
+        release(&mut yard);
+        assert_eq!(yard.history().0.len(), steps);
+        // Alt and the left arrow, the post's row holding the focus: beside the lamp, after it,
+        // the focus on its row; Alt and the up arrow: before it.
+        let post = name(&yard, "post");
+        click(&mut yard, post);
+        let alt = |yard: &mut Yard, arrow: NamedKey| {
+            let mut modifiers = Modifiers::default();
+            modifiers.alt = true;
+            yard.model.ui.modifiers(modifiers);
+            yard.model.ui.key(&KeyEvent {
+                physical: KeyCode::Unidentified,
+                logical: Key::Named(arrow),
+                text: None,
+                state: ButtonState::Pressed,
+                repeat: false,
+            });
+            yard.model.ui.modifiers(Modifiers::default());
+            for _ in 0..3 {
+                yard.frame();
+            }
+        };
+        alt(&mut yard, NamedKey::ArrowLeft);
+        assert_eq!(children(&yard, "yard"), ["well", "lamp", "post"]);
+        assert_eq!(
+            yard.model.ui.focus(),
+            Some(name(&yard, "post")),
+            "the focus follows"
+        );
+        alt(&mut yard, NamedKey::ArrowUp);
+        assert_eq!(children(&yard, "yard"), ["well", "post", "lamp"]);
+        alt(&mut yard, NamedKey::ArrowRight);
+        assert_eq!(children(&yard, "yard/well"), ["post"], "into the well");
+        assert_eq!(
+            yard.history().0[steps..],
+            [
+                "Move out of the parent",
+                "Move up among the siblings",
+                "Move into the sibling above"
+            ]
+        );
+    }
+
     /// A level flies at first at a speed that suits its size, or at the one last used in it, which
     /// the status bar says while the viewport flies and the user's state keeps once it stops.
     #[test]

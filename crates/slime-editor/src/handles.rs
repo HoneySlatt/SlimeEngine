@@ -5,6 +5,7 @@
 //! core applies live as an open step. It needs no GPU: the viewport draws the handles from what
 //! this module says.
 
+use std::collections::HashSet;
 use std::f64::consts::TAU;
 
 use slime_reflect::{Path, Reflect};
@@ -170,14 +171,30 @@ impl Gizmo {
 /// What of `selection`, entities of `world`, a gesture moves: each entity without an ancestor in
 /// it, which carries its children along, so that none moves twice.
 pub(crate) fn outermost(world: &World, selection: &[Entity]) -> Vec<Entity> {
+    let selected: HashSet<Entity> = selection.iter().copied().collect();
     selection
         .iter()
         .copied()
         .filter(|&entity| {
             std::iter::successors(world.parent(entity), |&each| world.parent(each))
-                .all(|ancestor| !selection.contains(&ancestor))
+                .all(|ancestor| !selected.contains(&ancestor))
         })
         .collect()
+}
+
+/// The [`outermost`] of `selection` below the level's root, which an operation moves: those whose
+/// identity holds more than the level's key.
+pub(crate) fn outermost_below_root(world: &World, selection: &[Entity]) -> Vec<Entity> {
+    let below: Vec<Entity> = selection
+        .iter()
+        .copied()
+        .filter(|&entity| {
+            world
+                .persistent_id(entity)
+                .is_some_and(|id| id.parts().len() > 1)
+        })
+        .collect();
+    outermost(world, &below)
 }
 
 /// Where the middle of the origins of `entities`, entities of `world`, is in the world, as the
@@ -486,6 +503,33 @@ fn snapped(gizmo: &Gizmo, part: Part, delta: DVec3) -> DVec3 {
 pub(crate) fn into_parent(parent: &GlobalTransform, world: DVec3) -> DVec3 {
     let scale = f64::from(parent.scale).max(f64::EPSILON);
     parent.rotation.as_dquat().inverse() * (world - parent.translation) / scale
+}
+
+/// The transform that keeps `entity` of `world` where it is in the world under a parent that stands
+/// as `parent` says; none for an entity not placed.
+pub(crate) fn kept(world: &World, entity: Entity, parent: &GlobalTransform) -> Option<Transform> {
+    let (local, at) = (
+        world.get::<Transform>(entity)?,
+        world.interpolated_transform(entity, 1.0)?,
+    );
+    Some(Transform {
+        translation: into_parent(parent, at.translation),
+        rotation: (parent.rotation.as_dquat().inverse() * at.rotation.as_dquat())
+            .normalize()
+            .as_quat(),
+        scale: at.scale / parent.scale.max(f32::EPSILON),
+        ..*local
+    })
+}
+
+/// The command that gives `entity` the transform `transform`, whole.
+pub(crate) fn set_transform(entity: PersistentId, transform: &Transform) -> Command {
+    Command::SetProperty {
+        entity,
+        component: "Transform".to_owned(),
+        path: Path::default(),
+        value: transform.to_value(),
+    }
 }
 
 /// The transform of the arrow, ring or square of `part` of handles that stand as `gizmo` says, for

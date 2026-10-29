@@ -93,7 +93,11 @@ Stage 6c's next milestones.
   Shift selecting the rows between, the arrows moving the selection while its rows hold the focus;
   a selection made elsewhere unfolds and shows its row; its search finds names, `c:` components and
   `p:` prefabs once the typing paused; F2 renames what is selected in place
-  (`edit.rename`).
+  (`edit.rename`). A row dragged onto another goes before it, after it or into it, as a line or the
+  row's box shows, and Alt and the arrows move what is selected among its siblings, beside its
+  parent or into the sibling above, each entity kept where it is in the world, each move one step
+  (`hierarchy.move_up`, `hierarchy.move_down`, `hierarchy.outdent`, `hierarchy.indent`,
+  `docs/adr/0168-rearranging-the-hierarchy.md`).
   Play (F5, a toolbar above the viewports) runs the game that `Program::play` starts on the level
   as the editor holds it, its steps not written handed over as private copies, paused, stepped,
   at a speed and stopped, its log in a console below the viewports (`docs/adr/0164-play.md`);

@@ -447,6 +447,16 @@ select = { kind = "Label", classes = ["icon"] }
 style.text.style.fonts = ["lucide"]
 style.text.color = "$muted"
 
+# Where a drag of a tree's rows would drop what it carries: a line between two rows, or the box of
+# the row that it goes into (docs/adr/0168-rearranging-the-hierarchy.md).
+[drop-line]
+select = { classes = ["drop-line"] }
+style.paint = { background = "$accent", radii = ["$radius_s", "$radius_s", "$radius_s", "$radius_s"] }
+
+[drop-into]
+select = { classes = ["drop-into"] }
+style.paint = { background = "$accent_soft", border_width = 1, border = "$accent", radii = ["$radius_s", "$radius_s", "$radius_s", "$radius_s"] }
+
 # A row of what is undone, as the editor's history shows a step undone.
 [row-undone]
 select = { kind = "Button", classes = ["row", "undone"] }

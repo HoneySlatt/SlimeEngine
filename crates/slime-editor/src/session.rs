@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use slime_app::{AppError, HeldFile, Simulation, SimulationContext, Waker};
 use slime_assets::{AssetId, AssetKind, CookedAssets};
 use slime_channel::{Edit, EditorHistory, OperationSummary, Reply};
-use slime_reflect::{Path as ValuePath, Reflect};
+use slime_reflect::Reflect;
 use slime_render::glam::DVec3;
 use slime_world::{
     Command, Entity, GlobalTransform, Name, PersistentId, SceneLibrary, Transform, World,
@@ -18,11 +18,11 @@ use slime_world::{
 use slime_world_render::Picker;
 
 use crate::editor::{EditError, Editor};
-use crate::handles;
 use crate::operation::{self, Changes, OPERATIONS};
 use crate::play::{Control, Event, Game, Player};
 use crate::program::{Options, Program};
 use crate::shared::{BuildMark, CONSOLE_LINES, Notice, Playing, Request, Shared};
+use crate::{arrange, handles};
 use crate::{journal, level, recent};
 
 /// Why the program has no journal when the environment gives no data directory.
@@ -520,6 +520,14 @@ impl Session {
                 }
             }
             "edit.group" => self.grouped(world)?,
+            "hierarchy.move_up"
+            | "hierarchy.move_down"
+            | "hierarchy.outdent"
+            | "hierarchy.indent" => Request::Apply {
+                label: operation.label.to_owned(),
+                commands: self.rearranged(world, operation.name)?,
+                selection: None,
+            },
             "edit.place" => self.placed(world, &arguments[0])?,
             "edit.go_to_step" => return self.go_to_step(world, &arguments[0]),
             "play.start" => return self.play(world),
@@ -565,10 +573,9 @@ impl Session {
         let selected: Vec<Entity> = editor
             .selection()
             .iter()
-            .filter(|id| id.parts().len() > 1)
             .filter_map(|id| world.find(id))
             .collect();
-        let outermost = handles::outermost(world, &selected);
+        let outermost = handles::outermost_below_root(world, &selected);
         if outermost.is_empty() {
             return Err("nothing below the level's root is selected".into());
         }
@@ -683,19 +690,8 @@ impl Session {
                 rank: None,
             });
             // Where it was in the world, if it is placed.
-            if let (Some(local), Some(at)) = (
-                world.get::<Transform>(entity),
-                world.interpolated_transform(entity, 1.0),
-            ) {
-                let moved = Transform {
-                    translation: handles::into_parent(&group, at.translation),
-                    rotation: (group.rotation.as_dquat().inverse() * at.rotation.as_dquat())
-                        .normalize()
-                        .as_quat(),
-                    scale: at.scale / group.scale.max(f32::EPSILON),
-                    ..*local
-                };
-                commands.push(set_transform(entity_id, &moved));
+            if let Some(moved) = handles::kept(world, entity, &group) {
+                commands.push(handles::set_transform(entity_id, &moved));
             }
         }
         Ok(Request::Apply {
@@ -703,6 +699,22 @@ impl Session {
             commands,
             selection: Some(vec![id]),
         })
+    }
+
+    /// The commands of the hierarchy's operation `name` on the outermost of what is selected
+    /// ([`arrange::moves`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Session::outermost`], and when nothing selected moves, as when what is selected is
+    /// first among its siblings already, or belongs to a placement.
+    fn rearranged(&self, world: &World, name: &str) -> Result<Vec<Command>, AppError> {
+        let selected = arrange::tree_order(world, &self.outermost(world)?);
+        let commands = arrange::moved(world, &arrange::moves(world, &selected, name));
+        if commands.is_empty() {
+            return Err("nothing selected moves so".into());
+        }
+        Ok(commands)
     }
 
     /// The step that places the prefab `prefab`, its asset ID or its name, as the palette shows
@@ -1142,7 +1154,7 @@ impl Session {
                 let at = world.interpolated_transform(entity, 1.0)?;
                 let parent = handles::placed_at(world, world.parent(entity));
                 moved.translation = handles::into_parent(&parent, at.translation + by);
-                Some(set_transform(id, &moved))
+                Some(handles::set_transform(id, &moved))
             })
             .collect())
     }
@@ -1200,7 +1212,7 @@ impl Session {
             let mut moved = *local;
             moved.translation =
                 handles::into_parent(&parent, at.translation - DVec3::Y * hit.distance);
-            commands.push(set_transform(id, &moved));
+            commands.push(handles::set_transform(id, &moved));
         }
         if commands.is_empty() {
             return Err("nothing lies below what is selected".into());
@@ -1427,16 +1439,6 @@ fn prefabs(
         }
     }
     prefabs
-}
-
-/// The command that sets `entity`'s whole transform to `transform`.
-fn set_transform(entity: PersistentId, transform: &Transform) -> Command {
-    Command::SetProperty {
-        entity,
-        component: "Transform".to_owned(),
-        path: ValuePath::default(),
-        value: transform.to_value(),
-    }
 }
 
 #[cfg(test)]

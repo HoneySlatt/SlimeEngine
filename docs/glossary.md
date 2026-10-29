@@ -531,8 +531,9 @@ configuration, used by automated tests and, later, by dedicated servers.
 
 **Hierarchy (editor).** The editor's panel that shows the level's entities as a tree, each parent's
 children below it, indented, folded or not as the user chose, which selects, searches and renames
-them; the editor flattens the world's tree into rows and builds only those that show
-([ADR-0167](adr/0167-the-hierarchy.md)). Not the world's hierarchy of parents and children itself,
+them, and rearranges them by drags and by Alt and the arrows; the editor flattens the world's tree
+into rows and builds only those that show ([ADR-0167](adr/0167-the-hierarchy.md),
+[ADR-0168](adr/0168-rearranging-the-hierarchy.md)). Not the world's hierarchy of parents and children itself,
 which `World::set_parent` keeps.
 
 **High dynamic range (HDR).** Colors not limited to 0 to 1, such as the light a scene reflects
