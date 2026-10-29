@@ -235,3 +235,4 @@ the ADR linking to it.
 | [0164](0164-play.md) | Play | Accepted |
 | [0165](0165-editing-while-playing.md) | Editing while playing | Accepted |
 | [0166](0166-building-the-game-again.md) | Building the game again | Accepted |
+| [0167](0167-the-hierarchy.md) | The hierarchy | Accepted |

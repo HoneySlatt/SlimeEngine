@@ -32,7 +32,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   done, and M6c.3b in two again at its start, M6c.3b and M6c.3c, all done; M6c.4 was split in
   three at its start, M6c.4a, M6c.4b and M6c.4c, of which M6c.4a and M6c.4b are done, and M6c.4c
   in two again at its start, M6c.4c and M6c.4d, both done; Checkpoint A is done on Linux, its
-  part in the Windows virtual machine to come; next: M6c.5.
+  part in the Windows virtual machine to come; M6c.5 was split in four at its start, M6c.5a,
+  M6c.5b, M6c.5c and M6c.5d; next: M6c.5a.
 
 ## Status
 
@@ -52,7 +53,10 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.4c](#m6c4c--build-the-game-again) | Play builds the game before it starts it, and a game whose code changed while it runs is built again and started on a save of its run | Done |
 | [M6c.4d](#m6c4d--measure-play) | Play's time to control is measured on the zone and on a level of 100 000 entities | Done |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Done on Linux; the Windows virtual machine to come |
-| [M6c.5](#m6c5--find-and-change) | The user finds any entity in a hierarchy, changes its components in an inspector, and arranges the panels in regions of tabs | Planned |
+| [M6c.5a](#m6c5a--the-hierarchy) | The user finds any entity in a hierarchy, which follows the world's tree, folds, selects, renames and searches | Planned |
+| [M6c.5b](#m6c5b--rearrange-the-hierarchy) | The user reparents entities by dragging them in the hierarchy and with Alt and the arrows, and hides and locks them | Planned |
+| [M6c.5c](#m6c5c--regions-of-tabs) | The user arranges the panels in regions of tabs | Planned |
+| [M6c.5d](#m6c5d--the-inspector) | The user changes the components of what is selected in an inspector, and keeps a value of the running game | Planned |
 | [M6c.6](#m6c6--levels-of-several-files-and-links) | A level is made of several files, which the editor writes together, and an entity refers to entities of other files | Planned |
 | [M6c.7](#m6c7--build-from-a-kit) | The user builds a level from a kit of prefabs found in an asset browser, and *Hunna Wood*'s zone is made so | Planned |
 | [Checkpoint B](#checkpoint-b--the-exit-rehearsal) | The owner builds a part of the zone again by hand in the editor, plays it, writes it and opens it again: the exit criterion | Planned |
@@ -849,7 +853,7 @@ engine reads them where every game makes its library of scenes.
   refuses the window's surface, and the game draws with llvmpipe, which the benchmark's
   documentation says. "Keep this value", a value of the running game made a step of the level,
   needs to choose what a step keeps, a component's value or an entity's, as the inspector of M6c.5
-  will show them: the owner placed it with the inspector, in M6c.5b, on 2026-10-29, and the debt of
+  will show them: the owner placed it with the inspector, in M6c.5d, on 2026-10-29, and the debt of
   [ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md) with it. The review
   found faults, each fixed: the time counted from Play's thread rather than from the request, which
   left out the editor writing the level; a pause during the load, which kept the measure open; the
@@ -873,47 +877,90 @@ engine reads them where every game makes its library of scenes.
   at first at a speed that suits the level's size, or at the one last used in it, which the user's
   state directory keeps for each level, and the status bar shows it while it flies
   (`slime-editor`'s `navigation` and `speeds`). The plan holds without a cut; the owner placed
-  "keep this value" with the inspector, in M6c.5b, and left Play's time to control on a level of
+  "keep this value" with the inspector, in M6c.5d, and left Play's time to control on a level of
   100 000 entities until M6c.6 measures it again. The Windows virtual machine's part waits for the
   owner, whose report the milestones that follow answer.
 
 ### M6c.5 — Find and change
 
-- **Goal.** The user finds any entity in a hierarchy, changes its components in an inspector, and
-  arranges the panels in regions of tabs.
+Split in four at its start, on 2026-10-29, as [ADR-0155](adr/0155-the-editors-design.md) allows,
+the two parts that the plan foresaw being each too large for one milestone: the hierarchy;
+rearranging it; the regions of tabs; the inspector.
+
+#### M6c.5a — The hierarchy
+
+- **Goal.** The user finds any entity in a hierarchy, which follows the world's tree, folds,
+  selects, renames and searches.
 - **Crates.** `slime-ui`, `slime-world`, `slime-devui`, `slime-editor`; the benchmarks.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides, in two parts, each likely a
-  milestone of its own:
-  - *M6c.5a, the hierarchy and the regions.* In `slime-ui`: the roles of a tree and its items, rows
-    that are selected, drag and drop between elements, an element scrolled into view, panes that
-    F6 moves between, an amendment of [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md);
-    docking's model, regions of tabs, splits that the user resizes, "Move to" and floating panels,
-    the layout saved per user and per project in the user's state directory, and set aside when it
-    cannot be read. In `slime-world`, a tick of the entities' names apart from the structure. The
-    hierarchy: rows that the editor flattens from the world's children, built only where they
-    show; a search, `c:` naming a component and `p:` a prefab, run off the frame; renaming;
-    reparenting by a drag and by Alt and the arrows; an eye and a lock, the user's, never the
-    level's, the editor hiding nothing through `World::is_hidden`.
-  - *M6c.5b, the inspector.* `slime-devui`'s builder of an entity's components made public; the
-    inspector on it: components added and removed; several entities selected, a mixed value shown
-    as "—", a check box's third state; overrides marked by a bar and a bold label, Revert and Apply
-    for each field; driven fields read-only; the interim world panel retired. "Keep this value", a
-    value read in the game that Play runs made a step of the level, from the inspector, what a step
-    keeps, a field's value, a component's or an entity's, decided in the part's design: the owner
-    placed it here on 2026-10-29, M6c.4d having had no room for it.
-  The ADR of each part's design.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: in `slime-ui`, the roles of
+  a tree and its items, with their levels; a list's row shown by its number, scrolled into view;
+  the focus that keys move scrolled into view. In `slime-world`, a tick of the entities' names apart
+  from the structure, which the dev overlay's world panel follows too. The hierarchy: rows that the
+  editor flattens from the world's children, built only where they show, folded and unfolded,
+  selected by a click, with Ctrl and with Shift, a selection made elsewhere unfolded and scrolled
+  into view; a search, `c:` naming a component and `p:` a prefab, run after a pause; renaming in
+  place, F2. The world panel keeps the components of what is selected until the inspector. The ADR
+  of its design.
 - **Done when.** A benchmark, `editor.hierarchy.100k`, within a list's budget
   ([ADR-0140](adr/0140-the-tree-of-elements.md)) standing still, scrolled and after a rename; an
-  agent reparents by a drag's action and reverts an override; a layout that cannot be read gives the
-  default; image tests of the hierarchy and the inspector; CI is green.
+  agent finds, selects and renames through the hierarchy's elements; image tests of the hierarchy;
+  CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-world -p slime-devui -p slime-editor`;
   `cargo run --release -p slime-benches -- editor`.
-- **By hand.** The hierarchy and the inspector, read by Orca on Linux and by Narrator in the
-  Windows virtual machine.
-- **Debt settled.** G32; a list's rows not selected; the focus moved not scrolling its element
-  into view, and nothing scrolling an element into view for screen readers; a check box without a
-  third state; a row of a list found by its number; the world panel's list made again at each
-  rename; an entity that a run created, wrote into its level and destroyed coming back
+- **By hand.** The hierarchy on the zone, and read by Orca on Linux and by Narrator in the Windows
+  virtual machine.
+- **Debt settled.** A list's rows not selected; the focus moved not scrolling its element into
+  view, and nothing scrolling an element into view for screen readers; a row of a list found by its
+  number; the world panel's list made again at each rename.
+
+#### M6c.5b — Rearrange the hierarchy
+
+- **Goal.** The user reparents entities by dragging them in the hierarchy and with Alt and the
+  arrows, and hides and locks them, as the user's state, never the level's.
+- **Crates.** `slime-ui`, `slime-world`, `slime-world-render`, `slime-editor`.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: in `slime-ui`, drag and drop
+  between elements; the hierarchy's reparenting by a drag, before, after or into a row, each a step,
+  and by Alt and the arrows; an eye and a lock for each row, the user's, never the level's, the
+  editor hiding nothing through `World::is_hidden`. The ADR of its design.
+- **Done when.** An agent reparents by a drag's action and by the keys; what is hidden is not
+  drawn nor picked, and what is locked not picked; CI is green.
+- **How to test.** `cargo test -p slime-ui -p slime-editor`; the MCP server's session tests.
+- **By hand.** Reparenting by drags in the zone.
+- **Debt settled.** G32.
+
+#### M6c.5c — Regions of tabs
+
+- **Goal.** The user arranges the panels in regions of tabs.
+- **Crates.** `slime-ui`, `slime-editor`.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: docking's model, regions of
+  tabs, splits that the user resizes, "Move to" and floating panels, the layout saved per user and
+  per project in the user's state directory, and set aside when it cannot be read; panes that F6
+  moves between, an amendment of [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md). The ADR
+  of its design.
+- **Done when.** A layout that cannot be read gives the default; an agent moves a panel to another
+  region; image tests of the regions; CI is green.
+- **How to test.** `cargo test -p slime-ui -p slime-editor`.
+- **By hand.** The regions, resized and rearranged, on Linux and in the Windows virtual machine.
+
+#### M6c.5d — The inspector
+
+- **Goal.** The user changes the components of what is selected in an inspector, and keeps a value
+  of the running game.
+- **Crates.** `slime-devui`, `slime-editor`.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: `slime-devui`'s builder of an
+  entity's components made public; the inspector on it: components added and removed; several
+  entities selected, a mixed value shown as "—", a check box's third state; overrides marked by a
+  bar and a bold label, Revert and Apply for each field; driven fields read-only; the interim world
+  panel retired. "Keep this value", a value read in the game that Play runs made a step of the
+  level, from the inspector, what a step keeps, a field's value, a component's or an entity's,
+  decided in its design: the owner placed it here on 2026-10-29, M6c.4d having had no room for it.
+  The ADR of its design.
+- **Done when.** An agent reverts an override and keeps a value of the running game; image tests of
+  the inspector; CI is green.
+- **How to test.** `cargo test -p slime-devui -p slime-editor`.
+- **By hand.** The inspector, read by Orca on Linux and by Narrator in the Windows virtual machine.
+- **Debt settled.** A check box without a third state; an entity that a run created, wrote into its
+  level and destroyed coming back
   ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)), which a value
   that the editor keeps, rather than a run that writes its level, settles.
 
@@ -1570,7 +1617,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   longer names it, and the file holds it. A save that names the written identities of what the run
   destroyed would settle it; the editor writes levels through its commands from M6b.1a, and a value
   of the running game that the editor keeps, "keep this value", settles it with the inspector,
-  M6c.5b ([ADR-0155](adr/0155-the-editors-design.md)).
+  M6c.5d ([ADR-0155](adr/0155-the-editors-design.md)).
 - **A game's preparation of a scene that a save spawns may change only the scene's entities**
   ([ADR-0125](adr/0125-saves-per-scene.md)): what it creates, under a key or as a placement, is the
   run's, which a save holds, and which loading the save creates before it prepares the scene, so
