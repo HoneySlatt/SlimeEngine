@@ -33,7 +33,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   three at its start, M6c.4a, M6c.4b and M6c.4c, of which M6c.4a and M6c.4b are done, and M6c.4c
   in two again at its start, M6c.4c and M6c.4d, both done; Checkpoint A is done on Linux, its
   part in the Windows virtual machine to come; M6c.5 was split in four at its start, M6c.5a,
-  M6c.5b, M6c.5c and M6c.5d; next: M6c.5a.
+  M6c.5b, M6c.5c and M6c.5d, of which M6c.5a is done; next: M6c.5b.
 
 ## Status
 
@@ -53,7 +53,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.4c](#m6c4c--build-the-game-again) | Play builds the game before it starts it, and a game whose code changed while it runs is built again and started on a save of its run | Done |
 | [M6c.4d](#m6c4d--measure-play) | Play's time to control is measured on the zone and on a level of 100 000 entities | Done |
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Done on Linux; the Windows virtual machine to come |
-| [M6c.5a](#m6c5a--the-hierarchy) | The user finds any entity in a hierarchy, which follows the world's tree, folds, selects, renames and searches | Planned |
+| [M6c.5a](#m6c5a--the-hierarchy) | The user finds any entity in a hierarchy, which follows the world's tree, folds, selects, renames and searches | Done |
 | [M6c.5b](#m6c5b--rearrange-the-hierarchy) | The user reparents entities by dragging them in the hierarchy and with Alt and the arrows, and hides and locks them | Planned |
 | [M6c.5c](#m6c5c--regions-of-tabs) | The user arranges the panels in regions of tabs | Planned |
 | [M6c.5d](#m6c5d--the-inspector) | The user changes the components of what is selected in an inspector, and keeps a value of the running game | Planned |
@@ -912,6 +912,39 @@ rearranging it; the regions of tabs; the inspector.
 - **Debt settled.** A list's rows not selected; the focus moved not scrolling its element into
   view, and nothing scrolling an element into view for screen readers; a row of a list found by its
   number; the world panel's list made again at each rename.
+- **Outcome.** Done on 2026-10-29, as [ADR-0167](adr/0167-the-hierarchy.md) records. `World::names`
+  ticks the names apart from the structure, and the dev overlay's world panel reads again the names
+  that changed rather than listing the world again. `slime-ui` gains the roles of a tree and its
+  items, each at its level and opening or not, which agents read and screen readers are given with
+  the selected state of a list's rows; `Ui::show_row` shows a list's row by its number, and
+  `Ui::scroll_into_view` scrolls an element into view, as the focus that the keys move and screen
+  readers' requests now are. The editor's window shows the level's entities in a hierarchy, above
+  the components of what is selected, which the world panel shows alone: rows that the editor
+  flattens and builds where they show, a placement's root marked, folded and unfolded, selected by
+  a click, with Ctrl and with Shift, and with the arrows while a row holds the focus; a selection
+  made elsewhere unfolds and shows its row; a search finds names, `c:` components and `p:` prefabs
+  once the typing paused; F2 renames in place. The benchmark `editor.hierarchy.100k` keeps a frame
+  standing still, scrolled and after a rename within a list's budget at 100 000 entities, and
+  measures the search and the rows made again apart ([`docs/measurements.md`](measurements.md)).
+  The review found three faults of weight, each fixed: the hierarchy kept every shortcut pressed
+  while one of its elements held the focus, the arrows among them; a level opened again could leave
+  the other's rows shown, its counts of builds starting again; a rename left without typing never
+  ended, its field taking the focus back. It found smaller ones, fixed too: the focus that did not
+  follow the selection; the first row's up arrow going to the last; rows that lost their hover as
+  they were built again; the placement's mark that the design promised; two ways of naming an
+  entity; a search that the benchmark did not measure, then 9 ms, now some 5 ms; a list not laid
+  out that showed a row above its view; and stale documentation. The tests: the names' tick
+  (`slime-world`), the world panel's names and its panel alone (`slime-devui`), a tree's meaning,
+  the focus and a row scrolled into view at scales 1 and 2 (`slime-ui`), the adapter's tree
+  (`slime-app`), the rows, the search and the rename (`slime-editor`'s unit tests), and the
+  hierarchy through the window's keys, folds, clicks, search and rename, and a level opened again
+  (`slime-editor`'s window tests); the editor's image tests show it. What nothing checks yet: the
+  hierarchy read by Orca on Linux and by Narrator in the Windows virtual machine, and on the zone
+  by hand; no agent's session through the MCP server uses it, the window's tests reading and using
+  its elements as agents do. Known debt: see "The hierarchy" in [Known debt](#known-debt).
+  CI is green on `2f78cce`: `check (headless)` took 16 minutes 47 seconds, `check (windowed)` 6
+  minutes 38 seconds, `check (game)` 9 minutes 39 seconds, `windows` 18 minutes 20 seconds and
+  `windows-release` 17 minutes 35 seconds.
 
 #### M6c.5b — Rearrange the hierarchy
 
