@@ -19,7 +19,9 @@ selected and, for a placement, its prefab (`docs/adr/0090-stage-5b-scenes-and-pr
 edits its components through reflection, for whoever works on a game, as
 `docs/adr/0081-stage-5a-the-world.md` decided. Its list builds only the rows that show, and makes
 its list of entities again only when the world's structure moves (`World::structure`), and reads
-again the names that changed when the world's names move (`World::names`). It does not
+again the names that changed when the world's names move (`World::names`); `WorldPanel::alone`
+shows the entity selected alone, without its filter and its list, as the editor shows it beside a
+hierarchy of its own (`docs/adr/0167-the-hierarchy.md`). It does not
 undo, add, remove or save components, which the editor of Stage 6c is to do. Its editors of
 reflected values, `ValueEditor`, edit a value outside a world too, as a view's settings
 (`docs/adr/0127-the-settings-of-a-view.md`); their fields change a value only when the user changed

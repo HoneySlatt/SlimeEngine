@@ -176,7 +176,7 @@ the ADR linking to it.
 | [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Superseded by 0152 |
 | [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted; amended by 0117 and 0126 |
 | [0107](0107-the-execution-model.md) | The execution model | Accepted; amended by 0118 and 0121 |
-| [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted; amended by 0119 and 0124 |
+| [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted; amended by 0119, 0124 and 0167 |
 | [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amended by 0116, 0124 and 0134 |
 | [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116, 0121, 0122, 0134 and 0155 |
 | [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115, 0120, 0126, 0127 and 0129 |
@@ -235,4 +235,4 @@ the ADR linking to it.
 | [0164](0164-play.md) | Play | Accepted |
 | [0165](0165-editing-while-playing.md) | Editing while playing | Accepted |
 | [0166](0166-building-the-game-again.md) | Building the game again | Accepted |
-| [0167](0167-the-hierarchy.md) | The hierarchy | Accepted |
+| [0167](0167-the-hierarchy.md) | The hierarchy | Accepted; amends 0108 |

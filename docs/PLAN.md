@@ -1837,6 +1837,13 @@ GitHub issues, linked from their entry; this list stays the reference.
   browser. A prefab placed again by Repeat goes where the last one stands, on it. The history panel
   builds a row for each step that the history keeps, which a long session makes many, again as the
   steps change, and going to a step journals each undo or redo between.
+- **The hierarchy** ([ADR-0167](adr/0167-the-hierarchy.md)): what is folded is lost when the level
+  closes; a change of the world's structure makes the rows of the whole tree again, and the search
+  runs over the whole world at once, both on the editor's thread, which `editor.hierarchy.100k`
+  measures, the search some 5 ms at 100 000 entities; the arrows move the selection only while a
+  row holds the focus; a press of a row reads Ctrl and Shift as the frame finds them held, not as
+  the press found them, since a button's press carries no modifiers; no double click renames, F2
+  does. Reparenting by drags and keys, and the eye and the lock, come with M6c.5b.
 - **Play** ([ADR-0164](adr/0164-play.md)): a game that makes its library of scenes before
   `slime_app::run` starts its log, as *Hunna Wood* and the `world` example do, logs neither the
   scenes that Play gave nor a file of Play's directory that it left out. The console builds a label
@@ -1936,17 +1943,14 @@ GitHub issues, linked from their entry; this list stays the reference.
   element's style, layout, paint and meaning ([ADR-0146](adr/0146-screen-readers.md)).
 - **Input and focus** ([ADR-0142](adr/0142-input-and-focus.md)): buttons, fields and widgets alone
   hold the focus, buttons and widgets alone are pressed, and boxes that scroll
-  and lists scroll with the wheel; a list's rows are
-  not selected; a press on what the interface draws is taken whether or not it does anything, from
+  and lists scroll with the wheel; a press on what the interface draws is taken whether or not it does anything, from
   what its last frame drew, so that a game's interface that lets presses through draws nothing
   where they fall, and the wheel with it; the shadow that a box casts takes them over the box, not
   over the blur that spreads past it. A root is modal from when it is added. The interface's actions reach no command of the editor or of a game but through
   the program. The hover follows what a layout moved under a still pointer a frame late, and the
-  focus leaves an element disabled or hidden at the next frame; the focus moved does not scroll its
-  element into view. A layout of another script than the Latin one matches a chord of a letter by
+  focus leaves an element disabled or hidden at the next frame. A layout of another script than the Latin one matches a chord of a letter by
   the key's place, and a chord of a digit or a sign by its meaning alone. The example `interface`
-  scrolls its list with time, which the wheel does not move. Touch comes later. M6c.5 selects a
-  list's rows and scrolls the focus into view.
+  scrolls its list with time, which the wheel does not move. Touch comes later.
 - **Text edited** ([ADR-0145](adr/0145-text-edited.md)): a double or triple click selects no word
   or line, and the caret does not blink. A field of one line leaves the up and down arrows to the
   focus, shows no bar of its own as its text scrolls, lays its text out one caret's width within
@@ -2019,14 +2023,16 @@ GitHub issues, linked from their entry; this list stays the reference.
   interface only in a windowed run, from its last frame, and each ask walks the whole tree. A path
   holds while the roots below its own stay, and a key's name that holds
   `/`, or that `#` and digits make, cannot be read back from one. A row of a list is found by its
-  number, the names of its texts not gathered into its own, until M6c.5. Games link `slime-ui`
+  number, the names of its texts not gathered into its own, unless its builder names it, as the
+  editor's hierarchy names its items. Games link `slime-ui`
   through `slime-app`, whether they have an interface or not.
 - **The dev overlay** ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md),
-  [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)): a frame after an entity is renamed,
-  spawned or despawned makes the world panel's list again, every name read and filtered, about
-  7 ms at 100 000 entities ([measurements](measurements.md#m6b8-rx-6900-xt)), past the budget of a
-  list's frame, until M6c.5's tick of names spares it the renames; the frames standing still,
-  scrolled, or after the selection changed stay within it. Its panels keep the size that they open
+  [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)): a frame after an entity is spawned or
+  despawned makes the world panel's list again, every name read and filtered, past the budget of a
+  list's frame at 100 000 entities, and one after a rename reads again the names that changed and
+  filters the list, under a millisecond there
+  ([measurements](measurements.md#m6c5a-ryzen-7-5800x)); the frames standing still, scrolled, or
+  after the selection changed stay within it. Its panels keep the size that they open
   at, their content scrolling, where egui's fitted theirs. It holds its interface's tables of
   shortcuts, which a game's interface would share; a game loses F6 while its interface shows a
   root that holds an element that can take the focus, and F6 gives a panel's bar the focus first.
@@ -2037,8 +2043,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   ([ADR-0147](adr/0147-the-screen-readers-check-in-ci.md)); the owner checks Orca and Narrator by
   hand, on the `interface` example and on the `world` example's dev overlay. A modal dialog is not
   marked modal to screen readers, which find the elements below it taking nothing; a label's text gives no runs, so that a screen reader reads it whole; a
-  field of numbers takes no increment or decrement, and nothing scrolls an element into view
-  before M6c.5; the hover and the press are given to agents, not to screen readers, which AccessKit
+  field of numbers takes no increment or decrement; the hover and the press are given to agents, not to screen readers, which AccessKit
   does not ask. A
   root's box that changes, a window resized, marks all it holds, and a modal root opened or closed
   makes the next changes whole. Each element's meaning is made again from the tree when marked, the

@@ -6,9 +6,10 @@ and written back (`docs/adr/0109-stable-references-and-undo.md`,
 palette and agents, by name; and its program, in a window of its own on the engine's interface,
 or without one, which a person uses and tools and agents drive through the development channel
 alike (`docs/adr/0135-the-editors-program.md`,
-`docs/adr/0156-the-editors-window-and-its-operations.md`). The window shows a menu bar, the dev
-overlay's world panel, a viewport in its center and a status bar; the editor's other panels come
-with Stage 6c's next milestones.
+`docs/adr/0156-the-editors-window-and-its-operations.md`). The window shows a menu bar, a
+hierarchy of the level's entities, the components of what is selected in the dev overlay's world
+panel, the history, a viewport in its center and a status bar; the editor's other panels come with
+Stage 6c's next milestones.
 
 ## Role
 
@@ -87,6 +88,12 @@ with Stage 6c's next milestones.
   (`docs/adr/0162-creating-copying-and-arranging.md`). *Edit* > *Place a prefab…* places one of the
   cooked data's scenes, found in the palette, and a panel below the world panel shows the history,
   a press on a row going to its step (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
+  The hierarchy (`Hierarchy`, `docs/adr/0167-the-hierarchy.md`) shows the level's entities as a
+  tree, its rows built where they show, folded and unfolded, a click selecting, Ctrl adding and
+  Shift selecting the rows between, the arrows moving the selection while its rows hold the focus;
+  a selection made elsewhere unfolds and shows its row; its search finds names, `c:` components and
+  `p:` prefabs once the typing paused; F2 renames what is selected in place
+  (`edit.rename`).
   Play (F5, a toolbar above the viewports) runs the game that `Program::play` starts on the level
   as the editor holds it, its steps not written handed over as private copies, paused, stepped,
   at a speed and stopped, its log in a console below the viewports (`docs/adr/0164-play.md`);

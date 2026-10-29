@@ -1,6 +1,7 @@
 # 0167. The hierarchy
 
-- Status: Accepted
+- Status: Accepted; amends [0108](0108-what-the-world-knows-of-its-changes.md) (a rename moves a
+  tick of the names, not the structure counter)
 - Date: 2026-10-29
 
 ## Context
@@ -67,9 +68,10 @@ prefab whose name holds it; terms separated by spaces must all hold. While it ho
 are the entities found, a flat list, each with the path of its parent. It runs once the typing
 paused, an eighth of a second, over the whole world at once, which the benchmark measures.
 
-**Renaming.** F2, or a double click, turns the row of the entity selected into a field that holds
-its name: Enter makes the rename one step of the history, Escape or a click elsewhere gives it up.
-Agents rename through the same field, found by its role and name.
+**Renaming.** F2 (`edit.rename`) turns the row of the entity selected into a field that holds its
+name, which takes the focus: Enter, or the focus leaving it, as a field commits, makes the rename
+one step of the history, Escape gives it up. Agents rename through the same field, found by its
+name, `rename`.
 
 ## Alternatives considered
 

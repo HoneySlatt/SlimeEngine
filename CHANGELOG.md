@@ -8,6 +8,21 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- The editor's hierarchy (ADR-0167): the level's entities as a tree in the window's left column,
+  above the components of what is selected, its rows built where they show, a placement's root
+  marked, folded and unfolded, a click selecting, Ctrl adding and Shift selecting the rows between, the arrows moving the selection
+  while its rows hold the focus (`hierarchy.previous`, `hierarchy.next`, `hierarchy.fold`,
+  `hierarchy.unfold`); a selection made elsewhere unfolds and shows its row; a search finds names,
+  `c:` components and `p:` prefabs once the typing paused; F2 renames what is selected in place
+  (`edit.rename`). `slime_editor::Hierarchy` and `Hierarchy::set_search`, which the benchmark
+  `editor.hierarchy.100k` measures over 100 000 entities; `slime_devui::entity_name`, what the dev
+  overlay and the editor call an entity.
+- `World::names`, the tick of the entities' names apart from the structure; `slime-ui`'s roles
+  `Tree` and `TreeItem`, `Element::level` and `Element::expandable`, read by agents and screen
+  readers, and the selected state of a list's rows given to screen readers; `Ui::show_row`, which
+  scrolls a list to a row by its number, and `Ui::scroll_into_view`, which the focus that the keys
+  move and screen readers' requests use; `Ui::held_modifiers`; `WorldPanel::alone`, the world panel
+  without its filter and its list.
 - The editor's window (ADR-0156): the editor's program, `slime_editor::run`, opens its level in a
   window of its own in the editor's look, a menu bar, *File*, *Edit* and *Help*, the dev overlay's
   world panel on the left, a center that holds no viewport yet, and a status bar; the window's
@@ -154,6 +169,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `World::structure` no longer moves at a rename, which `World::names` says: the dev overlay's world
+  panel reads again the names that changed rather than listing the world again, some ten times
+  less at 100 000 entities (`docs/measurements.md`).
 - The editor's viewport flies at first at a speed that suits the level's size, at least 5 m/s,
   rather than 5 m/s whatever the level, or at the speed last used in it, which the user's state
   directory keeps for each level; the status bar shows the speed while the viewport flies.

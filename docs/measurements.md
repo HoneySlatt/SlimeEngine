@@ -1260,3 +1260,33 @@ none drawn: entities with a transform each would not fit one scene file, which h
 `slime_serialize::MAX_VALUES` values. In a headless Weston, the machine's Vulkan driver refuses the
 window's surface, and the game draws with llvmpipe: Play on the zone took 8.6 s there, which
 measures the CPU's drawing, not Play.
+
+## M6c.5a, Ryzen 7 5800X
+
+On 2026-10-29, from the commits of M6c.5a, on the CPU alone, in a release build, as
+`cargo run --release -p slime-benches -- editor devui` measures them: the editor's hierarchy over
+100 000 named entities, 1 000 roots of 99 children each, every root unfolded
+([ADR-0167](adr/0167-the-hierarchy.md)), and the dev overlay's world panel, whose list now reads
+again the names that changed at a rename rather than listing the world again, which M6b.8 measured
+at 6.93 ms.
+
+| Benchmark | Measure | Value |
+|---|---|---|
+| `editor.hierarchy.100k` | elements | 184 |
+| `editor.hierarchy.100k` | a frame standing still, median of 15 | 4.4 µs |
+| `editor.hierarchy.100k` | a frame standing still, 90th percentile of 15 | 4.6 µs |
+| `editor.hierarchy.100k` | a frame scrolled by a row, median of 15 | 145.5 µs |
+| `editor.hierarchy.100k` | a frame after an entity was renamed, median of 15 | 56.7 µs |
+| `editor.hierarchy.100k` | a frame that runs a search, once the typing paused, median of 15 | 5.43 ms |
+| `editor.hierarchy.100k` | a frame that runs a search, once the typing paused, 90th percentile of 15 | 6.08 ms |
+| `editor.hierarchy.100k` | a frame after an entity was spawned, the rows made again, median of 15 | 1.02 ms |
+| `devui.world_panel.100k` | a frame after an entity was renamed, median of 15 | 602.8 µs |
+| `devui.world_panel.100k` | a frame after an entity was renamed, 90th percentile of 15 | 1.09 ms |
+
+What it says: standing still, scrolled and after a rename, the hierarchy stays within the budget of
+a list's frame of [ADR-0140](adr/0140-the-tree-of-elements.md), whatever the world's size, building
+the rows in sight alone. A change of the world's structure makes the rows of the whole tree again,
+about a millisecond at 100 000 entities, which a frame that spawns or reparents pays once. The
+search reads every name, some 5 ms, once the typing paused: a frame that it runs in passes a list's
+budget, and stays within one of a display at 60 Hz; it took 9 ms before it compared names without
+copying them. The world panel's frame after a rename takes a tenth of what it did.

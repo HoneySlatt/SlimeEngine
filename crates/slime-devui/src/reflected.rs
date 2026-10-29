@@ -11,8 +11,9 @@ use slime_world::{Entity, Name, World};
 /// alone, and a rotation's would not stay one if set one at a time.
 pub(crate) const WHOLE: [&str; 4] = ["Vec3", "DVec3", "Quat", "LinearColor"];
 
-/// What the panel calls `entity`: its name, or its handle if it has none.
-pub(crate) fn name(world: &World, entity: Entity) -> String {
+/// What the dev overlay and the editor call `entity`: its name, or its handle if it has none or an
+/// empty one, as their rows and links show it.
+pub fn entity_name(world: &World, entity: Entity) -> String {
     match world.get::<Name>(entity) {
         Some(Name(name)) if !name.is_empty() => name.clone(),
         _ => format!("{entity:?}"),

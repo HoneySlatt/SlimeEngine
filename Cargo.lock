@@ -2991,6 +2991,7 @@ dependencies = [
  "slime-color",
  "slime-cook",
  "slime-devui",
+ "slime-editor",
  "slime-gfx",
  "slime-render",
  "slime-ui",

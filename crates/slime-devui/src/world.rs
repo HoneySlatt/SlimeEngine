@@ -11,7 +11,7 @@ use slime_ui::style::{Dimension, FlexDirection, Style};
 use slime_ui::tree::{Element, ElementId, Ui};
 use slime_world::{Command, Entity, Name, PersistentId, Tick, World};
 
-use crate::reflected::name;
+use crate::reflected::entity_name;
 use crate::values::{Asked, ValueEditor};
 
 /// The height of the list of entities, in logical pixels, past which it scrolls.
@@ -73,6 +73,8 @@ pub struct WorldPanel {
     shown: Option<Shown>,
     revision: u64,
     rows_revision: u64,
+    /// Whether it shows the entity selected alone, without its filter and its list.
+    alone: bool,
 }
 
 /// What a build of the panel shows, which a change of builds it again.
@@ -141,7 +143,7 @@ impl Details {
         });
         Self {
             entity,
-            name: name(world, entity),
+            name: entity_name(world, entity),
             identity: world.persistent_id(entity),
             prefab,
             components,
@@ -150,6 +152,17 @@ impl Details {
 }
 
 impl WorldPanel {
+    /// A panel that shows the entity selected alone, its identity, its prefab and its
+    /// components, without its filter and its list: an editor's, which lists the entities in a
+    /// hierarchy of its own, selecting through [`WorldPanel::select`]
+    /// (`docs/adr/0167-the-hierarchy.md`).
+    pub fn alone() -> Self {
+        Self {
+            alone: true,
+            ..Self::default()
+        }
+    }
+
     /// The entity whose components the panel shows, if one is selected, alive or not, by the
     /// handle that it last found it under.
     pub fn selected(&self) -> Option<Entity> {
@@ -191,7 +204,9 @@ impl WorldPanel {
     ///
     /// If `parent` names nothing.
     pub fn build(&mut self, ui: &mut Ui, parent: ElementId, world: &World) {
-        self.list_entities(world);
+        if !self.alone {
+            self.list_entities(world);
+        }
         let selected = self.find_selected(world);
         let shown = Shown {
             structure: (world.structure(), world.names()),
@@ -214,15 +229,17 @@ impl WorldPanel {
         let (mut filter_field, mut list_slot) = (self.filter_field, self.list_slot);
         ui.build(parent, self.revision, |children| {
             ran = true;
-            let field = Element::search_field(self.filter.as_str(), Style::default())
-                .placeholder("Filter by name")
-                .named("filter by name");
-            filter_field = Some(children.add("filter", field, |_| {}));
-            let mut list = Style::default();
-            list.layout.size[1] = Dimension::Pixels(LIST_HEIGHT);
-            list.layout.shrink = 0.0;
-            let list = Element::list(self.matches.len(), ROW_HEIGHT, list).named("entities");
-            list_slot = Some(children.add_slot("list", list));
+            if !self.alone {
+                let field = Element::search_field(self.filter.as_str(), Style::default())
+                    .placeholder("Filter by name")
+                    .named("filter by name");
+                filter_field = Some(children.add("filter", field, |_| {}));
+                let mut list = Style::default();
+                list.layout.size[1] = Dimension::Pixels(LIST_HEIGHT);
+                list.layout.shrink = 0.0;
+                let list = Element::list(self.matches.len(), ROW_HEIGHT, list).named("entities");
+                list_slot = Some(children.add_slot("list", list));
+            }
             let mut details = Style::default();
             details.layout.direction = FlexDirection::Column;
             details.layout.gap = [6.0, 0.0];
@@ -375,7 +392,7 @@ impl WorldPanel {
             self.list = world
                 .entities()
                 .map(|entity| {
-                    let name = name(world, entity);
+                    let name = entity_name(world, entity);
                     let lower = name.to_lowercase();
                     (entity, name, lower)
                 })
@@ -402,22 +419,23 @@ impl WorldPanel {
     /// Reads again the names of the entities listed whose `Name` changed or went since the names
     /// were last read, or every name when the world no longer knows which went.
     fn read_names(&mut self, world: &World) {
-        let renamed: Option<Vec<Entity>> = world.removed::<Name>(self.named).map(|removed| {
-            removed
-                .map(|(entity, _)| entity)
-                .chain(
-                    world
-                        .changed::<Name>(self.named)
-                        .map(|(entity, _, _)| entity),
-                )
-                .collect()
-        });
+        let renamed: Option<std::collections::HashSet<Entity>> =
+            world.removed::<Name>(self.named).map(|removed| {
+                removed
+                    .map(|(entity, _)| entity)
+                    .chain(
+                        world
+                            .changed::<Name>(self.named)
+                            .map(|(entity, _, _)| entity),
+                    )
+                    .collect()
+            });
         for (entity, shown, lower) in &mut self.list {
             if renamed
                 .as_ref()
                 .is_none_or(|renamed| renamed.contains(entity))
             {
-                *shown = name(world, *entity);
+                *shown = entity_name(world, *entity);
                 *lower = shown.to_lowercase();
             }
         }

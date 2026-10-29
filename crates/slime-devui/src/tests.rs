@@ -449,6 +449,26 @@ fn a_rename_reads_the_names_again_without_making_the_list_again() {
     assert!(!names(&ui).iter().any(|name| name == "pump"), "a name lost");
 }
 
+#[test]
+fn a_panel_alone_shows_the_entity_selected_without_its_filter_and_its_list() {
+    let (mut ui, root) = interface();
+    let mut world = World::new();
+    let well = world.spawn();
+    world.insert(well, Name("well".to_owned()));
+    let mut panel = WorldPanel::alone();
+    panel.select(well);
+    show(&mut ui, root, &mut panel, &world);
+    show(&mut ui, root, &mut panel, &world);
+    let names = names(&ui);
+    assert!(
+        !names
+            .iter()
+            .any(|name| name == "filter by name" || name == "entities"),
+        "{names:?}"
+    );
+    assert!(names.iter().any(|name| name == "well"), "{names:?}");
+}
+
 /// Settings outside a world, as a view's.
 #[derive(Clone, Debug, PartialEq, Reflect)]
 #[reflect(name = "test::Knobs")]

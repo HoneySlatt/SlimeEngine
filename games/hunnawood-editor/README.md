@@ -2,9 +2,9 @@
 
 *Hunna Wood*'s editor: the engine's editor (`slime-editor`), which knows the game's types through
 its library ([ADR-0110](../../docs/adr/0110-how-the-editor-runs-a-games-code.md)): the editor's
-program, which opens the game's zone in a window of its own, its menus, the world panel, a viewport
-and a status bar, where a person changes it and a tool, an agent through the engine's MCP server,
-drives it alike ([ADR-0135](../../docs/adr/0135-the-editors-program.md),
+program, which opens the game's zone in a window of its own, its menus, its hierarchy, the world
+panel, a viewport and a status bar, where a person changes it and a tool, an agent through the
+engine's MCP server, drives it alike ([ADR-0135](../../docs/adr/0135-the-editors-program.md),
 [ADR-0156](../../docs/adr/0156-the-editors-window-and-its-operations.md)). Its viewport shows the
 zone under the game's overcast sky, exposure and bloom by day, which the game's library gives it
 ([ADR-0158](../../docs/adr/0158-the-viewport.md)); every light that the zone places shines there,

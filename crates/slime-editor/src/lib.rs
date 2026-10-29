@@ -2,6 +2,7 @@
 
 mod editor;
 mod handles;
+mod hierarchy;
 mod history;
 mod journal;
 mod level;
@@ -19,6 +20,7 @@ mod viewport;
 mod window;
 
 pub use editor::{EditError, Editor};
+pub use hierarchy::{Hierarchy, SEARCH_PAUSE};
 pub use history::HISTORY_BUDGET;
 pub use operation::{BLENDER_SHORTCUTS, Changes, OPERATIONS, Operation, SHORTCUTS, operation};
 pub use program::{Build, Lighting, Played, Program, run};

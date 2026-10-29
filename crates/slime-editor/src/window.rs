@@ -36,6 +36,7 @@ use slime_ui_render::UiRenderer;
 use slime_world::{Entity, World};
 
 use crate::handles::{Drag, Gizmo, Space, Tool};
+use crate::hierarchy::Hierarchy;
 use crate::operation::{self, BLENDER_SHORTCUTS, OPERATIONS, SHORTCUTS};
 use crate::pane::{Bound, Pane};
 use crate::picking::{self, Wanted};
@@ -81,6 +82,7 @@ pub(crate) const MENUS: &[(&str, &[Entry])] = &[
             Entry::Operation("edit.copy"),
             Entry::Operation("edit.paste"),
             Entry::Operation("edit.delete"),
+            Entry::Operation("edit.rename"),
             Entry::Operation("edit.group"),
             Entry::Separator,
             Entry::Operation("edit.select_none"),
@@ -257,6 +259,9 @@ pub(crate) struct Model {
     /// done that it goes to (`edit.go_to_step`).
     history_slot: Option<ElementId>,
     history: Vec<(ElementId, usize)>,
+    /// The hierarchy, and its slot once built (`docs/adr/0167-the-hierarchy.md`).
+    hierarchy: Hierarchy,
+    hierarchy_slot: Option<ElementId>,
     /// The buttons of Play's toolbar, each with the operation that it runs, and its control of the
     /// speeds of game time.
     toolbar: Vec<(ElementId, &'static str)>,
@@ -283,7 +288,7 @@ impl Model {
             ui,
             root,
             slot: None,
-            panel: WorldPanel::default(),
+            panel: WorldPanel::alone(),
             bar: Vec::new(),
             items: Vec::new(),
             built: u64::MAX,
@@ -302,6 +307,8 @@ impl Model {
             blender,
             copies: 0,
             history_slot: None,
+            hierarchy: Hierarchy::default(),
+            hierarchy_slot: None,
             history: Vec::new(),
             toolbar: Vec::new(),
             speeds: None,
@@ -370,7 +377,11 @@ impl Model {
     pub(crate) fn act(&mut self, world: &World) -> bool {
         let mut actions = self.ui.take_actions();
         let took = !actions.is_empty();
-        let mut requests = Vec::new();
+        let selected = self.selected_entities(world);
+        let modifiers = self.ui.held_modifiers();
+        let mut requests =
+            self.hierarchy
+                .act(&mut actions, world, &selected, modifiers, Instant::now());
         for command in self.panel.act(&mut actions) {
             let label = format!("{} {}", command.kind(), command.entity());
             requests.push(Request::Apply {
@@ -956,7 +967,7 @@ impl Model {
 
     /// Runs the window's operations that the core was asked to run, over a window of `size`
     /// logical pixels: the palette, the sheet of shortcuts, the system's dialog to open a level.
-    fn run_window_operations(&mut self, size: [f32; 2]) {
+    fn run_window_operations(&mut self, size: [f32; 2], world: &World) {
         let operations = std::mem::take(&mut self.shared.borrow_mut().window_operations);
         for name in operations {
             let commands: Vec<PaletteCommand> = OPERATIONS
@@ -1008,6 +1019,13 @@ impl Model {
                     pane.wireframe = !pane.wireframe;
                 }
                 "view.split" => self.split(),
+                "edit.rename" | "hierarchy.previous" | "hierarchy.next" | "hierarchy.fold"
+                | "hierarchy.unfold" => {
+                    let selected = self.selected_entities(world);
+                    if let Some(requests) = self.hierarchy.run(name, world, &selected) {
+                        self.shared.borrow_mut().requests.extend(requests);
+                    }
+                }
                 "edit.handles_move" => self.tool = Tool::Move,
                 "edit.handles_turn" => self.tool = Tool::Turn,
                 "edit.handles_scale" => self.tool = Tool::Scale,
@@ -1054,7 +1072,7 @@ impl Model {
             let place = self.choosing_place(size);
             self.ui.set_layer_place(layer, place);
         }
-        self.run_window_operations(size);
+        self.run_window_operations(size, world);
         let notices = std::mem::take(&mut self.shared.borrow_mut().notices);
         for notice in notices {
             self.ui.notify(Notification {
@@ -1077,6 +1095,11 @@ impl Model {
         self.build();
         if let Some(slot) = self.slot {
             self.panel.build(&mut self.ui, slot, world);
+        }
+        if let Some(slot) = self.hierarchy_slot {
+            let selected = self.selected_entities(world);
+            self.hierarchy
+                .build(&mut self.ui, slot, world, &selected, Instant::now());
         }
         let mut display = self.ui.frame().0;
         // Over the viewport, under nothing: the pointer is the surface's while it is drawn.
@@ -1131,7 +1154,8 @@ impl Model {
         let shared = self.shared.borrow();
         if shared.opened != self.opened {
             self.opened = shared.opened;
-            self.panel = WorldPanel::default();
+            self.panel = WorldPanel::alone();
+            self.hierarchy.opened();
             self.selected = None;
             // Another level, framed as it opens, in every viewport; a drag of the other level's
             // entities ends with it, whose core held its gesture.
@@ -1147,7 +1171,11 @@ impl Model {
             .and_then(|identity| world.find(identity));
         if selected != self.selected {
             match selected {
-                Some(entity) => self.panel.select(entity),
+                Some(entity) => {
+                    self.panel.select(entity);
+                    // A selection made elsewhere shows in the hierarchy.
+                    self.hierarchy.reveal(entity);
+                }
                 None => self.panel.deselect(),
             }
             self.selected = selected;
@@ -1161,6 +1189,7 @@ impl Model {
         let mut slot = None;
         let mut surfaces = Vec::new();
         let mut history_slot = None;
+        let mut hierarchy_slot = None;
         let mut toolbar = (Vec::new(), None);
         let mut console_slot = None;
         let panes = self.panes.len();
@@ -1194,18 +1223,39 @@ impl Model {
                     column_of_panels.layout.gap = [8.0, 0.0];
                     let panels = Element::container(column_of_panels);
                     regions.add("panels", panels, |panels| {
-                        let mut side = column();
-                        side.layout.grow = 1.0;
-                        side.layout.min_size[1] = Dimension::Pixels(0.0);
-                        side.layout.gap = [8.0, 0.0];
-                        side.layout.padding = Sides::all(8.0);
-                        let side = Element::container(side).class("panel").named("world");
-                        panels.add("world", side, |side| {
-                            let title = Element::label("World", Style::default()).class("heading");
-                            side.add("title", title, |_| {});
+                        // The hierarchy, then the components of what is selected, sharing what
+                        // the history leaves in halves, whatever they hold
+                        // (`docs/adr/0167-the-hierarchy.md`).
+                        let side = || {
+                            let mut side = column();
+                            side.layout.grow = 1.0;
+                            side.layout.basis = Dimension::Pixels(0.0);
+                            side.layout.min_size[1] = Dimension::Pixels(0.0);
+                            side.layout.gap = [8.0, 0.0];
+                            side.layout.padding = Sides::all(8.0);
+                            side
+                        };
+                        let panel = Element::container(side()).class("panel").named("hierarchy");
+                        panels.add("hierarchy", panel, |panel| {
+                            let title =
+                                Element::label("Hierarchy", Style::default()).class("heading");
+                            panel.add("title", title, |_| {});
                             let mut content = column();
                             content.layout.grow = 1.0;
-                            slot = Some(side.add_slot("panel", Element::scroll(content)));
+                            content.layout.min_size[1] = Dimension::Pixels(0.0);
+                            content.layout.gap = [6.0, 0.0];
+                            hierarchy_slot =
+                                Some(panel.add_slot("tree", Element::container(content)));
+                        });
+                        let panel = Element::container(side()).class("panel").named("world");
+                        panels.add("world", panel, |panel| {
+                            let title =
+                                Element::label("Components", Style::default()).class("heading");
+                            panel.add("title", title, |_| {});
+                            let mut content = column();
+                            content.layout.grow = 1.0;
+                            content.layout.min_size[1] = Dimension::Pixels(0.0);
+                            slot = Some(panel.add_slot("panel", Element::scroll(content)));
                         });
                         // The history's rows, in a slot of their own, built as it changes.
                         let mut panel = column();
@@ -1286,6 +1336,7 @@ impl Model {
         if slot.is_some() {
             self.slot = slot;
             self.history_slot = history_slot;
+            self.hierarchy_slot = hierarchy_slot;
             (self.toolbar, self.speeds) = toolbar;
             self.console_slot = console_slot;
         }
@@ -2058,6 +2109,8 @@ impl Window {
                 }
             }
         }
+        // The hierarchy's search, once the typing paused.
+        let again = again.into_iter().chain(model.hierarchy.waits()).min();
         if let Some(due) = again {
             ctx.request_frame_at(due);
         }
@@ -3613,6 +3666,289 @@ mod tests {
         let _ = fs::remove_dir_all(&crate_directory);
     }
 
+    /// The hierarchy shows the level's tree, folds and unfolds, selects with a click, with Ctrl
+    /// and with Shift, and with the arrows, shows what is selected elsewhere, searches once the
+    /// typing paused, and renames in place (`docs/adr/0167-the-hierarchy.md`).
+    #[test]
+    fn the_hierarchy_folds_selects_shows_searches_and_renames() {
+        use slime_ui::tree::Role;
+        let mut yard = Yard::new("hierarchy tree");
+        yard.session
+            .handle(
+                yard.host.world_mut(),
+                Request::Step {
+                    label: "Grow".to_owned(),
+                    commands: vec![
+                        "[Create]\nentity = \"yard/lamp-a1b2\"\nparent = \"yard\"\n\n[Create.components]\nName = \"lamp\"\n".to_owned(),
+                        "[Create]\nentity = \"yard/post-c3d4\"\nparent = \"yard/lamp-a1b2\"\n\n[Create.components]\nName = \"post\"\n".to_owned(),
+                    ],
+                    selection: None,
+                },
+            )
+            .expect("made");
+        yard.frame();
+        yard.frame();
+        let items = |yard: &Yard| {
+            yard.model
+                .ui
+                .meaning()
+                .into_iter()
+                .filter(|meaning| meaning.role == Role::TreeItem)
+                .map(|meaning| (meaning.name, meaning.level))
+                .collect::<Vec<_>>()
+        };
+        let found = |yard: &Yard, name: &str, end: &str| {
+            let meaning = yard.model.ui.meaning();
+            let item = meaning
+                .iter()
+                .find(|meaning| meaning.role == Role::TreeItem && meaning.name == name)
+                .unwrap_or_else(|| panic!("the row of {name}"))
+                .path
+                .clone();
+            meaning
+                .iter()
+                .find(|meaning| meaning.path.starts_with(&item) && meaning.path.ends_with(end))
+                .unwrap_or_else(|| panic!("{end} of {name}"))
+                .id
+        };
+        let selected = |yard: &Yard| {
+            let world = yard.host.world();
+            let mut names: Vec<String> = yard
+                .model
+                .selected_entities(world)
+                .into_iter()
+                .filter_map(|entity| {
+                    world
+                        .get::<slime_world::Name>(entity)
+                        .map(|name| name.0.clone())
+                })
+                .collect();
+            names.sort();
+            names
+        };
+        // The root's children show; the lamp is folded.
+        let names: Vec<String> = items(&yard).into_iter().map(|(name, _)| name).collect();
+        assert!(
+            names.contains(&"well".to_owned()) && names.contains(&"lamp".to_owned()),
+            "{names:?}"
+        );
+        assert!(!names.contains(&"post".to_owned()), "folded");
+        let unfold = found(&yard, "lamp", "/fold");
+        click(&mut yard, unfold);
+        yard.frame();
+        assert!(
+            items(&yard).contains(&("post".to_owned(), Some(3))),
+            "{:?}",
+            items(&yard)
+        );
+        // A click, then Ctrl and a click, then Shift and a click.
+        let well = found(&yard, "well", "/name");
+        click(&mut yard, well);
+        yard.frame();
+        assert_eq!(selected(&yard), ["well"]);
+        let mut held = Modifiers::default();
+        held.control = true;
+        yard.model.ui.modifiers(held);
+        let lamp = found(&yard, "lamp", "/name");
+        click(&mut yard, lamp);
+        yard.frame();
+        assert_eq!(selected(&yard), ["lamp", "well"]);
+        let mut held = Modifiers::default();
+        held.shift = true;
+        yard.model.ui.modifiers(held);
+        let post = found(&yard, "post", "/name");
+        click(&mut yard, post);
+        yard.model.ui.modifiers(Modifiers::default());
+        yard.frame();
+        assert_eq!(selected(&yard), ["lamp", "post"]);
+        // The arrows: the row above the last selected.
+        run(&mut yard, "hierarchy.previous");
+        assert_eq!(selected(&yard), ["lamp"]);
+        // Folded, then selected elsewhere: unfolded and shown.
+        run(&mut yard, "hierarchy.fold");
+        assert!(!items(&yard).iter().any(|(name, _)| name == "post"));
+        yard.session
+            .handle(
+                yard.host.world_mut(),
+                Request::Select(vec!["yard/post-c3d4".parse().expect("an identity")]),
+            )
+            .expect("selected");
+        yard.frame();
+        yard.frame();
+        assert!(items(&yard).iter().any(|(name, _)| name == "post"), "shown");
+        // The search, once the typing paused.
+        let meaning = yard.model.ui.meaning();
+        let field = meaning
+            .iter()
+            .find(|meaning| meaning.name == "search the hierarchy")
+            .expect("the search")
+            .id;
+        assert!(yard.model.ui.set_value(field, "po"));
+        yard.frame();
+        std::thread::sleep(crate::hierarchy::SEARCH_PAUSE + std::time::Duration::from_millis(10));
+        yard.frame();
+        yard.frame();
+        let names: Vec<String> = items(&yard).into_iter().map(|(name, _)| name).collect();
+        assert_eq!(names, ["post"]);
+        assert!(yard.model.ui.set_value(field, ""));
+        yard.frame();
+        std::thread::sleep(crate::hierarchy::SEARCH_PAUSE + std::time::Duration::from_millis(10));
+        yard.frame();
+        yard.frame();
+        // Renamed in place: F2's operation, the field given a name.
+        yard.session
+            .handle(
+                yard.host.world_mut(),
+                Request::Select(vec!["yard/well".parse().expect("an identity")]),
+            )
+            .expect("selected");
+        yard.frame();
+        run(&mut yard, "edit.rename");
+        yard.frame();
+        let meaning = yard.model.ui.meaning();
+        let field = meaning
+            .iter()
+            .find(|meaning| meaning.name == "rename")
+            .expect("the field that renames")
+            .id;
+        assert_eq!(yard.model.ui.focus(), Some(field));
+        assert!(yard.model.ui.set_value(field, "pump"));
+        yard.frame();
+        yard.frame();
+        assert_eq!(
+            yard.history().0.last().map(String::as_str),
+            Some("Rename to pump")
+        );
+        assert!(items(&yard).iter().any(|(name, _)| name == "pump"));
+    }
+
+    /// The hierarchy's rows, holding the focus, take the arrows and let every other shortcut
+    /// through; a rename given up by a click elsewhere, or by Escape, ends; a level opened in place
+    /// of the other shows its own rows (`docs/adr/0167-the-hierarchy.md`).
+    #[test]
+    fn the_hierarchy_takes_its_keys_lets_the_others_through_and_follows_a_level_opened() {
+        use slime_ui::tree::Role;
+        let mut yard = Yard::new("hierarchy keys");
+        yard.session
+            .handle(
+                yard.host.world_mut(),
+                Request::Step {
+                    label: "Grow".to_owned(),
+                    commands: vec![
+                        "[Create]\nentity = \"yard/lamp-a1b2\"\nparent = \"yard\"\n\n[Create.components]\nName = \"lamp\"\n".to_owned(),
+                    ],
+                    selection: None,
+                },
+            )
+            .expect("made");
+        yard.frame();
+        yard.frame();
+        let row = |yard: &Yard, name: &str| {
+            let meaning = yard.model.ui.meaning();
+            let item = meaning
+                .iter()
+                .find(|meaning| meaning.role == Role::TreeItem && meaning.name == name)
+                .unwrap_or_else(|| panic!("the row of {name}"))
+                .path
+                .clone();
+            meaning
+                .iter()
+                .find(|meaning| meaning.path.starts_with(&item) && meaning.path.ends_with("/name"))
+                .unwrap_or_else(|| panic!("the name of {name}"))
+                .id
+        };
+        let selected = |yard: &Yard| {
+            let world = yard.host.world();
+            yard.model
+                .selected_entities(world)
+                .into_iter()
+                .filter_map(|entity| {
+                    world
+                        .get::<slime_world::Name>(entity)
+                        .map(|name| name.0.clone())
+                })
+                .collect::<Vec<_>>()
+        };
+        let well = row(&yard, "well");
+        click(&mut yard, well);
+        yard.frame();
+        assert_eq!(selected(&yard), ["well"]);
+        // The arrow, the row's focus taking it; the focus follows the selection. The key's
+        // operation runs at the window's next frame, and the selection that it asks at the next.
+        yard.key(Key::Named(NamedKey::ArrowDown), false);
+        for _ in 0..3 {
+            yard.frame();
+        }
+        assert_eq!(selected(&yard), ["lamp"]);
+        assert_eq!(yard.model.ui.focus(), Some(row(&yard, "lamp")));
+        // Another shortcut, the row holding the focus: through to the window.
+        yard.key(Key::Character("z".to_owned()), true);
+        yard.frame();
+        assert_eq!(yard.history().1, ["Grow"], "undone");
+        yard.key(Key::Character("z".to_owned()), false);
+        yard.frame();
+        // F2, then a click elsewhere: the rename given up, the focus left where the click put it.
+        let well = row(&yard, "well");
+        click(&mut yard, well);
+        yard.key(Key::Named(NamedKey::F2), false);
+        yard.frame();
+        yard.frame();
+        let rename = |yard: &Yard| {
+            yard.model
+                .ui
+                .meaning()
+                .iter()
+                .find(|meaning| meaning.name == "rename")
+                .map(|meaning| meaning.id)
+        };
+        assert!(rename(&yard).is_some(), "renaming");
+        let well = row(&yard, "yard");
+        click(&mut yard, well);
+        yard.frame();
+        assert!(rename(&yard).is_none(), "given up");
+        let focus = yard.model.ui.focus();
+        yard.frame();
+        assert_eq!(yard.model.ui.focus(), focus, "the focus stays");
+        // F2, then Escape.
+        yard.key(Key::Named(NamedKey::F2), false);
+        yard.frame();
+        yard.frame();
+        assert!(rename(&yard).is_some());
+        yard.key(Key::Named(NamedKey::Escape), false);
+        yard.frame();
+        assert!(rename(&yard).is_none(), "given up by Escape");
+        assert_eq!(yard.history().0, Vec::<String>::new(), "nothing renamed");
+        run(&mut yard, "edit.redo");
+        yard.frame();
+        assert!(
+            yard.model
+                .ui
+                .meaning()
+                .iter()
+                .any(|meaning| meaning.name == "lamp")
+        );
+        // Another level, opened in place of the yard, under the same key: its rows, without the
+        // yard's lamp, which select.
+        let garden = yard.directory.join("garden.scene");
+        run_with(&mut yard, "file.open", &[garden.to_str().expect("a path")]);
+        yard.frame();
+        yard.frame();
+        let names: Vec<String> = yard
+            .model
+            .ui
+            .meaning()
+            .into_iter()
+            .filter(|meaning| meaning.role == Role::TreeItem)
+            .map(|meaning| meaning.name)
+            .collect();
+        assert!(names.contains(&"well".to_owned()), "{names:?}");
+        assert!(!names.contains(&"lamp".to_owned()), "{names:?}");
+        let well = row(&yard, "well");
+        click(&mut yard, well);
+        yard.frame();
+        assert_eq!(selected(&yard), ["well"]);
+    }
+
     /// A level flies at first at a speed that suits its size, or at the one last used in it, which
     /// the status bar says while the viewport flies and the user's state keeps once it stops.
     #[test]
@@ -3868,10 +4204,11 @@ mod tests {
         yard.frame();
         assert_eq!(yard.model.panel.selected(), Some(well), "the panel follows");
         let before = yard.history();
-        for operation in OPERATIONS
-            .iter()
-            .filter(|operation| matches!(operation.changes, Changes::Selection | Changes::Window))
-        {
+        // The hierarchy's arrows select, as they are for.
+        for operation in OPERATIONS.iter().filter(|operation| {
+            matches!(operation.changes, Changes::Selection | Changes::Window)
+                && !operation.name.starts_with("hierarchy.")
+        }) {
             yard.session
                 .handle(
                     yard.host.world_mut(),

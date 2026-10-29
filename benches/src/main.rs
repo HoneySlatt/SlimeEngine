@@ -11,6 +11,7 @@
 //! ```
 
 mod devui;
+mod editor;
 mod loading;
 mod measure;
 mod play;
@@ -154,6 +155,13 @@ const BENCHMARKS: &[Benchmark] = &[
                 scrolled",
         on_request: false,
         run: devui::world_panel,
+    },
+    Benchmark {
+        name: "editor.hierarchy.100k",
+        about: "the editor's hierarchy over 100 000 entities under 1 000 roots, unfolded: still, \
+                scrolled, after a rename and after the rows were made again",
+        on_request: false,
+        run: editor::hierarchy,
     },
     Benchmark {
         name: "loading.batch",

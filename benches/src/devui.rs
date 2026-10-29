@@ -94,7 +94,7 @@ pub fn world_panel(_: &mut Context) -> Result<Vec<Row>, String> {
         ui.scroll_to(list, [0.0, offset]);
         frame(&mut ui, &world, &mut panel);
     });
-    // The world's structure moved: the list made again, every name read and filtered.
+    // The world's names moved: the names that changed read again, and filtered.
     let mut number = 0;
     let renamed = times(|| {
         number += 1;

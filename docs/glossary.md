@@ -523,6 +523,12 @@ Three are named, each by a reference machine and budgets: handheld at 1280 × 80
 **Headless.** Running the engine without a window, renderer or audio output. It is a normal
 configuration, used by automated tests and, later, by dedicated servers.
 
+**Hierarchy (editor).** The editor's panel that shows the level's entities as a tree, each parent's
+children below it, indented, folded or not as the user chose, which selects, searches and renames
+them; the editor flattens the world's tree into rows and builds only those that show
+([ADR-0167](adr/0167-the-hierarchy.md)). Not the world's hierarchy of parents and children itself,
+which `World::set_parent` keeps.
+
 **High dynamic range (HDR).** Colors not limited to 0 to 1, such as the light a scene reflects
 before it is mapped to the display's range by *tone mapping*. The engine draws them into
 `Rgba16Float` render targets: the renderer draws the scene into one per *view*, at the size of the

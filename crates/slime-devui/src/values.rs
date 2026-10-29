@@ -13,7 +13,9 @@ use slime_ui::tree::{Children, ChoiceOption, Element, ElementId, Key, Tooltip, U
 use slime_world::glam::{DVec3, Quat, Vec3};
 use slime_world::{Entity, World};
 
-use crate::reflected::{WHOLE, angles, initial, name, plain, rotation, set_edits, variant_value};
+use crate::reflected::{
+    WHOLE, angles, entity_name, initial, plain, rotation, set_edits, variant_value,
+};
 
 /// The prefixes of the fields of a vector's components, and the classes that color them.
 const AXES: [(&str, &str); 3] = [("X", "axis-x"), ("Y", "axis-y"), ("Z", "axis-z")];
@@ -759,7 +761,8 @@ impl<'a> Builder<'a> {
     fn reference(&mut self, children: &mut Children<'_>, value: &Value, at: At<'_>) {
         let text = match (Entity::from_value(value), self.world) {
             (Ok(entity), Some(world)) if world.contains(entity) => {
-                let element = Element::button(name(world, entity), Style::default()).class("link");
+                let element =
+                    Element::button(entity_name(world, entity), Style::default()).class("link");
                 let id = children.add("value", element, |_| {});
                 self.record(id, at, Target::Reference(entity));
                 return;

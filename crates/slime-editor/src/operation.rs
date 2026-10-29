@@ -309,6 +309,37 @@ pub const OPERATIONS: &[Operation] = &[
         parameters: &[],
         changes: Changes::Window,
     },
+    // The hierarchy's (`docs/adr/0167-the-hierarchy.md`).
+    Operation {
+        name: "edit.rename",
+        label: "Rename",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "hierarchy.previous",
+        label: "Select the row above",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "hierarchy.next",
+        label: "Select the row below",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "hierarchy.fold",
+        label: "Fold, or select the parent",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "hierarchy.unfold",
+        label: "Unfold, or select the first child",
+        parameters: &[],
+        changes: Changes::Window,
+    },
     Operation {
         name: "view.split",
         label: "Two viewports",
