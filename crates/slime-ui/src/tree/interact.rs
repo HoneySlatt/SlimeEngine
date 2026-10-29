@@ -4,6 +4,7 @@
 
 use slime_input::{ButtonState, Key, KeyEvent, Modifiers, MouseButton, NamedKey, ScrollDelta};
 
+use super::field::DRAG_THRESHOLD;
 use super::{ElementId, ElementState, Kind, LayoutDirection, Node, Ui};
 use crate::DocumentError;
 use crate::action::{Action, ActionKind, Intent, SurfaceInput};
@@ -12,6 +13,19 @@ use crate::style::Display;
 
 /// How far a line of the wheel scrolls, in logical pixels.
 const WHEEL_LINE: f32 = 40.0;
+
+/// A drag under way ([`Ui::dragging`], `docs/adr/0168-rearranging-the-hierarchy.md`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Dragging {
+    /// The element dragged, which may have been built away since the drag started, as a list's row
+    /// scrolled out of sight is: the program keeps what it dragged.
+    pub source: ElementId,
+    /// The target of drops under the pointer, where it would drop; none over nothing that takes
+    /// drops.
+    pub target: Option<ElementId>,
+    /// Where in the target, from its top, 0, to its bottom, 1.
+    pub at: f32,
+}
 
 /// What the interface keeps of a person's input between two events.
 #[derive(Default)]
@@ -51,6 +65,9 @@ pub(super) struct Interaction {
     alt_alone: bool,
     /// The floating panel that the pointer holds by its bar or its corner.
     panel: Option<super::panel::Grab>,
+    /// The draggable element that the pointer pressed, where it pressed it, and whether it moved
+    /// far enough since to drag it.
+    drag: Option<(ElementId, [f32; 2], bool)>,
     /// The surface that holds the pointer, with the buttons that went down over it and are held.
     surface: Option<(ElementId, Vec<MouseButton>)>,
     /// Where the pointer last was on the surface that holds it, which a release after the pointer
@@ -79,6 +96,13 @@ impl Ui {
         }
         if let Some(grab) = self.interaction.panel {
             self.drag_panel(grab, x, y);
+        }
+        // A draggable element pressed and moved past a few pixels is dragged, no longer pressed.
+        if let Some((source, [from_x, from_y], false)) = self.interaction.drag
+            && (x - from_x).hypot(y - from_y) > DRAG_THRESHOLD
+        {
+            self.interaction.drag = Some((source, [from_x, from_y], true));
+            self.change_state(source, |state| state.pressed = false);
         }
         if let Some(captured) = self.interaction.captured {
             match self.node(captured).map(|node| &node.element.kind) {
@@ -184,7 +208,11 @@ impl Ui {
                 true
             }
             ButtonState::Pressed => {
-                // A press without the release of the one before lets go of what that one held.
+                // A press without the release of the one before lets go of what that one held,
+                // and of its drag.
+                if primary {
+                    self.interaction.drag = None;
+                }
                 if primary && let Some(before) = self.interaction.captured.take() {
                     self.change_state(before, |state| state.pressed = false);
                     self.field_press_lost(before);
@@ -233,6 +261,9 @@ impl Ui {
                     self.field_press(target, x, y, shift);
                 } else {
                     self.change_state(target, |state| state.pressed = true);
+                    if self.node(target).is_some_and(|node| node.element.draggable) {
+                        self.interaction.drag = Some((target, [x, y], false));
+                    }
                     // An item of a bar of menus takes the focus from the keys alone.
                     if !self.in_menu_bar(target) {
                         self.focus_on(Some(target));
@@ -261,7 +292,24 @@ impl Ui {
                     self.interaction.captured = None;
                     return true;
                 }
-                let Some(captured) = self.interaction.captured.take() else {
+                let captured = self.interaction.captured.take();
+                // A drag drops on the target under the pointer, or nowhere, even once the element
+                // dragged was built away, which let go of the pointer.
+                if let Some(dragging) = self.dragging() {
+                    self.interaction.drag = None;
+                    if let Some(target) = dragging.target {
+                        self.interaction.actions.push(Action {
+                            element: Some(target),
+                            kind: ActionKind::Dropped {
+                                source: dragging.source,
+                                at: dragging.at,
+                            },
+                        });
+                    }
+                    return true;
+                }
+                self.interaction.drag = None;
+                let Some(captured) = captured else {
                     return true;
                 };
                 if self.node(captured).is_some_and(|node| node.field.is_some()) {
@@ -335,6 +383,58 @@ impl Ui {
         self.interaction.modifiers = modifiers;
     }
 
+    /// The drag under way, once the pointer moved a draggable element past a few pixels: what it
+    /// drags, the target of drops under the pointer, the nearest of its ancestors that takes drops
+    /// included, and where in it, from its top, 0, to its bottom, 1, which the program shows
+    /// (`docs/adr/0168-rearranging-the-hierarchy.md`). None while nothing is dragged.
+    pub fn dragging(&self) -> Option<Dragging> {
+        let (source, _, true) = self.interaction.drag? else {
+            return None;
+        };
+        let [x, y] = self.interaction.pointer?;
+        let mut at = self.element_at(x, y);
+        while let Some(id) = at {
+            let node = self.node(id)?;
+            if node.element.drop_target && self.in_scope(id) {
+                let rect = node.rect;
+                let height = rect.height.max(f32::EPSILON);
+                return Some(Dragging {
+                    source,
+                    target: Some(id),
+                    at: ((y - rect.y) / height).clamp(0.0, 1.0),
+                });
+            }
+            at = node.parent;
+        }
+        Some(Dragging {
+            source,
+            target: None,
+            at: 0.0,
+        })
+    }
+
+    /// Drops `source`, a draggable element, on `target`, a target of drops, `at` its height from
+    /// its top, 0, to its bottom, 1, as a person who dragged it there: the target's
+    /// [`ActionKind::Dropped`]. Gives whether it dropped; nothing happens for an element that is no
+    /// such, or that a modal root above its own keeps from input.
+    pub fn drop(&mut self, source: ElementId, target: ElementId, at: f32) -> bool {
+        let draggable = self.node(source).is_some_and(|node| node.element.draggable);
+        let takes = self
+            .node(target)
+            .is_some_and(|node| node.element.drop_target);
+        if !draggable || !takes || !self.in_scope(source) || !self.in_scope(target) {
+            return false;
+        }
+        self.interaction.actions.push(Action {
+            element: Some(target),
+            kind: ActionKind::Dropped {
+                source,
+                at: at.clamp(0.0, 1.0),
+            },
+        });
+        true
+    }
+
     /// The modifiers held, as [`Ui::modifiers`] last gave them: what a press of a row selects by,
     /// with Ctrl or Shift (`docs/adr/0167-the-hierarchy.md`).
     pub fn held_modifiers(&self) -> Modifiers {
@@ -378,6 +478,14 @@ impl Ui {
             return false;
         }
         self.interaction.alt_alone = false;
+        // Escape gives a drag up, which then drops nowhere, wherever the pointer is.
+        if event.logical == Key::Named(NamedKey::Escape)
+            && self.interaction.drag.is_some_and(|(_, _, started)| started)
+        {
+            self.interaction.drag = None;
+            self.interaction.captured = None;
+            return true;
+        }
         // While a surface holds the pointer, the keys that fly through it reach the program.
         let modifiers = self.interaction.modifiers;
         if self.interaction.surface.is_some()
@@ -744,6 +852,7 @@ impl Ui {
             | ActionKind::Committed(_)
             | ActionKind::ContextMenu { .. }
             | ActionKind::Dismissed
+            | ActionKind::Dropped { .. }
             | ActionKind::Surface(_) => {
                 self.interaction.actions.push(action);
             }
@@ -1228,6 +1337,13 @@ impl Ui {
             if id.is_some_and(|id| !alive(&self.slots, id)) {
                 *id = None;
             }
+        }
+        // A press that had not yet become a drag ends with its element; a drag goes on.
+        if interaction
+            .drag
+            .is_some_and(|(id, _, started)| !started && !alive(&self.slots, id))
+        {
+            interaction.drag = None;
         }
         let Some(at) = interaction
             .modals

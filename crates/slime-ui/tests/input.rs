@@ -263,6 +263,153 @@ fn scrolling_into_view_counts_logical_pixels_and_a_list_not_laid_out_shows_a_row
     assert_eq!(ui.scroll(scroll), Some([0.0, 6.0 * 40.0 - 100.0]));
 }
 
+/// A draggable element pressed and moved past a few pixels is dragged rather than pressed, onto the
+/// target of drops under the pointer, where in it as the pointer stands; released there, it drops;
+/// Escape, or a release over nothing, gives it up; an agent drops it as a person would
+/// (`docs/adr/0168-rearranging-the-hierarchy.md`).
+#[test]
+fn a_draggable_element_drops_on_a_target_and_agents_drop_it_too() {
+    let mut ui = Ui::new(Fonts::new());
+    let root = ui.add_root(
+        "main",
+        settings(400.0, 300.0, [0.0; 2], false),
+        Style::default(),
+    );
+    let mut column = Style::default();
+    column.layout.direction = FlexDirection::Column;
+    let (mut source, mut target) = (None, None);
+    ui.build(root, 0, |children| {
+        children.add("column", Element::container(column.clone()), |children| {
+            source = Some(children.add(
+                "source",
+                Element::button("", sized(100.0, 40.0)).draggable(),
+                |_| {},
+            ));
+            target = Some(
+                children.add(
+                    "target",
+                    Element::container(sized(100.0, 40.0))
+                        .named("target")
+                        .drop_target(),
+                    |_| {},
+                ),
+            );
+        });
+    });
+    let (source, target) = (source.expect("built"), target.expect("built"));
+    ui.frame();
+    let dropped = |ui: &mut Ui| {
+        ui.take_actions()
+            .into_iter()
+            .filter_map(|action| match action.kind {
+                ActionKind::Dropped { source, at } => Some((action.element, source, at)),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    // Pressed and moved a pixel: no drag, and the release presses it.
+    ui.pointer_moved(50.0, 20.0);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_moved(51.0, 20.0);
+    assert_eq!(ui.dragging(), None);
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    assert!(
+        ui.take_actions()
+            .iter()
+            .any(|action| action.kind == ActionKind::Press)
+    );
+    // Dragged onto the target's lower quarter, then let go there.
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_moved(50.0, 70.0);
+    let dragging = ui.dragging().expect("a drag");
+    assert_eq!((dragging.source, dragging.target), (source, Some(target)));
+    assert!((dragging.at - 0.75).abs() < 1e-3, "{}", dragging.at);
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    let drops = dropped(&mut ui);
+    assert_eq!(drops.len(), 1);
+    assert_eq!((drops[0].0, drops[0].1), (Some(target), source));
+    assert!(ui.take_actions().is_empty(), "no press");
+    // Given up by Escape, and released over nothing: no drop.
+    ui.pointer_moved(50.0, 20.0);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_moved(50.0, 70.0);
+    ui.key(&named(NamedKey::Escape));
+    assert_eq!(ui.dragging(), None);
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    assert!(dropped(&mut ui).is_empty());
+    ui.pointer_moved(50.0, 20.0);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_moved(300.0, 250.0);
+    assert_eq!(ui.dragging().and_then(|dragging| dragging.target), None);
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    assert!(dropped(&mut ui).is_empty());
+    // An agent: the drop that the meaning offers.
+    let meaning = ui.meaning_of(source).expect("it means something");
+    assert!(
+        meaning
+            .actions
+            .contains(&slime_ui::tree::ElementAction::Drop)
+    );
+    assert!(ui.drop(source, target, 0.5));
+    assert_eq!(dropped(&mut ui).len(), 1);
+    assert!(
+        !ui.drop(target, source, 0.5),
+        "neither draggable nor a target"
+    );
+    // Given up by Escape with the pointer out of the window: it does not come back with it.
+    ui.pointer_moved(50.0, 20.0);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_moved(50.0, 70.0);
+    ui.pointer_left();
+    ui.key(&named(NamedKey::Escape));
+    ui.pointer_moved(50.0, 70.0);
+    assert_eq!(ui.dragging(), None);
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    // Its element built away during the drag, as a list's row scrolled out of sight: the drag goes
+    // on and drops, the element named as it was; the next click presses as any.
+    ui.pointer_moved(50.0, 20.0);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_moved(50.0, 70.0);
+    let mut again = None;
+    ui.build(root, 1, |children| {
+        children.add("column", Element::container(column.clone()), |children| {
+            children.add("spacer", Element::container(sized(100.0, 40.0)), |_| {});
+            again = Some(
+                children.add(
+                    "target",
+                    Element::container(sized(100.0, 40.0))
+                        .named("target")
+                        .drop_target(),
+                    |_| {},
+                ),
+            );
+        });
+    });
+    ui.frame();
+    assert_eq!(again, Some(target), "the same target");
+    assert_eq!(ui.dragging().map(|dragging| dragging.source), Some(source));
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    assert_eq!(dropped(&mut ui), [(Some(target), source, 0.75)]);
+    let mut button = None;
+    ui.build(root, 2, |children| {
+        children.add("column", Element::container(column.clone()), |children| {
+            button = Some(children.add("other", Element::button("", sized(100.0, 40.0)), |_| {}));
+        });
+    });
+    ui.frame();
+    ui.pointer_moved(50.0, 20.0);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    assert_eq!(
+        ui.take_actions()
+            .iter()
+            .filter(|action| action.kind == ActionKind::Press)
+            .map(|action| action.element)
+            .collect::<Vec<_>>(),
+        [button]
+    );
+}
+
 #[test]
 fn a_modal_root_takes_the_pointer_and_the_focus_and_gives_the_focus_back_when_it_closes() {
     let (mut ui, buttons) = row();

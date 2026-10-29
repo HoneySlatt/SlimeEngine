@@ -234,6 +234,14 @@ pub enum InterfaceAction {
         /// color well, a hexadecimal code, `#ff8000` or `#ff800080`.
         value: String,
     },
+    /// Drops a draggable element on a target of drops, as a person who dragged it there would
+    /// (`docs/adr/0168-rearranging-the-hierarchy.md`).
+    Drop {
+        /// The target, by its path.
+        onto: String,
+        /// Where in the target, from its top, 0, to its bottom, 1.
+        at: f32,
+    },
     /// Moves the focus to the next element, as Tab does.
     Next,
     /// Moves the focus to the previous element, as Shift+Tab does.
@@ -720,6 +728,13 @@ mod tests {
             Request::Act {
                 element: text("main/bar/name"),
                 action: InterfaceAction::SetValue { value: text("Ada") },
+            },
+            Request::Act {
+                element: text("main/tree/rows/#2/name"),
+                action: InterfaceAction::Drop {
+                    onto: text("main/tree/rows/#0/name"),
+                    at: 0.75,
+                },
             },
             Request::CaptureElement {
                 element: text("dialog/dialog"),

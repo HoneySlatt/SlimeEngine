@@ -9,7 +9,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 ### Added
 
 
-
+- Drag and drop in `slime-ui`: `Element::draggable`, `Element::drop_target`, `Ui::dragging`,
+  `Ui::drop`, `ActionKind::Dropped` and `ElementAction::Drop`; agents drop through the development
+  channel, at version 12 of its protocol (`InterfaceAction::Drop`), and the MCP server's
+  `act_on_interface`, its action `drop`, `onto` a target `at` a place in it.
 - The benchmark `world.deep`, a hierarchy 10 000 deep spawned, saved and drawn between two steps.
 - The editor's hierarchy (ADR-0167): the level's entities as a tree in the window's left column,
   above the components of what is selected, its rows built where they show, a placement's root

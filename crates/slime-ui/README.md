@@ -137,6 +137,11 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   number, built or not, and `Ui::scroll_into_view` scrolls the boxes around an element so that it
   shows, as the focus that the keys move is. `Ui::set_value` gives a field a value, as a person who replaced its text and
   committed would, and a slider, two panels, a list to choose from or a color well theirs.
+- An element made draggable (`Element::draggable`), pressed and moved past a few pixels, is
+  dragged onto the elements made targets of drops (`Element::drop_target`): `Ui::dragging` says
+  which target lies under the pointer and where in it, from its top to its bottom, which the program
+  shows, and a release over it gives the target `ActionKind::Dropped`; Escape gives the drag up.
+  Agents drop through `Ui::drop` (`docs/adr/0168-rearranging-the-hierarchy.md`).
 - `Ui::take_meaning_changes` gives what changed in that meaning since it was last taken, as a
   screen reader's adapter sends it (`tree::MeaningChanges`): each element marked as its meaning
   changes, named by a number that no other element is ever given, with the elements that mean

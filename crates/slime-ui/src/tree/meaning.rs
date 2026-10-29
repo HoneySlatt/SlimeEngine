@@ -173,16 +173,19 @@ pub enum ElementAction {
     /// Give a field, a slider or two panels a value, as a person who replaced what it holds and
     /// committed ([`Ui::set_value`]).
     SetValue,
+    /// Drop it on a target of drops, as a person who dragged it there ([`Ui::drop`]).
+    Drop,
 }
 
 impl ElementAction {
-    /// Its name: `press`, `focus`, `scroll` or `set_value`.
+    /// Its name: `press`, `focus`, `scroll`, `set_value` or `drop`.
     pub fn name(self) -> &'static str {
         match self {
             Self::Press => "press",
             Self::Focus => "focus",
             Self::Scroll => "scroll",
             Self::SetValue => "set_value",
+            Self::Drop => "drop",
         }
     }
 }
@@ -478,6 +481,9 @@ impl Ui {
             }
             if matches!(element.kind, Kind::Scroll | Kind::List { .. }) {
                 actions.push(ElementAction::Scroll);
+            }
+            if element.draggable {
+                actions.push(ElementAction::Drop);
             }
         }
         let surface = self

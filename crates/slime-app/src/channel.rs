@@ -730,6 +730,21 @@ fn act(
             }
             return Ok(());
         }
+        InterfaceAction::Drop { onto, at } => {
+            if !(0.0..=1.0).contains(at) {
+                return Err(format!(
+                    "{at} is no place in a target: a number from 0 to 1 is"
+                ));
+            }
+            let id = taking(ui, ElementAction::Drop)?;
+            let target = ui
+                .element_by_path(onto)
+                .ok_or_else(|| format!("no element of the interface at `{onto}`"))?;
+            if !ui.drop(id, target, *at) {
+                return Err(format!("the element `{onto}` takes no drop"));
+            }
+            return Ok(());
+        }
         InterfaceAction::Next => ActionKind::Intent(Intent::Next),
         InterfaceAction::Previous => ActionKind::Intent(Intent::Previous),
         InterfaceAction::Up => ActionKind::Intent(Intent::Up),

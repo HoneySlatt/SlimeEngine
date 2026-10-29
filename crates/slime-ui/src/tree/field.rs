@@ -23,8 +23,9 @@ use crate::text::{Affinity, Alignment, TextBounds, TextLayout, TextPosition};
 const UNDO_DEPTH: usize = 100;
 
 /// How far the pointer moves, in pixels of the screen, before a press on a field of numbers that
-/// does not hold the focus drags its number rather than gives it the focus.
-const DRAG_THRESHOLD: f32 = 3.0;
+/// does not hold the focus drags its number rather than gives it the focus, and a press on a
+/// draggable element drags it rather than presses it.
+pub(super) const DRAG_THRESHOLD: f32 = 3.0;
 
 /// The system's clipboard, of text, as an interface reads and writes it ([`Ui::set_clipboard`]):
 /// the platform's, which `slime-app` gives, or a test's own.

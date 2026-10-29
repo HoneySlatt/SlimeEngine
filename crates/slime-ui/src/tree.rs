@@ -37,6 +37,7 @@ mod scroll_bar;
 mod tooltip;
 
 pub use field::Clipboard;
+pub use interact::Dragging;
 use interact::Interaction;
 pub use layer::{Along, Layer, Place, Side};
 pub use meaning::{
@@ -590,6 +591,11 @@ pub struct Element {
     /// Whether it opens and closes, open or not as its state says ([`ElementState::expanded`]), as
     /// an item of a tree that holds others: screen readers say so of it.
     pub expandable: bool,
+    /// Whether the pointer drags it once pressed and moved a few pixels, rather than press it
+    /// (`docs/adr/0168-rearranging-the-hierarchy.md`).
+    pub draggable: bool,
+    /// Whether what is dragged drops on it ([`ActionKind::Dropped`](crate::action::ActionKind::Dropped)).
+    pub drop_target: bool,
 }
 
 impl Element {
@@ -857,6 +863,8 @@ impl Element {
             placeholder: None,
             level: None,
             expandable: false,
+            draggable: false,
+            drop_target: false,
         }
     }
 
@@ -879,6 +887,24 @@ impl Element {
     #[must_use]
     pub fn level(mut self, level: usize) -> Self {
         self.level = Some(level);
+        self
+    }
+
+    /// The element, which the pointer drags once pressed and moved a few pixels, rather than press
+    /// it, onto an element that takes drops ([`Element::drop_target`], [`Ui::dragging`]); agents
+    /// drop it through [`Ui::drop`] (`docs/adr/0168-rearranging-the-hierarchy.md`).
+    #[must_use]
+    pub fn draggable(mut self) -> Self {
+        self.draggable = true;
+        self
+    }
+
+    /// The element, on which what is dragged drops, as
+    /// [`ActionKind::Dropped`](crate::action::ActionKind::Dropped) gives it
+    /// (`docs/adr/0168-rearranging-the-hierarchy.md`).
+    #[must_use]
+    pub fn drop_target(mut self) -> Self {
+        self.drop_target = true;
         self
     }
 

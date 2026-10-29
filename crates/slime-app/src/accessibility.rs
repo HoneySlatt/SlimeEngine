@@ -238,6 +238,8 @@ fn element_nodes(node: &MeaningNode, nodes: &mut Vec<(NodeId, Node)>) {
                 });
             }
             ElementAction::Press => element.add_action(AccessAction::Click),
+            // Screen readers have no drag: the program's keys do what drops do.
+            ElementAction::Drop => {}
             ElementAction::Focus => element.add_action(AccessAction::Focus),
             ElementAction::Scroll => {
                 for scroll in [

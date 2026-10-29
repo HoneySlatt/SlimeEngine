@@ -252,9 +252,9 @@ struct ElementAt {
 /// What `act_on_interface` takes.
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct ActOnInterface {
-    /// What to do, whatever its case: `press`, `focus` or `scroll` an element, or `set_value` of a
-    /// field, a slider, two panels, a list to choose from or a color well, which must take it, as
-    /// `find_elements` lists; or, without an
+    /// What to do, whatever its case: `press`, `focus` or `scroll` an element, `set_value` of a
+    /// field, a slider, two panels, a list to choose from or a color well, or `drop` a draggable
+    /// element `onto` a target, which must take it, as `find_elements` lists; or, without an
     /// element, `next`, `previous`, `up`, `down`, `left`, `right` to move the focus as Tab and the
     /// arrows do, `accept` as Enter does, `cancel` as Escape does, `command` to give the command
     /// named `command` as a shortcut does.
@@ -267,6 +267,12 @@ struct ActOnInterface {
     y: Option<f32>,
     /// For `command`, the command's name: `undo`.
     command: Option<String>,
+    /// For `drop`, the target, by its path: a row of the editor's hierarchy,
+    /// `editor/window/regions/panels/hierarchy/tree/rows/#3`, which takes the name of another,
+    /// `editor/window/regions/panels/hierarchy/tree/rows/#5/content/name`.
+    onto: Option<String>,
+    /// For `drop`, where in the target, from its top, 0, to its bottom, 1; 0.5 if left out.
+    at: Option<f32>,
     /// For `set_value`, the text that the field holds then, as a person who replaced what it holds
     /// and committed would leave it; for a field of numbers, an expression of a finite number, in
     /// a unit of its family where it has one: `2.5`, `sqrt(2)/2`, `10cm`; for a slider, a finite
@@ -974,6 +980,13 @@ impl Server {
                 Some(value) => InterfaceAction::SetValue { value },
                 None => return Ok(failure("`set_value` needs `value`, the element's text")),
             },
+            "drop" => match act.onto {
+                Some(onto) => InterfaceAction::Drop {
+                    onto,
+                    at: act.at.unwrap_or(0.5),
+                },
+                None => return Ok(failure("`drop` needs `onto`, the path of the target")),
+            },
             "next" => InterfaceAction::Next,
             "previous" => InterfaceAction::Previous,
             "up" => InterfaceAction::Up,
@@ -988,8 +1001,9 @@ impl Server {
             },
             other => {
                 return Ok(failure(format!(
-                    "no action `{other}`: `press`, `focus`, `scroll`, `set_value`, `next`, \
-                     `previous`, `up`, `down`, `left`, `right`, `accept`, `cancel` or `command`"
+                    "no action `{other}`: `press`, `focus`, `scroll`, `set_value`, `drop`, \
+                     `next`, `previous`, `up`, `down`, `left`, `right`, `accept`, `cancel` or \
+                     `command`"
                 )));
             }
         };

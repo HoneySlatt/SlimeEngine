@@ -65,6 +65,15 @@ pub enum ActionKind {
     /// What the pointer did on a surface, the action's element
     /// ([`Kind::Surface`](crate::tree::Kind::Surface)).
     Surface(SurfaceInput),
+    /// An element dragged, `source`, dropped on the action's element, a target of drops, `at` its
+    /// height from its top, 0, to its bottom, 1: released over it, or dropped by an agent
+    /// ([`Ui::drop`](crate::tree::Ui::drop), `docs/adr/0168-rearranging-the-hierarchy.md`).
+    Dropped {
+        /// The element dragged.
+        source: crate::tree::ElementId,
+        /// Where in the target, from its top, 0, to its bottom, 1.
+        at: f32,
+    },
 }
 
 /// What the pointer did on a surface ([`ActionKind::Surface`]), where it was in logical pixels from

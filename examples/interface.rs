@@ -408,6 +408,7 @@ impl Interface {
                 )
                 | ActionKind::ContextMenu { .. }
                 | ActionKind::Dismissed
+                | ActionKind::Dropped { .. }
                 | ActionKind::Surface(_) => {}
             }
         }

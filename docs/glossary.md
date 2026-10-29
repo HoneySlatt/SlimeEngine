@@ -302,6 +302,12 @@ what is in front of them, as a grid or the icons of lights; over the image, line
 as the box of what is selected ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md),
 [ADR-0129](adr/0129-drawing-for-the-editor.md)).
 
+**Drag and drop (interface).** An element made draggable, pressed and moved past a few pixels, is
+carried onto another made a *target of drops*, which a release over it gives the element, and where
+in the target, from its top to its bottom; Escape gives it up. Agents drop through the same action
+([ADR-0168](adr/0168-rearranging-the-hierarchy.md)). Not the editor's drop of what is selected on
+what lies below it, `edit.drop`.
+
 **Driven (component).** A component that the game, an animation or physics computes again, so
 that its value of the moment does not matter: saves, the overrides of a *prefab* and a level
 written back leave it as its author wrote it. An entity marks which of its components are driven

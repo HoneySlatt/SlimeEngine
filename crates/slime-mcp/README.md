@@ -87,7 +87,9 @@ The tools, each described to the agent by the server itself, with its parameters
   a value as a person who replaced its text and committed would (`docs/adr/0146-screen-readers.md`),
   a slider or two panels theirs (`docs/adr/0148-widgets.md`), a list to choose from an option
   (`docs/adr/0150-layers.md`), and a color well a hexadecimal code, `#ff8000`
-  (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`); menus, their bar and floating
+  (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`), or drops one that drags onto
+  another, at a place from its top to its bottom, as a row of the editor's hierarchy onto another
+  (`docs/adr/0168-rearranging-the-hierarchy.md`); menus, their bar and floating
   panels are pressed as buttons are; or it moves the focus, accepts, cancels or gives a command, as
   keys do; `capture_element` gives the part of the image where one shows.
 - `read_logs`: the lines of the game's log after a given line.
