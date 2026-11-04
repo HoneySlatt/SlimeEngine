@@ -34,8 +34,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   in two again at its start, M6c.4c and M6c.4d, both done; Checkpoint A is done on Linux, its
   part in the Windows virtual machine to come; M6c.5 was split in four at its start, M6c.5a,
   M6c.5b, M6c.5c and M6c.5d, of which M6c.5a is done, and M6c.5b in two again at its start,
-  M6c.5b and M6c.5c, the regions and the inspector becoming M6c.5d and M6c.5e, of which M6c.5b is
-  done; next: M6c.5c.
+  M6c.5b and M6c.5c, the regions and the inspector becoming M6c.5d and M6c.5e, of which M6c.5b and
+  M6c.5c are done; next: M6c.5d.
 - Stage 6d — The interface for applications: decided on 2026-11-04
   ([ADR-0170](adr/0170-applications-on-the-ui-framework.md)), to follow Stage 6c and be released
   as 0.8. The engine's UI framework is to run desktop applications outside this repository, a
@@ -63,7 +63,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) | The owner tries the editor on Linux and in the Windows virtual machine, and the plan is adjusted | Done on Linux; the Windows virtual machine to come |
 | [M6c.5a](#m6c5a--the-hierarchy) | The user finds any entity in a hierarchy, which follows the world's tree, folds, selects, renames and searches | Done |
 | [M6c.5b](#m6c5b--rearrange-the-hierarchy) | The user reparents entities by dragging them in the hierarchy and with Alt and the arrows | Done |
-| [M6c.5c](#m6c5c--the-eye-and-the-lock) | The user hides entities from the viewport and locks them against picking, as the user's state, never the level's | Planned |
+| [M6c.5c](#m6c5c--the-eye-and-the-lock) | The user hides entities from the viewport and locks them against picking, as the user's state, never the level's | Done |
 | [M6c.5d](#m6c5d--regions-of-tabs) | The user arranges the panels in regions of tabs | Planned |
 | [M6c.5e](#m6c5e--the-inspector) | The user changes the components of what is selected in an inspector, and keeps a value of the running game | Planned |
 | [M6c.6](#m6c6--levels-of-several-files-and-links) | A level is made of several files, which the editor writes together, and an entity refers to entities of other files | Planned |
@@ -1016,6 +1016,41 @@ start, the same day: the drags and the keys that reparent; the eye and the lock.
   viewport's tests and by an agent; CI is green.
 - **How to test.** `cargo test -p slime-world-render -p slime-editor`.
 - **By hand.** Hiding and locking parts of the zone.
+- **Outcome.** Done on 2026-11-04, as [ADR-0169](adr/0169-the-eye-and-the-lock.md) records. Each
+  row of the hierarchy ends with an eye and a lock, buttons named after what a press does, `hide`
+  or `show`, `lock` or `unlock`, which people and agents press alike; the core keeps what the user
+  hid and locked in memory, by persistent identity, never in the level nor the history, and forgets
+  it when another level opens. The window makes again the entities that they cover, those below
+  included, only as the world's structure or the eyes change. What is hidden is not drawn, nor its
+  light nor its light's icon, not picked, outlined, boxed, wireframed nor framed, and a drop's ray
+  passes through it; its row and those below it read dimmed. What is locked is drawn and lights
+  the level, but a click, a marquee, Alt and a click and an agent's pick name nothing of it, and
+  what is dropped lands on it. `slime-world-render`'s `FrameBuilder` and `Picker` leave out the
+  entities that they are given besides those that `Hidden` hides. The MCP server's `pick` answers
+  `nothing is picked there`, no longer `nothing is drawn there`, which a lamp locked made false,
+  and the contracts of a presentation's picking say that a game may pick nothing where something is
+  drawn. The review found no fault of weight, and two smaller ones, fixed: Shift and End on what is
+  selected and hidden dropped it by its origin, its lowest point left out, now counted, since it
+  moves whole; the contracts of `slime-app`'s and `slime-channel`'s picking, still saying "drawn".
+  It found three tests missing, now written, the casts through what the picker leaves out, the
+  sets made again as the structure changes, and the image drawn again as they change, and
+  smaller things, fixed: the picker's boxes, which left out the whole subtree of an entity named
+  where its casts and the frames read each entity alone; a rule of the look repeated, the fold's
+  chevron now of the class `mark` with the eye and the lock; stale comments and documentation. The
+  tests: the frame builder's and the picker's entities left out, each alone, the rays passing
+  through them (`slime-world-render`, and `examples/tests/world.rs` on the cooked sample); what is
+  hidden covering what lies below it (`slime-editor`'s `eyes`); a light's icon picked, boxed and
+  framed, then, the marks drawing the image again, none of them once hidden (`slime-editor`'s
+  viewport, on the GPU); the rows' eye and lock pressed, what they cover left out of the pickings,
+  what is created below what is hidden hidden too, what is deleted and restored hidden still, no
+  step made, nothing selected, and another level opened forgetting them (`slime-editor`'s window);
+  an agent locks, then hides a lamp by its row's buttons through the MCP server, its pick naming
+  nothing, then the floor behind it, then the lamp again. What nothing checks yet: a drop onto
+  what is hidden or locked, end to end, its casts alone tested; hiding and locking parts of the
+  zone by hand, and in the Windows virtual machine. Known debt: see "The eye and the lock" in
+  [Known debt](#known-debt). CI is green on `b2e1c1a`: `check (headless)` took 17 minutes 15
+  seconds, `check (windowed)` 4 minutes 4 seconds, `check (game)` 4 minutes 33 seconds, `windows`
+  18 minutes 4 seconds and `windows-release` 14 minutes 11 seconds.
 
 #### M6c.5d — Regions of tabs
 
@@ -1933,13 +1968,22 @@ GitHub issues, linked from their entry; this list stays the reference.
   measures, the search some 5 ms at 100 000 entities; the arrows move the selection only while a
   row holds the focus; a press of a row reads Ctrl and Shift as the frame finds them held, not as
   the press found them, since a button's press carries no modifiers; no double click renames, F2
-  does. The eye and the lock come with M6c.5c.
+  does.
 - **Rearranging the hierarchy** ([ADR-0168](adr/0168-rearranging-the-hierarchy.md)): a drag shows
   where it drops, not what it carries; it drops on a row only, not below the last, and does not
   scroll the list as it nears its edges, which the wheel does meanwhile; Alt and the arrows run only
   while a row holds the focus, as the arrows do. Between two steps of a game, after a change of
   parent or a teleport, a frame's interpolation walks each entity's ancestors again until the next
   step ends.
+- **The eye and the lock** ([ADR-0169](adr/0169-the-eye-and-the-lock.md)): what is hidden or
+  locked is lost when the editor stops or another level opens; a click on what is locked selects
+  nothing, rather than what lies behind it, which Alt and a click reach; no shortcut hides or locks
+  what is selected, the rows' buttons alone; a row below a locked entity shows its own lock open,
+  nothing marking that an ancestor locks it, where a row below a hidden one reads dimmed; an entity
+  selected, then hidden, stays selected, its handles drawn where it stands; an agent presses the
+  buttons of a row that shows, its ancestors unfolded; each change of the world's structure copies
+  the set of what is hidden four times, for the hierarchy, the level, its frame builder and its
+  picker, which a large subtree hidden, a terrain's, makes a cost of each step.
 - **Play** ([ADR-0164](adr/0164-play.md)): a game that makes its library of scenes before
   `slime_app::run` starts its log, as *Hunna Wood* and the `world` example do, logs neither the
   scenes that Play gave nor a file of Play's directory that it left out. The console builds a label
