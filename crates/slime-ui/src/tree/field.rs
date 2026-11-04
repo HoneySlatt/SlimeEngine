@@ -379,7 +379,9 @@ impl Ui {
     /// root, nor a field of numbers given a text that reads as no expression of a finite number in
     /// its family of units, `2.5`, `sqrt(2)/2`, `10cm`, which keeps what it holds. A slider takes a text that reads as a finite number, kept within its bounds and on
     /// its steps, the program reading the change, if any, then the commit; two panels, the share of
-    /// the first, kept from 0 to 1, which tells the program nothing; a list to choose from, one of
+    /// the first, kept from 0 to 1, which tells the program nothing; a splitter, the share of the two
+    /// children beside it that the first is to take, kept so that neither goes below its least
+    /// size, the program reading the change, if any, then the commit; a list to choose from, one of
     /// its options, or else the place of one, from 0, the program reading the change and the commit
     /// when the choice changed; a color well, a hexadecimal code, `#ff8000`, the program reading the
     /// change, if any, then the commit. The focus stays where it is.
@@ -402,6 +404,12 @@ impl Ui {
             Kind::Split { .. } => {
                 return match text.trim().parse::<f32>() {
                     Ok(share) if share.is_finite() => self.set_share(id, share),
+                    _ => false,
+                };
+            }
+            Kind::Splitter { .. } => {
+                return match text.trim().parse::<f32>() {
+                    Ok(share) if share.is_finite() => self.set_splitter(id, share, true),
                     _ => false,
                 };
             }
@@ -509,12 +517,12 @@ impl Ui {
         {
             return CursorShape::ResizeHorizontal;
         }
-        // Over the handle between two panels, or while it is dragged: the arrows along it.
-        let split = self
-            .interaction
-            .captured
-            .or_else(|| self.pointer_target(|kind| matches!(kind, Kind::Split { .. })));
-        if let Some(Kind::Split { side_by_side, .. }) = split
+        // Over the handle between two panels or a splitter, or while it is dragged: the arrows
+        // along it.
+        let split = self.interaction.captured.or_else(|| {
+            self.pointer_target(|kind| matches!(kind, Kind::Split { .. } | Kind::Splitter { .. }))
+        });
+        if let Some(Kind::Split { side_by_side, .. } | Kind::Splitter { side_by_side, .. }) = split
             .and_then(|id| self.node(id))
             .map(|node| &node.element.kind)
         {

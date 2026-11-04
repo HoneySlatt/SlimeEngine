@@ -156,7 +156,9 @@ fn primitives(
                 primitives.push((primitive, None));
             }
         }
+        // A splitter is its box, as its style paints it.
         Kind::Container
+        | Kind::Splitter { .. }
         | Kind::Scroll
         | Kind::List { .. }
         | Kind::TabBar { .. }

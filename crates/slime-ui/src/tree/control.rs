@@ -8,7 +8,7 @@ use super::{ElementId, ElementState, ItemMark, Kind, LayoutDirection, Ui};
 use crate::Rect;
 use crate::action::{Action, ActionKind, FieldValue};
 use crate::display::{BoxPrimitive, Primitive, TextPrimitive};
-use crate::style::Icons;
+use crate::style::{Dimension, Icons};
 use crate::text::{TextBounds, TextLayout, TextStyle};
 
 /// How many steps Page Up and Page Down move a slider by.
@@ -633,6 +633,168 @@ impl Ui {
             _ => return false,
         };
         self.set_share(split, target);
+        true
+    }
+
+    /// The two children that the splitter `id` parts, the one before it and the one after it in
+    /// its box, each as its box in pixels of the surface and its least length along the splitter,
+    /// from its style; none for an element that is no splitter, or that lies first or last.
+    fn splitter_parted(&self, id: ElementId) -> Option<[(Rect, f32); 2]> {
+        let node = self.node(id)?;
+        let Kind::Splitter { side_by_side, .. } = node.element.kind else {
+            return None;
+        };
+        let parent = self.node(node.parent?)?;
+        let at = parent.children.iter().position(|&child| child == id)?;
+        let scale = self.scale_of(id);
+        let part = |child: ElementId| {
+            let child = self.node(child)?;
+            let least = match child.style.layout.min_size[usize::from(!side_by_side)] {
+                Dimension::Pixels(pixels) => pixels * scale,
+                _ => 0.0,
+            };
+            Some((child.rect, least))
+        };
+        Some([
+            part(*parent.children.get(at.checked_sub(1)?)?)?,
+            part(*parent.children.get(at + 1)?)?,
+        ])
+    }
+
+    /// `share` of the two children that the splitter `id` parts, kept within 0 and 1 and so that
+    /// neither goes below its least length; `share` itself, within 0 and 1, where they have none.
+    fn splitter_kept(&self, id: ElementId, share: f32) -> f32 {
+        let share = unit(share);
+        let Some(([(before, least_before), (after, least_after)], side_by_side)) = self
+            .splitter_parted(id)
+            .zip(self.node(id).and_then(|node| match node.element.kind {
+                Kind::Splitter { side_by_side, .. } => Some(side_by_side),
+                _ => None,
+            }))
+        else {
+            return share;
+        };
+        let length = |rect: Rect| {
+            if side_by_side {
+                rect.width
+            } else {
+                rect.height
+            }
+        };
+        let total = length(before) + length(after);
+        if total <= 0.0 {
+            return share;
+        }
+        let low = (least_before / total).min(1.0);
+        let high = (1.0 - least_after / total).max(low);
+        share.clamp(low, high)
+    }
+
+    /// Gives the program `share` of the two children that the splitter `id` parts, kept so that
+    /// neither goes below its least length: [`ActionKind::Changed`] when it differs from the share
+    /// that the program gave, and [`ActionKind::Committed`] after it for `commit`. Gives whether
+    /// `id` is a splitter.
+    pub(crate) fn set_splitter(&mut self, id: ElementId, share: f32, commit: bool) -> bool {
+        let Some(&Kind::Splitter { share: given, .. }) =
+            self.node(id).map(|node| &node.element.kind)
+        else {
+            return false;
+        };
+        let share = self.splitter_kept(id, share);
+        let value = FieldValue::Number(f64::from(share));
+        if share != given {
+            self.interaction.splitting = Some(share);
+            self.interaction.actions.push(Action {
+                element: Some(id),
+                kind: ActionKind::Changed(value.clone()),
+            });
+        }
+        if commit {
+            self.interaction.splitting = None;
+            self.interaction.actions.push(Action {
+                element: Some(id),
+                kind: ActionKind::Committed(value),
+            });
+        }
+        true
+    }
+
+    /// The pointer moved while it holds the splitter `id`, at `x` and `y` in pixels of the surface:
+    /// the border between the two children that it parts follows it, the splitter's middle there.
+    pub(crate) fn splitter_drag(&mut self, id: ElementId, x: f32, y: f32) {
+        let Some(node) = self.node(id) else {
+            return;
+        };
+        let Kind::Splitter { side_by_side, .. } = node.element.kind else {
+            return;
+        };
+        let Some([(before, _), (after, _)]) = self.splitter_parted(id) else {
+            return;
+        };
+        let rtl =
+            self.root_settings(id).map(|root| root.direction) == Some(LayoutDirection::RightToLeft);
+        // How far the pointer lies from the outer edge of the child before, and their length.
+        let (from, total, thickness) = match (side_by_side, rtl) {
+            (true, false) => (x - before.x, before.width + after.width, node.rect.width),
+            (true, true) => (
+                before.x + before.width - x,
+                before.width + after.width,
+                node.rect.width,
+            ),
+            (false, _) => (y - before.y, before.height + after.height, node.rect.height),
+        };
+        let share = (from - thickness / 2.0) / total;
+        if share.is_finite() {
+            self.set_splitter(id, share, false);
+        }
+    }
+
+    /// The pointer let go of the splitter `id`: the share that its drag gave last is committed;
+    /// nothing, if it did not move it. Gives whether `id` is a splitter.
+    pub(crate) fn splitter_release(&mut self, id: ElementId) -> bool {
+        if !matches!(
+            self.node(id).map(|node| &node.element.kind),
+            Some(Kind::Splitter { .. })
+        ) {
+            return false;
+        }
+        if let Some(share) = self.interaction.splitting.take() {
+            self.set_splitter(id, share, true);
+        }
+        true
+    }
+
+    /// A key reached the splitter `id`, which holds the focus: the arrows along it move it by a
+    /// twentieth of the two children's length, Home and End to their ends, each committed. Gives
+    /// whether it took the key.
+    pub(crate) fn splitter_key(&mut self, id: ElementId, event: &KeyEvent) -> bool {
+        let Key::Named(named) = &event.logical else {
+            return false;
+        };
+        let Some(&Kind::Splitter {
+            side_by_side,
+            share,
+        }) = self.node(id).map(|node| &node.element.kind)
+        else {
+            return false;
+        };
+        let forward = if self.root_settings(id).map(|root| root.direction)
+            == Some(LayoutDirection::RightToLeft)
+        {
+            -0.05
+        } else {
+            0.05
+        };
+        let target = match named {
+            NamedKey::ArrowRight if side_by_side => share + forward,
+            NamedKey::ArrowLeft if side_by_side => share - forward,
+            NamedKey::ArrowDown if !side_by_side => share + 0.05,
+            NamedKey::ArrowUp if !side_by_side => share - 0.05,
+            NamedKey::Home => 0.0,
+            NamedKey::End => 1.0,
+            _ => return false,
+        };
+        self.set_splitter(id, target, true);
         true
     }
 

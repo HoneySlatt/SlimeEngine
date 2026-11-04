@@ -44,7 +44,9 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   `slime-input`, and turns it into `action::Action`s: a button pressed, an intent of navigation, the
   command of a shortcut. The program reads them from a queue (`Ui::take_actions`); an agent sends
   them (`Ui::act`). The interface moves the focus itself, by Tab in the order of the tree and by the
-  arrows to the nearest element on screen, within its scope, and by F6 from one root to the next; a
+  arrows to the nearest element on screen, within its scope, and by F6 from one root to the next,
+  and from one pane to the next within a root (`Element::pane`,
+  [ADR-0172](../../docs/adr/0172-regions-of-tabs.md)); a
   focus that a press of the pointer gave to anything but a field leaves the keys to the program, and
   a game keeps Tab until its interface holds a focus (`Ui::set_tab_enters`,
   [ADR-0153](../../docs/adr/0153-tab-and-f6-in-a-games-interface.md)); a root may be a popup at a
@@ -73,10 +75,19 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   actions, changed and committed (`action::FieldValue`), the program's value replacing the user's
   only when it changes; sections that fold what they hold (`Element::section`, `Ui::set_open`); bars
   of tabs (`Element::tab_bar`, `Element::tab`), whose choice runs again the builder that shows its
-  panel (`Children::chosen`); two panels and the handle between them (`Element::split`); and the
+  panel (`Children::chosen`); two panels and the handle between them (`Element::split`); a
+  splitter between two children of a box (`Element::splitter`), which holds no share of its own:
+  the program reads the share that the user gives the first as actions and gives it back; and the
   scroll bars of a box that scrolls and of a list. Their parts apart from their box take the style's
   `control` part (`style::ControlStyle`), and rules select them by the states `Checked`, `Expanded`
   and `Selected`.
+- `dock`, docking ([ADR-0172](../../docs/adr/0172-regions-of-tabs.md)): a program's panels laid
+  out in a `dock::Layout`, splits of any number of children, each with its share, and stacks of
+  tabs, reflected data normalized after each edit; a `dock::Dock` builds it into the program's
+  tree, each stack a pane of tabs over the chosen panel's slot, which the program fills
+  (`Dock::slot`), a splitter between each two children of a split; it takes its splitters'
+  actions, reads the tabs chosen, moves a panel into another stack or to an edge of the window
+  (`Dock::move_panel`), and tells the program when the layout changed (`Dock::take_changed`).
 - Layers (`docs/adr/0150-layers.md`): roots over the others that the interface places
   (`Ui::open_layer`, `tree::Layer`, `tree::Place`), beside an element, at a point or floating, kept
   within the window, closed as the user leaves them, which the program reads
@@ -121,22 +132,22 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   light or high contrast, and a compact one (`look::themes`, `look::Colors`, `look::Density`). Its
   files are in [`look/`](look/README.md), with the fonts' licenses, which a program that builds them
   in ships beside it.
-- `Ui::meaning` says what the tree means, made when asked: each element drawn that means
-  something, its `tree::Role`, named as AccessKit names roles, its name, its value, a field's, a
-  slider's, two panels' share, a list to choose from's option, a color well's code or a bar of
-  progress's share, its
-  states, the `tree::ElementAction`s that an agent can do to it now, the part of it that shows and
-  its path, the key of its root then its own keys, `editor/window/menus/File`, which
-  `Ui::element_by_path` reads back; the interface's own layers are named `palette`, `shortcuts`,
-  `tooltip`, `notifications`, `choices` and `colors`, and a key that an open root holds gets a
-  variant, `menu-2` (`docs/adr/0156-the-editors-window-and-its-operations.md`). A box that only lays others out
-  means nothing; a builder gives an element its role and its name (`Element::role`,
-  `Element::named`), and an item of a tree its level and whether it opens (`Element::level`,
-  `Element::expandable`, `docs/adr/0167-the-hierarchy.md`): a tree is a list whose rows its program
-  flattens, given the role `Role::Tree`. `Ui::show_row` scrolls a list so that a row shows, by its
-  number, built or not, and `Ui::scroll_into_view` scrolls the boxes around an element so that it
-  shows, as the focus that the keys move is. `Ui::set_value` gives a field a value, as a person who replaced its text and
-  committed would, and a slider, two panels, a list to choose from or a color well theirs.
+- `Ui::meaning` says what the tree means, made when asked: each element drawn that means something,
+  its `tree::Role`, named as AccessKit names roles, its name, its value, a field's, a slider's, two
+  panels' or a splitter's share, a list to choose from's option, a color well's code or a bar of
+  progress's share, its states, the `tree::ElementAction`s that an agent can do to it now, the part
+  of it that shows and its path, the key of its root then its own keys, `editor/window/menus/File`,
+  which `Ui::element_by_path` reads back; the interface's own layers are named `palette`,
+  `shortcuts`, `tooltip`, `notifications`, `choices` and `colors`, and a key that an open root holds
+  gets a variant, `menu-2` (`docs/adr/0156-the-editors-window-and-its-operations.md`). A box that
+  only lays others out means nothing; a builder gives an element its role and its name
+  (`Element::role`, `Element::named`), and an item of a tree its level and whether it opens
+  (`Element::level`, `Element::expandable`, `docs/adr/0167-the-hierarchy.md`): a tree is a list
+  whose rows its program flattens, given the role `Role::Tree`. `Ui::show_row` scrolls a list so
+  that a row shows, by its number, built or not, and `Ui::scroll_into_view` scrolls the boxes around
+  an element so that it shows, as the focus that the keys move is. `Ui::set_value` gives a field a
+  value, as a person who replaced its text and committed would, and a slider, two panels, a
+  splitter, a list to choose from or a color well theirs.
 - An element made draggable (`Element::draggable`), pressed and moved past a few pixels, is
   dragged onto the elements made targets of drops (`Element::drop_target`): `Ui::dragging` says
   which target lies under the pointer and where in it, from its top to its bottom, which the program

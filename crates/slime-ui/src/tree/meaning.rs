@@ -472,6 +472,7 @@ impl Ui {
                         element.kind,
                         Kind::Slider { .. }
                             | Kind::Split { .. }
+                            | Kind::Splitter { .. }
                             | Kind::Choice { .. }
                             | Kind::ColorWell { .. }
                     )
@@ -523,6 +524,7 @@ impl Ui {
                         .map(|option| option.label.clone()),
                     Kind::ColorWell { .. } => self.color(id).map(super::color::hex),
                     Kind::ColorPart(_) => self.part_value(id),
+                    Kind::Splitter { share, .. } => Some(share.to_string()),
                     _ => self
                         .slider_value(id)
                         .map(super::field::number_text)
@@ -535,7 +537,9 @@ impl Ui {
                     max: max.max(min),
                     step,
                 }),
-                Kind::Split { .. } | Kind::Progress { share: Some(_), .. } => Some(ValueRange {
+                Kind::Split { .. }
+                | Kind::Splitter { .. }
+                | Kind::Progress { share: Some(_), .. } => Some(ValueRange {
                     min: 0.0,
                     max: 1.0,
                     step: 0.0,
@@ -596,7 +600,7 @@ impl Ui {
             Kind::Section { .. } => Role::Details,
             Kind::TabBar { .. } => Role::TabList,
             Kind::Tab { .. } => Role::Tab,
-            Kind::Split { .. } => Role::Splitter,
+            Kind::Split { .. } | Kind::Splitter { .. } => Role::Splitter,
             Kind::Menu => Role::Menu,
             Kind::MenuBar => Role::MenuBar,
             Kind::MenuItem {

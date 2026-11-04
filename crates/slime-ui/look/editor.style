@@ -219,6 +219,29 @@ style.paint.border = "$focus"
 select = { kind = "Split" }
 style.control = { size = "$handle", radius = 0, track = "$panel_border", fill = "$accent", mark = "$mark" }
 
+# A dock's stack of tabs (docs/adr/0172-regions-of-tabs.md): a panel's box, its bar of tabs along
+# its top, what the chosen panel holds below, and the borders between stacks, which show as the
+# pointer comes over them.
+[stack]
+select = { classes = ["stack"] }
+style.paint = { background = "$panel", border_width = 1, border = "$panel_border", radii = ["$radius_l", "$radius_l", "$radius_l", "$radius_l"] }
+
+[stack-tabs]
+select = { kind = "TabBar", key = "tabs", inside = { class = "stack" } }
+style.paint.radii = ["$radius_l", "$radius_l", 0, 0]
+
+[stack-panel]
+select = { classes = ["tab-panel"] }
+style.layout.padding = { start = "$space_m", end = "$space_m", top = "$space_m", bottom = "$space_m" }
+
+[splitter-hovered]
+select = { kind = "Splitter", states = ["Hovered"] }
+style.paint.background = "$hover"
+
+[splitter-pressed]
+select = { kind = "Splitter", states = ["Pressed"] }
+style.paint.background = "$accent_soft"
+
 [scroll]
 select = { kind = "Scroll" }
 style.control = { size = "$scroll_bar", radius = "$radius_s", track = "$bar_track", fill = "$accent", mark = "$bar_thumb" }

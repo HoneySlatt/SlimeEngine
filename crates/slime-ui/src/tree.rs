@@ -268,6 +268,21 @@ pub enum Kind {
         /// it; the second takes the rest, less the handle.
         share: f32,
     },
+    /// A border between the child of its box before it and the child after it, as thick as its
+    /// style makes it, which the pointer drags and the arrows move while it holds the focus
+    /// (`docs/adr/0172-regions-of-tabs.md`). It holds no share of its own: the program reads, as
+    /// [`ActionKind::Changed`](crate::action::ActionKind::Changed) while it moves and
+    /// [`ActionKind::Committed`](crate::action::ActionKind::Committed) as it ends, the share of the
+    /// two children's length that the first is to take, kept so that neither goes below its least
+    /// size, and gives it back at its next build, laying the two children out by it.
+    Splitter {
+        /// Whether the children that it parts lie side by side, it upright; one above the other
+        /// otherwise.
+        side_by_side: bool,
+        /// The share of the two children's length that the first takes, from 0 to 1, as the
+        /// program gives it.
+        share: f32,
+    },
     /// A menu, laid out as a container, that holds its items ([`Kind::MenuItem`]), and boxes
     /// between them that only part them (`docs/adr/0150-layers.md`). The arrows up and down move
     /// the focus among its items, around, Home and End to the first and the last. A layer that the
@@ -506,7 +521,7 @@ pub enum ItemMark {
 
 impl Kind {
     /// Whether a press of the pointer reaches it, and the focus: a button, a field, a check box, a
-    /// slider, a section, a tab, two panels and their handle, an item of a menu, a list to choose
+    /// slider, a section, a tab, two panels and their handle, a splitter, an item of a menu, a list to choose
     /// from, a floating panel, a button that toggles, a segment, a color well or a part of its
     /// picker.
     pub(crate) fn takes_pointer(&self) -> bool {
@@ -520,6 +535,7 @@ impl Kind {
                 | Self::Section { .. }
                 | Self::Tab { .. }
                 | Self::Split { .. }
+                | Self::Splitter { .. }
                 | Self::MenuItem { .. }
                 | Self::Choice { .. }
                 | Self::FloatingPanel { .. }
@@ -596,6 +612,9 @@ pub struct Element {
     pub draggable: bool,
     /// Whether what is dragged drops on it ([`ActionKind::Dropped`](crate::action::ActionKind::Dropped)).
     pub drop_target: bool,
+    /// Whether it is a pane, one of the places of its root that F6 moves the focus between
+    /// (`docs/adr/0172-regions-of-tabs.md`).
+    pub pane: bool,
 }
 
 impl Element {
@@ -769,6 +788,19 @@ impl Element {
         )
     }
 
+    /// A border between the child of its box before it and the child after it, the two side by
+    /// side or one above the other, the first taking `share` of their length
+    /// (`docs/adr/0172-regions-of-tabs.md`).
+    pub fn splitter(side_by_side: bool, share: f32, style: Style) -> Self {
+        Self::of(
+            Kind::Splitter {
+                side_by_side,
+                share,
+            },
+            style,
+        )
+    }
+
     /// The box of a section's header, whose builder adds what it holds.
     pub fn section_header(style: Style) -> Self {
         Self::of(Kind::SectionHeader, style)
@@ -865,6 +897,7 @@ impl Element {
             expandable: false,
             draggable: false,
             drop_target: false,
+            pane: false,
         }
     }
 
@@ -896,6 +929,14 @@ impl Element {
     #[must_use]
     pub fn draggable(mut self) -> Self {
         self.draggable = true;
+        self
+    }
+
+    /// The element, a pane: one of the places of its root that F6 moves the focus between, to its
+    /// first element that takes the focus (`docs/adr/0172-regions-of-tabs.md`).
+    #[must_use]
+    pub fn pane(mut self) -> Self {
+        self.pane = true;
         self
     }
 
@@ -2534,6 +2575,7 @@ fn kind_name(kind: &Kind) -> KindName {
         Kind::TabBar { .. } => KindName::TabBar,
         Kind::Tab { .. } => KindName::Tab,
         Kind::Split { .. } => KindName::Split,
+        Kind::Splitter { .. } => KindName::Splitter,
         Kind::Menu => KindName::Menu,
         Kind::MenuBar => KindName::MenuBar,
         Kind::MenuItem { .. } => KindName::MenuItem,

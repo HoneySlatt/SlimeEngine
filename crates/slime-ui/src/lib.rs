@@ -2,6 +2,7 @@
 
 pub mod action;
 pub mod display;
+pub mod dock;
 mod document;
 mod layout;
 #[cfg(feature = "editor-look")]

@@ -68,6 +68,9 @@ pub(super) struct Interaction {
     /// The draggable element that the pointer pressed, where it pressed it, and whether it moved
     /// far enough since to drag it.
     drag: Option<(ElementId, [f32; 2], bool)>,
+    /// The share that the splitter that the pointer holds gave the program last, which its release
+    /// commits; none while it has not moved it.
+    pub(super) splitting: Option<f32>,
     /// The surface that holds the pointer, with the buttons that went down over it and are held.
     surface: Option<(ElementId, Vec<MouseButton>)>,
     /// Where the pointer last was on the surface that holds it, which a release after the pointer
@@ -112,6 +115,7 @@ impl Ui {
                 Some(Kind::Slider { .. }) => self.slider_drag(captured, x),
                 Some(Kind::ColorPart(_)) => self.part_drag(captured, x, y),
                 Some(Kind::Split { .. }) => self.split_drag(captured, x, y),
+                Some(Kind::Splitter { .. }) => self.splitter_drag(captured, x, y),
                 _ => {}
             }
         }
@@ -212,6 +216,7 @@ impl Ui {
                 // and of its drag.
                 if primary {
                     self.interaction.drag = None;
+                    self.interaction.splitting = None;
                 }
                 if primary && let Some(before) = self.interaction.captured.take() {
                     self.change_state(before, |state| state.pressed = false);
@@ -323,7 +328,7 @@ impl Ui {
                     self.set_slider(captured, value, true);
                     return true;
                 }
-                if self.part_release(captured) {
+                if self.part_release(captured) || self.splitter_release(captured) {
                     return true;
                 }
                 let over = self.pointer_target(Kind::takes_pointer);
@@ -648,6 +653,7 @@ impl Ui {
                 || self.part_key(focus, event)
                 || self.tab_key(focus, event)
                 || self.split_key(focus, event)
+                || self.splitter_key(focus, event)
                 || self.menu_key(focus, event)
                 || self.choice_key(focus, event))
         {
@@ -729,15 +735,17 @@ impl Ui {
             || self.opened_layer(focus)
     }
 
-    /// Gives the focus to the first element of the root after the one that holds it, or before it
-    /// when `back`, the top root first, then to nothing, as F6 and Shift+F6 do, from a focus that a
-    /// press gave as from none: the roots that hold
-    /// an element that can take the focus, but the layers that close as the user leaves them, which
-    /// close first, and the tooltip. Gives whether such a root is open, the key taken then.
+    /// Gives the focus to the first element of the place after the one that holds it, or before it
+    /// when `back`, then to nothing, as F6 and Shift+F6 do, from a focus that a press gave as from
+    /// none: the places are the panes of each root, in the order of its tree, or the root itself
+    /// where it has none (`docs/adr/0172-regions-of-tabs.md`), the top root's first, of the roots
+    /// that hold an element that can take the focus, but the layers that close as the user leaves
+    /// them, which close first, and the tooltip. Gives whether such a place is open, the key taken
+    /// then.
     fn next_root(&mut self, back: bool) -> bool {
         while self.dismiss_top() {}
         let tooltip = self.interaction.tooltip;
-        let roots: Vec<ElementId> = self
+        let places: Vec<(ElementId, ElementId)> = self
             .roots
             .iter()
             .rev()
@@ -748,9 +756,9 @@ impl Ui {
                     .and_then(|node| node.layer.as_ref())
                     .is_none_or(|held| !held.layer.dismiss)
             })
-            .filter_map(|root| self.focusables(root).first().copied())
+            .flat_map(|root| self.places(root))
             .collect();
-        if roots.is_empty() {
+        if places.is_empty() {
             return false;
         }
         // A focus that a press gave counts as none.
@@ -759,19 +767,72 @@ impl Ui {
             .focus
             .filter(|&focus| self.takes_keys(focus));
         let at = focus.and_then(|focus| {
-            let root = self.root_of(focus)?;
-            roots
-                .iter()
-                .position(|&first| self.root_of(first) == Some(root))
+            let place = self.place_of(focus)?;
+            places.iter().position(|&(each, _)| each == place)
         });
         let next = match (at, back) {
             (None, false) => Some(0),
-            (None, true) => Some(roots.len() - 1),
-            (Some(at), false) => Some(at + 1).filter(|&next| next < roots.len()),
+            (None, true) => Some(places.len() - 1),
+            (Some(at), false) => Some(at + 1).filter(|&next| next < places.len()),
             (Some(at), true) => at.checked_sub(1),
         };
-        self.focus_on(next.map(|next| roots[next]));
+        self.focus_on(next.map(|next| places[next].1));
         true
+    }
+
+    /// The places of `root` that F6 moves the focus between, in the order of its tree, each with
+    /// its first element that takes the focus: its panes that hold one, or the root itself where
+    /// none does.
+    fn places(&self, root: ElementId) -> Vec<(ElementId, ElementId)> {
+        let focusables = self.focusables(root);
+        let mut panes = Vec::new();
+        let mut stack = vec![root];
+        while let Some(id) = stack.pop() {
+            let Some(node) = self.node(id) else {
+                continue;
+            };
+            if node.style.layout.display == Display::None {
+                continue;
+            }
+            if node.element.pane {
+                panes.push(id);
+            }
+            stack.extend(node.children.iter().rev().copied());
+        }
+        let found: Vec<(ElementId, ElementId)> = panes
+            .into_iter()
+            .filter_map(|pane| {
+                let first = focusables
+                    .iter()
+                    .find(|&&focusable| self.place_of(focusable) == Some(pane))?;
+                Some((pane, *first))
+            })
+            .collect();
+        if found.is_empty() {
+            focusables
+                .first()
+                .map(|&first| (root, first))
+                .into_iter()
+                .collect()
+        } else {
+            found
+        }
+    }
+
+    /// The place that F6 counts `id` in: the nearest pane that holds it, itself included, or its
+    /// root.
+    fn place_of(&self, id: ElementId) -> Option<ElementId> {
+        let mut at = id;
+        loop {
+            let node = self.node(at)?;
+            if node.element.pane {
+                return Some(at);
+            }
+            match node.parent {
+                Some(parent) => at = parent,
+                None => return Some(at),
+            }
+        }
     }
 
     /// Whether Tab and Shift+Tab, while no focus takes the keys, give the focus to the interface:
