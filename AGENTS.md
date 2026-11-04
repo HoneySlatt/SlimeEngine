@@ -1,178 +1,167 @@
 # AGENTS.md
 
-Instructions for AI agents working in this repository. Read this file fully at the start of every session.
+Rules for AI agents in this repository. Read it fully at the start of every session.
 
 ## Project
 
-A general-purpose, modular, open-source (MPL-2.0) game engine written in Rust: runtime, asset pipeline, editor and SDK. It is developed primarily by AI agents; the human owner validates direction and architecture decisions.
-
-The engine is meant to be used and contributed to by other people. Anyone arriving in the repository, at any point in its life, must be able to understand all of it from the repository alone. Documentation is part of every deliverable, held to the same standard as the code (see "Documentation").
+A general-purpose, modular, open-source (MPL-2.0) game engine in Rust: runtime, asset pipeline, editor, SDK.
+AI agents do most of the work. The owner validates direction and architecture.
+Others will use it and contribute: documentation is part of every deliverable, held to the code's standard.
 
 ## Read before working
 
-1. `docs/PLAN.md` — current stage, milestones and status. This is the source of truth for what to do now.
-2. `docs/ROADMAP.md` — direction, stage order, exit criteria. An overview, not a commitment (see "Scope").
-3. `docs/ARCHITECTURE.md` — crates, their roles and their dependencies.
-4. `docs/adr/` — decisions already made. Do not re-decide them.
-5. The `README.md` of each crate you are about to touch.
+You have no memory of past sessions: what the repository does not hold, the next session will not know.
 
-You have no memory of previous sessions. These files are the project's memory: if something is not written there, the next session will not know it.
+- Each session: `docs/PLAN.md`'s "Current" section and the current milestone. They say what to do now.
+- Before touching a crate: its `README.md`, and `docs/ARCHITECTURE.md`.
+- Only to plan, or when the task touches a decision: `docs/ROADMAP.md` and `docs/adr/`.
+- Do not re-decide what an ADR decided.
 
 ## Scope
 
-- Work only on the stage and milestone marked as current in `docs/PLAN.md`.
-- Do not start later stages, and do not add abstractions that prepare for them.
+- Work on `docs/PLAN.md`'s current milestone, or on what the owner asks.
+- Do not start later stages, nor add abstractions for them.
 - If a task needs something out of scope, stop and say so.
-
-The roadmap is an overview. It sets direction and dependency order; it does not say what will be built, nor how. Not all of it will happen: stages will be merged, cut down, reordered or dropped as the project teaches us. Build something because the current milestone needs it, never because the roadmap mentions it. When experience contradicts the roadmap, propose a change to it; once accepted, record the change in an ADR.
+- The roadmap sets direction and order, not what is built nor how. Its stages may change or be dropped.
+- Build what the milestone needs, never what the roadmap merely mentions.
+- When experience contradicts the roadmap, propose a change. Once accepted, record it in an ADR.
 
 ## Environment and commands
 
-Development happens on NixOS, under Wayland. Everything must build and run there, and on Windows (x86_64, MSVC toolchain): CI checks Windows on every push to `main` and every pull request, and windowed behaviour is checked by hand in a Windows virtual machine (ADR-0015). `scripts/check.sh` also compiles the code for Windows, so most Windows breakage shows up on Linux.
+- Everything builds and runs on NixOS under Wayland, and on Windows (x86_64, MSVC) (ADR-0015).
+- CI checks Windows on each push and pull request; windowed behaviour, by hand in a VM.
+- `scripts/check.sh` compiles for Windows too: most Windows breakage shows on Linux.
 
 ```sh
-nix develop                                               # enter the dev shell
+nix develop
 cargo build --workspace
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
-scripts/check.sh                                          # everything above, plus the checks below
-cargo run -p slime-cook -- cook examples/assets target/cooked/examples  # cook what the scene, world and interface examples read
-cargo run --release -p slime-cook -- watch <sources> <output>  # cook again each change (ADR-0076)
-cargo run --example <name>                                # run an example (list in examples/README.md)
-cargo run --release -p slime-benches -- [<name>...]       # run the benchmarks (benches/README.md)
-scripts/measure.sh "<title>" >> docs/measurements.md      # time the build, run the benchmarks (ADR-0104)
-scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
-blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)
-cargo run -p hunnawood                                    # play the game (games/hunnawood/README.md)
-cargo run -p hunnawood -- --watch                         # load its zone and the shaders again as they change
-cargo run -p hunnawood -- --new --save <file>             # play a new run, saved to <file>, not to the user's save
-cargo build -p hunnawood --no-default-features           # the game built for shipping, without the development channel and the dev overlay (ADR-0122, ADR-0152)
-cargo run --example editor -- --level <a copy of a level> --journal <file>  # the editor's window on the examples' yard (ADR-0135, ADR-0156); --headless without a window
-cargo run --example editor -- --journal <file> --output <file.png>  # the editor's window drawn into an image, without a window
-cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>  # the game's editor on its zone, Play building and running `hunnawood` (games/hunnawood-editor/README.md)
-cargo run --example text -- --output <file.png>           # the interface's text in several writing systems, rasterized by the CPU (ADR-0136)
-cargo run --example interface -- --output <file.png>      # an interface built as a tree of elements, styled by a theme: text, boxes, images, a view (ADR-0140, ADR-0141)
-cargo run --example widgets -- --output <file.png>        # the widgets of a panel in the editor's look: check boxes, sliders, sections, tabs, two panels, scroll bars (ADR-0148), menus, a list to choose from, tooltips, a floating panel (ADR-0150), rich fields, notifications, the palette of commands (ADR-0151), a color well (ADR-0152)
-scripts/subset-fonts.sh <noto> <noto-cjk> <noto-emoji>    # make the fonts of slime-ui's tests again (crates/slime-ui/tests/fonts/README.md)
-scripts/screen-reader-check.sh <the interface example's program> <cooked data>  # read and use it through AT-SPI, as a screen reader does, on a Wayland display (ADR-0147)
-cargo run --quiet -p slime-mcp                            # the engine's MCP server, through which an agent drives a game (crates/slime-mcp/README.md)
+scripts/check.sh [headless|windowed|game]              # all checks, or one CI job
+cargo run -p slime-cook -- cook examples/assets target/cooked/examples  # the examples' data
+cargo run --example <name>                             # examples/README.md
+cargo run --release -p slime-benches -- [<name>...]    # benches/README.md
+scripts/measure.sh "<title>" >> docs/measurements.md   # ADR-0104
+cargo run -p hunnawood -- --new --save <file>          # games/hunnawood/README.md
+cargo run --example editor -- --level <copy> --journal <file>  # examples/README.md
+cargo run --quiet -p slime-mcp                         # crates/slime-mcp/README.md
 ```
 
-The game resumes and writes the user's save, `hunnawood/save.toml` in their data directory, when it runs
-without `--save`: an agent runs it with `--new --save <a file of its own>`.
+- All commands: `CONTRIBUTING.md`, "Commands". Update both lists when adding commands, examples or tools.
+- Run `scripts/check.sh` before reporting a milestone done. What it checks: `CONTRIBUTING.md`, "Checks".
+- Tests run on lavapipe, a CPU Vulkan driver. For one test: `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"`,
+  with `VK_LOADER_DRIVERS_SELECT` and `VK_LOADER_DRIVERS_DISABLE` unset.
 
-An agent sees and drives a running game through the engine's MCP server: it starts the game, pauses and steps it, reads and changes its world, plays it with scripted keys, saves and loads its run to files of its own, captures its image or one of its views, changes how a view draws, to show its normals, its shadows, its base color or its light alone, reads its reports, the asset cache's requests and memory and the views' statistics, names the entity drawn at a pixel of a view, and reads and uses its interface, its elements found by role and name or at a pixel, pressed, focused, scrolled, its fields, sliders and handles given values, dropped onto others, and captured (`crates/slime-mcp/README.md`, ADR-0122, ADR-0125, ADR-0126, ADR-0127, ADR-0128, ADR-0130, ADR-0143, ADR-0146, ADR-0168). It edits a level the same way: it starts the editor's program, the `editor` example or a game's editor package, on a copy of the level and with a journal of its own, with its window or without it (`--headless`), makes steps of commands, undoes and redoes them, runs the editor's operations by name as a person runs them from the menus, the shortcuts and the palette, names the entity drawn at a pixel of its viewports, and writes the level back (ADR-0134, ADR-0135, ADR-0156, ADR-0159, ADR-0160); once its Play runs the game, `drive_played_game` points the game's tools at that game, the editor's tools still reaching the editor, and the steps that it makes reach the game (ADR-0164, ADR-0165); `view.keys_blender` and `view.keys_default` change the keys that the owner chose for every program of the editor, kept in their state directory: an agent leaves them alone, unless the server runs with a state directory of its own, as the MCP server's session tests do; the editor's journal, in the user's data directory unless `--journal` names another file, keeps what it did not write, which the editor recovers as it starts again. The game opens its window on the display of the server's environment: start the server inside a headless Weston's environment to keep the window off the owner's desktop (`CONTRIBUTING.md`, "Driving a running game").
+Keep off the owner's files and desktop:
 
-`scripts/check.sh` is what CI runs, in three jobs side by side, one for each of its parts: `scripts/check.sh headless`, every check that needs neither a compositor nor the sample game's zone, `scripts/check.sh windowed`, the examples and the windowed lifecycle test run in headless Weston compositors, and `scripts/check.sh game`, everything that reads the sample game's zone (ADR-0123, ADR-0155); without an argument, it runs the three. Besides the build, tests, clippy, fmt and rustdoc commands above (rustdoc run once more on `slime-ui` with its feature `editor-look`), it runs the renderer's and the world's tests once more with glam's assertions on (`--features glam/debug-glam-assert`), checks dependency licenses, security advisories and sources with `cargo deny --locked check` (needs network access), checks the list of the sample game's source assets with `scripts/fetch-assets.sh`, checks that every source asset has a metadata file of its own with `slime-cook check`, cooks the sample twice from empty directories and compares the bytes, then a third time, which must cook nothing, fetches and cooks the sample game's zone and runs the tests that read it (`cargo test -p hunnawood -p hunnawood-editor -- --ignored`) and an agent's session through the MCP server that edits a copy of the zone with *Hunna Wood*'s editor, runs the samples without a display server, the `editor` example's window drawn into an image, and an agent's session through the MCP server that edits a copy of the examples' yard with the `editor` example run without its window, the windowed samples, the `interface` example's interface used by an agent's session through the MCP server, which presses a button that changes its world and gives a field a value, and read and used through AT-SPI as a screen reader does (`scripts/screen-reader-check.sh`, ADR-0147), the `widgets` example drawn into an image, run in a window and its widgets, menus, list to choose from and floating panel each used by an agent's session through the MCP server (ADR-0148, ADR-0150), the `editor` example's window used by an agent's session through the MCP server, its operations run by name, its menu and its palette, a row of its hierarchy dropped before another, an entity picked in its viewport, then locked and hidden by its row's buttons, its second viewport captured, a panel moved to another region and a border between two dragged, which must run no frame while it is alone (ADR-0156, ADR-0159, ADR-0160, ADR-0169, ADR-0172), the `world` example's two views captured, the map's normals shown, its reports read and an entity picked at a pixel, by an agent's session through the MCP server, the `scene` example on a copy of the cooked sample with one byte changed (it must end with an error, not a panic), the game (its new runs, one that loses its GPU device after its first frame and must go on, one resumed from a copy of its save fixture, and one driven by an agent's session through the MCP server, their saves kept apart from the user's) and the windowed lifecycle test inside a headless Weston compositor (and that test's resize and oversize scenarios in a second one, at scale 2), checks that the game built for shipping holds neither the development channel nor the dev overlay (ADR-0152) and that the game holds no adapter for screen readers (ADR-0146), and checks links between Markdown files with `lychee`. Run it before reporting a milestone done. It runs the tests on lavapipe, a Vulkan driver that renders on the CPU; to run one test the same way, prefix it with `VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"`, and unset `VK_LOADER_DRIVERS_SELECT` and `VK_LOADER_DRIVERS_DISABLE` if the environment sets them (`CONTRIBUTING.md`).
-
-Keep this section up to date when commands, examples or tools are added.
+- Run the game with `--new --save <your file>`. Without `--save`, it resumes and writes the user's save.
+- Run the MCP server in a headless Weston's environment: windows stay off the owner's desktop.
+- Run the editor on a copy of a level, with your own journal.
+- Its default journal (user's data directory) keeps unwritten steps, recovered at start.
+- Leave `view.keys_blender` and `view.keys_default` alone, unless the server has its own state directory:
+  they change the owner's keys.
 
 ## Definition of done
 
-A milestone is done only when all of the following hold:
+A milestone is done only when:
 
 - Build, tests, clippy, fmt and doc pass with the commands above.
 - The binary or example was actually run and behaved as expected.
-- New behaviour is covered by tests where a test is practical.
-- `docs/PLAN.md` reflects the new status.
-- Every document affected by the change is updated (see "Documentation"), and was reread as a newcomer would read it.
-- Any architecture decision taken is recorded as an ADR.
+- New behaviour has tests where a test is practical.
+- `docs/PLAN.md` shows the new status.
+- Every document the change affects is updated, and reread as a newcomer would.
+- Each architecture decision is recorded in an ADR.
 
-Never report that something works without having verified it. If you could not verify, say exactly what was not verified and why.
+Never report that something works without verifying it.
+If you could not, say exactly what was not verified and why.
 
 ## Architecture rules
 
-- Dependencies between crates flow in one direction, as described in `docs/ARCHITECTURE.md`. No cycles, no shortcuts across layers.
-- wgpu types stay inside the `gfx` and `render` crates, and the engine's own tests, which reach the device through `slime-gfx`'s `wgpu` feature (ADR-0031). Everything else uses engine-owned handles.
-- The editor is a client of the engine. It uses public API only.
-- The engine must run headless (no window, renderer or audio). Do not make core systems depend on them.
-- Internal Rust APIs may change freely. Nothing is promised stable before 1.0.
+- Crate dependencies flow one way, per `docs/ARCHITECTURE.md`. No cycles, no shortcuts across layers.
+- wgpu types stay in `gfx`, `render` and the engine's tests (via `slime-gfx`'s `wgpu` feature, ADR-0031).
+  Everything else uses engine-owned handles.
+- The editor is a client of the engine: public API only.
+- The engine runs headless (no window, renderer or audio). Core systems never depend on them.
+- Internal Rust APIs may change freely. Nothing is stable before 1.0.
 
 ## Code rules
 
-- No abstraction without a second concrete use. No trait, generic or layer added "just in case".
-- Do not reimplement what the standard library provides without a measurement that justifies it.
-- Every new dependency needs a justification: why, which alternative was considered, license compatibility with MPL-2.0. Ask before adding one.
-- Every `unsafe` block carries a `// SAFETY:` comment explaining why it is sound.
-- Follow the conventions set by ADRs (errors, logging, naming). If no ADR covers a case, propose one instead of deciding silently.
+- No abstraction without a second concrete use. No trait, generic or layer "just in case".
+- Do not reimplement the standard library unless a measurement justifies it.
+- Justify each new dependency: why, the alternative considered, MPL-2.0 compatibility.
+- Every `unsafe` block has a `// SAFETY:` comment saying why it is sound.
+- Follow the ADRs' conventions (errors, logging, naming). If none applies, propose an ADR; never decide silently.
 - Comments explain why, not what. No commented-out code.
 
 ## Consistency rules
 
-These keep the codebase understandable as it grows.
-
-- Before writing a helper, type or pattern, search the workspace for an existing one. Reuse or extend it.
-- One way to do a given thing. If you find two, unify them or report it.
-- Prefer less code. Delete dead code, unused parameters and unused features instead of keeping them.
-- Keep changes local to the milestone. Unrelated cleanup goes in a separate commit, or in a note in `docs/PLAN.md`.
-- If you notice the code has drifted from `docs/ARCHITECTURE.md` or an ADR, report it. Do not silently work around it.
+- Before writing a helper, type or pattern, search the workspace for one to reuse or extend.
+- One way to do a thing. Unify two you find, or report them.
+- Prefer less code. Delete dead code, unused parameters and unused features.
+- Keep changes local to the milestone. Unrelated cleanup goes in its own commit, or a note in `docs/PLAN.md`.
+- Report drift from `docs/ARCHITECTURE.md` or an ADR. Never silently work around it.
 
 ## Documentation
 
-### Standard
+Write for a competent Rust developer new to the project, at any point in its life.
+From the repository alone, they must grasp each part and why, then build, test and change it.
 
-The reader is a competent Rust developer who has never seen this project, arriving at any point in its life. From the repository alone, they must be able to understand what every part does and why it is built that way, then build, test and change it.
-
-- Documentation describes the code as it is now, not as it is intended to be. Wrong documentation is worse than missing documentation.
-- Write for that reader: no reference to past sessions, conversations or context they cannot see; no undefined project jargon; every term the project coins is defined where it first appears.
-- State limits and known debt plainly. Do not present a partial feature as complete.
-- Every public item has rustdoc that says what it does, its invariants, its errors and panics. Examples in rustdoc compile and run as doc tests.
-- Each notable feature has a runnable example in `examples/`, kept working.
+- Describe the code as it is now. Wrong documentation is worse than none.
+- No reference to past sessions, conversations or context the reader cannot see.
+- Define each term the project coins where it first appears.
+- State limits and known debt plainly. Never present a partial feature as complete.
+- In what agents read each session: short sentences, one fact per line.
 - A change that leaves a document wrong is not finished.
 
 ### One home per fact
 
-A fact written in two places drifts: one copy is updated, the other is not. Each kind of fact has one home, and other documents link to it instead of copying it (ADR-0053):
+A fact written twice drifts: each has one home, which others link to (ADR-0053).
+Elsewhere, state it in a sentence, without figures, and link there.
+Each file: what it holds; when to update it.
 
-- **rustdoc**: the API's contracts, what an item does, its invariants, errors, panics and limits, with their figures (sizes, costs, defaults).
-- **A crate's README**: its role, what it depends on, what it must not do, and one or two sentences per entry point, linking to the rustdoc.
-- **`docs/ARCHITECTURE.md`**: the flows across crates, without the figures the rustdoc holds.
-- **ADRs**: why a decision was taken and what was rejected. Only their status changes afterwards.
-- **`docs/PLAN.md`**: status and known debt, linking to where the facts live.
-- **`CHANGELOG.md`**: what changed for users, once, when it changes.
-- **`docs/measurements.md`**: what the build and the benchmarks measured, one section per milestone
-  or machine.
-
-A document that needs a fact held elsewhere states it in a sentence, without its figures, and links to its home.
-
-### Files
-
-| File | Content | Update when |
-|---|---|---|
-| `README.md` | What the project is, its real current state, how to build and run it, where to read next | State or entry points change |
-| `CONTRIBUTING.md` | Environment, commands, rules, how a change is made and reviewed | Process or tools change |
-| `docs/ROADMAP.md` | Direction, stage order, exit criteria | A stage is reshaped, merged or dropped (with an ADR) |
-| `docs/PLAN.md` | Current stage, milestones, status, known debt | Every milestone |
-| `docs/ARCHITECTURE.md` | Crate map, responsibilities, dependency graph, main data flows, where to start reading | Structure or a flow changes |
-| `docs/adr/NNNN-title.md` | Context, decision, alternatives rejected, consequences | Each architecture decision |
-| `docs/adr/README.md` | The index of the ADRs and their statuses | An ADR is added, or its status changes |
-| `docs/glossary.md` | Terms the project defines | A term is coined or changes meaning |
-| `docs/dependencies.md` | Every third-party dependency and tool: who uses it, why, the alternative considered, its license | A dependency is added, removed or repurposed |
-| `docs/measurements.md` | The build's and the benchmarks' figures, one section per milestone or machine | A milestone measures what it claims to make faster, or changes what the benchmarks measure |
-| `CHANGELOG.md` | Notable changes, per release | A change users would notice; a release is tagged |
-| `crates/*/README.md` | Role, what it depends on, entry points, what it must not do | Crate created or its role changes |
-| `examples/README.md` | Each example, its options, and the examples' tests | An example or one of their tests changes |
-| `benches/README.md` | Each benchmark, what it measures, and how its figures are read | A benchmark changes |
-| `games/*/README.md` | What the game is, how to play it, how it is made, its assets | The game changes |
-| rustdoc | Public API | Public API changes |
+- rustdoc: each public item's contract (what it does, invariants, errors, panics, limits, figures),
+  examples run as doc tests; the API changes.
+- `examples/`: a runnable example per notable feature, kept working.
+- `crates/*/README.md`: role, dependencies, what it must not do, entry points linking to rustdoc;
+  crate created or role changed.
+- `docs/ARCHITECTURE.md`: crates and roles, dependency graph, cross-crate flows without figures, where to start;
+  structure or flows change.
+- `docs/adr/NNNN-title.md`: context, decision, rejected alternatives, consequences; each decision.
+  Afterwards only its status changes.
+- `docs/adr/README.md`: the ADRs' index and statuses; either changes.
+- `docs/PLAN.md`: current stage, milestones, status, known debt, linking to facts; every milestone.
+- `docs/history.md`: finished stages, a few lines each, versions and ADRs, newest first; a stage finished.
+- `docs/ROADMAP.md`: direction, stage order, exit criteria; a stage reshaped, merged or dropped (with an ADR).
+- `CHANGELOG.md`: user-visible changes, once, per release; such a change, a release tagged.
+- `docs/measurements.md`: build and benchmark figures per milestone or machine;
+  a speed-up claimed, benchmarks changed.
+- `docs/glossary.md`: the project's terms; one coined or changing meaning.
+- `docs/dependencies.md`: each dependency and tool: users, reason, alternative, license;
+  one added, removed or repurposed.
+- `README.md`: the project, its real state, building and running it, what to read next; these change.
+- `CONTRIBUTING.md`: environment, commands, rules, making and reviewing a change; process or tools change.
+- `examples/README.md`, `benches/README.md`: each example (options, tests), each benchmark (what it measures,
+  how to read it); they change.
+- `games/*/README.md`: the game, playing and making it, its assets; it changes.
 
 ## Commits
 
 - One logical change per commit, small enough to review.
-- Subject in the imperative, in English. The body explains why when it is not obvious.
+- Subject in the imperative, in English. The body says why, unless obvious.
 - Do not commit code that fails the checks.
+- Tags and releases wait for the owner's go.
 
 ## When to stop and ask
 
-Stop and ask the owner before proceeding when:
+Stop and ask the owner when:
 
 - A decision affects architecture and no ADR covers it.
 - You want to add a dependency.
 - The request contradicts `docs/ROADMAP.md` or an ADR.
-- The plan turns out to be wrong or a milestone is larger than expected.
-- You are about to delete or rewrite a significant part of existing code.
+- The plan is wrong, or a milestone is larger than expected.
+- You would delete or rewrite much existing code.
 
 Propose options with trade-offs and a recommendation. Do not work around a problem to keep going.
 
@@ -181,16 +170,18 @@ Propose options with trade-offs and a recommendation. Do not work around a probl
 At the end of each milestone, report:
 
 - What was done.
-- Notable design choices, why, and which alternatives were rejected.
-- What deserves to be read first.
+- Notable design choices, why, and alternatives rejected.
+- What to read first.
 - Shortcuts taken and debt introduced.
 
 ## Working with several agents
 
-- Each agent works on one milestone or one crate at a time, as assigned in `docs/PLAN.md`.
-- Do not edit files outside your assigned scope. If you need a change elsewhere, report it.
-- Shared files (`docs/PLAN.md`, `docs/ARCHITECTURE.md`, workspace `Cargo.toml`) are edited by one agent at a time.
-- A reviewing agent checks a milestone against this file and the ADRs before it is reported as done.
+- One session per milestone. After its report, the next starts anew and reads the repository again.
+- Hand research and reviews to subagents. Keep their conclusions.
+- Each agent takes one milestone or crate at a time, as `docs/PLAN.md` assigns.
+- Edit only files in your scope. Report changes needed elsewhere.
+- One agent at a time edits shared files: `docs/PLAN.md`, `docs/ARCHITECTURE.md`, workspace `Cargo.toml`.
+- Before a milestone is reported done, a reviewing agent on the strongest model checks it against this file and the ADRs.
 
 ## Language
 

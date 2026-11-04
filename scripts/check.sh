@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Runs every automated check of the definition of done (AGENTS.md). CI runs this script
-# unchanged, inside the Nix development shell, in three jobs side by side, one for each of its parts
+# Runs every automated check of the definition of done (AGENTS.md); CONTRIBUTING.md, "Checks", says
+# what they are. CI runs it unchanged, inside the Nix development shell, in three jobs side by side
 # (ADR-0123, ADR-0155): `nix develop --no-update-lock-file -c scripts/check.sh headless`, every
 # check that needs neither a compositor nor the sample game's zone, `... scripts/check.sh windowed`,
 # the examples and the windowed lifecycle test run in headless Weston compositors, and
-# `... scripts/check.sh game`, everything that reads the sample game's zone, which it fetches and cooks first (the flag makes an incomplete
-# flake.lock an error instead of a silent update). Without an argument, it runs the three parts, one
-# after the other.
+# `... scripts/check.sh game`, everything that reads the sample game's zone, which it fetches and
+# cooks first (the flag makes an incomplete flake.lock an error instead of a silent update). Without
+# an argument, it runs the three parts, one after the other.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # The Nix development shell sets this variable (flake.nix). Without the shell, the GPU tests and the

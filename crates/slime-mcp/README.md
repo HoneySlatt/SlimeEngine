@@ -48,6 +48,20 @@ The game opens its window on the display that the server's environment names. To
 desktop, start the server with the environment of a headless Weston, and lavapipe to draw it
 ([`CONTRIBUTING.md`](../../CONTRIBUTING.md#driving-a-running-game)).
 
+An agent keeps its runs apart from the user's files:
+
+- The game: without `--save`, *Hunna Wood* resumes and writes the user's save, in their data
+  directory ([its README](../../games/hunnawood/README.md#playing)). An agent starts it with
+  `--new --save <a file of its own>`.
+- The editor: an agent starts it on a copy of a level, with a journal of its own (`--level`,
+  `--journal`). Without `--journal`, the journal lies in the user's data directory; it keeps what
+  the editor did not write, which the editor recovers as it starts again.
+- The keys: the editor's operations `view.keys_blender` and `view.keys_default` change the keys that
+  the user chose for every program of the editor, kept in the user's state directory
+  (`docs/adr/0160-two-viewports-and-blenders-way.md`). An agent leaves them alone, unless the
+  server runs with a state directory of its own (`XDG_STATE_HOME`), as the session tests do
+  (`tests/common/session.rs`).
+
 ## Entry points
 
 The tools, each described to the agent by the server itself, with its parameters:
@@ -76,8 +90,10 @@ The tools, each described to the agent by the server itself, with its parameters
   (`docs/adr/0128-asset-requests.md`).
 - `pick`: the entity drawn at a pixel of the game's image, or of one of its views, counted as in
   the image that `capture` gives, by its persistent identity and name, or nothing; the game picks it
-  on the GPU, exactly as it draws it, a frame or more later (`docs/adr/0130-picking.md`); the
-  editor picks nothing that its user hid or locked (`docs/adr/0169-the-eye-and-the-lock.md`).
+  on the GPU, exactly as it draws it, a frame or more later (`docs/adr/0130-picking.md`). An
+  editor's viewports are its views, `viewport` and `viewport 2`
+  (`docs/adr/0159-picking-and-the-selection.md`, `docs/adr/0160-two-viewports-and-blenders-way.md`);
+  it picks nothing that its user hid or locked (`docs/adr/0169-the-eye-and-the-lock.md`).
 - `find_elements`, `element_at`, `act_on_interface` and `capture_element`: the game's interface, as
   its last frame left it (`docs/adr/0143-what-agents-see-of-the-interface.md`). `find_elements`
   lists its elements of a role, `Button`, and whose names hold a text, each by its path, which names
@@ -95,13 +111,15 @@ The tools, each described to the agent by the server itself, with its parameters
   keys do; `capture_element` gives the part of the image where one shows.
 - `read_logs`: the lines of the game's log after a given line.
 - `save_game` and `load_game`: the game's run saved to a file, and loaded from one in place of the
-  run, as the game saves and resumes its own runs; a file of the agent's, never the player's save.
+  run, as the game saves and resumes its own runs; a file of the agent's, never the player's save
+  (`docs/adr/0125-saves-per-scene.md`).
 - `edit`, `undo`, `redo`, `select`, `editor_history`, `editor_journal` and `write_level`: an
   editor's level, started with `start_game` as a game is, the `editor` example or a game's editor
-  package, on a copy of a level and with a journal of the agent's (`--level`, `--journal`): a step
-  of commands given as text, whole or not at all, undone and done again, entities selected, the
-  steps done and undone, the selection and what the editor recovered as it started, its journal,
-  and the level written back, with what its file could not hold.
+  package, on a copy of a level and with a journal of the agent's (`--level`, `--journal`), with
+  its window or without it (`--headless`): a step of commands given as text, whole or not at all,
+  undone and done again, entities selected, the steps done and undone, the selection and what the
+  editor recovered as it started, its journal, and the level written back, with what its file could
+  not hold (`docs/adr/0134-the-editors-core.md`).
 - `list_operations` and `run_operation`: an editor's operations, every action that its menus, its
   shortcuts and its palette run, listed with their parameters and what they change, and one run
   by its name with its arguments, as a person runs it
@@ -115,7 +133,7 @@ The tools, each described to the agent by the server itself, with its parameters
   reach the editor all along, and a played game that no longer answers points the game's tools
   back at the editor. A step that the editor makes reaches the game a moment after the editor
   answers. `stop_game` stops the editor, which ends the game that it plays, and `play.stop` that
-  game alone (`docs/adr/0165-editing-while-playing.md`).
+  game alone (`docs/adr/0164-play.md`, `docs/adr/0165-editing-while-playing.md`).
 - `cook`: cooks a directory of source assets, which a game started with `--watch` loads again.
 - `run_tests`: runs `cargo test` with the arguments given.
 

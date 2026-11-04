@@ -63,7 +63,45 @@ waits for the level's path typed. Most desktop distributions install them alread
 Install [rustup](https://rustup.rs) and the Visual Studio Build Tools with the "Desktop development
 with C++" workload, which provides the MSVC compiler and linker and the Windows SDK. rustup reads
 `rust-toolchain.toml` like on Linux. `scripts/check.sh` needs Linux and Nix: on Windows, run the
-cargo commands listed in [`AGENTS.md`](AGENTS.md#environment-and-commands) instead.
+cargo commands listed in [Commands](#commands) instead.
+
+### Commands
+
+The project's commands, run at the repository's root. Their comments say what each does and where
+its details live; [Checks](#checks) says what `scripts/check.sh` runs.
+
+```sh
+nix develop                                               # enter the dev shell
+cargo build --workspace
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+cargo fmt --all --check
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+scripts/check.sh                                          # everything above, plus the checks below
+cargo run -p slime-cook -- cook examples/assets target/cooked/examples  # cook what the scene, world and interface examples read
+cargo run --release -p slime-cook -- watch <sources> <output>  # cook again each change (ADR-0076)
+cargo run --example <name>                                # run an example (list in examples/README.md)
+cargo run --release -p slime-benches -- [<name>...]       # run the benchmarks (benches/README.md)
+scripts/measure.sh "<title>" >> docs/measurements.md      # time the build, run the benchmarks (ADR-0104)
+scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
+blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)
+cargo run -p hunnawood                                    # play the game (games/hunnawood/README.md)
+cargo run -p hunnawood -- --watch                         # load its zone and the shaders again as they change
+cargo run -p hunnawood -- --new --save <file>             # play a new run, saved to <file>, not to the user's save
+cargo build -p hunnawood --no-default-features           # the game built for shipping, without the development channel and the dev overlay (ADR-0122, ADR-0152)
+cargo run --example editor -- --level <a copy of a level> --journal <file>  # the editor's window on the examples' yard (ADR-0135, ADR-0156); --headless without a window
+cargo run --example editor -- --journal <file> --output <file.png>  # the editor's window drawn into an image, without a window
+cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>  # the game's editor on its zone, Play building and running `hunnawood` (games/hunnawood-editor/README.md)
+cargo run --example text -- --output <file.png>           # the interface's text in several writing systems, rasterized by the CPU (ADR-0136)
+cargo run --example interface -- --output <file.png>      # an interface built as a tree of elements, styled by a theme: text, boxes, images, a view (ADR-0140, ADR-0141)
+cargo run --example widgets -- --output <file.png>        # the widgets of a panel in the editor's look: check boxes, sliders, sections, tabs, two panels, scroll bars (ADR-0148), menus, a list to choose from, tooltips, a floating panel (ADR-0150), rich fields, notifications, the palette of commands (ADR-0151), a color well (ADR-0152)
+scripts/subset-fonts.sh <noto> <noto-cjk> <noto-emoji>    # make the fonts of slime-ui's tests again (crates/slime-ui/tests/fonts/README.md)
+scripts/screen-reader-check.sh <the interface example's program> <cooked data>  # read and use it through AT-SPI, as a screen reader does, on a Wayland display (ADR-0147)
+cargo run --quiet -p slime-mcp                            # the engine's MCP server, through which an agent drives a game (crates/slime-mcp/README.md)
+```
+
+`scripts/check.sh headless`, `windowed` and `game` run one of its three parts, as CI's three Linux
+jobs do ([Checks](#checks)).
 
 ### GPU
 
@@ -309,36 +347,46 @@ One script runs every automated check, exactly as CI does:
 nix develop -c scripts/check.sh
 ```
 [`scripts/check.sh`](scripts/check.sh) runs rustfmt, clippy with warnings as errors, the build and
-tests of every target, the renderer's and the world's tests again with glam's assertions on (which a
-game that turns them on also turns on in the engine), rustdoc with warnings as errors, once more for
-`slime-ui` with its feature `editor-look`, `cargo deny` (dependency licenses, security advisories
-and sources; it downloads the advisory database, so it needs network access), the list of the sample
-game's source assets (`scripts/fetch-assets.sh`), `slime-cook check` (every source asset has a
-metadata file of its own, [ADR-0069](docs/adr/0069-the-asset-pipeline.md)), the sample's assets
-cooked twice and compared, then a third time, which must cook nothing, the sample game's zone
-fetched and cooked, the tests that read it, *Hunna Wood*'s editor's included, and an agent's session
-through the MCP server that edits a copy of the zone with that editor, the samples with no display
-server available, the `editor` example's window drawn into an image, and an agent's session that
-edits a copy of the examples' yard with the `editor` example run without its window, the windowed
-samples, the `interface` example's interface used by an agent's session
-through the MCP server, which presses a button that changes its world and gives a field a value, and
-read and used through AT-SPI as a screen reader does, the `widgets` example drawn into an image, run
-in a window and its widgets, menus, list to choose from and floating panel each used by an agent's
-session through the MCP server, the `editor` example's window used by an agent's session through the
-MCP server, its operations run by name, its menu and its palette, a row of its hierarchy dropped
-before another, an entity picked in its viewport, then locked and hidden by its row's buttons,
-its second viewport captured, a panel moved to another region and a border between two dragged, which must run no frame while it is alone, the `world` example's
-two views captured, the map's
-normals shown, its reports read and an entity picked at a pixel, by an agent's session through the MCP server, the
-`scene` example on a copy of the cooked sample with one byte changed, which must end with an error
-and not a panic, the game (its new runs, one that loses its GPU device after its first frame and
-must go on, one resumed from a copy of its save fixture, and one driven by an agent's session
-through the MCP server, their saves kept apart from the user's) and the windowed lifecycle test
-inside a headless Weston compositor (and that test's resize and oversize scenarios in a second one,
-at scale 2), the game built for shipping, which must hold neither the development channel nor the
-dev overlay, the game, which must hold no adapter for screen readers, and `lychee` (links between
-Markdown files). The individual commands are listed in
-[`AGENTS.md`](AGENTS.md#environment-and-commands) for when you want to run only one of them.
+tests of every target, the renderer's and the world's tests again with glam's assertions on
+(`--features glam/debug-glam-assert`, which a game that turns them on also turns on in the engine),
+rustdoc with warnings as errors, once more for `slime-ui` with its feature `editor-look`,
+`cargo deny --locked check` (dependency licenses, security advisories and sources; it downloads the
+advisory database, so it needs network access), the list of the sample game's source assets
+(`scripts/fetch-assets.sh`), `slime-cook check` (every source asset has a metadata file of its own,
+[ADR-0069](docs/adr/0069-the-asset-pipeline.md)), the sample's assets cooked twice from empty
+directories and their bytes compared, then a third time, which must cook nothing, the sample game's
+zone fetched and cooked, the tests that read it, *Hunna Wood*'s editor's included
+(`cargo test -p hunnawood -p hunnawood-editor -- --ignored`), and an agent's session through the MCP
+server that edits a copy of the zone with that editor, the samples with no display server
+available, the `editor` example's window drawn into an image, and an agent's session that edits a
+copy of the examples' yard with the `editor` example run without its window, the windowed samples,
+the `interface` example's interface used by an agent's session through the MCP server, which
+presses a button that changes its world and gives a field a value, and read and used through AT-SPI
+as a screen reader does (`scripts/screen-reader-check.sh`,
+[ADR-0147](docs/adr/0147-the-screen-readers-check-in-ci.md)), the `widgets` example drawn into an
+image, run in a window and its widgets, menus, list to choose from and floating panel each used by
+an agent's session through the MCP server ([ADR-0148](docs/adr/0148-widgets.md),
+[ADR-0150](docs/adr/0150-layers.md)), the `editor` example's window used by an agent's session
+through the MCP server, its operations run by name, its menu and its palette, a row of its
+hierarchy dropped before another, an entity picked in its viewport, then locked and hidden by its
+row's buttons, its second viewport captured, a panel moved to another region and a border between
+two dragged, which must run no frame while it is alone
+([ADR-0156](docs/adr/0156-the-editors-window-and-its-operations.md),
+[ADR-0159](docs/adr/0159-picking-and-the-selection.md),
+[ADR-0160](docs/adr/0160-two-viewports-and-blenders-way.md),
+[ADR-0169](docs/adr/0169-the-eye-and-the-lock.md), [ADR-0172](docs/adr/0172-regions-of-tabs.md)),
+the `world` example's two views captured, the map's normals shown, its reports read and an entity
+picked at a pixel, by an agent's session through the MCP server, the `scene` example on a copy of
+the cooked sample with one byte changed, which must end with an error and not a panic, the game (its
+new runs, one that loses its GPU device after its first frame and must go on, one resumed from a
+copy of its save fixture, and one driven by an agent's session through the MCP server, their saves
+kept apart from the user's) and the windowed lifecycle test inside a headless Weston compositor
+(and that test's resize and oversize scenarios in a second one, at scale 2), the game built for
+shipping, which must hold neither the development channel nor the dev overlay
+([ADR-0152](docs/adr/0152-the-dev-overlay-on-the-engines-interface.md)), the game, which must hold
+no adapter for screen readers ([ADR-0146](docs/adr/0146-screen-readers.md)), and `lychee` (links
+between Markdown files). [Commands](#commands) lists the individual commands, to run only one of
+them.
 
 The script also runs clippy for the Windows target, which catches code that does not compile on
 Windows without a Windows machine.
@@ -377,9 +425,8 @@ code.
 
 1. Keep each commit to one logical change, small enough to review. Write the subject in the
    imperative, in English; explain in the body why the change is needed when it is not obvious.
-2. Update every document the change affects. The table in
-   [`AGENTS.md`](AGENTS.md#files) says which document covers what, and each fact has one home that
-   the others link to ([one home per fact](AGENTS.md#one-home-per-fact)).
+2. Update every document the change affects. [`AGENTS.md`](AGENTS.md#one-home-per-fact) says
+   which document covers what: each fact has one home, which the others link to.
 3. Do not commit code that fails the checks of the
    [definition of done](AGENTS.md#definition-of-done).
 4. A source asset, a glTF, PNG, JPEG or scene file (`.scene`) that the cooker reads, is committed
