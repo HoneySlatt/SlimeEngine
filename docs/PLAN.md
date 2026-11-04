@@ -1,48 +1,38 @@
 # Plan
 
-This file says what is being worked on now. It lists the milestones of the current stage, their
-status, how each one is checked, and the known debt. Direction beyond this stage is in
-[`ROADMAP.md`](ROADMAP.md); decisions are in [`adr/`](adr/README.md). A *stage* is a step of the
-roadmap; a *milestone* is a small, verifiable step of a stage.
+This file says what is being worked on now: the current stage, its milestones, their status, how
+each one is checked, and the known debt. A *stage* is a step of the roadmap; a *milestone* is a
+small, verifiable step of a stage.
+
+- The finished stages and their releases: [`history.md`](history.md).
+- Direction beyond this stage: [`ROADMAP.md`](ROADMAP.md).
+- Decisions: [`adr/`](adr/README.md).
 
 Every milestone ends with the definition of done in [`AGENTS.md`](../AGENTS.md#definition-of-done):
 build, tests, clippy, rustfmt and rustdoc pass, the program was actually run, and the affected
-documentation was updated and reread. From Stage 2 on, every milestone is also checked on Windows
+documentation was updated and reread. Every milestone is also checked on Windows
 ([ADR-0014](adr/0014-amend-roadmap-for-stage-2-and-windows.md)).
 
 ## Current
 
-- Stage 6b — The engine's interface: done, and released as 0.6 on 2026-10-27
-  ([ADR-0131](adr/0131-stage-6b-and-stage-6c.md) to
-  [ADR-0154](adr/0154-floating-panels-and-held-keys.md)). The engine has a UI framework of its own,
-  on which the dev overlay of *Hunna Wood* and of the examples runs, on Linux and on Windows: text
-  in several writing systems, a tree of elements styled by themes read from files, input, focus and
-  layers, text edited through input methods and the clipboard, widgets, menus, a palette of
-  commands and notifications, read and used by agents through the MCP server and read by screen
-  readers; egui has left the engine. The editor's core changes a level through commands, undone,
-  redone and journaled, and writes it back with its comments, driven by an agent through the
-  editor's own program, without a window yet. See [Completed stages](#completed-stages).
-- Stage 6c — The editor: planned on 2026-10-27 ([ADR-0155](adr/0155-the-editors-design.md)), to be
-  released as 0.7 at its close. A study of the editor's design, made by four agents from four
-  starting points and measured in prototypes on the owner's machine, led to the owner's sixteen
-  decisions on the editor's design, its milestones and their order, which ADR-0155 records. M6c.0
-  is done, and M6c.1 was split in two at its start, M6c.1a and M6c.1b, both done; M6c.2 was split in
-  two at its start too, of which M6c.2a is done, and M6c.2b in two again at its start, M6c.2b and
-  M6c.2c, both done; M6c.3 was split in two at its start, M6c.3a and M6c.3b, of which M6c.3a is
-  done, and M6c.3b in two again at its start, M6c.3b and M6c.3c, all done; M6c.4 was split in
-  three at its start, M6c.4a, M6c.4b and M6c.4c, of which M6c.4a and M6c.4b are done, and M6c.4c
-  in two again at its start, M6c.4c and M6c.4d, both done; Checkpoint A is done on Linux, its
-  part in the Windows virtual machine to come; M6c.5 was split in four at its start, M6c.5a,
-  M6c.5b, M6c.5c and M6c.5d, of which M6c.5a is done, and M6c.5b in two again at its start,
-  M6c.5b and M6c.5c, the regions and the inspector becoming M6c.5d and M6c.5e, of which M6c.5b and
-  M6c.5c are done, and M6c.5d in two again at its start, M6c.5d and M6c.5e, the inspector becoming
-  M6c.5f, of which M6c.5d is done; next: M6c.5e.
-- Stage 6d — The interface for applications: decided on 2026-11-04
-  ([ADR-0170](adr/0170-applications-on-the-ui-framework.md)), to follow Stage 6c and be released
-  as 0.8. The engine's UI framework is to run desktop applications outside this repository, a
-  launcher of games first, as well as the frameworks they leave, and to gain the motion, transforms
-  and drawing that games and the editor need too. Its milestones are planned at its start, with the
-  owner.
+- Stage in progress: Stage 6c, the editor, to be released as 0.7
+  ([ADR-0155](adr/0155-the-editors-design.md)).
+- Done: M6c.0, M6c.1a, M6c.1b, M6c.2a, M6c.2b, M6c.2c, M6c.3a, M6c.3b, M6c.3c, M6c.4a, M6c.4b,
+  M6c.4c, M6c.4d, M6c.5a, M6c.5b, M6c.5c and M6c.5d.
+- Checkpoint A: done on Linux; its part in the Windows virtual machine waits for the owner.
+- Next: [M6c.5e](#m6c5e--layouts-kept-floating-panels-and-closed-panels), layouts kept, floating
+  panels and closed panels.
+- Then: M6c.5f, M6c.6, M6c.7, Checkpoint B, M6c.8 and M6c.9.
+- Cuts made at a milestone's start, a part cut again at its own start where needed: M6c.1 into 1a
+  and 1b; M6c.2 into 2a to 2c; M6c.3 into 3a to 3c; M6c.4 into 4a to 4d; M6c.5 into 5a to 5f.
+- M6c.6 is expected to be cut in two, M6c.6a and M6c.6b.
+- After Stage 6c: Stage 6d, the interface for applications, to be released as 0.8, decided on
+  2026-11-04 ([ADR-0170](adr/0170-applications-on-the-ui-framework.md),
+  [ADR-0171](adr/0171-effects-of-the-interface.md),
+  [ADR-0173](adr/0173-the-platforms-of-applications.md)).
+- Stage 6d's milestones are planned at its start, with the owner.
+- After Stage 6d: Stage 7, runtime systems, to be released as 0.9
+  ([`ROADMAP.md`](ROADMAP.md#stage-7--runtime-systems--09)).
 
 ## Status
 
@@ -74,1065 +64,179 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.8](#m6c8--panels-dragged-to-dock) | The user drags panels and tabs to arrange the editor; may move to Stage 11 | Planned |
 | [M6c.9](#m6c9--windows-check-documentation-release-07) | Stage 6c is done, checked on Windows, and released as 0.7 | Planned |
 
-Stages 0, 1, 2, 3a, 3b, 3c, 3d, 4a, 4b, 5a, 5b, 6a and 6b are done, and so are the audit pass and
-the foundations pass; see [Completed stages](#completed-stages).
-
 ## Stage 6c — The editor
 
-Exit criterion (see [`ROADMAP.md`](ROADMAP.md#stage-6c--the-editor--07)): a level of the game is
+Exit criterion ([`ROADMAP.md`](ROADMAP.md#stage-6c--the-editor--07)): a level of the game is
 built, saved and reloaded entirely in the editor, with undo and redo on every operation; the editor
 uses no private engine API. Released as 0.7 ([ADR-0131](adr/0131-stage-6b-and-stage-6c.md)).
 
-This is the third part of Stage 6 ([ADR-0131](adr/0131-stage-6b-and-stage-6c.md)): the editor, a
-client of the engine on the engine's interface, which a person and an agent use alike. Where the
-engine stands at the start:
+[ADR-0155](adr/0155-the-editors-design.md) records the owner's decisions of 2026-10-27: the
+editor's design, the milestones, their order, the two checkpoints, one release and the
+dependencies. Each milestone delivers what ADR-0155 decides for it, and:
 
-- **The editor has a core and a program, without a window**
-  ([ADR-0134](adr/0134-the-editors-core.md), [ADR-0135](adr/0135-the-editors-program.md)): commands
-  that name entities by their persistent identities, steps undone, redone and journaled, the
-  selection, a level of one scene file written back with its comments; the `editor` example and
-  *Hunna Wood*'s editor package, which an agent drives through the MCP server. A presentation can
-  only queue the world's commands, each its own step: it can neither ask the core to undo, to
-  select or to write, nor read the selection and the history.
-- **The engine's interface** ([ADR-0132](adr/0132-the-engines-ui-framework.md), ADR-0140 to
-  [ADR-0154](adr/0154-floating-panels-and-held-keys.md)) has widgets, layers, a menu bar, a palette
-  of commands, notifications and floating panels, read by agents and by screen readers; the dev
-  overlay's editors of reflected values and its world panel run on it
-  ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)). It has no docking, no dialogs
-  to open and save, no drag and drop between elements, no rows that are selected.
-- **Views, picking and drawing for the editor**
-  ([ADR-0126](adr/0126-views-apart-from-the-renderer.md) to [ADR-0130](adr/0130-picking.md)): a
-  view draws into a target of its own, which the canvas shows; picking by the GPU and by the CPU;
-  lines and unlit instances in the scene, lines over the image. The scene's depth is not resolved
-  for an outline, and nothing is drawn over the image with a depth of its own.
-- **The platform reads keys, the mouse, input methods and the clipboard of one window**, without
-  the mouse's raw motion, a cursor held or files dropped (issue
-  [#3](https://github.com/HoneySlatt/SlimeEngine/issues/3)), and **a frame runs at the scheduled
-  rate** whether anything changed or not ([ADR-0021](adr/0021-frame-pacing.md)).
-- **An MCP server drives one program at a time.** The development channel took most of a tenth of
-  a second to answer a request, which Nagle's algorithm cost, until M6c.0
-  ([ADR-0155](adr/0155-the-editors-design.md)).
-- **Play does not exist, and a level is one scene file**, without parts, former identities or
-  `EntityRef` ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)).
-- ***Hunna Wood*'s zone is laid out by its Blender script**, its trees, rocks and ferns scattered
-  from a seed into one glTF file that a scene file places with six lanterns.
+- records the design of a part in a new ADR, which amends ADR-0155 where it changes it;
+- adds a dependency only when it first uses it, and checks what it adds to CI's build;
+- ends with an agent's session in `scripts/check.sh`, in a headless Weston when windowed, and image
+  tests of the panels it adds;
+- records how long CI's jobs take, each within its limit of 20 minutes;
+- may be cut in two at its start.
 
 Out of scope: panels in windows of their own (one window per process); a highlight that follows
 the pointer; the world updated in place keeping a game's handles (Stage 8); files dropped on
-Wayland, and placed where they fall, which wait for winit 0.31, whose move is a milestone of its
-own when it is released and does not hold 0.7 back; named layouts; a start page or a manager of
-projects; modal keys G, R and S; a wireframe of the whole scene; a fix of the renderer for
-[ADR-0041](adr/0041-render-graph.md)'s stall, unless the owner brings it in; editors of materials,
-animation, effects and sound, and the rest of Stage 11's editor; a game's own editing tools (Stage
-8's plugins, [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)); story layers (Stage 9b);
-cells and streaming (Stage 10a).
+Wayland, and placed where they fall, which wait for winit 0.31 (a milestone of its own, not holding
+0.7 back); named layouts; a
+start page or a manager of projects; modal keys G, R and S; a wireframe of the whole scene; a fix
+of [ADR-0041](adr/0041-render-graph.md)'s stall, unless the owner brings it in; editors of
+materials, animation, effects and sound (Stage 11); a game's own editing tools (Stage 8); story
+layers (Stage 9b); cells and streaming (Stage 10a).
 
-Decisions taken when the stage was planned, by the owner on 2026-10-27: the editor's design, the
-milestones, their order, the owner's two checkpoints, one release, and the dependencies, in
-[ADR-0155](adr/0155-the-editors-design.md). Each milestone that designs a part records its design
-in a new ADR, which amends ADR-0155 where it changes it; each dependency is added at the milestone
-that first uses it, rfd at M6c.1b, `serde_json` in `slime-editor` at M6c.4, notify at M6c.7, what it
-adds to CI's build checked then. Every milestone ends, besides the definition of done, with an
-agent's session in `scripts/check.sh`, in a headless Weston when it is windowed, and image tests of
-the panels that it adds. Any milestone may be cut in two at its start, as Stage 6b's were; M6c.1
-and M6c.2 were, and M6c.5 and M6c.6 are expected to be.
+Open risks (ADR-0155's context gives their figures):
 
-Risks, whose figures ADR-0155's context gives:
+- ADR-0041's stall makes a view drawn again cost milliseconds of CPU without resizable BAR, on the
+  owner's machine too; the editor and the game at once, and Windows, are not measured.
+- On Windows, a running executable may block Play's link of the game.
+- Not measured: the outline and the handles at 3840 × 2160 with many entities selected; thumbnails
+  of thousands of meshes; docking's drags.
+- The stage's size: ADR-0155's study counted 31 000 to 39 000 lines of Rust with their tests.
+- winit 0.31, in beta for months, and `accesskit_winit`'s release for it.
 
-- **[ADR-0041](adr/0041-render-graph.md)'s stall decides how the editor feels on machines without
-  resizable BAR**, the owner's included: a view drawn again costs several milliseconds of CPU once
-  the desktop fills the GPU's memory that the CPU maps. Drawing on demand hides most of it; M6c.2a
-  measured `PASSES_PER_SUBMISSION` and the bloom there ([`docs/measurements.md`](measurements.md)).
-  The editor and the game running at once, two devices on one GPU, and Windows were never
-  measured.
-- **The cursor held and the mouse's raw motion were never run**, on any system: the study read
-  winit's sources. M6c.1b tries them first, by hand, on niri, Hyprland, X11 through XWayland and in
-  the Windows virtual machine, where relative motion may be missing.
-- **No dialog was opened**: whether niri and Hyprland give `xdg-foreign` v2, without which a dialog
-  is not modal to the window, and rfd off the main thread on Windows. M6c.1b's tests give the
-  window the dialog's answers; the dialog itself is opened by hand. A path typed in the layer that
-  waits for the dialog is the fallback
-  ([ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md)).
-- **Play's figures are partial**: caches warm, nothing built, written or cooked, no level of 100 000
-  entities. M6c.4 measures Play from the click; on Windows, a running executable may block the
-  link. [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)'s second condition, that what the
-  editor inspects through the channel is enough, cannot be tested before M6c.0's fix.
-- **The open step and the order of the channel's requests**: M6c.3a's tests settled them: a crash
-  during a drag loses the drag alone, which the journal never held, and agents' steps that waited
-  are applied after it, in their order
-  ([ADR-0161](adr/0161-the-open-step-and-the-handles.md)).
-- **Writing several files whole or not at all**, beside `World::carry` and saves per scene
-  ([ADR-0125](adr/0125-saves-per-scene.md)), and **opening leniently by splicing text** back: both
-  unproven, M6c.6a starts with them.
-- **The hierarchy's peaks**: in the study's prototype, a broad filter and a jump by a page passed a
-  list's budget ([ADR-0140](adr/0140-the-tree-of-elements.md)). The filter runs off the frame or
-  after a pause; M6c.5a measures with search and drags at 100 000 entities.
-- **Costs never measured**: the outline and the handles at 3840 × 2160 with many entities selected;
-  thumbnails at the scale of thousands of meshes, and drawn many at once; docking's drags and a
-  docked layout's interface.
-- **The size of the stage.** The study counted 31 000 to 39 000 lines of Rust with their tests,
-  more than Stage 6b's framework. [Checkpoint A](#checkpoint-a--the-owner-tries-the-editor) is where
-  to cut: docking by drag, stamp mode and modal keys are already outside what the exit needs.
-- **Dates outside the project**: winit 0.31, in beta for months, and `accesskit_winit`'s release
-  for it. Polling's cost on Windows is not measured, which M6c.7 measures before it adopts notify.
-- **The cost of the checks.** M6c.0 brought each of CI's jobs well within the owner's limit of 20
-  minutes, but every session of the editor adds to the checks ([Known debt](#known-debt)): each
-  milestone records how long CI's jobs take.
-- **One GPU.** Budgets are checked on the owner's RX 6900 XT only ([Known debt](#known-debt)).
+In the milestones done, "Debt:" names entries of [Known debt](#known-debt) by their titles.
 
 ### M6c.0 — Before the stage
 
-- **Goal.** The development channel answers in milliseconds, CI's checks stay within their limit,
-  and a game that a tool started never outlives it.
-- **Crates.** `slime-channel`, `slime-app`; `scripts/check.sh` and CI's workflow; `AGENTS.md` and
-  `CONTRIBUTING.md`.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: each message of the
-  development channel written in one write, Nagle's algorithm turned off at both ends
-  (`TCP_NODELAY`); the round trip measured again, in [`docs/measurements.md`](measurements.md), and
-  what remains of the delay, if delayed acknowledgements still hold it, said. A game started with a
-  token ends when its standard input closes, so that an editor, an MCP server or a test that crashes
-  leaves no game behind, with the standard library alone. `scripts/check.sh` in three parts, which
-  CI runs in three jobs side by side, which runs each part holds chosen at the milestone, the limit
-  of 20 minutes kept ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md)). `CONTRIBUTING.md`
-  says that a windowed run measured on a GPU in a headless Weston needs `--renderer=gl`, without
-  which RADV cannot present and wgpu falls back on lavapipe.
-- **Done when.** A test of the channel's round trip, and its figure; a test in which a game started
-  by a tool ends once its standard input closes; the commands of `AGENTS.md` and `CONTRIBUTING.md`
-  name the three parts; CI is green, each job within its limit, their times recorded here.
-- **How to test.** `cargo test -p slime-channel -p slime-app`; `scripts/check.sh` with each part.
-- **Debt settled.** CI's Linux jobs past their limit of 20 minutes.
-- **Outcome.** Done on 2026-10-27. Each message of the development channel goes out in one write,
-  but for a payload, which follows in a second, Nagle's algorithm off at both ends: a request
-  answered at once took 82 ms and takes 0.14 ms, and no delayed acknowledgement remains in it
-  ([measurements](measurements.md#m6c0-ryzen-7-5800x)); `slime-channel`'s test measures it. A game
-  started with a token ends once its standard input closes, which `slime_channel::launch` holds as
-  a pipe, the run stopping as at a termination signal; a terminal there is left alone, and an input
-  that is empty or missing, as `/dev/null`, ends the game at once, which the token's rustdoc says;
-  `slime-app`'s `tests/channel.rs` checks it, and fails without it. CI's failures since 0.6 came
-  from the game's agent session: each of its requests waits for a frame of the zone, which took
-  about 25 s on CI's runners with its shadows, and it reached its own limit of 15 minutes. The
-  session now sets the game's view without shadows, without anti-aliasing and at half its size once
-  the game is paused, which the game's own runs in the checks do not: 426 s became 21 s on four
-  cores, and 22 s on CI. `scripts/check.sh` has three parts: `headless`, every check that needs
-  neither a compositor nor the zone; `windowed`, the examples and the windowed lifecycle test; and
-  `game`, everything that reads the zone, which it alone fetches and cooks among the Linux jobs.
-  `CONTRIBUTING.md` says how to measure a windowed run on a GPU in a headless Weston, which was
-  checked: with Weston's default renderer, the `window` example took llvmpipe; with
-  `--renderer=gl`, the RX 6900 XT. The review found the empty input's case undocumented, a read
-  interrupted by a signal taken for the tool's end, and several documents that said less or other
-  than the code, each fixed. CI is green on `a199369`: `check (headless)` took 13 minutes 35
-  seconds, `check (windowed)` 4 minutes 42 seconds, `check (game)` 4 minutes 14 seconds with the
-  cooked zone restored from its cache, `windows` 19 minutes 43 seconds and `windows-release` 13
-  minutes 32 seconds. `windows` then ran some of its tests a second time to print what they measured
-  on WARP, built again for it with other features; its one run of the tests now leaves their output
-  uncaptured instead. CI is green on `bb4552b`: `check (headless)` 13 minutes 43 seconds, `check
-  (windowed)` 5 minutes 31 seconds, `check (game)` 4 minutes 14 seconds, `windows` 11 minutes 20
-  seconds and `windows-release` 10 minutes 10 seconds, on runners faster than the run before.
+Done 2026-10-27, CI green on `bb4552b`: the development channel answers in 0.14 ms, not 82 ms; a
+game that a tool started ends when its standard input closes; `scripts/check.sh` runs in three
+parts, which CI runs side by side.
 
-### M6c.1 — The editor's window
+### M6c.1a — The window and its operations
 
-The owner split it in two at its start, on 2026-10-28: the window and its operations, then the
-dialogs, the cursor held and the GPU's identity.
+Done 2026-10-28, [ADR-0156](adr/0156-the-editors-window-and-its-operations.md), CI green on
+`a20c15c`: the editor's window, drawn on demand, whose menus, shortcuts, palette and agents run one
+registry of operations.
 
-#### M6c.1a — The window and its operations
+### M6c.1b — Dialogs, the cursor held and the GPU's identity
 
-- **Goal.** The editor opens a level in a window of its own, where a person and an agent run the
-  same named operations.
-- **Crates.** `slime-editor`, `slime-app`, `slime-channel`, `slime-mcp`, `slime-ui`,
-  `slime-platform`, `slime-devui`; the `editor` example and `games/hunnawood-editor`.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: the editor's window, a
-  presentation of the editor's program that reads the core through a value they share and asks it
-  through typed requests, the channel's `Edit` requests going through the same handler; the
-  registry of operations, run by menus, shortcuts, the palette and agents alike, the channel's
-  requests that list them and run one by name, version 10 of the protocol, and the MCP server's
-  two tools; frames on demand in `slime-app`, and the interface drawn only when it changed; fixed
-  regions of panels, the menu bar, a status bar, and the window's title, both showing how many
-  steps are not written; quitting at once, the journal keeping what was not written; opening
-  another level in the same window by a path given, which M6c.1b's dialog fills in for a person,
-  saving under another name waiting for M6c.6, where a copy of a level gets its asset ID and its
-  identities; the center of the window empty until M6c.2's viewport, with a word; the palette
-  scrolling past 12 entries; roots named in paths by their keys, not by their numbers; the
-  window's title changed while it runs; `slime-app`'s state and cache directories beside its data
-  directory; the dev overlay's world panel in a region, as the hierarchy and the inspector until
-  M6c.5; on the first run, the program's level opened at once, the examples cooked if missing, the
-  recent levels in the File menu and one hint; the run without a window kept for CI's agents, which
-  runs a frame only when a request comes too, as the owner decided on 2026-10-28. The ADR of the
-  design.
-- **Done when.** Tests without a GPU: the core answers the window's requests and the channel's
-  alike; an operation run by its name, by its shortcut and from the palette does the same; the
-  operations that change the view enter no history. A check finds every item of a menu and every
-  entry of a `.keys` file in the registry. An agent's session in a headless Weston opens the yard,
-  runs operations by name, undoes, and writes the level; an idle editor runs no frame for 10 s;
-  image tests of the window at scales 1 and 2; CI is green.
-- **How to test.** `cargo test -p slime-editor -p slime-app -p slime-ui -p slime-channel`;
-  `cargo run --example editor -- --level <a copy of the yard> --journal <file>`; the MCP server's
-  session tests.
-- **Debt settled.** The title changed (issue #3, in part); a root's number in paths; the palette's
-  12 entries.
-- **Outcome.** Done on 2026-10-28, as
-  [ADR-0156](adr/0156-the-editors-window-and-its-operations.md) records. The editor's program opens
-  its level in a window in the editor's look, a menu bar, *File*, *Edit* and *Help*, the dev
-  overlay's world panel in a region on the left, a center that holds no viewport yet, and a status
-  bar, the title and the status bar saying how many steps the level's file does not hold
-  (`Editor::unwritten`); `--headless` runs it without a window. The core and the window share a
-  value, and the window asks the core through requests that the one handler of the development
-  channel's requests answers too. Every action is an operation of one registry
-  (`slime_editor::OPERATIONS`), run by name from the menus, the table of shortcuts
-  (`editor.keys`), the palette and agents, through version 10 of the channel's protocol and the MCP
-  server's `list_operations` and `run_operation`. `slime-app` runs a program's frames on demand
-  (`AppConfig::on_demand`, which replaces the paced run without a window), woken by events, the
-  channel's listener, the interface's needs and deadlines (`Ui::needs_frame`, `Ui::next_change`),
-  `Context::request_frame` and a `Waker`; `slime-app` gives the user's state directory;
-  `slime-ui` names a root by a key in agents' paths and scrolls the palette past 12 commands. The
-  owner decided on 2026-10-28 that the center stays empty until M6c.2, that a level is opened from
-  the window by a path with the recent levels in the File menu while saving under another name waits
-  for M6c.6, and that the run without a window runs on demand too. Measuring the idle editor found
-  it running frame after frame while a notification waited for its end, 281 frames in ten seconds
-  on lavapipe; that end now wakes it once, at its deadline. The review found sixteen faults, each fixed: a test that wrote journals into the
-  user's data directory and sessions that wrote the user's recent levels, now kept in directories
-  of their own; on demand, a list's rows left unbuilt, a submenu opened by the pointer's rest left
-  unshown, and the interface's clock stale after a wait; the world panel left selected when the
-  core selected nothing; a level opened again without the journal that `--journal` names; the
-  palette scrolled too far by keys between two frames; and documents that said other than the code.
-  The tests: the core's requests from the window and the channel alike, an operation by its name,
-  its shortcut, the palette and its menu item, the operations of the selection and the window out
-  of the history, the menus' and `editor.keys`' names in the registry (`slime-editor`'s window
-  tests); the steps not written; image tests of the window at scales 1 and 2
-  (`examples/tests/editor.rs`); and an agent's session in a headless Weston that runs operations
-  by name, opens the File menu and the palette, sees the editor wake for the end of the first
-  run's hint, run no frame for ten seconds alone, and quit (`crates/slime-mcp/tests/edit_window.rs`).
-  What nothing checks yet: the window on Windows, which the owner's check in the virtual machine
-  at Checkpoint A covers. CI is green on `a20c15c`: `check (headless)` took 14 minutes 56 seconds,
-  `check (windowed)` 6 minutes 2 seconds, `check (game)` 5 minutes 15 seconds, `windows` 15 minutes
-  16 seconds and `windows-release` 11 minutes 23 seconds.
+Done 2026-10-28, [ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md), CI green
+on `49620a2`: the system's dialog opens a level, the cursor is held and the raw motion read, and a
+GPU object used with another `Gpu` panics. Debt: "Input not reported yet".
 
-#### M6c.1b — Dialogs, the cursor held and the GPU's identity
+### M6c.2a — The viewport and its navigation
 
-- **Goal.** A person opens a level through the system's dialog, a viewport can hold the cursor
-  and read the mouse's raw motion, and a GPU object cannot act on another `Gpu`'s.
-- **Crates.** `slime-editor`, `slime-ui`, `slime-platform`, `slime-app`, `slime-gfx`;
-  `flake.nix`.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: a dialog to open a level
-  through rfd, on a thread of its own, which fills in for a person the path that an agent gives,
-  and a scrim behind a modal layer; D-Bus's library in the development shell, which rfd loads; the
-  mouse's raw motion and the cursor held, locked on Wayland and Windows, confined, hidden and put
-  back on X11, left free with a word where locking fails; each `Gpu` with an identity that its
-  objects carry, an object used with another `Gpu` panicking (G34). The dependency rfd 0.17, which
-  [ADR-0132](adr/0132-the-engines-ui-framework.md) approved.
-- **Done when.** Tests: the operation that opens a level takes a path without a dialog, and the
-  dialog's answer runs the same operation; a modal layer's scrim in an image test; the raw motion
-  read from the platform's events; an object of one `Gpu` used with another panics. CI is green.
-- **How to test.** `cargo test -p slime-editor -p slime-ui -p slime-platform -p slime-gfx`;
-  `cargo run --example editor -- --level <a copy of the yard> --journal <file>`.
-- **By hand.** The dialog opened on niri, Hyprland and in the Windows virtual machine; the
-  cursor held and the raw motion on niri, Hyprland, X11 through XWayland and in the Windows virtual
-  machine.
-- **Debt settled.** The raw motion and the cursor held (issue #3, in part); a modal layer without a
-  scrim; G34.
-- **Outcome.** Done on 2026-10-28, as
-  [ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md) records. The editor's
-  *Open a level…*, `file.choose` (Ctrl+O, the File menu's first item, the palette), opens a modal
-  layer over the window, which its backdrop dims, with a field for the level's path, and the
-  window opens the system's dialog meanwhile, through rfd on a thread of its own
-  (`slime_platform::Window::choose_file`, `Event::FileChosen`); the file chosen runs `file.open`,
-  the operation that an agent runs with a path. A dialog that answers no file sooner than a person
-  could, where no portal and no `zenity` answer, leaves the layer waiting for the path typed; a
-  program that a tool started opens no dialog of the system, and its layer waits for the path.
-  `slime-ui` gains `PaintStyle::backdrop`, which a layer's root lays over the window below it, and
-  gives a modal layer's root the class `modal`, which the editor's look dims with its theme's
-  scrim. `slime-platform` holds the cursor, hidden (`Window::set_cursor_held`), locked on Wayland
-  and Windows, confined and put back on X11, lets it go as the window loses the focus, and reports
-  the mouse's raw motion while it holds it (`Event::RawMotion`); the `window` example holds it
-  while its right button is held. Each `Gpu` has an identity that its objects carry, a readback
-  included, and a use of an object with another device panics at the caller's line (G34). The
-  review found eleven points, each settled: an agent could still reach the system's dialog through
-  the menu, the palette or Ctrl+O, the channel alone refusing it, which a program that a tool
-  started now settles by opening no dialog; on Windows, winit 0.30 gives a tablet's positions as
-  raw motion, which the rustdoc, the ADR and the debt state; the panic of a mixed object named
-  `slime-gfx`'s line, not the caller's; a readback was not checked; the panics were missing from
-  the methods' documentation; a panic of rfd on its thread left the layer waiting; a lock held
-  across winit's calls could deadlock on Windows; a level named without a directory gave the
-  dialog no directory to start in; and documents that copied facts or said less than the code. The
-  tests: the dialog's answers given by number, a file, none at once, none later, Escape, Cancel and
-  a late answer not heard, and the path typed, in a window that opens dialogs and in one that a
-  tool started (`slime-editor`'s window tests); the backdrop of a modal layer in the look, and none
-  for another (`crates/slime-ui/tests/look.rs`); the window waiting for the dialog in an image test
-  (`examples/tests/editor.rs`, `editor-choose.png`); an agent's session that opens another copy of
-  the yard through *Open a level…*, its path typed (`crates/slime-mcp/tests/edit_window.rs`); the
-  raw motion read from the platform's events; an object of one `Gpu` used with another, and one of
-  a lost device used with its replacement, panicking (`crates/slime-gfx/tests`). What nothing
-  checks yet: the dialog on a desktop, the cursor held and the raw motion, which the owner checks by
-  hand on niri, Hyprland, X11 through XWayland and in the Windows virtual machine. A path mistyped
-  in the layer closes it before `file.open` refuses it, which a notification says. CI's first run
-  found the screen readers' check broken on its Ubuntu runner, where AT-SPI's bus launcher, its path
-  putting `/usr/bin` first, started the system's D-Bus daemon with the development shell's D-Bus
-  library, which it cannot load: its services now run without the shell's library path (`49620a2`).
-  CI is green on `49620a2`: `check (headless)` took 14 minutes 3 seconds, `check (windowed)` 5
-  minutes 56 seconds, `check (game)` 6 minutes 41 seconds, `windows` 14 minutes 40 seconds and
-  `windows-release` 13 minutes 32 seconds.
+Done 2026-10-28, [ADR-0158](adr/0158-the-viewport.md), CI green on `7d51d93`: the level in a
+viewport, flown, orbited and panned, drawn only when what it shows changed. Debt: "The editor's
+viewport shows every light", "Sixteen passes per submission".
 
-### M6c.2 — The viewport
+### M6c.2b — Picking and the selection
 
-Split in two at its start, on 2026-10-28, as [ADR-0155](adr/0155-the-editors-design.md) allows:
-the viewport and its navigation, then picking and the selection; the second part cut in two again
-at its start, the same day, the second viewport and Blender's way in a third
-([ADR-0159](adr/0159-picking-and-the-selection.md)).
+Done 2026-10-28, [ADR-0159](adr/0159-picking-and-the-selection.md), CI green on `00766ea`: a
+click, a marquee, and Alt and a click pick; the selection outlined; two modes of debugging. Debt:
+"Picking in the editor's viewport".
 
-#### M6c.2a — The viewport and its navigation
+### M6c.2c — A second viewport and Blender's way
 
-- **Goal.** The level shows in a viewport that the user flies through, drawn again only when what
-  it shows changed.
-- **Crates.** `slime-ui`, `slime-render`, `slime-editor`; the benchmarks.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: `Kind::Surface`, an element
-  kind that gives the program the pointer's actions and holds the pointer during a drag, single-key
-  shortcuts suspended while the right button flies; the level drawn in the window's center by the
-  editor's own asset cache and frame builder, through a view whose image the interface shows;
-  navigation, flying with the right button held and W, A, S, D, Q, E, the cursor held and the raw
-  motion read, orbiting with Alt and the left button, panning with the middle one, F framing the
-  selection; the grid; icons of lights from Lucide's glyphs, cameras' waiting for the world's
-  cameras; the viewport drawn again only when its camera, the world, its settings or its assets
-  changed, and once more `RESIZE_DELAY` after its size last changed; the viewport named for
-  agents, who capture it and change its settings; `PASSES_PER_SUBMISSION` and the bloom measured
-  while the desktop fills the GPU's memory that the CPU maps. The ADR of the design. The `.keys`
-  preset in Blender's way moved to M6c.2b at its start, since it changes the mouse's buttons,
-  which picking brings ([ADR-0158](adr/0158-the-viewport.md)).
-- **Done when.** Image tests on lavapipe of the grid and the icons; an agent captures the viewport
-  and frames the selection by the operation's name, scripted keys reaching the simulation's input
-  rather than the window; an idle editor's viewport draws nothing; the frame's costs at the
-  hardware tiers' sizes, in [`docs/measurements.md`](measurements.md); CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-render -p slime-editor`;
-  `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
-- **By hand.** Flying and orbiting in the zone on niri, Hyprland and X11 through XWayland.
-- **Debt settled.** A view's new size waiting for its next frame.
-- **Outcome.** Done on 2026-10-28, as [ADR-0158](adr/0158-the-viewport.md) records. The editor's
-  window shows the level in its center through a surface, `slime-ui`'s new `Kind::Surface`, which
-  shows an image that the program draws and gives it the pointer, the keys without Control, Alt or
-  Super reaching the program while a button pressed over it is held. The viewport draws the level
-  with its own asset cache, frame builder and view, under the light that the program gives
-  (`Program::lighting`), again only when the world, the camera, the size, the settings or the meshes
-  changed, and once a new size has held still (`View::resize_due`, `Context::request_frame_at`).
-  The right button held flies with W, A, S, D, Q and E, the cursor held and the raw motion read; Alt
-  and the left button orbit, the middle button pans, the wheel comes nearer, F frames the selection
-  or the level, which is framed so as it opens; where the cursor cannot be held, the camera follows
-  it. A grid lies on the ground and the lights show Lucide's icons; `Line::grid` and `facing` moved
-  from the `world` example into `slime-render`. Tools capture the viewport by its name, change its
-  settings, and read in its report how many times it drew. `PASSES_PER_SUBMISSION` and the bloom
-  were measured in the stall ([`docs/measurements.md`](measurements.md)): a whole frame in one
-  submission cost least, and the owner chose sixteen passes to a submission on 2026-10-28, where
-  ADR-0041 had chosen four. The `.keys` preset in Blender's way moved to M6c.2b, and an agent frames
-  the viewport by the operation's name, scripted keys reaching the simulation's input. The review
-  found nine faults, each fixed: a surface left holding the pointer when its button was let go
-  after the pointer left the window; a camera that a refused hold left still, and a hold tried at
-  every frame; Shift that stuck, and flying stalled by keys that cancelled out; Alt during a gesture
-  giving the bar of menus the focus; a selection that drew nothing left out of the framing; the
-  cooked data not read again for a level opened later; a framing that could override the user's
-  first gesture; and a framing that cut a narrow viewport's sides. The tests: the surface's
-  pointer, keys, wheel and Alt (`crates/slime-ui/tests/surface.rs`); navigation, its gestures,
-  keys, wheel and framing (`slime-editor`'s unit tests); a view's due resize (`slime-render`'s);
-  the editor's window drawn with its viewport, waiting for the dialog too, in image tests
-  (`examples/tests/editor.rs`); and an agent's session that captures the viewport, sees a menu's
-  frames leave it undrawn and framing a lamp draw it again (`crates/slime-mcp/tests/edit_window.rs`).
-  What nothing checks yet: flying, orbiting and the cursor held by hand on niri, Hyprland and X11
-  through XWayland, and sixteen passes to a submission on Direct3D 12 in the Windows virtual
-  machine. Known debt: the viewport shows every light that a level places, the night's of *Hunna
-  Wood*'s zone too. CI is green on `7d51d93`: `check (headless)` took 14 minutes 21 seconds,
-  `check (windowed)` 4 minutes 12 seconds, `check (game)` 5 minutes 14 seconds, `windows` 16
-  minutes 48 seconds and `windows-release` 10 minutes 54 seconds.
+Done 2026-10-28, [ADR-0160](adr/0160-two-viewports-and-blenders-way.md), CI green on `271cdd7`: a
+second viewport, and Blender's keys and buttons as a preset. Debt: "Two viewports build their
+frames apart".
 
-#### M6c.2b — Picking and the selection
+### M6c.3a — Move with handles
 
-- **Goal.** The user picks in the viewport and sees what is selected outlined.
-- **Crates.** `slime-gfx`, `slime-render`, `slime-world-render`, `slime-editor`.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: a click that picks by the
-  GPU, the outermost placement first and a level deeper at the second click, Alt and a click
-  through what lies behind by the CPU's ray, a marquee selecting what its area holds; the selection
-  outlined, the scene's depth resolved, its hidden part dimmed, an entity without a mesh drawn as
-  its transform's unit box; the modes of debugging base color and light alone, and a wireframe of
-  the selection. The ADR of the design. The second viewport and the `.keys` preset in Blender's way
-  moved to M6c.2c at its start ([ADR-0159](adr/0159-picking-and-the-selection.md)).
-- **Done when.** Image tests on lavapipe of the outline and its hidden part; an agent picks in a
-  viewport; CI is green.
-- **How to test.** `cargo test -p slime-gfx -p slime-render -p slime-world-render -p slime-editor`;
-  `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
-- **By hand.** Picking in the zone on niri, Hyprland and X11 through XWayland; Alt and a click
-  with a mouse of a fine resolution, which must not read it as an orbit.
-- **Debt settled.** The scene's depth resolved
-  ([ADR-0129](adr/0129-drawing-for-the-editor.md)); the outline; the two modes of debugging.
-- **Outcome.** Done on 2026-10-28, as [ADR-0159](adr/0159-picking-and-the-selection.md) records,
-  cut in two at its start: the second viewport and Blender's way moved to M6c.2c. In the editor's
-  viewport, a click selects the outermost placement of what is drawn there, a click again a level
-  deeper towards it, a drag draws a marquee that selects what it holds, Shift adds, and Alt and a
-  click, let go before the mouse moved, go through what lies behind by the CPU's ray
-  (`Picker::cast_through`); the icons of the lights are picked as their lights. What is selected
-  is outlined, dimmed where something in front hides it, an entity that draws nothing shown as the
-  box that its transform places; the View menu shows the scene lit, its base color, its light
-  alone, its normals or its shadows, and the wireframe of the selection, by operations that agents
-  run too; tools pick in the viewport by its name. In the engine: `Drawings::outline`, three passes
-  that run only when a view outlines something, the scene's depth resolved into its farthest
-  sample, a mask culled as the scene is, and the outline over the image; `DebugMode::BaseColor` and
-  `DebugMode::Light`; a multisampled depth target read sample by sample
-  (`BindingType::MultisampledDepthTexture`). The review found five faults, each fixed: a click's
-  selection that waited for the next event to show; two pickings asked before one frame, the
-  second never drawn and the editor drawing frames without end; the back of a single-sided surface
-  outlined; clicks made without a viewport answered later against another image; and an outline a
-  pixel and a half wide for a width of two; and gaps in the tests and the documentation, filled.
-  The tests: the outline, its hidden part, its width at another render scale, a client's
-  instances and a lit surface whose back is culled (`crates/slime-render/tests/outline.rs`); the
-  two modes (`tests/settings.rs`); a multisampled depth read sample by sample (`slime-gfx`'s
-  `tests/multisampling.rs`); casting through the sample (`examples/tests/world.rs`); the rules of
-  picking, the left button's gestures, the View menu, the pickings that a viewport draws and the
-  box of what draws nothing (`slime-editor`'s unit tests, the last on the GPU); the editor's window
-  with the sample's pillar selected, outlined and dimmed behind the wall, in an image test
-  (`examples/tests/reference/editor-selected.png`); and an agent's session that picks the lamp
-  framed in the viewport and shows its base color by name
-  (`crates/slime-mcp/tests/edit_window.rs`). What nothing checks yet: picking by hand on niri,
-  Hyprland and X11 through XWayland, Alt and a click with a mouse of a fine resolution, the outline
-  on Direct3D 12 by hand in the Windows virtual machine, and its cost at 3840 × 2160 with many
-  entities selected (known debt, with the others that the review listed: picking's costs, a
-  terrain's wireframe rebuilt at each frame that draws, every multisampled depth target readable).
-  CI is green on `00766ea`: `check (headless)` took 16 minutes 21 seconds, `check (windowed)` 5
-  minutes 17 seconds, `check (game)` 4 minutes 12 seconds, `windows` 17 minutes 30 seconds and
-  `windows-release` 14 minutes 36 seconds.
+Done 2026-10-28, [ADR-0161](adr/0161-the-open-step-and-the-handles.md), CI green on `55258a9`:
+handles move, turn and scale, with snapping, each gesture one step; End drops on what lies below.
+Debt: "The editor's handles".
 
-#### M6c.2c — A second viewport and Blender's way
+### M6c.3b — Create and arrange
 
-- **Goal.** A second viewport shows the level, and Blender's way is a preset of the keys and the
-  mouse's buttons.
-- **Crates.** `slime-ui`, `slime-editor`.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: a second viewport, the one
-  navigated alone drawn at the full rate; a `.keys` preset in Blender's way, its mouse's buttons
-  with it. The ADR of the design ([ADR-0160](adr/0160-two-viewports-and-blenders-way.md)).
-- **Done when.** Tests of the viewports' rates and of the preset's buttons; an agent captures each
-  viewport by its name; CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-editor`;
-  `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
-- **By hand.** Two viewports, and Blender's way, on niri and Hyprland.
-- **Outcome.** Done on 2026-10-28, as [ADR-0160](adr/0160-two-viewports-and-blenders-way.md)
-  records. A chord of a table of shortcuts may name a button of the mouse, which the program reads
-  (`Ui::button_command`), its named modifiers held whatever others are, the one that names the
-  most winning; the editor's table binds there what each button does over a viewport, a gesture,
-  `fly`, `orbit` or `pan`, or what selects, `select` and `through`. *View* > *Keys of Blender* lays
-  `editor-blender.keys` over it, the middle button orbiting, Shift and the middle button panning,
-  Alt and the left button going through what lies behind without orbiting, Alt+A selecting
-  nothing, F3 finding an operation and the period framing the selection; the choice is kept in the
-  user's state directory for every program of the editor. *View* > *Two viewports* shows a second
-  viewport beside the first, each a pane of the window with its own camera, settings and view,
-  sharing the level's meshes, frame builder, icons and picker; the View menu changes the one last
-  pressed in, and tools name them `viewport` and `viewport 2`. While one is navigated, the other
-  draws at most every tenth of a second, a picking and a new image at once. The review found five
-  faults, each fixed: a second viewport made during a gesture that took the gesture and its keys
-  held, which kept the cursor held; the pickings of a viewport taken away, never answered, the
-  editor drawing frames without end; a resting viewport that asked for frames back to back rather
-  than one at the end of its rest, and left a new image black meanwhile; the mouse's buttons shown
-  as commands of keys; and Home, which frames everything in Blender, bound to framing the
-  selection; and gaps in the tests and the documentation, filled. The tests: the buttons' chords
-  (`crates/slime-ui/tests/surface.rs`); Blender's way and its choice kept, two viewports, a split
-  during a gesture (`slime-editor`'s unit tests); a viewport's rest and its pickings on the GPU;
-  the window with two viewports, in an image test
-  (`examples/tests/reference/editor-two-viewports.png`); and an agent's session that captures the
-  second viewport and reads its report (`crates/slime-mcp/tests/edit_window.rs`). What nothing
-  checks yet: two viewports and Blender's way by hand on niri and Hyprland, and in the Windows
-  virtual machine. Known debt: two viewports build the world's frame each for itself, and
-  Blender's way leaves out its modal keys, its pie menus and its numeric pad's views. CI is green
-  on `271cdd7`: `check (headless)` took 11 minutes 40 seconds, `check (windowed)` 6 minutes 1
-  second, `check (game)` 6 minutes 14 seconds, `windows` 17 minutes 32 seconds and
-  `windows-release` 14 minutes 33 seconds.
+Done 2026-10-28, [ADR-0162](adr/0162-creating-copying-and-arranging.md), CI green on `95b7bbc`:
+create, duplicate, delete, copy and paste, group, nudge and repeat, each a step. Debt: "Creating
+and arranging in the editor".
 
-### M6c.3 — Move and place
+### M6c.3c — Place prefabs and see the history
 
-Split in two at its start, on 2026-10-28, as [ADR-0155](adr/0155-the-editors-design.md) allows:
-the open step and the handles, then creating and arranging; the second in two again at its start,
-the same day, placing prefabs and the history panel in a third.
+Done 2026-10-28, [ADR-0163](adr/0163-placing-prefabs-and-the-history-panel.md), CI green on
+`b5b350b`: prefabs placed from the palette, and a history panel. Debt: "Placing prefabs and the
+history panel".
 
-#### M6c.3a — Move with handles
+### M6c.4a — Play the level
 
-- **Goal.** The user moves, turns and scales what is selected with handles, each gesture a single
-  step of the history.
-- **Crates.** `slime-editor`, `slime-render`, `slime-world-render`; the `editor` example.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: the core's open step, a
-  gesture applied live, cancelled by Escape, made one step as it ends, the requests of agents
-  waiting meanwhile; handles to move, turn and scale, the engine's own, drawn over the image with a
-  depth of their own, in the world's axes or the selection's, about a pivot, onto the world's
-  uniform scale and its stretch; snapping by increments of angle and scale, and to the world's grid
-  in the world's axes, by increments of distance in the selection's
-  ([ADR-0161](adr/0161-the-open-step-and-the-handles.md)); End and Shift+End dropping the
-  selection on what lies below, by the CPU's picker. The ADR of the design.
-- **Done when.** Tests of the core written first: an open step applied live, cancelled, and made one
-  journaled step; an agent's step that waited applied after it; a crash during a drag losing the
-  drag alone. Tests of the handles' mathematics; image tests of the handles; an agent moves three
-  entities in one step and undoes it; the zone written back unchanged once every step is undone; CI
-  is green.
-- **How to test.** `cargo test -p slime-editor -p slime-render`; the MCP server's session tests.
-- **By hand.** The handles' feel, their hit areas and the snapping, in the yard and the zone.
-- **Debt settled.** Instances over the image, with a depth of their own
-  ([ADR-0129](adr/0129-drawing-for-the-editor.md)).
-- **Outcome.** Done on 2026-10-28, as [ADR-0161](adr/0161-the-open-step-and-the-handles.md)
-  records. The editor's core holds an open step: `Editor::gesture` applies a gesture's commands
-  live, in place of those it applied before, neither journaled nor in the history;
-  `end_gesture` makes them one step, `cancel_gesture` undoes them, and every other change is
-  refused meanwhile. The development channel keeps a tool's requests that change an editor's level
-  or its selection, values set included, while `Simulation::edits_wait` says so, and answers them
-  in their order once the gesture ends; the editor says so from the press on a handle. *Edit* >
-  *Move*, *Turn* and *Scale* (W, E, R) draw handles over the viewport's image, unlit instances with
-  a depth of their own (`Drawings::over_image` is now a `DrawList`), in the world's axes or the
-  last selected entity's, about the middle of the origins of the outermost of what is selected;
-  *Snap* lands the pivot on the world's grid of a quarter of a metre in the world's axes, by
-  quarters of a metre in the selection's, turns by fifteen degrees and scales by tenths. End and
-  Shift+End drop what is selected, its origin or its bottom (`Picker::bounds`), on the first mesh
-  below it. The review found two faults of weight, each fixed: a drag of a plane's square, snapped,
-  moved what it dragged off its plane; a value that a tool set during a drag was refused rather
-  than kept. It found smaller ones, fixed too: an agent's step that could slip between the press
-  and the first move; a drag that jumped back where the ray reached nothing; a drag in a viewport
-  taken away, which left the gesture open; a scale from the middle that a press near the pivot
-  made many times too strong; a drop that read the cooked data of the level opened first; and
-  hidden entities counted in the box that Shift+End drops; and gaps in the documentation and the
-  tests, filled. The tests: the open step, a crash during it and nothing else changing the level
-  meanwhile (`crates/slime-editor/tests/editor.rs`); the handles' mathematics and a drag in the
-  window, which agents wait for from its press to its release (`slime-editor`'s unit tests); a
-  tool's edits and values set waiting, its reads not (`crates/slime-app/tests/channel.rs`);
-  instances over the image (`crates/slime-render/tests/drawings.rs`); the picker's box
-  (`examples/tests/world.rs`); the handles in two image tests
-  (`examples/tests/reference/editor-selected.png`, `editor-turn.png`); an agent that moves three
-  lamps in one step, undoes it and drops a lamp on the floor (`crates/slime-mcp/tests/edit.rs`);
-  and the zone moved by gestures and steps, every step undone, written back as it was
-  (`games/hunnawood-editor/tests/zone.rs`). What nothing checks yet: the handles' feel, their hit
-  areas and the snapping by hand, in the yard and the zone, and in the Windows virtual machine;
-  Escape tested through the model, not through a key of the window. Known debt: see "The editor's
-  handles" in [Known debt](#known-debt). CI is green on `55258a9`: `check (headless)` took 12
-  minutes 26 seconds, `check (windowed)` 6 minutes 19 seconds, `check (game)` 7 minutes,
-  `windows` 14 minutes 58 seconds and `windows-release` 10 minutes 36 seconds.
+Done 2026-10-28, [ADR-0164](adr/0164-play.md), CI green on `dd44fe6`: Play runs the level in the
+game, its unwritten steps included, from a toolbar, its log in a console. Debt: "Play".
 
-#### M6c.3b — Create and arrange
+### M6c.4b — Edit while playing
 
-- **Goal.** The user creates, duplicates, deletes, copies, groups and nudges what is selected,
-  each a step.
-- **Crates.** `slime-editor`, `slime-world`, `slime-ui`; the `editor` example.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: creating an empty entity;
-  deleting; duplicating (Ctrl+D), the references inside the copy pointed at the copy, nested
-  overrides kept; copying and pasting as commands' text on the system's clipboard; repeating the
-  last operation; grouping (Ctrl+G); nudging with Ctrl and the arrows. The ADR of the design.
-- **Done when.** Tests of duplicating, its references and overrides, of copying and pasting, of
-  grouping, of nudging; an agent duplicates, copies and pastes by the operations' names; the zone
-  written back unchanged once every step is undone; CI is green.
-- **How to test.** `cargo test -p slime-editor -p slime-world`; the MCP server's session tests.
-- **By hand.** Creating, duplicating, copying between the yard and the zone, grouping and nudging.
-- **Outcome.** Done on 2026-10-28, as [ADR-0162](adr/0162-creating-copying-and-arranging.md)
-  records. `World::creating_commands` gives the commands that create subtrees again as they are,
-  a placement as `Place` and what differs from its prefab, any other entity as `Create`, the
-  components that refer within the copy inserted last; `Command::read_renamed` reads them under
-  the new identities that a `Renaming` gives, which refuses commands that change what they do not
-  create. The editor's core copies them as a step of the journal writes them (`Editor::copy`) and
-  pastes them as one step (`Editor::paste`). *Edit* creates an entity (Ctrl+Shift+N), duplicates
-  (Ctrl+D), copies and pastes through the system's clipboard (Ctrl+C, Ctrl+V), deletes (Delete),
-  groups (Ctrl+G) and repeats the last operation (Shift+R); Ctrl and the arrows, Page Up and Page
-  Down nudge along the world's axes; Blender's way binds Shift+D, X and Shift+A. The arrows alone
-  were left out of nudging: a shortcut comes before the arrows that move through a list. The
-  review found one fault of weight, fixed: a paste applied whatever commands the clipboard held, a
-  step of a journal moving or deleting what the level held; and smaller ones, fixed too: a paste
-  right after a copy, before a frame, read the clipboard's older text; Repeat after a paste
-  through the window repeated the operation before it; Group left out an entity without a
-  transform; an identity renamed through a shorter one that it extends; a parent's fallback to the
-  level's root tested the renamed identity; a root given twice made a paste fail; an entity of a
-  placement moved out of its place made a paste fail; and gaps in the documentation and the tests,
-  filled. The tests: copying and renaming, a placement's overrides kept, nested ones included, a
-  component removed, a child added under a placed entity, a paste into another level, a renaming
-  that refuses what changes the rest (`crates/slime-world/tests/commands.rs`); the interface's
-  clipboard read and written (`crates/slime-ui/tests/field.rs`); copying and pasting in the core,
-  a foreign step refused (`crates/slime-editor/tests/editor.rs`); every operation by name, and
-  grouping, nudging and creating under a turned and scaled parent, a paste right after a copy
-  (`slime-editor`'s unit tests); an agent that duplicates, copies, pastes and is refused a group
-  of a placement's member (`crates/slime-mcp/tests/edit.rs`); and the zone copied, pasted, every
-  step undone, written back as it was (`games/hunnawood-editor/tests/zone.rs`). What nothing
-  checks yet: creating, duplicating, copying between the yard and the zone, grouping and nudging
-  by hand, and in the Windows virtual machine. Known debt: see "Creating and arranging in the
-  editor" in [Known debt](#known-debt). CI is green on `95b7bbc`: `check (headless)` took 15
-  minutes 46 seconds, `check (windowed)` 4 minutes 47 seconds, `check (game)` 10 minutes 2
-  seconds, `windows` 21 minutes 12 seconds and `windows-release` 16 minutes.
+Done 2026-10-28, [ADR-0165](adr/0165-editing-while-playing.md), CI green on `ff64197`: steps reach
+the running game, and agents drive both programs. Debt: "Editing while playing".
 
-#### M6c.3c — Place prefabs and see the history
+### M6c.4c — Build the game again
 
-- **Goal.** The user places prefabs and sees the history.
-- **Crates.** `slime-editor`; the `editor` example.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: "Place prefab…" from the
-  manifest's scenes; the history panel. The ADR of the design, if one is needed.
-- **Done when.** An agent places a prefab by the operation's name; image tests of the history
-  panel; CI is green.
-- **How to test.** `cargo test -p slime-editor`; the MCP server's session tests.
-- **By hand.** Placing prefabs in the yard and the zone; the history panel.
-- **Outcome.** Done on 2026-10-28, as
-  [ADR-0163](adr/0163-placing-prefabs-and-the-history-panel.md) records. *Edit* > *Place a
-  prefab…* opens the palette on the cooked data's scenes and scene files, the level left out, each
-  named by its source file, the scenes of one file by the file and the scene's name, listed as the
-  level opens; the one chosen is placed, as `edit.place` places it by its asset ID or its name, at
-  the middle of what is selected or at the world's origin, and selected; a prefab that places the
-  level is refused (`ResolvedScene::places`). A panel below the world panel shows the history, a
-  row before the first step kept, the steps done, the steps undone dimmed, the step that the level
-  stands at marked; a press on a row goes to its step, as `edit.go_to_step` does, each undo or
-  redo between journaled. The review found faults, each fixed: the panel's rows built again at
-  each frame of a drag; a glTF file of several scenes listed as one name twice; a placement's
-  command written by hand as text, which escaped nothing; a prefab that places the level, which
-  would then hold itself; the prefabs listed again at each request; the first row's label, wrong
-  once the history forgets; an empty palette without a word; and a test of the palette that
-  checked nothing, filled with what it misses. The tests: what a scene places
-  (`crates/slime-world/tests/commands.rs`); the prefabs listed, a row of the panel pressed, the
-  palette of prefabs and its choice (`slime-editor`'s unit tests); the history panel in an image
-  test (`examples/tests/reference/editor-history.png`), every reference of the window drawn again
-  for the panel; and an agent that places a lamp by its file and by its asset ID, is refused the
-  level and what the cooked data does not hold, and goes back and forth in the history
-  (`crates/slime-mcp/tests/edit.rs`). What nothing checks yet: placing prefabs and the history
-  panel by hand, in the yard and the zone, and in the Windows virtual machine. Known debt: see
-  "Placing prefabs and the history panel" in [Known debt](#known-debt). CI is green on `b5b350b`:
-  `check (headless)` took 14 minutes 25 seconds, `check (windowed)` 5 minutes 25 seconds,
-  `check (game)` 6 minutes 24 seconds, `windows` 14 minutes 52 seconds and `windows-release` 17
-  minutes 7 seconds.
+Done 2026-10-28, [ADR-0166](adr/0166-building-the-game-again.md), CI green on `b271491`: Play
+builds the game, and builds it again as its code changes, on a save of its run. Debt: "Building the
+game again".
 
-### M6c.4 — Play it
+### M6c.4d — Measure Play
 
-Split in three at its start, on 2026-10-28, as [ADR-0155](adr/0155-the-editors-design.md) allows:
-Play itself; edits while playing and agents driving both programs; the game built again and Play
-measured, the last cut in two again at its start, the same day: the game built again; Play
-measured. The owner chose, on 2026-10-28, how the scenes are handed over: the editor writes private
-copies into a directory of its own, which an environment variable names to the game, and the
-engine reads them where every game makes its library of scenes.
-
-#### M6c.4a — Play the level
-
-- **Goal.** Play runs the level being edited in the game, steps not written included, paused,
-  stepped and stopped from a toolbar, its log in a console.
-- **Crates.** `slime-editor`, `slime-world`, `slime-app`; `games/hunnawood-editor`; the `editor`
-  example.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: Play's states and its
-  controls, Play, Pause, Step, Speed and Stop, in a toolbar; the game's program, built already,
-  started through `slime_channel::launch`, with a token and a save of the editor's own, given the
-  scenes that hold steps not written as private copies, through an option of development builds
-  that the engine handles for every game, the user's files left alone; a console of its log; a
-  game that ends or crashes leaving the editor running. The ADR of the design, which says how the
-  scenes are handed over.
-- **Done when.** Play's states tested against a stub game; an agent plays, pauses, steps, reads the
-  log and stops by the operations' names; a game that crashes leaves the editor running; Play
-  leaves the user's files as they were; CI is green.
-- **How to test.** `cargo test -p slime-editor -p slime-world`;
-  `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
-- **By hand.** Play, Pause, Step and Stop, on Linux.
-- **Outcome.** Done on 2026-10-28, as [ADR-0164](adr/0164-play.md) records. With `slime-world`'s
-  `development` feature, which `slime-app`'s turns on, `SceneLibrary::of` reads the scene files of
-  the directory that `SLIME_PLAY_SCENES` names in place of their cooked files. Play writes the
-  level's text as the editor holds it into a new directory of its own, with a save of its own,
-  starts the game that `Program::play` gives, *Hunna Wood* beside its editor and the `world`
-  example beside the `editor` example, and drives it from threads of its own: the controls sent,
-  game time asked after each and shown, the game's standard error read as its log, a stop's watch
-  killing a game that does not end within ten seconds; `slime_channel::launch_unless` gives a
-  start up once Stop is asked. A toolbar above the viewports, the *Play* menu and F5, Shift+F5, F7
-  and F8 play, pause, step, set the speed of game time and stop; a console below the viewports
-  shows the game's log, which the editor's log writes too. The review found four faults of weight,
-  each fixed: the toolbar's speeds, toggles that sent nothing; the cooked level played once the
-  file was written, older than the file; a hung game that Stop could not end for ten minutes, and
-  that outlived the editor; and a test of a crash that Windows' exit status would fail. It found
-  smaller ones, fixed too: a stop while the game starts that waited two minutes; Play's directory
-  left behind by an editor that quits; a console that showed its first lines; the last lines of a
-  game's log, and a panic's, lost; the toolbar's state guessed rather than read from the game; a
-  directory of a name that another program could make first; and gaps in the documentation and
-  the tests, filled. A test of the history panel, which shared its directory with another since
-  M6c.3c, takes one of its own. The tests: Play's scenes in the library
-  (`slime-world`'s unit tests); Play against a stub game, the toolbar's buttons and speeds
-  pressed, game time as the game says it stands, a start stopped, a crash
-  (`slime-editor`'s unit tests); the toolbar in every image test of the window; and an agent that
-  plays the yard in the `world` example, pauses, steps, sets the speed, stops and reads the game's
-  log (`crates/slime-mcp/tests/edit.rs`). What nothing checks yet: Play by hand on Linux, with
-  *Hunna Wood* and the yard, and in the Windows virtual machine. Known debt: see "Play" in [Known
-  debt](#known-debt). CI is green on `dd44fe6`: `check (headless)` took 12 minutes 41 seconds,
-  `check (windowed)` 6 minutes 18 seconds, `check (game)` 9 minutes 40 seconds, `windows` 18
-  minutes 39 seconds and `windows-release` 17 minutes 7 seconds.
-
-#### M6c.4b — Edit while playing
-
-- **Goal.** The editor's edits reach the running game, and agents drive both programs.
-- **Crates.** `slime-editor`, `slime-app`, `slime-channel`, `slime-mcp`.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: the steps made while the
-  game runs sent to it as commands, over a request of the development channel that a running game
-  answers, those it refuses shown; the MCP server driving two programs, the editor and the game it
-  plays. The ADR of the design, if one is needed.
-- **Done when.** An edit while playing reaches the game, and one that the game refuses is shown; an
-  agent drives the game that the editor plays; CI is green.
-- **How to test.** `cargo test -p slime-editor -p slime-app`; the MCP server's session tests.
-- **By hand.** Edits while playing, on Linux.
-- **Debt settled.** An MCP server that drives one program at a time.
-- **Outcome.** Done on 2026-10-28, as [ADR-0165](adr/0165-editing-while-playing.md) records. While
-  Play runs the game, the editor's core records the texts of the commands that each step made,
-  undone or done again applied (`Editor::record_applied`, `Editor::take_applied`), and the session
-  sends them after each request that it answers, a step at a time, as a request of the development
-  channel, `Request::Apply`, at version 11 of its protocol, which the game reads as its world is and
-  applies through its rules, placing prefabs through the library of scenes that it gives
-  (`Simulation::scenes`); the steps made while the game starts are sent once it runs. A refusal is
-  told, and so is an undone deletion, whose restoration has no text and does not reach the game.
-  The editor says where the game that it plays listens, with its token (`Edit::Played`), and the
-  MCP server's `drive_played_game` points the game's tools at that game and back, the editor's tools
-  reaching the editor all along. The review found faults, each fixed: another level opened while
-  the game played, which silently stopped the sending; one refusal that held up every step sent
-  with it; documents that said that every tool of the game follows the switch, where `stop_game`
-  stops the editor, as they now say; a toolbar that went stale when an agent paused the game
-  itself, which Play's thread now follows by asking the game's time at each look; Play started
-  during a gesture, whose cancel would not reach the game; an editor that refused the placements
-  that a tool applies; and gaps in the documentation and the tests, filled. The tests: the texts recorded step by step (`slime-editor`'s
-  `tests/editor.rs`); a step made while the game starts, a rename, an undo, a deletion and its undo,
-  a refusal, another level refused and Play refused during a gesture, against the stub game
-  (`slime-editor`'s unit tests); the commands applied up to the first refused (`slime-app`'s
-  `tests/channel.rs`); and an agent that drives the `world` example while the editor plays it, a
-  step that raises a lamp and places another reaching the game, a value set reaching the game alone,
-  the token never shown, and the tools pointed back at the editor once the game stops
-  (`crates/slime-mcp/tests/edit.rs`). What nothing checks yet: edits while playing by hand, on
-  Linux and in the Windows virtual machine. Known debt: see "Editing while playing" in [Known
-  debt](#known-debt). CI is green on `ff64197`: `check (headless)` took 15 minutes 31 seconds,
-  `check (windowed)` 4 minutes 27 seconds, `check (game)` 5 minutes 41 seconds, `windows` 17
-  minutes 33 seconds and `windows-release` 14 minutes 9 seconds.
-
-#### M6c.4c — Build the game again
-
-- **Goal.** Play builds the game before it starts it, and a game whose code changed while it runs
-  is built again and started on a save of its run.
-- **Crates.** `slime-editor`; `games/hunnawood-editor`; the `editor` example.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: the game's program built by
-  cargo as Play starts it, and built again when its code changes while it runs, then started on a
-  save of its run, a mark on Play saying so; the build read from cargo's messages in JSON, its
-  errors in the console, and the executable started itself, without a console window on Windows.
-  The dependency `serde_json` in `slime-editor`, already in the lock. The ADR of the design.
-- **Done when.** A change of a game's code while it plays built again and the game started again,
-  on a save of its run where the game saves its runs; a build that fails told, the game playing on;
-  CI is green.
-- **How to test.** `cargo test -p slime-editor`; the MCP server's session tests;
-  `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
-- **By hand.** A change of the game's rules built and started again, on Linux; in the Windows
-  virtual machine, a build while the game runs, which Windows may keep from replacing a running
-  program.
-- **Outcome.** Done on 2026-10-28, as [ADR-0166](adr/0166-building-the-game-again.md) records. A
-  program gives how cargo builds its game (`Program::build`, `Build`); Play's thread runs cargo in
-  the editor's profile before it starts the game, reads its messages in JSON through `serde_json`
-  for the program built, and ends Play, cargo's errors in the console, when it does not build.
-  While the game runs, the thread polls the sources that cargo lists beside the program, and
-  cargo's manifests and locks above them; when one changed, cargo builds again while the game plays
-  on, and a program other than the one that runs starts again on a save of the run, which the game
-  saves through the development channel and resumes (`Played::resume`), or, for a game that does
-  not save its run, on the level as the editor holds it, which the editor writes again first. The
-  toolbar marks the build, a failure and a game built again. On Windows, a copy of the program and
-  of the libraries beside it runs, and cargo and the game open no console window. *Hunna Wood*'s
-  editor and the `editor` example build their games so. The review found faults of weight, each
-  fixed: the steps sent while the game built again started again, which the start's watch for a
-  stop threw away; a game that does not save its run started again on the level as Play first wrote
-  it, without the steps made since; a program that another build had replaced, which Play did not
-  start again; the copy on Windows, which ran without the shader compiler beside it, and piled up at
-  each start; a change of cargo's manifests, which nothing saw. It found smaller ones, fixed too:
-  the mark that the game was built again, which ADR-0155 asks for; why a game did not save its
-  run, which the user was not told; and stale documentation and missing tests. The tests: the files
-  of dependencies, cargo's messages and the profile read (`slime-editor`'s unit tests); and a
-  program that cargo builds from a crate of the test's own, which starts the stub game: a build that
-  fails as Play starts, a change that builds again and starts the game again on its save, a change
-  that does not build, the game playing on, a change that mends it, and a game that does not save
-  its run started again on the level with a step made while it played (`slime-editor`'s unit
-  tests, on Linux and on Windows in CI). What nothing checks yet: a change of *Hunna Wood*'s rules
-  built and started again by hand, on Linux and in the Windows virtual machine, where the console
-  windows that do not open are to see. Known debt: see "Building the game again" in [Known
-  debt](#known-debt). CI is green on `b271491`: `check (headless)` took 16 minutes 35 seconds,
-  `check (windowed)` 4 minutes 24 seconds, `check (game)` 6 minutes 47 seconds, `windows` 18
-  minutes 19 seconds and `windows-release` 13 minutes 3 seconds.
-
-#### M6c.4d — Measure Play
-
-- **Goal.** Play's time to control is measured on the zone and on a level of 100 000 entities.
-- **Crates.** `slime-editor`; `games/hunnawood-editor`.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: Play's time to control
-  measured from the click on the zone and on a generated level of 100 000 entities, against
-  ADR-0110's 3 seconds; "keep this value", a value read in the running game made a step of the
-  level, if the milestone has room.
-- **Done when.** The figures in [`docs/measurements.md`](measurements.md); CI is green.
-- **How to test.** `cargo test -p slime-editor`;
-  `cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>`.
-- **By hand.** Play's time on the zone, on the owner's machine.
-- **Debt settled.** An entity that a run created, wrote into its level and destroyed coming back
-  ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)).
-- **Outcome.** Done on 2026-10-28, without "keep this value", which it had no room for. Play
-  measures its time to control, from the request to play to the first state of the game whose time
-  it no longer holds, asking the game how its time stands at each of its frames meanwhile, and the
-  editor's log says it, with its parts writing the level and building the game. Two benchmarks of
-  `slime-benches`, on request, read it from an editor run without its window: `play.zone`, on
-  *Hunna Wood*'s zone, in a window, and `play.level.100k`, on the examples' yard with 100 000
-  entities more. On the owner's machine, the zone gives control well within ADR-0110's budget in
-  either build, so that the game stays a process of its own; the level of 100 000 entities is
-  within it in release, and far over it in debug, the editor writing the level and the game
-  spawning it unoptimized ([`docs/measurements.md`](measurements.md)). Found on the way: such a
-  level fits one scene file only with entities that hold little, a file holding at most
-  `slime_serialize::MAX_VALUES` values; and in a headless Weston, the machine's Vulkan driver
-  refuses the window's surface, and the game draws with llvmpipe, which the benchmark's
-  documentation says. "Keep this value", a value of the running game made a step of the level,
-  needs to choose what a step keeps, a component's value or an entity's, as the inspector of M6c.5
-  will show them: the owner placed it with the inspector, in M6c.5f, on 2026-10-29, and the debt of
-  [ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md) with it. The review
-  found faults, each fixed: the time counted from Play's thread rather than from the request, which
-  left out the editor writing the level; a pause during the load, which kept the measure open; the
-  zone's benchmark refused on Windows; failures that it did not see; and figures copied out of their
-  home. The tests: the editor's log gives the time to control in the agent's session that plays the
-  yard (`crates/slime-mcp/tests/edit.rs`), and the benchmarks read its line (`slime-benches`' unit
-  test). CI is green on `cb8d694`: `check (headless)` took 16 minutes 23 seconds, `check
-  (windowed)` 6 minutes 23 seconds, `check (game)` 6 minutes 49 seconds, `windows` 18 minutes 10
-  seconds and `windows-release` 14 minutes 15 seconds.
+Done 2026-10-28, CI green on `cb8d694`: two benchmarks measure Play's time to control
+([`docs/measurements.md`](measurements.md)). Debt: "Play's time to control".
 
 ### Checkpoint A — The owner tries the editor
 
 - **What.** The owner, for about an hour, on Linux and in the Windows virtual machine: flies
   through the zone, selects, rearranges it and plays it; the raw motion, the cursor held, the
   game's child process and the system's firewall, the dialogs.
-- **Result.** A list of frictions, and this plan adjusted: what to cut, if the stage runs long, is
-  decided here.
-- **Outcome.** On Linux, on 2026-10-29: the owner flew through the zone, selected, rearranged it
-  and played it, and found it all working. One friction: flying through the zone was slow, at
-  5 m/s whatever the level, its speed shown nowhere and lost at each start. The viewport now flies
-  at first at a speed that suits the level's size, or at the one last used in it, which the user's
-  state directory keeps for each level, and the status bar shows it while it flies
-  (`slime-editor`'s `navigation` and `speeds`). The plan holds without a cut; the owner placed
-  "keep this value" with the inspector, in M6c.5f, and left Play's time to control on a level of
-  100 000 entities until M6c.6 measures it again. The Windows virtual machine's part waits for the
-  owner, whose report the milestones that follow answer.
+- **Result.** A list of frictions, and this plan adjusted.
+- **Linux, 2026-10-29.** All worked. Flying was slow: it now starts at a speed that suits the
+  level, kept per level and shown in the status bar. No cut; "keep this value" moved to M6c.5f.
+- **Windows virtual machine.** Waits for the owner.
 
-### M6c.5 — Find and change
+### M6c.5a — The hierarchy
 
-Split in four at its start, on 2026-10-29, as [ADR-0155](adr/0155-the-editors-design.md) allows,
-the two parts that the plan foresaw being each too large for one milestone: the hierarchy;
-rearranging it; the regions of tabs; the inspector. Rearranging it was cut in two again at its
-start, the same day: the drags and the keys that reparent; the eye and the lock.
+Done 2026-10-29, [ADR-0167](adr/0167-the-hierarchy.md), CI green on `2f78cce`: a hierarchy that
+folds, selects, renames and searches, within a list's budget at 100 000 entities. Debt: "The
+hierarchy".
 
-#### M6c.5a — The hierarchy
+### M6c.5b — Rearrange the hierarchy
 
-- **Goal.** The user finds any entity in a hierarchy, which follows the world's tree, folds,
-  selects, renames and searches.
-- **Crates.** `slime-ui`, `slime-world`, `slime-devui`, `slime-editor`; the benchmarks.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: in `slime-ui`, the roles of
-  a tree and its items, with their levels; a list's row shown by its number, scrolled into view;
-  the focus that keys move scrolled into view. In `slime-world`, a tick of the entities' names apart
-  from the structure, which the dev overlay's world panel follows too. The hierarchy: rows that the
-  editor flattens from the world's children, built only where they show, folded and unfolded,
-  selected by a click, with Ctrl and with Shift, a selection made elsewhere unfolded and scrolled
-  into view; a search, `c:` naming a component and `p:` a prefab, run after a pause; renaming in
-  place, F2. The world panel keeps the components of what is selected until the inspector. The ADR
-  of its design.
-- **Done when.** A benchmark, `editor.hierarchy.100k`, within a list's budget
-  ([ADR-0140](adr/0140-the-tree-of-elements.md)) standing still, scrolled and after a rename; an
-  agent finds, selects and renames through the hierarchy's elements; image tests of the hierarchy;
-  CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-world -p slime-devui -p slime-editor`;
-  `cargo run --release -p slime-benches -- editor`.
-- **By hand.** The hierarchy on the zone, and read by Orca on Linux and by Narrator in the Windows
-  virtual machine.
-- **Debt settled.** A list's rows not selected; the focus moved not scrolling its element into
-  view, and nothing scrolling an element into view for screen readers; a row of a list found by its
-  number; the world panel's list made again at each rename.
-- **Outcome.** Done on 2026-10-29, as [ADR-0167](adr/0167-the-hierarchy.md) records. `World::names`
-  ticks the names apart from the structure, and the dev overlay's world panel reads again the names
-  that changed rather than listing the world again. `slime-ui` gains the roles of a tree and its
-  items, each at its level and opening or not, which agents read and screen readers are given with
-  the selected state of a list's rows; `Ui::show_row` shows a list's row by its number, and
-  `Ui::scroll_into_view` scrolls an element into view, as the focus that the keys move and screen
-  readers' requests now are. The editor's window shows the level's entities in a hierarchy, above
-  the components of what is selected, which the world panel shows alone: rows that the editor
-  flattens and builds where they show, a placement's root marked, folded and unfolded, selected by
-  a click, with Ctrl and with Shift, and with the arrows while a row holds the focus; a selection
-  made elsewhere unfolds and shows its row; a search finds names, `c:` components and `p:` prefabs
-  once the typing paused; F2 renames in place. The benchmark `editor.hierarchy.100k` keeps a frame
-  standing still, scrolled and after a rename within a list's budget at 100 000 entities, and
-  measures the search and the rows made again apart ([`docs/measurements.md`](measurements.md)).
-  The review found three faults of weight, each fixed: the hierarchy kept every shortcut pressed
-  while one of its elements held the focus, the arrows among them; a level opened again could leave
-  the other's rows shown, its counts of builds starting again; a rename left without typing never
-  ended, its field taking the focus back. It found smaller ones, fixed too: the focus that did not
-  follow the selection; the first row's up arrow going to the last; rows that lost their hover as
-  they were built again; the placement's mark that the design promised; two ways of naming an
-  entity; a search that the benchmark did not measure, then 9 ms, now some 5 ms; a list not laid
-  out that showed a row above its view; and stale documentation. The tests: the names' tick
-  (`slime-world`), the world panel's names and its panel alone (`slime-devui`), a tree's meaning,
-  the focus and a row scrolled into view at scales 1 and 2 (`slime-ui`), the adapter's tree
-  (`slime-app`), the rows, the search and the rename (`slime-editor`'s unit tests), and the
-  hierarchy through the window's keys, folds, clicks, search and rename, and a level opened again
-  (`slime-editor`'s window tests); the editor's image tests show it. What nothing checks yet: the
-  hierarchy read by Orca on Linux and by Narrator in the Windows virtual machine, and on the zone
-  by hand; no agent's session through the MCP server uses it, the window's tests reading and using
-  its elements as agents do. Known debt: see "The hierarchy" in [Known debt](#known-debt).
-  CI is green on `2f78cce`: `check (headless)` took 16 minutes 47 seconds, `check (windowed)` 6
-  minutes 38 seconds, `check (game)` 9 minutes 39 seconds, `windows` 18 minutes 20 seconds and
-  `windows-release` 17 minutes 35 seconds.
+Done 2026-10-29, [ADR-0168](adr/0168-rearranging-the-hierarchy.md), CI green on `b7952a9`:
+reparenting by drags and by Alt and the arrows; drag and drop in `slime-ui`; G32 settled. Debt:
+"Rearranging the hierarchy".
 
-#### M6c.5b — Rearrange the hierarchy
+### M6c.5c — The eye and the lock
 
-- **Goal.** The user reparents entities by dragging them in the hierarchy and with Alt and the
-  arrows.
-- **Crates.** `slime-ui`, `slime-channel`, `slime-app`, `slime-mcp`, `slime-world`, `slime-editor`.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: in `slime-ui`, drag and drop
-  between elements, which agents do through the development channel and the MCP server; the
-  hierarchy's reparenting by a drag, before, after or into a row, each a step, and by Alt and the
-  arrows; G32's walks of every entity's ancestors made linear where they are quadratic. The ADR of
-  its design.
-- **Done when.** An agent reparents by a drag's action and by the keys; a deep hierarchy measured
-  before and after; CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-world -p slime-editor`; the MCP server's
-  session tests; `cargo run --release -p slime-benches -- world`.
-- **By hand.** Reparenting by drags in the zone.
-- **Debt settled.** G32.
-- **Outcome.** Done on 2026-10-29, as [ADR-0168](adr/0168-rearranging-the-hierarchy.md) records;
-  the milestone was cut in two at its start, the eye and the lock becoming M6c.5c. `slime-ui` drags
-  an element made draggable onto the elements that take drops, shows the program where it would
-  drop, from the target's top to its bottom, and goes on once the element dragged is built away;
-  agents drop through the development channel, at version 12 of its protocol, and the MCP server's
-  `act_on_interface`. The hierarchy's rows are dragged before, after or into each other, a line or
-  the row's box showing where, carrying what is selected; Alt and the arrows move what is selected
-  among its siblings, beside its parent or into the sibling above, as operations of the level that
-  agents and a program without its window run too; each move is a step, each entity kept where it
-  is in the world, and the level's root and what a placement holds but for its root stay. G32 is
-  settled: at 10 000 deep, spawning went from 123 ms to 5.6 ms, a save of every entity moved from
-  337 ms to 60 ms and a frame's interpolation from 161 ms to 0.4 ms
-  ([`docs/measurements.md`](measurements.md)). The review found two faults of weight, each fixed: a
-  drag whose row was built away, scrolled out of sight, never ended and took the next click; a drop
-  before or after one of the rows that it carried was refused. It found smaller ones, fixed too:
-  the drag and the keys disagreeing on the level's root selected, the place of a drop asked again
-  without the selection, the threshold of a drag in two units, a place out of 0 to 1 that the
-  channel took, and misplaced comments. The tests: the drag, its end with its element built away,
-  Escape and the agents' drop (`slime-ui`), the inherited flag of `Unsaved` and what a teleport
-  leaves carried (`slime-world`), the ranks of several moves, the refusals and the keys' moves
-  (`slime-editor`'s `arrange`), a drop's step (`slime-editor`'s hierarchy), the drags, the drop
-  line, the refusal onto a child and Alt and the arrows through the window; an agent drops a row
-  through the MCP server in the editor's window, and moves a lamp by the keys' operations without
-  it. What nothing checks yet: reparenting by drags on the zone, by hand, and in the Windows
-  virtual machine. Known debt: see "Rearranging the hierarchy" in [Known debt](#known-debt).
-  CI is green on `b7952a9`: `check (headless)` took 16 minutes 37 seconds, `check (windowed)` 6
-  minutes 28 seconds, `check (game)` 9 minutes 45 seconds, `windows` 17 minutes 25 seconds and
-  `windows-release` 13 minutes 43 seconds.
+Done 2026-11-04, [ADR-0169](adr/0169-the-eye-and-the-lock.md), CI green on `b2e1c1a`: entities
+hidden from the viewport and locked against picking, as the user's state. Debt: "The eye and the
+lock".
 
-#### M6c.5c — The eye and the lock
+### M6c.5d — Regions of tabs
 
-- **Goal.** The user hides entities from the viewport and locks them against picking, as the
-  user's state, never the level's.
-- **Crates.** `slime-world-render`, `slime-editor`.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: an eye and a lock for each
-  row of the hierarchy, the user's, never the level's, the editor hiding nothing through
-  `World::is_hidden`: what is hidden neither drawn nor picked, in the viewport, through a marquee,
-  by an agent, nor under what is dropped; what is locked drawn, not picked, but what is dropped
-  lands on it; the frame builder and the picker told what to leave out. The ADR of its design,
-  [ADR-0169](adr/0169-the-eye-and-the-lock.md).
-- **Done when.** What is hidden is not drawn nor picked, and what is locked not picked, in the
-  viewport's tests and by an agent; CI is green.
-- **How to test.** `cargo test -p slime-world-render -p slime-editor`.
-- **By hand.** Hiding and locking parts of the zone.
-- **Outcome.** Done on 2026-11-04, as [ADR-0169](adr/0169-the-eye-and-the-lock.md) records. Each
-  row of the hierarchy ends with an eye and a lock, buttons named after what a press does, `hide`
-  or `show`, `lock` or `unlock`, which people and agents press alike; the core keeps what the user
-  hid and locked in memory, by persistent identity, never in the level nor the history, and forgets
-  it when another level opens. The window makes again the entities that they cover, those below
-  included, only as the world's structure or the eyes change. What is hidden is not drawn, nor its
-  light nor its light's icon, not picked, outlined, boxed, wireframed nor framed, and a drop's ray
-  passes through it; its row and those below it read dimmed. What is locked is drawn and lights
-  the level, but a click, a marquee, Alt and a click and an agent's pick name nothing of it, and
-  what is dropped lands on it. `slime-world-render`'s `FrameBuilder` and `Picker` leave out the
-  entities that they are given besides those that `Hidden` hides. The MCP server's `pick` answers
-  `nothing is picked there`, no longer `nothing is drawn there`, which a lamp locked made false,
-  and the contracts of a presentation's picking say that a game may pick nothing where something is
-  drawn. The review found no fault of weight, and two smaller ones, fixed: Shift and End on what is
-  selected and hidden dropped it by its origin, its lowest point left out, now counted, since it
-  moves whole; the contracts of `slime-app`'s and `slime-channel`'s picking, still saying "drawn".
-  It found three tests missing, now written, the casts through what the picker leaves out, the
-  sets made again as the structure changes, and the image drawn again as they change, and
-  smaller things, fixed: the picker's boxes, which left out the whole subtree of an entity named
-  where its casts and the frames read each entity alone; a rule of the look repeated, the fold's
-  chevron now of the class `mark` with the eye and the lock; stale comments and documentation. The
-  tests: the frame builder's and the picker's entities left out, each alone, the rays passing
-  through them (`slime-world-render`, and `examples/tests/world.rs` on the cooked sample); what is
-  hidden covering what lies below it (`slime-editor`'s `eyes`); a light's icon picked, boxed and
-  framed, then, the marks drawing the image again, none of them once hidden (`slime-editor`'s
-  viewport, on the GPU); the rows' eye and lock pressed, what they cover left out of the pickings,
-  what is created below what is hidden hidden too, what is deleted and restored hidden still, no
-  step made, nothing selected, and another level opened forgetting them (`slime-editor`'s window);
-  an agent locks, then hides a lamp by its row's buttons through the MCP server, its pick naming
-  nothing, then the floor behind it, then the lamp again. What nothing checks yet: a drop onto
-  what is hidden or locked, end to end, its casts alone tested; hiding and locking parts of the
-  zone by hand, and in the Windows virtual machine. Known debt: see "The eye and the lock" in
-  [Known debt](#known-debt). CI is green on `b2e1c1a`: `check (headless)` took 17 minutes 15
-  seconds, `check (windowed)` 4 minutes 4 seconds, `check (game)` 4 minutes 33 seconds, `windows`
-  18 minutes 4 seconds and `windows-release` 14 minutes 11 seconds.
+Done 2026-11-04, [ADR-0172](adr/0172-regions-of-tabs.md), CI green on `06faca1`: `slime-ui`'s dock
+of splits and tabs, and the editor's panels in regions, moved by "Move to". Debt: "Regions of
+tabs".
 
-#### M6c.5d — Regions of tabs
-
-- **Goal.** The user arranges the panels in regions of tabs.
-- **Crates.** `slime-ui`, `slime-editor`.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides, and
-  [ADR-0172](adr/0172-regions-of-tabs.md), which cut the milestone in two at its start, records:
-  `slime-ui`'s dock, a layout of splits of any number of children and stacks of tabs, normalized
-  after each edit, and built into a program's tree; a splitter, one element for each border, which
-  moves the two children beside it; panes that F6 moves between, an amendment of
-  [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md); the editor's panels in regions of tabs,
-  from a default layout; "Move to", from a tab's context menu and by an operation that agents run
-  with its arguments. The ADR of its design, [ADR-0172](adr/0172-regions-of-tabs.md).
-- **Done when.** An agent moves a panel to another region and drags a border; image tests of the
-  regions; CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-editor`; the MCP server's session tests.
-- **By hand.** The regions, resized and rearranged, on Linux and in the Windows virtual machine.
-- **Outcome.** Done on 2026-11-04, as [ADR-0172](adr/0172-regions-of-tabs.md) records; the
-  milestone was cut in two at its start, the layout kept, floating panels and closed panels becoming
-  M6c.5e and the inspector M6c.5f. `slime-ui` gains its dock: a layout of splits of any number of
-  children and stacks of tabs, reflected, normalized after each edit, written and read back as
-  text, which a dock builds into a program's tree, each stack a pane of tabs over the chosen
-  panel's slot; a splitter, one element for each border, which the pointer drags, the arrows move
-  and agents set, giving the program the share of the two children beside it that the first takes,
-  neither below its least size; and panes, which F6 moves between within a root. The editor's
-  panels, the hierarchy, the components, the viewport, the history and the console, lie in its
-  regions, from a default layout: the hierarchy above the components on the left, the viewport
-  above the history and the console. A tab's context menu moves its panel into another region or
-  to an edge of the window, as `view.move_panel` does by its name, the window's queue of
-  operations now carrying their arguments, which the core checks. The review found no fault of
-  weight, and four smaller ones, fixed: a dock made anew on a slot that another had built built
-  nothing; a viewport's surface that went behind its tab, or was made anew as its panel moved, left
-  a handle's drag, a marquee or a flight open, and a tool's picking unanswered; a move into the
-  stack that held the panel already said it was done, where the user is now told; and the rustdoc
-  of the dock and of the splitter missed what they panic for and their invariants, a layout now
-  holding each panel once. It found stale documentation, of the fixed regions, tests missing, now
-  written, and smaller things, fixed: a panel's slot whose key could meet its bar of tabs', the
-  splitters unnamed, now named by the panels that they part, F2 renaming in a hierarchy behind its
-  tab, which now shows. The tests: the layout's normalization, a panel held twice, moves, borders
-  and text (`slime-ui`'s `dock`), its borders dragged from left to right, from right to left and
-  up and down, moved by the keys and set by an agent, a click that moves nothing, its tabs chosen,
-  a dock made anew, and F6 from one stack to the next and from outside every stack (the same); a
-  tab chosen, a border set, a panel moved by its tab's context menu, whose places it lists, and by
-  its operation, the moves refused, one told, and F2 showing the hierarchy (`slime-editor`'s
-  window); the editor's images, its panels moved among them; an agent moves a panel and sets a
-  border through the MCP server. What nothing checks yet: the regions
-  resized and rearranged by hand, on Linux and in the Windows virtual machine. Known debt: see
-  "Regions of tabs" in [Known debt](#known-debt). CI is green on `06faca1`: `check (headless)`
-  took 16 minutes 33 seconds, `check (windowed)` 5 minutes 56 seconds, `check (game)` 7 minutes 13
-  seconds, `windows` 15 minutes 25 seconds and `windows-release` 14 minutes 19 seconds.
-
-#### M6c.5e — Layouts kept, floating panels and closed panels
+### M6c.5e — Layouts kept, floating panels and closed panels
 
 - **Goal.** The user's layout outlives the editor, and panels float and close.
 - **Crates.** `slime-ui`, `slime-editor`.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: the layout saved per user
-  and per project in the user's state directory, a game's editor package giving the project's
-  default, read leniently, set aside when it cannot be read and the user told; "Reset layout"; the
-  default's version, a newer default replacing a layout saved against an older one; floating
-  panels, which "Move to" reaches; a panel closed that keeps its place, to come back there. The ADR
-  of its design.
+- **Delivers.** The layout saved per user and per project in the user's state directory, a game's
+  editor package giving the project's default; read leniently, set aside when it cannot be read,
+  the user told; "Reset layout"; the default's version, a newer default replacing a layout saved
+  against an older one; floating panels, which "Move to" reaches; a closed panel keeping its place,
+  to come back there ([ADR-0172](adr/0172-regions-of-tabs.md)).
 - **Done when.** A layout that cannot be read gives the default; a layout changed comes back at the
   next start; an agent floats a panel, closes one and opens it again where it was; CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-editor`; the MCP server's session tests.
 - **By hand.** A layout kept across starts, a panel floated, closed and opened again, on Linux and
   in the Windows virtual machine.
 
-#### M6c.5f — The inspector
+### M6c.5f — The inspector
 
 - **Goal.** The user changes the components of what is selected in an inspector, and keeps a value
   of the running game.
 - **Crates.** `slime-devui`, `slime-editor`.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: `slime-devui`'s builder of an
-  entity's components made public; the inspector on it: components added and removed; several
-  entities selected, a mixed value shown as "—", a check box's third state; overrides marked by a
-  bar and a bold label, Revert and Apply for each field; driven fields read-only; the interim world
-  panel retired. "Keep this value", a value read in the game that Play runs made a step of the
-  level, from the inspector, what a step keeps, a field's value, a component's or an entity's,
-  decided in its design: the owner placed it here on 2026-10-29, M6c.4d having had no room for it.
-  The ADR of its design.
+- **Delivers.** `slime-devui`'s builder of an entity's components made public, and the inspector
+  on it: components added and removed; several entities selected, a mixed value shown as "—", a
+  check box's third state; overrides marked by a bar and a bold label, Revert and Apply for each
+  field; driven fields read-only; the interim world panel retired. "Keep this value", placed here by
+  the owner on 2026-10-29: a value read in the game that Play runs made a step of the level; its
+  design decides what a step keeps, a field's value, a component's or an entity's.
 - **Done when.** An agent reverts an override and keeps a value of the running game; image tests of
   the inspector; CI is green.
 - **How to test.** `cargo test -p slime-devui -p slime-editor`.
@@ -1140,7 +244,7 @@ start, the same day: the drags and the keys that reparent; the eye and the lock.
 - **Debt settled.** A check box without a third state; an entity that a run created, wrote into its
   level and destroyed coming back
   ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)), which a value
-  that the editor keeps, rather than a run that writes its level, settles.
+  that the editor keeps settles.
 
 ### M6c.6 — Levels of several files, and links
 
@@ -1148,32 +252,29 @@ start, the same day: the drags and the keys that reparent; the eye and the lock.
   refers to entities of other files.
 - **Crates.** `slime-world`, `slime-serialize`, `slime-reflect`, `slime-cook`, `slime-devui`,
   `slime-editor`; `.gitattributes`; the examples' yard and *Hunna Wood*'s zone.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) and
-  [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md) decide, in two parts, each likely
-  a milestone of its own:
-  - *M6c.6a, levels of several files.* The new layout of scene files, in one change, which the
-    first part holds whole: the level's parts in a table of their own, former identities, the
-    absolute identities that `EntityRef` writes, and whether a file says the parents and the order
-    of a placement's entities. The core over several files: a step across files, the journal's
-    entries naming their files, every file written or those named, all or none; a level that holds
-    a component or a field that the program does not know opened, its text kept and written back
-    byte for byte; a check before writing that the placements of a changed prefab still spawn;
-    prefabs changed on disk followed; a prefab opened in context. The yard and the zone written in
-    the new layout.
+- **Delivers.** As [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md) decides too, in
+  two parts, each likely a milestone; the first part's ADR amends
+  [ADR-0091](adr/0091-scene-documents-and-placements.md) for the layout.
+  - *M6c.6a, levels of several files.* It starts with two unproven risks: writing several files
+    whole or not at all, beside `World::carry` and saves per scene, and opening leniently by
+    splicing text back. The new layout of scene files, whole, in one change: the level's parts in a
+    table of their own, former identities, the absolute identities that `EntityRef` writes, and
+    whether a file says the parents and the order of a placement's entities. The core over several
+    files: a step across files, the journal's entries naming their files, every file written or
+    those named, all or none. A level holding a component or a field that the program does not
+    know opens, its text written back byte for byte. A check before writing that the placements of
+    a changed prefab still spawn. Prefabs changed on disk followed; a prefab opened in context. The
+    yard and the zone written in the new layout.
   - *M6c.6b, links.* `EntityRef`, and its picker in the inspector: an eyedropper in the viewport, a
     drag from the hierarchy, and a search over the parts loaded or not; a prefab made of a
     selection; Apply to prefab.
-  The ADR of each part's design, the first amending
-  [ADR-0091](adr/0091-scene-documents-and-placements.md) for the layout.
 - **Done when.** `slime-world`'s round trips on fixtures of the new layout; tests of the core's
   steps across files; a failure injected between two renames leaves the files as they were, or
   names those written; one edit changes one hunk of a file; a level with an unknown component
   opened, changed and written back with that component's text unchanged; an agent splits the yard
   into parts and links an entity across two; Play's time to control measured again in a debug
-  build on a level of 100 000 entities, in parts, which M6c.4d found over
-  [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)'s budget in one file, to say whether
-  the editor's writing of a level or the game's spawning of it needs work, as the owner chose on
-  2026-10-29 ([`docs/measurements.md`](measurements.md)); CI is green.
+  build on a level of 100 000 entities in parts, to say whether the editor's writing or the game's
+  spawning needs work, as the owner chose on 2026-10-29; CI is green.
 - **How to test.** `cargo test -p slime-world -p slime-serialize -p slime-editor`; the MCP server's
   session tests.
 - **By hand.** The owner moves an entity from one part of the zone to another, and links two parts.
@@ -1186,22 +287,25 @@ start, the same day: the drags and the keys that reparent; the eye and the lock.
   editor as its sources change, and *Hunna Wood*'s zone is made so.
 - **Crates.** `slime-editor`, `slime-cook`, `slime-assets`, `slime-render`, `slime-ui-render`,
   `slime-platform`; `games/hunnawood`, its zone's Blender script, its tests and its save fixture.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: the asset browser, an index
-  of the cooker's manifest and a scan of the sources, by folder and kind, with a search;
-  thumbnails, a texture's small level of its KTX2, a mesh or a prefab drawn offscreen, a few a
-  frame and only for the tiles that show, encoded as PNG with `Compression::Fast` and cached in the
-  user's cache directory under the cooked file's name; assets dragged into a viewport; stamp mode,
-  which may be cut; New level; cooking in the editor's process, on the background priority, with its
-  progress, once two cooks in one process no longer share their temporary files (G49); the tools'
-  watch told of changes by notify, once polling is measured on Windows, a scan again when its queue
-  overflows and polling as its fallback; files dropped on Windows and X11 imported; the interface's
-  images asked of the asset cache. *Hunna Wood*'s kit: its Blender script exports pieces of terrain
-  and one prefab per variant of tree, rock and prop with its collider; an agent converts the
-  scatter into placements once, through the editor's operations; the zone's tests on the kit, and a
-  new save fixture, which [ADR-0100](adr/0100-updates-of-shipped-games.md) allows before the game's
-  first release; the game's README says it. The dependency notify 8.2.1. The ADR of the design. The
-  known debt gains that winit's drag and drop makes Windows' main thread a single-threaded COM
-  apartment, which Stage 7's audio must not start as a multi-threaded one.
+- **Delivers.**
+  - The asset browser: an index of the cooker's manifest and a scan of the sources, by folder and
+    kind, with a search.
+  - Thumbnails: a texture's small level of its KTX2, a mesh or a prefab drawn offscreen, a few a
+    frame and only for the tiles that show, encoded as PNG with `Compression::Fast`, cached in the
+    user's cache directory under the cooked file's name.
+  - Assets dragged into a viewport; stamp mode, which may be cut; New level.
+  - Cooking in the editor's process, at the background priority, with its progress, once two cooks
+    in one process no longer share their temporary files (G49).
+  - The tools' watch told of changes by notify 8.2.1, once polling's cost is measured on Windows;
+    a scan again when its queue overflows; polling as its fallback.
+  - Files dropped on Windows and X11 imported; the interface's images asked of the asset cache.
+  - *Hunna Wood*'s kit: its Blender script exports pieces of terrain and one prefab per variant of
+    tree, rock and prop, with its collider; an agent converts the scatter into placements once,
+    through the editor's operations; the zone's tests on the kit, and a new save fixture, which
+    [ADR-0100](adr/0100-updates-of-shipped-games.md) allows before the game's first release, said
+    in the game's README.
+  - In the known debt: winit's drag and drop makes Windows' main thread a single-threaded COM
+    apartment, which Stage 7's audio must not start as a multi-threaded one.
 - **Done when.** Thumbnails found in the cache after a restart; tests of the watch: a file written,
   renamed and removed, and a queue that overflowed; an agent places an asset by its ID and cooks;
   the zone's tests pass on the kit, with the new fixture; CI is green.
@@ -1209,7 +313,7 @@ start, the same day: the drags and the keys that reparent; the eye and the lock.
   `scripts/fetch-assets.sh`;
   `blender --background --factory-startup --python games/hunnawood/zone/build_zone.py`;
   `cargo test -p hunnawood -p hunnawood-editor -- --ignored`.
-- **By hand.** The browser, its thumbnails and stamping, on Linux; G20, which waits in
+- **By hand.** The browser, its thumbnails and stamping, on Linux; G20, in
   [the list](#checks-by-hand-waiting-for-the-owner).
 - **Debt settled.** G16, G20 with the owner's check, G23, G49 to G53 and G56; the interface's images
   given by the program.
@@ -1224,18 +328,17 @@ start, the same day: the drags and the keys that reparent; the eye and the lock.
 ### M6c.8 — Panels dragged to dock
 
 - **Goal.** The user drags panels and tabs to arrange the editor. If the stage runs long, the
-  milestone moves to Stage 11, with an amendment of ADR-0131 and the roadmap, the regions of M6c.5a
+  milestone moves to Stage 11, with an amendment of ADR-0131 and the roadmap, the regions of M6c.5d
   serving meanwhile.
 - **Crates.** `slime-ui`, `slime-editor`; `games/hunnawood-editor`.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: zones to drop a panel or a
-  tab on, shown as it is dragged; tabs moved and closed; floating panels docked again; closed
-  panels coming back to their places; a least size for panels; a project's default layout, which a
-  game's editor package gives. The ADR of the design.
+- **Delivers.** Zones to drop a panel or a tab on, shown as it is dragged; tabs moved and closed;
+  floating panels docked again; closed panels coming back to their places; a least size for
+  panels; a project's default layout, which a game's editor package gives.
 - **Done when.** `slime-ui`'s tests of the layout's rules after random edits; a layout saved against
   an older default upgraded; a layout that cannot be read gives the default and a notification; an
   agent moves a panel by its operation; CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-editor`.
-- **By hand.** Panels docked by drag on niri, Hyprland and in the Windows virtual machine.
+- **By hand.** Panels docked by drag on the owner's Linux desktop and in the Windows virtual machine.
 - **Debt settled.** Tabs neither moved nor closed; two panels without a least size; a floating
   panel that does not dock.
 
@@ -1243,9 +346,10 @@ start, the same day: the drags and the keys that reparent; the eye and the lock.
 
 - **Goal.** Stage 6c is done, checked on Windows, and released as 0.7.
 - **Delivers.** The owner's check, in the Windows virtual machine, of the programs that CI builds,
-  with the checks by hand that wait in [the list](#checks-by-hand-waiting-for-the-owner) if the
-  owner makes them then; the documents reread as a newcomer would read them; `CHANGELOG.md`'s
-  section of 0.7; the release, as [Releasing](#releasing) says; Stage 7 planned with the owner.
+  with the checks that wait in [the list](#checks-by-hand-waiting-for-the-owner) if the owner makes
+  them then; the documents reread as a newcomer would read them; `CHANGELOG.md`'s section of 0.7;
+  the release, as [Releasing](#releasing) says; Stage 6c moved to [`history.md`](history.md);
+  Stage 6d planned with the owner.
 - **Done when.** The owner ran *Hunna Wood*'s editor on Windows; the documents are reread and
   corrected; CI is green on the release commit; the tag and the GitHub release exist, with the
   Windows programs.
@@ -1255,1136 +359,918 @@ start, the same day: the drags and the keys that reparent; the eye and the lock.
 ### What the exit needs at minimum
 
 If the stage must be cut, the exit needs M6c.1 to M6c.3, M6c.5 and M6c.6, with prefabs placed from
-a list. It can do without panels docked by drag (M6c.8), thumbnails, a list of names serving, stamp
-mode, several viewports, a view of the running game and "keep this value", the notify watch, and
-modal keys. Play ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md),
-[ADR-0131](adr/0131-stage-6b-and-stage-6c.md)) and the layout of files
-([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)) belong to the stage by decision,
-not by the exit. What is cut is decided at
-[Checkpoint A](#checkpoint-a--the-owner-tries-the-editor).
+a list. It can do without panels docked by drag (M6c.8), thumbnails (a list of names serving),
+stamp mode, several viewports, a view of the running game and "keep this value", the notify watch,
+and modal keys. Play ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)) and the layout of
+files ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)) belong to the stage by
+decision, not by the exit. What is cut is decided at
+[Checkpoint A](#checkpoint-a--the-owner-tries-the-editor), which cut nothing on Linux.
 
 ## Checks by hand waiting for the owner
 
-The checks by hand of the milestones done that the owner has not made yet. The owner decided on
-2026-10-20 to make them later, together: each milestone adds its own here when it is done, and a
-check leaves the list once made, its result written in its milestone's outcome while the milestone
-is in this plan, and in its stage's row of [Completed stages](#completed-stages) once it has left.
-The game is run with `--new --save <a file of its own>`, so that the owner's save is left alone.
+The owner decided on 2026-10-20 to make the checks by hand later, together. Each milestone adds its
+own here when it is done. A check leaves the list once made, its result written in its milestone
+while the stage is in progress, then in the stage's entry of [`history.md`](history.md). The game
+is run with `--new --save <a file of its own>`, so that the owner's save is left alone.
 
+- **Checkpoint A, in the Windows virtual machine** (M6c.1a): the editor's window; flying through
+  the zone, selecting, rearranging it and playing it; the raw motion, the cursor held, the game's
+  child process and the system's firewall, the dialogs.
+- **The system's dialog** (M6c.1b): opened on the owner's Linux desktop and in the Windows virtual
+  machine.
+- **The cursor held and the raw motion** (M6c.1b): on the owner's Linux desktop, X11 through
+  XWayland and in the Windows virtual machine.
+- **Flying and orbiting in the zone** (M6c.2a): on the owner's Linux desktop and X11 through
+  XWayland.
+- **Sixteen passes to a submission** (M6c.2a): on Direct3D 12, in the Windows virtual machine.
+- **Picking in the zone** (M6c.2b): on the owner's Linux desktop and X11 through XWayland; Alt and a click
+  with a mouse of a fine resolution, which must not read it as an orbit; the outline on Direct3D
+  12, in the Windows virtual machine.
+- **Two viewports and Blender's way** (M6c.2c): on the owner's Linux desktop and in the Windows
+  virtual machine.
+- **The handles** (M6c.3a): their feel, their hit areas and the snapping, in the yard and the zone,
+  and in the Windows virtual machine; Escape during a drag, which tests reach through the model,
+  not through a key of the window.
+- **Creating and arranging** (M6c.3b): creating, duplicating, copying between the yard and the
+  zone, grouping and nudging, on Linux and in the Windows virtual machine.
+- **Placing prefabs and the history panel** (M6c.3c): in the yard and the zone, and in the Windows
+  virtual machine.
+- **Play** (M6c.4a): Play, Pause, Step and Stop with *Hunna Wood* and the yard, on Linux and in the
+  Windows virtual machine.
+- **Edits while playing** (M6c.4b): on Linux and in the Windows virtual machine.
+- **Building the game again** (M6c.4c): a change of *Hunna Wood*'s rules built and started again,
+  on Linux and in the Windows virtual machine; there, a build while the game runs, which Windows
+  may keep from replacing a running program, and the console windows that must not open.
+- **The hierarchy** (M6c.5a): on the zone; read by Orca on Linux and by Narrator in the Windows
+  virtual machine.
+- **Reparenting by drags** (M6c.5b): on the zone, and in the Windows virtual machine.
+- **Hiding and locking** (M6c.5c): parts of the zone, and in the Windows virtual machine; a drop
+  onto what is hidden or locked, end to end, which tests check through the casts alone.
+- **The regions of tabs** (M6c.5d): resized and rearranged, on Linux and in the Windows virtual
+  machine.
 - **G20, in the Windows virtual machine.** A source asset whose `.meta` differs from its own name
   by case only, cooked twice: whether its ID changes at each cook, and whether `slime-cook watch`
-  cooks it again without end (see [Known debt](#left-by-the-audit-of-04)).
+  cooks it again without end (see [Left by the audit of 0.4](#left-by-the-audit-of-04)).
 
 ## Releasing
 
 A release is an annotated git tag on a commit whose CI run is green on Linux and Windows
-([ADR-0004](adr/0004-workspace-layout-and-crate-naming.md)):
+([ADR-0004](adr/0004-workspace-layout-and-crate-naming.md)). Tags and GitHub releases wait for the
+owner's go.
 
-1. In one commit, set the version in the root `Cargo.toml` and the tag that the README's "Using
-   SlimeEngine in a game" names, with its list of crates, rename the `[Unreleased]` section of `CHANGELOG.md` to
-   `[<version>] - <date>`, and update this plan.
+1. In one commit: set the version in the root `Cargo.toml` and the tag that the README's "Using
+   SlimeEngine in a game" names, with its list of crates; rename the `[Unreleased]` section of
+   `CHANGELOG.md` to `[<version>] - <date>`; update this plan and [`history.md`](history.md).
 2. Push that commit and wait for its CI run to pass.
 3. Tag that commit, not a later one, then push the tag:
    `git tag -a v<version> -m "SlimeEngine <version>" <commit>`.
-4. From 0.1 on, create the GitHub release of the tag, its `CHANGELOG.md` section as its notes,
-   with the `slime-examples-windows` artifact of that commit's CI run attached as
+4. Create the GitHub release of the tag, its `CHANGELOG.md` section as its notes, with the
+   `slime-examples-windows` artifact of that commit's CI run attached as
    `slime-examples-windows-<version>.zip`: CI keeps its artifacts 14 days, a release keeps them.
-   CI puts beside the programs DXC's library and its licence, the licenses of the parts of Noto
-   fonts that `interface.exe` embeds and those of Geist, Geist Mono and Lucide, which `widgets.exe`
-   embeds, and `scene.exe`, `world.exe` and `hunnawood.exe` in their dev overlay; add
+   Beside the programs, CI puts DXC's library and its licence, and the licenses of the fonts and
+   icons that they embed: parts of Noto in `interface.exe`; Geist, Geist Mono and Lucide in
+   `widgets.exe`, and in the dev overlay of `scene.exe`, `world.exe` and `hunnawood.exe`. Add
    `LICENSE.txt` and a `NOTICE.txt`.
-
-0.0.1 was released on 2026-10-12, before Windows joined CI: the tag `v0.0.1` is on the commit
-"Release 0.0.1". 0.0.2 was released the same way on 2026-10-12: the tag `v0.0.2` is on the
-commit "Release 0.0.2", and 0.0.3 on 2026-10-13: the tag `v0.0.3` is on the commit
-"Release 0.0.3". 0.1 was released on 2026-10-14: the tag `v0.1.0` is on the commit "Release 0.1.0",
-and its GitHub release carries the Windows examples that CI built from that commit.
-0.2 was released on 2026-10-15: the tag `v0.2.0` is on the commit "Release 0.2.0", and its GitHub
-release carries the Windows programs that CI built from that commit, *Hunna Wood* with its zone
-cooked and the notice that credits its assets among them. 0.3 was released on 2026-10-17, with
-Stages 4b and 5a: the tag `v0.3.0` is on the commit "Release 0.3.0", and its GitHub release carries
-the Windows programs that CI built from that commit, `world.exe` among them.
-Stage 5b was released as 0.4 on 2026-10-18: the tag `v0.4.0` is on the commit "Release 0.4.0", and
-its GitHub release carries the Windows programs that CI built from that commit. Stage 6a was
-released as 0.5 on 2026-10-22, with the audit pass and the foundations pass: the tag `v0.5.0` is on
-the commit "Release 0.5.0", and its GitHub release carries the Windows programs that CI built from
-that commit. Stage 6b was released as 0.6 on 2026-10-27: the tag `v0.6.0` is on the commit
-"Release 0.6.0", and its GitHub release carries the Windows programs that CI built from that
-commit.
-
-## Completed stages
-
-| Stage | Milestones | Result |
-|---|---|---|
-| 0 — Foundations | M0.1 repository and ADR process; M0.2 Nix environment; M0.3 workspace, lints, crate skeletons; M0.4 dependency policy and CI | Done. CI green on the first push to GitHub (2026-10-12). |
-| 1 — Core and platform → 0.0.1 | M1.1 logging and diagnostics; M1.2 frame timing; M1.3 lifecycle and headless mode; M1.4 window; M1.5 input; M1.6 clean shutdown | Done; released as 0.0.1 (tag `v0.0.1`). Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
-| 2 — GPU layer → 0.0.2 | M2.0 Windows in CI; M2.1 GPU device without a window; M2.2 offscreen triangle and reference image; M2.3 the triangle in the window; M2.4 frame pacing; M2.5 debug markers, robustness, release | Done; released as 0.0.2 (tag `v0.0.2`). Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
-| 3a — First renderer → 0.0.3 | M3.1 GPU resources for a renderer; M3.2 the render crate; M3.3 directional light and material; M3.4 textures and samplers; M3.5 a glTF scene and camera control; M3.6 statistics, GPU timings and the dev overlay; M3.7 Windows check, documentation, release | Done; released as 0.0.3 (tag `v0.0.3`). Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
-| 3b — Physically based renderer → 0.1 | M3b.1 GPU layer for multi-pass rendering; M3b.2 HDR rendering and tone mapping; M3b.3 physically based materials; M3b.4 light types; M3b.5 shadows; M3b.6 image-based lighting; M3b.7 bloom; M3b.8 render graph; a pass over the known debt; M3b.9 Windows check, documentation, release | Done; released as 0.1 (tag `v0.1.0`), with the Windows examples on its GitHub release. Content listed in [`CHANGELOG.md`](../CHANGELOG.md). |
-| 3c — A first game | M3c.1 skeleton; M3c.2 guards, detection and the objective; M3c.3 night, feel and the Windows check; M3c.4 findings for the next stages | Done; no release of its own: its game, *Nightwatch*, is never released, as *Hunna Wood* replaces it in Stage 4a ([ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)). The stage each of its findings goes to is in [ADR-0057](adr/0057-what-the-first-game-asks-of-the-next-stages.md), and the two that became Stage 3d in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md). |
-| 3d — Anti-aliasing and the shadows of spot lights | M3d.1 multisampling in the GPU layer; M3d.2 anti-aliasing in the renderer; M3d.3 spot lights' shadows: what each tile sees; M3d.4 spot lights' shadows: drawn and read; M3d.5 *Nightwatch* and the Windows check; M3d.6 a smoother shadow filter; M3d.7 what each cascade sees; M3d.8 the cascades read; M3d.9 *Nightwatch* at 3840 × 2160 | Done; no release of its own: what it delivers is released with 0.2. Its decisions are in [ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md) and ADR-0058 to [ADR-0065](adr/0065-reading-the-cascades.md); the cost of its scene pass on Direct3D 12 with each shader compiler, which made DXC ship beside the Windows programs, is in [ADR-0066](adr/0066-shipping-dxc-beside-the-programs.md). |
-| 4a — Cooked assets → 0.2 | M4a.1 *Hunna Wood*'s skeleton; M4a.2 asset identity; M4a.3 images; M4a.4 glTF; M4a.5 the sample scene through the pipeline; M4a.6 the zone's sources; M4a.7 *Hunna Wood* by day; M4a.8 night; M4a.9 Windows check, documentation, release 0.2 | Done, released as 0.2 on 2026-10-15. Its decisions are in [ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md) to [ADR-0071](adr/0071-cooked-textures.md); the zone's budgets are set by the test that checks them, in `games/hunnawood/src/zone.rs`, and what was left to refine went to Stage 4b's M4b.8. |
-| 4b — Live assets | M4b.1 a shared GPU and a task pool; M4b.2 the zone loads while frames go on; M4b.3 recovering from a lost GPU device; M4b.4 *Hunna Wood* goes on after a lost device; M4b.5 materials that change in place; M4b.6 hot reload of cooked data; M4b.7 hot reload of shaders; M4b.8 refining *Hunna Wood*; M4b.9 Windows check, documentation, close | Done on 2026-10-16; no release of its own: what it delivers is released with 0.3, at the end of Stage 5a. Its decisions are in [ADR-0072](adr/0072-stage-4b-live-assets.md) to [ADR-0077](adr/0077-hot-reload-of-shaders.md). The owner checked the recovery from a lost device by hand at its close: in the Windows virtual machine, from the dev overlay and by a forced TDR, and in a KDE Plasma session after a real reset of the GPU (see [Known debt](#known-debt)). |
-| 5a — The world → 0.3 | M5a.1 the world: entities and components; M5a.2 the hierarchy and the transforms; M5a.3 what the world draws; M5a.4 *Hunna Wood* on the world; M5a.5 reflection; M5a.6 any component listed and edited; M5a.7 serialization with format versioning; M5a.8 the world round-trips; M5a.9 saving and resuming a run; M5a.10 Windows check, documentation, release 0.3 | Done, released as 0.3 on 2026-10-17 with Stage 4b. Its decisions are in [ADR-0078](adr/0078-stage-5-in-two-halves.md) to [ADR-0088](adr/0088-saving-and-resuming-a-run.md), with the measurements of the world's storage, transforms and frame in ADR-0082 to ADR-0084; its save fixture, now `games/hunnawood/fixtures/save-0.3.toml`, is set aside by later versions as a save of another layout ([ADR-0090](adr/0090-stage-5b-scenes-and-prefabs.md)), and how long CI took with each crate it added is in the [Notes](#notes). |
-| 5b — Scenes and prefabs → 0.4 | M5b.1 scenes placed in a world; M5b.2 a world written back as a scene; M5b.3 saves and hot reload with placements; M5b.4 the binary encoding of documents; M5b.5 scene files cooked, typed components, prefabs in the `world` example; M5b.6 *Hunna Wood*'s zone made of prefabs; M5b.7 Windows check, documentation, release 0.4 | Done, released as 0.4 on 2026-10-18. Its decisions are in [ADR-0089](adr/0089-scenes-and-prefabs.md) to [ADR-0095](adr/0095-cooked-scene-files.md), with the measurements of spawning scenes in ADR-0091; its save fixture, `games/hunnawood/fixtures/save.toml`, was made again at M6a.7b in the layout of saves per scene, which refuses those of 0.4 ([ADR-0125](adr/0125-saves-per-scene.md)); the zone is made of prefabs placing its land and six lanterns. The audit of 0.4 that followed it is the audit pass, in the next row. |
-| The audit pass and the foundations pass | P1 saves and identities that never mislead; P2 a damaged file gives an error, never a crash; P3 the loss of the GPU device and the main loop; P5 the build, CI, and measurements tracked from one commit to the next; P4 the measured quick wins; P6 the foundation decisions | Done on 2026-10-20, released with 0.5. The engine was audited at 0.4, without changing it, for correctness, measured performance and architecture against the games it aims at; [ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) sums up what it found and records the owner's decisions, and [ADR-0096](adr/0096-the-files-the-engine-reads.md) is the threat model that ranks its defects. P1 to P5 fixed them ([ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md) to [ADR-0106](adr/0106-the-measured-quick-wins.md)), but B4-F01, which M6a.2 fixed; P6 decided what the editor freezes ([ADR-0107](adr/0107-the-execution-model.md) to [ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md)). Each finding was described in full in this plan until 0.5 (`git show v0.5.0:docs/PLAN.md`); the audit's report and its tests are kept outside the repository; what neither pass fixed is in the [known debt](#left-by-the-audit-of-04); the owner's checks by hand of P3 and P5, in the Windows virtual machine on 2026-10-27, passed. |
-| 6a — What the editor stands on → 0.5 | M6a.1 frustum culling and instancing; M6a.2 the engine's task pool, and copies to the GPU within a budget; M6a.3 what the world knows of its changes; M6a.4 a frame that owns what it draws; M6a.5 the phases of a frame, game time, and a game as a simulation and a presentation; M6a.6 the development channel and the MCP server; M6a.7a driven components, keys and created entities written into levels; M6a.7b saves per scene and adoption; M6a.8a views apart from the renderer; M6a.8b the settings of a view; M6a.9 asset requests; M6a.10a drawing for the editor; M6a.10b picking; M6a.11 Windows check, documentation, release 0.5 | Done, released as 0.5 on 2026-10-22 with the audit pass and the foundations pass. Its decisions are in [ADR-0116](adr/0116-stage-6-in-two-halves.md) to [ADR-0130](adr/0130-picking.md), its measurements in [`measurements.md`](measurements.md), under the milestones that measured; its save fixture is `games/hunnawood/fixtures/save.toml`, of the layout of saves per scene ([ADR-0125](adr/0125-saves-per-scene.md)). The owner checked each milestone that changed what shows by hand, on Linux, and the whole in the Windows virtual machine at M6a.11, which found four defects fixed before the release. |
-| 6b — The engine's interface → 0.6 | M6b.1a the commands and undo; M6b.1b the editor driven by an agent; M6b.2 text in several writing systems; M6b.3a the canvas; M6b.3b text drawn, and the display list; M6b.4a elements and layout; M6b.4b style sheets and themes; M6b.5a input and focus; M6b.5b what agents see; M6b.6a text edited, and what the platform lacks for it; M6b.6b screen readers; M6b.7a the widgets of a panel; M6b.7b the look's foundations; M6b.7c layers; M6b.7d rich fields; M6b.7e what the editor tells and finds; M6b.8a the editors and the world panel on the engine's interface; M6b.8b the overlay over the games' views; M6b.9 Windows check, documentation, release 0.6 | Done, released as 0.6 on 2026-10-27. Its decisions are in [ADR-0131](adr/0131-stage-6b-and-stage-6c.md) to [ADR-0154](adr/0154-floating-panels-and-held-keys.md), its measurements in [`measurements.md`](measurements.md), under the milestones that measured. Each milestone was described in full in this plan until 0.6 (`git show v0.6.0:docs/PLAN.md`); what it left is in the [known debt](#known-debt). The owner chose that the interface blends in sRGB's encoding, at M6b.3a, and Geist as the font of the editor's text, at M6b.3b; checked each milestone that changed what shows by hand, on Linux and for several in the Windows virtual machine, Orca and Narrator reading the examples; and checked the whole in the Windows virtual machine at M6b.9, which passed. |
-
-The details of each completed milestone (what it delivered, how it was checked, what was measured)
-are in the history of this file and in the commits that implemented it; the measurements that
-justify a decision are also in its ADR.
 
 ## Known debt
 
-Limitations known and accepted for now. The ones that a contributor could take on alone are also
-GitHub issues, linked from their entry; this list stays the reference.
+Limitations known and accepted for now.
+Those that a contributor could take on alone are also GitHub issues, linked from their entry; this
+list stays the reference.
 
 - **What a load reads waits in staging memory until its copies are submitted**
-  ([ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)). The renderer's uploader sends
-  at most a budget of bytes per frame, and nothing holds the loads back when they read faster: a
-  load of many hundreds of megabytes keeps them in the CPU's memory while it lasts. The asset
-  requests ([ADR-0128](adr/0128-asset-requests.md)) rank the loads and stop those that nothing
-  holds, but hold none back.
-  How many of the loads' tasks run at once, and the budget, were measured on the owner's RX 6900 XT
-  alone; each renderer has an uploader of its own, and two renderers send twice the budget.
+  ([ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)).
+  The renderer's uploader sends at most a budget of bytes per frame; nothing holds back loads that read faster.
+  A load of many hundreds of megabytes keeps them in the CPU's memory while it lasts.
+  The asset requests ([ADR-0128](adr/0128-asset-requests.md)) rank the loads and stop those that nothing holds, but hold none back.
+  How many loads' tasks run at once, and the budget, were measured on the owner's RX 6900 XT alone.
+  Each renderer has an uploader of its own: two renderers send twice the budget.
 - **The development channel scripts keys only, and captures windowed runs only**
-  ([ADR-0122](adr/0122-the-development-channel.md)). A tool puts keys down and lets them go, not
-  the mouse nor text, which an agent gives an interface through its elements' actions instead
-  ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)); a run without a window has no image
-  to capture; the measurements that the channel gives are the frames' times, and the reports that
-  a game gives, its views' statistics among them; a component that refers to an entity without a
-  persistent identity is read, the reference written as no entity, `""`, and written back so, no
-  longer naming it. A window's image is created with the copy-source usage wherever the system
-  offers it, at every frame, whether or not a tool captures it: what that costs
-  a driver is not measured. Each later milestone exposes its system to the channel
-  ([ADR-0116](adr/0116-stage-6-in-two-halves.md)).
+  ([ADR-0122](adr/0122-the-development-channel.md)).
+  A tool puts keys down and lets them go, not the mouse nor text; an agent reaches an interface through its elements' actions instead ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)).
+  A run without a window has no image to capture.
+  The channel's measurements are the frames' times and the reports that a game gives, its views' statistics among them.
+  A component that refers to an entity without a persistent identity is read with the reference written as no entity, `""`, and written back so.
+  A window's image is created with the copy-source usage wherever the system offers it, at every frame, captured or not; its cost to a driver is not measured.
+  Each later milestone exposes its system to the channel ([ADR-0116](adr/0116-stage-6-in-two-halves.md)).
 - **The first frame that draws shadows costs more, and more still while a scene loads**
-  ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md)). It makes the renderer
-  create its shadow atlas and its frame again; during a load, the GPU, busy with the load's copies,
-  presents that frame late, past 33 ms in some runs, measured before M6a.2. M6a.2 holds the copies
-  to a budget once a frame is drawn, but not those before the first frame, which that frame waits
-  for; it was not measured again. *Hunna Wood* draws its hero, and so its first shadows, from its
-  first frame. Creating the atlases with the renderer would remove it, at a cost in
-  memory for every program, shadows or not.
-- **The zone costs up to 8 s per frame on lavapipe**, the CPU driver of the checks, where the RX
-  6900 XT takes under 2 ms: most of it goes to the four shadow cascades of the sun, each 2048 ×
-  2048 texels, through which thousands of overlapping leaf cards are drawn with a shader that
-  discards. The checks run the game for one frame by day, one at night, two around a lost device
-  and one resumed from the save fixture. The oaks' cards made smaller and four times as many at
-  M4b.8 changed it little: the day's shadow pass took 6.0 s
-  instead of 6.2 s, in a release build. Leaves that cast no shadow in the farther cascades would
-  lower it, to measure with views of the zone.
-- **`cargo test` leaves out the tests of the cooked zone**: they need the zone fetched and cooked,
-  so they are ignored (`#[ignore]`); `scripts/check.sh` and CI's `windows` job fetch and cook the
-  zone, then run them (`cargo test -p hunnawood -p hunnawood-editor -- --ignored`). The agents'
-  sessions through the MCP server, the six session tests of `slime-mcp`, are tests apart
-  (`test = false`), which `scripts/check.sh` runs on Linux alone.
+  ([ADR-0074](adr/0074-uploading-textures-without-holding-up-frames.md)).
+  It makes the renderer create its shadow atlas and its frame again.
+  During a load, the GPU, busy with the load's copies, presents that frame late: past 33 ms in some runs, measured before M6a.2.
+  M6a.2 holds the copies to a budget once a frame is drawn, but not those before the first frame, which that frame waits for; not measured again.
+  *Hunna Wood* draws its hero, and so its first shadows, from its first frame.
+  Creating the atlases with the renderer would remove it, at a cost in memory for every program, shadows or not.
+- **The zone costs up to 8 s per frame on lavapipe**, the CPU driver of the checks; the RX 6900 XT takes under 2 ms.
+  Most of it goes to the sun's four shadow cascades, each 2048 × 2048 texels, through which thousands of overlapping leaf cards are drawn with a shader that discards.
+  The checks run the game for one frame by day, one at night, two around a lost device and one resumed from the save fixture.
+  The oaks' cards, made smaller and four times as many at M4b.8, changed it little: the day's shadow pass took 6.0 s instead of 6.2 s, in a release build.
+  Leaves that cast no shadow in the farther cascades would lower it; to measure with views of the zone.
+- **`cargo test` leaves out the tests of the cooked zone**: they need the zone fetched and cooked, so they are ignored (`#[ignore]`).
+  `scripts/check.sh` and CI's `windows` job fetch and cook the zone, then run them (`cargo test -p hunnawood -p hunnawood-editor -- --ignored`).
+  The agents' sessions through the MCP server, the session tests of `slime-mcp`, are tests apart (`test = false`), which `scripts/check.sh` runs on Linux alone.
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue
-  [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)). With Mailbox, the default, the
-  schedule alone paces frames: on a 60 Hz display, an image is now and then shown twice while the
-  next one is dropped. On a display of 144 or 165 Hz, the default 60 frames a second last 2 or 3
-  refreshes in turn, which shows as judder in motion: a game can raise `AppConfig::max_frame_rate`
-  to the display's rate, which the engine does not report, or choose `PresentMode::Fifo`, which
-  shows one image per refresh but can stall as the next entry says. Aligning frames on the
-  compositor's frame callbacks is to reconsider when a renderer draws real scenes.
-- **Without Mailbox, presenting can still stall the loop.** Windows that do not offer it, and
-  applications that choose `PresentMode::Fifo`, wait for the display: one frame per second for a
-  hidden window on niri. In a headless Weston with lavapipe, `acquire` waits for Weston's frame
-  callbacks for a time that depends on the machine's load: 120 frames of the `window` example took
-  15 s on 2026-10-12 (release build, waits of 130 ms on average), 9 s and 25 s in other
-  measurements the same day, against 2 s with Mailbox.
-- **A hidden window keeps drawing** at the scheduled rate (2 to 3 % of one CPU core on the
-  development machine): the engine cannot tell on Wayland whether its window is visible. winit
-  reports occlusion on X11, which the engine ignores: under a compositing manager, Xwayland
-  included, the X server reports windows as visible anyway.
-  On Windows, a window covered by another keeps drawing too; a minimized one, of size zero, draws
-  nothing (M3b.9).
-- **wgpu's errors panic, in release builds too** (ADR-0016): a use of wgpu that it rejects is
-  treated as a bug. Before games ship, logging the error and dropping the frame is to be
-  considered. Running out of GPU memory is not such a use: creations return
-  `GfxError::OutOfMemory`, and memory that runs out where no caller hears of it gives the device up,
-  which stops the run (ADR-0044). The engine avoids the rejections that the environment can
-  cause: a window larger than the device's largest image is drawn at that size (`Surface::resize`),
-  and a shader or pipeline that the driver rejects is returned as an error (`GfxError::Shader` or
-  `GfxError::Pipeline` on Direct3D 12; on Vulkan, wgpu treats the driver's failure as a lost
-  device, `GfxError::DeviceLost`); a window's surface that the graphics API refuses to configure
-  counts as lost (ADR-0025). The refusal of a configuration is not tested: nothing the tests
-  control makes a conformant driver refuse one.
+  [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)).
+  With Mailbox, the default, the schedule alone paces frames.
+  On a 60 Hz display, an image is now and then shown twice while the next one is dropped.
+  On a display of 144 or 165 Hz, the default 60 frames a second last 2 or 3 refreshes in turn, which shows as judder in motion.
+  A game can raise `AppConfig::max_frame_rate` to the display's rate, which the engine does not report, or choose `PresentMode::Fifo`, which shows one image per refresh but can stall (next entry).
+  Aligning frames on the compositor's frame callbacks is to reconsider when a renderer draws real scenes.
+- **Without Mailbox, presenting can still stall the loop.**
+  Windows that do not offer it, and applications that choose `PresentMode::Fifo`, wait for the display: one frame per second for a hidden window on niri.
+  In a headless Weston with lavapipe, `acquire` waits for Weston's frame callbacks for a time that depends on the machine's load.
+  120 frames of the `window` example took 15 s on 2026-10-12 (release build, waits of 130 ms on average), 9 s and 25 s in other measurements that day, against 2 s with Mailbox.
+- **A hidden window keeps drawing** at the scheduled rate (2 to 3 % of one CPU core on the development machine).
+  A program run on demand, as the editor (`AppConfig::on_demand`), draws only when woken.
+  The engine cannot tell on Wayland whether its window is visible.
+  winit reports occlusion on X11, which the engine ignores: under a compositing manager, Xwayland included, the X server reports windows as visible anyway.
+  On Windows, a window covered by another keeps drawing too; a minimized one, of size zero, draws nothing (M3b.9).
+- **wgpu's errors panic, in release builds too** (ADR-0016): a use of wgpu that it rejects is treated as a bug.
+  Before games ship, logging the error and dropping the frame is to be considered.
+  Running out of GPU memory is not such a use: creations return `GfxError::OutOfMemory`; memory that runs out where no caller hears of it gives the device up, which stops the run (ADR-0044).
+  The engine avoids the rejections that the environment can cause.
+  A window larger than the device's largest image is drawn at that size (`Surface::resize`).
+  A shader or pipeline that the driver rejects is returned as an error: `GfxError::Shader` or `GfxError::Pipeline` on Direct3D 12; on Vulkan, wgpu treats the driver's failure as a lost device, `GfxError::DeviceLost`.
+  A window's surface that the graphics API refuses to configure counts as lost (ADR-0025).
+  The refusal of a configuration is not tested: nothing the tests control makes a conformant driver refuse one.
 - **On Linux, a game goes on after a real reset of the GPU only if the compositor does**
-  (ADR-0075). A reset reaches every program that uses the GPU. Mesa ends the ones that did not ask
-  to be told of it, as niri, Hyprland and COSMIC do not: on 2026-10-15, programs that hung the
-  owner's RX 6900 XT made the amdgpu driver reset it twice, and niri ended each time, taking the
-  session with it. KDE Plasma's KWin recovers from resets: on 2026-10-16, after a reset forced on
-  the owner's machine in a Plasma session, *Hunna Wood* opened a new device 70 ms after it found the
-  loss and drew its zone again 2 s later, its run kept, while the terminal it was started from and
-  Plasma's panel ended. On Windows, the desktop's compositor survives resets, and the game went on
-  after a forced timeout detection and recovery (TDR) in the owner's virtual machine.
+  (ADR-0075).
+  A reset reaches every program that uses the GPU.
+  Mesa ends the programs that did not ask to be told of it, as niri, Hyprland and COSMIC do not.
+  On 2026-10-15, programs that hung the owner's RX 6900 XT made the amdgpu driver reset it twice; niri ended each time, taking the session with it.
+  KDE Plasma's KWin recovers from resets: on 2026-10-16, after a reset forced in a Plasma session, *Hunna Wood* opened a new device 70 ms after it found the loss and drew its zone again 2 s later, its run kept.
+  The terminal it was started from and Plasma's panel ended.
+  On Windows, the desktop's compositor survives resets: the game went on after a forced timeout detection and recovery (TDR) in the owner's virtual machine.
 - **A lost GPU device is replaced only for the applications that ask for it** (ADR-0075; issue
-  [#2](https://github.com/HoneySlatt/SlimeEngine/issues/2)): the others stop with an error, and
-  since winit allows one event loop per process, carrying on means starting the process again. An
-  application that asks drops and creates its GPU objects again itself, as *Hunna Wood* does. A
-  real driver reset can only be checked by hand, as it was at Stage 4b's end (above). A restore
-  that fails in a windowed run is not tested: nothing makes one fail on purpose there, nor, so,
-  that `run` then returns the application's error first (ADR-0103).
+  [#2](https://github.com/HoneySlatt/SlimeEngine/issues/2)).
+  The others stop with an error; since winit allows one event loop per process, carrying on means starting the process again.
+  An application that asks drops and creates its GPU objects again itself, as *Hunna Wood* does.
+  A real driver reset can only be checked by hand, as it was at Stage 4b's end (above).
+  A restore that fails in a windowed run is not tested: nothing makes one fail on purpose there.
+  So nothing tests that `run` then returns the application's error first (ADR-0103).
 - **Three behaviours of wgpu 30 are worked around, and not reported to its authors**
-  ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)): wgpu holds a
-  device invalid before it reports the loss, without a way to ask, and reports the use of objects
-  created in between as a misuse; `Device::poll` panics on a lost device; on Vulkan, wgpu panics
-  when it destroys a swap chain whose image work in flight still holds. The engine asks with a
-  buffer of 4 bytes after each creation, waits for the GPU by submitting empty work, which wakes
-  later after the GPU finishes than a poll would (`Gpu::wait_idle` says how much), and releases a
-  surface's last image before its swap chain. P3 asks the owner's agreement to report them.
-- **In capture tools, the sky pass shows as a second `scene`.** A pass is named after the target it
-  draws into, and the sky pass draws into the scene's high-dynamic-range target, after the scene
-  pass (`declare_frame` in `crates/slime-render/src/renderer.rs`); only its pipeline is named `sky`.
+  ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)).
+  wgpu holds a device invalid before it reports the loss, without a way to ask, and reports the use of objects created in between as a misuse.
+  `Device::poll` panics on a lost device.
+  On Vulkan, wgpu panics when it destroys a swap chain whose image work in flight still holds.
+  The engine asks with a buffer of 4 bytes after each creation.
+  It waits for the GPU by submitting empty work, which wakes later after the GPU finishes than a poll would (`Gpu::wait_idle` says how much).
+  It releases a surface's last image before its swap chain.
+  P3 asks the owner's agreement to report them.
+- **In capture tools, the sky pass shows as a second `scene`.**
+  A pass is named after the target it draws into; the sky pass draws into the scene's high-dynamic-range target, after the scene pass (`declare_frame` in `crates/slime-render/src/renderer.rs`).
+  Only its pipeline is named `sky`.
   Seen in RenderDoc on Direct3D 12 (M3b.9).
 - **Frames pause on Windows while the user moves the window, holds its title bar or a border, or
-  opens the system menu**: the system then runs a loop of its own, in which no redraw arrives and
-  the engine's loop does not wake, so frames and the check for termination signals pause until it
-  ends (ADR-0020; the move was measured in M2.4). Keeping frames going would mean asking for
-  redraws from inside each frame and waiting there for the schedule.
-- **wgpu-hal logs an error when an adapter cannot present to the window**, even though the engine
-  then uses another one: seen with RADV in a headless Weston, where only lavapipe can present.
-- **No title text in client-side decorations.** On compositors that do not draw decorations
-  (GNOME), the title bar has no text, because winit's text renderer depends on an unmaintained
-  crate (ADR-0011).
+  opens the system menu**.
+  The system then runs a loop of its own, in which no redraw arrives and the engine's loop does not wake.
+  Frames and the check for termination signals pause until it ends (ADR-0020; the move was measured in M2.4).
+  Keeping frames going would mean asking for redraws from inside each frame and waiting there for the schedule.
+- **wgpu-hal logs an error when an adapter cannot present to the window**, even though the engine then uses another one.
+  Seen with RADV in a headless Weston, where only lavapipe can present.
+- **No title text in client-side decorations.**
+  On compositors that do not draw decorations (GNOME), the title bar has no text: winit's text renderer depends on an unmaintained crate (ADR-0011).
 - **Input not reported yet** (issue [#3](https://github.com/HoneySlatt/SlimeEngine/issues/3)):
-  touch, touchpad gestures, gamepads, dropped files. The window cannot go fullscreen. Input methods
-  and the pointer's shapes came with M6b.6a, the title changed with M6c.1a, the mouse's raw motion
-  and the cursor held with M6c.1b
-  ([ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md)); on Windows, winit 0.30
-  reports as raw motion the positions that a virtual machine's tablet or a remote desktop gives.
-  M6c.7 brings files dropped on Windows and X11, Stage 6d gamepads
-  ([ADR-0170](adr/0170-applications-on-the-ui-framework.md)) and fullscreen; files dropped on
-  Wayland wait for winit 0.31 ([ADR-0155](adr/0155-the-editors-design.md)).
-- **A compositor that stops answering blocks the engine.** Before the first frame, winit waits for
-  the window's first configuration without a timeout, so a termination signal is noticed only when a
-  second one ends the process; after the `stop` methods, releasing the window or the surface can
-  block too (seen with a Weston stopped by SIGSTOP).
-- **Logging off or shutting down Windows ends a game without its `stop` methods.** Windows tells a
-  window of it with end-session messages, which winit does not report, and sends no console event to
-  a process that has loaded `user32.dll`, as every engine process has
-  (`crates/slime-app/src/signal.rs`): what a game saves in its simulation's `stop` is lost then.
-  *Hunna Wood* saves its run there since M5a.9: the run since the last F5 is lost when Windows ends
-  the session (ADR-0088). A fix needs a new dependency, which ADR-0081 leaves to a later decision.
+  touch, touchpad gestures, gamepads, dropped files.
+  The window cannot go fullscreen.
+  On Windows, winit 0.30 reports as raw motion the positions that a virtual machine's tablet or a remote desktop gives ([ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md)).
+  M6c.7 brings files dropped on Windows and X11.
+  Stage 6d brings gamepads and fullscreen ([ADR-0170](adr/0170-applications-on-the-ui-framework.md)).
+  Files dropped on Wayland wait for winit 0.31 ([ADR-0155](adr/0155-the-editors-design.md)).
+- **A compositor that stops answering blocks the engine.**
+  Before the first frame, winit waits for the window's first configuration without a timeout: a termination signal is noticed only when a second one ends the process.
+  After the `stop` methods, releasing the window or the surface can block too (seen with a Weston stopped by SIGSTOP).
+- **Logging off or shutting down Windows ends a game without its `stop` methods.**
+  Windows tells a window of it with end-session messages, which winit does not report.
+  It sends no console event to a process that has loaded `user32.dll`, as every engine process has (`crates/slime-app/src/signal.rs`).
+  What a game saves in its simulation's `stop` is lost then.
+  *Hunna Wood* saves its run there since M5a.9: the run since the last F5 is lost when Windows ends the session (ADR-0088).
+  A fix needs a new dependency, which ADR-0081 leaves to a later decision.
 - **WARP's shader compiler crashes the process, now and then, when several threads compile
-  shaders at once**, even on separate devices: an access violation (`STATUS_ACCESS_VIOLATION`)
-  that other projects trace to `d3d10warp.dll`, and that no test can catch. Seen once in the
-  Windows CI job, on 2026-10-13, in the texture tests of
-  `slime-gfx`, after about ten green runs; other projects that test on WARP report the same crash,
-  and that running the tests one at a time avoids it, which the Windows job does since, and which
-  `CONTRIBUTING.md` asks of contributors on WARP. The engine's own code is not involved.
-- **Client-side decorations run `dbus-send` twice when the window is created** (winit's
-  sctk-adwaita, on compositors that do not draw decorations), each waiting up to 100 ms when the
-  settings portal does not answer; the error they log when no session bus or portal answers is
-  hidden by the default log filter (ADR-0019).
+  shaders at once**, even on separate devices.
+  It is an access violation (`STATUS_ACCESS_VIOLATION`) that other projects trace to `d3d10warp.dll`, and that no test can catch.
+  Seen once in the Windows CI job, on 2026-10-13, in `slime-gfx`'s texture tests, after about ten green runs.
+  Other projects that test on WARP report the same crash, and that running the tests one at a time avoids it.
+  The Windows job does so since, and `CONTRIBUTING.md` asks it of contributors on WARP.
+  The engine's own code is not involved.
+- **Client-side decorations run `dbus-send` twice when the window is created** (winit's sctk-adwaita, on compositors that do not draw decorations).
+  Each waits up to 100 ms when the settings portal does not answer.
+  The error they log when no session bus or portal answers is hidden by the default log filter (ADR-0019).
 - **Mipmaps of textures made in code are computed on the CPU when they are created**
-  (`Gpu::create_texture`, whose documentation gives the cost), on the calling thread, in work
-  proportional to the texture's pixels (ADR-0032): a level of tens of large textures waits seconds.
-  A caller with levels of its own gives them to `Gpu::create_texture_with_levels` (ADR-0039), as
-  cooked textures do, whose levels the cooker computed (ADR-0071).
+  (`Gpu::create_texture`, whose documentation gives the cost).
+  The work runs on the calling thread, in proportion to the texture's pixels (ADR-0032): a level of tens of large textures waits seconds.
+  A caller with levels of its own gives them to `Gpu::create_texture_with_levels` (ADR-0039), as cooked textures do, whose levels the cooker computed (ADR-0071).
 - **Cooked bytes are the same from one cook to the next on one platform, not across platforms**
-  (ADR-0071): the cooker computes the sRGB curve with the platform's mathematical functions, which
-  may round differently on Linux and Windows. Tests compare decoded values across platforms; a
-  table of the curve's values would make the bytes the same everywhere.
+  (ADR-0071).
+  The cooker computes the sRGB curve with the platform's mathematical functions, which may round differently on Linux and Windows.
+  Tests compare decoded values across platforms.
+  A table of the curve's values would make the bytes the same everywhere.
 - **A cook reads and hashes every source file at every run, and reads every cooked file it
-  reuses**, and cooked files that no source makes any more stay in the output directory (ADR-0071,
-  ADR-0102): nothing records a source's size and time to skip unchanged ones, which is to measure
-  on *Hunna Wood*'s zone, nor cleans the output, where each change that `slime-cook watch` cooks
-  leaves the files it replaced (ADR-0076). The rustdoc of `slime_cook::cook` measures what reading
-  the cooked files costs.
-- **A cooked file damaged within its ranges is not found** (ADR-0102): the cooker cooks again a
-  file deleted, emptied, cut short or that its reader refuses, and a game refuses such a file with
-  an error, but texels or numbers changed within their ranges draw wrong, without a word.
+  reuses**, and cooked files that no source makes any more stay in the output directory (ADR-0071, ADR-0102).
+  Nothing records a source's size and time to skip unchanged ones; to measure on *Hunna Wood*'s zone.
+  Nothing cleans the output: each change that `slime-cook watch` cooks leaves the files it replaced (ADR-0076).
+  The rustdoc of `slime_cook::cook` measures what reading the cooked files costs.
+- **A cooked file damaged within its ranges is not found** (ADR-0102).
+  The cooker cooks again a file deleted, emptied, cut short or that its reader refuses, and a game refuses such a file with an error.
+  Texels or numbers changed within their ranges draw wrong, without a word.
   Checksums may come beside the rule, with archives (ADR-0096).
-- **Two watches repeat the same polling** (ADR-0077): `slime_assets::ManifestWatch` and
-  `slime_render::ShaderWatch` each read their files every half second and tell a failure once,
-  with the same dozen lines, over what each reads. No crate that both reach suits a type for both
-  yet.
-- **Every offscreen render target and depth target can be sampled** (ADR-0033): they all carry the
-  usage that allows it, which may cost some compression on some GPUs. Measured at M3b.5 on an RX
-  6900 XT (RADV), with two builds that differ only by it: no cost (the scene pass took 43.9 µs
-  with it and 44.0 µs without at 1920 × 1080, ADR-0033's correction). Other GPUs are not measured.
+- **Two watches repeat the same polling** (ADR-0077).
+  `slime_assets::ManifestWatch` and `slime_render::ShaderWatch` each read their files every half second and tell a failure once, with the same dozen lines.
+  No crate that both reach suits a type for both yet.
+- **Every offscreen render target and depth target can be sampled** (ADR-0033): they all carry the usage that allows it, which may cost some compression on some GPUs.
+  Measured at M3b.5 on an RX 6900 XT (RADV), with two builds that differ only by it: no cost (the scene pass took 43.9 µs with it and 44.0 µs without at 1920 × 1080, ADR-0033's correction).
+  Other GPUs are not measured.
 - **A pipeline that does not fit its pass, or a target sampled by the pass that draws into it,
-  panics only when the commands of its submission are finished** inside `Gpu::submit` (or
-  `Gpu::render`, `Gpu::render_depth`), with wgpu's message naming the pass, rather than at the
-  faulty call (ADR-0033, ADR-0041). For the renderer's frame, the render graph refuses a pass that
-  samples what it draws into before wgpu sees it.
-- **On X11, losing the connection to the X server ends the process** with exit status 1, inside
-  the X11 library (Xlib). `EventHandler::exiting`, the `stop` methods and the return of `run` do not
-  happen, although ADR-0010 promises that they are called once the `start` methods have been. winit
-  installs no IO error handler. Installing one (`XSetIOErrorExitHandler`, libX11 1.7 or later)
-  would need a new direct dependency such as `x11-dl`. On Wayland, a compositor that dies ends the
-  loop cleanly.
-- **Without libxkbcommon, the windowing library panics** rather than returning
-  `PlatformError::Connect`. On X11 it panics at once, also without libxkbcommon-x11 or without the
-  X server's XKB extension. On Wayland it panics when the compositor first reports a keyboard,
-  which can be in the middle of a run. Turning it into an error would mean probing the libraries
-  before winit does.
+  panics only when the commands of its submission are finished** inside `Gpu::submit` (or `Gpu::render`, `Gpu::render_depth`).
+  wgpu's message names the pass, not the faulty call (ADR-0033, ADR-0041).
+  For the renderer's frame, the render graph refuses a pass that samples what it draws into before wgpu sees it.
+- **On X11, losing the connection to the X server ends the process** with exit status 1, inside the X11 library (Xlib).
+  `EventHandler::exiting`, the `stop` methods and the return of `run` do not happen, although ADR-0010 promises them once the `start` methods have run.
+  winit installs no IO error handler.
+  Installing one (`XSetIOErrorExitHandler`, libX11 1.7 or later) would need a new direct dependency such as `x11-dl`.
+  On Wayland, a compositor that dies ends the loop cleanly.
+- **Without libxkbcommon, the windowing library panics** rather than returning `PlatformError::Connect`.
+  On X11 it panics at once, also without libxkbcommon-x11 or without the X server's XKB extension.
+  On Wayland it panics when the compositor first reports a keyboard, which can be in the middle of a run.
+  Turning it into an error would mean probing the libraries before winit does.
 - **A termination signal received after `run` has returned no longer ends the process by itself**
-  (ADR-0012). `ctrlc` cannot remove the handler that `run` installs. A first signal received then
-  only stops later runs, and logs that the run stops after the current frame; only a second one
-  ends the process, with exit code 130. This matters for a program that keeps working after
-  `run`, for example under a service manager, which waits out its stop timeout. Ending the process
-  at once when no run is active would amend ADR-0012.
+  (ADR-0012).
+  `ctrlc` cannot remove the handler that `run` installs.
+  A first signal received then only stops later runs, and logs that the run stops after the current frame; only a second one ends the process, with exit code 130.
+  This matters for a program that keeps working after `run`, under a service manager for example, which waits out its stop timeout.
+  Ending the process at once when no run is active would amend ADR-0012.
 - **A window frame dropped without being presented keeps one of the window's images on Vulkan.**
-  wgpu 30 discards such a frame with wgpu-hal's `discard_texture`, which does nothing on Vulkan. The
-  image stays acquired until the surface is configured again, and once none is left,
-  `Surface::acquire` waits one second and returns `None`. `SurfaceFrame` documents this as a misuse,
-  and nothing reports it. The engine presents every frame it acquires, a panic in
-  `Presentation::render` aside, whose frame the surface releases when it is dropped, as it releases
-  an image that a lost device refused to present
-  ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)). A `Drop` that
-  presents was rejected: it would show a black or half-drawn frame instead of skipping it, and
-  present during unwinding.
-- **An oversize window's surface is configured again at every frame on X11.** A window wider or
-  taller than the device's largest image (the adapter's, 16 384 pixels on lavapipe and the RX
-  6900 XT since M6a.4 asks for the adapter's limits) gets images of that size, smaller than the
-  window. On X11, Mesa's Vulkan drivers mark such a swapchain suboptimal, and every image of it too.
-  `Surface::acquire` treats each suboptimal image as a reason to configure the surface again, at
-  the same clamped size, so every frame waits for the GPU to finish and rebuilds the window's
-  images. The frames are correct, and only `debug` logs show it; Wayland and Direct3D 12 are not
-  affected. Not setting `stale` in the `Suboptimal` arm of `Surface::next_image` while `oversize`
-  is set is not enough: measured, the `Outdated` branch then configures the surface again. Such
-  windows are rare since the device asks for the adapter's largest image, and were not measured
-  again. To measure, before and after: start Xvfb with a screen wider than 16 384 pixels; with
-  `WAYLAND_DISPLAY` unset, `DISPLAY` set to it and lavapipe, run the child of the `oversize`
-  scenario of `crates/slime-app/tests/windowed_lifecycle.rs`, its window widened past the largest
-  image, with `SLIME_LOG=wgpu_core=debug`; count wgpu-core's `configuring surface with` records
-  (about one per frame without the fix, one with it) and note the frame times.
+  wgpu 30 discards such a frame with wgpu-hal's `discard_texture`, which does nothing on Vulkan.
+  The image stays acquired until the surface is configured again; once none is left, `Surface::acquire` waits one second and returns `None`.
+  `SurfaceFrame` documents this as a misuse, and nothing reports it.
+  The engine presents every frame it acquires, but for a panic in `Presentation::render`.
+  The surface releases that frame when it is dropped, as it releases an image that a lost device refused to present ([ADR-0103](adr/0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md)).
+  A `Drop` that presents was rejected: it would show a black or half-drawn frame instead of skipping it, and present during unwinding.
+- **An oversize window's surface is configured again at every frame on X11.**
+  A window wider or taller than the device's largest image (the adapter's, 16 384 pixels on lavapipe and the RX 6900 XT, since M6a.4 asks for the adapter's limits) gets images of that size, smaller than the window.
+  On X11, Mesa's Vulkan drivers mark such a swapchain suboptimal, and every image of it too.
+  `Surface::acquire` treats each suboptimal image as a reason to configure the surface again, at the same clamped size: every frame waits for the GPU and rebuilds the window's images.
+  The frames are correct, and only `debug` logs show it; Wayland and Direct3D 12 are not affected.
+  Not setting `stale` in the `Suboptimal` arm of `Surface::next_image` while `oversize` is set is not enough: measured, the `Outdated` branch then configures the surface again.
+  Such windows are rare since the device asks for the adapter's largest image, and were not measured again.
+  To measure, before and after: start Xvfb with a screen wider than 16 384 pixels.
+  With `WAYLAND_DISPLAY` unset, `DISPLAY` set to it and lavapipe, run the child of the `oversize` scenario of `crates/slime-app/tests/windowed_lifecycle.rs`, its window widened past the largest image, with `SLIME_LOG=wgpu_core=debug`.
+  Count wgpu-core's `configuring surface with` records (about one per frame without the fix, one with it) and note the frame times.
 - **Termination signals are ignored for the rest of the process when `ctrlc` cannot start its
-  thread.** `ctrlc` installs its handlers, then starts the thread that waits for what they catch.
-  When that thread cannot start (a limit on threads reached when `run` installs the handler), the
-  handlers stay installed and SIGINT, SIGTERM and SIGHUP (Ctrl+C and Ctrl+Break on Windows) are
-  ignored: only SIGKILL, or closing the console on Windows, ends the process. The engine logs a
-  warning that says so and gives the system's error. Restoring the default dispositions would need
-  a direct dependency on libc or nix.
+  thread.**
+  `ctrlc` installs its handlers, then starts the thread that waits for what they catch.
+  When that thread cannot start (a limit on threads reached when `run` installs the handler), the handlers stay installed and SIGINT, SIGTERM and SIGHUP (Ctrl+C and Ctrl+Break on Windows) are ignored.
+  Only SIGKILL, or closing the console on Windows, ends the process.
+  The engine logs a warning that says so and gives the system's error.
+  Restoring the default dispositions would need a direct dependency on libc or nix.
 - **Any `trace` directive in `SLIME_LOG` makes wgpu build its per-command trace records.**
-  tracing-subscriber sets the `log` crate's maximum level from the most verbose directive. With
-  `slime_app=trace`, wgpu-core then formats and filters out about five records per draw while it
-  encodes a pass, which counts in the caller's span (`render` in a windowed run): measured with
-  `RenderStats::cpu_time` for a scene of 1000 instances, 0.38 ms more per frame, 35 %, with
-  `slime_app=trace` than with `SLIME_LOG` unset. Alternatively, profile with
-  `perf record -g` and look for `tracing_log::LogTracer::log`, `EnvFilter::enabled` and
-  `wgpu_core::resource::Labeled::error_ident`. Capping the `log` level needs `log` or
-  `tracing-log` as a direct dependency (ADR-0006). Span close lines are also written while the
-  enclosing span is entered, so `frame`, `render` and, with `slime_gfx=trace`,
-  `RenderStats::cpu_time` include them: take timing baselines with `SLIME_LOG` unset.
+  tracing-subscriber sets the `log` crate's maximum level from the most verbose directive.
+  With `slime_app=trace`, wgpu-core then formats and filters out about five records per draw while it encodes a pass, counted in the caller's span (`render` in a windowed run).
+  Measured with `RenderStats::cpu_time` for a scene of 1000 instances: 0.38 ms more per frame, 35 %, than with `SLIME_LOG` unset.
+  Alternatively, profile with `perf record -g` and look for `tracing_log::LogTracer::log`, `EnvFilter::enabled` and `wgpu_core::resource::Labeled::error_ident`.
+  Capping the `log` level needs `log` or `tracing-log` as a direct dependency (ADR-0006).
+  Span close lines are also written while the enclosing span is entered, so `frame`, `render` and, with `slime_gfx=trace`, `RenderStats::cpu_time` include them: take timing baselines with `SLIME_LOG` unset.
 - **On Windows with Vulkan (`WGPU_BACKEND=vulkan`), an acquire that waits more than one second
-  loses the device.** wgpu-hal 30.0.1 waits on a fence after `vkAcquireNextImageKHR` hands out an
-  image, on Windows only, and maps a timeout of that wait to `DeviceError::Unexpected`, which
-  wgpu-core treats as the loss of the device. A GPU frame longer than about one second, or a
-  compositor that holds the window's images that long (a covered window, a locked session), then
-  stops the run with `GfxError::DeviceLost`, with a reason that blames the driver; on Linux the
-  frame is skipped instead. Not reproduced: in the owner's Windows 11 virtual machine with an AMD
-  driver, the `scene` example kept running with its window covered for six seconds and with the
-  session locked (2026-10-13). To report to wgpu: that wait's timeout should give
-  `SurfaceError::Timeout`, as its other waits do.
-- **Seen from below, the sample scene's walls and crates flicker where they touch the floor.** Their
-  bottom faces lie in the floor's plane, and since M3b.3 the floor is double-sided, so from below
-  both are drawn at the same depth (z-fighting). The `scene` example keeps its camera above the
-  floor, but another viewer of the asset sees it. Lifting them by a few millimetres in
-  `examples/assets/make_scene.py` fixes it, at the cost of rendering the glTF references again.
+  loses the device.**
+  wgpu-hal 30.0.1 waits on a fence after `vkAcquireNextImageKHR` hands out an image, on Windows only, and maps a timeout of that wait to `DeviceError::Unexpected`, which wgpu-core treats as a lost device.
+  A GPU frame longer than about one second, or a compositor that holds the window's images that long (a covered window, a locked session), then stops the run with `GfxError::DeviceLost`, with a reason that blames the driver.
+  On Linux the frame is skipped instead.
+  Not reproduced: in the owner's Windows 11 virtual machine with an AMD driver, the `scene` example kept running with its window covered for six seconds and with the session locked (2026-10-13).
+  To report to wgpu: that wait's timeout should give `SurfaceError::Timeout`, as its other waits do.
+- **Seen from below, the sample scene's walls and crates flicker where they touch the floor.**
+  Their bottom faces lie in the floor's plane; since M3b.3 the floor is double-sided, so from below both are drawn at the same depth (z-fighting).
+  The `scene` example keeps its camera above the floor, but another viewer of the asset sees it.
+  Lifting them by a few millimetres in `examples/assets/make_scene.py` fixes it, at the cost of rendering the glTF references again.
 - **A mouse button can stay down on Wayland when the compositor takes the pointer away during a
-  press without taking the keyboard focus.** winit 0.30 reports only `CursorLeft` then, and
-  `Translator` (`crates/slime-platform/src/event.rs`) releases held buttons only when the focus is
-  lost. Releasing them on `CursorLeft` would be right on Wayland only: on X11 and Windows the
-  cursor leaves the window during an ordinary drag.
-- **On Windows, the first of two held Shift keys let go of is released late.** Windows sends a
-  single key-up for both Shift keys, so the engine releases the first one only when the second
-  goes up. Windows 11 marks the second Shift's press as a repeat, so neither its press nor its
-  release is reported (seen in the owner's virtual machine on 2026-10-13). Polling `GetKeyState`,
-  as GLFW and SDL do, would remove the delay and report both keys, but needs `windows-sys` as a
-  direct dependency.
-- **After a dead key, a press and its release report different logical keys.** On Wayland and
-  X11, a character key that does not combine with a pending dead key is reported as
-  `Key::Unidentified` with no text; when the keys combine, the press is the composed character and
-  the release the plain one. winit exposes no better value; rebuilding one would need libxkbcommon
-  called directly. Documented in `KeyEvent::logical`.
-- **A key pressed just after the window gains the focus can be swallowed on X11 and Windows.** winit
-  reads which keys are down when it handles the focus event, not when the focus changed. A key
-  pressed in between counts as held before the focus and is not reported until it is pressed again;
-  on X11 the gap covers the `start` methods when the window manager focuses the window while it
-  runs. The translator cannot tell such a press from X11's unmarked first auto-repeat. On Windows,
-  trusting `KeyEvent::repeat` would close the gap, at the cost of a rule that differs between
-  platforms; left as documented.
-- **No test covers the empty submission of frames without a window image.** When
-  `Surface::acquire` gives no image, it submits an empty batch, so that wgpu releases the writes
-  a game makes outside `Presentation::render`. Without it, 2000 frames of a surface resized to
-  zero, each writing 64 KiB to a uniform buffer, grew the process by about 120 MiB (lavapipe in a
-  headless Weston, 2026-10-13), measured by a program kept out of the repository. The
-  `draws-nothing` scenario of `crates/slime-app/tests/windowed_lifecycle.rs` checks the same for
-  frames whose image nothing draws, not for frames without an image.
-- **A GPU time can read 0 once when the timestamp counter wraps.** On adapters whose timestamps
-  have 36 valid bits (Intel's Vulkan driver, about once every one to one and a half hours), a
-  timed pass that runs across the wrap ends before it starts. `GpuTimer::latest` then gives 0 for
-  that pass until the next time replaces it. wgpu does not tell how many bits are valid, so the
-  wrapped difference cannot be recovered. Dropping such a sample (`end.checked_sub(start)` in
-  `crates/slime-gfx/src/timer.rs`) is a one-line change if it ever matters.
-- **Exposed light beyond 64 × 65 504 is clamped** (ADR-0035, ADR-0037, ADR-0039, ADR-0040). The
-  scene and sky shaders write exposed light divided by 64 into the `Rgba16Float` target, and light
-  above 64 × 65 504 as 65 504, the largest half, rather than leave it to the driver, which may store
-  an infinity that the tone curve turns into NaN; lavapipe and RADV clamp it themselves, so that no
-  test can show either clamp. The sun's disc, 1.47 × 10⁹ nits for the sample's sun, is clamped from
-  an exposure of 2.85 × 10⁻³, six and a half stops above the sample's; emission above
-  64 × 65 504 / exposure, and any light once the exposure is raised about 13.5 stops above the
-  sample's, are clamped too, and the bloom spreads them with the energy they keep. A sky's radiance
-  is at most 65 504 nits before the exposure: brighter zenith, horizon or ground is refused, and a
-  brighter glow kept within it. Divided by 64, exposed light below 64 × 2⁻¹⁴, about 0.004, is
-  stored in half precision's subnormals, in steps of 64 × 2⁻²⁴: black on an 8-bit display, whose
-  darkest step is about 0.007 exposed; an output of higher precision would show its steps.
-- **Every fragment evaluates every light of the scene** (ADR-0037). The scene pass has no light
-  culling: its cost grows with the number of lights, about 20 µs per light for a screen of 1920 ×
-  1080 fragments on an RX 6900 XT (2026-10-13), 338 µs for 16, the most a scene holds, and 10 to 20
-  times more on an integrated GPU; a light's range saves no work. More lights would need clustered
-  or tiled culling and a storage buffer, a measured decision of Stage 9a (ADR-0052).
-- **Point lights cast no shadows, and light what objects hide** (ADR-0037; the first directional
-  light that casts shadows casts them, ADR-0038, and so do spot lights, ADR-0058). The sample's ring
-  light, a point light, reaches 4 m, and gives little beyond a metre. The shadows of point lights
-  come with Stage 9a (ADR-0052).
+  press without taking the keyboard focus.**
+  winit 0.30 reports only `CursorLeft` then, and `Translator` (`crates/slime-platform/src/event.rs`) releases held buttons only when the focus is lost.
+  Releasing them on `CursorLeft` would be right on Wayland only: on X11 and Windows the cursor leaves the window during an ordinary drag.
+- **On Windows, the first of two held Shift keys let go of is released late.**
+  Windows sends a single key-up for both Shift keys, so the engine releases the first one only when the second goes up.
+  Windows 11 marks the second Shift's press as a repeat, so neither its press nor its release is reported (seen in the owner's virtual machine on 2026-10-13).
+  Polling `GetKeyState`, as GLFW and SDL do, would remove the delay and report both keys, but needs `windows-sys` as a direct dependency.
+- **After a dead key, a press and its release report different logical keys.**
+  On Wayland and X11, a character key that does not combine with a pending dead key is reported as `Key::Unidentified` with no text.
+  When the keys combine, the press is the composed character and the release the plain one.
+  winit exposes no better value; rebuilding one would need libxkbcommon called directly.
+  Documented in `KeyEvent::logical`.
+- **A key pressed just after the window gains the focus can be swallowed on X11 and Windows.**
+  winit reads which keys are down when it handles the focus event, not when the focus changed.
+  A key pressed in between counts as held before the focus, and is not reported until it is pressed again.
+  On X11 the gap covers the `start` methods when the window manager focuses the window while they run.
+  The translator cannot tell such a press from X11's unmarked first auto-repeat.
+  On Windows, trusting `KeyEvent::repeat` would close the gap, at the cost of a rule that differs between platforms; left as documented.
+- **No test covers the empty submission of frames without a window image.**
+  When `Surface::acquire` gives no image, it submits an empty batch, so that wgpu releases the writes a game makes outside `Presentation::render`.
+  Without it, 2000 frames of a surface resized to zero, each writing 64 KiB to a uniform buffer, grew the process by about 120 MiB (lavapipe in a headless Weston, 2026-10-13), measured by a program kept out of the repository.
+  The `draws-nothing` scenario of `crates/slime-app/tests/windowed_lifecycle.rs` checks the same for frames whose image nothing draws, not for frames without an image.
+- **A GPU time can read 0 once when the timestamp counter wraps.**
+  On adapters whose timestamps have 36 valid bits (Intel's Vulkan driver, about once every one to one and a half hours), a timed pass that runs across the wrap ends before it starts.
+  `GpuTimer::latest` then gives 0 for that pass until the next time replaces it.
+  wgpu does not tell how many bits are valid, so the wrapped difference cannot be recovered.
+  Dropping such a sample (`end.checked_sub(start)` in `crates/slime-gfx/src/timer.rs`) is a one-line change if it ever matters.
+- **Exposed light beyond 64 × 65 504 is clamped** (ADR-0035, ADR-0037, ADR-0039, ADR-0040).
+  The scene and sky shaders write exposed light divided by 64 into the `Rgba16Float` target.
+  They write light above 64 × 65 504 as 65 504, the largest half, rather than leave it to the driver, which may store an infinity that the tone curve turns into NaN.
+  lavapipe and RADV clamp it themselves, so no test can show either clamp.
+  The sun's disc, 1.47 × 10⁹ nits for the sample's sun, is clamped from an exposure of 2.85 × 10⁻³, six and a half stops above the sample's.
+  Emission above 64 × 65 504 / exposure, and any light once the exposure is raised about 13.5 stops above the sample's, are clamped too; the bloom spreads them with the energy they keep.
+  A sky's radiance is at most 65 504 nits before the exposure: brighter zenith, horizon or ground is refused, and a brighter glow kept within it.
+  Divided by 64, exposed light below 64 × 2⁻¹⁴, about 0.004, is stored in half precision's subnormals, in steps of 64 × 2⁻²⁴.
+  That is black on an 8-bit display, whose darkest step is about 0.007 exposed; an output of higher precision would show its steps.
+- **Every fragment evaluates every light of the scene** (ADR-0037).
+  The scene pass has no light culling: its cost grows with the number of lights.
+  About 20 µs per light for a screen of 1920 × 1080 fragments on an RX 6900 XT (2026-10-13), 338 µs for 16, the most a scene holds, and 10 to 20 times more on an integrated GPU.
+  A light's range saves no work.
+  More lights would need clustered or tiled culling and a storage buffer, a measured decision of Stage 9a (ADR-0052).
+- **Point lights cast no shadows, and light what objects hide** (ADR-0037).
+  The first directional light that casts shadows casts them (ADR-0038), and so do spot lights (ADR-0058).
+  The sample's ring light, a point light, reaches 4 m, and gives little beyond a metre.
+  The shadows of point lights come with Stage 9a (ADR-0052).
 - **Every instance of a scene costs CPU time at each frame** (`Renderer`,
-  [ADR-0117](adr/0117-frustum-culling-and-instancing.md)). Frustum culling and instancing make a
-  frame's draws and its GPU work follow what each pass sees, but the renderer keeps nothing from
-  one frame to the next: at each frame, it places and tests every instance's box against the
-  camera's view and against every cascade and spot light, on one thread, ranks every instance's
-  material and mesh, sorts those drawn, and packs and sends their values, about 0.2 µs per
-  instance of 100 000 cubes on the owner's machine (`render.instances.100k`,
-  [`measurements.md`](measurements.md)). A render scene kept from one frame to the next, with
-  stable keys, and culling and draws decided by the GPU come with Stage 9a (ADR-0097).
+  [ADR-0117](adr/0117-frustum-culling-and-instancing.md)).
+  Frustum culling and instancing make a frame's draws and its GPU work follow what each pass sees, but the renderer keeps nothing from one frame to the next.
+  At each frame, on one thread, it places and tests every instance's box against the camera's view and against every cascade and spot light, ranks every instance's material and mesh, sorts those drawn, and packs and sends their values.
+  That is about 0.2 µs per instance of 100 000 cubes on the owner's machine (`render.instances.100k`, [`measurements.md`](measurements.md)).
+  A render scene kept from one frame to the next, with stable keys, and culling and draws decided by the GPU come with Stage 9a (ADR-0097).
 - **The tests that run out of GPU memory under a budget depend on the machine's memory in use**
-  (`slime_gfx::MEMORY_BUDGET_ENV_VAR`). On lavapipe, the budget is a share of the memory that the
-  whole machine uses, so that the shares at which such a test runs out of memory as it means to lie
-  in a window, a few shares wide, that what else runs moves by a share or two between runs. On
-  2026-10-22, `a_view_whose_new_size_does_not_fit_keeps_no_targets` failed twice locally and once in
-  CI, run at the window's lower end. These tests now run halfway through the window, which probes
-  find first (`slime-gfx`'s `tests/common/memory_budget.rs`), and that one alone in its binary,
-  `slime-render`'s `tests/oversize.rs`. Each probe of that test makes a renderer: it takes about
-  15 s on lavapipe, and a minute or more on WARP. Memory that moves by a third of the window while
-  one runs still fails it.
+  (`slime_gfx::MEMORY_BUDGET_ENV_VAR`).
+  On lavapipe, the budget is a share of the memory that the whole machine uses.
+  The shares at which such a test runs out of memory as it means to lie in a window a few shares wide, which what else runs moves by a share or two between runs.
+  On 2026-10-22, `a_view_whose_new_size_does_not_fit_keeps_no_targets` failed twice locally and once in CI, run at the window's lower end.
+  These tests now run halfway through the window, which probes find first (`slime-gfx`'s `tests/common/memory_budget.rs`), and that one alone in its binary, `slime-render`'s `tests/oversize.rs`.
+  Each probe of that test makes a renderer: about 15 s on lavapipe, a minute or more on WARP.
+  Memory that moves by a third of the window while one runs still fails it.
 - **A picking draws all that its view sees, and picking by the CPU ignores masks**
   ([ADR-0130](adr/0130-picking.md)).
-  A picking's pass draws every instance that the view's scene pass draws, not those of its area
-  alone, in the frame that it is drawn; a view draws one picking per frame. Picking by the CPU
-  passes through nothing that a mask cuts out, reads each mesh whole, at its first cast in a world
-  that names it, to know its box, which a bounds-only read of the cooked data would spare, and reads
-  from the cooked data that its `Picker` was made with, not again when it changes. Lines are not
-  picked. *Hunna Wood* does not pick yet: a tool's picking in it is refused. Scripted input has no
-  mouse, so that an agent picks through the MCP server's `pick` tool, not by clicking.
+  A picking's pass draws every instance that the view's scene pass draws, not those of its area alone, in the frame that it is drawn.
+  A view draws one picking per frame.
+  Picking by the CPU passes through nothing that a mask cuts out.
+  It reads each mesh whole at its first cast in a world that names it, to know its box; a bounds-only read of the cooked data would spare it.
+  It reads from the cooked data that its `Picker` was made with, not again when that changes.
+  Lines are not picked.
+  *Hunna Wood* does not pick yet: a tool's picking in it is refused.
+  Scripted input has no mouse: an agent picks through the MCP server's `pick` tool, not by clicking.
 - **What a client draws into a view is lines and instances, in the scene and over the image**
   ([ADR-0129](adr/0129-drawing-for-the-editor.md),
   [ADR-0161](adr/0161-the-open-step-and-the-handles.md)), and **an outline around instances**
-  ([ADR-0159](adr/0159-picking-and-the-selection.md)), for which a frame resolves the scene's
-  depth. Over the image, the unlit kind's instances alone are drawn, the others left out without a
-  warning, with a depth target as large as the view's output, whichever rectangle the view draws
-  into. The outline's cost has not been measured at 3840 × 2160 with many entities selected: at its
-  widest, each pixel of the view reads its mask 289 times.
-  A line that lies on a surface may be hidden by it in places; blended surfaces are drawn in no
-  particular order until Stage 9a sorts them. The `world` example selects with Tab from the
-  keyboard alone: scripted keys reach a game's input, which its simulation reads, not its
-  presentation's events. How long `Renderer::set_shaders` takes was measured before the
-  unlit kind's pipelines and the lines'.
+  ([ADR-0159](adr/0159-picking-and-the-selection.md)), for which a frame resolves the scene's depth.
+  Over the image, the unlit kind's instances alone are drawn, the others left out without a warning.
+  They are drawn with a depth target as large as the view's output, whichever rectangle the view draws into.
+  The outline's cost is not measured at 3840 × 2160 with many entities selected: at its widest, each pixel of the view reads its mask 289 times.
+  A line that lies on a surface may be hidden by it in places.
+  Blended surfaces are drawn in no particular order until Stage 9a sorts them.
+  The `world` example selects with Tab from the keyboard alone: scripted keys reach a game's input, which its simulation reads, not its presentation's events.
+  How long `Renderer::set_shaders` takes was measured before the unlit kind's pipelines and the lines'.
 - **A page of meshes keeps the ranges of dropped meshes until new ones fill them or it empties**
-  ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)). Nothing moves a mesh to pack its
-  page: a game that drops half its meshes keeps their pages' memory while one mesh stays in each.
-  Dropping a mesh frees no GPU memory until its page empties: the asset cache counts its pages, and
-  a held mesh keeps the releasable meshes of its page ([ADR-0128](adr/0128-asset-requests.md)).
+  ([ADR-0117](adr/0117-frustum-culling-and-instancing.md)).
+  Nothing moves a mesh to pack its page: a game that drops half its meshes keeps their pages' memory while one mesh stays in each.
+  Dropping a mesh frees no GPU memory until its page empties.
+  The asset cache counts its pages, and a held mesh keeps the releasable meshes of its page ([ADR-0128](adr/0128-asset-requests.md)).
   Capture tools name a page's buffers, not its meshes.
 - **The asset cache's requests leave work and memory behind**
-  ([ADR-0128](adr/0128-asset-requests.md)). Two batches loading at once that both read a texture the
-  cache does not hold yet upload it each, and the cache keeps the first. The copies that a stopped
-  load handed to the uploader still go to the GPU, at its rank. A texture is dropped whole, its
-  finest levels with its coarsest, until textures stream by their levels at Stage 10a
-  ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)). *Hunna Wood* has a frame
-  builder for each time of day, each with its sky's environment, and the one that does not draw
-  keeps the handles of its last frame until it draws again. The tests drop meshes from one page
-  only, which the squares that they load share: no test drops the least recently held of several.
-- **Cascades are fitted to spheres around slices of the view** (ADR-0064). Each covers its slice
-  whichever way the camera looks, which keeps its texels steady, but a wide view makes the spheres
-  large: in the first game, *Nightwatch* (deleted at M4a.7), with the single map's 30 m, the texels
-  near the player would be about half as wide as its texels, not a quarter, by ADR-0064's study;
-  that game's moon cast its shadows up to 16 m to make them finer. Fitting the cascades to what the camera sees at each frame,
-  or virtual shadow maps, is left to Stage 9a.
+  ([ADR-0128](adr/0128-asset-requests.md)).
+  Two batches loading at once that both read a texture the cache does not hold yet upload it each, and the cache keeps the first.
+  The copies that a stopped load handed to the uploader still go to the GPU, at its rank.
+  A texture is dropped whole, its finest levels with its coarsest, until textures stream by their levels at Stage 10a ([ADR-0113](adr/0113-asset-requests-residency-and-priorities.md)).
+  *Hunna Wood* has a frame builder for each time of day, each with its sky's environment; the one that does not draw keeps the handles of its last frame until it draws again.
+  The tests drop meshes from one page only, which the squares that they load share: no test drops the least recently held of several.
+- **Cascades are fitted to spheres around slices of the view** (ADR-0064).
+  Each covers its slice whichever way the camera looks, which keeps its texels steady, but a wide view makes the spheres large.
+  In the first game, *Nightwatch* (deleted at M4a.7), with the single map's 30 m, the texels near the player would be about half as wide as its texels, not a quarter, by ADR-0064's study.
+  That game's moon cast its shadows up to 16 m to make them finer.
+  Fitting the cascades to what the camera sees at each frame, or virtual shadow maps, is left to Stage 9a.
 - **Shadows shift, and thin objects close to a surface lose theirs (peter-panning)** (ADR-0050).
-  The normal offset that keeps surfaces from shadowing themselves looks a point up 4.5 texels × the
-  sine of the light's incidence off its triangle (ADR-0063, ADR-0065): at the default distance,
-  under a light 45° from the normal, 1.2 cm in the first cascade and 18 cm in the last, and 26 cm
-  there at grazing. A shadow shifts by up to that much, and a sheet lying closer than that above a
-  floor casts nothing on it.
-- **Every draw of the scene pass runs a shader that can discard fragments** (ADR-0035). The `MASK`
-  alpha mode discards in the one fragment shader that every material uses, opaque materials with a
-  cutoff of 0. Some GPUs then test depth after the shader rather than before, for opaque draws
-  too, which costs overdraw. On lavapipe, opaque materials drawn without `discard` did not make the
-  scene pass faster ([ADR-0106](adr/0106-the-measured-quick-wins.md)); on a GPU, not measured:
-  compare the scene pass's GPU time on a scene with much overdraw against a build whose opaque
-  materials use a fragment entry point without `discard` (six pipelines instead of three).
-- **Edges that a masked material cuts inside a triangle stay aliased** (ADR-0059). Multisampling
-  smooths the edges of triangles, but the scene shader runs once per pixel, and the `MASK` alpha
-  mode keeps or discards all of a pixel's samples at once. Smoothing those edges, alpha to
-  coverage, behaves differently from one driver to the next, which image tests would see. The leaf
-  cards of *Hunna Wood*'s trees and its ferns are masked.
-- **The sky's light is neither shadowed nor occluded** (ADR-0039). A surface under an object, or
-  inside a box, receives the whole sky, but for its material's occlusion texture: no ambient
-  occlusion (screen-space effects are outside the stage), no reflection probes, and mirrors reflect
-  the sky, never the objects around them. An interior is lit by the whole sky through its walls:
-  until then, draw it without an environment, or with a sky of lower radiances, and light it with
-  point and spot lights. Khronos's Sponza shows it (M3b.9): its arcades are lit by the sky as its
-  open courtyard is, in the same blue.
-- **Glass is drawn opaque.** The importer leaves out glTF's `KHR_materials_transmission` and
-  `KHR_materials_volume`, and warns that it does: the renderer neither lets light through a surface
-  nor blends one (Khronos's FlightHelmet and ABeautifulGame, M3b.9). Transparency is left to
-  Stage 9a (ADR-0052).
-- **One GPU, an AMD, and two CPU drivers have run the engine.** The image tests' tolerances
-  (ADR-0030), the measurements of this plan and the samples' looks come from an RX 6900 XT, with
-  RADV on Linux and AMD's driver on Windows, from lavapipe and from WARP: NVIDIA's and Intel's GPUs
-  are untried, and stay so for now, the owner having no other machine (ADR-0097). The ratios that
-  scale the hardware tiers' budgets to the RX 6900 XT are estimates from public benchmarks until
-  the tiers' machines are measured ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)):
-  a GPU rented in the cloud, a Steam Deck, or contributors would end it. The handheld's ratio, a
-  tenth, may be generous for the interface's canvas, whose cost lies more in writing pixels than in
-  computing them, the Steam Deck writing them about twenty times slower than the RX 6900 XT
-  ([ADR-0137](adr/0137-the-canvas.md)). The RX 6900 XT also draws the owner's desktop, whose work
-  moves its figures ([`benches/README.md`](../benches/README.md#reading-the-figures)).
-- **The environment is computed on the CPU, in every process that draws a sky** (ADR-0039): 23 ms
-  in a release build on the owner's 16 threads, 162 ms on one core, and the BRDF table once (15
-  ms); about eight times longer in a debug build, which every test that draws a sky with a gradient
-  or a sun pays, most in `slime-render`'s `tests/environment.rs` and the examples' `tests/gltf.rs`,
-  whose every load of a file computes the sample's sky: 9 s and 13 s, timed by hand at P5, of the
-  workspace's 79 s of tests on lavapipe, on a machine of 4 logical CPUs
-  ([measurements](measurements.md) holds the total). A sky that changes needs a new environment:
-  no time of day. To measure: `cargo test --release -p slime-render --lib -- --ignored
-  --nocapture`, against the budget of M3b.6. Not yet scheduled: to move to the cooker, or to
-  compute passes if skies change at run time; if the tests' time matters first, building
-  `slime-render` optimized in debug builds would shorten it, at the cost of stepping through it in
-  a debugger.
-- **The sky's sun is described twice in the renderer's own API** (ADR-0039). A game that draws
-  with it gives the same `DirectionalLight` to `Sky::sun`, for the disc and the glow, and to
-  `Scene::lights`, for its light and its shadows; two different lights show a disc where no light
-  comes from. The `scene` example takes both from the file's first directional light. A world gives
-  it once ([ADR-0084](adr/0084-what-the-world-draws.md)), as *Hunna Wood*'s does.
-- **A node renamed in Blender loses what saves held of it** (ADR-0079, ADR-0087). A scene's entity
-  is known by its node's name: loading a save made before the rename sets aside what it held of
-  the node, and reports it. *Hunna Wood*'s zone script names every node and fails when Blender
-  numbers one, so that only a change of the script renames a node; the saves made before it set
-  aside what they held of it, or are saves of another layout. Identities that a scene file keeps for
-  a former name wait for a game that has players (ADR-0089).
-- **Some meshes of *Hunna Wood*'s zone are named with Blender's numbers** (`wooden_lantern_01.001`
-  in the lantern, `capital.004` in the land): the script checks the names of its objects, not of
-  their meshes. The cooker derives a mesh's ID from its name, so that a later change of the script
-  that numbers a mesh otherwise changes the mesh's ID. Naming the meshes changes the export, and
-  waits for the next release of the mirror.
-- **Blender's exports differ from one run to the next** (G55, low): the hero's, the lantern's on a
-  machine with another number of threads, the four textures that Blender renders, and the sample
-  scene's sphere. Blender computes the tangents of a mesh of more than 10 000 faces in parallel, in
-  an order that changes; its renders write their date and duration in the PNG files' text; and its
-  UV sphere orders its faces otherwise in each process. The hero kept on the mirror is the one the
-  game reads. Running the scripts on one thread, with `--factory-startup` and a pinned version of
-  Blender, and removing the PNG files' text, would make them reproducible.
-- **A save cut short may load in part** (ADR-0087). A save is a document of sections: one cut at the
-  boundary of a section is still a document, and loads what it holds without an error. *Hunna Wood*
-  writes its saves whole or not at all (ADR-0088), as every game that writes saves must.
-- **A save is text, of limited size** (ADR-0087, ADR-0102). Saving refuses a save larger, or of more
-  values, than what `slime-serialize` reads, about 22 000 entities that have a name and a transform,
-  a value counted for each `=`, `,`, `[`, `{` and `.` of the text, a float's point included; loading
-  costs more than saving, much of it parsing the text: the rustdoc of `World::save` and
-  `World::load` has the figures. *Hunna Wood*'s saves are far below the limit. The binary encoding
-  exists since M5b.4, but saves stay text until a measurement asks (ADR-0089): a larger world needs
-  saves in the binary encoding, or read in parts.
+  The normal offset that keeps surfaces from shadowing themselves looks a point up 4.5 texels × the sine of the light's incidence off its triangle (ADR-0063, ADR-0065).
+  At the default distance, under a light 45° from the normal, that is 1.2 cm in the first cascade and 18 cm in the last, and 26 cm there at grazing.
+  A shadow shifts by up to that much, and a sheet lying closer than that above a floor casts nothing on it.
+- **Every draw of the scene pass runs a shader that can discard fragments** (ADR-0035).
+  The `MASK` alpha mode discards in the one fragment shader that every material uses, opaque materials with a cutoff of 0.
+  Some GPUs then test depth after the shader rather than before, for opaque draws too, which costs overdraw.
+  On lavapipe, opaque materials drawn without `discard` did not make the scene pass faster ([ADR-0106](adr/0106-the-measured-quick-wins.md)); on a GPU, not measured.
+  To measure: compare the scene pass's GPU time on a scene with much overdraw against a build whose opaque materials use a fragment entry point without `discard` (six pipelines instead of three).
+- **Edges that a masked material cuts inside a triangle stay aliased** (ADR-0059).
+  Multisampling smooths the edges of triangles, but the scene shader runs once per pixel, and the `MASK` alpha mode keeps or discards all of a pixel's samples at once.
+  Alpha to coverage, which would smooth those edges, behaves differently from one driver to the next, which image tests would see.
+  The leaf cards of *Hunna Wood*'s trees and its ferns are masked.
+- **The sky's light is neither shadowed nor occluded** (ADR-0039).
+  A surface under an object, or inside a box, receives the whole sky, but for its material's occlusion texture.
+  No ambient occlusion (screen-space effects are outside the stage), no reflection probes; mirrors reflect the sky, never the objects around them.
+  An interior is lit by the whole sky through its walls: until then, draw it without an environment, or with a sky of lower radiances, and light it with point and spot lights.
+  Khronos's Sponza shows it (M3b.9): its arcades are lit by the sky as its open courtyard is, in the same blue.
+- **Glass is drawn opaque.**
+  The importer leaves out glTF's `KHR_materials_transmission` and `KHR_materials_volume`, and warns that it does.
+  The renderer neither lets light through a surface nor blends one (Khronos's FlightHelmet and ABeautifulGame, M3b.9).
+  Transparency is left to Stage 9a (ADR-0052).
+- **One GPU, an AMD, and two CPU drivers have run the engine.**
+  The image tests' tolerances (ADR-0030), the measurements of this plan and the samples' looks come from an RX 6900 XT, with RADV on Linux and AMD's driver on Windows, from lavapipe and from WARP.
+  NVIDIA's and Intel's GPUs are untried, and stay so for now, the owner having no other machine (ADR-0097).
+  The ratios that scale the hardware tiers' budgets to the RX 6900 XT are estimates from public benchmarks until the tiers' machines are measured ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md)).
+  A GPU rented in the cloud, a Steam Deck, or contributors would end it.
+  The handheld's ratio, a tenth, may be generous for the interface's canvas, whose cost lies more in writing pixels than in computing them: the Steam Deck writes them about twenty times slower than the RX 6900 XT ([ADR-0137](adr/0137-the-canvas.md)).
+  The RX 6900 XT also draws the owner's desktop, whose work moves its figures ([`benches/README.md`](../benches/README.md#reading-the-figures)).
+- **The environment is computed on the CPU, in every process that draws a sky** (ADR-0039).
+  It takes 23 ms in a release build on the owner's 16 threads, 162 ms on one core, and the BRDF table once (15 ms).
+  It takes about eight times longer in a debug build, which every test that draws a sky with a gradient or a sun pays.
+  Most of that goes to `slime-render`'s `tests/environment.rs` and the examples' `tests/gltf.rs`, whose every load of a file computes the sample's sky.
+  They took 9 s and 13 s, timed by hand at P5, of the workspace's 79 s of tests on lavapipe, on a machine of 4 logical CPUs ([measurements](measurements.md) holds the total).
+  A sky that changes needs a new environment: no time of day.
+  To measure: `cargo test --release -p slime-render --lib -- --ignored --nocapture`, against the budget of M3b.6.
+  Not yet scheduled: to move to the cooker, or to compute passes if skies change at run time.
+  If the tests' time matters first, building `slime-render` optimized in debug builds would shorten it, at the cost of stepping through it in a debugger.
+- **The sky's sun is described twice in the renderer's own API** (ADR-0039).
+  A game that draws with it gives the same `DirectionalLight` to `Sky::sun`, for the disc and the glow, and to `Scene::lights`, for its light and its shadows.
+  Two different lights show a disc where no light comes from.
+  The `scene` example takes both from the file's first directional light.
+  A world gives it once ([ADR-0084](adr/0084-what-the-world-draws.md)), as *Hunna Wood*'s does.
+- **A node renamed in Blender loses what saves held of it** (ADR-0079, ADR-0087).
+  A scene's entity is known by its node's name: loading a save made before the rename sets aside what it held of the node, and reports it.
+  *Hunna Wood*'s zone script names every node and fails when Blender numbers one, so that only a change of the script renames a node.
+  The saves made before such a change set aside what they held of the node, or are saves of another layout.
+  Identities that a scene file keeps for a former name wait for a game that has players (ADR-0089).
+- **Some meshes of *Hunna Wood*'s zone are named with Blender's numbers** (`wooden_lantern_01.001` in the lantern, `capital.004` in the land).
+  The script checks the names of its objects, not of their meshes.
+  The cooker derives a mesh's ID from its name: a later change of the script that numbers a mesh otherwise changes the mesh's ID.
+  Naming the meshes changes the export, and waits for the next release of the mirror.
+- **Blender's exports differ from one run to the next** (G55, low): the hero's, the lantern's on a machine with another number of threads, the four textures that Blender renders, and the sample scene's sphere.
+  Blender computes the tangents of a mesh of more than 10 000 faces in parallel, in an order that changes.
+  Its renders write their date and duration in the PNG files' text.
+  Its UV sphere orders its faces otherwise in each process.
+  The hero kept on the mirror is the one the game reads.
+  Running the scripts on one thread, with `--factory-startup` and a pinned version of Blender, and removing the PNG files' text, would make them reproducible.
+- **A save cut short may load in part** (ADR-0087).
+  A save is a document of sections: one cut at the boundary of a section is still a document, and loads what it holds without an error.
+  *Hunna Wood* writes its saves whole or not at all (ADR-0088), as every game that writes saves must.
+- **A save is text, of limited size** (ADR-0087, ADR-0102).
+  Saving refuses a save larger, or of more values, than what `slime-serialize` reads: about 22 000 entities that have a name and a transform.
+  A value is counted for each `=`, `,`, `[`, `{` and `.` of the text, a float's point included.
+  Loading costs more than saving, much of it parsing the text; the rustdoc of `World::save` and `World::load` has the figures.
+  *Hunna Wood*'s saves are far below the limit.
+  The binary encoding exists since M5b.4, but saves stay text until a measurement asks (ADR-0089): a larger world needs saves in the binary encoding, or read in parts.
 - **An entity that a run created, wrote into its level and destroyed since comes back when the run
   is carried into the file cooked again**
-  ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)): the save no
-  longer names it, and the file holds it. A save that names the written identities of what the run
-  destroyed would settle it; the editor writes levels through its commands from M6b.1a, and a value
-  of the running game that the editor keeps, "keep this value", settles it with the inspector,
-  M6c.5f ([ADR-0155](adr/0155-the-editors-design.md)).
+  ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)).
+  The save no longer names it, and the file holds it.
+  A save that names the written identities of what the run destroyed would settle it.
+  "Keep this value", a value of the running game that the editor keeps, settles it with the inspector, M6c.5f ([ADR-0155](adr/0155-the-editors-design.md)).
 - **A game's preparation of a scene that a save spawns may change only the scene's entities**
-  ([ADR-0125](adr/0125-saves-per-scene.md)): what it creates, under a key or as a placement, is the
-  run's, which a save holds, and which loading the save creates before it prepares the scene, so
-  that a preparation that creates an entity under a key fails, and one that places a prefab places
-  it twice. *Hunna Wood* and the examples prepare without creating.
+  ([ADR-0125](adr/0125-saves-per-scene.md)).
+  What it creates, under a key or as a placement, is the run's, which a save holds, and which loading the save creates before it prepares the scene.
+  So a preparation that creates an entity under a key fails, and one that places a prefab places it twice.
+  *Hunna Wood* and the examples prepare without creating.
 - **What a run created under a scene's entities outlives the scene when it is unloaded**
-  ([ADR-0125](adr/0125-saves-per-scene.md)): it is taken out of them, at the world's root, rather
-  than kept with what the world keeps of the scene, as an item dropped in a level would be.
+  ([ADR-0125](adr/0125-saves-per-scene.md)).
+  It is taken out of them, at the world's root, rather than kept with what the world keeps of the scene, as an item dropped in a level would be.
 - **What cannot be applied of what the world kept of a scene unloaded is logged, not reported**
-  (`World::settle`): as when the scene changed since it was unloaded, at the `warn` level, where a
-  save's load reports it to the game (`Loaded::set_aside`).
-- **`Range::contains` stays public beside `Range::holds`**: two ways to check a number against a
-  range, the first in `f64`, which only tests' helpers use. Every check of a field's range uses
-  `Range::holds` (ADR-0101); the helpers can move to it, and `contains` go.
-- **Files stay beside *Hunna Wood*'s save**: `save.toml.lock`, which locks the save while a copy of
-  the game runs, and `save.toml.<process id>.new`, when the game is killed while it writes. Neither
-  is read again, nor removed.
-- ***Hunna Wood*'s lock holds a save by its path** (ADR-0101): two copies that reach one save by two
-  paths, one through a symbolic link, take two lock files and do not exclude each other; on a file
-  system without locks, the game neither resumes nor saves, and says so; a copy of 0.4, which takes
-  no lock, still writes a save that a later copy holds.
+  (`World::settle`).
+  As when the scene changed since it was unloaded: it is logged at the `warn` level, where a save's load reports it to the game (`Loaded::set_aside`).
+- **`Range::contains` stays public beside `Range::holds`**: two ways to check a number against a range.
+  The first works in `f64`, and only tests' helpers use it.
+  Every check of a field's range uses `Range::holds` (ADR-0101); the helpers can move to it, and `contains` go.
+- **Files stay beside *Hunna Wood*'s save**: `save.toml.lock`, which locks the save while a copy of the game runs, and `save.toml.<process id>.new`, when the game is killed while it writes.
+  Neither is read again, nor removed.
+- ***Hunna Wood*'s lock holds a save by its path** (ADR-0101).
+  Two copies that reach one save by two paths, one through a symbolic link, take two lock files and do not exclude each other.
+  On a file system without locks, the game neither resumes nor saves, and says so.
+  A copy of 0.4, which takes no lock, still writes a save that a later copy holds.
 - **A save that removes a component of a type that the program does not know sets it aside**
-  (ADR-0101): `removed.components` names it, and loading reports that the entity holds no such
-  component, where a value of an unknown type is a warning. Writing the save back loses the
-  removal, which a later version that knows the type would have applied; *Hunna Wood* sets aside
-  the saves of later versions by the version that they say, which covers it for the game.
-- **Children and queries in another order after loading** (ADR-0087). A world loaded from a save
-  holds its entities in other slots, and an entity's children in the order the save set them: what
-  must go the same way after loading cannot depend on either order.
-- **Spawning a large scene makes each component from its value** (ADR-0091 holds the figures; on
-  the game's zone, at M5b.6, reading and resolving its scenes took 1.24 to 1.75 ms in a release
-  build, twice what 0.3's one scene took). A scene resolves and spawns far slower than as many
-  entities spawned with `World::spawn` (ADR-0083): each component is made from its value, and each
-  entity's identity is a list of texts, held twice. ADR-0089 orders the remedies, inside the world:
-  typed components copied rather than made from values, identities that share their parts, scenes
-  prepared on another thread.
-- **A world written back writes what it holds of what spawning set aside** (ADR-0092). A
-  reference, or a parent, that a scene file wrote into a placement whose prefab no longer had its
-  entity is written as the world holds it, no entity or the root: what it named is lost, as a save
-  loses it. An entity of a placement moved out of the place that its prefab gives it is written in
-  that place, and the children of a placement's entity in its prefab's order, then the file's; both
-  are reported: a scene file has no parents for a placement's entities, nor an order among them.
-  M6c.6 decides whether a file says them, with the new layout of scene files
-  ([ADR-0155](adr/0155-the-editors-design.md)).
-- **`World::write_scene` drops a scene file's comments** (ADR-0089): it writes the canonical form;
-  the editor puts them back (`slime_serialize::keep_comments`,
-  [ADR-0134](adr/0134-the-editors-core.md)), within the limits that the editor's core gives below.
-- **The cooked glTF scene is a format apart from the binary encoding** (ADR-0089, ADR-0095). A
-  glTF file's scenes are cooked into a format of their own, `slime_assets::CookedScene`, and only
-  the typed properties of their nodes into the binary encoding: cooked scenes have two formats, and
-  two readers. The renderer's scene loader, the `scene` example and the image tests read the format;
-  moving it onto the binary encoding would make `slime-render` depend on serialization, and waits
-  for a reason.
-- **After a lost device, what is hidden loads only once shown** (ADR-0084): the cache loads what is
-  drawn. In *Hunna Wood*, a key taken or a door opened before the loss shows a few frames after R
-  shows them again.
-- **Any change of *Hunna Wood*'s cooked data makes a new game of its scenes.** With `--watch`, the
-  game makes a new game of the scenes before it knows whether a scene changed, a texture saved in an
-  image editor included (`take_assets` in `games/hunnawood/src/main.rs`): about 2 ms, for a tool of
-  development.
-- **A zone loaded again with `--watch` changes in parts.** Its entities change at once, the meshes,
-  materials and textures that the cache holds when its reload ends, and new meshes once their batch
-  is loaded; *Hunna Wood* swapped whole scenes before it ran on the world.
-- **The tests that edit every leaf of every component are written twice** (ADR-0085): once in
-  `slime-world` for its components, once in *Hunna Wood* for the game's, about fifty lines that
-  choose another value for a leaf. One copy would need a test-support crate, or a feature of
-  `slime-world` that only tests enable; neither is worth it yet.
-- **An edit through reflection reads the whole component again** (ADR-0085): a field that its type
-  skips takes its `Default` value, and a rotation is edited whole, as `Transform`'s check refuses a
-  coordinate edited alone. The dev overlay's editors edit a rotation, a vector and a color whole.
+  (ADR-0101).
+  `removed.components` names it, and loading reports that the entity holds no such component, where a value of an unknown type is a warning.
+  Writing the save back loses the removal, which a later version that knows the type would have applied.
+  *Hunna Wood* sets aside the saves of later versions by the version that they say, which covers it for the game.
+- **Children and queries in another order after loading** (ADR-0087).
+  A world loaded from a save holds its entities in other slots, and an entity's children in the order the save set them.
+  What must go the same way after loading cannot depend on either order.
+- **Spawning a large scene makes each component from its value** (ADR-0091 holds the figures).
+  On the game's zone, at M5b.6, reading and resolving its scenes took 1.24 to 1.75 ms in a release build, twice what 0.3's one scene took.
+  A scene resolves and spawns far slower than as many entities spawned with `World::spawn` (ADR-0083): each component is made from its value, and each entity's identity is a list of texts, held twice.
+  ADR-0089 orders the remedies, inside the world: typed components copied rather than made from values, identities that share their parts, scenes prepared on another thread.
+- **A world written back writes what it holds of what spawning set aside** (ADR-0092).
+  A reference, or a parent, that a scene file wrote into a placement whose prefab no longer had its entity is written as the world holds it, no entity or the root: what it named is lost, as a save loses it.
+  An entity of a placement moved out of the place that its prefab gives it is written in that place.
+  The children of a placement's entity are written in its prefab's order, then the file's.
+  Both are reported: a scene file has no parents for a placement's entities, nor an order among them.
+  M6c.6 decides whether a file says them, with the new layout of scene files ([ADR-0155](adr/0155-the-editors-design.md)).
+- **`World::write_scene` drops a scene file's comments** (ADR-0089): it writes the canonical form.
+  The editor puts them back (`slime_serialize::keep_comments`, [ADR-0134](adr/0134-the-editors-core.md)), within the limits that the editor's entries below give.
+- **The cooked glTF scene is a format apart from the binary encoding** (ADR-0089, ADR-0095).
+  A glTF file's scenes are cooked into a format of their own, `slime_assets::CookedScene`, and only the typed properties of their nodes into the binary encoding: cooked scenes have two formats, and two readers.
+  The renderer's scene loader, the `scene` example and the image tests read the format.
+  Moving it onto the binary encoding would make `slime-render` depend on serialization, and waits for a reason.
+- **After a lost device, what is hidden loads only once shown** (ADR-0084): the cache loads what is drawn.
+  In *Hunna Wood*, a key taken or a door opened before the loss shows a few frames after R shows them again.
+- **Any change of *Hunna Wood*'s cooked data makes a new game of its scenes.**
+  With `--watch`, the game makes a new game of the scenes before it knows whether a scene changed, a texture saved in an image editor included (`take_assets` in `games/hunnawood/src/main.rs`).
+  It costs about 2 ms, for a tool of development.
+- **A zone loaded again with `--watch` changes in parts.**
+  Its entities change at once, the meshes, materials and textures that the cache holds when its reload ends, and new meshes once their batch is loaded.
+  *Hunna Wood* swapped whole scenes before it ran on the world.
+- **The tests that edit every leaf of every component are written twice** (ADR-0085): once in `slime-world` for its components, once in *Hunna Wood* for the game's.
+  They are about fifty lines that choose another value for a leaf.
+  One copy would need a test-support crate, or a feature of `slime-world` that only tests enable; neither is worth it yet.
+- **An edit through reflection reads the whole component again** (ADR-0085).
+  A field that its type skips takes its `Default` value.
+  A rotation is edited whole, as `Transform`'s check refuses a coordinate edited alone.
+  The dev overlay's editors edit a rotation, a vector and a color whole.
 - **Rough metals reflect the sky with multiple scattering compensated, the lights without**
-  (ADR-0039, as the Khronos glTF Sample Viewer): a white metal of roughness 1 reflects all of a
-  uniform sky, but its lights keep glTF's single-scattering BRDF, under which it would reflect
-  31 % of that sky; rough metals are darker in the sun than in the shade, relatively.
-- **A roughness between two prefiltered levels reads a blend of their lobes** (ADR-0039): the four
-  levels are 0.25 apart, and a lobe in between is approximated by mixing the nearest two, the split
-  sum's usual approximation; each level is within 2.2 % of its own lobe's average.
+  (ADR-0039, as the Khronos glTF Sample Viewer).
+  A white metal of roughness 1 reflects all of a uniform sky.
+  Its lights keep glTF's single-scattering BRDF, under which it would reflect 31 % of that sky.
+  Rough metals are darker in the sun than in the shade, relatively.
+- **A roughness between two prefiltered levels reads a blend of their lobes** (ADR-0039).
+  The four levels are 0.25 apart; a lobe in between is approximated by mixing the nearest two, the split sum's usual approximation.
+  Each level is within 2.2 % of its own lobe's average.
 - **The image tests use up to 75 of the 131 pixels that RADV may have off by more than 8**
-  (ADR-0030, ADR-0054): the glTF scene's front view 75, on the wall's mortar joints seen at a
-  grazing angle (76 before its textures were cooked); `shapes` 28, on edges and the metal spheres'
-  reflections of the sky (49 at M3b.6, before the bloom; 33 before the shadow map followed the
-  camera and the output was dithered). A change that adds fine or reflective detail may exceed it;
-  measure it again then.
+  (ADR-0030, ADR-0054).
+  The glTF scene's front view uses 75, on the wall's mortar joints seen at a grazing angle (76 before its textures were cooked).
+  `shapes` uses 28, on edges and the metal spheres' reflections of the sky (49 at M3b.6, before the bloom; 33 before the shadow map followed the camera and the output was dithered).
+  A change that adds fine or reflective detail may exceed it; measure it again then.
 - **Sixteen passes per submission is a number measured on one machine**
-  ([ADR-0158](adr/0158-the-viewport.md)). On the owner's RX 6900 XT (RADV), whose memory that the
-  CPU can map is a 256 MiB window that the desktop's programs filled whole, a whole bloomed frame in
-  one submission cost the CPU least, without the occasional stall in the kernel that ADR-0041
-  measured for it at M3b.8 and kept four passes against ([`docs/measurements.md`](measurements.md));
-  the owner chose sixteen on 2026-10-28. Direct3D 12 and other GPUs are not measured: the Windows
-  virtual machine checks it at a checkpoint, and a stall that came back would show as such spikes in
-  `render.instances.10k`'s 90th percentile.
-- **The render graph trusts what a pass says it samples from imported targets** (ADR-0041). The
-  groups that sample transient targets are built from the declarations, but the scene pass's group
-  holding the shadow atlases is built by the renderer: a pass that binds an imported target must
-  declare it, or the graph orders it without knowing. The views after the first of a frame read
-  the spot lights' atlas, which the first drew, without declaring it: they rely on the order of the
-  submissions, one view after the other ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)).
+  ([ADR-0158](adr/0158-the-viewport.md)).
+  On the owner's RX 6900 XT (RADV), the memory that the CPU can map is a 256 MiB window, which the desktop's programs filled whole.
+  There, a whole bloomed frame in one submission cost the CPU least, without the occasional stall in the kernel that ADR-0041 measured at M3b.8 and kept four passes against ([`docs/measurements.md`](measurements.md)).
+  The owner chose sixteen on 2026-10-28.
+  Direct3D 12 and other GPUs are not measured: the Windows virtual machine checks it at a checkpoint.
+  A stall that came back would show as spikes in `render.instances.10k`'s 90th percentile.
+- **The render graph trusts what a pass says it samples from imported targets** (ADR-0041).
+  The groups that sample transient targets are built from the declarations, but the scene pass's group holding the shadow atlases is built by the renderer.
+  A pass that binds an imported target must declare it, or the graph orders it without knowing.
+  The views after the first of a frame read the spot lights' atlas, which the first drew, without declaring it: they rely on the order of the submissions, one view after the other ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)).
 - **An orthographic camera's shadows reach the sun's shadow distance from its eye**
-  ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)): a map drawn from higher above the ground
-  than that distance shows none, and its four cascades are nearly as large, the image's width and
-  height setting them more than their depths (`slime_render::Projection`). Fitting an
-  orthographic camera's cascades to what it sees is to decide when a game draws such maps with
-  shadows.
+  ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)).
+  A map drawn from higher above the ground than that distance shows none.
+  Its four cascades are nearly as large, the image's width and height setting them more than their depths (`slime_render::Projection`).
+  Fitting an orthographic camera's cascades to what it sees is to decide when a game draws such maps with shadows.
 - **The views of a frame draw the same lights**
-  ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)): beyond the 16 that the renderer draws,
-  `slime-world-render` keeps those nearest one point that the game gives, so that views far apart,
-  as two players' halves of a split screen in two places, share the lamps of one of them. Stage 9a's
-  method for many lights decides how a view gets its own.
+  ([ADR-0126](adr/0126-views-apart-from-the-renderer.md)).
+  Beyond the 16 that the renderer draws, `slime-world-render` keeps those nearest one point that the game gives.
+  Views far apart, as two players' halves of a split screen in two places, share the lamps of one of them.
+  Stage 9a's method for many lights decides how a view gets its own.
 - **A view whose frame changes shape at every call reports no tone-mapping or bloom time**
-  (ADR-0041, ADR-0126, ADR-0127). Each change of shape (the size of its targets, its anti-aliasing,
-  a pass starting or stopping, by the scene or by its settings) builds the view's frame again with
-  new timers, and the last submission's times come back during the next call, by then read from
-  newer timers. A window's edge dragged no longer does it, its size held until it is let go, nor
-  does a view drawn into rectangles of two sizes in turn, which draws one of them stretched: use
-  one view per size.
+  (ADR-0041, ADR-0126, ADR-0127).
+  Each change of shape (the size of its targets, its anti-aliasing, a pass starting or stopping, by the scene or by its settings) builds the view's frame again with new timers.
+  The last submission's times come back during the next call, by then read from newer timers.
+  A window's edge dragged no longer does it, its size held until it is let go.
+  Nor does a view drawn into rectangles of two sizes in turn, which draws one of them stretched: use one view per size.
 - **A render scale reads the scene's light bilinearly**
-  ([ADR-0127](adr/0127-the-settings-of-a-view.md)): below 1 the image is blurred, and between 1 and
-  2 each pixel averages the four texels nearest its centre, missing others. Stage 9a's temporal
-  upscaling is the sharper way; a pass of a sharper filter was rejected.
+  ([ADR-0127](adr/0127-the-settings-of-a-view.md)).
+  Below 1 the image is blurred; between 1 and 2 each pixel averages the four texels nearest its centre, missing others.
+  Stage 9a's temporal upscaling is the sharper way; a pass of a sharper filter was rejected.
 - **Four modes of debugging** ([ADR-0127](adr/0127-the-settings-of-a-view.md),
-  [ADR-0159](adr/0159-picking-and-the-selection.md)): the normals, the shadows, the base color and
-  the light alone; the editor draws the wireframe of what is selected as lines over the image, a
-  line for each edge of its meshes, which a large mesh makes many. A wireframe of the whole scene
-  waits until `PolygonMode::Line` is measured against lines along a mesh's edges
-  ([ADR-0155](adr/0155-the-editors-design.md)).
-- **Tiny, very bright sources blink in the bloom** (ADR-0040). Without a firefly filter (Karis's
-  average dims the sun's halo and makes it flicker, measured), a highlight smaller than a pixel
-  blooms as its coverage of the pixel changes from frame to frame. Temporal anti-aliasing, or a cap
-  on the light a pixel brings to the chain, belong to Stage 9a (ADR-0052).
-- **A pixel whose light is not a number spreads through the bloom** (ADR-0040). The renderer refuses
-  values that are not finite in meshes and materials, and the skies' radiances; it leaves out a
-  light that it cannot draw, as the frame builder does a sun, and bounds the light that each light
-  and the sun's disc give a point (ADR-0102). Not everything that reaches the shaders is checked: a
-  normal of zero length, which `MeshData` asks callers not to give, can make its pixels NaN in the
-  high-dynamic-range target, and so can, at an exposure of 0, an emission so strong that, added to
-  the light of the scene, it is not finite; the bloom averages them into its levels, and from there
-  into every pixel within reach of their halo, a blot where one surface was wrong. Dropping such
-  light before the bloom would keep it to its pixels.
-- **The bloom has one shape** (ADR-0040): every level the same weight, down to a side of 8 texels;
-  no radius, threshold or tint for a game to set. A window resized across a power of two adds or
-  removes a level: the glow's reach changes a little while the edge is dragged.
-- **Light near the right and bottom edges blooms a little more or less** (ADR-0040). Where an
-  output's side is not a multiple of 2^levels, the coarse levels' last texels straddle the edge: a
-  pixel's halo there holds 0.83 to 1.37 of its light at ten sizes measured, up to 1.9 at the far
-  corner (1023 × 1023, 2047 × 1151), within 1.011 at 1280 × 720 and about 1.1 at 1920 × 1080; inside
-  the image and at the top and left edges, its light exactly. To measure: the CPU model of
-  `tests/bloom.rs` at the size in question. A fix would pad the chain beyond those edges.
-- **glTF minification filters are approximated.** `slime-gfx` ties mip blending to the
-  minification filter and gives every texture mipmaps, so only `NEAREST_MIPMAP_NEAREST` and
-  `LINEAR_MIPMAP_LINEAR` are exact (documented in the importer, `crates/slime-cook`). Revisit when
-  an engine-side user needs a separate mipmap filter or a base-level-only read.
+  [ADR-0159](adr/0159-picking-and-the-selection.md)): the normals, the shadows, the base color and the light alone.
+  The editor draws the wireframe of what is selected as lines over the image, a line for each edge of its meshes, which a large mesh makes many.
+  A wireframe of the whole scene waits until `PolygonMode::Line` is measured against lines along a mesh's edges ([ADR-0155](adr/0155-the-editors-design.md)).
+- **Tiny, very bright sources blink in the bloom** (ADR-0040).
+  Without a firefly filter, a highlight smaller than a pixel blooms as its coverage of the pixel changes from frame to frame.
+  Karis's average, a firefly filter, dims the sun's halo and makes it flicker, measured.
+  Temporal anti-aliasing, or a cap on the light a pixel brings to the chain, belong to Stage 9a (ADR-0052).
+- **A pixel whose light is not a number spreads through the bloom** (ADR-0040).
+  The renderer refuses values that are not finite in meshes and materials, and the skies' radiances.
+  It leaves out a light that it cannot draw, as the frame builder does a sun, and bounds the light that each light and the sun's disc give a point (ADR-0102).
+  Not everything that reaches the shaders is checked: a normal of zero length, which `MeshData` asks callers not to give, can make its pixels NaN in the high-dynamic-range target.
+  So can, at an exposure of 0, an emission so strong that, added to the light of the scene, it is not finite.
+  The bloom averages them into its levels, and from there into every pixel within reach of their halo: a blot where one surface was wrong.
+  Dropping such light before the bloom would keep it to its pixels.
+- **The bloom has one shape** (ADR-0040): every level the same weight, down to a side of 8 texels.
+  No radius, threshold or tint for a game to set.
+  A window resized across a power of two adds or removes a level: the glow's reach changes a little while the edge is dragged.
+- **Light near the right and bottom edges blooms a little more or less** (ADR-0040).
+  Where an output's side is not a multiple of 2^levels, the coarse levels' last texels straddle the edge.
+  A pixel's halo there holds 0.83 to 1.37 of its light at ten sizes measured, up to 1.9 at the far corner (1023 × 1023, 2047 × 1151).
+  It holds within 1.011 at 1280 × 720 and about 1.1 at 1920 × 1080.
+  Inside the image and at the top and left edges, it holds its light exactly.
+  To measure: the CPU model of `tests/bloom.rs` at the size in question.
+  A fix would pad the chain beyond those edges.
+- **glTF minification filters are approximated.**
+  `slime-gfx` ties mip blending to the minification filter and gives every texture mipmaps, so only `NEAREST_MIPMAP_NEAREST` and `LINEAR_MIPMAP_LINEAR` are exact (documented in the importer, `crates/slime-cook`).
+  Revisit when an engine-side user needs a separate mipmap filter or a base-level-only read.
 - **A restored entity that had a base takes its values as its base**
-  ([ADR-0134](adr/0134-the-editors-core.md)), as every entity that a scene spawned has: what a run
-  changed of it before it was deleted is no longer told apart from what its scene gave it, and a
-  save made afterwards does not hold it. The editor never saves its world; a game that deletes and
-  restores such an entity through the world's commands loses that difference.
+  ([ADR-0134](adr/0134-the-editors-core.md)), as every entity that a scene spawned has.
+  What a run changed of it before it was deleted is no longer told apart from what its scene gave it, and a save made afterwards does not hold it.
+  The editor never saves its world; a game that deletes and restores such an entity through the world's commands loses that difference.
 - **The editor's journal is handed to the system at each step, not forced to the disk**
-  ([ADR-0134](adr/0134-the-editors-core.md)): a crash of the editor loses no step, a crash of the
-  system may lose the last ones.
-- **Undoing a deletion in the editor copies what it recorded**, and recording it reads every
-  component, of every entity of the world, of a type that may refer to an entity
-  ([ADR-0134](adr/0134-the-editors-core.md)): `world.undo.1k` measures the world's commands on a
-  subtree of 1 000 entities, of types that refer to none, not the editor's step.
+  ([ADR-0134](adr/0134-the-editors-core.md)).
+  A crash of the editor loses no step; a crash of the system may lose the last ones.
+- **Undoing a deletion in the editor copies what it recorded** ([ADR-0134](adr/0134-the-editors-core.md)).
+  Recording it reads every component, of every entity of the world, of a type that may refer to an entity.
+  `world.undo.1k` measures the world's commands on a subtree of 1 000 entities, of types that refer to none, not the editor's step.
 - **The editor does not follow the prefabs that change on disk while it edits**
-  ([ADR-0134](adr/0134-the-editors-core.md)): its library holds the cooked scenes as it opened them.
+  ([ADR-0134](adr/0134-the-editors-core.md)).
+  Its library holds the cooked scenes as it opened them.
   M6c.6 follows them.
 - **The editor's viewport shows every light that a level places**
-  ([ADR-0158](adr/0158-the-viewport.md)): which lights shine is a game's rules', which the editor
-  runs none of. *Hunna Wood*'s zone shows its night's lanterns lit by day, and its moon, the one
-  light in its sky, as the sky's sun. Its meshes come from the cooked data as the core read it when
-  the level opened, which a level opened later reads again; a mesh cooked again while it is open is
-  not, and the world's cameras, which the world does not have yet, have no icons.
-- **Picking in the editor's viewport** ([ADR-0159](adr/0159-picking-and-the-selection.md)): a
-  click and a marquee draw the whole view again for their picking, which a frame answers a frame or
-  two later; Alt and a click cast a ray against meshes alone, so that it goes through no light's
-  icon, which a click selects; what the window marks of the selection is worked out again at each
-  frame that draws the viewport, a walk up from each instance drawn, and the wireframe's lines,
-  one for each edge of the meshes selected, rebuilt at each, which flying a terrain's makes dear;
-  the wireframe and a ray read the meshes that they first meet from the cooked data on the
-  window's thread, which waits for them. Alt and a click are told from an orbit by the mouse's
-  moving less than 4 units of its raw motion, which a mouse of a fine resolution may pass.
-- **Two viewports build their frames apart** ([ADR-0160](adr/0160-two-viewports-and-blenders-way.md)):
-  they share the level's meshes, but each that draws builds the world's frame for itself, twice the
-  CPU's work of one when both draw at a frame, as when an agent changes the world. Blender's way
-  gives Blender's buttons and a few of its keys, not its modal keys, its pie menus or its numeric
-  pad's views.
-- **The editor's handles** ([ADR-0161](adr/0161-the-open-step-and-the-handles.md)): a drag sends a
-  command for each entity moved at each move of the pointer, which the core undoes and applies
-  again, and the viewport draws the level again for each: nothing has measured a drag of a large
-  selection, nor of a placement of many entities. Snapping is ticked in the Edit menu, not held
-  under a key, and in the world's axes moves the pivot onto the world's grid, never by steps from
-  where the drag started; scaling along an axis changes the stretch along the entity's own axis nearest it, which
-  is not the handle's axis when the entity is turned in the world's axes. The pivot is the middle
-  of the origins, not of the bounds. A drop meets meshes only, not colliders nor the ground's grid,
-  and refuses when nothing lies below; it moves each entity on its own, so that two selected one
-  above the other land as if the other did not move. While a person drags, an agent's requests that
-  change the level wait, and through the MCP server, which asks one request at a time, its reads
-  too.
-- **Creating and arranging in the editor** ([ADR-0162](adr/0162-creating-copying-and-arranging.md)):
-  what is duplicated and pasted goes last among its parent's children, in place; a copy's root
-  that its original named after its ID is named after its new ID, `lamp 2-r39l`. Nudging moves
-  along the world's axes, whichever way the viewer looks. Repeating runs the last operation that
-  made a step, not a drag of the handles. Grouping refuses an entity that a placement holds but for
-  its root. A copy carries every component of what it creates but placements, of which it carries
-  what differs from their prefabs, and the entities that saves leave out too; pasting reads any
-  text that the system's clipboard holds, and refuses what is not a copy or changes what it does
-  not create. A copy keeps an ID's last word of four letters, and drops one that holds a digit,
-  which the editor's IDs end with: one of four letters that the editor made stays, `torch-abcd`,
-  and grows a suffix at each copy. With a window, an agent's `edit.paste` is answered before the
-  window pastes, at the next frame. A shortcut that a field of one line does not take reaches the
-  editor while the field holds the focus: Ctrl and the up arrow in a number of the world panel
-  nudges what is selected, and Ctrl+D duplicates it.
+  ([ADR-0158](adr/0158-the-viewport.md)).
+  Which lights shine is a game's rules', which the editor runs none of.
+  *Hunna Wood*'s zone shows its night's lanterns lit by day, and its moon, the one light in its sky, as the sky's sun.
+  Its meshes come from the cooked data as the core read it when the level opened, which a level opened later reads again; a mesh cooked again while the level is open is not read again.
+  The world's cameras, which the world does not have yet, have no icons.
+- **Picking in the editor's viewport** ([ADR-0159](adr/0159-picking-and-the-selection.md)).
+  A click and a marquee draw the whole view again for their picking, which a frame answers a frame or two later.
+  Alt and a click cast a ray against meshes alone: it goes through a light's icon, which a click selects.
+  What the window marks of the selection is worked out again at each frame that draws the viewport, a walk up from each instance drawn.
+  The wireframe's lines, one for each edge of the meshes selected, are rebuilt at each such frame, which flying a terrain's makes dear.
+  The wireframe and a ray read the meshes that they first meet from the cooked data on the window's thread, which waits for them.
+  Alt and a click are told from an orbit by the mouse's moving less than 4 units of its raw motion, which a mouse of a fine resolution may pass.
+- **Two viewports build their frames apart** ([ADR-0160](adr/0160-two-viewports-and-blenders-way.md)).
+  They share the level's meshes, but each that draws builds the world's frame for itself: twice the CPU's work of one when both draw at a frame, as when an agent changes the world.
+  Blender's way gives Blender's buttons and a few of its keys, not its modal keys, its pie menus or its numeric pad's views.
+- **The editor's handles** ([ADR-0161](adr/0161-the-open-step-and-the-handles.md)).
+  A drag sends a command for each entity moved at each move of the pointer, which the core undoes and applies again, and the viewport draws the level again for each.
+  Nothing has measured a drag of a large selection, nor of a placement of many entities.
+  Snapping is ticked in the Edit menu, not held under a key.
+  In the world's axes, snapping moves the pivot onto the world's grid, never by steps from where the drag started.
+  Scaling along an axis changes the stretch along the entity's own axis nearest it, which is not the handle's axis when the entity is turned in the world's axes.
+  The pivot is the middle of the origins, not of the bounds.
+  A drop meets meshes only, not colliders nor the ground's grid, and refuses when nothing lies below.
+  A drop moves each entity on its own: two selected one above the other land as if the other did not move.
+  While a person drags, an agent's requests that change the level wait; through the MCP server, which asks one request at a time, its reads wait too.
+  Escape during a drag is tested through the model, not through a key of the window.
+- **Creating and arranging in the editor** ([ADR-0162](adr/0162-creating-copying-and-arranging.md)).
+  What is duplicated and pasted goes last among its parent's children, in place.
+  A copy's root that its original named after its ID is named after its new ID, `lamp 2-r39l`.
+  Nudging moves along the world's axes, whichever way the viewer looks.
+  Repeating runs the last operation that made a step, not a drag of the handles.
+  Grouping refuses an entity that a placement holds but for its root.
+  A copy carries every component of what it creates but placements, of which it carries what differs from their prefabs, and the entities that saves leave out too.
+  Pasting reads any text that the system's clipboard holds, and refuses what is not a copy or changes what it does not create.
+  A copy keeps an ID's last word of four letters, and drops one that holds a digit, which the editor's IDs end with.
+  So an ID of four letters that the editor made stays, `torch-abcd`, and grows a suffix at each copy.
+  With a window, an agent's `edit.paste` is answered before the window pastes, at the next frame.
+  A shortcut that a field of one line does not take reaches the editor while the field holds the focus: Ctrl and the up arrow in a number of the world panel nudge what is selected, and Ctrl+D duplicates it.
 - **Placing prefabs and the history panel**
-  ([ADR-0163](adr/0163-placing-prefabs-and-the-history-panel.md)): a prefab placed takes a transform
-  of its own at its root, which replaces the turn and the scale that its prefab gives its root;
-  the palette names the prefabs by their source files, without thumbnails, which wait for the asset
-  browser. A prefab placed again by Repeat goes where the last one stands, on it. The history panel
-  builds a row for each step that the history keeps, which a long session makes many, again as the
-  steps change, and going to a step journals each undo or redo between.
-- **The hierarchy** ([ADR-0167](adr/0167-the-hierarchy.md)): what is folded is lost when the level
-  closes; a change of the world's structure makes the rows of the whole tree again, and the search
-  runs over the whole world at once, both on the editor's thread, which `editor.hierarchy.100k`
-  measures, the search some 5 ms at 100 000 entities; the arrows move the selection only while a
-  row holds the focus; a press of a row reads Ctrl and Shift as the frame finds them held, not as
-  the press found them, since a button's press carries no modifiers; no double click renames, F2
-  does.
-- **Rearranging the hierarchy** ([ADR-0168](adr/0168-rearranging-the-hierarchy.md)): a drag shows
-  where it drops, not what it carries; it drops on a row only, not below the last, and does not
-  scroll the list as it nears its edges, which the wheel does meanwhile; Alt and the arrows run only
-  while a row holds the focus, as the arrows do. Between two steps of a game, after a change of
-  parent or a teleport, a frame's interpolation walks each entity's ancestors again until the next
-  step ends.
-- **Regions of tabs** ([ADR-0172](adr/0172-regions-of-tabs.md)): the layout is lost when the editor
-  stops, and no panel floats nor closes, until M6c.5e; tabs are neither dragged nor reordered, which
-  M6c.8 does; what a panel shows is built anew, its scroll at its top, when its tab is chosen again
-  after another's, and when a move changes the key of its stack or of a split around it, which
-  the stack's first panel gives: a move may so build again panels that it did not move, the
-  viewport's surfaces among them, whose gestures end; F6 gives the focus to a stack's first tab,
-  not to the element that last held it there, and from an element outside every stack, a splitter
-  among them, goes to the first stack; two presses of an arrow on a splitter before the dock is
-  built again move it once; a window smaller than its regions' least sizes cuts them off; `slime-ui` splits a box
-  two ways, two panels and their handle, the share the interface's, and splitters, the shares the
-  program's, the first to be built on the second.
-- **The eye and the lock** ([ADR-0169](adr/0169-the-eye-and-the-lock.md)): what is hidden or
-  locked is lost when the editor stops or another level opens; a click on what is locked selects
-  nothing, rather than what lies behind it, which Alt and a click reach; no shortcut hides or locks
-  what is selected, the rows' buttons alone; a row below a locked entity shows its own lock open,
-  nothing marking that an ancestor locks it, where a row below a hidden one reads dimmed; an entity
-  selected, then hidden, stays selected, its handles drawn where it stands; an agent presses the
-  buttons of a row that shows, its ancestors unfolded; each change of the world's structure copies
-  the set of what is hidden four times, for the hierarchy, the level, its frame builder and its
-  picker, which a large subtree hidden, a terrain's, makes a cost of each step.
-- **Play** ([ADR-0164](adr/0164-play.md)): a game that makes its library of scenes before
-  `slime_app::run` starts its log, as *Hunna Wood* and the `world` example do, logs neither the
-  scenes that Play gave nor a file of Play's directory that it left out. The console builds a label
-  for each line that it keeps, 500 at most, again as lines come, and scrolls to the last whenever
-  lines come, even while the user reads older ones. *Hunna Wood* has no run without a window: an
-  agent's editor without one plays it in a window all the same. A control that the game refuses is
-  told, but the toolbar shows what the game says only once it answers the state asked after the
-  control.
-- **Building the game again** ([ADR-0166](adr/0166-building-the-game-again.md)): the game is built
-  with its package's features alone, which a build of the whole workspace, unifying others, makes
-  cargo build again once; a change of the game's sources is seen by polling the files that cargo
-  lists, and cargo's manifests and locks above them, until notify comes with M6c.7, and a source
-  that the last build did not list, a new file, is seen only with a change of one that it did; a
-  new build that builds but does not start, or crashes as it starts, ends Play, and the run's save
-  goes with Play's directory; cargo stopped during a build leaves its compilers to finish the crate
-  under way; on Windows, that the copy that runs leaves the build free to replace the program, and
-  that cargo and the game open no console window, are not checked yet.
-- **Play's time to control** ([`docs/measurements.md`](measurements.md), M6c.4d): a level of
-  100 000 entities gives control far over ADR-0110's budget in a debug build, the editor writing
-  the level and the game reading and spawning it without optimizations; such a level fits one scene
-  file only with entities that hold little (`slime_serialize::MAX_VALUES`), which levels of several
-  files, M6c.6, are to settle; the owner chose, on 2026-10-29, to leave it until M6c.6 measures it
-  again. Play asks the game how its time stands at each of its frames until
-  it gives control, which a game that holds its time long, as behind a menu, pays for meanwhile.
-- **Editing while playing** ([ADR-0165](adr/0165-editing-while-playing.md)): an undone deletion
-  does not reach the game, which plays on without what it restored until Play starts it again; a
-  step that the game refuses stays applied in the game up to the command refused; a step that
-  sets what the game's run changed overrides the run without a word; a gesture reaches the game
-  once it ends, not as it drags.
+  ([ADR-0163](adr/0163-placing-prefabs-and-the-history-panel.md)).
+  A prefab placed takes a transform of its own at its root, which replaces the turn and the scale that its prefab gives its root.
+  The palette names the prefabs by their source files, without thumbnails, which wait for the asset browser.
+  A prefab placed again by Repeat goes where the last one stands, on it.
+  The history panel builds a row for each step that the history keeps, which a long session makes many, again as the steps change.
+  Going to a step journals each undo or redo between.
+- **The hierarchy** ([ADR-0167](adr/0167-the-hierarchy.md)).
+  What is folded is lost when the level closes.
+  A change of the world's structure makes the rows of the whole tree again, on the editor's thread.
+  The search runs over the whole world at once, on the editor's thread: some 5 ms at 100 000 entities, which `editor.hierarchy.100k` measures with the rows.
+  The arrows move the selection only while a row holds the focus.
+  A press of a row reads Ctrl and Shift as the frame finds them held, not as the press found them: a button's press carries no modifiers.
+  No double click renames; F2 does.
+  No agent's session through the MCP server uses it; the window's tests read and use its elements as agents do.
+- **Rearranging the hierarchy** ([ADR-0168](adr/0168-rearranging-the-hierarchy.md)).
+  A drag shows where it drops, not what it carries.
+  It drops on a row only, not below the last.
+  It does not scroll the list as it nears its edges; the wheel does meanwhile.
+  Alt and the arrows run only while a row holds the focus, as the arrows do.
+  Between two steps of a game, after a change of parent or a teleport, a frame's interpolation walks each entity's ancestors again until the next step ends.
+- **Regions of tabs** ([ADR-0172](adr/0172-regions-of-tabs.md)).
+  The layout is lost when the editor stops, and no panel floats nor closes, until M6c.5e.
+  Tabs are neither dragged nor reordered, which M6c.8 does.
+  What a panel shows is built anew, its scroll at its top, when its tab is chosen again after another's.
+  It is built anew too when a move changes the key of its stack or of a split around it, which the stack's first panel gives.
+  So a move may build again panels that it did not move, the viewport's surfaces among them, whose gestures end.
+  F6 gives the focus to a stack's first tab, not to the element that last held it there.
+  From an element outside every stack, a splitter among them, F6 goes to the first stack.
+  Two presses of an arrow on a splitter before the dock is built again move it once.
+  A window smaller than its regions' least sizes cuts them off.
+  `slime-ui` splits a box two ways: two panels and their handle, the share the interface's; and splitters, the shares the program's; the first is to be built on the second.
+- **The eye and the lock** ([ADR-0169](adr/0169-the-eye-and-the-lock.md)).
+  What is hidden or locked is lost when the editor stops or another level opens.
+  A click on what is locked selects nothing, rather than what lies behind it, which Alt and a click reach.
+  No shortcut hides or locks what is selected; the rows' buttons alone do.
+  A row below a locked entity shows its own lock open, nothing marking that an ancestor locks it; a row below a hidden one reads dimmed.
+  An entity selected, then hidden, stays selected, its handles drawn where it stands.
+  An agent presses the buttons of a row that shows, its ancestors unfolded.
+  Each change of the world's structure copies the set of what is hidden four times, for the hierarchy, the level, its frame builder and its picker: a large subtree hidden, a terrain's, makes that a cost of each step.
+  A drop onto what is hidden or locked is tested through its casts alone, not end to end.
+- **Play** ([ADR-0164](adr/0164-play.md)).
+  A game that makes its library of scenes before `slime_app::run` starts its log, as *Hunna Wood* and the `world` example do, logs neither the scenes that Play gave nor a file of Play's directory that it left out.
+  The console builds a label for each line that it keeps, 500 at most, again as lines come.
+  It scrolls to the last line whenever lines come, even while the user reads older ones.
+  *Hunna Wood* has no run without a window: an agent's editor without one plays it in a window all the same.
+  A control that the game refuses is told, but the toolbar shows what the game says only once it answers the state asked after the control.
+- **Building the game again** ([ADR-0166](adr/0166-building-the-game-again.md)).
+  The game is built with its package's features alone: after a build of the whole workspace, which unifies others, cargo builds it again once.
+  A change of the game's sources is seen by polling the files that cargo lists, and cargo's manifests and locks above them, until notify comes with M6c.7.
+  A source that the last build did not list, a new file, is seen only with a change of one that it did.
+  A new build that builds but does not start, or crashes as it starts, ends Play, and the run's save goes with Play's directory.
+  Cargo stopped during a build leaves its compilers to finish the crate under way.
+  On Windows, that the copy that runs leaves the build free to replace the program, and that cargo and the game open no console window, are not checked yet.
+- **Play's time to control** ([`docs/measurements.md`](measurements.md), M6c.4d).
+  A level of 100 000 entities gives control far over ADR-0110's budget in a debug build: the editor writes the level, and the game reads and spawns it, without optimizations.
+  Such a level fits one scene file only with entities that hold little (`slime_serialize::MAX_VALUES`), which levels of several files, M6c.6, are to settle.
+  The owner chose, on 2026-10-29, to leave it until M6c.6 measures it again.
+  Play asks the game how its time stands at each of its frames until it gives control, which a game that holds its time long, as behind a menu, pays for meanwhile.
+- **Editing while playing** ([ADR-0165](adr/0165-editing-while-playing.md)).
+  An undone deletion does not reach the game, which plays on without what it restored until Play starts it again.
+  A step that the game refuses stays applied in the game up to the command refused.
+  A step that sets what the game's run changed overrides the run without a word.
+  A gesture reaches the game once it ends, not as it drags.
 - **Every multisampled depth target can be read by a shader**
-  ([ADR-0159](adr/0159-picking-and-the-selection.md)), so that the outline's frames resolve the
-  scene's depth: every view of four samples makes its depth so, whether it outlines or not, which
-  some GPUs may compress less; nothing has measured it.
-- **A comment within a value written on several lines is lost** when the editor writes the level
-  again, but for the end of the value's first line (`slime_serialize::keep_comments`).
-- **The canvas draws nothing turned or scaled** ([ADR-0137](adr/0137-the-canvas.md)): the items'
-  transforms, whose place they keep, come with Stage 6d
-  ([ADR-0170](adr/0170-applications-on-the-ui-framework.md)). An image is read at its first level, so that
-  one drawn much smaller than it is shows steps, and its edges are neither rounded nor smoothed
-  between two pixels; an image of colors darkens where an opaque texel meets a transparent one of
-  another color, its texels filtered before they are multiplied by their alpha. A shadow is an
-  approximation, a few hundredths of its alpha from the box blurred exactly. A canvas holds at most
-  `MAX_CANVAS_ITEMS` items. The interface's budget is checked on the RX 6900 XT alone, through
-  ADR-0114's ratios. Writing a canvas's items into its buffer costs the CPU in proportion to their
-  number, item by item ([`docs/measurements.md`](measurements.md), M6b.3a).
+  ([ADR-0159](adr/0159-picking-and-the-selection.md)), so that the outline's frames resolve the scene's depth.
+  Every view of four samples makes its depth so, whether it outlines or not, which some GPUs may compress less; nothing has measured it.
+- **A comment within a value written on several lines is lost** when the editor writes the level again, but for the end of the value's first line (`slime_serialize::keep_comments`).
+- **The canvas draws nothing turned or scaled** ([ADR-0137](adr/0137-the-canvas.md)).
+  The items' transforms, whose place they keep, come with Stage 6d ([ADR-0170](adr/0170-applications-on-the-ui-framework.md)).
+  An image is read at its first level: one drawn much smaller than it is shows steps.
+  An image's edges are neither rounded nor smoothed between two pixels.
+  An image of colors darkens where an opaque texel meets a transparent one of another color, its texels filtered before they are multiplied by their alpha.
+  A shadow is an approximation, a few hundredths of its alpha from the box blurred exactly.
+  A canvas holds at most `MAX_CANVAS_ITEMS` items.
+  The interface's budget is checked on the RX 6900 XT alone, through ADR-0114's ratios.
+  Writing a canvas's items into its buffer costs the CPU in proportion to their number, item by item ([`docs/measurements.md`](measurements.md), M6b.3a).
 - **The interface's images are textures that the program gives** for the keys of its display list
-  ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)): cooked images that the asset cache
-  holds come with their first user, M6c.7's asset browser. A draw that asks for more glyphs than
-  the atlas's budget holds leaves some out, and a glyph larger than a page is never drawn; one that
-  meets glyphs no draw has asked for rasterizes them on the thread that draws, a few milliseconds
-  for a menu's first draw ([`docs/measurements.md`](measurements.md), M6b.3b).
-- **The interface's text has one style per text** ([ADR-0136](adr/0136-the-interfaces-text.md)):
-  spans of several styles in one text come with their first user. An italic or a weight that a
-  family lacks is drawn with its closest face, its slant or boldness not made up. A face whose
-  colors are only of `COLR`'s second version, as some emoji fonts of systems, draws no color, swash
-  drawing the first version alone. A word wider than its box, on a line before the last one shown,
-  overflows the box rather than being cut. The cache's memory is an estimate fitted once to a
-  measurement, of texts not cut; a hit copies its key; and fonts registered are never let go.
-- **CI's jobs and their limit of 20 minutes**: until ADR-0144, the cache of the cooked zone was
-  keyed by the whole `Cargo.lock` and root `Cargo.toml`, so a milestone that added a dependency,
-  even one that the cooker does not use, cooked the zone again in each job. At M6b.2, that took the
-  `windows` and `check (windowed)` jobs past their limit by under a minute, on the first run, at
-  M6b.3a, `check (windowed)` by 3 minutes, and at M6b.3b by under a minute; at M6b.4a, `windows`
-  came within half a minute of it. At M6b.4b, the cooker's own sources changed, and `check
-  (windowed)` passed the limit by 40 seconds; at M6b.5a, they changed again, and it took 18 minutes
-  45 seconds. At M6b.5b, `Cargo.lock` changed, and with the agent's session on the interface,
-  `check (windowed)` took 20 minutes 28 seconds and `windows` 20 minutes 51 seconds.
-  [ADR-0144](adr/0144-the-cooked-zones-key-in-ci.md) keys the cooked zone on the packages that the
-  cooker is built from: a dependency added to another crate no longer cooks it again, but a change
-  of the cooker's sources or of its packages still does. M6b.6a was the first milestone to add a
-  dependency since, arboard, in `slime-platform`: the zone was restored from its cache, and the
-  four jobs came back within the limit, `windows` the longest at 18 minutes 9 seconds. M6b.6b added
-  AccessKit's adapter and its 52 crates on Linux, and the longest job, `windows-release`, took 15
-  minutes 27 seconds: the runs that the windowed part holds grow with each milestone. At M6b.7b,
-  `slime-color` changed, and the zone was cooked again: `check (windowed)` took 21 minutes 55
-  seconds and `windows` 21 minutes 39 seconds. At M6b.8b, with the zone restored from its cache,
-  the game's agent session through the overlay made `check (windowed)` take 23 minutes 31 seconds:
-  the owner decided to split the windowed part again, into a third job, as
-  [ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md) split the checks, the limit of 20 minutes
-  kept ([ADR-0155](adr/0155-the-editors-design.md)). The two runs after the release of 0.6 failed,
-  the game's session past its own limit of 15 minutes. M6c.0 split the checks into `headless`,
-  `windowed` and `game`, and made the session draw the zone without shadows: on `a199369`, the three
-  Linux jobs took 13 minutes 35 seconds, 4 minutes 42 seconds and 4 minutes 14 seconds, the zone
-  restored from its cache; cooking it again adds about 3 minutes to `check (game)` alone. What
-  remained `windows`: 19 minutes 43 seconds on `a199369`, 20 minutes 23 seconds on `ebc16f2`. Its
-  later steps ran the image tests, the GPU timing tests and the tests that read the zone with `-p`,
-  whose features differ from the workspace's: on `a199369`, building again for them took 2 minutes
-  2 seconds, 50 seconds and 53 seconds. The first two now print from the one run of the tests, and
-  `windows` took 11 minutes 20 seconds on `bb4552b`. The tests that read the zone still build again,
-  about a minute: run over the workspace, `--ignored` would also run the measurements that other
-  crates ignore, meant for release builds.
-- **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)): a frame walks every
-  element of its roots, to find what to draw again and to gather the display list, even when nothing
-  changed. A list shows the rows of a new range one frame late, when it first shows or when it
-  scrolls after its builder ran. A text in a root laid out from right to left keeps its own
-  direction, a Latin paragraph starting at its box's left. No element is placed out of its parent's
-  flow but in a layer of its own ([ADR-0150](adr/0150-layers.md)). The marks of what changed hold an
-  element's style, layout, paint and meaning ([ADR-0146](adr/0146-screen-readers.md)).
-- **Input and focus** ([ADR-0142](adr/0142-input-and-focus.md)): buttons, fields and widgets alone
-  hold the focus, buttons and widgets alone are pressed, and boxes that scroll
-  and lists scroll with the wheel; a press on what the interface draws is taken whether or not it does anything, from
-  what its last frame drew, so that a game's interface that lets presses through draws nothing
-  where they fall, and the wheel with it; the shadow that a box casts takes them over the box, not
-  over the blur that spreads past it. A root is modal from when it is added. The interface's actions reach no command of the editor or of a game but through
-  the program. The hover follows what a layout moved under a still pointer a frame late, and the
-  focus leaves an element disabled or hidden at the next frame. A layout of another script than the Latin one matches a chord of a letter by
-  the key's place, and a chord of a digit or a sign by its meaning alone. The example `interface`
-  scrolls its list with time, which the wheel does not move. Touch comes later.
-- **Text edited** ([ADR-0145](adr/0145-text-edited.md)): a double or triple click selects no word
-  or line, and the caret does not blink. A field of one line leaves the up and down arrows to the
-  focus, shows no bar of its own as its text scrolls, lays its text out one caret's width within
-  its content box, so that the caret shows at either end, and does not scroll up and down, so that
-  a text taller than its box is cut above and below. Escape in a field leaves the focus, which
-  commits what the user typed rather than giving back what it held. Each edit lays the field's
-  whole text out again, at a cost that grows with its length; a field undoes up to 100 edits, and
-  forgets them when the program gives it another text. A field has no length that it holds at
-  most, no text hidden as a password's; a field of numbers no bounds, without a prefix
-  is dragged only while it does not hold the focus, and reads a full stop alone as its decimal mark,
-  whatever the user's language. The input method's window is placed beside
-  the caret as the last frame drew it, and is turned off and on again, meant to end a composition
-  that the focus left, which no input method was checked with yet; a text that the program gives
-  while an input method composes, which the field reads without the composition, is left aside, so
-  that a field clears itself once the composition ends. The clipboard holds text alone; on
-  Wayland, it needs a compositor that gives the protocol of the clipboard's managers, wlroots',
-  niri's and Hyprland's among them, and falls back on X11 through XWayland elsewhere. An agent sets
-  a field's value whole, and does not type in it key by key.
-- **Widgets** ([ADR-0148](adr/0148-widgets.md)): a check box has no third state, mixed; a slider
-  lies across alone, and shows neither ticks nor its value; tabs are neither closed, moved nor
-  scrolled when the bar is too narrow for them; two panels are two, of no least size, and a third
-  child is folded; scroll bars show over the content as long as it does not fit, and have no
-  arrows. Whether a section is open, which tab is chosen and where a handle stands are the
-  interface's alone: they tell the program nothing, and an element that a builder removes forgets
-  them. The editor's look has no italic faces; its fonts hold no Greek; it is built into the
-  program, not cooked: the dev overlay carries it into a game's development build, and the game's
-  build for shipping leaves it out. M6c.5 gives a check box its third state; M6c.8 moves and
-  closes tabs, and gives panels a least size.
-- **The look's foundations** ([ADR-0149](adr/0149-the-looks-foundations.md)): a theme's values are
-  typed only where a rule uses them, so that a name that holds a value of the wrong type is refused
-  where a rule names it, not where the theme gives it; the color functions are four, and work on
-  whole colors, not on their lightness, chroma or hue alone. Transitions move colors, opacity and a
-  section's height, not sizes, places nor what a layout gives; they go on only while the program
-  gives the interface its time, and a section that opens is laid out twice in the frame that
-  starts it. An opacity multiplies each primitive's alpha, rather than drawing the element apart
-  and blending it whole: overlapping parts of a translucent element show through each other, until
-  Stage 7's layers. A shadow is not placed on whole pixels. On Linux, the system's dark or light
-  preference is not read: winit reads no desktop's settings, and the portal of the desktop's
-  settings would need a new dependency; Windows reports it.
-- **Layers** ([ADR-0150](adr/0150-layers.md)): a menu's separators are boxes of the class
-  `separator` that the look styles, not a kind of their own; a menu has no letters that jump to an
-  item, and no way to cross its siblings towards an open submenu: resting on another item on
-  the way closes it. A list to choose from does not scroll its options, so that a
-  list taller than the window is cut; Tab within an open list moves among its options rather than
-  closing it. A tooltip shows for the keys' focus alone, not the program's, and is not placed
-  beside the pointer. A floating panel has a least size of its own, no docking, and does not keep
-  its place against a window that shrinks, where it is placed within the window but keeps what the
-  user left. A style sheet reads a theme's value in place of every value but a text: the look names
-  its icons by their codepoints in its sheet, not in a theme. The bar of menus takes Alt let go
-  alone whenever an interface holds one, which a game whose interface holds a bar loses as a key of
-  its own. M6c.8 docks floating panels. Since M6c.1a, a root is named in paths by its key, not by
-  its number among the roots, which a raised floating layer changed.
-- **Rich fields** ([ADR-0151](adr/0151-rich-widgets.md)): a press on a focused field's prefix that
-  does not drag places its caret at its start; a field's prefix and its unit's symbol are drawn
-  whatever their width, cut by nothing; a bar of progress without a share that less motion stills
-  stays still until it is drawn again; the look's fallbacks for a magnifier and a cross, without a
-  font of icons, are one disc. Units are of three families, lengths, angles and times, not masses,
-  speeds or colors. The box of a section's header is placed by the interface after taffy lays it
-  out, which placed it from the wrong box. A content box takes its padding from the left whatever
-  the root's direction, so that an asymmetric padding is mirrored wrongly from right to left, a
-  drift found while placing the fields' marks, which allow for it.
-- **What the editor tells and finds** ([ADR-0151](adr/0151-rich-widgets.md)): the palette finds
-  commands by letters in order, without forgiving a letter typed wrong (it scrolls past 12 since
-  M6c.1a); the sheet of shortcuts takes no focus, so that a screen reader
-  says nothing as it opens; a notification's mark that closes it is named `close` in English; no
-  check runs a screen reader on the live regions of notifications; the stack of notifications turns
-  from its corner as a layer at a point does, which holds for a stack wider and taller than its
-  margin, as every notification is.
-- **What agents see** ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)): a tool reads an
-  interface only in a windowed run, from its last frame, and each ask walks the whole tree. A path
-  holds while the roots below its own stay, and a key's name that holds
-  `/`, or that `#` and digits make, cannot be read back from one. A row of a list is found by its
-  number, the names of its texts not gathered into its own, unless its builder names it, as the
-  editor's hierarchy names its items. Games link `slime-ui`
-  through `slime-app`, whether they have an interface or not.
+  ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
+  Cooked images that the asset cache holds come with their first user, M6c.7's asset browser.
+  A draw that asks for more glyphs than the atlas's budget holds leaves some out; a glyph larger than a page is never drawn.
+  A draw that meets glyphs no draw has asked for rasterizes them on the thread that draws: a few milliseconds for a menu's first draw ([`docs/measurements.md`](measurements.md), M6b.3b).
+- **The interface's text has one style per text** ([ADR-0136](adr/0136-the-interfaces-text.md)): spans of several styles in one text come with their first user.
+  An italic or a weight that a family lacks is drawn with its closest face, its slant or boldness not made up.
+  A face whose colors are only of `COLR`'s second version, as some emoji fonts of systems, draws no color: swash draws the first version alone.
+  A word wider than its box, on a line before the last one shown, overflows the box rather than being cut.
+  The cache's memory is an estimate fitted once to a measurement, of texts not cut.
+  A hit copies its key, and fonts registered are never let go.
+- **CI's jobs and their limit of 20 minutes** ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md),
+  [ADR-0144](adr/0144-the-cooked-zones-key-in-ci.md), [ADR-0155](adr/0155-the-editors-design.md)).
+  Each job of CI must end within 20 minutes, and every session of the editor adds to the checks.
+  Since M6c.0, three Linux jobs run `scripts/check.sh`'s three parts side by side; the game's agent session draws the zone without shadows.
+  The cooked zone is cached, keyed on the packages that the cooker is built from: a change of the cooker's sources or of its packages cooks it again, which adds about 3 minutes to `check (game)` alone.
+  On `06faca1`, at M6c.5d, the longest jobs took 16 minutes 33 seconds (`check (headless)`) and 15 minutes 25 seconds (`windows`).
+  The `windows` job builds the tests that read the zone again, with `-p`, whose features differ from the workspace's: about a minute.
+  Run over the workspace, `--ignored` would also run the measurements that other crates ignore, meant for release builds.
+  How the jobs grew and were split: [`history.md`](history.md#ci-and-its-limit-of-20-minutes).
+- **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)).
+  A frame walks every element of its roots, to find what to draw again and to gather the display list, even when nothing changed.
+  A list shows the rows of a new range one frame late, when it first shows or when it scrolls after its builder ran.
+  A text in a root laid out from right to left keeps its own direction: a Latin paragraph starts at its box's left.
+  No element is placed out of its parent's flow but in a layer of its own ([ADR-0150](adr/0150-layers.md)).
+  The marks of what changed hold an element's style, layout, paint and meaning ([ADR-0146](adr/0146-screen-readers.md)).
+- **Input and focus** ([ADR-0142](adr/0142-input-and-focus.md)).
+  Buttons, fields and widgets alone hold the focus; buttons and widgets alone are pressed; boxes that scroll and lists scroll with the wheel.
+  A press on what the interface draws is taken whether or not it does anything, from what its last frame drew: a game's interface that lets presses through draws nothing where they fall, and the wheel with it.
+  The shadow that a box casts takes presses over the box, not over the blur that spreads past it.
+  A root is modal from when it is added.
+  The interface's actions reach no command of the editor or of a game but through the program.
+  The hover follows what a layout moved under a still pointer a frame late; the focus leaves an element disabled or hidden at the next frame.
+  A layout of another script than the Latin one matches a chord of a letter by the key's place, and a chord of a digit or a sign by its meaning alone.
+  The example `interface` scrolls its list with time, which the wheel does not move.
+  Touch comes later.
+- **Text edited** ([ADR-0145](adr/0145-text-edited.md)).
+  A double or triple click selects no word or line, and the caret does not blink.
+  A field of one line leaves the up and down arrows to the focus, and shows no bar of its own as its text scrolls.
+  It lays its text out one caret's width within its content box, so that the caret shows at either end.
+  It does not scroll up and down: a text taller than its box is cut above and below.
+  Escape in a field leaves the focus, which commits what the user typed rather than giving back what it held.
+  Each edit lays the field's whole text out again, at a cost that grows with its length.
+  A field undoes up to 100 edits, and forgets them when the program gives it another text.
+  A field has no length that it holds at most, and no text hidden as a password's.
+  A field of numbers has no bounds, and reads a full stop alone as its decimal mark, whatever the user's language.
+  A field of numbers without a prefix is dragged only while it does not hold the focus.
+  The input method's window is placed beside the caret as the last frame drew it.
+  It is turned off and on again, meant to end a composition that the focus left, which no input method was checked with yet.
+  A text that the program gives while an input method composes, which the field reads without the composition, is left aside: a field clears itself once the composition ends.
+  The clipboard holds text alone.
+  On Wayland, the clipboard needs a compositor that gives the protocol of the clipboard's managers, wlroots', niri's and Hyprland's among them, and falls back on X11 through XWayland elsewhere.
+  An agent sets a field's value whole, and does not type in it key by key.
+- **Widgets** ([ADR-0148](adr/0148-widgets.md)).
+  A check box has no third state, mixed; M6c.5f gives it one.
+  A slider lies across alone, and shows neither ticks nor its value.
+  Tabs are neither closed, moved nor scrolled when the bar is too narrow for them; M6c.8 moves and closes them.
+  Two panels are two, of no least size, and a third child is folded; M6c.8 gives panels a least size.
+  Scroll bars show over the content as long as it does not fit, and have no arrows.
+  Whether a section is open, which tab is chosen and where a handle stands are the interface's alone: they tell the program nothing, and an element that a builder removes forgets them.
+  The editor's look has no italic faces, and its fonts hold no Greek.
+  The look is built into the program, not cooked: the dev overlay carries it into a game's development build, and the game's build for shipping leaves it out.
+- **The look's foundations** ([ADR-0149](adr/0149-the-looks-foundations.md)).
+  A theme's values are typed only where a rule uses them: a name that holds a value of the wrong type is refused where a rule names it, not where the theme gives it.
+  The color functions are four, and work on whole colors, not on their lightness, chroma or hue alone.
+  Transitions move colors, opacity and a section's height, not sizes, places nor what a layout gives.
+  They go on only while the program gives the interface its time; a section that opens is laid out twice in the frame that starts it.
+  An opacity multiplies each primitive's alpha, rather than drawing the element apart and blending it whole: overlapping parts of a translucent element show through each other, until groups are drawn apart ([ADR-0171](adr/0171-effects-of-the-interface.md)).
+  A shadow is not placed on whole pixels.
+  On Linux, the system's dark or light preference is not read: winit reads no desktop's settings, and the portal of the desktop's settings would need a new dependency; Windows reports it.
+- **Layers** ([ADR-0150](adr/0150-layers.md)).
+  A menu's separators are boxes of the class `separator` that the look styles, not a kind of their own.
+  A menu has no letters that jump to an item.
+  A menu has no way to cross its siblings towards an open submenu: resting on another item on the way closes it.
+  A list to choose from does not scroll its options: a list taller than the window is cut.
+  Tab within an open list moves among its options rather than closing it.
+  A tooltip shows for the keys' focus alone, not the program's, and is not placed beside the pointer.
+  A floating panel has a least size of its own and no docking; M6c.8 docks floating panels.
+  A floating panel does not keep its place against a window that shrinks: it is placed within the window, but keeps what the user left.
+  A style sheet reads a theme's value in place of every value but a text: the look names its icons by their codepoints in its sheet, not in a theme.
+  The bar of menus takes Alt let go alone whenever an interface holds one: a game whose interface holds a bar loses Alt as a key of its own.
+- **Rich fields** ([ADR-0151](adr/0151-rich-widgets.md)).
+  A press on a focused field's prefix that does not drag places its caret at its start.
+  A field's prefix and its unit's symbol are drawn whatever their width, cut by nothing.
+  A bar of progress without a share that less motion stills stays still until it is drawn again.
+  The look's fallbacks for a magnifier and a cross, without a font of icons, are one disc.
+  Units are of three families, lengths, angles and times, not masses, speeds or colors.
+  The box of a section's header is placed by the interface after taffy lays it out, which placed it from the wrong box.
+  A content box takes its padding from the left whatever the root's direction: an asymmetric padding is mirrored wrongly from right to left, which the fields' marks allow for.
+- **What the editor tells and finds** ([ADR-0151](adr/0151-rich-widgets.md)).
+  The palette finds commands by letters in order, without forgiving a letter typed wrong.
+  The sheet of shortcuts takes no focus: a screen reader says nothing as it opens.
+  A notification's mark that closes it is named `close` in English.
+  No check runs a screen reader on the live regions of notifications.
+  The stack of notifications turns from its corner as a layer at a point does, which holds for a stack wider and taller than its margin, as every notification is.
+- **What agents see** ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)).
+  A tool reads an interface only in a windowed run, from its last frame, and each ask walks the whole tree.
+  A path holds while the roots below its own stay.
+  A key's name that holds `/`, or that `#` and digits make, cannot be read back from a path.
+  A row of a list is found by its number; the names of its texts are not gathered into its own, unless its builder names it, as the editor's hierarchy names its items.
+  Games link `slime-ui` through `slime-app`, whether they have an interface or not.
 - **The dev overlay** ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md),
-  [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)): a frame after an entity is spawned or
-  despawned makes the world panel's list again, every name read and filtered, past the budget of a
-  list's frame at 100 000 entities, and one after a rename reads again the names that changed and
-  filters the list, under a millisecond there
-  ([measurements](measurements.md#m6c5a-ryzen-7-5800x)); the frames standing still, scrolled, or
-  after the selection changed stay within it. Its panels keep the size that they open
-  at, their content scrolling, where egui's fitted theirs. It holds its interface's tables of
-  shortcuts, which a game's interface would share; a game loses F6 while its interface shows a
-  root that holds an element that can take the focus, and F6 gives a panel's bar the focus first.
-  Its look, the editor's, is built into the program: its themes are files of `slime-ui`, read as
-  the program starts, not from the disk while it runs. No check of CI runs a screen reader on it.
-- **Screen readers** ([ADR-0146](adr/0146-screen-readers.md)): no check of CI runs a screen reader
-  nor Windows' UI Automation; CI reads and uses the `interface` example through AT-SPI on Linux
-  ([ADR-0147](adr/0147-the-screen-readers-check-in-ci.md)); the owner checks Orca and Narrator by
-  hand, on the `interface` example and on the `world` example's dev overlay. A modal dialog is not
-  marked modal to screen readers, which find the elements below it taking nothing; a label's text gives no runs, so that a screen reader reads it whole; a
-  field of numbers takes no increment or decrement; the hover and the press are given to agents, not to screen readers, which AccessKit
-  does not ask. A
-  root's box that changes, a window resized, marks all it holds, and a modal root opened or closed
-  makes the next changes whole. Each element's meaning is made again from the tree when marked, the
-  boxes that only lay others out below it walked, and a field's runs laid out from its text, as it
-  draws it. On Windows, which never says that no client reads any more, a window whose tree was
-  asked for once is given an update after each frame until it closes. A text that its builder names
-  gives screen readers its name, not its words; a caret at the end of a line that breaks within the
-  text is placed at the start of the next, its side lost; screen readers scroll by an item or by
-  what shows, not to an offset. `deny.toml` ignores three advisories of unmaintained crates that the adapter on Linux brings
-  through zbus 5, zvariant, zbus_names and zvariant_derive, which zbus 6 holds: they go once
-  AccessKit's adapter moves to zbus 6.
-- **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md)): a field of the type
-  `String` takes no named value. An error of type in a
-  cooked style sheet or theme is placed by its byte and the path of its part, not by its line. The
-  code cannot set a field of an element's style to its default against a rule. The styles made are
-  kept up to a number of the elements' own styles for each set of rules (`Ui::set_style`); past it,
-  an element's style is made again through reflection at each change, the slow way that
-  [`docs/measurements.md`](measurements.md), M6b.4b, measures. Selectors hold no combinators but an
-  ancestor's kind or class. A color is held whole in a part of a style by `slime-ui`'s own walk,
-  beside reflection's, which holds a rotation whole: two ways of one thing, which a type's attribute
-  of reflection would unify. An array, a list and an option of an element's own style replace the
-  rules' whole, its height with its width.
+  [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)).
+  A frame after an entity is spawned or despawned makes the world panel's list again, every name read and filtered: past the budget of a list's frame at 100 000 entities.
+  A frame after a rename reads again the names that changed and filters the list: under a millisecond there ([measurements](measurements.md#m6c5a-ryzen-7-5800x)).
+  The frames standing still, scrolled, or after the selection changed stay within the budget.
+  Its panels keep the size that they open at, their content scrolling, where egui's fitted theirs.
+  It holds its interface's tables of shortcuts, which a game's interface would share.
+  A game loses F6 while its interface shows a root that holds an element that can take the focus, and F6 gives a panel's bar the focus first.
+  Its look, the editor's, is built into the program: its themes are files of `slime-ui`, read as the program starts, not from the disk while it runs.
+  No check of CI runs a screen reader on it.
+- **Screen readers** ([ADR-0146](adr/0146-screen-readers.md)).
+  No check of CI runs a screen reader nor Windows' UI Automation.
+  CI reads and uses the `interface` example through AT-SPI on Linux ([ADR-0147](adr/0147-the-screen-readers-check-in-ci.md)).
+  The owner checks Orca and Narrator by hand, on the `interface` example and on the `world` example's dev overlay.
+  A modal dialog is not marked modal to screen readers, which find the elements below it taking nothing.
+  A label's text gives no runs: a screen reader reads it whole.
+  A field of numbers takes no increment or decrement.
+  The hover and the press are given to agents, not to screen readers, which AccessKit does not ask.
+  A root's box that changes, a window resized, marks all it holds; a modal root opened or closed makes the next changes whole.
+  Each element's meaning is made again from the tree when marked, the boxes that only lay others out below it walked, and a field's runs laid out from its text, as it draws it.
+  On Windows, which never says that no client reads any more, a window whose tree was asked for once is given an update after each frame until it closes.
+  A text that its builder names gives screen readers its name, not its words.
+  A caret at the end of a line that breaks within the text is placed at the start of the next, its side lost.
+  Screen readers scroll by an item or by what shows, not to an offset.
+  `deny.toml` ignores three advisories of unmaintained crates that the adapter on Linux brings through zbus 5, zvariant, zbus_names and zvariant_derive, which zbus 6 holds: they go once AccessKit's adapter moves to zbus 6.
+- **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md)).
+  A field of the type `String` takes no named value.
+  An error of type in a cooked style sheet or theme is placed by its byte and the path of its part, not by its line.
+  The code cannot set a field of an element's style to its default against a rule.
+  The styles made are kept up to a number of the elements' own styles for each set of rules (`Ui::set_style`).
+  Past it, an element's style is made again through reflection at each change, the slow way that [`docs/measurements.md`](measurements.md), M6b.4b, measures.
+  Selectors hold no combinators but an ancestor's kind or class.
+  A color is held whole in a part of a style by `slime-ui`'s own walk, beside reflection's, which holds a rotation whole: two ways of one thing, which a type's attribute of reflection would unify.
+  An array, a list and an option of an element's own style replace the rules' whole, its height with its width.
 - **The system's fallback is checked only where the system has fonts**
-  ([ADR-0136](adr/0136-the-interfaces-text.md)): its test checks nothing, and says so, on a machine
-  whose fontconfig, or whose lack of it, gives no font for Greek or Japanese, as CI's Linux runners
-  may.
-- **An editor's journal grows across recoveries** ([ADR-0135](adr/0135-the-editors-program.md)):
-  each recovery goes on with the journal that it recovered, which only a start with nothing
-  unwritten begins anew, and the history of steps outlives a stop only when something is
-  unwritten. `editor_journal` fails once the journal is larger than the channel's largest message
-  (`slime_serialize::MAX_SIZE`).
-- **A selection made just before a crash is lost** ([ADR-0134](adr/0134-the-editors-core.md)):
-  the journal writes a selection made apart from a step with the entry that follows it.
+  ([ADR-0136](adr/0136-the-interfaces-text.md)).
+  Its test checks nothing, and says so, on a machine whose fontconfig, or whose lack of it, gives no font for Greek or Japanese, as CI's Linux runners may.
+- **An editor's journal grows across recoveries** ([ADR-0135](adr/0135-the-editors-program.md)).
+  Each recovery goes on with the journal that it recovered; only a start with nothing unwritten begins it anew.
+  The history of steps outlives a stop only when something is unwritten.
+  `editor_journal` fails once the journal is larger than the channel's largest message (`slime_serialize::MAX_SIZE`).
+- **A selection made just before a crash is lost** ([ADR-0134](adr/0134-the-editors-core.md)).
+  The journal writes a selection made apart from a step with the entry that follows it.
 - **A journal whose last entry a crash of the system tore is not recovered**
-  ([ADR-0135](adr/0135-the-editors-program.md)): the program stops, and `--discard` sets the
-  journal aside with every step that it holds, those before the tear included, which only a journal
-  mended by hand plays again.
+  ([ADR-0135](adr/0135-the-editors-program.md)).
+  The program stops; `--discard` sets the journal aside with every step that it holds, those before the tear included, which only a journal mended by hand plays again.
 - **Two editors of one level, each with a journal of its own, do not see each other's changes**
-  ([ADR-0135](adr/0135-the-editors-program.md)): the second to write the level is refused, the file
-  changed apart from it, and its changes stay in its journal alone.
+  ([ADR-0135](adr/0135-the-editors-program.md)).
+  The second to write the level is refused, the file changed apart from it, and its changes stay in its journal alone.
 
 ### Left by the audit of 0.4
 
 Defects that the audit of 0.4 confirmed and that neither the audit pass nor the foundations pass
-fixes ([ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md)), each with its
-number, its rank on [ADR-0096](adr/0096-the-files-the-engine-reads.md)'s scale and the stage it
-waits for. The audit numbered its findings so that a fix can name what it fixes: G01 to G56 are
-groups of defects, B1 to B4 performance (the build, the world, the renderer, loading), each of their
-findings numbered within its group, B4-F01 for instance, C1 to C7 architecture. A test that confirms
-each is kept outside the repository, and comes in with its fix. The audit did not cover NVIDIA and
-Intel GPUs, X11, a game outside the workspace, the delay from a key to the image shown, nor
-determinism between Linux and Windows.
+fixes ([ADR-0097](adr/0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md)).
+Each has its number, its rank on [ADR-0096](adr/0096-the-files-the-engine-reads.md)'s scale and the stage it waits for.
+G01 to G56 are groups of defects; B1 to B4 performance (the build, the world, the renderer, loading), each finding numbered within its group, B4-F01 for instance; C1 to C7 architecture.
+A test that confirms each is kept outside the repository, and comes in with its fix.
+The audit did not cover NVIDIA and Intel GPUs, X11, a game outside the workspace, the delay from a key to the image shown, nor determinism between Linux and Windows.
 
-- **A mesh that a passing error failed is not tried again** (G16, medium; M6c.7). Since M6a.9,
-  a mesh of an asset cache's request fails alone ([ADR-0128](adr/0128-asset-requests.md)), and is
-  not asked for again until the cooked data changes, a passing error such as GPU memory running out
-  included; a scene's load still fails whole. Trying a passing error again is to decide with the
-  editor's asset browser.
+- **A mesh that a passing error failed is not tried again** (G16, medium; M6c.7).
+  Since M6a.9, a mesh of an asset cache's request fails alone ([ADR-0128](adr/0128-asset-requests.md)), and is not asked for again until the cooked data changes, a passing error such as GPU memory running out included.
+  A scene's load still fails whole.
+  Trying a passing error again is to decide with the editor's asset browser.
 - **On Windows, a `.meta` whose name differs from its source's by case only takes a new ID at every
-  cook** (G20, medium; M6c.7), and `slime-cook watch` cooks again without end: the scan matches
-  the two files by the file system's rule, which ignores case on NTFS, then looks the ID up by the
-  exact path. Not run on Windows by the audit: it waits in the
-  [list of checks by hand](#checks-by-hand-waiting-for-the-owner).
-- **Importing a glTF file takes time quadratic in its named meshes** (G23, medium; M6c.7): 38 to
-  57 s for 80 000 meshes, as each name is counted against the whole list.
+  cook** (G20, medium; M6c.7), and `slime-cook watch` cooks again without end.
+  The scan matches the two files by the file system's rule, which ignores case on NTFS, then looks the ID up by the exact path.
+  Not run on Windows by the audit: it waits in the [list of checks by hand](#checks-by-hand-waiting-for-the-owner).
+- **Importing a glTF file takes time quadratic in its named meshes** (G23, medium; M6c.7): 38 to 57 s for 80 000 meshes, as each name is counted against the whole list.
 - **The world's storage keeps 4 MB per component type and per million slots, and gives nothing back
-  after destruction** (G28, medium; Stage 10a): each type keeps an index of 4 bytes per slot up to
-  the highest slot that held it, and neither the index, the nodes nor the slots shrink
-  ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)).
-- **Masked foliage loses its coverage in its smaller mip levels** (G30, medium; Stage 9a): the
-  cooker averages alpha from one level to the next, so that the share of texels above the cutoff
-  falls in the levels drawn far away, down to none, and trees fade in the distance. Preserving
-  coverage per level for textures that a masked material reads is to do before large exteriors.
-- **`World::write_scene` writes, without an error, a level that cannot be opened again** (G31,
-  medium; M6c.6): it never counts the entities that the file gives once its placements resolve,
-  which the reader refuses beyond `MAX_ENTITIES`, nor what they take, refused beyond
-  `MAX_SCENE_SIZE`.
+  after destruction** (G28, medium; Stage 10a).
+  Each type keeps an index of 4 bytes per slot up to the highest slot that held it.
+  Neither the index, the nodes nor the slots shrink ([ADR-0082](adr/0082-the-worlds-storage-and-handles.md)).
+- **Masked foliage loses its coverage in its smaller mip levels** (G30, medium; Stage 9a).
+  The cooker averages alpha from one level to the next: the share of texels above the cutoff falls in the levels drawn far away, down to none, and trees fade in the distance.
+  Preserving coverage per level for textures that a masked material reads is to do before large exteriors.
+- **`World::write_scene` writes, without an error, a level that cannot be opened again** (G31, medium; M6c.6).
+  It never counts the entities that the file gives once its placements resolve, which the reader refuses beyond `MAX_ENTITIES`, nor what they take, refused beyond `MAX_SCENE_SIZE`.
 - **Between two fixed steps, the children of a turning parent cut the arc's chord while their
-  siblings stay on it** (G38, low; Stage 7): a child moved by its parent is drawn in a straight line
-  between its two positions. Interpolating through the hierarchy is to decide before skeletal
-  animation turns many hierarchies.
+  siblings stay on it** (G38, low; Stage 7).
+  A child moved by its parent is drawn in a straight line between its two positions.
+  Interpolating through the hierarchy is to decide before skeletal animation turns many hierarchies.
 - **A string on several lines in a scene file checked out on Windows keeps its CRLF line ends**
-  (G40, low; M6c.6): `.gitattributes` keeps `*.toml`, `*.meta` and `*.tsv` at LF, not `*.scene`,
-  so that the value and the cooked bytes depend on the checkout.
-- **A negative integer, or one too large, for an unsigned field gives a wrong message** (G42, low;
-  M6c.6): "not an integer" or "not text", rather than its range.
-- **The writer of documents accepts what the reader refuses** (G43, low; M6c.6): a reserved key
-  `$…` at the root, and a field given twice, the second lost.
-- **A camera target farther than about 2 × 10¹⁹ m draws nothing, without a message** (G44, low;
-  later): `view_from_eye` squares the direction in `f32`.
+  (G40, low; M6c.6).
+  `.gitattributes` keeps `*.toml`, `*.meta` and `*.tsv` at LF, not `*.scene`: the value and the cooked bytes depend on the checkout.
+- **A negative integer, or one too large, for an unsigned field gives a wrong message** (G42, low; M6c.6): "not an integer" or "not text", rather than its range.
+- **The writer of documents accepts what the reader refuses** (G43, low; M6c.6): a reserved key `$…` at the root, and a field given twice, the second lost.
+- **A camera target farther than about 2 × 10¹⁹ m draws nothing, without a message** (G44, low; later): `view_from_eye` squares the direction in `f32`.
 - **`World::write_scene` loops without end when more than 1 679 616 entities need IDs from one
   base** (G45, low; M6c.6): it draws four base-36 characters until one is free.
-- **`Registry::register_dynamic` accepts version 0, which the derive refuses** (G48, low; Stage 8):
-  the values are written, then never read back, with a wrong message.
-- **Two cooks in one process share their temporary files** (G49, low; M6c.7, before the editor
-  cooks): named after the process, they separate processes, not threads, and one cook fails at
-  random, naming a file that exists.
-- **An output directory inside the sources breaks the next cook** (G50, low; M6c.7): cooked glTF
-  scenes take the `.scene` extension of scene files, which the next scan reads as sources.
-- **After a glTF file is moved with its `.meta`, the cooker's cache keeps the old path** (G51, low;
-  M6c.7): the manifest names it, and warnings blame tables that are right.
+- **`Registry::register_dynamic` accepts version 0, which the derive refuses** (G48, low; Stage 8): the values are written, then never read back, with a wrong message.
+- **Two cooks in one process share their temporary files** (G49, low; M6c.7, before the editor cooks).
+  Named after the process, they separate processes, not threads: one cook fails at random, naming a file that exists.
+- **An output directory inside the sources breaks the next cook** (G50, low; M6c.7): cooked glTF scenes take the `.scene` extension of scene files, which the next scan reads as sources.
+- **After a glTF file is moved with its `.meta`, the cooker's cache keeps the old path** (G51, low; M6c.7): the manifest names it, and warnings blame tables that are right.
 - **Two `.meta` with one ID, one of them without a source, make the cook stop without saying which
   is the orphan** (G52, low; M6c.7).
-- **`Manifest::from_bytes` refuses a valid manifest whose names are short** (G53, low; M6c.7): it
-  assumes 45 bytes per entry where the least is 37.
+- **`Manifest::from_bytes` refuses a valid manifest whose names are short** (G53, low; M6c.7): it assumes 45 bytes per entry where the least is 37.
 - **With `--watch`, after the cooked data is cleaned, a reload that the game refuses leaves it
-  unable to save** (G56, low; M6c.7, with cooking from the editor): `SceneLibrary::reload` forgets
-  the changed scenes before
-  the game accepts them, and the files of the old manifest are gone.
-
-## Notes
-
-- CI build cache: not added yet. With wgpu, the Linux job takes about 2.5 minutes and the Windows
-  job about 5 (measured on the runs of 2026-10-12; it compiles the dependencies three times: for
-  clippy, for the tests, and in release for the artifact), which is acceptable; a cache is to add if
-  it grows much further. The dependencies of Stage 3a (glam, gltf, egui) were expected to add to
-  it, and each milestone that added one recorded the new duration here. With glam and the render
-  crate (M3.2, 2026-10-13): Linux 2 minutes 49 seconds, Windows 4 minutes 59 seconds. With gltf and
-  egui (M3.6, 2026-10-13): Linux 3 minutes 22 seconds, Windows 5 minutes 42 seconds, and 6 minutes
-  2 seconds once its tests ran one at a time. At the release (M3.7, 2026-10-13), over the ten
-  green runs before it: Linux from 2 minutes 35 seconds to 3 minutes 38 seconds, Windows from
-  3 minutes 12 seconds to 7 minutes 10 seconds; the Windows runner's speed varies from one run to
-  the next more than the code changes between them. At 0.1 (M3b.9, 2026-10-14): Linux 5 minutes 40
-  seconds, Windows 11 minutes 32 seconds, of which the tests take 4 minutes 31 seconds and the
-  release build of the examples 3 minutes 24 seconds. The owner decided then to keep CI as it is,
-  the repository being public and its minutes free, and to reconsider past 20 minutes. With
-  `slime-world` (M5a.1, 2026-10-16): Linux 10 minutes 25 seconds, Windows 17 minutes 20 seconds.
-  With `slime-color` and `slime-world-render` (M5a.3, 2026-10-16): Linux 12 minutes 33 seconds,
-  Windows 17 minutes 26 seconds. With `slime-reflect` and `slime-reflect-derive` (M5a.5,
-  2026-10-16): Linux 9 minutes 6 seconds, Windows 18 minutes 27 seconds. With `slime-serialize`
-  (M5a.7, 2026-10-16): Linux 13 minutes 26 seconds, Windows 15 minutes 31 seconds. With no crate
-  added since, at M5b.6 (2026-10-18): Linux 14 minutes 17 seconds, Windows 19 minutes 48 seconds,
-  12 seconds under the limit. At P5 (2026-10-19), with the same work, from 13 minutes 38 seconds to
-  21 minutes 54 seconds on Windows, as the runners' speed varied: the Windows job is split in two
-  jobs that run in parallel (ADR-0081, ADR-0104), and every job keeps the cooked zone in its cache:
-  on `2d71729`, the zone cooked again, Linux 13 minutes 4 seconds, `windows` 11 minutes 35
-  seconds, `windows-release` 11 minutes 7 seconds; on `1cc469b`, the cooked zone in the cache, 9
-  minutes 9 seconds, 10 minutes 26 seconds and 8 minutes 51 seconds.
+  unable to save** (G56, low; M6c.7, with cooking from the editor).
+  `SceneLibrary::reload` forgets the changed scenes before the game accepts them, and the files of the old manifest are gone.

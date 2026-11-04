@@ -221,6 +221,7 @@ today has:
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to set up the environment, check a change and submit it. |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Direction, order of the stages and their exit criteria. An overview, not a commitment. |
 | [`docs/PLAN.md`](docs/PLAN.md) | The current stage, its milestones, their status and the known debt. |
+| [`docs/history.md`](docs/history.md) | The finished stages, a few lines each, with their versions and ADRs. |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The crates, their roles, how they depend on each other, and where to start reading the code. |
 | [`docs/adr/`](docs/adr/README.md) | Every architecture decision, with its context and the alternatives rejected. |
 | [`docs/glossary.md`](docs/glossary.md) | Terms the project defines. |
