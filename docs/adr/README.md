@@ -221,9 +221,9 @@ the ADR linking to it.
 | [0150](0150-layers.md) | Layers | Accepted; amended by 0154, 0157 |
 | [0151](0151-rich-widgets.md) | Rich widgets | Accepted |
 | [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
-| [0153](0153-tab-and-f6-in-a-games-interface.md) | Tab and F6 in a game's interface | Accepted |
+| [0153](0153-tab-and-f6-in-a-games-interface.md) | Tab and F6 in a game's interface | Accepted; amended by 0172 |
 | [0154](0154-floating-panels-and-held-keys.md) | Floating panels and held keys | Accepted |
-| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156, 0158, 0159, 0160, 0161, 0162 |
+| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156, 0158, 0159, 0160, 0161, 0162 and 0172 |
 | [0156](0156-the-editors-window-and-its-operations.md) | The editor's window and its operations | Accepted |
 | [0157](0157-dialogs-the-cursor-held-and-the-gpus-identity.md) | Dialogs, the cursor held and the GPU's identity | Accepted |
 | [0158](0158-the-viewport.md) | The viewport | Accepted; amended by 0159, 0160 |
@@ -240,3 +240,4 @@ the ADR linking to it.
 | [0169](0169-the-eye-and-the-lock.md) | The eye and the lock | Accepted |
 | [0170](0170-applications-on-the-ui-framework.md) | Applications on the engine's UI framework | Accepted; amends 0098, 0132 and 0149; amended by 0171 |
 | [0171](0171-effects-of-the-interface.md) | Effects of the interface, at their lowest cost | Accepted; amends 0170 |
+| [0172](0172-regions-of-tabs.md) | Regions of tabs | Accepted; amends 0153 and 0155 |

@@ -35,7 +35,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   part in the Windows virtual machine to come; M6c.5 was split in four at its start, M6c.5a,
   M6c.5b, M6c.5c and M6c.5d, of which M6c.5a is done, and M6c.5b in two again at its start,
   M6c.5b and M6c.5c, the regions and the inspector becoming M6c.5d and M6c.5e, of which M6c.5b and
-  M6c.5c are done; next: M6c.5d.
+  M6c.5c are done, and M6c.5d in two again at its start, M6c.5d and M6c.5e, the inspector becoming
+  M6c.5f; next: M6c.5d.
 - Stage 6d — The interface for applications: decided on 2026-11-04
   ([ADR-0170](adr/0170-applications-on-the-ui-framework.md)), to follow Stage 6c and be released
   as 0.8. The engine's UI framework is to run desktop applications outside this repository, a
@@ -65,7 +66,8 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.5b](#m6c5b--rearrange-the-hierarchy) | The user reparents entities by dragging them in the hierarchy and with Alt and the arrows | Done |
 | [M6c.5c](#m6c5c--the-eye-and-the-lock) | The user hides entities from the viewport and locks them against picking, as the user's state, never the level's | Done |
 | [M6c.5d](#m6c5d--regions-of-tabs) | The user arranges the panels in regions of tabs | Planned |
-| [M6c.5e](#m6c5e--the-inspector) | The user changes the components of what is selected in an inspector, and keeps a value of the running game | Planned |
+| [M6c.5e](#m6c5e--layouts-kept-floating-panels-and-closed-panels) | The user's layout outlives the editor, and panels float and close | Planned |
+| [M6c.5f](#m6c5f--the-inspector) | The user changes the components of what is selected in an inspector, and keeps a value of the running game | Planned |
 | [M6c.6](#m6c6--levels-of-several-files-and-links) | A level is made of several files, which the editor writes together, and an entity refers to entities of other files | Planned |
 | [M6c.7](#m6c7--build-from-a-kit) | The user builds a level from a kit of prefabs found in an asset browser, and *Hunna Wood*'s zone is made so | Planned |
 | [Checkpoint B](#checkpoint-b--the-exit-rehearsal) | The owner builds a part of the zone again by hand in the editor, plays it, writes it and opens it again: the exit criterion | Planned |
@@ -862,7 +864,7 @@ engine reads them where every game makes its library of scenes.
   refuses the window's surface, and the game draws with llvmpipe, which the benchmark's
   documentation says. "Keep this value", a value of the running game made a step of the level,
   needs to choose what a step keeps, a component's value or an entity's, as the inspector of M6c.5
-  will show them: the owner placed it with the inspector, in M6c.5e, on 2026-10-29, and the debt of
+  will show them: the owner placed it with the inspector, in M6c.5f, on 2026-10-29, and the debt of
   [ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md) with it. The review
   found faults, each fixed: the time counted from Play's thread rather than from the request, which
   left out the editor writing the level; a pause during the load, which kept the measure open; the
@@ -886,7 +888,7 @@ engine reads them where every game makes its library of scenes.
   at first at a speed that suits the level's size, or at the one last used in it, which the user's
   state directory keeps for each level, and the status bar shows it while it flies
   (`slime-editor`'s `navigation` and `speeds`). The plan holds without a cut; the owner placed
-  "keep this value" with the inspector, in M6c.5e, and left Play's time to control on a level of
+  "keep this value" with the inspector, in M6c.5f, and left Play's time to control on a level of
   100 000 entities until M6c.6 measures it again. The Windows virtual machine's part waits for the
   owner, whose report the milestones that follow answer.
 
@@ -1056,17 +1058,36 @@ start, the same day: the drags and the keys that reparent; the eye and the lock.
 
 - **Goal.** The user arranges the panels in regions of tabs.
 - **Crates.** `slime-ui`, `slime-editor`.
-- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: docking's model, regions of
-  tabs, splits that the user resizes, "Move to" and floating panels, the layout saved per user and
-  per project in the user's state directory, and set aside when it cannot be read; panes that F6
-  moves between, an amendment of [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md). The ADR
-  of its design.
-- **Done when.** A layout that cannot be read gives the default; an agent moves a panel to another
-  region; image tests of the regions; CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-editor`.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides, and
+  [ADR-0172](adr/0172-regions-of-tabs.md), which cut the milestone in two at its start, records:
+  `slime-ui`'s dock, a layout of splits of any number of children and stacks of tabs, normalized
+  after each edit, and built into a program's tree; a splitter, one element for each border, which
+  moves the two children beside it; panes that F6 moves between, an amendment of
+  [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md); the editor's panels in regions of tabs,
+  from a default layout; "Move to", from a tab's context menu and by an operation that agents run
+  with its arguments. The ADR of its design, [ADR-0172](adr/0172-regions-of-tabs.md).
+- **Done when.** An agent moves a panel to another region and drags a border; image tests of the
+  regions; CI is green.
+- **How to test.** `cargo test -p slime-ui -p slime-editor`; the MCP server's session tests.
 - **By hand.** The regions, resized and rearranged, on Linux and in the Windows virtual machine.
 
-#### M6c.5e — The inspector
+#### M6c.5e — Layouts kept, floating panels and closed panels
+
+- **Goal.** The user's layout outlives the editor, and panels float and close.
+- **Crates.** `slime-ui`, `slime-editor`.
+- **Delivers.** As [ADR-0155](adr/0155-the-editors-design.md) decides: the layout saved per user
+  and per project in the user's state directory, a game's editor package giving the project's
+  default, read leniently, set aside when it cannot be read and the user told; "Reset layout"; the
+  default's version, a newer default replacing a layout saved against an older one; floating
+  panels, which "Move to" reaches; a panel closed that keeps its place, to come back there. The ADR
+  of its design.
+- **Done when.** A layout that cannot be read gives the default; a layout changed comes back at the
+  next start; an agent floats a panel, closes one and opens it again where it was; CI is green.
+- **How to test.** `cargo test -p slime-ui -p slime-editor`; the MCP server's session tests.
+- **By hand.** A layout kept across starts, a panel floated, closed and opened again, on Linux and
+  in the Windows virtual machine.
+
+#### M6c.5f — The inspector
 
 - **Goal.** The user changes the components of what is selected in an inspector, and keeps a value
   of the running game.
@@ -1742,7 +1763,7 @@ GitHub issues, linked from their entry; this list stays the reference.
   longer names it, and the file holds it. A save that names the written identities of what the run
   destroyed would settle it; the editor writes levels through its commands from M6b.1a, and a value
   of the running game that the editor keeps, "keep this value", settles it with the inspector,
-  M6c.5e ([ADR-0155](adr/0155-the-editors-design.md)).
+  M6c.5f ([ADR-0155](adr/0155-the-editors-design.md)).
 - **A game's preparation of a scene that a save spawns may change only the scene's entities**
   ([ADR-0125](adr/0125-saves-per-scene.md)): what it creates, under a key or as a placement, is the
   run's, which a save holds, and which loading the save creates before it prepares the scene, so

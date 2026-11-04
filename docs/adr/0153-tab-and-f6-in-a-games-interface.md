@@ -3,7 +3,8 @@
 - Status: Accepted; amends [0142](0142-input-and-focus.md) (Tab with no focus that takes the keys
   gives the focus to the interface only where the program allows it; F6 moves the focus from one
   root to the next) and [0152](0152-the-dev-overlay-on-the-engines-interface.md) (in an interface
-  that allows it, Tab goes on from a focus that a press gave)
+  that allows it, Tab goes on from a focus that a press gave); amended by
+  [0172](0172-regions-of-tabs.md) (F6 moves between the panes of a root too)
 - Date: 2026-10-27
 
 ## Context

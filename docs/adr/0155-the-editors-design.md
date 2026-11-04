@@ -27,9 +27,10 @@
   [0160](0160-two-viewports-and-blenders-way.md) (the check of the editor's tables leaves out what
   the mouse's buttons do), [0161](0161-the-open-step-and-the-handles.md) (snapping moves the
   pivot onto the world's grid in the world's axes, by increments in the selection's alone, and an
-  operation turns it on and off) and [0162](0162-creating-copying-and-arranging.md) (a duplicate
+  operation turns it on and off), [0162](0162-creating-copying-and-arranging.md) (a duplicate
   and what is pasted go last among their parent's children, in place; nudging moves along the
-  world's axes)
+  world's axes) and [0172](0172-regions-of-tabs.md) (docking a model of `slime-ui` that builds its
+  elements, not a kind of element)
 - Date: 2026-10-27
 
 ## Context
