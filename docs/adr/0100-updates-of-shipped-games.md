@@ -1,7 +1,9 @@
 # 0100. Updates of shipped games
 
 - Status: Accepted; amends [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md)
-  (what it leaves for Stage 9b to weigh)
+  (what it leaves for Stage 9b to weigh); amended by
+  [0173](0173-the-platforms-of-applications.md) (Stage 9b's packages and updates serve
+  applications too)
 - Date: 2026-10-19
 
 ## Context

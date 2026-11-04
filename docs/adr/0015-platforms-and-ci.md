@@ -1,6 +1,7 @@
 # 0015. Platforms and CI on Linux and Windows
 
-- Status: Accepted
+- Status: Accepted; amended by [0173](0173-the-platforms-of-applications.md) (CI builds and tests
+  the framework and the shell of applications on macOS from Stage 6d, without supporting it)
 - Date: 2026-10-12
 
 ## Context

@@ -6,7 +6,8 @@
   Stage 9c's work ships with 0.13) and [0149](0149-the-looks-foundations.md) (Stage 6d, not
   Stage 7, grows the transitions that Stage 6b declares); amended by
   [0171](0171-effects-of-the-interface.md) (Stage 6d lays the foundations of the interface's
-  effects, and measures the power that it draws)
+  effects, and measures the power that it draws) and
+  [0173](0173-the-platforms-of-applications.md) (the platforms that Stage 6d aims at)
 - Date: 2026-11-04
 
 ## Context

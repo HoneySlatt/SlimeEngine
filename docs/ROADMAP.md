@@ -69,7 +69,7 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 | License | MPL-2.0 |
 | GPU abstraction | wgpu, then native backends, Vulkan and Direct3D 12, at Stage 9c (ADR-0098). Their types stay inside the `gfx` and `render` crates, and the engine's own tests, through `slime-gfx`'s `wgpu` feature (ADR-0031); the rest of the engine uses engine-owned handles. |
 | Shaders | WGSL to start |
-| First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS comes later. No mobile platform (ADR-0098). |
+| First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS is built and tested in CI from Stage 6d, and supported once a Mac can check it; wgpu stays for it after Stage 9c. No mobile platform and no web for now: Android waits for a measurement after Stage 6d (ADR-0098, ADR-0173). |
 | UI | One framework of the engine's own, GPU-rendered, for the editor, the UI of games and desktop applications (ADR-0170): a retained tree of its own, on parley, taffy and AccessKit, drawn by the renderer's canvas (ADR-0098, ADR-0132). The dev overlay, tooling, runs on it since Stage 6b, which removed egui (ADR-0152). No Qt or GTK. |
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
 | Windowing and input | winit, used only inside `platform`; its types never leave that crate (ADR-0011) |
@@ -329,6 +329,7 @@ The stage's milestones, their order and the owner's two checkpoints are decided 
 - Drawing: groups drawn apart into images of their own, kept while they do not change, then composed, which masks, the opacity of a group and effects need; what lies behind an element, blurred on reduced images, bent, tinted and lit, for glass; transforms, several shadows on an element, gradients of several stops and radial ones, dithered; vector shapes that morph into one another; a first material of glass, shown in an example; whether the framework draws without a GPU, decided at the stage's start (ADR-0171)
 - Motion, beyond the transitions of Stage 6b (ADR-0149): transforms animated, curves and springs, delays in cascade, animations driven by scrolling, variable fonts whose axes move, an element that becomes another; a frame rate capped for each animation, effects stopped while the window has lost the focus, nothing drawn at rest; reduced transparency beside reduced motion, and effects lightened on modest hardware (ADR-0114, ADR-0171)
 - Text styled by ranges, masked fields, double clicks, the pointer's shapes, smooth and sideways scrolling, virtual lists that scroll sideways, a table's header that stays; gamepads, and the focus that they drive, moved from Stage 7
+- The framework and the shell of applications built and tested on macOS in CI, not supported until a Mac checks them (ADR-0173)
 - The pilot: Slatty, a launcher of games outside this repository, ported onto the framework in its own repository, with a checkpoint where the owner uses it; a music player follows it after the stage
 
 **Exit.** Slatty runs on the framework at least as well as on Iced, on each of the figures that ADR-0170 records; every need that the music player marks as indispensable exists, shown by an example and its tests; nothing is drawn at rest, under Wayland and under Xwayland; the power that the GPU and the CPU draw is measured for each effect, at rest and in motion (ADR-0171).
@@ -396,8 +397,8 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 - Navigation: navmesh, pathfinding, spatial queries; the AI of characters beside it (ADR-0098)
 - Dialogue and quests, with the state of a story that they read and that scenes depend on; the rules of a particular game stay in the game (ADR-0098); layers of a level that exist while a condition on the story holds (ADR-0112)
 - Translation tables and voice (ADR-0098)
-- Build, cook and package: Development, Shipping, Server, Editor configurations, for Linux and Windows. Builds without a console (Windows games) write their log to a file.
-- Updates of shipped games: archives, patches that download only what changed, downloadable content and expansions as packages added to an installed game; from its first release, a save written by a shipped version of a game loads in all of its later versions, checked in CI with one save fixture per shipped version (ADR-0100)
+- Build, cook and package: Development, Shipping, Server, Editor configurations, for Linux and Windows; packages for applications too (ADR-0173). Builds without a console (Windows games) write their log to a file.
+- Updates of shipped games: archives, patches that download only what changed, downloadable content and expansions as packages added to an installed game; from its first release, a save written by a shipped version of a game loads in all of its later versions, checked in CI with one save fixture per shipped version (ADR-0100); the same updates serve applications (ADR-0173)
 
 **Exit.** The game grows into a short narrative vertical slice (animated character, cutscene, gameplay) that ships as a packaged build.
 
@@ -411,7 +412,7 @@ Stage 9c is added by ADR-0098: the rendering of the games of section 1, and cons
 
 - Vulkan and Direct3D 12 backends behind the engine-owned API of `slime-gfx`
 - Work on several queues of the GPU in parallel, ray tracing, mesh shaders, resources without a declaration per binding, explicit memory, upscalers and frame generation, the vendors' tools for latency and GPU crashes
-- Whether wgpu stays: as a fallback, for debugging, or for macOS
+- wgpu stays for macOS, through Metal (ADR-0173); whether it also stays as a fallback or for debugging
 - The enthusiast hardware tier, at 4K with ray tracing (ADR-0114)
 
 Before this stage, a feature that wgpu blocks goes through wgpu's access to the API underneath it. The stage comes right after Stage 9b and has no release of its own; what it delivers is released with 0.13 (ADR-0131, ADR-0170).
@@ -461,7 +462,7 @@ The stage is split in two halves when it is planned (ADR-0098).
 - Crash reporting and diagnostics
 - Migration tooling for assets, projects and serialized formats
 - Deprecation policy
-- macOS as a supported platform
+- macOS as a supported platform, unless a Mac has checked it sooner (ADR-0173)
 - User, SDK and engine documentation
 
 **Exit for 0.15.** An external project is built without touching engine source.
