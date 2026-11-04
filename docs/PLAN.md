@@ -36,7 +36,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   M6c.5b, M6c.5c and M6c.5d, of which M6c.5a is done, and M6c.5b in two again at its start,
   M6c.5b and M6c.5c, the regions and the inspector becoming M6c.5d and M6c.5e, of which M6c.5b and
   M6c.5c are done, and M6c.5d in two again at its start, M6c.5d and M6c.5e, the inspector becoming
-  M6c.5f; next: M6c.5d.
+  M6c.5f, of which M6c.5d is done; next: M6c.5e.
 - Stage 6d — The interface for applications: decided on 2026-11-04
   ([ADR-0170](adr/0170-applications-on-the-ui-framework.md)), to follow Stage 6c and be released
   as 0.8. The engine's UI framework is to run desktop applications outside this repository, a
@@ -65,7 +65,7 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
 | [M6c.5a](#m6c5a--the-hierarchy) | The user finds any entity in a hierarchy, which follows the world's tree, folds, selects, renames and searches | Done |
 | [M6c.5b](#m6c5b--rearrange-the-hierarchy) | The user reparents entities by dragging them in the hierarchy and with Alt and the arrows | Done |
 | [M6c.5c](#m6c5c--the-eye-and-the-lock) | The user hides entities from the viewport and locks them against picking, as the user's state, never the level's | Done |
-| [M6c.5d](#m6c5d--regions-of-tabs) | The user arranges the panels in regions of tabs | Planned |
+| [M6c.5d](#m6c5d--regions-of-tabs) | The user arranges the panels in regions of tabs | Done |
 | [M6c.5e](#m6c5e--layouts-kept-floating-panels-and-closed-panels) | The user's layout outlives the editor, and panels float and close | Planned |
 | [M6c.5f](#m6c5f--the-inspector) | The user changes the components of what is selected in an inspector, and keeps a value of the running game | Planned |
 | [M6c.6](#m6c6--levels-of-several-files-and-links) | A level is made of several files, which the editor writes together, and an entity refers to entities of other files | Planned |
@@ -1070,6 +1070,39 @@ start, the same day: the drags and the keys that reparent; the eye and the lock.
   regions; CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-editor`; the MCP server's session tests.
 - **By hand.** The regions, resized and rearranged, on Linux and in the Windows virtual machine.
+- **Outcome.** Done on 2026-11-04, as [ADR-0172](adr/0172-regions-of-tabs.md) records; the
+  milestone was cut in two at its start, the layout kept, floating panels and closed panels becoming
+  M6c.5e and the inspector M6c.5f. `slime-ui` gains its dock: a layout of splits of any number of
+  children and stacks of tabs, reflected, normalized after each edit, written and read back as
+  text, which a dock builds into a program's tree, each stack a pane of tabs over the chosen
+  panel's slot; a splitter, one element for each border, which the pointer drags, the arrows move
+  and agents set, giving the program the share of the two children beside it that the first takes,
+  neither below its least size; and panes, which F6 moves between within a root. The editor's
+  panels, the hierarchy, the components, the viewport, the history and the console, lie in its
+  regions, from a default layout: the hierarchy above the components on the left, the viewport
+  above the history and the console. A tab's context menu moves its panel into another region or
+  to an edge of the window, as `view.move_panel` does by its name, the window's queue of
+  operations now carrying their arguments, which the core checks. The review found no fault of
+  weight, and four smaller ones, fixed: a dock made anew on a slot that another had built built
+  nothing; a viewport's surface that went behind its tab, or was made anew as its panel moved, left
+  a handle's drag, a marquee or a flight open, and a tool's picking unanswered; a move into the
+  stack that held the panel already said it was done, where the user is now told; and the rustdoc
+  of the dock and of the splitter missed what they panic for and their invariants, a layout now
+  holding each panel once. It found stale documentation, of the fixed regions, tests missing, now
+  written, and smaller things, fixed: a panel's slot whose key could meet its bar of tabs', the
+  splitters unnamed, now named by the panels that they part, F2 renaming in a hierarchy behind its
+  tab, which now shows. The tests: the layout's normalization, a panel held twice, moves, borders
+  and text (`slime-ui`'s `dock`), its borders dragged from left to right, from right to left and
+  up and down, moved by the keys and set by an agent, a click that moves nothing, its tabs chosen,
+  a dock made anew, and F6 from one stack to the next and from outside every stack (the same); a
+  tab chosen, a border set, a panel moved by its tab's context menu, whose places it lists, and by
+  its operation, the moves refused, one told, and F2 showing the hierarchy (`slime-editor`'s
+  window); the editor's images, its panels moved among them; an agent moves a panel and sets a
+  border through the MCP server. What nothing checks yet: the regions
+  resized and rearranged by hand, on Linux and in the Windows virtual machine. Known debt: see
+  "Regions of tabs" in [Known debt](#known-debt). CI is green on `06faca1`: `check (headless)`
+  took 16 minutes 33 seconds, `check (windowed)` 5 minutes 56 seconds, `check (game)` 7 minutes 13
+  seconds, `windows` 15 minutes 25 seconds and `windows-release` 14 minutes 19 seconds.
 
 #### M6c.5e — Layouts kept, floating panels and closed panels
 
@@ -1996,6 +2029,17 @@ GitHub issues, linked from their entry; this list stays the reference.
   while a row holds the focus, as the arrows do. Between two steps of a game, after a change of
   parent or a teleport, a frame's interpolation walks each entity's ancestors again until the next
   step ends.
+- **Regions of tabs** ([ADR-0172](adr/0172-regions-of-tabs.md)): the layout is lost when the editor
+  stops, and no panel floats nor closes, until M6c.5e; tabs are neither dragged nor reordered, which
+  M6c.8 does; what a panel shows is built anew, its scroll at its top, when its tab is chosen again
+  after another's, and when a move changes the key of its stack or of a split around it, which
+  the stack's first panel gives: a move may so build again panels that it did not move, the
+  viewport's surfaces among them, whose gestures end; F6 gives the focus to a stack's first tab,
+  not to the element that last held it there, and from an element outside every stack, a splitter
+  among them, goes to the first stack; two presses of an arrow on a splitter before the dock is
+  built again move it once; a window smaller than its regions' least sizes cuts them off; `slime-ui` splits a box
+  two ways, two panels and their handle, the share the interface's, and splitters, the shares the
+  program's, the first to be built on the second.
 - **The eye and the lock** ([ADR-0169](adr/0169-the-eye-and-the-lock.md)): what is hidden or
   locked is lost when the editor stops or another level opens; a click on what is locked selects
   nothing, rather than what lies behind it, which Alt and a click reach; no shortcut hides or locks
