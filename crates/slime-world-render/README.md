@@ -69,6 +69,9 @@ fn draw(
   mesh that failed since the last frame, with why.
 - `FrameBuilder::set_sky` draws the world around another sky from the next frame on, and
   `FrameBuilder::release` drops the environment when the device is lost.
+- `FrameBuilder::set_hidden` and `Picker::set_hidden` leave entities out of the frames, and out of
+  the casts and the boxes, besides those that `Hidden` hides: the editor's, which its user hid
+  (`docs/adr/0169-the-eye-and-the-lock.md`).
 - Each instance of a frame is picked as its entity: its `Instance::pick` is the entity's handle,
   which `Entity::from_bits` gives back from what a view's picking found.
 - `Picker::new(assets)` picks by the CPU, without a GPU: `cast(world, alpha, ray)` gives the entity

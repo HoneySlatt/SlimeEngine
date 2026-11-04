@@ -3,7 +3,8 @@
 //! `slime-world-render`. It draws the instances that the scene loaded by the renderer gives, and
 //! the glTF test's reference images (`tests/reference/gltf-front.png` and `gltf-back.png`) within
 //! the same tolerance (`common/reference_image.rs`); what moves at fixed steps is drawn where the
-//! fraction of a step puts it; a hidden subtree is not drawn, nor its light; after a lost device,
+//! fraction of a step puts it; a hidden subtree is not drawn, nor its light, nor what a program
+//! tells the frame builder and the picker to leave out; after a lost device,
 //! the cache made again draws the same world, which the loss left as it was; a frame built on one
 //! thread, once its cache and builder are dropped, is drawn on another as on the first; picking by
 //! the GPU and by the CPU name the same entities (`docs/adr/0130-picking.md`). The cooked yard
@@ -30,6 +31,7 @@ mod sample_scene;
 #[path = "../common/yard.rs"]
 mod yard;
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
@@ -37,7 +39,7 @@ use std::time::Duration;
 use cooked::sample;
 use sample_scene::{BLOOM, Bounds, EXPOSURE, SCENE, SKY};
 use slime_gfx::{Gpu, Image, RenderTarget, TextureFormat};
-use slime_render::glam::{DAffine3, Vec2};
+use slime_render::glam::{DAffine3, DVec3, Vec2};
 use slime_render::{AssetCache, Camera, Light, RenderStats, Renderer, View, ViewDraw, Viewport};
 use slime_world::{
     Entity, Hidden, Meshes, PersistentId, ResolvedScene, SceneLibrary, Transform, World,
@@ -460,6 +462,49 @@ fn a_hidden_subtree_and_its_lights_are_not_drawn() {
     world.remove::<Hidden>(entity(&world, "ring"));
     world.remove::<Hidden>(entity(&world, "props"));
     assert_eq!(counted(&mut drawing, &world), (instances, points));
+    // What a program tells the builder to leave out, as the editor does what its user hid, each
+    // entity alone (`docs/adr/0169-the-eye-and-the-lock.md`): the ring and the sphere, then the
+    // light that an entity below the ring holds.
+    let ring = entity(&world, "ring");
+    let light = world
+        .children(ring)
+        .find(|&child| world.get::<slime_world::Light>(child).is_some())
+        .expect("the ring's light");
+    let mut left_out = HashSet::from([ring, entity(&world, "sphere")]);
+    drawing.builder.set_hidden(left_out.clone());
+    assert_eq!(counted(&mut drawing, &world), (instances - 2, points));
+    left_out.insert(light);
+    drawing.builder.set_hidden(left_out);
+    assert_eq!(counted(&mut drawing, &world), (instances - 2, points - 1));
+    drawing.builder.set_hidden(HashSet::new());
+    assert_eq!(counted(&mut drawing, &world), (instances, points));
+}
+
+/// What a program tells the CPU's picker to leave out, as the editor does what its user hid, a ray
+/// passes through to what lies behind, and the box of an entity leaves out
+/// (`docs/adr/0169-the-eye-and-the-lock.md`).
+#[test]
+fn the_picker_casts_through_what_it_is_told_to_leave_out() {
+    let world = world();
+    let pillar = entity(&world, "pillar");
+    let mut picker = Picker::new(sample().clone());
+    let (low, high) = picker
+        .bounds(&world, pillar, 0.0)
+        .expect("the pillar places a mesh");
+    // Down through the pillar's middle, from above it.
+    let middle = (low + high) / 2.0;
+    let ray = (DVec3::new(middle.x, high.y + 1.0, middle.z), DVec3::NEG_Y);
+    let met = |picker: &mut Picker| -> Vec<Entity> {
+        let through = picker.cast_through(&world, 0.0, ray);
+        through.into_iter().map(|hit| hit.entity).collect()
+    };
+    let shown = met(&mut picker);
+    assert_eq!(shown.first(), Some(&pillar), "{shown:?}");
+    picker.set_hidden(HashSet::from([pillar]));
+    let hidden = met(&mut picker);
+    assert_eq!(hidden, shown[1..], "what lies below it");
+    assert!(!hidden.is_empty(), "the pillar stands on something");
+    assert_eq!(picker.bounds(&world, pillar, 0.0), None);
 }
 
 #[test]

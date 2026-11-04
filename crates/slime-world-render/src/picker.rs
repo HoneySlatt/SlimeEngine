@@ -26,6 +26,8 @@ use slime_world::{Entity, Meshes, Transform, World};
 pub struct Picker {
     assets: CookedAssets,
     meshes: HashMap<AssetId, Read>,
+    /// The entities that it leaves out as `World::is_hidden` hides them ([`Picker::set_hidden`]).
+    hidden: HashSet<Entity>,
 }
 
 /// What was read of a mesh: its box, `None` if it cannot be read, and its triangles once a ray met
@@ -53,7 +55,16 @@ impl Picker {
         Self {
             assets,
             meshes: HashMap::new(),
+            hidden: HashSet::new(),
         }
+    }
+
+    /// Leaves `hidden` out of the casts and the boxes from now on, as `World::is_hidden` hides an
+    /// entity, besides those that it hides, as [`FrameBuilder::set_hidden`](crate::FrameBuilder::set_hidden)
+    /// leaves them out of the frames. It reads each entity alone, not its descendants, which
+    /// `hidden` names too to leave them out.
+    pub fn set_hidden(&mut self, hidden: HashSet<Entity>) {
+        self.hidden = hidden;
     }
 
     /// The entity of `world` whose mesh the ray from `origin` along `direction`, of length one,
@@ -87,7 +98,7 @@ impl Picker {
         let mut hits: Vec<Hit> = Vec::new();
         for (entity, (meshes, transform)) in world.query::<(&Meshes, &Transform)>() {
             named.extend(meshes.ids.iter().copied());
-            if world.is_hidden(entity) {
+            if world.is_hidden(entity) || self.hidden.contains(&entity) {
                 continue;
             }
             let Some(at) = world.interpolated_transform(entity, fraction) else {
@@ -136,10 +147,14 @@ impl Picker {
         let mut joined: Option<(DVec3, DVec3)> = None;
         let mut stack = vec![entity];
         while let Some(each) = stack.pop() {
+            // `Hidden` hides the whole subtree; what it was told to leave out, each entity alone.
             if world.is_hidden(each) {
                 continue;
             }
             stack.extend(world.children(each));
+            if self.hidden.contains(&each) {
+                continue;
+            }
             let (Some(meshes), Some(transform), Some(at)) = (
                 world.get::<Meshes>(each),
                 world.get::<Transform>(each),

@@ -74,6 +74,9 @@ pub struct FrameBuilder {
     /// The entities whose lights the frame built last left out: each is said when it is first
     /// left out, not at every frame.
     left_out: HashSet<Entity>,
+    /// The entities that it leaves out besides those that `World::is_hidden` hides
+    /// ([`FrameBuilder::set_hidden`]).
+    hidden: HashSet<Entity>,
     /// A handle of each mesh that the world named at the last frame.
     handles: HashMap<AssetId, AssetHandle>,
 }
@@ -137,8 +140,17 @@ impl FrameBuilder {
             environment: None,
             warned: false,
             left_out: HashSet::new(),
+            hidden: HashSet::new(),
             handles: HashMap::new(),
         }
+    }
+
+    /// Leaves `hidden` out of the frames from the next on, their meshes and their lights, as
+    /// `World::is_hidden` hides an entity, besides those that it hides: what an editor's user hid,
+    /// the user's and never the level's (`docs/adr/0169-the-eye-and-the-lock.md`). It reads each
+    /// entity alone, not its descendants, which `hidden` names too to leave them out.
+    pub fn set_hidden(&mut self, hidden: HashSet<Entity>) {
+        self.hidden = hidden;
     }
 
     /// Draws the world around `sky` from the next frame on, as [`FrameBuilder::new`] says.
@@ -193,7 +205,7 @@ impl FrameBuilder {
         let mut named = HashSet::new();
         let mut missing = Vec::new();
         for (entity, (meshes, transform)) in world.query::<(&Meshes, &Transform)>() {
-            if world.is_hidden(entity) {
+            if world.is_hidden(entity) || self.hidden.contains(&entity) {
                 continue;
             }
             let Some(at) = world.interpolated_transform(entity, fraction) else {
@@ -229,7 +241,7 @@ impl FrameBuilder {
 
         let mut left_out = Vec::new();
         let mut lights = Vec::new();
-        let (sun, suns) = world_lights(world, fraction, &mut lights, &mut left_out);
+        let (sun, suns) = world_lights(world, fraction, &self.hidden, &mut lights, &mut left_out);
         for (entity, reason) in &left_out {
             if !self.left_out.contains(entity) {
                 tracing::warn!(
@@ -306,6 +318,7 @@ fn nearest_first(lights: &mut [(Entity, Light)], sun: bool, near: DVec3) {
 fn world_lights(
     world: &World,
     fraction: f64,
+    hidden: &HashSet<Entity>,
     lights: &mut Vec<(Entity, Light)>,
     left_out: &mut Vec<(Entity, String)>,
 ) -> (Option<DirectionalLight>, usize) {
@@ -313,7 +326,7 @@ fn world_lights(
     let mut sun = None;
     let mut suns = 0;
     for (entity, light) in world.query::<&slime_world::Light>() {
-        if world.is_hidden(entity) {
+        if world.is_hidden(entity) || hidden.contains(&entity) {
             continue;
         }
         let Some(at) = world.interpolated_transform(entity, fraction) else {
@@ -446,11 +459,38 @@ mod tests {
             world.insert(entity, light);
         }
         let mut lights = Vec::new();
-        let (sun, suns) = world_lights(&world, 0.0, &mut lights, &mut Vec::new());
+        let (sun, suns) = world_lights(&world, 0.0, &HashSet::new(), &mut lights, &mut Vec::new());
         assert_eq!(suns, 1);
         assert_eq!(sun.map(|sun| sun.illuminance), Some(3.0));
         assert_eq!(lights.len(), 3);
         assert!(matches!(lights[0].1, Light::Directional(light) if light.illuminance == 3.0));
+    }
+
+    /// A light of an entity that an editor hid is left out as `Hidden` leaves it out
+    /// (`docs/adr/0169-the-eye-and-the-lock.md`).
+    #[test]
+    fn the_lights_of_the_entities_hidden_are_left_out() {
+        let mut world = World::new();
+        let lamps: Vec<Entity> = (0..2)
+            .map(|_| {
+                let entity = world.spawn();
+                world.insert(entity, Transform::IDENTITY);
+                world.insert(
+                    entity,
+                    slime_world::Light::Point {
+                        color: LinearColor::WHITE,
+                        intensity: 1.0,
+                        range: None,
+                    },
+                );
+                entity
+            })
+            .collect();
+        let mut lights = Vec::new();
+        let hidden = HashSet::from([lamps[0]]);
+        world_lights(&world, 0.0, &hidden, &mut lights, &mut Vec::new());
+        let drawn: Vec<Entity> = lights.iter().map(|&(entity, _)| entity).collect();
+        assert_eq!(drawn, [lamps[1]]);
     }
 
     /// A world of more lights than the renderer draws: its sun, then point lights placed farther
@@ -483,7 +523,7 @@ mod tests {
         }
         place(&mut world, DVec3::ZERO, directional(false));
         let mut lights = Vec::new();
-        let (sun, _) = world_lights(&world, 0.0, &mut lights, &mut Vec::new());
+        let (sun, _) = world_lights(&world, 0.0, &HashSet::new(), &mut lights, &mut Vec::new());
         assert_eq!(lights.len(), 32);
         nearest_first(&mut lights, sun.is_some(), DVec3::new(-0.5, 0.0, 0.0));
         assert!(matches!(lights[0].1, Light::Directional(light) if light.illuminance == 1.0));
@@ -547,7 +587,7 @@ mod tests {
         }
         let mut lights = Vec::new();
         let mut left_out = Vec::new();
-        let (sun, suns) = world_lights(&world, 0.0, &mut lights, &mut left_out);
+        let (sun, suns) = world_lights(&world, 0.0, &HashSet::new(), &mut lights, &mut left_out);
         assert_eq!(lights.len(), 2, "{lights:?}");
         assert!(
             lights.iter().all(|(_, light)| light.check().is_ok()),
