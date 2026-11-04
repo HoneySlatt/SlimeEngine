@@ -8,6 +8,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- The eye and the lock of the editor's hierarchy (ADR-0169): each row's buttons hide or show, lock
+  or unlock its entity and those below it, as people and agents press them, named `hide`, `show`,
+  `lock` and `unlock`; what is hidden is not drawn, nor its light, nor picked, nor framed, and a
+  drop's ray passes through it; what is locked is drawn, and picked by no click, marquee, Alt and a
+  click, nor agent. They are the user's, never the level's nor a step, and are forgotten when another
+  level opens or the editor stops. `FrameBuilder::set_hidden` and `Picker::set_hidden` in
+  `slime-world-render` leave entities out besides those that `Hidden` hides.
 - Rearranging the editor's hierarchy (ADR-0168): a row dragged onto another goes before it, after
   it or into it, as a line or the row's box shows, what is selected with it when it is selected;
   Alt and the arrows, while a row holds the focus, move what is selected before its previous
@@ -206,6 +213,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `slime_editor::Program` gains `lighting`, how the viewport lights the level, which a game's
   editor package gives as the game lights it.
 - `slime_channel::Listener::open` takes what wakes the game as a request comes.
+- The MCP server's `pick` answers `nothing is picked there` where it answered `nothing is drawn
+  there`, the editor picking nothing of what its user locked, which it draws.
 
 - A game started with a token (`slime_channel::launch`, as the MCP server starts one) ends once its
   standard input closes, which the tool holds as a pipe, so that a tool that ends, crashed or not,

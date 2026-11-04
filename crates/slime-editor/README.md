@@ -97,7 +97,10 @@ Stage 6c's next milestones.
   row's box shows, and Alt and the arrows move what is selected among its siblings, beside its
   parent or into the sibling above, each entity kept where it is in the world, each move one step
   (`hierarchy.move_up`, `hierarchy.move_down`, `hierarchy.outdent`, `hierarchy.indent`,
-  `docs/adr/0168-rearranging-the-hierarchy.md`).
+  `docs/adr/0168-rearranging-the-hierarchy.md`). Each row's eye and lock hide and lock its entity
+  and those below it, what is hidden drawn, picked and framed nowhere, what is locked drawn but
+  picked by no click, marquee, Alt and a click, nor tool; they are the user's, kept in memory while
+  the level is open, never written nor undone (`docs/adr/0169-the-eye-and-the-lock.md`).
   Play (F5, a toolbar above the viewports) runs the game that `Program::play` starts on the level
   as the editor holds it, its steps not written handed over as private copies, paused, stepped,
   at a speed and stopped, its log in a console below the viewports (`docs/adr/0164-play.md`);

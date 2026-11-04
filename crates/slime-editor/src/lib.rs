@@ -2,6 +2,7 @@
 
 mod arrange;
 mod editor;
+mod eyes;
 mod handles;
 mod hierarchy;
 mod history;

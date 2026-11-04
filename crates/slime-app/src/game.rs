@@ -333,8 +333,10 @@ pub trait Presentation {
     /// [`render`](Self::render) drew under `view`, one of [`views`](Self::views), counted from its
     /// rectangle's top left corner, within it (the development channel's picking,
     /// `docs/adr/0130-picking.md`): gives it to `answer` once it knows it, as a view of
-    /// `slime-render` answers its picking, a frame or more later. `answer` dropped without an
-    /// answer tells the tool that none came, as a lost GPU device leaves it.
+    /// `slime-render` answers its picking, a frame or more later, or none where it picks nothing,
+    /// which may be where something is drawn, as the editor picks nothing that its user locked.
+    /// `answer` dropped without an answer tells the tool that none came, as a lost GPU device
+    /// leaves it.
     ///
     /// # Errors
     ///
@@ -412,7 +414,7 @@ pub struct ShownView {
 }
 
 /// Where a presentation gives the answer of a picking that a tool asked for
-/// ([`Presentation::pick`]): the entity drawn at the pixel, or none, once the presentation knows
+/// ([`Presentation::pick`]): the entity picked at the pixel, or none, once the presentation knows
 /// it. Dropped without an answer, it tells the tool that none came.
 #[derive(Debug)]
 pub struct PickAnswer {
@@ -438,7 +440,7 @@ impl PickAnswer {
         )
     }
 
-    /// Gives `entity`, the one drawn at the pixel, or `None` where none is.
+    /// Gives `entity`, the one picked at the pixel, or `None` where none is.
     pub fn give(self, entity: Option<Entity>) {
         *self.slot.lock().unwrap_or_else(PoisonError::into_inner) = Some(entity);
     }

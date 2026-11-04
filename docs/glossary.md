@@ -385,6 +385,13 @@ then tone mapped (`slime_render::Scene::exposure`): a linear factor; 1 leaves it
 photographic stop brighter. The scene pass applies it (*pre-exposure*,
 [ADR-0037](adr/0037-lights-in-physical-units-and-pre-exposure.md)).
 
+**Eye and lock (editor).** The two buttons at the end of a row of the editor's *hierarchy* whose
+entity has a *persistent identity*, which hide or show, lock or unlock it and the entities below it. What is hidden is not drawn
+nor picked, and a drop passes through it; what is locked is drawn but not picked. They are the
+user's, kept in memory by persistent identity while the level is open, never written to it nor
+undone ([ADR-0169](adr/0169-the-eye-and-the-lock.md)). Not the world's `Hidden` component, which is
+the level's.
+
 **Face (font).** One font of a font file, at one point of its variations, a variable font's
 weight among them: what draws a run of *glyphs* ([ADR-0136](adr/0136-the-interfaces-text.md)).
 
@@ -738,7 +745,8 @@ and size, and the IDs it needs to load ([ADR-0069](adr/0069-the-asset-pipeline.m
 
 **Marquee (editor).** A rectangle that the user drags over the *viewport* with the left button, which
 selects what is drawn inside it, the outermost *placement* of each, as the GPU's *picking* finds it:
-what is hidden is not selected ([ADR-0159](adr/0159-picking-and-the-selection.md)).
+what is hidden or locked is not selected ([ADR-0159](adr/0159-picking-and-the-selection.md),
+[ADR-0169](adr/0169-the-eye-and-the-lock.md)).
 
 **Material.** How a surface looks, with glTF's *metallic-roughness model*: a base color,
 metallic and roughness, normal, occlusion and emissive textures each read with a *sampler*, an

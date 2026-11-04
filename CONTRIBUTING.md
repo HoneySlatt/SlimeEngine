@@ -326,7 +326,7 @@ read and used through AT-SPI as a screen reader does, the `widgets` example draw
 in a window and its widgets, menus, list to choose from and floating panel each used by an agent's
 session through the MCP server, the `editor` example's window used by an agent's session through the
 MCP server, its operations run by name, its menu and its palette, a row of its hierarchy dropped
-before another, an entity picked in its viewport,
+before another, an entity picked in its viewport, then locked and hidden by its row's buttons,
 its second viewport captured, which must run no frame while it is alone, the `world` example's
 two views captured, the map's
 normals shown, its reports read and an entity picked at a pixel, by an agent's session through the MCP server, the

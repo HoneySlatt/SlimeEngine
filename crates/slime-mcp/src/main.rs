@@ -608,7 +608,7 @@ fn describe(reply: Reply, payload: &[u8]) -> CallToolResult {
         }
         Reply::Report { text: report } => text(report),
         Reply::Picked { entity, found } => text(if !found {
-            "nothing is drawn there".to_owned()
+            "nothing is picked there".to_owned()
         } else if entity.identity.is_empty() {
             format!(
                 "an entity without a persistent identity, named `{}`",
@@ -908,7 +908,8 @@ impl Server {
         description = "The entity drawn at a pixel of the game's image, or of one of its views, \
                        counted as in the image that `capture` gives: by its persistent identity \
                        and its name, as `list_entities` gives them, or nothing. The game picks it \
-                       on the GPU, exactly as it draws it, a frame or more later."
+                       on the GPU, exactly as it draws it, a frame or more later; the editor \
+                       picks nothing that its user hid or locked."
     )]
     async fn pick(
         &self,

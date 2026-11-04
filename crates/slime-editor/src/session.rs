@@ -3,6 +3,7 @@
 //! (`docs/adr/0135-the-editors-program.md`,
 //! `docs/adr/0156-the-editors-window-and-its-operations.md`).
 
+use std::collections::HashSet;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -18,6 +19,7 @@ use slime_world::{
 use slime_world_render::Picker;
 
 use crate::editor::{EditError, Editor};
+use crate::eyes::Eyes;
 use crate::operation::{self, Changes, OPERATIONS};
 use crate::play::{Control, Event, Game, Player};
 use crate::program::{Options, Program};
@@ -266,9 +268,13 @@ impl Session {
         *world = fresh;
         self.editor = Some(editor);
         self.journal = journal;
-        // The picker reads the cooked data opened again with the level.
+        // The picker reads the cooked data opened again with the level; what the user hid and
+        // locked was the other level's.
         self.picker = None;
-        self.shared.borrow_mut().opened += 1;
+        let mut shared = self.shared.borrow_mut();
+        shared.opened += 1;
+        shared.eyes = Eyes::default();
+        drop(shared);
         self.opened(&whole);
         self.list_prefabs(world);
         Ok(())
@@ -394,6 +400,14 @@ impl Session {
             }),
             Request::Select(selection) => {
                 self.editor()?.select(selection);
+                Ok(Reply::Done)
+            }
+            Request::Hide { entity, hidden } => {
+                self.shared.borrow_mut().eyes.set_hidden(entity, hidden);
+                Ok(Reply::Done)
+            }
+            Request::Lock { entity, locked } => {
+                self.shared.borrow_mut().eyes.set_locked(entity, locked);
                 Ok(Reply::Done)
             }
             Request::Write => self.editor()?.write(world).map(|left_out| Reply::Written {
@@ -1162,18 +1176,18 @@ impl Session {
     /// The commands that drop each entity selected onto what lies below its origin, or below its
     /// meshes' lowest point if `bottom`, as the CPU's ray meets it, without physics
     /// (`docs/adr/0161-the-open-step-and-the-handles.md`): its own meshes and those below it in the
-    /// hierarchy let the ray through. An entity with nothing below it stays.
+    /// hierarchy let the ray through, and what the user hid, which its lowest point counts all the
+    /// same, since it moves whole. An entity with nothing below it stays.
     ///
     /// # Errors
     ///
     /// Without a level open, or when nothing lies below what is selected.
     fn drops(&mut self, world: &World, bottom: bool) -> Result<Vec<Command>, AppError> {
-        let assets = self
-            .shared
-            .borrow()
-            .assets
-            .clone()
-            .ok_or("no level is open")?;
+        let (assets, hidden) = {
+            let shared = self.shared.borrow();
+            let assets = shared.assets.clone().ok_or("no level is open")?;
+            (assets, shared.eyes.hidden_entities(world))
+        };
         let picker = self.picker.get_or_insert_with(|| Picker::new(assets));
         let selection: Vec<Entity> = self
             .editor
@@ -1183,20 +1197,27 @@ impl Session {
             .iter()
             .filter_map(|identity| world.find(identity))
             .collect();
+        // What each ray starts from: the origin, or the lowest point of what it draws, what the user
+        // hid of it included.
+        picker.set_hidden(HashSet::new());
+        let starts: Vec<_> = handles::outermost(world, &selection)
+            .into_iter()
+            .filter_map(|entity| {
+                let at = world.interpolated_transform(entity, 1.0)?;
+                let local = *world.get::<Transform>(entity)?;
+                let id = world.persistent_id(entity)?;
+                let from = match bottom.then(|| picker.bounds(world, entity, 1.0)).flatten() {
+                    Some((low, _)) => DVec3::new(at.translation.x, low.y, at.translation.z),
+                    None => at.translation,
+                };
+                Some((entity, at, local, id, from))
+            })
+            .collect();
+        // What the user hid is not there to land on; what the user locked is
+        // (`docs/adr/0169-the-eye-and-the-lock.md`).
+        picker.set_hidden(hidden);
         let mut commands = Vec::new();
-        for entity in handles::outermost(world, &selection) {
-            let (Some(at), Some(local), Some(id)) = (
-                world.interpolated_transform(entity, 1.0),
-                world.get::<Transform>(entity),
-                world.persistent_id(entity),
-            ) else {
-                continue;
-            };
-            // What the ray starts from: the origin, or the lowest point of what it draws.
-            let from = match bottom.then(|| picker.bounds(world, entity, 1.0)).flatten() {
-                Some((low, _)) => DVec3::new(at.translation.x, low.y, at.translation.z),
-                None => at.translation,
-            };
+        for (entity, at, mut moved, id, from) in starts {
             let own = |hit: &Entity| {
                 std::iter::successors(Some(*hit), |&each| world.parent(each))
                     .any(|each| each == entity)
@@ -1209,7 +1230,6 @@ impl Session {
                 continue;
             };
             let parent = handles::placed_at(world, world.parent(entity));
-            let mut moved = *local;
             moved.translation =
                 handles::into_parent(&parent, at.translation - DVec3::Y * hit.distance);
             commands.push(handles::set_transform(id, &moved));

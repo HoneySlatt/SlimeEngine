@@ -366,12 +366,13 @@ pub enum Reply {
         /// Height in pixels.
         height: u32,
     },
-    /// What a picking found: the entity drawn at the pixel, by its persistent identity and its
+    /// What a picking found: the entity picked at the pixel, by its persistent identity and its
     /// name, both empty where none is, and its identity alone empty for an entity that has none.
     Picked {
         /// The entity, or nothing.
         entity: EntitySummary,
-        /// Whether an entity is drawn there.
+        /// Whether an entity is picked there: none where nothing is drawn, nor where the game
+        /// picks nothing of what it draws, as the editor does what its user locked.
         found: bool,
     },
     /// The elements of a game's interface found.

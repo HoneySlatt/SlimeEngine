@@ -2,15 +2,16 @@
 //! (`docs/adr/0156-the-editors-window-and-its-operations.md`): it starts the `editor` example on a
 //! copy of the yard, in a window, lists the operations, makes a step and undoes it by the
 //! operation's name, drops a row of the hierarchy before another and undoes it
-//! (`docs/adr/0168-rearranging-the-hierarchy.md`), opens the palette by its name and finds it in the window, opens the File menu
-//! as a person does, runs `file.save` by name, captures the viewport by its name, which the menu's
-//! frames do not draw again and framing a lamp does (`docs/adr/0158-the-viewport.md`), picks the
-//! lamp framed in the viewport and nothing in its sky, shows the viewport's base color by the
-//! operation's name, which its settings say (`docs/adr/0159-picking-and-the-selection.md`), shows
-//! two viewports and captures the second by its name
-//! (`docs/adr/0160-two-viewports-and-blenders-way.md`), opens
-//! another copy of the yard through *Open a
-//! level…*, which opens no dialog of the system in a program that a tool started, its path typed
+//! (`docs/adr/0168-rearranging-the-hierarchy.md`), opens the palette by its name and finds it in
+//! the window, opens the File menu as a person does, runs `file.save` by name, captures the
+//! viewport by its name, which the menu's frames do not draw again and framing a lamp does
+//! (`docs/adr/0158-the-viewport.md`), picks the lamp framed in the viewport and nothing in its sky,
+//! then nothing of the lamp locked or hidden by the buttons of its row
+//! (`docs/adr/0169-the-eye-and-the-lock.md`), shows the viewport's base color by the operation's
+//! name, which its settings say (`docs/adr/0159-picking-and-the-selection.md`), shows two viewports
+//! and captures the second by its name (`docs/adr/0160-two-viewports-and-blenders-way.md`), opens
+//! another copy of the yard through *Open a level…*, which opens no dialog of the system in a
+//! program that a tool started, its path typed
 //! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), and checks that the editor,
 //! left alone, wakes for the end of the first run's hint and runs no frame for ten seconds after
 //! it, then quits it by name.
@@ -226,7 +227,28 @@ fn main() {
         "pick",
         json!({ "view": "viewport", "x": width / 2, "y": 2 }),
     );
-    assert_eq!(sky, ["nothing is drawn there"]);
+    assert_eq!(sky, ["nothing is picked there"]);
+    // The lamp's row locked, then hidden, by its buttons, found by their names, as a person presses
+    // them: locked, the lamp is drawn but not picked; hidden, the floor behind it is; unlocked and
+    // shown, it is picked again (`docs/adr/0169-the-eye-and-the-lock.md`).
+    let lamp = path_of(&mut session, "TreeItem", "lamp 1");
+    let middle = json!({ "view": "viewport", "x": width / 2, "y": height / 2 });
+    for (part, pressed, picked) in [
+        ("lock", "unlock", "nothing is picked there"),
+        ("eye", "show", "yard/sample/floor"),
+    ] {
+        let button = format!("{lamp}/content/{part}");
+        act(&mut session, "press", &button, json!({}));
+        assert_eq!(path_of(&mut session, "Button", pressed), button);
+        let (said, _) = session.tool("pick", middle.clone());
+        assert!(said[0].starts_with(picked), "{pressed}: {said:?}");
+        act(&mut session, "press", &button, json!({}));
+        until(
+            "the lamp picked again",
+            || session.tool("pick", middle.clone()).0,
+            |picked| picked[0].starts_with("yard/lamp 1"),
+        );
+    }
     // The View menu's modes, by their operations' names, as the viewport's settings say.
     let (said, _) = session.tool("run_operation", json!({ "name": "view.shade_base_color" }));
     assert_eq!(said, ["done"]);

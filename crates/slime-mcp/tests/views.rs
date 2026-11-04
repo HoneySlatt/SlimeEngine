@@ -149,7 +149,7 @@ fn main() {
     let (again, _) = session.tool("pick", json!({ "x": left + middle, "y": margin + middle }));
     assert_eq!(again, picked);
     let (sky, _) = session.tool("pick", json!({ "x": 0, "y": 0 }));
-    assert_eq!(sky, ["nothing is drawn there"]);
+    assert_eq!(sky, ["nothing is picked there"]);
     let (refused, result) = session.try_tool("pick", json!({ "view": "map", "x": side, "y": 0 }));
     assert_eq!(result["isError"], json!(true), "{refused:?}");
     let (refused, result) = session.try_tool(

@@ -87,6 +87,9 @@ struct Shown {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Marks {
     pub(crate) selection: Vec<Entity>,
+    /// The count of the sets of the entities hidden that the window made, which the level holds
+    /// ([`Level::hide`]).
+    pub(crate) eyes: u64,
     pub(crate) wireframe: bool,
     pub(crate) scale: f32,
     /// The handles drawn over what is selected, where they stand, and the part dragged, if any
@@ -108,6 +111,10 @@ pub(crate) struct Level {
     picker: Picker,
     /// The edges of each mesh that the wireframe drew, by their ends in the mesh's space.
     edges: HashMap<AssetId, Vec<(Vec3, Vec3)>>,
+    /// The entities that the user hid, which neither the frames nor the picker show, and the count
+    /// of the window's set that they are (`docs/adr/0169-the-eye-and-the-lock.md`).
+    hidden: HashSet<Entity>,
+    hidden_made: u64,
 }
 
 impl Level {
@@ -131,6 +138,8 @@ impl Level {
             picker: Picker::new(assets.clone()),
             assets,
             edges: HashMap::new(),
+            hidden: HashSet::new(),
+            hidden_made: 0,
         })
     }
 
@@ -139,8 +148,21 @@ impl Level {
     pub(crate) fn reload(&mut self, gpu: &Gpu, assets: CookedAssets) {
         self.cache.reload(gpu, assets.clone());
         self.picker = Picker::new(assets.clone());
+        self.picker.set_hidden(self.hidden.clone());
         self.assets = assets;
         self.edges.clear();
+    }
+
+    /// Leaves `hidden`, the entities that the user hid, out of the frames, the casts and the marks
+    /// from now on, if `made` counts another set of them than the one that it holds.
+    pub(crate) fn hide(&mut self, hidden: &HashSet<Entity>, made: u64) {
+        if made == self.hidden_made {
+            return;
+        }
+        self.hidden_made = made;
+        self.hidden = hidden.clone();
+        self.builder.set_hidden(hidden.clone());
+        self.picker.set_hidden(hidden.clone());
     }
 
     /// The entities that the ray from `camera` through the pixel `at` of an image of `size`
@@ -164,8 +186,8 @@ impl Level {
 
     /// Marks in `drawings` what `marks` select of `world`, which `scene` draws: the instances of
     /// each entity selected and of those below it outlined, its light's icon too; a box of a metre
-    /// around each one whose own and whose children's draw nothing, as its transform places it; and
-    /// the edges of their meshes, when the wireframe is asked for.
+    /// around each one whose own and whose children's draw nothing, as its transform places it,
+    /// unless the user hid it; and the edges of their meshes, when the wireframe is asked for.
     fn mark(&mut self, world: &World, scene: &Scene, drawings: &mut Drawings, marks: &Marks) {
         // The edges read for a wireframe, a terrain's many, are let go once it is off.
         if !marks.wireframe {
@@ -201,7 +223,7 @@ impl Level {
             ..outline
         };
         for &entity in &marks.selection {
-            if drawing.contains(&entity) {
+            if drawing.contains(&entity) || self.hidden.contains(&entity) {
                 continue;
             }
             let Some(place) = placed(world, entity) else {
@@ -230,9 +252,9 @@ impl Level {
         }
     }
 
-    /// Adds to `lines` the edges of the meshes of each entity of `world` that `marked` says, as its
-    /// transform places them, in widths of `scale` pixels per logical pixel; a mesh that cannot
-    /// be read is left out.
+    /// Adds to `lines` the edges of the meshes of each entity of `world` that `marked` says, but
+    /// those hidden, as its transform places them, in widths of `scale` pixels per logical pixel; a
+    /// mesh that cannot be read is left out.
     fn wireframe(
         &mut self,
         world: &World,
@@ -241,7 +263,7 @@ impl Level {
         lines: &mut Vec<Line>,
     ) {
         for (entity, meshes) in world.query::<&Meshes>() {
-            if world.is_hidden(entity) || !marked(entity) {
+            if world.is_hidden(entity) || self.hidden.contains(&entity) || !marked(entity) {
                 continue;
             }
             let Some(place) = placed(world, entity) else {
@@ -262,7 +284,8 @@ impl Level {
 
     /// The sphere around what `world` draws of `entities` and the entities below them, or of the
     /// whole level when `entities` is empty: its center and radius, the box of each mesh, and the
-    /// place of an entity that draws none, a metre around it; [`Framing::Loading`] while meshes
+    /// place of an entity that draws none, a metre around it, what the user hid left out;
+    /// [`Framing::Loading`] while meshes
     /// that the world names still load, which the window asks again at a later frame.
     ///
     /// # Errors
@@ -304,8 +327,12 @@ impl Level {
                 })
             })
             .collect();
-        // The selected entities that draw nothing, a metre around where they stand.
-        for &entity in entities {
+        // The selected entities that draw nothing, a metre around where they stand, but those
+        // hidden.
+        for &entity in entities
+            .iter()
+            .filter(|entity| !self.hidden.contains(entity))
+        {
             let draws = frame.instances.iter().any(|instance| {
                 Entity::from_bits(instance.pick).is_some_and(|drawn| under(drawn, entity))
             });
@@ -830,6 +857,7 @@ mod tests {
     fn marks(selection: Vec<Entity>) -> Marks {
         Marks {
             selection,
+            eyes: 0,
             wireframe: false,
             scale: 1.0,
             handles: None,
@@ -964,6 +992,94 @@ mod tests {
             }
             assert_eq!((line.to - line.from).length(), 2.0);
         }
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn what_is_hidden_is_neither_drawn_nor_picked_nor_marked_nor_framed() {
+        let (gpu, mut renderer, mut level, mut viewport, directory) = viewport("hidden");
+        let mut world = World::new();
+        let lamp = world.spawn();
+        world.insert(lamp, Transform::IDENTITY);
+        world.insert(
+            lamp,
+            slime_world::Light::Point {
+                color: LinearColor::WHITE,
+                intensity: 1.0,
+                range: None,
+            },
+        );
+        // Facing the light's icon, which stands above it.
+        let camera = Camera {
+            eye: DVec3::new(0.0, ICON_SIDE, 1.5),
+            target: DVec3::new(0.0, ICON_SIDE, 0.0),
+            ..Camera::default()
+        };
+        let size = (32, 24);
+        let whole = slime_render::Viewport {
+            x: 0,
+            y: 0,
+            width: size.0,
+            height: size.1,
+        };
+        let mut marks = marks(vec![lamp]);
+        // A frame, a picking of the whole image asked or not: how many times the viewport drew,
+        // and whether the picking found the lamp.
+        let mut frame = |viewport: &mut Viewport, level: &mut Level, marks: &Marks, asked: bool| {
+            let pick = asked.then(|| viewport.pick(whole));
+            viewport
+                .prepare(
+                    level,
+                    &gpu,
+                    &world,
+                    camera,
+                    size,
+                    marks,
+                    false,
+                    Instant::now(),
+                )
+                .expect("prepared");
+            viewport.draw(&gpu, &mut renderer).expect("drawn");
+            let found = pick.is_some_and(|pick| {
+                let picked = (0..100)
+                    .find_map(|_| {
+                        gpu.wait_idle().expect("the device is there");
+                        pick.take(&gpu)
+                    })
+                    .expect("answered")
+                    .expect("drawn");
+                picked.numbers.contains(&lamp.to_bits())
+            });
+            (viewport.report().draws, found)
+        };
+        // A box of a metre where it stands, in a scene that draws nothing of it.
+        let boxed = |level: &mut Level, marks: &Marks| {
+            let mut drawings = Drawings::default();
+            level.mark(&world, &Scene::new(Vec::new()), &mut drawings, marks);
+            !drawings.over_image.lines.is_empty()
+        };
+        let (drawn, found) = frame(&mut viewport, &mut level, &marks, true);
+        assert!(found, "its icon");
+        assert_eq!(
+            frame(&mut viewport, &mut level, &marks, false).0,
+            drawn,
+            "it rests"
+        );
+        assert!(boxed(&mut level, &marks));
+        let framing = level.bounds(&gpu, &world, &[lamp]).expect("framed");
+        assert!(matches!(framing, Framing::Sphere(..)), "{framing:?}");
+        // Hidden: the marks that count the window's sets draw the image again, without its icon.
+        level.hide(&HashSet::from([lamp]), 1);
+        marks.eyes = 1;
+        let (hidden, _) = frame(&mut viewport, &mut level, &marks, false);
+        assert_eq!(hidden, drawn + 1);
+        assert!(
+            !frame(&mut viewport, &mut level, &marks, true).1,
+            "nor its icon"
+        );
+        assert!(!boxed(&mut level, &marks));
+        let framing = level.bounds(&gpu, &world, &[lamp]).expect("framed");
+        assert_eq!(framing, Framing::Nothing);
         let _ = fs::remove_dir_all(&directory);
     }
 

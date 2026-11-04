@@ -8,6 +8,7 @@
 //! `docs/adr/0159-picking-and-the-selection.md`); and the history panel, below the world panel
 //! (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
 
+use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -33,7 +34,7 @@ use slime_ui::tree::{
     NotificationKind, PaletteCommand, Place, Role, RootSettings, Side, Ui,
 };
 use slime_ui_render::UiRenderer;
-use slime_world::{Entity, World};
+use slime_world::{Entity, Tick, World};
 
 use crate::handles::{Drag, Gizmo, Space, Tool};
 use crate::hierarchy::Hierarchy;
@@ -268,6 +269,13 @@ pub(crate) struct Model {
     speeds: Option<ElementId>,
     /// The console's slot of lines, once built, while Play has run.
     console_slot: Option<ElementId>,
+    /// The entities that what the user hid and locked cover, made again when the world's structure,
+    /// the eyes or the level change, and counted up each time
+    /// (`docs/adr/0169-the-eye-and-the-lock.md`).
+    eyes: Option<(Tick, u64, u64)>,
+    hidden: HashSet<Entity>,
+    locked: HashSet<Entity>,
+    eyes_made: u64,
 }
 
 impl Model {
@@ -313,6 +321,10 @@ impl Model {
             toolbar: Vec::new(),
             speeds: None,
             console_slot: None,
+            eyes: None,
+            hidden: HashSet::new(),
+            locked: HashSet::new(),
+            eyes_made: 0,
         };
         model.set_keys(blender);
         model.style();
@@ -435,7 +447,8 @@ impl Model {
     /// Selects what `found` holds, the entities that `wanted` found, the window having asked the
     /// viewport (`picking::select`), as the core's selection.
     pub(crate) fn picked(&mut self, world: &World, wanted: &Wanted, found: &[Entity]) {
-        let selection = picking::select(world, wanted, found, &self.selected_entities(world));
+        let found = self.pickable(found);
+        let selection = picking::select(world, wanted, &found, &self.selected_entities(world));
         let selection = selection
             .into_iter()
             .filter_map(|entity| world.persistent_id(entity))
@@ -444,6 +457,32 @@ impl Model {
             .borrow_mut()
             .requests
             .push_back(Request::Select(selection));
+    }
+
+    /// What of `found` may be picked: none that the user hid or locked
+    /// (`docs/adr/0169-the-eye-and-the-lock.md`).
+    pub(crate) fn pickable(&self, found: &[Entity]) -> Vec<Entity> {
+        found
+            .iter()
+            .copied()
+            .filter(|entity| !self.locked.contains(entity) && !self.hidden.contains(entity))
+            .collect()
+    }
+
+    /// Makes again the entities that what the user hid and locked cover, when the world's
+    /// structure, the eyes or the level changed, and gives the hierarchy what it shows of them.
+    fn follow_the_eyes(&mut self, world: &World) {
+        let shared = self.shared.borrow();
+        let key = Some((world.structure(), shared.eyes.revision(), shared.opened));
+        if self.eyes == key {
+            return;
+        }
+        self.eyes = key;
+        self.hidden = shared.eyes.hidden_entities(world);
+        self.locked = shared.eyes.locked_entities(world);
+        self.eyes_made += 1;
+        self.hierarchy
+            .set_eyes(shared.eyes.clone(), self.hidden.clone(), self.eyes_made);
     }
 
     /// The marquee being drawn over a viewport, in pixels of the screen, and the viewport's box.
@@ -488,6 +527,7 @@ impl Model {
             .map(|(drag, _)| drag.part());
         Marks {
             selection: self.selected_entities(world),
+            eyes: self.eyes_made,
             wireframe: self.panes.get(pane).is_some_and(|pane| pane.wireframe),
             scale,
             handles: self
@@ -1093,6 +1133,7 @@ impl Model {
             self.follow_the_core(world);
         }
         self.build();
+        self.follow_the_eyes(world);
         if let Some(slot) = self.slot {
             self.panel.build(&mut self.ui, slot, world);
         }
@@ -2046,6 +2087,7 @@ impl Window {
             .panes
             .iter()
             .position(|pane| pane.navigation.holds_cursor() || pane.navigation.flying());
+        level.hide(&model.hidden, model.eyes_made);
         // The soonest that a viewport asks for a frame.
         let mut again: Option<Instant> = None;
         for (index, viewport) in self.viewports.iter_mut().enumerate() {
@@ -2132,7 +2174,7 @@ impl Window {
                     selected = true;
                 }
                 (Some(Ok(picked)), Asker::Tool(answer)) => {
-                    answer.give(found(world, &picked).first().copied());
+                    answer.give(model.pickable(&found(world, &picked)).first().copied());
                 }
                 // The tool is told that no answer came, as the answer is dropped.
                 (Some(Err(error)), _) => {
@@ -4099,6 +4141,141 @@ mod tests {
                 "Move into the sibling above"
             ]
         );
+    }
+
+    /// The eye and the lock of a row, pressed, hide and lock its entity and those below it, which
+    /// the viewport's pickings leave out, the row offering to show or unlock them, a step made of
+    /// none; another level opened forgets them (`docs/adr/0169-the-eye-and-the-lock.md`).
+    #[test]
+    fn the_eye_and_the_lock_of_a_row_leave_out_of_the_pickings_what_they_cover() {
+        use slime_ui::tree::Role;
+        let mut yard = Yard::new("eyes");
+        yard.session
+            .handle(
+                yard.host.world_mut(),
+                Request::Step {
+                    label: "Grow".to_owned(),
+                    commands: vec![
+                        "[Create]\nentity = \"yard/lamp-a1b2\"\nparent = \"yard\"\n\n[Create.components]\nName = \"lamp\"\n".to_owned(),
+                        "[Create]\nentity = \"yard/post-c3d4\"\nparent = \"yard/lamp-a1b2\"\n\n[Create.components]\nName = \"post\"\n".to_owned(),
+                    ],
+                    selection: None,
+                },
+            )
+            .expect("made");
+        yard.frame();
+        yard.frame();
+        // The part of the row of `name` whose key ends its path, and the part's name.
+        let part = |yard: &Yard, name: &str, end: &str| {
+            let meaning = yard.model.ui.meaning();
+            let item = meaning
+                .iter()
+                .find(|meaning| meaning.role == Role::TreeItem && meaning.name == name)
+                .unwrap_or_else(|| panic!("the row of {name}"))
+                .path
+                .clone();
+            meaning
+                .into_iter()
+                .find(|meaning| meaning.path.starts_with(&item) && meaning.path.ends_with(end))
+                .map(|meaning| (meaning.id, meaning.name))
+                .unwrap_or_else(|| panic!("{end} of {name}"))
+        };
+        let entity = |yard: &Yard, id: &str| {
+            let id: PersistentId = id.parse().expect("an identity");
+            yard.host.world().find(&id).expect("there")
+        };
+        // Those of the level's named entities that may be picked, by their names.
+        let pickable = |yard: &Yard| {
+            let world = yard.host.world();
+            let named: Vec<Entity> = world
+                .query::<&slime_world::Name>()
+                .map(|(entity, _)| entity)
+                .collect();
+            let mut names: Vec<String> = yard
+                .model
+                .pickable(&named)
+                .into_iter()
+                .filter_map(|entity| world.get::<slime_world::Name>(entity))
+                .map(|name| name.0.clone())
+                .collect();
+            names.sort();
+            names
+        };
+        assert_eq!(pickable(&yard), ["lamp", "post", "well", "yard"]);
+        let made = yard.model.marks(0, yard.host.world(), 1.0).eyes;
+        let steps = yard.history().0.len();
+        // The lamp's eye: the lamp and the post below it hidden.
+        let (eye, name) = part(&yard, "lamp", "/eye");
+        assert_eq!(name, "hide");
+        click(&mut yard, eye);
+        yard.frame();
+        assert_eq!(pickable(&yard), ["well", "yard"]);
+        assert_eq!(part(&yard, "lamp", "/eye").1, "show");
+        assert!(yard.model.marks(0, yard.host.world(), 1.0).eyes > made);
+        assert_eq!(yard.history().0.len(), steps, "no step");
+        assert!(
+            yard.shared.borrow().selection.is_empty(),
+            "nothing selected"
+        );
+        // What is created below it is hidden too; deleted, then restored under its identity, it
+        // is hidden still.
+        yard.session
+            .handle(
+                yard.host.world_mut(),
+                Request::Step {
+                    label: "Grow a wick".to_owned(),
+                    commands: vec![
+                        "[Create]\nentity = \"yard/wick-e5f6\"\nparent = \"yard/post-c3d4\"\n\n[Create.components]\nName = \"wick\"\n".to_owned(),
+                    ],
+                    selection: None,
+                },
+            )
+            .expect("made");
+        yard.frame();
+        assert_eq!(pickable(&yard), ["well", "yard"]);
+        yard.session
+            .handle(
+                yard.host.world_mut(),
+                Request::Select(vec!["yard/lamp-a1b2".parse().expect("an identity")]),
+            )
+            .expect("selected");
+        run(&mut yard, "edit.delete");
+        assert_eq!(pickable(&yard), ["well", "yard"]);
+        run(&mut yard, "edit.undo");
+        yard.frame();
+        assert_eq!(pickable(&yard), ["well", "yard"]);
+        assert_eq!(part(&yard, "lamp", "/eye").1, "show");
+        run(&mut yard, "edit.select_none");
+        // The well's lock: picked by none of the viewport's ways.
+        let (lock, name) = part(&yard, "well", "/lock");
+        assert_eq!(name, "lock");
+        click(&mut yard, lock);
+        yard.frame();
+        assert_eq!(pickable(&yard), ["yard"]);
+        assert_eq!(part(&yard, "well", "/lock").1, "unlock");
+        let click_at = Wanted::Click {
+            at: [100.0, 80.0],
+            adding: false,
+        };
+        let well = entity(&yard, "yard/well");
+        let lamp = entity(&yard, "yard/lamp-a1b2");
+        yard.model
+            .picked(yard.host.world(), &click_at, &[well, lamp]);
+        yard.frame();
+        assert!(yard.shared.borrow().selection.is_empty(), "nothing picked");
+        // Shown again.
+        let (eye, _) = part(&yard, "lamp", "/eye");
+        click(&mut yard, eye);
+        yard.frame();
+        assert_eq!(pickable(&yard), ["lamp", "post", "wick", "yard"]);
+        // Another level, opened under the same key: its well, of the same identity, not locked.
+        let garden = yard.directory.join("garden.scene");
+        run_with(&mut yard, "file.open", &[garden.to_str().expect("a path")]);
+        yard.frame();
+        yard.frame();
+        let well = entity(&yard, "yard/well");
+        assert_eq!(yard.model.pickable(&[well]), [well]);
+        assert_eq!(part(&yard, "well", "/lock").1, "lock");
     }
 
     /// A level flies at first at a speed that suits its size, or at the one last used in it, which

@@ -76,7 +76,8 @@ The tools, each described to the agent by the server itself, with its parameters
   (`docs/adr/0128-asset-requests.md`).
 - `pick`: the entity drawn at a pixel of the game's image, or of one of its views, counted as in
   the image that `capture` gives, by its persistent identity and name, or nothing; the game picks it
-  on the GPU, exactly as it draws it, a frame or more later (`docs/adr/0130-picking.md`).
+  on the GPU, exactly as it draws it, a frame or more later (`docs/adr/0130-picking.md`); the
+  editor picks nothing that its user hid or locked (`docs/adr/0169-the-eye-and-the-lock.md`).
 - `find_elements`, `element_at`, `act_on_interface` and `capture_element`: the game's interface, as
   its last frame left it (`docs/adr/0143-what-agents-see-of-the-interface.md`). `find_elements`
   lists its elements of a role, `Button`, and whose names hold a text, each by its path, which names

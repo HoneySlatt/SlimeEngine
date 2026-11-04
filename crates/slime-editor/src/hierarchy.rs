@@ -9,11 +9,12 @@ use slime_devui::entity_name;
 use slime_reflect::{Reflect, Value};
 use slime_ui::action::{Action, ActionKind, FieldValue, Intent};
 use slime_ui::look;
-use slime_ui::style::{Dimension, FlexDirection, Style};
+use slime_ui::style::{Align, Dimension, FlexDirection, Style};
 use slime_ui::tree::{Element, ElementId, Role, Ui};
 use slime_world::{Command, Entity, Name, PersistentId, Tick, World};
 
 use crate::arrange::{self, Spot};
+use crate::eyes::Eyes;
 use crate::handles;
 use crate::shared::Request;
 
@@ -83,6 +84,10 @@ struct Look {
     found: bool,
     open: bool,
     drop: Option<Place>,
+    /// Whether the user hid or locked the entity itself, if it has an identity that keeps it, and
+    /// whether it is hidden, by itself or by an ancestor.
+    eye: Option<(bool, bool)>,
+    hidden: bool,
 }
 
 /// The elements of a row built last.
@@ -92,6 +97,8 @@ struct Built {
     item: ElementId,
     fold: Option<ElementId>,
     name: ElementId,
+    /// The buttons of the eye and the lock, for an entity with an identity.
+    eye: Option<(ElementId, ElementId)>,
 }
 
 /// What the rows built last showed, which a change of builds them again.
@@ -102,6 +109,7 @@ struct Shown {
     selection: Vec<Entity>,
     renaming: Option<Entity>,
     drop: Option<(Entity, Place)>,
+    eyes: u64,
 }
 
 /// The editor's hierarchy (`docs/adr/0167-the-hierarchy.md`): the world's entities as a tree of
@@ -151,6 +159,11 @@ pub struct Hierarchy {
     /// The element that the drag under way started from, and its entity, which the drag keeps once
     /// its row is built away, scrolled out of sight.
     dragged: Option<(ElementId, Entity)>,
+    /// What the user hid and locked, the entities hidden, by themselves or by an ancestor, and the
+    /// count of the window's sets that they are (`docs/adr/0169-the-eye-and-the-lock.md`).
+    eyes: Eyes,
+    hidden: HashSet<Entity>,
+    eyes_made: u64,
     /// The drag's entity, its target and the place in it, with the world's structure and what is
     /// selected, and where what it carries would go, which a drag asks once for each.
     drop_spot: Option<(DropAsked, Option<(Entity, Spot)>)>,
@@ -170,6 +183,12 @@ impl Hierarchy {
             made_rows: self.made_rows + 1,
             ..Self::default()
         };
+    }
+
+    /// Shows `eyes`, what the user hid and locked, and `hidden`, the entities that it hides, the
+    /// window's set of number `made`, from the next build on.
+    pub(crate) fn set_eyes(&mut self, eyes: Eyes, hidden: HashSet<Entity>, made: u64) {
+        (self.eyes, self.hidden, self.eyes_made) = (eyes, hidden, made);
     }
 
     /// Builds the hierarchy under `slot`, an element made by a slot of its parent
@@ -273,6 +292,7 @@ impl Hierarchy {
             selection: selection.to_vec(),
             renaming: self.renaming,
             drop,
+            eyes: self.eyes_made,
         };
         if self.shown.as_ref() != Some(&shown) {
             self.rows_revision += 1;
@@ -292,6 +312,10 @@ impl Hierarchy {
                     drop: drop
                         .filter(|&(target, _)| target == row.entity)
                         .map(|(_, place)| place),
+                    eye: world
+                        .persistent_id(row.entity)
+                        .map(|id| (self.eyes.is_hidden(&id), self.eyes.is_locked(&id))),
+                    hidden: self.hidden.contains(&row.entity),
                 };
                 rows.push(build_row(children, index, row, world, look));
             }
@@ -351,8 +375,8 @@ impl Hierarchy {
 
     /// Takes from `actions` those of the hierarchy's elements: the search typed, a row pressed,
     /// which selects as `modifiers` say, with `selection` selected now, a fold pressed, the rename's
-    /// field committed or given up, and a row dropped on another. Gives the core's requests that
-    /// they make.
+    /// field committed or given up, a row dropped on another, and an eye or a lock pressed. Gives
+    /// the core's requests that they make.
     pub(crate) fn act(
         &mut self,
         actions: &mut Vec<Action>,
@@ -382,6 +406,25 @@ impl Hierarchy {
                     return true;
                 };
                 requests.extend(self.dropped(world, selection, source, target, Place::at(at)));
+                return false;
+            }
+            // The eye and the lock turn, the core keeping what the user hid and locked.
+            if let Some((row, eye)) = self.built.iter().find_map(|row| {
+                let (eye, lock) = row.eye?;
+                (element == eye || element == lock).then_some((row.entity, element == eye))
+            }) {
+                if action.kind != ActionKind::Press {
+                    return true;
+                }
+                if let Some(entity) = world.persistent_id(row) {
+                    requests.push(if eye {
+                        let hidden = !self.eyes.is_hidden(&entity);
+                        Request::Hide { entity, hidden }
+                    } else {
+                        let locked = !self.eyes.is_locked(&entity);
+                        Request::Lock { entity, locked }
+                    });
+                }
                 return false;
             }
             if let Some(row) = self.built.iter().find(|row| row.fold == Some(element)) {
@@ -644,7 +687,7 @@ fn build_row(
         style.layout.margin.start = row.depth as f32 * INDENT + FOLD_WIDTH;
         children.add(key, Element::container(style).class("drop-line"), |_| {});
     };
-    let (mut fold, mut name_element) = (None, None);
+    let (mut fold, mut name_element, mut eye_elements) = (None, None, None);
     let element = children.add(index, item, |children| {
         if shows.drop == Some(Place::Before) {
             line(children, "before");
@@ -671,7 +714,7 @@ fn build_row(
                 let name = if shows.open { "fold" } else { "unfold" };
                 let button = Element::button(icon, mark)
                     .class("row")
-                    .class("fold")
+                    .class("mark")
                     .named(name);
                 fold = Some(children.add("fold", button, |_| {}));
             } else {
@@ -690,19 +733,56 @@ fn build_row(
                     .map_or_else(String::new, |name| name.0.clone());
                 Element::text_field(text, grows).named("rename")
             } else {
-                Element::button(shown, grows)
+                let button = Element::button(shown, grows)
                     .class("row")
                     .named(name.as_str())
-                    .draggable()
+                    .draggable();
+                // What is hidden reads dimmed.
+                if shows.hidden {
+                    button.class("hidden")
+                } else {
+                    button
+                }
             };
             name_element = Some(children.add("name", element, |_| {}));
-            // A placement's root, marked as what a prefab placed.
+            // A placement's root, marked as what a prefab placed, in a box as wide as the eye's,
+            // its glyph level with it.
             if world.placement(row.entity).is_some() {
                 let icon = look::icon("package").map(String::from).unwrap_or_default();
-                let mark = Element::label(icon, Style::default())
-                    .class("icon")
-                    .named("placement");
+                let mut style = Style::default();
+                style.layout.size[0] = Dimension::Pixels(FOLD_WIDTH);
+                style.layout.shrink = 0.0;
+                style.layout.align_self = Some(Align::Center);
+                let mark = Element::label(icon, style).class("icon").named("placement");
                 children.add("placement", mark, |_| {});
+            }
+            // The eye and the lock, each named after what a press does.
+            if let Some((hidden, locked)) = shows.eye {
+                let mut button = |key: &'static str, (icon, name): (&str, &str)| {
+                    let mut style = Style::default();
+                    style.layout.size[0] = Dimension::Pixels(FOLD_WIDTH);
+                    style.layout.shrink = 0.0;
+                    let icon = look::icon(icon).map(String::from).unwrap_or_default();
+                    let element = Element::button(icon, style).class("mark").named(name);
+                    children.add(key, element, |_| {})
+                };
+                let eye = button(
+                    "eye",
+                    if hidden {
+                        ("eye-off", "show")
+                    } else {
+                        ("eye", "hide")
+                    },
+                );
+                let lock = button(
+                    "lock",
+                    if locked {
+                        ("lock", "unlock")
+                    } else {
+                        ("lock-open", "lock")
+                    },
+                );
+                eye_elements = Some((eye, lock));
             }
         });
         if shows.drop == Some(Place::After) {
@@ -714,6 +794,7 @@ fn build_row(
         item: element,
         fold,
         name: name_element.unwrap_or(element),
+        eye: eye_elements,
     }
 }
 

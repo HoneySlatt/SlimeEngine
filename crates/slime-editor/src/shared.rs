@@ -10,6 +10,7 @@ use std::rc::Rc;
 use slime_assets::{AssetId, CookedAssets};
 use slime_world::{Command, PersistentId};
 
+use crate::eyes::Eyes;
 use crate::program::Lighting;
 
 /// The value that the core and the window share, on the thread that runs both.
@@ -87,6 +88,9 @@ pub(crate) struct State {
     pub(crate) copies: u64,
     /// What the window asks of the core, which the core answers at its next update.
     pub(crate) requests: VecDeque<Request>,
+    /// What the user hid and locked in the level open, forgotten when another opens
+    /// (`docs/adr/0169-the-eye-and-the-lock.md`).
+    pub(crate) eyes: Eyes,
 }
 
 /// How many lines of the game's log the console keeps.
@@ -160,6 +164,17 @@ pub(crate) enum Request {
     Journal,
     /// What is selected, which is not a step.
     Select(Vec<PersistentId>),
+    /// An entity hidden or shown again, which is not a step
+    /// (`docs/adr/0169-the-eye-and-the-lock.md`).
+    Hide {
+        entity: PersistentId,
+        hidden: bool,
+    },
+    /// An entity locked or unlocked, which is not a step.
+    Lock {
+        entity: PersistentId,
+        locked: bool,
+    },
     /// The level written back to its file.
     Write,
     /// The operations, listed.
