@@ -83,7 +83,7 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 | Topic | Candidates | Decide at |
 |---|---|---|
 | Drawing an interface without a GPU | A renderer on the CPU, lavapipe, none (ADR-0170) | Stage 6d |
-| Shapes beyond boxes in an interface | Vector paths, meshes (ADR-0170) | Stage 6d |
+| How an interface's vector shapes are drawn | By measurement: tessellated on the CPU, distance fields, or stencil then cover (ADR-0171) | Stage 6d |
 | Notation of UI documents | The engine's notation laid out as scene files, a markup of its own, a subset of HTML and CSS (ADR-0132) | Stage 7 |
 | Physics backend | rapier3d, Jolt or other, behind an abstraction, against the needs of ADR-0098 | Stage 7 |
 | Audio backend | To evaluate, against the needs of ADR-0098 | Stage 7 |
@@ -322,16 +322,16 @@ The stage's milestones, their order and the owner's two checkpoints are decided 
 
 ### Stage 6d — The interface for applications → 0.8
 
-**Goal.** The engine's UI framework runs desktop applications as well as the frameworks they leave, and gains the motion, transforms and drawing that games and the editor need too, designed once for all three (ADR-0170).
+**Goal.** The engine's UI framework runs desktop applications as well as the frameworks they leave, and gains the motion, transforms and drawing that games and the editor need too, designed once for all three (ADR-0170): looks as refined as current interfaces have, glass and shapes that morph among them, at the lowest draw of power (ADR-0171).
 
 - A shell that runs an *application*: its window, with its identity, its minimum size, fullscreen and being brought to the front; the GPU and the drawing of its interface; frames drawn only when something changes, woken from any thread; the development channel, through which agents drive it as they drive a game; no world and no simulation, and no cost of the 3D renderer for an application that draws no scene (ADR-0170)
 - Images read from files and the network, decoded away from the interface's thread, in a cache bounded by memory that frees the GPU's; an image cropped to cover its box, images cross-faded, and textures updated at each frame
-- Drawing: transforms, masks, several shadows on an element, gradients of several stops and radial ones, dithered, and shapes beyond boxes; whether the framework draws without a GPU, decided at the stage's start
-- Motion, beyond the transitions of Stage 6b (ADR-0149): transforms animated, curves and springs, delays in cascade, animations driven by scrolling, a frame rate capped for each animation, nothing drawn at rest
+- Drawing: groups drawn apart into images of their own, kept while they do not change, then composed, which masks, the opacity of a group and effects need; what lies behind an element, blurred on reduced images, bent, tinted and lit, for glass; transforms, several shadows on an element, gradients of several stops and radial ones, dithered; vector shapes that morph into one another; a first material of glass, shown in an example; whether the framework draws without a GPU, decided at the stage's start (ADR-0171)
+- Motion, beyond the transitions of Stage 6b (ADR-0149): transforms animated, curves and springs, delays in cascade, animations driven by scrolling, variable fonts whose axes move, an element that becomes another; a frame rate capped for each animation, effects stopped while the window has lost the focus, nothing drawn at rest; reduced transparency beside reduced motion, and effects lightened on modest hardware (ADR-0114, ADR-0171)
 - Text styled by ranges, masked fields, double clicks, the pointer's shapes, smooth and sideways scrolling, virtual lists that scroll sideways, a table's header that stays; gamepads, and the focus that they drive, moved from Stage 7
 - The pilot: Slatty, a launcher of games outside this repository, ported onto the framework in its own repository, with a checkpoint where the owner uses it; a music player follows it after the stage
 
-**Exit.** Slatty runs on the framework at least as well as on Iced, on each of the figures that ADR-0170 records; every need that the music player marks as indispensable exists, shown by an example and its tests; nothing is drawn at rest, under Wayland and under Xwayland.
+**Exit.** Slatty runs on the framework at least as well as on Iced, on each of the figures that ADR-0170 records; every need that the music player marks as indispensable exists, shown by an example and its tests; nothing is drawn at rest, under Wayland and under Xwayland; the power that the GPU and the CPU draw is measured for each effect, at rest and in motion (ADR-0171).
 
 ### Stage 7 — Runtime systems → 0.9
 
