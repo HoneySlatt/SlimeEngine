@@ -4,7 +4,10 @@
   [0148](0148-widgets.md) (the rest of M6b.7 cut in three: the look's foundations, then layers,
   then rich widgets; transitions in Stage 6b), [0132](0132-the-engines-ui-framework.md) (Stage 7
   grows the transitions that Stage 6b declares), [0141](0141-style-sheets-and-themes.md) (a theme's
-  value names others and computes colors; themes stacked)
+  value names others and computes colors; themes stacked); amended by
+  [0151](0151-rich-widgets.md) (M6b.7d cut in two: rich fields, then what the editor tells and
+  finds, M6b.7e) and [0170](0170-applications-on-the-ui-framework.md) (Stage 6d, not Stage 7,
+  grows the transitions)
 - Date: 2026-10-27
 
 ## Context

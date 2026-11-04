@@ -166,7 +166,7 @@ the ADR linking to it.
 | [0095](0095-cooked-scene-files.md) | Cooked scene files | Accepted |
 | [0096](0096-the-files-the-engine-reads.md) | The files the engine reads: what they may hold, and what the engine promises | Accepted; amended by 0122 |
 | [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) | An audit pass and a foundations pass before Stage 6, and the roadmap after them | Accepted; amended by 0098, 0099, 0100, 0107, 0112, 0114, 0116 and 0131 |
-| [0098](0098-the-games-the-engine-aims-at.md) | The games the engine aims at, and the roadmap they shape | Accepted; amended by 0114, 0116, 0131 and 0132 |
+| [0098](0098-the-games-the-engine-aims-at.md) | The games the engine aims at, and the roadmap they shape | Accepted; amended by 0114, 0116, 0131, 0132 and 0170 |
 | [0099](0099-ai-agents-drive-the-engine.md) | AI agents drive the engine through its own MCP server | Accepted; amended by 0122 |
 | [0100](0100-updates-of-shipped-games.md) | Updates of shipped games | Accepted |
 | [0101](0101-saves-and-identities-that-never-mislead.md) | Saves and identities that never mislead | Accepted; amended by 0109, 0112, 0124 and 0125 |
@@ -200,7 +200,7 @@ the ADR linking to it.
 | [0129](0129-drawing-for-the-editor.md) | Drawing for the editor | Accepted; amended by 0159 and 0161 |
 | [0130](0130-picking.md) | Picking | Accepted |
 | [0131](0131-stage-6b-and-stage-6c.md) | Stage 6b, the engine's interface, and Stage 6c, the editor | Accepted; amended by 0134, 0137, 0140, 0142, 0145, 0148, 0149, 0152 and 0155 |
-| [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted; amended by 0137, 0140, 0143, 0145, 0146, 0148 and 0149 |
+| [0132](0132-the-engines-ui-framework.md) | The engine's UI framework | Accepted; amended by 0137, 0140, 0143, 0145, 0146, 0148, 0149 and 0170 |
 | [0133](0133-font-files-under-the-open-font-license.md) | Font files under the SIL Open Font License | Accepted; amended by 0139 |
 | [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 and 0155 |
 | [0135](0135-the-editors-program.md) | The editor's program | Accepted; amended by 0156 and 0161 |
@@ -217,7 +217,7 @@ the ADR linking to it.
 | [0146](0146-screen-readers.md) | Screen readers | Accepted; amended by 0147 |
 | [0147](0147-the-screen-readers-check-in-ci.md) | The screen readers' check in CI | Accepted |
 | [0148](0148-widgets.md) | Widgets | Accepted; amended by 0149 |
-| [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151 |
+| [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151 and 0170 |
 | [0150](0150-layers.md) | Layers | Accepted; amended by 0154, 0157 |
 | [0151](0151-rich-widgets.md) | Rich widgets | Accepted |
 | [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
@@ -238,3 +238,4 @@ the ADR linking to it.
 | [0167](0167-the-hierarchy.md) | The hierarchy | Accepted; amends 0108 |
 | [0168](0168-rearranging-the-hierarchy.md) | Rearranging the hierarchy | Accepted |
 | [0169](0169-the-eye-and-the-lock.md) | The eye and the lock | Accepted |
+| [0170](0170-applications-on-the-ui-framework.md) | Applications on the engine's UI framework | Accepted; amends 0098, 0132 and 0149 |

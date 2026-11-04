@@ -33,6 +33,10 @@ horizontal edge steps by a whole pixel at long intervals. The renderer uses *mul
 anti-aliasing* ([ADR-0056](adr/0056-stage-3d-anti-aliasing-and-spot-light-shadows.md)), or none, as
 each *view* chooses ([ADR-0127](adr/0127-the-settings-of-a-view.md)).
 
+**Application.** A desktop program built on the engine's UI framework that is neither a game nor
+the editor, kept outside this repository: the framework's third client, which Stage 6d gives a
+shell to run in ([ADR-0170](adr/0170-applications-on-the-ui-framework.md)).
+
 **Application time.** The sum of the deltas of all frames so far (`FrameTime::elapsed`). It
 falls behind wall-clock time when a frame delta is limited, for example after a pause.
 

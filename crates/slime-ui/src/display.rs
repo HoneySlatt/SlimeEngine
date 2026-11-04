@@ -81,8 +81,8 @@ pub struct DisplayItem {
     pub primitive: Primitive,
     /// The rectangle outside which it is not drawn; none for the whole screen.
     pub clip: Option<Rect>,
-    /// How it is placed: the identity until Stage 7 gives the interface its transforms
-    /// (`docs/adr/0132-the-engines-ui-framework.md`).
+    /// How it is placed: the identity until Stage 6d gives the interface its transforms
+    /// (`docs/adr/0170-applications-on-the-ui-framework.md`).
     pub transform: TransformId,
     /// The layer it is drawn in: the root's until Stage 7.
     pub layer: LayerId,
@@ -263,8 +263,8 @@ pub enum ImageKind {
     Color,
 }
 
-/// How an item is placed: the identity alone until Stage 7 gives the interface its transforms
-/// (`docs/adr/0132-the-engines-ui-framework.md`).
+/// How an item is placed: the identity alone until Stage 6d gives the interface its transforms
+/// (`docs/adr/0170-applications-on-the-ui-framework.md`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TransformId(u32);
 

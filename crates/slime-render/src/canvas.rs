@@ -604,7 +604,7 @@ impl CanvasRenderer {
         )?;
         let pipeline = pipeline(gpu, module, format, &frame_layout, &image_layout)?;
         let frame = gpu.create_uniform_buffer("canvas", &[0; 16])?;
-        // The identity, the one transform until Stage 7.
+        // The identity, the one transform until Stage 6d.
         let mut identity = Vec::new();
         push_f32s(&mut identity, &[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
         let transforms = gpu.create_storage_buffer("canvas transforms", 32)?;

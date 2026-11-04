@@ -36,6 +36,12 @@ documentation was updated and reread. From Stage 2 on, every milestone is also c
   M6c.5b, M6c.5c and M6c.5d, of which M6c.5a is done, and M6c.5b in two again at its start,
   M6c.5b and M6c.5c, the regions and the inspector becoming M6c.5d and M6c.5e, of which M6c.5b is
   done; next: M6c.5c.
+- Stage 6d — The interface for applications: decided on 2026-11-04
+  ([ADR-0170](adr/0170-applications-on-the-ui-framework.md)), to follow Stage 6c and be released
+  as 0.8. The engine's UI framework is to run desktop applications outside this repository, a
+  launcher of games first, as well as the frameworks they leave, and to gain the motion, transforms
+  and drawing that games and the editor need too. Its milestones are planned at its start, with the
+  owner.
 
 ## Status
 
@@ -1360,8 +1366,9 @@ GitHub issues, linked from their entry; this list stays the reference.
   and the cursor held with M6c.1b
   ([ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md)); on Windows, winit 0.30
   reports as raw motion the positions that a virtual machine's tablet or a remote desktop gives.
-  M6c.7 brings files dropped on Windows and X11, Stage 7 gamepads; files dropped on Wayland wait
-  for winit 0.31 ([ADR-0155](adr/0155-the-editors-design.md)).
+  M6c.7 brings files dropped on Windows and X11, Stage 6d gamepads
+  ([ADR-0170](adr/0170-applications-on-the-ui-framework.md)) and fullscreen; files dropped on
+  Wayland wait for winit 0.31 ([ADR-0155](adr/0155-the-editors-design.md)).
 - **A compositor that stops answering blocks the engine.** Before the first frame, winit waits for
   the window's first configuration without a timeout, so a termination signal is noticed only when a
   second one ends the process; after the `stop` methods, releasing the window or the surface can
@@ -1969,7 +1976,8 @@ GitHub issues, linked from their entry; this list stays the reference.
 - **A comment within a value written on several lines is lost** when the editor writes the level
   again, but for the end of the value's first line (`slime_serialize::keep_comments`).
 - **The canvas draws nothing turned or scaled** ([ADR-0137](adr/0137-the-canvas.md)): the items'
-  transforms, whose place they keep, come with Stage 7. An image is read at its first level, so that
+  transforms, whose place they keep, come with Stage 6d
+  ([ADR-0170](adr/0170-applications-on-the-ui-framework.md)). An image is read at its first level, so that
   one drawn much smaller than it is shows steps, and its edges are neither rounded nor smoothed
   between two pixels; an image of colors darkens where an opaque texel meets a transparent one of
   another color, its texels filtered before they are multiplied by their alpha. A shadow is an

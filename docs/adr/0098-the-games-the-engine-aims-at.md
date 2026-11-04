@@ -5,9 +5,12 @@
   [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) (the criteria of the
   foundations pass); amended by [0114](0114-hardware-tiers-and-the-gpus-limits.md) (a handheld tier
   below the modest one), [0116](0116-stage-6-in-two-halves.md) (Stage 9c's work ships with 0.11),
-  [0131](0131-stage-6b-and-stage-6c.md) (Stage 9c's work ships with 0.12) and
+  [0131](0131-stage-6b-and-stage-6c.md) (Stage 9c's work ships with 0.12),
   [0132](0132-the-engines-ui-framework.md) (the UI framework's design and its crates; the
-  dev overlay rewritten on it, and egui removed, at Stage 6b)
+  dev overlay rewritten on it, and egui removed, at Stage 6b) and
+  [0170](0170-applications-on-the-ui-framework.md) (Stage 6d between the editor and the runtime
+  systems, which takes from Stage 7 what the framework gains for games; Stage 9c's work ships with
+  0.13)
 - Date: 2026-10-19
 
 ## Context

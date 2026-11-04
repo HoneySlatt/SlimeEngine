@@ -15,9 +15,10 @@
   and keeps a field's text, parley giving the selection's moves),
   [0146](0146-screen-readers.md) (AccessKit's types stay out of `slime-ui`: `slime-app` translates
   the meaning into AccessKit's tree, `slime-platform` holds the adapter),
-  [0148](0148-widgets.md) (each widget an element kind of `slime-ui`) and
+  [0148](0148-widgets.md) (each widget an element kind of `slime-ui`),
   [0149](0149-the-looks-foundations.md) (transitions declared in style sheets at Stage 6b, which
-  Stage 7 grows)
+  Stage 7 grows) and [0170](0170-applications-on-the-ui-framework.md) (applications, a third
+  client; what Stage 7 was to add to the framework comes at Stage 6d)
 - Date: 2026-10-22
 
 ## Context

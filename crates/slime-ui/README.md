@@ -167,8 +167,8 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
 - `display::DisplayList` is what an interface draws in a frame, as owned data: boxes, the shadows
   that boxes cast, boxes filled with a gradient, texts laid out and parts of images, which it names
   by keys (`display::ImageKey`) that the program drawing it resolves, each with its clip, its
-  transform and its layer, the identity and the root's until Stage 7. `slime-ui-render` draws it
-  through the renderer's canvas.
+  transform, the identity until Stage 6d, and its layer, the root's until Stage 7.
+  `slime-ui-render` draws it through the renderer's canvas.
 - `Rect` is the rectangle the framework speaks in, by its top left corner and its size, as the
   renderer's canvas gives its own.
 

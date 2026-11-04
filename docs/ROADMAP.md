@@ -70,7 +70,7 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 | GPU abstraction | wgpu, then native backends, Vulkan and Direct3D 12, at Stage 9c (ADR-0098). Their types stay inside the `gfx` and `render` crates, and the engine's own tests, through `slime-gfx`'s `wgpu` feature (ADR-0031); the rest of the engine uses engine-owned handles. |
 | Shaders | WGSL to start |
 | First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS comes later. No mobile platform (ADR-0098). |
-| UI | One framework of the engine's own, GPU-rendered, for the editor and the UI of games: a retained tree of its own, on parley, taffy and AccessKit, drawn by the renderer's canvas (ADR-0098, ADR-0132). The dev overlay, tooling, runs on it since Stage 6b, which removed egui (ADR-0152). No Qt or GTK. |
+| UI | One framework of the engine's own, GPU-rendered, for the editor, the UI of games and desktop applications (ADR-0170): a retained tree of its own, on parley, taffy and AccessKit, drawn by the renderer's canvas (ADR-0098, ADR-0132). The dev overlay, tooling, runs on it since Stage 6b, which removed egui (ADR-0152). No Qt or GTK. |
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
 | Windowing and input | winit, used only inside `platform`; its types never leave that crate (ADR-0011) |
 | Entity model | The engine's own: entities, components stored by type, and a transform hierarchy, with `f64` translations (ADR-0079) |
@@ -82,6 +82,8 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 
 | Topic | Candidates | Decide at |
 |---|---|---|
+| Drawing an interface without a GPU | A renderer on the CPU, lavapipe, none (ADR-0170) | Stage 6d |
+| Shapes beyond boxes in an interface | Vector paths, meshes (ADR-0170) | Stage 6d |
 | Notation of UI documents | The engine's notation laid out as scene files, a markup of its own, a subset of HTML and CSS (ADR-0132) | Stage 7 |
 | Physics backend | rapier3d, Jolt or other, behind an abstraction, against the needs of ADR-0098 | Stage 7 |
 | Audio backend | To evaluate, against the needs of ADR-0098 | Stage 7 |
@@ -318,7 +320,20 @@ The stage's milestones, their order and the owner's two checkpoints are decided 
 
 **Exit.** A level of the game is built, saved and reloaded entirely in the editor, with undo/redo on every operation. The editor uses no private engine API.
 
-### Stage 7 — Runtime systems → 0.8
+### Stage 6d — The interface for applications → 0.8
+
+**Goal.** The engine's UI framework runs desktop applications as well as the frameworks they leave, and gains the motion, transforms and drawing that games and the editor need too, designed once for all three (ADR-0170).
+
+- A shell that runs an *application*: its window, with its identity, its minimum size, fullscreen and being brought to the front; the GPU and the drawing of its interface; frames drawn only when something changes, woken from any thread; the development channel, through which agents drive it as they drive a game; no world and no simulation, and no cost of the 3D renderer for an application that draws no scene (ADR-0170)
+- Images read from files and the network, decoded away from the interface's thread, in a cache bounded by memory that frees the GPU's; an image cropped to cover its box, images cross-faded, and textures updated at each frame
+- Drawing: transforms, masks, several shadows on an element, gradients of several stops and radial ones, dithered, and shapes beyond boxes; whether the framework draws without a GPU, decided at the stage's start
+- Motion, beyond the transitions of Stage 6b (ADR-0149): transforms animated, curves and springs, delays in cascade, animations driven by scrolling, a frame rate capped for each animation, nothing drawn at rest
+- Text styled by ranges, masked fields, double clicks, the pointer's shapes, smooth and sideways scrolling, virtual lists that scroll sideways, a table's header that stays; gamepads, and the focus that they drive, moved from Stage 7
+- The pilot: Slatty, a launcher of games outside this repository, ported onto the framework in its own repository, with a checkpoint where the owner uses it; a music player follows it after the stage
+
+**Exit.** Slatty runs on the framework at least as well as on Iced, on each of the figures that ADR-0170 records; every need that the music player marks as indispensable exists, shown by an example and its tests; nothing is drawn at rest, under Wayland and under Xwayland.
+
+### Stage 7 — Runtime systems → 0.9
 
 **Goal.** What a game needs beyond rendering, built on a proper concurrency model.
 
@@ -332,11 +347,11 @@ The stage's milestones, their order and the owner's two checkpoints are decided 
 - Audio: sources, listener, spatialization, buses, mixing, streaming; the importer of audio files, moved from Stage 4 (ADR-0068); the backend chosen against sound placed precisely around the listener's head, reverberation per room and sounds muffled by walls (ADR-0098)
 - The core of skeletal animation: skeletons, skinning, clips, blending, moved from Stage 9b (ADR-0097); poses that are not entities, and bones that things are attached to (ADR-0108)
 - Input action mapping, on the keys and buttons held that Stage 6a keeps (ADR-0107)
-- UI of games: text, menus, HUD, on the engine's UI framework, grown with animation beside the transitions of Stage 6b (ADR-0149), transforms, masks, effects on text, UI on surfaces in the world, focus driven by gamepads, screen readers, and UI documents, the games' screens as data (ADR-0098, ADR-0132)
+- UI of games: text, menus, HUD, on the engine's UI framework, which Stage 6d gives its motion, transforms, masks, text styled by ranges and focus driven by gamepads (ADR-0170); UI on surfaces in the world, screen readers, and UI documents, the games' screens as data (ADR-0098, ADR-0132)
 
 **Exit.** The game has an animated character in a physical level, with sound and a UI, and is profiled end to end.
 
-### Stage 8 — Extensibility → 0.9
+### Stage 8 — Extensibility → 0.10
 
 **Goal.** Others can extend the engine without modifying it.
 
@@ -351,7 +366,7 @@ The C ABI and the C++ SDK moved to Stage 11, derived from the API that the edito
 
 Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b needs a production renderer first.
 
-### Stage 9a — Production renderer → 0.10
+### Stage 9a — Production renderer → 0.11
 
 **Goal.** Render what a shipped game shows, beyond a simple scene.
 
@@ -369,7 +384,7 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 
 **Exit.** A level of the game, outdoors and indoors, with a day-night cycle, many lights, transparency and anti-aliasing, within the frame budgets tracked for the sample, covered by image tests.
 
-### Stage 9b — Content production → 0.11
+### Stage 9b — Content production → 0.12
 
 **Goal.** A team can produce a narrative game.
 
@@ -399,13 +414,13 @@ Stage 9c is added by ADR-0098: the rendering of the games of section 1, and cons
 - Whether wgpu stays: as a fallback, for debugging, or for macOS
 - The enthusiast hardware tier, at 4K with ray tracing (ADR-0114)
 
-Before this stage, a feature that wgpu blocks goes through wgpu's access to the API underneath it. The stage comes right after Stage 9b and has no release of its own; what it delivers is released with 0.12 (ADR-0131).
+Before this stage, a feature that wgpu blocks goes through wgpu's access to the API underneath it. The stage comes right after Stage 9b and has no release of its own; what it delivers is released with 0.13 (ADR-0131, ADR-0170).
 
 **Exit.** The game runs on the native backends on Linux and on Windows, and the image tests pass on them as on wgpu.
 
 Stage 10 is split in two (ADR-0097): streaming, which an open world needs, does not wait for networking, which the first game does not need.
 
-### Stage 10a — Large worlds → 0.12
+### Stage 10a — Large worlds → 0.13
 
 **Goal.** Scale beyond a single level.
 
@@ -421,7 +436,7 @@ The stage is split in two halves when it is planned (ADR-0098).
 
 **Exit.** The game streams an open world.
 
-### Stage 10b — Networking → 0.13
+### Stage 10b — Networking → 0.14
 
 **Goal.** Scale beyond a single machine.
 
@@ -435,7 +450,7 @@ The stage is split in two halves when it is planned (ADR-0098).
 
 **Exit.** Several clients play the game connected to a dedicated server.
 
-### Stage 11 — Production readiness → 0.14, then 1.0
+### Stage 11 — Production readiness → 0.15, then 1.0
 
 **Goal.** External projects can rely on the engine.
 
@@ -449,7 +464,7 @@ The stage is split in two halves when it is planned (ADR-0098).
 - macOS as a supported platform
 - User, SDK and engine documentation
 
-**Exit for 0.14.** An external project is built without touching engine source.
+**Exit for 0.15.** An external project is built without touching engine source.
 **Exit for 1.0.** A compatibility promise can be made and kept. There is no deadline for this.
 
 ## 7. Continuous tracks
@@ -493,6 +508,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | serialization | reflect |
 | world | reflect, serialization, assets, color |
 | UI framework | color, input, reflect, serialization; headless; drawn by render's canvas through a bridge, `slime-ui-render`, as `slime-world-render` is between world and render (ADR-0132) |
+| shell of applications | platform, gfx, render's canvas, UI framework, channel; never world, a game's host, the editor or games (ADR-0170) |
 | editor | world, render, assets, UI framework; its core, without its interface, today: app, assets, channel, cook, reflect, serialization, world (ADR-0134) |
 | UI of games | render, input action mapping, UI framework |
 | undo/redo | the world's commands, serialization (ADR-0134) |
@@ -524,12 +540,13 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | 0.5 | 6a | What the editor stands on |
 | 0.6 | 6b | The engine's interface: its UI framework, and the editor's core |
 | 0.7 | 6c | Editor |
-| 0.8 | 7 | Runtime systems |
-| 0.9 | 8 | Plugins, scripting |
-| 0.10 | 9a | Production renderer |
-| 0.11 | 9b | Content production |
-| — | 9c | Native GPU backends, released with 0.12 |
-| 0.12 | 10a | Large worlds |
-| 0.13 | 10b | Networking |
-| 0.14 | 11 | Usable by external projects |
+| 0.8 | 6d | The interface for applications |
+| 0.9 | 7 | Runtime systems |
+| 0.10 | 8 | Plugins, scripting |
+| 0.11 | 9a | Production renderer |
+| 0.12 | 9b | Content production |
+| — | 9c | Native GPU backends, released with 0.13 |
+| 0.13 | 10a | Large worlds |
+| 0.14 | 10b | Networking |
+| 0.15 | 11 | Usable by external projects |
 | 1.0 | 11 | Stable API and SDK |
