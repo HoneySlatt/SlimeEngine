@@ -372,6 +372,12 @@ pub const OPERATIONS: &[Operation] = &[
         changes: Changes::Window,
     },
     Operation {
+        name: "view.move_panel",
+        label: "Move a panel",
+        parameters: &["panel", "to"],
+        changes: Changes::Window,
+    },
+    Operation {
         name: "view.keys_default",
         label: "Keys of most editors",
         parameters: &[],

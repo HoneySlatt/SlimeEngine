@@ -8,6 +8,17 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Regions of tabs in the editor (ADR-0172): its panels, the hierarchy, the components, the viewport,
+  the history and the console, lie in stacks of tabs, the hierarchy above the components on the
+  left and the viewport above the history and the console at first; a border between two regions,
+  dragged or moved by the arrows, resizes the two beside it; a tab's context menu moves its panel
+  into another region or to an edge of the window, as `view.move_panel` does by its name, with its
+  two arguments; F6 goes from one region to the next. The layout lasts until the editor stops.
+- Docking in `slime-ui` (ADR-0172): `dock::Layout`, splits of any number of children and stacks of
+  tabs, reflected and normalized after each edit, and `dock::Dock`, which builds it into a
+  program's tree and changes it as the user drags its borders, chooses its tabs and moves its
+  panels; `Element::splitter`, a border between two children of a box, which gives the program the
+  share of the first as it moves; `Element::pane`, a place that F6 moves the focus to.
 - The eye and the lock of the editor's hierarchy (ADR-0169): each row's buttons hide or show, lock
   or unlock its entity and those below it, as people and agents press them, named `hide`, `show`,
   `lock` and `unlock`; what is hidden is not drawn, nor its light, nor picked, nor framed, and a
@@ -213,6 +224,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `slime_editor::Program` gains `lighting`, how the viewport lights the level, which a game's
   editor package gives as the game lights it.
 - `slime_channel::Listener::open` takes what wakes the game as a request comes.
+- F6 moves the focus from one pane of a root to the next as well as from one root to the next
+  (ADR-0172).
+- `slime_editor::window_image` runs each operation with its arguments, written after its name and
+  parted by spaces.
+- The paths of the editor's panels' elements: each lies under the dock's stacks,
+  `editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3`,
+  not under fixed regions.
 - The MCP server's `pick` answers `nothing is picked there` where it answered `nothing is drawn
   there`, the editor picking nothing of what its user locked, which it draws.
 

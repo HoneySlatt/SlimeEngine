@@ -327,7 +327,7 @@ in a window and its widgets, menus, list to choose from and floating panel each 
 session through the MCP server, the `editor` example's window used by an agent's session through the
 MCP server, its operations run by name, its menu and its palette, a row of its hierarchy dropped
 before another, an entity picked in its viewport, then locked and hidden by its row's buttons,
-its second viewport captured, which must run no frame while it is alone, the `world` example's
+its second viewport captured, a panel moved to another region and a border between two dragged, which must run no frame while it is alone, the `world` example's
 two views captured, the map's
 normals shown, its reports read and an entity picked at a pixel, by an agent's session through the MCP server, the
 `scene` example on a copy of the cooked sample with one byte changed, which must end with an error

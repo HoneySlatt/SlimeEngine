@@ -130,6 +130,21 @@ fn the_window_with_its_history_matches_its_reference_image() {
     );
 }
 
+/// The panels rearranged in their regions of tabs: the components in the hierarchy's stack, the
+/// console at the window's right edge (`docs/adr/0172-regions-of-tabs.md`).
+#[test]
+fn the_window_with_its_panels_moved_matches_its_reference_image() {
+    check(
+        "editor-regions",
+        &[
+            "view.move_panel components hierarchy",
+            "view.move_panel console right",
+        ],
+        &[],
+        1.0,
+    );
+}
+
 /// The pillar selected, the handles that turn it in its own axes.
 #[test]
 fn the_window_with_the_turning_handles_matches_its_reference_image() {

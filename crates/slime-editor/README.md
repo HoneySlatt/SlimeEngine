@@ -6,10 +6,10 @@ and written back (`docs/adr/0109-stable-references-and-undo.md`,
 palette and agents, by name; and its program, in a window of its own on the engine's interface,
 or without one, which a person uses and tools and agents drive through the development channel
 alike (`docs/adr/0135-the-editors-program.md`,
-`docs/adr/0156-the-editors-window-and-its-operations.md`). The window shows a menu bar, a
-hierarchy of the level's entities, the components of what is selected in the dev overlay's world
-panel, the history, a viewport in its center and a status bar; the editor's other panels come with
-Stage 6c's next milestones.
+`docs/adr/0156-the-editors-window-and-its-operations.md`). The window shows a menu bar, its panels
+in regions of tabs, a hierarchy of the level's entities, the components of what is selected in the
+dev overlay's world panel, the viewport, the history and the console, and a status bar; the
+editor's other panels come with Stage 6c's next milestones.
 
 ## Role
 
@@ -52,71 +52,75 @@ Stage 6c's next milestones.
   `editor.keys`, which binds keys to operations' names and the mouse's buttons to what they do over
   the viewport; and what Blender's way changes of it, `editor-blender.keys`, laid over it when the
   user chooses it.
-- `run(&Program)`: the editor's program, which a game's editor package calls with the game's
-  level, key, cooked data and types, and the `editor` example with the yard's. An application of
+- `run(&Program)`: the editor's program, which a game's editor package calls with the game's level,
+  key, cooked data and types, and the `editor` example with the yard's. An application of
   `slime-app` whose simulation is the editor's core and whose presentation is its window, both
   sharing a value that the core writes and the window reads, the window asking the core through
   requests that one handler answers, as it answers the development channel's; its frames run on
   demand (`AppConfig::on_demand`). It opens the level, keeps its journal in the user's data
   directory, one per level's file, held by this program alone, and recovers it as it starts when it
   holds steps that the level's file does not; a journal that it cannot read, play again or write
-  stops it. It opens another level by `file.open`, given a path, or by `file.choose` (Ctrl+O),
-  which opens the system's dialog behind a modal layer where the path can be typed too, and runs
+  stops it. It opens another level by `file.open`, given a path, or by `file.choose` (Ctrl+O), which
+  opens the system's dialog behind a modal layer where the path can be typed too, and runs
   `file.open` with the file chosen; started by a tool, it opens no dialog, and the layer waits for
-  the path (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`). It keeps the
-  levels opened last in the user's state directory for the File menu, and tells one hint at its
-  first run. Its viewport shows the level, lit as `Program::lighting` says, through its own asset
-  cache and frame builder, drawn again only when what it shows changed; the right button held
-  flies through it with W, A, S, D, Q and E, at a speed that suits the level's size as it opens,
-  or the one last used in it, kept in the user's state directory, which the wheel changes, Shift
-  quickens and the status bar shows while it flies; Alt and the left button orbit, the middle
-  button pans, F frames the selection, and tools capture it by the name `viewport`
-  (`docs/adr/0158-the-viewport.md`). A click selects the outermost placement of what is drawn
-  there, a click again a level deeper, a marquee what it holds, Alt and a click the meshes behind;
-  what is selected is outlined, and the View menu shows the base color, the light alone, the
-  normals, the shadows and the wireframe of the selection; tools pick in the viewport by its name
+  the path (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`). It keeps the levels
+  opened last in the user's state directory for the File menu, and tells one hint at its first run.
+  Its panels lie in regions of tabs that `slime-ui`'s dock builds, from a default layout at each
+  start: a border between two regions dragged moves the two beside it, a tab chosen shows its panel,
+  and a tab's context menu moves its panel into another region or to an edge of the window, as
+  `view.move_panel` does by its name; F6 goes from one region to the next
+  (`docs/adr/0172-regions-of-tabs.md`). Its viewport shows the level, lit as `Program::lighting`
+  says, through its own asset cache and frame builder, drawn again only when what it shows changed;
+  the right button held flies through it with W, A, S, D, Q and E, at a speed that suits the level's
+  size as it opens, or the one last used in it, kept in the user's state directory, which the wheel
+  changes, Shift quickens and the status bar shows while it flies; Alt and the left button orbit,
+  the middle button pans, F frames the selection, and tools capture it by the name `viewport`
+  (`docs/adr/0158-the-viewport.md`). A click selects the outermost placement of what is drawn there,
+  a click again a level deeper, a marquee what it holds, Alt and a click the meshes behind; what is
+  selected is outlined, and the View menu shows the base color, the light alone, the normals, the
+  shadows and the wireframe of the selection; tools pick in the viewport by its name
   (`docs/adr/0159-picking-and-the-selection.md`). *View* > *Two viewports* shows a second, named
   `viewport 2`, the one navigated drawn at the full rate; *View* > *Keys of Blender* chooses
   Blender's way, kept in the user's state directory for every program of the editor
-  (`docs/adr/0160-two-viewports-and-blenders-way.md`). Handles move (W), turn (E) and scale (R)
-  what is selected, in the world's axes or the selection's, snapped if *Edit* > *Snap* is ticked,
-  each drag one step that Escape cancels; End drops what is selected on what lies below it, Shift
-  and End its bottom (`docs/adr/0161-the-open-step-and-the-handles.md`). *Edit* creates an entity
+  (`docs/adr/0160-two-viewports-and-blenders-way.md`). Handles move (W), turn (E) and scale (R) what
+  is selected, in the world's axes or the selection's, snapped if *Edit* > *Snap* is ticked, each
+  drag one step that Escape cancels; End drops what is selected on what lies below it, Shift and End
+  its bottom (`docs/adr/0161-the-open-step-and-the-handles.md`). *Edit* creates an entity
   (Ctrl+Shift+N), duplicates (Ctrl+D), copies and pastes through the system's clipboard (Ctrl+C,
   Ctrl+V), deletes (Delete), groups (Ctrl+G) and repeats the last operation (Shift+R), and Ctrl and
   the arrows, Page Up and Page Down nudge what is selected
   (`docs/adr/0162-creating-copying-and-arranging.md`). *Edit* > *Place a prefab…* places one of the
-  cooked data's scenes, found in the palette, and a panel below the world panel shows the history,
-  a press on a row going to its step (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
-  The hierarchy (`Hierarchy`, `docs/adr/0167-the-hierarchy.md`) shows the level's entities as a
-  tree, its rows built where they show, folded and unfolded, a click selecting, Ctrl adding and
-  Shift selecting the rows between, the arrows moving the selection while its rows hold the focus;
-  a selection made elsewhere unfolds and shows its row; its search finds names, `c:` components and
-  `p:` prefabs once the typing paused; F2 renames what is selected in place
-  (`edit.rename`). A row dragged onto another goes before it, after it or into it, as a line or the
-  row's box shows, and Alt and the arrows move what is selected among its siblings, beside its
-  parent or into the sibling above, each entity kept where it is in the world, each move one step
-  (`hierarchy.move_up`, `hierarchy.move_down`, `hierarchy.outdent`, `hierarchy.indent`,
+  cooked data's scenes, found in the palette, and a panel shows the history, a press on a row going
+  to its step (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`). The hierarchy
+  (`Hierarchy`, `docs/adr/0167-the-hierarchy.md`) shows the level's entities as a tree, its rows
+  built where they show, folded and unfolded, a click selecting, Ctrl adding and Shift selecting the
+  rows between, the arrows moving the selection while its rows hold the focus; a selection made
+  elsewhere unfolds and shows its row; its search finds names, `c:` components and `p:` prefabs once
+  the typing paused; F2 renames what is selected in place (`edit.rename`). A row dragged onto
+  another goes before it, after it or into it, as a line or the row's box shows, and Alt and the
+  arrows move what is selected among its siblings, beside its parent or into the sibling above, each
+  entity kept where it is in the world, each move one step (`hierarchy.move_up`,
+  `hierarchy.move_down`, `hierarchy.outdent`, `hierarchy.indent`,
   `docs/adr/0168-rearranging-the-hierarchy.md`). Each row's eye and lock hide and lock its entity
   and those below it, what is hidden drawn, picked and framed nowhere, what is locked drawn but
   picked by no click, marquee, Alt and a click, nor tool; they are the user's, kept in memory while
-  the level is open, never written nor undone (`docs/adr/0169-the-eye-and-the-lock.md`).
-  Play (F5, a toolbar above the viewports) runs the game that `Program::play` starts on the level
-  as the editor holds it, its steps not written handed over as private copies, paused, stepped,
-  at a speed and stopped, its log in a console below the viewports (`docs/adr/0164-play.md`);
-  the steps made, undone and done again while it runs reach it, the game's refusals told
+  the level is open, never written nor undone (`docs/adr/0169-the-eye-and-the-lock.md`). Play (F5, a
+  toolbar above the viewports) runs the game that `Program::play` starts on the level as the editor
+  holds it, its steps not written handed over as private copies, paused, stepped, at a speed and
+  stopped, its log in a console below the viewports (`docs/adr/0164-play.md`); the steps made,
+  undone and done again while it runs reach it, the game's refusals told
   (`docs/adr/0165-editing-while-playing.md`). Play builds the game with cargo as `Program::build`
   says, as it starts it and again as its code changes while it plays, the game then starting again
   on a save of its run (`Played::resume`), a build that fails told
-  (`docs/adr/0166-building-the-game-again.md`); the editor's log says how long the game took to
-  give control, its time no longer held, which `slime-benches`' `play` benchmarks read.
-  Options: `--level`, `--assets`, `--journal`, `--discard`, `--headless`; `run`'s documentation
-  says how a journal is chosen and recovered.
+  (`docs/adr/0166-building-the-game-again.md`); the editor's log says how long the game took to give
+  control, its time no longer held, which `slime-benches`' `play` benchmarks read. Options:
+  `--level`, `--assets`, `--journal`, `--discard`, `--headless`; `run`'s documentation says how a
+  journal is chosen and recovered.
 - `window_image(&Program, arguments, operations, selection, scale)`: the window drawn into an image
-  without a window of the system, as it shows once the level is open, the operations named run
-  and the entities named selected, which the image tests compare and the `editor` example's
-  `--output` writes; `file.choose` shows the layer that waits for the system's dialog, which no
-  window opens there.
+  without a window of the system, as it shows once the level is open, the operations named run, each
+  with its arguments, and the entities named selected, which the image tests compare and the
+  `editor` example's `--output` writes; `file.choose` shows the layer that waits for the system's
+  dialog, which no window opens there.
 
 ## Depends on
 

@@ -25,7 +25,7 @@ use crate::play::{Control, Event, Game, Player};
 use crate::program::{Options, Program};
 use crate::shared::{BuildMark, CONSOLE_LINES, Notice, Playing, Request, Shared};
 use crate::{arrange, handles};
-use crate::{journal, level, recent};
+use crate::{journal, level, panels, recent};
 
 /// Why the program has no journal when the environment gives no data directory.
 const NO_DATA_DIRECTORY: &str =
@@ -469,7 +469,10 @@ impl Session {
             || (operation.name == "edit.paste" && self.shared.borrow().window)
         {
             if operation.changes == Changes::Level {
-                self.last = Some((operation.name, arguments));
+                self.last = Some((operation.name, arguments.clone()));
+            }
+            if operation.name == "view.move_panel" {
+                panels::panel_move(&arguments[0], &arguments[1])?;
             }
             let mut shared = self.shared.borrow_mut();
             if !shared.window {
@@ -477,7 +480,9 @@ impl Session {
                     format!("`{name}` needs the editor's window, which it runs without").into(),
                 );
             }
-            shared.window_operations.push_back(operation.name);
+            shared
+                .window_operations
+                .push_back((operation.name, arguments));
             return Ok(Reply::Done);
         }
         let request = match operation.name {

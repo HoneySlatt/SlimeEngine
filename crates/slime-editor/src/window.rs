@@ -1,11 +1,11 @@
 //! The editor's window: a presentation of its program, on the engine's interface in the editor's
 //! look, which reads what the core shares and asks it through requests
-//! (`docs/adr/0156-the-editors-window-and-its-operations.md`): a menu bar, fixed regions, the dev
-//! overlay's world panel in the first, a status bar, and the window's title; and the system's dialog
-//! to open a level, a modal layer waiting over the window meanwhile
-//! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`); the viewport, through which
-//! the user flies and picks what to select (`docs/adr/0158-the-viewport.md`,
-//! `docs/adr/0159-picking-and-the-selection.md`); and the history panel, below the world panel
+//! (`docs/adr/0156-the-editors-window-and-its-operations.md`): a menu bar, its panels in regions of
+//! tabs (`docs/adr/0172-regions-of-tabs.md`), the dev overlay's world panel among them, a status
+//! bar, and the window's title; and the system's dialog to open a level, a modal layer waiting over
+//! the window meanwhile (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`); the
+//! viewport, through which the user flies and picks what to select (`docs/adr/0158-the-viewport.md`,
+//! `docs/adr/0159-picking-and-the-selection.md`); and the history panel
 //! (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).
 
 use std::collections::HashSet;
@@ -25,6 +25,7 @@ use slime_render::{CanvasImage, DebugMode, Pick, RenderError, Renderer};
 use slime_ui::Rect;
 use slime_ui::action::{Action, ActionKind, FieldValue, SurfaceInput};
 use slime_ui::display::{BoxPrimitive, DisplayList, ImageKey};
+use slime_ui::dock::Dock;
 use slime_ui::look::{self, Colors, Density};
 use slime_ui::shortcuts::Shortcuts;
 use slime_ui::style::{Dimension, FlexDirection, Justify, Sides, Style};
@@ -40,6 +41,7 @@ use crate::handles::{Drag, Gizmo, Space, Tool};
 use crate::hierarchy::Hierarchy;
 use crate::operation::{self, BLENDER_SHORTCUTS, OPERATIONS, SHORTCUTS};
 use crate::pane::{Bound, Pane};
+use crate::panels::{default_layout, panel_move, title};
 use crate::picking::{self, Wanted};
 use crate::program::Program;
 use crate::session::Session;
@@ -135,15 +137,6 @@ pub(crate) const MENUS: &[(&str, &[Entry])] = &[
     ),
 ];
 
-/// The width of the region on the window's start, which holds the world panel, in logical pixels.
-const SIDE_WIDTH: f32 = 340.0;
-
-/// The height of the history panel, below the world panel, in logical pixels.
-const HISTORY_HEIGHT: f32 = 200.0;
-
-/// The height of the console, below the viewports once Play ran, in logical pixels.
-const CONSOLE_HEIGHT: f32 = 160.0;
-
 /// What the palette's command that places a prefab starts with, its asset ID following.
 const PLACE: &str = "edit.place:";
 
@@ -199,6 +192,9 @@ enum Item {
     Run(&'static str, Vec<String>),
     /// Opens the submenu of the recent levels.
     Recent,
+    /// Opens the submenu of where the panel of this key moves
+    /// (`docs/adr/0172-regions-of-tabs.md`).
+    MoveTo(String),
 }
 
 /// The modal layer that waits over the window for the system's dialog to open a level, where the
@@ -220,7 +216,11 @@ pub(crate) struct Model {
     shared: Shared,
     pub(crate) ui: Ui,
     root: ElementId,
-    /// The slot of the start region that the world panel builds into.
+    /// The panels laid out in regions of tabs, and the slot that it builds into
+    /// (`docs/adr/0172-regions-of-tabs.md`).
+    dock: Dock,
+    dock_slot: Option<ElementId>,
+    /// The box of the components' panel that the world panel builds into, while it shows.
     slot: Option<ElementId>,
     panel: WorldPanel,
     /// The items of the menu bar, each with the place of its menu in [`MENUS`].
@@ -256,18 +256,18 @@ pub(crate) struct Model {
     blender: bool,
     /// How many copies the core made when the window last put one on the system's clipboard.
     copies: u64,
-    /// The history panel's slot of rows, once built, and its rows, each with the count of steps
+    /// The history panel's box of rows, while it shows, and its rows, each with the count of steps
     /// done that it goes to (`edit.go_to_step`).
     history_slot: Option<ElementId>,
     history: Vec<(ElementId, usize)>,
-    /// The hierarchy, and its slot once built (`docs/adr/0167-the-hierarchy.md`).
+    /// The hierarchy, and its panel's box, while it shows (`docs/adr/0167-the-hierarchy.md`).
     hierarchy: Hierarchy,
     hierarchy_slot: Option<ElementId>,
     /// The buttons of Play's toolbar, each with the operation that it runs, and its control of the
     /// speeds of game time.
     toolbar: Vec<(ElementId, &'static str)>,
     speeds: Option<ElementId>,
-    /// The console's slot of lines, once built, while Play has run.
+    /// The console's box of lines, while it shows and Play has run.
     console_slot: Option<ElementId>,
     /// The entities that what the user hid and locked cover, made again when the world's structure,
     /// the eyes or the level change, and counted up each time
@@ -295,6 +295,8 @@ impl Model {
             shared,
             ui,
             root,
+            dock: Dock::new(default_layout()),
+            dock_slot: None,
             slot: None,
             panel: WorldPanel::alone(),
             bar: Vec::new(),
@@ -391,6 +393,7 @@ impl Model {
         let took = !actions.is_empty();
         let selected = self.selected_entities(world);
         let modifiers = self.ui.held_modifiers();
+        self.dock.act(&mut actions);
         let mut requests =
             self.hierarchy
                 .act(&mut actions, world, &selected, modifiers, Instant::now());
@@ -704,6 +707,14 @@ impl Model {
                     arguments: vec![steps.to_string()],
                 })
             }
+            // A tab's context menu, the second button or Shift+F10 on it: where to move its panel.
+            (ActionKind::ContextMenu { .. }, Some(id))
+                if let Some(panel) = self.dock.panel_of_tab(id) =>
+            {
+                let panel = panel.to_owned();
+                self.open_menu(id, Side::Below, Menu::Tab(panel));
+                None
+            }
             (ActionKind::Press, Some(id)) => {
                 if let Some(&(_, menu)) = self.bar.iter().find(|&&(item, _)| item == id) {
                     self.open_menu(id, Side::Below, Menu::Bar(menu));
@@ -723,6 +734,10 @@ impl Model {
                         self.open_menu(id, Side::End, Menu::Recent);
                         None
                     }
+                    Item::MoveTo(panel) => {
+                        self.open_menu(id, Side::End, Menu::MoveTo(panel));
+                        None
+                    }
                 }
             }
             // A menu closed: its items are forgotten.
@@ -737,8 +752,8 @@ impl Model {
 
     /// Opens `menu` beside `element`, on its `side`, in a layer that closes as the user leaves it.
     fn open_menu(&mut self, element: ElementId, side: Side, menu: Menu) {
-        let entries: Vec<(String, String, ItemMark, Option<Item>)> = match menu {
-            Menu::Bar(menu) => MENUS[menu]
+        let entries: Vec<(String, String, ItemMark, Option<Item>)> = match &menu {
+            Menu::Bar(menu) => MENUS[*menu]
                 .1
                 .iter()
                 .map(|entry| match *entry {
@@ -794,6 +809,53 @@ impl Model {
                     )
                 })
                 .collect(),
+            Menu::Tab(panel) => vec![(
+                "Move to".to_owned(),
+                String::new(),
+                ItemMark::Submenu,
+                Some(Item::MoveTo(panel.clone())),
+            )],
+            Menu::MoveTo(panel) => {
+                let move_to = |to: &str| {
+                    Some(Item::Run(
+                        "view.move_panel",
+                        vec![panel.clone(), to.to_owned()],
+                    ))
+                };
+                let mut entries: Vec<_> = self
+                    .dock
+                    .layout()
+                    .stacks()
+                    .into_iter()
+                    .filter(|stack| !stack.iter().any(|each| each == panel))
+                    .map(|stack| {
+                        let titles: Vec<String> = stack.iter().map(|each| title(each)).collect();
+                        (
+                            titles.join(", "),
+                            String::new(),
+                            ItemMark::None,
+                            move_to(&stack[0]),
+                        )
+                    })
+                    .collect();
+                if !entries.is_empty() {
+                    entries.push((String::new(), String::new(), ItemMark::None, None));
+                }
+                for (edge, label) in [
+                    ("left", "The window's left edge"),
+                    ("right", "The window's right edge"),
+                    ("top", "The window's top"),
+                    ("bottom", "The window's bottom"),
+                ] {
+                    entries.push((
+                        label.to_owned(),
+                        String::new(),
+                        ItemMark::None,
+                        move_to(edge),
+                    ));
+                }
+                entries
+            }
         };
         let layer = Layer {
             place: Place::Beside {
@@ -805,8 +867,9 @@ impl Model {
             dismiss: true,
         };
         let key = match menu {
-            Menu::Bar(_) => "menu",
+            Menu::Bar(_) | Menu::Tab(_) => "menu",
             Menu::Recent => "recent",
+            Menu::MoveTo(_) => "move to",
         };
         let layer = self.ui.open_layer(key, layer, Style::default());
         let mut items = Vec::new();
@@ -1009,7 +1072,7 @@ impl Model {
     /// logical pixels: the palette, the sheet of shortcuts, the system's dialog to open a level.
     fn run_window_operations(&mut self, size: [f32; 2], world: &World) {
         let operations = std::mem::take(&mut self.shared.borrow_mut().window_operations);
-        for name in operations {
+        for (name, arguments) in operations {
             let commands: Vec<PaletteCommand> = OPERATIONS
                 .iter()
                 .filter(|operation| operation.parameters.is_empty())
@@ -1059,8 +1122,24 @@ impl Model {
                     pane.wireframe = !pane.wireframe;
                 }
                 "view.split" => self.split(),
+                "view.move_panel" => {
+                    // The core checked the names: it is refused only into its own stack.
+                    if let [panel, to] = arguments.as_slice()
+                        && let Ok(target) = panel_move(panel, to)
+                        && !self.dock.move_panel(panel, &target)
+                    {
+                        let mut shared = self.shared.borrow_mut();
+                        shared.notices.push(Notice {
+                            failure: true,
+                            text: format!("`{panel}` lies with `{to}` already."),
+                        });
+                        shared.revision += 1;
+                    }
+                }
                 "edit.rename" | "hierarchy.previous" | "hierarchy.next" | "hierarchy.fold"
                 | "hierarchy.unfold" => {
+                    // The hierarchy shows, its tab chosen, where the rename or the arrows act.
+                    self.dock.show("hierarchy");
                     let selected = self.selected_entities(world);
                     if let Some(requests) = self.hierarchy.run(name, world, &selected) {
                         self.shared.borrow_mut().requests.extend(requests);
@@ -1223,16 +1302,12 @@ impl Model {
         }
     }
 
-    /// Builds the bar of menus, the regions and the status bar again, when what they show changed.
+    /// Builds the bar of menus, the regions and the status bar again, when what they show changed,
+    /// and the dock's panels that show.
     fn build(&mut self) {
         let status = self.status();
         let mut bar = Vec::new();
-        let mut slot = None;
-        let mut surfaces = Vec::new();
-        let mut history_slot = None;
-        let mut hierarchy_slot = None;
-        let mut toolbar = (Vec::new(), None);
-        let mut console_slot = None;
+        let mut dock_slot = None;
         let panes = self.panes.len();
         let (playing, mark, played) = {
             let shared = self.shared.borrow();
@@ -1251,114 +1326,13 @@ impl Model {
                         bar.push((menus.add(*title, item, |_| {}), place));
                     }
                 });
+                // The panels in regions of tabs, which the dock builds
+                // (`docs/adr/0172-regions-of-tabs.md`).
                 let mut regions = Style::default();
                 regions.layout.grow = 1.0;
                 regions.layout.min_size[1] = Dimension::Pixels(0.0);
-                regions.layout.gap = [8.0, 8.0];
                 regions.layout.padding = Sides::all(8.0);
-                children.add("regions", Element::container(regions), |regions| {
-                    // The world panel, and the history panel below it.
-                    let mut column_of_panels = column();
-                    column_of_panels.layout.size[0] = Dimension::Pixels(SIDE_WIDTH);
-                    column_of_panels.layout.shrink = 0.0;
-                    column_of_panels.layout.gap = [8.0, 0.0];
-                    let panels = Element::container(column_of_panels);
-                    regions.add("panels", panels, |panels| {
-                        // The hierarchy, then the components of what is selected, sharing what
-                        // the history leaves in halves, whatever they hold
-                        // (`docs/adr/0167-the-hierarchy.md`).
-                        let side = || {
-                            let mut side = column();
-                            side.layout.grow = 1.0;
-                            side.layout.basis = Dimension::Pixels(0.0);
-                            side.layout.min_size[1] = Dimension::Pixels(0.0);
-                            side.layout.gap = [8.0, 0.0];
-                            side.layout.padding = Sides::all(8.0);
-                            side
-                        };
-                        let panel = Element::container(side()).class("panel").named("hierarchy");
-                        panels.add("hierarchy", panel, |panel| {
-                            let title =
-                                Element::label("Hierarchy", Style::default()).class("heading");
-                            panel.add("title", title, |_| {});
-                            let mut content = column();
-                            content.layout.grow = 1.0;
-                            content.layout.min_size[1] = Dimension::Pixels(0.0);
-                            content.layout.gap = [6.0, 0.0];
-                            hierarchy_slot =
-                                Some(panel.add_slot("tree", Element::container(content)));
-                        });
-                        let panel = Element::container(side()).class("panel").named("world");
-                        panels.add("world", panel, |panel| {
-                            let title =
-                                Element::label("Components", Style::default()).class("heading");
-                            panel.add("title", title, |_| {});
-                            let mut content = column();
-                            content.layout.grow = 1.0;
-                            content.layout.min_size[1] = Dimension::Pixels(0.0);
-                            slot = Some(panel.add_slot("panel", Element::scroll(content)));
-                        });
-                        // The history's rows, in a slot of their own, built as it changes.
-                        let mut panel = column();
-                        panel.layout.size[1] = Dimension::Pixels(HISTORY_HEIGHT);
-                        panel.layout.shrink = 0.0;
-                        panel.layout.gap = [8.0, 0.0];
-                        panel.layout.padding = Sides::all(8.0);
-                        let panel = Element::container(panel).class("panel").named("history");
-                        panels.add("history", panel, |panel| {
-                            let title =
-                                Element::label("History", Style::default()).class("heading");
-                            panel.add("title", title, |_| {});
-                            let mut content = column();
-                            content.layout.grow = 1.0;
-                            content.layout.min_size[1] = Dimension::Pixels(0.0);
-                            history_slot = Some(panel.add_slot("steps", Element::scroll(content)));
-                        });
-                    });
-                    // Play's toolbar, the viewports side by side, and the game's log once Play ran.
-                    let mut center = column();
-                    center.layout.grow = 1.0;
-                    center.layout.min_size = [Dimension::Pixels(0.0), Dimension::Pixels(0.0)];
-                    center.layout.gap = [8.0, 0.0];
-                    regions.add("center", Element::container(center), |center| {
-                        toolbar = play_toolbar(center, playing, mark);
-                        let mut viewports = Style::default();
-                        viewports.layout.grow = 1.0;
-                        viewports.layout.min_size =
-                            [Dimension::Pixels(0.0), Dimension::Pixels(0.0)];
-                        viewports.layout.gap = [8.0, 8.0];
-                        let row = Element::container(viewports);
-                        center.add("viewports", row, |viewports| {
-                            for pane in 0..panes {
-                                let mut surface = Style::default();
-                                surface.layout.grow = 1.0;
-                                surface.layout.min_size[0] = Dimension::Pixels(0.0);
-                                let name = viewport::name(pane);
-                                let surface = Element::surface(viewport::image_key(pane), surface)
-                                    .named(name.as_str());
-                                surfaces.push(viewports.add(name.as_str(), surface, |_| {}));
-                            }
-                        });
-                        if played {
-                            let mut panel = column();
-                            panel.layout.size[1] = Dimension::Pixels(CONSOLE_HEIGHT);
-                            panel.layout.shrink = 0.0;
-                            panel.layout.gap = [4.0, 0.0];
-                            panel.layout.padding = Sides::all(8.0);
-                            let panel = Element::container(panel).class("panel").named("console");
-                            center.add("console", panel, |panel| {
-                                let title = Element::label("The game's log", Style::default())
-                                    .class("heading");
-                                panel.add("title", title, |_| {});
-                                let mut lines = column();
-                                lines.layout.grow = 1.0;
-                                lines.layout.min_size[1] = Dimension::Pixels(0.0);
-                                console_slot =
-                                    Some(panel.add_slot("lines", Element::scroll(lines)));
-                            });
-                        }
-                    });
-                });
+                dock_slot = Some(children.add_slot("dock", Element::container(regions)));
                 let mut line = Style::default();
                 line.layout.padding = Sides::all(6.0);
                 line.layout.gap = [0.0, 16.0];
@@ -1374,19 +1348,103 @@ impl Model {
         if !bar.is_empty() {
             self.bar = bar;
         }
-        if slot.is_some() {
-            self.slot = slot;
-            self.history_slot = history_slot;
-            self.hierarchy_slot = hierarchy_slot;
-            (self.toolbar, self.speeds) = toolbar;
-            self.console_slot = console_slot;
+        if dock_slot.is_some() {
+            self.dock_slot = dock_slot;
+        }
+        if let Some(slot) = self.dock_slot {
+            self.dock.build(&mut self.ui, slot, &title);
+        }
+        // Each panel that shows, in the box that its slot of the dock holds.
+        let content = |gap: f32| {
+            let mut content = column();
+            content.layout.grow = 1.0;
+            content.layout.min_size[1] = Dimension::Pixels(0.0);
+            content.layout.gap = [gap, 0.0];
+            content
+        };
+        self.hierarchy_slot = self.panel_box("hierarchy", || Element::container(content(6.0)));
+        self.slot = self.panel_box("components", || Element::scroll(content(0.0)));
+        self.history_slot = self.panel_box("history", || Element::scroll(content(0.0)));
+        self.build_viewport_panel(panes, playing, mark);
+        self.console_slot = None;
+        if let Some(slot) = self.dock.slot("console") {
+            self.ui.build(slot, u64::from(played), |children| {
+                if played {
+                    children.add_slot("lines", Element::scroll(content(0.0)));
+                } else {
+                    let waiting =
+                        Element::label("Play has not run yet.", Style::default()).class("muted");
+                    children.add("waiting", waiting, |_| {});
+                }
+            });
+            if played {
+                self.console_slot = self.ui.children(slot).first().copied();
+            }
         }
         self.build_history();
         self.build_console();
-        if !surfaces.is_empty() {
-            for (pane, surface) in self.panes.iter_mut().zip(surfaces) {
-                pane.surface = Some(surface);
+    }
+
+    /// The box that the panel `panel` holds in its slot of the dock, made by `element` once for
+    /// each slot; none while the panel does not show, its tab not chosen.
+    fn panel_box(&mut self, panel: &str, element: impl FnOnce() -> Element) -> Option<ElementId> {
+        let slot = self.dock.slot(panel)?;
+        self.ui.build(slot, 0, |children| {
+            children.add_slot("content", element());
+        });
+        self.ui.children(slot).first().copied()
+    }
+
+    /// Builds the viewport's panel, while it shows, again when the window's revision changed or
+    /// its slot is new: Play's toolbar, as `playing` and `mark` say, and the viewports of `panes`
+    /// side by side, whose surfaces the panes are given.
+    fn build_viewport_panel(&mut self, panes: usize, playing: Playing, mark: BuildMark) {
+        let Some(slot) = self.dock.slot("viewport") else {
+            self.set_surfaces(&[]);
+            return;
+        };
+        let mut toolbar = None;
+        let mut surfaces = Vec::new();
+        self.ui.build(slot, self.built, |center| {
+            toolbar = Some(play_toolbar(center, playing, mark));
+            let mut viewports = Style::default();
+            viewports.layout.grow = 1.0;
+            viewports.layout.min_size = [Dimension::Pixels(0.0), Dimension::Pixels(0.0)];
+            viewports.layout.gap = [8.0, 8.0];
+            let row = Element::container(viewports);
+            center.add("viewports", row, |viewports| {
+                for pane in 0..panes {
+                    let mut surface = Style::default();
+                    surface.layout.grow = 1.0;
+                    surface.layout.min_size[0] = Dimension::Pixels(0.0);
+                    let name = viewport::name(pane);
+                    let surface =
+                        Element::surface(viewport::image_key(pane), surface).named(name.as_str());
+                    surfaces.push(viewports.add(name.as_str(), surface, |_| {}));
+                }
+            });
+        });
+        if let Some(toolbar) = toolbar {
+            (self.toolbar, self.speeds) = toolbar;
+            self.set_surfaces(&surfaces);
+        }
+    }
+
+    /// Gives the panes `surfaces`, in their order, none to those past them: a pane whose surface
+    /// goes, behind its tab, or is made anew, its panel moved, ends what its buttons held, and the
+    /// handle that it dragged is cancelled, since their release would reach no surface.
+    fn set_surfaces(&mut self, surfaces: &[ElementId]) {
+        let mut dragged = false;
+        for (at, pane) in self.panes.iter_mut().enumerate() {
+            let surface = surfaces.get(at).copied();
+            if pane.surface.is_some() && pane.surface != surface {
+                pane.stop();
+                dragged |= pane.drag.is_some();
             }
+            pane.surface = surface;
+        }
+        if dragged {
+            self.cancel_drag();
         }
     }
 
@@ -1622,12 +1680,17 @@ fn play_toolbar(
 const SPEEDS: [(&str, f64); 4] = [("¼×", 0.25), ("½×", 0.5), ("1×", 1.0), ("2×", 2.0)];
 
 /// Which menu [`Model::open_menu`] opens.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum Menu {
     /// The menu of the bar at this place of [`MENUS`].
     Bar(usize),
     /// The levels opened last.
     Recent,
+    /// The context menu of the tab of the panel of this key.
+    Tab(String),
+    /// Where the panel of this key moves: into the stack of another panel, or to an edge of the
+    /// window (`view.move_panel`).
+    MoveTo(String),
 }
 
 /// The speed at which a viewport flies, in metres per second, as the status bar says it.
@@ -1672,7 +1735,8 @@ pub const IMAGE_SIZE: [u32; 2] = [1280, 800];
 /// The window of the editor's `program` opened on its level as `arguments` say, as the program
 /// takes them ([`run`](crate::run): `--level`, `--assets`, `--journal`, `--discard`), drawn into an
 /// image of [`IMAGE_SIZE`] logical pixels at `scale` pixels per logical pixel, as it shows once the
-/// level is open and the operations named `operations` run, without arguments, on the GPU that
+/// level is open and `operations` run, each an operation's name followed by its arguments, parted
+/// by spaces, `view.move_panel console right`, on the GPU that
 /// [`Gpu::new`] opens, without a window of the system: what the `editor` example's `--output`
 /// draws, and what its image tests compare. The level is opened as the program opens it, its
 /// journal held and written, and the recent levels left as they are; the status bar shows the
@@ -1707,10 +1771,11 @@ pub fn window_image(
     let mut host = Host::new(&AppConfig::default());
     host.start(&mut session)
         .map_err(|error| slime_app::error_chain(&*error))?;
-    for name in operations {
+    for operation in operations {
+        let mut words = operation.split_whitespace().map(str::to_owned);
         let run = Request::Run {
-            name: (*name).to_owned(),
-            arguments: Vec::new(),
+            name: words.next().unwrap_or_default(),
+            arguments: words.collect(),
         };
         session
             .handle(host.world_mut(), run)
@@ -2068,8 +2133,13 @@ impl Window {
         // The pickings of a viewport that goes, which its view would never answer, go with it: a
         // tool's told that no answer came.
         self.viewports.truncate(model.panes.len());
-        let panes = model.panes.len();
-        self.picks.retain(|&(_, pane, _)| pane < panes);
+        // So do those of a viewport behind its tab, which draws nothing.
+        self.picks.retain(|&(_, pane, _)| {
+            model
+                .panes
+                .get(pane)
+                .is_some_and(|pane| pane.surface.is_some())
+        });
         while self.viewports.len() < model.panes.len() {
             let name = viewport::name(self.viewports.len());
             match Viewport::new(gpu, &drawing.renderer, &name, format) {
@@ -4278,6 +4348,133 @@ mod tests {
         assert_eq!(part(&yard, "well", "/lock").1, "lock");
     }
 
+    /// The panels in regions of tabs: a tab chosen shows its panel, a border given a value moves,
+    /// and a panel moved by its tab's context menu and by `view.move_panel` shows where it went, a
+    /// panel or an edge that is no such refused (`docs/adr/0172-regions-of-tabs.md`).
+    #[test]
+    fn the_panels_lie_in_regions_of_tabs_that_the_user_rearranges() {
+        use slime_ui::tree::Role;
+        let mut yard = Yard::new("regions");
+        let found = |yard: &Yard, role: Role, name: &str| {
+            yard.model
+                .ui
+                .meaning()
+                .into_iter()
+                .find(|meaning| meaning.role == role && meaning.name == name)
+                .map(|meaning| meaning.id)
+        };
+        // The console's tab chosen: its panel, waiting for Play, in place of the history's.
+        assert!(yard.model.history_slot.is_some());
+        let console = found(&yard, Role::Tab, "Console").expect("its tab");
+        click(&mut yard, console);
+        yard.frame();
+        assert!(yard.model.history_slot.is_none(), "behind its tab");
+        assert!(found(&yard, Role::Label, "Play has not run yet.").is_some());
+        // The border between the left column and the rest, given a value as an agent gives it.
+        let width = |yard: &Yard| {
+            let panel = found(yard, Role::TabPanel, "Hierarchy").expect("its panel");
+            yard.model.ui.rect(panel).map_or(0.0, |rect| rect.width)
+        };
+        let before = width(&yard);
+        let border = yard
+            .model
+            .ui
+            .meaning()
+            .into_iter()
+            .filter(|meaning| meaning.role == Role::Splitter)
+            .max_by(|a, b| {
+                let height = |id| yard.model.ui.rect(id).map_or(0.0, |rect| rect.height);
+                height(a.id).total_cmp(&height(b.id))
+            })
+            .expect("a border")
+            .id;
+        assert!(yard.model.ui.set_value(border, "0.4"));
+        yard.frame();
+        yard.frame();
+        assert!(width(&yard) > before + 100.0, "{before} {}", width(&yard));
+        // The history's tab, its context menu: Move to, the window's right edge.
+        let history = found(&yard, Role::Tab, "History").expect("its tab");
+        yard.model.ui.act(Action {
+            element: Some(history),
+            kind: ActionKind::ContextMenu { at: [0.0, 0.0] },
+        });
+        yard.frame();
+        let move_to = found(&yard, Role::MenuItem, "Move to").expect("in its context menu");
+        click(&mut yard, move_to);
+        // The other stacks, by their panels' titles, then the window's edges.
+        let places: Vec<String> = yard
+            .model
+            .ui
+            .meaning()
+            .into_iter()
+            .filter(|meaning| meaning.role == Role::MenuItem && meaning.path.starts_with("move to"))
+            .map(|meaning| meaning.name)
+            .collect();
+        assert_eq!(
+            places,
+            [
+                "Hierarchy",
+                "Components",
+                "Viewport",
+                "The window's left edge",
+                "The window's right edge",
+                "The window's top",
+                "The window's bottom"
+            ]
+        );
+        let edge = found(&yard, Role::MenuItem, "The window's right edge").expect("a place");
+        click(&mut yard, edge);
+        yard.frame();
+        let stacks = |yard: &Yard| -> Vec<Vec<String>> {
+            yard.model
+                .dock
+                .layout()
+                .stacks()
+                .into_iter()
+                .map(<[String]>::to_vec)
+                .collect()
+        };
+        assert_eq!(stacks(&yard).last(), Some(&vec!["history".to_owned()]));
+        assert!(yard.model.history_slot.is_some(), "shown where it went");
+        // By its operation, as an agent moves it: into the hierarchy's stack.
+        run_with(&mut yard, "view.move_panel", &["components", "hierarchy"]);
+        yard.frame();
+        assert_eq!(stacks(&yard)[0], ["hierarchy", "components"]);
+        assert!(yard.model.slot.is_some(), "the components shown");
+        // Into the stack that holds it already: nothing moves, and the user is told.
+        run_with(&mut yard, "view.move_panel", &["components", "hierarchy"]);
+        yard.frame();
+        assert_eq!(stacks(&yard)[0], ["hierarchy", "components"]);
+        assert!(
+            yard.model
+                .ui
+                .meaning()
+                .iter()
+                .any(|meaning| meaning.name.contains("lies with `hierarchy` already")),
+            "told in a notification"
+        );
+        // F2 shows the hierarchy, behind the components' tab, where it renames.
+        yard.session
+            .handle(
+                yard.host.world_mut(),
+                Request::Select(vec!["yard/well".parse().expect("an identity")]),
+            )
+            .expect("selected");
+        run(&mut yard, "edit.rename");
+        yard.frame();
+        assert!(yard.model.hierarchy_slot.is_some(), "its tab chosen");
+        for arguments in [["map", "left"], ["history", "map"], ["history", "history"]] {
+            let refused = yard.session.handle(
+                yard.host.world_mut(),
+                Request::Run {
+                    name: "view.move_panel".to_owned(),
+                    arguments: arguments.map(str::to_owned).to_vec(),
+                },
+            );
+            assert!(refused.is_err(), "{arguments:?}");
+        }
+    }
+
     /// A level flies at first at a speed that suits its size, or at the one last used in it, which
     /// the status bar says while the viewport flies and the user's state keeps once it stops.
     #[test]
@@ -4543,7 +4740,13 @@ mod tests {
                     yard.host.world_mut(),
                     Request::Run {
                         name: operation.name.to_owned(),
-                        arguments: Vec::new(),
+                        // The one that takes arguments: a panel moved to an edge.
+                        arguments: operation
+                            .parameters
+                            .iter()
+                            .zip(["history", "left"])
+                            .map(|(_, argument)| argument.to_owned())
+                            .collect(),
                     },
                 )
                 .unwrap_or_else(|error| panic!("{}: {error}", operation.name));

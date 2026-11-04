@@ -74,6 +74,16 @@ pub(crate) struct Pane {
     pub(crate) drag: Option<(Drag, MouseButton)>,
 }
 
+impl Pane {
+    /// Ends what its buttons hold, a gesture of its camera and a selection under way, as its
+    /// surface goes or is made anew, which the buttons' release would never reach.
+    pub(crate) fn stop(&mut self) {
+        self.navigation.end();
+        self.selecting = None;
+        self.orbit_from = None;
+    }
+}
+
 impl Default for Pane {
     /// A pane whose camera looks at the origin, to frame the level as it opens.
     fn default() -> Self {

@@ -229,6 +229,14 @@ impl Navigation {
         gesture == Gesture::Orbit && self.moved < f64::from(DRAG)
     }
 
+    /// Ends the gesture under way, if any, as its surface goes, which its release would never
+    /// reach: the keys stop flying.
+    pub(crate) fn end(&mut self) {
+        self.gesture = None;
+        self.keys = [false; 6];
+        self.flown = None;
+    }
+
     /// The mouse moved by `delta` of its raw motion, right and down: the gesture under way turns or
     /// moves the camera. Gives whether it moved.
     pub(crate) fn motion(&mut self, [x, y]: [f64; 2]) -> bool {

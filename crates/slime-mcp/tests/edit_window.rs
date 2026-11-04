@@ -9,8 +9,9 @@
 //! then nothing of the lamp locked or hidden by the buttons of its row
 //! (`docs/adr/0169-the-eye-and-the-lock.md`), shows the viewport's base color by the operation's
 //! name, which its settings say (`docs/adr/0159-picking-and-the-selection.md`), shows two viewports
-//! and captures the second by its name (`docs/adr/0160-two-viewports-and-blenders-way.md`), opens
-//! another copy of the yard through *Open a level…*, which opens no dialog of the system in a
+//! and captures the second by its name (`docs/adr/0160-two-viewports-and-blenders-way.md`), moves a
+//! panel to another region and drags a border between two (`docs/adr/0172-regions-of-tabs.md`),
+//! opens another copy of the yard through *Open a level…*, which opens no dialog of the system in a
 //! program that a tool started, its path typed
 //! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), and checks that the editor,
 //! left alone, wakes for the end of the first run's hint and runs no frame for ten seconds after
@@ -278,6 +279,41 @@ fn main() {
     assert!(said[0].contains("draws = "), "{said:?}");
     let (said, _) = session.tool("run_operation", json!({ "name": "view.split" }));
     assert_eq!(said, ["done"]);
+    // The panels in regions of tabs (`docs/adr/0172-regions-of-tabs.md`): the history moved by its
+    // operation's name to the window's right edge, where its tab shows, and the border between the
+    // left column and the rest given a share, as a person drags it.
+    let (said, _) = session.tool(
+        "run_operation",
+        json!({ "name": "view.move_panel", "arguments": ["history", "right"] }),
+    );
+    assert_eq!(said, ["done"]);
+    let tab = path_of(&mut session, "Tab", "History");
+    assert_eq!(
+        tab,
+        "editor/window/dock/split hierarchy/stack history/tabs/history"
+    );
+    let border = path_of(&mut session, "Splitter", "between Hierarchy and Viewport");
+    act(
+        &mut session,
+        "set_value",
+        &border,
+        json!({ "value": "0.4" }),
+    );
+    until(
+        "the border moved",
+        || {
+            let border = json!({ "role": "Splitter", "name": "between Hierarchy and Viewport" });
+            session.tool("find_elements", border).0
+        },
+        |said| {
+            said[0]
+                .split("holding \"")
+                .nth(1)
+                .and_then(|rest| rest.split('"').next())
+                .and_then(|share| share.parse::<f32>().ok())
+                .is_some_and(|share| (share - 0.4).abs() < 0.001)
+        },
+    );
     // Open a level…, from the File menu: a program that a tool started opens no dialog of the
     // system, which the agent could not see, and its layer waits for the path, typed.
     let file = path_of(&mut session, "MenuItem", "File");

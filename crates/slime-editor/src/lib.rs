@@ -11,6 +11,7 @@ mod level;
 mod navigation;
 mod operation;
 mod pane;
+mod panels;
 mod picking;
 mod play;
 mod program;

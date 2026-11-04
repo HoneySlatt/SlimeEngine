@@ -60,7 +60,7 @@ pub(crate) struct State {
     /// failed.
     pub(crate) notices: Vec<Notice>,
     /// The window's operations that the core was asked to run, which the window runs.
-    pub(crate) window_operations: VecDeque<&'static str>,
+    pub(crate) window_operations: VecDeque<(&'static str, Vec<String>)>,
     /// The prefabs that the level can place, the cooked data's scenes but the level, each by its
     /// asset ID and its name, the source file that it was cooked from, in their order, listed as
     /// the level opens (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`).

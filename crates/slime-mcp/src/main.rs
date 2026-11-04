@@ -268,15 +268,16 @@ struct ActOnInterface {
     /// For `command`, the command's name: `undo`.
     command: Option<String>,
     /// For `drop`, the target, by its path: a row of the editor's hierarchy,
-    /// `editor/window/regions/panels/hierarchy/tree/rows/#3`, which takes the name of another,
-    /// `editor/window/regions/panels/hierarchy/tree/rows/#5/content/name`.
+    /// `editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3`,
+    /// which takes the name of another, `…/rows/#5/content/name`.
     onto: Option<String>,
     /// For `drop`, where in the target, from its top, 0, to its bottom, 1; 0.5 if left out.
     at: Option<f32>,
     /// For `set_value`, the text that the field holds then, as a person who replaced what it holds
     /// and committed would leave it; for a field of numbers, an expression of a finite number, in
     /// a unit of its family where it has one: `2.5`, `sqrt(2)/2`, `10cm`; for a slider, a finite
-    /// number; for two panels, the share of the first, from 0 to 1; for a list to choose from, one
+    /// number; for two panels, the share of the first, from 0 to 1; for a splitter, the share of
+    /// the two panels beside it that the first takes, from 0 to 1; for a list to choose from, one
     /// of its options, `High`, or the place of one, from 0; for a color well, a hexadecimal code,
     /// `#ff8000`.
     value: Option<String>,

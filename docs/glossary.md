@@ -286,10 +286,11 @@ one step apart. The renderer dithers 8-bit outputs by up to one step
 ([ADR-0051](adr/0051-dithering-8-bit-outputs.md)).
 
 **Docking (editor).** Arranging an editor's panels inside its window, in splits of any number of
-children, each with its share of the space, and stacks of tabs; a panel closed keeps its place, to
-come back there. The arrangement, the panels' layout, is reflected data saved per user and per
-project, outside the repository ([ADR-0155](adr/0155-the-editors-design.md)). Decided, not built
-yet.
+children, each with its share of the space, and *stacks of tabs*; a panel closed keeps its place,
+to come back there. The arrangement, the panels' layout, is reflected data saved per user and per
+project, outside the repository ([ADR-0155](adr/0155-the-editors-design.md)). `slime-ui`'s dock
+builds it, and the editor's panels lie in its regions, which the user resizes and rearranges
+([ADR-0172](adr/0172-regions-of-tabs.md)).
 
 **Document (serialization).** A file that holds one *value* of a registered type, or several at
 their places as a *save* does, written by the engine's writer and read through the types'
@@ -931,7 +932,11 @@ chosen one to the program as a shortcut gives its command (`Ui::open_palette`,
 **Pane (editor).** A part of the editor's window that holds a *viewport (editor)*: its surface, its
 camera and how the user moves it, what its buttons pick, its settings. Two panes show the level
 side by side; the View menu changes the one last pressed in
-([ADR-0160](adr/0160-two-viewports-and-blenders-way.md)).
+([ADR-0160](adr/0160-two-viewports-and-blenders-way.md)). Not a *pane (interface)*.
+
+**Pane (interface).** An element of an interface marked as one of the places of its root that F6
+moves the focus between, to its first element that takes the focus (`Element::pane`,
+[ADR-0172](adr/0172-regions-of-tabs.md)): each *stack of tabs* of a dock is one.
 
 **Part (level).** A scene file that a level places and that the editor edits in place, writing it to
 its own file, named in a table of the level's file of its own, `[parts.<id>]`; what a level places
@@ -1347,6 +1352,11 @@ steps per frame and dropping the rest.
 **Split sum.** Karis's approximation of what a surface reflects of its *environment*: a
 *prefiltered level* read along the reflection, times a Fresnel term from the *BRDF table*.
 
+**Splitter.** A border between two children of a box of an interface, one element, which the
+pointer drags and the arrows move, and agents and screen readers read as a splitter: the program
+reads the share of the two that the user gives the first, and lays them out by it
+(`Element::splitter`, [ADR-0172](adr/0172-regions-of-tabs.md)).
+
 **sRGB encoding.** The transfer function of the sRGB standard (IEC 61966-2-1), which spends more
 of a byte's 256 values on dark colors than on bright ones, as the eye distinguishes them: the
 values of displays, image files, color pickers and web colors. A *linear color* of 0.216 is
@@ -1359,6 +1369,9 @@ into sRGB targets; `LinearColor::from_srgb8` decodes bytes on the CPU. Seen with
 bare for the engine's types (`Transform`), `<crate>::<Type>` for a game's (`hunnawood::Collider`),
 never a module path, so that moving a type breaks nothing; a former name stays as an alias
 ([ADR-0080](adr/0080-reflection-and-serialization.md)).
+
+**Stack of tabs.** A region of a dock (*docking*): panels one over another, a bar of tabs above
+them, one for each panel, the chosen panel shown below it ([ADR-0172](adr/0172-regions-of-tabs.md)).
 
 **Stage.** A step of [`docs/ROADMAP.md`](ROADMAP.md), ordered by dependency, with a goal and an exit
 criterion. Stages are numbered from 0; a stage may be split (Stage 3a and 3b), and a stage added
