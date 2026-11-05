@@ -5,7 +5,9 @@
   [0098](0098-the-games-the-engine-aims-at.md) (macOS supported once a Mac can check it; wgpu stays
   for macOS after Stage 9c), [0100](0100-updates-of-shipped-games.md) (Stage 9b's packages and
   updates serve applications too) and [0170](0170-applications-on-the-ui-framework.md) (the
-  platforms that Stage 6d aims at)
+  platforms that Stage 6d aims at);
+  amended by [0181](0181-uwuis-scope.md) (Android phones and the web aimed at; Android without
+  condition)
 - Date: 2026-11-04
 
 ## Context

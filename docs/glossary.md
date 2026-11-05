@@ -571,6 +571,11 @@ child process and drive through the *development channel*, a test and one day a 
 are hosts ([ADR-0107](adr/0107-the-execution-model.md),
 [ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)).
 
+**Host (uwui).** What embeds *uwui* and calls it, owning the loop: it gives uwui its surface, its
+input, the system's keyboard, the lifecycle, the clipboard and the bridge to accessibility, and
+draws when uwui asks for a frame. A desktop program on winit, a Kotlin program on Android, a web
+page and the engine's own loop are hosts ([ADR-0181](adr/0181-uwuis-scope.md)).
+
 **Hot reload.** Replacing, in a running game, the *cooked data* or the shaders that changed on
 disk, without restarting the game. `slime-cook watch` cooks again the sources that change, and a
 game started with `--watch` loads its scenes again when their cooked data changes, keeping what did
@@ -1586,10 +1591,11 @@ and the uploader's thread submits their copies after each frame, at most a budge
 frame while frames are drawn, so that a frame does not wait for all of a load's copies ([ADR-0107](adr/0107-the-execution-model.md),
 [ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)).
 
-**uwui.** The engine's UI framework: a retained tree of elements, its layout, text, input and
-widgets, drawn by the renderer's canvas, for the editor, games' interfaces and *applications*
-([ADR-0132](adr/0132-the-engines-ui-framework.md)). Named on 2026-11-05; its crates are still
-`slime-ui` and `slime-ui-render` until they are renamed `uwui` and `uwui-render`
+**uwui.** The owner's UI framework, the base of the engine's interfaces and of *applications*: a
+retained tree of elements, its layout, text, input and widgets, embedded in a *host (uwui)*
+that calls it ([ADR-0132](adr/0132-the-engines-ui-framework.md),
+[ADR-0181](adr/0181-uwuis-scope.md)). It moves to a repository of its own at Stage 6d. Its crates
+are still `slime-ui` and `slime-ui-render` until they are renamed `uwui` and `uwui-render`
 ([ADR-0179](adr/0179-the-framework-named-uwui.md)).
 
 **Value (reflection).** A reflected value as plain data, without its Rust type: booleans, integers,

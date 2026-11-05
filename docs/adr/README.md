@@ -79,7 +79,7 @@ the ADR linking to it.
 | [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Accepted; amended by 0019 and 0085 |
 | [0009](0009-frame-timing.md) | Frame timing | Accepted; amended by 0107 |
 | [0010](0010-main-loop-ownership.md) | Main loop ownership and the application API | Accepted; amended by 0020 and 0107 |
-| [0011](0011-windowing-with-winit.md) | Windowing and input with winit, behind `slime-platform` | Accepted; amended by 0020 |
+| [0011](0011-windowing-with-winit.md) | Windowing and input with winit, behind `slime-platform` | Accepted; amended by 0020 and 0181 |
 | [0012](0012-clean-shutdown-on-termination-signals.md) | Clean shutdown on termination signals | Accepted |
 | [0013](0013-windowed-smoke-test-in-weston.md) | Windowed smoke test in a headless Weston compositor | Accepted; amended by 0020, 0024 |
 | [0014](0014-amend-roadmap-for-stage-2-and-windows.md) | Amend the roadmap for Stage 2 and for Windows | Accepted |
@@ -99,7 +99,7 @@ the ADR linking to it.
 | [0028](0028-image-tests-tolerate-a-few-pixels.md) | Image tests tolerate a few differing pixels | Accepted; amended by 0030 |
 | [0029](0029-temporary-gltf-loading.md) | Temporary glTF loading, in the examples | Superseded by 0069 |
 | [0030](0030-image-tests-strict-on-the-reference-driver.md) | Image tests: strict on the reference driver, loose on the others | Accepted; amended by 0054 |
-| [0031](0031-dev-overlay-with-egui.md) | The dev overlay with egui, and wgpu for the engine's tooling | Accepted; widened on 2026-10-13; amended by 0052, 0105 and 0132; superseded by 0152 for the overlay |
+| [0031](0031-dev-overlay-with-egui.md) | The dev overlay with egui, and wgpu for the engine's tooling | Accepted; widened on 2026-10-13; amended by 0052, 0105, 0132; superseded by 0152 for the overlay and 0181 |
 | [0032](0032-mipmaps-computed-at-texture-creation.md) | Mipmaps computed by the engine when a texture is created | Accepted; amended by 0039 and 0071 |
 | [0033](0033-gpu-layer-for-multi-pass-rendering.md) | The GPU layer for multi-pass rendering | Accepted; amended by 0038, 0039, 0041, 0047, 0059 and 0122 |
 | [0034](0034-hdr-rendering-and-tone-mapping.md) | HDR rendering and tone mapping | Accepted; amended by 0035, 0037, 0039, 0040, 0041, 0051 and 0127 |
@@ -148,7 +148,7 @@ the ADR linking to it.
 | [0077](0077-hot-reload-of-shaders.md) | Hot reload of shaders | Accepted; amended by 0104 |
 | [0078](0078-stage-5-in-two-halves.md) | Stage 5 in two halves | Accepted; amended by 0090 |
 | [0079](0079-the-engines-own-world.md) | The engine's own world | Accepted; amended by 0087, 0107, 0108, 0109 and 0112 |
-| [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted; amended by 0085, 0086 and 0101 |
+| [0080](0080-reflection-and-serialization.md) | Reflection and serialization | Accepted; amended by 0085, 0086, 0101 and 0181 |
 | [0081](0081-stage-5a-the-world.md) | Stage 5a: the world | Accepted; amended by 0109 and 0132 |
 | [0082](0082-the-worlds-storage-and-handles.md) | The world's storage and handles | Accepted; amended by 0119 |
 | [0083](0083-transforms-and-the-hierarchy.md) | Transforms and the hierarchy | Accepted; amended by 0087, 0106 and 0108 |
@@ -209,12 +209,12 @@ the ADR linking to it.
 | [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted; amended by 0175 |
 | [0139](0139-text-drawn-and-the-display-list.md) | Text drawn, and the display list | Accepted |
 | [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amended by 0141, 0143, 0146 and 0175 |
-| [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted; amended by 0149 |
+| [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted; amended by 0149 and 0181 |
 | [0142](0142-input-and-focus.md) | Input and focus | Accepted; amended by 0145, 0150, 0152, 0153, 0154 and 0160 |
 | [0143](0143-what-agents-see-of-the-interface.md) | What agents see of the interface | Accepted; amended by 0146 and 0156 |
 | [0144](0144-the-cooked-zones-key-in-ci.md) | The cooked zone's key in CI | Accepted |
 | [0145](0145-text-edited.md) | Text edited | Accepted |
-| [0146](0146-screen-readers.md) | Screen readers | Accepted; amended by 0147 |
+| [0146](0146-screen-readers.md) | Screen readers | Accepted; amended by 0147 and 0181 |
 | [0147](0147-the-screen-readers-check-in-ci.md) | The screen readers' check in CI | Accepted |
 | [0148](0148-widgets.md) | Widgets | Accepted; amended by 0149 |
 | [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151 and 0170 |
@@ -238,14 +238,15 @@ the ADR linking to it.
 | [0167](0167-the-hierarchy.md) | The hierarchy | Accepted; amends 0108 |
 | [0168](0168-rearranging-the-hierarchy.md) | Rearranging the hierarchy | Accepted |
 | [0169](0169-the-eye-and-the-lock.md) | The eye and the lock | Accepted |
-| [0170](0170-applications-on-the-ui-framework.md) | Applications on the engine's UI framework | Accepted; amends 0098, 0132 and 0149; amended by 0171, 0173 and 0178 |
+| [0170](0170-applications-on-the-ui-framework.md) | Applications on the engine's UI framework | Accepted; amends 0098, 0132 and 0149; amended by 0171, 0173, 0178 and 0181 |
 | [0171](0171-effects-of-the-interface.md) | Effects of the interface, at their lowest cost | Accepted; amends 0170 |
 | [0172](0172-regions-of-tabs.md) | Regions of tabs | Accepted; amends 0153 and 0155 |
-| [0173](0173-the-platforms-of-applications.md) | The platforms of applications | Accepted; amends 0015, 0098, 0100 and 0170 |
+| [0173](0173-the-platforms-of-applications.md) | The platforms of applications | Accepted; amends 0015, 0098, 0100 and 0170; amended by 0181 |
 | [0174](0174-layouts-kept-floating-panels-and-closed-panels.md) | Layouts kept, floating panels and closed panels | Accepted; amends 0150 and 0155 |
 | [0175](0175-the-quality-bar.md) | The quality bar | Accepted; amends 0104, 0110, 0114, 0123, 0137, 0138, 0140 and 0155 |
 | [0176](0176-fuzzing-and-crash-reports.md) | Fuzzing and crash reports | Accepted; amends 0096 and 0102 |
 | [0177](0177-audits-and-releases.md) | Audits and releases | Accepted; amends 0097 and 0155 |
-| [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179 and 0180 |
+| [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179, 0180 and 0181 |
 | [0179](0179-the-framework-named-uwui.md) | The framework named uwui | Accepted; amends 0178 |
-| [0180](0180-one-canvas-and-the-frameworks-foundations.md) | One canvas, and the framework's foundations | Accepted; amends 0178 |
+| [0180](0180-one-canvas-and-the-frameworks-foundations.md) | One canvas, and the framework's foundations | Accepted; amends 0178; amended by 0181 |
+| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180 |

@@ -1,7 +1,8 @@
 # 0180. One canvas, and the framework's foundations
 
 - Status: Accepted; amends [0178](0178-two-pilots-and-the-frameworks-name.md) (what leaves with the
-  framework, and when its repository moves)
+  framework, and when its repository moves);
+  amended by [0181](0181-uwuis-scope.md) (where the shared foundations go)
 - Date: 2026-11-05
 
 ## Context

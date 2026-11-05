@@ -1,6 +1,7 @@
 # 0011. Windowing and input with winit, behind `slime-platform`
 
 - Status: Accepted; amended by [0020](0020-rendering-in-the-main-loop.md) (frames on redraw requests)
+  and [0181](0181-uwuis-scope.md) (uwui's desktop host uses winit too, in uwui's repository)
 - Date: 2026-10-12
 
 ## Context

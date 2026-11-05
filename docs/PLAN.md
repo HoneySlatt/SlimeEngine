@@ -32,10 +32,11 @@ documentation was updated and reread. Every milestone is also checked on Windows
   M6c.Q2 into Q2a and Q2b.
 - M6c.6 is expected to be cut in two, M6c.6a and M6c.6b.
 - After Stage 6c: Stage 6d, the interface for applications, to be released as 0.8, decided on
-  2026-11-04 ([ADR-0170](adr/0170-applications-on-the-ui-framework.md),
+  2026-11-04 and 2026-11-05 ([ADR-0170](adr/0170-applications-on-the-ui-framework.md),
   [ADR-0171](adr/0171-effects-of-the-interface.md),
-  [ADR-0173](adr/0173-the-platforms-of-applications.md)).
-- Stage 6d's milestones are planned at its start, with the owner.
+  [ADR-0173](adr/0173-the-platforms-of-applications.md), [ADR-0181](adr/0181-uwuis-scope.md)).
+- Stage 6d's first milestones are cut in ADR-0181, from the code as it stands; the rest are planned
+  at its start, with the owner.
 - After Stage 6d: Stage 7, runtime systems, to be released as 0.9
   ([`ROADMAP.md`](ROADMAP.md#stage-7--runtime-systems--09)).
 
@@ -138,9 +139,10 @@ stage's audit before M6c.9. Their figures live in the
 - **Goal.** The engine's UI framework carries its own name, before it grows further.
 - **Crates.** `slime-ui` and `slime-ui-render`, and every crate, example and document that names
   them.
-- **Delivers.** As [ADR-0178](adr/0178-two-pilots-and-the-frameworks-name.md) decides: `slime-ui`
-  renamed `uwui` and `slime-ui-render` `uwui-render`, their directories, packages, paths and
-  rustdoc; the documents that describe the code as it is name uwui; earlier ADRs unchanged.
+- **Delivers.** As [ADR-0179](adr/0179-the-framework-named-uwui.md) and
+  [ADR-0181](adr/0181-uwuis-scope.md) decide: `slime-ui` renamed `uwui` and `slime-ui-render`
+  `uwui-render`, their directories, packages, paths and rustdoc; the documents that describe the
+  code as it is name uwui; earlier ADRs unchanged. The license changes with the move, at Stage 6d.
 - **Done when.** No name of the old crates is left outside earlier ADRs and history; CI is green.
 - **How to test.** `scripts/check.sh`; `git grep -E 'slime[_-]ui'`.
 - **Measured.** CI's jobs.

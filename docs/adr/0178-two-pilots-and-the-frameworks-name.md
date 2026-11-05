@@ -4,8 +4,9 @@
   during Stage 6d; the framework named now, in a repository of its own once its drawing leaves the
   renderer) and [0004](0004-workspace-layout-and-crate-naming.md) (the framework's crates are not
   named `slime-<role>`); amended by [0179](0179-the-framework-named-uwui.md) (the framework named
-  uwui) and [0180](0180-one-canvas-and-the-frameworks-foundations.md) (what leaves with the
+  uwui), [0180](0180-one-canvas-and-the-frameworks-foundations.md) (what leaves with the
   framework, and when its repository moves)
+  and [0181](0181-uwuis-scope.md) (four programs before the API is declared stable)
 - Date: 2026-11-05
 
 ## Context

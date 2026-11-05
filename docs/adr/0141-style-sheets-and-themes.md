@@ -4,6 +4,7 @@
   styles it again, which draws it again only where its style changed; a button's looks in its states
   come from rules, not from its code); amended by [0149](0149-the-looks-foundations.md) (a theme's
   value names others and computes colors; themes stacked)
+  and [0181](0181-uwuis-scope.md) (uwui reads its documents with `serde`)
 - Date: 2026-10-25
 
 ## Context

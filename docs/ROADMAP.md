@@ -86,6 +86,7 @@ Three tiers, each with a reference machine (ADR-0114, ADR-0138); a game picks th
 - Measured: the owner's machine alone, an RX 6900 XT and a Ryzen 7 5800X, and CI's lavapipe and WARP, drivers that render on the CPU. No tier's reference machine is measured; the GPUs' ratios come from public benchmarks.
 - A budget of the GPU is checked on the RX 6900 XT, times its tier's ratio.
 - The handheld tier's proxy: CPU benchmarks also run pinned to 4 cores (`taskset`); its GPU stays unmeasured. A Steam Deck is bought before Stage 9a.
+- Applications on uwui have lower tiers of their own, all unmeasured (ADR-0181): on the desktop, a laptop of 2015, two cores, an Intel HD 520, 4 GB, 1920 × 1080 at 60 Hz; on phones, an entry-level Android 14 phone of the class of a Helio G99, 4 GB, 90 Hz; on the web, both in a browser, the first load over Chrome's "slow 4G" profile.
 
 ### Budgets
 
@@ -106,6 +107,7 @@ CI checks budgets through exact counters, draws, elements, bytes, allocations, a
 | Power | the editor at rest adds no power to the GPU's beyond the desktop's | the GPU's power reading, from M6c.Q2b | by hand | not measured; a game capped at 60 frames a second gets a figure after its first measure |
 | An answer of the development channel | a median under 20 ms | its test in `slime-channel` | CI, a bound far above the time measured, which shared runners keep | met, 0.14 ms |
 | The sample's zone | at most 1 000 000 triangles, 800 instances, 6 spot lights at night, 384 MiB of textures, 320 MiB cooked | `the_cooked_zone_keeps_within_its_budgets` | CI | met |
+| uwui's package for the web | at most 1 MB of WebAssembly compressed with brotli, fonts apart; provisional until the web's trial | the web's trial, Stage 6d | by hand | not measured |
 | CI's jobs | 20 minutes each | GitHub's times, in `docs/measurements.md` at each milestone | by hand | `windows` close to it |
 
 ### Without a figure
@@ -130,12 +132,12 @@ CI checks budgets through exact counters, draws, elements, bytes, allocations, a
 | License | MPL-2.0 |
 | GPU abstraction | wgpu, then native backends, Vulkan and Direct3D 12, at Stage 9c (ADR-0098). Their types stay inside the `gfx` and `render` crates, and the engine's own tests, through `slime-gfx`'s `wgpu` feature (ADR-0031); the rest of the engine uses engine-owned handles. |
 | Shaders | WGSL to start |
-| First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS is built and tested in CI from Stage 6d, and supported once a Mac can check it; wgpu stays for it after Stage 9c. No mobile platform and no web for now: Android waits for a measurement after Stage 6d (ADR-0098, ADR-0173). |
-| UI | One framework of the engine's own, uwui (ADR-0178, ADR-0179), GPU-rendered, for the editor, the UI of games and desktop applications (ADR-0170): a retained tree of its own, on parley, taffy and AccessKit, drawn by the renderer's canvas (ADR-0098, ADR-0132). The dev overlay, tooling, runs on it since Stage 6b, which removed egui (ADR-0152). No Qt or GTK. |
+| First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS is built and tested in CI from Stage 6d, and supported once a Mac can check it; wgpu stays for it after Stage 9c. Games aim at no mobile platform and no web. Applications on uwui aim at Android phones and the web in a canvas too, macOS and iOS within reach (ADR-0098, ADR-0173, ADR-0181). |
+| UI | uwui, the owner's framework, in a repository of its own from Stage 6d, under MIT OR Apache-2.0, which the engine depends on, never the reverse; GPU-rendered, for the editor, the UI of games and applications (ADR-0170, ADR-0179, ADR-0181): a retained tree of its own, on parley, taffy and AccessKit, embedded in a host that calls it, drawn on wgpu by its own canvas (ADR-0098, ADR-0132). The dev overlay, tooling, runs on it since Stage 6b, which removed egui (ADR-0152). No Qt or GTK. |
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
-| Windowing and input | winit, used only inside `platform`; its types never leave that crate (ADR-0011) |
+| Windowing and input | winit, used only inside `platform`, and in uwui's desktop host; its types never leave them (ADR-0011, ADR-0181) |
 | Entity model | The engine's own: entities, components stored by type, and a transform hierarchy, with `f64` translations (ADR-0079) |
-| Serialization format | Driven by the engine's own reflection, without serde: TOML for text, sources and saves; binary formats of the engine's own for cooked data (ADR-0069, ADR-0080) |
+| Serialization format | Driven by the engine's own reflection, without serde, but for uwui's documents, which uwui reads with serde (ADR-0181): TOML for text, sources and saves; binary formats of the engine's own for cooked data (ADR-0069, ADR-0080) |
 
 ### Open
 
@@ -143,7 +145,7 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 
 | Topic | Candidates | Decide at |
 |---|---|---|
-| Where the foundations that the engine and uwui share live: the GPU layer, the platform, the loop | Moved with uwui, a thin layer of uwui's own, another split (ADR-0180) | Stage 6d |
+| How agents reach an application on uwui, on the desktop, Android and the web | The development channel moved with uwui, an adapter, a protocol of uwui's (ADR-0181) | Stage 6d |
 | Drawing an interface without a GPU | A renderer on the CPU, lavapipe, none (ADR-0170) | Stage 6d |
 | How an interface's vector shapes are drawn | By measurement: tessellated on the CPU, distance fields, or stencil then cover (ADR-0171) | Stage 6d |
 | Notation of UI documents | The engine's notation laid out as scene files, a markup of its own, a subset of HTML and CSS (ADR-0132) | Stage 7 |
@@ -385,18 +387,20 @@ The stage's milestones, their order and the owner's two checkpoints are decided 
 
 ### Stage 6d — The interface for applications → 0.8
 
-**Goal.** The engine's UI framework runs desktop applications as well as the frameworks they leave, and gains the motion, transforms and drawing that games and the editor need too, designed once for all three (ADR-0170): looks as refined as current interfaces have, glass and shapes that morph among them, at the lowest draw of power (ADR-0171).
+**Goal.** uwui, the engine's UI framework, becomes the base of the owner's programs: it runs applications on the desktop, on Android phones and on the web as well as the frameworks they leave (ADR-0181), and gains the motion, transforms and drawing that games and the editor need too, designed once for all three (ADR-0170): looks as refined as current interfaces have, glass and shapes that morph among them, at the lowest draw of power (ADR-0171).
 
-- A shell that runs an *application*: its window, with its identity, its minimum size, fullscreen and being brought to the front; the GPU and the drawing of its interface; frames drawn only when something changes, woken from any thread; the development channel, through which agents drive it as they drive a game; no world and no simulation, and no cost of the 3D renderer for an application that draws no scene (ADR-0170)
+- uwui embedded in a host that calls it, never owning the loop: an API of the host for the surface, input with touch and gamepads, input methods, the lifecycle, accessibility, the clipboard and requests for frames; a desktop host, its window with its identity, its minimum size, fullscreen and being brought to the front, frames drawn only when something changes, woken from any thread; how agents drive an application, decided at the stage's start; no world, no simulation and no 3D renderer (ADR-0170, ADR-0181)
+- uwui decoupled, then moved to a repository of its own: its documents read with `serde`, its canvas on wgpu with GLES and WebGL2 as fallbacks, `slime-color` and `slime-input` with it, a check in CI that a program on it compiles neither the renderer, the world nor the editor (ADR-0180, ADR-0181)
+- The platforms' behaviours, the same look everywhere: a scroll's physics, predictive back, a selection's handles and the long press, haptics, the conventions of shortcuts; one model of focus for the keyboard, accessibility and gamepads (ADR-0181)
+- Two bounded trials, thrown away, before the API is declared stable: Android, in a Kotlin activity, and the web, in a canvas, each with its report (ADR-0181)
 - Images read from files and the network, decoded away from the interface's thread, in a cache bounded by memory that frees the GPU's; an image cropped to cover its box, images cross-faded, and textures updated at each frame
 - Drawing: groups drawn apart into images of their own, kept while they do not change, then composed, which masks, the opacity of a group and effects need; what lies behind an element, blurred on reduced images, bent, tinted and lit, for glass; transforms, several shadows on an element, gradients of several stops and radial ones, dithered; vector shapes that morph into one another; a first material of glass, shown in an example; whether the framework draws without a GPU, decided at the stage's start (ADR-0171)
 - Motion, beyond the transitions of Stage 6b (ADR-0149): transforms animated, curves and springs, delays in cascade, animations driven by scrolling, variable fonts whose axes move, an element that becomes another; a frame rate capped for each animation, effects stopped while the window has lost the focus, nothing drawn at rest; reduced transparency beside reduced motion, and effects lightened on modest hardware (ADR-0114, ADR-0171)
 - Text styled by ranges, masked fields, double clicks, the pointer's shapes, smooth and sideways scrolling, virtual lists that scroll sideways, a table's header that stays; gamepads, and the focus that they drive, moved from Stage 7
-- The framework and the shell of applications built and tested on macOS in CI, not supported until a Mac checks them (ADR-0173)
-- The pilots: Slatty, a launcher of games, and a music player, both outside this repository, ported onto the framework in their own repositories during the stage, each with a checkpoint where the owner uses it; the music player's figures with its present framework measured first (ADR-0178)
-- The framework, named uwui (ADR-0178, ADR-0179), standing alone: one canvas, which the engine's interfaces draw with too, a shell without the world, and a check in CI that a program on the framework compiles neither the renderer, the world nor the editor; then moved to a repository of its own, once the foundations it shares with the engine are placed (ADR-0180)
+- uwui and its desktop host built and tested on macOS in CI, its core built for iOS, neither supported until a Mac checks them (ADR-0173, ADR-0181)
+- Four programs, outside this repository, ported before the API is declared stable, each with a checkpoint where the owner uses it, their figures with their present frameworks measured first: the music player on the desktop, Slatty, a launcher of games, the music player's Android prototype, measured against Jetpack Compose, and a media application (ADR-0178, ADR-0181)
 
-**Exit.** Slatty and the music player run on the framework at least as well as on Iced and egui, on each of the figures that ADR-0170 and ADR-0178 record; every need that the music player marks as indispensable exists, shown by an example and its tests; nothing is drawn at rest, under Wayland and under Xwayland; the power that the GPU and the CPU draw is measured for each effect, at rest and in motion (ADR-0171).
+**Exit.** The four programs run on uwui at least as well as on their present frameworks, on each of the figures measured first (ADR-0170, ADR-0178, ADR-0181); uwui's API is declared stable, after the trials' reports; every need that the music player marks as indispensable exists, shown by an example and its tests; nothing is drawn at rest, under Wayland, under Xwayland, on Android and on the web; the power that the GPU and the CPU draw is measured for each effect, at rest and in motion (ADR-0171).
 
 ### Stage 7 — Runtime systems → 0.9
 
@@ -572,8 +576,8 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | reflect | its derive macro only (ADR-0080) |
 | serialization | reflect |
 | world | reflect, serialization, assets, color |
-| UI framework | color, input, reflect, serialization; headless; drawn by render's canvas through a bridge, `slime-ui-render`, as `slime-world-render` is between world and render (ADR-0132) |
-| shell of applications | platform, gfx, render's canvas, UI framework, channel; never world, a game's host, the editor or games (ADR-0170) |
+| UI framework | color, input; its documents read with `serde`; headless; drawn on wgpu by its own canvas, which render composes over its views (ADR-0132, ADR-0181) |
+| hosts of applications | the UI framework, and a platform's own layer: winit on the desktop, a Kotlin program on Android, the page on the web; never world, a game's host, the editor or games (ADR-0170, ADR-0181) |
 | editor | world, render, assets, UI framework; its core, without its interface, today: app, assets, channel, cook, reflect, serialization, world (ADR-0134) |
 | UI of games | render, input action mapping, UI framework |
 | undo/redo | the world's commands, serialization (ADR-0134) |

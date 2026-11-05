@@ -8,6 +8,7 @@
   value, an agent's action that sets it, and the changes of the meaning, which the marks give);
   amended by [0147](0147-the-screen-readers-check-in-ci.md) (a check of CI reads and uses an
   example through AT-SPI)
+  and [0181](0181-uwuis-scope.md) (the translation into AccessKit moves into uwui)
 - Date: 2026-10-26
 
 ## Context
