@@ -2,15 +2,22 @@
 //! in a `slime-world` world, its meshes loaded by a `slime-render` asset cache, and drawn through
 //! `slime-world-render`. It draws the instances that the scene loaded by the renderer gives, and
 //! the glTF test's reference images (`tests/reference/gltf-front.png` and `gltf-back.png`) within
-//! the same tolerance (`common/reference_image.rs`); what moves at fixed steps is drawn where the
-//! fraction of a step puts it; a hidden subtree is not drawn, nor its light, nor what a program
-//! tells the frame builder and the picker to leave out; after a lost device,
-//! the cache made again draws the same world, which the loss left as it was; a frame built on one
-//! thread, once its cache and builder are dropped, is drawn on another as on the first; picking by
-//! the GPU and by the CPU name the same entities (`docs/adr/0130-picking.md`). The cooked yard
-//! (`examples/assets/yard.scene`) spawns its lamps with their overrides, their lights placed in the
-//! world, and follows its lamp cooked again, without a GPU (`docs/adr/0095-cooked-scene-files.md`).
-//! Runs on whatever adapter the machine offers.
+//! the same tolerance (`common/reference_image.rs`); `tests/gltf.rs` renders them again, this file
+//! never does. What moves at fixed steps is drawn where the fraction of a step puts it, and what is
+//! teleported does not slide; a hidden subtree is not drawn, nor its light, nor what a program
+//! tells the frame builder and the picker to leave out; after a lost device, the cache made again
+//! with the lost one's requests draws the same world, which the loss left as it was, and so does
+//! one made without them; a frame built on one thread, once its cache and builder are dropped, is
+//! drawn on another as on the first. Picking by the GPU and by the CPU name the same entities on a
+//! grid of pixels, and the CPU's picker gives the box around the sample that the renderer loads
+//! (`docs/adr/0130-picking.md`).
+//!
+//! Without a GPU, the cooked yard (`examples/assets/yard.scene`) spawns the sample and its four
+//! lamps with their overrides, their lights placed in the world
+//! (`docs/adr/0095-cooked-scene-files.md`). Then the lamp is changed in a copy of the sources and
+//! cooked again, and a run is carried into the yard spawned anew: every lamp follows but where the
+//! yard overrides it, what the run changed stays, and the ring, whose transform is driven, comes
+//! back where the yard puts it. Runs on whatever adapter the machine offers.
 
 #[path = "../common/cooked.rs"]
 mod cooked;

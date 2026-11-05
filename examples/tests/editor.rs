@@ -1,18 +1,27 @@
 //! The image tests of the editor's window (`docs/adr/0156-the-editors-window-and-its-operations.md`):
-//! the `editor` example's window on the examples' yard, as it shows once the yard is open, and with
-//! the modal layer that waits for the system's dialog to open a level, the window dimmed below it
-//! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), and with the sample's pillar
-//! selected, outlined where the scene shows it and dimmed where the wall hides it
-//! (`docs/adr/0159-picking-and-the-selection.md`), with the handles that move it and those that
-//! turn it (`docs/adr/0161-the-open-step-and-the-handles.md`), with a step done and one undone in
-//! the history panel (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`), with its panels
-//! moved (`docs/adr/0172-regions-of-tabs.md`), with a panel floating and another closed
-//! (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`), and with two
-//! viewports side by side
-//! (`docs/adr/0160-two-viewports-and-blenders-way.md`), drawn without a window of the
-//! system by `slime_editor::window_image`, must match the reference images of `tests/reference/`
-//! within a tolerance, at scales 1 and 2. The level is named by a path relative to the examples'
-//! package, the directory that the tests run in, which the status bar shows as it is.
+//! the `editor` example's window on the examples' yard, drawn without a window of the system by
+//! `slime_editor::window_image`, its data cooked for each test and its journal its own, must match
+//! the reference images of `tests/reference/` within a tolerance, at scale 1 but where said:
+//!
+//! - `editor-window.png` and `editor-window-scale-2.png`: as it shows once the yard is open, at
+//!   scales 1 and 2;
+//! - `editor-choose.png`: the modal layer that waits for the system's dialog to open a level, the
+//!   window dimmed below it (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`);
+//! - `editor-selected.png`: the sample's pillar selected, outlined where the scene shows it and
+//!   dimmed where the wall hides it (`docs/adr/0159-picking-and-the-selection.md`), the handles
+//!   that move it over the image (`docs/adr/0161-the-open-step-and-the-handles.md`);
+//! - `editor-turn.png`: the pillar selected, the handles that turn it in its own axes;
+//! - `editor-history.png`: a step done and one undone in the history panel
+//!   (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`);
+//! - `editor-regions.png`: its panels moved, the components into the hierarchy's region and the
+//!   console to the window's right edge (`docs/adr/0172-regions-of-tabs.md`);
+//! - `editor-floating.png`: the history floating and the components closed
+//!   (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`);
+//! - `editor-two-viewports.png`: two viewports side by side
+//!   (`docs/adr/0160-two-viewports-and-blenders-way.md`).
+//!
+//! The level is named by a path relative to the examples' package, the directory that the tests
+//! run in, which the status bar shows as it is.
 //!
 //! The references were drawn with lavapipe, as the triangle's were (`tests/offscreen.rs`). To draw
 //! them again, after a deliberate change of the window or of the look:

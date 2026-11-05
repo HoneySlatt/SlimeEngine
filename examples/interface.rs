@@ -1,22 +1,27 @@
-//! An interface drawn by the engine over a window or into a PNG file: a tree of elements, laid out
-//! by flexbox and grid (`docs/adr/0140-the-tree-of-elements.md`) and styled by a style sheet and a
-//! theme (`docs/adr/0141-style-sheets-and-themes.md`), gives the display list that
-//! `slime-ui-render` draws through the renderer's canvas (`docs/adr/0137-the-canvas.md`): panels
+//! An interface drawn by the engine over a window or into a PNG file: a tree of elements
+//! (`slime_ui::tree::Ui`), laid out by flexbox and grid (`docs/adr/0140-the-tree-of-elements.md`)
+//! and styled by a style sheet and a theme (`docs/adr/0141-style-sheets-and-themes.md`,
+//! `Ui::set_style`), gives the display list (`docs/adr/0139-text-drawn-and-the-display-list.md`)
+//! that `slime-ui-render` draws through the renderer's canvas (`docs/adr/0137-the-canvas.md`,
+//! `UiRenderer::draw`): panels
 //! with rounded corners, borders and shadows; a list of 100 000 rows that scrolls with time, of
 //! which only those that show are built, cut by its panel; buttons with their labels; a sentence of
-//! each writing system of slime-ui's tests, Arabic and Hebrew from right to left, Hindi, Thai,
-//! Japanese, Chinese and emoji, its glyphs kept in the bridge's atlas; images of colors, and images
-//! of coverage drawn in a color; and, in a panel, the shapes of the image tests, which the renderer
-//! draws into a target of its own each frame, the panel showing that target as an image, as the
-//! editor's viewport will, a translucent card over it in the same cell of a grid. Colors mix as
-//! sRGB values, as design tools mix them. The fonts are those of slime-ui's tests, parts of Noto
+//! each writing system of slime-ui's tests, English, Arabic and Hebrew from right to left, Hindi,
+//! Thai, Japanese, Chinese and emoji, its glyphs kept in the bridge's atlas; images of colors, and
+//! images of coverage drawn in a color; and, in a panel, the shapes of the image tests
+//! (`common/shapes.rs`), which the renderer draws into a target of its own each frame at the size
+//! of its element, the panel showing that target as an image that the display list names by a key,
+//! as the editor's viewport does, a translucent card over it in the same cell of a grid. Colors mix
+//! as sRGB values, as design tools mix them. The fonts are those of slime-ui's tests, parts of Noto
 //! fonts that hold the characters of its texts alone (`crates/slime-ui/tests/fonts/README.md`),
 //! built into the program.
 //!
 //! It is used with the pointer and the keyboard (`docs/adr/0142-input-and-focus.md`): the buttons
 //! are hovered, pressed and focused, Tab and the arrows move the focus, and Enter and Space press
 //! the one that holds it. The first button, or Ctrl+O, opens a modal dialog, which Escape or its
-//! button "close" closes; the bar shows what the last action did. The shortcuts are those of
+//! button "close" closes; with no dialog open, Escape leaves the focus, then, nothing focused,
+//! quits, as closing the window or Ctrl+C does. The bar shows what the last action did, and counts
+//! the presses of its buttons. The shortcuts are those of
 //! `examples/assets/ui/interface.keys`. The list scrolls with time, not with the wheel. The bar
 //! holds a field of text and a field of numbers (`docs/adr/0145-text-edited.md`), which take the
 //! text that is typed, pasted or composed through an input method, and which the program reads as
@@ -34,8 +39,9 @@
 //! of the window (`docs/adr/0146-screen-readers.md`), as any example's interface is.
 //!
 //! The code gives the elements their layout and their classes; the style sheet
-//! `examples/assets/ui/interface.style` gives the rest, with the values of a dark or a light theme,
-//! which T switches. They are read cooked, as the sample's scenes are:
+//! `examples/assets/ui/interface.style` gives the rest, with the values of a dark or a light theme
+//! of `examples/assets/ui`, which T switches. They are read cooked with the sample, as its scenes
+//! are:
 //!
 //! ```sh
 //! cargo run -p slime-cook -- cook examples/assets target/cooked/examples
@@ -48,10 +54,18 @@
 //! cargo run --example interface -- --watch                 # styled again as the cooked data changes
 //! ```
 //!
+//! `--assets <dir>` reads the cooked data of that directory. Without it, the example reads `assets`
+//! beside the program if it holds a manifest, as where CI ships it, and `target/cooked/examples`
+//! otherwise. `--theme dark` or `--theme light` chooses the theme first shown, dark by default.
 //! With `--watch`, beside `cargo run --release -p slime-cook -- watch examples/assets
 //! target/cooked/examples`, a change to the style sheet or a theme restyles the running example.
-//! Without `--assets`, it reads `assets` beside the program if there is one, as where CI ships it,
-//! and `target/cooked/examples` otherwise.
+//! `--frames <count>` closes it after that many frames, and the run fails if none drew the
+//! interface. `--output <file.png>` draws one image of 1280 × 800 logical pixels into the file,
+//! without a window, on any adapter, lavapipe and WARP included, from its second frame, the first
+//! laying the list out; it goes neither with `--frames` nor with `--watch`. `--scale <factor>`,
+//! with `--output` alone, sets the image's pixels per logical pixel, above 0 and up to 4, 1 by
+//! default. `--right-to-left` lays the interface out from right to left, mirrored. `--dialog`
+//! opens the dialog from the start.
 
 #[path = "common/assets_directory.rs"]
 mod assets_directory;

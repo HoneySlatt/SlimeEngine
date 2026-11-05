@@ -1,5 +1,6 @@
-//! The triangle that the samples draw, shared by the examples and the reference image test: its
-//! shader, its vertices and the commands that draw it.
+//! The triangle that the samples draw, shared by the `window` and `offscreen` examples and the
+//! reference image test `tests/offscreen.rs`: its shader, `triangle.wgsl`, its vertices and the
+//! commands that draw it.
 
 use slime_color::LinearColor;
 use slime_gfx::{

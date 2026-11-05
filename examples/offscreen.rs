@@ -1,6 +1,7 @@
 //! Renders the samples' triangle without a window, reads the image back to the CPU and writes it
 //! to a PNG file. It runs wherever a GPU adapter exists, software ones included (lavapipe on Linux,
-//! WARP on Windows), and needs no windowing system.
+//! WARP on Windows), and needs no windowing system. `--output <file>` names the file,
+//! `triangle.png` in the current directory by default.
 //!
 //! ```sh
 //! cargo run --example offscreen                        # writes triangle.png

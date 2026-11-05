@@ -1,7 +1,9 @@
 //! The cooked scene that the `scene` example and its image tests draw: the asset of
 //! `examples/assets/scene.glb` by default, or any scene that `slime-cook` cooked, lit by the lights
 //! its nodes place, or by the sample's sun when they place none, and by its sky, in physical units
-//! (ADR-0037, ADR-0039, ADR-0069).
+//! (ADR-0037, ADR-0039, ADR-0069). `scene` and `tests/gltf.rs` draw it whole; the `world` and
+//! `editor` examples take only its sky, exposure and bloom, `tests/editor.rs` too, and
+//! `tests/world.rs` its constants and its box.
 
 use std::error::Error;
 use std::f32::consts::PI;

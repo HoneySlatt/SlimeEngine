@@ -1,5 +1,6 @@
 //! The reference image test of Stage 2: the samples' triangle, rendered offscreen, must match
-//! `tests/reference/triangle.png` within a tolerance.
+//! `tests/reference/triangle.png` within a tolerance, rendered both in RGBA and in the blue, green,
+//! red order that most windows use.
 //!
 //! The reference was rendered with lavapipe, Mesa's Vulkan driver that renders on the CPU, which
 //! `scripts/check.sh` and Linux CI use. Other drivers (WARP in Windows CI, hardware GPUs) may

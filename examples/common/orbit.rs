@@ -1,4 +1,6 @@
-//! The camera of the examples, placed around a point by two angles and a distance.
+//! The camera of the examples, placed around a point by two angles and a distance. The `scene`
+//! example and the tests `tests/gltf.rs` and `tests/world.rs` share it; its unit tests run in
+//! those tests.
 
 use slime_render::Camera;
 use slime_render::glam::{DVec3, Vec3};

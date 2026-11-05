@@ -1,5 +1,6 @@
 //! The yard of the `world` example: a scene file that places the sample scene and four lamps,
-//! `examples/assets/yard.scene` (`docs/adr/0089-scenes-and-prefabs.md`).
+//! `examples/assets/yard.scene` (`docs/adr/0089-scenes-and-prefabs.md`). Its ID, which `world` and
+//! `tests/world.rs` share.
 
 use slime_assets::AssetId;
 

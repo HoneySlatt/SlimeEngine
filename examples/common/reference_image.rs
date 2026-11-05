@@ -1,6 +1,7 @@
 //! Comparing a rendered image with a reference PNG stored in `tests/reference/`, within the
 //! tolerances of ADR-0018, ADR-0028, ADR-0030 and ADR-0054, and rendering the references again on
-//! request.
+//! request, when `SLIME_UPDATE_REFERENCE_IMAGES` is set. Every image test of `tests/` uses it; an
+//! image that differs is written beside the build's artifacts, for the eye to compare.
 
 #[path = "png_file.rs"]
 mod png_file;

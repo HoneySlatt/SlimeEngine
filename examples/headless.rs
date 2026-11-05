@@ -1,7 +1,8 @@
-//! Runs a game's rules, a simulation, without a window, the way automated tests run it. Frames run
-//! back to back with simulated time: each frame represents one fixed step (1/60 s by default),
-//! whatever the speed of the machine. A dedicated server, which keeps to real time, is a later
-//! stage's work.
+//! Runs a game's rules, a simulation (`slime_app::Simulation`), without a window, the way automated
+//! tests run it. Frames run back to back with simulated time: each frame represents one fixed step
+//! (1/60 s by default), whatever the speed of the machine. `--frames <count>` stops it after that
+//! many frames, 600 by default. With `SLIME_LOG=trace`, the log shows the engine's profiling
+//! spans. A dedicated server, which keeps to real time, is a later stage's work.
 //!
 //! ```sh
 //! cargo run --example headless                        # 600 frames: 10 s of simulated time

@@ -1,5 +1,6 @@
 //! Cooked data for the tests: a directory of their own for each, and the examples' sources cooked
-//! once for the tests of one program.
+//! once for the tests of one program. `tests/gltf.rs` and `tests/world.rs` use both;
+//! `tests/editor.rs` uses the directories alone and cooks the sample into each.
 
 use std::fs;
 use std::path::{Path, PathBuf};

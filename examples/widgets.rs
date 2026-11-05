@@ -1,9 +1,13 @@
 //! The widgets of a panel, in the editor's look, over a window or into a PNG file
-//! (`docs/adr/0148-widgets.md`): a bar of tabs, two panels side by side and the handle between
-//! them, a list of entities and a box of properties, both with their scroll bars, sections that
-//! fold, sliders and check boxes, and, in the console's tab, two panels one above the other. Their
-//! text is in Geist, and in Geist Mono where it is fixed in width, the fonts that `slime-ui`'s
-//! feature `editor-look` builds in with the look's style sheet and theme.
+//! (`docs/adr/0148-widgets.md`): a bar of three tabs, *Inspector*, *Console* and *About*; two
+//! panels side by side and the handle between them, a list of entities and a box of properties,
+//! both with their scroll bars, sections that fold, sliders and check boxes, and, in the console's
+//! tab, two panels one above the other. Their text is in Geist, and in Geist Mono where it is fixed
+//! in width, and their icons are Lucide's, which `slime-ui`'s feature `editor-look` builds in with
+//! the look's style sheet and themes (`slime_ui::look`): the example needs no cooked data. Its
+//! interface is built in `common/widgets_panel.rs`, whose comment says in full what each tab, menu
+//! and widget holds; the program keeps the values of the sliders and the check boxes and gives them
+//! back at each build.
 //!
 //! Its look follows the system's dark or light preference where the platform tells it, on Windows,
 //! and changes with keys (`docs/adr/0149-the-looks-foundations.md`): T switches its colors, dark,
@@ -14,22 +18,28 @@
 //! arrows move the focus, Enter and Space press what holds it, check a check box, fold a section
 //! and choose a tab; the arrows move a slider by its step and a handle, Page Up and Page Down by
 //! ten steps, Home and End to their ends; the pointer drags thumbs and handles, and the wheel
-//! scrolls. The bar at the bottom shows what the last change did. Escape, nothing focused, closes
-//! the window.
+//! scrolls. The bar at the bottom shows what the last change did. Escape leaves the focus, then,
+//! nothing focused, closes the window, as Ctrl+Q, *File* > *Quit*, closing the window or Ctrl+C do.
 //!
 //! Its rich widgets (`docs/adr/0151-rich-widgets.md`): a bar of tools, a control of segments that
 //! chooses the tool, a button that toggles the snapping and a bar of progress; a field of search
-//! over the list of entities, which keeps the rows that match as it is typed in; the position, three
-//! fields whose prefixes, the axes' letters, drag them; the console's tab, with its count.
+//! over the list of entities, which keeps the rows that match as it is typed in; the position,
+//! three fields whose prefixes, the axes' letters, drag them; the console's tab, with its count.
+//!
+//! What tells and finds (`docs/adr/0151-rich-widgets.md`): a notification as a level is made or
+//! saved, Ctrl+N and Ctrl+S; the palette of commands, Ctrl+Shift+P; the sheet of shortcuts, F1.
+//! Ctrl+O, the command to open a level, only shows its name in the bar. The light's color is a
+//! color well, whose picker opens below it
+//! (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`).
 //!
 //! What opens over the panel (`docs/adr/0150-layers.md`): a bar of menus, which F10 or Alt alone
 //! reaches, *File* and *View*, their submenus opening as the pointer rests on their items or the
 //! arrows reach them; a menu of an entity's row at the pointer's second button or Shift+F10; a list
 //! to choose the quality of shadows from; tooltips on the tabs and on that list, once the pointer
-//! rests on them; a floating panel of statistics, which *View* shows, moved by its bar, sized by its
-//! corner and folded by its mark. The menus' ticks and chevrons are Lucide's icons. Agents read and use its widgets through the development channel, as
-//! `crates/slime-mcp/tests/widgets.rs` does, and screen readers read them
-//! (`docs/adr/0146-screen-readers.md`).
+//! rests on them; a floating panel of statistics, which *View* shows, moved by its bar, sized by
+//! its corner and folded by its mark. The menus' ticks and chevrons are Lucide's icons. Agents read
+//! and use its widgets through the development channel, as `crates/slime-mcp/tests/widgets.rs`
+//! does, and screen readers read them (`docs/adr/0146-screen-readers.md`).
 //!
 //! ```sh
 //! cargo run --example widgets                            # in a window
@@ -38,6 +48,13 @@
 //! cargo run --example widgets -- --output widgets@2.png --scale 2
 //! cargo run --example widgets -- --right-to-left         # the layout mirrored, from the right
 //! ```
+//!
+//! `--frames <count>` closes it after that many frames, and the run fails if none drew the
+//! interface. `--output <file.png>` draws one image of 960 × 600 logical pixels into the file,
+//! without a window, from its second frame, the first laying the list out; it does not go with
+//! `--frames`. `--scale <factor>`, with `--output` alone, sets the image's pixels per logical
+//! pixel, above 0 and up to 4, 1 by default. `--right-to-left` lays the interface out from right
+//! to left, mirrored.
 //!
 //! Its image tests, `examples/tests/widgets.rs`, draw the same interface and compare it with
 //! reference images.

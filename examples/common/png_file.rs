@@ -1,4 +1,6 @@
-//! Writing images to PNG files, for the examples and the reference image test.
+//! Writing images to PNG files: the images that the `offscreen`, `text`, `interface`, `widgets`
+//! and `editor` examples write, and the references and failed renders of the image tests
+//! (`reference_image.rs`).
 
 use std::fs::File;
 use std::io::BufWriter;

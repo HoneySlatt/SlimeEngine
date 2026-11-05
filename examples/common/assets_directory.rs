@@ -1,4 +1,5 @@
-//! Where the examples find the sample's cooked data.
+//! Where the examples find the sample's cooked data without `--assets`: `assets` beside the
+//! program, or `target/cooked/examples`. The `scene`, `world` and `interface` examples share it.
 
 use std::path::PathBuf;
 

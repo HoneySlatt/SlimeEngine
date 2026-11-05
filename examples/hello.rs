@@ -1,5 +1,7 @@
-//! The smallest engine program: it sets up the engine's diagnostics, logs a few lines, and
-//! panics on request to show how a panic is reported.
+//! The smallest engine program: it sets up the engine's diagnostics
+//! (`slime_app::init_diagnostics`), logs a few lines through `tracing`, which the `SLIME_LOG`
+//! environment variable filters, and, with `--panic`, panics on purpose to show how a panic is
+//! reported.
 //!
 //! ```sh
 //! cargo run -p slime-examples --example hello

@@ -1,35 +1,59 @@
-//! Draws the examples' yard from a world (`docs/adr/0084-what-the-world-draws.md`): a scene file
-//! that places the cooked sample scene and four lamps, a prefab of its own, one lamp red and one
-//! without its light (`docs/adr/0095-cooked-scene-files.md`). It is spawned in the world that
-//! `slime-app` keeps, through a library of the cooked scenes, its meshes loaded by an asset cache
-//! in the background, and drawn through `slime-world-render`, its sun given once, to the sky and to
-//! the lights. The glowing ring rises from where it rests and falls back at the fixed step, its
-//! light with it, and each frame draws it between its last two places. The camera turns around the
-//! scene, and a second view, orthographic, draws a map of it from above in the window's top right
-//! corner (`docs/adr/0126-views-apart-from-the-renderer.md`). After a lost GPU
-//! device, it goes on: a new asset cache loads the world's meshes again, and the world is
-//! untouched. Besides the yard, the example draws into the yard's view a grid on the ground, hidden
-//! by what stands in front of it, and an icon above each light, facing the camera, through an unlit
-//! material; a click selects the entity drawn under the cursor, picked by the GPU
-//! (`docs/adr/0130-picking.md`), and Tab the next entity that places meshes, whose box both views
-//! draw over their image (`docs/adr/0129-drawing-for-the-editor.md`); a tool picks in either view
-//! too. F2 shows the dev overlay's world panel, which
-//! lists the entities by name and edits their components (`slime-devui`); F3 its panel of the
-//! views, which shows the size each draws at and edits its settings: its render scale,
-//! anti-aliasing, a mode of debugging that shows normals or shadows, and its passes
-//! (`docs/adr/0127-the-settings-of-a-view.md`), which a tool driving the example changes too. F6
-//! gives the keyboard's focus to the panels, one after the other, then back to the yard: while a
-//! panel holds it, Tab moves it among the panel's elements. Escape, closing the window or Ctrl+C
-//! quits.
+//! Draws the examples' yard from a world (`docs/adr/0084-what-the-world-draws.md`): a scene file,
+//! `examples/assets/yard.scene`, that places the cooked sample scene and four lamps of
+//! `examples/assets/lamp.scene`, a prefab made of the sample's meshes, the second lamp red and the
+//! fourth without its light (`docs/adr/0095-cooked-scene-files.md`). Its rules, a simulation, spawn
+//! it in the world that `slime-app`'s host keeps, through a library of the cooked scenes
+//! (`Simulation::start`, `SceneLibrary::of`, `World::spawn_scene`). A presentation, which reads the
+//! world and never writes it, shows it: an asset cache asks for its meshes and loads them in the
+//! background, holding them while the world names them (`slime_render::AssetCache`,
+//! `docs/adr/0128-asset-requests.md`), and `slime-world-render` draws it (`FrameBuilder`), the
+//! file's first directional light given once, to the sky as its sun and to the lights. The glowing
+//! ring rises from where it rests and falls back at the fixed step, its light with it, and each
+//! frame draws it between its last two places (`World::interpolated_transform`). The camera turns
+//! around the scene, and a second view, orthographic, draws a map of it from above in the window's
+//! top right corner (`docs/adr/0126-views-apart-from-the-renderer.md`, `Projection::Orthographic`,
+//! `ViewDraw::viewport`). A window's edge dragged stretches the views' images until the size has
+//! held still for `slime_render::RESIZE_DELAY`, as when it is let go; they then make their targets
+//! at the new size.
 //!
-//! When it quits, it saves its world (`docs/adr/0125-saves-per-scene.md`): what the run changed
-//! since the example settled the world that it spawns at the start, what the panel changed. The
-//! ring's transform is driven, as the yard marks it (`slime_world::Driven`): the save and the file
-//! leave the ring where the yard puts it, and the example would float it again from there. It loads
-//! the save into a world spawned anew, and the run fails if that world is not the one saved. It
-//! also writes the yard back as a scene file (`docs/adr/0092-a-world-written-back-as-a-scene.md`),
-//! spawns that file, and the run fails if the world spawned is not the one written.
-//! `SLIME_LOG=debug` shows the save and the file.
+//! Besides the yard, the example draws into the yard's view a grid on the ground, hidden by what
+//! stands in front of it, and an icon above each light, facing the camera, through an unlit
+//! blended material (`Renderer::create_unlit_material`); a click selects the entity drawn under
+//! the cursor, picked by the GPU (`docs/adr/0130-picking.md`, `View::pick`), and Tab the next
+//! entity that places meshes, whose box both views draw over their image
+//! (`docs/adr/0129-drawing-for-the-editor.md`, `ViewDraw::drawings`). For the tools that drive it,
+//! the views are named `yard` and `map`: a tool captures one (`Presentation::views`), picks in it
+//! (`Presentation::pick`) and changes its settings (`Presentation::view_settings`), and reads two
+//! reports (`Presentation::reports`), `assets`, the cache's requests and its memory against its
+//! budgets, and `views`, the views' statistics.
+//!
+//! F2 shows the dev overlay's world panel (`slime_devui::WorldPanel`), which lists the entities by
+//! name and edits their components, the example sending each edit as a command, which the host
+//! applies at the start of the next frame (`slime_world::Command`); F3 its panel of the views,
+//! which shows the size each draws at and edits its settings (`slime_render::ViewSettings`,
+//! `slime_devui::ValueEditor`): its render scale, anti-aliasing, a mode of debugging that shows
+//! normals or shadows, and whether it draws the shadows, the sky and the bloom
+//! (`docs/adr/0127-the-settings-of-a-view.md`). F6 gives the keyboard's focus to the panels, one
+//! after the other, then back to the yard: while a panel holds it, Tab moves it among the panel's
+//! elements (`docs/adr/0153-tab-and-f6-in-a-games-interface.md`). Escape, closing the window or
+//! Ctrl+C quits, but Escape first leaves a field of the panels or closes a list of theirs that is
+//! open, and, while a panel holds the focus, gives it back to the yard.
+//!
+//! After a lost GPU device, it goes on: the new asset cache loads again the meshes that the frame
+//! builder's handles hold (`AssetCache::into_requests`), the views are made again with their
+//! settings, and the world is untouched.
+//!
+//! When it quits, it saves its world (`docs/adr/0125-saves-per-scene.md`, `World::save`): what the
+//! run changed since the example settled the world that it spawns at the start (`World::settle`),
+//! what the panel changed. The ring's transform is driven, as the yard marks it
+//! (`slime_world::Driven`): the save and the file leave the ring where the yard puts it, and the
+//! example would float it again from there. It loads the save into a world spawned anew
+//! (`World::load`), and the run fails if that world is not the one saved
+//! (`World::first_difference`). It also writes the yard back as a scene file
+//! (`docs/adr/0092-a-world-written-back-as-a-scene.md`, `World::write_scene`), spawns that file,
+//! and the run fails if the world spawned is not the one written. `SLIME_LOG=debug` shows the save
+//! and the file. Neither is written to disk. The `editor` example's Play runs this example on the
+//! yard as the editor holds it (`docs/adr/0164-play.md`).
 //!
 //! It reads cooked data, which `slime-cook` makes first:
 //!
@@ -41,14 +65,23 @@
 //! cargo run --example world -- --watch           # draws again what changes in the cooked data
 //! ```
 //!
-//! With `--watch`, a change of the cooked data, as `slime-cook watch` makes it, is drawn: the cache
-//! loads again the meshes, materials and textures that changed, and a scene that changed, the lamp
-//! that the yard places among them, carries the run into the world spawned anew from it
-//! (`World::carry`): every lamp follows the lamp but where the yard overrides it.
+//! `--assets <directory>` reads the cooked data of that directory. Without it, the example reads
+//! `assets` beside the program if it holds a manifest, as where CI ships it, and
+//! `target/cooked/examples` otherwise.
 //!
-//! Without `--assets`, it reads `assets` beside the program if there is one, as where CI ships it,
-//! and `target/cooked/examples` otherwise. Without a window, nothing is drawn: the world runs, the
-//! ring floats, and the run says how far it went.
+//! `--frames <count>` closes it after that many frames that drew the whole world, every mesh
+//! loaded, and the run fails if none did; with `--headless`, after that many frames.
+//!
+//! `--headless` runs the world without a window: nothing is drawn, the ring floats, and the run
+//! says how far it went. With a window or without, a run longer than one rise and fall of the ring
+//! fails if the ring did not float.
+//!
+//! With `--watch`, a change of the cooked data, as `slime-cook watch` makes it, is drawn, with a
+//! window or without: the cache loads again the meshes, materials and textures that changed
+//! (`AssetCache::reload`), and a scene that changed, the lamp that the yard places among them,
+//! carries the run into the world spawned anew from it (`SceneLibrary::reload`, `World::carry`):
+//! every lamp follows the lamp but where the yard overrides it. Scenes that changed but cannot be
+//! spawned are logged, and the run goes on as it was.
 
 #[path = "common/assets_directory.rs"]
 mod assets_directory;

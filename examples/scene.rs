@@ -1,14 +1,26 @@
-//! Draws a scene cooked by the asset pipeline with the renderer, lit in physical units by the
+//! Draws a scene cooked by the asset pipeline (`docs/adr/0069-the-asset-pipeline.md`) with the
+//! renderer (`slime-render`): the asset of `examples/assets/scene.glb`, or any scene that
+//! `slime-cook` cooked, with its physically based materials. It is lit in physical units by the
 //! lights its nodes place (the asset's sun, the light of its glowing ring and a spot light), or by
-//! the sample's sun for a scene without lights, seen from a camera that orbits it until the mouse
-//! takes over: drag with the left button to turn around it, roll the wheel to come nearer or go
-//! farther. A dev overlay shows what each frame costs, with the GPU time of each pass, a slider
-//! that changes the exposure, as a photographer's exposure value, one that changes the bloom's
-//! strength and, for the sample's asset, one that changes how strongly its ring glows, through its
-//! material, found by its name; F1 hides and shows it, and F6 gives its panel the keyboard's focus,
-//! Tab then reaching its sliders, and gives it back to the camera. It loads the scene in the background, its
-//! frames showing the sky's horizon until the scene is loaded. The sample of Stages 3a, 3b, 4a and 4b.
-//! Escape, closing the window or Ctrl+C quits.
+//! the sample's sun for a scene without lights, and by a clear blue sky around the first
+//! directional light, drawn behind the scene with the sun's disc (above what the camera sees of
+//! the asset, whose sun is high), and a bloom makes bright light glow. A camera orbits it until
+//! the mouse takes over: drag with the left button to turn around it, from level with the scene to
+//! nearly straight down, roll the wheel to come nearer or go farther.
+//!
+//! A dev overlay (`slime_devui::Overlay`) shows what each frame costs: the frame's time, the CPU
+//! time of the render, the GPU time of each pass (shadow, spot shadows, scene, sky, resolve, bloom,
+//! tone mapping), the draw calls, the instances they draw and their triangles, the draw calls for
+//! shadows, and the CPU time that the sky took once the scene was loaded. Its sliders change the
+//! exposure, as a photographer's exposure value at ISO 100 (EV100), the bloom's strength, from none
+//! to five times the sample's, and, for the sample's asset, how strongly its ring glows, from none
+//! to four times, through the ring's material, found by its name, while the example runs
+//! (`LoadedScene::material`, `Material::set_values`). F1 hides and shows the overlay, and F6 gives
+//! its panel the keyboard's focus, Tab then reaching its sliders, and gives it back to the camera.
+//!
+//! It loads the scene in the background (`Renderer::load_scene_in_background`), its frames showing
+//! the sky's horizon until the scene is loaded. The sample of Stages 3a, 3b, 4a and 4b. Escape,
+//! closing the window or Ctrl+C quits.
 //!
 //! It reads cooked data, which `slime-cook` makes first:
 //!
@@ -20,8 +32,14 @@
 //! cargo run --example scene -- --watch                   # loads it and the shaders again as they change
 //! ```
 //!
-//! Without `--assets`, it reads `assets` beside the program if there is one, as where CI ships it,
-//! and `target/cooked/examples` otherwise.
+//! `--assets <directory>` reads the cooked data of that directory. Without it, the example reads
+//! `assets` beside the program if it holds a manifest, as where CI ships it, and
+//! `target/cooked/examples` otherwise. `--scene <id>` draws another of its scenes, by its asset ID:
+//! a glTF file's default scene has the file's ID. `--frames <count>` closes it after that many
+//! frames that drew the scene, and the run fails if none did. `--watch` loads the scene again,
+//! keeping what did not change, when its cooked data changes, beside `slime-cook watch` running on
+//! its sources (`docs/adr/0076-hot-reload-of-cooked-data.md`), and the renderer's shaders when
+//! their files change (`docs/adr/0077-hot-reload-of-shaders.md`).
 
 #[path = "common/assets_directory.rs"]
 mod assets_directory;

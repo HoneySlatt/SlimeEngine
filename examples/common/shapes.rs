@@ -2,7 +2,8 @@
 //! instead): a unit cube and a smooth sphere, four materials, two of them with a checker texture,
 //! four instances that overlap from most viewpoints, and in front of them six small spheres, a
 //! row of dielectrics and a row of metals of increasing roughness (ADR-0035); a directional light,
-//! and a camera that orbits them with time.
+//! a sky and a bloom, and a camera that orbits them with time. The `interface` example shows them
+//! in a panel, drawn into a target of their own.
 
 use std::f32::consts::PI;
 

@@ -1,8 +1,9 @@
 //! The reference image test of the glTF scene: the asset of `examples/assets/scene.glb`, cooked by
 //! `slime-cook` and loaded by the renderer, rendered offscreen from two fixed camera poses, must
 //! match `tests/reference/gltf-front.png` and `tests/reference/gltf-back.png` within the tolerance
-//! of the driver that renders them (ADR-0018, amended by ADR-0028 and ADR-0030; the numbers are in
-//! `common/reference_image.rs`).
+//! of the driver that renders them (ADR-0018, amended by ADR-0028, ADR-0030 and ADR-0054; the
+//! numbers are in `common/reference_image.rs`). The sample's sources are cooked first, once for
+//! the tests of this file (`common/cooked.rs`).
 //!
 //! The references were rendered with lavapipe, like the others. To render them again, after a
 //! deliberate change of the asset, of the cooker or of the renderer:
@@ -19,8 +20,8 @@
 //! lights that light the file instead of the sample's sun. One moves a cooked `.gltf` file and
 //! renames it, which changes nothing it draws. One spawns the cooked asset and a mirrored node in a
 //! world (`slime-world`), which places each node where its file does. What the importer refuses is
-//! tested with it, in `crates/slime-cook/tests/gltf.rs`. The unit tests of `common/orbit.rs` run here
-//! too.
+//! tested with it, in `crates/slime-cook/tests/gltf.rs`. The unit tests of `common/orbit.rs` run
+//! here too.
 
 #[path = "../common/cooked.rs"]
 mod cooked;

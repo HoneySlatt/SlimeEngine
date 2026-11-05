@@ -17,11 +17,12 @@
 //!
 //! The rich widgets (`docs/adr/0151-rich-widgets.md`): a bar of tools under the menus, a control of
 //! segments that chooses the tool, a button that toggles the snapping, a bar of progress of a cook
-//! that goes on, and one without a share, which moves; a field of search over the list of entities, which keeps the rows whose names
-//! hold what it holds; the position, a vector of three fields, each with its axis's prefix, which
-//! drags it, in meters, which reads expressions and units, `1m + 20cm`; the console's tab, with
-//! the count of its warnings and errors; the light's section, whose header holds its type and a
-//! button that resets it; help over the material's properties, a title and a text.
+//! that goes on, and one without a share, which moves; a field of search over the list of
+//! entities, which keeps the rows whose names hold what it holds; the position, a vector of three
+//! fields, each with its axis's prefix, which drags it, in meters, which reads expressions and
+//! units, `1m + 20cm`; the console's tab, with the count of its warnings and errors; the light's
+//! section, whose header holds its type and a button that resets it; help over the material's
+//! properties, a title and a text.
 //!
 //! A color well (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`): the light's color,
 //! whose picker opens below it.

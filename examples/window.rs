@@ -1,11 +1,19 @@
-//! Opens a window, draws the samples' triangle in it with the GPU, and logs the events it receives
-//! (window, keyboard and mouse): a presentation, with no rules (`slime_app::Presentation`). Escape,
-//! closing the window or Ctrl+C quits; cursor motion is logged at the `debug` level. While the right
-//! button is held, the window holds the cursor, hidden, and the window's title sums the mouse's
-//! raw motion, as an editor's camera flies with it (`Window::set_cursor_held`,
-//! `docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`); a refusal is logged. With
-//! `--headless`, the same program runs its frames without a window and without a GPU, its
-//! presentation never called, as automated checks run it.
+//! Opens a window, draws the samples' triangle in it with the GPU, following the window's resizes,
+//! and logs the events it receives (window, keyboard and mouse): a presentation, with no rules
+//! (`slime_app::Presentation`). The sample of Stage 2. Escape, closing the window or Ctrl+C quits
+//! cleanly; cursor motion is logged at the `debug` level. While the right button is held, the
+//! window holds the cursor, hidden, and the window's title sums the mouse's raw motion, as an
+//! editor's camera flies with it (`Window::set_cursor_held`,
+//! `docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`); the cursor is let go with the
+//! button or as the window loses the focus, and a refusal of the windowing system is logged.
+//!
+//! `--frames <count>` closes it after that many frames; with a window, the run then fails if none
+//! of them drew the triangle. With `--headless`, the same program runs its frames without a window
+//! and without a GPU, its presentation never called, as automated checks run it.
+//! `--present-mode mailbox|fifo` chooses how the window shows its images
+//! (`slime_gfx::PresentMode`): `mailbox`, the default, never waits and drops the images the
+//! display had no time to show, where the window offers it; `fifo` shows every image, one per
+//! refresh.
 //!
 //! ```sh
 //! cargo run --example window

@@ -1,15 +1,24 @@
 //! The image tests of the `widgets` example (`docs/adr/0148-widgets.md`): its interface, in the
 //! editor's look, drawn by the renderer's canvas, must match the reference images of
-//! `tests/reference/` within a tolerance. The inspector as it opens, in the dark theme and in the
-//! light one; the console in high contrast and compact; the console, a level of its log hidden by a
-//! check box that an action unchecked; the inspector laid out from the right, a section folded and
-//! another opened, a slider moved and a check box checked; the bar's menu *File* open with its
-//! submenu of recent levels; the floating panel of statistics, the list to choose the quality of
-//! shadows from open, and a tab's tooltip (`docs/adr/0150-layers.md`); a notification of a level
-//! saved and the palette of commands, what is typed finding its commands
-//! (`docs/adr/0151-rich-widgets.md`); the light's color well, its picker open on a color typed as
-//! its code (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`). Transitions are dropped, so
-//! that each image shows where they end (`docs/adr/0149-the-looks-foundations.md`).
+//! `tests/reference/` within a tolerance, at 960 × 600 pixels:
+//!
+//! - `widgets-inspector.png`: the inspector as it opens, in the dark theme;
+//! - `widgets-light.png`: the same in the light theme;
+//! - `widgets-contrast-compact.png`: the console in high contrast and compact;
+//! - `widgets-console.png`: the console, a level of its log hidden by a check box that an action
+//!   unchecked;
+//! - `widgets-right-to-left.png`: the inspector laid out from the right, a section folded and
+//!   another opened, a slider moved and a check box checked;
+//! - `widgets-menus.png`: the bar's menu *File* open with its submenu of recent levels;
+//! - `widgets-layers.png`: the floating panel of statistics, the list to choose the quality of
+//!   shadows from open, and a tab's tooltip (`docs/adr/0150-layers.md`);
+//! - `widgets-told.png`: a notification of a level saved and the palette of commands, what is
+//!   typed finding its commands (`docs/adr/0151-rich-widgets.md`);
+//! - `widgets-picker.png`: the light's color well, its picker open on a color typed as its code
+//!   (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`).
+//!
+//! Transitions are dropped, so that each image shows where they end
+//! (`docs/adr/0149-the-looks-foundations.md`).
 //!
 //! The references were drawn with lavapipe, as the triangle's were (`tests/offscreen.rs`). To draw
 //! them again, after a deliberate change of the example or of the look:

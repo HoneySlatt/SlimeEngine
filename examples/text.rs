@@ -1,16 +1,21 @@
 //! The interface's text, without a GPU (`docs/adr/0136-the-interfaces-text.md`): a sentence of each
-//! writing system of slime-ui's tests laid out in a box 560 logical pixels wide, Arabic and Hebrew
-//! from right to left, and a label cut with an ellipsis; each glyph rasterized and put on a white
-//! image by the CPU, which is written to a PNG file. The renderer draws text from Stage 6b's third
-//! milestone on; until then, this shows what the text module gives it.
+//! writing system of slime-ui's tests, English, Arabic and Hebrew from right to left, Hindi, Thai,
+//! Japanese, Chinese and emoji, laid out in a box 560 logical pixels wide
+//! (`slime_ui::text::Fonts::lay_out`), and a label cut with an ellipsis (`TextBounds::line`); each
+//! glyph rasterized (`GlyphRasterizer`) and put on a white image by the CPU, which is written to a
+//! PNG file. The renderer draws such text too, as the `interface` example shows; this shows what
+//! the text module gives on its own.
 //!
 //! ```sh
 //! cargo run --example text                                  # writes text.png
 //! cargo run --example text -- --scale 2 --output text@2.png
 //! ```
 //!
+//! `--output <file.png>` names the file, `text.png` by default; `--scale <factor>` sets the image's
+//! pixels per logical pixel, above 0 and up to 8, 1 by default.
+//!
 //! It reads the fonts of slime-ui's tests, parts of Noto fonts that hold the characters of those
-//! sentences alone (`crates/slime-ui/tests/fonts/README.md`).
+//! sentences alone (`crates/slime-ui/tests/fonts/README.md`), from the workspace as it runs.
 
 #[path = "common/png_file.rs"]
 mod png_file;
