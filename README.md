@@ -1,5 +1,7 @@
 # SlimeEngine
 
+<img src="docs/logo/slime.svg" alt="SlimeEngine's mascot" width="160">
+
 SlimeEngine is a general-purpose, modular, open-source game engine written in Rust. It aims to
 be a complete platform (runtime, asset pipeline, native editor and SDK) for linear narrative
 games first, then open-world games, then large online worlds.
@@ -170,5 +172,6 @@ are in [`docs/debt.md`](docs/debt.md).
 
 SlimeEngine is licensed under either of the [MIT license](LICENSE-MIT) or the
 [Apache License 2.0](LICENSE-APACHE), at your choice. Releases before 0.7 are under the Mozilla
-Public License 2.0. A game built with the engine can use any license. uwui's logo is not under
-these licenses: its terms are in [`crates/uwui/logo/README.md`](crates/uwui/logo/README.md).
+Public License 2.0. A game built with the engine can use any license. The two logos are not under
+these licenses: their terms are in [`docs/logo/README.md`](docs/logo/README.md), the engine's, and
+[`crates/uwui/logo/README.md`](crates/uwui/logo/README.md), uwui's.

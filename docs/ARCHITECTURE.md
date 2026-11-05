@@ -39,7 +39,7 @@ it is built this way.
 │                        glyphs' atlas
 ├── deny.toml            dependency license, advisory and source rules
 ├── docs/                roadmap, plan, decisions (adr/), glossary, dependencies, measurements,
-│                        this file
+│                        the engine's logo (logo/), this file
 ├── examples/            runnable examples, one per feature, with their tests (`slime-examples`)
 ├── flake.nix            Nix development shell
 ├── flake.lock           pinned inputs of the development shell
