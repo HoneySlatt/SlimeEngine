@@ -25,7 +25,7 @@ use slime_render::{CanvasImage, DebugMode, Pick, RenderError, Renderer};
 use slime_ui::Rect;
 use slime_ui::action::{Action, ActionKind, FieldValue, SurfaceInput};
 use slime_ui::display::{BoxPrimitive, DisplayList, ImageKey};
-use slime_ui::dock::Dock;
+use slime_ui::dock::{Dock, Target};
 use slime_ui::look::{self, Colors, Density};
 use slime_ui::shortcuts::Shortcuts;
 use slime_ui::style::{Dimension, FlexDirection, Justify, Sides, Style};
@@ -41,7 +41,7 @@ use crate::handles::{Drag, Gizmo, Space, Tool};
 use crate::hierarchy::Hierarchy;
 use crate::operation::{self, BLENDER_SHORTCUTS, OPERATIONS, SHORTCUTS};
 use crate::pane::{Bound, Pane};
-use crate::panels::{default_layout, panel_move, title};
+use crate::panels::{self, FLOAT, LayoutFile, PANELS, panel_move, title};
 use crate::picking::{self, Wanted};
 use crate::program::Program;
 use crate::session::Session;
@@ -56,6 +56,9 @@ pub(crate) enum Entry {
     Operation(&'static str),
     /// The submenu of the levels opened last, each running `file.open` with its path.
     Recent,
+    /// The submenu of the window's panels, each of which shows its panel, opened where it was or
+    /// its tab chosen (`view.open_panel`).
+    Panels,
     /// A line that parts the entries before it from those after.
     Separator,
 }
@@ -115,6 +118,9 @@ pub(crate) const MENUS: &[(&str, &[Entry])] = &[
             Entry::Separator,
             Entry::Operation("view.split"),
             Entry::Separator,
+            Entry::Panels,
+            Entry::Operation("view.reset_layout"),
+            Entry::Separator,
             Entry::Operation("view.keys_default"),
             Entry::Operation("view.keys_blender"),
         ],
@@ -171,6 +177,10 @@ fn shading(name: &str) -> Option<DebugMode> {
     }
 }
 
+/// How long the layout stands still, once it settled, before the window writes it: a border moved
+/// by a held arrow, or tabs chosen one after another, write it once.
+const KEEP_AFTER: Duration = Duration::from_millis(500);
+
 /// What the layer that waits for the system's dialog says while it waits.
 const CHOOSE: &str = "Choose a level in the system's dialog, or type its path.";
 
@@ -192,6 +202,8 @@ enum Item {
     Run(&'static str, Vec<String>),
     /// Opens the submenu of the recent levels.
     Recent,
+    /// Opens the submenu of the window's panels.
+    Panels,
     /// Opens the submenu of where the panel of this key moves
     /// (`docs/adr/0172-regions-of-tabs.md`).
     MoveTo(String),
@@ -216,10 +228,17 @@ pub(crate) struct Model {
     shared: Shared,
     pub(crate) ui: Ui,
     root: ElementId,
-    /// The panels laid out in regions of tabs, and the slot that it builds into
-    /// (`docs/adr/0172-regions-of-tabs.md`).
+    /// The panels laid out in regions of tabs and floating, and the slot that it builds into
+    /// (`docs/adr/0172-regions-of-tabs.md`,
+    /// `docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`).
     dock: Dock,
     dock_slot: Option<ElementId>,
+    /// The program's default layout, which *Reset layout* shows; when the layout that settled last
+    /// is to be written, once it has stood still for [`KEEP_AFTER`]; and whether the user was told
+    /// that the layout cannot be kept, which is told once.
+    default_layout: LayoutFile,
+    layout_due: Option<Instant>,
+    layout_unkept: bool,
     /// The box of the components' panel that the world panel builds into, while it shows.
     slot: Option<ElementId>,
     panel: WorldPanel,
@@ -290,13 +309,39 @@ impl Model {
             .as_deref()
             .and_then(|file| std::fs::read_to_string(file).ok())
             .is_some_and(|chosen| chosen.trim() == BLENDER);
+        // The layout kept for the user, or the program's default, and what the user is told. A
+        // project's default that cannot be read leaves the layout kept against it alone, and a file
+        // that could be neither read nor set aside is not written over.
+        let (default_layout, layout) = {
+            let mut shared = shared.borrow_mut();
+            let (default, told) = panels::default(shared.default_layout);
+            if told.is_some() {
+                shared.layout = None;
+            }
+            let kept = match &shared.layout {
+                Some(file) => panels::kept(file, &default),
+                None => panels::Kept {
+                    layout: default.layout.clone(),
+                    notice: None,
+                    writable: true,
+                },
+            };
+            if !kept.writable {
+                shared.layout = None;
+            }
+            shared.notices.extend(told.into_iter().chain(kept.notice));
+            (default, kept.layout)
+        };
         let root = ui.add_root("editor", settings([1.0, 1.0], 1.0), column());
         let mut model = Self {
             shared,
             ui,
             root,
-            dock: Dock::new(default_layout()),
+            dock: Dock::new(layout),
             dock_slot: None,
+            default_layout,
+            layout_due: None,
+            layout_unkept: false,
             slot: None,
             panel: WorldPanel::alone(),
             bar: Vec::new(),
@@ -707,17 +752,22 @@ impl Model {
                     arguments: vec![steps.to_string()],
                 })
             }
-            // A tab's context menu, the second button or Shift+F10 on it: where to move its panel.
-            (ActionKind::ContextMenu { .. }, Some(id))
+            // A panel's context menu, the second button or Shift+F10 on its tab or on its floating
+            // panel's bar: where to move it, and closing it.
+            (ActionKind::ContextMenu { at }, Some(id))
                 if let Some(panel) = self.dock.panel_of(id) =>
             {
                 let panel = panel.to_owned();
-                self.open_menu(id, Side::Below, Menu::Tab(panel));
+                let place = Place::At {
+                    over: id,
+                    point: *at,
+                };
+                self.open_menu(place, Menu::Panel(panel));
                 None
             }
             (ActionKind::Press, Some(id)) => {
                 if let Some(&(_, menu)) = self.bar.iter().find(|&&(item, _)| item == id) {
-                    self.open_menu(id, Side::Below, Menu::Bar(menu));
+                    self.open_menu(beside(id, Side::Below), Menu::Bar(menu));
                     return None;
                 }
                 let item = self
@@ -731,11 +781,15 @@ impl Model {
                         arguments,
                     }),
                     Item::Recent => {
-                        self.open_menu(id, Side::End, Menu::Recent);
+                        self.open_menu(beside(id, Side::End), Menu::Recent);
+                        None
+                    }
+                    Item::Panels => {
+                        self.open_menu(beside(id, Side::End), Menu::Panels);
                         None
                     }
                     Item::MoveTo(panel) => {
-                        self.open_menu(id, Side::End, Menu::MoveTo(panel));
+                        self.open_menu(beside(id, Side::End), Menu::MoveTo(panel));
                         None
                     }
                 }
@@ -750,8 +804,8 @@ impl Model {
         }
     }
 
-    /// Opens `menu` beside `element`, on its `side`, in a layer that closes as the user leaves it.
-    fn open_menu(&mut self, element: ElementId, side: Side, menu: Menu) {
+    /// Opens `menu` where `place` says, in a layer that closes as the user leaves it.
+    fn open_menu(&mut self, place: Place, menu: Menu) {
         let entries: Vec<(String, String, ItemMark, Option<Item>)> = match &menu {
             Menu::Bar(menu) => MENUS[*menu]
                 .1
@@ -792,6 +846,12 @@ impl Model {
                         ItemMark::Submenu,
                         Some(Item::Recent),
                     ),
+                    Entry::Panels => (
+                        "Panels".to_owned(),
+                        String::new(),
+                        ItemMark::Submenu,
+                        Some(Item::Panels),
+                    ),
                     Entry::Separator => (String::new(), String::new(), ItemMark::None, None),
                 })
                 .collect(),
@@ -809,12 +869,33 @@ impl Model {
                     )
                 })
                 .collect(),
-            Menu::Tab(panel) => vec![(
-                "Move to".to_owned(),
-                String::new(),
-                ItemMark::Submenu,
-                Some(Item::MoveTo(panel.clone())),
-            )],
+            // Each shown, opened where it was or its tab chosen, as an editor's menu of its windows
+            // shows one.
+            Menu::Panels => PANELS
+                .iter()
+                .map(|&(panel, title)| {
+                    (
+                        title.to_owned(),
+                        String::new(),
+                        ItemMark::None,
+                        Some(Item::Run("view.open_panel", vec![panel.to_owned()])),
+                    )
+                })
+                .collect(),
+            Menu::Panel(panel) => vec![
+                (
+                    "Move to".to_owned(),
+                    String::new(),
+                    ItemMark::Submenu,
+                    Some(Item::MoveTo(panel.clone())),
+                ),
+                (
+                    "Close".to_owned(),
+                    String::new(),
+                    ItemMark::None,
+                    Some(Item::Run("view.close_panel", vec![panel.clone()])),
+                ),
+            ],
             Menu::MoveTo(panel) => {
                 let move_to = |to: &str| {
                     Some(Item::Run(
@@ -822,20 +903,22 @@ impl Model {
                         vec![panel.clone(), to.to_owned()],
                     ))
                 };
-                let mut entries: Vec<_> = self
-                    .dock
-                    .layout()
+                let layout = self.dock.layout();
+                // The other stacks that show, each by the titles of its panels open.
+                let mut entries: Vec<_> = layout
                     .stacks()
                     .into_iter()
                     .filter(|stack| !stack.iter().any(|each| each == panel))
-                    .map(|stack| {
-                        let titles: Vec<String> = stack.iter().map(|each| title(each)).collect();
-                        (
+                    .filter_map(|stack| {
+                        let open: Vec<&String> =
+                            stack.iter().filter(|each| layout.is_open(each)).collect();
+                        let titles: Vec<String> = open.iter().map(|each| title(each)).collect();
+                        Some((
                             titles.join(", "),
                             String::new(),
                             ItemMark::None,
-                            move_to(&stack[0]),
-                        )
+                            move_to(open.first()?),
+                        ))
                     })
                     .collect();
                 if !entries.is_empty() {
@@ -854,21 +937,27 @@ impl Model {
                         move_to(edge),
                     ));
                 }
+                if !layout.floats(panel) {
+                    entries.push((String::new(), String::new(), ItemMark::None, None));
+                    entries.push((
+                        "A floating panel".to_owned(),
+                        String::new(),
+                        ItemMark::None,
+                        move_to(FLOAT),
+                    ));
+                }
                 entries
             }
         };
         let layer = Layer {
-            place: Place::Beside {
-                element,
-                side,
-                along: Along::Start,
-            },
+            place,
             modal: false,
             dismiss: true,
         };
         let key = match menu {
-            Menu::Bar(_) | Menu::Tab(_) => "menu",
+            Menu::Bar(_) | Menu::Panel(_) => "menu",
             Menu::Recent => "recent",
+            Menu::Panels => "panels",
             Menu::MoveTo(_) => "move to",
         };
         let layer = self.ui.open_layer(key, layer, Style::default());
@@ -1123,19 +1212,39 @@ impl Model {
                 }
                 "view.split" => self.split(),
                 "view.move_panel" => {
-                    // The core checked the names: it is refused only into its own stack.
+                    // The core checked the names: it is refused only into its own stack, into a
+                    // floating panel, or afloat again.
                     if let [panel, to] = arguments.as_slice()
                         && let Ok(target) = panel_move(panel, to)
                         && !self.dock.move_panel(panel, &target)
                     {
+                        let text = if target == Target::Float {
+                            format!("`{panel}` floats already.")
+                        } else if self.dock.layout().floats(to) {
+                            format!("`{to}` floats alone: a panel moves into a stack of tabs.")
+                        } else {
+                            format!("`{panel}` lies with `{to}` already.")
+                        };
                         let mut shared = self.shared.borrow_mut();
                         shared.notices.push(Notice {
                             failure: true,
-                            text: format!("`{panel}` lies with `{to}` already."),
+                            text,
                         });
                         shared.revision += 1;
                     }
                 }
+                // Closed where it is, to come back there; nothing for a panel closed already.
+                "view.close_panel" => {
+                    if let [panel] = arguments.as_slice() {
+                        self.dock.close(panel);
+                    }
+                }
+                "view.open_panel" => {
+                    if let [panel] = arguments.as_slice() {
+                        self.dock.show(panel);
+                    }
+                }
+                "view.reset_layout" => self.dock.set_layout(self.default_layout.layout.clone()),
                 "edit.rename" | "hierarchy.previous" | "hierarchy.next" | "hierarchy.fold"
                 | "hierarchy.unfold" => {
                     // The hierarchy shows, its tab chosen, where the rename or the arrows act.
@@ -1212,6 +1321,11 @@ impl Model {
             self.follow_the_core(world);
         }
         self.build();
+        let now = Instant::now();
+        if self.dock.take_changed() {
+            self.layout_due = Some(now + KEEP_AFTER);
+        }
+        self.keep_layout_by(now);
         self.follow_the_eyes(world);
         if let Some(slot) = self.slot {
             self.panel.build(&mut self.ui, slot, world);
@@ -1236,6 +1350,39 @@ impl Model {
             );
         }
         display
+    }
+
+    /// Writes the layout that settled, if it has stood still for [`KEEP_AFTER`] by `now`.
+    pub(crate) fn keep_layout_by(&mut self, now: Instant) {
+        if self.layout_due.is_some_and(|due| due <= now) {
+            self.layout_due = None;
+            self.keep_layout();
+        }
+    }
+
+    /// When the layout that settled is to be written, for the loop to wake then.
+    pub(crate) fn layout_waits(&self) -> Option<Instant> {
+        self.layout_due
+    }
+
+    /// Writes the dock's layout to the file of the user's state directory that keeps it, if the
+    /// program has one, telling the user once when it cannot.
+    fn keep_layout(&mut self) {
+        let Some(file) = self.shared.borrow().layout.clone() else {
+            return;
+        };
+        let kept = panels::keep(&file, &self.default_layout.default, self.dock.layout());
+        if let Err(error) = kept {
+            tracing::warn!(%error, "the layout is not kept");
+            if !std::mem::replace(&mut self.layout_unkept, true) {
+                self.ui.notify(Notification {
+                    kind: NotificationKind::Error,
+                    text: format!("The layout is not kept for the next start: {error}"),
+                    progress: None,
+                    buttons: Vec::new(),
+                });
+            }
+        }
     }
 
     /// Shows two viewports side by side, the second seeing as the first does, or one again, the
@@ -1686,11 +1833,32 @@ enum Menu {
     Bar(usize),
     /// The levels opened last.
     Recent,
-    /// The context menu of the tab of the panel of this key.
-    Tab(String),
+    /// The context menu of the panel of this key, from its tab or its floating panel's bar.
+    Panel(String),
+    /// The window's panels, each of which shows its panel.
+    Panels,
     /// Where the panel of this key moves: into the stack of another panel, or to an edge of the
     /// window (`view.move_panel`).
     MoveTo(String),
+}
+
+impl Drop for Model {
+    /// Writes the layout that settled last, if it waits to be: the window closes, or quits, within
+    /// [`KEEP_AFTER`] of a change.
+    fn drop(&mut self) {
+        if self.layout_due.take().is_some() {
+            self.keep_layout();
+        }
+    }
+}
+
+/// The place of a menu beside `element`, on its `side`, along its start.
+fn beside(element: ElementId, side: Side) -> Place {
+    Place::Beside {
+        element,
+        side,
+        along: Along::Start,
+    }
 }
 
 /// The speed at which a viewport flies, in metres per second, as the status bar says it.
@@ -2353,6 +2521,10 @@ impl Presentation for Window {
                 model.dialog_opened(window.choose_file(choice), Instant::now());
             }
         }
+        // The layout written once it stood still, with a level open or not.
+        if let Some(due) = model.layout_waits() {
+            ctx.request_frame_at(due);
+        }
         // The keys that fly a camera move it at every frame while they are held.
         let now = Instant::now();
         for pane in &mut model.panes {
@@ -2578,6 +2750,7 @@ mod tests {
                 lighting: Lighting::default(),
                 play,
                 build,
+                layout: None,
             };
             let arguments: Vec<OsString> = vec![
                 "--journal".into(),
@@ -4419,7 +4592,8 @@ mod tests {
                 "The window's left edge",
                 "The window's right edge",
                 "The window's top",
-                "The window's bottom"
+                "The window's bottom",
+                "A floating panel"
             ]
         );
         let edge = found(&yard, Role::MenuItem, "The window's right edge").expect("a place");
@@ -4473,6 +4647,241 @@ mod tests {
             );
             assert!(refused.is_err(), "{arguments:?}");
         }
+    }
+
+    /// The layout kept in the user's state directory, written once it stood still, which the next
+    /// start shows; a panel floated, closed and opened again where it was, by the operations and by
+    /// the menus; a layout that cannot be read set aside, the default shown and the user told; and
+    /// *Reset layout* (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`).
+    #[test]
+    fn the_layout_is_kept_and_its_panels_float_close_and_come_back() {
+        use slime_ui::tree::Role;
+        let mut yard = Yard::new("layout");
+        let file = yard.directory.join("state").join("editor.layout");
+        yard.shared.borrow_mut().layout = Some(file.clone());
+        // A start that finds no layout kept: the default, nothing told.
+        yard.model = Model::new(yard.shared.clone());
+        yard.frame();
+        let (default, _) = panels::default(None);
+        assert_eq!(yard.model.dock.layout(), &default.layout);
+        assert!(!file.exists(), "nothing written until it changes");
+        let found = |yard: &Yard, role: Role, name: &str| {
+            yard.model
+                .ui
+                .meaning()
+                .into_iter()
+                .find(|meaning| meaning.role == role && meaning.name == name)
+                .map(|meaning| meaning.id)
+        };
+        let path = |yard: &Yard, role: Role, name: &str| {
+            found(yard, role, name).and_then(|id| yard.model.ui.path_text(id))
+        };
+        let kept = |file: &Path| panels::kept(file, &panels::default(None).0).layout;
+        // The history floated, as an agent floats it: in a floating panel, its rows built there;
+        // written once the layout stood still.
+        run_with(&mut yard, "view.move_panel", &["history", "float"]);
+        let floating = found(&yard, Role::Pane, "History").expect("a floating panel");
+        assert!(yard.model.history_slot.is_some(), "its rows afloat");
+        assert!(found(&yard, Role::Tab, "History").is_none());
+        let due = yard.model.layout_waits().expect("to be written");
+        assert!(!file.exists(), "not while it may change again");
+        yard.model.keep_layout_by(due);
+        assert_eq!(&kept(&file), yard.model.dock.layout());
+        assert_eq!(yard.model.layout_waits(), None, "nothing more to wake for");
+        // Its bar's context menu has no floating panel to move to: Move to, Viewport.
+        yard.model.ui.act(Action {
+            element: Some(floating),
+            kind: ActionKind::ContextMenu { at: [400.0, 300.0] },
+        });
+        yard.frame();
+        let move_to = found(&yard, Role::MenuItem, "Move to").expect("in its context menu");
+        click(&mut yard, move_to);
+        assert!(found(&yard, Role::MenuItem, "A floating panel").is_none());
+        let viewport = found(&yard, Role::MenuItem, "Viewport").expect("a stack");
+        click(&mut yard, viewport);
+        yard.frame();
+        assert!(
+            found(&yard, Role::Pane, "History").is_none(),
+            "docked again"
+        );
+        assert!(found(&yard, Role::Tab, "History").is_some());
+        // The console closed by its tab's context menu: no tab, its place kept.
+        let stacks = yard.model.dock.layout().stacks().len();
+        let console = found(&yard, Role::Tab, "Console").expect("its tab");
+        let was = yard.model.ui.path_text(console);
+        yard.model.ui.act(Action {
+            element: Some(console),
+            kind: ActionKind::ContextMenu { at: [0.0, 0.0] },
+        });
+        yard.frame();
+        let close = found(&yard, Role::MenuItem, "Close").expect("in its context menu");
+        click(&mut yard, close);
+        yard.frame();
+        assert!(found(&yard, Role::Tab, "Console").is_none());
+        assert!(!yard.model.dock.layout().is_open("console"));
+        assert_eq!(
+            yard.model.dock.layout().stacks().len(),
+            stacks,
+            "its stack kept"
+        );
+        // View > Panels > Console: it opens where it was, its tab shown.
+        let view = yard
+            .model
+            .bar
+            .iter()
+            .find(|&&(_, menu)| MENUS[menu].0 == "View")
+            .map(|&(item, _)| item)
+            .expect("View");
+        click(&mut yard, view);
+        let panels = found(&yard, Role::MenuItem, "Panels").expect("in View");
+        click(&mut yard, panels);
+        let item = found(&yard, Role::MenuItem, "Console").expect("in Panels");
+        click(&mut yard, item);
+        yard.frame();
+        assert_eq!(path(&yard, Role::Tab, "Console"), was, "where it was");
+        // The viewport floated keeps its surface; the components closed by their operation.
+        run_with(&mut yard, "view.move_panel", &["viewport", "float"]);
+        assert!(yard.model.panes[0].surface.is_some(), "a surface afloat");
+        let components = path(&yard, Role::Tab, "Components");
+        run_with(&mut yard, "view.close_panel", &["components"]);
+        assert!(yard.model.slot.is_none());
+        let arranged = yard.model.dock.layout().clone();
+        // The next start shows it as it was left, the window that closed having written it.
+        drop(std::mem::replace(
+            &mut yard.model,
+            Model::new(Shared::default()),
+        ));
+        assert_eq!(kept(&file), arranged);
+        yard.model = Model::new(yard.shared.clone());
+        yard.frame();
+        yard.frame();
+        assert_eq!(yard.model.dock.layout(), &arranged);
+        assert!(
+            yard.model.panes[0].surface.is_some(),
+            "the viewport afloat again"
+        );
+        // Opened again where it was.
+        run_with(&mut yard, "view.open_panel", &["components"]);
+        assert!(yard.model.slot.is_some());
+        assert_eq!(path(&yard, Role::Tab, "Components"), components);
+        // Reset layout: the default, written.
+        run(&mut yard, "view.reset_layout");
+        assert_eq!(yard.model.dock.layout(), &default.layout);
+        assert!(found(&yard, Role::Pane, "Viewport").is_none(), "docked");
+        yard.model.keep_layout_by(Instant::now() + KEEP_AFTER);
+        assert_eq!(kept(&file), default.layout);
+        // A file that cannot be read: set aside, the default shown, the user told.
+        std::fs::write(&file, "default = [").expect("written");
+        yard.model = Model::new(yard.shared.clone());
+        yard.frame();
+        assert_eq!(yard.model.dock.layout(), &default.layout);
+        let unreadable = yard
+            .directory
+            .join("state")
+            .join("editor.layout.unreadable");
+        assert!(unreadable.is_file());
+        assert!(
+            yard.model
+                .ui
+                .meaning()
+                .iter()
+                .any(|meaning| meaning.name.contains("editor.layout.unreadable")),
+            "told in a notification"
+        );
+        // Refused by the core: a panel that the window does not have.
+        for (name, arguments) in [
+            ("view.close_panel", vec!["map"]),
+            ("view.open_panel", vec!["map"]),
+            ("view.move_panel", vec!["map", "float"]),
+        ] {
+            let refused = yard.session.handle(
+                yard.host.world_mut(),
+                Request::Run {
+                    name: name.to_owned(),
+                    arguments: arguments.into_iter().map(str::to_owned).collect(),
+                },
+            );
+            assert!(refused.is_err(), "{name}");
+        }
+    }
+
+    /// A project's default layout, which a game's editor package gives, shows in place of the
+    /// editor's and comes back by *Reset layout*; one that cannot be read leaves the layout kept
+    /// against it alone; a layout that cannot be written is told once
+    /// (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`).
+    #[test]
+    fn a_project_s_default_shows_and_a_layout_unkept_is_told_once() {
+        let mut yard = Yard::new("project-layout");
+        let file = yard.directory.join("state").join("editor.layout");
+        let mut project = panels::default(None).0;
+        assert!(
+            project
+                .layout
+                .move_panel("history", &Target::Edge(slime_ui::dock::Edge::Left))
+        );
+        project.default = "garden 1".to_owned();
+        let text: &'static str = Box::leak(
+            slime_serialize::write_as(&project)
+                .expect("written")
+                .into_boxed_str(),
+        );
+        yard.shared.borrow_mut().default_layout = Some(text);
+        yard.shared.borrow_mut().layout = Some(file.clone());
+        yard.model = Model::new(yard.shared.clone());
+        yard.frame();
+        assert_eq!(yard.model.dock.layout(), &project.layout);
+        run_with(&mut yard, "view.close_panel", &["history"]);
+        run(&mut yard, "view.reset_layout");
+        assert_eq!(yard.model.dock.layout(), &project.layout);
+        yard.model.keep_layout_by(Instant::now() + KEEP_AFTER);
+        let written = std::fs::read_to_string(&file).expect("written");
+        assert!(written.contains("default = \"garden 1\""), "{written}");
+        // The project's default unreadable: the editor's shows, and the layout kept against the
+        // project's is neither set aside nor written over.
+        yard.shared.borrow_mut().default_layout = Some("default = [");
+        yard.model = Model::new(yard.shared.clone());
+        yard.frame();
+        assert_eq!(yard.model.dock.layout(), &panels::default(None).0.layout);
+        run_with(&mut yard, "view.close_panel", &["console"]);
+        drop(std::mem::replace(
+            &mut yard.model,
+            Model::new(Shared::default()),
+        ));
+        assert_eq!(std::fs::read_to_string(&file).expect("kept"), written);
+    }
+
+    /// A layout that cannot be written, its directory taking no new file, is told once, however
+    /// often it settles.
+    #[cfg(unix)]
+    #[test]
+    fn a_layout_that_cannot_be_kept_is_told_once() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mut yard = Yard::new("layout-unkept");
+        let state = yard.directory.join("state");
+        fs::create_dir_all(&state).expect("a directory");
+        fs::set_permissions(&state, fs::Permissions::from_mode(0o555)).expect("locked");
+        // Root, whom permissions do not hold back, has nothing to check here.
+        if fs::write(state.join("probe"), "").is_ok() {
+            fs::set_permissions(&state, fs::Permissions::from_mode(0o755)).expect("open");
+            return;
+        }
+        yard.shared.borrow_mut().layout = Some(state.join("editor.layout"));
+        yard.model = Model::new(yard.shared.clone());
+        yard.frame();
+        for panel in ["console", "history"] {
+            run_with(&mut yard, "view.close_panel", &[panel]);
+            yard.model.keep_layout_by(Instant::now() + KEEP_AFTER);
+            yard.frame();
+        }
+        fs::set_permissions(&state, fs::Permissions::from_mode(0o755)).expect("open");
+        let told = yard
+            .model
+            .ui
+            .meaning()
+            .iter()
+            .filter(|meaning| meaning.name.contains("not kept for the next start"))
+            .count();
+        assert_eq!(told, 1);
     }
 
     /// A level flies at first at a speed that suits its size, or at the one last used in it, which

@@ -1,0 +1,54 @@
+# The editor's own default layout of its window's panels, a layout file
+# (docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md): the hierarchy above the
+# components on the left, a quarter of the window's width, and the viewport above a stack of the
+# history and the console, a quarter of its height. Its `default` names it and its version, which
+# changes when the arrangement should replace the layouts that users keep.
+
+default = "editor 1"
+
+[layout]
+floating = []
+closed = []
+
+[layout.root.Split]
+side_by_side = true
+
+[[layout.root.Split.children]]
+share = 0.25
+
+[layout.root.Split.children.node.Split]
+side_by_side = false
+
+[[layout.root.Split.children.node.Split.children]]
+share = 0.55
+
+[layout.root.Split.children.node.Split.children.node.Tabs]
+panels = ["hierarchy"]
+chosen = 0
+
+[[layout.root.Split.children.node.Split.children]]
+share = 0.45
+
+[layout.root.Split.children.node.Split.children.node.Tabs]
+panels = ["components"]
+chosen = 0
+
+[[layout.root.Split.children]]
+share = 0.75
+
+[layout.root.Split.children.node.Split]
+side_by_side = false
+
+[[layout.root.Split.children.node.Split.children]]
+share = 0.75
+
+[layout.root.Split.children.node.Split.children.node.Tabs]
+panels = ["viewport"]
+chosen = 0
+
+[[layout.root.Split.children.node.Split.children]]
+share = 0.25
+
+[layout.root.Split.children.node.Split.children.node.Tabs]
+panels = ["history", "console"]
+chosen = 0

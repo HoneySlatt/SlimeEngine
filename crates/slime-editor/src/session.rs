@@ -84,6 +84,7 @@ impl Session {
     ) -> Self {
         shared.borrow_mut().program = program.name;
         shared.borrow_mut().lighting = Some(program.lighting);
+        shared.borrow_mut().default_layout = program.layout;
         Self {
             program: program.clone(),
             options,
@@ -471,9 +472,7 @@ impl Session {
             if operation.changes == Changes::Level {
                 self.last = Some((operation.name, arguments.clone()));
             }
-            if operation.name == "view.move_panel" {
-                panels::panel_move(&arguments[0], &arguments[1])?;
-            }
+            panels::check(operation.name, &arguments)?;
             let mut shared = self.shared.borrow_mut();
             if !shared.window {
                 return Err(
@@ -1565,6 +1564,7 @@ mod tests {
                 lighting: Lighting::default(),
                 play: None,
                 build: None,
+                layout: None,
             };
             let mut arguments: Vec<OsString> = arguments.iter().map(OsString::from).collect();
             arguments.extend(["--journal".into(), self.journal().into_os_string()]);

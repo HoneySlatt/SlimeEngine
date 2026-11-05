@@ -5,7 +5,9 @@
 //! selected, outlined where the scene shows it and dimmed where the wall hides it
 //! (`docs/adr/0159-picking-and-the-selection.md`), with the handles that move it and those that
 //! turn it (`docs/adr/0161-the-open-step-and-the-handles.md`), with a step done and one undone in
-//! the history panel (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`), and with two
+//! the history panel (`docs/adr/0163-placing-prefabs-and-the-history-panel.md`), with its panels
+//! moved (`docs/adr/0172-regions-of-tabs.md`), with a panel floating and another closed
+//! (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`), and with two
 //! viewports side by side
 //! (`docs/adr/0160-two-viewports-and-blenders-way.md`), drawn without a window of the
 //! system by `slime_editor::window_image`, must match the reference images of `tests/reference/`
@@ -51,6 +53,7 @@ fn program(assets: &Path) -> slime_editor::Program {
         },
         play: None,
         build: None,
+        layout: None,
     }
 }
 
@@ -139,6 +142,22 @@ fn the_window_with_its_panels_moved_matches_its_reference_image() {
         &[
             "view.move_panel components hierarchy",
             "view.move_panel console right",
+        ],
+        &[],
+        1.0,
+    );
+}
+
+/// The history floated over the window, in the middle of it, where no stack had stood yet, and the
+/// components closed, the hierarchy taking the whole left column
+/// (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`).
+#[test]
+fn the_window_with_a_floating_panel_and_a_closed_one_matches_its_reference_image() {
+    check(
+        "editor-floating",
+        &[
+            "view.move_panel history float",
+            "view.close_panel components",
         ],
         &[],
         1.0,

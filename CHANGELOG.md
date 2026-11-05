@@ -8,6 +8,15 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- The editor's layout kept, floating panels and closed panels (ADR-0174): the layout of the
+  window's panels is kept per user and per program in the user's state directory,
+  `slime-editor/<program>.layout`, written once it stands still, and shown at the next start; one
+  made from another default, or that cannot be read, is set aside beside it, the default shown and
+  the user told; *View* > *Reset layout* (`view.reset_layout`) shows the default. A panel floats
+  over the window by its tab's context menu, *Move to* > *A floating panel*, or
+  `view.move_panel <panel> float`, and docks again from its bar's; it closes by *Close* or
+  `view.close_panel`, keeping its place, and opens there again from *View* > *Panels* or
+  `view.open_panel`.
 - Closed and floating panels in `slime-ui`'s dock (ADR-0174): `Layout::floating`, `Layout::closed`,
   `Layout::fit`, `Layout::close`, `Layout::show`, `Target::Float`, `Dock::close`,
   `Dock::set_layout`; `Dock::take_changed` reports a border's drag only as it ends.
@@ -18,7 +27,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   left and the viewport above the history and the console at first; a border between two regions,
   dragged or moved by the arrows, resizes the two beside it; a tab's context menu moves its panel
   into another region or to an edge of the window, as `view.move_panel` does by its name, with its
-  two arguments; F6 goes from one region to the next. The layout lasts until the editor stops.
+  two arguments; F6 goes from one region to the next.
 - Docking in `slime-ui` (ADR-0172): `dock::Layout`, splits of any number of children and stacks of
   tabs, reflected and normalized after each edit, and `dock::Dock`, which builds it into a
   program's tree and changes it as the user drags its borders, chooses its tabs and moves its
@@ -204,6 +213,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- `slime_editor::Program` gains `layout`, a project's default layout of the editor's window, the
+  text of a layout file, in place of the editor's own, `crates/slime-editor/editor.layout`
+  (ADR-0174); a game's editor package gives `None` for the editor's.
 - `World::structure` no longer moves at a rename, which `World::names` says: the dev overlay's world
   panel reads again the names that changed rather than listing the world again, some ten times
   less at 100 000 entities (`docs/measurements.md`).

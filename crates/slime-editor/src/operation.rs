@@ -378,6 +378,24 @@ pub const OPERATIONS: &[Operation] = &[
         changes: Changes::Window,
     },
     Operation {
+        name: "view.close_panel",
+        label: "Close a panel",
+        parameters: &["panel"],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "view.open_panel",
+        label: "Open a panel",
+        parameters: &["panel"],
+        changes: Changes::Window,
+    },
+    Operation {
+        name: "view.reset_layout",
+        label: "Reset layout",
+        parameters: &[],
+        changes: Changes::Window,
+    },
+    Operation {
         name: "view.keys_default",
         label: "Keys of most editors",
         parameters: &[],

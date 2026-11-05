@@ -529,8 +529,16 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   It does not scroll the list as it nears its edges; the wheel does meanwhile.
   Alt and the arrows run only while a row holds the focus, as the arrows do.
   Between two steps of a game, after a change of parent or a teleport, a frame's interpolation walks each entity's ancestors again until the next step ends.
+- **Layouts kept, floating panels and closed panels** ([ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)).
+  A floating panel holds one panel.
+  Whether a floating panel is folded to its bar, and which one stands above the others once the pointer raised one, are not kept.
+  With every panel closed or floating, the regions show nothing, and nothing says that *View* > *Panels* opens one.
+  *View* > *Panels* does not mark which panels are closed.
+  Two editors of one program running at once, or two checkouts whose programs share a name, share a layout file: the last to write wins, and different defaults set aside each other's layout at each start.
+  A layout set aside, `.replaced` or `.unreadable`, is never read again: the user brings it back by hand.
+  The layout file is written on the frame's thread, in the frame that wakes half a second after the layout's last change; a slow disk shows as that frame late, which no one measured on Windows.
+  A program that a tool drives through a server without a state directory of its own writes the user's layout.
 - **Regions of tabs** ([ADR-0172](adr/0172-regions-of-tabs.md)).
-  The layout is lost when the editor stops, and no panel floats nor closes, until M6c.5e.
   Tabs are neither dragged nor reordered, which M6c.8 does.
   What a panel shows is built anew, its scroll at its top, when its tab is chosen again after another's.
   It is built anew too when a move changes the key of its stack or of a split around it, which the stack's first panel gives.

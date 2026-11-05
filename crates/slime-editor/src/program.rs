@@ -46,6 +46,18 @@ pub struct Program {
     /// code changes (`docs/adr/0166-building-the-game-again.md`); none for a program whose game is
     /// built already, as one shipped, which Play starts as it finds it.
     pub build: Option<Build>,
+    /// The project's default layout of the window's panels, which the window shows at its first
+    /// start and as *Reset layout* asks, in place of the editor's own
+    /// (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`): the text of a layout
+    /// file, as the one that keeps the user's layout in their state directory ([`run`]), its
+    /// `default` key naming the project's default and its version, `hunnawood 1`, in place of the
+    /// editor's, `editor 1`. A project's author arranges the window, copies that file into the
+    /// package, gives it as `include_str!("../editor.layout")`, and names its version anew each
+    /// time the arrangement should replace the layouts that users keep. A text that cannot be read
+    /// gives the editor's own default, the user told, and the layout that the user keeps against
+    /// the project's is neither read nor written until it can be. None for the editor's own
+    /// default.
+    pub layout: Option<&'static str>,
 }
 
 /// How cargo builds a game's program, which [`Program::build`] gives
@@ -164,11 +176,14 @@ pub(crate) struct Options {
 /// cannot be read or played again stops the start, kept as it was, with a message that names
 /// `--discard`, and one that cannot be written stops the program.
 ///
-/// The levels that it opened last, which its File menu lists, are kept in
-/// `slime-editor/<program's name>.recent` in the user's state directory
-/// ([`slime_app::state_directory`]); the first run, which finds none, tells the user one hint. The
-/// keys that the user chose, Blender's way or not, are kept in `slime-editor/keys` there, for every
-/// program of the editor. When the program's cooked data is missing and it names its sources
+/// The levels that it opened last, which its File menu lists, are kept in `slime-editor/<program's
+/// name>.recent` in the user's state directory ([`slime_app::state_directory`]); the first run,
+/// which finds none, tells the user one hint. The keys that the user chose, Blender's way or not,
+/// are kept in `slime-editor/keys` there, for every program of the editor; the window's layout in
+/// `slime-editor/<program's name>.layout`, written once it stands still and as the window closes, a
+/// layout made from another default than the program's ([`Program::layout`]) set aside as
+/// `<file>.replaced` and one that cannot be read as `<file>.unreadable`, the default shown then and
+/// the user told. When the program's cooked data is missing and it names its sources
 /// ([`Program::sources`]), it cooks them first.
 ///
 /// Options: `--level <file>`, `--assets <directory>`, `--journal <file>`, `--discard`,
@@ -199,6 +214,12 @@ pub fn run(program: &Program) -> ExitCode {
     // One file of speeds for every program, by level.
     shared.borrow_mut().speeds =
         slime_app::state_directory().map(|directory| directory.join(DIRECTORY).join("speeds"));
+    // A layout for each program, the project's.
+    shared.borrow_mut().layout = slime_app::state_directory().map(|directory| {
+        directory
+            .join(DIRECTORY)
+            .join(format!("{}.layout", program.name))
+    });
     let headless = options.headless;
     let mut session = Session::new(program, options, shared.clone(), recent, journals());
     let config = AppConfig {
@@ -286,6 +307,7 @@ mod tests {
             lighting: Lighting::default(),
             play: None,
             build: None,
+            layout: None,
         }
     }
 

@@ -11,11 +11,14 @@
 //! name, which its settings say (`docs/adr/0159-picking-and-the-selection.md`), shows two viewports
 //! and captures the second by its name (`docs/adr/0160-two-viewports-and-blenders-way.md`), moves a
 //! panel to another region and drags a border between two (`docs/adr/0172-regions-of-tabs.md`),
+//! floats a panel, closes another and opens it again where it was
+//! (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`),
 //! opens another copy of the yard through *Open a level…*, which opens no dialog of the system in a
 //! program that a tool started, its path typed
 //! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), and checks that the editor,
 //! left alone, wakes for the end of the first run's hint and runs no frame for ten seconds after
-//! it, then quits it by name.
+//! it, then quits it by name; started again, it shows the layout that it was left with, which
+//! *Reset layout* gives back as the default.
 //!
 //! It needs a Wayland compositor, the example built (`cargo build --example editor`) and the
 //! examples' assets cooked, in the directory that its first argument names, or
@@ -314,6 +317,35 @@ fn main() {
                 .is_some_and(|share| (share - 0.4).abs() < 0.001)
         },
     );
+    // A panel floated, and another closed and opened again where it was
+    // (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`).
+    let (said, _) = session.tool(
+        "run_operation",
+        json!({ "name": "view.move_panel", "arguments": ["console", "float"] }),
+    );
+    assert_eq!(said, ["done"]);
+    let floating = path_of(&mut session, "Pane", "Console");
+    assert!(floating.starts_with("floating console/"), "{floating}");
+    let components = path_of(&mut session, "Tab", "Components");
+    let (said, _) = session.tool(
+        "run_operation",
+        json!({ "name": "view.close_panel", "arguments": ["components"] }),
+    );
+    assert_eq!(said, ["done"]);
+    until(
+        "the components closed",
+        || {
+            let tab = json!({ "role": "Tab", "name": "Components" });
+            session.tool("find_elements", tab).0
+        },
+        |said| said.iter().all(|text| !text.contains(" — ")),
+    );
+    let (said, _) = session.tool(
+        "run_operation",
+        json!({ "name": "view.open_panel", "arguments": ["components"] }),
+    );
+    assert_eq!(said, ["done"]);
+    assert_eq!(path_of(&mut session, "Tab", "Components"), components);
     // Open a level…, from the File menu: a program that a tool started opens no dialog of the
     // system, which the agent could not see, and its layer waits for the path, typed.
     let file = path_of(&mut session, "MenuItem", "File");
@@ -351,6 +383,35 @@ fn main() {
         },
     );
     assert!(ended[0].contains("exit status: 0"), "{ended:?}");
+    // Started again, it shows the layout as it was left, kept in the state directory of the
+    // session's own; Reset layout gives the default again.
+    let (said, _) = session.tool("start_game", json!({ "command": command }));
+    assert!(said[0].contains("editor runs"), "{said:?}");
+    assert_eq!(path_of(&mut session, "Tab", "History"), tab);
+    let floating = path_of(&mut session, "Pane", "Console");
+    assert!(floating.starts_with("floating console/"), "{floating}");
+    let (said, _) = session.tool("run_operation", json!({ "name": "view.reset_layout" }));
+    assert_eq!(said, ["done"]);
+    until(
+        "the default layout",
+        || {
+            let tab = json!({ "role": "Tab", "name": "History" });
+            session.tool("find_elements", tab).0
+        },
+        |said| {
+            said[0].starts_with("editor/window/dock/split hierarchy/split viewport/stack history/")
+        },
+    );
+    let (said, _) = session.tool("run_operation", json!({ "name": "file.quit" }));
+    assert_eq!(said, ["done"]);
+    until(
+        "the editor's second end",
+        || session.try_tool("game_state", json!({})).0,
+        |said| {
+            said.first()
+                .is_some_and(|text| text.contains("the game ended"))
+        },
+    );
 
     drop(session);
     let status = child.wait().expect("the server ends");

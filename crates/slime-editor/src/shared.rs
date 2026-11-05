@@ -53,6 +53,17 @@ pub(crate) struct State {
     /// The file of the user's state directory that keeps the flying speed last used in each level
     /// (`crate::speeds`); none in tests and without a state directory.
     pub(crate) speeds: Option<PathBuf>,
+    /// The file of the user's state directory that keeps the window's layout
+    /// (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`); none in tests, the
+    /// image tests among them, and without a state directory; and none from the window's start, so
+    /// that nothing writes over it, when the project's default cannot be read or the file can be
+    /// neither read nor set aside.
+    pub(crate) layout: Option<PathBuf>,
+    /// The project's default layout, which the program gives ([`Program::layout`]); none for the
+    /// editor's own.
+    ///
+    /// [`Program::layout`]: crate::Program::layout
+    pub(crate) default_layout: Option<&'static str>,
     /// Counted up each time the core changes what the window shows, and as the window shows
     /// another number of viewports (`view.split`): the window builds its interface again then.
     pub(crate) revision: u64,

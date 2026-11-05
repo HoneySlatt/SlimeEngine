@@ -56,11 +56,15 @@ An agent keeps its runs apart from the user's files:
 - The editor: an agent starts it on a copy of a level, with a journal of its own (`--level`,
   `--journal`). Without `--journal`, the journal lies in the user's data directory; it keeps what
   the editor did not write, which the editor recovers as it starts again.
-- The keys: the editor's operations `view.keys_blender` and `view.keys_default` change the keys that
-  the user chose for every program of the editor, kept in the user's state directory
-  (`docs/adr/0160-two-viewports-and-blenders-way.md`). An agent leaves them alone, unless the
-  server runs with a state directory of its own (`XDG_STATE_HOME`), as the session tests do
-  (`tests/common/session.rs`).
+- The user's state: the editor keeps the user's keys, its window's layout, the flying speed of each
+  level and the levels opened last in the user's state directory
+  (`docs/adr/0160-two-viewports-and-blenders-way.md`,
+  `docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`). `view.keys_blender` and
+  `view.keys_default` change the keys of every program of the editor; a panel moved, closed or
+  opened, a tab chosen, even by an operation that shows a panel, `edit.rename`'s, changes the
+  layout; a level opened enters the recent ones. An agent that drives the editor starts the server
+  with a state directory of its own (`XDG_STATE_HOME`, `LOCALAPPDATA` on Windows), as the session
+  tests do (`tests/common/session.rs`).
 
 ## Entry points
 

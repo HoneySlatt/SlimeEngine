@@ -70,6 +70,7 @@ fn program() -> slime_editor::Program {
             directory: PathBuf::from(env!("CARGO_MANIFEST_DIR")),
             arguments: &["--package", "slime-examples", "--example", "world"],
         }),
+        layout: None,
     }
 }
 

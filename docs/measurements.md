@@ -1308,3 +1308,19 @@ the world of `c2288c8` measured by the same benchmark.
 What it says: each of the three walks cost the square of the hierarchy's depth, and costs it no
 longer. What the save still takes is that of 10 000 entities changed, whatever their depth: a flat
 world of as many, each moved, takes as long, and twice as many take some 2.3 times as long.
+
+## M6c.5e, Ryzen 7 5800X, NVMe
+
+On 2026-11-05, in a release build: a file of 1.6 KB, the size of the editor's layout file, written
+whole as `slime_cook::write` writes it, a temporary file synced to the disk then renamed over the
+file, 50 times in the user's home, on ext4 over an NVMe drive
+([ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)).
+
+| Measure | Value |
+|---|---|
+| One write, median | 0.65 ms |
+| One write, 90th percentile | 0.74 ms |
+| One write, slowest | 0.96 ms |
+
+What it says: a write costs a large part of a frame's budget at 240 Hz, so the editor writes its
+layout once it has stood still for half a second, not at each change. Not measured on Windows.

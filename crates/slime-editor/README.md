@@ -65,23 +65,29 @@ editor's other panels come with Stage 6c's next milestones.
   `file.open` with the file chosen; started by a tool, it opens no dialog, and the layer waits for
   the path (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`). It keeps the levels
   opened last in the user's state directory for the File menu, and tells one hint at its first run.
-  Its panels lie in regions of tabs that `slime-ui`'s dock builds, from a default layout at each
-  start: a border between two regions dragged moves the two beside it, a tab chosen shows its panel,
-  and a tab's context menu moves its panel into another region or to an edge of the window, as
-  `view.move_panel` does by its name; F6 goes from one region to the next
-  (`docs/adr/0172-regions-of-tabs.md`). Its viewport shows the level, lit as `Program::lighting`
-  says, through its own asset cache and frame builder, drawn again only when what it shows changed;
-  the right button held flies through it with W, A, S, D, Q and E, at a speed that suits the level's
-  size as it opens, or the one last used in it, kept in the user's state directory, which the wheel
-  changes, Shift quickens and the status bar shows while it flies; Alt and the left button orbit,
-  the middle button pans, F frames the selection, and tools capture it by the name `viewport`
-  (`docs/adr/0158-the-viewport.md`). A click selects the outermost placement of what is drawn there,
-  a click again a level deeper, a marquee what it holds, Alt and a click the meshes behind; what is
-  selected is outlined, and the View menu shows the base color, the light alone, the normals, the
-  shadows and the wireframe of the selection; tools pick in the viewport by its name
-  (`docs/adr/0159-picking-and-the-selection.md`). *View* > *Two viewports* shows a second, named
-  `viewport 2`, the one navigated drawn at the full rate; *View* > *Keys of Blender* chooses
-  Blender's way, kept in the user's state directory for every program of the editor
+  Its panels lie in regions of tabs that `slime-ui`'s dock builds: a border between two regions
+  dragged moves the two beside it, a tab chosen shows its panel, and a tab's context menu moves its
+  panel into another region, to an edge of the window or afloat, as `view.move_panel` does by its
+  name, or closes it; F6 goes from one region to the next (`docs/adr/0172-regions-of-tabs.md`). A
+  panel closed keeps its place, and *View* > *Panels* opens it there again; a floating panel's bar
+  has the tabs' context menu. The layout is kept per user and per program in the user's state
+  directory, written once it stands still and as the window closes, and shown at the next start; a
+  layout made from another default layout, or that cannot be read, is set aside, the default shown
+  and the user told; *View* > *Reset layout* shows the default. The default is the editor's
+  (`editor.layout`), or the one that a game's editor package gives (`Program::layout`)
+  (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`). Its viewport shows the level,
+  lit as `Program::lighting` says, through its own asset cache and frame builder, drawn again only
+  when what it shows changed; the right button held flies through it with W, A, S, D, Q and E, at a
+  speed that suits the level's size as it opens, or the one last used in it, kept in the user's
+  state directory, which the wheel changes, Shift quickens and the status bar shows while it flies;
+  Alt and the left button orbit, the middle button pans, F frames the selection, and tools capture
+  it by the name `viewport` (`docs/adr/0158-the-viewport.md`). A click selects the outermost
+  placement of what is drawn there, a click again a level deeper, a marquee what it holds, Alt and a
+  click the meshes behind; what is selected is outlined, and the View menu shows the base color, the
+  light alone, the normals, the shadows and the wireframe of the selection; tools pick in the
+  viewport by its name (`docs/adr/0159-picking-and-the-selection.md`). *View* > *Two viewports*
+  shows a second, named `viewport 2`, the one navigated drawn at the full rate; *View* > *Keys of
+  Blender* chooses Blender's way, kept in the user's state directory for every program of the editor
   (`docs/adr/0160-two-viewports-and-blenders-way.md`). Handles move (W), turn (E) and scale (R) what
   is selected, in the world's axes or the selection's, snapped if *Edit* > *Snap* is ticked, each
   drag one step that Escape cancels; End drops what is selected on what lies below it, Shift and End

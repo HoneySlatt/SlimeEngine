@@ -286,11 +286,13 @@ one step apart. The renderer dithers 8-bit outputs by up to one step
 ([ADR-0051](adr/0051-dithering-8-bit-outputs.md)).
 
 **Docking (editor).** Arranging an editor's panels inside its window, in splits of any number of
-children, each with its share of the space, and *stacks of tabs*; a panel closed keeps its place,
-to come back there. The arrangement, the panels' layout, is reflected data saved per user and per
-project, outside the repository ([ADR-0155](adr/0155-the-editors-design.md)). `slime-ui`'s dock
-builds it, and the editor's panels lie in its regions, which the user resizes and rearranges
-([ADR-0172](adr/0172-regions-of-tabs.md)).
+children, each with its share of the space, *stacks of tabs*, and panels that float over the
+window; a panel closed keeps its place, hidden, to come back there. The arrangement, the panels'
+layout, is reflected data kept per user and per project in a *layout file*, outside the repository
+([ADR-0155](adr/0155-the-editors-design.md)). `slime-ui`'s dock builds it, and the editor's panels
+lie in its regions, which the user resizes and rearranges
+([ADR-0172](adr/0172-regions-of-tabs.md),
+[ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)).
 
 **Document (serialization).** A file that holds one *value* of a registered type, or several at
 their places as a *save* does, written by the engine's writer and read through the types'
@@ -692,6 +694,12 @@ from its *base*, the only layout of saves read, and 1 for scene files
 [ADR-0093](adr/0093-saves-and-hot-reload-with-placements.md),
 [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md),
 [ADR-0125](adr/0125-saves-per-scene.md)).
+
+**Layout file (editor).** A document that holds the layout of an editor's panels (*docking*) and the
+default layout that it was made from, by its name and version, such as `editor 1`: the file of the
+user's state directory that keeps a program's layout, and a default, the editor's own or the one
+that a game's editor package gives. A layout kept against another default is set aside
+([ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)).
 
 **Layout (zone).** In *Hunna Wood*, what decides how the game plays in its zone: the size of its
 ground, its colliders, where the hero starts and the places of the key, the door, the campfire and

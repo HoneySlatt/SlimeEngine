@@ -42,5 +42,6 @@ fn main() -> ExitCode {
             directory: PathBuf::from(env!("CARGO_MANIFEST_DIR")),
             arguments: &["--package", "hunnawood", "--bin", "hunnawood"],
         }),
+        layout: None,
     })
 }
