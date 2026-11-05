@@ -15,7 +15,7 @@ scripts/measure.sh "<milestone>, <GPU>" >> docs/measurements.md                #
 It measures the build of the workspace and of its tests from an empty target directory, with the
 default debug settings, the run of the workspace's tests, and the benchmarks of
 [`slime-benches`](../benches/README.md), which says what each scenario is and how its figures are
-read. The figures that the plan's known debt and the ADRs give were measured once; this file holds
+read. The figures that the known debt ([`debt.md`](debt.md)) and the ADRs give were measured once; this file holds
 those that are measured again.
 
 ## P5, lavapipe
@@ -410,7 +410,7 @@ The cubes' GPU work is within every budget, a fifth of the smallest at most, tha
 tier's shooter. The CPU of 10 000 cubes is within the main thread's budget at 144 frames a second,
 less than half of it; that of 100 000 is beyond the budget at 60 by a half to two thirds, and within
 it only at the handheld tier's 30 frames a second, on this machine's CPU: what each instance costs
-on the CPU at each frame, which [`PLAN.md`](PLAN.md)'s known debt says. `FrameBuilder::build` over
+on the CPU at each frame, which the known debt in [`debt.md`](debt.md) says. `FrameBuilder::build` over
 100 000 entities (`world.frame.100k`) still costs less than drawing them, so that
 [ADR-0111](adr/0111-the-frame-contract.md)'s condition for building the frame from what changed
 does not hold yet.

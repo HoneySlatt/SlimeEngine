@@ -70,7 +70,7 @@ const ZOOM_RANGE: (f32, f32) = (0.1, 20.0);
 const PIXELS_PER_LINE: f64 = 60.0;
 /// The lowest and steepest angles of the camera above the target, in radians: from level with the
 /// scene's center, so that the camera stays above the floor (seen from below, the sample's walls
-/// and crates flicker where they touch it, `docs/PLAN.md`), to nearly straight down.
+/// and crates flicker where they touch it, `docs/debt.md`), to nearly straight down.
 const PITCH_RANGE: RangeInclusive<f32> = 0.0..=1.45;
 /// The exposure values the slider covers (see [`ev100`]), from beyond direct sunlight to a dim
 /// room, so that files lit at other scales than the sample can be exposed too. A higher exposure

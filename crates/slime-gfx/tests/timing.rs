@@ -13,7 +13,7 @@ use slime_gfx::{DepthPassDescriptor, Gpu, RenderPassDescriptor, TextureFormat};
 /// a second. A timer whose timestamps are written in the wrong order, or not read at all, gives 0;
 /// passes like these took at least 1 µs on lavapipe, RADV and WARP. The only true 0 is a
 /// pass that runs across a wrap of the timestamp counter, about once an hour on Intel's Vulkan
-/// driver (`docs/PLAN.md`, known debt), which passes this short are very unlikely to meet.
+/// driver (`docs/debt.md`, known debt), which passes this short are very unlikely to meet.
 #[track_caller]
 fn assert_plausible(time: Duration) {
     assert!(

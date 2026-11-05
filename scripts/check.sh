@@ -266,8 +266,8 @@ if runs game; then
     step "The game in a headless Wayland compositor (Weston), drawn with lavapipe"
     start_weston slime-check-game
     # The game (ADR-0055), by day and at night, each run a new one. A frame of its zone takes seconds
-    # on lavapipe, most of them in the shadows of the sun or the moon through the leaves (docs/PLAN.md,
-    # known debt), so each run draws one frame only. Its saves go to the private runtime directory,
+    # on lavapipe, most of them in the shadows of the sun or the moon through the leaves (docs/debt.md),
+    # so each run draws one frame only. Its saves go to the private runtime directory,
     # never to the user's (ADR-0088).
     for time in "" --night; do
         env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check-game \

@@ -14,7 +14,7 @@ work; a windowed run that asks for it goes on with a new GPU device after a lost
 built with the `development` feature and started with a token answers the tools that drive it
 through the development channel; a run built with the `accessibility` feature gives its
 presentation's interface to screen readers. What is
-missing is listed in `docs/PLAN.md` (known debt).
+missing is listed in `docs/debt.md`, the known debt.
 
 ## Role
 

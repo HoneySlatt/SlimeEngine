@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Rules for AI agents in this repository. Read it fully at the start of every session.
+Rules for AI agents in this repository. Read it fully at each session's start.
 
 ## Project
 
@@ -10,7 +10,7 @@ Others will use it and contribute: documentation is part of every deliverable, h
 
 ## Read before working
 
-You have no memory of past sessions: what the repository does not hold, the next session will not know.
+You remember no past session: what the repository does not hold, the next session will not know.
 
 - Each session: `docs/PLAN.md`'s "Current" section and the current milestone. They say what to do now.
 - Before touching a crate: its `README.md`, and `docs/ARCHITECTURE.md`.
@@ -22,7 +22,7 @@ You have no memory of past sessions: what the repository does not hold, the next
 - Work on `docs/PLAN.md`'s current milestone, or on what the owner asks.
 - Do not start later stages, nor add abstractions for them.
 - If a task needs something out of scope, stop and say so.
-- The roadmap sets direction and order, not what is built nor how. Its stages may change or be dropped.
+- The roadmap sets direction and order, not what is built nor how. Stages may change or be dropped.
 - Build what the milestone needs, never what the roadmap merely mentions.
 - When experience contradicts the roadmap, propose a change. Once accepted, record it in an ADR.
 
@@ -58,8 +58,7 @@ Keep off the owner's files and desktop:
 
 - Run the game with `--new --save <your file>`. Without `--save`, it resumes and writes the user's save.
 - Run the MCP server in a headless Weston's environment: windows stay off the owner's desktop.
-- Run the editor on a copy of a level, with your own journal.
-- Its default journal (user's data directory) keeps unwritten steps, recovered at start.
+- Run the editor on a copy of a level, with your own journal: the user's default one keeps unwritten steps, recovered at start.
 - Leave `view.keys_blender` and `view.keys_default` alone, unless the server has its own state directory:
   they change the owner's keys.
 
@@ -99,8 +98,8 @@ If you could not, say exactly what was not verified and why.
 
 - Before writing a helper, type or pattern, search the workspace for one to reuse or extend.
 - One way to do a thing. Unify two you find, or report them.
-- Prefer less code. Delete dead code, unused parameters and unused features.
-- Keep changes local to the milestone. Unrelated cleanup goes in its own commit, or a note in `docs/PLAN.md`.
+- Prefer less code. Delete dead code, unused parameters and features.
+- Keep changes local to the milestone. Unrelated cleanup goes in its own commit, or a note in `docs/debt.md`.
 - Report drift from `docs/ARCHITECTURE.md` or an ADR. Never silently work around it.
 
 ## Documentation
@@ -111,13 +110,13 @@ From the repository alone, they must grasp each part and why, then build, test a
 - Describe the code as it is now. Wrong documentation is worse than none.
 - No reference to past sessions, conversations or context the reader cannot see.
 - Define each term the project coins where it first appears.
-- State limits and known debt plainly. Never present a partial feature as complete.
+- State limits and known debt (`docs/debt.md`) plainly. Never present a partial feature as complete.
 - In what agents read each session: short sentences, one fact per line.
 - A change that leaves a document wrong is not finished.
 
 ### One home per fact
 
-A fact written twice drifts: each has one home, which others link to (ADR-0053).
+A fact written twice drifts: each has one home (ADR-0053).
 Elsewhere, state it in a sentence, without figures, and link there.
 Each file: what it holds; when to update it.
 
@@ -131,8 +130,9 @@ Each file: what it holds; when to update it.
 - `docs/adr/NNNN-title.md`: context, decision, rejected alternatives, consequences; each decision.
   Afterwards only its status changes.
 - `docs/adr/README.md`: the ADRs' index and statuses; either changes.
-- `docs/PLAN.md`: current stage, milestones, status, known debt, linking to facts; every milestone.
-- `docs/history.md`: finished stages, a few lines each, versions and ADRs, newest first; a stage finished.
+- `docs/PLAN.md`: current stage, milestones, status, linking to facts; every milestone.
+- `docs/debt.md`: open known debt, each item: what is missing or wrong, why, where followed; debt introduced or settled.
+- `docs/history.md`: finished stages in brief, versions and ADRs, newest first; a stage finished.
 - `docs/ROADMAP.md`: direction, stage order, exit criteria; a stage reshaped, merged or dropped (with an ADR).
 - `CHANGELOG.md`: user-visible changes, once, per release; such a change, a release tagged.
 - `docs/measurements.md`: build and benchmark figures per milestone or machine;
@@ -172,16 +172,16 @@ At the end of each milestone, report:
 - What was done.
 - Notable design choices, why, and alternatives rejected.
 - What to read first.
-- Shortcuts taken and debt introduced.
+- Shortcuts taken and debt introduced (`docs/debt.md`).
 
 ## Working with several agents
 
-- One session per milestone. After its report, the next starts anew and reads the repository again.
+- One session per milestone; after its report, the next starts anew from the repository.
 - Hand research and reviews to subagents. Keep their conclusions.
 - Each agent takes one milestone or crate at a time, as `docs/PLAN.md` assigns.
 - Edit only files in your scope. Report changes needed elsewhere.
 - One agent at a time edits shared files: `docs/PLAN.md`, `docs/ARCHITECTURE.md`, workspace `Cargo.toml`.
-- Before a milestone is reported done, a reviewing agent on the strongest model checks it against this file and the ADRs.
+- A reviewing agent on the strongest model checks each milestone against this file and the ADRs before its report.
 
 ## Language
 

@@ -93,8 +93,8 @@ feature. The `interface` example builds an interface, with text in eight writing
 a light theme, and a modal dialog; the `widgets` example, a panel of the editor's kind, with its
 menus. The dev overlay is built on it, in the editor's look, over *Hunna Wood* and the `scene` and
 `world` examples, and egui has left the engine. [`docs/PLAN.md`](docs/PLAN.md) says what comes next,
-Stage 6c, the editor, planned in [ADR-0155](docs/adr/0155-the-editors-design.md). It lists the known
-debt too.
+Stage 6c, the editor, planned in [ADR-0155](docs/adr/0155-the-editors-design.md);
+[`docs/debt.md`](docs/debt.md) lists the known debt.
 
 ## Getting started
 
@@ -179,7 +179,7 @@ opt-level = 3
 ## What it does not do yet
 
 The engine is young; [`docs/ROADMAP.md`](docs/ROADMAP.md) says which stage brings what, and the
-known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) lists the smaller gaps. A game made with it
+known debt in [`docs/debt.md`](docs/debt.md) lists the smaller gaps. A game made with it
 today has:
 
 - No audio, physics or animation; an interface built as a tree of elements, laid out, styled by
@@ -220,7 +220,8 @@ today has:
 | [`AGENTS.md`](AGENTS.md) | The rules every contributor follows: scope, architecture, code, documentation, commits. Written for AI agents, binding for everyone. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to set up the environment, check a change and submit it. |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Direction, order of the stages and their exit criteria. An overview, not a commitment. |
-| [`docs/PLAN.md`](docs/PLAN.md) | The current stage, its milestones, their status and the known debt. |
+| [`docs/PLAN.md`](docs/PLAN.md) | The current stage, its milestones and their status. |
+| [`docs/debt.md`](docs/debt.md) | The known debt still open: what is missing or wrong, why it stayed, and where it is followed. |
 | [`docs/history.md`](docs/history.md) | The finished stages, a few lines each, with their versions and ADRs. |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The crates, their roles, how they depend on each other, and where to start reading the code. |
 | [`docs/adr/`](docs/adr/README.md) | Every architecture decision, with its context and the alternatives rejected. |

@@ -75,7 +75,7 @@ and its decisions. [`PLAN.md`](PLAN.md) holds the stage in progress.
   tracked from one commit to the next; P4 the measured quick wins; P6 the foundation decisions.
 - Each finding was described in full in the plan until 0.5 (`git show v0.5.0:docs/PLAN.md`); the
   audit's report and its tests are kept outside the repository. What neither pass fixed is in
-  [`PLAN.md`](PLAN.md#left-by-the-audit-of-04).
+  [`debt.md`](debt.md#left-by-the-audit-of-04).
 - Checked by the owner: P3 and P5, in the Windows virtual machine on 2026-10-27, passed.
 
 ## Stage 5b — Scenes and prefabs → 0.4
@@ -126,7 +126,7 @@ and its decisions. [`PLAN.md`](PLAN.md) holds the stage in progress.
   *Hunna Wood*; M4b.9 Windows check, documentation, close.
 - Checked by the owner at its close: the recovery from a lost device, in the Windows virtual machine
   from the dev overlay and by a forced TDR, and in a KDE Plasma session after a real reset of the
-  GPU (see [Known debt](PLAN.md#known-debt)).
+  GPU (see [Known debt](debt.md)).
 
 ## Stage 4a — Cooked assets → 0.2
 
@@ -240,7 +240,7 @@ and its decisions. [`PLAN.md`](PLAN.md) holds the stage in progress.
 ## CI and its limit of 20 minutes
 
 How long CI took as the engine grew, and what was done about it. The limit itself and its current
-figures are in [`PLAN.md`](PLAN.md#known-debt), "CI's jobs and their limit of 20 minutes".
+figures are in [`debt.md`](debt.md), "CI's jobs and their limit of 20 minutes".
 
 - Until 0.1, CI had no build cache: the Linux job grew from about 2.5 minutes to 5 minutes 40
   seconds, and the Windows job from about 5 minutes to 11 minutes 32 seconds, as wgpu, glam, gltf

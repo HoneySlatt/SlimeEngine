@@ -543,7 +543,7 @@ attached to the release on GitHub.
 
 ### Known limitations
 
-[`docs/PLAN.md`](docs/PLAN.md#known-debt) lists the known debt; the most notable:
+[`docs/debt.md`](docs/debt.md) lists the known debt; the most notable:
 
 - The editor has its core and its program, driven by agents, but no window: docking, dialogs to
   open and save files, drag and drop, the viewport and the inspector come with Stage 6c.
@@ -1049,7 +1049,7 @@ GitHub.
 
 ### Known limitations
 
-See the known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) and what the engine does not do yet
+See the known debt in [`docs/debt.md`](docs/debt.md) and what the engine does not do yet
 in the [`README.md`](README.md#what-it-does-not-do-yet). In short: no editor yet, which Stage 6b
 brings; a physically based material does not blend, and blended surfaces are not sorted by depth; a
 picking draws all that its view sees, and picking by the CPU passes through nothing that a mask cuts
@@ -1185,7 +1185,7 @@ made are set aside. The Windows programs that CI builds are attached to the rele
 
 ### Known limitations
 
-See the known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) and what the engine does not do yet
+See the known debt in [`docs/debt.md`](docs/debt.md) and what the engine does not do yet
 in the [`README.md`](README.md#what-it-does-not-do-yet). In short: no editor writes scene files yet,
 which Stage 6 brings, and a scene file written back loses its comments and writes what spawning set
 aside as the world holds it; a large scene resolves and spawns far slower than as many entities
@@ -1437,7 +1437,7 @@ and the new `world` example among them, are attached to the release on GitHub.
 
 ### Known limitations
 
-See the known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) and what the engine does not do yet
+See the known debt in [`docs/debt.md`](docs/debt.md) and what the engine does not do yet
 in the [`README.md`](README.md#what-it-does-not-do-yet). In short: the world has no systems or
 schedule, and no scene files or prefabs, which Stage 5b brings; a save is text of limited size,
 one cut short at the boundary of a section loads in part, the order of children and of queries
@@ -1586,7 +1586,7 @@ that CI builds, the game with its zone cooked among them, are attached to the re
 
 ### Known limitations
 
-See the known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) and what the engine does not do yet
+See the known debt in [`docs/debt.md`](docs/debt.md) and what the engine does not do yet
 in the [`README.md`](README.md#what-it-does-not-do-yet). In short: the asset pipeline is half done,
 so a game loads its assets whole, on the calling thread, without hot reload, and a lost GPU device
 still ends the run; the renderer has no transparency, culling or instancing, edges that masked
@@ -2044,7 +2044,7 @@ release on GitHub.
 
 ### Known limitations
 
-See the known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt) and what the engine does not do yet
+See the known debt in [`docs/debt.md`](docs/debt.md) and what the engine does not do yet
 in the [`README.md`](README.md#what-it-does-not-do-yet). In short: the renderer has no
 anti-aliasing, transparency, culling or instancing, one shadow map without cascades and no shadows
 from point and spot lights, at most 16 lights that every pixel evaluates, and a sky whose light is
@@ -2185,7 +2185,7 @@ covers the renderer with image tests that run on lavapipe, WARP and hardware GPU
 
 ### Known limitations
 
-See the known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt). In short: the renderer is a first
+See the known debt in [`docs/debt.md`](docs/debt.md). In short: the renderer is a first
 one (no physically based materials, shadows, HDR, post-processing, multisampling, transparency,
 animation or glTF extensions; they come with Stage 3b and later); glTF files are read by a
 temporary loader in the examples, which takes GLB files with embedded buffers and PNG images only;
@@ -2258,7 +2258,7 @@ hidden, names its GPU work for capture tools, and stops cleanly when the GPU dev
 
 ### Known limitations
 
-See the known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt). In short: no renderer yet (no
+See the known debt in [`docs/debt.md`](docs/debt.md). In short: no renderer yet (no
 depth, textures, lighting or meshes; they come with Stage 3), frames are not synchronized with the
 display's refresh, presenting can still stall where Mailbox is not offered, frames pause on
 Windows while the window is moved, wgpu's errors panic in release builds too, a lost GPU device is
@@ -2295,7 +2295,7 @@ hand; its CI run is green.
 
 ### Known limitations
 
-See the known debt in [`docs/PLAN.md`](docs/PLAN.md#known-debt). In short: no rendering yet (the
+See the known debt in [`docs/debt.md`](docs/debt.md). In short: no rendering yet (the
 `window` example fills its window from the CPU), the frame rate is limited by sleeping, `App`
 methods cannot return errors, modifier state, input methods, touch, gestures and gamepads are not
 reported, Linux only.

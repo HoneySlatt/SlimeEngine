@@ -133,7 +133,7 @@ disk, and renamed over it, so that the file is the save before or the new one, n
 nor a mix of two; a game killed while it writes leaves that file beside the save. The log says what
 was saved or loaded, and where the run stands. When Windows ends the session, the game is stopped
 without quitting, and the run since the last F5 is lost (see the known debt in
-[`docs/PLAN.md`](../../docs/PLAN.md#known-debt)).
+[`docs/debt.md`](../../docs/debt.md)).
 
 [`fixtures/save.toml`](fixtures/save.toml) is a save made at the chapel's portal, at night, after
 resting by the campfire, which every later version must resume: a test resumes it and walks on to

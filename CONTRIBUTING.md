@@ -114,7 +114,7 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
   wgpu uses WARP, Microsoft's software driver. On WARP, run the tests one at a time
   (`cargo test --workspace -- --test-threads=1`), as the Windows CI job does: WARP's shader
   compiler crashes the process now and then when several threads compile shaders at once (see
-  [Known debt](docs/PLAN.md#known-debt)).
+  [Known debt](docs/debt.md)).
 - On Windows, Direct3D 12 compiles shaders with DXC when its library, `dxcompiler.dll`, lies
   beside the program, and otherwise with FXC, part of Windows, whose code runs slower: a warning in
   the log says so ([ADR-0066](docs/adr/0066-shipping-dxc-beside-the-programs.md)). From Git Bash,
@@ -420,6 +420,26 @@ cache, keyed on what makes its bytes.
 The lints they enforce are set once for the whole workspace in [`Cargo.toml`](Cargo.toml);
 [ADR-0005](docs/adr/0005-lints-and-unsafe-policy.md) explains them and the rules for `unsafe`
 code.
+
+## Releasing
+
+A release is an annotated git tag on a commit whose CI run is green on Linux and Windows
+([ADR-0004](docs/adr/0004-workspace-layout-and-crate-naming.md)). Tags and GitHub releases wait for the
+owner's go.
+
+1. In one commit: set the version in the root `Cargo.toml` and the tag that the README's "Using
+   SlimeEngine in a game" names, with its list of crates; rename the `[Unreleased]` section of
+   `CHANGELOG.md` to `[<version>] - <date>`; update [`docs/PLAN.md`](docs/PLAN.md) and [`docs/history.md`](docs/history.md).
+2. Push that commit and wait for its CI run to pass.
+3. Tag that commit, not a later one, then push the tag:
+   `git tag -a v<version> -m "SlimeEngine <version>" <commit>`.
+4. Create the GitHub release of the tag, its `CHANGELOG.md` section as its notes, with the
+   `slime-examples-windows` artifact of that commit's CI run attached as
+   `slime-examples-windows-<version>.zip`: CI keeps its artifacts 14 days, a release keeps them.
+   Beside the programs, CI puts DXC's library and its licence, and the licenses of the fonts and
+   icons that they embed: parts of Noto in `interface.exe`; Geist, Geist Mono and Lucide in
+   `widgets.exe`, and in the dev overlay of `scene.exe`, `world.exe` and `hunnawood.exe`. Add
+   `LICENSE.txt` and a `NOTICE.txt`.
 
 ## Making a change
 
