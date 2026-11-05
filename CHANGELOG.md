@@ -8,6 +8,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- The frame that ends a wait of a run on demand represents the time since what asked for it, not
+  the wait, which made what moves at real time jump by 250 ms (ADR-0185).
 - The license (ADR-0182): SlimeEngine is licensed under MIT OR Apache-2.0, at the user's choice,
   in place of MPL-2.0; earlier releases keep MPL-2.0.
 - The UI framework's crates bear its name, uwui (ADR-0179): `slime-ui` is `uwui`, and
@@ -15,7 +17,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
-
+- Rest checked in CI (ADR-0185): the editor, a panel floating, and *Hunna Wood* paused must have no
+  thread that wakes in 10 seconds, read from Linux's `/proc`; `slime-mcp`'s `start_game` answers
+  with the process it started. `Context::set_on_demand` lets a game run its frames on demand while
+  it runs, which *Hunna Wood* does while paused: it then draws only when something changes what it
+  shows.
 - The editor's layout kept, floating panels and closed panels (ADR-0174): the layout of the
   window's panels is kept per user and per program in the user's state directory,
   `slime-editor/<program>.layout`, written once it stands still, and shown at the next start; one

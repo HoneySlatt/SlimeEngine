@@ -16,9 +16,9 @@
 //! opens another copy of the yard through *Open a level…*, which opens no dialog of the system in a
 //! program that a tool started, its path typed
 //! (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`), and checks that the editor,
-//! left alone, wakes for the end of the first run's hint and runs no frame for ten seconds after
-//! it, then quits it by name; started again, it shows the layout that it was left with, which
-//! *Reset layout* gives back as the default.
+//! left alone, wakes for the end of the first run's hint, and is at rest after it, a panel floating
+//! (`docs/adr/0185-rest-checked-in-ci.md`), then quits it by name; started again, it shows the
+//! layout that it was left with, which *Reset layout* gives back as the default.
 //!
 //! It needs a Wayland compositor, the example built (`cargo build --example editor`) and the
 //! examples' assets cooked, in the directory that its first argument names, or
@@ -28,6 +28,8 @@
 
 #[path = "common/interface.rs"]
 mod interface;
+#[path = "common/rest.rs"]
+mod rest;
 #[path = "common/session.rs"]
 mod session;
 
@@ -106,6 +108,7 @@ fn main() {
     let (mut session, mut child, _) = Session::start(&workspace, "edit-window");
     let (said, _) = session.tool("start_game", json!({ "command": command }));
     assert!(said[0].contains("editor runs"), "{said:?}");
+    let pid = rest::pid(&said[0], &example);
     // The first run, which finds no list of recent levels, tells one hint.
     let hint = path_of(&mut session, "", "finds every operation");
     assert!(hint.starts_with("notifications/"), "{hint}");
@@ -360,17 +363,13 @@ fn main() {
     path_of(&mut session, "Label", other);
     let (said, _) = session.tool("editor_history", json!({}));
     assert!(said[0].contains("other yard.scene"), "{said:?}");
-    // Left alone, once the menu's closing transition has ended, the editor runs no frame: each of
-    // these two requests wakes one.
-    std::thread::sleep(Duration::from_secs(1));
-    let before = frame(&mut session);
-    std::thread::sleep(Duration::from_secs(10));
-    let after = frame(&mut session);
-    assert!(
-        after - before <= 2,
-        "the editor ran {} frames in ten seconds alone",
-        after - before
-    );
+    // Left alone, a panel floating, once the menu's closing transition has ended, the editor is at
+    // rest: none of its threads wakes in ten seconds, so it runs no frame.
+    let floating = path_of(&mut session, "Pane", "Console");
+    assert!(floating.starts_with("floating console/"), "{floating}");
+    if let Err(woke) = rest::at_rest(pid, Duration::from_secs(30)) {
+        panic!("the editor is not at rest: {woke}");
+    }
     // Quit by its name: the window closes at once.
     let (said, _) = session.tool("run_operation", json!({ "name": "file.quit" }));
     assert_eq!(said, ["done"]);

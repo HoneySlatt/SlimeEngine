@@ -618,7 +618,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   How the jobs grew and were split: [`history.md`](history.md#ci-and-its-limit-of-20-minutes).
 - **The quality bar's budgets are checked by hand, or not measured yet** ([ADR-0175](adr/0175-the-quality-bar.md)).
   CI keeps none of the renderer's, the interface's or the editor's budgets through counters or ratios of times yet: their times are measured by hand; M6c.Q2b.
-  The idle editor's check allows 2 frames in 10 s and counts no wake-up, and nothing checks a game paused or hidden; M6c.Q2a.
+  A game hidden keeps drawing at its schedule, and nothing checks it at rest ([ADR-0021](adr/0021-frame-pacing.md)); M6c.Q2c ([ADR-0185](adr/0185-rest-checked-in-ci.md)).
   The editor's interface, input to present, starts, memory over a session and power are not measured; M6c.Q2b.
   The benchmarks that load in the background report their longest frame, judged against no figure.
   The hierarchy's search passes the editor's interface's budget; M6c.Q3.

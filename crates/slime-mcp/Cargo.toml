@@ -22,8 +22,9 @@ tokio.workspace = true
 [dev-dependencies]
 serde_json.workspace = true
 
-# Drives Hunna Wood, which needs a Wayland compositor and the cooked zone: `scripts/check.sh` runs it
-# in a headless Weston, as it runs the windowed lifecycle test (ADR-0024).
+# Drives Hunna Wood, and checks that it is at rest while paused; it needs a Wayland compositor and
+# the cooked zone: `scripts/check.sh` runs it in a headless Weston, as it runs the windowed
+# lifecycle test (ADR-0024, ADR-0185).
 [[test]]
 name = "drive"
 test = false
@@ -58,8 +59,8 @@ test = false
 harness = false
 
 # Uses the `editor` example's window, its operations run by name, its menus and its palette, and
-# checks that it runs no frame while alone; it needs a compositor and the examples' cooked assets:
-# `scripts/check.sh` runs it in a headless Weston (ADR-0156).
+# checks that it is at rest while alone; it needs a compositor and the examples' cooked assets:
+# `scripts/check.sh` runs it in a headless Weston (ADR-0156, ADR-0185).
 [[test]]
 name = "edit_window"
 test = false

@@ -464,7 +464,9 @@ the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
 of the window, a request of the *development channel*, the interface while it moves or once its
 next change is due, the program or another thread through a waker, rather than at the scheduled
 rate: an idle editor runs none (`AppConfig::on_demand`,
-[ADR-0156](adr/0156-the-editors-window-and-its-operations.md)).
+[ADR-0156](adr/0156-the-editors-window-and-its-operations.md)). A program with a window turns
+them on or off while it runs (`Context::set_on_demand`), as a game does while it is paused
+([ADR-0185](adr/0185-rest-checked-in-ci.md)).
 
 **Frustum culling.** Leaving out of a pass the *instances* that it cannot show: those whose box,
 the smallest box around their mesh, lies outside the volume that the pass's camera or light covers,
@@ -935,8 +937,9 @@ stays when the prefab later takes the same value, and one whose target the prefa
 kept and reported ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
 
 **Own wake-up.** A thread of a program leaving its wait when nothing outside asked it: a timer or a
-poll of the program's own, not an input, a request or a load that ends. Counted from the context
-switches that `/proc/<pid>/status` reports ([ADR-0175](adr/0175-the-quality-bar.md)).
+poll of the program's own, not an input, a request or a load that ends. Every thread counts, its
+libraries' and its drivers' too, from the context switches that `/proc/<pid>/task/<tid>/status`
+reports ([ADR-0175](adr/0175-the-quality-bar.md), [ADR-0185](adr/0185-rest-checked-in-ci.md)).
 
 **Owner.** The person who validates the project's direction and its architecture decisions.
 

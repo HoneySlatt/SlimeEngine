@@ -370,8 +370,9 @@ an agent's session through the MCP server ([ADR-0148](docs/adr/0148-widgets.md),
 through the MCP server, its operations run by name, its menu and its palette, a row of its
 hierarchy dropped before another, an entity picked in its viewport, then locked and hidden by its
 row's buttons, its second viewport captured, a panel moved to another region and a border between
-two dragged, which must run no frame while it is alone
+two dragged, which must then be at rest, a panel floating, none of its threads waking in 10 s
 ([ADR-0156](docs/adr/0156-the-editors-window-and-its-operations.md),
+[ADR-0185](docs/adr/0185-rest-checked-in-ci.md),
 [ADR-0159](docs/adr/0159-picking-and-the-selection.md),
 [ADR-0160](docs/adr/0160-two-viewports-and-blenders-way.md),
 [ADR-0169](docs/adr/0169-the-eye-and-the-lock.md), [ADR-0172](docs/adr/0172-regions-of-tabs.md)),
@@ -379,9 +380,10 @@ the `world` example's two views captured, the map's normals shown, its reports r
 picked at a pixel, by an agent's session through the MCP server, the `scene` example on a copy of
 the cooked sample with one byte changed, which must end with an error and not a panic, the game (its
 new runs, one that loses its GPU device after its first frame and must go on, one resumed from a
-copy of its save fixture, and one driven by an agent's session through the MCP server, their saves
-kept apart from the user's) and the windowed lifecycle test inside a headless Weston compositor
-(and that test's resize and oversize scenarios in a second one, at scale 2), the game built for
+copy of its save fixture, and one driven by an agent's session through the MCP server, which must
+be at rest while paused, their saves kept apart from the user's) and the windowed lifecycle test
+inside a headless Weston compositor (and that test's resize and oversize scenarios in a second one,
+at scale 2), the game built for
 shipping, which must hold neither the development channel nor the dev overlay
 ([ADR-0152](docs/adr/0152-the-dev-overlay-on-the-engines-interface.md)), the game, which must hold
 no adapter for screen readers ([ADR-0146](docs/adr/0146-screen-readers.md)), and `lychee` (links

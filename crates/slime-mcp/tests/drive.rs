@@ -3,9 +3,10 @@
 //! view without shadows, without anti-aliasing and at half its size, steps it, reads the hero,
 //! changes a value, walks the hero with a scripted key, saves and loads its run, opens the dev
 //! overlay's panels, sets the speed of game time with one's slider and the hero's direction with
-//! the world panel, captures the game's image, reads its log and stops it
-//! (`docs/adr/0122-the-development-channel.md`,
-//! `docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`).
+//! the world panel, captures the game's image, finds it at rest while paused, reads its log and
+//! stops it (`docs/adr/0122-the-development-channel.md`,
+//! `docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`,
+//! `docs/adr/0185-rest-checked-in-ci.md`).
 //!
 //! It needs a Wayland compositor, the game built (`cargo build -p hunnawood`) beside the server and
 //! its zone cooked in `target/cooked/hunnawood`: `scripts/check.sh` runs it in a headless Weston
@@ -14,10 +15,13 @@
 
 #[path = "common/interface.rs"]
 mod interface;
+#[path = "common/rest.rs"]
+mod rest;
 #[path = "common/session.rs"]
 mod session;
 
 use std::path::Path;
+use std::time::Duration;
 
 use serde_json::json;
 
@@ -82,6 +86,7 @@ fn main() {
     ]);
     let (said, _) = session.tool("start_game", json!({ "command": command }));
     assert!(said[0].contains("hunnawood runs"), "{said:?}");
+    let pid = rest::pid(&said[0], &game);
     session.tool("pause", json!({}));
     // Each request waits for a frame, and a frame of the zone with its shadows takes 13 to 30 s on
     // a CPU driver: the view draws without them, without anti-aliasing and at half its size, as an
@@ -183,6 +188,12 @@ fn main() {
     // The zone drawn, not a cleared image: many colors.
     let colors: std::collections::HashSet<&[u8]> = pixels.chunks(4).collect();
     assert!(colors.len() > 1000, "{} colors", colors.len());
+    // Paused, its zone drawn and its overlay's panels open, the game is at rest: none of its
+    // threads wakes in ten seconds, so it draws nothing. A frame of the zone takes seconds on a CPU
+    // driver: the last one asked may still run.
+    if let Err(woke) = rest::at_rest(pid, Duration::from_secs(60)) {
+        panic!("the game paused is not at rest: {woke}");
+    }
     let (lines, _) = session.tool("read_logs", json!({ "after": 0 }));
     assert!(lines[0].contains("development channel"), "{lines:?}");
     let (stopped, _) = session.tool("stop_game", json!({}));

@@ -745,8 +745,9 @@ impl Server {
                 }
             };
             let said = format!(
-                "{} runs, its development channel at {}; its log in {}",
+                "{} runs as process {}, its development channel at {}; its log in {}",
                 client.program(),
+                launched.child.id(),
                 launched.address,
                 log.display()
             );

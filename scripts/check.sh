@@ -184,9 +184,12 @@ if runs windowed; then
         { cat "$runtime/slime-check.log"; exit 1; }
     # The editor's window used by an agent's session through the MCP server: operations run by
     # name, its menu and its palette, a level opened by its path typed where no dialog of the
-    # system opens, the first run's hint, and no frame while it is alone (ADR-0156, ADR-0157).
+    # system opens, the first run's hint, and at rest, a panel floating, none of its threads waking
+    # in 10 s (ADR-0156, ADR-0157, ADR-0185). Without the developer's session bus of D-Bus, which
+    # its adapter for screen readers would reach, the editor at rest is the one that CI runs.
     cargo build --locked --example editor
-    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+    env -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check \
+        VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 300 cargo test --locked -p slime-mcp --test edit_window -- "$cooked/first" ||
         { cat "$runtime/slime-check.log"; exit 1; }
     # A client of AT-SPI, the service that Orca reads, reads and uses the same example as a screen
@@ -293,8 +296,9 @@ if runs game; then
     # And driven by an agent's session through the MCP server, which starts it with a token and
     # connects to its development channel: pauses it, draws its view without shadows, steps it,
     # reads and changes the hero, walks it with a scripted key, saves its run and loads it back, uses
-    # its dev overlay, captures its image and reads its log (ADR-0122, ADR-0125, ADR-0152). The test
-    # needs a compositor, so it is outside the default test run, as the lifecycle test is.
+    # its dev overlay, captures its image, finds it at rest while paused, none of its threads waking
+    # in 10 s, and reads its log (ADR-0122, ADR-0125, ADR-0152, ADR-0185). The test needs a
+    # compositor, so it is outside the default test run, as the lifecycle test is.
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check-game \
         VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 300 cargo test --locked -p slime-mcp --test drive ||

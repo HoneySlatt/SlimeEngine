@@ -73,8 +73,9 @@ The tools, each described to the agent by the server itself, with its parameters
 - `start_game`: starts a game as its `command` runs it, the program and its arguments, and connects
   to it, waiting long enough for `cargo run` to build it first, or `timeout_seconds`. Give a game a
   save of its own: `["cargo", "run", "-p", "hunnawood", "--", "--new", "--save",
-  "/tmp/agent-run.toml"]`. `stop_game` asks it to stop, as closing its window would, and kills it if
-  it does not. A game that ended on its own is told at the next tool that asks it, and forgotten.
+  "/tmp/agent-run.toml"]`. It answers with the process that it started: cargo's when `cargo run`
+  starts the game. `stop_game` asks it to stop, as closing its window would, and kills it if it does
+  not. A game that ended on its own is told at the next tool that asks it, and forgotten.
 - `game_state`, `pause`, `resume`, `step` and `set_speed`: the host's controls of game time, and the
   views that the game's last frame drew, with their settings; a step answers once its steps have
   run.
