@@ -210,12 +210,14 @@ impl Simulation for HunnaWood {
     }
 
     fn update(&mut self, ctx: &mut SimulationContext<'_>, world: &mut World) {
-        // Where the player looks turns at real time, the game paused or slowed down too.
+        // Where the player looks turns at real time, the game paused or slowed down too; paused,
+        // its frames run on demand, and an arrow held asks for the next.
         let turn = controls::turn(ctx.input());
         if turn != 0.0
             && let Some(mut look) = world.get_mut::<Look>(self.game.hero_entity())
         {
             look.turn(turn, ctx.time().real().delta().as_secs_f32());
+            ctx.request_frame();
         }
         let keys = ctx.input().keys();
         let (quit, restart, rest) = (

@@ -1917,7 +1917,9 @@ asks for a frame                                  slime-app's loop
 ```
 
 The frames asked one after another follow the schedule of `max_frame_rate`, as a game's do
-([ADR-0021](adr/0021-frame-pacing.md)); a game keeps its scheduled frames.
+([ADR-0021](adr/0021-frame-pacing.md)). A game keeps its scheduled frames, unless it sets them on
+demand while it runs (`Context::set_on_demand`), as Hunna Wood does while paused
+([ADR-0185](adr/0185-rest-checked-in-ci.md)).
 
 ### The development channel
 

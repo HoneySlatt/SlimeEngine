@@ -157,7 +157,7 @@ test sets it aside as a save of an earlier version of the engine, and a new run 
 | F9 | Load the save, in place of the run |
 | F1 | Show or hide what each frame costs, in the engine's dev overlay, in a build with the `development` feature, with the size the view draws at and its settings, which it changes (render scale, anti-aliasing, a mode of debugging that shows normals or shadows, and whether it draws the shadows, the sky and the bloom), whose slider sets the speed of game time, from a tenth to four times, and whose button loses the GPU device on purpose |
 | F2 | Show or hide the world panel of the dev overlay: the world's entities by name, with a filter, and the components of the one selected, whose values it changes ([`slime-devui`](../../crates/slime-devui/README.md)) |
-| F3 | Pause game time, or let it run again: the hero, the fire's flicker and the key's glow stop, and the camera still turns |
+| F3 | Pause game time, or let it run again: the hero, the fire's flicker and the key's glow stop, and the camera still turns; paused, the game draws only when something changes what it shows |
 | F4 | While game time is paused, run one step of it, 1/60 s |
 | F6 | Give the keyboard's focus to the dev overlay's panels, one after the other, then back to the game |
 | Escape | Quit |
@@ -243,9 +243,12 @@ any frame rate, and the camera turns on real time, at the frame's rate. A restar
 steps, is drawn at once. The rules need no GPU, so that their tests run anywhere, in worlds of their
 own. The screen holds game time until the zone is drawn, so that the hero does not walk where the
 player cannot see: a hold of its own (`Context::hold`), apart from the pause that the player and the
-tools set. A move is made in parts of at most half the hero's radius, each pushed out of
-the colliders it overlaps, so that no step carries the hero through a thin collider or past a
-corner.
+tools set. Paused, its zone drawn and nothing loading, the screen sets its frames on demand
+(`Context::set_on_demand`): it draws when a key, a tool, the camera turning or a new size of the
+window asks for a frame, and none of its threads wakes otherwise
+([ADR-0185](../../docs/adr/0185-rest-checked-in-ci.md)); with `--frames` or `--watch`, it keeps
+its frames. A move is made in parts of at most half the hero's radius, each pushed out of the
+colliders it overlaps, so that no step carries the hero through a thin collider or past a corner.
 
 The hero's meshes load before the first frame, so that its first shadows, which change the shape of
 the frame, do not come in the middle of the zone's load

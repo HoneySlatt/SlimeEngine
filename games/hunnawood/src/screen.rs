@@ -370,6 +370,22 @@ impl Presentation for Screen {
         if view.zone_shown() && self.frame_limit.is_some_and(|limit| self.drawn >= limit) {
             ctx.request_exit();
         }
+        // Paused, once a frame drew the zone, its loading logged and nothing loading, the game
+        // draws only when something asks for a frame: an input, a tool's request, the look that
+        // the rules turn at real time, or its view's new size, once it has held still
+        // (`docs/adr/0185-rest-checked-in-ci.md`). A run that counts its frames, or that watches
+        // its files, keeps them all.
+        ctx.set_on_demand(
+            ctx.paused()
+                && view.zone_shown()
+                && view.settled()
+                && self.loading.is_none()
+                && self.frame_limit.is_none()
+                && self.watch.is_none(),
+        );
+        if let Some(due) = view.resize_due() {
+            ctx.request_frame_at(due);
+        }
     }
 
     #[cfg(feature = "development")]
@@ -403,9 +419,11 @@ impl Presentation for Screen {
         Ok(())
     }
 
-    fn gpu_lost(&mut self, _ctx: &mut Context) {
+    fn gpu_lost(&mut self, ctx: &mut Context) {
         // Every object of the lost device goes, the view's loads in progress with it, so that the
         // new device opens on the same adapter (ADR-0075). The world, and the run in it, are kept.
+        // The frames go on until the zone is drawn again.
+        ctx.set_on_demand(false);
         self.view = None;
         self.shown = None;
         #[cfg(feature = "development")]

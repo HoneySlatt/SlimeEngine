@@ -12,7 +12,7 @@
 
 use std::f64::consts::TAU;
 use std::fmt::Display;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use slime_app::AppError;
 use slime_assets::{AssetId, AssetKind, CookedAssets};
@@ -431,6 +431,12 @@ impl View {
     #[cfg(feature = "development")]
     pub fn render_size(&self) -> Option<(u32, u32)> {
         self.shown.render_size()
+    }
+
+    /// When the hero's camera, its window resized or its render scale changed, will be drawn at its
+    /// new size ([`slime_render::View::resize_due`]); `None` while it has its size.
+    pub fn resize_due(&self) -> Option<Instant> {
+        self.shown.resize_due()
     }
 
     /// Draws into `target` the frame that [`View::extract`] built, and returns what it cost;
