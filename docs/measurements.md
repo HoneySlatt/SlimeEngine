@@ -1362,3 +1362,24 @@ passed the limit of 20 minutes.
 | `check (headless)` | 13 min 36 s |
 | `check (game)` | 9 min 37 s |
 | `check (windowed)` | 5 min 10 s |
+
+## M6c.Q2a, CI's runners
+
+GitHub's hosted runners, on 2026-11-05, commit `4164455`, its run green. The cooked zone came from
+the cache: the cooker's packages did not change. The checks of rest
+([ADR-0185](adr/0185-rest-checked-in-ci.md)) watch the editor in `check (windowed)`, in place of
+the old check's 11 seconds, and Hunna Wood paused in `check (game)`, whose `drive` test took 54 s;
+their own test runs in `check (headless)`.
+
+| Job | Time |
+|---|---|
+| `windows` | 18 min 37 s, its tests 13 min 51 s |
+| `check (headless)` | 14 min 18 s |
+| `windows-release` | 14 min 11 s |
+| `check (game)` | 7 min 10 s |
+| `check (windowed)` | 5 min 23 s |
+
+At rest, on the Ryzen 7 5800X in a headless Weston with lavapipe, before the milestone: the editor's
+53 threads, 52 still and `blocking-1` switching 21 times in 10 s; Hunna Wood paused, its 16 threads
+of lavapipe each switching about 500 times in 10 s. After it: no thread of either switches, runs,
+starts or ends in 10 s.
