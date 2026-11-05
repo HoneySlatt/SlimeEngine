@@ -168,4 +168,5 @@ are in [`docs/debt.md`](docs/debt.md).
 
 SlimeEngine is licensed under either of the [MIT license](LICENSE-MIT) or the
 [Apache License 2.0](LICENSE-APACHE), at your choice. Releases before 0.7 are under the Mozilla
-Public License 2.0. A game built with the engine can use any license.
+Public License 2.0. A game built with the engine can use any license. uwui's logo is not under
+these licenses: its terms are in [`crates/slime-ui/logo/README.md`](crates/slime-ui/logo/README.md).

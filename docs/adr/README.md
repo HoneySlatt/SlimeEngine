@@ -251,3 +251,4 @@ the ADR linking to it.
 | [0180](0180-one-canvas-and-the-frameworks-foundations.md) | One canvas, and the framework's foundations | Accepted; amends 0178; amended by 0181 |
 | [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182 |
 | [0182](0182-the-engine-under-mit-or-apache-2-0.md) | The engine under MIT OR Apache-2.0 | Accepted; amends 0006 and 0181 |
+| [0183](0183-uwuis-logo.md) | uwui's logo | Accepted |

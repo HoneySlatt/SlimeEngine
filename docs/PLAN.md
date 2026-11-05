@@ -142,7 +142,9 @@ stage's audit before M6c.9. Their figures live in the
 - **Delivers.** As [ADR-0179](adr/0179-the-framework-named-uwui.md) and
   [ADR-0181](adr/0181-uwuis-scope.md) decide: `slime-ui` renamed `uwui` and `slime-ui-render`
   `uwui-render`, their directories, packages, paths and rustdoc; the documents that describe the
-  code as it is name uwui; earlier ADRs unchanged. The license changes with the move, at Stage 6d.
+  code as it is name uwui; earlier ADRs unchanged; uwui's logo
+  ([ADR-0183](adr/0183-uwuis-logo.md)) at the head of its README. The license changes with the
+  move, at Stage 6d.
 - **Done when.** No name of the old crates is left outside earlier ADRs and history; CI is green.
 - **How to test.** `scripts/check.sh`; `git grep -E 'slime[_-]ui'`.
 - **Measured.** CI's jobs.
