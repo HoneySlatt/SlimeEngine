@@ -1464,3 +1464,36 @@ the cache. `check (game)` now runs the benchmarks' counters
 | `windows-release` | 10 min 59 s |
 | `check (game)` | 8 min 45 s |
 | `check (windowed)` | 5 min 12 s |
+
+## M6c.Q2c, Ryzen 7 5800X
+
+On 2026-11-05, in headless Westons 16 with lavapipe, the desktop running, a load average of 0.6
+to 2.8. A hidden window rests ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
+
+Rest of a hidden game, as the `drive` test checks it: *Hunna Wood* minimized through
+`minimize_game`, its game time running, in a debug build. With the old pacing, it was never still
+for a second within 60 s: in its last second, each of its 16 threads of lavapipe switched 564 to
+678 times, and its main thread 13 times. With the new one, none of its threads switches, runs,
+starts or ends in 10 s. The `window` example minimized: its 38 threads switch not once in 10 s.
+
+The frames' pacing while the window shows: the `window` example in a release build, 600 frames,
+the first 10 left out, through `SLIME_TRACE` and `scripts/frame-pacing.py`, in a headless Weston
+whose output refreshes at each rate (`--refresh-rate`). Intervals between the starts of frames:
+
+| Display | Pacing | Frames a second | Mean | Standard deviation | 99th percentile | Longest |
+|---|---|---|---|---|---|---|
+| 50 Hz | old | 60.00 | 16.667 ms | 0.011 ms | 16.694 ms | 16.716 ms |
+| 50 Hz | new | 50.00 | 20.000 ms | 0.036 ms | 20.110 ms | 20.203 ms |
+| 60 Hz | old | 60.00 | 16.667 ms | 0.011 ms | 16.696 ms | 16.710 ms |
+| 60 Hz | new | 60.00 | 16.667 ms | 0.009 ms | 16.693 ms | 16.773 ms |
+| 144 Hz | old | 60.00 | 16.667 ms | 0.012 ms | 16.701 ms | 16.723 ms |
+| 144 Hz | new | 60.00 | 16.667 ms | 0.071 ms | 16.694 ms | 17.879 ms |
+| 240 Hz | old | 60.00 | 16.667 ms | 0.033 ms | 16.696 ms | 17.072 ms |
+| 240 Hz | new | 60.00 | 16.667 ms | 0.014 ms | 16.697 ms | 16.778 ms |
+
+What it says: where the display refreshes at least as often as the schedule asks, 60 times a
+second by default, the frames keep [ADR-0021](adr/0021-frame-pacing.md)'s pacing, the compositor's
+signal coming before the next frame is due. On a slower display, they follow it: 50 a second at
+50 Hz, every image shown, where the old pacing drew 60, ten of which were never shown. A
+compositor's signal that comes late shows as one longer interval, 17.9 ms once at 144 Hz.
+A real display and compositor, the owner's, are measured by hand.

@@ -86,6 +86,7 @@ taskset -c 0-3 cargo run --release -p slime-benches -- [<name>...]  # the CPU be
 cargo run -p slime-benches -- --counters [<name>...]      # check the benchmarks' counters and ratios, as CI does, on lavapipe (ADR-0186)
 cargo run -p slime-benches -- --write-counters [<name>...]  # write the counters that a change changed on purpose into benches/counters.txt
 scripts/measure.sh "<title>" >> docs/measurements.md      # time the build, run the benchmarks (ADR-0104)
+scripts/frame-pacing.py <trace.json>                      # the frames' pacing in a trace written with SLIME_TRACE (ADR-0187)
 scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
 blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)
 cargo run -p hunnawood                                    # play the game (games/hunnawood/README.md)
@@ -327,6 +328,14 @@ To see where a frame's time goes, `SLIME_TRACE=<file>` makes a program that call
 `slime_app::init_diagnostics`, as the examples, the game and the benchmarks do, write a trace of
 its spans, which [Perfetto](https://ui.perfetto.dev) opens in the browser, without sending the
 file anywhere; the rustdoc of `slime_app::TRACE_ENV_VAR` says what it holds.
+[`scripts/frame-pacing.py`](scripts/frame-pacing.py) reads such a trace and prints how the frames
+were paced, their rate and the intervals between their starts
+([ADR-0187](docs/adr/0187-a-hidden-window-at-rest.md)):
+
+```sh
+SLIME_TRACE=trace.json cargo run --release --example window -- --frames 600
+scripts/frame-pacing.py trace.json
+```
 
 A windowed run measured on the machine's GPU, kept off the desktop in a headless Weston, needs
 Weston's GL renderer, `weston --backend=headless --renderer=gl`: with the default one, the GPU's
@@ -386,9 +395,10 @@ budget, in a debug build on lavapipe ([ADR-0186](docs/adr/0186-counters-and-rati
 the cooked sample with one byte changed, which must end with an error and not a panic, the game (its
 new runs, one that loses its GPU device after its first frame and must go on, one resumed from a
 copy of its save fixture, and one driven by an agent's session through the MCP server, which must
-be at rest while paused, their saves kept apart from the user's) and the windowed lifecycle test
-inside a headless Weston compositor (and that test's resize and oversize scenarios in a second one,
-at scale 2), the game built for
+be at rest while paused, then minimized, its game time running
+([ADR-0187](docs/adr/0187-a-hidden-window-at-rest.md)), their saves kept apart from the user's) and the windowed lifecycle test
+inside a headless Weston compositor of its own, at 240 Hz (and that test's resize and oversize
+scenarios in a second one, at scale 2), the game built for
 shipping, which must hold neither the development channel nor the dev overlay
 ([ADR-0152](docs/adr/0152-the-dev-overlay-on-the-engines-interface.md)), the game, which must hold
 no adapter for screen readers ([ADR-0146](docs/adr/0146-screen-readers.md)), and `lychee` (links

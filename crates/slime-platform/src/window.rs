@@ -162,12 +162,32 @@ impl Window {
 
     /// Asks the windowing system for a chance to draw: the event loop then calls
     /// [`EventHandler::redraw_requested`](crate::EventHandler::redraw_requested), usually during
-    /// its next iteration. Requests made before that call are merged into one.
+    /// its next iteration. Requests made before that call are merged into one. On Wayland, once an
+    /// image was presented after [`pre_present_notify`](Self::pre_present_notify), the redraw
+    /// waits for the compositor's signal instead, however long it takes: forever, for a window
+    /// hidden by a compositor that sends none to a hidden window, as Weston does.
     ///
     /// The windowing system also asks for redraws on its own, for example while the window is being
     /// resized.
     pub fn request_redraw(&self) {
         self.inner.request_redraw();
+    }
+
+    /// Says that an image is about to be presented, just before it is: on Wayland, the next request
+    /// for a redraw ([`request_redraw`](Self::request_redraw)) then waits for the compositor's
+    /// signal that the window can show a new image, a *frame callback*, which a compositor sends
+    /// in step with the display while the window shows, and seldom or never while it is hidden.
+    /// Elsewhere it does nothing. Call it once per image presented, never for an image that is not:
+    /// the signal comes only after an image is presented, and redraws wait for it until then.
+    pub fn pre_present_notify(&self) {
+        self.inner.pre_present_notify();
+    }
+
+    /// Asks the windowing system to minimize the window, as the user would: the compositor hides it.
+    /// Only the user shows it again: on Wayland, a program cannot, nor learn that it is hidden. On
+    /// Windows, a minimized window's size is zero ([`Event::Resized`](crate::Event::Resized)).
+    pub fn minimize(&self) {
+        self.inner.set_minimized(true);
     }
 
     /// Changes the title that the compositor shows, as [`WindowConfig::title`] says.

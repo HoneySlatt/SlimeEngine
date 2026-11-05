@@ -452,6 +452,10 @@ which the world keeps and saves write, so that references written before find it
 file that holds it then writes, so that saves, overrides and references that named it find it
 ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)), decided and not built yet.
 
+**Frame callback.** A Wayland compositor's signal that a window can show a new image, sent in step
+with the display while the window shows, and seldom or never while it is hidden. On Wayland, a
+frame waits for it ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
+
 **Frame contract.** What the world gives the renderer at each frame, and how: a frame that owns
 what it draws, built by `slime-world-render`, drawn in one or more *views*, each object naming a
 material of some *kind* ([ADR-0111](adr/0111-the-frame-contract.md)). The frame that owns what it
@@ -459,8 +463,9 @@ draws, the kinds, the views and their settings are built.
 
 **Frame scheduler (frame limiter).** The part of the windowed driver that schedules frames and
 waits between them, so that the engine asks for at most `AppConfig::max_frame_rate` frames per
-second on average. With the default *present mode*, it alone paces the frames
-([ADR-0021](adr/0021-frame-pacing.md), which calls it the timer, or the schedule).
+second on average. With the default *present mode*, it paces the frames
+([ADR-0021](adr/0021-frame-pacing.md), which calls it the timer, or the schedule), except while
+the window *holds its frames*.
 
 **Frame.** One iteration of the main loop. Its *delta* is the time it represents: the time since
 the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
@@ -570,6 +575,11 @@ rectangle it draws into times its *render scale*, which its tone-mapping pass re
 and not paused, game time stands still, without touching the pause that the player and the tools
 set; steps asked for while paused run all the same (`Context::hold`,
 [ADR-0122](adr/0122-the-development-channel.md)).
+
+**Holds its frames (window).** A window whose redraw asked for has not come, on Wayland until the
+*frame callback*, or whose size is zero, as a minimized window's on Windows. Meanwhile the loop wakes
+on no schedule of its own, and runs a frame only for what asks from outside, an event, a wake or
+the development channel ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
 
 **Host.** What runs a game's *simulation*, and its *presentation* when it has one: it owns the loop,
 the world, *game time* and *real time*, the input, the *commands* queued and the decision to stop

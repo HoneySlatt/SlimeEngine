@@ -3,10 +3,10 @@
 //! view without shadows, without anti-aliasing and at half its size, steps it, reads the hero,
 //! changes a value, walks the hero with a scripted key, saves and loads its run, opens the dev
 //! overlay's panels, sets the speed of game time with one's slider and the hero's direction with
-//! the world panel, captures the game's image, finds it at rest while paused, reads its log and
-//! stops it (`docs/adr/0122-the-development-channel.md`,
+//! the world panel, captures the game's image, finds it at rest while paused, then hidden, its game
+//! time running, reads its log and stops it (`docs/adr/0122-the-development-channel.md`,
 //! `docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`,
-//! `docs/adr/0185-rest-checked-in-ci.md`).
+//! `docs/adr/0185-rest-checked-in-ci.md`, `docs/adr/0187-a-hidden-window-at-rest.md`).
 //!
 //! It needs a Wayland compositor, the game built (`cargo build -p hunnawood`) beside the server and
 //! its zone cooked in `target/cooked/hunnawood`: `scripts/check.sh` runs it in a headless Weston
@@ -62,6 +62,7 @@ fn main() {
         .collect();
     for name in [
         "start_game",
+        "minimize_game",
         "pause",
         "step",
         "inspect_entity",
@@ -193,6 +194,15 @@ fn main() {
     // driver: the last one asked may still run.
     if let Err(woke) = rest::at_rest(pid, Duration::from_secs(60)) {
         panic!("the game paused is not at rest: {woke}");
+    }
+    // Hidden, its game time running, the game is at rest too: its window waits for the
+    // compositor's signal, which Weston gives no minimized window, and wakes on no schedule of its
+    // own (`docs/adr/0187-a-hidden-window-at-rest.md`).
+    let (said, _) = session.tool("minimize_game", json!({}));
+    assert_eq!(said, ["done"]);
+    session.tool("resume", json!({}));
+    if let Err(woke) = rest::at_rest(pid, Duration::from_secs(60)) {
+        panic!("the game hidden is not at rest: {woke}");
     }
     let (lines, _) = session.tool("read_logs", json!({ "after": 0 }));
     assert!(lines[0].contains("development channel"), "{lines:?}");

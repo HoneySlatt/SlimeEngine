@@ -348,6 +348,13 @@ impl DevChannel {
                 ctx.request_exit();
                 Reply::Done
             }
+            Request::Minimize => match ctx.window() {
+                Some(window) => {
+                    window.minimize();
+                    Reply::Done
+                }
+                None => failed("the game runs without a window"),
+            },
             Request::Entities { filter } => entities(host.world(), filter),
             Request::Entity { entity } => entity_text(host.world(), entity).unwrap_or_else(failed),
             Request::SetProperty {

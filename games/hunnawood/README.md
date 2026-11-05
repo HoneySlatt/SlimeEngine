@@ -247,7 +247,10 @@ tools set. Paused, its zone drawn and nothing loading, the screen sets its frame
 (`Context::set_on_demand`): it draws when a key, a tool, the camera turning or a new size of the
 window asks for a frame, and none of its threads wakes otherwise
 ([ADR-0185](../../docs/adr/0185-rest-checked-in-ci.md)); with `--frames` or `--watch`, it keeps
-its frames. A move is made in parts of at most half the hero's radius, each pushed out of the
+its frames. Hidden, on Wayland under a compositor that sends no signal to a hidden window, or
+minimized on Windows, it draws nothing and game time stands still, paused or not, but for a frame
+that a tool asks for
+([ADR-0187](../../docs/adr/0187-a-hidden-window-at-rest.md)). A move is made in parts of at most half the hero's radius, each pushed out of the
 colliders it overlaps, so that no step carries the hero through a thin collider or past a corner.
 
 The hero's meshes load before the first frame, so that its first shadows, which change the shape of

@@ -192,8 +192,14 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
     (`docs/adr/0020-rendering-in-the-main-loop.md`). The images are shown as
     `AppConfig::present_mode` says: by default, each one replaces the image waiting to be shown, on
     windows that offer it, the others falling back to `PresentMode::Fifo`,
-    so the display never makes a frame wait, and the schedule alone paces the frames, hidden window
-    included (`docs/adr/0021-frame-pacing.md`). With `PresentMode::Fifo`, every image is shown
+    so the display never makes a frame wait (`docs/adr/0021-frame-pacing.md`). On Wayland, a frame
+    also waits for the compositor's signal that the window can show a new image, which comes in
+    step with the display while the window shows. The window *holds its frames* while that signal
+    has not come, as for a hidden window, or while its size is zero, as a minimized window's on
+    Windows: the loop then wakes on no schedule of its own, and runs a frame only for what asks
+    from outside, an event, a wake or the development channel, after a short wait, and once, at
+    the start of a hold, to check that its last image reached the compositor; each such frame
+    represents one period of the schedule at most (`docs/adr/0187-a-hidden-window-at-rest.md`). With `PresentMode::Fifo`, every image is shown
     in step with the display, which can block a frame: up to one second when the compositor
     rarely shows a hidden window.
   - On demand, with a window or without: `AppConfig::on_demand` runs a frame only when something

@@ -231,11 +231,14 @@ if runs windowed; then
         VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 300 cargo test --locked -p slime-mcp --test views -- "$cooked/first" ||
         { cat "$runtime/slime-check.log"; exit 1; }
-    # The windowed lifecycle test needs the compositor too, so it is outside the default test run
-    # (ADR-0024).
-    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+    # The windowed lifecycle test needs a compositor too, so it is outside the default test run
+    # (ADR-0024). Its own refreshes at 240 Hz: on Wayland, the redraws that a program asks for wait for
+    # the compositor's signal, which then comes every 4.2 ms, and its burst of redraws runs frames
+    # less than 10 ms apart, ahead of their schedule (ADR-0187).
+    start_weston slime-check-fast --refresh-rate=240000
+    env -u DISPLAY XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check-fast VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 120 cargo test --locked -p slime-app --test windowed_lifecycle ||
-        { cat "$runtime/slime-check.log"; exit 1; }
+        { cat "$runtime/slime-check-fast.log"; exit 1; }
     # Nothing resizes a window in that compositor once it exists. One at scale 2 reports its scale after
     # the first frame, and the window then doubles in size: the lifecycle test's `resized` and `oversize`
     # scenarios run there, alone (ADR-0024): the window resized, alone and while another thread submits
@@ -305,9 +308,10 @@ if runs game; then
     # And driven by an agent's session through the MCP server, which starts it with a token and
     # connects to its development channel: pauses it, draws its view without shadows, steps it,
     # reads and changes the hero, walks it with a scripted key, saves its run and loads it back, uses
-    # its dev overlay, captures its image, finds it at rest while paused, none of its threads waking
-    # in 10 s, and reads its log (ADR-0122, ADR-0125, ADR-0152, ADR-0185). The test needs a
-    # compositor, so it is outside the default test run, as the lifecycle test is.
+    # its dev overlay, captures its image, finds it at rest while paused, then minimized, its game
+    # time running, none of its threads waking in 10 s, and reads its log (ADR-0122, ADR-0125,
+    # ADR-0152, ADR-0185, ADR-0187). The test needs a compositor, so it is outside the default test
+    # run, as the lifecycle test is.
     env -u DISPLAY XDG_RUNTIME_DIR="$runtime" XDG_DATA_HOME="$runtime/data" WAYLAND_DISPLAY=slime-check-game \
         VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 300 cargo test --locked -p slime-mcp --test drive ||

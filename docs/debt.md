@@ -34,20 +34,26 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   `scripts/check.sh` and CI's `windows` job fetch and cook the zone, then run them (`cargo test -p hunnawood -p hunnawood-editor -- --ignored`).
   `slime-mcp`'s session tests, agents' sessions through the MCP server, are tests apart (`test = false`) that `scripts/check.sh` runs on Linux alone.
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)).
-  With Mailbox, the default, the schedule alone paces frames.
+  With Mailbox, the default, the schedule paces frames.
+  On Wayland, a frame also waits for the compositor's frame callback: a display slower than the schedule paces them, every image shown ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
   At 60 Hz, an image is now and then shown twice and the next one dropped.
   At 144 or 165 Hz, the default 60 frames a second last 2 or 3 refreshes in turn: judder in motion.
   A game can raise `AppConfig::max_frame_rate` to the display's rate, which the engine does not report, or choose `PresentMode::Fifo`, one image per refresh, which can stall (next item).
-  Aligning frames on the compositor's frame callbacks is to reconsider when a renderer draws real scenes.
+  Frames wait for the frame callbacks, but are not aligned on them; to reconsider when a renderer draws real scenes.
 - **Without Mailbox, presenting can still stall the loop.**
   Windows that do not offer it, and applications that choose `PresentMode::Fifo`, wait for the display: one frame per second for a hidden window on niri.
   In a headless Weston with lavapipe, `acquire` waits for Weston's frame callbacks as long as the machine's load makes it.
   120 frames of the `window` example took 9 to 25 s on 2026-10-12 (release build; 15 s with waits of 130 ms on average), against 2 s with Mailbox.
-- **A hidden window keeps drawing** at the scheduled rate (2 to 3 % of one CPU core on the development machine).
+- **A hidden window keeps drawing on X11, and on Windows when it is covered**, at the scheduled rate (2 to 3 % of one CPU core on the development machine).
   A program run on demand, as the editor (`AppConfig::on_demand`), draws only when woken.
-  On Wayland, the engine cannot tell whether its window is visible.
+  On Wayland, a hidden window draws when the compositor sends it a frame callback: never in Weston, once a second in niri ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
   On X11, the engine ignores winit's occlusion: under a compositing manager, Xwayland included, the X server reports windows visible anyway.
-  On Windows, a covered window keeps drawing; a minimized one, of size zero, draws nothing (M3b.9).
+  On Windows, a minimized window, of size zero, draws nothing and wakes not at all (ADR-0187); not checked in the virtual machine yet.
+- **A window that holds its frames** ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)), hidden on Wayland or minimized on Windows, runs a frame only for what asks from outside.
+  A run with a frame limit (`--frames`) does not reach it while hidden.
+  A game that must go on while hidden, a server's or a multiplayer game's, cannot.
+  A capture asked of a minimized window on Windows is never answered, and runs a frame every 100 ms until the window shows.
+  A hidden window wakes once at the start of each hold, for a frame that finds a device lost before the run knew it, whose last image never reached the compositor.
 - **wgpu's errors panic, in release builds too** (ADR-0016): a use of wgpu that it rejects is treated as a bug.
   Logging the error and dropping the frame is to consider before games ship.
   Running out of GPU memory is not such a use: creations return `GfxError::OutOfMemory`; memory that runs out where no caller hears of it gives the device up, which stops the run (ADR-0044).
@@ -619,7 +625,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   How the jobs grew and were split: [`history.md`](history.md#ci-and-its-limit-of-20-minutes).
 - **The quality bar's budgets are checked by hand, or not measured yet** ([ADR-0175](adr/0175-the-quality-bar.md)).
   CI keeps the benchmarks' counters and the ratio of the editor's interface ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)), on Linux only; every time is measured by hand.
-  A game hidden keeps drawing at its schedule, and nothing checks it at rest ([ADR-0021](adr/0021-frame-pacing.md)); M6c.Q2c ([ADR-0185](adr/0185-rest-checked-in-ci.md)).
+  A game hidden is checked at rest in a headless Weston alone: on the owner's compositor, and minimized on Windows, by hand, not done yet ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
   Input to present, starts, memory over a session and power are not measured; M6c.Q2d.
   The editor's interface passes its budget on the owner's machine once other programs fill the memory that its GPU, without resizable BAR, lets the CPU map: the canvas's draw then meets [ADR-0041](adr/0041-render-graph.md)'s stall, whose fix is out of Stage 6c ([`measurements.md`](measurements.md#m6cq2b-ryzen-7-5800x-and-rx-6900-xt)).
   A frame of the interface standing still allocates, which `benches/counters.txt` counts without a budget.

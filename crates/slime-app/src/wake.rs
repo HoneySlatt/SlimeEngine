@@ -1,6 +1,8 @@
-//! What wakes a run whose frames run on demand ([`AppConfig::on_demand`]): a [`Waker`], which any
-//! thread holds, and the run's own, which a termination signal and the end of the tool that started
-//! the program wake (`docs/adr/0156-the-editors-window-and-its-operations.md`).
+//! What wakes a run whose frames run on demand ([`AppConfig::on_demand`]), or whose window holds
+//! its frames: a [`Waker`], which any thread holds, and the run's own, which a termination signal
+//! and the end of the tool that started the program wake
+//! (`docs/adr/0156-the-editors-window-and-its-operations.md`,
+//! `docs/adr/0187-a-hidden-window-at-rest.md`).
 //!
 //! [`AppConfig::on_demand`]: crate::AppConfig::on_demand
 
@@ -8,8 +10,9 @@ use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
 
 /// Asks a run for a frame from any thread: a load or a cook that ended, a request that came. A run
 /// whose frames run on demand ([`AppConfig::on_demand`](crate::AppConfig::on_demand)) runs one
-/// soon after, paced as its frames are; any other run runs its frames anyway, and a wake changes
-/// nothing for it. Clones wake the same run; one that ended wakes for nothing.
+/// soon after, paced as its frames are, and so does one whose window holds its frames, hidden on
+/// Wayland or minimized on Windows, after a short wait; any other run runs its frames anyway, and a
+/// wake changes nothing for it. Clones wake the same run; one that ended wakes for nothing.
 /// [`Context::waker`](crate::Context::waker) gives the run's.
 #[derive(Clone, Debug, Default)]
 pub struct Waker {

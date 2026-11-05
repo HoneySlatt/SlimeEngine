@@ -8,6 +8,14 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- A hidden window rests (ADR-0187): on Wayland, a frame waits for the compositor's signal that the
+  window can show a new image, so a hidden window draws nothing and wakes not at all under a
+  compositor that sends it none, and a display slower than the schedule paces the frames; on
+  Windows, a minimized window is to draw nothing and not wake, not checked in the virtual machine
+  yet. Meanwhile, an event, a wake or a request of the development channel still runs a frame,
+  after a short wait, which moves game time by one frame at most: game time barely moves while the
+  window is hidden. A run with a frame limit does not reach it while hidden. The development
+  channel's protocol is at version 13.
 - The frame that ends a wait of a run on demand represents the time since what asked for it, not
   the wait, which made what moves at real time jump by 250 ms (ADR-0185).
 - The license (ADR-0182): SlimeEngine is licensed under MIT OR Apache-2.0, at the user's choice,
@@ -17,6 +25,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- A game's window minimized: `slime_platform::Window::minimize`, the development channel's
+  `Request::Minimize` and the MCP server's `minimize_game`; `Window::pre_present_notify`; CI checks
+  that *Hunna Wood* minimized, its game time running, is at rest (ADR-0187).
+  `scripts/frame-pacing.py` prints the frames' pacing from a trace.
 - Counters and ratios checked in CI (ADR-0186): `slime-benches --counters` runs each benchmark that
   counts once and compares its counters, draw calls, items, elements, the bytes of a save,
   allocations, with `benches/counters.txt`, and checks that the editor's interface costs at most

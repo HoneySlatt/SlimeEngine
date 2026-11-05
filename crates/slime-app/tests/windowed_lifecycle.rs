@@ -9,8 +9,10 @@
 //! presentation's own call finds it and stops the run with it, a presentation that stops the run
 //! with an error or panics after drawing, and a window resized during the run, alone or while
 //! another thread submits work to the GPU, as threads that load a scene do.
-//! `scripts/check.sh` runs it in a headless Weston with lavapipe, then runs it again in a second
-//! one, at scale 2, for the resizes and the window larger than the GPU can draw into, which only
+//! `scripts/check.sh` runs it in a headless Weston with lavapipe whose output refreshes at 240 Hz,
+//! since on Wayland the redraws that the presentation asks for wait for the compositor's signal,
+//! which then comes every 4.2 ms, and the burst of redraws must run frames ahead of their schedule
+//! (`docs/adr/0187-a-hidden-window-at-rest.md`); then it runs it again in a second one, at scale 2, for the resizes and the window larger than the GPU can draw into, which only
 //! the compositor that doubles a window makes wider than the largest window (ADR-0024). It is not
 //! in the default run of `cargo test` (`test = false` in Cargo.toml), since it needs a compositor,
 //! and it has no harness, since the windowing library needs the main thread.

@@ -45,7 +45,7 @@ const INSTRUCTIONS: &str = "Drives a game built with SlimeEngine through its dev
      debugging that shows normals, shadows, the base color or the light alone; `pick` names the entity drawn at a pixel of its \
      image or of a view; `read_report` reads its reports, as its asset cache's; \
      `read_logs` reads its log; `save_game` and `load_game` save its run to a file and load it; \
-     `stop_game` ends it. A game's interface is read and used as a person uses it: \
+     `minimize_game` hides its window, `stop_game` ends it. A game's interface is read and used as a person uses it: \
      `find_elements` lists its elements by role and name, each with its path, `element_at` names \
      the one at a pixel, `act_on_interface` presses, focuses or scrolls one, gives a field, a \
      slider, two panels, a list to choose from or a color well a value, or moves the focus, \
@@ -810,6 +810,15 @@ impl Server {
     #[tool(description = "Lets game time run again.")]
     async fn resume(&self) -> Result<CallToolResult, McpError> {
         self.ask(Request::Resume).await
+    }
+
+    #[tool(
+        description = "Minimizes the game's window, as the user would: the compositor hides it, \
+                       and a game that rests while hidden draws nothing. Only the user shows it \
+                       again."
+    )]
+    async fn minimize_game(&self) -> Result<CallToolResult, McpError> {
+        self.ask(Request::Minimize).await
     }
 
     #[tool(

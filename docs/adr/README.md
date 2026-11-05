@@ -89,7 +89,7 @@ the ADR linking to it.
 | [0018](0018-reference-image-tests.md) | Reference image tests | Accepted; amended by 0028, 0030 |
 | [0019](0019-default-log-filter.md) | Default log filter | Accepted |
 | [0020](0020-rendering-in-the-main-loop.md) | Rendering in the main loop, and application errors | Accepted; amended by 0021, 0022, 0025, 0043 and 0107 |
-| [0021](0021-frame-pacing.md) | Frame pacing | Accepted; amended by 0155, 0156 and 0185 |
+| [0021](0021-frame-pacing.md) | Frame pacing | Accepted; amended by 0155, 0156, 0185 and 0187 |
 | [0022](0022-losing-the-gpu-device.md) | Losing the GPU device | Accepted; amended by 0025, 0044, 0075 and 0103 |
 | [0023](0023-dependency-checks-for-the-supported-targets.md) | Check the dependencies of the supported targets only | Accepted |
 | [0024](0024-windowed-lifecycle-check-in-weston.md) | Windowed lifecycle check in the headless compositor | Accepted; extended on 2026-10-13 |
@@ -255,3 +255,4 @@ the ADR linking to it.
 | [0184](0184-the-engines-logo.md) | The engine's logo | Accepted |
 | [0185](0185-rest-checked-in-ci.md) | Rest, checked in CI | Accepted; amends 0021, 0156 and 0175 |
 | [0186](0186-counters-and-ratios-in-ci.md) | Counters and ratios in CI | Accepted; amends 0005, 0104 and 0175 |
+| [0187](0187-a-hidden-window-at-rest.md) | A hidden window at rest | Accepted; amends 0021 |

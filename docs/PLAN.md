@@ -431,10 +431,13 @@ is run with `--new --save <a file of its own>`, so that the owner's save is left
 - **Layouts kept, floating and closed panels** (M6c.5e): a layout kept across starts, a panel
   floated, moved and sized by its bar and its corner, closed and opened again where it was, on
   Linux and in the Windows virtual machine.
+- **A hidden game at rest** (M6c.Q2c): *Hunna Wood* hidden on the owner's compositor and minimized
+  in the Windows virtual machine, none of its threads waking, and drawing again once shown; the
+  frames' pacing on the owner's display, through `scripts/frame-pacing.py`.
 - **G20, in the Windows virtual machine.** A source asset whose `.meta` differs from its own name
   by case only, cooked twice: whether its ID changes at each cook, and whether `slime-cook watch`
   cooks it again without end (see [Left by the audit of 0.4](debt.md#left-by-the-audit-of-04)).
 
 ## Known debt
 
-The known debt still open, 160 items, is in [`debt.md`](debt.md).
+The known debt still open, 164 items, is in [`debt.md`](debt.md).

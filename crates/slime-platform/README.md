@@ -51,7 +51,10 @@ Applications normally do not call this crate directly: `slime-app` drives it whe
 - `Window` is a cheap, clonable handle to the window: its size in physical pixels, its scale
   factor, the scheme of colors that the system prefers where winit tells it, on Windows
   (`color_scheme`, `Event::ColorSchemeChanged`, `docs/adr/0149-the-looks-foundations.md`),
-  `request_redraw` to ask for a chance to draw, `set_ime_allowed` and `set_ime_area` for
+  `request_redraw` to ask for a chance to draw, `pre_present_notify` before an image is presented,
+  after which, on Wayland, the next redraw waits for the compositor's signal that the window can show
+  a new image, and `minimize` to minimize it, as the user would
+  (`docs/adr/0187-a-hidden-window-at-rest.md`), `set_ime_allowed` and `set_ime_area` for
   the input method, `set_cursor` for the pointer's shape, `set_title` for its title, `waker` for a
   `Waker` with which another thread wakes the event loop, and the `raw-window-handle` traits
   through which a graphics library draws into it

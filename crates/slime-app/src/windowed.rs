@@ -18,6 +18,11 @@ use crate::host::{ExitReason, Host};
 const MAX_RESTORES: usize = 3;
 /// The time within which the run opens at most `MAX_RESTORES` devices.
 const RESTORE_WINDOW: Duration = Duration::from_secs(5 * 60);
+/// The longest that a frame asked for from outside the loop waits for the compositor's signal
+/// (`docs/adr/0187-a-hidden-window-at-rest.md`): longer than a refresh of any display, so that a
+/// window shown keeps its frames in step with it, and short enough that a request to a hidden
+/// game, an agent's, is answered at once.
+const SIGNAL_WAIT: Duration = Duration::from_millis(100);
 
 pub(crate) fn run_windowed(
     simulation: &mut impl Simulation,
@@ -46,6 +51,9 @@ pub(crate) fn run_windowed(
         last_frame: now,
         ui_clock: now,
         next_frame: now,
+        redraw_asked: None,
+        asked_from_outside: false,
+        checked_hold: false,
         resting: false,
         wanted: true,
         change_due: None,
@@ -81,6 +89,17 @@ struct WindowedDriver<'a, S, P> {
     ui_clock: Instant,
     /// When the next frame is due.
     next_frame: Instant,
+    /// When the loop asked the window for a redraw that has not come: on Wayland, one that waits
+    /// for the compositor's signal that the window can show a new image.
+    redraw_asked: Option<Instant>,
+    /// Whether something outside the loop asked for a frame since the last one ran: an event, a
+    /// wake of the run's waker, which a thread, a termination signal, the tool's end and the
+    /// development channel give, or a device restored. Unlike the program's own requests, these
+    /// run a frame while the window holds its frames.
+    asked_from_outside: bool,
+    /// Whether the window, holding its frames since its last redraw, ran the one frame that checks
+    /// that the image before reached the compositor (`held`).
+    checked_hold: bool,
     /// Whether the loop waits, frames running on demand, with no frame asked for: the frame that
     /// ends the wait represents the time since what asked for it, not the wait, so that what
     /// moves at real time does not jump by the frame's longest time.
@@ -114,11 +133,113 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
             .map_err(RunError::Init)
     }
 
+    /// Makes the frame that ends a hold of the window's frames represent one period of the schedule
+    /// at most, so that game time barely moves while the window is hidden.
+    fn end_hold(&mut self, now: Instant) {
+        if let Some(start) = now.checked_sub(self.frame_period) {
+            self.last_frame = self.last_frame.max(start);
+        }
+    }
+
     /// Ends the loop's rest, if it rested: the next frame's time starts now.
     fn end_rest(&mut self) {
         if std::mem::take(&mut self.resting) {
             self.last_frame = Instant::now();
         }
+    }
+
+    /// Runs a frame, unless the run is stopping, or ends with this frame: the redraw that the loop
+    /// asked for, one that the windowing system asked for, or one that something outside the loop
+    /// asked for while the window holds its frames.
+    fn frame(&mut self) {
+        if self.started {
+            self.restore();
+        }
+        self.redraw_asked = None;
+        self.asked_from_outside = false;
+        if !self.started
+            || self.stop.is_some()
+            || self
+                .frames
+                .check_stop(
+                    &mut self.host.context,
+                    self.surface.as_ref(),
+                    self.restore_lost_device,
+                )
+                .is_some()
+        {
+            return;
+        }
+        let now = Instant::now();
+        // The interface's transitions go on by the frame's real time.
+        if let Some(ui) = self.presentation.ui() {
+            ui.advance(now - self.ui_clock);
+            self.ui_clock = now;
+        }
+        self.frames.run_one(
+            &mut self.host,
+            self.simulation,
+            self.presentation,
+            now - self.last_frame,
+            self.surface.as_mut(),
+        );
+        self.last_frame = now;
+        self.next_frame = next_due(self.next_frame, now, self.frame_period);
+        let ui = self.presentation.ui();
+        let interface_due = ui
+            .as_ref()
+            .and_then(|ui| ui.next_change())
+            .map(|after| now + after);
+        // The earlier of the interface's change and the time that the presentation asked for.
+        self.change_due = match (interface_due, self.host.context.take_frame_due()) {
+            (Some(interface), Some(asked)) => Some(interface.min(asked)),
+            (due, None) | (None, due) => due,
+        };
+        self.wanted = ui.is_some_and(|ui| ui.needs_frame())
+            || self.host.context.take_frame_request()
+            || self.frames.waiting()
+            || self.host.context.steps_asked() > 0;
+    }
+
+    /// Whether the window has no area to draw into, as a minimized window on Windows.
+    fn window_is_empty(&self) -> bool {
+        self.host.context.window().is_some_and(|window| {
+            let size = window.inner_size();
+            size.width == 0 || size.height == 0
+        })
+    }
+
+    /// What the loop does while the window holds its frames: a redraw asked for that has not come,
+    /// as on Wayland until the compositor signals that the window can show a new image, which a
+    /// hidden window may never get; or no area to draw into. The loop wakes on no schedule of its
+    /// own meanwhile. What asks from outside runs a frame, once the compositor's signal is late
+    /// (`held_due`); and so does each frame that the development channel still waits for.
+    ///
+    /// The first time a redraw waits that long, one frame runs too, whatever asks: an image
+    /// presented to a device lost before the run knew it never reached the compositor, whose
+    /// signal would then never come. That frame finds the loss, and the device restored draws.
+    fn held(&mut self, now: Instant) -> LoopControl {
+        let unchecked = self.redraw_asked.is_some() && !self.checked_hold;
+        let Some(due) = held_due(
+            self.asked_from_outside || self.frames.waiting() || unchecked,
+            self.redraw_asked.unwrap_or(self.last_frame),
+            self.next_frame,
+        ) else {
+            return LoopControl::Wait;
+        };
+        if now < due {
+            return LoopControl::WaitUntil(due);
+        }
+        let pending = self.redraw_asked.is_some();
+        self.checked_hold |= pending;
+        self.end_hold(now);
+        self.frame();
+        // The redraw asked for still waits for the compositor's signal, from now on.
+        if pending {
+            self.redraw_asked = Some(Instant::now());
+        }
+        // The loop looks again at once, as after a redraw: the frame may have asked it to stop.
+        LoopControl::WaitUntil(Instant::now())
     }
 
     /// When the GPU device is lost and the game chose to replace it, lets the presentation drop its
@@ -167,6 +288,11 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
         match surface.restore(lost) {
             Ok((gpu, surface)) => {
                 self.restores.push(now);
+                // The new device's first frame runs even if the window holds its frames: a frame
+                // that the lost device presented may never have reached the compositor, whose
+                // signal would then never come.
+                self.asked_from_outside = true;
+                self.wanted = true;
                 tracing::warn!(%loss, "the GPU device was lost; a new one replaces it");
                 let host = &mut self.host;
                 host.context.set_gpu(Some(gpu), Some(surface.format()));
@@ -217,6 +343,7 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         tracing::trace!(?event, "platform event");
         // Whatever the window tells may change what it shows.
         self.wanted = true;
+        self.asked_from_outside = true;
         if let (Event::Resized(size), Some(surface)) = (&event, &mut self.surface) {
             surface.resize(size.width, size.height);
         }
@@ -261,51 +388,16 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
 
     fn redraw_requested(&mut self) {
         self.end_rest();
-        if self.started {
-            self.restore();
-        }
-        if !self.started
-            || self.stop.is_some()
-            || self
-                .frames
-                .check_stop(
-                    &mut self.host.context,
-                    self.surface.as_ref(),
-                    self.restore_lost_device,
-                )
-                .is_some()
-        {
-            return;
-        }
+        // The compositor's signal came.
+        self.checked_hold = false;
         let now = Instant::now();
-        // The interface's transitions go on by the frame's real time.
-        if let Some(ui) = self.presentation.ui() {
-            ui.advance(now - self.ui_clock);
-            self.ui_clock = now;
+        if self
+            .redraw_asked
+            .is_some_and(|asked| now - asked >= SIGNAL_WAIT)
+        {
+            self.end_hold(now);
         }
-        self.frames.run_one(
-            &mut self.host,
-            self.simulation,
-            self.presentation,
-            now - self.last_frame,
-            self.surface.as_mut(),
-        );
-        self.last_frame = now;
-        self.next_frame = next_due(self.next_frame, now, self.frame_period);
-        let ui = self.presentation.ui();
-        let interface_due = ui
-            .as_ref()
-            .and_then(|ui| ui.next_change())
-            .map(|after| now + after);
-        // The earlier of the interface's change and the time that the presentation asked for.
-        self.change_due = match (interface_due, self.host.context.take_frame_due()) {
-            (Some(interface), Some(asked)) => Some(interface.min(asked)),
-            (due, None) | (None, due) => due,
-        };
-        self.wanted = ui.is_some_and(|ui| ui.needs_frame())
-            || self.host.context.take_frame_request()
-            || self.frames.waiting()
-            || self.host.context.steps_asked() > 0;
+        self.frame();
     }
 
     fn about_to_wait(&mut self) -> LoopControl {
@@ -324,8 +416,10 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
             return LoopControl::Exit;
         }
         let now = Instant::now();
+        let woken = self.host.context.waker().take();
+        self.asked_from_outside |= woken;
         if self.host.context.on_demand() {
-            self.wanted |= self.host.context.waker().take()
+            self.wanted |= woken
                 | self.host.context.take_frame_request()
                 | self.change_due.is_some_and(|due| due <= now);
             if !self.wanted {
@@ -337,15 +431,18 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
                     .map_or(LoopControl::Wait, LoopControl::WaitUntil);
             }
         }
-        if now < self.next_frame {
-            return LoopControl::WaitUntil(self.next_frame);
+        if self.redraw_asked.is_none() && !self.window_is_empty() {
+            if now < self.next_frame {
+                return LoopControl::WaitUntil(self.next_frame);
+            }
+            // The frame runs when the redraw arrives, which wakes the loop. Nothing else needs a
+            // deadline: a termination signal, the tool's end and the development channel wake it.
+            if let Some(window) = self.host.context.window() {
+                window.request_redraw();
+                self.redraw_asked = Some(now);
+            }
         }
-        // The frame runs when the redraw arrives, which also wakes the loop. The deadline only
-        // bounds the wait if it does not come, so that signals are still noticed.
-        if let Some(window) = self.host.context.window() {
-            window.request_redraw();
-        }
-        LoopControl::WaitUntil(now + self.frame_period)
+        self.held(now)
     }
 
     fn exiting(&mut self) {
@@ -394,11 +491,34 @@ pub(crate) fn next_due(due: Instant, started: Instant, period: Duration) -> Inst
     }
 }
 
+/// When a frame runs while the window holds its frames, if something asks for one: once it is due
+/// (`next_frame`), and `SIGNAL_WAIT` after `since`, when the loop asked for the redraw that waits
+/// for the compositor's signal, or when the last frame ran for a window without area; `None` while
+/// nothing asks.
+fn held_due(asked: bool, since: Instant, next_frame: Instant) -> Option<Instant> {
+    asked.then(|| next_frame.max(since + SIGNAL_WAIT))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const PERIOD: Duration = Duration::from_millis(16);
+
+    #[test]
+    fn a_window_that_holds_its_frames_runs_one_only_when_something_asks() {
+        let now = Instant::now();
+        assert_eq!(held_due(false, now, now), None);
+    }
+
+    #[test]
+    fn a_frame_asked_while_held_waits_signal_wait_and_until_it_is_due() {
+        let since = Instant::now();
+        let next_frame = since + PERIOD;
+        assert_eq!(held_due(true, since, next_frame), Some(since + SIGNAL_WAIT));
+        let late = since + SIGNAL_WAIT * 2;
+        assert_eq!(held_due(true, since, late), Some(late));
+    }
 
     #[test]
     fn a_frame_on_time_schedules_the_next_one_period_later() {

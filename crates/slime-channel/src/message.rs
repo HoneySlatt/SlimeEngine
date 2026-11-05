@@ -58,6 +58,10 @@ pub enum Request {
     },
     /// Asks the game to stop, as its window closed would.
     Stop,
+    /// Minimizes the game's window, as the user would, and answers at once: the compositor hides
+    /// it. Only the user shows it again: on Wayland, a program cannot. It fails in a run without a
+    /// window.
+    Minimize,
     /// The entities whose name or persistent identity holds `filter`, whatever its case:
     /// [`Reply::Entities`], at most [`MAX_ENTITIES`](crate::MAX_ENTITIES) of them.
     Entities {
@@ -621,6 +625,7 @@ mod tests {
             Request::Step { steps: 3 },
             Request::Speed { speed: 0.25 },
             Request::Stop,
+            Request::Minimize,
             Request::Entities {
                 filter: text("lant"),
             },

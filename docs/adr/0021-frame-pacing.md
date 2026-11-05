@@ -2,9 +2,10 @@
 
 - Status: Accepted; amended by [0155](0155-the-editors-design.md) (a program may run its frames
   only when something asks for one), [0156](0156-the-editors-window-and-its-operations.md) (how:
-  `AppConfig::on_demand`, which replaces the paced run without a window) and
+  `AppConfig::on_demand`, which replaces the paced run without a window),
   [0185](0185-rest-checked-in-ci.md) (a hidden window draws on the compositor's signal, from
-  M6c.Q2c)
+  M6c.Q2c) and [0187](0187-a-hidden-window-at-rest.md) (how: on Wayland, frames wait for the
+  compositor's signal, and the loop sets no deadline of its own)
 - Date: 2026-10-12
 
 ## Context

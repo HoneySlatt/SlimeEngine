@@ -386,8 +386,10 @@ slime_app::run
     │                            measured delta (Ui::advance, its transitions, ADR-0149);
     │                            frame with the measured delta
     ├── winit "about_to_wait"    → driver.about_to_wait
-    │                            → if the next frame is due: window.request_redraw();
-    │                              return WaitUntil(next frame) or Exit
+    │                            → if the next frame is due: window.request_redraw(), then
+    │                              Wait; while the window holds its frames, a frame for what
+    │                              asked from outside; return WaitUntil(next frame), Wait or
+    │                              Exit
     └── winit "exiting"          → driver.exiting → presentation.stop(ctx), then
                                    simulation.stop(ctx, &mut world); the surface, the GPU and the
                                    window are released
@@ -402,6 +404,18 @@ windowing system also asks for redraws on its own, during a resize for example, 
 runs a frame too; such a frame restarts the schedule as well, so the next frame the engine asks for
 comes one period after it. On Windows, this is what keeps the window drawn while the user resizes it: the
 system then runs its own loop, in which `about_to_wait` is not called.
+
+Before each image is presented, the frame calls `Window::pre_present_notify`: on Wayland, the next
+redraw then waits for the compositor's frame callback, its signal that the window can show a new
+image. The window *holds its frames* while a redraw asked for has not come, or while its size is
+zero, as a minimized window's on Windows. Meanwhile the loop waits without a deadline: the
+schedule and the program's own requests run no frame, and what asks from outside, an event, a wake
+of the run's `Waker`, a device restored, or the development channel's work that waits for frames,
+runs one from `about_to_wait`, `SIGNAL_WAIT` after the redraw was asked, or after the last frame
+for a window without area. So does one frame at the start of each hold, which finds a device lost
+before the run knew it, whose last image never reached the compositor. Such a frame, and the one
+that ends a hold, represent at most one period of the schedule: game time barely moves while the
+window is hidden ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
 
 ### Opening the GPU
 
@@ -837,7 +851,7 @@ sees whether there is an image to draw:
 |---|---|
 | A new size (from `Event::Resized`) | `Surface::resize`; the surface is configured again before the next image |
 | A size above the largest image the device accepts (the adapter's, 8192 pixels in a dimension at least) | Limited to it, with a warning; the images are then smaller than the window |
-| A size of zero (minimized window) | No image; the frame runs without drawing |
+| A size of zero (minimized window) | No image; the window holds its frames ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)): a frame runs only for what asks from outside, without drawing |
 | Outdated configuration | Configured again, then one more try; no image this frame if still outdated |
 | Suboptimal image | Drawn and presented, then configured again |
 | Image not ready in time (Vulkan), window occluded | No image this frame; on Direct3D 12, wgpu waits up to one second for a late image, then returns it, and the frame is drawn late; on Windows with Vulkan, an image that wgpu handed out but that is still not free after one second loses the device, and the run stops |
@@ -845,9 +859,10 @@ sees whether there is an image to draw:
 | Device lost (see [Losing the GPU](#losing-the-gpu)) | No image; the run stops before the next frame. An image acquired before the loss was found is released instead of presented, so that the surface can be dropped |
 
 How the window shows the images is the *present mode* (`AppConfig::present_mode`). With Mailbox,
-the default, presenting never waits, and the frame scheduler alone paces frames, whether the
-window is visible or not; windows that do not offer it fall back to FIFO, with which presenting
-can block a frame. The measurements behind this choice are in
+the default, presenting never waits, and the frame scheduler paces frames, but while the window
+holds its frames, on Wayland until the compositor's signal
+([ADR-0187](adr/0187-a-hidden-window-at-rest.md)); windows that do not offer it fall back to FIFO,
+with which presenting can block a frame. The measurements behind this choice are in
 [ADR-0021](adr/0021-frame-pacing.md).
 
 In GPU capture tools such as RenderDoc, each render pass is named after its target, so the window's

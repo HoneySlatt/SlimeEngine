@@ -79,6 +79,9 @@ The tools, each described to the agent by the server itself, with its parameters
 - `game_state`, `pause`, `resume`, `step` and `set_speed`: the host's controls of game time, and the
   views that the game's last frame drew, with their settings; a step answers once its steps have
   run.
+- `minimize_game`: minimizes the game's window, as the user would; only the user shows it again. A
+  game hidden runs no frame of its own, and the frame that answers a request comes after a short
+  wait (`docs/adr/0187-a-hidden-window-at-rest.md`).
 - `list_entities`, `inspect_entity` and `set_property`: the world, its entities, which
   `list_entities` lists by a `filter` on their names and identities, empty for all, named by their
   persistent identities, `hero`, `zone/door`, its values written in the engine's notation, as a
@@ -146,7 +149,9 @@ The tools, each described to the agent by the server itself, with its parameters
 sets its view to draw without shadows, without anti-aliasing and at half its size, so that each
 request waits for a cheap frame, reads and changes the hero, walks it, saves the run, moves it and loads it back, opens the dev
 overlay's panels by their commands, sets the speed of game time with a slider and the hero's
-direction with the world panel, captures its image and reads its log. It needs a Wayland
+direction with the world panel, captures its image, finds it at rest while paused, then minimized,
+its game time running, and reads its log (`docs/adr/0185-rest-checked-in-ci.md`,
+`docs/adr/0187-a-hidden-window-at-rest.md`). It needs a Wayland
 compositor, the game built and its zone cooked: `scripts/check.sh` runs it in a headless Weston.
 `tests/views.rs` starts the `world` example, which draws the yard and a map in a corner, captures
 the whole image and each view, shows the map's normals, reads the example's reports, and picks the

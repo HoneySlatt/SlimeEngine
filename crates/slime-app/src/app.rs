@@ -35,7 +35,9 @@ pub struct AppConfig {
     /// configuration runs anywhere, including on machines without a display.
     pub window: Option<WindowConfig>,
     /// Stop after this many frames. `None`, the default, runs until the game requests an exit or,
-    /// with a window, until the window is closed.
+    /// with a window, until the window is closed. A window that holds its frames, hidden on Wayland
+    /// or minimized on Windows, runs none of its own, and the run does not reach its limit until
+    /// the window shows (`docs/adr/0187-a-hidden-window-at-rest.md`).
     pub frame_limit: Option<u64>,
     /// The duration of one fixed step of game time, at every speed. Default: 1/60 s, rounded to
     /// 16 666 667 ns.
@@ -47,8 +49,9 @@ pub struct AppConfig {
     /// With a window, the highest average number of frames per second that the engine asks for:
     /// frames are scheduled at this rate and the loop sleeps between them. This schedule paces the
     /// frames (`docs/adr/0021-frame-pacing.md`); the windowing system can ask for more, for
-    /// example while the window is being resized, and with [`PresentMode::Fifo`] the display can
-    /// slow them down. Headless runs ignore it, but those whose frames run on demand
+    /// example while the window is being resized, and the display can slow them down: on Wayland,
+    /// where each frame waits for the compositor's signal, and with [`PresentMode::Fifo`].
+    /// Headless runs ignore it, but those whose frames run on demand
     /// ([`AppConfig::on_demand`]). Default: 60.
     pub max_frame_rate: u32,
     /// With a window, how it shows the images drawn by [`Presentation::render`]. Headless runs
@@ -139,8 +142,13 @@ impl Default for AppConfig {
 ///   on its own, for example while the window is being resized. Each frame runs the host's phases
 ///   ([`Host::frame`]), then [`Presentation::extract`] and, when the window can show a new image,
 ///   [`Presentation::render`], whose image the engine then shows as [`AppConfig::present_mode`]
-///   says. Between frames, the loop sleeps until the next frame is due or an event arrives; each
-///   event is passed to the presentation's interface ([`Presentation::ui`]), then, unless the
+///   says. Between frames, the loop sleeps until the next frame is due or an event arrives. On
+///   Wayland, a frame also waits for the compositor's signal that the window can show a new image.
+///   While that signal has not come, as for a hidden window, or while the window's size is zero,
+///   as a minimized window's on Windows, the window *holds its frames*: the loop wakes on no
+///   schedule of its own, and runs a frame only for what asks from outside, an event, a wake or the
+///   development channel, after a short wait, each such frame representing one period of the
+///   schedule at most (`docs/adr/0187-a-hidden-window-at-rest.md`). Each event is passed to the presentation's interface ([`Presentation::ui`]), then, unless the
 ///   interface took it, to [`Presentation::on_event`], then to the host's input. After each frame
 ///   drawn, the window shows the pointer's shape that the interface asks, and allows the input
 ///   method while one of its fields takes text.
@@ -407,6 +415,14 @@ impl Frames {
                     channel.capture(gpu, image.target(), &views, presentation.ui().as_deref());
                 }
                 let _span = tracing::trace_span!("present").entered();
+                // On Wayland, the window's next redraw then waits for the compositor's signal,
+                // which a hidden window does not get (`docs/adr/0187-a-hidden-window-at-rest.md`).
+                // A device known to be lost presents nothing, and no signal would come.
+                if let Some(window) = host.context.window()
+                    && host.context.gpu().is_some_and(|gpu| gpu.check().is_ok())
+                {
+                    window.pre_present_notify();
+                }
                 image.present();
             }
         }

@@ -53,7 +53,8 @@ pub(crate) fn install_handler() {
                 return;
             }
             let _ = FIRST.set(Instant::now());
-            // A run whose frames run on demand may be waiting: it stops at its next look.
+            // A run whose frames run on demand, or whose window holds its frames, may be waiting:
+            // it stops at its next look.
             crate::wake::wake_current();
             let _ = std::thread::Builder::new()
                 .name("signal log".to_owned())

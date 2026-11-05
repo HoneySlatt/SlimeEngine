@@ -6,7 +6,8 @@ engine's MCP server, tests, and later the editor
 
 ## Status
 
-The protocol, version 12: the host's controls (pause, resume, speed, steps, stop), commands that set
+The protocol, version 13: the host's controls (pause, resume, speed, steps, stop), the game's window
+minimized (`docs/adr/0187-a-hidden-window-at-rest.md`), commands that set
 a part of a component, the world's commands applied from their texts, which an editor sends the game
 that it plays (`docs/adr/0165-editing-while-playing.md`), questions on the world, captures of the
 game's image or of one of its views (`docs/adr/0126-views-apart-from-the-renderer.md`), the settings
