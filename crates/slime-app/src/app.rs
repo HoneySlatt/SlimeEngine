@@ -71,9 +71,11 @@ pub struct AppConfig {
     /// [`Waker`](crate::Waker); a termination signal and the end of the tool that started the
     /// program wake it too, to stop. The frames asked one after another are scheduled at
     /// [`AppConfig::max_frame_rate`], with a window or without; without one, each still represents
-    /// one fixed step. Default: `false`: a windowed run schedules its frames whether anything
-    /// changed or not, as a game does, and a headless one runs them back to back, as tests and
-    /// benchmarks do.
+    /// one fixed step. With a window, the frame that ends a wait represents the time since what
+    /// asked for it, not the wait, and the program changes this setting while it runs
+    /// ([`Context::set_on_demand`]). Default: `false`: a windowed run schedules its frames whether
+    /// anything changed or not, as a game does, and a headless one runs them back to back, as
+    /// tests and benchmarks do.
     pub on_demand: bool,
 }
 

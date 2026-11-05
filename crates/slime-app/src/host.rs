@@ -54,7 +54,7 @@ impl Host {
         Self {
             world: World::new(),
             input: Input::default(),
-            context: Context::new(GameClock::new(fixed)),
+            context: Context::new(GameClock::new(fixed), config.on_demand),
             clock: FrameClock::new(config.max_frame_delta),
         }
     }
@@ -159,18 +159,20 @@ impl Host {
             time: &self.context.time,
             exit: &mut self.context.exit,
             waker: &self.context.waker,
+            frame_requested: &mut self.context.frame_requested,
         };
         (ctx, &mut self.world)
     }
 }
 
-/// What the host gives a [`Simulation`] with the world: the input, both times, the run's stop and
-/// its waker. It holds no GPU and no window.
+/// What the host gives a [`Simulation`] with the world: the input, both times, the run's stop, its
+/// waker and its requests for frames. It holds no GPU and no window.
 pub struct SimulationContext<'a> {
     input: &'a Input,
     time: &'a Time,
     exit: &'a mut Exit,
     waker: &'a Waker,
+    frame_requested: &'a mut bool,
 }
 
 impl SimulationContext<'_> {
@@ -204,6 +206,11 @@ impl SimulationContext<'_> {
     pub fn waker(&self) -> Waker {
         self.waker.clone()
     }
+
+    /// Asks for another frame, in a run whose frames run on demand: [`Context::request_frame`].
+    pub fn request_frame(&mut self) {
+        *self.frame_requested = true;
+    }
 }
 
 /// What the host gives a presentation, and whoever drives it: the window and the GPU when it has
@@ -227,10 +234,13 @@ pub struct Context {
     frame_requested: bool,
     /// The earliest time at which the program asked for a frame since the run last looked.
     frame_due: Option<Instant>,
+    /// Whether frames run only when something asks for one: `AppConfig::on_demand`, then as the
+    /// program sets it.
+    on_demand: bool,
 }
 
 impl Context {
-    fn new(clock: GameClock) -> Self {
+    fn new(clock: GameClock, on_demand: bool) -> Self {
         Self {
             window: None,
             gpu: None,
@@ -243,7 +253,26 @@ impl Context {
             waker: Waker::default(),
             frame_requested: false,
             frame_due: None,
+            on_demand,
         }
+    }
+
+    /// Whether frames run only when something asks for one
+    /// ([`AppConfig::on_demand`](crate::AppConfig::on_demand)), as the program last set it.
+    pub(crate) fn on_demand(&self) -> bool {
+        self.on_demand
+    }
+
+    /// Makes the frames of a run with a window run only when something asks for one, or on their
+    /// schedule again, once this frame ends: [`AppConfig::on_demand`](crate::AppConfig::on_demand),
+    /// which the run starts with, says what asks for one. A game sets it while nothing moves on its
+    /// own, as while it is paused, so that it draws nothing and none of its threads wakes
+    /// (`docs/adr/0185-rest-checked-in-ci.md`); what it still moves at real time, it asks frames
+    /// for ([`request_frame`](Self::request_frame), [`SimulationContext::request_frame`]). Game time
+    /// advances only in the frames that run, and steps asked for while paused
+    /// ([`step`](Self::step)) run in frames of their own.
+    pub fn set_on_demand(&mut self, on_demand: bool) {
+        self.on_demand = on_demand;
     }
 
     /// Asks for another frame, in a run whose frames run on demand
@@ -396,7 +425,6 @@ impl Context {
     }
 
     /// The steps asked for while paused that no frame has run yet.
-    #[cfg(feature = "development")]
     pub(crate) fn steps_asked(&self) -> u32 {
         self.clock.asked()
     }

@@ -325,7 +325,6 @@ impl GameClock {
     }
 
     /// The steps asked for and not run yet.
-    #[cfg(feature = "development")]
     pub(crate) fn asked(&self) -> u32 {
         self.asked
     }

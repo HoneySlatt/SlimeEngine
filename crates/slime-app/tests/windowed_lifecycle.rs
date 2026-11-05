@@ -47,7 +47,7 @@ mod linux {
     use slime_world::World;
 
     const SCENARIO_ENV: &str = "SLIME_APP_TEST_SCENARIO";
-    const SCENARIOS: [&str; 15] = [
+    const SCENARIOS: [&str; 16] = [
         "calls",
         "spans",
         "start-error",
@@ -63,6 +63,7 @@ mod linux {
         "loss-returned-by-render",
         "error-in-render",
         "panic-in-render",
+        "rests",
     ];
     /// When this variable is set, the program runs `SCALED_SCENARIOS` instead of `SCENARIOS`, as
     /// `scripts/check.sh` does in a compositor at scale 2. Such a compositor reports its scale
@@ -97,6 +98,14 @@ mod linux {
     const UNDRAWN_FRAMES: u64 = 1000;
     const SETTLED: u64 = 300;
     const MAX_GROWTH_KIB: u64 = 30_000;
+
+    /// The frame after which the `rests` scenario runs its frames on demand, until another thread
+    /// wakes it `REST` later; the frame that it wakes sets them on their schedule again.
+    const REST_FRAME: u64 = 3;
+    const REST: std::time::Duration = std::time::Duration::from_secs(1);
+    /// The most time that the frame ending the rest may represent: the time since the wake, not
+    /// the rest, which would be cut to `AppConfig::max_frame_delta`, 250 ms.
+    const MAX_DELTA_AFTER_REST_MICROS: u64 = 50_000;
 
     /// The simulation's half: prints its calls, with the time of each frame.
     struct Rules {
@@ -213,6 +222,17 @@ mod linux {
             println!("call extract {index}");
             if STORM.contains(&index) {
                 ctx.window().expect("windowed run").request_redraw();
+            }
+            if self.scenario == "rests" && index == REST_FRAME {
+                ctx.set_on_demand(true);
+                let waker = ctx.waker();
+                thread::spawn(move || {
+                    thread::sleep(REST);
+                    waker.wake();
+                });
+            }
+            if self.scenario == "rests" && index == REST_FRAME + 1 {
+                ctx.set_on_demand(false);
             }
             if self.scenario == "lost-unrecorded" && index == STOP_FRAME + 1 {
                 // What wgpu's report of the loss does, a frame after the device became invalid,
@@ -355,6 +375,7 @@ mod linux {
                 config.restore_lost_device = true;
                 config.frame_limit = Some(STOP_FRAME + 30);
             }
+            "rests" => config.frame_limit = Some(REST_FRAME + 10),
             "oversize" => {
                 // More than half as wide as the largest image the device accepts (LARGEST_IMAGE),
                 // which the compositor at scale 2 doubles past it, no window being as wide; low,
@@ -440,6 +461,7 @@ mod linux {
                 "lost-unrecorded" | "loss-returned-by-render" => check_device_restored(&lines),
                 "lost-in-gpu-restored" => check_lost_in_gpu_restored(&lines),
                 "error-in-render" => check_error_in_render(&lines),
+                "rests" => check_rests(&lines),
                 "resized" => check_resized(&lines),
                 "resized-while-submitting" => {
                     check_resized(&lines);
@@ -769,6 +791,46 @@ mod linux {
             growth < MAX_GROWTH_KIB,
             "memory stays flat when frames draw nothing: {growth} KiB more over the last {} frames",
             UNDRAWN_FRAMES - 1 - SETTLED
+        );
+    }
+
+    /// Set on demand, the run runs no frame until the wake, then goes on with its frames once set
+    /// on their schedule again; the frame that the wake runs represents the time since the wake.
+    fn check_rests(lines: &[&str]) {
+        assert!(lines.contains(&"result Ok"), "the run succeeds: {lines:?}");
+        // Each update's frame, the time it ran at and the time it represents, in microseconds.
+        let updates: Vec<[u64; 3]> = calls(lines)
+            .iter()
+            .filter(|call| call[0] == "update")
+            .map(|call| {
+                let number = |text: &str, prefix: &str| -> u64 {
+                    text.strip_prefix(prefix)
+                        .and_then(|number| number.parse().ok())
+                        .unwrap_or_else(|| panic!("{prefix} in {call:?}"))
+                };
+                [
+                    number(call[1], ""),
+                    number(call[2], "t="),
+                    number(call[3], "delta="),
+                ]
+            })
+            .collect();
+        assert_eq!(
+            updates.len(),
+            usize::try_from(REST_FRAME + 10).expect("a count"),
+            "every frame ran: {updates:?}"
+        );
+        let rested = usize::try_from(REST_FRAME).expect("an index");
+        let [_, before, _] = updates[rested];
+        let [index, after, delta] = updates[rested + 1];
+        assert_eq!(index, REST_FRAME + 1, "{updates:?}");
+        assert!(
+            u128::from(after - before) >= REST.as_micros() * 9 / 10,
+            "no frame ran while it rested: {updates:?}"
+        );
+        assert!(
+            delta <= MAX_DELTA_AFTER_REST_MICROS,
+            "the frame after the rest represents {delta} µs, not the time since the wake"
         );
     }
 

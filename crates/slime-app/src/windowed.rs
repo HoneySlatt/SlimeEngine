@@ -46,7 +46,7 @@ pub(crate) fn run_windowed(
         last_frame: now,
         ui_clock: now,
         next_frame: now,
-        on_demand: config.on_demand,
+        resting: false,
         wanted: true,
         change_due: None,
         started: false,
@@ -81,8 +81,10 @@ struct WindowedDriver<'a, S, P> {
     ui_clock: Instant,
     /// When the next frame is due.
     next_frame: Instant,
-    /// Whether a frame runs only when something asks for one (`AppConfig::on_demand`).
-    on_demand: bool,
+    /// Whether the loop waits, frames running on demand, with no frame asked for: the frame that
+    /// ends the wait represents the time since what asked for it, not the wait, so that what
+    /// moves at real time does not jump by the frame's longest time.
+    resting: bool,
     /// Whether something asked for a frame that has not run yet, when frames run on demand.
     wanted: bool,
     /// When the presentation's interface changes on its own, which a frame then shows, when frames
@@ -110,6 +112,13 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
         self.presentation
             .start(&mut host.context, &host.world)
             .map_err(RunError::Init)
+    }
+
+    /// Ends the loop's rest, if it rested: the next frame's time starts now.
+    fn end_rest(&mut self) {
+        if std::mem::take(&mut self.resting) {
+            self.last_frame = Instant::now();
+        }
     }
 
     /// When the GPU device is lost and the game chose to replace it, lets the presentation drop its
@@ -204,6 +213,7 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         if !self.started {
             return;
         }
+        self.end_rest();
         tracing::trace!(?event, "platform event");
         // Whatever the window tells may change what it shows.
         self.wanted = true;
@@ -250,6 +260,7 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
     }
 
     fn redraw_requested(&mut self) {
+        self.end_rest();
         if self.started {
             self.restore();
         }
@@ -293,10 +304,12 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
         };
         self.wanted = ui.is_some_and(|ui| ui.needs_frame())
             || self.host.context.take_frame_request()
-            || self.frames.waiting();
+            || self.frames.waiting()
+            || self.host.context.steps_asked() > 0;
     }
 
     fn about_to_wait(&mut self) -> LoopControl {
+        self.end_rest();
         if self.started {
             self.restore();
         }
@@ -311,13 +324,14 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
             return LoopControl::Exit;
         }
         let now = Instant::now();
-        if self.on_demand {
+        if self.host.context.on_demand() {
             self.wanted |= self.host.context.waker().take()
                 | self.host.context.take_frame_request()
                 | self.change_due.is_some_and(|due| due <= now);
             if !self.wanted {
                 // An event, a wake, a signal, the tool's end or the interface's change runs this
                 // again.
+                self.resting = true;
                 return self
                     .change_due
                     .map_or(LoopControl::Wait, LoopControl::WaitUntil);
