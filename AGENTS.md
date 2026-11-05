@@ -38,7 +38,7 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
-scripts/check.sh [headless|windowed|game]              # all checks, or one CI job
+scripts/check.sh [headless|windowed|game|docs]         # all checks, or one CI job
 cargo run -p slime-cook -- cook examples/assets target/cooked/examples  # the examples' data
 cargo run --example <name>                             # examples/README.md
 cargo run --release -p slime-benches -- [<name>...]    # benches/README.md

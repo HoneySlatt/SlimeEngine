@@ -105,7 +105,8 @@ cargo run --quiet -p slime-mcp                            # the engine's MCP ser
 ```
 
 `scripts/check.sh headless`, `windowed` and `game` run one of its three parts, as CI's three Linux
-jobs do ([Checks](#checks)).
+jobs do ([Checks](#checks)); `scripts/check.sh docs` checks the links between Markdown files alone,
+without the development shell, as CI's `docs` workflow does.
 
 ### GPU
 
@@ -409,7 +410,12 @@ The script also runs clippy for the Windows target, which catches code that does
 Windows without a Windows machine.
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main`, every
-pull request, and every Monday at 06:17 UTC on `main`, without a push: a project at rest still
+pull request, and every Monday at 06:17 UTC on `main`, without a push, but a push or a pull request
+that changes Markdown files outside `crates/` alone: the `docs` workflow
+([`.github/workflows/docs.yml`](.github/workflows/docs.yml)) then checks their links, with lychee
+alone, in a minute or so ([ADR-0188](docs/adr/0188-a-light-check-for-documentation.md)). The
+crates' READMEs are their rustdoc, whose code runs as tests: a change of them runs CI whole. The
+weekly run runs CI whole: a project at rest still
 learns of new advisories against its dependencies (`cargo deny`) and of changes to CI's
 environment. A push during the weekly run supersedes it, as it supersedes any run of its branch.
 GitHub turns the weekly run off after 60 days without activity in a public repository; a click in

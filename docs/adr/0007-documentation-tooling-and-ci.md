@@ -1,7 +1,9 @@
 # 0007. Documentation tooling and continuous integration
 
-- Status: Accepted; amended by [0015](0015-platforms-and-ci.md) (CI on Windows) and
-  [0123](0123-the-linux-checks-in-two-jobs.md) (the checks' script in two parts, a job each)
+- Status: Accepted; amended by [0015](0015-platforms-and-ci.md) (CI on Windows),
+  [0123](0123-the-linux-checks-in-two-jobs.md) (the checks' script in two parts, a job each) and
+  [0188](0188-a-light-check-for-documentation.md) (a change of documentation alone runs only the
+  link check)
 - Date: 2026-10-12
 
 ## Context

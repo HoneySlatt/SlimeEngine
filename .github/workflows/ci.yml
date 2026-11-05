@@ -1,5 +1,6 @@
 # Runs the automated checks of the definition of done on each push to main, on each pull request,
-# and once a week on main, on Linux and on Windows (docs/adr/0015-platforms-and-ci.md). Actions are
+# and once a week on main, on Linux and on Windows (docs/adr/0015-platforms-and-ci.md), but for a
+# change of documentation alone, which docs.yml checks. Actions are
 # pinned to commit SHAs, with the release they correspond to in a comment.
 name: CI
 
@@ -8,10 +9,15 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# A change of Markdown files outside the crates alone runs none of it: the `docs` workflow checks
+# their links (docs/adr/0188-a-light-check-for-documentation.md). The crates' READMEs are their
+# rustdoc, whose code runs as tests: a change of them runs every check.
 on:
   push:
     branches: [main]
+    paths: ["**", "!**.md", "crates/**"]
   pull_request:
+    paths: ["**", "!**.md", "crates/**"]
   # Every Monday at 06:17 UTC, without a push: a project at rest still learns of new advisories
   # against its dependencies (cargo deny) and of changes to CI's environment. Off the hour, when
   # GitHub delays scheduled runs.

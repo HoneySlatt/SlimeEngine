@@ -6,24 +6,27 @@
 # the examples and the windowed lifecycle test run in headless Weston compositors, and
 # `... scripts/check.sh game`, everything that reads the sample game's zone, which it fetches and
 # cooks first (the flag makes an incomplete flake.lock an error instead of a silent update). Without
-# an argument, it runs the three parts, one after the other.
+# an argument, it runs the three parts, one after the other. `docs` checks the links between
+# Markdown files alone, which the headless part does too: CI's `docs` workflow runs it, with lychee
+# alone, on a change of Markdown files outside the crates (ADR-0188).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+part=${1:-all}
+case "$part" in
+    all | headless | windowed | game | docs) ;;
+    *)
+        echo "usage: scripts/check.sh [headless|windowed|game|docs]" >&2
+        exit 2
+        ;;
+esac
 # The Nix development shell sets this variable (flake.nix). Without the shell, the GPU tests and the
 # samples would fail only after minutes of other checks.
-: "${SLIME_LAVAPIPE_ICD:?run this script inside nix develop}"
+[ "$part" = docs ] || : "${SLIME_LAVAPIPE_ICD:?run this script inside nix develop}"
 # The checks render on lavapipe, which VK_DRIVER_FILES names: a choice of drivers that the user's
 # environment makes, as `VK_LOADER_DRIVERS_SELECT=*radeon*`, would hide it from the Vulkan loader.
 unset VK_LOADER_DRIVERS_SELECT VK_LOADER_DRIVERS_DISABLE
 
-part=${1:-all}
-case "$part" in
-    all | headless | windowed | game) ;;
-    *)
-        echo "usage: scripts/check.sh [headless|windowed|game]" >&2
-        exit 2
-        ;;
-esac
 # Whether the part named runs.
 runs() { [ "$part" = all ] || [ "$part" = "$1" ]; }
 
@@ -343,7 +346,9 @@ if runs headless; then
         echo "the game depends on AccessKit's adapter"
         exit 1
     fi
+fi
 
+if runs headless || [ "$part" = docs ]; then
     step "Documentation links"
     # Tracked and new, non-ignored Markdown files. External links are not checked: they fail for
     # reasons unrelated to the change being checked.

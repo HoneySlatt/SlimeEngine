@@ -75,7 +75,7 @@ the ADR linking to it.
 | [0004](0004-workspace-layout-and-crate-naming.md) | Workspace layout and crate naming | Accepted; amended by 0014, 0055, 0104 and 0178 |
 | [0005](0005-lints-and-unsafe-policy.md) | Lints and `unsafe` policy | Accepted; amended by 0186 |
 | [0006](0006-dependency-policy.md) | Dependency policy | Accepted; amended by 0023, 0031, 0133 and 0182 |
-| [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted; amended by 0015 and 0123 |
+| [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted; amended by 0015, 0123 and 0188 |
 | [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Accepted; amended by 0019 and 0085 |
 | [0009](0009-frame-timing.md) | Frame timing | Accepted; amended by 0107 |
 | [0010](0010-main-loop-ownership.md) | Main loop ownership and the application API | Accepted; amended by 0020 and 0107 |
@@ -256,3 +256,4 @@ the ADR linking to it.
 | [0185](0185-rest-checked-in-ci.md) | Rest, checked in CI | Accepted; amends 0021, 0156 and 0175 |
 | [0186](0186-counters-and-ratios-in-ci.md) | Counters and ratios in CI | Accepted; amends 0005, 0104 and 0175 |
 | [0187](0187-a-hidden-window-at-rest.md) | A hidden window at rest | Accepted; amends 0021 |
+| [0188](0188-a-light-check-for-documentation.md) | A light check for documentation | Accepted; amends 0007 |

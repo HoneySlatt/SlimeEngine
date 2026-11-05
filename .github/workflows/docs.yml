@@ -1,0 +1,29 @@
+# Checks the links between Markdown files on each push to main and each pull request that changes
+# one, with lychee alone, at the version that the development shell pins: a change of documentation
+# alone needs no build (docs/adr/0188-a-light-check-for-documentation.md). The `CI` workflow runs
+# the same check in its headless part, and every other one, on any other change.
+name: Docs
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+    paths: ["**.md", ".github/workflows/docs.yml"]
+  pull_request:
+    paths: ["**.md", ".github/workflows/docs.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+      # The nixpkgs that flake.lock pins: the development shell's lychee, without the shell.
+      - run: nix shell --inputs-from . nixpkgs#lychee --command scripts/check.sh docs
