@@ -1335,3 +1335,15 @@ GitHub's hosted runners, on 2026-11-04 and 2026-11-05. Each job's limit is 20 mi
 | `9edb2f8` | `check (headless)`, the longest Linux job | 16 min 52 s |
 | `9edb2f8` | `windows` | 19 min 18 s |
 | five runs of 2026-11-04 and 2026-11-05 | `windows` | from 13 min 44 s to 19 min 18 s, its tests' step varying most |
+
+## M6c.Q1, CI's runners
+
+GitHub's hosted runners, on 2026-11-05, commit `23d4027`, its run green.
+
+| Job | Time |
+|---|---|
+| `windows` | 17 min 57 s |
+| `check (headless)` | 11 min 44 s |
+| `windows-release` | 10 min 53 s |
+| `check (windowed)` | 5 min 15 s |
+| `check (game)` | 4 min 35 s |
