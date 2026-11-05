@@ -6,99 +6,55 @@ games first, then open-world games, then large online worlds.
 
 ## Status
 
-Pre-alpha. Stages 0 (*Foundations*), 1 (*Core and platform*), 2 (*GPU layer*), 3a (*First
-renderer*), 3b (*Physically based renderer*), 3c (*A first game*), 3d (*Anti-aliasing and the
-shadows of spot lights*), 4a (*Cooked assets*), 4b (*Live assets*), 5a (*The world*), 5b (*Scenes
-and prefabs*), 6a (*What the editor stands on*) and 6b (*The engine's interface*) are done; the
-latest release is 0.6 (git tag `v0.6.0`), which released Stage 6b.
-Applications run headless or with a window (Wayland or X11 on Linux, Win32 on Windows) that
-receives keyboard and mouse input, with a fixed-step main loop, logging, panic reporting and a clean shutdown on Ctrl+C. The
-engine opens the GPU (Vulkan on Linux, Direct3D 12 on Windows), paces frames with its own schedule
-and the Mailbox present mode by default, names its GPU work for capture tools, reports a GPU whose
-memory runs out as an error a game can handle, and, when the GPU device is lost, stops cleanly or,
-for a game that asks, goes on with a new one. Its renderer, `slime-render`, draws a scene through
-one or more views, each with its camera, its rectangle of the output and its settings, leaves out
-what a view does not see, and draws together the instances of one mesh and one material: meshes with
-glTF's metallic-roughness materials, or unlit ones, which may blend, lit by directional, point and
-spot lights in physical units (lux and candelas), with the shadows of a sun, in cascades around the
-camera, and of spot lights, and the light of a procedural sky that surfaces reflect and that shows
-behind them; it draws in high dynamic range, at four samples per pixel so that edges are smooth, or
-at one and at another scale as each view's settings say, relative to the camera and with reversed
-depth so that large scenes keep their precision, then exposes the light, spreads a bloom around it,
-tone maps it and dithers it, into a window or into offscreen images that image tests compare with
-references; for an editor, it draws lines in the scene and over the image, and says which object is
-drawn at a pixel, as the CPU does by casting a ray. The `scene` example draws a scene cooked from a
-glTF file, and its lights, under a camera driven by the mouse, with the CPU time and the GPU time of
-each pass in a dev overlay. The asset pipeline gives every source file an
-ID that survives a move, and its cooker, `slime-cook`, turns glTF scenes and PNG and JPEG images
-into cooked data, meshes, materials, scenes and textures compressed in BC7 and BC5, which a game
-reads by ID ([ADR-0069](docs/adr/0069-the-asset-pipeline.md)). The
-sample game, *Hunna Wood* (`games/hunnawood`), a role-playing game seen in the
-third person and made with the public API only, loads its first zone from cooked assets
-([ADR-0067](docs/adr/0067-hunna-wood-replaces-nightwatch.md)): a forest path to a ruined chapel,
-where the hero finds a key that opens a door, by day and by night. Stage 4b made loaded
-assets live: scenes load in the background while the game draws, a game can go on
-after a lost GPU device, a material's values change while it runs, and a texture or a shader
-changed on disk changes in the running game. Stage 5a gave the engine a world, reflection and
-saves: the world keeps a game's entities, their components and their hierarchy, places them,
-spawns cooked scenes in it (`slime-world`), is drawn from an asset cache that loads what it names
-(`slime-world-render`, the `world` example), and *Hunna Wood* runs on it; every component is reflected, and reached by name (`slime-reflect`); a panel of the dev
-overlay lists the world's entities and edits their components, in the game and the `world` example,
-on F2; values are written to TOML documents and read back, from earlier versions of their types
-too (`slime-serialize`), as the cooker's metadata files are; a world saves what changed since the
-start of a run, and loads it back, which the `world` example checks when it quits, and *Hunna Wood*
-saves its run on F5 and when it quits, loads it on F9, and resumes it when it starts. Stage 5b
-wrote worlds in files: a scene file places other scenes as prefabs, each placement with
-overrides of its own, which a world spawns and writes back (`slime-world`), and what a game spawns
-while it runs is saved as its scenes; `slime-serialize` encodes documents in a binary encoding of
-its own too, in which the cooker cooks scene files, and Blender's nodes carry typed components. The
-`world` example spawns a yard of prefabs from a scene file, and follows a prefab changed while it
-runs; *Hunna Wood*'s zone is a scene file that places its land and six lanterns of one prefab.
-After 0.4, an audit pass fixed defects that an audit of 0.4 found in saves and identities, in the
-readers of files and in the recovery from a lost GPU device, and made the quick wins that it
-measured; a foundations pass decided as ADRs what the editor will freeze; and Stage 6a built what
-the editor stands on. One task pool runs the engine's work (`slime-tasks`), and loads copy to the
-GPU within a budget of bytes per frame, so that they never slow the frames; assets are asked for
-by requests that carry a priority, and kept within budgets of memory; the world tells each reader
-what changed since it last read. A game is a simulation, its rules, and a presentation, what the
-player sees, run through the phases of a frame on a game time that pauses and steps. An AI agent
-drives a running game through its development channel and the engine's MCP server, `slime-mcp`,
-which starts it, pauses and steps it, reads and changes its world, plays it, saves and loads it,
-sees its image or one of its views, changes how a view draws, reads its reports and names what is
-drawn at a pixel. A save costs what the run changed since the game settled its world, the world
-that it made at the start of the run; a level unloaded keeps what the run changed of it, and an
-entity adopted, taken out of its level, outlives it. The `world` example draws its yard and a map
-of it from above in a corner, and selects what a click picks. Since 0.5, on `main`, the editor's
-core, a library without an interface (`slime-editor`), changes a level through commands that name
-its entities by their persistent identities, undoes and redoes them, journals them, and writes the
-level back with its comments; its program, in a window of its own or without one, which a person
-uses and an agent drives through the MCP server, opens the examples' yard or *Hunna Wood*'s zone.
-The UI framework, `slime-ui`, lays text out in every writing system and rasterizes its glyphs on the
-CPU, which the `text` example writes to an image; the renderer draws an interface's canvas, boxes
-with rounded corners and borders, their shadows and images, clipped, over a window or a view's
-image, its colors mixed as design tools mix them, and `slime-ui-render` draws a display list of
-`slime-ui` through it, the glyphs of its texts kept in an atlas. `slime-ui` keeps an interface as a
-tree of elements, built by code when what it shows changes, laid out by flexbox and grid, from left
-to right or mirrored, its lists building only the rows that show, and styles it with style sheets
-and themes, cooked as scenes are and loaded again when they change, and takes the pointer and the
-keyboard, its focus moved by Tab and the arrows, its fields typed, selected, copied and composed
-through input methods in every writing system, and says what it means to agents, who use it through
-the MCP server as a person does; it has the widgets of a panel, check boxes, sliders, sections that
-fold, tabs, two panels and a handle, and scroll bars, and what opens over a panel, menus and their
-bar, context menus, lists to choose from, tooltips and floating panels, rich fields, notifications,
-a palette of commands and color wells ([ADR-0151](docs/adr/0151-rich-widgets.md),
-[ADR-0152](docs/adr/0152-the-dev-overlay-on-the-engines-interface.md)), and holds the editor's look,
-its fonts Geist and Geist Mono and Lucide's icons, in dark, light and high-contrast themes, behind a
-feature. The `interface` example builds an interface, with text in eight writing systems, a dark and
-a light theme, and a modal dialog; the `widgets` example, a panel of the editor's kind, with its
-menus. The dev overlay is built on it, in the editor's look, over *Hunna Wood* and the `scene` and
-`world` examples, and egui has left the engine. [`docs/PLAN.md`](docs/PLAN.md) says what comes next,
-Stage 6c, the editor, planned in [ADR-0155](docs/adr/0155-the-editors-design.md);
-[`docs/debt.md`](docs/debt.md) lists the known debt.
+Pre-alpha. The roadmap is cut into *stages*, each ending with a release, and a stage into
+*milestones*, each a change that is checked whole.
+
+- Latest release: 0.6, tag `v0.6.0`, which closed Stage 6b, the engine's interface.
+- In progress on `main`: Stage 6c, the editor, to be released as 0.7. [`docs/PLAN.md`](docs/PLAN.md)
+  says where it stands.
+- The finished stages: [`docs/history.md`](docs/history.md). What comes next:
+  [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
+What `main` does today, on Linux (Wayland or X11) and Windows, on x86_64; the editor's window and
+docking came after 0.6, as [`CHANGELOG.md`](CHANGELOG.md) says:
+
+- **Platform.** Programs run headless or in a window, with keyboard and mouse input, a fixed-step
+  loop, frames on demand for a program that asks for it, logging, panic reporting and a clean shutdown
+  (`slime-app`, `slime-platform`).
+- **GPU.** Vulkan on Linux, Direct3D 12 on Windows, frames paced by the engine, GPU memory running
+  out reported as an error (`slime-gfx`).
+- **Renderer.** glTF's metallic-roughness materials and unlit ones, lights in physical units, the
+  shadows of a sun in cascades and of spot lights, a procedural sky, high dynamic range with bloom
+  and tone mapping, four samples per pixel; what the camera does not see is left out, and instances
+  are drawn together; several views, picking and drawings for the editor (`slime-render`).
+- **Assets.** The cooker, `slime-cook`, turns glTF scenes and PNG and JPEG images into meshes,
+  materials, scenes and compressed textures, read by an ID that survives a move. A game asks for
+  them by requests that carry a priority, loaded in the background within budgets of memory, and
+  loaded again when a source or a shader changes (`slime-assets`).
+- **World.** Entities, components and their hierarchy (`slime-world`), reflected and reached by name
+  (`slime-reflect`); scene files that place prefabs with overrides, written as text or in a binary
+  encoding (`slime-serialize`); saves that cost what the run changed.
+- **Interface.** `slime-ui`: text in every writing system, a tree of elements laid out by flexbox and
+  grid, themes read from files, widgets, menus, docking, input methods and screen readers, drawn by
+  the renderer (`slime-ui-render`). The *dev overlay*, panels over a running game that show and edit
+  its world, is built on it (`slime-devui`).
+- **Editor.** `slime-editor` opens a level and changes it through commands, undone and redone: a
+  hierarchy, viewports with picking and handles, prefabs placed, a history, Play inside the editor
+  while the level is edited, panels in regions of tabs. Its README:
+  [`crates/slime-editor`](crates/slime-editor/README.md).
+- **Agents.** An AI agent drives a running game or the editor through the engine's MCP (Model
+  Context Protocol) server, `slime-mcp`: it starts, pauses and steps a game, reads and changes its
+  world, captures its image and plays it, using an interface through its elements rather than a
+  mouse.
+- **The sample game.** *Hunna Wood* (`games/hunnawood`), a role-playing game seen in the third
+  person and made with the public API only: its first zone, a forest path to a ruined chapel, by day
+  and by night ([`games/hunnawood`](games/hunnawood/README.md)).
+
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) explains how these parts fit together.
 
 ## Getting started
 
-Linux and Windows, on x86_64. On Linux, with [Nix](https://nixos.org) and flakes enabled,
+On Linux, with [Nix](https://nixos.org) and flakes enabled,
 `nix develop` at the repository root opens a shell with the pinned Rust toolchain and the project's
 tools. [`CONTRIBUTING.md`](CONTRIBUTING.md#development-environment) explains this, the setup without
 Nix, and the setup on Windows. Then:
@@ -108,6 +64,7 @@ cargo build --workspace
 cargo test --workspace
 cargo run --example window   # the examples are listed in examples/README.md
 cargo run -p hunnawood       # the game, once its zone is cooked: games/hunnawood/README.md
+cargo run --example editor   # the editor; on a copy of its level: examples/README.md
 scripts/check.sh             # every check, exactly as CI runs them (Linux only)
 cargo run --quiet -p slime-mcp  # the MCP server through which an agent drives a game: crates/slime-mcp
 ```
@@ -148,21 +105,15 @@ slime-devui = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0
 opt-level = 3
 ```
 
-- `slime-app` runs the game, its rules as a `Simulation` and what the player sees as a
-  `Presentation`, through `run`, and owns its world; `slime-platform` holds the window's settings,
-  the input events and the keys held, `slime-gfx` the GPU's objects, `slime-color` the
-  colors, `slime-render` the renderer, and `slime-assets` the cooked data that the renderer loads.
-  `slime-world` keeps the game's entities and components and saves them, `slime-world-render` draws
-  them, and `slime-reflect` describes the components, which derive `Reflect`. `slime-ui` keeps a
-  game's interface, which `slime-ui-render` draws with the renderer's canvas. The cooker,
-  `slime-cook`, is a program of this repository that cooks a game's source assets before it runs,
-  as [`games/hunnawood`](games/hunnawood/README.md) shows. Each crate's README shows its entry
-  points, and [`examples/`](examples/README.md) holds programs to start from: `world` draws a world,
-  `scene` drives the renderer by hand.
+- `slime-app` runs the game: its rules as a `Simulation`, what the player sees as a `Presentation`.
+  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#crates) gives each crate's role, and each crate's
+  README its entry points. The cooker cooks a game's source assets before it runs,
+  as [`games/hunnawood`](games/hunnawood/README.md) shows. [`examples/`](examples/README.md) holds
+  programs to start from: `world` draws a world, `scene` drives the renderer by hand.
 - A game that tools and agents drive declares a `development` feature, on by default, which turns
-  on `slime-app/development` and the dev overlay, `slime-devui`, an optional dependency of the
-  game, and is built for shipping with `--no-default-features`, which leaves the development channel
-  and the overlay out, as [`games/hunnawood`](games/hunnawood/Cargo.toml) does
+  on `slime-app/development`, the *development channel* through which tools drive the game, and the
+  dev overlay, an optional dependency of the game. It is built for shipping with
+  `--no-default-features`, which leaves both out, as [`games/hunnawood`](games/hunnawood/Cargo.toml) does
   ([`crates/slime-app/README.md`](crates/slime-app/README.md),
   [`crates/slime-devui/README.md`](crates/slime-devui/README.md)).
 - Building needs Rust 1.99 or later and, on Linux, the libraries that
@@ -178,40 +129,23 @@ opt-level = 3
 
 ## What it does not do yet
 
-The engine is young; [`docs/ROADMAP.md`](docs/ROADMAP.md) says which stage brings what, and the
-known debt in [`docs/debt.md`](docs/debt.md) lists the smaller gaps. A game made with it
-today has:
+The main gaps. [`docs/ROADMAP.md`](docs/ROADMAP.md) says which stage brings what; the smaller gaps
+are in [`docs/debt.md`](docs/debt.md).
 
-- No audio, physics or animation; an interface built as a tree of elements, laid out, styled by
-  style sheets and themes, used with the pointer and the keyboard, its fields typed in, its widgets
-  checked, moved, folded and chosen, its menus, lists and floating panels opened, its rich fields,
-  notifications, palette of commands and color wells used, and read and
-  used by agents through the MCP server (`slime-ui`), read by screen readers in the examples, games
-  leaving them out until Stage 7; and of the editor its core (`slime-editor`) and its program, a
-  window of menus, a hierarchy of the level's entities, the world panel, a viewport flown through, where the user picks what to select,
-  outlined, and a status bar, which a person uses, opening a level through the system's dialog, and
-  agents drive through the MCP server alike.
-- An asset pipeline that imports glTF scenes, scene files and PNG and JPEG images only: the cooker,
-  `slime-cook`, makes them cooked data, which the renderer loads whole, in the background while the
-  game goes on, as an asset cache's requests ask (`AssetCache::request`) or a scene at a time
-  (`Renderer::load_scene_in_background`), and again when it changes (`slime-cook watch`), as the
-  renderer's shaders are.
-- A world (`slime-world`) of entities, components and their hierarchy, drawn through
-  `slime-world-render`, whose components are reflected and edited by name (`slime-reflect`), and
-  saved as what changed since the game settled it, the world that it made at the start of the
-  run, at the cost of what changed; *Hunna Wood* saves
-  one run, in one file, and refuses the saves of the versions before 0.5. Scene
-  files are cooked, and written by hand; a world is written back as a scene file through the API,
-  and the editor's core writes a level back with its comments.
-- A renderer that leaves out what the camera does not see and draws the instances of one mesh and
-  one material together, with blended transparency for unlit materials only, unsorted, a physically
-  based material refusing it until Stage 9a; with a capped number of lights, and
-  shadows from one directional light and from spot lights, none from point lights.
-- One window, which cannot go fullscreen, and opens a dialog of the system to open a file but none
-  to save one; no gamepads or touch input.
-- A run that stops when the GPU device is lost, unless the game asks to go on with a new one and
-  makes its GPU objects again itself.
-- Linux and Windows only, on x86_64.
+- No audio, physics or animation.
+- Screen readers read the examples' interfaces; games leave them out until Stage 7, runtime systems.
+- The editor is not finished: [`docs/PLAN.md`](docs/PLAN.md) lists what Stage 6c still brings, the
+  inspector among it.
+- The cooker imports glTF scenes, scene files and PNG and JPEG images only, and a scene is loaded
+  whole.
+- *Hunna Wood* keeps one run, in one file, and refuses the saves of the versions before 0.5.
+- Blended transparency for unlit materials only, unsorted; a physically based material refuses it
+  until Stage 9a, the production renderer.
+- A capped number of lights, and no shadows from point lights.
+- One window per process, which cannot go fullscreen; a system dialog to open a file, none to save
+  one; no gamepads or touch input.
+- A lost GPU device stops the run, unless the game asks to go on with a new one and makes its GPU
+  objects again itself.
 
 ## Where to read next
 
