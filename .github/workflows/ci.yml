@@ -1,9 +1,9 @@
-# Runs the automated checks of the definition of done on each push to main and on each pull
-# request, on Linux and on Windows (docs/adr/0015-platforms-and-ci.md). Actions are pinned to
-# commit SHAs, with the release they correspond to in a comment.
+# Runs the automated checks of the definition of done on each push to main, on each pull request,
+# and once a week on main, on Linux and on Windows (docs/adr/0015-platforms-and-ci.md). Actions are
+# pinned to commit SHAs, with the release they correspond to in a comment.
 name: CI
 
-# A new push to the same branch supersedes the run in progress.
+# A new push to the same branch supersedes the run in progress, the weekly run included.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -12,6 +12,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Every Monday at 06:17 UTC, without a push: a project at rest still learns of new advisories
+  # against its dependencies (cargo deny) and of changes to CI's environment. Off the hour, when
+  # GitHub delays scheduled runs.
+  schedule:
+    - cron: "17 6 * * 1"
 
 permissions:
   contents: read

@@ -391,8 +391,12 @@ them.
 The script also runs clippy for the Windows target, which catches code that does not compile on
 Windows without a Windows machine.
 
-CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every
-pull request. Three Linux jobs run the same script side by side, each one of its three parts
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main`, every
+pull request, and every Monday at 06:17 UTC on `main`, without a push: a project at rest still
+learns of new advisories against its dependencies (`cargo deny`) and of changes to CI's
+environment. A push during the weekly run supersedes it, as it supersedes any run of its branch.
+GitHub turns the weekly run off after 60 days without activity in a public repository; a click in
+the repository's Actions tab turns it on again. Three Linux jobs run the same script side by side, each one of its three parts
 ([ADR-0123](docs/adr/0123-the-linux-checks-in-two-jobs.md),
 [ADR-0155](docs/adr/0155-the-editors-design.md)): `scripts/check.sh headless`, every check that
 needs neither a compositor nor the sample game's zone, `scripts/check.sh windowed`, the examples and
