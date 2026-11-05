@@ -611,6 +611,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Each job of CI must end within 20 minutes, and every session of the editor adds to the checks.
   Since M6c.0, three Linux jobs run `scripts/check.sh`'s three parts side by side; the game's agent session draws the zone without shadows.
   The cooked zone is cached, keyed on the packages that the cooker is built from: a change of the cooker's sources or packages cooks it again, which adds about 3 minutes to `check (game)` and to `windows`.
+  `check (game)` also runs the benchmarks' counters, about 2 minutes ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)).
   A cooking again takes `windows` past its limit: 21 min 43 s on `0a858f8`, whose cooker's sources changed in comments alone.
   Each milestone records its jobs' times in [`measurements.md`](measurements.md): the `windows` job has little room left under its limit, its tests' step varying most from one run to the next.
   The `windows` job builds the tests that read the zone again, with `-p`, whose features differ from the workspace's: about a minute.

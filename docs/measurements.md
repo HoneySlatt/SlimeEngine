@@ -1449,3 +1449,18 @@ What it says: these paths run on one thread, and lose nothing on 4 cores. The pr
 the Ryzen 7 5800X, faster than the handheld's, at its clock: it shows what needs more than 4
 cores, not the handheld's times. On this loaded machine, the hierarchy's frames came out 1.5 to 2.7
 times as slow as M6c.5a measured them: those figures are compared again on an idle machine.
+
+## M6c.Q2b, CI's runners
+
+GitHub's hosted runners, on 2026-11-05, commit `7535915`, its run green. The cooked zone came from
+the cache. `check (game)` now runs the benchmarks' counters
+([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)): 1 min 42 s, their build included, of which
+1 min 37 s for every benchmark that counts, the zone's apart, and 2 s for the zone's.
+
+| Job | Time |
+|---|---|
+| `check (headless)` | 17 min 12 s |
+| `windows` | 16 min 47 s, its tests 12 min 36 s |
+| `windows-release` | 10 min 59 s |
+| `check (game)` | 8 min 45 s |
+| `check (windowed)` | 5 min 12 s |

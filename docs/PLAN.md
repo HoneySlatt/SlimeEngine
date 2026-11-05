@@ -19,11 +19,11 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - Stage in progress: Stage 6c, the editor, to be released as 0.7
   ([ADR-0155](adr/0155-the-editors-design.md)).
 - Done: M6c.0, M6c.1a, M6c.1b, M6c.2a, M6c.2b, M6c.2c, M6c.3a, M6c.3b, M6c.3c, M6c.4a, M6c.4b,
-  M6c.4c, M6c.4d, M6c.5a, M6c.5b, M6c.5c, M6c.5d, M6c.5e, M6c.Q1, M6c.N and M6c.Q2a.
+  M6c.4c, M6c.4d, M6c.5a, M6c.5b, M6c.5c, M6c.5d, M6c.5e, M6c.Q1, M6c.N, M6c.Q2a and M6c.Q2b.
 - Checkpoint A: done on Linux; its part in the Windows virtual machine waits for the owner.
 - Next: the rest of the [quality milestones](#the-quality-milestones)
-  ([ADR-0175](adr/0175-the-quality-bar.md)), [M6c.Q2b](#m6cq2b--counters-and-ratios-in-ci),
-  [M6c.Q2c](#m6cq2c--a-hidden-game-at-rest), [M6c.Q2d](#m6cq2d--first-measures), M6c.Q3 and M6c.Q4;
+  ([ADR-0175](adr/0175-the-quality-bar.md)), [M6c.Q2c](#m6cq2c--a-hidden-game-at-rest),
+  [M6c.Q2d](#m6cq2d--first-measures), M6c.Q3 and M6c.Q4;
   then [M6c.5f](#m6c5f--the-inspector), the inspector.
 - Then: M6c.6, M6c.7, Checkpoint B, M6c.8, M6c.Q5, the stage's audit, and M6c.9.
 - Cuts made at a milestone's start, a part cut again at its own start where needed: M6c.1 into 1a
@@ -67,7 +67,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | M6c.Q1 — The quality bar written | Done 2026-11-05, [ADR-0175](adr/0175-the-quality-bar.md), CI green on `23d4027` |
 | M6c.N — The framework named uwui | Done 2026-11-05, [ADR-0179](adr/0179-the-framework-named-uwui.md), CI green on `0a858f8` |
 | M6c.Q2a — Rest, checked in CI | Done 2026-11-05, [ADR-0185](adr/0185-rest-checked-in-ci.md), CI green on `4164455` |
-| [M6c.Q2b — Counters and ratios in CI](#m6cq2b--counters-and-ratios-in-ci) | In progress, [ADR-0186](adr/0186-counters-and-ratios-in-ci.md) |
+| M6c.Q2b — Counters and ratios in CI | Done 2026-11-05, [ADR-0186](adr/0186-counters-and-ratios-in-ci.md), CI green on `7535915` |
 | [M6c.Q2c — A hidden game at rest](#m6cq2c--a-hidden-game-at-rest) | Planned |
 | [M6c.Q2d — First measures](#m6cq2d--first-measures) | Planned |
 | [M6c.Q3 — The hierarchy's search over frames](#m6cq3--the-hierarchys-search-over-frames) | Planned |
