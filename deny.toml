@@ -53,6 +53,10 @@ multiple-versions = "warn"
 wildcards = "deny"
 # Path dependencies between workspace crates carry no version; that is not a wildcard.
 allow-wildcard-paths = true
+deny = [
+    # Its idle threads wake every 500 ms forever; 1.6.2's end (docs/adr/0185-rest-checked-in-ci.md).
+    { crate = "blocking@>=1.7.0", reason = "an idle thread of its pool wakes the editor at rest; held at 1.6.2 (docs/debt.md)" },
+]
 
 [sources]
 unknown-registry = "deny"

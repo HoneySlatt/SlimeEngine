@@ -624,6 +624,10 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The hierarchy's search passes the editor's interface's budget; M6c.Q3.
   The readers of files are not fuzzed, and a crash leaves no report; M6c.Q4 ([ADR-0176](adr/0176-fuzzing-and-crash-reports.md)).
   Packages are neither signed nor built reproducibly, until Stage 11 ([ADR-0177](adr/0177-audits-and-releases.md)).
+- **The lock file holds `blocking` at 1.6.2** ([ADR-0185](adr/0185-rest-checked-in-ci.md)).
+  1.7.0, the latest release, keeps an idle thread of its pool waking forever, which would wake the editor at rest through AccessKit's adapter.
+  `deny.toml` bans 1.7.0 and later.
+  It goes once a release of `blocking` ends its idle threads again.
 - **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)).
   A frame walks every element of its roots, to find what to draw again and to gather the display list, even when nothing changed.
   A list shows the rows of a new range one frame late, when it first shows or when it scrolls after its builder ran.
