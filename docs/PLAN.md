@@ -19,11 +19,11 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - Stage in progress: Stage 6c, the editor, to be released as 0.7
   ([ADR-0155](adr/0155-the-editors-design.md)).
 - Done: M6c.0, M6c.1a, M6c.1b, M6c.2a, M6c.2b, M6c.2c, M6c.3a, M6c.3b, M6c.3c, M6c.4a, M6c.4b,
-  M6c.4c, M6c.4d, M6c.5a, M6c.5b, M6c.5c and M6c.5d.
+  M6c.4c, M6c.4d, M6c.5a, M6c.5b, M6c.5c, M6c.5d and M6c.5e.
 - Checkpoint A: done on Linux; its part in the Windows virtual machine waits for the owner.
-- Next: [M6c.5e](#m6c5e--layouts-kept-floating-panels-and-closed-panels), layouts kept, floating
-  panels and closed panels.
-- Then: M6c.5f, M6c.6, M6c.7, Checkpoint B, M6c.8 and M6c.9.
+- Next: the quality-bar milestones, decided on 2026-11-05, to be planned; then
+  [M6c.5f](#m6c5f--the-inspector), the inspector.
+- Then: M6c.6, M6c.7, Checkpoint B, M6c.8 and M6c.9.
 - Cuts made at a milestone's start, a part cut again at its own start where needed: M6c.1 into 1a
   and 1b; M6c.2 into 2a to 2c; M6c.3 into 3a to 3c; M6c.4 into 4a to 4d; M6c.5 into 5a to 5f.
 - M6c.6 is expected to be cut in two, M6c.6a and M6c.6b.
@@ -57,7 +57,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6c.5b — Rearrange the hierarchy](#m6c5b--rearrange-the-hierarchy) | Done |
 | [M6c.5c — The eye and the lock](#m6c5c--the-eye-and-the-lock) | Done |
 | [M6c.5d — Regions of tabs](#m6c5d--regions-of-tabs) | Done |
-| [M6c.5e — Layouts kept, floating panels and closed panels](#m6c5e--layouts-kept-floating-panels-and-closed-panels) | Planned |
+| [M6c.5e — Layouts kept, floating panels and closed panels](#m6c5e--layouts-kept-floating-panels-and-closed-panels) | Done |
 | [M6c.5f — The inspector](#m6c5f--the-inspector) | Planned |
 | [M6c.6 — Levels of several files, and links](#m6c6--levels-of-several-files-and-links) | Planned |
 | [M6c.7 — Build from a kit](#m6c7--build-from-a-kit) | Planned |
@@ -214,18 +214,10 @@ tabs".
 
 ### M6c.5e — Layouts kept, floating panels and closed panels
 
-- **Goal.** The user's layout outlives the editor, and panels float and close.
-- **Crates.** `slime-ui`, `slime-editor`.
-- **Delivers.** The layout saved per user and per project in the user's state directory, a game's
-  editor package giving the project's default; read leniently, set aside when it cannot be read,
-  the user told; "Reset layout"; the default's version, a newer default replacing a layout saved
-  against an older one; floating panels, which "Move to" reaches; a closed panel keeping its place,
-  to come back there ([ADR-0172](adr/0172-regions-of-tabs.md)).
-- **Done when.** A layout that cannot be read gives the default; a layout changed comes back at the
-  next start; an agent floats a panel, closes one and opens it again where it was; CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-editor`; the MCP server's session tests.
-- **By hand.** A layout kept across starts, a panel floated, closed and opened again, on Linux and
-  in the Windows virtual machine.
+Done 2026-11-05, [ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md), CI green
+on `9edb2f8`: the layout kept per user and per program, set aside when it cannot be read or was
+made from another default; panels floated and closed, each keeping its place; Reset layout. Debt:
+"Layouts kept, floating panels and closed panels".
 
 ### M6c.5f — The inspector
 
@@ -409,10 +401,13 @@ is run with `--new --save <a file of its own>`, so that the owner's save is left
   onto what is hidden or locked, end to end, which tests check through the casts alone.
 - **The regions of tabs** (M6c.5d): resized and rearranged, on Linux and in the Windows virtual
   machine.
+- **Layouts kept, floating and closed panels** (M6c.5e): a layout kept across starts, a panel
+  floated, moved and sized by its bar and its corner, closed and opened again where it was, on
+  Linux and in the Windows virtual machine.
 - **G20, in the Windows virtual machine.** A source asset whose `.meta` differs from its own name
   by case only, cooked twice: whether its ID changes at each cook, and whether `slime-cook watch`
   cooks it again without end (see [Left by the audit of 0.4](debt.md#left-by-the-audit-of-04)).
 
 ## Known debt
 
-The known debt still open, 159 items, is in [`debt.md`](debt.md).
+The known debt still open, 160 items, is in [`debt.md`](debt.md).

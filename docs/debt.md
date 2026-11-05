@@ -606,7 +606,8 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Each job of CI must end within 20 minutes, and every session of the editor adds to the checks.
   Since M6c.0, three Linux jobs run `scripts/check.sh`'s three parts side by side; the game's agent session draws the zone without shadows.
   The cooked zone is cached, keyed on the packages that the cooker is built from: a change of the cooker's sources or packages cooks it again, which adds about 3 minutes to `check (game)` alone.
-  On `06faca1`, at M6c.5d, the longest jobs took 16 minutes 33 seconds (`check (headless)`) and 15 minutes 25 seconds (`windows`).
+  On `9edb2f8`, at M6c.5e, the longest jobs took 16 minutes 52 seconds (`check (headless)`) and 19 minutes 18 seconds (`windows`).
+  The `windows` job took from 13 minutes 44 seconds to 19 minutes 18 seconds over the five runs of 2026-11-04 and 2026-11-05, its tests' step varying most: it has little room left under its limit.
   The `windows` job builds the tests that read the zone again, with `-p`, whose features differ from the workspace's: about a minute.
   Run over the workspace, `--ignored` would also run the measurements that other crates ignore, meant for release builds.
   How the jobs grew and were split: [`history.md`](history.md#ci-and-its-limit-of-20-minutes).
