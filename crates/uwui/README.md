@@ -30,7 +30,9 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   when the revision that it reads moved, and matches the elements it adds with those before by their
   keys, so that their state and scroll survive; `Ui::frame` styles again the elements that changed,
   lays out by flexbox and grid the roots where something changed, mirrored for a root laid out from
-  right to left, draws again what changed or moved, and gives the display list. Its elements
+  right to left, draws again what changed or moved, and gives the display list, with what it did
+  (`FrameStats`): among it, the elements that its walks visited, which a frame costs even when
+  nothing changed (`docs/adr/0186-counters-and-ratios-in-ci.md`). Its elements
   (`tree::Element`) are boxes, labels, parts of images, buttons, boxes that scroll, lists that build
   and lay out only the rows that show, and fields of text and of numbers, each with its classes.
 - `theme::StyleSheet` holds rules that select elements by kind, classes, key, states and ancestor

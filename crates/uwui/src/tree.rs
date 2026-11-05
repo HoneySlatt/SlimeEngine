@@ -1117,6 +1117,10 @@ pub struct FrameStats {
     pub painted: usize,
     /// The elements in the tree.
     pub elements: usize,
+    /// The elements that the frame's walks reached: each element of the roots, to find what to
+    /// draw again, and each one shown, to gather the display list, even when nothing changed. What
+    /// a frame costs grows with it; an element hidden is reached, what it holds is not.
+    pub visited: usize,
     /// Whether a transition goes on after this frame, the pointer rests where a tooltip will show
     /// or a submenu open, a bar of progress without a share moves, or a notification waits for its
     /// time to end: a program that draws only when something changes draws the next frame too.
@@ -1763,11 +1767,13 @@ impl Ui {
             self.update_rows(list);
         }
         for root in self.roots.clone() {
-            stats.painted += paint::paint(self, root);
+            let (painted, visited) = paint::paint(self, root);
+            stats.painted += painted;
+            stats.visited += visited;
         }
         let mut list = DisplayList::new();
         for root in &self.roots {
-            paint::gather(self, *root, &mut list);
+            stats.visited += paint::gather(self, *root, &mut list);
         }
         stats.animating = self.animating() || self.next_change().is_some();
         (list, stats)

@@ -9,17 +9,18 @@ use crate::text::TextBounds;
 use crate::tree::{ElementId, Kind, LayoutDirection, Ui};
 
 /// Draws again the elements of `root` that changed since they were last drawn, and gives how
-/// many.
-pub(crate) fn paint(ui: &mut Ui, root: ElementId) -> usize {
+/// many, and how many elements it walked.
+pub(crate) fn paint(ui: &mut Ui, root: ElementId) -> (usize, usize) {
     let Some(settings) = ui.node(root).and_then(|node| node.root) else {
-        return 0;
+        return (0, 0);
     };
-    let mut painted = 0;
+    let (mut painted, mut visited) = (0, 0);
     let mut stack = vec![root];
     while let Some(id) = stack.pop() {
         let Some(node) = ui.node(id) else {
             continue;
         };
+        visited += 1;
         stack.extend(node.children.iter().copied());
         if !node.changed.paint {
             continue;
@@ -34,7 +35,7 @@ pub(crate) fn paint(ui: &mut Ui, root: ElementId) -> usize {
         node.primitives = primitives;
         node.changed.paint = false;
     }
-    painted
+    (painted, visited)
 }
 
 /// What `id` draws: its shadow, its box, then its text or its image, or a field's selection, text
@@ -218,8 +219,8 @@ fn box_primitives(
 
 /// Adds to `list` what `root` and the elements below it draw, each before its children, those not
 /// laid out left out; a box that scrolls and a list, their scroll bars after their children, over
-/// them; a layer's backdrop first, over the whole window.
-pub(crate) fn gather(ui: &Ui, root: ElementId, list: &mut DisplayList) {
+/// them; a layer's backdrop first, over the whole window. Gives how many elements it walked.
+pub(crate) fn gather(ui: &Ui, root: ElementId, list: &mut DisplayList) -> usize {
     // A layer's backdrop covers the window, whose size the layer takes, which changes without
     // drawing the layer again: made at each gathering rather than kept.
     if let Some(node) = ui.node(root)
@@ -241,6 +242,7 @@ pub(crate) fn gather(ui: &Ui, root: ElementId, list: &mut DisplayList) {
     }
     // An element entered, its own then its children's, or left, what it draws over them; with the
     // opacity of its ancestors and its own.
+    let mut visited = 0;
     let mut stack = vec![(root, true, 1.0_f32)];
     while let Some((id, entered, opacity)) = stack.pop() {
         let Some(node) = ui.node(id) else {
@@ -253,6 +255,7 @@ pub(crate) fn gather(ui: &Ui, root: ElementId, list: &mut DisplayList) {
             }
             continue;
         }
+        visited += 1;
         if node.style.layout.display == Display::None {
             continue;
         }
@@ -274,4 +277,5 @@ pub(crate) fn gather(ui: &Ui, root: ElementId, list: &mut DisplayList) {
                 .map(|&child| (child, true, opacity)),
         );
     }
+    visited
 }

@@ -310,6 +310,34 @@ fn two_siblings_of_one_key_are_refused() {
 }
 
 #[test]
+fn a_frame_counts_the_elements_that_its_walks_visit() {
+    let mut ui = ui();
+    let root = ui.add_root(
+        "main",
+        root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
+        Style::default(),
+    );
+    let mut hidden = Style::default();
+    hidden.layout.display = Display::None;
+    ui.build(root, 0, |children| {
+        children.add("shown", Element::container(Style::default()), |children| {
+            children.add("inner", Element::container(Style::default()), |_| {});
+        });
+        children.add("hidden", Element::container(hidden), |children| {
+            children.add("inside", Element::container(Style::default()), |_| {});
+        });
+    });
+    ui.frame();
+    // Nothing changed: every element walked to find what to draw again, and those shown, with
+    // the hidden one but not what it holds, walked again to gather the display list.
+    let (_, stats) = ui.frame();
+    assert_eq!(
+        (stats.elements, stats.painted, stats.visited),
+        (5, 0, 5 + 4)
+    );
+}
+
+#[test]
 fn a_frame_where_nothing_changed_lays_out_and_draws_nothing() {
     let mut ui = ui();
     let root = ui.add_root(
