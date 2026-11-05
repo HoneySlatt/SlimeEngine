@@ -143,6 +143,7 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 
 | Topic | Candidates | Decide at |
 |---|---|---|
+| Where the foundations that the engine and uwui share live: the GPU layer, the platform, the loop | Moved with uwui, a thin layer of uwui's own, another split (ADR-0180) | Stage 6d |
 | Drawing an interface without a GPU | A renderer on the CPU, lavapipe, none (ADR-0170) | Stage 6d |
 | How an interface's vector shapes are drawn | By measurement: tessellated on the CPU, distance fields, or stencil then cover (ADR-0171) | Stage 6d |
 | Notation of UI documents | The engine's notation laid out as scene files, a markup of its own, a subset of HTML and CSS (ADR-0132) | Stage 7 |
@@ -393,7 +394,7 @@ The stage's milestones, their order and the owner's two checkpoints are decided 
 - Text styled by ranges, masked fields, double clicks, the pointer's shapes, smooth and sideways scrolling, virtual lists that scroll sideways, a table's header that stays; gamepads, and the focus that they drive, moved from Stage 7
 - The framework and the shell of applications built and tested on macOS in CI, not supported until a Mac checks them (ADR-0173)
 - The pilots: Slatty, a launcher of games, and a music player, both outside this repository, ported onto the framework in their own repositories during the stage, each with a checkpoint where the owner uses it; the music player's figures with its present framework measured first (ADR-0178)
-- The framework, named uwui (ADR-0178, ADR-0179), moved to a repository of its own once its drawing has left the renderer
+- The framework, named uwui (ADR-0178, ADR-0179), standing alone: one canvas, which the engine's interfaces draw with too, a shell without the world, and a check in CI that a program on the framework compiles neither the renderer, the world nor the editor; then moved to a repository of its own, once the foundations it shares with the engine are placed (ADR-0180)
 
 **Exit.** Slatty and the music player run on the framework at least as well as on Iced and egui, on each of the figures that ADR-0170 and ADR-0178 record; every need that the music player marks as indispensable exists, shown by an example and its tests; nothing is drawn at rest, under Wayland and under Xwayland; the power that the GPU and the CPU draw is measured for each effect, at rest and in motion (ADR-0171).
 
