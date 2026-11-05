@@ -750,12 +750,6 @@ of colors, dark, light or high contrast, and a compact one (`slime_ui::look`, bu
 `slime-ui`'s feature `editor-look`; [ADR-0148](adr/0148-widgets.md),
 [ADR-0149](adr/0149-the-looks-foundations.md)).
 
-**lumui.** The engine's UI framework: a retained tree of elements, its layout, text, input and
-widgets, drawn by the renderer's canvas, for the editor, games' interfaces and *applications*
-([ADR-0132](adr/0132-the-engines-ui-framework.md)). Named on 2026-11-05; its crates are still
-`slime-ui` and `slime-ui-render` until they are renamed `lumui` and `lumui-render`
-([ADR-0178](adr/0178-two-pilots-and-the-frameworks-name.md)).
-
 **Lux (lx).** The unit of *illuminance*, lumens per square metre: the strength of a directional
 light (`illuminance`); about 100 000 for direct sunlight, 400 at sunrise.
 
@@ -1591,6 +1585,12 @@ names one, `#[reflect(upgrade = ...)]`, and a reader applies them in turn
 and the uploader's thread submits their copies after each frame, at most a budget of bytes per
 frame while frames are drawn, so that a frame does not wait for all of a load's copies ([ADR-0107](adr/0107-the-execution-model.md),
 [ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)).
+
+**uwui.** The engine's UI framework: a retained tree of elements, its layout, text, input and
+widgets, drawn by the renderer's canvas, for the editor, games' interfaces and *applications*
+([ADR-0132](adr/0132-the-engines-ui-framework.md)). Named on 2026-11-05; its crates are still
+`slime-ui` and `slime-ui-render` until they are renamed `uwui` and `uwui-render`
+([ADR-0179](adr/0179-the-framework-named-uwui.md)).
 
 **Value (reflection).** A reflected value as plain data, without its Rust type: booleans, integers,
 floats of either width, text, structs, enums, options, lists, references to assets and entities

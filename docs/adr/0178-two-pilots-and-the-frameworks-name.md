@@ -3,7 +3,8 @@
 - Status: Accepted; amends [0170](0170-applications-on-the-ui-framework.md) (both programs ported
   during Stage 6d; the framework named now, in a repository of its own once its drawing leaves the
   renderer) and [0004](0004-workspace-layout-and-crate-naming.md) (the framework's crates are not
-  named `slime-<role>`)
+  named `slime-<role>`); amended by [0179](0179-the-framework-named-uwui.md) (the framework named
+  uwui)
 - Date: 2026-11-05
 
 ## Context

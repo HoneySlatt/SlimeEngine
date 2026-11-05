@@ -9,7 +9,7 @@
   effects, and measures the power that it draws),
   [0173](0173-the-platforms-of-applications.md) (the platforms that Stage 6d aims at) and
   [0178](0178-two-pilots-and-the-frameworks-name.md) (both programs ported during Stage 6d; the
-  framework named lumui now, in a repository of its own once its drawing leaves the renderer)
+  framework named now, in a repository of its own once its drawing leaves the renderer)
 - Date: 2026-11-04
 
 ## Context
