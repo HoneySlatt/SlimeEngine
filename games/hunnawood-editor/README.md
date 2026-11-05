@@ -51,6 +51,13 @@ back as it was written first; it needs the zone cooked, and `scripts/check.sh` r
 game's tests that read the zone (`cargo test -p hunnawood-editor -- --ignored`), as it runs the MCP
 server's session on a copy of the zone (`crates/slime-mcp/README.md`).
 
+## Its library
+
+The package is a library and a program. Its library's `program()` describes the editor's program
+on the zone, which its `main` runs, and which the engine's benchmarks open to measure the editor's
+whole interface on the zone, `editor.window.zone`
+([ADR-0186](../../docs/adr/0186-counters-and-ratios-in-ci.md), [`benches/README.md`](../../benches/README.md)).
+
 ## Dependencies
 
 - `hunnawood`: the game's library, its types (`rules::register`) and where its cooked data is.
