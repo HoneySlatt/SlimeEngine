@@ -6,10 +6,10 @@
 use std::fmt;
 
 use slime_reflect::Value;
-use slime_ui::action::{Action, ActionKind, FieldValue};
-use slime_ui::style::{Dimension, FlexDirection, Style};
-use slime_ui::tree::{Element, ElementId, Ui};
 use slime_world::{Command, Entity, Name, PersistentId, Tick, World};
+use uwui::action::{Action, ActionKind, FieldValue};
+use uwui::style::{Dimension, FlexDirection, Style};
+use uwui::tree::{Element, ElementId, Ui};
 
 use crate::reflected::entity_name;
 use crate::values::{Asked, ValueEditor};

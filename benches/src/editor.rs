@@ -5,11 +5,11 @@ use std::hint::black_box;
 use std::time::Instant;
 
 use slime_editor::Hierarchy;
-use slime_ui::look::{self, Colors, Density};
-use slime_ui::style::{Dimension, FlexDirection, Style};
-use slime_ui::text::Fonts;
-use slime_ui::tree::{LayoutDirection, RootSettings, Ui};
 use slime_world::{Name, World};
+use uwui::look::{self, Colors, Density};
+use uwui::style::{Dimension, FlexDirection, Style};
+use uwui::text::Fonts;
+use uwui::tree::{LayoutDirection, RootSettings, Ui};
 
 use crate::measure::{Context, Row};
 use crate::ui::times;
@@ -60,7 +60,7 @@ pub fn hierarchy(_: &mut Context) -> Result<Vec<Row>, String> {
         content.layout.direction = FlexDirection::Column;
         content.layout.grow = 1.0;
         content.layout.min_size[1] = Dimension::Pixels(0.0);
-        slot = Some(children.add_slot("hierarchy", slime_ui::tree::Element::container(content)));
+        slot = Some(children.add_slot("hierarchy", uwui::tree::Element::container(content)));
     });
     let slot = slot.ok_or("no slot")?;
     let mut hierarchy = Hierarchy::default();

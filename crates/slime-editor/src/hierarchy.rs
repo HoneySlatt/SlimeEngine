@@ -7,11 +7,11 @@ use std::time::{Duration, Instant};
 
 use slime_devui::entity_name;
 use slime_reflect::{Reflect, Value};
-use slime_ui::action::{Action, ActionKind, FieldValue, Intent};
-use slime_ui::look;
-use slime_ui::style::{Align, Dimension, FlexDirection, Style};
-use slime_ui::tree::{Element, ElementId, Role, Ui};
 use slime_world::{Command, Entity, Name, PersistentId, Tick, World};
+use uwui::action::{Action, ActionKind, FieldValue, Intent};
+use uwui::look;
+use uwui::style::{Align, Dimension, FlexDirection, Style};
+use uwui::tree::{Element, ElementId, Role, Ui};
 
 use crate::arrange::{self, Spot};
 use crate::eyes::Eyes;
@@ -192,7 +192,7 @@ impl Hierarchy {
     }
 
     /// Builds the hierarchy under `slot`, an element made by a slot of its parent
-    /// (`slime_ui::tree::Children::add_slot`), from `world`, the rows of `selection` selected, at
+    /// (`uwui::tree::Children::add_slot`), from `world`, the rows of `selection` selected, at
     /// `now`, which a search typed waits a pause from: its search field and its list, then the
     /// rows that show, which the list's layout knows once it is laid out, a frame later.
     ///
@@ -659,7 +659,7 @@ impl Hierarchy {
 /// the search found says the path of its parent too; a line above or below it, or its box, shows
 /// where a drag would drop on it.
 fn build_row(
-    children: &mut slime_ui::tree::Children<'_>,
+    children: &mut uwui::tree::Children<'_>,
     index: usize,
     row: Row,
     world: &World,
@@ -680,7 +680,7 @@ fn build_row(
         item = item.class("drop-into");
     }
     // A line where the drop would put what is dragged, from the row's name.
-    let line = |children: &mut slime_ui::tree::Children<'_>, key: &'static str| {
+    let line = |children: &mut uwui::tree::Children<'_>, key: &'static str| {
         let mut style = Style::default();
         style.layout.size[1] = Dimension::Pixels(2.0);
         style.layout.shrink = 0.0;

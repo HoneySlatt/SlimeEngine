@@ -10,6 +10,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 - The license (ADR-0182): SlimeEngine is licensed under MIT OR Apache-2.0, at the user's choice,
   in place of MPL-2.0; earlier releases keep MPL-2.0.
+- The UI framework's crates bear its name, uwui (ADR-0179): `slime-ui` is `uwui`, and
+  `slime-ui-render` is `uwui-render`; their libraries, `uwui` and `uwui_render`.
 
 ### Added
 
@@ -23,7 +25,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `view.move_panel <panel> float`, and docks again from its bar's; it closes by *Close* or
   `view.close_panel`, keeping its place, and opens there again from *View* > *Panels* or
   `view.open_panel`.
-- Closed and floating panels in `slime-ui`'s dock (ADR-0174): `Layout::floating`, `Layout::closed`,
+- Closed and floating panels in `uwui`'s dock (ADR-0174): `Layout::floating`, `Layout::closed`,
   `Layout::fit`, `Layout::close`, `Layout::show`, `Target::Float`, `Dock::close`,
   `Dock::set_layout`; `Dock::take_changed` reports a border's drag only as it ends.
   `ActionKind::Placed` tells the program where the pointer let a floating layer go, and places it
@@ -34,7 +36,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   dragged or moved by the arrows, resizes the two beside it; a tab's context menu moves its panel
   into another region or to an edge of the window, as `view.move_panel` does by its name, with its
   two arguments; F6 goes from one region to the next.
-- Docking in `slime-ui` (ADR-0172): `dock::Layout`, splits of any number of children and stacks of
+- Docking in `uwui` (ADR-0172): `dock::Layout`, splits of any number of children and stacks of
   tabs, reflected and normalized after each edit, and `dock::Dock`, which builds it into a
   program's tree and changes it as the user drags its borders, chooses its tabs and moves its
   panels; `Element::splitter`, a border between two children of a box, which gives the program the
@@ -53,7 +55,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `hierarchy.move_down`, `hierarchy.outdent`, `hierarchy.indent`, which agents and a program
   without its window run too); each move one step, each entity kept where it is in the world; the
   level's root, and what a placement holds but for its root, stay.
-- Drag and drop in `slime-ui`: `Element::draggable`, `Element::drop_target`, `Ui::dragging`,
+- Drag and drop in `uwui`: `Element::draggable`, `Element::drop_target`, `Ui::dragging`,
   `Ui::drop`, `ActionKind::Dropped` and `ElementAction::Drop`; agents drop through the development
   channel, at version 12 of its protocol (`InterfaceAction::Drop`), and the MCP server's
   `act_on_interface`, its action `drop`, `onto` a target `at` a place in it.
@@ -67,7 +69,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   (`edit.rename`). `slime_editor::Hierarchy` and `Hierarchy::set_search`, which the benchmark
   `editor.hierarchy.100k` measures over 100 000 entities; `slime_devui::entity_name`, what the dev
   overlay and the editor call an entity.
-- `World::names`, the tick of the entities' names apart from the structure; `slime-ui`'s roles
+- `World::names`, the tick of the entities' names apart from the structure; `uwui`'s roles
   `Tree` and `TreeItem`, `Element::level` and `Element::expandable`, read by agents and screen
   readers, and the selected state of a list's rows given to screen readers; `Ui::show_row`, which
   scrolls a list to a row by its number, and `Ui::scroll_into_view`, which the focus that the keys
@@ -112,12 +114,12 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   and the left button orbit, the middle button pans, the wheel comes nearer, and F, *View* > *Frame
   the selection*, frames what is selected, or the whole level. Tools capture it and change its
   settings by the name `viewport`, and read how many times it drew in the report `viewport`.
-- `Element::surface` in `slime-ui`: an element that shows an image that the program draws and gives
+- `Element::surface` in `uwui`: an element that shows an image that the program draws and gives
   it the pointer, as `ActionKind::Surface`, the keys reaching the program while a button pressed
   over it is held.
 - `Context::request_frame_at` in `slime-app`, a frame at a given time; `View::resize_due`,
   `Line::grid` and `facing` in `slime-render`.
-- A modal layer of `slime-ui` dims the window below it: its root is of the class `modal`, and a
+- A modal layer of `uwui` dims the window below it: its root is of the class `modal`, and a
   layer's root lays the backdrop that its style gives (`PaintStyle::backdrop`) over the window,
   which the editor's look gives the theme's scrim.
 - Picking in the editor's viewport (ADR-0159): a click selects the outermost placement of what is
@@ -135,7 +137,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   Shift and the middle button panning, Alt and the left button going through what lies behind
   without orbiting, kept for the next start in the user's state directory. What the mouse's buttons do over the viewport is
   written in the editor's table of shortcuts (`editor.keys`, `slime_editor::BLENDER_SHORTCUTS`).
-- A table of shortcuts of `slime-ui` binds the mouse's buttons too, `MiddleButton`,
+- A table of shortcuts of `uwui` binds the mouse's buttons too, `MiddleButton`,
   `"Shift+MiddleButton"`, which a program reads with `Ui::button_command`.
 - `Drawings::outline` in `slime-render`: a view outlines instances named by their picking numbers
   over its image, in one color where the scene shows them and another where it hides them, the
@@ -215,7 +217,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - `World::creating_commands`, `Renaming`, `Command::read_renamed` and `WorldError::NoIdentity` in
   `slime-world`; `Editor::copy`, `Editor::paste`, `EditError::Copy`, `EditError::Paste` and
   `Changes::Clipboard` in `slime-editor`; `Ui::clipboard_text` and `Ui::set_clipboard_text` in
-  `slime-ui`.
+  `uwui`.
 
 ### Changed
 

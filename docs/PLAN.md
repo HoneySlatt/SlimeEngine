@@ -137,14 +137,15 @@ stage's audit before M6c.9. Their figures live in the
 ### M6c.N — The framework named uwui
 
 - **Goal.** The engine's UI framework carries its own name, before it grows further.
-- **Crates.** `slime-ui` and `slime-ui-render`, and every crate, example and document that names
+- **Crates.** `uwui` and `uwui-render`, and every crate, example and document that names
   them.
 - **Delivers.** As [ADR-0179](adr/0179-the-framework-named-uwui.md) and
-  [ADR-0181](adr/0181-uwuis-scope.md) decide: `slime-ui` renamed `uwui` and `slime-ui-render`
-  `uwui-render`, their directories, packages, paths and rustdoc; the documents that describe the
-  code as it is name uwui; earlier ADRs unchanged; uwui's logo
-  ([ADR-0183](adr/0183-uwuis-logo.md)) at the head of its README. The license changes with the
-  move, at Stage 6d.
+  [ADR-0181](adr/0181-uwuis-scope.md) decide: the framework's two crates renamed `uwui` and
+  `uwui-render`, their directories, packages, libraries' names, paths and rustdoc; the documents
+  that describe the code as it is name uwui; earlier ADRs unchanged; uwui's logo
+  ([ADR-0183](adr/0183-uwuis-logo.md)) at the head of its README. The license is unchanged: the
+  repository is under MIT OR Apache-2.0 already
+  ([ADR-0182](adr/0182-the-engine-under-mit-or-apache-2-0.md)).
 - **Done when.** No name of the old crates is left outside earlier ADRs and history; CI is green.
 - **How to test.** `scripts/check.sh`; `git grep -E 'slime[_-]ui'`.
 - **Measured.** CI's jobs.
@@ -167,7 +168,7 @@ stage's audit before M6c.9. Their figures live in the
 
 - **Goal.** CI keeps every budget that counters and ratios of times can hold, and each budget of
   the quality bar has a first figure.
-- **Crates.** `slime-benches`, `slime-ui`, `slime-editor`, `slime-app`.
+- **Crates.** `slime-benches`, `uwui`, `slime-editor`, `slime-app`.
 - **Delivers.** A benchmark of the editor's whole interface on the zone, against 1.5 ms by hand,
   and its counters, elements visited, items drawn, allocations at rest, and the ratio of its cost
   at 10 000 and 100 000 entities, in CI; the steady counters of the existing benchmarks in CI;
@@ -269,7 +270,7 @@ stage's audit before M6c.9. Their figures live in the
 
 - **Goal.** The user builds a level from a kit of prefabs found in an asset browser, cooked by the
   editor as its sources change, and *Hunna Wood*'s zone is made so.
-- **Crates.** `slime-editor`, `slime-cook`, `slime-assets`, `slime-render`, `slime-ui-render`,
+- **Crates.** `slime-editor`, `slime-cook`, `slime-assets`, `slime-render`, `uwui-render`,
   `slime-platform`; `games/hunnawood`, its zone's Blender script, its tests and its save fixture.
 - **Delivers.**
   - The asset browser: an index of the cooker's manifest and a scan of the sources, by folder and
@@ -314,14 +315,14 @@ stage's audit before M6c.9. Their figures live in the
 - **Goal.** The user drags panels and tabs to arrange the editor. If the stage runs long, the
   milestone moves to Stage 11, with an amendment of ADR-0131 and the roadmap, the regions of M6c.5d
   and the layouts of M6c.5e serving meanwhile.
-- **Crates.** `slime-ui`, `slime-editor`.
+- **Crates.** `uwui`, `slime-editor`.
 - **Delivers.** Zones to drop a panel or a tab on, shown as it is dragged; tabs reordered and moved
   by drags, and a button of their own that closes them; floating panels docked again by a drag; a
   least size for each panel. M6c.5e delivered the rest that this milestone once listed
   ([ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)).
-- **Done when.** `slime-ui`'s tests of the drops' rules; an agent drops a panel on a zone as a drag
+- **Done when.** `uwui`'s tests of the drops' rules; an agent drops a panel on a zone as a drag
   would; CI is green.
-- **How to test.** `cargo test -p slime-ui -p slime-editor`.
+- **How to test.** `cargo test -p uwui -p slime-editor`.
 - **By hand.** Panels docked by drag on the owner's Linux desktop and in the Windows virtual machine.
 - **Debt settled.** Tabs without a button that closes them, nor dragged; two panels without a least
   size; a floating panel that docks by "Move to" alone.

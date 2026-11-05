@@ -4,7 +4,7 @@ SlimeEngine's vocabulary of input: the keys of a keyboard, by their position and
 with the current layout, the mouse's buttons, the modifier keys and the wheel
 (`docs/adr/0142-input-and-focus.md`), what an input method does and the pointer's shapes
 (`docs/adr/0145-text-edited.md`). It holds types alone, without the windowing library, so that
-what reads input without a window, the interface's framework (`slime-ui`), reads the same types as
+what reads input without a window, the interface's framework (`uwui`), reads the same types as
 the window's platform layer (`slime-platform`), which translates winit's events into them.
 
 ## Role

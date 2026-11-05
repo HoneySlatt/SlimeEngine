@@ -16,10 +16,10 @@ use slime_gfx::{Gpu, Image, RenderTarget};
 use slime_platform::KeyCode;
 use slime_reflect::{Kind, Path, Registry, Value};
 use slime_serialize::{Composer, Document, Mode};
-use slime_ui::Rect;
-use slime_ui::action::{Action, ActionKind, Intent};
-use slime_ui::tree::{ElementAction, ElementState, Meaning, Ui};
 use slime_world::{Command, Entity, Identities, Name, PersistentId, SceneLibrary, World};
+use uwui::Rect;
+use uwui::action::{Action, ActionKind, Intent};
+use uwui::tree::{ElementAction, ElementState, Meaning, Ui};
 
 use crate::game::{PickAnswer, PickSlot, Presentation, Reflected, ShownView, Simulation};
 use crate::host::Host;
@@ -1254,9 +1254,9 @@ mod tests {
 
     impl Panel {
         fn new() -> Self {
-            use slime_ui::style::{Dimension, FlexDirection, Style};
-            use slime_ui::text::Fonts;
-            use slime_ui::tree::{Element, LayoutDirection, RootSettings};
+            use uwui::style::{Dimension, FlexDirection, Style};
+            use uwui::text::Fonts;
+            use uwui::tree::{Element, LayoutDirection, RootSettings};
 
             let mut ui = Ui::new(Fonts::new());
             let settings = RootSettings {

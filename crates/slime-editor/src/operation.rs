@@ -421,8 +421,8 @@ pub const OPERATIONS: &[Operation] = &[
     },
 ];
 
-/// The editor's table of shortcuts, a document of `slime-ui`'s notation
-/// (`slime_ui::shortcuts`), whose every command is an operation's name, but those of the scope
+/// The editor's table of shortcuts, a document of `uwui`'s notation
+/// (`uwui::shortcuts`), whose every command is an operation's name, but those of the scope
 /// `viewport`, which say what the buttons of the mouse do over the viewport.
 pub const SHORTCUTS: &str = include_str!("../editor.keys");
 

@@ -115,10 +115,10 @@ use slime_render::{
     Mesh, MeshData, Pick, Projection, RenderStats, Renderer, SampledTexture, Scene, UnlitData,
     View, ViewDraw, ViewSettings, Viewport, facing,
 };
-use slime_ui::style::{FlexDirection, Style};
-use slime_ui::tree::{Element, Ui};
 use slime_world::{Entity, Light, Meshes, PersistentId, SceneLibrary, Tick, Transform, World};
 use slime_world_render::FrameBuilder;
+use uwui::style::{FlexDirection, Style};
+use uwui::tree::{Element, Ui};
 
 use sample_scene::{BLOOM, EXPOSURE, SKY};
 use yard::YARD;

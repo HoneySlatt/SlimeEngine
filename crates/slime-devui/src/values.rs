@@ -7,11 +7,11 @@ use std::collections::HashMap;
 use slime_assets::AssetId;
 use slime_color::LinearColor;
 use slime_reflect::{FieldInfo, Kind, Path, Range, Reflect, Registry, Value, VariantInfo};
-use slime_ui::action::{Action, ActionKind, FieldValue};
-use slime_ui::style::{Align, Dimension, FlexDirection, Style};
-use slime_ui::tree::{Children, ChoiceOption, Element, ElementId, Key, Tooltip, Ui, Units};
 use slime_world::glam::{DVec3, Quat, Vec3};
 use slime_world::{Entity, World};
+use uwui::action::{Action, ActionKind, FieldValue};
+use uwui::style::{Align, Dimension, FlexDirection, Style};
+use uwui::tree::{Children, ChoiceOption, Element, ElementId, Key, Tooltip, Ui, Units};
 
 use crate::reflected::{
     WHOLE, angles, entity_name, initial, plain, rotation, set_edits, variant_value,

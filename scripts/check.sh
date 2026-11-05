@@ -101,7 +101,7 @@ if runs headless; then
     RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
     # The editor's look, which only the examples' dev-dependency turns on, and so the workspace's
     # documentation leaves out (ADR-0148).
-    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --locked -p slime-ui --features editor-look
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --locked -p uwui --features editor-look
 
     step "Dependencies (licenses, advisories, sources)"
     cargo deny --locked check
@@ -303,13 +303,13 @@ fi
 
 if runs headless; then
     step "The game built for shipping holds neither the development channel, the MCP server nor the dev overlay (ADR-0122, ADR-0152)"
-    if cargo tree --locked -p hunnawood --no-default-features -e normal | grep -E 'slime-(channel|mcp|devui|ui-render) '; then
+    if cargo tree --locked -p hunnawood --no-default-features -e normal | grep -E 'slime-(channel|mcp|devui) |uwui-render '; then
         echo "the game built for shipping depends on the crates above"
         exit 1
     fi
     # The interface itself is slime-app's, in every build; the editor's look and its fonts are the
     # overlay's.
-    if cargo tree --locked -p hunnawood --no-default-features -e features | grep 'slime-ui feature "editor-look"'; then
+    if cargo tree --locked -p hunnawood --no-default-features -e features | grep 'uwui feature "editor-look"'; then
         echo "the game built for shipping holds the editor's look"
         exit 1
     fi

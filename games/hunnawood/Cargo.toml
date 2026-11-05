@@ -28,7 +28,7 @@ slime-render.workspace = true
 # game's components that their zones carry as typed properties, as the cooker does.
 slime-serialize.workspace = true
 # The elements of the dev overlay's panel of statistics.
-slime-ui = { workspace = true, optional = true }
+uwui = { workspace = true, optional = true }
 # The world that holds the zone, the hero and the run, and what draws it.
 slime-world.workspace = true
 slime-world-render.workspace = true
@@ -38,4 +38,4 @@ tracing.workspace = true
 # The development channel, through which tools and agents drive the game (ADR-0122), and the dev
 # overlay (ADR-0152); a build for shipping leaves them out, with `--no-default-features`.
 default = ["development"]
-development = ["slime-app/development", "dep:slime-devui", "dep:slime-ui"]
+development = ["slime-app/development", "dep:slime-devui", "dep:uwui"]

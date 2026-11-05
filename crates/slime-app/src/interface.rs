@@ -5,8 +5,8 @@
 use std::sync::{Arc, Mutex, PoisonError};
 
 use slime_platform::{Clipboard, CursorShape, Event, Window};
-use slime_ui::Rect;
-use slime_ui::tree::{ElementId, Ui};
+use uwui::Rect;
+use uwui::tree::{ElementId, Ui};
 
 /// Gives `event` to `ui` as the interface's calls, and gives whether the interface took it, which
 /// the presentation's [`on_event`](crate::Presentation::on_event) and the game's input then do not
@@ -60,7 +60,7 @@ impl SharedClipboard {
     }
 }
 
-impl slime_ui::tree::Clipboard for SharedClipboard {
+impl uwui::tree::Clipboard for SharedClipboard {
     fn text(&mut self) -> Option<String> {
         self.0.lock().unwrap_or_else(PoisonError::into_inner).text()
     }
@@ -115,9 +115,9 @@ impl Shown {
 #[cfg(test)]
 mod tests {
     use slime_platform::{ButtonState, Key, KeyCode, KeyEvent, MouseButton};
-    use slime_ui::style::{Dimension, Style};
-    use slime_ui::text::Fonts;
-    use slime_ui::tree::{Element, LayoutDirection, RootSettings};
+    use uwui::style::{Dimension, Style};
+    use uwui::text::Fonts;
+    use uwui::tree::{Element, LayoutDirection, RootSettings};
 
     use super::*;
 

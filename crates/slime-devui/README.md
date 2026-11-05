@@ -1,12 +1,12 @@
 # slime-devui
 
-The dev overlay: panels on the engine's interface, `slime-ui`, drawn over a program's view, to show
+The dev overlay: panels on the engine's interface, `uwui`, drawn over a program's view, to show
 statistics and tooling over a running game
 ([ADR-0152](../../docs/adr/0152-the-dev-overlay-on-the-engines-interface.md)).
 
 ## Status
 
-Tooling only, built on the engine's interface in the editor's look (`slime_ui::look`). Its panels
+Tooling only, built on the engine's interface in the editor's look (`uwui::look`). Its panels
 float over the window, as roots of the program's one interface: the run gives that interface the
 window's events first, so that a press on a panel, or a key that one of its fields takes, does not
 reach the game; agents read and use it through the development channel, and screen readers in a
@@ -33,7 +33,7 @@ it. What each edits, and its limits, are in their rustdoc.
   window, each opened and closed by a chord, a shortcut of the interface, and by the command that
   the chord gives, which an agent gives too.
 - Draws them with the canvas of the view's renderer, after the view, through
-  `slime-ui-render`; it reaches no wgpu.
+  `uwui-render`; it reaches no wgpu.
 - Lists a world's entities by name and edits the components of the one selected through the
   world's type registry, without knowing their types (`slime-world`, `slime-reflect`). Each change
   is given as a command (`slime_world::Command`), which names the entity by its persistent
@@ -49,8 +49,8 @@ use slime_app::{Context, Presentation};
 use slime_devui::{Corner, Overlay, PanelId, PanelSpec};
 use slime_gfx::RenderTarget;
 use slime_render::Renderer;
-use slime_ui::style::Style;
-use slime_ui::tree::{Element, Ui};
+use uwui::style::Style;
+use uwui::tree::{Element, Ui};
 use slime_world::World;
 
 struct Statistics {
@@ -108,7 +108,7 @@ impl Presentation for Statistics {
 ```
 
 - `Overlay::new()`: an overlay without panels, its interface in the editor's dark look, which
-  leaves Tab to the game (`slime_ui::tree::Ui::set_tab_enters`). `Overlay::ui_mut()` is the
+  leaves Tab to the game (`uwui::tree::Ui::set_tab_enters`). `Overlay::ui_mut()` is the
   interface that the presentation gives its host (`slime_app::Presentation::ui`).
 - `Overlay::add_panel(spec)`: a panel, closed, of a title, a chord and a command that open and
   close it, a corner that it first opens at, and a size. `Overlay::open`, `Overlay::close` and
@@ -119,7 +119,7 @@ impl Presentation for Statistics {
 - `Overlay::set_window(size, scale_factor)`: the window's size and scale factor, each frame, before
   the panels are built; a panel opened before the first lays out once it.
 - `Overlay::slot(panel)`: the slot of an open panel, which the program builds what it shows in
-  (`slime_ui::tree::Ui::build`), and which scrolls where the panel is smaller.
+  (`uwui::tree::Ui::build`), and which scrolls where the panel is smaller.
 - `Overlay::draw(gpu, &mut renderer, target)`: lays the overlay out and draws its panels over the
   target with the view's renderer; a frame with no panel open draws nothing.
   `Overlay::release()`, once the GPU device is lost, drops the atlas of its glyphs, which the next
@@ -139,9 +139,9 @@ impl Presentation for Statistics {
 
 ## Dependencies
 
-- `slime-ui`, with its `editor-look` feature: the interface that the panels are built on, and the
+- `uwui`, with its `editor-look` feature: the interface that the panels are built on, and the
   editor's look, its fonts among it.
-- `slime-ui-render` and `slime-render`: the canvas of the view's renderer, which draws the panels,
+- `uwui-render` and `slime-render`: the canvas of the view's renderer, which draws the panels,
   and the statistics of a frame that they show.
 - `slime-gfx` and `slime-platform`: the GPU and the target drawn over, and the window's size.
 - `slime-world` and `slime-reflect`: the world that the world panel lists, and the reflection it

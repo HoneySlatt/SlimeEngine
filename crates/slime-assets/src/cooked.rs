@@ -110,32 +110,32 @@ impl CookedAssets {
         self.file(id, AssetKind::SceneFile).map(|(_, bytes)| bytes)
     }
 
-    /// Reads the style sheet `id`: its document in the engine's binary encoding, which `slime-ui`
-    /// reads (`slime_ui::theme::StyleSheet::from_binary`).
+    /// Reads the style sheet `id`: its document in the engine's binary encoding, which `uwui`
+    /// reads (`uwui::theme::StyleSheet::from_binary`).
     ///
     /// # Errors
     ///
-    /// As [`CookedAssets::texture`], for a style sheet, but for its bytes, which `slime-ui` checks.
+    /// As [`CookedAssets::texture`], for a style sheet, but for its bytes, which `uwui` checks.
     pub fn style_sheet(&self, id: AssetId) -> Result<Vec<u8>, LoadError> {
         self.file(id, AssetKind::StyleSheet).map(|(_, bytes)| bytes)
     }
 
-    /// Reads the theme `id`: its document in the engine's binary encoding, which `slime-ui` reads
-    /// (`slime_ui::theme::Theme::from_binary`).
+    /// Reads the theme `id`: its document in the engine's binary encoding, which `uwui` reads
+    /// (`uwui::theme::Theme::from_binary`).
     ///
     /// # Errors
     ///
-    /// As [`CookedAssets::texture`], for a theme, but for its bytes, which `slime-ui` checks.
+    /// As [`CookedAssets::texture`], for a theme, but for its bytes, which `uwui` checks.
     pub fn theme(&self, id: AssetId) -> Result<Vec<u8>, LoadError> {
         self.file(id, AssetKind::Theme).map(|(_, bytes)| bytes)
     }
 
     /// Reads the table of shortcuts `id`: its document in the engine's binary encoding, which
-    /// `slime-ui` reads (`slime_ui::shortcuts::Shortcuts::from_binary`).
+    /// `uwui` reads (`uwui::shortcuts::Shortcuts::from_binary`).
     ///
     /// # Errors
     ///
-    /// As [`CookedAssets::texture`], for a table of shortcuts, but for its bytes, which `slime-ui`
+    /// As [`CookedAssets::texture`], for a table of shortcuts, but for its bytes, which `uwui`
     /// checks.
     pub fn shortcuts(&self, id: AssetId) -> Result<Vec<u8>, LoadError> {
         self.file(id, AssetKind::Shortcuts).map(|(_, bytes)| bytes)

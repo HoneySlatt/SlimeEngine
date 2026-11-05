@@ -1,0 +1,23 @@
+[package]
+name = "uwui-render"
+description = "uwui's bridge between its display list and the canvas of SlimeEngine's renderer, with the glyphs' atlas."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Places the glyphs' images in the atlas's pages, and frees them one by one (ADR-0132, ADR-0139).
+etagere.workspace = true
+slime-gfx.workspace = true
+slime-render.workspace = true
+uwui.workspace = true
+# A warning when a frame's glyphs do not fit the atlas's budget (ADR-0008).
+tracing.workspace = true
+
+[dev-dependencies]
+slime-color.workspace = true

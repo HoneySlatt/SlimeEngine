@@ -6,8 +6,8 @@
 
 use slime_platform::{Modifiers, MouseButton, ScrollDelta};
 use slime_render::ViewSettings;
-use slime_ui::action::SurfaceInput;
-use slime_ui::tree::ElementId;
+use uwui::action::SurfaceInput;
+use uwui::tree::ElementId;
 
 use crate::handles::Drag;
 use crate::navigation::{Gesture, Navigation};
@@ -118,7 +118,7 @@ impl Pane {
 
     /// Moves its camera, or picks in it, as the pointer's `input` on its surface asks: `bound`
     /// gives what the table of shortcuts binds a button to, with modifiers held
-    /// (`slime_ui::tree::Ui::button_command`).
+    /// (`uwui::tree::Ui::button_command`).
     pub(crate) fn input(
         &mut self,
         input: SurfaceInput,

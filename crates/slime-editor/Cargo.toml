@@ -33,8 +33,8 @@ slime-render.workspace = true
 slime-reflect.workspace = true
 slime-serialize.workspace = true
 # The window's interface, in the editor's look (ADR-0148, ADR-0156).
-slime-ui = { workspace = true, features = ["editor-look"] }
-slime-ui-render.workspace = true
+uwui = { workspace = true, features = ["editor-look"] }
+uwui-render.workspace = true
 # The world that the editor changes, its commands and its levels (ADR-0109).
 slime-world.workspace = true
 # What the viewport draws of the world, through its own asset cache (ADR-0158).

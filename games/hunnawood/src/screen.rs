@@ -14,9 +14,9 @@ use slime_platform::Event;
 use slime_platform::{ButtonState, KeyCode, KeyEvent};
 use slime_render::glam::Vec2;
 use slime_render::{RenderStats, ShaderSources, ShaderWatch, ViewSettings};
-#[cfg(feature = "development")]
-use slime_ui::tree::Ui;
 use slime_world::World;
+#[cfg(feature = "development")]
+use uwui::tree::Ui;
 
 use crate::camera;
 use crate::look::Look;

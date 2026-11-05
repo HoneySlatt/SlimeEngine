@@ -38,7 +38,7 @@ tasks of the engine's pool.
   `CookedAssets::scene_file` reads a scene file's bytes, which a world reads too
   (`slime_world::SceneLibrary`). `CookedAssets::style_sheet`, `CookedAssets::theme` and
   `CookedAssets::shortcuts` read those of an interface's style sheet, theme and table of shortcuts,
-  which `slime-ui` reads.
+  which `uwui` reads.
 - `ManifestWatch` tells a game that hot-reloads when the manifest of its cooked data changed, and
   gives the cooked data again ([ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)).
 - `CookedTexture` and its KTX2 file (`to_ktx2`, `from_ktx2`), up to `MAX_SIDE` texels on a side;

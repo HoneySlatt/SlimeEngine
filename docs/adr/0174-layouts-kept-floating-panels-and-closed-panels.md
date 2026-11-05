@@ -41,7 +41,7 @@ all hidden, and no splitter beside what it hides; what shows shares the room by 
 holds. A splitter moves the border between the two children that it parts, which a hidden child
 between them leaves as it was. Closing a stack's chosen panel chooses the next open one, or the one
 before. Opening a panel takes it out of the closed ones and chooses its tab
-([`Dock::show`](../../crates/slime-ui/src/dock.rs), which now opens too), so that it comes back to
+([`Dock::show`](../../crates/uwui/src/dock.rs), which now opens too), so that it comes back to
 its stack, in its place among the tabs, with its share, or floats where it floated. A panel moved
 opens where it goes.
 

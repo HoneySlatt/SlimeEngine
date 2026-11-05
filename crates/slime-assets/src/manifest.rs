@@ -31,13 +31,13 @@ pub enum AssetKind {
     /// (`docs/adr/0095-cooked-scene-files.md`).
     SceneFile,
     /// A style sheet of the interface, in the engine's binary encoding of documents, which
-    /// `slime-ui` reads (`docs/adr/0141-style-sheets-and-themes.md`).
+    /// `uwui` reads (`docs/adr/0141-style-sheets-and-themes.md`).
     StyleSheet,
-    /// A theme of the interface, in the engine's binary encoding of documents, which `slime-ui`
+    /// A theme of the interface, in the engine's binary encoding of documents, which `uwui`
     /// reads (`docs/adr/0141-style-sheets-and-themes.md`).
     Theme,
     /// A table of the interface's shortcuts, in the engine's binary encoding of documents, which
-    /// `slime-ui` reads (`docs/adr/0142-input-and-focus.md`).
+    /// `uwui` reads (`docs/adr/0142-input-and-focus.md`).
     Shortcuts,
 }
 

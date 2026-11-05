@@ -29,7 +29,7 @@ over the others, without sorting them by depth, and does not yet blend physicall
 draws an interface's canvas over any of its targets: boxes with rounded corners and borders, their
 shadows, boxes filled with a gradient between their corners' colors, and images, each clipped, their
 colors mixed, into an sRGB target, as their sRGB values; text reaches it as images of
-the glyphs' atlas that `slime-ui-render` keeps.
+the glyphs' atlas that `uwui-render` keeps.
 
 ## Role
 
@@ -57,7 +57,7 @@ the glyphs' atlas that `slime-ui-render` keeps.
 - Draws an interface's *canvas*, after the views, in a pass of its own: the items that a client adds
   to a `Canvas` each frame, in their order, from a storage buffer, with one pipeline and its shader,
   `canvas.wgsl` ([ADR-0137](../../docs/adr/0137-the-canvas.md)). The interface's framework,
-  `slime-ui`, knows no GPU: `slime-ui-render`, the bridge, turns its display list into a canvas.
+  `uwui`, knows no GPU: `uwui-render`, the bridge, turns its display list into a canvas.
 - Draws what it is given: a flat list of instances that the application builds for each frame.
   It has no scene graph; `slime-world-render` builds such lists from a world
   (`docs/adr/0084-what-the-world-draws.md`).

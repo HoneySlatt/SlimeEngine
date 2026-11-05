@@ -66,10 +66,10 @@ use slime_render::glam::DVec3;
 use slime_render::{
     Camera, Material, MaterialValues, RenderStats, Renderer, SceneLoad, ShaderSources, ShaderWatch,
 };
-use slime_ui::action::{Action, ActionKind, FieldValue, Intent};
-use slime_ui::style::Style;
-use slime_ui::tree::{Element, ElementId, Ui};
 use slime_world::World;
+use uwui::action::{Action, ActionKind, FieldValue, Intent};
+use uwui::style::Style;
+use uwui::tree::{Element, ElementId, Ui};
 
 use sample_scene::{BLOOM, EXPOSURE, SKY, SampleScene};
 

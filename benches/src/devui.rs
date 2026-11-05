@@ -5,12 +5,12 @@
 use std::hint::black_box;
 
 use slime_devui::WorldPanel;
-use slime_ui::look::{self, Colors, Density};
-use slime_ui::style::{FlexDirection, Style};
-use slime_ui::text::Fonts;
-use slime_ui::tree::{LayoutDirection, RootSettings, Ui};
 use slime_world::glam::DVec3;
 use slime_world::{Light, Name, Transform, World};
+use uwui::look::{self, Colors, Density};
+use uwui::style::{FlexDirection, Style};
+use uwui::text::Fonts;
+use uwui::tree::{LayoutDirection, RootSettings, Ui};
 
 use crate::measure::{Context, Row};
 use crate::ui::times;

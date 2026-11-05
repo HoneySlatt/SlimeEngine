@@ -407,7 +407,7 @@ spawning the zone cost, and, on a GPU, what building a frame of the zone's world
 ## Dependencies
 
 The engine's crates only: `slime-app`, `slime-gfx`, `slime-platform`, `slime-render`;
-`slime-devui` for the dev overlay and its world panel, engine tooling, and `slime-ui`, whose
+`slime-devui` for the dev overlay and its world panel, engine tooling, and `uwui`, whose
 elements its panel of statistics is built of, both with the `development` feature; `slime-assets`, which reads the cooked
 zone; `slime-color`, for the colors of its lights and skies; `slime-world`, its world, and
 `slime-world-render`, which draws it; `slime-reflect`, which describes its components, as every

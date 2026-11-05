@@ -144,7 +144,7 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   once it knows it (`docs/adr/0130-picking.md`), and `ui`, its interface, if it has one, which a
   tool reads, acts on and captures element by element
   (`docs/adr/0143-what-agents-see-of-the-interface.md`), which the presentation draws in `render`
-  itself (`slime-ui-render`), and to which the dev overlay adds its panels as roots
+  itself (`uwui-render`), and to which the dev overlay adds its panels as roots
   (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`); the run connects it to the window:
   each event goes to the interface first, and to `on_event` and the game's input only when the
   interface did not take it, but a key or a button let go, which always reaches the input; the
@@ -295,7 +295,7 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   it does not listen. The `slime-channel` crate holds the protocol and its limits;
   `tests/channel.rs` drives a headless run through it.
 - The `accessibility` feature: a windowed run gives screen readers its window's tree, the window's
-  node holding what the presentation's interface means (`slime_ui::tree::Ui::take_meaning_changes`),
+  node holding what the presentation's interface means (`uwui::tree::Ui::take_meaning_changes`),
   translated into AccessKit's tree, whole when a screen reader asks for it and what changed after
   each frame from then on, while one reads the window; it gives the interface what a screen reader
   asks, a click, the focus, a value or a selection set, a scroll, through its calls, as a person's
@@ -330,7 +330,7 @@ the name the graphics API gives it.
 - `slime-world`: the game's world, which it owns, and its commands.
 - `slime-reflect`: the settings and the reports of a presentation, described to the tools that
   read and change them; the world depends on it in every build.
-- `slime-ui`: the interface that a presentation gives, which the run connects to the window and
+- `uwui`: the interface that a presentation gives, which the run connects to the window and
   the development channel reads and acts on; it needs no window nor GPU.
 - `slime-channel` and `slime-serialize`, with the `development` feature only: the development
   channel, and the documents through which it reads and writes values as text.

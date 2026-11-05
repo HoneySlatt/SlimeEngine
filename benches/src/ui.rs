@@ -1,16 +1,16 @@
 //! The interface's text (`docs/adr/0136-the-interfaces-text.md`): labels and paragraphs laid out in
 //! several writing systems, lines broken again in another width, and glyphs rasterized, with the
-//! fonts of slime-ui's tests.
+//! fonts of uwui's tests.
 
 use std::hint::black_box;
 use std::time::Duration;
 
 use slime_color::LinearColor;
-use slime_ui::display::ImageKey;
-use slime_ui::style::{Dimension, Display, FlexDirection, Justify, Sides, Style, TextLook, Track};
-use slime_ui::text::{Fonts, GlyphKey, GlyphRasterizer, TextBounds, TextStyle};
-use slime_ui::theme::{StyleSheet, Theme};
-use slime_ui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
+use uwui::display::ImageKey;
+use uwui::style::{Dimension, Display, FlexDirection, Justify, Sides, Style, TextLook, Track};
+use uwui::text::{Fonts, GlyphKey, GlyphRasterizer, TextBounds, TextStyle};
+use uwui::theme::{StyleSheet, Theme};
+use uwui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
 
 use crate::measure::{Context, Row, ms, percentile, timed};
 
@@ -77,9 +77,9 @@ const SCRIPTS: &[Script] = &[
     },
 ];
 
-/// The fonts of slime-ui's tests.
+/// The fonts of uwui's tests.
 fn fonts() -> Result<Fonts, String> {
-    let directory = Context::root().join("crates/slime-ui/tests/fonts");
+    let directory = Context::root().join("crates/uwui/tests/fonts");
     let mut fonts = Fonts::new();
     for file in [
         "NotoSans.ttf",
@@ -108,10 +108,10 @@ fn style(script: &Script) -> TextStyle {
     }
 }
 
-/// The sentences of slime-ui's test text `name`, repeated until they hold [`PARAGRAPH`]
+/// The sentences of uwui's test text `name`, repeated until they hold [`PARAGRAPH`]
 /// characters: repeated words help any cache keyed by word, which parley has not.
 fn paragraph(script: &Script) -> Result<String, String> {
-    let path = Context::root().join(format!("crates/slime-ui/tests/texts/{}.txt", script.name));
+    let path = Context::root().join(format!("crates/uwui/tests/texts/{}.txt", script.name));
     let text =
         std::fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
     let sentences: Vec<&str> = text.lines().collect();
@@ -301,10 +301,10 @@ pub fn raster(_: &mut Context) -> Result<Vec<Row>, String> {
     Ok(rows)
 }
 
-/// A game's menu drawn from a display list through `slime-ui-render`
+/// A game's menu drawn from a display list through `uwui-render`
 /// (`docs/adr/0139-text-drawn-and-the-display-list.md`), at the tiers' sizes: the panels, slots, rows
 /// and buttons of `render.canvas`'s menu, without its icons, laid out for 1920 × 1080 and scaled to
-/// fit, and real texts, laid out with the fonts of slime-ui's tests at the screen's scale: a
+/// fit, and real texts, laid out with the fonts of uwui's tests at the screen's scale: a
 /// description of some 1 500 characters, 34 rows of statistics, 30 buttons' labels and 100 counts,
 /// some 2 400 glyphs. The first draw, which rasterizes its glyphs into the atlas, the renderer
 /// warmed before it; then the CPU of `UiRenderer::draw` once they are there, and the canvas's GPU
@@ -313,17 +313,17 @@ pub fn menu(context: &mut Context) -> Result<Vec<Row>, String> {
     use std::sync::Arc;
 
     use slime_render::Renderer;
-    use slime_ui::Rect;
-    use slime_ui::display::{BoxPrimitive, DisplayList, ShadowPrimitive, TextPrimitive};
-    use slime_ui::text::{TEXT_CACHE_BUDGET, TextCache};
-    use slime_ui_render::{GLYPH_ATLAS_BUDGET, UiRenderer};
+    use uwui::Rect;
+    use uwui::display::{BoxPrimitive, DisplayList, ShadowPrimitive, TextPrimitive};
+    use uwui::text::{TEXT_CACHE_BUDGET, TextCache};
+    use uwui_render::{GLYPH_ATLAS_BUDGET, UiRenderer};
 
     use crate::render::{FORMAT, TIERS, canvas_frames};
 
     let gpu = &context.gpu;
     let error = |error: slime_render::RenderError| error.to_string();
     let mut fonts = fonts()?;
-    let path = Context::root().join("crates/slime-ui/tests/texts/english.txt");
+    let path = Context::root().join("crates/uwui/tests/texts/english.txt");
     let english =
         std::fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
     let words: Vec<&str> = english.split_whitespace().collect();
@@ -522,9 +522,9 @@ pub fn menu(context: &mut Context) -> Result<Vec<Row>, String> {
     Ok(rows)
 }
 
-/// The Latin font of slime-ui's tests alone.
+/// The Latin font of uwui's tests alone.
 fn latin() -> Result<Fonts, String> {
-    let path = Context::root().join("crates/slime-ui/tests/fonts/NotoSans.ttf");
+    let path = Context::root().join("crates/uwui/tests/fonts/NotoSans.ttf");
     let bytes = std::fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
     let mut fonts = Fonts::new();
     fonts

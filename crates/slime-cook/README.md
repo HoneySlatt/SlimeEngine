@@ -49,7 +49,7 @@ one of its files changes, for games that load their data again while they run
   place each other; warns of a path that a table gives where the source is not; writes their
   binary encoding, which needs the assets of their table.
 - Cooks the interface's style sheets, themes and tables of shortcuts into their binary encoding,
-  refusing by file and line a document that is not TOML; `slime-ui` checks their types when it
+  refusing by file and line a document that is not TOML; `uwui` checks their types when it
   reads them.
 - Names each cooked file by the hash of all that made it, so that what is already cooked, and
   reads back whole, is not cooked again, and the same sources cook into the same bytes on one

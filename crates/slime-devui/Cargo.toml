@@ -21,8 +21,8 @@ slime-platform.workspace = true
 # The panels on the engine's interface, in the editor's look (ADR-0152), drawn with the canvas of the
 # view's renderer, whose statistics they show.
 slime-render.workspace = true
-slime-ui = { workspace = true, features = ["editor-look"] }
-slime-ui-render.workspace = true
+uwui = { workspace = true, features = ["editor-look"] }
+uwui-render.workspace = true
 # The world panel lists a world's entities and edits their components through reflection.
 slime-reflect.workspace = true
 slime-world.workspace = true

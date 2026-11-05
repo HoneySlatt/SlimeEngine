@@ -4,7 +4,7 @@
 //!
 //! The interface gives what changed in its meaning in the engine's own types
 //! ([`Ui::take_meaning_changes`]); this module alone translates them into AccessKit's tree, whose
-//! types stay out of `slime-ui`.
+//! types stay out of `uwui`.
 
 use accesskit::{
     Action as AccessAction, ActionData, ActionRequest, HasPopup, Live, Node, NodeId,
@@ -12,9 +12,9 @@ use accesskit::{
     Toggled, TreeId, TreeInfo, TreeUpdate,
 };
 use slime_platform::{Accessibility, PhysicalSize, Window};
-use slime_ui::Rect;
-use slime_ui::action::{Action, ActionKind};
-use slime_ui::tree::{
+use uwui::Rect;
+use uwui::action::{Action, ActionKind};
+use uwui::tree::{
     ElementAction, ElementId, FieldText, LayoutDirection, MeaningChanges, MeaningNode, Role, Ui,
 };
 
@@ -298,7 +298,7 @@ fn run_nodes(text: &FieldText, nodes: &mut Vec<(NodeId, Node)>) {
             TextDirection::LeftToRight
         });
         // A character's length, and a word's start among a run's characters, fit in a byte
-        // (`slime_ui::tree::RUN_CHARACTERS`).
+        // (`uwui::tree::RUN_CHARACTERS`).
         node.set_character_lengths(
             run.characters
                 .iter()
@@ -527,18 +527,18 @@ fn scroll_by(ui: &mut Ui, id: ElementId, action: AccessAction, page: bool) {
 mod tests {
     use accesskit_consumer::Tree;
     use slime_color::LinearColor;
-    use slime_ui::action::FieldValue;
-    use slime_ui::style::{Dimension, FlexDirection, Style};
-    use slime_ui::text::Fonts;
-    use slime_ui::tree::{Element, ItemMark, RootSettings};
+    use uwui::action::FieldValue;
+    use uwui::style::{Dimension, FlexDirection, Style};
+    use uwui::text::Fonts;
+    use uwui::tree::{Element, ItemMark, RootSettings};
 
     use super::*;
 
-    /// An interface of no element, whose texts are laid out in the font of slime-ui's tests, and
+    /// An interface of no element, whose texts are laid out in the font of uwui's tests, and
     /// its root, of 400 by 300 logical pixels at scale 1.
     fn empty() -> (Ui, ElementId) {
         let path = format!(
-            "{}/../slime-ui/tests/fonts/NotoSans.ttf",
+            "{}/../uwui/tests/fonts/NotoSans.ttf",
             env!("CARGO_MANIFEST_DIR")
         );
         let mut fonts = Fonts::new();
@@ -871,7 +871,7 @@ mod tests {
     #[test]
     fn a_selection_spans_lines_and_scrolls_follow_the_direction_of_their_root() {
         let path = format!(
-            "{}/../slime-ui/tests/fonts/NotoSans.ttf",
+            "{}/../uwui/tests/fonts/NotoSans.ttf",
             env!("CARGO_MANIFEST_DIR")
         );
         let mut fonts = Fonts::new();
@@ -1351,12 +1351,12 @@ mod tests {
     #[test]
     fn notifications_are_read_as_they_come_a_warning_at_once() {
         let (mut ui, _) = empty();
-        ui.notify(slime_ui::tree::Notification {
+        ui.notify(uwui::tree::Notification {
             text: "Saved".to_owned(),
             ..Default::default()
         });
-        ui.notify(slime_ui::tree::Notification {
-            kind: slime_ui::tree::NotificationKind::Warning,
+        ui.notify(uwui::tree::Notification {
+            kind: uwui::tree::NotificationKind::Warning,
             text: "A texture is missing".to_owned(),
             ..Default::default()
         });

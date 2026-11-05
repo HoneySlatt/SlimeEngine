@@ -8,7 +8,7 @@ use std::path::Path;
 
 use slime_reflect::Reflect;
 use slime_serialize::Mode;
-use slime_ui::dock::{Edge, Layout, Target};
+use uwui::dock::{Edge, Layout, Target};
 
 use crate::shared::Notice;
 
@@ -270,7 +270,7 @@ mod tests {
     #[test]
     fn a_project_s_default_shows_in_place_of_the_editor_s_and_one_unread_is_told() {
         // A project's default that lacks a panel and names one unknown: fitted.
-        let mut layout = Layout::new(slime_ui::dock::Node::tabs(&["viewport", "map"]));
+        let mut layout = Layout::new(uwui::dock::Node::tabs(&["viewport", "map"]));
         layout.fit(&["viewport"]);
         let text = slime_serialize::write_as(&LayoutFile {
             default: "hunnawood 2".to_owned(),

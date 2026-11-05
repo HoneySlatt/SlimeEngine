@@ -5,12 +5,12 @@
 use slime_color::LinearColor;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use slime_reflect::{Path, Reflect, Value};
-use slime_ui::look::{self, Colors, Density};
-use slime_ui::style::{FlexDirection, Style};
-use slime_ui::text::Fonts;
-use slime_ui::tree::{Element, ElementId, LayoutDirection, Meaning, Role, RootSettings, Ui};
 use slime_world::glam::{DVec3, Quat, Vec3};
 use slime_world::{Command, Entity, Light, Name, World};
+use uwui::look::{self, Colors, Density};
+use uwui::style::{FlexDirection, Style};
+use uwui::text::Fonts;
+use uwui::tree::{Element, ElementId, LayoutDirection, Meaning, Role, RootSettings, Ui};
 
 use crate::reflected::tests::world;
 use crate::reflected::{angles, rotation};

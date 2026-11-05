@@ -1,19 +1,19 @@
 //! An interface drawn by the engine over a window or into a PNG file: a tree of elements
-//! (`slime_ui::tree::Ui`), laid out by flexbox and grid (`docs/adr/0140-the-tree-of-elements.md`)
+//! (`uwui::tree::Ui`), laid out by flexbox and grid (`docs/adr/0140-the-tree-of-elements.md`)
 //! and styled by a style sheet and a theme (`docs/adr/0141-style-sheets-and-themes.md`,
 //! `Ui::set_style`), gives the display list (`docs/adr/0139-text-drawn-and-the-display-list.md`)
-//! that `slime-ui-render` draws through the renderer's canvas (`docs/adr/0137-the-canvas.md`,
+//! that `uwui-render` draws through the renderer's canvas (`docs/adr/0137-the-canvas.md`,
 //! `UiRenderer::draw`): panels
 //! with rounded corners, borders and shadows; a list of 100 000 rows that scrolls with time, of
 //! which only those that show are built, cut by its panel; buttons with their labels; a sentence of
-//! each writing system of slime-ui's tests, English, Arabic and Hebrew from right to left, Hindi,
+//! each writing system of uwui's tests, English, Arabic and Hebrew from right to left, Hindi,
 //! Thai, Japanese, Chinese and emoji, its glyphs kept in the bridge's atlas; images of colors, and
 //! images of coverage drawn in a color; and, in a panel, the shapes of the image tests
 //! (`common/shapes.rs`), which the renderer draws into a target of its own each frame at the size
 //! of its element, the panel showing that target as an image that the display list names by a key,
 //! as the editor's viewport does, a translucent card over it in the same cell of a grid. Colors mix
-//! as sRGB values, as design tools mix them. The fonts are those of slime-ui's tests, parts of Noto
-//! fonts that hold the characters of its texts alone (`crates/slime-ui/tests/fonts/README.md`),
+//! as sRGB values, as design tools mix them. The fonts are those of uwui's tests, parts of Noto
+//! fonts that hold the characters of its texts alone (`crates/uwui/tests/fonts/README.md`),
 //! built into the program.
 //!
 //! It is used with the pointer and the keyboard (`docs/adr/0142-input-and-focus.md`): the buttons
@@ -86,16 +86,16 @@ use slime_gfx::{Gpu, RenderTarget, Texture, TextureFormat};
 use slime_platform::WindowConfig;
 use slime_reflect::{Reflect, Value};
 use slime_render::{CanvasImage, RenderError};
-use slime_ui::Rect;
-use slime_ui::action::{ActionKind, FieldValue, Intent};
-use slime_ui::display::{ImageKey, ImageKind};
-use slime_ui::shortcuts::Shortcuts;
-use slime_ui::style::{Align, Dimension, Display, FlexDirection, Justify, Sides, Style, Track};
-use slime_ui::text::Fonts;
-use slime_ui::theme::{StyleSheet, Theme};
-use slime_ui::tree::{Children, Element, ElementId, Kind, LayoutDirection, Role, RootSettings, Ui};
-use slime_ui_render::UiRenderer;
 use slime_world::{Command, Component, PersistentId, World};
+use uwui::Rect;
+use uwui::action::{ActionKind, FieldValue, Intent};
+use uwui::display::{ImageKey, ImageKind};
+use uwui::shortcuts::Shortcuts;
+use uwui::style::{Align, Dimension, Display, FlexDirection, Justify, Sides, Style, Track};
+use uwui::text::Fonts;
+use uwui::theme::{StyleSheet, Theme};
+use uwui::tree::{Children, Element, ElementId, Kind, LayoutDirection, Role, RootSettings, Ui};
+use uwui_render::UiRenderer;
 
 use shapes::Shapes;
 
@@ -120,57 +120,57 @@ const DARK: AssetId = AssetId::from_u128(0x4d72297f_3eb0_4a03_87d3_3f75543e0662)
 const LIGHT: AssetId = AssetId::from_u128(0xb882b333_a611_4f74_adc7_d0a845e5cdf1);
 const KEYS: AssetId = AssetId::from_u128(0x54f39057_371c_4c06_b5d1_c20fbeaf2a46);
 
-/// The fonts of slime-ui's tests, built into the program so that it runs anywhere.
+/// The fonts of uwui's tests, built into the program so that it runs anywhere.
 const FONTS: &[&[u8]] = &[
-    include_bytes!("../crates/slime-ui/tests/fonts/NotoSans.ttf"),
-    include_bytes!("../crates/slime-ui/tests/fonts/NotoSansArabic.ttf"),
-    include_bytes!("../crates/slime-ui/tests/fonts/NotoSansHebrew.ttf"),
-    include_bytes!("../crates/slime-ui/tests/fonts/NotoSansDevanagari.ttf"),
-    include_bytes!("../crates/slime-ui/tests/fonts/NotoSansThai.ttf"),
-    include_bytes!("../crates/slime-ui/tests/fonts/NotoSansCJKjp.otf"),
-    include_bytes!("../crates/slime-ui/tests/fonts/NotoSansCJKsc.otf"),
-    include_bytes!("../crates/slime-ui/tests/fonts/NotoColorEmoji.ttf"),
+    include_bytes!("../crates/uwui/tests/fonts/NotoSans.ttf"),
+    include_bytes!("../crates/uwui/tests/fonts/NotoSansArabic.ttf"),
+    include_bytes!("../crates/uwui/tests/fonts/NotoSansHebrew.ttf"),
+    include_bytes!("../crates/uwui/tests/fonts/NotoSansDevanagari.ttf"),
+    include_bytes!("../crates/uwui/tests/fonts/NotoSansThai.ttf"),
+    include_bytes!("../crates/uwui/tests/fonts/NotoSansCJKjp.otf"),
+    include_bytes!("../crates/uwui/tests/fonts/NotoSansCJKsc.otf"),
+    include_bytes!("../crates/uwui/tests/fonts/NotoColorEmoji.ttf"),
 ];
 
 /// Each writing system: the first sentence of its test text, its stack and its language.
 const SCRIPTS: &[(&str, [&str; 2], &str)] = &[
     (
-        include_str!("../crates/slime-ui/tests/texts/english.txt"),
+        include_str!("../crates/uwui/tests/texts/english.txt"),
         ["Noto Sans", "Noto Sans"],
         "en",
     ),
     (
-        include_str!("../crates/slime-ui/tests/texts/arabic.txt"),
+        include_str!("../crates/uwui/tests/texts/arabic.txt"),
         ["Noto Sans Arabic", "Noto Sans"],
         "ar",
     ),
     (
-        include_str!("../crates/slime-ui/tests/texts/hebrew.txt"),
+        include_str!("../crates/uwui/tests/texts/hebrew.txt"),
         ["Noto Sans Hebrew", "Noto Sans"],
         "he",
     ),
     (
-        include_str!("../crates/slime-ui/tests/texts/hindi.txt"),
+        include_str!("../crates/uwui/tests/texts/hindi.txt"),
         ["Noto Sans Devanagari", "Noto Sans"],
         "hi",
     ),
     (
-        include_str!("../crates/slime-ui/tests/texts/thai.txt"),
+        include_str!("../crates/uwui/tests/texts/thai.txt"),
         ["Noto Sans Thai", "Noto Sans"],
         "th",
     ),
     (
-        include_str!("../crates/slime-ui/tests/texts/japanese.txt"),
+        include_str!("../crates/uwui/tests/texts/japanese.txt"),
         ["Noto Sans CJK JP", "Noto Sans"],
         "ja",
     ),
     (
-        include_str!("../crates/slime-ui/tests/texts/chinese.txt"),
+        include_str!("../crates/uwui/tests/texts/chinese.txt"),
         ["Noto Sans CJK SC", "Noto Sans"],
         "zh-CN",
     ),
     (
-        include_str!("../crates/slime-ui/tests/texts/emoji.txt"),
+        include_str!("../crates/uwui/tests/texts/emoji.txt"),
         ["Noto Sans", "Noto Color Emoji"],
         "en",
     ),

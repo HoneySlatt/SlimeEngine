@@ -72,7 +72,7 @@ pub trait References {
     /// within its field's range too; or why the text stands for none, which fails the reading there,
     /// placed at the text. In a part of a value, an option's field is read as an option, so that
     /// `ty` names the option's type. The interface's style sheets name their themes' values so
-    /// (`slime-ui`).
+    /// (`uwui`).
     fn value(&self, ty: &str, text: &str) -> Option<Result<Value, String>> {
         let _ = (ty, text);
         None

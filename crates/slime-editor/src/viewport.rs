@@ -20,11 +20,11 @@ use slime_render::{
     MeshData, Outline, Pick, RenderError, RenderStats, Renderer, SampledTexture, Scene, UnlitData,
     View, ViewDraw, ViewSettings, facing,
 };
-use slime_ui::display::ImageKey;
-use slime_ui::look;
-use slime_ui::text::{Fonts, GlyphPixels, GlyphRasterizer, TextBounds, TextStyle};
 use slime_world::{Entity, Meshes, Tick, Transform, World};
 use slime_world_render::{FrameBuilder, Picker};
+use uwui::display::ImageKey;
+use uwui::look;
+use uwui::text::{Fonts, GlyphPixels, GlyphRasterizer, TextBounds, TextStyle};
 
 use crate::handles::{self, Gizmo, Part, Tool};
 use crate::program::Lighting;

@@ -22,20 +22,20 @@ use slime_gfx::{Gpu, Image, RenderPassDescriptor, RenderTarget, TextureFormat};
 use slime_platform::{ColorScheme, DialogId, Event, FileChoice};
 use slime_render::glam::{DVec3, Vec2};
 use slime_render::{CanvasImage, DebugMode, Pick, RenderError, Renderer};
-use slime_ui::Rect;
-use slime_ui::action::{Action, ActionKind, FieldValue, SurfaceInput};
-use slime_ui::display::{BoxPrimitive, DisplayList, ImageKey};
-use slime_ui::dock::{Dock, Target};
-use slime_ui::look::{self, Colors, Density};
-use slime_ui::shortcuts::Shortcuts;
-use slime_ui::style::{Dimension, FlexDirection, Justify, Sides, Style};
-use slime_ui::text::Fonts;
-use slime_ui::tree::{
+use slime_world::{Entity, Tick, World};
+use uwui::Rect;
+use uwui::action::{Action, ActionKind, FieldValue, SurfaceInput};
+use uwui::display::{BoxPrimitive, DisplayList, ImageKey};
+use uwui::dock::{Dock, Target};
+use uwui::look::{self, Colors, Density};
+use uwui::shortcuts::Shortcuts;
+use uwui::style::{Dimension, FlexDirection, Justify, Sides, Style};
+use uwui::text::Fonts;
+use uwui::tree::{
     Along, Element, ElementId, ItemMark, Key, Layer, LayoutDirection, Notification,
     NotificationKind, PaletteCommand, Place, Role, RootSettings, Side, Ui,
 };
-use slime_ui_render::UiRenderer;
-use slime_world::{Entity, Tick, World};
+use uwui_render::UiRenderer;
 
 use crate::handles::{Drag, Gizmo, Space, Tool};
 use crate::hierarchy::Hierarchy;
@@ -555,7 +555,7 @@ impl Model {
     }
 
     /// The box of the surface of the viewport of `pane`, in pixels of the screen, once laid out.
-    pub(crate) fn viewport_rect(&self, pane: usize) -> Option<slime_ui::Rect> {
+    pub(crate) fn viewport_rect(&self, pane: usize) -> Option<uwui::Rect> {
         self.ui.rect(self.panes.get(pane)?.surface?)
     }
 
@@ -1779,7 +1779,7 @@ impl Model {
 /// once it failed (`docs/adr/0166-building-the-game-again.md`). Gives its buttons, each with the
 /// operation that it runs, and its control of speeds.
 fn play_toolbar(
-    center: &mut slime_ui::tree::Children<'_>,
+    center: &mut uwui::tree::Children<'_>,
     playing: Playing,
     mark: BuildMark,
 ) -> (Vec<(ElementId, &'static str)>, Option<ElementId>) {
@@ -2688,9 +2688,9 @@ mod tests {
     use slime_app::Simulation;
     use slime_platform::{ButtonState, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey};
     use slime_reflect::Reflect;
-    use slime_ui::display::Primitive;
-    use slime_ui::text::{TextBounds, TextStyle};
     use slime_world::{Command, PersistentId};
+    use uwui::display::Primitive;
+    use uwui::text::{TextBounds, TextStyle};
 
     use super::*;
     use crate::operation::Changes;
@@ -3304,7 +3304,7 @@ mod tests {
     #[derive(Clone, Default)]
     struct Board(std::sync::Arc<std::sync::Mutex<Option<String>>>);
 
-    impl slime_ui::tree::Clipboard for Board {
+    impl uwui::tree::Clipboard for Board {
         fn text(&mut self) -> Option<String> {
             self.0.lock().expect("not poisoned").clone()
         }
@@ -3986,7 +3986,7 @@ mod tests {
     /// typing paused, and renames in place (`docs/adr/0167-the-hierarchy.md`).
     #[test]
     fn the_hierarchy_folds_selects_shows_searches_and_renames() {
-        use slime_ui::tree::Role;
+        use uwui::tree::Role;
         let mut yard = Yard::new("hierarchy tree");
         yard.session
             .handle(
@@ -4142,7 +4142,7 @@ mod tests {
     /// of the other shows its own rows (`docs/adr/0167-the-hierarchy.md`).
     #[test]
     fn the_hierarchy_takes_its_keys_lets_the_others_through_and_follows_a_level_opened() {
-        use slime_ui::tree::Role;
+        use uwui::tree::Role;
         let mut yard = Yard::new("hierarchy keys");
         yard.session
             .handle(
@@ -4270,7 +4270,7 @@ mod tests {
     /// following its row (`docs/adr/0168-rearranging-the-hierarchy.md`).
     #[test]
     fn the_hierarchy_rearranges_by_drags_and_keys() {
-        use slime_ui::tree::{Key as Part, Role};
+        use uwui::tree::{Key as Part, Role};
         let mut yard = Yard::new("hierarchy drags");
         yard.session
             .handle(
@@ -4421,7 +4421,7 @@ mod tests {
     /// none; another level opened forgets them (`docs/adr/0169-the-eye-and-the-lock.md`).
     #[test]
     fn the_eye_and_the_lock_of_a_row_leave_out_of_the_pickings_what_they_cover() {
-        use slime_ui::tree::Role;
+        use uwui::tree::Role;
         let mut yard = Yard::new("eyes");
         yard.session
             .handle(
@@ -4556,7 +4556,7 @@ mod tests {
     /// panel or an edge that is no such refused (`docs/adr/0172-regions-of-tabs.md`).
     #[test]
     fn the_panels_lie_in_regions_of_tabs_that_the_user_rearranges() {
-        use slime_ui::tree::Role;
+        use uwui::tree::Role;
         let mut yard = Yard::new("regions");
         let found = |yard: &Yard, role: Role, name: &str| {
             yard.model
@@ -4685,7 +4685,7 @@ mod tests {
     /// *Reset layout* (`docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`).
     #[test]
     fn the_layout_is_kept_and_its_panels_float_close_and_come_back() {
-        use slime_ui::tree::Role;
+        use uwui::tree::Role;
         let mut yard = Yard::new("layout");
         let file = yard.directory.join("state").join("editor.layout");
         yard.shared.borrow_mut().layout = Some(file.clone());
@@ -4847,7 +4847,7 @@ mod tests {
         assert!(
             project
                 .layout
-                .move_panel("history", &Target::Edge(slime_ui::dock::Edge::Left))
+                .move_panel("history", &Target::Edge(uwui::dock::Edge::Left))
         );
         project.default = "garden 1".to_owned();
         let text: &'static str = Box::leak(
@@ -5379,7 +5379,7 @@ mod tests {
         let said = yard.waiting("said").expect("what the layer says");
         assert!(
             matches!(&yard.model.ui.element(said).expect("a label").kind,
-                slime_ui::tree::Kind::Label(text) if text == TYPE_THE_PATH)
+                uwui::tree::Kind::Label(text) if text == TYPE_THE_PATH)
         );
         let field = yard.waiting("path").expect("the field");
         let garden = yard.directory.join("garden.scene");
@@ -5405,7 +5405,7 @@ mod tests {
         let said = yard.waiting("said").expect("what the layer says");
         assert!(
             matches!(&yard.model.ui.element(said).expect("a label").kind,
-                slime_ui::tree::Kind::Label(text) if text == NO_DIALOG_SHOWED)
+                uwui::tree::Kind::Label(text) if text == NO_DIALOG_SHOWED)
         );
         let field = yard.waiting("path").expect("the field");
         assert_eq!(yard.model.ui.focus(), Some(field));

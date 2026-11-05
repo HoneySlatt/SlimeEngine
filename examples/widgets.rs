@@ -3,8 +3,8 @@
 //! panels side by side and the handle between them, a list of entities and a box of properties,
 //! both with their scroll bars, sections that fold, sliders and check boxes, and, in the console's
 //! tab, two panels one above the other. Their text is in Geist, and in Geist Mono where it is fixed
-//! in width, and their icons are Lucide's, which `slime-ui`'s feature `editor-look` builds in with
-//! the look's style sheet and themes (`slime_ui::look`): the example needs no cooked data. Its
+//! in width, and their icons are Lucide's, which `uwui`'s feature `editor-look` builds in with
+//! the look's style sheet and themes (`uwui::look`): the example needs no cooked data. Its
 //! interface is built in `common/widgets_panel.rs`, whose comment says in full what each tab, menu
 //! and widget holds; the program keeps the values of the sliders and the check boxes and gives them
 //! back at each build.
@@ -72,10 +72,10 @@ use slime_app::{AppConfig, AppError, Context, Presentation};
 use slime_gfx::{Gpu, RenderTarget, TextureFormat};
 use slime_platform::{ColorScheme, Event, WindowConfig};
 use slime_render::{RenderError, Renderer};
-use slime_ui::look::{Colors, Density};
-use slime_ui::tree::{LayoutDirection, Ui};
-use slime_ui_render::UiRenderer;
 use slime_world::World;
+use uwui::look::{Colors, Density};
+use uwui::tree::{LayoutDirection, Ui};
+use uwui_render::UiRenderer;
 
 use widgets_panel::WidgetsPanel;
 

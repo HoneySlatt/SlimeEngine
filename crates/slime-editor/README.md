@@ -65,7 +65,7 @@ editor's other panels come with Stage 6c's next milestones.
   `file.open` with the file chosen; started by a tool, it opens no dialog, and the layer waits for
   the path (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`). It keeps the levels
   opened last in the user's state directory for the File menu, and tells one hint at its first run.
-  Its panels lie in regions of tabs that `slime-ui`'s dock builds: a border between two regions
+  Its panels lie in regions of tabs that `uwui`'s dock builds: a border between two regions
   dragged moves the two beside it, a tab chosen shows its panel, and a tab's context menu moves its
   panel into another region, to an edge of the window or afloat, as `view.move_panel` does by its
   name, or closes it; F6 goes from one region to the next (`docs/adr/0172-regions-of-tabs.md`). A
@@ -135,7 +135,7 @@ editor's other panels come with Stage 6c's next milestones.
 whose metadata files give a level's asset ID, and which writes files whole or not at all;
 `slime-app`, with its `development` feature, on which its program runs, `slime-channel`, whose
 requests it answers, and `slime-assets`, the cooked data of the prefabs that a level places; for its
-window, `slime-ui`, with the editor's look, `slime-ui-render` and `slime-render`, which draw it,
+window, `uwui`, with the editor's look, `uwui-render` and `slime-render`, which draw it,
 `slime-world-render`, what the viewport draws of the world, `slime-gfx` and `slime-color`, the GPU
 and the color an image starts from, `slime-platform`, the window's events, and `slime-devui`, whose
 world panel the window shows; `serde_json`, which reads cargo's messages as Play builds the game;

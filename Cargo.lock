@@ -1287,10 +1287,10 @@ dependencies = [
  "slime-reflect",
  "slime-render",
  "slime-serialize",
- "slime-ui",
  "slime-world",
  "slime-world-render",
  "tracing",
+ "uwui",
 ]
 
 [[package]]
@@ -2965,11 +2965,11 @@ dependencies = [
  "slime-platform",
  "slime-reflect",
  "slime-serialize",
- "slime-ui",
  "slime-world",
  "thiserror 2.0.21",
  "tracing",
  "tracing-subscriber",
+ "uwui",
 ]
 
 [[package]]
@@ -2994,10 +2994,10 @@ dependencies = [
  "slime-editor",
  "slime-gfx",
  "slime-render",
- "slime-ui",
- "slime-ui-render",
  "slime-world",
  "slime-world-render",
+ "uwui",
+ "uwui-render",
 ]
 
 [[package]]
@@ -3051,9 +3051,9 @@ dependencies = [
  "slime-platform",
  "slime-reflect",
  "slime-render",
- "slime-ui",
- "slime-ui-render",
  "slime-world",
+ "uwui",
+ "uwui-render",
 ]
 
 [[package]]
@@ -3072,12 +3072,12 @@ dependencies = [
  "slime-reflect",
  "slime-render",
  "slime-serialize",
- "slime-ui",
- "slime-ui-render",
  "slime-world",
  "slime-world-render",
  "thiserror 2.0.21",
  "tracing",
+ "uwui",
+ "uwui-render",
 ]
 
 [[package]]
@@ -3096,11 +3096,11 @@ dependencies = [
  "slime-platform",
  "slime-reflect",
  "slime-render",
- "slime-ui",
- "slime-ui-render",
  "slime-world",
  "slime-world-render",
  "tracing",
+ "uwui",
+ "uwui-render",
 ]
 
 [[package]]
@@ -3192,35 +3192,6 @@ dependencies = [
 [[package]]
 name = "slime-tasks"
 version = "0.6.0"
-
-[[package]]
-name = "slime-ui"
-version = "0.6.0"
-dependencies = [
- "fontique",
- "icu_properties",
- "parley",
- "slime-color",
- "slime-input",
- "slime-reflect",
- "slime-serialize",
- "swash",
- "taffy",
- "thiserror 2.0.21",
- "tracing",
-]
-
-[[package]]
-name = "slime-ui-render"
-version = "0.6.0"
-dependencies = [
- "etagere",
- "slime-color",
- "slime-gfx",
- "slime-render",
- "slime-ui",
- "tracing",
-]
 
 [[package]]
 name = "slime-world"
@@ -3679,6 +3650,35 @@ dependencies = [
  "js-sys",
  "serde_core",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "uwui"
+version = "0.6.0"
+dependencies = [
+ "fontique",
+ "icu_properties",
+ "parley",
+ "slime-color",
+ "slime-input",
+ "slime-reflect",
+ "slime-serialize",
+ "swash",
+ "taffy",
+ "thiserror 2.0.21",
+ "tracing",
+]
+
+[[package]]
+name = "uwui-render"
+version = "0.6.0"
+dependencies = [
+ "etagere",
+ "slime-color",
+ "slime-gfx",
+ "slime-render",
+ "tracing",
+ "uwui",
 ]
 
 [[package]]

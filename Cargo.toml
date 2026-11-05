@@ -109,7 +109,7 @@ accesskit_winit = { version = "0.34.2", default-features = false, features = ["a
 accesskit_consumer = "0.39.2"
 # The asset pipeline's cooker only: decodes JPEG images (ADR-0069).
 zune-jpeg = "0.5.15"
-# The text of the engine's interface, in slime-ui (ADR-0132, ADR-0136): parley shapes, orders, breaks
+# The text of the engine's interface, in uwui (ADR-0132, ADR-0136): parley shapes, orders, breaks
 # and lays out text, through HarfRust, Skrifa and ICU4X, with the dictionaries that break the lines
 # of the scripts that put no space between their words (`complex-scripts`); fontique, parley's,
 # finds fonts, the system's through fontconfig loaded at run time rather than linked
@@ -117,15 +117,15 @@ zune-jpeg = "0.5.15"
 fontique = { version = "0.12.0", features = ["fontconfig-dlopen"] }
 parley = { version = "0.12.0", features = ["complex-scripts"] }
 swash = "0.2.10"
-# slime-ui's text only: the Unicode writing system of each character, by which the system's font
+# uwui's text only: the Unicode writing system of each character, by which the system's font
 # found for a writing system is named for its characters (ADR-0136). Already built for parley, with
 # its data.
 icu_properties = "2.4.0"
-# The glyphs' atlas of slime-ui-render (ADR-0132, ADR-0139): places each glyph's image in an atlas
+# The glyphs' atlas of uwui-render (ADR-0132, ADR-0139): places each glyph's image in an atlas
 # page by shelves, and frees it alone, as the least recently used glyphs leave. Brings euclid, its
 # sizes and rectangles.
 etagere = "0.3.0"
-# The layout of slime-ui's tree of elements (ADR-0132): CSS's flexbox and grid, run through taffy's
+# The layout of uwui's tree of elements (ADR-0132): CSS's flexbox and grid, run through taffy's
 # traits on the framework's own arena, without taffy's tree of its own (`taffy_tree`) nor its
 # parser of CSS.
 taffy = { version = "0.15.0", default-features = false, features = ["std", "flexbox", "grid", "content_size"] }
@@ -145,11 +145,11 @@ slime-reflect = { path = "crates/slime-reflect" }
 slime-reflect-derive = { path = "crates/slime-reflect-derive" }
 slime-serialize = { path = "crates/slime-serialize" }
 slime-tasks = { path = "crates/slime-tasks" }
-slime-ui = { path = "crates/slime-ui" }
-slime-ui-render = { path = "crates/slime-ui-render" }
 slime-render = { path = "crates/slime-render" }
 slime-world = { path = "crates/slime-world" }
 slime-world-render = { path = "crates/slime-world-render" }
+uwui = { path = "crates/uwui" }
+uwui-render = { path = "crates/uwui-render" }
 # The sample game's library, which its editor package links (ADR-0110).
 hunnawood = { path = "games/hunnawood" }
 

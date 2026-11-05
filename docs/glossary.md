@@ -4,7 +4,7 @@ Terms that this project defines, or uses with a narrower meaning than usual. Sta
 game-development vocabulary is not repeated here. Entries are in alphabetical order.
 
 **Action (interface).** What a person or an agent does to an interface: a button pressed, an
-*intent* of navigation, or the command of a *shortcut* (`slime_ui::action::Action`). A person's
+*intent* of navigation, or the command of a *shortcut* (`uwui::action::Action`). A person's
 input becomes actions; an agent sends them; the program reads them from a queue and does what they
 ask ([ADR-0142](adr/0142-input-and-focus.md)).
 
@@ -186,7 +186,7 @@ never splits: a letter and its marks, a conjunct of Devanagari, a ligature, an e
 
 **Color well.** A widget of the engine's interface that shows a color, and opens, as it is pressed,
 a *picker* below it: a square of saturation and value, strips of hue and alpha, the color's channels
-and its hexadecimal code (`slime_ui::tree::Kind::ColorWell`,
+and its hexadecimal code (`uwui::tree::Kind::ColorWell`,
 [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)).
 
 **Command.** A change of the world asked for outside the *phases* of a frame that may make it, by
@@ -280,7 +280,7 @@ go on with a new device, for which it creates its objects again
 
 **Display list.** What an interface of the engine's UI framework draws in a frame, as data that the
 framework owns and hands over: boxes, shadows, texts laid out and parts of images, each with its
-clip (`slime_ui::display::DisplayList`). `slime-ui-render` turns it into the renderer's *canvas*,
+clip (`uwui::display::DisplayList`). `uwui-render` turns it into the renderer's *canvas*,
 its texts' glyphs read from the *glyph atlas* ([ADR-0132](adr/0132-the-engines-ui-framework.md),
 [ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
 
@@ -293,7 +293,7 @@ one step apart. The renderer dithers 8-bit outputs by up to one step
 children, each with its share of the space, *stacks of tabs*, and panels that float over the
 window; a panel closed keeps its place, hidden, to come back there. The arrangement, the panels'
 layout, is reflected data kept per user and per project in a *layout file*, outside the repository
-([ADR-0155](adr/0155-the-editors-design.md)). `slime-ui`'s dock builds it, and the editor's panels
+([ADR-0155](adr/0155-the-editors-design.md)). `uwui`'s dock builds it, and the editor's panels
 lie in its regions, which the user resizes and rearranges
 ([ADR-0172](adr/0172-regions-of-tabs.md),
 [ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)).
@@ -353,7 +353,7 @@ editor package calls it with the game's types, the `editor` example with the eng
 
 **Element (interface).** A part of an interface of the engine's UI framework, in its tree: a box, a
 label, an image, a button, a box that scrolls or a list, with its typed style
-(`slime_ui::tree::Element`). It lasts from one frame to the next, named among its siblings by its
+(`uwui::tree::Element`). It lasts from one frame to the next, named among its siblings by its
 *key* ([ADR-0140](adr/0140-the-tree-of-elements.md)).
 
 **Emission.** The light a surface gives off, added to the light it reflects: glTF's emissive
@@ -505,7 +505,7 @@ hierarchy, as a JSON file with binary buffers, or as one GLB file with everythin
 cooker, `slime-cook`, imports both ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
 **Glyph atlas.** Textures that hold each *glyph*'s image once, for every text that draws it, in
-pages of coverage for letters and of colors for emoji (`slime_ui_render::UiRenderer`): a glyph is
+pages of coverage for letters and of colors for emoji (`uwui_render::UiRenderer`): a glyph is
 rasterized the first time a draw asks for it, and the glyphs that no draw asked for the longest
 leave first once the atlas holds its budget
 ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
@@ -634,7 +634,7 @@ the instances of one pipeline, material and mesh that it keeps (`slime_render::R
 [ADR-0117](adr/0117-frustum-culling-and-instancing.md)).
 
 **Intent (navigation).** What a key, and later a gamepad, means to an interface whatever the
-program: next, previous, up, down, left, right, accept, cancel (`slime_ui::action::Intent`). The
+program: next, previous, up, down, left, right, accept, cancel (`uwui::action::Intent`). The
 interface moves the *focus* for the first six ([ADR-0142](adr/0142-input-and-focus.md)).
 
 **Interpolation factor.** The fraction of a fixed step accumulated but not yet run
@@ -657,7 +657,7 @@ that holds steps that the level's file does not, which a crash or a stop without
 ([ADR-0135](adr/0135-the-editors-program.md)).
 
 **Key (element).** What names an *element* among its siblings, a name or a number, given by the code
-that builds it (`slime_ui::tree::Key`); the keys from below its *root* down to it, after the root's
+that builds it (`uwui::tree::Key`); the keys from below its *root* down to it, after the root's
 number, make its *path (element)*, which names it for agents, tests and saved layouts
 ([ADR-0140](adr/0140-the-tree-of-elements.md)).
 
@@ -751,8 +751,8 @@ display's, it covers. The sizes of `WindowConfig` are logical; `Window::inner_si
 
 **Look (the editor's).** The fonts and the style made for the interfaces of the engine's editor and
 of its dev overlay: Geist and Geist Mono, a style sheet, and *themes* stacked, a base of scales, one
-of colors, dark, light or high contrast, and a compact one (`slime_ui::look`, built with
-`slime-ui`'s feature `editor-look`; [ADR-0148](adr/0148-widgets.md),
+of colors, dark, light or high contrast, and a compact one (`uwui::look`, built with
+`uwui`'s feature `editor-look`; [ADR-0148](adr/0148-widgets.md),
 [ADR-0149](adr/0149-the-looks-foundations.md)).
 
 **Lux (lx).** The unit of *illuminance*, lumens per square metre: the strength of a directional
@@ -1217,16 +1217,16 @@ when what the panel shows changes: `Ui::build` runs the builder only when it mov
 
 **Role (interface).** What an element is to whoever reads the interface without seeing it, named as
 AccessKit names roles: `Button`, `Label`, `List`, `ListItem`, `Dialog`; given by its kind, or by its
-builder (`slime_ui::tree::Role`, [ADR-0143](adr/0143-what-agents-see-of-the-interface.md)).
+builder (`uwui::tree::Role`, [ADR-0143](adr/0143-what-agents-see-of-the-interface.md)).
 
 **Root (interface).** A surface that an interface lays its *elements* out on, a window or any
 target, with its size in *logical pixels*, its scale and the direction of its lines
-(`slime_ui::tree::RootSettings`); a root laid out from right to left is mirrored
+(`uwui::tree::RootSettings`); a root laid out from right to left is mirrored
 ([ADR-0140](adr/0140-the-tree-of-elements.md)).
 
 **Run of text (screen readers).** A piece of one line of a field's text, of one direction and of a
 bounded count of characters, through which a screen reader reads the text and follows its caret:
-each character's length, place and width, and where its words start (`slime_ui::tree::TextRun`,
+each character's length, place and width, and where its words start (`uwui::tree::TextRun`,
 [ADR-0146](adr/0146-screen-readers.md)). Not a run of *glyphs*.
 
 **Run.** Two things. The running of a game by `slime_app::run`, from its `start` methods to its
@@ -1332,7 +1332,7 @@ the tables of shortcuts by scope, each with the name of its command (`Ui::open_s
 
 **Shortcut.** A chord, modifiers and a key named by its meaning, `Ctrl+Z`, that names a command in
 a scope, `global` or the class of an element around the *focus*, read from a table of shortcuts,
-a document cooked from a `.keys` file (`slime_ui::shortcuts::Shortcuts`,
+a document cooked from a `.keys` file (`uwui::shortcuts::Shortcuts`,
 [ADR-0142](adr/0142-input-and-focus.md)). A chord may name a button of the mouse in place of a
 key, `Shift+MiddleButton`: it runs no command of its own, and the program reads what it names, as
 the editor reads what each button does over its viewport (`Ui::button_command`,
@@ -1438,7 +1438,7 @@ instead (`World::names`), after which a list reads again the names that changed
 **Style sheet.** A document of rules that style an interface's *elements*: each selects elements by
 kind, *classes*, *key*, states and ancestor, and sets a part of their style, its fields given or
 named by a *theme*; the rules apply in the order of the file, and an element's own style wins over
-them (`slime_ui::theme::StyleSheet`, [ADR-0141](adr/0141-style-sheets-and-themes.md)). Cooked from
+them (`uwui::theme::StyleSheet`, [ADR-0141](adr/0141-style-sheets-and-themes.md)). Cooked from
 a `.style` file.
 
 **Sub-asset.** An *asset* inside a source file, such as a mesh, a material or a scene of a glTF
@@ -1459,7 +1459,7 @@ radiance gives a surface facing it the sun's illuminance; it lights nothing, the
 directional light carrying the sun's light.
 
 **Surface (interface).** An element of an interface that shows an image that the program draws, an
-editor's *viewport*, and gives the program the pointer over it (`slime_ui::tree::Kind::Surface`,
+editor's *viewport*, and gives the program the pointer over it (`uwui::tree::Kind::Surface`,
 [ADR-0158](adr/0158-the-viewport.md)). Not the GPU's *surface*.
 
 **Surface.** The link between the GPU and a window: the images the window shows. Each frame, the
@@ -1491,7 +1491,7 @@ cooker averages its levels and compresses it ([ADR-0071](adr/0071-cooked-texture
 
 **Theme (interface).** A document of named values, colors, numbers, lists, that the rules of a
 *style sheet* give as `"$name"`: another theme restyles an interface, its rules unchanged, as a
-dark theme and a light one share one style sheet (`slime_ui::theme::Theme`,
+dark theme and a light one share one style sheet (`uwui::theme::Theme`,
 [ADR-0141](adr/0141-style-sheets-and-themes.md)). Cooked from a `.theme` file.
 
 **Threat model.** What the files that the engine reads from outside its program may hold, damaged,
@@ -1547,7 +1547,7 @@ reused by the graph of the next *shape* that declares it at the same size
 
 **Transition (interface).** A change of an element's style shown over a time rather than at once:
 its colors and its opacity going from what they showed to what the new style gives, a section
-growing or shrinking to its height, as the style's `transition` says (`slime_ui::style::Transition`,
+growing or shrinking to its height, as the style's `transition` says (`uwui::style::Transition`,
 [ADR-0149](adr/0149-the-looks-foundations.md)).
 
 **Type registry.** The reflected types that a program describes, by *stable name* and alias, with
@@ -1594,9 +1594,9 @@ frame while frames are drawn, so that a frame does not wait for all of a load's 
 **uwui.** The owner's UI framework, the base of the engine's interfaces and of *applications*: a
 retained tree of elements, its layout, text, input and widgets, embedded in a *host (uwui)*
 that calls it ([ADR-0132](adr/0132-the-engines-ui-framework.md),
-[ADR-0181](adr/0181-uwuis-scope.md)). It moves to a repository of its own at Stage 6d. Its crates
-are still `slime-ui` and `slime-ui-render` until they are renamed `uwui` and `uwui-render`
-([ADR-0179](adr/0179-the-framework-named-uwui.md)).
+[ADR-0181](adr/0181-uwuis-scope.md)). Its crates are `uwui` and `uwui-render`
+([ADR-0179](adr/0179-the-framework-named-uwui.md)); they move to a repository of their own at
+Stage 6d.
 
 **Value (reflection).** A reflected value as plain data, without its Rust type: booleans, integers,
 floats of either width, text, structs, enums, options, lists, references to assets and entities
@@ -1633,7 +1633,7 @@ machines without a GPU, such as the CI runners.
 
 **Widget.** An element of the interface that a person uses, a check box, a slider, a section that
 folds, a bar of tabs, two panels and their handle, a list to choose from, a button that toggles, a
-color well: an element kind of `slime-ui` that keeps its state in the tree, which the program's
+color well: an element kind of `uwui` that keeps its state in the tree, which the program's
 value replaces only when it changes, with its own input, meaning and actions
 ([ADR-0148](adr/0148-widgets.md), [ADR-0150](adr/0150-layers.md),
 [ADR-0151](adr/0151-rich-widgets.md), [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)).

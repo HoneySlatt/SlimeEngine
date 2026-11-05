@@ -95,7 +95,7 @@ cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>  
 cargo run --example text -- --output <file.png>           # the interface's text in several writing systems, rasterized by the CPU (ADR-0136)
 cargo run --example interface -- --output <file.png>      # an interface built as a tree of elements, styled by a theme: text, boxes, images, a view (ADR-0140, ADR-0141)
 cargo run --example widgets -- --output <file.png>        # the widgets of a panel in the editor's look: check boxes, sliders, sections, tabs, two panels, scroll bars (ADR-0148), menus, a list to choose from, tooltips, a floating panel (ADR-0150), rich fields, notifications, the palette of commands (ADR-0151), a color well (ADR-0152)
-scripts/subset-fonts.sh <noto> <noto-cjk> <noto-emoji>    # make the fonts of slime-ui's tests again (crates/slime-ui/tests/fonts/README.md)
+scripts/subset-fonts.sh <noto> <noto-cjk> <noto-emoji>    # make the fonts of uwui's tests again (crates/uwui/tests/fonts/README.md)
 scripts/screen-reader-check.sh <the interface example's program> <cooked data>  # read and use it through AT-SPI, as a screen reader does, on a Wayland display (ADR-0147)
 cargo run --quiet -p slime-mcp                            # the engine's MCP server, through which an agent drives a game (crates/slime-mcp/README.md)
 ```
@@ -349,7 +349,7 @@ nix develop -c scripts/check.sh
 [`scripts/check.sh`](scripts/check.sh) runs rustfmt, clippy with warnings as errors, the build and
 tests of every target, the renderer's and the world's tests again with glam's assertions on
 (`--features glam/debug-glam-assert`, which a game that turns them on also turns on in the engine),
-rustdoc with warnings as errors, once more for `slime-ui` with its feature `editor-look`,
+rustdoc with warnings as errors, once more for `uwui` with its feature `editor-look`,
 `cargo deny --locked check` (dependency licenses, security advisories and sources; it downloads the
 advisory database, so it needs network access), the list of the sample game's source assets
 (`scripts/fetch-assets.sh`), `slime-cook check` (every source asset has a metadata file of its own,

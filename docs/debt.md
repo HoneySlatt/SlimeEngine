@@ -547,7 +547,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   From an element outside every stack, a splitter among them, F6 goes to the first stack.
   Two presses of an arrow on a splitter before the dock is built again move it once.
   A window smaller than its regions' least sizes cuts them off.
-  `slime-ui` splits a box two ways: two panels and their handle, the share the interface's; and splitters, the shares the program's; the first is to be built on the second.
+  `uwui` splits a box two ways: two panels and their handle, the share the interface's; and splitters, the shares the program's; the first is to be built on the second.
 - **The eye and the lock** ([ADR-0169](adr/0169-the-eye-and-the-lock.md)).
   What is hidden or locked is lost when the editor stops or another level opens.
   A click on what is locked selects nothing, rather than what lies behind it, which Alt and a click reach.
@@ -703,7 +703,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A path holds while the roots below its own stay.
   A key's name that holds `/`, or that `#` and digits make, cannot be read back from a path.
   A row of a list is found by its number; the names of its texts are not gathered into its own, unless its builder names it, as the editor's hierarchy names its items.
-  Games link `slime-ui` through `slime-app`, whether they have an interface or not.
+  Games link `uwui` through `slime-app`, whether they have an interface or not.
 - **The dev overlay** ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md), [ADR-0153](adr/0153-tab-and-f6-in-a-games-interface.md)).
   A frame after an entity is spawned or despawned makes the world panel's list again, every name read and filtered: past the budget of a list's frame at 100 000 entities.
   A frame after a rename reads again the names that changed and filters the list: under a millisecond there ([measurements](measurements.md#m6c5a-ryzen-7-5800x)).
@@ -711,7 +711,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Its panels keep the size that they open at, their content scrolling, where egui's fitted theirs.
   It holds its interface's tables of shortcuts, which a game's interface would share.
   A game loses F6 while its interface shows a root that holds an element that can take the focus, and F6 gives a panel's bar the focus first.
-  Its look, the editor's, is built into the program: its themes are files of `slime-ui`, read as the program starts, not from the disk while it runs.
+  Its look, the editor's, is built into the program: its themes are files of `uwui`, read as the program starts, not from the disk while it runs.
   No check of CI runs a screen reader on it.
 - **Screen readers** ([ADR-0146](adr/0146-screen-readers.md)).
   No check of CI runs a screen reader nor Windows' UI Automation.
@@ -735,7 +735,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The styles made are kept up to a number of the elements' own styles for each set of rules (`Ui::set_style`).
   Past it, an element's style is made again through reflection at each change, the slow way that [`docs/measurements.md`](measurements.md), M6b.4b, measures.
   Selectors hold no combinators but an ancestor's kind or class.
-  A color is held whole in a part of a style by `slime-ui`'s own walk, beside reflection's, which holds a rotation whole: two ways of one thing, which a type's attribute of reflection would unify.
+  A color is held whole in a part of a style by `uwui`'s own walk, beside reflection's, which holds a rotation whole: two ways of one thing, which a type's attribute of reflection would unify.
   An array, a list and an option of an element's own style replace the rules' whole, its height with its width.
 - **The system's fallback is checked only where the system has fonts** ([ADR-0136](adr/0136-the-interfaces-text.md)).
   Its test checks nothing, and says so, on a machine whose fontconfig, or whose lack of it, gives no font for Greek or Japanese, as CI's Linux runners may.

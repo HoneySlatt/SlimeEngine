@@ -1,7 +1,7 @@
 //! The interface's text, without a GPU (`docs/adr/0136-the-interfaces-text.md`): a sentence of each
-//! writing system of slime-ui's tests, English, Arabic and Hebrew from right to left, Hindi, Thai,
+//! writing system of uwui's tests, English, Arabic and Hebrew from right to left, Hindi, Thai,
 //! Japanese, Chinese and emoji, laid out in a box 560 logical pixels wide
-//! (`slime_ui::text::Fonts::lay_out`), and a label cut with an ellipsis (`TextBounds::line`); each
+//! (`uwui::text::Fonts::lay_out`), and a label cut with an ellipsis (`TextBounds::line`); each
 //! glyph rasterized (`GlyphRasterizer`) and put on a white image by the CPU, which is written to a
 //! PNG file. The renderer draws such text too, as the `interface` example shows; this shows what
 //! the text module gives on its own.
@@ -14,8 +14,8 @@
 //! `--output <file.png>` names the file, `text.png` by default; `--scale <factor>` sets the image's
 //! pixels per logical pixel, above 0 and up to 8, 1 by default.
 //!
-//! It reads the fonts of slime-ui's tests, parts of Noto fonts that hold the characters of those
-//! sentences alone (`crates/slime-ui/tests/fonts/README.md`), from the workspace as it runs.
+//! It reads the fonts of uwui's tests, parts of Noto fonts that hold the characters of those
+//! sentences alone (`crates/uwui/tests/fonts/README.md`), from the workspace as it runs.
 
 #[path = "common/png_file.rs"]
 mod png_file;
@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use slime_gfx::Image;
-use slime_ui::text::{Fonts, GlyphPixels, GlyphRasterizer, TextBounds, TextLayout, TextStyle};
+use uwui::text::{Fonts, GlyphPixels, GlyphRasterizer, TextBounds, TextLayout, TextStyle};
 
 /// The width of the box, and the margin around the text, in logical pixels.
 const WIDTH: f32 = 560.0;
@@ -65,7 +65,7 @@ fn main() -> ExitCode {
 
 /// Lays the sentences out, then draws them into an image written to `output`.
 fn draw(output: &Path, scale: f32) -> Result<(), String> {
-    let tests = Path::new(env!("CARGO_MANIFEST_DIR")).join("../crates/slime-ui/tests");
+    let tests = Path::new(env!("CARGO_MANIFEST_DIR")).join("../crates/uwui/tests");
     let mut fonts = Fonts::new();
     for entry in std::fs::read_dir(tests.join("fonts")).map_err(|error| error.to_string())? {
         let path = entry.map_err(|error| error.to_string())?.path();

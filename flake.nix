@@ -49,7 +49,7 @@
         SLIME_AT_SPI = "${pkgs.at-spi2-core}";
 
         # winit (in slime-platform) and wgpu (in slime-gfx) open the windowing system's libraries and
-        # the Vulkan loader at run time instead of linking them, fontique (in slime-ui)
+        # the Vulkan loader at run time instead of linking them, fontique (in uwui)
         # fontconfig, which finds the system's fonts for a program that asks for them, and rfd (in
         # slime-platform) D-Bus's library, through which it asks the desktop's portal for a dialog
         # (ADR-0157). NixOS has no global library directory, so the dynamic loader has to be told

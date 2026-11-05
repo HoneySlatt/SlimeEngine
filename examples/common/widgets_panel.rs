@@ -39,14 +39,14 @@
 //! pressed, and forgets them as the interface closes them.
 
 use slime_color::{LinearColor, linear_to_srgb8};
-use slime_ui::action::{ActionKind, FieldValue, Intent};
-use slime_ui::display::DisplayList;
-use slime_ui::look::{self, Colors, Density};
-use slime_ui::shortcuts::Shortcuts;
-use slime_ui::style::{Align, Dimension, FlexDirection, Sides, Style};
-use slime_ui::text::Fonts;
-use slime_ui::theme::Theme;
-use slime_ui::tree::{
+use uwui::action::{ActionKind, FieldValue, Intent};
+use uwui::display::DisplayList;
+use uwui::look::{self, Colors, Density};
+use uwui::shortcuts::Shortcuts;
+use uwui::style::{Align, Dimension, FlexDirection, Sides, Style};
+use uwui::text::Fonts;
+use uwui::theme::Theme;
+use uwui::tree::{
     Along, Children, Element, ElementId, ItemMark, Layer, LayoutDirection, Notification,
     NotificationKind, PaletteCommand, Place, Role, RootSettings, Side, Ui, Units,
 };

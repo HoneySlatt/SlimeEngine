@@ -34,9 +34,9 @@ docking came after 0.6, as [`CHANGELOG.md`](CHANGELOG.md) says:
 - **World.** Entities, components and their hierarchy (`slime-world`), reflected and reached by name
   (`slime-reflect`); scene files that place prefabs with overrides, written as text or in a binary
   encoding (`slime-serialize`); saves that cost what the run changed.
-- **Interface.** `slime-ui`: text in every writing system, a tree of elements laid out by flexbox and
+- **Interface.** `uwui`: text in every writing system, a tree of elements laid out by flexbox and
   grid, themes read from files, widgets, menus, docking, input methods and screen readers, drawn by
-  the renderer (`slime-ui-render`). The *dev overlay*, panels over a running game that show and edit
+  the renderer (`uwui-render`). The *dev overlay*, panels over a running game that show and edit
   its world, is built on it (`slime-devui`).
 - **Editor.** `slime-editor` opens a level and changes it through commands, undone and redone: a
   hierarchy, viewports with picking and handles, prefabs placed, a history, Play inside the editor
@@ -94,9 +94,11 @@ slime-reflect = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6
 slime-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
 slime-world = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
 slime-world-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
-# A game's interface (`Presentation::ui`), drawn through the renderer's canvas.
-slime-ui = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
-slime-ui-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0" }
+# A game's interface (`Presentation::ui`), drawn through the renderer's canvas. uwui's crates bear
+# their names from 0.7 on, and on `main`, where `package` goes; 0.6 names them `slime-ui` and
+# `slime-ui-render`.
+uwui = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0", package = "slime-ui" }
+uwui-render = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0", package = "slime-ui-render" }
 # The dev overlay, in a development build alone: `dep:slime-devui` in the game's feature.
 slime-devui = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0", optional = true }
 
@@ -169,4 +171,4 @@ are in [`docs/debt.md`](docs/debt.md).
 SlimeEngine is licensed under either of the [MIT license](LICENSE-MIT) or the
 [Apache License 2.0](LICENSE-APACHE), at your choice. Releases before 0.7 are under the Mozilla
 Public License 2.0. A game built with the engine can use any license. uwui's logo is not under
-these licenses: its terms are in [`crates/slime-ui/logo/README.md`](crates/slime-ui/logo/README.md).
+these licenses: its terms are in [`crates/uwui/logo/README.md`](crates/uwui/logo/README.md).

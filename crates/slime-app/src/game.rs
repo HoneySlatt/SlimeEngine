@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 use slime_gfx::RenderTarget;
 use slime_platform::Event;
 use slime_reflect::{Reflect, ReflectError, Registry, Value};
-use slime_ui::tree::Ui;
 use slime_world::{Command, Entity, World};
+use uwui::tree::Ui;
 
 use crate::error::AppError;
 use crate::host::{Context, SimulationContext};

@@ -136,7 +136,7 @@ pub enum CookError {
 /// which needs the assets of its table (`docs/adr/0095-cooked-scene-files.md`). Each style sheet,
 /// theme and table of shortcuts of the interface becomes its document in the binary encoding, of
 /// the kind [`AssetKind::StyleSheet`], [`AssetKind::Theme`] or [`AssetKind::Shortcuts`], its syntax
-/// checked, its types left to `slime-ui`, which reads it
+/// checked, its types left to `uwui`, which reads it
 /// (`docs/adr/0141-style-sheets-and-themes.md`, `docs/adr/0142-input-and-focus.md`). A scene file
 /// is read first without the types of its values ([`slime_world::outline`]), and refused if it
 /// says something wrong there, if its table names an asset that the sources do not make, if it
@@ -624,7 +624,7 @@ type Step = (AssetId, Vec<(AssetId, usize)>, usize);
 /// Cooks each document of the interface among `sources`, inside `root`, a style sheet, a theme or
 /// a table of shortcuts, into its binary encoding, of the kind [`AssetKind::StyleSheet`],
 /// [`AssetKind::Theme`] or [`AssetKind::Shortcuts`]: its syntax checked, its types left to
-/// `slime-ui`, which reads it, as a scene file's are left to the world.
+/// `uwui`, which reads it, as a scene file's are left to the world.
 fn cook_interface_documents(
     sources: &[Source],
     root: &Path,

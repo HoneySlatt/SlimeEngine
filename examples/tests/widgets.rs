@@ -36,10 +36,10 @@ mod widgets_panel;
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderPassDescriptor, TextureFormat};
 use slime_render::Renderer;
-use slime_ui::action::{Action, ActionKind};
-use slime_ui::look::{Colors, Density};
-use slime_ui::tree::LayoutDirection;
-use slime_ui_render::UiRenderer;
+use uwui::action::{Action, ActionKind};
+use uwui::look::{Colors, Density};
+use uwui::tree::LayoutDirection;
+use uwui_render::UiRenderer;
 
 use widgets_panel::WidgetsPanel;
 

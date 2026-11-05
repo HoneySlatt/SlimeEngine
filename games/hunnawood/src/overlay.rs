@@ -8,10 +8,10 @@ use slime_devui::{Corner, Overlay, PanelId, PanelSpec, ValueEditor, WorldPanel, 
 use slime_gfx::{Gpu, RenderTarget};
 use slime_platform::PhysicalSize;
 use slime_render::{RenderError, RenderStats, Renderer, ViewSettings};
-use slime_ui::action::{ActionKind, FieldValue};
-use slime_ui::style::{FlexDirection, Style};
-use slime_ui::tree::{Element, ElementId, Ui};
 use slime_world::{Command, World};
+use uwui::action::{ActionKind, FieldValue};
+use uwui::style::{FlexDirection, Style};
+use uwui::tree::{Element, ElementId, Ui};
 
 /// The slowest and the fastest that the statistics' slider sets game time to.
 const SPEEDS: std::ops::RangeInclusive<f64> = 0.1..=4.0;

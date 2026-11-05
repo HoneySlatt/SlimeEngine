@@ -5,19 +5,19 @@
 use slime_gfx::{Gpu, RenderTarget};
 use slime_platform::PhysicalSize;
 use slime_render::{RenderError, RenderStats, Renderer};
-use slime_ui::action::{Action, ActionKind, Intent};
-use slime_ui::look::{self, Colors, Density};
-use slime_ui::shortcuts::Shortcuts;
-use slime_ui::style::{Dimension, FlexDirection, Style};
-use slime_ui::text::Fonts;
-use slime_ui::tree::{Element, ElementId, Layer, LayoutDirection, Place, RootSettings, Ui};
-use slime_ui_render::UiRenderer;
+use uwui::action::{Action, ActionKind, Intent};
+use uwui::look::{self, Colors, Density};
+use uwui::shortcuts::Shortcuts;
+use uwui::style::{Dimension, FlexDirection, Style};
+use uwui::text::Fonts;
+use uwui::tree::{Element, ElementId, Layer, LayoutDirection, Place, RootSettings, Ui};
+use uwui_render::UiRenderer;
 
 /// The space between a panel and the window's edges, in logical pixels.
 const MARGIN: f32 = 12.0;
 
 /// The dev overlay over a program's view: an interface in the editor's look
-/// (`slime_ui::look`), whose panels float over the window, each opened and closed by the program,
+/// (`uwui::look`), whose panels float over the window, each opened and closed by the program,
 /// moved, sized and folded by the user, and drawn over the view's image with the view's renderer
 /// ([`Overlay::draw`]).
 ///
@@ -92,7 +92,7 @@ impl Overlay {
     ///
     /// # Panics
     ///
-    /// If the look's documents were not valid, which `slime-ui`'s tests rule out.
+    /// If the look's documents were not valid, which `uwui`'s tests rule out.
     pub fn new() -> Self {
         let mut fonts = Fonts::new();
         look::register_fonts(&mut fonts);
@@ -101,7 +101,7 @@ impl Overlay {
             &[look::style_sheet()],
             &look::themes(Colors::Dark, Density::Comfortable),
         )
-        .expect("the look's documents are valid, as slime-ui's tests check");
+        .expect("the look's documents are valid, as uwui's tests check");
         ui.set_tab_enters(false);
         let window = ui.add_root("overlay", settings([1.0, 1.0], 1.0), Style::default());
         Self {
@@ -309,7 +309,7 @@ impl Overlay {
 
     /// Lays the overlay out and draws its panels over what `target` holds, the window's image
     /// after the view, with `renderer`, the view's, whose canvas it draws with
-    /// (`slime_ui_render::UiRenderer::draw`). A frame with no panel open draws nothing.
+    /// (`uwui_render::UiRenderer::draw`). A frame with no panel open draws nothing.
     ///
     /// # Errors
     ///
@@ -395,7 +395,7 @@ mod tests {
     use slime_gfx::{GfxError, RenderPassDescriptor, TextureFormat};
     use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
     use slime_render::RenderError;
-    use slime_ui::tree::Role;
+    use uwui::tree::Role;
 
     use super::*;
 
@@ -450,7 +450,7 @@ mod tests {
     }
 
     /// The box of the open panel titled `title`, in pixels of the window.
-    fn panel_box(overlay: &Overlay, title: &str) -> slime_ui::Rect {
+    fn panel_box(overlay: &Overlay, title: &str) -> uwui::Rect {
         let meaning = overlay
             .ui()
             .meaning()

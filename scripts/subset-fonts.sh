@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Makes the fonts that slime-ui's tests and benchmarks read, crates/slime-ui/tests/fonts, from the
-# Noto releases that crates/slime-ui/tests/fonts/README.md names (docs/adr/0133-font-files-under-
-# the-open-font-license.md): each font cut down to the characters of crates/slime-ui/tests/texts and
+# Makes the fonts that uwui's tests and benchmarks read, crates/uwui/tests/fonts, from the
+# Noto releases that crates/uwui/tests/fonts/README.md names (docs/adr/0133-font-files-under-
+# the-open-font-license.md): each font cut down to the characters of crates/uwui/tests/texts and
 # what its layout tables reach from them, without hinting, at its regular weight, but Noto Sans,
 # which keeps its weight axis so that the tests can draw it bold. Usage:
 #   scripts/subset-fonts.sh <noto> <noto-cjk> <noto-emoji>
@@ -27,8 +27,8 @@ cjk=$(realpath "$2")
 emoji=$(realpath "$3")
 cd "$(dirname "$0")/.."
 hb-subset --version | head -n 1
-fonts=crates/slime-ui/tests/fonts
-texts=crates/slime-ui/tests/texts
+fonts=crates/uwui/tests/fonts
+texts=crates/uwui/tests/texts
 
 # Each source: its file, its SHA-256.
 check() {
