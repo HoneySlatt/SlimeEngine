@@ -1,9 +1,14 @@
-//! Docking, without a GPU (`docs/adr/0172-regions-of-tabs.md`): a layout normalized after each
-//! edit, a panel moved into another stack or to an edge of the window, a border moved that changes
-//! the two shares beside it and no other, the layout written and read back as text; a dock built
-//! into a tree, its splitters dragged by the pointer, moved by the keys and given a value by an
-//! agent, each read by the dock, which keeps each child at its least size, its tabs chosen, and F6
-//! going from one of its stacks to the next.
+//! Docking, without a GPU (`docs/adr/0172-regions-of-tabs.md`,
+//! `docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`): a layout normalized after
+//! each edit, and whole after random ones, a panel moved into another stack, to an edge of the
+//! window or afloat, closed and shown again where it was, a border moved that changes the two
+//! shares beside it and no other, passing over what is closed, a layout fitted to a program's
+//! panels, mended as it is read, written and read back as text; a dock built into a tree, building
+//! no closed panel, its splitters dragged by the pointer, moved by the keys and given a value by an
+//! agent, each read by the dock, which keeps each child at its least size and settles as the drag
+//! ends, its tabs chosen, F6 going from one of its stacks to the next, and its floating panels
+//! placed where their stacks stood or in the middle of the window, kept where the pointer lets them
+//! go, closed and opened again.
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use slime_ui::action::{Action, ActionKind};
@@ -308,7 +313,7 @@ fn a_dock_s_borders_and_tabs_change_its_layout() {
         .find(|meaning| meaning.role == Role::Tab && meaning.name == "CONSOLE")
         .expect("its tab")
         .id;
-    assert_eq!(dock.panel_of_tab(console), Some("console"));
+    assert_eq!(dock.panel_of(console), Some("console"));
     dock.take_changed();
     ui.act(Action {
         element: Some(console),
@@ -470,4 +475,581 @@ fn a_dock_made_anew_builds_its_layout_into_a_slot_that_another_built() {
     assert!(!dock.show("map"));
     frame(&mut ui, &mut dock, slot);
     assert!(dock.slot("console").is_some() && dock.slot("history").is_none());
+}
+
+/// The keys of each stack's panels, in the order of the tree.
+fn stacks(layout: &Layout) -> Vec<Vec<String>> {
+    layout
+        .stacks()
+        .into_iter()
+        .map(<[String]>::to_vec)
+        .collect()
+}
+
+/// The panel that the stack holding `panel` shows.
+fn shown_with(layout: &Layout, panel: &str) -> Option<String> {
+    fn find(node: &Node, panel: &str) -> Option<String> {
+        match node {
+            Node::Tabs { panels, chosen } => panels
+                .iter()
+                .any(|each| each == panel)
+                .then(|| panels[*chosen as usize].clone()),
+            Node::Split { children, .. } => {
+                children.iter().find_map(|child| find(&child.node, panel))
+            }
+        }
+    }
+    find(&layout.root, panel)
+}
+
+#[test]
+fn a_closed_panel_keeps_its_place_and_comes_back_there() {
+    let mut layout = editor();
+    let before = layout.clone();
+    // The history closed: still in its stack, the console shown there; its shares unchanged.
+    assert!(layout.close("history"));
+    assert!(!layout.close("history"), "closed already");
+    assert!(!layout.close("map"));
+    assert_eq!(stacks(&layout), stacks(&before));
+    assert!(!layout.is_open("history") && layout.holds("history"));
+    assert_eq!(shown_with(&layout, "console").as_deref(), Some("console"));
+    // The console closed too: the stack shows nothing, and keeps its share.
+    assert!(layout.close("console"));
+    assert_eq!(shares(&layout.root), shares(&before.root));
+    // Other panels moved meanwhile, the history comes back to its stack, chosen.
+    assert!(layout.move_panel("components", &Target::With("viewport".to_owned())));
+    assert!(layout.show("history"));
+    assert!(layout.is_open("history"));
+    assert_eq!(shown_with(&layout, "history").as_deref(), Some("history"));
+    assert_eq!(stacks(&layout)[2], ["history", "console"]);
+    assert!(!layout.show("history"), "shown already");
+    assert!(!layout.show("map"));
+    // Moved while closed, it opens where it goes.
+    assert!(layout.move_panel("console", &Target::Edge(Edge::Top)));
+    assert!(layout.is_open("console"));
+}
+
+#[test]
+fn a_panel_floats_and_docks_again() {
+    let mut layout = editor();
+    assert!(layout.move_panel("history", &Target::Float));
+    assert!(layout.floats("history") && layout.is_open("history"));
+    assert_eq!(
+        layout.floating[0].size,
+        [0.0, 0.0],
+        "yet to be placed by the dock"
+    );
+    assert_eq!(stacks(&layout)[3], ["console"]);
+    // Not afloat again, nor into a floating panel's stack, which it has none of.
+    assert!(!layout.move_panel("history", &Target::Float));
+    assert!(!layout.move_panel("console", &Target::With("history".to_owned())));
+    // Closed afloat, opened again afloat, above the others.
+    assert!(layout.move_panel("console", &Target::Float));
+    assert!(layout.close("history"));
+    assert!(layout.show("history"));
+    let floating: Vec<&str> = layout.floating.iter().map(|f| f.panel.as_str()).collect();
+    assert_eq!(floating, ["console", "history"]);
+    // Docked again by a move.
+    assert!(layout.move_panel("history", &Target::With("viewport".to_owned())));
+    assert!(!layout.floats("history"));
+    assert_eq!(shown_with(&layout, "viewport").as_deref(), Some("history"));
+}
+
+#[test]
+fn a_border_passes_over_a_child_whose_panels_are_closed() {
+    let mut layout = Layout::new(Node::split(
+        true,
+        vec![
+            (0.2, Node::tabs(&["a"])),
+            (0.3, Node::tabs(&["b"])),
+            (0.5, Node::tabs(&["c"])),
+        ],
+    ));
+    assert!(layout.close("b"));
+    // The border after `a` lies between `a` and `c`.
+    assert!(layout.resize(&[], 0, 0.5));
+    let after = shares(&layout.root);
+    assert!(
+        (after[0] - 0.35).abs() < 1e-6 && (after[2] - 0.35).abs() < 1e-6,
+        "{after:?}"
+    );
+    assert_eq!(after[1], 0.3);
+    assert!(
+        !layout.resize(&[], 1, 0.5),
+        "after a child that does not show"
+    );
+}
+
+#[test]
+fn a_layout_fits_the_program_s_panels() {
+    let mut layout = editor();
+    layout.closed.push("map".to_owned());
+    // An unknown panel goes; a panel that it lacks comes after the one before it in the list,
+    // not chosen; another, first in the list, beside the one after it.
+    layout.fit(&[
+        "outline",
+        "hierarchy",
+        "components",
+        "inspector",
+        "viewport",
+        "history",
+    ]);
+    assert_eq!(
+        stacks(&layout),
+        [
+            vec!["hierarchy", "outline"],
+            vec!["components", "inspector"],
+            vec!["viewport"],
+            vec!["history"]
+        ]
+    );
+    assert!(layout.closed.is_empty());
+    assert_eq!(
+        shown_with(&layout, "inspector").as_deref(),
+        Some("components")
+    );
+    // A layout of no known panel gives them in one stack.
+    let mut layout = Layout::new(Node::tabs(&["map"]));
+    layout.fit(&["a", "b"]);
+    assert_eq!(stacks(&layout), [["a", "b"]]);
+}
+
+#[test]
+fn a_layout_mends_its_floating_panels_and_its_closed_ones() {
+    let mut layout = editor();
+    layout.floating = vec![
+        slime_ui::dock::Floating {
+            panel: "map".to_owned(),
+            origin: [f32::NAN, 40.0],
+            size: [10.0, 500.0],
+        },
+        slime_ui::dock::Floating {
+            panel: "notes".to_owned(),
+            origin: [5.0, 5.0],
+            size: [f32::INFINITY, 300.0],
+        },
+        // Docked already: it stays docked.
+        slime_ui::dock::Floating {
+            panel: "history".to_owned(),
+            origin: [5.0, 5.0],
+            size: [200.0, 200.0],
+        },
+    ];
+    layout.closed = vec!["notes".to_owned(), "notes".to_owned(), "nothing".to_owned()];
+    layout.normalize();
+    assert_eq!(layout.floating.len(), 2);
+    assert_eq!(layout.floating[0].origin, [0.0, 40.0]);
+    assert_eq!(layout.floating[0].size, [LEAST, 500.0]);
+    assert_eq!(layout.floating[1].size, [0.0, 0.0], "to be placed again");
+    assert_eq!(layout.closed, ["notes"]);
+}
+
+#[test]
+fn a_layout_with_floating_and_closed_panels_is_written_and_read_back() {
+    let mut layout = editor();
+    layout.move_panel("history", &Target::Float);
+    layout.floating[0].origin = [100.0, 80.0];
+    layout.floating[0].size = [300.0, 200.0];
+    layout.close("components");
+    let text = slime_serialize::write_as(&layout).expect("written");
+    let (read, warnings) =
+        slime_serialize::read_as::<Layout>(&text, slime_serialize::Mode::Strict).expect("read");
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(read, layout, "{text}");
+    // A layout written before floating and closed panels were kept reads, with none.
+    let docked = editor();
+    let text = slime_serialize::write_as(&docked).expect("written");
+    let text: String = text
+        .lines()
+        .filter(|line| !line.starts_with("floating") && !line.starts_with("closed"))
+        .map(|line| format!("{line}\n"))
+        .collect();
+    let (read, _) =
+        slime_serialize::read_as::<Layout>(&text, slime_serialize::Mode::Strict).expect("read");
+    assert_eq!(read, docked, "{text}");
+}
+
+/// A generator of numbers that repeats from its seed: xorshift.
+struct Numbers(u64);
+
+impl Numbers {
+    fn below(&mut self, bound: usize) -> usize {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        (self.0 % bound as u64) as usize
+    }
+}
+
+/// Whether `node` is whole: no split of fewer than two children nor within one of its direction,
+/// shares from 0 to 1 summing to 1, no empty stack, each chosen panel one that the stack holds,
+/// open where it holds one; its panels gathered in `panels`.
+fn whole(node: &Node, parent: Option<bool>, closed: &[String], panels: &mut Vec<String>) {
+    match node {
+        Node::Tabs {
+            panels: tabs,
+            chosen,
+        } => {
+            assert!(!tabs.is_empty(), "an empty stack");
+            let chosen = &tabs[*chosen as usize];
+            assert!(
+                !closed.contains(chosen) || tabs.iter().all(|tab| closed.contains(tab)),
+                "a closed panel chosen beside an open one"
+            );
+            panels.extend(tabs.iter().cloned());
+        }
+        Node::Split {
+            side_by_side,
+            children,
+        } => {
+            assert!(children.len() >= 2, "a split of one child");
+            assert_ne!(
+                Some(*side_by_side),
+                parent,
+                "a split within one of its direction"
+            );
+            let sum: f32 = children.iter().map(|child| child.share).sum();
+            assert!((sum - 1.0).abs() < 1e-4, "shares summing to {sum}");
+            for child in children {
+                assert!((0.0..=1.0).contains(&child.share));
+                whole(&child.node, Some(*side_by_side), closed, panels);
+            }
+        }
+    }
+}
+
+#[test]
+fn a_layout_stays_whole_after_random_edits() {
+    let keys = [
+        "hierarchy",
+        "components",
+        "viewport",
+        "history",
+        "console",
+        "map",
+    ];
+    let targets = [
+        Target::Edge(Edge::Left),
+        Target::Edge(Edge::Right),
+        Target::Edge(Edge::Top),
+        Target::Edge(Edge::Bottom),
+        Target::Float,
+    ];
+    for seed in 1..=64_u64 {
+        let mut numbers = Numbers(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15));
+        let mut layout = editor();
+        layout.fit(&keys);
+        for _ in 0..200 {
+            let panel = keys[numbers.below(keys.len())];
+            match numbers.below(6) {
+                0 => {
+                    let other = keys[numbers.below(keys.len())];
+                    layout.move_panel(panel, &Target::With(other.to_owned()));
+                }
+                1 => {
+                    layout.move_panel(panel, &targets[numbers.below(targets.len())]);
+                }
+                2 => {
+                    layout.close(panel);
+                }
+                3 => {
+                    layout.show(panel);
+                }
+                4 => {
+                    let mut path = Vec::new();
+                    while numbers.below(2) == 0 {
+                        path.push(numbers.below(3));
+                    }
+                    let share = numbers.below(101) as f32 / 100.0;
+                    layout.resize(&path, numbers.below(4), share);
+                }
+                _ => {
+                    // Read back as a program reads what it kept.
+                    let text = slime_serialize::write_as(&layout).expect("written");
+                    let (read, _) =
+                        slime_serialize::read_as::<Layout>(&text, slime_serialize::Mode::Lenient)
+                            .expect("read");
+                    assert_eq!(read, layout);
+                }
+            }
+            let mut panels = Vec::new();
+            whole(&layout.root, None, &layout.closed, &mut panels);
+            panels.extend(layout.floating.iter().map(|f| f.panel.clone()));
+            panels.sort();
+            let mut all: Vec<String> = keys.iter().map(|&key| key.to_owned()).collect();
+            all.sort();
+            assert_eq!(panels, all, "each panel once, seed {seed}");
+            assert!(layout.closed.iter().all(|panel| layout.holds(panel)));
+            let mut again = layout.clone();
+            again.normalize();
+            assert_eq!(again, layout, "normalized, seed {seed}");
+        }
+    }
+}
+
+/// The tab named `name`, if it shows.
+fn tab(ui: &Ui, name: &str) -> Option<ElementId> {
+    ui.meaning()
+        .into_iter()
+        .find(|meaning| meaning.role == Role::Tab && meaning.name == name)
+        .map(|meaning| meaning.id)
+}
+
+#[test]
+fn a_dock_builds_no_closed_panel_and_no_border_beside_what_it_hides() {
+    let (mut ui, mut dock, slot) = docked(editor());
+    assert!(dock.close("components"));
+    assert!(!dock.close("components"));
+    assert!(dock.take_changed());
+    frame(&mut ui, &mut dock, slot);
+    assert!(tab(&ui, "COMPONENTS").is_none());
+    assert!(dock.slot("components").is_none());
+    // The left column holds the hierarchy alone, the whole height: no border in it.
+    let splitters: Vec<String> = ui
+        .meaning()
+        .into_iter()
+        .filter(|meaning| meaning.role == Role::Splitter)
+        .map(|meaning| meaning.name)
+        .collect();
+    assert_eq!(
+        splitters,
+        [
+            "between HIERARCHY and VIEWPORT",
+            "between VIEWPORT and HISTORY"
+        ]
+    );
+    let hierarchy = dock
+        .slot("hierarchy")
+        .and_then(|slot| ui.rect(slot))
+        .expect("shown");
+    assert!(hierarchy.height > 500.0, "{hierarchy:?}");
+    // The history closed: the console shown in its stack, its tab alone.
+    assert!(dock.close("history"));
+    frame(&mut ui, &mut dock, slot);
+    assert!(tab(&ui, "HISTORY").is_none() && dock.slot("console").is_some());
+    // Both shown again where they were.
+    assert!(dock.show("components") && dock.show("history"));
+    frame(&mut ui, &mut dock, slot);
+    assert!(dock.slot("components").is_some() && dock.slot("history").is_some());
+    assert_eq!(dock.layout(), &editor());
+}
+
+#[test]
+fn a_dock_floats_a_panel_where_its_stack_stood_and_keeps_where_it_is_let_go() {
+    let (mut ui, mut dock, slot) = docked(editor());
+    let history = dock
+        .slot("history")
+        .and_then(|slot| ui.rect(slot))
+        .expect("shown");
+    assert!(dock.move_panel("history", &Target::Float));
+    dock.take_changed();
+    frame(&mut ui, &mut dock, slot);
+    // Placed where its stack stood, the whole stack, its bar of tabs included.
+    let floating = &dock.layout().floating[0];
+    assert!(
+        (floating.origin[0] - history.x).abs() < 1.0 && floating.origin[1] <= history.y,
+        "{floating:?} {history:?}"
+    );
+    assert!((floating.size[0] - history.width).abs() < 1.0);
+    let content = dock.slot("history").expect("its slot afloat");
+    let panel = ui
+        .meaning()
+        .into_iter()
+        .find(|meaning| meaning.role == Role::Pane && meaning.name == "HISTORY")
+        .expect("a floating panel")
+        .id;
+    assert_eq!(dock.panel_of(panel), Some("history"));
+    assert!(
+        ui.path_text(content)
+            .expect("there")
+            .starts_with("floating history/panel/content")
+    );
+    // Its bar dragged by the pointer: the dock keeps where it was let go.
+    let bar = ui.rect(panel).expect("laid out");
+    ui.pointer_moved(bar.x + bar.width / 2.0, bar.y + 8.0);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_moved(bar.x + bar.width / 2.0 - 100.0, bar.y - 50.0);
+    frame(&mut ui, &mut dock, slot);
+    assert!(!dock.take_changed(), "not while the pointer holds it");
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    frame(&mut ui, &mut dock, slot);
+    assert!(dock.take_changed());
+    let moved = dock.layout().floating[0].origin;
+    assert!(
+        (moved[0] - (floating_origin(&ui, panel)[0])).abs() < 1.0,
+        "{moved:?}"
+    );
+    // Closed, its layer goes; shown again, it opens where it was let go.
+    assert!(dock.close("history"));
+    frame(&mut ui, &mut dock, slot);
+    assert!(dock.slot("history").is_none());
+    assert!(ui.path_text(content).is_none(), "its layer gone");
+    assert!(dock.show("history"));
+    frame(&mut ui, &mut dock, slot);
+    let panel = dock
+        .slot("history")
+        .and_then(|slot| ui.rect(slot))
+        .expect("afloat");
+    assert!((panel.x - moved[0]).abs() < 1.0, "{panel:?} {moved:?}");
+    // Docked again, its layer goes.
+    assert!(dock.move_panel("history", &Target::Edge(Edge::Bottom)));
+    frame(&mut ui, &mut dock, slot);
+    assert!(
+        !ui.meaning()
+            .iter()
+            .any(|meaning| meaning.role == Role::Pane && meaning.name == "HISTORY"),
+        "no floating panel"
+    );
+    assert!(dock.slot("history").is_some());
+}
+
+/// Where the floating panel `panel`'s layer stands, in logical pixels.
+fn floating_origin(ui: &Ui, panel: ElementId) -> [f32; 2] {
+    let rect = ui.rect(panel).expect("laid out");
+    [rect.x, rect.y]
+}
+
+#[test]
+fn a_panel_floated_from_no_stack_shown_stands_in_the_middle_of_the_window() {
+    let mut dock = Dock::new(editor());
+    // Floated before the dock was ever built: no stack stood anywhere.
+    assert!(dock.move_panel("console", &Target::Float));
+    let (mut ui, _, slot) = docked(Layout::new(Node::tabs(&["other"])));
+    frame(&mut ui, &mut dock, slot);
+    let floating = &dock.layout().floating[0];
+    assert_eq!(floating.size, [800.0 / 3.0, 300.0]);
+    assert_eq!(floating.origin, [(800.0 - 800.0 / 3.0) / 2.0, 150.0]);
+}
+
+#[test]
+fn a_layout_set_anew_opens_its_floating_panels_again() {
+    let mut layout = editor();
+    layout.move_panel("history", &Target::Float);
+    layout.floating[0].origin = [40.0, 30.0];
+    layout.floating[0].size = [200.0, 150.0];
+    let (mut ui, mut dock, slot) = docked(layout.clone());
+    let first = dock.slot("history").expect("afloat");
+    dock.set_layout(editor());
+    assert!(dock.take_changed());
+    frame(&mut ui, &mut dock, slot);
+    assert!(ui.path_text(first).is_none(), "its layer gone");
+    assert_eq!(dock.layout(), &editor());
+    dock.set_layout(layout);
+    frame(&mut ui, &mut dock, slot);
+    let afloat = dock
+        .slot("history")
+        .and_then(|slot| ui.rect(slot))
+        .expect("afloat");
+    assert!((afloat.x - 40.0).abs() < 1.0, "{afloat:?}");
+}
+
+#[test]
+fn a_border_s_drag_settles_as_it_is_let_go() {
+    let (mut ui, mut dock, slot, splitter) = halves(LayoutDirection::LeftToRight, true);
+    let rect = ui.rect(splitter).expect("laid out");
+    ui.pointer_moved(rect.x + rect.width / 2.0, 300.0);
+    ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
+    ui.pointer_moved(300.0, 300.0);
+    frame(&mut ui, &mut dock, slot);
+    assert!(!dock.take_changed(), "a step of the drag");
+    assert!(shares(&dock.layout().root)[0] < 0.4, "but shown");
+    ui.pointer_button(MouseButton::Left, ButtonState::Released);
+    frame(&mut ui, &mut dock, slot);
+    assert!(dock.take_changed());
+}
+
+#[test]
+fn a_splitter_across_a_closed_child_moves_the_two_beside_it() {
+    let layout = Layout::new(Node::split(
+        true,
+        vec![
+            (0.2, Node::tabs(&["a"])),
+            (0.3, Node::tabs(&["b"])),
+            (0.5, Node::tabs(&["c"])),
+        ],
+    ));
+    let (mut ui, mut dock, slot) = docked(layout);
+    assert!(dock.close("b"));
+    frame(&mut ui, &mut dock, slot);
+    let splitters: Vec<_> = ui
+        .meaning()
+        .into_iter()
+        .filter(|meaning| meaning.role == Role::Splitter)
+        .collect();
+    assert_eq!(splitters.len(), 1);
+    assert_eq!(splitters[0].name, "between A and C");
+    // `a` and `c` share the width by their shares, 2 to 5.
+    let width = |ui: &Ui, dock: &Dock, panel| {
+        dock.slot(panel)
+            .and_then(|slot| ui.rect(slot))
+            .map_or(0.0, |rect| rect.width)
+    };
+    let (a, c) = (width(&ui, &dock, "a"), width(&ui, &dock, "c"));
+    assert!((a / (a + c) - 0.2 / 0.7).abs() < 0.01, "{a} {c}");
+    // Given a value as an agent gives it: `a` and `c` change, `b` keeps its share.
+    assert!(ui.set_value(splitters[0].id, "0.5"));
+    frame(&mut ui, &mut dock, slot);
+    let after = shares(&dock.layout().root);
+    assert!(
+        (after[0] - 0.35).abs() < 1e-4 && (after[2] - 0.35).abs() < 1e-4,
+        "{after:?}"
+    );
+    assert_eq!(after[1], 0.3);
+    let (a, c) = (width(&ui, &dock, "a"), width(&ui, &dock, "c"));
+    assert!((a - c).abs() < 1.0, "{a} {c}");
+}
+
+#[test]
+fn a_floating_panel_opens_no_larger_than_the_window_and_an_agent_places_it() {
+    let mut layout = editor();
+    layout.move_panel("history", &Target::Float);
+    layout.floating[0].origin = [10.0, 10.0];
+    layout.floating[0].size = [3000.0, 2000.0];
+    let (mut ui, mut dock, slot) = docked(layout);
+    let floating = dock
+        .slot("history")
+        .and_then(|content| ui.rect(content))
+        .expect("afloat");
+    assert!(
+        floating.width <= 800.0 && floating.height <= 600.0,
+        "{floating:?}"
+    );
+    // An agent's place of no size, or not finite, is left out; another is kept by the dock.
+    let panel = ui
+        .meaning()
+        .into_iter()
+        .find(|meaning| meaning.role == Role::Pane && meaning.name == "HISTORY")
+        .expect("a floating panel")
+        .id;
+    let root = ui
+        .path_text(panel)
+        .map(|path| path.split('/').next().map(str::to_owned));
+    assert_eq!(root.flatten().as_deref(), Some("floating history"));
+    let layer = ui.element_by_path("floating history").expect("its layer");
+    for size in [[0.0, 100.0], [f32::NAN, 100.0]] {
+        ui.act(Action {
+            element: Some(layer),
+            kind: ActionKind::Placed {
+                origin: [20.0, 20.0],
+                size,
+            },
+        });
+    }
+    frame(&mut ui, &mut dock, slot);
+    assert_eq!(
+        dock.layout().floating[0].size,
+        [3000.0, 2000.0],
+        "nothing taken"
+    );
+    ui.act(Action {
+        element: Some(layer),
+        kind: ActionKind::Placed {
+            origin: [20.0, 30.0],
+            size: [300.0, 200.0],
+        },
+    });
+    frame(&mut ui, &mut dock, slot);
+    assert!(dock.take_changed());
+    assert_eq!(dock.layout().floating[0].origin, [20.0, 30.0]);
+    assert_eq!(dock.layout().floating[0].size, [300.0, 200.0]);
 }

@@ -5,7 +5,7 @@
 use slime_input::{ButtonState, Key, KeyEvent, Modifiers, MouseButton, NamedKey, ScrollDelta};
 
 use super::field::DRAG_THRESHOLD;
-use super::{ElementId, ElementState, Kind, LayoutDirection, Node, Ui};
+use super::{ElementId, ElementState, Kind, LayoutDirection, Node, Place, Ui};
 use crate::DocumentError;
 use crate::action::{Action, ActionKind, Intent, SurfaceInput};
 use crate::shortcuts::{self, Binding, Shortcuts};
@@ -293,8 +293,9 @@ impl Ui {
                 if !primary {
                     return true;
                 }
-                if self.interaction.panel.take().is_some() {
+                if let Some(grab) = self.interaction.panel.take() {
                     self.interaction.captured = None;
+                    self.panel_placed(grab);
                     return true;
                 }
                 let captured = self.interaction.captured.take();
@@ -915,6 +916,20 @@ impl Ui {
             | ActionKind::Dismissed
             | ActionKind::Dropped { .. }
             | ActionKind::Surface(_) => {
+                self.interaction.actions.push(action);
+            }
+            // An agent places a floating layer as the pointer would, at a place of finite numbers
+            // and of a size above nothing.
+            ActionKind::Placed { origin, size } => {
+                let valid = origin.iter().all(|at| at.is_finite())
+                    && size.iter().all(|side| side.is_finite() && *side > 0.0);
+                let Some(root) = action.element.filter(|_| valid) else {
+                    return;
+                };
+                let Some(Place::Floating { over, .. }) = self.layer_place(root) else {
+                    return;
+                };
+                self.set_layer_place(root, Place::Floating { over, origin, size });
                 self.interaction.actions.push(action);
             }
             ActionKind::Intent(intent) => self.move_focus(intent),

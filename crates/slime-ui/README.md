@@ -81,13 +81,17 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   scroll bars of a box that scrolls and of a list. Their parts apart from their box take the style's
   `control` part (`style::ControlStyle`), and rules select them by the states `Checked`, `Expanded`
   and `Selected`.
-- `dock`, docking ([ADR-0172](../../docs/adr/0172-regions-of-tabs.md)): a program's panels laid
-  out in a `dock::Layout`, splits of any number of children, each with its share, and stacks of
-  tabs, reflected data normalized after each edit; a `dock::Dock` builds it into the program's
-  tree, each stack a pane of tabs over the chosen panel's slot, which the program fills
-  (`Dock::slot`), a splitter between each two children of a split; it takes its splitters'
-  actions, reads the tabs chosen, moves a panel into another stack or to an edge of the window
-  (`Dock::move_panel`), and tells the program when the layout changed (`Dock::take_changed`).
+- `dock`, docking ([ADR-0172](../../docs/adr/0172-regions-of-tabs.md),
+  [ADR-0174](../../docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md)): a program's
+  panels laid out in a `dock::Layout`, splits of any number of children, each with its share,
+  stacks of tabs, and panels that float, any of them closed and keeping its place; reflected data
+  normalized after each edit, and fitted to the program's panels (`Layout::fit`). A `dock::Dock`
+  builds it into the program's tree, each stack a pane of tabs over the chosen panel's slot, which
+  the program fills (`Dock::slot`), a splitter between each two children of a split that show, and
+  each floating panel in a floating layer; it takes its splitters' actions and its floating
+  panels' places, reads the tabs chosen, moves a panel into another stack, to an edge of the window
+  or afloat (`Dock::move_panel`), closes it and shows it again where it was (`Dock::close`,
+  `Dock::show`), and tells the program when the layout settled (`Dock::take_changed`).
 - Layers (`docs/adr/0150-layers.md`): roots over the others that the interface places
   (`Ui::open_layer`, `tree::Layer`, `tree::Place`), beside an element, at a point or floating, kept
   within the window, closed as the user leaves them, which the program reads
@@ -100,7 +104,8 @@ other foundations (`docs/adr/0149-the-looks-foundations.md`).
   (`Element::choice`), which open their own list and give their choice as a value
   (`action::FieldValue::Chosen`, `Ui::chosen`); tooltips (`Element::tooltip`), shown once the
   pointer rests on the interface's clock; floating panels (`Element::floating_panel`), which move
-  and size their layer (`Ui::layer_place`, `Ui::set_layer_place`). A style's `icons`
+  and size their layer (`Ui::layer_place`, `Ui::set_layer_place`), and tell the program where the
+  pointer let them go (`action::ActionKind::Placed`). A style's `icons`
   (`style::Icons`) name the glyphs of a font that controls draw in place of their shapes.
 - Rich fields (`docs/adr/0151-rich-widgets.md`): a field's placeholder (`Element::placeholder`),
   buttons that toggle (`Element::toggle_button`), controls of segments (`Element::segments`), bars

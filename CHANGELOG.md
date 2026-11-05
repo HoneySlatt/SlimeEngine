@@ -8,6 +8,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Closed and floating panels in `slime-ui`'s dock (ADR-0174): `Layout::floating`, `Layout::closed`,
+  `Layout::fit`, `Layout::close`, `Layout::show`, `Target::Float`, `Dock::close`,
+  `Dock::set_layout`; `Dock::take_changed` reports a border's drag only as it ends.
+  `ActionKind::Placed` tells the program where the pointer let a floating layer go, and places it
+  for an agent.
 - Regions of tabs in the editor (ADR-0172): its panels, the hierarchy, the components, the viewport,
   the history and the console, lie in stacks of tabs, the hierarchy above the components on the
   left and the viewport above the history and the console at first; a border between two regions,

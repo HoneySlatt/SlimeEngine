@@ -638,7 +638,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **Widgets** ([ADR-0148](adr/0148-widgets.md)).
   A check box has no third state, mixed; M6c.5f gives it one.
   A slider lies across alone, and shows neither ticks nor its value.
-  Tabs are neither closed, moved nor scrolled when the bar is too narrow for them; M6c.8 moves and closes them.
+  Tabs have no button that closes them, are not dragged, nor scrolled when the bar is too narrow for them; M6c.8 drags them and gives them one; the dock's panels close by the program ([ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)).
   Two panels are two, of no least size, and a third child is folded; M6c.8 gives panels a least size.
   Scroll bars show over the content as long as it does not fit, and have no arrows.
   Whether a section is open, which tab is chosen and where a handle stands are the interface's alone: they tell the program nothing, and an element that a builder removes forgets them.
@@ -659,7 +659,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A list to choose from does not scroll its options: a list taller than the window is cut.
   Tab within an open list moves among its options rather than closing it.
   A tooltip shows for the keys' focus alone, not the program's, and is not placed beside the pointer.
-  A floating panel has a least size of its own and no docking; M6c.8 docks floating panels.
+  A floating panel has a least size of its own; the dock's floating panels dock again by the program's "Move to" ([ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)), not by a drag, which M6c.8 adds.
   A floating panel does not keep its place against a window that shrinks: it is placed within the window, but keeps what the user left.
   A style sheet reads a theme's value in place of every value but a text: the look names its icons by their codepoints in its sheet, not in a theme.
   The bar of menus takes Alt let go alone whenever an interface holds one: a game whose interface holds a bar loses Alt as a key of its own.

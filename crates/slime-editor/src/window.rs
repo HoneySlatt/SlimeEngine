@@ -709,7 +709,7 @@ impl Model {
             }
             // A tab's context menu, the second button or Shift+F10 on it: where to move its panel.
             (ActionKind::ContextMenu { .. }, Some(id))
-                if let Some(panel) = self.dock.panel_of_tab(id) =>
+                if let Some(panel) = self.dock.panel_of(id) =>
             {
                 let panel = panel.to_owned();
                 self.open_menu(id, Side::Below, Menu::Tab(panel));

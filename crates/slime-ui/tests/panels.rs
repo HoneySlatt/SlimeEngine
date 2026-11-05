@@ -1,9 +1,11 @@
 //! Floating panels, without a GPU (`docs/adr/0150-layers.md`): a panel that fills its floating
-//! layer; moved by its bar, within the window, and sized by its corner, no smaller than its least,
+//! layer; moved by its bar, within the window, the program told where it was let go, or by an
+//! agent, and sized by its corner, no smaller than its least,
 //! from either direction; folded to its bar by its mark, its layer as tall as the bar; raised above
 //! another by a press; its meaning.
 
 use slime_input::{ButtonState, MouseButton};
+use slime_ui::action::{Action, ActionKind};
 use slime_ui::style::{Dimension, Style};
 use slime_ui::text::Fonts;
 use slime_ui::tree::{Element, ElementId, Layer, LayoutDirection, Place, Role, RootSettings, Ui};
@@ -93,10 +95,35 @@ fn a_panel_fills_its_layer_and_its_bar_moves_it_within_the_window() {
     assert_eq!(origin_and_size(&ui, layer).0, [80.0, 60.0]);
     let rect = ui.rect(panel).expect("laid out");
     assert_eq!((rect.x, rect.y), (80.0, 60.0));
-    assert!(ui.take_actions().is_empty());
+    // The program is told where it was let go, once.
+    assert_eq!(
+        ui.take_actions(),
+        [Action {
+            element: Some(layer),
+            kind: ActionKind::Placed {
+                origin: [80.0, 60.0],
+                size: [200.0, 150.0]
+            }
+        }]
+    );
     // Far past the window's corner: within it.
     drag(&mut ui, (180.0, 70.0), (900.0, 900.0));
     assert_eq!(origin_and_size(&ui, layer).0, [200.0, 150.0]);
+    // Pressed and let go where it was: not told.
+    ui.take_actions();
+    drag(&mut ui, (300.0, 160.0), (300.0, 160.0));
+    assert!(ui.take_actions().is_empty());
+    // An agent places it as the pointer would.
+    ui.act(Action {
+        element: Some(layer),
+        kind: ActionKind::Placed {
+            origin: [10.0, 20.0],
+            size: [220.0, 160.0],
+        },
+    });
+    ui.frame();
+    assert_eq!(origin_and_size(&ui, layer), ([10.0, 20.0], [220.0, 160.0]));
+    assert_eq!(ui.take_actions().len(), 1, "told as the pointer's");
 }
 
 #[test]

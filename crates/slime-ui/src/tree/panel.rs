@@ -4,6 +4,7 @@
 
 use super::{ElementId, Kind, Place, Ui};
 use crate::Rect;
+use crate::action::{Action, ActionKind};
 
 /// The least size of a floating panel that the pointer sizes, in its control's sizes.
 const LEAST_SIZE: [f32; 2] = [8.0, 4.0];
@@ -100,6 +101,20 @@ impl Ui {
             }
         };
         self.set_layer_place(grab.root, place);
+    }
+
+    /// The pointer let go of the floating panel that `grab` held: the program is told where its
+    /// layer stands, if the pointer moved or sized it.
+    pub(super) fn panel_placed(&mut self, grab: Grab) {
+        let Some(Place::Floating { origin, size, .. }) = self.layer_place(grab.root) else {
+            return;
+        };
+        if origin != grab.origin || size != grab.size {
+            self.interaction.actions.push(Action {
+                element: Some(grab.root),
+                kind: ActionKind::Placed { origin, size },
+            });
+        }
     }
 
     /// The corner of the open floating panel `id` that the pointer drags to size it, at the end of

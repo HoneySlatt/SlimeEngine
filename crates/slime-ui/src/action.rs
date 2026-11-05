@@ -62,6 +62,17 @@ pub enum ActionKind {
     /// or over removed, for any layer. The action's element is the layer's root, which no longer
     /// exists (`docs/adr/0150-layers.md`).
     Dismissed,
+    /// A floating layer that the pointer moved by its panel's bar or sized by its corner, let go:
+    /// where it stands now, which [`Ui::layer_place`](crate::tree::Ui::layer_place) gives too. The
+    /// action's element is the layer's root (`docs/adr/0150-layers.md`,
+    /// `docs/adr/0174-layouts-kept-floating-panels-and-closed-panels.md`). An agent's places the
+    /// layer there, unless a number is not finite or a side not above 0, which is left out.
+    Placed {
+        /// Where its top left corner stands, in logical pixels of its surface.
+        origin: [f32; 2],
+        /// Its width and height, in logical pixels.
+        size: [f32; 2],
+    },
     /// What the pointer did on a surface, the action's element
     /// ([`Kind::Surface`](crate::tree::Kind::Surface)).
     Surface(SurfaceInput),
