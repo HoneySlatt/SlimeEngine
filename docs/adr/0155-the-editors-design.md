@@ -29,8 +29,10 @@
   pivot onto the world's grid in the world's axes, by increments in the selection's alone, and an
   operation turns it on and off), [0162](0162-creating-copying-and-arranging.md) (a duplicate
   and what is pasted go last among their parent's children, in place; nudging moves along the
-  world's axes) and [0172](0172-regions-of-tabs.md) (docking a model of `slime-ui` that builds its
-  elements, not a kind of element)
+  world's axes), [0172](0172-regions-of-tabs.md) (docking a model of `slime-ui` that builds its
+  elements, not a kind of element) and
+  [0174](0174-layouts-kept-floating-panels-and-closed-panels.md) (a layout kept against any other
+  default is set aside, not only against an older one)
 - Date: 2026-10-27
 
 ## Context

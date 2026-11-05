@@ -218,12 +218,12 @@ the ADR linking to it.
 | [0147](0147-the-screen-readers-check-in-ci.md) | The screen readers' check in CI | Accepted |
 | [0148](0148-widgets.md) | Widgets | Accepted; amended by 0149 |
 | [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151 and 0170 |
-| [0150](0150-layers.md) | Layers | Accepted; amended by 0154, 0157 |
+| [0150](0150-layers.md) | Layers | Accepted; amended by 0154, 0157, 0174 |
 | [0151](0151-rich-widgets.md) | Rich widgets | Accepted |
 | [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
 | [0153](0153-tab-and-f6-in-a-games-interface.md) | Tab and F6 in a game's interface | Accepted; amended by 0172 |
 | [0154](0154-floating-panels-and-held-keys.md) | Floating panels and held keys | Accepted |
-| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156, 0158, 0159, 0160, 0161, 0162 and 0172 |
+| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156, 0158, 0159, 0160, 0161, 0162, 0172 and 0174 |
 | [0156](0156-the-editors-window-and-its-operations.md) | The editor's window and its operations | Accepted |
 | [0157](0157-dialogs-the-cursor-held-and-the-gpus-identity.md) | Dialogs, the cursor held and the GPU's identity | Accepted |
 | [0158](0158-the-viewport.md) | The viewport | Accepted; amended by 0159, 0160 |
@@ -242,3 +242,4 @@ the ADR linking to it.
 | [0171](0171-effects-of-the-interface.md) | Effects of the interface, at their lowest cost | Accepted; amends 0170 |
 | [0172](0172-regions-of-tabs.md) | Regions of tabs | Accepted; amends 0153 and 0155 |
 | [0173](0173-the-platforms-of-applications.md) | The platforms of applications | Accepted; amends 0015, 0098, 0100 and 0170 |
+| [0174](0174-layouts-kept-floating-panels-and-closed-panels.md) | Layouts kept, floating panels and closed panels | Accepted; amends 0150 and 0155 |

@@ -3,9 +3,11 @@
 - Status: Accepted; amends [0142](0142-input-and-focus.md) (roots that the framework places, and
   closes on a press outside them or Escape); amended by
   [0154](0154-floating-panels-and-held-keys.md) (a floating panel takes no focus as it opens, and
-  gives it to nothing as it closes) and [0157](0157-dialogs-the-cursor-held-and-the-gpus-identity.md)
+  gives it to nothing as it closes), [0157](0157-dialogs-the-cursor-held-and-the-gpus-identity.md)
   (a modal layer's root is of the class `modal`, and a layer's root lays the backdrop that its
-  style gives over the window below it)
+  style gives over the window below it) and
+  [0174](0174-layouts-kept-floating-panels-and-closed-panels.md) (a floating panel that the pointer
+  moved or sized tells the program as it lets go)
 - Date: 2026-10-27
 
 ## Context

@@ -330,18 +330,18 @@ tabs".
 
 - **Goal.** The user drags panels and tabs to arrange the editor. If the stage runs long, the
   milestone moves to Stage 11, with an amendment of ADR-0131 and the roadmap, the regions of M6c.5d
-  serving meanwhile.
-- **Crates.** `slime-ui`, `slime-editor`; `games/hunnawood-editor`.
-- **Delivers.** Zones to drop a panel or a tab on, shown as it is dragged; tabs moved and closed;
-  floating panels docked again; closed panels coming back to their places; a least size for
-  panels; a project's default layout, which a game's editor package gives.
-- **Done when.** `slime-ui`'s tests of the layout's rules after random edits; a layout saved against
-  an older default upgraded; a layout that cannot be read gives the default and a notification; an
-  agent moves a panel by its operation; CI is green.
+  and the layouts of M6c.5e serving meanwhile.
+- **Crates.** `slime-ui`, `slime-editor`.
+- **Delivers.** Zones to drop a panel or a tab on, shown as it is dragged; tabs reordered and moved
+  by drags, and a button of their own that closes them; floating panels docked again by a drag; a
+  least size for each panel. M6c.5e delivered the rest that this milestone once listed
+  ([ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)).
+- **Done when.** `slime-ui`'s tests of the drops' rules; an agent drops a panel on a zone as a drag
+  would; CI is green.
 - **How to test.** `cargo test -p slime-ui -p slime-editor`.
 - **By hand.** Panels docked by drag on the owner's Linux desktop and in the Windows virtual machine.
-- **Debt settled.** Tabs neither moved nor closed; two panels without a least size; a floating
-  panel that does not dock.
+- **Debt settled.** Tabs without a button that closes them, nor dragged; two panels without a least
+  size; a floating panel that docks by "Move to" alone.
 
 ### M6c.9 — Windows check, documentation, release 0.7
 
