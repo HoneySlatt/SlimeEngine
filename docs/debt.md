@@ -602,6 +602,11 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A word wider than its box, on a line before the last one shown, overflows the box rather than being cut.
   The cache's memory is an estimate fitted once to a measurement, of texts not cut.
   A hit copies its key, and fonts registered are never let go.
+- **The editor's window reads the system's list of fonts as it starts** (`Fonts::with_system_fonts`, [ADR-0133](adr/0133-font-files-under-the-open-font-license.md)).
+  It falls back on them for the writing systems that the editor's look does not ship.
+  fontconfig's list took some 55 to 75 ms on a Ryzen 7 5800X, measured once in a release build; the first text in a writing system found that way, some 4 ms more.
+  Reading the list in the background, or at the first character that no font registered has, would take it off the start.
+  The quality-bar milestones that [`PLAN.md`](PLAN.md) names next measure the editor's start, and follow it.
 - **CI's jobs and their limit of 20 minutes** ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md), [ADR-0144](adr/0144-the-cooked-zones-key-in-ci.md), [ADR-0155](adr/0155-the-editors-design.md)).
   Each job of CI must end within 20 minutes, and every session of the editor adds to the checks.
   Since M6c.0, three Linux jobs run `scripts/check.sh`'s three parts side by side; the game's agent session draws the zone without shadows.

@@ -300,7 +300,9 @@ pub(crate) struct Model {
 impl Model {
     /// The window of the core that shares `shared`, in the editor's look.
     pub(crate) fn new(shared: Shared) -> Self {
-        let mut fonts = Fonts::new();
+        // The look ships Latin and Cyrillic: a name in another writing system takes the system's
+        // font for it (`docs/adr/0133-font-files-under-the-open-font-license.md`).
+        let mut fonts = Fonts::with_system_fonts();
         look::register_fonts(&mut fonts);
         let mut ui = Ui::new(fonts);
         let blender = shared
@@ -2687,6 +2689,7 @@ mod tests {
     use slime_platform::{ButtonState, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey};
     use slime_reflect::Reflect;
     use slime_ui::display::Primitive;
+    use slime_ui::text::{TextBounds, TextStyle};
     use slime_world::{Command, PersistentId};
 
     use super::*;
@@ -2694,6 +2697,33 @@ mod tests {
     use crate::program::Lighting;
 
     const SIZE: [f32; 2] = [1280.0, 800.0];
+
+    /// Where the system has a font for Greek, which the editor's look does not ship: fontconfig's
+    /// on Linux, which the dev shell loads, and DirectWrite's on Windows. Without one, the test says
+    /// so and checks nothing.
+    #[test]
+    fn the_window_falls_back_on_the_system_s_fonts_for_what_its_own_lack() {
+        let greek = "Ελληνικά";
+        let style = TextStyle {
+            fonts: vec![look::TEXT_FAMILY.to_owned()],
+            locale: Some("en".to_owned()),
+            ..TextStyle::default()
+        };
+        let drawn_whole = |fonts: &mut Fonts| {
+            let layout = fonts.lay_out(greek, &style, 1.0, TextBounds::default());
+            !layout.runs().is_empty()
+                && layout
+                    .runs()
+                    .iter()
+                    .all(|run| run.glyphs.iter().all(|glyph| glyph.id != 0))
+        };
+        if !drawn_whole(&mut Fonts::with_system_fonts()) {
+            eprintln!("the system gives no font for Greek here: nothing to fall back on");
+            return;
+        }
+        let mut model = Model::new(Shared::default());
+        assert!(drawn_whole(model.ui.fonts_mut()));
+    }
 
     /// A yard of its own, without prefabs, and empty cooked data, opened by a session whose window
     /// is a model without a GPU, both sharing a value, as the program runs them.
