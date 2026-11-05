@@ -72,7 +72,7 @@ the ADR linking to it.
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted |
 | [0002](0002-amend-roadmap-stages-0-to-3.md) | Amend the roadmap for Stages 0 to 3 | Accepted; amended by 0014 |
 | [0003](0003-toolchain-edition-and-msrv.md) | Pin the toolchain in one file, use edition 2024, set the MSRV to the pinned version | Accepted |
-| [0004](0004-workspace-layout-and-crate-naming.md) | Workspace layout and crate naming | Accepted; amended by 0014, 0055, 0104 |
+| [0004](0004-workspace-layout-and-crate-naming.md) | Workspace layout and crate naming | Accepted; amended by 0014, 0055, 0104 and 0178 |
 | [0005](0005-lints-and-unsafe-policy.md) | Lints and `unsafe` policy | Accepted |
 | [0006](0006-dependency-policy.md) | Dependency policy | Accepted; amended by 0023, 0031 and 0133 |
 | [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted; amended by 0015 and 0123 |
@@ -238,7 +238,7 @@ the ADR linking to it.
 | [0167](0167-the-hierarchy.md) | The hierarchy | Accepted; amends 0108 |
 | [0168](0168-rearranging-the-hierarchy.md) | Rearranging the hierarchy | Accepted |
 | [0169](0169-the-eye-and-the-lock.md) | The eye and the lock | Accepted |
-| [0170](0170-applications-on-the-ui-framework.md) | Applications on the engine's UI framework | Accepted; amends 0098, 0132 and 0149; amended by 0171 and 0173 |
+| [0170](0170-applications-on-the-ui-framework.md) | Applications on the engine's UI framework | Accepted; amends 0098, 0132 and 0149; amended by 0171, 0173 and 0178 |
 | [0171](0171-effects-of-the-interface.md) | Effects of the interface, at their lowest cost | Accepted; amends 0170 |
 | [0172](0172-regions-of-tabs.md) | Regions of tabs | Accepted; amends 0153 and 0155 |
 | [0173](0173-the-platforms-of-applications.md) | The platforms of applications | Accepted; amends 0015, 0098, 0100 and 0170 |
@@ -246,3 +246,4 @@ the ADR linking to it.
 | [0175](0175-the-quality-bar.md) | The quality bar | Accepted; amends 0104, 0110, 0114, 0123, 0137, 0138, 0140 and 0155 |
 | [0176](0176-fuzzing-and-crash-reports.md) | Fuzzing and crash reports | Accepted; amends 0096 and 0102 |
 | [0177](0177-audits-and-releases.md) | Audits and releases | Accepted; amends 0097 and 0155 |
+| [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170 |

@@ -131,7 +131,7 @@ CI checks budgets through exact counters, draws, elements, bytes, allocations, a
 | GPU abstraction | wgpu, then native backends, Vulkan and Direct3D 12, at Stage 9c (ADR-0098). Their types stay inside the `gfx` and `render` crates, and the engine's own tests, through `slime-gfx`'s `wgpu` feature (ADR-0031); the rest of the engine uses engine-owned handles. |
 | Shaders | WGSL to start |
 | First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS is built and tested in CI from Stage 6d, and supported once a Mac can check it; wgpu stays for it after Stage 9c. No mobile platform and no web for now: Android waits for a measurement after Stage 6d (ADR-0098, ADR-0173). |
-| UI | One framework of the engine's own, GPU-rendered, for the editor, the UI of games and desktop applications (ADR-0170): a retained tree of its own, on parley, taffy and AccessKit, drawn by the renderer's canvas (ADR-0098, ADR-0132). The dev overlay, tooling, runs on it since Stage 6b, which removed egui (ADR-0152). No Qt or GTK. |
+| UI | One framework of the engine's own, lumui (ADR-0178), GPU-rendered, for the editor, the UI of games and desktop applications (ADR-0170): a retained tree of its own, on parley, taffy and AccessKit, drawn by the renderer's canvas (ADR-0098, ADR-0132). The dev overlay, tooling, runs on it since Stage 6b, which removed egui (ADR-0152). No Qt or GTK. |
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
 | Windowing and input | winit, used only inside `platform`; its types never leave that crate (ADR-0011) |
 | Entity model | The engine's own: entities, components stored by type, and a transform hierarchy, with `f64` translations (ADR-0079) |
@@ -392,9 +392,10 @@ The stage's milestones, their order and the owner's two checkpoints are decided 
 - Motion, beyond the transitions of Stage 6b (ADR-0149): transforms animated, curves and springs, delays in cascade, animations driven by scrolling, variable fonts whose axes move, an element that becomes another; a frame rate capped for each animation, effects stopped while the window has lost the focus, nothing drawn at rest; reduced transparency beside reduced motion, and effects lightened on modest hardware (ADR-0114, ADR-0171)
 - Text styled by ranges, masked fields, double clicks, the pointer's shapes, smooth and sideways scrolling, virtual lists that scroll sideways, a table's header that stays; gamepads, and the focus that they drive, moved from Stage 7
 - The framework and the shell of applications built and tested on macOS in CI, not supported until a Mac checks them (ADR-0173)
-- The pilot: Slatty, a launcher of games outside this repository, ported onto the framework in its own repository, with a checkpoint where the owner uses it; a music player follows it after the stage
+- The pilots: Slatty, a launcher of games, and a music player, both outside this repository, ported onto the framework in their own repositories during the stage, each with a checkpoint where the owner uses it; the music player's figures with its present framework measured first (ADR-0178)
+- The framework, named lumui (ADR-0178), moved to a repository of its own once its drawing has left the renderer
 
-**Exit.** Slatty runs on the framework at least as well as on Iced, on each of the figures that ADR-0170 records; every need that the music player marks as indispensable exists, shown by an example and its tests; nothing is drawn at rest, under Wayland and under Xwayland; the power that the GPU and the CPU draw is measured for each effect, at rest and in motion (ADR-0171).
+**Exit.** Slatty and the music player run on the framework at least as well as on Iced and egui, on each of the figures that ADR-0170 and ADR-0178 record; every need that the music player marks as indispensable exists, shown by an example and its tests; nothing is drawn at rest, under Wayland and under Xwayland; the power that the GPU and the CPU draw is measured for each effect, at rest and in motion (ADR-0171).
 
 ### Stage 7 — Runtime systems → 0.9
 

@@ -750,6 +750,12 @@ of colors, dark, light or high contrast, and a compact one (`slime_ui::look`, bu
 `slime-ui`'s feature `editor-look`; [ADR-0148](adr/0148-widgets.md),
 [ADR-0149](adr/0149-the-looks-foundations.md)).
 
+**lumui.** The engine's UI framework: a retained tree of elements, its layout, text, input and
+widgets, drawn by the renderer's canvas, for the editor, games' interfaces and *applications*
+([ADR-0132](adr/0132-the-engines-ui-framework.md)). Named on 2026-11-05; its crates are still
+`slime-ui` and `slime-ui-render` until they are renamed `lumui` and `lumui-render`
+([ADR-0178](adr/0178-two-pilots-and-the-frameworks-name.md)).
+
 **Lux (lx).** The unit of *illuminance*, lumens per square metre: the strength of a directional
 light (`illuminance`); about 100 000 for direct sunlight, 400 at sunrise.
 

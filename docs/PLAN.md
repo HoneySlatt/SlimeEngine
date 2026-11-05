@@ -23,7 +23,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - Checkpoint A: done on Linux; its part in the Windows virtual machine waits for the owner.
 - Now: [M6c.Q1](#m6cq1--the-quality-bar-written), the first of the
   [quality milestones](#the-quality-milestones) ([ADR-0175](adr/0175-the-quality-bar.md)).
-- Next: M6c.Q2a, M6c.Q2b, M6c.Q3 and M6c.Q4; then [M6c.5f](#m6c5f--the-inspector), the inspector.
+- Next: [M6c.N](#m6cn--the-framework-named-lumui), the framework named lumui
+  ([ADR-0178](adr/0178-two-pilots-and-the-frameworks-name.md)); M6c.Q2a, M6c.Q2b, M6c.Q3 and
+  M6c.Q4; then [M6c.5f](#m6c5f--the-inspector), the inspector.
 - Then: M6c.6, M6c.7, Checkpoint B, M6c.8, M6c.Q5, the stage's audit, and M6c.9.
 - Cuts made at a milestone's start, a part cut again at its own start where needed: M6c.1 into 1a
   and 1b; M6c.2 into 2a to 2c; M6c.3 into 3a to 3c; M6c.4 into 4a to 4d; M6c.5 into 5a to 5f;
@@ -61,6 +63,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | M6c.5d — Regions of tabs | Done 2026-11-04, [ADR-0172](adr/0172-regions-of-tabs.md), CI green on `06faca1` |
 | M6c.5e — Layouts kept, floating panels and closed panels | Done 2026-11-05, [ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md), CI green on `9edb2f8` |
 | [M6c.Q1 — The quality bar written](#m6cq1--the-quality-bar-written) | In progress |
+| [M6c.N — The framework named lumui](#m6cn--the-framework-named-lumui) | Planned |
 | [M6c.Q2a — Rest, checked in CI](#m6cq2a--rest-checked-in-ci) | Planned |
 | [M6c.Q2b — Counters, ratios and first measures](#m6cq2b--counters-ratios-and-first-measures) | Planned |
 | [M6c.Q3 — The hierarchy's search over frames](#m6cq3--the-hierarchys-search-over-frames) | Planned |
@@ -141,6 +144,18 @@ stage's audit before M6c.9. Their figures live in the
 - **Done when.** Every budget that the repository states is in the quality bar, or says why it
   stays a contract of rustdoc; a reviewing agent checked it; CI is green.
 - **How to test.** `scripts/check.sh headless`, whose last step checks the documents' links.
+- **Measured.** CI's jobs.
+
+### M6c.N — The framework named lumui
+
+- **Goal.** The engine's UI framework carries its own name, before it grows further.
+- **Crates.** `slime-ui` and `slime-ui-render`, and every crate, example and document that names
+  them.
+- **Delivers.** As [ADR-0178](adr/0178-two-pilots-and-the-frameworks-name.md) decides: `slime-ui`
+  renamed `lumui` and `slime-ui-render` `lumui-render`, their directories, packages, paths and
+  rustdoc; the documents that describe the code as it is name lumui; earlier ADRs unchanged.
+- **Done when.** No name of the old crates is left outside earlier ADRs and history; CI is green.
+- **How to test.** `scripts/check.sh`; `git grep -E 'slime[_-]ui'`.
 - **Measured.** CI's jobs.
 
 ### M6c.Q2a — Rest, checked in CI
