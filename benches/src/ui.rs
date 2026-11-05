@@ -6,12 +6,14 @@ use std::hint::black_box;
 use std::time::Duration;
 
 use slime_color::LinearColor;
+use uwui::display::DisplayList;
 use uwui::display::ImageKey;
 use uwui::style::{Dimension, Display, FlexDirection, Justify, Sides, Style, TextLook, Track};
 use uwui::text::{Fonts, GlyphKey, GlyphRasterizer, TextBounds, TextStyle};
 use uwui::theme::{StyleSheet, Theme};
-use uwui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
+use uwui::tree::{Element, ElementId, FrameStats, LayoutDirection, RootSettings, Ui};
 
+use crate::allocations::counted;
 use crate::measure::{Context, Row, ms, percentile, timed};
 
 /// The size of the text, in pixels, at scale 1.
@@ -21,7 +23,7 @@ const WIDTH: f32 = 400.0;
 /// How many characters a paragraph holds, at least.
 const PARAGRAPH: usize = 2_000;
 /// How many times each figure is taken.
-const RUNS: usize = 15;
+pub(crate) const RUNS: usize = 15;
 
 /// A paragraph of the benchmarks: its name, its stack, its language, and the separator of its
 /// sentences.
@@ -194,11 +196,24 @@ fn labels(count: usize) -> Vec<String> {
         .collect()
 }
 
-/// The times of `RUNS` runs of `run`, after two that are not timed.
-pub(crate) fn times(mut run: impl FnMut()) -> Vec<Duration> {
-    run();
-    run();
-    (0..RUNS).map(|_| timed(&mut run).1).collect()
+/// The times of `runs` runs of `run`, after two that are not timed.
+pub(crate) fn times<T>(runs: usize, mut run: impl FnMut() -> T) -> Vec<Duration> {
+    black_box(run());
+    black_box(run());
+    (0..runs).map(|_| timed(|| black_box(run())).1).collect()
+}
+
+/// The counters of the frame of an interface standing still that `frame` runs, after frames that
+/// left nothing to do: its elements, those that it visited, the items of its display list, and the
+/// allocations of the calling thread (`docs/adr/0186-counters-and-ratios-in-ci.md`).
+pub(crate) fn still_counters(frame: impl FnOnce() -> (DisplayList, FrameStats)) -> Vec<Row> {
+    let ((list, stats), allocations) = counted(frame);
+    vec![
+        Row::count("elements", stats.elements),
+        Row::count("elements visited by a frame standing still", stats.visited),
+        Row::count("items of a frame standing still", list.len()),
+        Row::count("allocations of a frame standing still", allocations),
+    ]
 }
 
 /// 1 000 labels laid out, each on a line of its own.
@@ -206,7 +221,7 @@ pub fn labels_1k(_: &mut Context) -> Result<Vec<Row>, String> {
     let mut fonts = fonts()?;
     let labels = labels(1_000);
     let style = style(&SCRIPTS[0]);
-    let times = times(|| {
+    let times = times(RUNS, || {
         for label in &labels {
             black_box(fonts.lay_out(label, &style, 1.0, TextBounds::default()));
         }
@@ -222,7 +237,7 @@ pub fn paragraphs(_: &mut Context) -> Result<Vec<Row>, String> {
     for script in SCRIPTS {
         let text = paragraph(script)?;
         let style = style(script);
-        let times = times(|| {
+        let times = times(RUNS, || {
             black_box(fonts.lay_out(&text, &style, 1.0, TextBounds::width(WIDTH)));
         });
         rows.push(Row::new(
@@ -238,7 +253,7 @@ pub fn paragraphs(_: &mut Context) -> Result<Vec<Row>, String> {
     let text = paragraph(&SCRIPTS[0])?;
     let mut layout = fonts.lay_out(&text, &style(&SCRIPTS[0]), 1.0, TextBounds::width(WIDTH));
     let mut narrow = false;
-    let times = times(|| {
+    let times = times(RUNS, || {
         narrow = !narrow;
         let width = if narrow { WIDTH - 20.0 } else { WIDTH };
         layout.set_bounds(&mut fonts, TextBounds::width(width));
@@ -283,7 +298,7 @@ pub fn raster(_: &mut Context) -> Result<Vec<Row>, String> {
                 .flat_map(|run| run.placed().map(|glyph| glyph.key))
                 .collect();
             let mut rasterizer = GlyphRasterizer::new();
-            let times = times(|| {
+            let times = times(RUNS, || {
                 for &key in &keys {
                     black_box(rasterizer.rasterize(&fonts, key));
                 }
@@ -318,8 +333,9 @@ pub fn menu(context: &mut Context) -> Result<Vec<Row>, String> {
     use uwui::text::{TEXT_CACHE_BUDGET, TextCache};
     use uwui_render::{GLYPH_ATLAS_BUDGET, UiRenderer};
 
-    use crate::render::{FORMAT, TIERS, canvas_frames};
+    use crate::render::{CANVAS_FRAMES, FORMAT, TIERS, canvas_frames};
 
+    let runs = context.runs(CANVAS_FRAMES);
     let gpu = &context.gpu;
     let error = |error: slime_render::RenderError| error.to_string();
     let mut fonts = fonts()?;
@@ -489,15 +505,17 @@ pub fn menu(context: &mut Context) -> Result<Vec<Row>, String> {
         gpu.wait_idle().map_err(|error| error.to_string())?;
         let (cpu, gpu_times, last) = canvas_frames(
             gpu,
+            runs,
             || ui.draw(gpu, &mut renderer, &fonts, &list, |_| None, &target),
             |stats| stats.canvas.gpu_time,
         )?;
         rows.push(Row::new(
-            format!(
-                "the first draw {at}, its {} glyphs rasterized into the atlas",
-                first.rasterized
-            ),
+            format!("the first draw {at}, its glyphs rasterized into the atlas"),
             ms(cold),
+        ));
+        rows.push(Row::count(
+            format!("glyphs rasterized by the first draw {at}"),
+            first.rasterized,
         ));
         rows.extend(Row::times(&format!("CPU of `UiRenderer::draw` {at}"), &cpu));
         if !gpu_times.is_empty() {
@@ -509,14 +527,12 @@ pub fn menu(context: &mut Context) -> Result<Vec<Row>, String> {
                 ms(percentile(&gpu_times, 0.5)),
             ));
         }
-        rows.push(Row::new(
-            format!("glyphs drawn, items, and the atlas's memory {at}"),
-            format!(
-                "{}, {}, {} MiB",
-                last.glyphs,
-                last.canvas.items,
-                last.atlas_bytes >> 20
-            ),
+        rows.push(Row::count(format!("glyphs drawn {at}"), last.glyphs));
+        rows.push(Row::count(format!("items {at}"), last.canvas.items));
+        rows.push(Row::count(format!("draws {at}"), last.canvas.draws));
+        rows.push(Row::count(
+            format!("bytes of the atlas {at}"),
+            last.atlas_bytes,
         ));
     }
     Ok(rows)
@@ -722,30 +738,36 @@ impl Editor {
 
 /// A tree of the editor's size, some 12 500 elements: its first frame, which lays out its texts;
 /// a frame after one value of the inspector changed; a frame with nothing changed.
-pub fn tree(_: &mut Context) -> Result<Vec<Row>, String> {
+pub fn tree(context: &mut Context) -> Result<Vec<Row>, String> {
+    let runs = context.runs(RUNS);
     let labels = labels(1_500);
     let mut firsts = Vec::new();
-    for _ in 0..RUNS {
+    for _ in 0..runs {
         let (fonts, labels) = (latin()?, labels.clone());
         let (mut editor, built) = timed(|| Editor::new(fonts, labels));
         let (_, framed) = timed(|| black_box(editor.ui.frame()));
         firsts.push(built + framed);
     }
     let mut editor = Editor::new(latin()?, labels);
-    let (list, stats) = editor.ui.frame();
+    let (list, _) = editor.ui.frame();
+    // Counted before the series, whose length a run of `--counters` cuts.
+    let counters = still_counters(|| {
+        editor.build(0);
+        editor.ui.frame()
+    });
     let mut revision = 0;
-    let changed = times(|| {
+    let changed = times(runs, || {
         revision += 1;
         editor.value = revision;
         editor.build(revision);
-        black_box(editor.ui.frame());
+        editor.ui.frame()
     });
-    let still = times(|| {
+    let still = times(runs, || {
         editor.build(revision);
-        black_box(editor.ui.frame());
+        editor.ui.frame()
     });
     let mut light = false;
-    let restyled = times(|| {
+    let restyled = times(runs, || {
         light = !light;
         editor
             .ui
@@ -754,12 +776,10 @@ pub fn tree(_: &mut Context) -> Result<Vec<Row>, String> {
                 &[theme(light)],
             )
             .expect("the editor's style");
-        black_box(editor.ui.frame());
+        editor.ui.frame()
     });
-    let mut rows = vec![
-        Row::new("elements", stats.elements.to_string()),
-        Row::new("items of the display list", list.len().to_string()),
-    ];
+    let mut rows = counters;
+    rows.push(Row::count("items of the first frame", list.len()));
     rows.extend(Row::times(
         "the first frame: built, its texts and its tree laid out, drawn",
         &firsts,
@@ -779,7 +799,8 @@ pub fn tree(_: &mut Context) -> Result<Vec<Row>, String> {
 /// A list of 100 000 rows, a name and a value in each, on a screen of 1080 logical pixels: frames
 /// while it scrolls by 7 pixels each, which shows other rows every third, then while it stands
 /// still.
-pub fn list(_: &mut Context) -> Result<Vec<Row>, String> {
+pub fn list(context: &mut Context) -> Result<Vec<Row>, String> {
+    let runs = context.runs(RUNS);
     const ROWS: usize = 100_000;
     let labels = labels(1_000);
     let mut ui = Ui::new(latin()?);
@@ -808,19 +829,24 @@ pub fn list(_: &mut Context) -> Result<Vec<Row>, String> {
     let list = build(&mut ui);
     ui.frame();
     build(&mut ui);
-    let (_, stats) = ui.frame();
+    ui.frame();
+    // Counted before the series, whose length a run of `--counters` cuts.
+    let counters = still_counters(|| {
+        build(&mut ui);
+        ui.frame()
+    });
     let mut offset = 0.0;
-    let scrolled = times(|| {
+    let scrolled = times(runs, || {
         offset += 7.0;
         ui.scroll_to(list, [0.0, offset]);
         build(&mut ui);
-        black_box(ui.frame());
+        ui.frame()
     });
-    let still = times(|| {
+    let still = times(runs, || {
         build(&mut ui);
-        black_box(ui.frame());
+        ui.frame()
     });
-    let mut rows = vec![Row::new("elements", stats.elements.to_string())];
+    let mut rows = counters;
     rows.extend(Row::times("a frame scrolled by 7 pixels", &scrolled));
     rows.extend(Row::times("a frame standing still", &still));
     Ok(rows)

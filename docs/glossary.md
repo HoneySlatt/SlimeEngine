@@ -224,6 +224,11 @@ in a cache under `target/` ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 otherwise compute as it loads them (mipmaps, tangents) and compressing textures. The engine's
 program `slime-cook` cooks, before the game runs ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
+**Counter (benchmark).** A figure that a benchmark's scenario gives the same on every machine and
+at every run: draw calls, items, elements, elements visited, the bytes of a save, allocations. CI
+checks that each equals the one that `benches/counters.txt` records
+([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)), and measures no time.
+
 **Cube texture (cube map).** Six square images on the faces of a cube, which shaders read by
 direction: the face is the axis along which the direction is longest
 (`Gpu::create_cube_texture`).

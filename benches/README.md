@@ -13,7 +13,10 @@ cargo run --release -p slime-benches -- loading.zone   # one run only on request
 cargo run --release -p slime-benches -- play.zone      # Play's time to control, in a window
 cargo run --release -p slime-benches -- --list         # every name, and what it measures
 VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo run --release -p slime-benches   # on lavapipe
+taskset -c 0-3 cargo run --release -p slime-benches -- world ui devui editor.hierarchy  # on 4 cores
 scripts/measure.sh "<title>" >> docs/measurements.md   # with the build's figures, as a milestone does
+VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo run -p slime-benches -- --counters  # as CI checks them
+VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo run -p slime-benches -- --write-counters [<name>...]
 ```
 
 It prints the machine (its logical CPUs, its system, the GPU that the engine opened, the build),
@@ -55,6 +58,8 @@ it is their whole name.
 | `ui.tree.list.100k` | A list of 100 000 rows of 20 logical pixels in the same root, each row a name and a number, of which only those that show are built: frames, each built and drawn into a display list, while it scrolls by 7 pixels a frame, which shows other rows every third frame, then while it stands still | [ADR-0140](../docs/adr/0140-the-tree-of-elements.md) |
 | `devui.world_panel.100k` | The dev overlay's world panel on the engine's interface, `slime_devui::WorldPanel`, in the editor's look, in a root of 380 × 1000 at scale 1, over a world of 100 000 named entities, the one selected holding a transform and a light: a frame standing still, the actions read, the panel built and the interface drawn into a display list; a frame after the entity selected moved, which builds its details again; a frame after the list scrolled by a row; a frame after an entity was renamed, which reads again the names that changed and filters the list again | G46, [ADR-0152](../docs/adr/0152-the-dev-overlay-on-the-engines-interface.md), [ADR-0167](../docs/adr/0167-the-hierarchy.md) |
 | `editor.hierarchy.100k` | The editor's hierarchy, `slime_editor::Hierarchy`, in the editor's look, in a root of 340 × 1000 at scale 1, over 100 000 named entities, 1 000 roots of 99 children each, every root unfolded: a frame standing still, the hierarchy built and the interface drawn into a display list; a frame after the list scrolled by a row; a frame after an entity was renamed, which builds the rows in sight again; a frame that runs a search once the typing paused, every name read (`Hierarchy::set_search`); a frame after an entity was spawned, which makes the rows of the tree again | [ADR-0167](../docs/adr/0167-the-hierarchy.md) |
+| `editor.window.zone` | The editor's whole window, `slime_editor::Offscreen`, on *Hunna Wood*'s zone, cooked in `target/cooked/hunnawood`, opened by its editor's program (`hunnawood_editor::program`) on a copy of the zone with a journal of the run's own, at 3840 × 2160, logical pixels at scale 2, on the GPU that the run opened, a lantern selected: the counters of a frame standing still; then 15 frames standing still, 15 after the selection moved to the next row of the hierarchy and back, and 15 after a step that nudged what is selected, undone between them, each its CPU whole, the core's part, then its interface built, styled, laid out and gathered, then drawn through the canvas, and its part building the interface, each frame waited for on the GPU after it was timed. On request only, since it needs the zone cooked | [ADR-0175](../docs/adr/0175-the-quality-bar.md), [ADR-0186](../docs/adr/0186-counters-and-ratios-in-ci.md) |
+| `editor.window.entities` | The same on the examples' yard with 10 000, then 100 000 entities more, under one parent for every hundred, written into `target/benches/editor-window-10k` and `-100k`, the examples' sample cooked as the world's benchmarks cook it, both windows open and their frames in turn; and the ratio of each kind of frame's interface built at 100 000 entities to at 10 000, whose budget the quality bar sets, its series whole in a run of `--counters` too | [ADR-0175](../docs/adr/0175-the-quality-bar.md), [ADR-0186](../docs/adr/0186-counters-and-ratios-in-ci.md) |
 | `loading.batch` | A load of meshes started, on the calling thread, with a manifest of 10 000, then 100 000 assets | G25, B4-F03 |
 | `loading.textures` | 16 squares, each drawn with a material of its own whose base color is a texture of 4096 × 4096 texels in BC7, every level of detail with it, 341 MiB in all, written once into `target/benches/textures` without the cooker, loaded and drawn as `loading.zone` is: the case of the audit's B4-F01 | B4-F01 |
 | `loading.zone` | The meshes of *Hunna Wood*'s zone, cooked in `target/cooked/hunnawood`, each placed once on a grid and drawn by day, under a sun that casts shadows, at 1280 × 720, while they load with their materials and textures, then once loaded, each frame waited for on the GPU, after frames that made the renderer's targets, its shadows' atlas and the sky, so that a load is not mixed with what a first frame costs: the time from the opening of the cooked zone until a frame draws them whole, the render CPU during the load and after, and the longest frame during the load, built, drawn and waited for. The zone's bytes, not its scene, whose components only the game registers. On request only, since it needs the zone fetched and cooked, as [*Hunna Wood*'s README](../games/hunnawood/README.md) says | B4-F01, B1-F06 |
@@ -108,10 +113,43 @@ after.
 - The figures of lavapipe are not those of a GPU: the gains of the renderer are measured on a GPU,
   in a section of its own.
 - A figure compares with a figure of the same machine, driver and build only.
-- The benchmarks measure; they check nothing, and fail only when a scenario cannot run.
+- `editor.window`'s times compare with the editor's interface's budget on the high tier
+  ([`ROADMAP.md`](../docs/ROADMAP.md#4-quality-bar)), the CPU of a frame whole. On a GPU whose
+  memory that the CPU maps is small, without resizable BAR, the canvas's draw stalls once other
+  programs filled it ([ADR-0041](../docs/adr/0041-render-graph.md)): its part is the whole less the
+  part building the interface, which `ui.draw.menu` run beside it shows too.
+- The CPU benchmarks pinned to 4 cores (`taskset`) are the proxy of the handheld tier that
+  [ADR-0175](../docs/adr/0175-the-quality-bar.md) sets: what needs more cores than the handheld has
+  shows there, not the handheld's times. On Linux, `lscpu -e=CPU,CORE` says which logical CPUs are
+  cores of their own; on the Ryzen 7 5800X, 0 to 3.
+- The benchmarks measure, and fail only when a scenario cannot run; `--counters` checks.
+
+## Counters
+
+A *counter* is a figure that a scenario gives the same on every machine and at every run, and in a
+debug or a release build: draw calls, instances drawn, items, glyphs, elements, elements visited,
+the bytes of a save, allocations ([ADR-0186](../docs/adr/0186-counters-and-ratios-in-ci.md)). The
+table marks no row apart: `--list` names the benchmarks that count, and a run of `--counters`
+prints their counters alone.
+
+- `--counters [<name>...]` runs each benchmark that counts once, each of its series cut to one run
+  except a ratio's, and compares its counters with those that [`counters.txt`](counters.txt)
+  records: a counter changed, new or gone fails, and so does a ratio above its budget. The zone's
+  runs only when named whole, as in a measure. `scripts/check.sh game` runs both, in a debug build
+  on lavapipe.
+- `--write-counters [<name>...]` writes the counters of the benchmarks run into `counters.txt`,
+  keeping the others'. A change that changes a counter on purpose writes them in the same commit,
+  and says why.
+- The interface's benchmarks count a frame standing still: its elements, those its walks visited
+  (`uwui::tree::FrameStats::visited`), the items of its display list, and the allocations of the
+  thread that measures, which the program's allocator counts for each thread, so that the driver's
+  threads are left out. `editor.window` counts the allocations of its interface built alone, not
+  its core's fixed steps nor its draw, which allocates in the GPU's driver.
 
 ## What it must not do
 
-- Reach wgpu, or any API that a game cannot reach: it measures what a game gets.
-- Run in `scripts/check.sh` or CI, whose shared machines give figures that vary from one run to
-  the next; CI builds it with the workspace, so that it keeps compiling.
+- Reach wgpu, or any API that a game cannot reach: it measures what a game gets. It opens *Hunna
+  Wood*'s zone through its editor's library, the only game package it depends on.
+- Check a time in `scripts/check.sh` or CI, whose shared machines give times that vary from one
+  run to the next: CI runs `--counters` alone, whose ratios compare times of one run with each
+  other.

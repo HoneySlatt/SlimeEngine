@@ -42,6 +42,7 @@ scripts/check.sh [headless|windowed|game]              # all checks, or one CI j
 cargo run -p slime-cook -- cook examples/assets target/cooked/examples  # the examples' data
 cargo run --example <name>                             # examples/README.md
 cargo run --release -p slime-benches -- [<name>...]    # benches/README.md
+cargo run -p slime-benches -- --write-counters [<name>...]  # ADR-0186
 scripts/measure.sh "<title>" >> docs/measurements.md   # ADR-0104
 cargo run -p hunnawood -- --new --save <file>          # games/hunnawood/README.md
 cargo run --example editor -- --level <copy> --journal <file>  # examples/README.md

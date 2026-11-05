@@ -1,0 +1,89 @@
+# The counters of slime-benches, which `scripts/check.sh` checks: each line a benchmark, what it
+# counts and its value, parted by tabs (docs/adr/0186-counters-and-ratios-in-ci.md). A change
+# that changes a counter on purpose writes this file again in the same commit:
+#   cargo run -p slime-benches -- --write-counters [<name>...]
+devui.world_panel.100k	allocations of a frame standing still	66
+devui.world_panel.100k	elements	57
+devui.world_panel.100k	elements visited by a frame standing still	114
+devui.world_panel.100k	items of a frame standing still	77
+editor.hierarchy.100k	allocations of a frame standing still	19
+editor.hierarchy.100k	elements	319
+editor.hierarchy.100k	elements visited by a frame standing still	638
+editor.hierarchy.100k	items of a frame standing still	142
+editor.window.entities	allocations of a frame standing still, 100k	71
+editor.window.entities	allocations of a frame standing still, 10k	71
+editor.window.entities	elements visited by a frame standing still, 100k	492
+editor.window.entities	elements visited by a frame standing still, 10k	492
+editor.window.entities	elements, 100k	246
+editor.window.entities	elements, 10k	246
+editor.window.entities	items of a frame standing still, 100k	194
+editor.window.entities	items of a frame standing still, 10k	194
+editor.window.zone	allocations of a frame standing still	68
+editor.window.zone	elements	150
+editor.window.zone	elements visited by a frame standing still	300
+editor.window.zone	items of a frame standing still	138
+render.canvas	draws, the editor's screen at 1280 × 800	17
+render.canvas	draws, the editor's screen at 1920 × 1080	17
+render.canvas	draws, the editor's screen at 3840 × 2160	17
+render.canvas	draws, the game's menu at 1280 × 800	3
+render.canvas	draws, the game's menu at 1920 × 1080	3
+render.canvas	draws, the game's menu at 3840 × 2160	3
+render.canvas	items, the editor's screen at 1280 × 800	19475
+render.canvas	items, the editor's screen at 1920 × 1080	19377
+render.canvas	items, the editor's screen at 3840 × 2160	19377
+render.canvas	items, the game's menu at 1280 × 800	4155
+render.canvas	items, the game's menu at 1920 × 1080	4155
+render.canvas	items, the game's menu at 3840 × 2160	4155
+render.instances.100k	draw calls of the scene at 1280 × 800	8
+render.instances.100k	draw calls of the scene at 1920 × 1080	8
+render.instances.100k	draw calls of the scene at 3840 × 2160	8
+render.instances.100k	draw calls of the shadow cascades at 1280 × 800	2
+render.instances.100k	draw calls of the shadow cascades at 1920 × 1080	2
+render.instances.100k	draw calls of the shadow cascades at 3840 × 2160	2
+render.instances.100k	instances that the scene pass drew at 1280 × 800	93539
+render.instances.100k	instances that the scene pass drew at 1920 × 1080	95310
+render.instances.100k	instances that the scene pass drew at 3840 × 2160	95310
+render.instances.10k	draw calls of the scene at 1280 × 800	8
+render.instances.10k	draw calls of the scene at 1920 × 1080	8
+render.instances.10k	draw calls of the scene at 3840 × 2160	8
+render.instances.10k	draw calls of the shadow cascades at 1280 × 800	3
+render.instances.10k	draw calls of the shadow cascades at 1920 × 1080	3
+render.instances.10k	draw calls of the shadow cascades at 3840 × 2160	3
+render.instances.10k	instances that the scene pass drew at 1280 × 800	9343
+render.instances.10k	instances that the scene pass drew at 1920 × 1080	9517
+render.instances.10k	instances that the scene pass drew at 3840 × 2160	9517
+render.unseen.10k	draw calls of the scene at 1280 × 800	0
+render.unseen.10k	draw calls of the scene at 1920 × 1080	0
+render.unseen.10k	draw calls of the scene at 3840 × 2160	0
+render.unseen.10k	draw calls of the shadow cascades at 1280 × 800	4
+render.unseen.10k	draw calls of the shadow cascades at 1920 × 1080	4
+render.unseen.10k	draw calls of the shadow cascades at 3840 × 2160	4
+render.unseen.10k	instances that the scene pass drew at 1280 × 800	0
+render.unseen.10k	instances that the scene pass drew at 1920 × 1080	0
+render.unseen.10k	instances that the scene pass drew at 3840 × 2160	0
+ui.draw.menu	bytes of the atlas at 1280 × 800	1048576
+ui.draw.menu	bytes of the atlas at 1920 × 1080	1048576
+ui.draw.menu	bytes of the atlas at 3840 × 2160	1048576
+ui.draw.menu	draws at 1280 × 800	1
+ui.draw.menu	draws at 1920 × 1080	1
+ui.draw.menu	draws at 3840 × 2160	1
+ui.draw.menu	glyphs drawn at 1280 × 800	2440
+ui.draw.menu	glyphs drawn at 1920 × 1080	2440
+ui.draw.menu	glyphs drawn at 3840 × 2160	2440
+ui.draw.menu	glyphs rasterized by the first draw at 1280 × 800	254
+ui.draw.menu	glyphs rasterized by the first draw at 1920 × 1080	258
+ui.draw.menu	glyphs rasterized by the first draw at 3840 × 2160	256
+ui.draw.menu	items at 1280 × 800	2645
+ui.draw.menu	items at 1920 × 1080	2645
+ui.draw.menu	items at 3840 × 2160	2645
+ui.tree.editor	allocations of a frame standing still	31
+ui.tree.editor	elements	12487
+ui.tree.editor	elements visited by a frame standing still	24974
+ui.tree.editor	items of a frame standing still	10719
+ui.tree.editor	items of the first frame	10719
+ui.tree.list.100k	allocations of a frame standing still	16
+ui.tree.list.100k	elements	164
+ui.tree.list.100k	elements visited by a frame standing still	328
+ui.tree.list.100k	items of a frame standing still	110
+world.frame.100k	instances in a frame	100000
+world.save.100k	bytes of the save	62108

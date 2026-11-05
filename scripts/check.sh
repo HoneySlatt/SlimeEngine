@@ -266,6 +266,15 @@ if runs game; then
     cargo build --locked -p hunnawood-editor
     env -u WAYLAND_DISPLAY -u DISPLAY timeout -k 10 300 cargo test --locked -p slime-mcp --test edit_zone
 
+    step "The benchmarks' counters and ratios, on lavapipe (ADR-0186)"
+    # Each scenario that gives counters runs once, its ratios of times in whole series, and its
+    # counters must equal those that benches/counters.txt records; the zone's apart, which only
+    # this part has cooked.
+    env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        cargo run --locked -p slime-benches -- --counters
+    env -u WAYLAND_DISPLAY -u DISPLAY VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
+        cargo run --locked -p slime-benches -- --counters editor.window.zone
+
     step "The game in a headless Wayland compositor (Weston), drawn with lavapipe"
     start_weston slime-check-game
     # The game (ADR-0055), by day and at night, each run a new one. A frame of its zone takes seconds

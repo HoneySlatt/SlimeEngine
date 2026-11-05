@@ -82,6 +82,9 @@ cargo run -p slime-cook -- cook examples/assets target/cooked/examples  # cook w
 cargo run --release -p slime-cook -- watch <sources> <output>  # cook again each change (ADR-0076)
 cargo run --example <name>                                # run an example (list in examples/README.md)
 cargo run --release -p slime-benches -- [<name>...]       # run the benchmarks (benches/README.md)
+taskset -c 0-3 cargo run --release -p slime-benches -- [<name>...]  # the CPU benchmarks on 4 cores, the handheld tier's proxy (ADR-0175)
+cargo run -p slime-benches -- --counters [<name>...]      # check the benchmarks' counters and ratios, as CI does, on lavapipe (ADR-0186)
+cargo run -p slime-benches -- --write-counters [<name>...]  # write the counters that a change changed on purpose into benches/counters.txt
 scripts/measure.sh "<title>" >> docs/measurements.md      # time the build, run the benchmarks (ADR-0104)
 scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
 blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)
@@ -377,7 +380,9 @@ two dragged, which must then be at rest, a panel floating, none of its threads w
 [ADR-0160](docs/adr/0160-two-viewports-and-blenders-way.md),
 [ADR-0169](docs/adr/0169-the-eye-and-the-lock.md), [ADR-0172](docs/adr/0172-regions-of-tabs.md)),
 the `world` example's two views captured, the map's normals shown, its reports read and an entity
-picked at a pixel, by an agent's session through the MCP server, the `scene` example on a copy of
+picked at a pixel, by an agent's session through the MCP server, the benchmarks' counters, which
+must equal those that `benches/counters.txt` records, and their ratios of times, each within its
+budget, in a debug build on lavapipe ([ADR-0186](docs/adr/0186-counters-and-ratios-in-ci.md)), the `scene` example on a copy of
 the cooked sample with one byte changed, which must end with an error and not a panic, the game (its
 new runs, one that loses its GPU device after its first frame and must go on, one resumed from a
 copy of its save fixture, and one driven by an agent's session through the MCP server, which must
@@ -405,7 +410,8 @@ needs neither a compositor nor the sample game's zone, `scripts/check.sh windowe
 the windowed lifecycle test run in headless Weston compositors, which cooks first what they draw,
 and `scripts/check.sh game`,
 everything that reads the sample game's zone, which it fetches and cooks first: the tests that read
-it, the agent's session with its editor, and the game's runs in a headless Weston compositor; without
+it, the agent's session with its editor, the benchmarks' counters, and the game's runs in a headless
+Weston compositor; without
 an argument, the script runs the three, one after the other. Two Windows jobs run beside them
 ([ADR-0104](docs/adr/0104-the-build-ci-and-measurements.md)). The first, `windows`, runs the tests
 with `--nocapture`, so that its log shows what the image tests, the GPU timing test and the

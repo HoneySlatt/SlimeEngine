@@ -13,12 +13,13 @@ use uwui::text::Fonts;
 use uwui::tree::{LayoutDirection, RootSettings, Ui};
 
 use crate::measure::{Context, Row};
-use crate::ui::times;
+use crate::ui::{RUNS, still_counters, times};
 
 /// The world panel over a world of 100 000 named entities, the one selected holding a transform
 /// and a light: a frame standing still, one whose world changed, which builds the entity selected
 /// again, one scrolled by a row, and one after an entity was renamed, which makes the list again.
-pub fn world_panel(_: &mut Context) -> Result<Vec<Row>, String> {
+pub fn world_panel(context: &mut Context) -> Result<Vec<Row>, String> {
+    let runs = context.runs(RUNS);
     const ENTITIES: usize = 100_000;
     let mut world = World::new();
     let mut selected = None;
@@ -66,15 +67,15 @@ pub fn world_panel(_: &mut Context) -> Result<Vec<Row>, String> {
         let mut actions = ui.take_actions();
         black_box(panel.act(&mut actions));
         panel.build(ui, root, world);
-        black_box(ui.frame());
+        ui.frame()
     };
     // The first frame lays the list out, the second builds the rows that it shows.
     frame(&mut ui, &world, &mut panel);
     frame(&mut ui, &world, &mut panel);
-    let (_, stats) = ui.frame();
-    let still = times(|| frame(&mut ui, &world, &mut panel));
+    let still = times(runs, || frame(&mut ui, &world, &mut panel));
+    let counters = still_counters(|| frame(&mut ui, &world, &mut panel));
     let mut x = 0.0;
-    let changed = times(|| {
+    let changed = times(runs, || {
         x += 0.5;
         world.insert(
             selected,
@@ -89,19 +90,19 @@ pub fn world_panel(_: &mut Context) -> Result<Vec<Row>, String> {
         .ok_or("no list")?
         .id;
     let mut offset = 0.0;
-    let scrolled = times(|| {
+    let scrolled = times(runs, || {
         offset += 22.0;
         ui.scroll_to(list, [0.0, offset]);
         frame(&mut ui, &world, &mut panel);
     });
     // The world's names moved: the names that changed read again, and filtered.
     let mut number = 0;
-    let renamed = times(|| {
+    let renamed = times(runs, || {
         number += 1;
         world.insert(selected, Name(format!("renamed {number}")));
         frame(&mut ui, &world, &mut panel);
     });
-    let mut rows = vec![Row::new("elements", stats.elements.to_string())];
+    let mut rows = counters;
     rows.extend(Row::times("a frame standing still", &still));
     rows.extend(Row::times("a frame whose world changed", &changed));
     rows.extend(Row::times("a frame scrolled by a row", &scrolled));

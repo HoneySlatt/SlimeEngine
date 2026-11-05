@@ -61,37 +61,19 @@ pub fn zone(_: &mut Context) -> Result<Vec<Row>, String> {
     )
 }
 
-/// How many entities [`level`] adds to the yard, under [`PARENTS`] parents.
+/// How many entities [`level`] adds to the yard.
 const ENTITIES: usize = 100_000;
-/// How many parents they are under.
-const PARENTS: usize = 1_000;
+/// How many entities of those that [`yard_with`] adds are under one parent, the parent included.
+const CHILDREN: usize = 100;
 
-/// Play on a level of [`ENTITIES`] entities, the examples' yard with them added, none drawn, its
-/// [`PARENTS`] parents with a name each and the others with their parent alone, so that the file
-/// holds fewer values than a document may (`slime_serialize::MAX_VALUES`), from the `editor`
+/// Play on a level of [`ENTITIES`] entities, the examples' yard with them added by [`yard_with`],
+/// none drawn, from the `editor`
 /// example, which must be built beside this program, the `world` example playing it without a
 /// window.
 pub fn level(_: &mut Context) -> Result<Vec<Row>, String> {
     let root = Context::root();
     let directory = fresh("play-level")?;
-    let yard = root.join("examples/assets/yard.scene");
-    let level = copy(&yard, &directory)?;
-    let text = fs::read_to_string(&level).map_err(|error| error.to_string())?;
-    let mut entities = String::from("[entities]\n");
-    for parent in 0..PARENTS {
-        let _ = writeln!(
-            entities,
-            "\"group {parent}\" = {{ components = {{ Name = \"group {parent}\" }} }}"
-        );
-        for child in 0..ENTITIES / PARENTS - 1 {
-            let _ = writeln!(
-                entities,
-                "\"item {parent}-{child}\" = {{ parent = \"group {parent}\" }}"
-            );
-        }
-    }
-    let text = text.replacen("[entities]\n", &entities, 1);
-    fs::write(&level, text).map_err(|error| error.to_string())?;
+    let level = yard_with(&directory, ENTITIES)?;
     measure(
         "examples/editor",
         &level,
@@ -102,9 +84,34 @@ pub fn level(_: &mut Context) -> Result<Vec<Row>, String> {
     )
 }
 
+/// The examples' yard copied into `directory`, with `entities` entities more, under one parent
+/// for every hundred, each parent with a name and the others with their parent alone, so that the
+/// file holds fewer values than a document may (`slime_serialize::MAX_VALUES`): the copy's path.
+pub(crate) fn yard_with(directory: &Path, entities: usize) -> Result<PathBuf, String> {
+    let yard = Context::root().join("examples/assets/yard.scene");
+    let level = copy(&yard, directory)?;
+    let text = fs::read_to_string(&level).map_err(|error| error.to_string())?;
+    let mut added = String::from("[entities]\n");
+    for parent in 0..entities / CHILDREN {
+        let _ = writeln!(
+            added,
+            "\"group {parent}\" = {{ components = {{ Name = \"group {parent}\" }} }}"
+        );
+        for child in 0..CHILDREN - 1 {
+            let _ = writeln!(
+                added,
+                "\"item {parent}-{child}\" = {{ parent = \"group {parent}\" }}"
+            );
+        }
+    }
+    let text = text.replacen("[entities]\n", &added, 1);
+    fs::write(&level, text).map_err(|error| error.to_string())?;
+    Ok(level)
+}
+
 /// `target/benches/<name>`, emptied, with the data and state directories that the editor and the
 /// game it plays use in place of the user's.
-fn fresh(name: &str) -> Result<PathBuf, String> {
+pub(crate) fn fresh(name: &str) -> Result<PathBuf, String> {
     let directory = Context::root().join("target/benches").join(name);
     let _ = fs::remove_dir_all(&directory);
     for inside in ["data", "state"] {
@@ -114,7 +121,7 @@ fn fresh(name: &str) -> Result<PathBuf, String> {
 }
 
 /// Copies the scene file `level`, with its metadata file, into `directory`: the copy's path.
-fn copy(level: &Path, directory: &Path) -> Result<PathBuf, String> {
+pub(crate) fn copy(level: &Path, directory: &Path) -> Result<PathBuf, String> {
     let name = level.file_name().ok_or("a level is a file")?;
     let copy = directory.join(name);
     fs::copy(level, &copy).map_err(|error| format!("{}: {error}", level.display()))?;

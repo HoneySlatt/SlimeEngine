@@ -99,6 +99,7 @@ pub fn instances(
     frames: usize,
     view: View,
 ) -> Result<Vec<Row>, String> {
+    let frames = context.runs(frames);
     let gpu = &context.gpu;
     let error = |error: slime_render::RenderError| error.to_string();
     let mut renderer = Renderer::new(gpu, FORMAT).map_err(error)?;
@@ -202,13 +203,17 @@ pub fn instances(
                 ));
             }
         }
-        rows.push(Row::new(
-            format!("draw calls {at}: scene, shadow cascades"),
-            format!("{}, {}", stats.draw_calls, stats.shadow_draw_calls),
+        rows.push(Row::count(
+            format!("draw calls of the scene {at}"),
+            stats.draw_calls,
         ));
-        rows.push(Row::new(
+        rows.push(Row::count(
+            format!("draw calls of the shadow cascades {at}"),
+            stats.shadow_draw_calls,
+        ));
+        rows.push(Row::count(
             format!("instances that the scene pass drew {at}"),
-            stats.instances.to_string(),
+            stats.instances,
         ));
     }
     Ok(rows)
@@ -286,6 +291,7 @@ pub fn shaders(context: &mut Context) -> Result<Vec<Row>, String> {
 /// each, the CPU of `Renderer::draw_canvas`, the canvas on the GPU, which ADR-0137 bounds, and its
 /// items and draws.
 pub fn canvas(context: &mut Context) -> Result<Vec<Row>, String> {
+    let runs = context.runs(CANVAS_FRAMES);
     let gpu = &context.gpu;
     let gfx = |error: GfxError| error.to_string();
     let mut renderer = Renderer::new(gpu, FORMAT).map_err(|error| error.to_string())?;
@@ -342,6 +348,7 @@ pub fn canvas(context: &mut Context) -> Result<Vec<Row>, String> {
             &editor,
             &target,
             &format!("the editor's screen {at}"),
+            runs,
         )?);
         let mut game = Canvas::new();
         game_screen(&mut game, &glyphs, &icons, w, h);
@@ -351,6 +358,7 @@ pub fn canvas(context: &mut Context) -> Result<Vec<Row>, String> {
             &game,
             &target,
             &format!("the game's menu {at}"),
+            runs,
         )?);
     }
     Ok(rows)
@@ -364,9 +372,11 @@ fn measure_canvas(
     canvas: &Canvas<'_>,
     target: &RenderTarget,
     what: &str,
+    runs: usize,
 ) -> Result<Vec<Row>, String> {
     let (cpu, gpu_times, stats) = canvas_frames(
         gpu,
+        runs,
         || renderer.draw_canvas(gpu, canvas, target),
         |stats| stats.gpu_time,
     )?;
@@ -383,24 +393,26 @@ fn measure_canvas(
             ms(percentile(&gpu_times, 0.5)),
         ));
     }
-    rows.push(Row::new(
-        format!("items and draws, {what}"),
-        format!("{}, {}", stats.items, stats.draws),
-    ));
+    rows.push(Row::count(format!("items, {what}"), stats.items));
+    rows.push(Row::count(format!("draws, {what}"), stats.draws));
     Ok(rows)
 }
 
-/// Draws a canvas 30 times with `draw`, after `WARM_UP` times that are not measured, each frame
-/// waited for on the GPU: the CPU time of each, the GPU times that came back, as `gpu_time` reads
-/// them from what `draw` returned, and what the last returned.
+/// How many times a canvas is drawn and measured.
+pub const CANVAS_FRAMES: usize = 30;
+
+/// Draws a canvas `runs` times with `draw`, after `WARM_UP` times that are not measured, each
+/// frame waited for on the GPU: the CPU time of each, the GPU times that came back, as `gpu_time`
+/// reads them from what `draw` returned, and what the last returned.
 pub fn canvas_frames<T>(
     gpu: &Gpu,
+    runs: usize,
     mut draw: impl FnMut() -> Result<T, slime_render::RenderError>,
     gpu_time: impl Fn(&T) -> Option<Duration>,
 ) -> Result<(Vec<Duration>, Vec<Duration>, T), String> {
     let (mut cpu, mut gpu_times) = (Vec::new(), Vec::new());
     let mut last = None;
-    for frame in 0..WARM_UP + 30 {
+    for frame in 0..WARM_UP + runs {
         let (stats, duration) = timed(&mut draw);
         let stats = stats.map_err(|error| error.to_string())?;
         gpu.wait_idle().map_err(|error| error.to_string())?;

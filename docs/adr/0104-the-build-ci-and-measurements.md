@@ -5,8 +5,10 @@
   [0114](0114-hardware-tiers-and-the-gpus-limits.md) (benchmarks measured at the tiers' resolutions
   and compared with their budgets), [0123](0123-the-linux-checks-in-two-jobs.md) (the Linux checks
   in two jobs), [0144](0144-the-cooked-zones-key-in-ci.md) (the cooked zone keyed on the packages
-  that the cooker is built from)
-  and [0175](0175-the-quality-bar.md) (CI checks budgets through counters and ratios of times)
+  that the cooker is built from),
+  [0175](0175-the-quality-bar.md) (CI checks budgets through counters and ratios of times) and
+  [0186](0186-counters-and-ratios-in-ci.md) (the benchmarks run in CI, their counters and ratios
+  checked, their times not)
 - Date: 2026-10-19
 
 ## Context

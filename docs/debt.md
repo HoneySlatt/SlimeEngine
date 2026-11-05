@@ -606,7 +606,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   It falls back on them for the writing systems that the editor's look does not ship.
   fontconfig's list took some 55 to 75 ms on a Ryzen 7 5800X, measured once in a release build; the first text in a writing system found that way, some 4 ms more.
   Reading the list in the background, or at the first character that no font registered has, would take it off the start.
-  M6c.Q2b measures the editor's start against its budget, and follows it.
+  M6c.Q2d measures the editor's start against its budget, and follows it.
 - **CI's jobs and their limit of 20 minutes** ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md), [ADR-0144](adr/0144-the-cooked-zones-key-in-ci.md), [ADR-0155](adr/0155-the-editors-design.md), [ADR-0175](adr/0175-the-quality-bar.md)).
   Each job of CI must end within 20 minutes, and every session of the editor adds to the checks.
   Since M6c.0, three Linux jobs run `scripts/check.sh`'s three parts side by side; the game's agent session draws the zone without shadows.
@@ -617,9 +617,13 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Run over the workspace, `--ignored` would also run the measurements that other crates ignore, meant for release builds.
   How the jobs grew and were split: [`history.md`](history.md#ci-and-its-limit-of-20-minutes).
 - **The quality bar's budgets are checked by hand, or not measured yet** ([ADR-0175](adr/0175-the-quality-bar.md)).
-  CI keeps none of the renderer's, the interface's or the editor's budgets through counters or ratios of times yet: their times are measured by hand; M6c.Q2b.
+  CI keeps the benchmarks' counters and the ratio of the editor's interface ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)), on Linux only; every time is measured by hand.
   A game hidden keeps drawing at its schedule, and nothing checks it at rest ([ADR-0021](adr/0021-frame-pacing.md)); M6c.Q2c ([ADR-0185](adr/0185-rest-checked-in-ci.md)).
-  The editor's interface, input to present, starts, memory over a session and power are not measured; M6c.Q2b.
+  Input to present, starts, memory over a session and power are not measured; M6c.Q2d.
+  The editor's interface passes its budget in a frame after a step, which builds the history, the status bar and the world panel again ([`measurements.md`](measurements.md#m6cq2b-ryzen-7-5800x-and-rx-6900-xt)).
+  On the owner's machine, whose GPU has no resizable BAR, the canvas's draw meets [ADR-0041](adr/0041-render-graph.md)'s stall once other programs fill the memory that the CPU maps, whose fix is out of Stage 6c.
+  A frame of the interface standing still allocates, which `benches/counters.txt` counts without a budget.
+  The benchmarks' allocator, the repository's only `unsafe` code, does not run under Miri ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)).
   The benchmarks that load in the background report their longest frame, judged against no figure.
   The hierarchy's search passes the editor's interface's budget; M6c.Q3.
   The readers of files are not fuzzed, and a crash leaves no report; M6c.Q4 ([ADR-0176](adr/0176-fuzzing-and-crash-reports.md)).

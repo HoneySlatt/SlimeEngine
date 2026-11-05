@@ -17,6 +17,14 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- Counters and ratios checked in CI (ADR-0186): `slime-benches --counters` runs each benchmark that
+  counts once and compares its counters, draw calls, items, elements, the bytes of a save,
+  allocations, with `benches/counters.txt`, and checks that the editor's interface costs at most
+  1.5 times as much at 100 000 entities as at 10 000; `--write-counters` writes them. Two
+  benchmarks measure the editor's whole interface, `editor.window.zone` and
+  `editor.window.entities`. `slime_editor::Offscreen` runs the editor's window without a window of
+  the system, frame by frame; `uwui::tree::FrameStats::visited` counts the elements that a frame's
+  walks reach; `hunnawood-editor` is a library too, whose `program()` describes its editor.
 - Rest checked in CI (ADR-0185): the editor, a panel floating, and *Hunna Wood* paused must have no
   thread that wakes in 10 seconds, read from Linux's `/proc`; `slime-mcp`'s `start_game` answers
   with the process it started. `Context::set_on_demand` lets a game run its frames on demand while

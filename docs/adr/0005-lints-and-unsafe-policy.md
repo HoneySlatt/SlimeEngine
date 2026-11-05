@@ -1,6 +1,7 @@
 # 0005. Lints and `unsafe` policy
 
-- Status: Accepted
+- Status: Accepted; amended by [0186](0186-counters-and-ratios-in-ci.md) (`unsafe` allowed in a
+  measuring tool that the engine does not ship)
 - Date: 2026-10-12
 
 ## Context

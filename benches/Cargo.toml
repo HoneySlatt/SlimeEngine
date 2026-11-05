@@ -23,8 +23,11 @@ slime-gfx.workspace = true
 slime-render.workspace = true
 # The dev overlay's world panel on the engine's interface (ADR-0152).
 slime-devui.workspace = true
-# The editor's hierarchy (ADR-0167).
+# The editor's hierarchy (ADR-0167), and its window without a window of the system (ADR-0186).
 slime-editor.workspace = true
+# The editor's program on Hunna Wood's zone, whose interface `editor.window.zone` measures
+# (ADR-0186).
+hunnawood-editor.workspace = true
 # The interface's text (ADR-0136), and the editor's look, which the world panel is measured in.
 uwui = { workspace = true, features = ["editor-look"] }
 # The interface drawn from a display list (ADR-0139).

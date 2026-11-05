@@ -121,7 +121,7 @@ pub fn frame(context: &mut Context) -> Result<Vec<Row>, String> {
     let mut builder = FrameBuilder::new(None);
     let drawn = load_all(&world, &mut builder, &mut cache, context)?;
     let mut times = Vec::new();
-    for _ in 0..20 {
+    for _ in 0..context.runs(20) {
         // The frame dropped inside, as a game drops it once drawn: what it holds is counted.
         let (built, duration) = timed(|| {
             builder
@@ -132,7 +132,7 @@ pub fn frame(context: &mut Context) -> Result<Vec<Row>, String> {
         times.push(duration);
     }
     let mut rows = Vec::from(Row::times("`FrameBuilder::build`", &times));
-    rows.push(Row::new("instances in a frame", drawn.to_string()));
+    rows.push(Row::count("instances in a frame", drawn));
     Ok(rows)
 }
 
@@ -484,7 +484,8 @@ fn level() -> Result<ResolvedScene, String> {
 /// A level of 100 000 entities, each with a name and a transform, spawned under the key `level`
 /// from a cooked scene and settled; 1 % of them moved by a run, then saved and loaded again, five
 /// times each: what a save costs when little changed.
-pub fn save(_context: &mut Context) -> Result<Vec<Row>, String> {
+pub fn save(context: &mut Context) -> Result<Vec<Row>, String> {
+    let runs = context.runs(5);
     let scene = level()?;
     let start = || -> Result<World, String> {
         let mut world = World::new();
@@ -507,7 +508,7 @@ pub fn save(_context: &mut Context) -> Result<Vec<Row>, String> {
     }
     let (mut saves, mut loads) = (Vec::new(), Vec::new());
     let mut size = 0;
-    for _ in 0..5 {
+    for _ in 0..runs {
         let (saved, duration) = timed(|| run.save(&Default::default()));
         let saved = saved.map_err(|error| error.to_string())?;
         saves.push(duration);
@@ -523,11 +524,14 @@ pub fn save(_context: &mut Context) -> Result<Vec<Row>, String> {
     }
     Ok(vec![
         Row::new(
-            format!("save of {READ_ENTITIES} entities, {CHANGED_ENTITIES} moved, median of 5"),
+            format!("save of {READ_ENTITIES} entities, {CHANGED_ENTITIES} moved, median of {runs}"),
             ms(percentile(&saves, 0.5)),
         ),
-        Row::new("its load, median of 5", ms(percentile(&loads, 0.5))),
-        Row::new("its size", format!("{} kB", size / 1000)),
+        Row::new(
+            format!("its load, median of {runs}"),
+            ms(percentile(&loads, 0.5)),
+        ),
+        Row::count("bytes of the save", size),
     ])
 }
 

@@ -7,10 +7,32 @@ use std::time::{Duration, Instant};
 use slime_assets::{AssetId, AssetKind, CookedAssets};
 use slime_gfx::Gpu;
 
-/// One line of the table: what was measured, and its value with its unit.
+/// One line of the table: what was measured, its value with its unit, and whether `--counters`
+/// checks it.
 pub struct Row {
     pub what: String,
     pub value: String,
+    pub check: Check,
+}
+
+/// What `--counters` checks of a row (`docs/adr/0186-counters-and-ratios-in-ci.md`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Check {
+    /// Nothing: a time, or a figure that varies from one machine or run to the next.
+    None,
+    /// A counter, the same on every machine and at every run, which [`counters::FILE`] records.
+    ///
+    /// [`counters::FILE`]: crate::counters::FILE
+    Count(u64),
+    /// A ratio of times, how a cost grows with its size, which a budget bounds.
+    Ratio { value: f64, at_most: f64 },
+}
+
+impl Check {
+    /// Whether a ratio passes the bound of its budget, which `--counters` fails on.
+    pub fn over_budget(self) -> bool {
+        matches!(self, Self::Ratio { value, at_most } if value > at_most)
+    }
 }
 
 impl Row {
@@ -18,6 +40,36 @@ impl Row {
         Self {
             what: what.into(),
             value: value.into(),
+            check: Check::None,
+        }
+    }
+
+    /// A counter, which `--counters` compares with the one that [`counters::FILE`] records.
+    ///
+    /// [`counters::FILE`]: crate::counters::FILE
+    pub fn count(what: impl Into<String>, value: impl TryInto<u64> + Copy + ToString) -> Self {
+        let count = value.try_into().unwrap_or(u64::MAX);
+        Self {
+            what: what.into(),
+            value: value.to_string(),
+            check: Check::Count(count),
+        }
+    }
+
+    /// The ratio of the median of `larger` to the median of `smaller`, which `--counters` checks
+    /// against `at_most`.
+    pub fn ratio(
+        what: impl Into<String>,
+        larger: &[Duration],
+        smaller: &[Duration],
+        at_most: f64,
+    ) -> Self {
+        let value = percentile(larger, 0.5).as_secs_f64()
+            / percentile(smaller, 0.5).as_secs_f64().max(1e-9);
+        Self {
+            what: what.into(),
+            value: format!("{value:.2}, at most {at_most}"),
+            check: Check::Ratio { value, at_most },
         }
     }
 
@@ -46,14 +98,28 @@ pub struct Context {
     /// The GPU, opened once, without a window, as `Gpu::new` chooses it: lavapipe when
     /// `VK_DRIVER_FILES` names it.
     pub gpu: Gpu,
+    /// Whether the run checks or writes counters, which repeats each series once
+    /// ([`Context::runs`]).
+    counting: bool,
     /// The examples' sample, once cooked.
     sample: Option<CookedAssets>,
 }
 
 impl Context {
-    pub fn new() -> Result<Self, String> {
+    pub fn new(counting: bool) -> Result<Self, String> {
         let gpu = Gpu::new().map_err(|error| format!("no GPU: {error}"))?;
-        Ok(Self { gpu, sample: None })
+        Ok(Self {
+            gpu,
+            counting,
+            sample: None,
+        })
+    }
+
+    /// How many times a series of `runs` times is timed: once in a run of `--counters`, which
+    /// times nothing, so that CI's debug build runs the scenarios in minutes. A series whose
+    /// counters depend on its length, or a ratio, keeps its length.
+    pub fn runs(&self, runs: usize) -> usize {
+        if self.counting { 1 } else { runs }
     }
 
     /// The machine the figures come from: its logical CPUs, its system, its GPU and the build.
@@ -131,4 +197,31 @@ pub fn timed<T>(run: impl FnOnce() -> T) -> (T, Duration) {
     let start = Instant::now();
     let value = run();
     (value, start.elapsed())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_ratio_over_its_budget_fails_and_none_else_does() {
+        let at = |milliseconds: u64| vec![Duration::from_millis(milliseconds); 3];
+        assert!(
+            !Row::ratio("flat", &at(10), &at(10), 1.5)
+                .check
+                .over_budget()
+        );
+        assert!(
+            !Row::ratio("at the bound", &at(15), &at(10), 1.5)
+                .check
+                .over_budget()
+        );
+        assert!(
+            Row::ratio("doubled", &at(20), &at(10), 1.5)
+                .check
+                .over_budget()
+        );
+        assert!(!Row::count("a counter", 2_u64).check.over_budget());
+        assert!(!Row::new("a time", "1 ms").check.over_budget());
+    }
 }
