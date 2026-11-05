@@ -1347,3 +1347,18 @@ GitHub's hosted runners, on 2026-11-05, commit `23d4027`, its run green.
 | `windows-release` | 10 min 53 s |
 | `check (windowed)` | 5 min 15 s |
 | `check (game)` | 4 min 35 s |
+
+## M6c.N, CI's runners
+
+GitHub's hosted runners, on 2026-11-05, commit `0a858f8`, its run green. The rename changed
+comments in the cooker's sources, which the cooked zone's key holds: `check (game)` and `windows`
+cooked the zone again, `windows`'s step taking 4 min 15 s in place of about 1 min, and `windows`
+passed the limit of 20 minutes.
+
+| Job | Time |
+|---|---|
+| `windows` | 21 min 43 s, its tests 14 min 11 s |
+| `windows-release` | 16 min 44 s |
+| `check (headless)` | 13 min 36 s |
+| `check (game)` | 9 min 37 s |
+| `check (windowed)` | 5 min 10 s |
