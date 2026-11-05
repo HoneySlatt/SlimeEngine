@@ -6,7 +6,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ## [Unreleased]
 
+### Changed
+
+- The license (ADR-0182): SlimeEngine is licensed under MIT OR Apache-2.0, at the user's choice,
+  in place of MPL-2.0; earlier releases keep MPL-2.0.
+
 ### Added
+
 
 - The editor's layout kept, floating panels and closed panels (ADR-0174): the layout of the
   window's panels is kept per user and per program in the user's state directory,

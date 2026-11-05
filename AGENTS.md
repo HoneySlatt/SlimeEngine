@@ -4,7 +4,7 @@ Rules for AI agents in this repository. Read it fully at each session's start.
 
 ## Project
 
-A general-purpose, modular, open-source (MPL-2.0) game engine in Rust: runtime, asset pipeline, editor, SDK.
+A general-purpose, modular, open-source (MIT OR Apache-2.0) game engine in Rust: runtime, asset pipeline, editor, SDK.
 AI agents do most of the work. The owner validates direction and architecture.
 Others will use it and contribute: documentation is part of every deliverable, held to the code's standard.
 
@@ -89,7 +89,7 @@ If you could not, say exactly what was not verified and why.
 
 - No abstraction without a second concrete use. No trait, generic or layer "just in case".
 - Do not reimplement the standard library unless a measurement justifies it.
-- Justify each new dependency: why, the alternative considered, MPL-2.0 compatibility.
+- Justify each new dependency: why, the alternative considered, license compatibility.
 - Every `unsafe` block has a `// SAFETY:` comment saying why it is sound.
 - Follow the ADRs' conventions (errors, logging, naming). If none applies, propose an ADR; never decide silently.
 - Comments explain why, not what. No commented-out code.

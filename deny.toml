@@ -26,7 +26,8 @@ ignore = [
 ]
 
 [licenses]
-# Licenses compatible with distributing SlimeEngine under MPL-2.0 and games under any license.
+# Licenses compatible with distributing SlimeEngine under MIT OR Apache-2.0 and games under any
+# license (ADR-0182).
 allow = [
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",

@@ -166,7 +166,6 @@ are in [`docs/debt.md`](docs/debt.md).
 
 ## License
 
-SlimeEngine is licensed under the [Mozilla Public License 2.0](LICENSE). MPL-2.0 is a file-level
-copyleft license: if you distribute a modified version of an engine file, the source of that
-file must remain available under MPL-2.0. Files you write yourself, such as a game's code, can
-use any license.
+SlimeEngine is licensed under either of the [MIT license](LICENSE-MIT) or the
+[Apache License 2.0](LICENSE-APACHE), at your choice. Releases before 0.7 are under the Mozilla
+Public License 2.0. A game built with the engine can use any license.

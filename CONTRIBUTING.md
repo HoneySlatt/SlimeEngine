@@ -443,7 +443,7 @@ owner's go.
    Beside the programs, CI puts DXC's library and its licence, and the licenses of the fonts and
    icons that they embed: parts of Noto in `interface.exe`; Geist, Geist Mono and Lucide in
    `widgets.exe`, and in the dev overlay of `scene.exe`, `world.exe` and `hunnawood.exe`. Add
-   `LICENSE.txt` and a `NOTICE.txt`.
+   `LICENSE-MIT.txt`, `LICENSE-APACHE.txt` and a `NOTICE.txt`.
 
 ## Making a change
 
@@ -492,5 +492,6 @@ the ADRs it touches.
 
 ## License of contributions
 
-SlimeEngine is licensed under the [Mozilla Public License 2.0](LICENSE). Contributions are
-accepted under the same license.
+SlimeEngine is licensed under either of the [MIT license](LICENSE-MIT) or the
+[Apache License 2.0](LICENSE-APACHE), at the user's choice. Contributions are accepted under both,
+without further terms.

@@ -55,7 +55,8 @@ it is built this way.
 ├── AGENTS.md            rules for every contributor
 ├── CHANGELOG.md         notable changes, per release
 ├── CONTRIBUTING.md      environment, checks, how a change is made and reviewed
-├── LICENSE              MPL-2.0
+├── LICENSE-MIT          MIT, one of the two licenses
+├── LICENSE-APACHE       Apache-2.0, the other
 └── README.md            what the project is, its state, where to read next
 ```
 

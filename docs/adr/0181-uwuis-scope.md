@@ -10,7 +10,8 @@
   [0146](0146-screen-readers.md) (the translation to AccessKit moves into uwui),
   [0011](0011-windowing-with-winit.md) (uwui's desktop host uses winit too),
   [0031](0031-dev-overlay-with-egui.md) (uwui's drawing uses wgpu) and
-  [0080](0080-reflection-and-serialization.md) (uwui reads its documents with `serde`)
+  [0080](0080-reflection-and-serialization.md) (uwui reads its documents with `serde`);
+  amended by [0182](0182-the-engine-under-mit-or-apache-2-0.md) (the engine leaves MPL-2.0 too)
 - Date: 2026-11-05
 
 ## Context

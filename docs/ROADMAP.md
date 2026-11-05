@@ -9,7 +9,7 @@
 
 ## 1. Vision
 
-A general-purpose, modular, open-source (MPL-2.0) creation platform whose runtime is written in Rust, for 3D games first.
+A general-purpose, modular, open-source (MIT OR Apache-2.0) creation platform whose runtime is written in Rust, for 3D games first.
 
 Long-term targets, in order of reach:
 
@@ -129,7 +129,7 @@ CI checks budgets through exact counters, draws, elements, bytes, allocations, a
 | Topic | Decision |
 |---|---|
 | Engine language | Rust |
-| License | MPL-2.0 |
+| License | MIT OR Apache-2.0, as uwui (ADR-0182); releases before 0.7 under MPL-2.0 |
 | GPU abstraction | wgpu, then native backends, Vulkan and Direct3D 12, at Stage 9c (ADR-0098). Their types stay inside the `gfx` and `render` crates, and the engine's own tests, through `slime-gfx`'s `wgpu` feature (ADR-0031); the rest of the engine uses engine-owned handles. |
 | Shaders | WGSL to start |
 | First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS is built and tested in CI from Stage 6d, and supported once a Mac can check it; wgpu stays for it after Stage 9c. Games aim at no mobile platform and no web. Applications on uwui aim at Android phones and the web in a canvas too, macOS and iOS within reach (ADR-0098, ADR-0173, ADR-0181). |
@@ -183,7 +183,7 @@ Stages are ordered by dependency. They overlap in practice, and carry no dates o
 - Nix dev shell
 - CI: build, test, clippy, fmt, documentation (rustdoc warnings, doc tests, Markdown links), dependency licenses and security advisories
 - ADR process and first ADRs
-- Dependency policy (admission criteria, license compatibility with MPL-2.0)
+- Dependency policy (admission criteria, license compatibility with the engine's license)
 - `unsafe` policy
 - Documentation baseline: README, CONTRIBUTING, architecture overview, glossary, one README per crate
 

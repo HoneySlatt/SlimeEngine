@@ -74,7 +74,7 @@ the ADR linking to it.
 | [0003](0003-toolchain-edition-and-msrv.md) | Pin the toolchain in one file, use edition 2024, set the MSRV to the pinned version | Accepted |
 | [0004](0004-workspace-layout-and-crate-naming.md) | Workspace layout and crate naming | Accepted; amended by 0014, 0055, 0104 and 0178 |
 | [0005](0005-lints-and-unsafe-policy.md) | Lints and `unsafe` policy | Accepted |
-| [0006](0006-dependency-policy.md) | Dependency policy | Accepted; amended by 0023, 0031 and 0133 |
+| [0006](0006-dependency-policy.md) | Dependency policy | Accepted; amended by 0023, 0031, 0133 and 0182 |
 | [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted; amended by 0015 and 0123 |
 | [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Accepted; amended by 0019 and 0085 |
 | [0009](0009-frame-timing.md) | Frame timing | Accepted; amended by 0107 |
@@ -249,4 +249,5 @@ the ADR linking to it.
 | [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179, 0180 and 0181 |
 | [0179](0179-the-framework-named-uwui.md) | The framework named uwui | Accepted; amends 0178 |
 | [0180](0180-one-canvas-and-the-frameworks-foundations.md) | One canvas, and the framework's foundations | Accepted; amends 0178; amended by 0181 |
-| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180 |
+| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182 |
+| [0182](0182-the-engine-under-mit-or-apache-2-0.md) | The engine under MIT OR Apache-2.0 | Accepted; amends 0006 and 0181 |
