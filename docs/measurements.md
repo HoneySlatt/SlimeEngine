@@ -1497,3 +1497,18 @@ signal coming before the next frame is due. On a slower display, they follow it:
 50 Hz, every image shown, where the old pacing drew 60, ten of which were never shown. A
 compositor's signal that comes late shows as one longer interval, 17.9 ms once at 144 Hz.
 A real display and compositor, the owner's, are measured by hand.
+
+## M6c.Q2c, CI's runners
+
+GitHub's hosted runners, on 2026-11-05, commit `5002bf1`, its run green. The cooked zone came from
+the cache. `check (game)`'s `drive` test watches the game minimized too
+([ADR-0187](adr/0187-a-hidden-window-at-rest.md)): it took 68 s, against 54 s at M6c.Q2a.
+`check (windowed)` starts one more headless Weston, at 240 Hz, for the windowed lifecycle test.
+
+| Job | Time |
+|---|---|
+| `windows-release` | 13 min 57 s |
+| `windows` | 11 min 49 s, its tests 9 min 8 s |
+| `check (headless)` | 11 min 27 s |
+| `check (game)` | 9 min 0 s |
+| `check (windowed)` | 6 min 32 s |
