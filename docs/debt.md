@@ -625,7 +625,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   How the jobs grew and were split: [`history.md`](history.md#ci-and-its-limit-of-20-minutes).
 - **The quality bar's budgets are checked by hand, or not measured yet** ([ADR-0175](adr/0175-the-quality-bar.md)).
   CI keeps the benchmarks' counters and the ratio of the editor's interface ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)), on Linux only; every time is measured by hand.
-  A game hidden is checked at rest in a headless Weston alone: on the owner's compositor, and minimized on Windows, by hand, not done yet ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
+  A game hidden is checked at rest in a headless Weston in CI, and was on the owner's compositor by hand; minimized on Windows, not checked yet ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
   Input to present, starts, memory over a session and power are not measured; M6c.Q2d.
   The editor's interface passes its budget on the owner's machine once other programs fill the memory that its GPU, without resizable BAR, lets the CPU map: the canvas's draw then meets [ADR-0041](adr/0041-render-graph.md)'s stall, whose fix is out of Stage 6c ([`measurements.md`](measurements.md#m6cq2b-ryzen-7-5800x-and-rx-6900-xt)).
   A frame of the interface standing still allocates, which `benches/counters.txt` counts without a budget.

@@ -1496,7 +1496,12 @@ second by default, the frames keep [ADR-0021](adr/0021-frame-pacing.md)'s pacing
 signal coming before the next frame is due. On a slower display, they follow it: 50 a second at
 50 Hz, every image shown, where the old pacing drew 60, ten of which were never shown. A
 compositor's signal that comes late shows as one longer interval, 17.9 ms once at 144 Hz.
-A real display and compositor, the owner's, are measured by hand.
+
+On the owner's desktop the same day, its compositor and display, the RX 6900 XT through RADV, the
+`window` example in a release build, 1 200 frames: 60.00 frames a second, intervals of a mean of
+16.667 ms, a standard deviation of 0.010 ms, a 99th percentile of 16.694 ms and a longest of
+16.713 ms, ADR-0021's pacing. *Hunna Wood* hidden there, in a release build: its threads switched
+not once in 10 s, read from `/proc`: the compositor sends no signal to a hidden window.
 
 ## M6c.Q2c, CI's runners
 

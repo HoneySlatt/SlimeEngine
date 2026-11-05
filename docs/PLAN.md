@@ -69,7 +69,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | M6c.N — The framework named uwui | Done 2026-11-05, [ADR-0179](adr/0179-the-framework-named-uwui.md), CI green on `0a858f8` |
 | M6c.Q2a — Rest, checked in CI | Done 2026-11-05, [ADR-0185](adr/0185-rest-checked-in-ci.md), CI green on `4164455` |
 | M6c.Q2b — Counters and ratios in CI | Done 2026-11-05, [ADR-0186](adr/0186-counters-and-ratios-in-ci.md), CI green on `7535915` |
-| [M6c.Q2c — A hidden game at rest](#m6cq2c--a-hidden-game-at-rest) | Done 2026-11-05, [ADR-0187](adr/0187-a-hidden-window-at-rest.md), CI green on `5002bf1`; by hand, waiting for the owner |
+| [M6c.Q2c — A hidden game at rest](#m6cq2c--a-hidden-game-at-rest) | Done 2026-11-05, [ADR-0187](adr/0187-a-hidden-window-at-rest.md), CI green on `5002bf1`; by hand on Linux done, the Windows virtual machine waiting for the owner |
 | [M6c.Q2d — First measures](#m6cq2d--first-measures) | Planned |
 | [M6c.Q3 — The hierarchy's search over frames](#m6cq3--the-hierarchys-search-over-frames) | Planned |
 | [M6c.Q4 — Fuzzing and crash reports](#m6cq4--fuzzing-and-crash-reports) | Planned |
@@ -186,7 +186,10 @@ stage's audit before M6c.9. Their figures live in the
 - **Measured.** Rest of a hidden game; the frames' pacing while visible, against ADR-0021's
   ([`measurements.md`](measurements.md#m6cq2c-ryzen-7-5800x)).
 - **By hand.** A hidden game on the owner's compositor, and minimized in the Windows virtual
-  machine.
+  machine. Done on 2026-11-05 on the owner's compositor: *Hunna Wood* hidden, none of its threads
+  switching in 10 s, and the frames' pacing on the owner's display that of ADR-0021
+  ([`measurements.md`](measurements.md#m6cq2c-ryzen-7-5800x)); the Windows virtual machine waits
+  for the owner.
 
 ### M6c.Q2d — First measures
 
@@ -433,9 +436,8 @@ is run with `--new --save <a file of its own>`, so that the owner's save is left
 - **Layouts kept, floating and closed panels** (M6c.5e): a layout kept across starts, a panel
   floated, moved and sized by its bar and its corner, closed and opened again where it was, on
   Linux and in the Windows virtual machine.
-- **A hidden game at rest** (M6c.Q2c): *Hunna Wood* hidden on the owner's compositor and minimized
-  in the Windows virtual machine, none of its threads waking, and drawing again once shown; the
-  frames' pacing on the owner's display, through `scripts/frame-pacing.py`.
+- **A hidden game at rest** (M6c.Q2c): *Hunna Wood* minimized in the Windows virtual machine,
+  drawing nothing and waking not at all, and drawing again once shown.
 - **G20, in the Windows virtual machine.** A source asset whose `.meta` differs from its own name
   by case only, cooked twice: whether its ID changes at each cook, and whether `slime-cook watch`
   cooks it again without end (see [Left by the audit of 0.4](debt.md#left-by-the-audit-of-04)).
