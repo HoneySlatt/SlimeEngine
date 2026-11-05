@@ -5,10 +5,11 @@
   before play in the editor, with the MCP server),
   [0121](0121-a-game-as-a-simulation-and-a-presentation.md) (a game's library holds its presentation
   too), [0122](0122-the-development-channel.md) (the token's randomness, where the port is made
-  known, values as text in the messages, builds for development and for shipping) and
+  known, values as text in the messages, builds for development and for shipping),
   [0134](0134-the-editors-core.md) (the editor is a program of the engine's application, and a
-  game's editor package comes with Stage 6b) and [0155](0155-the-editors-design.md) (Play hands the
+  game's editor package comes with Stage 6b), [0155](0155-the-editors-design.md) (Play hands the
   game private copies of the scenes not written, and the editor's steps while it runs)
+  and [0175](0175-the-quality-bar.md) (Play's budget kept in the roadmap's quality bar)
 - Date: 2026-10-20
 
 ## Context

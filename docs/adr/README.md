@@ -164,25 +164,25 @@ the ADR linking to it.
 | [0093](0093-saves-and-hot-reload-with-placements.md) | Saves and hot reload with placements | Accepted; amended by 0101, 0109, 0112 and 0125 |
 | [0094](0094-the-binary-encoding-of-documents.md) | The binary encoding of documents | Accepted |
 | [0095](0095-cooked-scene-files.md) | Cooked scene files | Accepted |
-| [0096](0096-the-files-the-engine-reads.md) | The files the engine reads: what they may hold, and what the engine promises | Accepted; amended by 0122 |
-| [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) | An audit pass and a foundations pass before Stage 6, and the roadmap after them | Accepted; amended by 0098, 0099, 0100, 0107, 0112, 0114, 0116 and 0131 |
+| [0096](0096-the-files-the-engine-reads.md) | The files the engine reads: what they may hold, and what the engine promises | Accepted; amended by 0122 and 0176 |
+| [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) | An audit pass and a foundations pass before Stage 6, and the roadmap after them | Accepted; amended by 0098, 0099, 0100, 0107, 0112, 0114, 0116, 0131 and 0177 |
 | [0098](0098-the-games-the-engine-aims-at.md) | The games the engine aims at, and the roadmap they shape | Accepted; amended by 0114, 0116, 0131, 0132, 0170 and 0173 |
 | [0099](0099-ai-agents-drive-the-engine.md) | AI agents drive the engine through its own MCP server | Accepted; amended by 0122 |
 | [0100](0100-updates-of-shipped-games.md) | Updates of shipped games | Accepted; amended by 0173 |
 | [0101](0101-saves-and-identities-that-never-mislead.md) | Saves and identities that never mislead | Accepted; amended by 0109, 0112, 0124 and 0125 |
-| [0102](0102-a-damaged-file-gives-an-error.md) | A damaged file gives an error, never a crash | Accepted |
+| [0102](0102-a-damaged-file-gives-an-error.md) | A damaged file gives an error, never a crash | Accepted; amended by 0176 |
 | [0103](0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) | A lost GPU device is recovered wherever the loss is found | Accepted |
-| [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted; amended by 0114, 0123 and 0144 |
+| [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted; amended by 0114, 0123, 0144 and 0175 |
 | [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Superseded by 0152 |
 | [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted; amended by 0117 and 0126 |
 | [0107](0107-the-execution-model.md) | The execution model | Accepted; amended by 0118 and 0121 |
 | [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted; amended by 0119, 0124 and 0167 |
 | [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amended by 0116, 0124 and 0134 |
-| [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116, 0121, 0122, 0134 and 0155 |
+| [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116, 0121, 0122, 0134, 0155 and 0175 |
 | [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115, 0120, 0126, 0127 and 0129 |
 | [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted; amended by 0125 and 0155 |
 | [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted; amended by 0120 and 0128 |
-| [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amended by 0120 and 0138 |
+| [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amended by 0120, 0138 and 0175 |
 | [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted; amended by 0117, 0129, 0130, 0132 and 0159 |
 | [0116](0116-stage-6-in-two-halves.md) | Stage 6 in two halves | Accepted; amended by 0124, 0126 and 0131 |
 | [0117](0117-frustum-culling-and-instancing.md) | Frustum culling and instancing | Accepted; amended by 0128 and 0138 |
@@ -191,7 +191,7 @@ the ADR linking to it.
 | [0120](0120-a-frame-that-owns-what-it-draws.md) | A frame that owns what it draws | Accepted; amended by 0121 |
 | [0121](0121-a-game-as-a-simulation-and-a-presentation.md) | A game as a simulation and a presentation | Accepted; amended by 0122, 0134, 0135 and 0155 |
 | [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125, 0126, 0127, 0128, 0130, 0134, 0135, 0143, 0146 and 0155 |
-| [0123](0123-the-linux-checks-in-two-jobs.md) | The Linux checks in two jobs | Accepted; amended by 0155 |
+| [0123](0123-the-linux-checks-in-two-jobs.md) | The Linux checks in two jobs | Accepted; amended by 0155 and 0175 |
 | [0124](0124-driven-components-keys-and-created-entities-in-levels.md) | Driven components, start keys and created entities written into levels | Accepted; amended by 0125 |
 | [0125](0125-saves-per-scene.md) | Saves per scene, scenes unloaded and adoption | Accepted |
 | [0126](0126-views-apart-from-the-renderer.md) | Views apart from the renderer | Accepted; amended by 0127 |
@@ -205,10 +205,10 @@ the ADR linking to it.
 | [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 and 0155 |
 | [0135](0135-the-editors-program.md) | The editor's program | Accepted; amended by 0156 and 0161 |
 | [0136](0136-the-interfaces-text.md) | The interface's text | Accepted |
-| [0137](0137-the-canvas.md) | The canvas | Accepted; amended by 0152 |
-| [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted |
+| [0137](0137-the-canvas.md) | The canvas | Accepted; amended by 0152 and 0175 |
+| [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted; amended by 0175 |
 | [0139](0139-text-drawn-and-the-display-list.md) | Text drawn, and the display list | Accepted |
-| [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amended by 0141, 0143 and 0146 |
+| [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amended by 0141, 0143, 0146 and 0175 |
 | [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted; amended by 0149 |
 | [0142](0142-input-and-focus.md) | Input and focus | Accepted; amended by 0145, 0150, 0152, 0153, 0154 and 0160 |
 | [0143](0143-what-agents-see-of-the-interface.md) | What agents see of the interface | Accepted; amended by 0146 and 0156 |
@@ -223,7 +223,7 @@ the ADR linking to it.
 | [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
 | [0153](0153-tab-and-f6-in-a-games-interface.md) | Tab and F6 in a game's interface | Accepted; amended by 0172 |
 | [0154](0154-floating-panels-and-held-keys.md) | Floating panels and held keys | Accepted |
-| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156, 0158, 0159, 0160, 0161, 0162, 0172 and 0174 |
+| [0155](0155-the-editors-design.md) | The editor's design | Accepted; amended by 0156, 0158, 0159, 0160, 0161, 0162, 0172, 0174, 0175 and 0177 |
 | [0156](0156-the-editors-window-and-its-operations.md) | The editor's window and its operations | Accepted |
 | [0157](0157-dialogs-the-cursor-held-and-the-gpus-identity.md) | Dialogs, the cursor held and the GPU's identity | Accepted |
 | [0158](0158-the-viewport.md) | The viewport | Accepted; amended by 0159, 0160 |
@@ -243,3 +243,6 @@ the ADR linking to it.
 | [0172](0172-regions-of-tabs.md) | Regions of tabs | Accepted; amends 0153 and 0155 |
 | [0173](0173-the-platforms-of-applications.md) | The platforms of applications | Accepted; amends 0015, 0098, 0100 and 0170 |
 | [0174](0174-layouts-kept-floating-panels-and-closed-panels.md) | Layouts kept, floating panels and closed panels | Accepted; amends 0150 and 0155 |
+| [0175](0175-the-quality-bar.md) | The quality bar | Accepted; amends 0104, 0110, 0114, 0123, 0137, 0138, 0140 and 0155 |
+| [0176](0176-fuzzing-and-crash-reports.md) | Fuzzing and crash reports | Accepted; amends 0096 and 0102 |
+| [0177](0177-audits-and-releases.md) | Audits and releases | Accepted; amends 0097 and 0155 |

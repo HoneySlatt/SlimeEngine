@@ -3,6 +3,8 @@
 - Status: Accepted; amends [0007](0007-documentation-tooling-and-ci.md) (CI runs the checks' script
   in two parts) and [0104](0104-the-build-ci-and-measurements.md) (CI's jobs); amended by
   [0155](0155-the-editors-design.md) (the Linux checks in three jobs)
+  and [0175](0175-the-quality-bar.md) (CI's limit kept in the roadmap, its jobs' times in
+  `measurements.md`)
 - Date: 2026-10-21
 
 ## Context

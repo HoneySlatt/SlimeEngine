@@ -21,7 +21,7 @@
   shortcut lives in the editor's table of shortcuts; the cache directory waits for its first user;
   the loop's wake is built on a user event of winit 0.30's, the one way it has),
   [0158](0158-the-viewport.md) (the `.keys` preset in Blender's way comes with M6c.2b's picking;
-  an agent frames the viewport by an operation's name) and
+  an agent frames the viewport by an operation's name),
   [0159](0159-picking-and-the-selection.md) (Alt and a click told from an orbit by the mouse's
   stillness; the second viewport and Blender's way in M6c.2c),
   [0160](0160-two-viewports-and-blenders-way.md) (the check of the editor's tables leaves out what
@@ -30,9 +30,11 @@
   operation turns it on and off), [0162](0162-creating-copying-and-arranging.md) (a duplicate
   and what is pasted go last among their parent's children, in place; nudging moves along the
   world's axes), [0172](0172-regions-of-tabs.md) (docking a model of `slime-ui` that builds its
-  elements, not a kind of element) and
+  elements, not a kind of element),
   [0174](0174-layouts-kept-floating-panels-and-closed-panels.md) (a layout kept against any other
-  default is set aside, not only against an older one)
+  default is set aside, not only against an older one),
+  [0175](0175-the-quality-bar.md) (the quality milestones, and an idle editor that wakes itself
+  not at all) and [0177](0177-audits-and-releases.md) (M6c.9 follows the release's checklist)
 - Date: 2026-10-27
 
 ## Context

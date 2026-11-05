@@ -1324,3 +1324,14 @@ file, 50 times in the user's home, on ext4 over an NVMe drive
 
 What it says: a write costs a large part of a frame's budget at 240 Hz, so the editor writes its
 layout once it has stood still for half a second, not at each change. Not measured on Windows.
+
+## M6c.5e, CI's runners
+
+GitHub's hosted runners, on 2026-11-04 and 2026-11-05. Each job's limit is 20 minutes
+([ADR-0175](adr/0175-the-quality-bar.md)).
+
+| Commit | Job | Time |
+|---|---|---|
+| `9edb2f8` | `check (headless)`, the longest Linux job | 16 min 52 s |
+| `9edb2f8` | `windows` | 19 min 18 s |
+| five runs of 2026-11-04 and 2026-11-05 | `windows` | from 13 min 44 s to 19 min 18 s, its tests' step varying most |

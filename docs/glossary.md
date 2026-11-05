@@ -65,6 +65,10 @@ least recently held first once the cache passes its kind's budget
 scene. Each comes from a *source asset* and reaches the game as *cooked data*
 ([ADR-0069](adr/0069-the-asset-pipeline.md)).
 
+**At rest.** A program with nothing to do: no input, no animation, no load, no request. At rest,
+the editor and applications draw no frame and have no *own wake-up*; a game paused or hidden draws
+nothing ([ADR-0175](adr/0175-the-quality-bar.md)).
+
 **Attachment (bone).** A component that hangs an entity on a bone of another entity's skeleton,
 naming the entity and the bone; saves and scene files hold it as any reference
 ([ADR-0108](adr/0108-what-the-world-knows-of-its-changes.md)). Decided, not built yet.
@@ -535,8 +539,8 @@ values up to ±65 504. The channels of `Rgba16Float` render targets, which the e
 **Hardware tier.** A class of computers that the engine runs on, from handheld PCs and modest
 computers at high frame rates to high-end ones: a game picks the lowest it supports, and each
 technique of the renderer belongs to a tier ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)).
-Three are named, each by a reference machine and budgets: handheld at 1280 × 800, modest at 1920 ×
-1080 and high at 3840 × 2160; an enthusiast tier comes with ray tracing
+Three are named, handheld, modest and high, each by a reference machine and budgets, which the
+[quality bar](ROADMAP.md#4-quality-bar) holds; an enthusiast tier comes with ray tracing
 ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md),
 [ADR-0138](adr/0138-the-high-tier-at-3840-2160.md)).
 
@@ -925,6 +929,10 @@ or removed, an entity of the prefab removed or one added, written by the scene t
 stays when the prefab later takes the same value, and one whose target the prefab no longer has is
 kept and reported ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
 
+**Own wake-up.** A thread of a program leaving its wait when nothing outside asked it: a timer or a
+poll of the program's own, not an input, a request or a load that ends. Counted from the context
+switches that `/proc/<pid>/status` reports ([ADR-0175](adr/0175-the-quality-bar.md)).
+
 **Owner.** The person who validates the project's direction and its architecture decisions.
 
 **Page (meshes).** A vertex buffer and an index buffer that hold the vertices and indices of many
@@ -1094,6 +1102,10 @@ the value holds; an option that holds a value is gone through, to the value.
 direction; and a spot light, a point light in a cone, full within its inner angle and dark beyond
 its outer one. A point or spot light's optional range is the distance at which its light reaches
 zero, smoothly.
+
+**Quality bar.** What the engine, its editor and its games are weighed against: references,
+hardware tiers, and budgets, each with its figure, what measures it and where it is checked; section
+4 of [`ROADMAP.md`](ROADMAP.md#4-quality-bar) ([ADR-0175](adr/0175-the-quality-bar.md)).
 
 **Query (world).** What a game asks a *world* for: the entities that hold every *component* of
 some types, with those components, `&T` to read one and `&mut T` to change it through a *guard*

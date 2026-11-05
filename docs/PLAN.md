@@ -21,11 +21,13 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - Done: M6c.0, M6c.1a, M6c.1b, M6c.2a, M6c.2b, M6c.2c, M6c.3a, M6c.3b, M6c.3c, M6c.4a, M6c.4b,
   M6c.4c, M6c.4d, M6c.5a, M6c.5b, M6c.5c, M6c.5d and M6c.5e.
 - Checkpoint A: done on Linux; its part in the Windows virtual machine waits for the owner.
-- Next: the quality-bar milestones, decided on 2026-11-05, to be planned; then
-  [M6c.5f](#m6c5f--the-inspector), the inspector.
-- Then: M6c.6, M6c.7, Checkpoint B, M6c.8 and M6c.9.
+- Now: [M6c.Q1](#m6cq1--the-quality-bar-written), the first of the
+  [quality milestones](#the-quality-milestones) ([ADR-0175](adr/0175-the-quality-bar.md)).
+- Next: M6c.Q2a, M6c.Q2b, M6c.Q3 and M6c.Q4; then [M6c.5f](#m6c5f--the-inspector), the inspector.
+- Then: M6c.6, M6c.7, Checkpoint B, M6c.8, M6c.Q5, the stage's audit, and M6c.9.
 - Cuts made at a milestone's start, a part cut again at its own start where needed: M6c.1 into 1a
-  and 1b; M6c.2 into 2a to 2c; M6c.3 into 3a to 3c; M6c.4 into 4a to 4d; M6c.5 into 5a to 5f.
+  and 1b; M6c.2 into 2a to 2c; M6c.3 into 3a to 3c; M6c.4 into 4a to 4d; M6c.5 into 5a to 5f;
+  M6c.Q2 into Q2a and Q2b.
 - M6c.6 is expected to be cut in two, M6c.6a and M6c.6b.
 - After Stage 6c: Stage 6d, the interface for applications, to be released as 0.8, decided on
   2026-11-04 ([ADR-0170](adr/0170-applications-on-the-ui-framework.md),
@@ -39,30 +41,36 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 | Milestone | Status |
 |---|---|
-| [M6c.0 — Before the stage](#m6c0--before-the-stage) | Done |
-| [M6c.1a — The window and its operations](#m6c1a--the-window-and-its-operations) | Done |
-| [M6c.1b — Dialogs, the cursor held and the GPU's identity](#m6c1b--dialogs-the-cursor-held-and-the-gpus-identity) | Done |
-| [M6c.2a — The viewport and its navigation](#m6c2a--the-viewport-and-its-navigation) | Done |
-| [M6c.2b — Picking and the selection](#m6c2b--picking-and-the-selection) | Done |
-| [M6c.2c — A second viewport and Blender's way](#m6c2c--a-second-viewport-and-blenders-way) | Done |
-| [M6c.3a — Move with handles](#m6c3a--move-with-handles) | Done |
-| [M6c.3b — Create and arrange](#m6c3b--create-and-arrange) | Done |
-| [M6c.3c — Place prefabs and see the history](#m6c3c--place-prefabs-and-see-the-history) | Done |
-| [M6c.4a — Play the level](#m6c4a--play-the-level) | Done |
-| [M6c.4b — Edit while playing](#m6c4b--edit-while-playing) | Done |
-| [M6c.4c — Build the game again](#m6c4c--build-the-game-again) | Done |
-| [M6c.4d — Measure Play](#m6c4d--measure-play) | Done |
+| M6c.0 — Before the stage | Done 2026-10-27, CI green on `bb4552b` |
+| M6c.1a — The window and its operations | Done 2026-10-28, [ADR-0156](adr/0156-the-editors-window-and-its-operations.md), CI green on `a20c15c` |
+| M6c.1b — Dialogs, the cursor held and the GPU's identity | Done 2026-10-28, [ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md), CI green on `49620a2` |
+| M6c.2a — The viewport and its navigation | Done 2026-10-28, [ADR-0158](adr/0158-the-viewport.md), CI green on `7d51d93` |
+| M6c.2b — Picking and the selection | Done 2026-10-28, [ADR-0159](adr/0159-picking-and-the-selection.md), CI green on `00766ea` |
+| M6c.2c — A second viewport and Blender's way | Done 2026-10-28, [ADR-0160](adr/0160-two-viewports-and-blenders-way.md), CI green on `271cdd7` |
+| M6c.3a — Move with handles | Done 2026-10-28, [ADR-0161](adr/0161-the-open-step-and-the-handles.md), CI green on `55258a9` |
+| M6c.3b — Create and arrange | Done 2026-10-28, [ADR-0162](adr/0162-creating-copying-and-arranging.md), CI green on `95b7bbc` |
+| M6c.3c — Place prefabs and see the history | Done 2026-10-28, [ADR-0163](adr/0163-placing-prefabs-and-the-history-panel.md), CI green on `b5b350b` |
+| M6c.4a — Play the level | Done 2026-10-28, [ADR-0164](adr/0164-play.md), CI green on `dd44fe6` |
+| M6c.4b — Edit while playing | Done 2026-10-28, [ADR-0165](adr/0165-editing-while-playing.md), CI green on `ff64197` |
+| M6c.4c — Build the game again | Done 2026-10-28, [ADR-0166](adr/0166-building-the-game-again.md), CI green on `b271491` |
+| M6c.4d — Measure Play | Done 2026-10-28, CI green on `cb8d694` |
 | [Checkpoint A — The owner tries the editor](#checkpoint-a--the-owner-tries-the-editor) | Done on Linux; the Windows virtual machine to come |
-| [M6c.5a — The hierarchy](#m6c5a--the-hierarchy) | Done |
-| [M6c.5b — Rearrange the hierarchy](#m6c5b--rearrange-the-hierarchy) | Done |
-| [M6c.5c — The eye and the lock](#m6c5c--the-eye-and-the-lock) | Done |
-| [M6c.5d — Regions of tabs](#m6c5d--regions-of-tabs) | Done |
-| [M6c.5e — Layouts kept, floating panels and closed panels](#m6c5e--layouts-kept-floating-panels-and-closed-panels) | Done |
+| M6c.5a — The hierarchy | Done 2026-10-29, [ADR-0167](adr/0167-the-hierarchy.md), CI green on `2f78cce` |
+| M6c.5b — Rearrange the hierarchy | Done 2026-10-29, [ADR-0168](adr/0168-rearranging-the-hierarchy.md), CI green on `b7952a9` |
+| M6c.5c — The eye and the lock | Done 2026-11-04, [ADR-0169](adr/0169-the-eye-and-the-lock.md), CI green on `b2e1c1a` |
+| M6c.5d — Regions of tabs | Done 2026-11-04, [ADR-0172](adr/0172-regions-of-tabs.md), CI green on `06faca1` |
+| M6c.5e — Layouts kept, floating panels and closed panels | Done 2026-11-05, [ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md), CI green on `9edb2f8` |
+| [M6c.Q1 — The quality bar written](#m6cq1--the-quality-bar-written) | In progress |
+| [M6c.Q2a — Rest, checked in CI](#m6cq2a--rest-checked-in-ci) | Planned |
+| [M6c.Q2b — Counters, ratios and first measures](#m6cq2b--counters-ratios-and-first-measures) | Planned |
+| [M6c.Q3 — The hierarchy's search over frames](#m6cq3--the-hierarchys-search-over-frames) | Planned |
+| [M6c.Q4 — Fuzzing and crash reports](#m6cq4--fuzzing-and-crash-reports) | Planned |
 | [M6c.5f — The inspector](#m6c5f--the-inspector) | Planned |
 | [M6c.6 — Levels of several files, and links](#m6c6--levels-of-several-files-and-links) | Planned |
 | [M6c.7 — Build from a kit](#m6c7--build-from-a-kit) | Planned |
 | [Checkpoint B — The exit rehearsal](#checkpoint-b--the-exit-rehearsal) | Planned |
 | [M6c.8 — Panels dragged to dock](#m6c8--panels-dragged-to-dock) | Planned |
+| [M6c.Q5 — The audit of Stage 6c](#m6cq5--the-audit-of-stage-6c) | Planned |
 | [M6c.9 — Windows check, documentation, release 0.7](#m6c9--windows-check-documentation-release-07) | Planned |
 
 ## Stage 6c — The editor
@@ -79,7 +87,9 @@ dependencies. Each milestone delivers what ADR-0155 decides for it, and:
 - adds a dependency only when it first uses it, and checks what it adds to CI's build;
 - ends with an agent's session in `scripts/check.sh`, in a headless Weston when windowed, and image
   tests of the panels it adds;
-- records how long CI's jobs take, each within its limit of 20 minutes;
+- measures the budgets of the [quality bar](ROADMAP.md#4-quality-bar) that it touches, and records
+  how long CI's jobs take in [`measurements.md`](measurements.md), each within its limit of 20
+  minutes;
 - may be cut in two at its start.
 
 Out of scope: panels in windows of their own (one window per process); a highlight that follows
@@ -101,82 +111,6 @@ Open risks (ADR-0155's context gives their figures):
 - The stage's size: ADR-0155's study counted 31 000 to 39 000 lines of Rust with their tests.
 - winit 0.31, in beta for months, and `accesskit_winit`'s release for it.
 
-In the milestones done, "Debt:" names items of [`debt.md`](debt.md) by their titles.
-
-### M6c.0 — Before the stage
-
-Done 2026-10-27, CI green on `bb4552b`: the development channel answers in 0.14 ms, not 82 ms; a
-game that a tool started ends when its standard input closes; `scripts/check.sh` runs in three
-parts, which CI runs side by side.
-
-### M6c.1a — The window and its operations
-
-Done 2026-10-28, [ADR-0156](adr/0156-the-editors-window-and-its-operations.md), CI green on
-`a20c15c`: the editor's window, drawn on demand, whose menus, shortcuts, palette and agents run one
-registry of operations.
-
-### M6c.1b — Dialogs, the cursor held and the GPU's identity
-
-Done 2026-10-28, [ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md), CI green
-on `49620a2`: the system's dialog opens a level, the cursor is held and the raw motion read, and a
-GPU object used with another `Gpu` panics. Debt: "Input not reported yet".
-
-### M6c.2a — The viewport and its navigation
-
-Done 2026-10-28, [ADR-0158](adr/0158-the-viewport.md), CI green on `7d51d93`: the level in a
-viewport, flown, orbited and panned, drawn only when what it shows changed. Debt: "The editor's
-viewport shows every light", "Sixteen passes per submission".
-
-### M6c.2b — Picking and the selection
-
-Done 2026-10-28, [ADR-0159](adr/0159-picking-and-the-selection.md), CI green on `00766ea`: a
-click, a marquee, and Alt and a click pick; the selection outlined; two modes of debugging. Debt:
-"Picking in the editor's viewport".
-
-### M6c.2c — A second viewport and Blender's way
-
-Done 2026-10-28, [ADR-0160](adr/0160-two-viewports-and-blenders-way.md), CI green on `271cdd7`: a
-second viewport, and Blender's keys and buttons as a preset. Debt: "Two viewports build their
-frames apart".
-
-### M6c.3a — Move with handles
-
-Done 2026-10-28, [ADR-0161](adr/0161-the-open-step-and-the-handles.md), CI green on `55258a9`:
-handles move, turn and scale, with snapping, each gesture one step; End drops on what lies below.
-Debt: "The editor's handles".
-
-### M6c.3b — Create and arrange
-
-Done 2026-10-28, [ADR-0162](adr/0162-creating-copying-and-arranging.md), CI green on `95b7bbc`:
-create, duplicate, delete, copy and paste, group, nudge and repeat, each a step. Debt: "Creating
-and arranging in the editor".
-
-### M6c.3c — Place prefabs and see the history
-
-Done 2026-10-28, [ADR-0163](adr/0163-placing-prefabs-and-the-history-panel.md), CI green on
-`b5b350b`: prefabs placed from the palette, and a history panel. Debt: "Placing prefabs and the
-history panel".
-
-### M6c.4a — Play the level
-
-Done 2026-10-28, [ADR-0164](adr/0164-play.md), CI green on `dd44fe6`: Play runs the level in the
-game, its unwritten steps included, from a toolbar, its log in a console. Debt: "Play".
-
-### M6c.4b — Edit while playing
-
-Done 2026-10-28, [ADR-0165](adr/0165-editing-while-playing.md), CI green on `ff64197`: steps reach
-the running game, and agents drive both programs. Debt: "Editing while playing".
-
-### M6c.4c — Build the game again
-
-Done 2026-10-28, [ADR-0166](adr/0166-building-the-game-again.md), CI green on `b271491`: Play
-builds the game, and builds it again as its code changes, on a save of its run. Debt: "Building the
-game again".
-
-### M6c.4d — Measure Play
-
-Done 2026-10-28, CI green on `cb8d694`: two benchmarks measure Play's time to control
-([`docs/measurements.md`](measurements.md)). Debt: "Play's time to control".
 
 ### Checkpoint A — The owner tries the editor
 
@@ -188,36 +122,87 @@ Done 2026-10-28, CI green on `cb8d694`: two benchmarks measure Play's time to co
   level, kept per level and shown in the status bar. No cut; "keep this value" moved to M6c.5f.
 - **Windows virtual machine.** Waits for the owner.
 
-### M6c.5a — The hierarchy
+### The quality milestones
 
-Done 2026-10-29, [ADR-0167](adr/0167-the-hierarchy.md), CI green on `2f78cce`: a hierarchy that
-folds, selects, renames and searches, within a list's budget at 100 000 entities. Debt: "The
-hierarchy".
+The owner decided on 2026-11-05 the engine's budgets and how they are checked
+([ADR-0175](adr/0175-the-quality-bar.md), [ADR-0176](adr/0176-fuzzing-and-crash-reports.md),
+[ADR-0177](adr/0177-audits-and-releases.md)), and placed these milestones before M6c.5f, the
+stage's audit before M6c.9. Their figures live in the
+[quality bar](ROADMAP.md#4-quality-bar).
 
-### M6c.5b — Rearrange the hierarchy
+### M6c.Q1 — The quality bar written
 
-Done 2026-10-29, [ADR-0168](adr/0168-rearranging-the-hierarchy.md), CI green on `b7952a9`:
-reparenting by drags and by Alt and the arrows; drag and drop in `slime-ui`; G32 settled. Debt:
-"Rearranging the hierarchy".
+- **Goal.** Every budget of the engine stands in one place, with what measures it, where it is
+  checked and whether it is met.
+- **Delivers.** The quality bar, section 4 of [`ROADMAP.md`](ROADMAP.md#4-quality-bar);
+  ADR-0175, ADR-0176 and ADR-0177; the quality milestones in this plan, its finished milestones
+  folded into the status table; CI's times in [`measurements.md`](measurements.md); the budgets
+  missed in [`debt.md`](debt.md).
+- **Done when.** Every budget that the repository states is in the quality bar, or says why it
+  stays a contract of rustdoc; a reviewing agent checked it; CI is green.
+- **How to test.** `scripts/check.sh headless`, whose last step checks the documents' links.
+- **Measured.** CI's jobs.
 
-### M6c.5c — The eye and the lock
+### M6c.Q2a — Rest, checked in CI
 
-Done 2026-11-04, [ADR-0169](adr/0169-the-eye-and-the-lock.md), CI green on `b2e1c1a`: entities
-hidden from the viewport and locked against picking, as the user's state. Debt: "The eye and the
-lock".
+- **Goal.** The editor, its floating panels, and a game paused or hidden draw nothing and wake
+  themselves not at all, and CI keeps them so.
+- **Crates.** `slime-app`, `slime-editor`, `hunnawood`; `scripts/check.sh`.
+- **Delivers.** A check in a headless Weston that runs the editor idle, a panel floating, and the
+  game paused, then hidden, and finds no frame and no own wake-up over 10 s, from
+  `/proc/<pid>/status`; which threads count, the drivers' and lavapipe's among them, set by its
+  design; the editor's check of at most 2 frames brought to none; what wakes for nothing, fixed.
+- **Done when.** The check fails on a program made to wake itself, and passes on the editor and the
+  game; CI is green, each job within 20 minutes.
+- **How to test.** `scripts/check.sh windowed`.
+- **Measured.** Rest; the jobs that run the check.
 
-### M6c.5d — Regions of tabs
+### M6c.Q2b — Counters, ratios and first measures
 
-Done 2026-11-04, [ADR-0172](adr/0172-regions-of-tabs.md), CI green on `06faca1`: `slime-ui`'s dock
-of splits and tabs, and the editor's panels in regions, moved by "Move to". Debt: "Regions of
-tabs".
+- **Goal.** CI keeps every budget that counters and ratios of times can hold, and each budget of
+  the quality bar has a first figure.
+- **Crates.** `slime-benches`, `slime-ui`, `slime-editor`, `slime-app`.
+- **Delivers.** A benchmark of the editor's whole interface on the zone, against 1.5 ms by hand,
+  and its counters, elements visited, items drawn, allocations at rest, and the ratio of its cost
+  at 10 000 and 100 000 entities, in CI; the steady counters of the existing benchmarks in CI;
+  first measures of the warm start, the read of the system's fonts included, of input to present,
+  of memory over 100 undos and redos and 10 runs of Play, and of the GPU's power at rest; CPU
+  benchmarks on 4 cores too; variable refresh rates checked against
+  [ADR-0021](adr/0021-frame-pacing.md); `hyperfine` and `heaptrack` in the development shell,
+  `dependencies.md` and `CONTRIBUTING.md`; figures proposed to the owner for the budgets that have
+  none.
+- **Done when.** Each budget of the quality bar has a figure measured, or says why not; a counter
+  doubled fails CI; CI is green, each job within 20 minutes.
+- **How to test.** `cargo test --workspace`; `cargo run --release -p slime-benches`.
+- **Measured.** Every budget of the quality bar that the engine can measure today.
+- **By hand.** Variable refresh rates on the owner's display.
 
-### M6c.5e — Layouts kept, floating panels and closed panels
+### M6c.Q3 — The hierarchy's search over frames
 
-Done 2026-11-05, [ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md), CI green
-on `9edb2f8`: the layout kept per user and per program, set aside when it cannot be read or was
-made from another default; panels floated and closed, each keeping its place; Reset layout. Debt:
-"Layouts kept, floating panels and closed panels".
+- **Goal.** A search of a hierarchy of 100 000 entities keeps the editor's interface within its
+  budget.
+- **Crates.** `slime-editor`.
+- **Delivers.** The search spread over frames, its rows shown as they are found, a new search
+  ending the one that runs; `editor.hierarchy.100k` measures each frame of a search.
+- **Done when.** No frame of a search at 100 000 entities passes the interface's budget on the
+  Ryzen 7 5800X; a search spread finds what a search at once finds; CI is green.
+- **How to test.** `cargo test -p slime-editor`;
+  `cargo run --release -p slime-benches -- editor.hierarchy.100k`.
+- **Measured.** The editor's interface during a search.
+- **Debt settled.** The search run over the whole world at once ("The hierarchy").
+
+### M6c.Q4 — Fuzzing and crash reports
+
+- **Goal.** The readers of files are fuzzed every week, and a crash leaves a report that the user
+  can attach to an issue.
+- **Crates.** A `fuzz/` package outside the workspace; the programs' start.
+- **Delivers.** As ADR-0176 decides: a target for each reader of untrusted files,
+  `nix develop .#fuzz`, a few minutes each in CI's weekly run, crashing inputs kept and replayed by
+  `cargo test`; the crash report, pointed to at the next start; each bug found fixed with its test.
+- **Done when.** Each target ran in CI's weekly run; a program made to panic writes its report, and
+  points to it at its next start; CI is green.
+- **How to test.** `nix develop .#fuzz -c cargo fuzz run <target>`; `cargo test --workspace`.
+- **Measured.** The weekly run's jobs.
 
 ### M6c.5f — The inspector
 
@@ -335,13 +320,28 @@ made from another default; panels floated and closed, each keeping its place; Re
 - **Debt settled.** Tabs without a button that closes them, nor dragged; two panels without a least
   size; a floating panel that docks by "Move to" alone.
 
+### M6c.Q5 — The audit of Stage 6c
+
+- **Goal.** The whole engine examined in every dimension before 0.7.
+- **Delivers.** As ADR-0177 decides: the scope, its dimensions and its commit written; a reviewing
+  agent for each dimension; each finding verified, ranked, and put to the owner; every budget
+  measured again; `cargo-mutants` in the development shell, `dependencies.md` and
+  `CONTRIBUTING.md`; the record, `docs/audits/<date>-stage-6c.md`; the fixes done, or planned in
+  [`debt.md`](debt.md).
+- **Done when.** The record is written; the fixes that the owner chose are done; CI is green.
+- **How to test.** `cargo mutants` over the crates that the audit names; `scripts/check.sh`.
+- **Measured.** Every budget of the quality bar.
+
 ### M6c.9 — Windows check, documentation, release 0.7
 
 - **Goal.** Stage 6c is done, checked on Windows, and released as 0.7.
 - **Delivers.** The owner's check, in the Windows virtual machine, of the programs that CI builds,
   with the checks that wait in [the list](#checks-by-hand-waiting-for-the-owner) if the owner makes
   them then; the documents reread as a newcomer would read them; `CHANGELOG.md`'s section of 0.7;
-  the release, as [Releasing](../CONTRIBUTING.md#releasing) says; Stage 6c moved to [`history.md`](history.md);
+  the release's checklist of [ADR-0177](adr/0177-audits-and-releases.md), which
+  [Releasing](../CONTRIBUTING.md#releasing) gains: the update from 0.6 tested, the debug symbols
+  kept, a run on each platform; the dependencies and `flake.lock` updated, each in a commit of its
+  own; the release, as Releasing says; Stage 6c moved to [`history.md`](history.md);
   Stage 6d planned with the owner.
 - **Done when.** The owner ran *Hunna Wood*'s editor on Windows; the documents are reread and
   corrected; CI is green on the release commit; the tag and the GitHub release exist, with the

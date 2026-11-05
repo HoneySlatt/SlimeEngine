@@ -2,6 +2,7 @@
 
 - Status: Accepted; amended by [0122](0122-the-development-channel.md) (the threat model extended to
   the development channel and the MCP server)
+  and [0176](0176-fuzzing-and-crash-reports.md) (the readers fuzzed too)
 - Date: 2026-10-19
 
 ## Context

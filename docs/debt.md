@@ -518,7 +518,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **The hierarchy** ([ADR-0167](adr/0167-the-hierarchy.md)).
   What is folded is lost when the level closes.
   A change of the world's structure makes the rows of the whole tree again, on the editor's thread.
-  The search runs over the whole world at once, on the editor's thread: some 5 ms at 100 000 entities, which `editor.hierarchy.100k` measures with the rows.
+  The search runs over the whole world at once, on the editor's thread: some 5 ms at 100 000 entities, which `editor.hierarchy.100k` measures with the rows; M6c.Q3 spreads it over frames.
   The arrows move the selection only while a row holds the focus.
   A press of a row reads Ctrl and Shift as the frame finds them held, not as the press found them: a button's press carries no modifiers.
   No double click renames; F2 does.
@@ -606,16 +606,23 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   It falls back on them for the writing systems that the editor's look does not ship.
   fontconfig's list took some 55 to 75 ms on a Ryzen 7 5800X, measured once in a release build; the first text in a writing system found that way, some 4 ms more.
   Reading the list in the background, or at the first character that no font registered has, would take it off the start.
-  The quality-bar milestones that [`PLAN.md`](PLAN.md) names next measure the editor's start, and follow it.
-- **CI's jobs and their limit of 20 minutes** ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md), [ADR-0144](adr/0144-the-cooked-zones-key-in-ci.md), [ADR-0155](adr/0155-the-editors-design.md)).
+  M6c.Q2b measures the editor's start against its budget, and follows it.
+- **CI's jobs and their limit of 20 minutes** ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md), [ADR-0144](adr/0144-the-cooked-zones-key-in-ci.md), [ADR-0155](adr/0155-the-editors-design.md), [ADR-0175](adr/0175-the-quality-bar.md)).
   Each job of CI must end within 20 minutes, and every session of the editor adds to the checks.
   Since M6c.0, three Linux jobs run `scripts/check.sh`'s three parts side by side; the game's agent session draws the zone without shadows.
   The cooked zone is cached, keyed on the packages that the cooker is built from: a change of the cooker's sources or packages cooks it again, which adds about 3 minutes to `check (game)` alone.
-  On `9edb2f8`, at M6c.5e, the longest jobs took 16 minutes 52 seconds (`check (headless)`) and 19 minutes 18 seconds (`windows`).
-  The `windows` job took from 13 minutes 44 seconds to 19 minutes 18 seconds over the five runs of 2026-11-04 and 2026-11-05, its tests' step varying most: it has little room left under its limit.
+  Each milestone records its jobs' times in [`measurements.md`](measurements.md): the `windows` job has little room left under its limit, its tests' step varying most from one run to the next.
   The `windows` job builds the tests that read the zone again, with `-p`, whose features differ from the workspace's: about a minute.
   Run over the workspace, `--ignored` would also run the measurements that other crates ignore, meant for release builds.
   How the jobs grew and were split: [`history.md`](history.md#ci-and-its-limit-of-20-minutes).
+- **The quality bar's budgets are checked by hand, or not measured yet** ([ADR-0175](adr/0175-the-quality-bar.md)).
+  CI keeps none of the renderer's, the interface's or the editor's budgets through counters or ratios of times yet: their times are measured by hand; M6c.Q2b.
+  The idle editor's check allows 2 frames in 10 s and counts no wake-up, and nothing checks a game paused or hidden; M6c.Q2a.
+  The editor's interface, input to present, starts, memory over a session and power are not measured; M6c.Q2b.
+  The benchmarks that load in the background report their longest frame, judged against no figure.
+  The hierarchy's search passes the editor's interface's budget; M6c.Q3.
+  The readers of files are not fuzzed, and a crash leaves no report; M6c.Q4 ([ADR-0176](adr/0176-fuzzing-and-crash-reports.md)).
+  Packages are neither signed nor built reproducibly, until Stage 11 ([ADR-0177](adr/0177-audits-and-releases.md)).
 - **The interface's tree** ([ADR-0140](adr/0140-the-tree-of-elements.md)).
   A frame walks every element of its roots, to find what to draw again and to gather the display list, even when nothing changed.
   A list shows the rows of a new range one frame late, when it first shows or when it scrolls after its builder ran.

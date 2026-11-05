@@ -1,7 +1,8 @@
 # 0138. The high tier at 3840 × 2160
 
 - Status: Accepted; amends [0114](0114-hardware-tiers-and-the-gpus-limits.md) (the high tier's
-  resolution) and [0117](0117-frustum-culling-and-instancing.md) (the benchmarks' resolutions)
+  resolution) and [0117](0117-frustum-culling-and-instancing.md) (the benchmarks' resolutions);
+  amended by [0175](0175-the-quality-bar.md) (the tiers' figures kept in the roadmap)
 - Date: 2026-10-23
 
 ## Context

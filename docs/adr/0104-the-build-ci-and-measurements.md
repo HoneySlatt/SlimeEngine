@@ -4,8 +4,9 @@
   package) and [0077](0077-hot-reload-of-shaders.md) (what an edited shader costs); amended by
   [0114](0114-hardware-tiers-and-the-gpus-limits.md) (benchmarks measured at the tiers' resolutions
   and compared with their budgets), [0123](0123-the-linux-checks-in-two-jobs.md) (the Linux checks
-  in two jobs) and [0144](0144-the-cooked-zones-key-in-ci.md) (the cooked zone keyed on the packages
+  in two jobs), [0144](0144-the-cooked-zones-key-in-ci.md) (the cooked zone keyed on the packages
   that the cooker is built from)
+  and [0175](0175-the-quality-bar.md) (CI checks budgets through counters and ratios of times)
 - Date: 2026-10-19
 
 ## Context

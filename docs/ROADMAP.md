@@ -59,7 +59,68 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 9. **Techniques enter because they solve a measured problem,** not to match another engine's feature list. For rendering, the measured problem is the gap between a game's image and its visual targets (section 1, ADR-0098).
 10. **What a person does, an agent does.** Every operation of the editor and of a running game that a person performs is a command that an AI agent can call through the engine's MCP server, the same command, not a path of its own (ADR-0099).
 
-## 4. Decisions
+## 4. Quality bar
+
+What the engine, its editor and its games are weighed against, and the budgets that follow (ADR-0175). This section holds the budgets' figures: ADRs say why, `docs/measurements.md` holds what was measured, and `docs/debt.md` what is missed.
+
+### References
+
+Described by their qualities; the repository names no game.
+
+- Games: the best open worlds of large studios of the time, for their image, their streaming without a hitch, their animation and how fast they answer.
+- The editor: the best editors of games and of 3D content, for how fast they answer, their docking, and frames drawn only when something changes.
+- Interfaces, the editor's and applications': the most refined interfaces of the time, in motion, materials such as glass, type and responsiveness (ADR-0170, ADR-0171).
+
+### Hardware
+
+Three tiers, each with a reference machine (ADR-0114, ADR-0138); a game picks the lowest it supports.
+
+| Tier | Reference machine | GPU, against the RX 6900 XT | A realistic game | A competitive shooter | Video memory for assets | Memory of the game |
+|---|---|---|---|---|---|---|
+| Handheld | Steam Deck: an RDNA 2 GPU of about 1.6 TFLOPS, 16 GB shared, 4 cores, 1280 × 800 | a tenth | 1280 × 800 at 30 frames a second, 33.3 ms | 1280 × 800 at 60, 16.7 ms | 4 GB, of 16 shared | 8 GB |
+| Modest | the class of an RTX 3060 or an RX 6600: 8 GB of video memory, 6 cores, 16 GB | a half | 1920 × 1080 at 60, 16.7 ms | 1920 × 1080 at 144, 6.9 ms | 6 GB, of 8 | 12 GB, of 16 |
+| High | the class of an RX 6900 XT, an RTX 4070 Ti or an RX 7800 XT: 16 GB of video memory, 8 cores, 32 GB | one | 3840 × 2160 at 60, 16.7 ms | 3840 × 2160 at 144, 6.9 ms | 12 GB, of 16 | 24 GB, of 32 |
+
+- An enthusiast tier, the class of an RTX 4090, at 3840 × 2160 with ray tracing, comes with Stage 9c.
+- The editor and applications aim at the high tier at 240 frames a second: 4.17 ms a frame.
+- Measured: the owner's machine alone, an RX 6900 XT and a Ryzen 7 5800X, and CI's lavapipe and WARP, drivers that render on the CPU. No tier's reference machine is measured; the GPUs' ratios come from public benchmarks.
+- A budget of the GPU is checked on the RX 6900 XT, times its tier's ratio.
+- The handheld tier's proxy: CPU benchmarks also run pinned to 4 cores (`taskset`); its GPU stays unmeasured. A Steam Deck is bought before Stage 9a.
+
+### Budgets
+
+CI checks budgets through exact counters, draws, elements, bytes, allocations, and ratios of times, how a cost grows with its size. Absolute times and the GPU's are measured by hand on the owner's machine, at each milestone that touches them. A budget missed is debt until it is met. *At rest* and *own wake-up* are defined in the [glossary](glossary.md).
+
+| Budget | Figure | Measured by | Checked | State |
+|---|---|---|---|---|
+| A game's frame | its tier's frame time; the GPU at most about 85 % of it, the main thread about 70 % | `render.instances.10k`, `render.instances.100k`, `render.unseen.10k` | by hand | 10 000 instances within; 100 000 over the main thread's budget at 60 frames a second |
+| A game's frames, kept even | 99 % within the frame time, none over twice it; a load in the background makes none miss it | `loading.zone`, `loading.textures`, which report the longest frame | by hand | not judged against the figure |
+| The interface's GPU time | 0.5 ms on each tier's machine: on the RX 6900 XT, 50 µs at 1280 × 800, 250 µs at 1920 × 1080, 500 µs at 3840 × 2160 | `render.canvas`, `ui.draw.menu` | by hand | met |
+| The editor's interface | 1.5 ms of CPU a frame, on the high tier | a benchmark of M6c.Q2b | by hand; counters and ratios in CI from M6c.Q2b | not measured; the hierarchy's search, 5.43 ms at 100 000 entities, over it |
+| A list's frame | 0.25 ms of CPU at the 90th percentile, 100 000 rows, scrolled or still, on a Ryzen 7 5800X | `ui.tree.list.100k`, `devui.world_panel.100k`, `editor.hierarchy.100k` | by hand | the hierarchy within, still, scrolled and after a rename; over, a frame that makes the rows again after a change of the world's structure, about 1 ms, and the world panel's after a rename, 1.09 ms |
+| At rest | the editor, its floating panels and applications: 0 frames and 0 own wake-ups a second; a caret that blinks stops after 10 s without input; a game paused or hidden draws nothing | the process's context switches over 10 s, in a headless Weston | CI from M6c.Q2a | an idle editor checked to at most 2 frames in 10 s; wake-ups not counted |
+| Input to present | at the 99th percentile, 1 frame for the editor and applications, 2 for games, measured inside the engine | a measure of M6c.Q2b | by hand | not measured; the compositor and the display are not measured |
+| Start | the editor and applications, warm, to their first useful frame: 150 ms | `hyperfine` and the program's own timing, from M6c.Q2b | by hand | not measured; a level opened, a game to control and cold starts get figures after their first measure |
+| Play's time to control | 3 s, the game compiled, on its largest level | `play.zone`, `play.level.100k` | by hand | met in a release build, 2.22 s at the 90th percentile on 100 000 entities; a debug build over |
+| Memory | a game's, per tier, above; none grows over 100 undos and redos and 10 runs of Play | `heaptrack` and the resident size, from M6c.Q2b | by hand | not measured; the editor's memory and video memory on the zone get figures after their first measure |
+| Power | the editor at rest adds no power to the GPU's beyond the desktop's | the GPU's power reading, from M6c.Q2b | by hand | not measured; a game capped at 60 frames a second gets a figure after its first measure |
+| An answer of the development channel | a median under 20 ms | its test in `slime-channel` | CI, a bound far above the time measured, which shared runners keep | met, 0.14 ms |
+| The sample's zone | at most 1 000 000 triangles, 800 instances, 6 spot lights at night, 384 MiB of textures, 320 MiB cooked | `the_cooked_zone_keeps_within_its_budgets` | CI | met |
+| CI's jobs | 20 minutes each | GitHub's times, in `docs/measurements.md` at each milestone | by hand | `windows` close to it |
+
+### Without a figure
+
+- Games' accessibility: controls that can be remapped, subtitles, modes for colour-blind players, camera shake and motion blur that can be turned off, at Stage 7.
+- Interfaces' accessibility: screen readers, full use by the keyboard, reduced motion and reduced transparency (ADR-0146, ADR-0171).
+- Text ready for translation, and written from right to left (ADR-0132).
+- Images compared with reference images in CI (ADR-0030, ADR-0054).
+- HDR output and a wide colour gamut, at Stage 9a.
+- Variable refresh rates, checked against ADR-0021's pacing at M6c.Q2b, then stated supported or not.
+- Bad input never crashes: readers tested with damaged files at each push (ADR-0102), fuzzed from M6c.Q4 (ADR-0176).
+- A crash leaves a report on the user's machine, and nothing leaves it, from M6c.Q4 (ADR-0176).
+- Each stage ends with an audit, each release with its checklist (ADR-0177).
+
+## 5. Decisions
 
 ### Fixed
 
@@ -91,7 +152,7 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 | Shader language beyond WGSL | Slang, generated WGSL, with the native backends of Stage 9c in view | Stage 9b |
 | Network transport | To evaluate | Stage 10b |
 
-## 5. Repository layout
+## 6. Repository layout
 
 Indicative. The structure in use is described in `docs/ARCHITECTURE.md` and its rules in ADR-0004; a directory is created when its first content exists.
 
@@ -107,7 +168,7 @@ engine/
 └── flake.nix        reproducible dev shell
 ```
 
-## 6. Stages
+## 7. Stages
 
 Stages are ordered by dependency. They overlap in practice, and carry no dates on purpose.
 
@@ -315,8 +376,9 @@ Stage 6 is split in three parts (ADR-0116, ADR-0131): what the editor stands on,
 - Levels made of several scene files, which name their parts; former identities written when the editor moves an entity out of its file, and references to entities of other scenes, `EntityRef` (ADR-0112, ADR-0155); a level that holds what the program does not know opened to be repaired, that data kept (ADR-0155)
 - Play in the editor, the game running in a child process first (ADR-0097), in its own window, linked to the editor and to tools by the development channel, given private copies of the scenes not written, the editor's edits reaching it as commands while it runs; a change of the game's code starts it again where it was (ADR-0110, ADR-0155)
 - The sample game's zone moved onto a kit of prefabs, which the editor places (ADR-0155)
+- The quality bar written and checked: rest and the counters of budgets in CI, the hierarchy's search spread over frames, readers fuzzed and crash reports, then an audit of the stage before its release (ADR-0175, ADR-0176, ADR-0177)
 
-The stage's milestones, their order and the owner's two checkpoints are decided in ADR-0155, and detailed in `docs/PLAN.md`; one release, 0.7 (ADR-0131).
+The stage's milestones, their order and the owner's two checkpoints are decided in ADR-0155 and ADR-0175, and detailed in `docs/PLAN.md`; one release, 0.7 (ADR-0131).
 
 **Exit.** A level of the game is built, saved and reloaded entirely in the editor, with undo/redo on every operation. The editor uses no private engine API.
 
@@ -468,23 +530,23 @@ The stage is split in two halves when it is planned (ADR-0098).
 **Exit for 0.15.** An external project is built without touching engine source.
 **Exit for 1.0.** A compatibility promise can be made and kept. There is no deadline for this.
 
-## 7. Continuous tracks
+## 8. Continuous tracks
 
 These run through every stage. They are never "a phase for later".
 
 | Track | Content |
 |---|---|
-| Testing and CI | Unit, integration, image comparison, serialization round-trip, performance regression |
+| Testing and CI | Unit, integration, image comparison, serialization round-trip, budgets kept by counters and ratios of times (section 4) |
 | Platforms | Every stage's sample builds and its tests pass in CI on Linux and Windows; windowed behaviour is checked by hand on both |
 | Profiling | Instrumentation added with each system |
-| Performance budgets | CPU frame, GPU frame, memory, VRAM, load times, tracked per sample |
+| Performance budgets | The quality bar (section 4), measured at each milestone that touches it |
 | Iteration speed | Compile times, hot reload, startup time |
-| Diagnostics | Logs, assertions, crash context |
+| Diagnostics | Logs, assertions, crash reports (ADR-0176) |
 | Documentation | ADRs, architecture notes, API docs, sample walkthroughs |
 | Samples | One runnable example per stage, kept working; from Stage 3c on, the game that each stage grows |
 | Agents | From Stage 6 on, each system exposed to AI agents through the engine's MCP server as it is written (ADR-0099) |
 
-## 8. Horizon
+## 9. Horizon
 
 Direction only. None of this is planned work until Stage 11 is reached.
 
@@ -496,7 +558,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 - **Visual scripting.** Node graph → IR → VM or native code, once reflection, scripting and undo/redo are mature.
 - **Research track.** Paper → prototype → benchmark → production evaluation → merge.
 
-## 9. Dependencies between systems
+## 10. Dependencies between systems
 
 | System | Requires |
 |---|---|
@@ -523,7 +585,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | networking | reflect, serialization, world, headless mode |
 | visual scripting | scripting, reflect, undo/redo |
 
-## 10. Release map
+## 11. Release map
 
 | Version | Stage | Content |
 |---|---|---|

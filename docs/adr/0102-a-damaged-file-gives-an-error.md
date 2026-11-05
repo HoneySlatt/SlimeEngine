@@ -5,7 +5,8 @@
   [0071](0071-cooked-textures.md) (who reads KTX2 files, and the cooked files reused),
   [0076](0076-hot-reload-of-cooked-data.md) (the cooked files reused),
   [0086](0086-serialization.md) (the bound of a document) and
-  [0091](0091-scene-documents-and-placements.md) (the bound of a resolved scene)
+  [0091](0091-scene-documents-and-placements.md) (the bound of a resolved scene);
+  amended by [0176](0176-fuzzing-and-crash-reports.md) (fuzzing, outside the workspace)
 - Date: 2026-10-19
 
 ## Context

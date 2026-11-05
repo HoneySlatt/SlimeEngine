@@ -5,8 +5,9 @@
   milestones that match style sheets and give the tree its meaning) and
   [0131](0131-stage-6b-and-stage-6c.md) (M6b.4 cut in two: the tree, then style sheets and
   themes); amended by [0141](0141-style-sheets-and-themes.md),
-  [0143](0143-what-agents-see-of-the-interface.md) and [0146](0146-screen-readers.md) (the mark of
+  [0143](0143-what-agents-see-of-the-interface.md), [0146](0146-screen-readers.md) (the mark of
   an element's meaning)
+  and [0175](0175-the-quality-bar.md) (a list's budget kept in the roadmap)
 - Date: 2026-10-24
 
 ## Context

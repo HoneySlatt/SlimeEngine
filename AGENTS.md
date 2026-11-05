@@ -22,8 +22,7 @@ You remember no past session: what the repository does not hold, the next sessio
 - Work on `docs/PLAN.md`'s current milestone, or on what the owner asks.
 - Do not start later stages, nor add abstractions for them.
 - If a task needs something out of scope, stop and say so.
-- The roadmap sets direction and order, not what is built nor how. Stages may change or be dropped.
-- Build what the milestone needs, never what the roadmap merely mentions.
+- The roadmap sets direction and order, not what is built: build what the milestone needs. Stages may change or be dropped.
 - When experience contradicts the roadmap, propose a change. Once accepted, record it in an ADR.
 
 ## Environment and commands
@@ -69,6 +68,7 @@ A milestone is done only when:
 - Build, tests, clippy, fmt and doc pass with the commands above.
 - The binary or example was actually run and behaved as expected.
 - New behaviour has tests where a test is practical.
+- The budgets of the quality bar (`docs/ROADMAP.md`) that it touches are measured; one missed is debt.
 - `docs/PLAN.md` shows the new status.
 - Every document the change affects is updated, and reread as a newcomer would.
 - Each architecture decision is recorded in an ADR.
@@ -133,10 +133,11 @@ Each file: what it holds; when to update it.
 - `docs/PLAN.md`: current stage, milestones, status, linking to facts; every milestone.
 - `docs/debt.md`: open known debt, each item: what is missing or wrong, why, where followed; debt introduced or settled.
 - `docs/history.md`: finished stages in brief, versions and ADRs, newest first; a stage finished.
-- `docs/ROADMAP.md`: direction, stage order, exit criteria; a stage reshaped, merged or dropped (with an ADR).
+- `docs/ROADMAP.md`: direction, stage order, exit criteria, the quality bar's budgets;
+  a stage reshaped, merged or dropped, a budget changed (with an ADR).
 - `CHANGELOG.md`: user-visible changes, once, per release; such a change, a release tagged.
-- `docs/measurements.md`: build and benchmark figures per milestone or machine;
-  a speed-up claimed, benchmarks changed.
+- `docs/measurements.md`: build, benchmark and CI figures per milestone or machine;
+  a speed-up claimed, benchmarks changed, a milestone done.
 - `docs/glossary.md`: the project's terms; one coined or changing meaning.
 - `docs/dependencies.md`: each dependency and tool: users, reason, alternative, license;
   one added, removed or repurposed.
@@ -171,6 +172,7 @@ At the end of each milestone, report:
 
 - What was done.
 - Notable design choices, why, and alternatives rejected.
+- The budgets measured, and their figures.
 - What to read first.
 - Shortcuts taken and debt introduced (`docs/debt.md`).
 
@@ -181,7 +183,7 @@ At the end of each milestone, report:
 - Each agent takes one milestone or crate at a time, as `docs/PLAN.md` assigns.
 - Edit only files in your scope. Report changes needed elsewhere.
 - One agent at a time edits shared files: `docs/PLAN.md`, `docs/ARCHITECTURE.md`, workspace `Cargo.toml`.
-- A reviewing agent on the strongest model checks each milestone against this file and the ADRs before its report.
+- A reviewing agent on the strongest model checks each milestone against this file, the ADRs and the quality bar before its report.
 
 ## Language
 
