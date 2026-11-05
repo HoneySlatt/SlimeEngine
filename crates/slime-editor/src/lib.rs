@@ -27,4 +27,4 @@ pub use hierarchy::{Hierarchy, SEARCH_PAUSE};
 pub use history::HISTORY_BUDGET;
 pub use operation::{BLENDER_SHORTCUTS, Changes, OPERATIONS, Operation, SHORTCUTS, operation};
 pub use program::{Build, Lighting, Played, Program, run};
-pub use window::{IMAGE_SIZE, window_image};
+pub use window::{IMAGE_SIZE, InterfaceFrame, Offscreen, window_image};

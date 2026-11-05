@@ -32,7 +32,7 @@ use uwui::shortcuts::Shortcuts;
 use uwui::style::{Dimension, FlexDirection, Justify, Sides, Style};
 use uwui::text::Fonts;
 use uwui::tree::{
-    Along, Element, ElementId, ItemMark, Key, Layer, LayoutDirection, Notification,
+    Along, Element, ElementId, FrameStats, ItemMark, Key, Layer, LayoutDirection, Notification,
     NotificationKind, PaletteCommand, Place, Role, RootSettings, Side, Ui,
 };
 use uwui_render::UiRenderer;
@@ -1294,7 +1294,12 @@ impl Model {
 
     /// Lays the window out at `size`, in logical pixels, and `scale` pixels of the screen per
     /// logical pixel, from what the core shares and from `world`, and gives what to draw.
-    pub(crate) fn frame(&mut self, world: &World, size: [f32; 2], scale: f32) -> DisplayList {
+    pub(crate) fn frame(
+        &mut self,
+        world: &World,
+        size: [f32; 2],
+        scale: f32,
+    ) -> (DisplayList, FrameStats) {
         self.scale = scale;
         self.ui.set_root(self.root, settings(size, scale));
         // The layer that waits stays in the middle of a window whose size changes.
@@ -1337,7 +1342,7 @@ impl Model {
             self.hierarchy
                 .build(&mut self.ui, slot, world, &selected, Instant::now());
         }
-        let mut display = self.ui.frame().0;
+        let (mut display, stats) = self.ui.frame();
         // Over the viewport, under nothing: the pointer is the surface's while it is drawn.
         if let Some((rect, viewport)) = self.marquee(scale) {
             display.push(
@@ -1351,7 +1356,7 @@ impl Model {
                 Some(viewport),
             );
         }
-        display
+        (display, stats)
     }
 
     /// Writes the layout that settled, if it has stood still for [`KEEP_AFTER`] by `now`.
@@ -1926,71 +1931,136 @@ pub fn window_image(
     selection: &[&str],
     scale: f32,
 ) -> Result<Image, String> {
-    let options = crate::program::parse(program, arguments)?.ok_or("--help draws no image")?;
-    let shared = Shared::default();
-    // Drawn as a person sees it, waiting for the dialog that no window opens here.
-    shared.borrow_mut().window = true;
-    shared.borrow_mut().dialogs = true;
-    let mut session = Session::new(
-        program,
-        options,
-        shared.clone(),
-        None,
-        crate::program::journals(),
-    );
-    let mut host = Host::new(&AppConfig::default());
-    host.start(&mut session)
-        .map_err(|error| slime_app::error_chain(&*error))?;
+    let gpu = Gpu::new().map_err(|error| slime_app::error_chain(&error))?;
+    let mut window = Offscreen::open(program, arguments, &gpu, IMAGE_SIZE, scale)?;
     for operation in operations {
+        window.run(operation)?;
+    }
+    window.show_level()?;
+    if !selection.is_empty() {
+        window.select(selection)?;
+    }
+    window.image()
+}
+
+/// The editor's window without a window of the system, on a GPU, frame by frame: the program's
+/// core and its window's interface, as [`run`](crate::run) runs them, which a benchmark of the
+/// interface times and counts (`docs/adr/0186-counters-and-ratios-in-ci.md`), and which
+/// [`window_image`] draws. A frame of the program is the core's part ([`Offscreen::update`]), which
+/// answers what the interface asked, then the window's ([`Offscreen::frame`]), which builds,
+/// styles, lays out and gathers the interface, and its draw ([`Offscreen::draw`]); the viewports
+/// are drawn only by [`window_image`]. Its journal is the one that `--journal` names, or the
+/// user's, and it reads and writes none of the user's state: neither the layout, nor the keys, nor
+/// the recent levels.
+pub struct Offscreen {
+    session: Session,
+    host: Host,
+    model: Model,
+    gpu: Gpu,
+    drawing: Drawing,
+    target: RenderTarget,
+    /// The window's size in logical pixels, and its pixels per logical pixel.
+    size: [f32; 2],
+    scale: f32,
+    /// What the last frame drew.
+    display: DisplayList,
+    /// When the last frame ran, which the next one advances the program's time from.
+    last: Instant,
+    /// What the viewports draw, once [`Offscreen::show_level`] made them.
+    level: Option<Level>,
+    viewports: Vec<Viewport>,
+}
+
+/// What a frame of the window's interface did ([`Offscreen::frame`]).
+#[derive(Clone, Copy, Debug)]
+pub struct InterfaceFrame {
+    /// What the interface's frame did: the elements built, styled, laid out, drawn again and
+    /// visited.
+    pub stats: FrameStats,
+    /// The items of its display list.
+    pub items: usize,
+}
+
+impl Offscreen {
+    /// The window of `program` opened on its level as `arguments` say, as the program takes them
+    /// ([`run`](crate::run)), `size` logical pixels at `scale` pixels per logical pixel, drawn on
+    /// `gpu`; its interface shown without motion, its first frame not run.
+    ///
+    /// # Errors
+    ///
+    /// When the arguments are not the program's, the level cannot be opened, or the window's
+    /// drawing cannot be made on `gpu`: why, as a sentence.
+    pub fn open(
+        program: &Program,
+        arguments: impl IntoIterator<Item = OsString>,
+        gpu: &Gpu,
+        size: [u32; 2],
+        scale: f32,
+    ) -> Result<Self, String> {
+        let options = crate::program::parse(program, arguments)?.ok_or("--help opens nothing")?;
+        let shared = Shared::default();
+        // As a person sees it, waiting for the dialog that no window opens here.
+        shared.borrow_mut().window = true;
+        shared.borrow_mut().dialogs = true;
+        let mut session = Session::new(
+            program,
+            options,
+            shared.clone(),
+            None,
+            crate::program::journals(),
+        );
+        let mut host = Host::new(&AppConfig::default());
+        host.start(&mut session)
+            .map_err(|error| slime_app::error_chain(&*error))?;
+        let mut model = Model::new(shared);
+        model.ui.set_reduced_motion(true);
+        let format = TextureFormat::Rgba8UnormSrgb;
+        let drawing = Drawing::new(gpu, format).map_err(|error| error.to_string())?;
+        let physical = size.map(|side| (side as f32 * scale).round() as u32);
+        let target = gpu
+            .create_render_target("editor's window", physical[0], physical[1], format)
+            .map_err(|error| error.to_string())?;
+        Ok(Self {
+            session,
+            host,
+            model,
+            gpu: gpu.clone(),
+            drawing,
+            target,
+            size: size.map(|side| side as f32),
+            scale,
+            display: DisplayList::new(),
+            last: Instant::now(),
+            level: None,
+            viewports: Vec::new(),
+        })
+    }
+
+    /// Runs `operation`, an operation's name followed by its arguments, parted by spaces,
+    /// `view.move_panel console right`, as a tool asks it.
+    ///
+    /// # Errors
+    ///
+    /// When the operation fails: why, as a sentence.
+    pub fn run(&mut self, operation: &str) -> Result<(), String> {
         let mut words = operation.split_whitespace().map(str::to_owned);
         let run = Request::Run {
             name: words.next().unwrap_or_default(),
             arguments: words.collect(),
         };
-        session
-            .handle(host.world_mut(), run)
-            .map_err(|error| slime_app::error_chain(&*error))?;
+        self.session
+            .handle(self.host.world_mut(), run)
+            .map(drop)
+            .map_err(|error| slime_app::error_chain(&*error))
     }
-    let mut model = Model::new(shared);
-    model.ui.set_reduced_motion(true);
-    let gpu = Gpu::new().map_err(|error| slime_app::error_chain(&error))?;
-    let format = TextureFormat::Rgba8UnormSrgb;
-    let mut drawing = Drawing::new(&gpu, format).map_err(|error| error.to_string())?;
-    let physical = IMAGE_SIZE.map(|side| (side as f32 * scale).round() as u32);
-    let target = gpu
-        .create_render_target("editor's window", physical[0], physical[1], format)
-        .map_err(|error| error.to_string())?;
-    let size = IMAGE_SIZE.map(|side| side as f32);
-    let (assets, lighting) = {
-        let shared = model.shared.borrow();
-        (shared.assets.clone(), shared.lighting)
-    };
-    // The level framed as it opens, in each viewport that the operations left, then the
-    // selection made.
-    model.frame(host.world(), size, scale);
-    let mut level = assets
-        .zip(lighting)
-        .map(|(assets, lighting)| Level::new(&gpu, &drawing.renderer, assets, lighting))
-        .transpose()
-        .map_err(|error| error.to_string())?;
-    let mut viewports = Vec::new();
-    if level.is_some() {
-        for pane in 0..model.panes.len() {
-            let name = viewport::name(pane);
-            let viewport = Viewport::new(&gpu, &drawing.renderer, &name, format)
-                .map_err(|error| error.to_string())?;
-            viewports.push(viewport);
-        }
-    }
-    if let Some(level) = &mut level {
-        for pane in 0..viewports.len() {
-            if let Some(size) = model.viewport_size(pane) {
-                frame_whole(&gpu, level, &mut model, pane, host.world(), size)?;
-            }
-        }
-    }
-    if !selection.is_empty() {
-        let identities = selection
+
+    /// Selects the entities of `identities`, by their persistent identities, as a tool selects.
+    ///
+    /// # Errors
+    ///
+    /// When an identity is not one: why, as a sentence.
+    pub fn select(&mut self, identities: &[&str]) -> Result<(), String> {
+        let identities = identities
             .iter()
             .map(|identity| {
                 identity
@@ -1998,50 +2068,134 @@ pub fn window_image(
                     .map_err(|error| format!("{identity}: {error}"))
             })
             .collect::<Result<_, String>>()?;
-        session
-            .handle(host.world_mut(), Request::Select(identities))
-            .map_err(|error| slime_app::error_chain(&*error))?;
+        self.session
+            .handle(self.host.world_mut(), Request::Select(identities))
+            .map(drop)
+            .map_err(|error| slime_app::error_chain(&*error))
     }
-    // Twice: the world panel's list builds its rows once the first frame laid it out.
-    for _ in 0..2 {
-        let display = model.frame(host.world(), size, scale);
-        for (pane, viewport) in viewports.iter_mut().enumerate() {
-            if let (Some(size), Some(level)) = (model.viewport_size(pane), &mut level) {
-                draw_whole(
-                    &gpu,
-                    &mut drawing.renderer,
-                    (level, viewport),
-                    &model.marks(pane, host.world(), scale),
-                    &model.panes[pane],
-                    host.world(),
+
+    /// The core's part of a frame of the program: it answers what the window asked, and runs the
+    /// fixed steps of the time since its last frame, as the program runs them before the
+    /// window's.
+    pub fn update(&mut self) {
+        let now = Instant::now();
+        self.host
+            .frame(&mut self.session, now.duration_since(self.last));
+        self.last = now;
+    }
+
+    /// The window's part of a frame of the program, its viewports apart: the window acts on what
+    /// the user did and builds, styles, lays out and gathers its interface into the display list
+    /// that [`Offscreen::draw`] draws. [`Offscreen::update`] runs the core's part first, as the
+    /// program does.
+    pub fn frame(&mut self) -> InterfaceFrame {
+        let world = self.host.world();
+        self.model.act(world);
+        let (display, stats) = self.model.frame(world, self.size, self.scale);
+        // What the interface did as it laid out, a submenu opened by the pointer's rest.
+        self.model.act(world);
+        let items = display.len();
+        self.display = display;
+        InterfaceFrame { stats, items }
+    }
+
+    /// Draws the display list of the last frame into the window's image through the canvas, on
+    /// the GPU, the viewports' images as they were last drawn, without waiting for the GPU.
+    ///
+    /// # Errors
+    ///
+    /// When the canvas cannot be drawn: why, as a sentence.
+    pub fn draw(&mut self) -> Result<(), String> {
+        let viewports = &self.viewports;
+        self.drawing
+            .bridge
+            .draw(
+                &self.gpu,
+                &mut self.drawing.renderer,
+                self.model.ui.fonts(),
+                &self.display,
+                |key| viewport_image(viewports, key),
+                &self.target,
+            )
+            .map(drop)
+            .map_err(|error| error.to_string())
+    }
+
+    /// Frames the level in each viewport that the operations left, as it opens, once its meshes
+    /// have loaded, for [`window_image`].
+    fn show_level(&mut self) -> Result<(), String> {
+        self.update();
+        self.frame();
+        let (assets, lighting) = {
+            let shared = self.model.shared.borrow();
+            (shared.assets.clone(), shared.lighting)
+        };
+        let format = TextureFormat::Rgba8UnormSrgb;
+        self.level = assets
+            .zip(lighting)
+            .map(|(assets, lighting)| {
+                Level::new(&self.gpu, &self.drawing.renderer, assets, lighting)
+            })
+            .transpose()
+            .map_err(|error| error.to_string())?;
+        let Some(level) = &mut self.level else {
+            return Ok(());
+        };
+        for pane in 0..self.model.panes.len() {
+            let name = viewport::name(pane);
+            let viewport = Viewport::new(&self.gpu, &self.drawing.renderer, &name, format)
+                .map_err(|error| error.to_string())?;
+            self.viewports.push(viewport);
+            if let Some(size) = self.model.viewport_size(pane) {
+                frame_whole(
+                    &self.gpu,
+                    level,
+                    &mut self.model,
+                    pane,
+                    self.host.world(),
                     size,
                 )?;
             }
         }
-        gpu.render(
-            &RenderPassDescriptor {
-                target: &target,
-                clear: Some(LinearColor::BLACK),
-                depth: None,
-                timer: None,
-                resolve: None,
-            },
-            |_| {},
-        );
-        drawing
-            .bridge
-            .draw(
-                &gpu,
-                &mut drawing.renderer,
-                model.ui.fonts(),
-                &display,
-                |key| viewport_image(&viewports, key),
-                &target,
-            )
-            .map_err(|error| error.to_string())?;
+        Ok(())
     }
-    gpu.read_render_target(&target)
-        .map_err(|error| error.to_string())
+
+    /// The window drawn whole, its viewports once their meshes have loaded, for [`window_image`].
+    fn image(&mut self) -> Result<Image, String> {
+        // Twice: the world panel's list builds its rows once the first frame laid it out.
+        for _ in 0..2 {
+            self.update();
+            self.frame();
+            for (pane, viewport) in self.viewports.iter_mut().enumerate() {
+                if let (Some(size), Some(level)) = (self.model.viewport_size(pane), &mut self.level)
+                {
+                    draw_whole(
+                        &self.gpu,
+                        &mut self.drawing.renderer,
+                        (level, viewport),
+                        &self.model.marks(pane, self.host.world(), self.scale),
+                        &self.model.panes[pane],
+                        self.host.world(),
+                        size,
+                    )?;
+                }
+            }
+            self.gpu.render(
+                &RenderPassDescriptor {
+                    target: &self.target,
+                    clear: Some(LinearColor::BLACK),
+                    depth: None,
+                    timer: None,
+                    resolve: None,
+                },
+                |_| {},
+            );
+            self.draw()?;
+        }
+        self.gpu
+            .read_render_target(&self.target)
+            .map_err(|error| error.to_string())
+    }
 }
 
 /// How long [`window_image`] waits at most for the meshes that the level places to load.
@@ -2516,7 +2670,7 @@ impl Presentation for Window {
             let scale = window.scale_factor() as f32;
             let size = window.inner_size();
             let size = [size.width as f32 / scale, size.height as f32 / scale];
-            self.display = Some(model.frame(world, size, scale));
+            self.display = Some(model.frame(world, size, scale).0);
             // What the interface did as it laid out, a submenu opened by the pointer's rest.
             again |= model.act(world);
             if let Some(choice) = model.dialog_wanted() {
@@ -2947,7 +3101,7 @@ mod tests {
             .pointer_button(MouseButton::Left, ButtonState::Pressed);
         yard.model.ui.pointer_moved(x + 50.0, y + 30.0);
         yard.frame();
-        let display = yard.model.frame(yard.host.world(), SIZE, 1.0);
+        let (display, _) = yard.model.frame(yard.host.world(), SIZE, 1.0);
         let marquee = Rect::new(x, y, 50.0, 30.0);
         assert!(
             display.items().iter().any(|item| matches!(

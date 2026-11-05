@@ -127,6 +127,13 @@ editor's other panels come with Stage 6c's next milestones.
   with its arguments, and the entities named selected, which the image tests compare and the
   `editor` example's `--output` writes; `file.choose` shows the layer that waits for the system's
   dialog, which no window opens there.
+- `Offscreen`: the window without a window of the system, on a GPU given, frame by frame, as the
+  program runs it: `Offscreen::open` with the program's arguments, `run` an operation by its name,
+  `select` by persistent identities, `update`, the core's part of a frame, `frame`, the interface
+  built, styled, laid out and gathered, which gives what it did (`InterfaceFrame`), and `draw`
+  through the canvas. `slime-benches`' `editor.window` benchmarks time and count it
+  (`docs/adr/0186-counters-and-ratios-in-ci.md`), and `window_image` draws through it. It reads and
+  writes none of the user's state but the journal that `--journal` names, or the user's.
 
 ## Depends on
 
