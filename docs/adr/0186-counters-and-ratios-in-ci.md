@@ -108,6 +108,7 @@ does not grow with the level, which the items counted check, and its time on lav
   `benches/counters.txt` again, and its review says why.
 - The counters are checked on Linux only.
 - A frame of the interface standing still allocates, which the counter holds without a budget.
-- The editor's interface passes its budget after a step, and in [ADR-0041](0041-render-graph.md)'s
-  stall, which its canvas's draw meets on the owner's machine: debt.
+- The editor's interface passes its budget in [ADR-0041](0041-render-graph.md)'s stall, which its
+  canvas's draw meets on the owner's machine once other programs fill the memory that the CPU
+  maps: debt.
 - `ARCHITECTURE.md` names `slime-benches` as the crate that holds `unsafe` code.

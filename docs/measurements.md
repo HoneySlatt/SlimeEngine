@@ -1386,69 +1386,69 @@ starts or ends in 10 s.
 
 ## M6c.Q2b, Ryzen 7 5800X and RX 6900 XT
 
-On 2026-11-05, from the commits of M6c.Q2b, in a release build, with other work running: the load
-average was 5 to 11, which makes the figures of the CPU slower than an idle machine's. The editor's
-whole interface ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)) as
+On 2026-11-05, from commit `f70f42a`, in a release build, the machine at rest, its desktop and
+nothing else running. The editor's whole interface
+([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)) as
 `cargo run --release -p slime-benches -- editor.window` and `-- editor.window.zone` measure it, at
 3840 × 2160, on the RX 6900 XT through RADV, offscreen, without resizable BAR: each frame whole,
 the core's part, the interface built, styled, laid out and gathered, then drawn through the
-canvas; and its part building the interface. Medians of 15, the two levels' frames in turn.
+canvas; and its part building the interface. Of 15 frames, the two levels' frames in turn.
 
-| Benchmark | Frame | Whole | Built |
-|---|---|---|---|
-| `editor.window.zone` | standing still | 547.1 µs | 99.1 µs |
-| `editor.window.zone` | after the selection changed | 610.8 µs | 171.7 µs |
-| `editor.window.zone` | after a step | 1.41 ms | 950.1 µs |
-| `editor.window.entities`, 10 000 | standing still | 650.5 µs | 156.9 µs |
-| `editor.window.entities`, 10 000 | after the selection changed | 743.9 µs | 269.6 µs |
-| `editor.window.entities`, 10 000 | after a step | 1.99 ms | 1.38 ms |
-| `editor.window.entities`, 100 000 | standing still | 561.2 µs | 138.0 µs |
-| `editor.window.entities`, 100 000 | after the selection changed | 675.2 µs | 236.7 µs |
-| `editor.window.entities`, 100 000 | after a step | 2.30 ms | 1.39 ms |
+| Benchmark | Frame | Whole, median | Whole, 90th percentile | Built, median | Built, 90th percentile |
+|---|---|---|---|---|---|
+| `editor.window.zone` | standing still | 161.8 µs | 172.7 µs | 18.3 µs | 19.1 µs |
+| `editor.window.zone` | after the selection changed | 183.3 µs | 193.4 µs | 38.8 µs | 47.7 µs |
+| `editor.window.zone` | after a step | 471.6 µs | 667.7 µs | 323.9 µs | 393.8 µs |
+| `editor.window.entities`, 10 000 | standing still | 198.6 µs | 277.1 µs | 26.9 µs | 33.6 µs |
+| `editor.window.entities`, 10 000 | after the selection changed | 227.6 µs | 237.1 µs | 56.5 µs | 59.0 µs |
+| `editor.window.entities`, 10 000 | after a step | 603.2 µs | 626.6 µs | 413.5 µs | 445.4 µs |
+| `editor.window.entities`, 100 000 | standing still | 196.6 µs | 207.9 µs | 25.5 µs | 33.1 µs |
+| `editor.window.entities`, 100 000 | after the selection changed | 229.7 µs | 259.1 µs | 56.0 µs | 57.1 µs |
+| `editor.window.entities`, 100 000 | after a step | 598.7 µs | 664.9 µs | 411.5 µs | 469.4 µs |
 
-The ratio of the interface built at 100 000 entities to at 10 000: 0.88, 0.88 and 1.01, standing
-still, after the selection changed and after a step. `ui.draw.menu`'s `UiRenderer::draw` took 0.86
-to 0.95 ms a frame in the same run, where it measured 0.36 ms in [M6b.3b](#m6b3b-rx-6900-xt); an
-hour earlier, 2.40 to 2.76 ms, and the editor's frames then took 1.8 to 2.4 ms whole. On lavapipe,
-in a release build, the zone's frames took 0.56 ms whole standing still and 1.54 ms after a step.
+The ratio of the interface built at 100 000 entities to at 10 000: 0.95, 0.99 and 1.00, standing
+still, after the selection changed and after a step. `ui.draw.menu`'s `UiRenderer::draw` took
+0.37 ms a frame at 1920 × 1080 and 3840 × 2160, as in [M6b.3b](#m6b3b-rx-6900-xt).
 
-What it says: a frame standing still or after the selection changed stays within the budget of
-1.5 ms. A frame after a step passes it, its interface's part some 1 to 1.4 ms on this loaded
-machine: the step builds the history, the status bar and the world panel again. Neither grows from
-10 000 entities to 100 000. The canvas's draw costs from 0.3 to 2 ms of CPU: memory that the CPU
-maps on this GPU is a window of 256 MiB, which other programs fill, and uploads then stall
-([ADR-0041](adr/0041-render-graph.md), [ADR-0155](adr/0155-the-editors-design.md)), as
-`ui.draw.menu` shows.
+What it says: every frame stays within the budget of the editor's interface, 1.5 ms, the dearest,
+after a step, under 0.7 ms at its 90th percentile; it does not grow from 10 000 entities to
+100 000. A step builds the history, the status bar and the world panel again, two thirds of its
+frame.
+
+The same day, with other programs running, a load average of 5 to 11, the canvas's draw met
+[ADR-0041](adr/0041-render-graph.md)'s stall: `ui.draw.menu` took 0.86 to 2.76 ms, and the
+editor's frames 0.55 to 2.4 ms whole, a frame after a step passing the budget. Memory that the CPU
+maps on this GPU is a window of 256 MiB, which other programs fill; uploads then stall
+([ADR-0155](adr/0155-the-editors-design.md)). On lavapipe, in a release build, the zone's frames
+took 0.56 ms whole standing still and 1.54 ms after a step.
 
 In a debug build on lavapipe, pinned to 4 cores as CI's runners have, three runs of
-`--counters editor.window.entities` gave ratios of 0.98 to 1.09, against the bound of 1.5.
-
-The counters of the benchmarks, `--counters`, in a debug build on lavapipe, pinned to 4 cores as
-CI's runners have: 61 to 65 s for every benchmark that counts, the zone's apart, twice, the same
-counters each time, and the same as a release build's.
+`--counters editor.window.entities` gave ratios of 0.98 to 1.09, against the bound of 1.5. The
+counters of every benchmark that counts, the zone's apart, took 61 to 65 s there, the same each
+time, and the same as a release build's.
 
 The CPU benchmarks on every core, and pinned to 4 cores (`taskset -c 0-3`, four cores without
 their second threads), the proxy of the handheld tier ([ADR-0175](adr/0175-the-quality-bar.md)),
-one run after the other; medians:
+one run after the other, the machine at rest; medians:
 
 | Benchmark | Measure | 16 logical CPUs | 4 cores |
 |---|---|---|---|
-| `ui.tree.editor` | a frame after one value of the inspector changed | 7.85 ms | 6.90 ms |
-| `ui.tree.editor` | a frame with nothing changed | 624.3 µs | 603.8 µs |
-| `ui.tree.list.100k` | a frame scrolled by 7 pixels | 78.2 µs | 77.7 µs |
-| `devui.world_panel.100k` | a frame after an entity was renamed | 2.08 ms | 1.96 ms |
-| `editor.hierarchy.100k` | a frame scrolled by a row | 333.6 µs | 320.5 µs |
-| `editor.hierarchy.100k` | a frame that runs a search, once the typing paused | 6.99 ms | 6.75 ms |
-| `editor.hierarchy.100k` | a frame after an entity was spawned, the rows made again | 2.75 ms | 2.67 ms |
-| `world.transforms.100k` | `World::update_transforms` after 1 000 parents moved | 4.35 ms | 4.21 ms |
-| `world.save.100k` | save of 100 000 entities, 1 000 moved | 7.93 ms | 7.90 ms |
-| `world.undo.1k` | deleted then restored | 4.75 ms | 4.52 ms |
-| `ui.text.labels.1k` | 1 000 labels laid out | 10.10 ms | 9.19 ms |
+| `ui.tree.editor` | a frame after one value of the inspector changed | 3.74 ms | 3.68 ms |
+| `ui.tree.editor` | a frame with nothing changed | 529.3 µs | 496.1 µs |
+| `ui.tree.list.100k` | a frame scrolled by 7 pixels | 68.7 µs | 67.9 µs |
+| `devui.world_panel.100k` | a frame after an entity was renamed | 1.66 ms | 1.63 ms |
+| `editor.hierarchy.100k` | a frame scrolled by a row | 278.7 µs | 279.7 µs |
+| `editor.hierarchy.100k` | a frame that runs a search, once the typing paused | 5.54 ms | 5.76 ms |
+| `editor.hierarchy.100k` | a frame after an entity was spawned, the rows made again | 1.16 ms | 1.22 ms |
+| `world.transforms.100k` | `World::update_transforms` after 1 000 parents moved | 3.97 ms | 3.61 ms |
+| `world.save.100k` | save of 100 000 entities, 1 000 moved | 7.01 ms | 7.25 ms |
+| `world.undo.1k` | deleted then restored | 2.78 ms | 2.88 ms |
+| `ui.text.labels.1k` | 1 000 labels laid out | 7.87 ms | 7.84 ms |
 
 What it says: these paths run on one thread, and lose nothing on 4 cores. The proxy pins cores of
 the Ryzen 7 5800X, faster than the handheld's, at its clock: it shows what needs more than 4
-cores, not the handheld's times. On this loaded machine, the hierarchy's frames came out 1.5 to 2.7
-times as slow as M6c.5a measured them: those figures are compared again on an idle machine.
+cores, not the handheld's times. The hierarchy's figures are those of M6c.5a, within some 15 %;
+its search still passes a list's budget (M6c.Q3).
 
 ## M6c.Q2b, CI's runners
 
