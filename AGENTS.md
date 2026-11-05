@@ -59,8 +59,8 @@ Keep off the owner's files and desktop:
 - Run the game with `--new --save <your file>`. Without `--save`, it resumes and writes the user's save.
 - Run the MCP server in a headless Weston's environment: windows stay off the owner's desktop.
 - Run the editor on a copy of a level, with your own journal: the user's default one keeps unwritten steps, recovered at start.
-- Leave `view.keys_blender` and `view.keys_default` alone, unless the server has its own state directory:
-  they change the owner's keys.
+- Drive the editor through an MCP server with its own state directory (`XDG_STATE_HOME`):
+  the editor writes the owner's keys, layout, speeds and recent levels in theirs.
 
 ## Definition of done
 
