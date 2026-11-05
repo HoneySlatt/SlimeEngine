@@ -7,7 +7,8 @@
   before M6c.9; an idle editor wakes itself not at all), and moves to the roadmap the figures of
   [0110](0110-how-the-editor-runs-a-games-code.md), [0123](0123-the-linux-checks-in-two-jobs.md),
   [0137](0137-the-canvas.md), [0138](0138-the-high-tier-at-3840-2160.md) and
-  [0140](0140-the-tree-of-elements.md)
+  [0140](0140-the-tree-of-elements.md); amended by [0185](0185-rest-checked-in-ci.md) (rest read for
+  each thread; a hidden game checked from M6c.Q2c)
 - Date: 2026-11-05
 
 ## Context

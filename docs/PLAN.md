@@ -23,11 +23,12 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - Checkpoint A: done on Linux; its part in the Windows virtual machine waits for the owner.
 - Next: the rest of the [quality milestones](#the-quality-milestones)
   ([ADR-0175](adr/0175-the-quality-bar.md)), [M6c.Q2a](#m6cq2a--rest-checked-in-ci), M6c.Q2b,
-  M6c.Q3 and M6c.Q4; then [M6c.5f](#m6c5f--the-inspector), the inspector.
+  M6c.Q2c, M6c.Q3 and M6c.Q4; then [M6c.5f](#m6c5f--the-inspector), the inspector.
 - Then: M6c.6, M6c.7, Checkpoint B, M6c.8, M6c.Q5, the stage's audit, and M6c.9.
 - Cuts made at a milestone's start, a part cut again at its own start where needed: M6c.1 into 1a
   and 1b; M6c.2 into 2a to 2c; M6c.3 into 3a to 3c; M6c.4 into 4a to 4d; M6c.5 into 5a to 5f;
-  M6c.Q2 into Q2a and Q2b.
+  M6c.Q2 into Q2a and Q2b; M6c.Q2a into Q2a and Q2c, a hidden game apart
+  ([ADR-0185](adr/0185-rest-checked-in-ci.md)).
 - M6c.6 is expected to be cut in two, M6c.6a and M6c.6b.
 - After Stage 6c: Stage 6d, the interface for applications, to be released as 0.8, decided on
   2026-11-04 and 2026-11-05 ([ADR-0170](adr/0170-applications-on-the-ui-framework.md),
@@ -65,6 +66,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | M6c.N — The framework named uwui | Done 2026-11-05, [ADR-0179](adr/0179-the-framework-named-uwui.md), CI green on `0a858f8` |
 | [M6c.Q2a — Rest, checked in CI](#m6cq2a--rest-checked-in-ci) | Planned |
 | [M6c.Q2b — Counters, ratios and first measures](#m6cq2b--counters-ratios-and-first-measures) | Planned |
+| [M6c.Q2c — A hidden game at rest](#m6cq2c--a-hidden-game-at-rest) | Planned |
 | [M6c.Q3 — The hierarchy's search over frames](#m6cq3--the-hierarchys-search-over-frames) | Planned |
 | [M6c.Q4 — Fuzzing and crash reports](#m6cq4--fuzzing-and-crash-reports) | Planned |
 | [M6c.5f — The inspector](#m6c5f--the-inspector) | Planned |
@@ -134,16 +136,18 @@ stage's audit before M6c.9. Their figures live in the
 
 ### M6c.Q2a — Rest, checked in CI
 
-- **Goal.** The editor, its floating panels, and a game paused or hidden draw nothing and wake
-  themselves not at all, and CI keeps them so.
-- **Crates.** `slime-app`, `slime-editor`, `hunnawood`; `scripts/check.sh`.
-- **Delivers.** A check in a headless Weston that runs the editor idle, a panel floating, and the
-  game paused, then hidden, and finds no frame and no own wake-up over 10 s, from
-  `/proc/<pid>/status`; which threads count, the drivers' and lavapipe's among them, set by its
-  design; the editor's check of at most 2 frames brought to none; what wakes for nothing, fixed.
+- **Goal.** The editor, its floating panels, and a game paused draw nothing and wake themselves
+  not at all, and CI keeps them so.
+- **Crates.** `slime-app`, `slime-mcp`, `hunnawood`; `scripts/check.sh`.
+- **Delivers.** As [ADR-0185](adr/0185-rest-checked-in-ci.md) decides: a check in a headless
+  Weston that runs the editor idle, a panel floating, and the game paused, and finds no own
+  wake-up of any thread over 10 s, from `/proc/<pid>/task/<tid>/status`; the editor's check of at
+  most 2 frames brought to none; a game's frames set on demand while it runs, as Hunna Wood does
+  while paused; what wakes for nothing, fixed.
 - **Done when.** The check fails on a program made to wake itself, and passes on the editor and the
   game; CI is green, each job within 20 minutes.
-- **How to test.** `scripts/check.sh windowed`.
+- **How to test.** `cargo test -p slime-mcp --test rest`; `scripts/check.sh windowed` and
+  `scripts/check.sh game`.
 - **Measured.** Rest; the jobs that run the check.
 
 ### M6c.Q2b — Counters, ratios and first measures
@@ -165,6 +169,22 @@ stage's audit before M6c.9. Their figures live in the
 - **How to test.** `cargo test --workspace`; `cargo run --release -p slime-benches`.
 - **Measured.** Every budget of the quality bar that the engine can measure today.
 - **By hand.** Variable refresh rates on the owner's display.
+
+### M6c.Q2c — A hidden game at rest
+
+- **Goal.** A game hidden draws nothing and wakes itself not at all, and CI keeps it so.
+- **Crates.** `slime-platform`, `slime-app`, `slime-mcp`; `scripts/check.sh`.
+- **Delivers.** As [ADR-0185](adr/0185-rest-checked-in-ci.md) decides: on Wayland, frames drawn
+  on the compositor's signal (`pre_present_notify`), the loop waking on no schedule of its own
+  while it waits for one; on Windows, a minimized window drawing nothing; a way to hide the game in
+  a headless Weston without an input injected; the check of rest run on the game hidden; ADR-0021's
+  pacing measured again while visible.
+- **Done when.** The check passes on the game hidden, and fails on it with the old pacing; CI is
+  green, each job within 20 minutes.
+- **How to test.** `scripts/check.sh game`.
+- **Measured.** Rest of a hidden game; the frames' pacing while visible, against ADR-0021's.
+- **By hand.** A hidden game on the owner's compositor, and minimized in the Windows virtual
+  machine.
 
 ### M6c.Q3 — The hierarchy's search over frames
 

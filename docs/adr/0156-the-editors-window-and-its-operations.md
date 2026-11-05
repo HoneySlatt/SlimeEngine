@@ -5,7 +5,8 @@
   built on a user event of winit 0.30's, the one way it has),
   [0135](0135-the-editors-program.md) (the program opens a window, and its run without a window
   waits for requests), [0021](0021-frame-pacing.md) (a program may run its frames on demand) and
-  [0143](0143-what-agents-see-of-the-interface.md) (roots are named in paths by their keys)
+  [0143](0143-what-agents-see-of-the-interface.md) (roots are named in paths by their keys);
+  amended by [0185](0185-rest-checked-in-ci.md) (a program sets its frames on demand while it runs)
 - Date: 2026-10-28
 
 ## Context

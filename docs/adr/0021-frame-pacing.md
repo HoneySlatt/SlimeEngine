@@ -1,8 +1,10 @@
 # 0021. Frame pacing
 
 - Status: Accepted; amended by [0155](0155-the-editors-design.md) (a program may run its frames
-  only when something asks for one) and [0156](0156-the-editors-window-and-its-operations.md) (how:
-  `AppConfig::on_demand`, which replaces the paced run without a window)
+  only when something asks for one), [0156](0156-the-editors-window-and-its-operations.md) (how:
+  `AppConfig::on_demand`, which replaces the paced run without a window) and
+  [0185](0185-rest-checked-in-ci.md) (a hidden window draws on the compositor's signal, from
+  M6c.Q2c)
 - Date: 2026-10-12
 
 ## Context
