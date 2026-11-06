@@ -33,8 +33,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - In progress: [M6d.1](#m6d1--how-an-application-is-written), cut in four at its start; done,
   [M6d.1a](#m6d1a--the-survey-and-the-protocol); in progress,
   [M6d.1b](#m6d1b--how-state-changes-the-interface), cut in three at its start: done,
-  [M6d.1b1](#m6d1b1--the-ideal-code) and [M6d.1b2](#m6d1b2--the-bench-on-the-control); next,
-  [M6d.1b3](#m6d1b3--three-models-and-the-choice), on the bench's branch, `m6d1b-bench`.
+  [M6d.1b1](#m6d1b1--the-ideal-code) and [M6d.1b2](#m6d1b2--the-bench-on-the-control); in
+  progress, [M6d.1b3a](#m6d1b3a--three-models-on-the-bench), on the bench's branch,
+  `m6d1b-bench`; then [M6d.1b3b](#m6d1b3b--the-choice).
 - [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and its open decisions; its code
   moves there at M6d.11.
 - May be cut at its start: M6d.5, AccessKit's translation apart.
@@ -55,7 +56,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.1a — The survey and the protocol](#m6d1a--the-survey-and-the-protocol) | Done |
 | [M6d.1b1 — The ideal code](#m6d1b1--the-ideal-code) | Done |
 | [M6d.1b2 — The bench, on the control](#m6d1b2--the-bench-on-the-control) | Done |
-| [M6d.1b3 — Three models, and the choice](#m6d1b3--three-models-and-the-choice) | Planned |
+| [M6d.1b3a — Three models on the bench](#m6d1b3a--three-models-on-the-bench) | In progress |
+| [M6d.1b3b — The choice](#m6d1b3b--the-choice) | Planned |
 | [M6d.1c — Rust's code reloaded, and the executor](#m6d1c--rusts-code-reloaded-and-the-executor) | Planned |
 | [M6d.1d — Layouts, styles and the host](#m6d1d--layouts-styles-and-the-host) | Planned |
 | [M6d.2 — Typed styles](#m6d2--typed-styles) | Planned |
@@ -293,23 +295,43 @@ ADR-0202's method, refined at its start:
   prototype forced to change.
 - **Where.** The bench and the control's prototype on the branch
   [`m6d1b-bench`](https://github.com/HoneySlatt/SlimeEngine/tree/m6d1b-bench/benches/src/prototypes),
-  `slime-benches --prototypes`, which M6d.1b3 extends and which is thrown away once M6d.1b ends;
+  `slime-benches --prototypes`, which M6d.1b3a extends and which is thrown away once M6d.1b ends;
   on `main`, the benchmarks' allocator, which counts bytes too.
 
-### M6d.1b3 — Three models, and the choice
+### M6d.1b3a — Three models on the bench
+
+M6d.1b's third part, cut in two at its start, on 2026-11-06: the three models measured together on
+one bench, then the choice, which waits for what Opium's and Slatty's long-term direction asks of
+uwui.
+
+- **Goal.** Signals, views that say they changed, and messages, measured on the control's bench.
+- **Crates.** None kept.
+- **Delivers.** The three prototyped on the bench from their ideal code, the lines that it forced
+  to change counted; the signals' runtime written by hand for the prototypes, as the owner chose
+  on 2026-11-06, no library added. Elements nested as tuples, which the three write and the control
+  does not, added to the bench's shared parts; the bench's delay ended by each model's own pending
+  work too, not only by a builder asked. Each model's small cases of wrong renders and panics. In
+  each, whether a function's body can be reloaded, a type's state migrated, and a task cancelled
+  with its component. What moving the editor and *Hunna Wood* to each model would cost, counted in
+  their code.
+- **Done when.** The three models' figures are in uwui's
+  [`docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md),
+  beside the control's, and each mistake of the ideal code's README shows as a wrong render or a
+  panic.
+- **Measured.** Each criterion of ADR-0202, for each model, screen and scripted interaction,
+  without a window.
+
+### M6d.1b3b — The choice
 
 - **Goal.** The owner chooses the state model.
 - **Crates.** None kept.
-- **Delivers.** Signals, views that say they changed, and messages, prototyped on the bench from
-  their ideal code, the lines that it forced to change counted; elements nested as tuples, which
-  the three write and the control does not, added to the bench's shared parts; the bench's delay
-  ended by each model's own pending work too, not only by a builder asked. Each model's small
-  cases of wrong renders and panics. In each, whether a function's body can be reloaded, a type's
-  state migrated, and a task cancelled with its component. What moving the editor and *Hunna Wood* to each model
-  would cost, counted in their code.
+- **Delivers.** What Opium's and Slatty's lists of what they ask of uwui mark as general, read in
+  their repositories once written and pushed: for each model, whether it covers each such need,
+  continuous streams of data, long tasks cancelled and several windows among them. A need that no
+  model covers is put to the owner, with options, before the choice. The screens of reference and
+  ADR-0202's criteria stay as they are. The figures of M6d.1b3a put to the owner.
 - **Done when.** The model is decided and recorded in an ADR; uwui's open decisions are updated.
-- **Measured.** Each criterion of ADR-0202, for each model, screen and scripted interaction,
-  without a window.
+- **Measured.** Nothing new: M6d.1b3a's figures.
 
 ### M6d.1c — Rust's code reloaded, and the executor
 
