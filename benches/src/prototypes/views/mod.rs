@@ -14,7 +14,7 @@ pub mod songs;
 use std::any::{Any, TypeId};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Range};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::time::Instant;
 
 use uwui::prelude::{Action, Children, ElementId, Ui};
@@ -98,9 +98,14 @@ impl<T: Render + Clone> AnyView for T {
     }
 }
 
-/// A handle to a view of the application.
+/// A handle to a view of the application: the view lives while a handle that the program holds
+/// does, and is released, its value dropped, at the end of the frame after its last goes, as
+/// GPUI's entities are.
 pub struct View<T> {
     entity: usize,
+    /// What counts the handles that the program holds; none for the application's own, its
+    /// handlers' and processors', which do not keep the view.
+    held: Option<Rc<()>>,
     view: PhantomData<fn() -> T>,
 }
 
@@ -108,15 +113,18 @@ impl<T> Clone for View<T> {
     fn clone(&self) -> Self {
         Self {
             entity: self.entity,
+            held: self.held.clone(),
             view: PhantomData,
         }
     }
 }
 
 impl<T: 'static> View<T> {
+    /// A handle of the application's own, which does not keep the view.
     fn of(entity: usize) -> Self {
         Self {
             entity,
+            held: None,
             view: PhantomData,
         }
     }
@@ -190,6 +198,8 @@ pub struct App {
     rows: Vec<Rows>,
     /// Renders and processors run since last counted.
     runs: usize,
+    /// What counts each view's handles that the program holds.
+    held: Vec<Weak<()>>,
     /// The bodies that replace a type of view's `render`, as a reload swaps them, by the type.
     patches: Vec<(TypeId, Patch)>,
 }
@@ -206,6 +216,8 @@ impl App {
     )]
     pub fn new<U: Render + Clone>(&mut self, make: impl FnOnce(&mut Cx<U>) -> U) -> View<U> {
         let entity = self.values.len();
+        let held = Rc::new(());
+        self.held.push(Rc::downgrade(&held));
         self.values.push(None);
         self.meta.push(Meta {
             revision: 0,
@@ -219,7 +231,26 @@ impl App {
         };
         let value = make(&mut cx);
         self.values[entity] = Some(Box::new(value));
-        View::of(entity)
+        View {
+            entity,
+            held: Some(held),
+            view: PhantomData,
+        }
+    }
+
+    /// Releases each view whose last handle that the program held went: its value dropped, with
+    /// the tasks that it holds, and what the application kept of it forgotten.
+    fn release(&mut self) {
+        for entity in 0..self.values.len() {
+            if self.held[entity].strong_count() > 0 || self.values[entity].is_none() {
+                continue;
+            }
+            self.values[entity] = None;
+            self.meta[entity].root = None;
+            self.meta[entity].notified = false;
+            self.registry.clear(&Part::View(entity));
+            self.rows.retain(|rows| rows.view != entity);
+        }
     }
 
     /// Runs `with` on the value of `entity`, taken out of the application meanwhile.
@@ -528,6 +559,7 @@ impl<T: Render + Clone> Window<T> {
             registry: Registry::default(),
             rows: Vec::new(),
             runs: 0,
+            held: Vec::new(),
             patches: Vec::new(),
         };
         let root = make(&mut app);
@@ -633,6 +665,7 @@ impl<T: Render + Clone> Model for Window<T> {
         if !app.next_frame.is_empty() {
             ui.request_frame();
         }
+        app.release();
     }
 
     fn fresh(&self) -> Self {
@@ -659,6 +692,7 @@ impl<T: Render + Clone> Model for Window<T> {
                 registry: Registry::default(),
                 rows: Vec::new(),
                 runs: 0,
+                held: app.held.clone(),
                 patches: app.patches.clone(),
             },
             root: self.root.clone(),

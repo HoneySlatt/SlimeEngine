@@ -26,6 +26,8 @@ mod messages;
 mod reload;
 mod screens;
 mod signals;
+#[cfg(test)]
+mod tasks;
 mod views;
 
 use std::time::{Duration, Instant};

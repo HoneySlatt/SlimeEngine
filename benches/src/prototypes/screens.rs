@@ -251,7 +251,7 @@ pub(crate) fn played<P>(_: Scale) -> Vec<Interaction<P>> {
     ]
 }
 
-/// The script of the small case of a page that closes: a list of 1,000 rows, focused, its row
+/// The script of the small cases of a page that closes: a list of 1,000 rows, focused, its row
 /// selected's page opened by Enter, closed by Escape, then the selection moved by an arrow.
 #[cfg(test)]
 pub(crate) fn page_closed<P>(_: Scale) -> Vec<Interaction<P>> {

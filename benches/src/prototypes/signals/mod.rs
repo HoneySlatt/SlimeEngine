@@ -31,6 +31,8 @@ use runtime::{Id, Runtime, current, enter};
 
 /// What a screen's file writes with.
 pub mod prelude {
+    #[cfg(test)]
+    pub use super::on_cleanup;
     pub use super::{Memo, RwSignal, Signal, Stored, View, dyn_view, frame_time};
     pub use super::{button, column, grid, image, label, list, pressable, row, search_field};
     pub use super::{stack, wave};
@@ -146,6 +148,12 @@ pub fn frame_time() -> Signal<Instant> {
         id: current().clock.get().expect("a runtime with a clock"),
         value: PhantomData,
     }
+}
+
+/// Runs `cleanup` when the scope that runs this, a view's, is disposed: a task cancelled with it.
+#[cfg(test)]
+pub fn on_cleanup(cleanup: impl FnOnce() + 'static) {
+    current().on_cleanup(cleanup);
 }
 
 /// A `Copy` handle to a value that no closure tracks.
