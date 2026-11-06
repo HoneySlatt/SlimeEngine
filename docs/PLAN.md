@@ -31,8 +31,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [M6d.0c](#m6d0c--the-applications-of-the-market), the figures before, cut in three at its start
   ([ADR-0198](adr/0198-screens-of-reference-and-the-rivals-measured.md)).
 - In progress: [M6d.1](#m6d1--how-an-application-is-written), cut in four at its start; done,
-  [M6d.1a](#m6d1a--the-survey-and-the-protocol); next,
-  [M6d.1b](#m6d1b--how-state-changes-the-interface).
+  [M6d.1a](#m6d1a--the-survey-and-the-protocol); in progress,
+  [M6d.1b](#m6d1b--how-state-changes-the-interface), cut in three at its start, its first part
+  [M6d.1b1](#m6d1b1--the-ideal-code).
 - [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and its open decisions; its code
   moves there at M6d.11.
 - May be cut at its start: M6d.5, AccessKit's translation apart.
@@ -51,7 +52,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.0b — Measured from outside, and ten "Hello, World!"](#m6d0b--measured-from-outside-and-ten-hello-world) | Done |
 | [M6d.0c — The applications of the market](#m6d0c--the-applications-of-the-market) | Done |
 | [M6d.1a — The survey and the protocol](#m6d1a--the-survey-and-the-protocol) | Done |
-| [M6d.1b — How state changes the interface](#m6d1b--how-state-changes-the-interface) | Planned |
+| [M6d.1b1 — The ideal code](#m6d1b1--the-ideal-code) | In progress |
+| [M6d.1b2 — The bench, on the control](#m6d1b2--the-bench-on-the-control) | Planned |
+| [M6d.1b3 — Three models, and the choice](#m6d1b3--three-models-and-the-choice) | Planned |
 | [M6d.1c — Rust's code reloaded, and the executor](#m6d1c--rusts-code-reloaded-and-the-executor) | Planned |
 | [M6d.1d — Layouts, styles and the host](#m6d1d--layouts-styles-and-the-host) | Planned |
 | [M6d.2 — Typed styles](#m6d2--typed-styles) | Planned |
@@ -226,18 +229,53 @@ compared, the criteria, the screens and their scripted interactions, is that ADR
 
 ### M6d.1b — How state changes the interface
 
+The owner chooses the state model from four, today's rebuild by keys as the control, signals,
+views that say they changed, and messages, each prototyped over uwui's tree and measured as
+[ADR-0202](adr/0202-how-m6d1-compares-ways-of-writing-an-application.md) says. Cut in three at its
+start, on 2026-11-06: the ideal code is put to the owner before any prototype, and the bench is
+checked on the control before the other models are compared on it.
+
+### M6d.1b1 — The ideal code
+
+- **Goal.** Each screen's code as an application's author would want to write it, in each model,
+  before any prototype.
+- **Crates.** None; files in uwui's repository.
+- **Delivers.** For each of the four models and the four screens of
+  [ADR-0202](adr/0202-how-m6d1-compares-ways-of-writing-an-application.md), the screen's code,
+  formatted by rustfmt, its lines and its concepts counted; beside it, the references' own examples
+  of the same kind of screen, their lines and concepts. ADR-0202's method reviewed.
+- **Done when.** The owner has read the code and agreed that the prototypes start.
+- **Measured.** Lines and concepts; no program runs.
+
+### M6d.1b2 — The bench, on the control
+
+- **Goal.** ADR-0202's instruments, checked on today's model before the others are compared on
+  them.
+- **Crates.** None kept but the benchmarks' allocator, which counts bytes too; the rest on a
+  branch, thrown away.
+- **Delivers.** Each phase of a frame timed and counted; the display list's items changed, out of
+  all; the time from an input to the display list that shows it, on a clock that the test moves;
+  the memory held open and after a close; a frame where nothing changed; the display list compared
+  with a new interface's after each scripted interaction; the screens' data made in the program.
+  The control prototyped from its ideal code and measured on each screen. The command that runs
+  the measures, documented for the owner's very modest laptop.
+- **Done when.** The control's figures are in uwui's
+  [`docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md), and
+  the bench shows the control's own mistake, a revision not moved, as a wrong render.
+- **Measured.** Each criterion of ADR-0202 for the machine, for the control, without a window.
+
+### M6d.1b3 — Three models, and the choice
+
 - **Goal.** The owner chooses the state model.
 - **Crates.** None kept.
-- **Delivers.** Four models, today's rebuild by keys as the control, signals, views that say they
-  changed, and messages: each screen's code first written as an application's author would
-  write it, then prototyped over uwui's tree on the screens with the protocol's interactions. In
-  each, whether a function's body can be reloaded, a type's state migrated, and a task cancelled
-  with its component. What moving the editor and *Hunna Wood* to each model would cost. The
-  command that runs the measures, documented for the owner's very modest laptop.
-- **Done when.** The model is decided and recorded.
-- **Measured.** Each criterion of
-  [ADR-0202](adr/0202-how-m6d1-compares-ways-of-writing-an-application.md), for each model, screen
-  and scripted interaction, without a window.
+- **Delivers.** Signals, views that say they changed, and messages, prototyped on the bench from
+  their ideal code, the lines that it forced to change counted. Each model's small cases of wrong
+  renders and panics. In each, whether a function's body can be reloaded, a type's state migrated,
+  and a task cancelled with its component. What moving the editor and *Hunna Wood* to each model
+  would cost, counted in their code.
+- **Done when.** The model is decided and recorded in an ADR; uwui's open decisions are updated.
+- **Measured.** Each criterion of ADR-0202, for each model, screen and scripted interaction,
+  without a window.
 
 ### M6d.1c — Rust's code reloaded, and the executor
 
