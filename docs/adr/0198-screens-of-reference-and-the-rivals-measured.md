@@ -2,7 +2,8 @@
 
 - Status: Accepted; amends [0181](0181-uwuis-scope.md) (the media application written anew on
   uwui, not ported) and [0194](0194-stage-6d-uwui-leaving-the-engine.md) (M6d.0 cut in three; the
-  rivals measured with the owner's programs)
+  rivals measured with the owner's programs); amended by [0199](0199-uwuis-targets-tools-and-references-narrowed.md) (M6d.1's
+  references and M6d.0b's measures widened)
 - Date: 2026-11-06
 
 ## Context

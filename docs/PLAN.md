@@ -21,7 +21,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [ADR-0195](adr/0195-a-series-of-headless-compositors.md),
   [ADR-0196](adr/0196-checks-by-hand-on-macos.md),
   [ADR-0197](adr/0197-uwuis-repository-public-from-now.md),
-  [ADR-0198](adr/0198-screens-of-reference-and-the-rivals-measured.md)).
+  [ADR-0198](adr/0198-screens-of-reference-and-the-rivals-measured.md),
+  [ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)).
 - Done: [M6d.0a](#m6d0a--the-screens-and-the-owners-programs), the first third of the figures
   before, cut in three at its start
   ([ADR-0198](adr/0198-screens-of-reference-and-the-rivals-measured.md)).
@@ -72,6 +73,8 @@ Each milestone:
 - measures the budgets of the [quality bar](ROADMAP.md#4-quality-bar) that it touches, and of
   [uwui's](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#2-quality-bar), and records how long CI's jobs take in
   [`measurements.md`](measurements.md), each within its limit of 20 minutes;
+- from M6d.4, adds to uwui's benchmarks the counters and the discriminating cases of each phase
+  that it touches, checked in CI ([ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md));
 - may be cut in two at its start.
 
 Figures of the programs that leave other frameworks belong to uwui: they go to its repository's
@@ -136,7 +139,8 @@ their programs are built from clones. Cut in three at its start.
   application's frames, start, memory, rest and power; checked against Slatty's probe. In motion,
   while it scrolls and animates, it reads too the application's CPU, thread by thread, the
   compositor's CPU, which shows a window that sends its whole content at each frame, and the GPU's
-  load and power: a rate held can hide their cost. A person's input given in a headless
+  load and power: a rate held can hide their cost. Memory after a list is scrolled and after it
+  is closed; the 95th percentile of frames beside the 99th; presentations missed. A person's input given in a headless
   compositor: ADR-0191's `wlrctl` in sway moved and clicked a pointer that never reached Opium's
   window, why not established. Opium's table of songs at rest, scrolled, and its wave moving,
   measured by it. ADR-0180's two figures that M6d.0a left: the `widgets` example's start to its
@@ -168,15 +172,17 @@ their programs are built from clones. Cut in three at its start.
 - **Goal.** The owner decides how an application on uwui is written, from prototypes measured on
   the screens of reference.
 - **Crates.** None kept: the prototypes live on a branch, then are thrown away.
-- **Delivers.** A survey of GPUI with gpui-kit, Iced, Slint, Dioxus, Flutter, Jetpack Compose and
-  SwiftUI; signals, views that say they changed, and messages, each prototyped on the screens over
-  uwui's tree; the format of layouts; Rust's code reloaded with its state kept; the interface's
+- **Delivers.** A survey of GPUI with gpui-kit, Iced, Slint, Dioxus, Flutter, Jetpack Compose,
+  SwiftUI, Floem, Rune and Makepad ([ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)); signals, views that say
+  they changed, and messages, each prototyped on the screens over uwui's tree; the format of
+  layouts; Rust's code reloaded with its state kept, a style or a layout, a function's body and a
+  type whose state migrates each answered apart; the interface's
   executor and its waker; the time of each frame that motion reads; an application started in one
   call; styles written in code beside the themes' files. Each question put to the owner, then
   recorded in an ADR, and uwui's open decisions updated.
 - **Done when.** Every question is decided and recorded; the prototypes' figures are kept.
-- **Measured.** For each model and screen: lines, concepts to learn, CPU and allocations of a
-  frame.
+- **Measured.** For each model and screen: lines, concepts to learn, errors, the state kept
+  across a reload, CPU and allocations of each phase of a frame.
 
 ### M6d.2 — Typed styles
 
@@ -306,8 +312,12 @@ their programs are built from clones. Cut in three at its start.
   the trials before the authoring API is built proposed; how its ADRs are numbered; the moved
   crates' names; how the engine follows uwui after the move; which repository holds the
   interface's budgets; what stands for the engine in uwui, its benchmarks and a menu driven by a
-  gamepad; how the engine keeps a series of compositors for its platform layer. uwui's
-  `AGENTS.md`, roadmap and plan updated.
+  gamepad; how the engine keeps a series of compositors for its platform layer; whether games'
+  interfaces, HUD, inventories, dialogues and interfaces within the world, need a framework of
+  their own, a host and layers of their own over uwui's core, or uwui whole, weighed from what
+  *Hunna Wood*'s interface costs the game. MyGo read for its contracts with the platforms and its
+  delivery. A matrix of uwui's platforms and functions, each available, experimental, planned or
+  not checked ([ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)). uwui's `AGENTS.md`, roadmap and plan updated.
 - **Done when.** The owner has validated uwui's documents.
 
 ### M6d.11 — The move

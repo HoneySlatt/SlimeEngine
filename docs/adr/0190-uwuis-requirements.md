@@ -10,8 +10,9 @@
   seen; the owner's Steam Deck measures the handheld tier) and [0181](0181-uwuis-scope.md)
   (applications' lower tiers; Android without Kotlin; how agents reach an application; publication
   and contributions at 1.0); amended by [0194](0194-stage-6d-uwui-leaving-the-engine.md) (what Stage 6d
-  builds; its decisions taken in M6d.1) and [0197](0197-uwuis-repository-public-from-now.md) (the repository public
-  from now; the name kept on crates.io)
+  builds; its decisions taken in M6d.1), [0197](0197-uwuis-repository-public-from-now.md) (the repository public
+  from now; the name kept on crates.io) and [0199](0199-uwuis-targets-tools-and-references-narrowed.md) (the owner's desktop no
+  longer a target; `uwui bundle` delegates; updates to be evaluated)
 - Date: 2026-11-06
 
 ## Context
