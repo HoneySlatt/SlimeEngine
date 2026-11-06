@@ -1675,3 +1675,18 @@ What it says:
 - The game's memory, at most 158 MiB, and its video memory, 1.2 GiB, are far within the high
   tier's 24 GB and 12 GB, and the handheld tier's 8 GB and 4 GB; a tier's own machine is not
   measured.
+
+## M6c.Q2e, CI's runners
+
+GitHub's hosted runners, on 2026-11-06, commit `5d9ee34`, its run green. The cooked zone came from
+the cache. `heaptrack` entered the development shell: each Linux job fetched it in about 5 s more,
+32 s against 27 s for `check (headless)`. That job's other steps, which the milestone did not
+change, ran 24 to 49 % slower than on `649467c`: a slower runner.
+
+| Job | Time |
+|---|---|
+| `windows` | 18 min 17 s |
+| `check (headless)` | 16 min 40 s |
+| `windows-release` | 14 min 9 s |
+| `check (game)` | 9 min 2 s |
+| `check (windowed)` | 4 min 45 s |
