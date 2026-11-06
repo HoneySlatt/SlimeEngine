@@ -42,6 +42,11 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   No program changes `AppConfig::max_frame_rate`, 60 by default: on a display at 240 Hz, an input during motion waits for the next frame of that schedule.
   Its input to present in motion passes its budget of one frame ([`measurements.md`](measurements.md#m6cq2d-ryzen-7-5800x-and-rx-6900-xt)).
   The editor and applications are to draw at the display's rate: uwui's desktop host from Stage 6d, the editor at M6c.Q2f, once Stage 6c resumes.
+- **`scripts/input-to-present.sh` loses part of its inputs** ([ADR-0200](adr/0200-applications-measured-from-outside.md)).
+  It runs `wlrctl` once an input; each run makes a virtual pointer or keyboard and destroys it at once.
+  A headless sway gives its seat a pointer only while one exists: a window binds it too late, and the input goes nowhere.
+  M6c.Q2d's figures came from the inputs that arrived, some three in four apart and one in two in a row.
+  Followed at M6c.Q2f, which measures input to present again, with one pointer and one keyboard held for the whole run, as uwui's `scripts/wayland.py` holds a pointer.
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)).
   With Mailbox, the default, the schedule paces frames.
   On Wayland, a frame also waits for the compositor's frame callback: a display slower than the schedule paces them, every image shown ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).

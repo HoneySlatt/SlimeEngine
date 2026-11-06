@@ -2,7 +2,8 @@
 
 - Status: Accepted; amends [0175](0175-the-quality-bar.md) (the budgets of a level opened and of a
   game to control) and [0189](0189-first-measures-of-time.md) (input to present measured with a
-  person's input in a headless sway; the editor's rate of frames)
+  person's input in a headless sway; the editor's rate of frames); amended by
+  [0200](0200-applications-measured-from-outside.md) (input given by one virtual pointer held)
 - Date: 2026-11-06
 
 ## Context
