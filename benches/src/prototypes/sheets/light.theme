@@ -1,0 +1,12 @@
+# The shipped theme's light colors, for the prototypes of SlimeEngine's milestone M6d.1b.
+background = "#F7F7F9"
+bar = "#ECEDF1"
+text = "#1A1B1F"
+muted = "#5E626C"
+raised = "#E2E4E9"
+hover = "#D6D9E0"
+field = "#FFFFFF"
+accent = "#2F6FE4"
+on_accent = "#FFFFFF"
+focus = "#2F6FE4"
+secondary_container = "#D5E2FB"

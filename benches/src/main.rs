@@ -17,6 +17,7 @@ mod editor;
 mod loading;
 mod measure;
 mod play;
+mod prototypes;
 mod render;
 mod ui;
 mod world;
@@ -273,6 +274,19 @@ enum Mode {
 fn main() -> ExitCode {
     slime_app::init_diagnostics();
     let mut arguments: Vec<String> = std::env::args().skip(1).collect();
+    // M6d.1b's bench, on its branch alone.
+    if arguments
+        .first()
+        .is_some_and(|argument| argument == "--prototypes")
+    {
+        return match prototypes::run(&arguments[1..]) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("{error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if arguments.iter().any(|argument| argument == "--list") {
         for benchmark in BENCHMARKS {
             let note = match (benchmark.counts, benchmark.on_request) {

@@ -30,6 +30,8 @@ slime-editor.workspace = true
 hunnawood-editor.workspace = true
 # The interface's text (ADR-0136), and the editor's look, which the world panel is measured in.
 uwui = { workspace = true, features = ["editor-look"] }
+# The input that M6d.1b's bench gives the prototypes, on its branch alone.
+slime-input.workspace = true
 # The interface drawn from a display list (ADR-0139).
 uwui-render.workspace = true
 slime-world.workspace = true

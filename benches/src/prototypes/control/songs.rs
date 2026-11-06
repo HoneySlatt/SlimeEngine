@@ -32,6 +32,7 @@ use std::time::{Duration, Instant};
 
 use uwui::prelude::*;
 
+#[derive(Clone)]
 pub struct Song {
     pub title: String,
     pub artist: String,
@@ -52,6 +53,7 @@ enum Column {
 
 type Sort = Option<(Column, bool)>;
 
+#[derive(Clone)]
 pub struct Songs {
     songs: Vec<Song>,
     /// The songs in the table's order, by their places in `songs`.
@@ -74,7 +76,7 @@ pub struct Songs {
 }
 
 /// The elements that the actions name, from the builds that made them.
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Ids {
     headers: Vec<(ElementId, Column)>,
     list: Option<ElementId>,
@@ -260,8 +262,4 @@ fn length(length: Duration) -> String {
 fn progress(elapsed: Duration, length: Duration) -> (f32, f32) {
     let share = (elapsed.as_secs_f32() / length.as_secs_f32()).min(1.0);
     (share, elapsed.as_secs_f32() * 4.2)
-}
-
-fn main() -> uwui::Result {
-    uwui::run(Songs::new(uwui::sample::songs(8_500), Instant::now()))
 }

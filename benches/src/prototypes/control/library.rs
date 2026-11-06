@@ -28,6 +28,7 @@
 
 use uwui::prelude::*;
 
+#[derive(Clone)]
 pub struct Game {
     pub title: String,
     pub cover: ImageKey,
@@ -37,6 +38,7 @@ pub struct Game {
 /// A cover's cell, in logical pixels: 3 by 4.
 const CELL: [f32; 2] = [150.0, 200.0];
 
+#[derive(Clone)]
 pub struct Library {
     games: Vec<Game>,
     filter: String,
@@ -55,7 +57,7 @@ pub struct Library {
 }
 
 /// The elements that the actions name, from the builds that made them.
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Ids {
     filter: Option<ElementId>,
     grid: Option<ElementId>,
@@ -182,8 +184,4 @@ fn matching(games: &[Game], filter: &str) -> Vec<usize> {
     (0..games.len())
         .filter(|&game| games[game].title.to_lowercase().contains(&filter))
         .collect()
-}
-
-fn main() -> uwui::Result {
-    uwui::run(Library::new(uwui::sample::games(10_000)))
 }

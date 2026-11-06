@@ -10,6 +10,10 @@ style.layout = { gap = [12, 12], padding = { start = 12, end = 12, top = 12, bot
 select = { classes = ["cover"] }
 style.paint = { radii = [6, 6, 6, 6] }
 
+[cover-image]
+select = { kind = "Image", inside = { class = "cover" } }
+style.layout.grow = 1
+
 [cover-selected]
 select = { classes = ["cover"], states = ["Selected"] }
 style.paint = { border_width = 2, border = "$focus" }
@@ -21,7 +25,7 @@ style.layout = { direction = "Column", gap = [16, 16], padding = { start = 32, e
 
 [key-art]
 select = { classes = ["key-art"] }
-style.layout.size = ["100%", "auto"]
+style.layout.size = [{ Share = 1 }, { Pixels = 600 }]
 style.transition = { duration = 0.18, easing = "EaseOut" }
 style.enter = { opacity = 0 }
 

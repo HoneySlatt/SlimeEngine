@@ -21,6 +21,7 @@ use uwui::prelude::*;
 /// A line's height, in logical pixels.
 const LINE: f32 = 20.0;
 
+#[derive(Clone)]
 pub struct Document {
     lines: Vec<String>,
     /// Moved when a line changes.
@@ -61,8 +62,4 @@ impl Program for Document {
             }
         });
     }
-}
-
-fn main() -> uwui::Result {
-    uwui::run(Document::new(uwui::sample::lines(100_000)))
 }

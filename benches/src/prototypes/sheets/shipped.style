@@ -1,0 +1,35 @@
+# The shipped theme's style sheet, for the prototypes of SlimeEngine's milestone M6d.1b: the text,
+# the window's background, buttons, fields, and the classes `muted` and `primary`, which the
+# screens' own style sheets leave to it. Its colors are those of `dark.theme` or `light.theme`.
+
+[everything]
+select = {}
+style.text = { style = { fonts = ["Geist"], size = 14 }, color = "$text" }
+style.transition = { duration = 0.15, easing = "EaseOut" }
+
+[window]
+select = { key = "main" }
+style.paint.background = "$background"
+
+[muted]
+select = { classes = ["muted"] }
+style.text.color = "$muted"
+
+[button]
+select = { kind = "Button" }
+style.paint = { background = "$raised", radii = [8, 8, 8, 8] }
+style.layout.padding = { start = 12, end = 12, top = 6, bottom = 6 }
+
+[button-hovered]
+select = { kind = "Button", states = ["Hovered"] }
+style.paint.background = "$hover"
+
+[primary]
+select = { kind = "Button", classes = ["primary"] }
+style.paint.background = "$accent"
+style.text.color = "$on_accent"
+
+[field]
+select = { kind = "TextField" }
+style.paint = { background = "$field", radii = [8, 8, 8, 8] }
+style.layout.padding = { start = 10, end = 10, top = 6, bottom = 6 }

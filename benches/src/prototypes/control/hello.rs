@@ -20,8 +20,8 @@
 
 use uwui::prelude::*;
 
-#[derive(Default)]
-struct Hello {
+#[derive(Clone, Default)]
+pub struct Hello {
     go: Option<ElementId>,
 }
 
@@ -42,8 +42,4 @@ impl Program for Hello {
             println!("Clicked!");
         }
     }
-}
-
-fn main() -> uwui::Result {
-    uwui::run(Hello::default())
 }

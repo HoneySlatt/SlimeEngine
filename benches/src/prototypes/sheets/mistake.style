@@ -1,0 +1,9 @@
+# The control's own mistake: a list of rows, the row selected filled with the accent.
+
+[table]
+select = { classes = ["table"] }
+style.layout.grow = 1
+
+[row-selected]
+select = { classes = ["row"], states = ["Selected"] }
+style.paint.background = "$accent"

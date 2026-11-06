@@ -4,7 +4,7 @@
 
 [header]
 select = { classes = ["header"] }
-style.layout = { size = ["auto", 32], gap = [14, 14], padding = { start = 10, end = 10 } }
+style.layout = { size = ["Auto", { Pixels = 32 }], gap = [14, 14], padding = { start = 10, end = 10 } }
 
 [table]
 select = { classes = ["table"] }
@@ -25,27 +25,27 @@ style.paint.background = "$secondary_container"
 
 [number]
 select = { classes = ["number"] }
-style.layout.size = [36, "auto"]
+style.layout.size = [{ Pixels = 36 }, "Auto"]
 
 [thumbnail]
 select = { classes = ["thumbnail"] }
-style.layout.size = [36, 36]
+style.layout.size = [{ Pixels = 36 }, { Pixels = 36 }]
 style.paint.radii = [10, 10, 10, 10]
 
 [title]
 select = { classes = ["title"] }
-style.layout = { direction = "Column", grow = 3, min_size = [200, "auto"] }
+style.layout = { direction = "Column", grow = 3, min_size = [{ Pixels = 200 }, "Auto"] }
 
 [album]
 select = { classes = ["album"] }
-style.layout = { grow = 2, min_size = [120, "auto"] }
+style.layout = { grow = 2, min_size = [{ Pixels = 120 }, "Auto"] }
 
 [length]
 select = { classes = ["length"] }
-style.layout.size = [52, "auto"]
-style.text.align = "End"
+style.layout.size = [{ Pixels = 52 }, "Auto"]
+style.text.style.alignment = "End"
 
 [toolbar]
 select = { classes = ["toolbar"] }
-style.layout = { size = ["auto", 70], max_size = [1240, "auto"], align_items = "Center", gap = [16, 16] }
+style.layout = { size = ["Auto", { Pixels = 70 }], max_size = [{ Pixels = 1240 }, "Auto"], align_items = "Center", gap = [16, 16] }
 style.paint = { background = "$bar", radii = [35, 35, 35, 35] }
