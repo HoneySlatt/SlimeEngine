@@ -140,18 +140,20 @@ fn play<P: Program + Clone>(
             host
         });
         opened = held(open);
-        for interaction in &script {
-            let (mut frames, settled) = counted(|| {
+        for (at, interaction) in script.iter().enumerate() {
+            let (frames, settled) = counted(|| {
                 let mut frames: Vec<Frame> = interaction
                     .frames
                     .iter()
                     .map(|inputs| host.frame(inputs))
                     .collect();
                 frames.extend(host.settle(SETTLE));
+                // Within the span, so that what the record holds is what is taken off.
+                frames.shrink_to_fit();
                 frames
             });
-            frames.shrink_to_fit();
-            if interaction.name == "opened" {
+            // A script's first interaction opens its screen.
+            if at == 0 {
                 opened += held(settled) - recorded(&frames);
             }
             let wrong = compare.then(|| host.wrong_items()).transpose()?;

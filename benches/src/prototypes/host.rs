@@ -5,7 +5,6 @@
 
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use slime_input::{ButtonState, Key as KeyMeaning, KeyCode, KeyEvent, Modifiers, MouseButton};
@@ -33,7 +32,9 @@ const SCREEN: RootSettings = RootSettings {
     modal: false,
 };
 
-/// The parts of a frame, in their order, each timed and counted apart.
+/// The parts of a frame, in their order, each timed and counted apart: the interface given the
+/// frame's time and its input; the program's `advance`, `act` and `build`; then the interface's
+/// three phases.
 pub(crate) const PHASES: [&str; 5] = ["input", "application", "styles", "layout", "display list"];
 
 /// What the phases of [`PHASES`] took.
@@ -203,11 +204,9 @@ impl<P: Program + Clone> Host<P> {
         let now = self.now();
         self.frames += 1;
         let mut costs = [Cost::default(); 5];
-        let ((), clock) = costed(|| {
-            self.ui.advance(FRAME);
-            self.program.advance(&mut self.ui, now);
-        });
+        let ((), clock) = costed(|| self.program.advance(&mut self.ui, now));
         let ((), input) = costed(|| {
+            self.ui.advance(FRAME);
             for input in inputs {
                 self.give(input);
             }
@@ -435,8 +434,8 @@ fn key(ui: &mut Ui, meaning: KeyMeaning, text: Option<String>) {
 }
 
 /// The items of `after` that `before` does not hold, as many times as it does not: what a renderer
-/// that keeps the list before would draw anew. A text is the same where it is the same layout,
-/// shared from the interface's cache.
+/// that keeps the list before would draw anew. A text is the same where it lays out the same text
+/// in the same style and box.
 fn changed_items(before: &DisplayList, after: &DisplayList) -> usize {
     let mut held: HashMap<u64, usize> = HashMap::new();
     for item in before.items() {
@@ -495,7 +494,16 @@ fn item_hash(item: &DisplayItem) -> u64 {
         Primitive::Text(primitive) => {
             3_u8.hash(&mut hasher);
             floats(&mut hasher, &primitive.origin);
-            Arc::as_ptr(&primitive.layout).hash(&mut hasher);
+            // By what it lays out, not by its layout's place in memory: a text laid out again,
+            // the same, is not drawn anew.
+            let layout = &primitive.layout;
+            layout.text().hash(&mut hasher);
+            layout.shown().hash(&mut hasher);
+            format!("{:?}", layout.style()).hash(&mut hasher);
+            floats(&mut hasher, &[layout.scale()]);
+            let bounds = layout.bounds();
+            bounds.width.map(f32::to_bits).hash(&mut hasher);
+            bounds.max_lines.hash(&mut hasher);
             color(&mut hasher, primitive.color);
         }
         Primitive::Image(primitive) => {

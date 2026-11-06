@@ -1685,9 +1685,9 @@ impl Ui {
         self.theme.as_deref()
     }
 
-    /// Asks for the frame after the next one: something moves that the program draws, as a wave
-    /// of progress. A program asks again at each frame while it moves; [`Ui::needs_frame`] says so
-    /// after the next frame.
+    /// Asks for a frame after the next one: something moves that the program draws, as a wave of
+    /// progress. Asked before a frame, from `advance` or `act`, [`Ui::needs_frame`] says so once
+    /// that frame ran; a program asks again at each frame while it moves.
     pub fn request_frame(&mut self) {
         self.requested = true;
     }
