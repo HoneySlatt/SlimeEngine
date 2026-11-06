@@ -643,7 +643,9 @@ impl<T: Render + Clone> Model for Window<T> {
         }
         // Each list's processor, when its view rendered or it shows other rows.
         app.rows.retain(|rows| ui.element(rows.list).is_some());
-        for rows in app.rows.clone() {
+        // By place, not over a clone of the list: a frame where nothing changed allocates nothing.
+        for at in 0..app.rows.len() {
+            let rows = app.rows[at].clone();
             let revision = app.meta[rows.view].revision;
             ui.build(rows.list, revision, |children| {
                 let places = children.rows();
