@@ -147,7 +147,8 @@ names the benchmarks that count, and a run of `--counters` prints their counters
   measure finds the memory held
   ([ADR-0202](../docs/adr/0202-how-m6d1-compares-ways-of-writing-an-application.md)).
   `editor.window` counts the allocations of its interface built alone, not its core's fixed steps
-  nor its draw, which allocates in the GPU's driver.
+  nor its draw, which allocates in the GPU's driver; and not their bytes, which follow the length
+  of the repository's path ([`debt.md`](../docs/debt.md)).
 
 ## What it must not do
 

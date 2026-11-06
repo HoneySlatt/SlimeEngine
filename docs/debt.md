@@ -649,7 +649,8 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Cold starts need root: a person measures them ([ADR-0192](adr/0192-the-budget-of-a-cold-start.md)).
   Memory, video memory and power are measured on the owner's machine alone, by hand, the GPU's power by amdgpu's sensor; no other tier's machine, nor another GPU's driver, is measured ([ADR-0193](adr/0193-first-measures-of-resources.md)).
   The editor's interface passes its budget on the owner's machine once other programs fill the memory that its GPU, without resizable BAR, lets the CPU map: the canvas's draw then meets [ADR-0041](adr/0041-render-graph.md)'s stall, whose fix is out of Stage 6c ([`measurements.md`](measurements.md#m6cq2b-ryzen-7-5800x-and-rx-6900-xt)).
-  A frame of the interface standing still allocates, which `benches/counters.txt` counts without a budget.
+  A frame of the interface standing still allocates, which `benches/counters.txt` counts without a budget, with its bytes.
+  The editor's window does too, and its bytes follow the length of the repository's path: a text that holds a path is made again at each frame, not found yet; `editor.window` counts its allocations alone.
   The benchmarks' allocator, the repository's only `unsafe` code, does not run under Miri ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)).
   The benchmarks that load in the background report their longest frame, judged against no figure.
   The hierarchy's search passes the editor's interface's budget; M6c.Q3.

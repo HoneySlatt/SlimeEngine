@@ -14,8 +14,6 @@ editor.hierarchy.100k	elements visited by a frame standing still	638
 editor.hierarchy.100k	items of a frame standing still	142
 editor.window.entities	allocations of a frame standing still, 100k	71
 editor.window.entities	allocations of a frame standing still, 10k	71
-editor.window.entities	bytes allocated by a frame standing still, 100k	73869
-editor.window.entities	bytes allocated by a frame standing still, 10k	73868
 editor.window.entities	elements visited by a frame standing still, 100k	492
 editor.window.entities	elements visited by a frame standing still, 10k	492
 editor.window.entities	elements, 100k	246
@@ -23,7 +21,6 @@ editor.window.entities	elements, 10k	246
 editor.window.entities	items of a frame standing still, 100k	194
 editor.window.entities	items of a frame standing still, 10k	194
 editor.window.zone	allocations of a frame standing still	68
-editor.window.zone	bytes allocated by a frame standing still	72687
 editor.window.zone	elements	150
 editor.window.zone	elements visited by a frame standing still	300
 editor.window.zone	items of a frame standing still	138
