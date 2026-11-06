@@ -24,13 +24,15 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [ADR-0198](adr/0198-screens-of-reference-and-the-rivals-measured.md),
   [ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md),
   [ADR-0200](adr/0200-applications-measured-from-outside.md),
-  [ADR-0201](adr/0201-the-rivals-narrowed.md)).
+  [ADR-0201](adr/0201-the-rivals-narrowed.md),
+  [ADR-0202](adr/0202-how-m6d1-compares-ways-of-writing-an-application.md)).
 - Done: [M6d.0a](#m6d0a--the-screens-and-the-owners-programs),
   [M6d.0b](#m6d0b--measured-from-outside-and-ten-hello-world) and
   [M6d.0c](#m6d0c--the-applications-of-the-market), the figures before, cut in three at its start
   ([ADR-0198](adr/0198-screens-of-reference-and-the-rivals-measured.md)).
-- In progress: [M6d.1](#m6d1--how-an-application-is-written), cut in four at its start; next,
-  [M6d.1a](#m6d1a--the-survey-and-the-protocol).
+- In progress: [M6d.1](#m6d1--how-an-application-is-written), cut in four at its start; done,
+  [M6d.1a](#m6d1a--the-survey-and-the-protocol); next,
+  [M6d.1b](#m6d1b--how-state-changes-the-interface).
 - [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and its open decisions; its code
   moves there at M6d.11.
 - May be cut at its start: M6d.5, AccessKit's translation apart.
@@ -48,7 +50,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.0a — The screens and the owner's programs](#m6d0a--the-screens-and-the-owners-programs) | Done |
 | [M6d.0b — Measured from outside, and ten "Hello, World!"](#m6d0b--measured-from-outside-and-ten-hello-world) | Done |
 | [M6d.0c — The applications of the market](#m6d0c--the-applications-of-the-market) | Done |
-| [M6d.1a — The survey and the protocol](#m6d1a--the-survey-and-the-protocol) | Planned |
+| [M6d.1a — The survey and the protocol](#m6d1a--the-survey-and-the-protocol) | Done |
 | [M6d.1b — How state changes the interface](#m6d1b--how-state-changes-the-interface) | Planned |
 | [M6d.1c — Rust's code reloaded, and the executor](#m6d1c--rusts-code-reloaded-and-the-executor) | Planned |
 | [M6d.1d — Layouts, styles and the host](#m6d1d--layouts-styles-and-the-host) | Planned |
@@ -201,21 +203,26 @@ tree still is, then are thrown away; their figures go to uwui's
 [`docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md). Each
 question is put to the owner, recorded in an ADR, and uwui's open decisions are updated as each
 ADR lands. Cut in four at its start, on 2026-11-06, in the order of the questions' dependencies:
-the state model decides whether Rust's code can be reloaded and who owns the interface's tasks.
+the state model decides whether Rust's code can be reloaded and who owns the interface's tasks
+([ADR-0202](adr/0202-how-m6d1-compares-ways-of-writing-an-application.md)). How the models are
+compared, the criteria, the screens and their scripted interactions, is that ADR's.
 
 ### M6d.1a — The survey and the protocol
 
 - **Goal.** What the field does on each question, and how the models will be compared.
 - **Crates.** None; a document in uwui's repository.
-- **Delivers.** A survey, each reference read on what it brings, each fact with its source,
-  version and date: Floem for signals; GPUI with gpui-kit for views that say they changed, and
-  its executor; Iced for messages; Makepad and Slint for the format of layouts; Dioxus, Flutter
-  and Jetpack Compose for Rust's code reloaded; [Rune](https://github.com/anomalyco/rune) for
-  motion that runs no view again; SwiftUI read only, without a Mac to measure it
+- **Delivers.** [The survey](https://github.com/HoneySlatt/uwui/blob/main/docs/survey-writing-an-application.md),
+  each reference read on what it brings, each fact with its source, version and date: Floem for
+  signals; GPUI with gpui-kit for views that say they changed, and its executor; Iced for
+  messages; Makepad and Slint for the format of layouts; Dioxus, Flutter and Jetpack Compose for
+  Rust's code reloaded; [Rune](https://github.com/anomalyco/rune) for motion that runs no view
+  again; SwiftUI read only, without a Mac to measure it
   ([ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)). The protocol of
-  comparison, put to the owner and recorded in an ADR: the criteria, the screens and their
-  scripted interactions, what is measured headless and how.
+  comparison, put to the owner one question at a time and recorded in
+  [ADR-0202](adr/0202-how-m6d1-compares-ways-of-writing-an-application.md).
 - **Done when.** The survey covers each question; the protocol is decided and recorded.
+- **Measured.** Nothing: a milestone of documents. The references' figures in the survey are their
+  authors'.
 
 ### M6d.1b — How state changes the interface
 
@@ -225,10 +232,12 @@ the state model decides whether Rust's code can be reloaded and who owns the int
   changed, and messages: each screen's code first written as an application's author would
   write it, then prototyped over uwui's tree on the screens with the protocol's interactions. In
   each, whether a function's body can be reloaded, a type's state migrated, and a task cancelled
-  with its component. What moving the editor and *Hunna Wood* to each model would cost.
+  with its component. What moving the editor and *Hunna Wood* to each model would cost. The
+  command that runs the measures, documented for the owner's very modest laptop.
 - **Done when.** The model is decided and recorded.
-- **Measured.** As the protocol says, for each model and screen: lines, concepts to learn,
-  errors, CPU and allocations of each phase of a frame.
+- **Measured.** Each criterion of
+  [ADR-0202](adr/0202-how-m6d1-compares-ways-of-writing-an-application.md), for each model, screen
+  and scripted interaction, without a window.
 
 ### M6d.1c — Rust's code reloaded, and the executor
 
