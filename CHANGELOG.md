@@ -25,6 +25,13 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- First measures of time (ADR-0189): `slime_app::since_start`; a windowed run logs when it
+  presents its first image, the editor when it first draws its level whole, and *Hunna Wood* when
+  it first draws its zone, each in milliseconds after the start; the trace that `SLIME_TRACE` asks
+  for holds each interval from a person's input to the present of the image after it, which
+  `scripts/frame-pacing.py` reads; the editor's `--frames <count>`, which runs that many frames
+  then quits; `scripts/start-times.sh`, which times the warm starts with `hyperfine`, now in the
+  development shell.
 - A game's window minimized: `slime_platform::Window::minimize`, the development channel's
   `Request::Minimize` and the MCP server's `minimize_game`; `Window::pre_present_notify`; CI checks
   that *Hunna Wood* minimized, its game time running, is at rest (ADR-0187).

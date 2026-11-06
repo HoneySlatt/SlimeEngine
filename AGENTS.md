@@ -44,6 +44,7 @@ cargo run --example <name>                             # examples/README.md
 cargo run --release -p slime-benches -- [<name>...]    # benches/README.md
 cargo run -p slime-benches -- --write-counters [<name>...]  # ADR-0186
 scripts/measure.sh "<title>" >> docs/measurements.md   # ADR-0104
+scripts/start-times.sh [--gpu] [--cold]                # starts, ADR-0189
 cargo run -p hunnawood -- --new --save <file>          # games/hunnawood/README.md
 cargo run --example editor -- --level <copy> --journal <file>  # examples/README.md
 cargo run --quiet -p slime-mcp                         # crates/slime-mcp/README.md

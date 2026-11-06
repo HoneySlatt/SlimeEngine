@@ -27,6 +27,9 @@
           (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml)
           pkgs.cargo-deny
           pkgs.lychee
+          # Times a program's start, from its process's launch to its exit after its first image
+          # (ADR-0189).
+          pkgs.hyperfine
           # A compositor without a screen, in which scripts/check.sh runs the windowed samples.
           pkgs.weston
           # The service of screen readers on Linux, AT-SPI, on a session bus of D-Bus of its own,

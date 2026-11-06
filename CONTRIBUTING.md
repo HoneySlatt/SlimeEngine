@@ -34,9 +34,10 @@ nix develop
 ```
 
 The shell it opens contains the pinned toolchain and the project's tools: `cargo-deny` (checks
-dependency licenses and security advisories), `lychee` (checks links in the documentation) and
-Weston (a Wayland compositor without screen, in which the checks run the windowed samples and the
-games). It also puts the windowing libraries that the engine loads at run time on the loader path.
+dependency licenses and security advisories), `lychee` (checks links in the documentation),
+`hyperfine` (times the programs' starts) and Weston (a Wayland compositor without screen, in which
+the checks run the windowed samples and the games). It also puts the windowing libraries that the
+engine loads at run time on the loader path.
 [`flake.lock`](flake.lock) pins every input, so every contributor and CI get the same versions.
 To run a single command in that environment without opening a shell, use
 `nix develop -c <command>`.
@@ -48,8 +49,8 @@ Nix only sees the files that git tracks. If you change `flake.nix` so that it re
 
 Install [rustup](https://rustup.rs). It reads `rust-toolchain.toml` and installs the pinned
 toolchain the first time you run `cargo` in the repository. Install the tools with
-`cargo install --locked cargo-deny lychee`, and Weston from your distribution's packages; CI uses
-the versions pinned by `flake.lock`. To open windows, the examples need the windowing system's
+`cargo install --locked cargo-deny lychee hyperfine`, and Weston from your distribution's packages;
+CI uses the versions pinned by `flake.lock`. To open windows, the examples need the windowing system's
 libraries, which are loaded at run time: libxkbcommon for both windowing systems;
 libwayland-client for Wayland; libX11, libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11
 for X11. Without libxkbcommon, or libxkbcommon-x11 on X11, the examples panic instead of
@@ -86,7 +87,8 @@ taskset -c 0-3 cargo run --release -p slime-benches -- [<name>...]  # the CPU be
 cargo run -p slime-benches -- --counters [<name>...]      # check the benchmarks' counters and ratios, as CI does, on lavapipe (ADR-0186)
 cargo run -p slime-benches -- --write-counters [<name>...]  # write the counters that a change changed on purpose into benches/counters.txt
 scripts/measure.sh "<title>" >> docs/measurements.md      # time the build, run the benchmarks (ADR-0104)
-scripts/frame-pacing.py <trace.json>                      # the frames' pacing in a trace written with SLIME_TRACE (ADR-0187)
+scripts/frame-pacing.py <trace.json>                      # the frames' pacing and the inputs to present in a trace written with SLIME_TRACE (ADR-0187, ADR-0189)
+scripts/start-times.sh [--gpu] [--cold] [--runs <count>]  # time the editor's and the game's starts in a headless Weston (ADR-0189)
 scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
 blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)
 cargo run -p hunnawood                                    # play the game (games/hunnawood/README.md)
@@ -338,6 +340,31 @@ SLIME_TRACE=trace.json cargo run --release --example window -- --frames 600
 scripts/frame-pacing.py trace.json
 ```
 
+The same trace holds, on a track of its own, the interval from each input that a person gives the
+window to the present of the image after it, which `scripts/frame-pacing.py` reads too, in frames
+of the editor's budget of [input to present](docs/ROADMAP.md#budgets), or of a game's with
+`--frame <milliseconds>` ([ADR-0189](docs/adr/0189-first-measures-of-time.md)). No input reaches a headless Weston: input to
+present is measured on a desktop, the editor on a copy of a level, with a journal and a state
+directory of its own, so that it writes none of the user's keys, layout and recent levels:
+
+```sh
+cp examples/assets/yard.scene examples/assets/yard.scene.meta /tmp/
+XDG_STATE_HOME=/tmp/editor-state XDG_DATA_HOME=/tmp/editor-data SLIME_TRACE=editor.json \
+    cargo run --release --example editor -- \
+    --level /tmp/yard.scene --journal /tmp/yard.journal
+scripts/frame-pacing.py editor.json
+```
+
+[`scripts/start-times.sh`](scripts/start-times.sh) times the warm starts that the
+[quality bar](docs/ROADMAP.md#4-quality-bar) budgets: the editor on the yard and the game's editor
+on its zone, to their first image presented and to their level drawn whole, and *Hunna Wood* to its
+zone drawn. `hyperfine` times each process whole and its launch alone, after three runs that fill
+the system's caches; the programs' logs give the times since the engine's start
+(`slime_app::since_start`); a start is the log's time to the first image plus the launch. It runs
+them in a headless Weston, with lavapipe, or with `--gpu` on the machine's GPU through Weston's GL
+renderer, on a machine at rest. `--cold` drops the system's caches before each run instead, through
+`sudo`: a person runs it, never a check.
+
 A windowed run measured on the machine's GPU, kept off the desktop in a headless Weston, needs
 Weston's GL renderer, `weston --backend=headless --renderer=gl`: with the default one, the GPU's
 Vulkan driver (RADV, at least) cannot present to it, and wgpu takes the CPU driver instead without
@@ -389,7 +416,9 @@ two dragged, which must then be at rest, a panel floating, none of its threads w
 [ADR-0159](docs/adr/0159-picking-and-the-selection.md),
 [ADR-0160](docs/adr/0160-two-viewports-and-blenders-way.md),
 [ADR-0169](docs/adr/0169-the-eye-and-the-lock.md), [ADR-0172](docs/adr/0172-regions-of-tabs.md)),
-the `world` example's two views captured, the map's normals shown, its reports read and an entity
+the `editor` example's start, its log saying when it presented its first image, in a run that quits
+after it, and when it drew its level whole, in a run stopped then
+([ADR-0189](docs/adr/0189-first-measures-of-time.md)), the `world` example's two views captured, the map's normals shown, its reports read and an entity
 picked at a pixel, by an agent's session through the MCP server, the benchmarks' counters, which
 must equal those that `benches/counters.txt` records, and their ratios of times, each within its
 budget, in a debug build on lavapipe ([ADR-0186](docs/adr/0186-counters-and-ratios-in-ci.md)), the `scene` example on a copy of
