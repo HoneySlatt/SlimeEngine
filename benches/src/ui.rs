@@ -205,14 +205,16 @@ pub(crate) fn times<T>(runs: usize, mut run: impl FnMut() -> T) -> Vec<Duration>
 
 /// The counters of the frame of an interface standing still that `frame` runs, after frames that
 /// left nothing to do: its elements, those that it visited, the items of its display list, and the
-/// allocations of the calling thread (`docs/adr/0186-counters-and-ratios-in-ci.md`).
+/// allocations of the calling thread and the bytes that they took
+/// (`docs/adr/0186-counters-and-ratios-in-ci.md`).
 pub(crate) fn still_counters(frame: impl FnOnce() -> (DisplayList, FrameStats)) -> Vec<Row> {
     let ((list, stats), allocations) = counted(frame);
     vec![
         Row::count("elements", stats.elements),
         Row::count("elements visited by a frame standing still", stats.visited),
         Row::count("items of a frame standing still", list.len()),
-        Row::count("allocations of a frame standing still", allocations),
+        Row::count("allocations of a frame standing still", allocations.calls),
+        Row::count("bytes allocated by a frame standing still", allocations.taken),
     ]
 }
 

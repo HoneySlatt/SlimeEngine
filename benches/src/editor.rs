@@ -13,7 +13,7 @@ use uwui::style::{Dimension, FlexDirection, Style};
 use uwui::text::Fonts;
 use uwui::tree::{LayoutDirection, RootSettings, Ui};
 
-use crate::allocations::counted;
+use crate::allocations::{Allocations, counted};
 use crate::measure::{Context, Row, timed};
 use crate::play::{copy, fresh, yard_with};
 use crate::ui::{RUNS, still_counters, times};
@@ -257,7 +257,7 @@ struct Timed {
     frame: InterfaceFrame,
     whole: Duration,
     built: Duration,
-    allocations: u64,
+    allocations: Allocations,
 }
 
 /// A frame of `window`, the core's part, then its interface built then drawn through the canvas,
@@ -308,7 +308,11 @@ fn settle(
         ),
         Row::count(
             format!("allocations of a frame standing still{name}"),
-            still.allocations,
+            still.allocations.calls,
+        ),
+        Row::count(
+            format!("bytes allocated by a frame standing still{name}"),
+            still.allocations.taken,
         ),
     ])
 }

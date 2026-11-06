@@ -1,6 +1,7 @@
-//! The benchmarks' allocator: the system's, which counts the allocations of each thread, so that a
-//! benchmark counts those of what it measures, and not those of the GPU's driver and of the
-//! engine's other threads meanwhile (`docs/adr/0186-counters-and-ratios-in-ci.md`).
+//! The benchmarks' allocator: the system's, which counts the allocations of each thread and their
+//! bytes, so that a benchmark counts those of what it measures, and not those of the GPU's driver
+//! and of the engine's other threads meanwhile (`docs/adr/0186-counters-and-ratios-in-ci.md`,
+//! `docs/adr/0202-how-m6d1-compares-ways-of-writing-an-application.md`).
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
@@ -8,14 +9,51 @@ use std::cell::Cell;
 /// The system's allocator, counting.
 pub struct Counting;
 
-thread_local! {
-    /// The calls of this thread that took memory: allocations and reallocations.
-    static ALLOCATIONS: Cell<u64> = const { Cell::new(0) };
+/// What a thread took of memory and gave back, since it started or over a span ([`counted`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Allocations {
+    /// The calls that took memory: allocations and reallocations.
+    pub calls: u64,
+    /// The bytes that they took: an allocation's size, a reallocation's new size.
+    pub taken: u64,
+    /// The bytes given back: a block freed, a reallocation's old size. A block freed by another
+    /// thread than the one that took it counts on the thread that frees it.
+    pub freed: u64,
 }
 
-/// Counts a call that takes memory. A thread whose locals are gone, as it ends, counts nothing.
-fn count() {
-    let _ = ALLOCATIONS.try_with(|allocations| allocations.set(allocations.get() + 1));
+impl Allocations {
+    /// Nothing taken, nothing given back.
+    const NONE: Self = Self {
+        calls: 0,
+        taken: 0,
+        freed: 0,
+    };
+
+    /// What was taken and given back after `before`, which this follows.
+    fn since(self, before: Self) -> Self {
+        Self {
+            calls: self.calls - before.calls,
+            taken: self.taken - before.taken,
+            freed: self.freed - before.freed,
+        }
+    }
+}
+
+thread_local! {
+    /// What this thread took of memory and gave back.
+    static ALLOCATIONS: Cell<Allocations> = const { Cell::new(Allocations::NONE) };
+}
+
+/// Counts what a call took, `taken` bytes, and gave back, `freed` bytes, `call` whether it took
+/// memory. A thread whose locals are gone, as it ends, counts nothing.
+fn count(call: bool, taken: usize, freed: usize) {
+    let _ = ALLOCATIONS.try_with(|allocations| {
+        let mut counted = allocations.get();
+        counted.calls += u64::from(call);
+        counted.taken += taken as u64;
+        counted.freed += freed as u64;
+        allocations.set(counted);
+    });
 }
 
 #[expect(
@@ -28,36 +66,37 @@ fn count() {
 // neither allocates nor unwinds.
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        count();
+        count(true, layout.size(), 0);
         // SAFETY: the caller keeps `alloc`'s contract, which `System`'s is.
         unsafe { System.alloc(layout) }
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        count();
+        count(true, layout.size(), 0);
         // SAFETY: as `alloc`.
         unsafe { System.alloc_zeroed(layout) }
     }
 
     unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
+        count(false, 0, layout.size());
         // SAFETY: `pointer` came from this allocator, so from `System`, with `layout`.
         unsafe { System.dealloc(pointer, layout) }
     }
 
     unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, size: usize) -> *mut u8 {
-        count();
+        count(true, size, layout.size());
         // SAFETY: `pointer` came from this allocator, so from `System`, with `layout`, and the
         // caller keeps `realloc`'s contract for `size`.
         unsafe { System.realloc(pointer, layout, size) }
     }
 }
 
-/// What `run` gives, and how many times the calling thread took memory meanwhile: allocations and
-/// reallocations, not what other threads took.
-pub fn counted<T>(run: impl FnOnce() -> T) -> (T, u64) {
+/// What `run` gives, and what the calling thread took of memory and gave back meanwhile, not what
+/// other threads did.
+pub fn counted<T>(run: impl FnOnce() -> T) -> (T, Allocations) {
     let before = ALLOCATIONS.with(Cell::get);
     let value = run();
-    (value, ALLOCATIONS.with(Cell::get) - before)
+    (value, ALLOCATIONS.with(Cell::get).since(before))
 }
 
 #[cfg(test)]
@@ -71,10 +110,15 @@ mod tests {
 
     #[test]
     fn the_calling_thread_s_allocations_are_counted_and_no_other_s() {
-        assert_eq!(counted(|| black_box(1 + 1)).1, 0);
-        assert_eq!(counted(|| black_box(Vec::<u8>::with_capacity(8))).1, 1);
+        assert_eq!(counted(|| black_box(1 + 1)).1, Allocations::NONE);
         assert_eq!(
-            counted(|| black_box((Box::new(1_u64), Box::new(2_u64)))).1,
+            counted(|| black_box(Vec::<u8>::with_capacity(8))).1.calls,
+            1
+        );
+        assert_eq!(
+            counted(|| black_box((Box::new(1_u64), Box::new(2_u64))))
+                .1
+                .calls,
             2,
             "twice as many allocations count twice as many"
         );
@@ -83,7 +127,7 @@ mod tests {
             vector.reserve_exact(1 << 20);
             black_box(vector)
         });
-        assert_eq!(grown.1, 2, "a reallocation counts");
+        assert_eq!(grown.1.calls, 2, "a reallocation counts");
         let stop = Arc::new(AtomicBool::new(false));
         let other = std::thread::spawn({
             let stop = Arc::clone(&stop);
@@ -97,6 +141,25 @@ mod tests {
             counted(|| std::thread::sleep(Duration::from_millis(20)));
         stop.store(true, Ordering::Relaxed);
         other.join().expect("the other thread ends");
-        assert_eq!(while_another_allocates, 0);
+        assert_eq!(while_another_allocates, Allocations::NONE);
+    }
+
+    #[test]
+    fn the_bytes_taken_given_back_and_held_are_counted() {
+        let (vector, taken) = counted(|| black_box(Vec::<u8>::with_capacity(100)));
+        assert_eq!((taken.taken, taken.freed), (100, 0));
+        let ((), freed) = counted(|| drop(vector));
+        assert_eq!((freed.calls, freed.taken, freed.freed), (0, 0, 100));
+        let (vector, grown) = counted(|| {
+            let mut vector = Vec::<u8>::with_capacity(1);
+            vector.reserve_exact(1 << 20);
+            black_box(vector)
+        });
+        assert_eq!(
+            (grown.taken, grown.freed),
+            (1 + (1 << 20), 1),
+            "a reallocation takes its new size and gives back its old one"
+        );
+        drop(vector);
     }
 }

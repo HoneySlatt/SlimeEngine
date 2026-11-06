@@ -128,9 +128,9 @@ after.
 
 A *counter* is a figure that a scenario gives the same on every machine and at every run, and in a
 debug or a release build: draw calls, instances drawn, items, glyphs, elements, elements visited,
-the bytes of a save, allocations ([ADR-0186](../docs/adr/0186-counters-and-ratios-in-ci.md)). The
-table marks no row apart: `--list` names the benchmarks that count, and a run of `--counters`
-prints their counters alone.
+the bytes of a save, allocations and their bytes
+([ADR-0186](../docs/adr/0186-counters-and-ratios-in-ci.md)). The table marks no row apart: `--list`
+names the benchmarks that count, and a run of `--counters` prints their counters alone.
 
 - `--counters [<name>...]` runs each benchmark that counts once, each of its series cut to one run
   except a ratio's, and compares its counters with those that [`counters.txt`](counters.txt)
@@ -142,9 +142,12 @@ prints their counters alone.
   and says why.
 - The interface's benchmarks count a frame standing still: its elements, those its walks visited
   (`uwui::tree::FrameStats::visited`), the items of its display list, and the allocations of the
-  thread that measures, which the program's allocator counts for each thread, so that the driver's
-  threads are left out. `editor.window` counts the allocations of its interface built alone, not
-  its core's fixed steps nor its draw, which allocates in the GPU's driver.
+  thread that measures and the bytes that they took, which the program's allocator counts for each
+  thread, so that the driver's threads are left out. It counts the bytes given back too, by which a
+  measure finds the memory held
+  ([ADR-0202](../docs/adr/0202-how-m6d1-compares-ways-of-writing-an-application.md)).
+  `editor.window` counts the allocations of its interface built alone, not its core's fixed steps
+  nor its draw, which allocates in the GPU's driver.
 
 ## What it must not do
 

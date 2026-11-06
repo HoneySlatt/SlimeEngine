@@ -3,15 +3,19 @@
 # that changes a counter on purpose writes this file again in the same commit:
 #   cargo run -p slime-benches -- --write-counters [<name>...]
 devui.world_panel.100k	allocations of a frame standing still	66
+devui.world_panel.100k	bytes allocated by a frame standing still	37562
 devui.world_panel.100k	elements	57
 devui.world_panel.100k	elements visited by a frame standing still	114
 devui.world_panel.100k	items of a frame standing still	77
 editor.hierarchy.100k	allocations of a frame standing still	19
+editor.hierarchy.100k	bytes allocated by a frame standing still	72904
 editor.hierarchy.100k	elements	319
 editor.hierarchy.100k	elements visited by a frame standing still	638
 editor.hierarchy.100k	items of a frame standing still	142
 editor.window.entities	allocations of a frame standing still, 100k	71
 editor.window.entities	allocations of a frame standing still, 10k	71
+editor.window.entities	bytes allocated by a frame standing still, 100k	73869
+editor.window.entities	bytes allocated by a frame standing still, 10k	73868
 editor.window.entities	elements visited by a frame standing still, 100k	492
 editor.window.entities	elements visited by a frame standing still, 10k	492
 editor.window.entities	elements, 100k	246
@@ -19,6 +23,7 @@ editor.window.entities	elements, 10k	246
 editor.window.entities	items of a frame standing still, 100k	194
 editor.window.entities	items of a frame standing still, 10k	194
 editor.window.zone	allocations of a frame standing still	68
+editor.window.zone	bytes allocated by a frame standing still	72687
 editor.window.zone	elements	150
 editor.window.zone	elements visited by a frame standing still	300
 editor.window.zone	items of a frame standing still	138
@@ -77,11 +82,13 @@ ui.draw.menu	items at 1280 × 800	2645
 ui.draw.menu	items at 1920 × 1080	2645
 ui.draw.menu	items at 3840 × 2160	2645
 ui.tree.editor	allocations of a frame standing still	31
+ui.tree.editor	bytes allocated by a frame standing still	4565992
 ui.tree.editor	elements	12487
 ui.tree.editor	elements visited by a frame standing still	24974
 ui.tree.editor	items of a frame standing still	10719
 ui.tree.editor	items of the first frame	10719
 ui.tree.list.100k	allocations of a frame standing still	16
+ui.tree.list.100k	bytes allocated by a frame standing still	38616
 ui.tree.list.100k	elements	164
 ui.tree.list.100k	elements visited by a frame standing still	328
 ui.tree.list.100k	items of a frame standing still	110
