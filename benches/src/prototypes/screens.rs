@@ -234,3 +234,19 @@ pub(crate) fn selection<P>(_: Scale) -> Vec<Interaction<P>> {
         },
     ]
 }
+
+/// The script of the small cases of a row playing that does not show: a list of 1,000 rows,
+/// focused, its row selected played by Enter.
+pub(crate) fn played<P>(_: Scale) -> Vec<Interaction<P>> {
+    vec![
+        open(),
+        Interaction {
+            name: "the list focused by Tab",
+            frames: each([Input::Key(NamedKey::Tab)]),
+        },
+        Interaction {
+            name: "the row selected played by Enter",
+            frames: each([Input::Key(NamedKey::Enter)]),
+        },
+    ]
+}

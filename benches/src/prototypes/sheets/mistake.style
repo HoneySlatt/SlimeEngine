@@ -1,4 +1,5 @@
-# The control's own mistake: a list of rows, the row selected filled with the accent.
+# The small cases of mistakes: a list of rows, the row selected filled with the accent, the one
+# playing with the theme's secondary container.
 
 [table]
 select = { classes = ["table"] }
@@ -7,3 +8,7 @@ style.layout.grow = 1
 [row-selected]
 select = { classes = ["row"], states = ["Selected"] }
 style.paint.background = "$accent"
+
+[row-playing]
+select = { classes = ["row", "playing"] }
+style.paint.background = "$secondary_container"

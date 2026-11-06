@@ -2138,6 +2138,13 @@ impl Ui {
         self.animating() || self.frame_requested || self.builds_asked()
     }
 
+    /// Whether the builder of `id` must run again at its next [`Ui::build`], whatever its
+    /// revision: a list in a slot that shows rows that it has not built. Used by the prototypes of
+    /// M6d.1b, whose models find the list's builder only when it is asked.
+    pub fn asks_build(&self, id: ElementId) -> bool {
+        self.node(id).is_some_and(|node| node.rebuild)
+    }
+
     /// Whether a builder must run again at the next [`Ui::build`], whatever its revision: a list
     /// shows rows that its builder has not built since it scrolled or was laid out.
     pub fn builds_asked(&self) -> bool {

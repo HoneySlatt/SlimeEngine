@@ -19,7 +19,9 @@
 
 mod control;
 mod data;
+mod described;
 mod host;
+mod messages;
 mod screens;
 
 use std::time::{Duration, Instant};
@@ -94,6 +96,12 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     chosen.bench("control", "songs", &control::SONGS)?;
     chosen.bench("control", "document", &control::DOCUMENT)?;
     chosen.bench("control", "mistakes", &control::REVISION_NOT_MOVED)?;
+    chosen.bench("messages", "hello", &messages::HELLO)?;
+    chosen.bench("messages", "library", &messages::LIBRARY)?;
+    chosen.bench("messages", "songs", &messages::SONGS)?;
+    chosen.bench("messages", "document", &messages::DOCUMENT)?;
+    chosen.bench("messages", "mistakes", &messages::LAZY_LEAVES_OUT)?;
+    chosen.bench("messages", "mistakes", &messages::FRAMES_NOT_GIVEN_UP)?;
     Ok(())
 }
 
@@ -517,6 +525,30 @@ mod tests {
     }
 
     #[test]
+    fn messages_render_each_screen_as_a_new_interface_would() {
+        assert!(
+            wrong(&messages::HELLO, true)
+                .iter()
+                .all(|&wrong| wrong == 0)
+        );
+        assert!(
+            wrong(&messages::LIBRARY, false)
+                .iter()
+                .all(|&wrong| wrong == 0)
+        );
+        assert!(
+            wrong(&messages::SONGS, false)
+                .iter()
+                .all(|&wrong| wrong == 0)
+        );
+        assert!(
+            wrong(&messages::DOCUMENT, false)
+                .iter()
+                .all(|&wrong| wrong == 0)
+        );
+    }
+
+    #[test]
     fn the_screens_do_what_their_scripts_say() {
         let played = |screen: &Screen<_>| play(screen, Scale::Short, true, false, false);
         let library = played(&control::LIBRARY).expect("the library plays");
@@ -555,6 +587,27 @@ mod tests {
             (0, 0),
             "a line that does not show draws nothing"
         );
+    }
+
+    #[test]
+    fn a_lazy_value_that_leaves_out_what_it_reads_shows_as_a_wrong_render() {
+        let wrong = wrong(&messages::LAZY_LEAVES_OUT, false);
+        assert_eq!(wrong[..2], [0, 0], "right until a row plays");
+        assert!(wrong[2] > 0, "the row playing does not show");
+    }
+
+    #[test]
+    fn frames_not_given_up_run_the_application_at_rest() {
+        let played = play(
+            &messages::FRAMES_NOT_GIVEN_UP,
+            Scale::Short,
+            true,
+            false,
+            false,
+        )
+        .expect("it plays");
+        assert!(played.still.runs > 0, "update and view run at rest");
+        assert_eq!(played.still.changed, 0, "though nothing changes");
     }
 
     #[test]
