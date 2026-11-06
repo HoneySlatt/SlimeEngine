@@ -1,5 +1,7 @@
 //! What each element draws, kept until it changes, and the display list gathered from it.
 
+use slime_color::LinearColor;
+
 use crate::Rect;
 use crate::display::{
     BoxPrimitive, DisplayList, ImagePrimitive, Primitive, ShadowPrimitive, TextPrimitive, snap,
@@ -157,8 +159,15 @@ fn primitives(
                 primitives.push((primitive, None));
             }
         }
+        Kind::Wave { share, phase } => {
+            for primitive in wave(content, *share, *phase, scale, color) {
+                primitives.push((primitive, None));
+            }
+        }
         // A splitter is its box, as its style paints it.
         Kind::Container
+        | Kind::Pressable
+        | Kind::Stack
         | Kind::Splitter { .. }
         | Kind::Scroll
         | Kind::List { .. }
@@ -168,6 +177,43 @@ fn primitives(
         | Kind::Segments { .. }
         | Kind::SectionHeader => {}
     }
+    primitives
+}
+
+/// A wave of progress across `content`, in pixels of the screen at `scale`: over the share played,
+/// dots along a sine of `phase`, every 4 logical pixels, in its text's `color`; over the rest, a
+/// flat line, of that color at a third of its alpha.
+fn wave(content: Rect, share: f32, phase: f32, scale: f32, color: LinearColor) -> Vec<Primitive> {
+    let played = content.width * share.clamp(0.0, 1.0);
+    let middle = content.y + content.height / 2.0;
+    let (dot, spacing, amplitude, wavelength) =
+        (2.0 * scale, 4.0 * scale, 3.0 * scale, 40.0 * scale);
+    let mut primitives = Vec::new();
+    let mut x = 0.0;
+    while x + dot <= played {
+        let y = middle + amplitude * (x / wavelength * std::f32::consts::TAU + phase).sin();
+        primitives.push(Primitive::Box(BoxPrimitive {
+            rect: Rect::new(content.x + x, y - dot / 2.0, dot, dot),
+            radii: [dot / 2.0; 4],
+            fill: color,
+            border_width: 0.0,
+            border: color,
+        }));
+        x += spacing;
+    }
+    let rest = LinearColor::rgba(color.r, color.g, color.b, color.a / 3.0);
+    primitives.push(Primitive::Box(BoxPrimitive {
+        rect: Rect::new(
+            content.x + played,
+            middle - scale / 2.0,
+            content.width - played,
+            scale,
+        ),
+        radii: [0.0; 4],
+        fill: rest,
+        border_width: 0.0,
+        border: rest,
+    }));
     primitives
 }
 

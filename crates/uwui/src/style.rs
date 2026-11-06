@@ -27,6 +27,8 @@ pub struct Style {
     /// How a change of its style shows: at once, or over a time
     /// (`docs/adr/0149-the-looks-foundations.md`).
     pub transition: Transition,
+    /// What it shows as it appears, from which its transition starts.
+    pub enter: Enter,
     /// The glyphs of a font of icons that its control draws in place of its shapes
     /// (`docs/adr/0150-layers.md`).
     pub icons: Icons,
@@ -66,6 +68,22 @@ pub struct Transition {
     pub duration: f32,
     /// How it goes over that time.
     pub easing: Easing,
+}
+
+/// What an element shows as it appears, from which its transition goes to its style: its style,
+/// by default, or where its style has no transition.
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(name = "UiEnter", default)]
+pub struct Enter {
+    /// Its opacity as it appears, a share of its style's: 0 for none, 1, the default, for its
+    /// style's.
+    pub opacity: f32,
+}
+
+impl Default for Enter {
+    fn default() -> Self {
+        Self { opacity: 1.0 }
+    }
 }
 
 /// How a transition goes from its start to its end over its time.

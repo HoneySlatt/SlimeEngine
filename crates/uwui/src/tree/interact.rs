@@ -915,6 +915,7 @@ impl Ui {
             | ActionKind::ContextMenu { .. }
             | ActionKind::Dismissed
             | ActionKind::Dropped { .. }
+            | ActionKind::Step(_)
             | ActionKind::Surface(_) => {
                 self.interaction.actions.push(action);
             }
@@ -932,8 +933,35 @@ impl Ui {
                 self.set_layer_place(root, Place::Floating { over, origin, size });
                 self.interaction.actions.push(action);
             }
-            ActionKind::Intent(intent) => self.move_focus(intent),
+            ActionKind::Intent(intent) => {
+                match action.element.and_then(|id| self.step(id, intent)) {
+                    Some(place) => self.interaction.actions.push(Action {
+                        element: action.element,
+                        kind: ActionKind::Step(place),
+                    }),
+                    None => self.move_focus(intent),
+                }
+            }
         }
+    }
+
+    /// The place that `intent` leads to from the selection of `id`, a list or a grid that shows
+    /// one; none for another element, another intent, or a step past its edge, where the focus
+    /// moves on.
+    fn step(&self, id: ElementId, intent: Intent) -> Option<usize> {
+        let node = self.node(id)?;
+        let selection = node.element.selection?;
+        let lines = node.lines(self.scale_of(id))?;
+        let place = match intent {
+            Intent::Up => selection.checked_sub(lines.columns)?,
+            Intent::Down => selection + lines.columns,
+            Intent::Left if lines.columns > 1 && selection % lines.columns > 0 => selection - 1,
+            Intent::Right if lines.columns > 1 && (selection + 1) % lines.columns > 0 => {
+                selection + 1
+            }
+            _ => return None,
+        };
+        (place < lines.rows).then_some(place)
     }
 
     /// The actions that the program has not taken yet, in the order they came, taken.
@@ -1287,7 +1315,7 @@ impl Ui {
         let Some(node) = self.node(id) else {
             return false;
         };
-        if !node.element.kind.takes_pointer() || node.state.disabled {
+        if !node.element.takes_focus() || node.state.disabled {
             return false;
         }
         let mut at = Some(node);
@@ -1309,6 +1337,7 @@ impl Ui {
                 matches!(
                     node.element.kind,
                     Kind::Button { .. }
+                        | Kind::Pressable
                         | Kind::CheckBox { .. }
                         | Kind::Section { .. }
                         | Kind::Tab { .. }
@@ -1333,7 +1362,7 @@ impl Ui {
             if node.style.layout.display == Display::None {
                 continue;
             }
-            if node.element.kind.takes_pointer() && !node.state.disabled {
+            if node.element.takes_focus() && !node.state.disabled {
                 found.push(id);
             }
             stack.extend(node.children.iter().rev().copied());

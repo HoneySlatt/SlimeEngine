@@ -169,14 +169,23 @@ impl Ui {
     }
 
     /// Shows `style`, the new style of `id`: at once, or from what `id` shows now, over its
-    /// transition. An element styled for the first time shows its style at once.
+    /// transition. An element styled for the first time shows its style at once, or from what its
+    /// style's `enter` gives.
     pub(crate) fn show_style(&mut self, id: ElementId, style: Arc<Style>, first: bool) {
         let (now, reduced) = (self.now, self.reduced_motion);
         let Some(node) = self.node_mut(id) else {
             return;
         };
-        let from = Shown::of(&node.style);
-        if first || reduced || !moves(&style) || from == Shown::of(&style) {
+        let from = if first {
+            let shown = Shown::of(&style);
+            Shown {
+                opacity: shown.opacity * style.enter.opacity,
+                ..shown
+            }
+        } else {
+            Shown::of(&node.style)
+        };
+        if reduced || !moves(&style) || from == Shown::of(&style) {
             node.style = style;
             node.motion = None;
             return;

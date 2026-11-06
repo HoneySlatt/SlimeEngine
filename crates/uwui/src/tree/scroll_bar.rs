@@ -37,7 +37,7 @@ impl Ui {
         if !matches!(node.element.kind, Kind::Scroll | Kind::List { .. }) {
             return Vec::new();
         }
-        let most = layout::scroll_most(&node.element.kind, &node.layout, scale);
+        let most = layout::scroll_most(node, scale);
         let thickness = node.style.control.size * scale / 2.0;
         let border = node.style.paint.border_width * scale;
         let rect = node.rect;
@@ -169,7 +169,7 @@ impl Ui {
         let Some(node) = self.node(held.element) else {
             return;
         };
-        let most = layout::scroll_most(&node.element.kind, &node.layout, scale)[held.axis];
+        let most = layout::scroll_most(node, scale)[held.axis];
         let (at, track_start, along, length) = if held.axis == 1 {
             (y, bar.track.y, bar.track.height, bar.thumb.height)
         } else {

@@ -146,6 +146,24 @@ pub enum Kind {
         rows: usize,
         /// The height of each, in logical pixels.
         row_height: f32,
+        /// For a grid, the width of each of its cells, its rows: it lays as many out on a line as
+        /// its width holds, its style's gap between them, and places them in the order that its
+        /// builder adds them, from the first that shows, whatever their keys. None for a list,
+        /// whose rows take its width.
+        cell_width: Option<f32>,
+    },
+    /// A box that takes presses, as a button does, and holds what its builder adds, as a container
+    /// does.
+    Pressable,
+    /// A box whose children lie over each other, each as large as it, the last on top.
+    Stack,
+    /// A wave of progress: a line along its box, which waves over the share played, a sine whose
+    /// phase moves, and lies flat over the rest.
+    Wave {
+        /// The share played, from 0 to 1.
+        share: f32,
+        /// The sine's phase, in radians.
+        phase: f32,
     },
     /// A field of text, which the user types in, selects, copies and composes through an input
     /// method, its text laid out as a label's: one line, which scrolls to keep the caret in view,
@@ -528,6 +546,7 @@ impl Kind {
         matches!(
             self,
             Self::Button { .. }
+                | Self::Pressable
                 | Self::TextField { .. }
                 | Self::NumberField { .. }
                 | Self::CheckBox { .. }
@@ -615,6 +634,11 @@ pub struct Element {
     /// Whether it is a pane, one of the places of its root that F6 moves the focus between
     /// (`docs/adr/0172-regions-of-tabs.md`).
     pub pane: bool,
+    /// For a list or a grid, the place of the row or cell selected, in the state
+    /// [`ElementState::selected`], scrolled into sight as it changes: the list or grid then holds
+    /// the focus, and its arrows give the place they lead to
+    /// ([`ActionKind::Step`](crate::action::ActionKind::Step)), which the program gives back.
+    pub selection: Option<usize>,
 }
 
 impl Element {
@@ -663,7 +687,14 @@ impl Element {
     /// A list of `rows` rows of `row_height` logical pixels, of which only those that show are
     /// built.
     pub fn list(rows: usize, row_height: f32, style: Style) -> Self {
-        Self::of(Kind::List { rows, row_height }, style)
+        Self::of(
+            Kind::List {
+                rows,
+                row_height,
+                cell_width: None,
+            },
+            style,
+        )
     }
 
     /// A field of one line of text, holding `text`.
@@ -898,6 +929,7 @@ impl Element {
             draggable: false,
             drop_target: false,
             pane: false,
+            selection: None,
         }
     }
 
@@ -906,6 +938,39 @@ impl Element {
     pub fn class(mut self, class: impl Into<String>) -> Self {
         self.classes.push(class.into());
         self
+    }
+
+    /// Whether it can hold the focus: a kind that takes the pointer, or a list or a grid that shows
+    /// a selection.
+    pub(crate) fn takes_focus(&self) -> bool {
+        self.kind.takes_pointer() || self.selection.is_some()
+    }
+
+    /// The element, holding the class `class` too where `holds`.
+    #[must_use]
+    pub fn class_if(self, class: impl Into<String>, holds: bool) -> Self {
+        if holds { self.class(class) } else { self }
+    }
+
+    /// The list or grid, its row or cell at `place` selected ([`Element::selection`]).
+    #[must_use]
+    pub fn selection(mut self, place: usize) -> Self {
+        self.selection = Some(place);
+        self
+    }
+
+    /// A grid of `cells` cells of `cell` logical pixels, width then height, of which only those
+    /// that show are built, as a list's rows ([`Kind::List`]): its builder asks [`Children::rows`]
+    /// which, and adds them in that order under keys of its own.
+    pub fn grid(cells: usize, cell: [f32; 2], style: Style) -> Self {
+        Self::of(
+            Kind::List {
+                rows: cells,
+                row_height: cell[1],
+                cell_width: Some(cell[0]),
+            },
+            style,
+        )
     }
 
     /// The element, of the role `role` ([`Ui::meaning`]).
@@ -1127,6 +1192,50 @@ pub struct FrameStats {
     pub animating: bool,
 }
 
+/// How a list places its rows, or a grid its cells, in logical pixels from its content's top left
+/// corner.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Lines {
+    /// How many rows or cells.
+    pub(crate) rows: usize,
+    /// How many on a line: 1 for a list.
+    pub(crate) columns: usize,
+    /// A cell's width; none for a list's rows, which take its width.
+    pub(crate) width: Option<f32>,
+    /// A row's or a cell's height.
+    pub(crate) height: f32,
+    /// From one cell to the next along a line, and from one line to the next.
+    pub(crate) step: [f32; 2],
+}
+
+impl Lines {
+    /// Where the row or cell `number` lies.
+    pub(crate) fn at(&self, number: usize) -> [f32; 2] {
+        [
+            (number % self.columns) as f32 * self.step[0],
+            (number / self.columns) as f32 * self.step[1],
+        ]
+    }
+
+    /// The height of all its lines.
+    pub(crate) fn whole_height(&self) -> f32 {
+        let lines = self.rows.div_ceil(self.columns);
+        if lines == 0 {
+            return 0.0;
+        }
+        lines as f32 * self.step[1] - (self.step[1] - self.height)
+    }
+
+    /// The rows or cells on the lines that lie between `top` and `bottom`.
+    pub(crate) fn between(&self, top: f32, bottom: f32) -> Range<usize> {
+        let first = (top / self.step[1]).floor().max(0.0) as usize;
+        let last = (bottom / self.step[1]).ceil().max(0.0) as usize;
+        let first = first.saturating_mul(self.columns).min(self.rows);
+        let last = last.saturating_mul(self.columns).min(self.rows);
+        first..last.max(first)
+    }
+}
+
 /// An element in the arena.
 pub(crate) struct Node {
     /// The number that names it to whoever reads what the interface means, given to no other
@@ -1251,7 +1360,21 @@ pub struct Ui {
     /// The elements whose style is to be made again.
     restyled: Vec<ElementId>,
     /// The rules of the style sheets that style the elements, their theme's values in them.
-    rules: Vec<Rule>,
+    rules: Arc<Vec<Rule>>,
+    /// The rules of each theme named ([`Ui::set_themes`]), by its name, and the name of the one
+    /// that styles the interface.
+    themes: Vec<(String, Arc<Vec<Rule>>)>,
+    theme: Option<String>,
+    /// Whether every element is styled again at the next frame: the theme changed.
+    restyle_all: bool,
+    /// Whether the program asked for the next frame before this one, and whether it asked for the
+    /// one after it ([`Ui::request_frame`]).
+    requested: bool,
+    frame_requested: bool,
+    /// The lists and grids whose rows or selection changed: their rows' states follow.
+    selecting: Vec<ElementId>,
+    /// What the frame under way did, from its first phase to its last.
+    stats: FrameStats,
     /// What a person's input reached, and the actions that wait for the program.
     interaction: Interaction,
     /// The system's clipboard, which its fields copy to and paste from.
@@ -1308,7 +1431,14 @@ impl Ui {
             restyled: Vec::new(),
             interaction: Interaction::default(),
             clipboard: None,
-            rules: Vec::new(),
+            rules: Arc::new(Vec::new()),
+            themes: Vec::new(),
+            theme: None,
+            restyle_all: false,
+            requested: false,
+            frame_requested: false,
+            selecting: Vec::new(),
+            stats: FrameStats::default(),
             registry: theme::registry(),
             default_style: Style::default().to_value(),
             styles: HashMap::new(),
@@ -1499,12 +1629,67 @@ impl Ui {
         sheets: &[StyleSheet],
         themes: &[Theme],
     ) -> Result<(), DocumentError> {
-        self.rules = theme::rules(&self.registry, sheets, themes)?;
+        self.rules = Arc::new(theme::rules(&self.registry, sheets, themes)?);
         self.styles.clear();
         for root in self.roots.clone() {
             self.mark_style_subtree(root);
         }
         Ok(())
+    }
+
+    /// Styles the elements as [`Ui::set_style`] does, with the themes of `base` stacked, then one
+    /// of `named`, which the program chooses by its name ([`Ui::set_theme`]): the first until it
+    /// does. Each theme's rules are made now, so that a change of theme makes none.
+    ///
+    /// # Errors
+    ///
+    /// As [`Ui::set_style`]'s, for any of the named themes: the interface keeps the style it had.
+    pub fn set_themes(
+        &mut self,
+        sheets: &[StyleSheet],
+        base: &[Theme],
+        named: &[Theme],
+    ) -> Result<(), DocumentError> {
+        let mut themes = Vec::new();
+        for theme in named {
+            let stacked: Vec<Theme> = base.iter().chain([theme]).cloned().collect();
+            let rules = theme::rules(&self.registry, sheets, &stacked)?;
+            themes.push((theme.name().to_owned(), Arc::new(rules)));
+        }
+        self.themes = themes;
+        self.theme = None;
+        if let Some(first) = named.first() {
+            self.set_theme(first.name());
+        }
+        Ok(())
+    }
+
+    /// Styles the interface with the theme named `name` of those that [`Ui::set_themes`] gave:
+    /// every element is styled again at the next frame. Nothing happens for a name that none has,
+    /// nor for the theme that styles it already.
+    pub fn set_theme(&mut self, name: &str) {
+        if self.theme.as_deref() == Some(name) {
+            return;
+        }
+        let Some((_, rules)) = self.themes.iter().find(|(theme, _)| theme == name) else {
+            return;
+        };
+        self.rules = Arc::clone(rules);
+        self.theme = Some(name.to_owned());
+        self.restyle_all = true;
+    }
+
+    /// The name of the theme that styles the interface ([`Ui::set_theme`]); none before a theme is
+    /// named.
+    pub fn theme(&self) -> Option<&str> {
+        self.theme.as_deref()
+    }
+
+    /// Asks for the frame after the next one: something moves that the program draws, as a wave
+    /// of progress. A program asks again at each frame while it moves; [`Ui::needs_frame`] says so
+    /// after the next frame.
+    pub fn request_frame(&mut self) {
+        self.requested = true;
     }
 
     /// Sets the state of `id`, which rules select elements by: its style is made again. Whether it
@@ -1542,7 +1727,7 @@ impl Ui {
         let offset = if node.changed.layout {
             offset
         } else {
-            layout::within(offset, &node.element.kind, &node.layout, scale)
+            layout::within(offset, node, scale)
         };
         if node.scroll != offset {
             node.scroll = offset;
@@ -1572,15 +1757,17 @@ impl Ui {
         let Some(node) = self.node(list) else {
             return;
         };
-        let Kind::List { rows, row_height } = node.element.kind else {
+        let scale = self.scale_of(list);
+        let Some(lines) = node.lines(scale) else {
             return;
         };
-        if row >= rows {
+        if row >= lines.rows {
             return;
         }
-        let height = node.rect.height / self.scale_of(list);
+        let row_height = lines.height;
+        let height = node.rect.height / scale;
         let [x, y] = node.scroll;
-        let top = row as f32 * row_height;
+        let top = lines.at(row)[1];
         // A list not laid out yet shows the row at its top.
         let offset = if top < y || height <= 0.0 {
             top
@@ -1700,13 +1887,29 @@ impl Ui {
     }
 
     /// Lays out the roots where something changed, draws again what changed, and gives what the
-    /// interface draws, its roots in the order they were added, and what it did.
+    /// interface draws, its roots in the order they were added, and what it did: its three phases,
+    /// [`Ui::style_phase`], [`Ui::layout_phase`] and [`Ui::display_phase`], in turn.
     pub fn frame(&mut self) -> (DisplayList, FrameStats) {
-        let mut stats = FrameStats {
+        self.style_phase();
+        self.layout_phase();
+        self.display_phase()
+    }
+
+    /// The first phase of a frame: transitions moved on, what waits on the clock settled, and the
+    /// elements whose style changed styled again.
+    pub fn style_phase(&mut self) {
+        self.stats = FrameStats {
             built: std::mem::take(&mut self.built),
             elements: self.len(),
             ..FrameStats::default()
         };
+        self.frame_requested = std::mem::take(&mut self.requested);
+        if std::mem::take(&mut self.restyle_all) {
+            self.styles.clear();
+            for root in self.roots.clone() {
+                self.mark_style_subtree(root);
+            }
+        }
         // The builders asked that are gone, or that a build ran, are asked no more.
         let mut asked = std::mem::take(&mut self.asked);
         asked.retain(|&id| self.node(id).is_some_and(|node| node.rebuild));
@@ -1729,15 +1932,21 @@ impl Ui {
         // close, and those opened by the keyboard give their first element the focus.
         self.settle_layers();
         self.focus_new_layers();
-        stats.styled += self.restyle_marked();
+        self.settle_selections();
+        self.stats.styled += self.restyle_marked();
         self.settle_input();
-        stats.styled += self.restyle_marked();
+        self.stats.styled += self.restyle_marked();
+    }
+
+    /// The second phase of a frame: the roots where something changed laid out, or their lists'
+    /// rows alone, and what scrolled placed again.
+    pub fn layout_phase(&mut self) {
         let mut laid_out = Vec::new();
         let mut lists = Vec::new();
         for root in self.roots.clone() {
             if self.node(root).is_some_and(|node| node.changed.layout) {
                 layout::lay_out(self, root);
-                stats.layouts += 1;
+                self.stats.layouts += 1;
                 laid_out.push(root);
                 lists.extend(self.lists(root));
             }
@@ -1749,7 +1958,7 @@ impl Ui {
                 .is_some_and(|root| !laid_out.contains(&root))
             {
                 lists.extend(layout::lay_out_list(self, list));
-                stats.lists += 1;
+                self.stats.lists += 1;
             }
         }
         for id in std::mem::take(&mut self.scrolled) {
@@ -1758,25 +1967,61 @@ impl Ui {
         }
         // A layer follows its anchor, which a layout or a scroll may have moved.
         let followed = self.follow_anchors();
-        stats.layouts += followed.len();
+        self.stats.layouts += followed.len();
         lists.extend(followed);
-        if stats.layouts + stats.lists > 0 || !lists.is_empty() {
+        if self.stats.layouts + self.stats.lists > 0 || !lists.is_empty() {
             self.moved();
         }
         for list in lists {
             self.update_rows(list);
         }
+    }
+
+    /// The last phase of a frame: what changed drawn again, and the display list gathered; gives it,
+    /// and what the frame did.
+    pub fn display_phase(&mut self) -> (DisplayList, FrameStats) {
         for root in self.roots.clone() {
             let (painted, visited) = paint::paint(self, root);
-            stats.painted += painted;
-            stats.visited += visited;
+            self.stats.painted += painted;
+            self.stats.visited += visited;
         }
         let mut list = DisplayList::new();
         for root in &self.roots {
-            stats.visited += paint::gather(self, *root, &mut list);
+            self.stats.visited += paint::gather(self, *root, &mut list);
         }
-        stats.animating = self.animating() || self.next_change().is_some();
-        (list, stats)
+        self.stats.animating =
+            self.animating() || self.next_change().is_some() || self.frame_requested;
+        (list, std::mem::take(&mut self.stats))
+    }
+
+    /// Gives each row or cell of the lists and grids whose rows or selection changed whether it is
+    /// the one selected.
+    fn settle_selections(&mut self) {
+        for list in std::mem::take(&mut self.selecting) {
+            let scale = self.scale_of(list);
+            let Some(node) = self.node(list) else {
+                continue;
+            };
+            let (Some(lines), Some(selection)) = (node.lines(scale), node.element.selection) else {
+                continue;
+            };
+            let first = node.rows_built.start;
+            for (place, child) in node.children.clone().into_iter().enumerate() {
+                let Some(row) = self.node_mut(child) else {
+                    continue;
+                };
+                let number = match (lines.width, &row.key) {
+                    (Some(_), _) => first + place,
+                    (None, Key::Index(number)) => *number as usize,
+                    (None, Key::Name(_)) => continue,
+                };
+                let selected = number == selection;
+                if row.state.selected != selected {
+                    row.state.selected = selected;
+                    self.mark_style(child);
+                }
+            }
+        }
     }
 
     /// Whether the interface moves on its own and needs every frame though nothing else changes: a
@@ -1793,11 +2038,15 @@ impl Ui {
     /// program that draws only when something changes asks for the next frame while it holds, and
     /// for one after [`Ui::next_change`].
     pub fn needs_frame(&self) -> bool {
-        self.animating()
-            || self
-                .asked
-                .iter()
-                .any(|&id| self.node(id).is_some_and(|node| node.rebuild))
+        self.animating() || self.frame_requested || self.builds_asked()
+    }
+
+    /// Whether a builder must run again at the next [`Ui::build`], whatever its revision: a list
+    /// shows rows that its builder has not built since it scrolled or was laid out.
+    pub fn builds_asked(&self) -> bool {
+        self.asked
+            .iter()
+            .any(|&id| self.node(id).is_some_and(|node| node.rebuild))
     }
 
     /// How long, on the interface's clock ([`Ui::advance`]), until it changes on its own, though
@@ -2141,18 +2390,16 @@ impl Ui {
         let Some(node) = self.node(id) else {
             return 0..0;
         };
-        let Kind::List { rows, row_height } = node.element.kind else {
+        let scale = self.scale_of(id);
+        let Some(lines) = node.lines(scale) else {
             return 0..0;
         };
-        if row_height <= 0.0 || rows == 0 {
+        if lines.height <= 0.0 || lines.rows == 0 {
             return 0..0;
         }
-        let scale = self.scale_of(id);
         let top = node.scroll[1] - node.layout.padding.top / scale;
         let bottom = top + node.layout.size.height / scale;
-        let first = ((top / row_height).floor().max(0.0) as usize).min(rows);
-        let last = ((bottom / row_height).ceil().max(0.0) as usize).min(rows);
-        first..last.max(first)
+        lines.between(top, bottom)
     }
 
     /// Asks the builder of the list `id` to run again when it shows other rows than it built.
@@ -2209,6 +2456,40 @@ impl Ui {
 }
 
 impl Node {
+    /// How it places its rows or cells, at the root's `scale`, from its layout's width: none for
+    /// an element that is no list nor grid.
+    pub(crate) fn lines(&self, scale: f32) -> Option<Lines> {
+        let Kind::List {
+            rows,
+            row_height,
+            cell_width,
+        } = self.element.kind
+        else {
+            return None;
+        };
+        let Some(width) = cell_width else {
+            return Some(Lines {
+                rows,
+                columns: 1,
+                width: None,
+                height: row_height,
+                step: [0.0, row_height],
+            });
+        };
+        let [row_gap, column_gap] = self.style.layout.gap;
+        let room = self.layout.content_box_width() / scale;
+        let columns = ((room + column_gap) / (width + column_gap))
+            .floor()
+            .max(1.0) as usize;
+        Some(Lines {
+            rows,
+            columns,
+            width: Some(width),
+            height: row_height,
+            step: [width + column_gap, row_height + row_gap],
+        })
+    }
+
     fn new(key: Key, element: Element) -> Self {
         let field = field::given(&element.kind).map(|text| Box::new(field::Field::new(text)));
         let mut state = ElementState::default();
@@ -2387,6 +2668,9 @@ impl<'a> Children<'a> {
                         || style
                         || classes
                         || node.element.placeholder != element.placeholder;
+                    let selection = (node.element.selection != element.selection)
+                        .then_some(element.selection)
+                        .flatten();
                     let meant = node.element.kind != element.kind
                         || node.element.role != element.role
                         || node.element.name != element.name
@@ -2400,6 +2684,11 @@ impl<'a> Children<'a> {
                         if self.ui.means(id) != meant_before {
                             self.ui.mark_meaning_above(id);
                         }
+                    }
+                    // A selection moved shows on its row, which it scrolls into sight.
+                    if let Some(selection) = selection {
+                        self.ui.selecting.push(id);
+                        self.ui.show_row(id, selection);
                     }
                     let node = self.ui.node_mut(id).expect("kept");
                     if drawn {
@@ -2465,10 +2754,14 @@ impl<'a> Children<'a> {
         }
         // A bar's tabs show which is chosen.
         ui.mark_chosen(parent);
-        // A list's builder gave the rows that it shows.
+        // A list's builder gave the rows that it shows, which show its selection.
         if ui.row_height(parent).is_some() {
             let visible = ui.visible_rows(parent);
-            ui.node_mut(parent).expect("the parent is there").rows_built = visible;
+            let node = ui.node_mut(parent).expect("the parent is there");
+            node.rows_built = visible;
+            if node.element.selection.is_some() {
+                ui.selecting.push(parent);
+            }
         }
     }
 }
@@ -2573,6 +2866,8 @@ fn kind_name(kind: &Kind) -> KindName {
         Kind::Button { .. } => KindName::Button,
         Kind::Scroll => KindName::Scroll,
         Kind::List { .. } => KindName::List,
+        // Rules select the prototypes' new kinds by their classes.
+        Kind::Pressable | Kind::Stack | Kind::Wave { .. } => KindName::Container,
         Kind::TextField { .. } => KindName::TextField,
         Kind::NumberField { .. } => KindName::NumberField,
         Kind::CheckBox { .. } => KindName::CheckBox,

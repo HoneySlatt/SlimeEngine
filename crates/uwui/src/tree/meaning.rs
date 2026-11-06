@@ -578,7 +578,9 @@ impl Ui {
         element.role.unwrap_or(match &element.kind {
             Kind::Container if in_list => Role::ListItem,
             Kind::Container if element.name.is_some() => Role::Group,
-            Kind::Container | Kind::SectionHeader => Role::GenericContainer,
+            Kind::Container | Kind::Stack | Kind::SectionHeader => Role::GenericContainer,
+            Kind::Pressable => Role::Button,
+            Kind::Wave { .. } => Role::ProgressIndicator,
             Kind::Label(_) => Role::Label,
             // What a surface shows is the program's image, which its name says.
             Kind::Image { .. } | Kind::Surface { .. } => Role::Image,

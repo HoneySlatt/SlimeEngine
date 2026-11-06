@@ -30,6 +30,10 @@ pub enum ActionKind {
     Press,
     /// A navigation intent.
     Intent(Intent),
+    /// The place that an arrow leads to in a list or a grid that shows a selection and holds the
+    /// focus ([`Element::selection`](crate::tree::Element::selection)): the row above or below, the
+    /// cell beside or on the line above or below. The program selects it, or not.
+    Step(usize),
     /// The command that a shortcut names ([`Shortcuts`](crate::shortcuts::Shortcuts)).
     Command(String),
     /// What a field holds changed, as the user edits it: at each edit, the composition of an

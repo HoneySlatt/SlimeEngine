@@ -387,7 +387,7 @@ impl Interface {
                     self.ui.set_focus(None);
                 }
                 ActionKind::Intent(Intent::Cancel) => stop = true,
-                ActionKind::Intent(_) => {}
+                ActionKind::Intent(_) | ActionKind::Step(_) => {}
                 ActionKind::Command(command) if command == "open" => self.open_dialog(),
                 ActionKind::Command(command) if command == "switch-theme" => {
                     let before = self.theme;
