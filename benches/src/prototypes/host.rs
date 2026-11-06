@@ -210,7 +210,7 @@ impl Look {
 pub(crate) struct Host<P> {
     pub(crate) ui: Ui,
     pub(crate) program: P,
-    root: ElementId,
+    pub(crate) root: ElementId,
     look: Look,
     /// When the first frame starts, on the clock that the bench moves.
     start: Instant,

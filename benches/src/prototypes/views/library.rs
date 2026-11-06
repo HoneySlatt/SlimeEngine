@@ -143,3 +143,6 @@ fn matching(games: &[Game], filter: &str) -> Vec<usize> {
         .filter(|&game| games[game].title.to_lowercase().contains(&filter))
         .collect()
 }
+
+#[cfg(test)]
+mod reload;

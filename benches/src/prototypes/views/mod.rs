@@ -11,7 +11,7 @@ pub mod library;
 pub mod mistakes;
 pub mod songs;
 
-use std::any::Any;
+use std::any::{Any, TypeId};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Range};
 use std::rc::Rc;
@@ -70,6 +70,7 @@ pub trait Render: Sized + 'static {
 /// A view as the application holds it, whatever its type.
 trait AnyView {
     fn render(&mut self, app: &mut App, entity: usize) -> El;
+    fn type_of(&self) -> TypeId;
     fn clone_view(&self) -> Box<dyn AnyView>;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
@@ -82,6 +83,10 @@ impl<T: Render + Clone> AnyView for T {
             view: PhantomData,
         };
         element_of(Render::render(self, &mut cx))
+    }
+
+    fn type_of(&self) -> TypeId {
+        TypeId::of::<T>()
     }
 
     fn clone_view(&self) -> Box<dyn AnyView> {
@@ -185,7 +190,12 @@ pub struct App {
     rows: Vec<Rows>,
     /// Renders and processors run since last counted.
     runs: usize,
+    /// The bodies that replace a type of view's `render`, as a reload swaps them, by the type.
+    patches: Vec<(TypeId, Patch)>,
 }
+
+/// A body of `render`, for a view's value of the type that it was given for.
+type Patch = Rc<dyn Fn(&mut dyn Any, &mut App, usize) -> El>;
 
 impl App {
     /// A new view of the value that `make` gives, its context given.
@@ -231,7 +241,35 @@ impl App {
         self.runs += 1;
         self.meta[entity].notified = false;
         self.meta[entity].revision += 1;
-        self.lease(entity, |value, app| value.render(app, entity))
+        self.lease(entity, |value, app| {
+            let patched = app
+                .patches
+                .iter()
+                .find(|(kind, _)| *kind == value.type_of());
+            match patched.map(|(_, patch)| Rc::clone(patch)) {
+                Some(patch) => patch(value.as_any_mut(), app, entity),
+                None => value.render(app, entity),
+            }
+        })
+    }
+
+    /// Renders each view of type `T` with `render` from now on, as a reload of its body does, and
+    /// every view again.
+    #[cfg(test)]
+    pub(crate) fn patch<T: Render + Clone>(&mut self, render: fn(&mut T, &mut Cx<T>) -> El) {
+        let patch: Patch = Rc::new(move |value, app, entity| {
+            let value = value.downcast_mut::<T>().expect("a view of its type");
+            let mut cx = Cx {
+                app,
+                entity,
+                view: PhantomData,
+            };
+            render(value, &mut cx)
+        });
+        self.patches.push((TypeId::of::<T>(), patch));
+        for meta in &mut self.meta {
+            meta.notified = true;
+        }
     }
 }
 
@@ -490,6 +528,7 @@ impl<T: Render + Clone> Window<T> {
             registry: Registry::default(),
             rows: Vec::new(),
             runs: 0,
+            patches: Vec::new(),
         };
         let root = make(&mut app);
         Self { app, root }
@@ -620,6 +659,7 @@ impl<T: Render + Clone> Model for Window<T> {
                 registry: Registry::default(),
                 rows: Vec::new(),
                 runs: 0,
+                patches: app.patches.clone(),
             },
             root: self.root.clone(),
         }

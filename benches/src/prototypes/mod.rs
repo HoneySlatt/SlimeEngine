@@ -22,6 +22,8 @@ mod data;
 mod described;
 mod host;
 mod messages;
+#[cfg(test)]
+mod reload;
 mod screens;
 mod signals;
 mod views;

@@ -612,6 +612,9 @@ struct Dyn {
 struct Mounting<'m> {
     runtime: &'m Runtime,
     shared: &'m Rc<Shared>,
+    /// The first revision of the lists and dynamic views put: past those of the tree's builders
+    /// of a view mounted before, which a reload mounts over.
+    revision: u64,
     /// The scope that owns what is made.
     scope: Id,
     rows: Vec<Rc<Rows>>,
@@ -732,7 +735,7 @@ fn mount(children: &mut Children<'_>, key: Key, el: El, mounting: &mut Mounting<
                 row,
                 scope: mounting.scope,
                 mounted: RefCell::new(Map::default()),
-                revision: Cell::new(0),
+                revision: Cell::new(mounting.revision),
             }));
             id
         }
@@ -743,7 +746,7 @@ fn mount(children: &mut Children<'_>, key: Key, el: El, mounting: &mut Mounting<
                 row: cell,
                 scope: mounting.scope,
                 mounted: RefCell::new(Map::default()),
-                revision: Cell::new(0),
+                revision: Cell::new(mounting.revision),
             });
             let to = Rc::clone(&rows);
             let first = mounting.bind(move || keys(), move |keys| Ask::Keys(Rc::clone(&to), keys));
@@ -783,7 +786,7 @@ fn mount_children(
             siblings: keys.clone(),
             place,
             content: Cell::new(None),
-            revision: Cell::new(0),
+            revision: Cell::new(mounting.revision),
         });
         let made = Rc::clone(&state);
         let to = Rc::clone(&state);
@@ -820,6 +823,8 @@ pub struct Signals<H> {
     rows: Vec<Rc<Rows>>,
     /// The views of rows and cells made since last counted, and the root's.
     made: usize,
+    /// How many times the view was mounted before, by reloads.
+    generation: u64,
 }
 
 impl<H: Copy + 'static> Signals<H> {
@@ -851,7 +856,22 @@ impl<H: Copy + 'static> Signals<H> {
             view: Some(view),
             rows: Vec::new(),
             made: 1,
+            generation: 0,
         }
+    }
+
+    /// Reloads the view's function as `start`, as a reload of its body does: run again in a new
+    /// runtime, the root scope's signals taking their values in the order that they are made,
+    /// and mounted over the tree, whose elements its keys match keep their state.
+    #[cfg(test)]
+    pub(crate) fn reload<V: View>(&mut self, start: impl Fn() -> (H, V) + 'static) {
+        let start: Rc<dyn Fn() -> (H, El)> = Rc::new(move || {
+            let (handle, view) = start();
+            (handle, element_of(view))
+        });
+        let generation = self.generation + 1;
+        *self = Self::started(self.runtime.snapshot(), Instant::now(), start);
+        self.generation = generation;
     }
 
     /// Gives the tree what the bindings that ran again ask.
@@ -904,6 +924,7 @@ impl<H: Copy + 'static> Signals<H> {
         let mut mounting = Mounting {
             runtime: &self.runtime,
             shared: &self.shared,
+            revision: self.generation << 32,
             scope,
             rows: Vec::new(),
             theme: None,
@@ -957,6 +978,7 @@ impl<H: Copy + 'static> Signals<H> {
                     let mut mounting = Mounting {
                         runtime,
                         shared: &self.shared,
+                        revision: self.generation << 32,
                         scope,
                         rows: Vec::new(),
                         theme: None,
@@ -1009,11 +1031,12 @@ impl<H: Copy + 'static> Model for Signals<H> {
                 let mut mounting = Mounting {
                     runtime: &runtime,
                     shared: &self.shared,
+                    revision: self.generation << 32,
                     scope: runtime.root(),
                     rows: Vec::new(),
                     theme: None,
                 };
-                ui.build(root, 0, |children| {
+                ui.build(root, self.generation << 32, |children| {
                     mount(children, Key::Index(0), view, &mut mounting);
                 });
                 if let Some(theme) = mounting.theme {

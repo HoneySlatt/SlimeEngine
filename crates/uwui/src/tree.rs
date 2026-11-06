@@ -1794,6 +1794,19 @@ impl Ui {
         }
     }
 
+    /// Makes each builder of `id` and the elements below it run again at its next [`Ui::build`],
+    /// whatever its revision: code reloaded shows. Used by the prototypes of M6d.1b.
+    pub fn forget_builds(&mut self, id: ElementId) {
+        let mut stack = vec![id];
+        while let Some(id) = stack.pop() {
+            let Some(node) = self.node_mut(id) else {
+                continue;
+            };
+            node.built = None;
+            stack.extend(node.children.iter().copied());
+        }
+    }
+
     /// The element that holds `id`; none for a root, or an id that names nothing.
     pub fn parent(&self, id: ElementId) -> Option<ElementId> {
         self.node(id).and_then(|node| node.parent)
