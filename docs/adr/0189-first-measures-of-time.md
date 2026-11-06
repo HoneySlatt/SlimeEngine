@@ -32,8 +32,9 @@ started, of which 31 ms to open the GPU and 23 ms to read the system's fonts; 50
 process whole.
 
 The owner decided on 2026-11-06, one question at a time: the milestone's cut, what the editor's
-first useful frame is, how a start is timed and which of its figures the budget weighs, and how
-long a frame of input to present is.
+first useful frame is, how a start is timed and which of its figures the budget weighs, how long a
+frame of input to present is, how input reaches a program measured, the editor's rate of frames
+and where it is built, and, once measured, the budgets of a level opened and of a game to control.
 
 ## Decision
 
@@ -84,6 +85,12 @@ yet if the program needs another frame for it; the compositor and the display ad
 measured. An input that waits for the run's first image, or over a new GPU device's opening, waits
 for more than frames: it is forgotten.
 
+**Input given in a headless sway.** sway, a compositor of wlroots, runs without a screen, its
+output at 240 Hz, and takes virtual input; `wlrctl` gives it a person's pointer, buttons, wheel and
+keys, which reach the window through the compositor as a person's do. `scripts/input-to-present.sh`
+gives the editor and Hunna Wood a scenario of inputs apart, then in a row, and reads their traces.
+Nothing reaches the desktop's session.
+
 **A frame of input to present is its tier's.** One frame for the editor and applications is
 4.17 ms, a frame at 240 a second on the high tier; two frames for a game are twice its tier's frame
 time, 33.3 ms at 60 a second. The figures do not change with the display.
@@ -92,7 +99,19 @@ time, 33.3 ms at 60 a second. The figures do not change with the display.
 `window` example's frames are traced and read by `scripts/frame-pacing.py`, as in
 [ADR-0187](0187-a-hidden-window-at-rest.md): the roadmap then states them supported, or not.
 
-**`hyperfine` in the development shell**, and `heaptrack` with M6c.Q2e.
+**The budgets of a level opened and of a game to control**, measured first, then decided: the
+editor, warm, from its launch to the sample's zone drawn whole, within 300 ms on the high tier; a
+game, warm, from its launch to the first frame that gives the player control, within 1 s on its
+tier's machine. Cold starts get a figure once the owner measured them.
+
+**The editor's rate of frames.** The editor and applications aim at 240 frames a second, held to
+the display: on Wayland by the compositor's signal, which already follows it
+([ADR-0187](0187-a-hidden-window-at-rest.md)); on Windows and X11, which give no such signal, by the
+refresh rate of the display that holds the window. A milestone of its own, M6c.Q2f, after M6c.Q2d,
+builds it, in an ADR that amends [ADR-0021](0021-frame-pacing.md), and measures input to present,
+variable refresh rates and rest again; M6c.Q2d measures the cap of 60 that it replaces.
+
+**`hyperfine`, sway and `wlrctl` in the development shell**, and `heaptrack` with M6c.Q2e.
 
 ## Alternatives considered
 
@@ -118,14 +137,24 @@ time, 33.3 ms at 60 a second. The figures do not change with the display.
   its intervals, and a log line says less than a trace that shows each interval among the frames.
 - **Input to present through the development channel**: a tool's request, but a tool's input does
   not cross the window, and nothing gives a headless Weston a person's input.
+- **Input to present measured by hand alone**: the owner's compositor and gestures, but at every
+  milestone that touches the pacing, by the owner; and input given to the owner's session by an
+  agent is never allowed.
+- **A level opened within 500 ms or 1 s**: met today, 466 ms, but the owner chose a bar that pushes
+  the editor ahead of the best, 300 ms, debt until met.
+- **The editor's rate raised to 240 everywhere, the display not read**: the simplest, but on
+  Windows and X11 at 60 Hz, three images of four drawn for nothing.
+- **The editor's rate built within M6c.Q2d**: one session of measures, but the milestone larger
+  still, and no figure before the change to show what it brings.
 
 ## Consequences
 
 - Every windowed program logs one line more at its start.
 - `check (windowed)` runs the editor with `--frames 1` and checks its log, about a second.
-- Input to present is not checked in CI: no input reaches a headless Weston. It is measured by
-  hand, on the owner's desktop.
-- The editor's frames, capped at 60 a second, are measured against a frame of 4.17 ms
-  ([`measurements.md`](../measurements.md)); what it misses is debt.
+- Input to present is not checked in CI: its times are absolute. It is measured on the owner's
+  machine, in a headless sway; a person's own path, the compositor and the display, is not.
+- The editor's frames, capped at 60 a second, pass a frame of 4.17 ms in motion
+  ([`measurements.md`](../measurements.md)): debt until M6c.Q2f.
+- The editor's start and a level opened pass their budgets: debt.
 - Applications on uwui are measured once they exist, at Stage 6d.
 - The roadmap's budgets of memory and power name M6c.Q2e.

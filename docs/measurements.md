@@ -1517,3 +1517,71 @@ the cache. `check (game)`'s `drive` test watches the game minimized too
 | `check (headless)` | 11 min 27 s |
 | `check (game)` | 9 min 0 s |
 | `check (windowed)` | 6 min 32 s |
+
+## M6c.Q2d, Ryzen 7 5800X and RX 6900 XT
+
+On 2026-11-06, from commit `36f92bc`, in release builds, the machine at rest, its desktop running
+([ADR-0189](adr/0189-first-measures-of-time.md)).
+
+Warm starts, as `scripts/start-times.sh --gpu` measures them, in a headless Weston 16 through its
+GL renderer, the RX 6900 XT through RADV, 20 runs each after 3 that warm the system's caches. The
+log's times count from the engine's start, medians; `hyperfine`'s, from the process's launch,
+means; a start is the log's time to the first image plus the launch:
+
+| Program | Launch, `--help` | First image, log | Start | Level or zone drawn whole, log | Run of `--frames 1` whole |
+|---|---|---|---|---|---|
+| The editor, on the yard | 1.6 ms | 176.8 ms | 178.4 ms | 173.6 ms | 190.8 ms ± 3.8 ms |
+| *Hunna Wood*'s editor, on its zone | 1.6 ms | 187.6 ms | 189.1 ms | 466.0 ms, from 419.0 to 499.6 ms | 218.2 ms ± 6.7 ms |
+| *Hunna Wood*, to its zone drawn | 1.7 ms | 201.1 ms | 202.8 ms | 341.9 ms, from 259.5 to 418.5 ms | 368.2 ms ± 41.2 ms |
+
+Where the editor's start goes, from one run's trace (`SLIME_TRACE`): the window made at 3 ms; the
+GPU opened, 50 ms; the system's fonts read (`system_fonts`), 23 ms; the renderer's pipelines made,
+45 ms; the first frame's interface built, styled and laid out, 31 ms, and drawn, 15 ms; presented
+at 176 ms.
+
+What it says: the editor's start passes its budget of 150 ms by some 30 ms, its steps run one after
+the other; the zone opened in the editor passes its budget of 300 ms; *Hunna Wood* gives control
+well within its second. The yard's few meshes load within the first frame. On lavapipe the same
+day, the machine not at rest, the editor's first image came 440 to 490 ms after the engine's start.
+
+Input to present, as `scripts/input-to-present.sh --gpu` measures it, in a headless sway 1.12
+whose output refreshes at 240 Hz, through its GL renderer: `wlrctl` gives a person's input, 40
+moves of the pointer, then clicks, wheel and keys, each 100 ms apart, then 200 moves in a row. Two
+runs; the intervals from an input to the end of the present of the image after it:
+
+| Program | Images after an input | Median | 99th percentile | Longest | Budget |
+|---|---|---|---|---|---|
+| The editor, on the yard | 67, 67 | 1.00 ms, 1.65 ms | 16.92 ms, 16.57 ms | the same | 1 frame, 4.17 ms |
+| *Hunna Wood* | 51, 57 | 12.46 ms, 12.79 ms | 21.12 ms, 19.03 ms | the same | 2 frames, 33.3 ms |
+
+What it says: an input to the editor at rest is answered within 2 ms, but in motion an input waits
+for the next frame of a schedule of 60 a second, 16.7 ms: its 99th percentile, about four frames of
+4.17 ms, passes its budget, which the editor's cap of 60 frames a second gives
+([`debt.md`](debt.md)). *Hunna Wood*'s inputs wait for its scheduled frames at 60 a second, within
+its two frames.
+
+Variable refresh rates, on the owner's desktop, the `window` example in a release build, 1 200
+frames, read by `scripts/frame-pacing.py`:
+
+| Display | Adaptive sync | Frames a second | Mean | Standard deviation | 99th percentile | Longest |
+|---|---|---|---|---|---|---|
+| DP-2, 3840 × 2160 at 240 Hz | not reported on | 60.00 | 16.667 ms | 0.029 ms | 16.710 ms | 16.959 ms |
+| DP-3, 1920 × 1080 at 180 Hz | on | 60.00 | 16.667 ms | 0.024 ms | 16.700 ms | 16.954 ms |
+
+What it says: with adaptive sync on, the frames keep [ADR-0021](adr/0021-frame-pacing.md)'s pacing
+as [ADR-0187](adr/0187-a-hidden-window-at-rest.md) leaves it. What the display shows at each refresh
+the engine does not see.
+
+## M6c.Q2d, CI's runners
+
+GitHub's hosted runners, on 2026-11-06, commit `36f92bc`, its run green. The cooked zone came from
+the cache. `check (windowed)` runs the editor once to its first image and once to its level drawn
+whole ([ADR-0189](adr/0189-first-measures-of-time.md)).
+
+| Job | Time |
+|---|---|
+| `windows` | 17 min 51 s, its tests 13 min 20 s |
+| `check (headless)` | 17 min 9 s |
+| `windows-release` | 14 min 7 s |
+| `check (game)` | 8 min 11 s |
+| `check (windowed)` | 6 min 32 s |
