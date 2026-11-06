@@ -11,8 +11,10 @@
   (applications' lower tiers; Android without Kotlin; how agents reach an application; publication
   and contributions at 1.0); amended by [0194](0194-stage-6d-uwui-leaving-the-engine.md) (what Stage 6d
   builds; its decisions taken in M6d.1), [0197](0197-uwuis-repository-public-from-now.md) (the repository public
-  from now; the name kept on crates.io) and [0199](0199-uwuis-targets-tools-and-references-narrowed.md) (the owner's desktop no
-  longer a target; `uwui bundle` delegates; updates to be evaluated)
+  from now; the name kept on crates.io), [0199](0199-uwuis-targets-tools-and-references-narrowed.md) (the owner's desktop no
+  longer a target; `uwui bundle` delegates; updates to be evaluated) and
+  [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) (four state models, today's as
+  the control)
 - Date: 2026-11-06
 
 ## Context

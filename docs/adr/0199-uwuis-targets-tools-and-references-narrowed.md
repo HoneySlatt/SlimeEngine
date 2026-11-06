@@ -4,7 +4,9 @@
   its login and lock screens and what its compositor draws, no longer targets; `uwui bundle`
   delegates to the platforms' tools; updates installed by an application to be evaluated, outside
   the core) and [0198](0198-screens-of-reference-and-the-rivals-measured.md) (M6d.1's references
-  and M6d.0b's measures widened)
+  and M6d.0b's measures widened); amended by
+  [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) (the references read, not
+  written again)
 - Date: 2026-11-06
 
 ## Context
