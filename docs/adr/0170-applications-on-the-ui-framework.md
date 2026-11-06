@@ -10,8 +10,9 @@
   [0173](0173-the-platforms-of-applications.md) (the platforms that Stage 6d aims at),
   [0178](0178-two-pilots-and-the-frameworks-name.md) (both programs ported during Stage 6d; the
   framework named now, in a repository of its own once its drawing leaves the renderer)
-  and [0181](0181-uwuis-scope.md) (uwui's scope: the base of the owner's programs, in a
-  repository of its own)
+  [0181](0181-uwuis-scope.md) (uwui's scope: the base of the owner's programs, in a
+  repository of its own) and [0190](0190-uwuis-requirements.md) (the system's integrations in an optional layer of uwui;
+  drawing without a GPU decided; uwui's stages to its 1.0 before Stage 7)
 - Date: 2026-11-04
 
 ## Context

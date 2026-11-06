@@ -9,9 +9,10 @@
   [0137](0137-the-canvas.md), [0138](0138-the-high-tier-at-3840-2160.md) and
   [0140](0140-the-tree-of-elements.md); amended by [0185](0185-rest-checked-in-ci.md) (rest read for
   each thread; a hidden game checked from M6c.Q2c), [0186](0186-counters-and-ratios-in-ci.md)
-  (M6c.Q2b cut in two; the ratio of the editor's interface) and
+  (M6c.Q2b cut in two; the ratio of the editor's interface),
   [0189](0189-first-measures-of-time.md) (the first useful frame; a frame of input to present is
-  its tier's)
+  its tier's) and [0190](0190-uwuis-requirements.md) (applications' budgets of start, memory, size and changes seen; the
+  owner's Steam Deck measures the handheld tier)
 - Date: 2026-11-05
 
 ## Context

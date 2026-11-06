@@ -11,7 +11,9 @@
   [0011](0011-windowing-with-winit.md) (uwui's desktop host uses winit too),
   [0031](0031-dev-overlay-with-egui.md) (uwui's drawing uses wgpu) and
   [0080](0080-reflection-and-serialization.md) (uwui reads its documents with `serde`);
-  amended by [0182](0182-the-engine-under-mit-or-apache-2-0.md) (the engine leaves MPL-2.0 too)
+  amended by [0182](0182-the-engine-under-mit-or-apache-2-0.md) (the engine leaves MPL-2.0 too) and
+  [0190](0190-uwuis-requirements.md) (applications' lower tiers; Android without Kotlin; how agents reach an application;
+  publication and contributions at 1.0)
 - Date: 2026-11-05
 
 ## Context

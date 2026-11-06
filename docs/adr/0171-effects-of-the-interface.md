@@ -1,7 +1,9 @@
 # 0171. Effects of the interface, at their lowest cost
 
 - Status: Accepted; amends [0170](0170-applications-on-the-ui-framework.md) (Stage 6d lays the
-  foundations of the interface's effects, and measures the power that it draws)
+  foundations of the interface's effects, and measures the power that it draws); amended by
+  [0190](0190-uwuis-requirements.md) (motion interrupted and driven by gestures, shared elements; effects lightened on
+  battery)
 - Date: 2026-11-04
 
 ## Context

@@ -17,7 +17,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
 ## Current
 
 - Stage in progress: Stage 6c, the editor, to be released as 0.7
-  ([ADR-0155](adr/0155-the-editors-design.md)).
+  ([ADR-0155](adr/0155-the-editors-design.md)); it pauses once M6c.Q2d and M6c.Q2e are done, for
+  Stage 6d and uwui's stages to its 1.0, uwui now the owner's main project
+  ([ADR-0190](adr/0190-uwuis-requirements.md)).
 - Done: M6c.0, M6c.1a, M6c.1b, M6c.2a, M6c.2b, M6c.2c, M6c.3a, M6c.3b, M6c.3c, M6c.4a, M6c.4b,
   M6c.4c, M6c.4d, M6c.5a, M6c.5b, M6c.5c, M6c.5d, M6c.5e, M6c.Q1, M6c.N, M6c.Q2a, M6c.Q2b and
   M6c.Q2c.
@@ -27,6 +29,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [M6c.Q2e](#m6cq2e--first-measures-of-resources), M6c.Q3 and M6c.Q4;
   then [M6c.5f](#m6c5f--the-inspector), the inspector.
 - Then: M6c.6, M6c.7, Checkpoint B, M6c.8, M6c.Q5, the stage's audit, and M6c.9.
+- After M6c.Q2e, Stage 6c pauses: M6c.Q3, M6c.Q4, M6c.5f and the rest resume after uwui's 1.0,
+  the editor moved onto it; Stage 6d starts, planned at its start with the owner.
 - Cuts made at a milestone's start, a part cut again at its own start where needed: M6c.1 into 1a
   and 1b; M6c.2 into 2a to 2c; M6c.3 into 3a to 3c; M6c.4 into 4a to 4d; M6c.5 into 5a to 5f;
   M6c.Q2 into Q2a and Q2b; M6c.Q2a into Q2a and Q2c, a hidden game apart
@@ -34,14 +38,16 @@ documentation was updated and reread. Every milestone is also checked on Windows
   Q2c ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)); M6c.Q2d into Q2d and Q2e, time apart
   from resources ([ADR-0189](adr/0189-first-measures-of-time.md)).
 - M6c.6 is expected to be cut in two, M6c.6a and M6c.6b.
-- After Stage 6c: Stage 6d, the interface for applications, to be released as 0.8, decided on
+- After M6c.Q2e: Stage 6d, the interface for applications, to be released as 0.8, decided on
   2026-11-04 and 2026-11-05 ([ADR-0170](adr/0170-applications-on-the-ui-framework.md),
   [ADR-0171](adr/0171-effects-of-the-interface.md),
-  [ADR-0173](adr/0173-the-platforms-of-applications.md), [ADR-0181](adr/0181-uwuis-scope.md)).
+  [ADR-0173](adr/0173-the-platforms-of-applications.md), [ADR-0181](adr/0181-uwuis-scope.md));
+  what uwui must be, decided on 2026-11-06 ([ADR-0190](adr/0190-uwuis-requirements.md)).
 - Stage 6d's first milestones are cut in ADR-0181, from the code as it stands; the rest are planned
   at its start, with the owner.
-- After Stage 6d: Stage 7, runtime systems, to be released as 0.9
-  ([`ROADMAP.md`](ROADMAP.md#stage-7--runtime-systems--09)).
+- After Stage 6d: uwui's own stages, in its repository, to its 1.0
+  ([`ROADMAP.md`](ROADMAP.md#uwui-to-its-10)); then the rest of Stage 6c; then Stage 7, runtime
+  systems, to be released as 0.9 ([`ROADMAP.md`](ROADMAP.md#stage-7--runtime-systems--09)).
 
 ## Status
 

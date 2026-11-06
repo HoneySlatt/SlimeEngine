@@ -85,8 +85,8 @@ Three tiers, each with a reference machine (ADR-0114, ADR-0138); a game picks th
 - The editor and applications aim at the high tier at 240 frames a second: 4.17 ms a frame.
 - Measured: the owner's machine alone, an RX 6900 XT and a Ryzen 7 5800X, and CI's lavapipe and WARP, drivers that render on the CPU. No tier's reference machine is measured; the GPUs' ratios come from public benchmarks.
 - A budget of the GPU is checked on the RX 6900 XT, times its tier's ratio.
-- The handheld tier's proxy: CPU benchmarks also run pinned to 4 cores (`taskset`); its GPU stays unmeasured. A Steam Deck is bought before Stage 9a.
-- Applications on uwui have lower tiers of their own, all unmeasured (ADR-0181): on the desktop, a laptop of 2015, two cores, an Intel HD 520, 4 GB, 1920 × 1080 at 60 Hz; on phones, an entry-level Android 14 phone of the class of a Helio G99, 4 GB, 90 Hz; on the web, both in a browser, the first load over Chrome's "slow 4G" profile.
+- The handheld tier's proxy: CPU benchmarks also run pinned to 4 cores (`taskset`); its GPU stays unmeasured. The owner has a Steam Deck, which measures the handheld tier once its measures are taken (ADR-0190).
+- Applications on uwui have lower tiers of their own (ADR-0181, ADR-0190): on the desktop, a Raspberry Pi 5 or an old computer without a Vulkan GPU, drawn by a light renderer on the CPU, the owner's very modest laptop measured first; on phones, an entry-level Android 14 phone of the class of a Helio G99, 4 GB, 90 Hz, unmeasured, the owner's Pixel measuring phones; on the web, both in a browser, the first load over Chrome's "slow 4G" profile.
 
 ### Budgets
 
@@ -101,10 +101,11 @@ CI checks budgets through exact counters, draws, elements, bytes, allocations, a
 | A list's frame | 0.25 ms of CPU at the 90th percentile, 100 000 rows, scrolled or still, on a Ryzen 7 5800X | `ui.tree.list.100k`, `devui.world_panel.100k`, `editor.hierarchy.100k` | by hand | the hierarchy within, still, scrolled and after a rename; over, a frame that makes the rows again after a change of the world's structure, about 1 ms, and the world panel's after a rename, 1.09 ms |
 | At rest | the editor, its floating panels and applications: 0 frames and 0 own wake-ups a second; a caret that blinks stops after 10 s without input; a game paused or hidden draws nothing | every thread's context switches over 10 s, in a headless Weston (ADR-0185, ADR-0187) | CI; a game hidden on the owner's compositor and minimized on Windows, by hand | met by the editor, a panel floating, and by a game paused, and hidden in a headless Weston and on the owner's compositor; minimized on Windows, not checked yet |
 | Input to present | at the 99th percentile, 1 frame of 4.17 ms for the editor and applications, 2 of their tier's frame for games, 33.3 ms at 60 frames a second; measured inside the engine (ADR-0189) | `input to present` in a trace, `scripts/frame-pacing.py` | by hand | not measured; the compositor and the display are not measured |
-| Start | the editor and applications, warm, from the launch to their first useful frame, the first image presented: 150 ms (ADR-0189) | `scripts/start-times.sh`: the log's time to the first image, plus the launch that `hyperfine` times | by hand | not measured; a level opened, a game to control and cold starts get figures after their first measure |
+| Start | warm, from the launch to the first useful frame, the first image presented: the editor 150 ms (ADR-0189); a typical application on the high tier 100 ms (ADR-0190) | `scripts/start-times.sh`: the log's time to the first image, plus the launch that `hyperfine` times | by hand | not measured; a level opened, a game to control and cold starts get figures after their first measure |
 | Play's time to control | 3 s, the game compiled, on its largest level | `play.zone`, `play.level.100k` | by hand | met in a release build, 2.22 s at the 90th percentile on 100 000 entities; a debug build over |
 | Memory | a game's, per tier, above; none grows over 100 undos and redos and 10 runs of Play | `heaptrack` and the resident size, from M6c.Q2e | by hand | not measured; the editor's memory and video memory on the zone get figures after their first measure |
 | Power | the editor at rest adds no power to the GPU's beyond the desktop's | the GPU's power reading, from M6c.Q2e | by hand | not measured; a game capped at 60 frames a second gets a figure after its first measure |
+| An application's size and changes | a typical application on the high tier: at most 100 MB resident at rest, a binary of at most 20 MB, a change of its interface seen within 2 s (ADR-0190) | the four programs of Stage 6d's pilots, and the application measured against the rivals | by hand | not measured: no application runs on uwui yet |
 | An answer of the development channel | a median under 20 ms | its test in `slime-channel` | CI, a bound far above the time measured, which shared runners keep | met, 0.14 ms |
 | The sample's zone | at most 1 000 000 triangles, 800 instances, 6 spot lights at night, 384 MiB of textures, 320 MiB cooked | `the_cooked_zone_keeps_within_its_budgets` | CI | met |
 | uwui's package for the web | at most 1 MB of WebAssembly compressed with brotli, fonts apart; provisional until the web's trial | the web's trial, Stage 6d | by hand | not measured |
@@ -133,7 +134,7 @@ CI checks budgets through exact counters, draws, elements, bytes, allocations, a
 | GPU abstraction | wgpu, then native backends, Vulkan and Direct3D 12, at Stage 9c (ADR-0098). Their types stay inside the `gfx` and `render` crates, and the engine's own tests, through `slime-gfx`'s `wgpu` feature (ADR-0031); the rest of the engine uses engine-owned handles. |
 | Shaders | WGSL to start |
 | First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS is built and tested in CI from Stage 6d, and supported once a Mac can check it; wgpu stays for it after Stage 9c. Games aim at no mobile platform and no web. Applications on uwui aim at Android phones and the web in a canvas too, macOS and iOS within reach (ADR-0098, ADR-0173, ADR-0181). |
-| UI | uwui, the owner's framework, in a repository of its own from Stage 6d, under MIT OR Apache-2.0, which the engine depends on, never the reverse; GPU-rendered, for the editor, the UI of games and applications (ADR-0170, ADR-0179, ADR-0181): a retained tree of its own, on parley, taffy and AccessKit, embedded in a host that calls it, drawn on wgpu by its own canvas (ADR-0098, ADR-0132). The dev overlay, tooling, runs on it since Stage 6b, which removed egui (ADR-0152). No Qt or GTK. |
+| UI | uwui, the owner's framework, in a repository of its own from Stage 6d, under MIT OR Apache-2.0, which the engine depends on, never the reverse; GPU-rendered, for the editor, the UI of games and applications (ADR-0170, ADR-0179, ADR-0181): a retained tree of its own, on parley, taffy and AccessKit, embedded in a host that calls it, drawn on wgpu by its own canvas (ADR-0098, ADR-0132). The dev overlay, tooling, runs on it since Stage 6b, which removed egui (ADR-0152). No Qt or GTK. A light renderer on the CPU where there is no GPU; agents reach an application through a channel and an MCP server of uwui's own (ADR-0190). |
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
 | Windowing and input | winit, used only inside `platform`, and in uwui's desktop host; its types never leave them (ADR-0011, ADR-0181) |
 | Entity model | The engine's own: entities, components stored by type, and a transform hierarchy, with `f64` translations (ADR-0079) |
@@ -145,10 +146,9 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier.
 
 | Topic | Candidates | Decide at |
 |---|---|---|
-| How agents reach an application on uwui, on the desktop, Android and the web | The development channel moved with uwui, an adapter, a protocol of uwui's (ADR-0181) | Stage 6d |
-| Drawing an interface without a GPU | A renderer on the CPU, lavapipe, none (ADR-0170) | Stage 6d |
+| How an application's state changes its interface | Signals, views that say they changed as in GPUI, messages as in Elm, measured on the screens of reference (ADR-0190) | Stage 6d |
 | How an interface's vector shapes are drawn | By measurement: tessellated on the CPU, distance fields, or stencil then cover (ADR-0171) | Stage 6d |
-| Notation of UI documents | The engine's notation laid out as scene files, a markup of its own, a subset of HTML and CSS (ADR-0132) | Stage 7 |
+| Notation of UI documents, uwui's format of layouts | The engine's notation laid out as scene files, a markup of its own, a subset of HTML and CSS (ADR-0132, ADR-0190) | Stage 6d |
 | Physics backend | rapier3d, Jolt or other, behind an abstraction, against the needs of ADR-0098 | Stage 7 |
 | Audio backend | To evaluate, against the needs of ADR-0098 | Stage 7 |
 | Scripting language | Lua, C#, dedicated VM, other | Stage 8 |
@@ -381,13 +381,13 @@ Stage 6 is split in three parts (ADR-0116, ADR-0131): what the editor stands on,
 - The sample game's zone moved onto a kit of prefabs, which the editor places (ADR-0155)
 - The quality bar written and checked: rest and the counters of budgets in CI, the hierarchy's search spread over frames, readers fuzzed and crash reports, then an audit of the stage before its release (ADR-0175, ADR-0176, ADR-0177)
 
-The stage's milestones, their order and the owner's two checkpoints are decided in ADR-0155 and ADR-0175, and detailed in `docs/PLAN.md`; one release, 0.7 (ADR-0131).
+The stage's milestones, their order and the owner's two checkpoints are decided in ADR-0155 and ADR-0175, and detailed in `docs/PLAN.md`; one release, 0.7 (ADR-0131). The stage pauses once M6c.Q2e is done, for Stage 6d and uwui's stages to its 1.0, then resumes (ADR-0190).
 
 **Exit.** A level of the game is built, saved and reloaded entirely in the editor, with undo/redo on every operation. The editor uses no private engine API.
 
 ### Stage 6d — The interface for applications → 0.8
 
-**Goal.** uwui, the engine's UI framework, becomes the base of the owner's programs: it runs applications on the desktop, on Android phones and on the web as well as the frameworks they leave (ADR-0181), and gains the motion, transforms and drawing that games and the editor need too, designed once for all three (ADR-0170): looks as refined as current interfaces have, glass and shapes that morph among them, at the lowest draw of power (ADR-0171).
+**Goal.** uwui, the engine's UI framework, becomes the base of the owner's programs: it runs applications on the desktop, on Android phones and on the web as well as the frameworks they leave (ADR-0181), and gains the motion, transforms and drawing that games and the editor need too, designed once for all three (ADR-0170): looks as refined as current interfaces have, glass and shapes that morph among them, at the lowest draw of power (ADR-0171). Of uwui's requirements (ADR-0190), it builds the foundations and what the four programs of its pilots need; uwui's own stages take the rest, to its 1.0.
 
 - uwui embedded in a host that calls it, never owning the loop: an API of the host for the surface, input with touch and gamepads, input methods, the lifecycle, accessibility, the clipboard and requests for frames; a desktop host, its window with its identity, its minimum size, fullscreen and being brought to the front, frames drawn only when something changes, woken from any thread; how agents drive an application, decided at the stage's start; no world, no simulation and no 3D renderer (ADR-0170, ADR-0181)
 - Writing an application more easily than with GPUI and its library of components, gpui-kit, across the whole framework, not on a few screens: an application started in one call, its components drawn from their state, events handled by closures on the elements, styles written in code beside the themes' files, which stay for agents and for changes reloaded at once; decided at the stage's start, after a design session that compares GPUI with gpui-kit, Iced, Slint and Dioxus. Judged on whole programs, the four ported and the examples, and measured on screens chosen before the work starts and never tuned for, gpui-kit's "Hello, World!" and a screen of Slatty among them: in uwui, no longer and with no more concepts to learn, and better on what GPUI lacks or does less well: a change of the look or of the layout seen without compiling again, the start, memory, power at rest and in motion, Android and the web, agents that read and drive it. A gain on one screen or one component that leaves another worse does not count
@@ -403,6 +403,19 @@ The stage's milestones, their order and the owner's two checkpoints are decided 
 - Four programs, outside this repository, ported before the API is declared stable, each with a checkpoint where the owner uses it, their figures with their present frameworks measured first: the music player on the desktop, Slatty, a launcher of games, the music player's Android prototype, measured against Jetpack Compose, and a media application (ADR-0178, ADR-0181)
 
 **Exit.** The four programs run on uwui at least as well as on their present frameworks, on each of the figures measured first (ADR-0170, ADR-0178, ADR-0181); uwui's API is declared stable, after the trials' reports; writing an application beats GPUI with gpui-kit across the whole framework, every component and every program ported, not on the screens measured alone: no longer, no more concepts, and better on each of the other figures; every need that the music player marks as indispensable exists, shown by an example and its tests; nothing is drawn at rest, under Wayland, under Xwayland, on Android and on the web; the power that the GPU and the CPU draw is measured for each effect, at rest and in motion (ADR-0171).
+
+### uwui to its 1.0
+
+**Goal.** uwui, in its own repository, becomes the framework that ADR-0190 describes, public and adopted widely, better as a whole than GPUI with gpui-kit, Flutter and Compose, SwiftUI, Electron and Tauri, Qt and Slint. Its stages are cut in uwui's roadmap, once its repository exists; the end of Stage 6c, then Stage 7, wait for its 1.0 (ADR-0190).
+
+- What the four programs did not need: the rest of the library of components, the editor of code, rich text, Markdown, the terminal, PDF, the map, the web view, charts and conversations with AIs, each a crate of its own
+- The system's integrations in a crate of their own; hosts for the owner's shell, its login and lock screens, and the compositor Umbriel; whole Android applications without Kotlin; web applications installed and offline, and uwui embedded in a page
+- Video decoded by the GPU, HDR, AVIF, JPEG XL, HEIC and Lottie; the renderer on the CPU, measured on the lowest machines
+- Extensions in WebAssembly; settings, the window's state and undo for applications; translation through Fluent
+- `uwui new`, `run`, `dev`, `bundle` and `doctor`; packages for Linux, Windows, Android and the web; signed updates; a book, a site whose demonstrations run in the browser, and small applications finished
+- WCAG 2.2 at level AA, checked; the same small application, whole, written with each rival and with uwui, measured on the owner's machines
+
+**Exit.** uwui 1.0, published, its repository, crates.io and a site, outside contributions opened: every requirement of ADR-0190 met or recorded as debt; the application measured against the rivals better than each as a whole, on lines, start, memory, frames and power; semantic versioning kept from then on.
 
 ### Stage 7 — Runtime systems → 0.9
 
@@ -610,8 +623,9 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | — | — | An audit pass and a foundations pass, released with 0.5 (ADR-0097, ADR-0116) |
 | 0.5 | 6a | What the editor stands on |
 | 0.6 | 6b | The engine's interface: its UI framework, and the editor's core |
-| 0.7 | 6c | Editor |
+| 0.7 | 6c | Editor, after uwui's 1.0: the stage paused once M6c.Q2e is done (ADR-0190) |
 | 0.8 | 6d | The interface for applications |
+| — | — | uwui to its 1.0, in its repository, before the end of Stage 6c (ADR-0190) |
 | 0.9 | 7 | Runtime systems |
 | 0.10 | 8 | Plugins, scripting |
 | 0.11 | 9a | Production renderer |
