@@ -32,8 +32,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
   ([ADR-0198](adr/0198-screens-of-reference-and-the-rivals-measured.md)).
 - In progress: [M6d.1](#m6d1--how-an-application-is-written), cut in four at its start; done,
   [M6d.1a](#m6d1a--the-survey-and-the-protocol); in progress,
-  [M6d.1b](#m6d1b--how-state-changes-the-interface), cut in three at its start, its first part
-  [M6d.1b1](#m6d1b1--the-ideal-code).
+  [M6d.1b](#m6d1b--how-state-changes-the-interface), cut in three at its start: done,
+  [M6d.1b1](#m6d1b1--the-ideal-code); next, [M6d.1b2](#m6d1b2--the-bench-on-the-control).
 - [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and its open decisions; its code
   moves there at M6d.11.
 - May be cut at its start: M6d.5, AccessKit's translation apart.
@@ -52,7 +52,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.0b — Measured from outside, and ten "Hello, World!"](#m6d0b--measured-from-outside-and-ten-hello-world) | Done |
 | [M6d.0c — The applications of the market](#m6d0c--the-applications-of-the-market) | Done |
 | [M6d.1a — The survey and the protocol](#m6d1a--the-survey-and-the-protocol) | Done |
-| [M6d.1b1 — The ideal code](#m6d1b1--the-ideal-code) | In progress |
+| [M6d.1b1 — The ideal code](#m6d1b1--the-ideal-code) | Done |
 | [M6d.1b2 — The bench, on the control](#m6d1b2--the-bench-on-the-control) | Planned |
 | [M6d.1b3 — Three models, and the choice](#m6d1b3--three-models-and-the-choice) | Planned |
 | [M6d.1c — Rust's code reloaded, and the executor](#m6d1c--rusts-code-reloaded-and-the-executor) | Planned |
@@ -262,8 +262,9 @@ ADR-0202's method, refined at its start:
   the screen's code, formatted by rustfmt, its lines and its concepts counted; beside it, the
   references' own examples of the same kind of screen, their lines and concepts. ADR-0202's method
   reviewed.
-- **Done when.** The owner has read the code and agreed that the prototypes start.
-- **Measured.** Lines and concepts; no program runs.
+- **Done when.** The owner has read the code and agreed that the prototypes start: done on
+  2026-11-06.
+- **Measured.** Lines and concepts, in the ideal code's README; no program runs.
 
 ### M6d.1b2 — The bench, on the control
 
