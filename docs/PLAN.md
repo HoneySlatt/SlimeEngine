@@ -235,15 +235,33 @@ views that say they changed, and messages, each prototyped over uwui's tree and 
 start, on 2026-11-06: the ideal code is put to the owner before any prototype, and the bench is
 checked on the control before the other models are compared on it.
 
+ADR-0202's method, refined at its start:
+
+- Counts, of work, allocations, bytes and items dirtied, are exact: the prototypes run on one
+  thread, on data made in the program, without chance. Each is taken once, and checked equal on a
+  second run, which shows any that is not. Times are the median of 21 runs, with their range, in
+  release builds on the high tier's machine: enough runs for a median that a few slow ones do not
+  move, in seconds.
+- Lines are counted after rustfmt with its defaults, edition 2024, by uwui's
+  [`scripts/count_code.py`](https://github.com/HoneySlatt/uwui/blob/main/scripts/count_code.py);
+  concepts as each file's header lists them, one bullet each.
+- Whether a model allows each reload is answered without `subsecond` or `serde`, whose ADRs are
+  M6d.1c's: a function's body by a table of the entry points' addresses that the test swaps, as
+  `subsecond` does; a type's state by a form that does not depend on its layout, written by hand
+  and read into the changed type. The state is then checked: the scroll, the selection, a field's
+  text, the filter and a page open. How long a reload takes is M6d.1c's.
+
 ### M6d.1b1 — The ideal code
 
 - **Goal.** Each screen's code as an application's author would want to write it, in each model,
   before any prototype.
 - **Crates.** None; files in uwui's repository.
 - **Delivers.** For each of the four models and the four screens of
-  [ADR-0202](adr/0202-how-m6d1-compares-ways-of-writing-an-application.md), the screen's code,
-  formatted by rustfmt, its lines and its concepts counted; beside it, the references' own examples
-  of the same kind of screen, their lines and concepts. ADR-0202's method reviewed.
+  [ADR-0202](adr/0202-how-m6d1-compares-ways-of-writing-an-application.md), in uwui's
+  [`docs/ideal-code/`](https://github.com/HoneySlatt/uwui/blob/main/docs/ideal-code/README.md),
+  the screen's code, formatted by rustfmt, its lines and its concepts counted; beside it, the
+  references' own examples of the same kind of screen, their lines and concepts. ADR-0202's method
+  reviewed.
 - **Done when.** The owner has read the code and agreed that the prototypes start.
 - **Measured.** Lines and concepts; no program runs.
 
@@ -257,7 +275,11 @@ checked on the control before the other models are compared on it.
   all; the time from an input to the display list that shows it, on a clock that the test moves;
   the memory held open and after a close; a frame where nothing changed; the display list compared
   with a new interface's after each scripted interaction; the screens' data made in the program.
-  The control prototyped from its ideal code and measured on each screen. The command that runs
+  What the four models share, built once on the branch, as
+  [the ideal code](https://github.com/HoneySlatt/uwui/blob/main/docs/ideal-code/README.md#what-the-prototypes-must-add-to-uwuis-tree)
+  lists it: elements made without a style, a grid, the selection of a grid and a list, a theme by
+  its name, frames asked for, each frame's time, an element's style as it appears, the wave. The
+  control prototyped from its ideal code and measured on each screen. The command that runs
   the measures, documented for the owner's very modest laptop.
 - **Done when.** The control's figures are in uwui's
   [`docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md), and
