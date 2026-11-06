@@ -1809,3 +1809,25 @@ What it says:
   rest is to be measured on an application that rests; the `window` example's is checked in CI
   ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
 - Under Xwayland it wakes five times as often for the same frames.
+
+## M6d.1b2, the bench on the control
+
+The bench's figures, the control's, are uwui's: its
+[`docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#the-control-on-m6d1bs-bench-2026-11-06).
+Here, CI's times for the change kept on `main`, the benchmarks' allocator counting bytes.
+
+### CI's runners
+
+GitHub's hosted runners, on 2026-11-06, commit `db1821e`, its run green.
+
+| Job | Time |
+|---|---|
+| `windows` | 19 min 21 s |
+| `windows-release` | 14 min 20 s |
+| `check (headless)` | 13 min 45 s |
+| `check (windowed)` | 6 min 44 s |
+| `check (game)` | 5 min 57 s |
+
+`windows` came within 39 s of the limit of 20 minutes, 4 min 17 s longer than at M6d.0a's
+`0a1ba51`; why is not established. Its lack of room is known debt
+([`debt.md`](debt.md)).

@@ -33,7 +33,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - In progress: [M6d.1](#m6d1--how-an-application-is-written), cut in four at its start; done,
   [M6d.1a](#m6d1a--the-survey-and-the-protocol); in progress,
   [M6d.1b](#m6d1b--how-state-changes-the-interface), cut in three at its start: done,
-  [M6d.1b1](#m6d1b1--the-ideal-code); next, [M6d.1b2](#m6d1b2--the-bench-on-the-control).
+  [M6d.1b1](#m6d1b1--the-ideal-code) and [M6d.1b2](#m6d1b2--the-bench-on-the-control); next,
+  [M6d.1b3](#m6d1b3--three-models-and-the-choice), on the bench's branch, `m6d1b-bench`.
 - [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and its open decisions; its code
   moves there at M6d.11.
 - May be cut at its start: M6d.5, AccessKit's translation apart.
@@ -53,7 +54,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.0c — The applications of the market](#m6d0c--the-applications-of-the-market) | Done |
 | [M6d.1a — The survey and the protocol](#m6d1a--the-survey-and-the-protocol) | Done |
 | [M6d.1b1 — The ideal code](#m6d1b1--the-ideal-code) | Done |
-| [M6d.1b2 — The bench, on the control](#m6d1b2--the-bench-on-the-control) | Planned |
+| [M6d.1b2 — The bench, on the control](#m6d1b2--the-bench-on-the-control) | Done |
 | [M6d.1b3 — Three models, and the choice](#m6d1b3--three-models-and-the-choice) | Planned |
 | [M6d.1c — Rust's code reloaded, and the executor](#m6d1c--rusts-code-reloaded-and-the-executor) | Planned |
 | [M6d.1d — Layouts, styles and the host](#m6d1d--layouts-styles-and-the-host) | Planned |
@@ -284,17 +285,27 @@ ADR-0202's method, refined at its start:
   the measures, documented for the owner's very modest laptop.
 - **Done when.** The control's figures are in uwui's
   [`docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md), and
-  the bench shows the control's own mistake, a revision not moved, as a wrong render.
-- **Measured.** Each criterion of ADR-0202 for the machine, for the control, without a window.
+  the bench shows the control's own mistake, a revision not moved, as a wrong render: done on
+  2026-11-06.
+- **Measured.** Each criterion of ADR-0202 for the machine, for the control, without a window:
+  [the control's figures](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#the-control-on-m6d1bs-bench-2026-11-06),
+  with how the bench measures, the command for the owner's laptop, and the lines that the
+  prototype forced to change.
+- **Where.** The bench and the control's prototype on the branch
+  [`m6d1b-bench`](https://github.com/HoneySlatt/SlimeEngine/tree/m6d1b-bench/benches/src/prototypes),
+  `slime-benches --prototypes`, which M6d.1b3 extends and which is thrown away once M6d.1b ends;
+  on `main`, the benchmarks' allocator, which counts bytes too.
 
 ### M6d.1b3 — Three models, and the choice
 
 - **Goal.** The owner chooses the state model.
 - **Crates.** None kept.
 - **Delivers.** Signals, views that say they changed, and messages, prototyped on the bench from
-  their ideal code, the lines that it forced to change counted. Each model's small cases of wrong
-  renders and panics. In each, whether a function's body can be reloaded, a type's state migrated,
-  and a task cancelled with its component. What moving the editor and *Hunna Wood* to each model
+  their ideal code, the lines that it forced to change counted; elements nested as tuples, which
+  the three write and the control does not, added to the bench's shared parts; the bench's delay
+  ended by each model's own pending work too, not only by a builder asked. Each model's small
+  cases of wrong renders and panics. In each, whether a function's body can be reloaded, a type's
+  state migrated, and a task cancelled with its component. What moving the editor and *Hunna Wood* to each model
   would cost, counted in their code.
 - **Done when.** The model is decided and recorded in an ADR; uwui's open decisions are updated.
 - **Measured.** Each criterion of ADR-0202, for each model, screen and scripted interaction,
