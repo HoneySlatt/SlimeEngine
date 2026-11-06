@@ -12,8 +12,11 @@ Pre-alpha. The roadmap is cut into *stages*, each ending with a release, and a s
 *milestones*, each a change that is checked whole.
 
 - Latest release: 0.6, tag `v0.6.0`, which closed Stage 6b, the engine's interface.
-- In progress on `main`: Stage 6c, the editor, to be released as 0.7. [`docs/PLAN.md`](docs/PLAN.md)
-  says where it stands.
+- In progress on `main`: Stage 6d, in which uwui, the engine's UI framework, leaves for
+  [its own repository](https://github.com/HoneySlatt/uwui). [`docs/PLAN.md`](docs/PLAN.md) says
+  where it stands.
+- Paused: Stage 6c, the editor, to be released as 0.7 with Stage 6d, which resumes after uwui's
+  1.0 ([`docs/stage-6c.md`](docs/stage-6c.md)).
 - The finished stages: [`docs/history.md`](docs/history.md). What comes next:
   [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
@@ -138,8 +141,8 @@ are in [`docs/debt.md`](docs/debt.md).
 
 - No audio, physics or animation.
 - Screen readers read the examples' interfaces; games leave them out until Stage 7, runtime systems.
-- The editor is not finished: [`docs/PLAN.md`](docs/PLAN.md) lists what Stage 6c still brings, the
-  inspector among it.
+- The editor is not finished: [`docs/stage-6c.md`](docs/stage-6c.md) lists what Stage 6c still
+  brings, the inspector among it.
 - The cooker imports glTF scenes, scene files and PNG and JPEG images only, and a scene is loaded
   whole.
 - *Hunna Wood* keeps one run, in one file, and refuses the saves of the versions before 0.5.

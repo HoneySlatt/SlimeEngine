@@ -135,6 +135,7 @@ Each file: what it holds; when to update it.
   Afterwards only its status changes.
 - `docs/adr/README.md`: the ADRs' index and statuses; either changes.
 - `docs/PLAN.md`: current stage, milestones, status, linking to facts; every milestone.
+- `docs/stage-6c.md`: Stage 6c's plan while it is paused; back into `docs/PLAN.md` when it resumes.
 - `docs/debt.md`: open known debt, each item: what is missing or wrong, why, where followed; debt introduced or settled.
 - `docs/history.md`: finished stages in brief, versions and ADRs, newest first; a stage finished.
 - `docs/ROADMAP.md`: direction, stage order, exit criteria, the quality bar's budgets;

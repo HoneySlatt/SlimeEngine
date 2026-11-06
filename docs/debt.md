@@ -97,7 +97,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The window cannot go fullscreen.
   On Windows, winit 0.30 reports as raw motion the positions that a virtual machine's tablet or a remote desktop gives ([ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md)).
   M6c.7 brings files dropped on Windows and X11.
-  Stage 6d brings gamepads and fullscreen ([ADR-0170](adr/0170-applications-on-the-ui-framework.md)).
+  Fullscreen comes with uwui's desktop host at Stage 6d, gamepads with uwui's first stage ([ADR-0194](adr/0194-stage-6d-uwui-leaving-the-engine.md)).
   Files dropped on Wayland wait for winit 0.31 ([ADR-0155](adr/0155-the-editors-design.md)).
 - **A compositor that stops answering blocks the engine.**
   Before the first frame, winit waits for the window's first configuration without a timeout: only a second termination signal ends the process.
@@ -594,7 +594,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Every view of four samples makes its depth so, whether it outlines or not, which some GPUs may compress less; nothing has measured it.
 - **A comment within a value written on several lines is lost** when the editor writes the level again, but for the end of the value's first line (`slime_serialize::keep_comments`).
 - **The canvas draws nothing turned or scaled** ([ADR-0137](adr/0137-the-canvas.md)).
-  The items' transforms, whose place they keep, come with Stage 6d ([ADR-0170](adr/0170-applications-on-the-ui-framework.md)).
+  The items' transforms, whose place they keep, come with uwui's first stage ([ADR-0194](adr/0194-stage-6d-uwui-leaving-the-engine.md)).
   An image is read at its first level: one drawn much smaller than it is shows steps.
   An image's edges are neither rounded nor smoothed between two pixels.
   An image of colors darkens where an opaque texel meets a transparent one of another color, its texels filtered before they are multiplied by their alpha.

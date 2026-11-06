@@ -16,444 +16,263 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 ## Current
 
-- Stage in progress: Stage 6c, the editor, to be released as 0.7
-  ([ADR-0155](adr/0155-the-editors-design.md)); paused since 2026-11-06, M6c.Q2d and M6c.Q2e done,
-  for Stage 6d and uwui's stages to its 1.0, uwui now the owner's main project
+- Stage in progress: Stage 6d, uwui leaving the engine, released with 0.7, planned with the owner on
+  2026-11-06 ([ADR-0194](adr/0194-stage-6d-uwui-leaving-the-engine.md),
+  [ADR-0195](adr/0195-a-series-of-headless-compositors.md),
+  [ADR-0196](adr/0196-checks-by-hand-on-macos.md),
+  [ADR-0197](adr/0197-uwuis-repository-public-from-now.md)).
+- Done: none yet.
+- Now: [M6d.0](#m6d0--the-figures-before).
+- [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and its open decisions; its code
+  moves there at M6d.11.
+- May be cut at their start: M6d.1 into its survey and its decisions; M6d.5, AccessKit's translation
+  apart.
+- Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
+  [`stage-6c.md`](stage-6c.md). It resumes after uwui's 1.0, the editor moved onto it
   ([ADR-0190](adr/0190-uwuis-requirements.md)).
-- Done: M6c.0, M6c.1a, M6c.1b, M6c.2a, M6c.2b, M6c.2c, M6c.3a, M6c.3b, M6c.3c, M6c.4a, M6c.4b,
-  M6c.4c, M6c.4d, M6c.5a, M6c.5b, M6c.5c, M6c.5d, M6c.5e, M6c.Q1, M6c.N, M6c.Q2a, M6c.Q2b,
-  M6c.Q2c, M6c.Q2d and M6c.Q2e.
-- Checkpoint A: done on Linux; its part in the Windows virtual machine waits for the owner.
-- Next, after the pause: the rest of the [quality milestones](#the-quality-milestones)
-  ([ADR-0175](adr/0175-the-quality-bar.md)),
-  [M6c.Q2f](#m6cq2f--the-editor-at-the-displays-rate), M6c.Q3 and M6c.Q4;
-  then [M6c.5f](#m6c5f--the-inspector), the inspector.
-- Then: M6c.6, M6c.7, Checkpoint B, M6c.8, M6c.Q5, the stage's audit, and M6c.9.
-- Stage 6c paused: M6c.Q2f, M6c.Q3, M6c.Q4, M6c.5f and the rest resume after uwui's 1.0, the
-  editor moved onto it; Stage 6d starts, planned at its start with the owner.
-- Cuts made at a milestone's start, a part cut again at its own start where needed: M6c.1 into 1a
-  and 1b; M6c.2 into 2a to 2c; M6c.3 into 3a to 3c; M6c.4 into 4a to 4d; M6c.5 into 5a to 5f;
-  M6c.Q2 into Q2a and Q2b; M6c.Q2a into Q2a and Q2c, a hidden game apart
-  ([ADR-0185](adr/0185-rest-checked-in-ci.md)); M6c.Q2b into Q2b and Q2d, the first measures after
-  Q2c ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)); M6c.Q2d into Q2d and Q2e, time apart
-  from resources ([ADR-0189](adr/0189-first-measures-of-time.md)).
-- Added on 2026-11-06: M6c.Q2f, the editor at the display's rate, after the pause; its rule is
-  designed with uwui's desktop host, at Stage 6d
-  ([ADR-0191](adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md)).
-- M6c.6 is expected to be cut in two, M6c.6a and M6c.6b.
-- Now: Stage 6d, the interface for applications, to be released as 0.8, decided on
-  2026-11-04 and 2026-11-05 ([ADR-0170](adr/0170-applications-on-the-ui-framework.md),
-  [ADR-0171](adr/0171-effects-of-the-interface.md),
-  [ADR-0173](adr/0173-the-platforms-of-applications.md), [ADR-0181](adr/0181-uwuis-scope.md));
-  what uwui must be, decided on 2026-11-06 ([ADR-0190](adr/0190-uwuis-requirements.md)).
-- Stage 6d's first milestones are cut in ADR-0181, from the code as it stands; the rest are planned
-  at its start, with the owner.
-- After Stage 6d: uwui's own stages, in its repository, to its 1.0
-  ([`ROADMAP.md`](ROADMAP.md#uwui-to-its-10)); then the rest of Stage 6c; then Stage 7, runtime
-  systems, to be released as 0.9 ([`ROADMAP.md`](ROADMAP.md#stage-7--runtime-systems--09)).
+- After Stage 6d: uwui's stages, in its repository, to its 1.0
+  ([`ROADMAP.md`](ROADMAP.md#uwuis-stages)); then the rest of Stage 6c; then Stage 7, runtime
+  systems, to be released as 0.8 ([`ROADMAP.md`](ROADMAP.md#stage-7--runtime-systems--08)).
 
 ## Status
 
 | Milestone | Status |
 |---|---|
-| M6c.0 — Before the stage | Done 2026-10-27, CI green on `bb4552b` |
-| M6c.1a — The window and its operations | Done 2026-10-28, [ADR-0156](adr/0156-the-editors-window-and-its-operations.md), CI green on `a20c15c` |
-| M6c.1b — Dialogs, the cursor held and the GPU's identity | Done 2026-10-28, [ADR-0157](adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md), CI green on `49620a2` |
-| M6c.2a — The viewport and its navigation | Done 2026-10-28, [ADR-0158](adr/0158-the-viewport.md), CI green on `7d51d93` |
-| M6c.2b — Picking and the selection | Done 2026-10-28, [ADR-0159](adr/0159-picking-and-the-selection.md), CI green on `00766ea` |
-| M6c.2c — A second viewport and Blender's way | Done 2026-10-28, [ADR-0160](adr/0160-two-viewports-and-blenders-way.md), CI green on `271cdd7` |
-| M6c.3a — Move with handles | Done 2026-10-28, [ADR-0161](adr/0161-the-open-step-and-the-handles.md), CI green on `55258a9` |
-| M6c.3b — Create and arrange | Done 2026-10-28, [ADR-0162](adr/0162-creating-copying-and-arranging.md), CI green on `95b7bbc` |
-| M6c.3c — Place prefabs and see the history | Done 2026-10-28, [ADR-0163](adr/0163-placing-prefabs-and-the-history-panel.md), CI green on `b5b350b` |
-| M6c.4a — Play the level | Done 2026-10-28, [ADR-0164](adr/0164-play.md), CI green on `dd44fe6` |
-| M6c.4b — Edit while playing | Done 2026-10-28, [ADR-0165](adr/0165-editing-while-playing.md), CI green on `ff64197` |
-| M6c.4c — Build the game again | Done 2026-10-28, [ADR-0166](adr/0166-building-the-game-again.md), CI green on `b271491` |
-| M6c.4d — Measure Play | Done 2026-10-28, CI green on `cb8d694` |
-| [Checkpoint A — The owner tries the editor](#checkpoint-a--the-owner-tries-the-editor) | Done on Linux; the Windows virtual machine to come |
-| M6c.5a — The hierarchy | Done 2026-10-29, [ADR-0167](adr/0167-the-hierarchy.md), CI green on `2f78cce` |
-| M6c.5b — Rearrange the hierarchy | Done 2026-10-29, [ADR-0168](adr/0168-rearranging-the-hierarchy.md), CI green on `b7952a9` |
-| M6c.5c — The eye and the lock | Done 2026-11-04, [ADR-0169](adr/0169-the-eye-and-the-lock.md), CI green on `b2e1c1a` |
-| M6c.5d — Regions of tabs | Done 2026-11-04, [ADR-0172](adr/0172-regions-of-tabs.md), CI green on `06faca1` |
-| M6c.5e — Layouts kept, floating panels and closed panels | Done 2026-11-05, [ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md), CI green on `9edb2f8` |
-| M6c.Q1 — The quality bar written | Done 2026-11-05, [ADR-0175](adr/0175-the-quality-bar.md), CI green on `23d4027` |
-| M6c.N — The framework named uwui | Done 2026-11-05, [ADR-0179](adr/0179-the-framework-named-uwui.md), CI green on `0a858f8` |
-| M6c.Q2a — Rest, checked in CI | Done 2026-11-05, [ADR-0185](adr/0185-rest-checked-in-ci.md), CI green on `4164455` |
-| M6c.Q2b — Counters and ratios in CI | Done 2026-11-05, [ADR-0186](adr/0186-counters-and-ratios-in-ci.md), CI green on `7535915` |
-| [M6c.Q2c — A hidden game at rest](#m6cq2c--a-hidden-game-at-rest) | Done 2026-11-05, [ADR-0187](adr/0187-a-hidden-window-at-rest.md), CI green on `5002bf1`; by hand on Linux done, the Windows virtual machine waiting for the owner |
-| [M6c.Q2d — First measures of time](#m6cq2d--first-measures-of-time) | Done 2026-11-06, [ADR-0189](adr/0189-first-measures-of-time.md), [ADR-0191](adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md), [ADR-0192](adr/0192-the-budget-of-a-cold-start.md), CI green on `649467c` |
-| [M6c.Q2e — First measures of resources](#m6cq2e--first-measures-of-resources) | Done 2026-11-06, [ADR-0193](adr/0193-first-measures-of-resources.md), CI green on `5d9ee34` |
-| [M6c.Q2f — The editor at the display's rate](#m6cq2f--the-editor-at-the-displays-rate) | Planned, after the pause |
-| [M6c.Q3 — The hierarchy's search over frames](#m6cq3--the-hierarchys-search-over-frames) | Planned |
-| [M6c.Q4 — Fuzzing and crash reports](#m6cq4--fuzzing-and-crash-reports) | Planned |
-| [M6c.5f — The inspector](#m6c5f--the-inspector) | Planned |
-| [M6c.6 — Levels of several files, and links](#m6c6--levels-of-several-files-and-links) | Planned |
-| [M6c.7 — Build from a kit](#m6c7--build-from-a-kit) | Planned |
-| [Checkpoint B — The exit rehearsal](#checkpoint-b--the-exit-rehearsal) | Planned |
-| [M6c.8 — Panels dragged to dock](#m6c8--panels-dragged-to-dock) | Planned |
-| [M6c.Q5 — The audit of Stage 6c](#m6cq5--the-audit-of-stage-6c) | Planned |
-| [M6c.9 — Windows check, documentation, release 0.7](#m6c9--windows-check-documentation-release-07) | Planned |
+| [M6d.0 — The figures before](#m6d0--the-figures-before) | Planned |
+| [M6d.1 — How an application is written](#m6d1--how-an-application-is-written) | Planned |
+| [M6d.2 — Typed styles](#m6d2--typed-styles) | Planned |
+| [M6d.3 — Documents with serde](#m6d3--documents-with-serde) | Planned |
+| [M6d.4 — The canvas in uwui, on wgpu](#m6d4--the-canvas-in-uwui-on-wgpu) | Planned |
+| [M6d.5 — The host's API](#m6d5--the-hosts-api) | Planned |
+| [M6d.6 — A series of headless compositors](#m6d6--a-series-of-headless-compositors) | Planned |
+| [M6d.7 — The desktop host: its window and its frames](#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
+| [M6d.8 — The desktop host: clipboard, input methods, accessibility](#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
+| [M6d.9 — Agents reach an application](#m6d9--agents-reach-an-application) | Planned |
+| [M6d.10 — uwui designed as a project](#m6d10--uwui-designed-as-a-project) | Planned |
+| [M6d.11 — The move](#m6d11--the-move) | Planned |
+| [M6d.12 — The audit of Stage 6d](#m6d12--the-audit-of-stage-6d) | Planned |
 
-## Stage 6c — The editor
+## Stage 6d — uwui leaves the engine
 
-Exit criterion ([`ROADMAP.md`](ROADMAP.md#stage-6c--the-editor--07)): a level of the game is
-built, saved and reloaded entirely in the editor, with undo and redo on every operation; the editor
-uses no private engine API. Released as 0.7 ([ADR-0131](adr/0131-stage-6b-and-stage-6c.md)).
+Exit criterion ([`ROADMAP.md`](ROADMAP.md#stage-6d--uwui-leaves-the-engine)): uwui's code in its
+repository, its CI green on Linux, Windows and macOS and its builds for the web, Android and iOS;
+the engine depending on it, the editor's and the game's checks and budgets unchanged; how an
+application is written decided; uwui's first stage planned.
 
-[ADR-0155](adr/0155-the-editors-design.md) records the owner's decisions of 2026-10-27: the
-editor's design, the milestones, their order, the two checkpoints, one release and the
-dependencies. Each milestone delivers what ADR-0155 decides for it, and:
+Each milestone:
 
-- records the design of a part in a new ADR, which amends ADR-0155 where it changes it;
-- adds a dependency only when it first uses it, and checks what it adds to CI's build;
-- ends with an agent's session in `scripts/check.sh`, in a headless Weston when windowed, and image
-  tests of the panels it adds;
-- measures the budgets of the [quality bar](ROADMAP.md#4-quality-bar) that it touches, and records
-  how long CI's jobs take in [`measurements.md`](measurements.md), each within its limit of 20
-  minutes;
+- records the design of a part in a new ADR;
+- adds a dependency only when it first uses it, put to the owner first;
+- keeps the editor and *Hunna Wood* working, their checks and budgets run at each push;
+- measures the budgets of the [quality bar](ROADMAP.md#4-quality-bar) that it touches, and of
+  [uwui's](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#2-quality-bar), and records how long CI's jobs take in
+  [`measurements.md`](measurements.md), each within its limit of 20 minutes;
 - may be cut in two at its start.
 
-Out of scope: panels in windows of their own (one window per process); a highlight that follows
-the pointer; the world updated in place keeping a game's handles (Stage 8); files dropped on
-Wayland, and placed where they fall, which wait for winit 0.31 (a milestone of its own, not holding
-0.7 back); named layouts; a
-start page or a manager of projects; modal keys G, R and S; a wireframe of the whole scene; a fix
-of [ADR-0041](adr/0041-render-graph.md)'s stall, unless the owner brings it in; editors of
-materials, animation, effects and sound (Stage 11); a game's own editing tools (Stage 8); story
-layers (Stage 9b); cells and streaming (Stage 10a).
+Figures of the programs that leave other frameworks belong to uwui: they go to its repository's
+`docs/measurements.md`. GPU measures wait while the owner plays on the machine.
 
-Open risks (ADR-0155's context gives their figures):
+Out of scope: what uwui's first stage builds after the move, the trials, touch, fonts given as
+bytes, the authoring API built, drawing, images, motion, components and the four ports
+([uwui's roadmap](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#4-stages)); the editor moved onto uwui's components,
+at Stage 6c's resumption.
 
-- ADR-0041's stall makes a view drawn again cost milliseconds of CPU without resizable BAR, on the
-  owner's machine too; the editor and the game at once, and Windows, are not measured.
-- On Windows, a running executable may block Play's link of the game.
-- Not measured: the outline and the handles at 3840 × 2160 with many entities selected; thumbnails
-  of thousands of meshes; docking's drags.
-- The stage's size: ADR-0155's study counted 31 000 to 39 000 lines of Rust with their tests.
-- winit 0.31, in beta for months, and `accesskit_winit`'s release for it.
+Open risks:
 
+- The canvas's layout: handing items on as instances was measured slower than reading them by
+  their index, and WebGL2 allows 15 values between the shader's stages
+  ([ADR-0194](adr/0194-stage-6d-uwui-leaving-the-engine.md)).
+- `slime-color` derives the engine's `Reflect`: leaving with uwui, Rust's orphan rule would make the
+  engine's lowest crate depend on uwui.
+- Docks' layouts and shortcuts saved by users, read by a new reader.
+- KWin and Mutter headless in CI: a session bus each, events dropped before a device is resumed, a
+  first key lost; no tool of libei's drives them.
+- The history filtered at the move must hold no personal data.
 
-### Checkpoint A — The owner tries the editor
+### M6d.0 — The figures before
 
-- **What.** The owner, for about an hour, on Linux and in the Windows virtual machine: flies
-  through the zone, selects, rearranges it and plays it; the raw motion, the cursor held, the
-  game's child process and the system's firewall, the dialogs.
-- **Result.** A list of frictions, and this plan adjusted.
-- **Linux, 2026-10-29.** All worked. Flying was slow: it now starts at a speed that suits the
-  level, kept per level and shown in the status bar. No cut; "keep this value" moved to M6c.5f.
-- **Windows virtual machine.** Waits for the owner.
+- **Goal.** The stage starts from figures measured, and from screens of reference chosen before
+  any work and never tuned for.
+- **Crates.** None; `scripts/`; the four programs' repositories, read only.
+- **Delivers.** The screens of reference, chosen with the owner and written in uwui's quality bar:
+  gpui-kit's "Hello, World!", a screen of Slatty, one of the music player, and those the owner
+  adds. The four programs measured with their present frameworks: their start, their frames while
+  they scroll and animate, their memory, their power at rest, on the owner's machine and the
+  owner's very modest laptop, named. [ADR-0180](adr/0180-one-canvas-and-the-frameworks-foundations.md)'s
+  figures: what `Renderer::new` costs an application in start, memory and video memory against
+  the canvas alone; what a program on uwui compiles, its crates, its build time and its size.
+- **Done when.** Each figure is measured, or says why not; the screens are written down.
+- **How to test.** The existing measures, pointed at each program.
+- **Measured.** As delivered.
+- **By hand.** The owner: the laptop's inventory and its measures; the music player's Android
+  prototype in Compose, on the Pixel.
 
-### The quality milestones
+### M6d.1 — How an application is written
 
-The owner decided on 2026-11-05 the engine's budgets and how they are checked
-([ADR-0175](adr/0175-the-quality-bar.md), [ADR-0176](adr/0176-fuzzing-and-crash-reports.md),
-[ADR-0177](adr/0177-audits-and-releases.md)), and placed these milestones before M6c.5f, the
-stage's audit before M6c.9. Their figures live in the
-[quality bar](ROADMAP.md#4-quality-bar).
+- **Goal.** The owner decides how an application on uwui is written, from prototypes measured on
+  the screens of reference.
+- **Crates.** None kept: the prototypes live on a branch, then are thrown away.
+- **Delivers.** A survey of GPUI with gpui-kit, Iced, Slint, Dioxus, Flutter, Jetpack Compose and
+  SwiftUI; signals, views that say they changed, and messages, each prototyped on the screens over
+  uwui's tree; the format of layouts; Rust's code reloaded with its state kept; the interface's
+  executor and its waker; the time of each frame that motion reads; an application started in one
+  call; styles written in code beside the themes' files. Each question put to the owner, then
+  recorded in an ADR, and uwui's open decisions updated.
+- **Done when.** Every question is decided and recorded; the prototypes' figures are kept.
+- **Measured.** For each model and screen: lines, concepts to learn, CPU and allocations of a
+  frame.
 
-### M6c.Q2a — Rest, checked in CI
+### M6d.2 — Typed styles
 
-- **Goal.** The editor, its floating panels, and a game paused draw nothing and wake themselves
-  not at all, and CI keeps them so.
-- **Crates.** `slime-app`, `slime-mcp`, `hunnawood`; `scripts/check.sh`.
-- **Delivers.** As [ADR-0185](adr/0185-rest-checked-in-ci.md) decides: a check in a headless
-  Weston that runs the editor idle, a panel floating, and the game paused, and finds no own
-  wake-up of any thread over 10 s, from `/proc/<pid>/task/<tid>/status`; the editor's check of at
-  most 2 frames brought to none; a game's frames set on demand while it runs, as Hunna Wood does
-  while paused; what wakes for nothing, fixed.
-- **Done when.** The check fails on a program made to wake itself, and passes on the editor and the
-  game; CI is green, each job within 20 minutes.
-- **How to test.** `cargo test -p slime-mcp --test rest`; `scripts/check.sh windowed` and
-  `scripts/check.sh game`.
-- **Measured.** Rest; the jobs that run the check.
+- **Goal.** uwui's styles cascade as typed values, without the engine's reflection.
+- **Crates.** `uwui`, `slime-editor`, `hunnawood-editor`.
+- **Delivers.** A part of a style as a type of its own, each field optional, merged by the
+  cascade; the themes' named values resolved by type; styles written in code as M6d.1 decides.
+- **Done when.** A property test: any style written as before reads the same through the typed
+  cascade; the look's image tests and counters are unchanged; CI is green.
+- **How to test.** `cargo test -p uwui -p slime-editor`; `scripts/check.sh`.
+- **Measured.** The editor's interface and its counters; a frame that styles again after a change
+  of theme.
 
-### M6c.Q2b — Counters and ratios in CI
+### M6d.3 — Documents with serde
 
-- **Goal.** CI keeps every budget that counters and ratios of times can hold, and the editor's
-  interface is measured.
-- **Crates.** `slime-benches`, `uwui`, `slime-editor`, `hunnawood-editor`; `scripts/check.sh`.
-- **Delivers.** As [ADR-0186](adr/0186-counters-and-ratios-in-ci.md) decides: the editor's whole
-  window run offscreen (`slime_editor::Offscreen`), and its benchmarks on the zone and at 10 000
-  and 100 000 entities, judged by hand against the budget of the editor's interface; their
-  counters, elements, elements visited, items drawn and allocations of a frame standing still, and
-  the ratio of the interface's cost at 100 000 entities to at 10 000, within its budget, in CI; the steady counters of the existing
-  benchmarks in CI, from `benches/counters.txt`; the CPU benchmarks on 4 cores.
-- **Done when.** A counter doubled fails CI; CI is green, each job within 20 minutes.
-- **How to test.** `cargo test -p slime-benches -p uwui -p slime-editor`;
-  `cargo run -p slime-benches -- --counters`; `scripts/check.sh game`.
-- **Measured.** The editor's interface; the CPU benchmarks on 4 cores; the jobs that run the
-  counters ([`measurements.md`](measurements.md#m6cq2b-ryzen-7-5800x-and-rx-6900-xt)).
+- **Goal.** uwui reads and writes its documents with `serde`, and the files that users saved open
+  as before.
+- **Crates.** `uwui`, `slime-cook`, `slime-editor`, `slime-color`, `hunnawood`.
+- **Delivers.** Themes, style sheets, shortcuts and docks' layouts read and written by `serde` and
+  `toml`, behind a feature; without it, a theme written in code. Decided at its start: the cooked
+  form of these documents, and `slime-color`'s home with its reflection.
+- **Done when.** Every document of the repository, and layouts and shortcuts saved by the editor
+  kept as fixtures, read the same as before; `cargo tree -p uwui` holds neither `slime-reflect`
+  nor `slime-serialize`; CI is green.
+- **How to test.** `cargo test -p uwui -p slime-cook -p slime-editor`.
+- **Measured.** Reading the editor's documents at its start.
 
-### M6c.Q2c — A hidden game at rest
+### M6d.4 — The canvas in uwui, on wgpu
 
-- **Goal.** A game hidden draws nothing and wakes itself not at all, and CI keeps it so.
-- **Crates.** `slime-platform`, `slime-app`, `slime-mcp`; `scripts/check.sh`.
-- **Delivers.** As [ADR-0185](adr/0185-rest-checked-in-ci.md) decides: on Wayland, frames drawn
-  on the compositor's signal (`pre_present_notify`), the loop waking on no schedule of its own
-  while it waits for one; on Windows, a minimized window drawing nothing; a way to hide the game in
-  a headless Weston without an input injected; the check of rest run on the game hidden; ADR-0021's
-  pacing measured again while visible.
-- **Done when.** The check passes on the game hidden, and fails on it with the old pacing; CI is
-  green, each job within 20 minutes.
-- **How to test.** `scripts/check.sh game`.
-- **Measured.** Rest of a hidden game; the frames' pacing while visible, against ADR-0021's
-  ([`measurements.md`](measurements.md#m6cq2c-ryzen-7-5800x)).
-- **By hand.** A hidden game on the owner's compositor, and minimized in the Windows virtual
-  machine. Done on 2026-11-05 on the owner's compositor: *Hunna Wood* hidden, none of its threads
-  switching in 10 s, and the frames' pacing on the owner's display that of ADR-0021
-  ([`measurements.md`](measurements.md#m6cq2c-ryzen-7-5800x)); the Windows virtual machine waits
-  for the owner.
+- **Goal.** uwui draws itself with a wgpu device and a target, without the engine's renderer, on a
+  path that WebGL2 takes.
+- **Crates.** `uwui-render`, `slime-render`, `slime-gfx`, `slime-app`, `slime-devui`,
+  `slime-editor`, `hunnawood`; `AGENTS.md`.
+- **Delivers.** First, a prototype thrown away: items handed on as flat values of instances,
+  against items kept in a texture that the shader reads by their index, each counted against
+  WebGL2's limits for the drawing that uwui's first stage plans, and measured. Then the canvas in
+  `uwui-render` on the layout chosen, taking a device, its queue and a target; the engine handing
+  it its device and composing it over its views; image tests on wgpu's GL backend at WebGL2's
+  limits, if the owner accepts wgpu's `gles` feature; AGENTS.md's rule on wgpu's types naming
+  `uwui-render`.
+- **Done when.** The editor, the dev overlay and *Hunna Wood*'s menus draw as before in their image
+  tests; a test draws a tree of uwui with a bare wgpu device; CI is green.
+- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
+- **Measured.** `render.canvas` and `ui.draw.menu`, before and after, at 3840 × 2160 on the
+  RX 6900 XT, within the interface's 0.5 ms.
 
-### M6c.Q2d — First measures of time
+### M6d.5 — The host's API
 
-- **Goal.** The budgets of a start and of input to present each have a first figure, and variable
-  refresh rates are stated supported or not.
-- **Crates.** `slime-app`, `slime-editor`, `uwui`, `hunnawood`; `flake.nix`, `scripts/`.
-- **Delivers.** As [ADR-0189](adr/0189-first-measures-of-time.md) decides, cut from M6c.Q2b by
-  [ADR-0186](adr/0186-counters-and-ratios-in-ci.md): `slime_app::since_start`; the first image
-  presented logged by every windowed run, the level drawn whole by the editor and the zone drawn by
-  Hunna Wood; the editor's `--frames`; input to present in the trace, read by
-  `scripts/frame-pacing.py`; `scripts/start-times.sh`; `scripts/input-to-present.sh`, a person's
-  input given in a headless sway by `wlrctl` ([ADR-0191](adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md)); `hyperfine`, sway and `wlrctl` in the development
-  shell, `dependencies.md` and `CONTRIBUTING.md`; first measures of the warm start, the read of the
-  system's fonts included, of a level opened, a game to control and input to present; variable
-  refresh rates checked against [ADR-0021](adr/0021-frame-pacing.md)'s pacing as M6c.Q2c leaves it;
-  figures decided by the owner for a level opened, a game to control and a cold start.
-- **Done when.** The start and input to present have a figure measured, or say why not; CI is
-  green, each job within 20 minutes.
-- **How to test.** `cargo test -p slime-app -p slime-editor`; `scripts/check.sh windowed`;
-  `scripts/start-times.sh [--gpu]`; `scripts/input-to-present.sh [--gpu]`;
-  `scripts/frame-pacing.py <trace.json>`.
-- **Measured.** Starts, warm, and input to present, on the RX 6900 XT; variable refresh rates on the
-  owner's displays ([`measurements.md`](measurements.md#m6cq2d-ryzen-7-5800x-and-rx-6900-xt)).
-- **By hand.** Variable refresh rates on the owner's displays, done on 2026-11-06: ADR-0021's
-  pacing unchanged with adaptive sync, at 60 frames a second, which divides the refresh, so not yet
-  judged (M6c.Q2f); cold starts, measured by the owner the same day
-  ([ADR-0192](adr/0192-the-budget-of-a-cold-start.md)).
+- **Goal.** A host drives uwui through one explicit API, and the engine is its first host.
+- **Crates.** `uwui`, `slime-app`, `slime-platform`.
+- **Delivers.** As [ADR-0181](adr/0181-uwuis-scope.md) decides and M6d.1 shapes: the surface
+  created, lost, made again and resized, with its scale; the pointer, multi-touch, the keyboard and
+  gamepads as events; the bridge to input methods; the lifecycle; the clipboard; requests for
+  frames, the time of a frame, and a waker from any thread; the translation of meaning into
+  AccessKit's tree moved into uwui; `slime-app` a host through this API alone.
+- **Done when.** `slime-app` reaches uwui through the API alone; the editor's and the game's
+  sessions, rest and input to present are unchanged; CI is green.
+- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
+- **Measured.** Rest; input to present; the editor's start.
 
-### M6c.Q2e — First measures of resources
+### M6d.6 — A series of headless compositors
 
-- **Goal.** The budgets of memory and power each have a first figure, or say why not.
-- **Crates.** `slime-mcp`; `flake.nix`, `scripts/`.
-- **Delivers.** As [ADR-0175](adr/0175-the-quality-bar.md) decides, cut from M6c.Q2d by
-  [ADR-0189](adr/0189-first-measures-of-time.md), and as
-  [ADR-0193](adr/0193-first-measures-of-resources.md) measures them: first measures of memory over
-  100 undos and redos and 10 runs of Play, of the editor's memory and video memory on the zone, and
-  of the GPU's power at rest and of a game capped at 60 frames a second, by
-  `crates/slime-mcp/tests/resources.rs` and `scripts/resources.sh`; `heaptrack` in the development
-  shell, `dependencies.md` and `CONTRIBUTING.md`; figures decided by the owner for the editor's
-  memory and video memory and a game's power.
-- **Done when.** Memory and power have a figure measured, or say why not; CI is green, each job
-  within 20 minutes.
-- **How to test.** `scripts/resources.sh --gpu` and `scripts/resources.sh --gpu --heaptrack`, on a
-  machine at rest; `scripts/check.sh headless`, which lints the measure.
-- **Measured.** Memory, video memory and power, on the RX 6900 XT
-  ([`measurements.md`](measurements.md#m6cq2e-ryzen-7-5800x-and-rx-6900-xt)).
-- **By hand.** The GPU's power on the owner's machine, the desktop at rest, done on 2026-11-06 in a
-  headless Weston beside it.
+- **Goal.** The editor and the game are checked on headless Weston, sway, KWin, Mutter and X11
+  through Xvfb, and what differs is written down.
+- **Crates.** `slime-mcp`; `scripts/`, `flake.nix`, `.github/workflows/`.
+- **Delivers.** As [ADR-0195](adr/0195-a-series-of-headless-compositors.md) decides: a development
+  shell and a job of CI of their own, run when the platform layer or the desktop host changes,
+  every week and on demand; input for each family, the dependency of libei's client put to the
+  owner; rest, an agent's session, decorations, the scale, frames and presentation times, the
+  clipboard and the cursor's shapes checked on each; each compositor's protocols listed by
+  `wayland-info`; a table of what differs.
+- **Done when.** Each compositor runs the checks, or its report says why not; the job is within 20
+  minutes; CI is green.
+- **How to test.** The new job, run on demand.
+- **Measured.** The job's time; what each compositor adds to the store.
 
-### M6c.Q2f — The editor at the display's rate
+### M6d.7 — The desktop host: its window and its frames
 
-After Stage 6c's pause, once uwui's desktop host follows the rule
-([ADR-0191](adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md)).
+- **Goal.** An application runs on uwui alone: its window, frames at the display's rate, none at
+  rest, on every compositor of the series.
+- **Crates.** uwui's desktop host, a new crate; `uwui`; an example.
+- **Delivers.** The window's identity, its minimum size, fullscreen, brought to the front, its
+  closing intercepted; decorations of the system where the compositor draws them, drawn by uwui
+  elsewhere. The ADR of the frames' rate, which amends [ADR-0021](adr/0021-frame-pacing.md) and
+  which M6c.Q2f waits for: on the compositor's signal on Wayland, by the refresh rate of the
+  display that holds the window on Windows and X11, a display that reports none included. A waker
+  from any thread; an example; a check that a program on uwui and its host compiles neither the
+  renderer, the world nor the editor; a job of CI that builds and tests uwui and its host on macOS
+  ([ADR-0173](adr/0173-the-platforms-of-applications.md)).
+- **Done when.** The example rests on every compositor of the series; its input to present is
+  within 4.17 ms in a headless sway at 240 Hz; the check fails on a program made to pull
+  `slime-render`; CI is green, macOS included.
+- **How to test.** `cargo test -p uwui`; the series' job; `scripts/input-to-present.sh`.
+- **Measured.** The host's own cost against a bare winit and wgpu window, in the same run: start,
+  memory, the binary's size, rest, input to present. The applications' budgets get first figures,
+  not judged on the example.
+- **By hand.** The owner's desktop; the Windows virtual machine; macOS 26
+  ([ADR-0196](adr/0196-checks-by-hand-on-macos.md)).
 
-- **Goal.** The editor's input to present stays within one frame of 4.17 ms in motion, on a display
-  at 240 Hz, and no image is drawn that the display does not show.
-- **Crates.** Those that run the editor's frames when Stage 6c resumes, the editor moved onto uwui
-  ([ADR-0190](adr/0190-uwuis-requirements.md)).
-- **Delivers.** The rule that the ADR of uwui's desktop host decides at Stage 6d, which amends
-  [ADR-0021](adr/0021-frame-pacing.md), applied to the editor: its frames at the display's rate, on
-  Wayland by the compositor's signal, on Windows and X11 by the refresh rate of the display that
-  holds the window.
-- **Done when.** The editor's input to present in motion is within its budget in a headless sway at
-  240 Hz, its frames follow a display at 60 Hz, variable refresh rates are stated supported or not
-  at a rate that does not divide the display's refresh, and it rests as before; CI is green, each
-  job within 20 minutes.
-- **How to test.** `scripts/input-to-present.sh --gpu`; `scripts/check.sh windowed`.
-- **Measured.** Input to present, the frames' pacing at 60 and 240 Hz, rest.
-- **By hand.** Variable refresh rates on the owner's displays; the editor's rate on Windows, in the
-  virtual machine.
+### M6d.8 — The desktop host: clipboard, input methods, accessibility
 
-### M6c.Q3 — The hierarchy's search over frames
+- **Goal.** Copying and pasting, typing through an input method, and screen readers work on every
+  compositor of the series.
+- **Crates.** uwui's desktop host; `uwui`.
+- **Delivers.** A clipboard that every compositor serves, its design in an ADR; input methods;
+  AccessKit's adapter.
+- **Done when.** Copy and paste are tested on each compositor, Mutter's and Weston's included; CI is
+  green.
+- **How to test.** The series' job.
+- **By hand.** Orca on the owner's desktop, Narrator in the Windows virtual machine, VoiceOver and
+  text input on macOS 26.
 
-- **Goal.** A search of a hierarchy of 100 000 entities keeps the editor's interface within its
-  budget.
-- **Crates.** `slime-editor`.
-- **Delivers.** The search spread over frames, its rows shown as they are found, a new search
-  ending the one that runs; `editor.hierarchy.100k` measures each frame of a search.
-- **Done when.** No frame of a search at 100 000 entities passes the interface's budget on the
-  Ryzen 7 5800X; a search spread finds what a search at once finds; CI is green.
-- **How to test.** `cargo test -p slime-editor`;
-  `cargo run --release -p slime-benches -- editor.hierarchy.100k`.
-- **Measured.** The editor's interface during a search.
-- **Debt settled.** The search run over the whole world at once ("The hierarchy").
+### M6d.9 — Agents reach an application
 
-### M6c.Q4 — Fuzzing and crash reports
+- **Goal.** An agent reads and drives an application on uwui, as it does a game.
+- **Crates.** uwui's channel and its MCP server, new crates.
+- **Delivers.** A channel whose protocol does not depend on its transport, so that Android and the
+  web can carry it later; an MCP server; the engine's own channel unchanged.
+- **Done when.** An agent drives the example in a headless Weston; CI is green.
+- **How to test.** The server's session tests.
+- **Measured.** An answer of the channel.
 
-- **Goal.** The readers of files are fuzzed every week, and a crash leaves a report that the user
-  can attach to an issue.
-- **Crates.** A `fuzz/` package outside the workspace; the programs' start.
-- **Delivers.** As ADR-0176 decides: a target for each reader of untrusted files,
-  `nix develop .#fuzz`, a few minutes each in CI's weekly run, crashing inputs kept and replayed by
-  `cargo test`; the crash report, pointed to at the next start; each bug found fixed with its test.
-- **Done when.** Each target ran in CI's weekly run; a program made to panic writes its report, and
-  points to it at its next start; CI is green.
-- **How to test.** `nix develop .#fuzz -c cargo fuzz run <target>`; `cargo test --workspace`.
-- **Measured.** The weekly run's jobs.
+### M6d.10 — uwui designed as a project
 
-### M6c.5f — The inspector
+- **Goal.** uwui's repository is ready to receive its code. Builds nothing.
+- **Delivers.** Put to the owner, then recorded: uwui's first stage, its milestones and their order,
+  the trials before the authoring API is built proposed; how its ADRs are numbered; the moved
+  crates' names; how the engine follows uwui after the move; which repository holds the
+  interface's budgets; what stands for the engine in uwui, its benchmarks and a menu driven by a
+  gamepad; how the engine keeps a series of compositors for its platform layer. uwui's
+  `AGENTS.md`, roadmap and plan updated.
+- **Done when.** The owner has validated uwui's documents.
 
-- **Goal.** The user changes the components of what is selected in an inspector, and keeps a value
-  of the running game.
-- **Crates.** `slime-devui`, `slime-editor`.
-- **Delivers.** `slime-devui`'s builder of an entity's components made public, and the inspector
-  on it: components added and removed; several entities selected, a mixed value shown as "—", a
-  check box's third state; overrides marked by a bar and a bold label, Revert and Apply for each
-  field; driven fields read-only; the interim world panel retired. "Keep this value", placed here by
-  the owner on 2026-10-29: a value read in the game that Play runs made a step of the level; its
-  design decides what a step keeps, a field's value, a component's or an entity's.
-- **Done when.** An agent reverts an override and keeps a value of the running game; image tests of
-  the inspector; CI is green.
-- **How to test.** `cargo test -p slime-devui -p slime-editor`.
-- **By hand.** The inspector, read by Orca on Linux and by Narrator in the Windows virtual machine.
-- **Debt settled.** A check box without a third state; an entity that a run created, wrote into its
-  level and destroyed coming back
-  ([ADR-0124](adr/0124-driven-components-keys-and-created-entities-in-levels.md)), which a value
-  that the editor keeps settles.
+### M6d.11 — The move
 
-### M6c.6 — Levels of several files, and links
+- **Goal.** uwui's code lives in its repository, and the engine depends on it.
+- **Delivers.** The history of uwui's files filtered from a clone by `git filter-repo`, following
+  their former paths, and merged into uwui's repository, checked for personal data, authored by
+  the owner's identity alone, its links to the engine's ADRs made absolute; the crates that leave
+  with it, as M6d.10 decides; its CI on Linux, Windows and macOS, and its builds for the web,
+  Android and iOS; the engine depending on it; uwui's files removed here, every document updated.
+- **Done when.** Both repositories' CI are green; the engine's budgets are unchanged.
+- **Measured.** Both CIs' times; the engine's build time.
 
-- **Goal.** A level is made of several files, which the editor writes together, and an entity
-  refers to entities of other files.
-- **Crates.** `slime-world`, `slime-serialize`, `slime-reflect`, `slime-cook`, `slime-devui`,
-  `slime-editor`; `.gitattributes`; the examples' yard and *Hunna Wood*'s zone.
-- **Delivers.** As [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md) decides too, in
-  two parts, each likely a milestone; the first part's ADR amends
-  [ADR-0091](adr/0091-scene-documents-and-placements.md) for the layout.
-  - *M6c.6a, levels of several files.* It starts with two unproven risks: writing several files
-    whole or not at all, beside `World::carry` and saves per scene, and opening leniently by
-    splicing text back. The new layout of scene files, whole, in one change: the level's parts in a
-    table of their own, former identities, the absolute identities that `EntityRef` writes, and
-    whether a file says the parents and the order of a placement's entities. The core over several
-    files: a step across files, the journal's entries naming their files, every file written or
-    those named, all or none. A level holding a component or a field that the program does not
-    know opens, its text written back byte for byte. A check before writing that the placements of
-    a changed prefab still spawn. Prefabs changed on disk followed; a prefab opened in context. The
-    yard and the zone written in the new layout.
-  - *M6c.6b, links.* `EntityRef`, and its picker in the inspector: an eyedropper in the viewport, a
-    drag from the hierarchy, and a search over the parts loaded or not; a prefab made of a
-    selection; Apply to prefab.
-- **Done when.** `slime-world`'s round trips on fixtures of the new layout; tests of the core's
-  steps across files; a failure injected between two renames leaves the files as they were, or
-  names those written; one edit changes one hunk of a file; a level with an unknown component
-  opened, changed and written back with that component's text unchanged; an agent splits the yard
-  into parts and links an entity across two; Play's time to control measured again in a debug
-  build on a level of 100 000 entities in parts, to say whether the editor's writing or the game's
-  spawning needs work, as the owner chose on 2026-10-29; CI is green.
-- **How to test.** `cargo test -p slime-world -p slime-serialize -p slime-editor`; the MCP server's
-  session tests.
-- **By hand.** The owner moves an entity from one part of the zone to another, and links two parts.
-- **Debt settled.** G31, G40, G42, G43 and G45; the parents and the order of a placement's
-  entities; the editor not following the prefabs that change on disk.
+### M6d.12 — The audit of Stage 6d
 
-### M6c.7 — Build from a kit
-
-- **Goal.** The user builds a level from a kit of prefabs found in an asset browser, cooked by the
-  editor as its sources change, and *Hunna Wood*'s zone is made so.
-- **Crates.** `slime-editor`, `slime-cook`, `slime-assets`, `slime-render`, `uwui-render`,
-  `slime-platform`; `games/hunnawood`, its zone's Blender script, its tests and its save fixture.
-- **Delivers.**
-  - The asset browser: an index of the cooker's manifest and a scan of the sources, by folder and
-    kind, with a search.
-  - Thumbnails: a texture's small level of its KTX2, a mesh or a prefab drawn offscreen, a few a
-    frame and only for the tiles that show, encoded as PNG with `Compression::Fast`, cached in the
-    user's cache directory under the cooked file's name.
-  - Assets dragged into a viewport; stamp mode, which may be cut; New level.
-  - Cooking in the editor's process, at the background priority, with its progress, once two cooks
-    in one process no longer share their temporary files (G49).
-  - The tools' watch told of changes by notify 8.2.1, once polling's cost is measured on Windows;
-    a scan again when its queue overflows; polling as its fallback.
-  - Files dropped on Windows and X11 imported; the interface's images asked of the asset cache.
-  - *Hunna Wood*'s kit: its Blender script exports pieces of terrain and one prefab per variant of
-    tree, rock and prop, with its collider; an agent converts the scatter into placements once,
-    through the editor's operations; the zone's tests on the kit, and a new save fixture, which
-    [ADR-0100](adr/0100-updates-of-shipped-games.md) allows before the game's first release, said
-    in the game's README.
-  - In [`debt.md`](debt.md): winit's drag and drop makes Windows' main thread a single-threaded COM
-    apartment, which Stage 7's audio must not start as a multi-threaded one.
-- **Done when.** Thumbnails found in the cache after a restart; tests of the watch: a file written,
-  renamed and removed, and a queue that overflowed; an agent places an asset by its ID and cooks;
-  the zone's tests pass on the kit, with the new fixture; CI is green.
-- **How to test.** `cargo test -p slime-editor -p slime-cook -p slime-assets`;
-  `scripts/fetch-assets.sh`;
-  `blender --background --factory-startup --python games/hunnawood/zone/build_zone.py`;
-  `cargo test -p hunnawood -p hunnawood-editor -- --ignored`.
-- **By hand.** The browser, its thumbnails and stamping, on Linux; G20, in
-  [the list](#checks-by-hand-waiting-for-the-owner).
-- **Debt settled.** G16, G20 with the owner's check, G23, G49 to G53 and G56; the interface's images
-  given by the program.
-
-### Checkpoint B — The exit rehearsal
-
-- **What.** The owner, on Linux and in the Windows virtual machine: erases the zone's campfire
-  clearing, builds it again by hand in the editor, plays it, writes it, opens it again, and undoes
-  and redoes through it all.
-- **Result.** The exit criterion met, or what keeps it from being met.
-
-### M6c.8 — Panels dragged to dock
-
-- **Goal.** The user drags panels and tabs to arrange the editor. If the stage runs long, the
-  milestone moves to Stage 11, with an amendment of ADR-0131 and the roadmap, the regions of M6c.5d
-  and the layouts of M6c.5e serving meanwhile.
-- **Crates.** `uwui`, `slime-editor`.
-- **Delivers.** Zones to drop a panel or a tab on, shown as it is dragged; tabs reordered and moved
-  by drags, and a button of their own that closes them; floating panels docked again by a drag; a
-  least size for each panel. M6c.5e delivered the rest that this milestone once listed
-  ([ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)).
-- **Done when.** `uwui`'s tests of the drops' rules; an agent drops a panel on a zone as a drag
-  would; CI is green.
-- **How to test.** `cargo test -p uwui -p slime-editor`.
-- **By hand.** Panels docked by drag on the owner's Linux desktop and in the Windows virtual machine.
-- **Debt settled.** Tabs without a button that closes them, nor dragged; two panels without a least
-  size; a floating panel that docks by "Move to" alone.
-
-### M6c.Q5 — The audit of Stage 6c
-
-- **Goal.** The whole engine examined in every dimension before 0.7.
-- **Delivers.** As ADR-0177 decides: the scope, its dimensions and its commit written; a reviewing
-  agent for each dimension; each finding verified, ranked, and put to the owner; every budget
-  measured again; `cargo-mutants` in the development shell, `dependencies.md` and
-  `CONTRIBUTING.md`; the record, `docs/audits/<date>-stage-6c.md`; the fixes done, or planned in
+- **Goal.** Both repositories examined in every dimension before Stage 6d closes.
+- **Delivers.** As [ADR-0177](adr/0177-audits-and-releases.md) decides: its scope, a reviewing agent
+  for each dimension, each finding verified and put to the owner; every budget measured again;
+  the record, `docs/audits/<date>-stage-6d.md`; the fixes done or planned in
   [`debt.md`](debt.md).
 - **Done when.** The record is written; the fixes that the owner chose are done; CI is green.
-- **How to test.** `cargo mutants` over the crates that the audit names; `scripts/check.sh`.
-- **Measured.** Every budget of the quality bar.
-
-### M6c.9 — Windows check, documentation, release 0.7
-
-- **Goal.** Stage 6c is done, checked on Windows, and released as 0.7.
-- **Delivers.** The owner's check, in the Windows virtual machine, of the programs that CI builds,
-  with the checks that wait in [the list](#checks-by-hand-waiting-for-the-owner) if the owner makes
-  them then; the documents reread as a newcomer would read them; `CHANGELOG.md`'s section of 0.7;
-  the release's checklist of [ADR-0177](adr/0177-audits-and-releases.md), which
-  [Releasing](../CONTRIBUTING.md#releasing) gains: the update from 0.6 tested, the debug symbols
-  kept, a run on each platform; the dependencies and `flake.lock` updated, each in a commit of its
-  own; the release, as Releasing says; Stage 6c moved to [`history.md`](history.md);
-  Stage 6d planned with the owner.
-- **Done when.** The owner ran *Hunna Wood*'s editor on Windows; the documents are reread and
-  corrected; CI is green on the release commit; the tag and the GitHub release exist, with the
-  Windows programs.
-- **By hand.** In the Windows virtual machine: *Hunna Wood*'s editor, its dialogs, its viewport,
-  Play, and the asset browser.
-
-### What the exit needs at minimum
-
-If the stage must be cut, the exit needs M6c.1 to M6c.3, M6c.5 and M6c.6, with prefabs placed from
-a list. It can do without panels docked by drag (M6c.8), thumbnails (a list of names serving),
-stamp mode, several viewports, a view of the running game and "keep this value", the notify watch,
-and modal keys. Play ([ADR-0110](adr/0110-how-the-editor-runs-a-games-code.md)) and the layout of
-files ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md)) belong to the stage by
-decision, not by the exit. What is cut is decided at
-[Checkpoint A](#checkpoint-a--the-owner-tries-the-editor), which cut nothing on Linux.
 
 ## Checks by hand waiting for the owner
 
