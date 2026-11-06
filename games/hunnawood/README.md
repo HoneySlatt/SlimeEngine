@@ -60,7 +60,9 @@ channel and the dev overlay.
 The window shows its first frame once the hero is loaded and the skies computed, while the zone
 loads in the background: until it is drawn, game time is held, the hero stands at the start under
 the sky, the camera turns around it, and the hero does not move. The log says when the zone is first
-drawn, after how many frames, and the longest interval between two of them, the measure that
+drawn, in milliseconds after the start, when the player takes control
+([ADR-0189](../../docs/adr/0189-first-measures-of-time.md)), after how many frames, and the longest
+interval between two of them, the measure that
 [ADR-0074](../../docs/adr/0074-uploading-textures-without-holding-up-frames.md) gives.
 
 When the GPU device is lost (the driver crashed or was reset, as Windows resets a GPU that takes too

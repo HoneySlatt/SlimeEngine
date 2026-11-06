@@ -2368,6 +2368,8 @@ pub(crate) struct Window {
     /// How many levels the core had opened in place of the first when the viewports last took the
     /// cooked data.
     viewport_opened: u64,
+    /// Whether the viewports drew the first level whole, every mesh loaded, which the log said.
+    drawn_whole: bool,
 }
 
 impl Window {
@@ -2384,6 +2386,7 @@ impl Window {
             cursor_refused: false,
             cursor_tried: false,
             viewport_opened: 0,
+            drawn_whole: false,
         }
     }
 
@@ -2740,6 +2743,19 @@ impl Presentation for Window {
             target,
         ) {
             ctx.exit_with_error(error);
+            return;
+        }
+        // The time to the level drawn whole, as a level opened is measured: every viewport built
+        // so far waits for no mesh (`docs/adr/0189-first-measures-of-time.md`).
+        if !self.drawn_whole
+            && self.viewports.iter().any(Viewport::shown)
+            && !self.viewports.iter().any(Viewport::loading)
+        {
+            self.drawn_whole = true;
+            tracing::info!(
+                "the level is drawn whole, {:.1} ms after the start",
+                slime_app::since_start().as_secs_f64() * 1e3
+            );
         }
     }
 

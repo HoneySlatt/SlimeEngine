@@ -148,6 +148,9 @@ pub(crate) struct Options {
     pub(crate) journal: Option<PathBuf>,
     pub(crate) discard: bool,
     pub(crate) headless: bool,
+    /// How many frames it runs before it quits, on its schedule rather than on demand: what
+    /// `hyperfine` times a start with (`docs/adr/0189-first-measures-of-time.md`).
+    pub(crate) frames: Option<u64>,
 }
 
 /// Runs `program`, the editor's program, until the user, a tool or a signal stops it, and returns
@@ -160,7 +163,11 @@ pub(crate) struct Options {
 /// opens no dialog of the system, which the agent could not see: *Open a level…* waits for the
 /// level's path typed (`docs/adr/0157-dialogs-the-cursor-held-and-the-gpus-identity.md`). With
 /// `--headless`, it runs without a window, for tools and agents alone. Either way, it runs a frame
-/// only when something asks for one ([`AppConfig::on_demand`]), and runs no game's rules. Closing
+/// only when something asks for one ([`AppConfig::on_demand`]), and runs no game's rules; with
+/// `--frames <count>`, it runs that many frames on its schedule, then quits, which is how
+/// `hyperfine` times its start (`docs/adr/0189-first-measures-of-time.md`). Its log says when its
+/// window presents its first image and when it first draws its level whole, every mesh loaded,
+/// each time since the start ([`slime_app::since_start`]). Closing
 /// the window, or the operation `file.quit`, quits at once: the journal keeps what the level's file
 /// does not hold.
 ///
@@ -187,7 +194,7 @@ pub(crate) struct Options {
 /// ([`Program::sources`]), it cooks them first.
 ///
 /// Options: `--level <file>`, `--assets <directory>`, `--journal <file>`, `--discard`,
-/// `--headless`.
+/// `--headless`, `--frames <count>`.
 ///
 /// # Panics
 ///
@@ -221,9 +228,12 @@ pub fn run(program: &Program) -> ExitCode {
             .join(format!("{}.layout", program.name))
     });
     let headless = options.headless;
+    let frames = options.frames;
     let mut session = Session::new(program, options, shared.clone(), recent, journals());
     let config = AppConfig {
-        on_demand: true,
+        // A run that counts its frames runs them all.
+        on_demand: frames.is_none(),
+        frame_limit: frames,
         window: (!headless).then(|| WindowConfig {
             title: program.name.to_owned(),
             width: 1280,
@@ -251,7 +261,7 @@ pub fn run(program: &Program) -> ExitCode {
 fn usage(program: &Program) -> String {
     format!(
         "usage: {} [--level <scene file>] [--assets <cooked directory>] [--journal <file>] \
-         [--discard] [--headless]",
+         [--discard] [--headless] [--frames <count>]",
         program.name
     )
 }
@@ -267,6 +277,7 @@ pub(crate) fn parse(
         journal: None,
         discard: false,
         headless: false,
+        frames: None,
     };
     let mut arguments = arguments.into_iter();
     while let Some(argument) = arguments.next() {
@@ -282,6 +293,14 @@ pub(crate) fn parse(
             Some("--journal") => options.journal = Some(value("--journal")?),
             Some("--discard") => options.discard = true,
             Some("--headless") => options.headless = true,
+            Some("--frames") => {
+                let value = arguments.next().ok_or("--frames needs a frame count")?;
+                let count = value
+                    .to_str()
+                    .and_then(|value| value.parse().ok())
+                    .ok_or_else(|| format!("invalid frame count `{}`", value.display()))?;
+                options.frames = Some(count);
+            }
             Some("--help") => {
                 println!("{}", usage(program));
                 return Ok(None);
@@ -322,6 +341,7 @@ mod tests {
                 journal: None,
                 discard: false,
                 headless: false,
+                frames: None,
             }))
         );
         assert_eq!(
@@ -341,13 +361,26 @@ mod tests {
                 journal: Some(PathBuf::from("c")),
                 discard: true,
                 headless: true,
+                frames: None,
             }))
         );
         assert_eq!(parsed(&["--help"]), Ok(None));
         assert_eq!(parsed(&["--level"]), Err("--level needs a path".to_owned()));
         assert_eq!(
-            parsed(&["--frames", "2"]),
-            Err("unknown option --frames".to_owned())
+            parsed(&["--frames", "1"]).map(|options| options.and_then(|options| options.frames)),
+            Ok(Some(1))
+        );
+        assert_eq!(
+            parsed(&["--frames"]),
+            Err("--frames needs a frame count".to_owned())
+        );
+        assert_eq!(
+            parsed(&["--frames", "one"]),
+            Err("invalid frame count `one`".to_owned())
+        );
+        assert_eq!(
+            parsed(&["--watch"]),
+            Err("unknown option --watch".to_owned())
         );
     }
 }

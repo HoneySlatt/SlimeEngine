@@ -77,18 +77,36 @@ struct Loading {
     /// When the last frame started.
     last: Option<Instant>,
     longest: Duration,
-    /// Whether a frame drew the zone.
-    shown: bool,
+    /// When a frame first drew the zone, since the start ([`slime_app::since_start`]), the
+    /// player's control, as a game to control is measured
+    /// (`docs/adr/0189-first-measures-of-time.md`); or since `restored`.
+    shown: Option<Duration>,
+    /// When a new GPU device replaced a lost one, for a zone that loads again.
+    restored: Option<Instant>,
 }
 
 impl Loading {
-    /// Logs the frames drawn while the zone loaded, and the longest interval between two of them.
+    /// Logs when the zone was first drawn, the frames drawn while it loaded, and the longest
+    /// interval between two of them.
     fn log(&self) {
+        let after = self.shown.unwrap_or_default().as_secs_f64() * 1e3;
+        let since = if self.restored.is_some() {
+            "the new GPU device"
+        } else {
+            "the start"
+        };
         tracing::info!(
             frames = self.frames,
             longest_interval = ?self.longest,
-            "the zone is drawn"
+            "the zone is drawn, {after:.1} ms after {since}"
         );
+    }
+
+    /// Notes that a frame drew the zone, the first time it does.
+    fn shown(&mut self) {
+        let restored = self.restored;
+        self.shown
+            .get_or_insert_with(|| restored.map_or_else(slime_app::since_start, |at| at.elapsed()));
     }
 }
 
@@ -269,7 +287,7 @@ impl Presentation for Screen {
             }
             loading.last = Some(now);
             // The interval that ends here holds the first frame that drew the zone.
-            if loading.shown {
+            if loading.shown.is_some() {
                 loading.log();
                 self.loading = None;
             }
@@ -355,7 +373,7 @@ impl Presentation for Screen {
             // The zone is drawn: the hero may walk where the player sees.
             ctx.hold(false);
             if let Some(loading) = &mut self.loading {
-                loading.shown = true;
+                loading.shown();
             }
             lose_now |= self.lose_device_at == Some(self.drawn);
         } else if let Some(loading) = &mut self.loading {
@@ -429,7 +447,7 @@ impl Presentation for Screen {
         #[cfg(feature = "development")]
         self.overlay.release();
         if let Some(loading) = self.loading.take()
-            && loading.shown
+            && loading.shown.is_some()
         {
             loading.log();
         }
@@ -437,7 +455,10 @@ impl Presentation for Screen {
 
     fn gpu_restored(&mut self, ctx: &mut Context, world: &World) -> Result<(), AppError> {
         self.open(ctx, world)?;
-        self.loading = Some(Loading::default());
+        self.loading = Some(Loading {
+            restored: Some(Instant::now()),
+            ..Loading::default()
+        });
         // A reload in progress went with the lost device: the data it loaded is given again.
         if let Some(watch) = &mut self.watch {
             watch.start_from(&self.assets);
@@ -459,7 +480,7 @@ impl Presentation for Screen {
         // A run that stops right after the zone's first frame, as the automated checks' do, logs
         // the load here, without the interval that holds that frame.
         if let Some(loading) = self.loading.take()
-            && loading.shown
+            && loading.shown.is_some()
         {
             loading.log();
         }

@@ -119,8 +119,11 @@ editor's other panels come with Stage 6c's next milestones.
   says, as it starts it and again as its code changes while it plays, the game then starting again
   on a save of its run (`Played::resume`), a build that fails told
   (`docs/adr/0166-building-the-game-again.md`); the editor's log says how long the game took to give
-  control, its time no longer held, which `slime-benches`' `play` benchmarks read. Options:
-  `--level`, `--assets`, `--journal`, `--discard`, `--headless`; `run`'s documentation says how a
+  control, its time no longer held, which `slime-benches`' `play` benchmarks read; and when its
+  window first draws its level whole, every mesh loaded, since the start
+  (`docs/adr/0189-first-measures-of-time.md`). Options: `--level`, `--assets`, `--journal`,
+  `--discard`, `--headless`, `--frames <count>`, which runs that many frames on the schedule, then
+  quits, as `hyperfine` times a start; `run`'s documentation says how a
   journal is chosen and recovered.
 - `window_image(&Program, arguments, operations, selection, scale)`: the window drawn into an image
   without a window of the system, as it shows once the level is open, the operations named run, each

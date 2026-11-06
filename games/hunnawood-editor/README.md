@@ -27,7 +27,8 @@ cargo run -p hunnawood-editor -- --level /tmp/zone/zone.scene --journal /tmp/zon
 ```
 
 The options are the editor's program's (`slime_editor::run`): `--level`, `--assets`, `--journal`,
-`--discard` and `--headless`, which runs it without a window. Its journal,
+`--discard`, `--headless`, which runs it without a window, and `--frames <count>`, which quits
+after that many frames, as `scripts/start-times.sh` times its start. Its journal,
 `slime-editor/<the zone's asset ID>.journal` in the user's data directory, or one of its own for a
 copy of the zone, unless `--journal` names another file, keeps what it did not write, which it
 recovers as it starts again. Closing the window, Ctrl+Q or Ctrl+C quits at once. An agent starts it

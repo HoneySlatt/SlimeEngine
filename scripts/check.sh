@@ -195,6 +195,36 @@ if runs windowed; then
         VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 300 cargo test --locked -p slime-mcp --test edit_window -- "$cooked/first" ||
         { cat "$runtime/slime-check.log"; exit 1; }
+    # The editor's start as `hyperfine` times it: on a copy of the yard, with a journal and a state
+    # of its own, it presents its first image and quits after its first frame, its log saying when,
+    # since the start; then, run again until its log says that it drew its level whole, it is
+    # stopped by its pid (ADR-0189).
+    cp examples/assets/yard.scene examples/assets/yard.scene.meta "$runtime/"
+    editor=(env -u DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=slime-check
+        XDG_STATE_HOME="$runtime/state" XDG_DATA_HOME="$runtime/data" VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD"
+        target/debug/examples/editor --level "$runtime/yard.scene" --assets "$cooked/first"
+        --journal "$runtime/yard.journal")
+    timeout -k 10 120 "${editor[@]}" --frames 1 2>"$runtime/editor.log" ||
+        { cat "$runtime/editor.log" "$runtime/slime-check.log"; exit 1; }
+    grep -q "the first image is presented" "$runtime/editor.log" || {
+        echo "the editor's log does not say when it presented its first image"
+        cat "$runtime/editor.log"
+        exit 1
+    }
+    "${editor[@]}" 2>"$runtime/editor.log" &
+    editor_pid=$!
+    for _ in $(seq 600); do
+        grep -q "the level is drawn whole" "$runtime/editor.log" && break
+        kill -0 "$editor_pid" 2>/dev/null || break
+        sleep 0.1
+    done
+    kill "$editor_pid" 2>/dev/null || true
+    wait "$editor_pid" || true
+    grep -q "the level is drawn whole" "$runtime/editor.log" || {
+        echo "the editor's log does not say, within 60 s, when it drew its level whole"
+        cat "$runtime/editor.log"
+        exit 1
+    }
     # A client of AT-SPI, the service that Orca reads, reads and uses the same example as a screen
     # reader does, on a bus of D-Bus of its own (ADR-0146, ADR-0147).
     cargo build --locked --example interface

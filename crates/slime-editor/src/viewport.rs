@@ -414,6 +414,16 @@ impl Viewport {
         self.settings = settings;
     }
 
+    /// Whether it built an image of its level.
+    pub(crate) fn shown(&self) -> bool {
+        self.shown.is_some()
+    }
+
+    /// Whether the last image that it built waited for meshes still loading.
+    pub(crate) fn loading(&self) -> bool {
+        self.loading
+    }
+
     /// Draws its image again at the next frame, as after the level's cooked data was read again.
     pub(crate) fn redraw(&mut self) {
         self.shown = None;

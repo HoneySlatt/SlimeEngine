@@ -69,7 +69,8 @@
 //! user's data directory unless `--journal <file>` names another file, keeps what it changed until
 //! it writes the level; started again after a crash or a quit, it recovers it, unless `--discard`
 //! starts from the level's file, the journal set aside (`slime_editor::run`). `--headless` runs it
-//! without a window, for agents alone, until Ctrl+C or a tool stops it. `--output <file.png>` draws
+//! without a window, for agents alone, until Ctrl+C or a tool stops it. `--frames <count>` runs
+//! that many frames, then quits, as `scripts/start-times.sh` times its start. `--output <file.png>` draws
 //! the window into an image of 1280 × 800 logical pixels instead, as it shows once the yard is
 //! open, without a window of the system, at `--scale <factor>` pixels per logical pixel, above 0, 1
 //! unless given (`slime_editor::window_image`). Closing the window, Ctrl+Q or Ctrl+C quits at once:
