@@ -177,7 +177,10 @@ editor reaches it; it needs no compositor, the examples built and their assets
 cooked. `tests/edit_zone.rs` starts `hunnawood-editor` on a copy
 of *Hunna Wood*'s zone, changes one of the game's components, creates an entity that holds
 another, undoes, redoes and writes the zone; it needs the zone cooked, and `scripts/check.sh` runs
-it with the tests that read the zone.
+it with the tests that read the zone. `tests/resources.rs` is a measure, not a check: it drives
+`hunnawood-editor` in a window on a copy of the zone, then the game, and reads their memory, their
+video memory and the GPU's power; `scripts/resources.sh` runs it in a headless Weston, and no check
+does (`docs/adr/0193-first-measures-of-resources.md`).
 
 ## Dependencies
 

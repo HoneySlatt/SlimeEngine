@@ -35,9 +35,10 @@ nix develop
 
 The shell it opens contains the pinned toolchain and the project's tools: `cargo-deny` (checks
 dependency licenses and security advisories), `lychee` (checks links in the documentation),
-`hyperfine` (times the programs' starts), sway and `wlrctl` (a compositor without screen that takes
-virtual input, and the tool that gives it) and Weston (a Wayland compositor without screen, in which
-the checks run the windowed samples and the games). It also puts the windowing libraries that the
+`hyperfine` (times the programs' starts), `heaptrack` (records a program's heap over its run),
+sway and `wlrctl` (a compositor without screen that takes virtual input, and the tool that gives
+it) and Weston (a Wayland compositor without screen, in which the checks run the windowed samples
+and the games). It also puts the windowing libraries that the
 engine loads at run time on the loader path.
 [`flake.lock`](flake.lock) pins every input, so every contributor and CI get the same versions.
 To run a single command in that environment without opening a shell, use
@@ -50,9 +51,9 @@ Nix only sees the files that git tracks. If you change `flake.nix` so that it re
 
 Install [rustup](https://rustup.rs). It reads `rust-toolchain.toml` and installs the pinned
 toolchain the first time you run `cargo` in the repository. Install the tools with
-`cargo install --locked cargo-deny lychee hyperfine`, and Weston, sway and wlrctl from your
-distribution's packages; CI uses the versions pinned by `flake.lock`. To open windows, the examples
-need the windowing system's libraries, which are loaded at run time: libxkbcommon for both
+`cargo install --locked cargo-deny lychee hyperfine`, and Weston, sway, wlrctl and heaptrack from
+your distribution's packages; CI uses the versions pinned by `flake.lock`. To open windows, the
+examples need the windowing system's libraries, which are loaded at run time: libxkbcommon for both
 windowing systems; libwayland-client for Wayland; libX11, libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11
 for X11. Without libxkbcommon, or libxkbcommon-x11 on X11, the examples panic instead of
 reporting that the windowing system cannot be reached. A program that asks for the system's fonts
@@ -91,6 +92,7 @@ scripts/measure.sh "<title>" >> docs/measurements.md      # time the build, run 
 scripts/frame-pacing.py <trace.json>                      # the frames' pacing and the inputs to present in a trace written with SLIME_TRACE (ADR-0187, ADR-0189)
 scripts/start-times.sh [--gpu] [--cold] [--runs <count>]  # time the editor's and the game's starts in a headless Weston (ADR-0189)
 scripts/input-to-present.sh [--gpu]                       # measure their input to present, a person's input given in a headless sway (ADR-0191)
+scripts/resources.sh [--gpu] [--heaptrack] [--undos <count>] [--plays <count>]  # measure the editor's and the game's memory, video memory and the GPU's power in a headless Weston (ADR-0193)
 scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
 blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)
 cargo run -p hunnawood                                    # play the game (games/hunnawood/README.md)
@@ -368,6 +370,19 @@ the system's caches; the programs' logs give the times since the engine's start
 them in a headless Weston, with lavapipe, or with `--gpu` on the machine's GPU through Weston's GL
 renderer, on a machine at rest. `--cold` drops the system's caches before each run instead, through
 `sudo`: a person runs it, never a check.
+
+[`scripts/resources.sh`](scripts/resources.sh) measures the memory and the power that the quality
+bar budgets ([ADR-0193](docs/adr/0193-first-measures-of-resources.md)): the editor on the game's
+zone, its resident memory and its video memory at rest, then over the undos, redos and runs of Play
+that the budget names; then the game at its schedule. The editor runs in a headless Weston of its
+own, at the high tier's resolution, driven through the MCP server by
+`crates/slime-mcp/tests/resources.rs`. With `--gpu`, it draws on the machine's GPU, whose driver
+counts its video memory, and reads the GPU's power from the driver's sensor before anything starts,
+with the editor at rest, with the game running and after; on a machine at rest, its desktop still.
+With `--heaptrack`, the editor runs under `heaptrack`, and the script prints its heap at the end of
+each phase: the resident size counts memory that the allocator keeps after the program freed it,
+the heap does not. The recording stays in `target/resources/`, which `heaptrack_gui` opens to show
+where the memory went. `--undos` and `--plays` measure longer series than the budget's.
 
 A windowed run measured on the machine's GPU, kept off the desktop in a headless Weston, needs
 Weston's GL renderer, `weston --backend=headless --renderer=gl`: with the default one, the GPU's

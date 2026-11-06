@@ -30,6 +30,8 @@
           # Times a program's start, from its process's launch to its exit after its first image
           # (ADR-0189).
           pkgs.hyperfine
+          # Records a program's heap over its run, for scripts/resources.sh (ADR-0175, ADR-0193).
+          pkgs.heaptrack
           # A compositor without a screen that takes virtual input, and the tool that gives it, in
           # which scripts/input-to-present.sh gives the editor and the game a person's input
           # (ADR-0191).

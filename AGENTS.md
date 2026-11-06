@@ -46,6 +46,7 @@ cargo run -p slime-benches -- --write-counters [<name>...]  # ADR-0186
 scripts/measure.sh "<title>" >> docs/measurements.md   # ADR-0104
 scripts/start-times.sh [--gpu] [--cold] [--runs <n>]   # starts, ADR-0189
 scripts/input-to-present.sh [--gpu]                    # input to present, ADR-0189
+scripts/resources.sh [--gpu] [--heaptrack]             # memory and power, ADR-0193
 cargo run -p hunnawood -- --new --save <file>          # games/hunnawood/README.md
 cargo run --example editor -- --level <copy> --journal <file>  # examples/README.md
 cargo run --quiet -p slime-mcp                         # crates/slime-mcp/README.md

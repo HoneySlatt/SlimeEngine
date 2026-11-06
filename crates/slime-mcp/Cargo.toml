@@ -72,3 +72,11 @@ harness = false
 name = "edit_zone"
 test = false
 harness = false
+
+# The first measures of memory and power: the editor on Hunna Wood's zone, over undos, redos and
+# runs of Play, then the game; a measure, not a check, which `scripts/resources.sh` runs in a
+# headless Weston (ADR-0193).
+[[test]]
+name = "resources"
+test = false
+harness = false

@@ -39,7 +39,7 @@ type Threads = BTreeMap<u32, Thread>;
 
 /// The fields of a `stat` file of `/proc` after the program's name, which may hold spaces and
 /// parentheses: the state first.
-fn stat_fields(stat: &str) -> Vec<&str> {
+pub fn stat_fields(stat: &str) -> Vec<&str> {
     stat.rsplit_once(')')
         .map_or_else(Vec::new, |(_, fields)| fields.split_whitespace().collect())
 }
@@ -157,15 +157,20 @@ pub fn at_rest(pid: u32, settle: Duration) -> Result<(), String> {
     }
 }
 
-/// The process that `start_game` says it started, which must run `program`: with `cargo run`, the
-/// process would be cargo's, at rest whatever the game does.
-pub fn pid(started: &str, program: &Path) -> u32 {
-    let pid = started
+/// The process that `start_game` says it started, whatever it runs.
+pub fn launched(started: &str) -> u32 {
+    started
         .split("runs as process ")
         .nth(1)
         .and_then(|rest| rest.split(|c: char| !c.is_ascii_digit()).next())
         .and_then(|pid| pid.parse().ok())
-        .unwrap_or_else(|| panic!("no process in {started:?}"));
+        .unwrap_or_else(|| panic!("no process in {started:?}"))
+}
+
+/// The process that `start_game` says it started, which must run `program`: with `cargo run`, the
+/// process would be cargo's, at rest whatever the game does.
+pub fn pid(started: &str, program: &Path) -> u32 {
+    let pid = launched(started);
     let runs = fs::read_link(format!("/proc/{pid}/exe")).expect("the process's program");
     let program = fs::canonicalize(program).expect("the program's path");
     assert_eq!(runs, program, "the process {pid} runs another program");
