@@ -23,12 +23,13 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [ADR-0197](adr/0197-uwuis-repository-public-from-now.md),
   [ADR-0198](adr/0198-screens-of-reference-and-the-rivals-measured.md),
   [ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md),
-  [ADR-0200](adr/0200-applications-measured-from-outside.md)).
-- Done: [M6d.0a](#m6d0a--the-screens-and-the-owners-programs) and
-  [M6d.0b](#m6d0b--measured-from-outside-and-ten-hello-world), the first two thirds of the figures
-  before, cut in three at its start
+  [ADR-0200](adr/0200-applications-measured-from-outside.md),
+  [ADR-0201](adr/0201-the-rivals-narrowed.md)).
+- Done: [M6d.0a](#m6d0a--the-screens-and-the-owners-programs),
+  [M6d.0b](#m6d0b--measured-from-outside-and-ten-hello-world) and
+  [M6d.0c](#m6d0c--the-applications-of-the-market), the figures before, cut in three at its start
   ([ADR-0198](adr/0198-screens-of-reference-and-the-rivals-measured.md)).
-- Now: [M6d.0c](#m6d0c--the-applications-of-the-market).
+- Next: [M6d.1](#m6d1--how-an-application-is-written).
 - [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and its open decisions; its code
   moves there at M6d.11.
 - May be cut at their start: M6d.1 into its survey and its decisions; M6d.5, AccessKit's translation
@@ -46,7 +47,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 |---|---|
 | [M6d.0a — The screens and the owner's programs](#m6d0a--the-screens-and-the-owners-programs) | Done |
 | [M6d.0b — Measured from outside, and ten "Hello, World!"](#m6d0b--measured-from-outside-and-ten-hello-world) | Done |
-| [M6d.0c — The applications of the market](#m6d0c--the-applications-of-the-market) | Planned |
+| [M6d.0c — The applications of the market](#m6d0c--the-applications-of-the-market) | Done |
 | [M6d.1 — How an application is written](#m6d1--how-an-application-is-written) | Planned |
 | [M6d.2 — Typed styles](#m6d2--typed-styles) | Planned |
 | [M6d.3 — Documents with serde](#m6d3--documents-with-serde) | Planned |
@@ -158,23 +159,36 @@ their programs are built from clones. Cut in three at its start.
   the `widgets` example's start and rest in
   [`measurements.md`](measurements.md#m6d0b-a-program-on-uwuis-start-and-rest-measured-from-outside).
   The `widgets` example never rests, its progress bars moving; the processor's power is not
-  measured, its sensor read by root alone. Opium's table scrolled on the owner's display waits for
-  the owner (below).
+  measured, its sensor read by root alone. Opium's table scrolled on the owner's display, at
+  M6d.0c, in
+  [uwui's](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#opiums-songs-on-the-owners-display-2026-11-06):
+  as smooth as in sway, Umbriel spending nearly twice sway's processor.
 
 ### M6d.0c — The applications of the market
 
 - **Goal.** The bar to beat, measured on the same screens.
 - **Crates.** None; uwui's `scripts/`.
-- **Delivers.** Measured by M6d.0b's method: Steam and Heroic on the owner's accounts, Nautilus and
-  gThumb on Slatty's 10,000 covers; Spotify and Cider on the owner's accounts, Strawberry, Elisa
-  and GNOME Music on Opium's 8,500 songs; Zed scrolling a file of 100,000 lines. Each figure names
-  the application's version, its date, and the size of the library it ran on.
+- **Delivers.** Measured by M6d.0b's method, through uwui's `scripts/market.sh`: Steam on the
+  owner's account, Nautilus and gThumb on Slatty's 10,000 covers; Spotify and Cider on the
+  owner's accounts; Zed scrolling a file of 100,000 lines. Each figure names the application's
+  version, its date, and the size of the library it ran on. Strawberry, Elisa, GNOME Music and
+  Heroic set aside by the owner during the milestone
+  ([ADR-0201](adr/0201-the-rivals-narrowed.md)).
 - **Done when.** Each figure is measured, or says why not; the bar of each screen is written in
   uwui's quality bar.
 - **How to test.** M6d.0b's method, pointed at each rival.
-- **Measured.** As delivered.
+- **Measured.** The rivals and Opium's table on the owner's display in
+  [uwui's](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#the-applications-of-the-market-2026-11-06);
+  the bar of each screen in
+  [uwui's quality bar](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#the-bar-of-each-screen).
+  `measure.py`'s stillness, wrong when a busy thread ended, was fixed on the way; Electron's and
+  Tauri's starts of M6d.0b, measured again, stand. Not measured: the processor's power, read by
+  root alone.
 - **By hand.** The owner: the very modest laptop's inventory and its measures; the music player's
-  Android prototype in Compose, on the Pixel.
+  Android prototype in Compose, on the Pixel. The laptop's inventory was given on 2026-11-06, from
+  `lshw -short` and `inxi`, and is written in
+  [uwui's quality bar](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#machines);
+  what it lacks and its measures wait for the owner (below).
 
 ### M6d.1 — How an application is written
 
@@ -356,11 +370,10 @@ own here when it is done. A check leaves the list once made, its result written 
 while the stage is in progress, then in the stage's entry of [`history.md`](history.md). The game
 is run with `--new --save <a file of its own>`, so that the owner's save is left alone.
 
-- **Opium's table scrolled on the owner's display** (M6d.0b): uwui's `scripts/measure.py
-  --display`, its pointer moving the owner's, some five minutes with the machine left alone; an
-  agent runs it on the owner's word.
-- **The very modest laptop** (M6d.0c): its inventory, from `nix-shell -p inxi --run "inxi -CGmSz"`,
-  given to an agent, then its measures.
+- **The very modest laptop** (M6d.0c): its inventory, given on 2026-11-06 from `lshw -short` and
+  `inxi -CGmSz`, lacks its display's size and rate, its storage and its Vulkan driver, which
+  `nix-shell -p inxi pciutils vulkan-tools --run "inxi -GDz; vulkaninfo --summary"` and
+  `niri msg outputs` give; then its measures.
 - **The music player's Android prototype** (M6d.0c): written in Compose and measured on the Pixel.
 - **Checkpoint A, in the Windows virtual machine** (M6c.1a): the editor's window; flying through
   the zone, selecting, rearranging it and playing it; the raw motion, the cursor held, the game's
