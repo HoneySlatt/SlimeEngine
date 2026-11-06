@@ -1757,3 +1757,16 @@ What it says:
   out: `uwui-render` draws through a `Renderer`, and `slime-app` depends on `slime-world`.
 - Its binary, stripped and without the development channel, is within uwui's budget of 20 MB by
   0.3 MB; with the channel, over it.
+
+### CI's runners
+
+GitHub's hosted runners, on 2026-11-06, commit `0a1ba51`, its run green.
+
+| Job | Time |
+|---|---|
+| `windows` | 15 min 4 s |
+| `windows-release` | 14 min 4 s |
+| `check (headless)` | 10 min 55 s |
+| `check (game)` | 9 min 1 s |
+| `check (windowed)` | 6 min 51 s |
+| `links` | 18 s |
