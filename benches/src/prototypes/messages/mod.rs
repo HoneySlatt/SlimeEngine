@@ -727,7 +727,7 @@ impl Edit for Application<document::Document, document::Message> {
 /// A `lazy` part whose value leaves out what it reads, the row playing.
 pub(crate) const LAZY_LEAVES_OUT: Screen<Application<mistakes::Playing, mistakes::Message>> =
     screen(
-        screens::SELECTION,
+        screens::small("A lazy value that leaves out the row playing"),
         |now| {
             application(mistakes::Playing::update, mistakes::Playing::view)
                 .state(mistakes::Playing::default, now)
@@ -738,7 +738,7 @@ pub(crate) const LAZY_LEAVES_OUT: Screen<Application<mistakes::Playing, mistakes
 /// A subscription to frames not given up.
 pub(crate) const FRAMES_NOT_GIVEN_UP: Screen<Application<mistakes::Forever, mistakes::Message>> =
     screen(
-        screens::SELECTION,
+        screens::small("Frames not given up"),
         |now| {
             application(mistakes::Forever::update, mistakes::Forever::view)
                 .subscription(mistakes::Forever::subscription)

@@ -58,7 +58,7 @@ impl Edit for document::Document {
 
 /// The control's own mistake, a revision not moved.
 pub(crate) const REVISION_NOT_MOVED: Screen<mistake::Forgotten> = screen(
-    screens::SELECTION,
+    screens::small("A revision not moved"),
     |_| mistake::Forgotten::new(),
     screens::selection,
 );

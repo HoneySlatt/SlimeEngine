@@ -764,14 +764,14 @@ impl Edit for Window<document::Document> {
 
 /// A `notify` forgotten.
 pub(crate) const NOTIFY_FORGOTTEN: Screen<Window<mistakes::Forgotten>> = screen(
-    screens::SELECTION,
+    screens::small("A notify forgotten"),
     |now| Window::open(now, |cx| cx.new(|_| mistakes::Forgotten::default())),
     screens::selection,
 );
 
 /// A view within a view changed without its own `notify`.
 pub(crate) const INNER_NOT_NOTIFIED: Screen<Window<mistakes::Played>> = screen(
-    screens::SELECTION,
+    screens::small("A view within a view changed without its own notify"),
     |now| Window::open(now, |cx| cx.new(mistakes::Played::new)),
     screens::played,
 );

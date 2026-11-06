@@ -1139,7 +1139,7 @@ impl Edit for Signals<document::Document> {
 
 /// A signal read outside a closure that the view tracks.
 pub(crate) const READ_ONCE: Screen<Signals<()>> = screen(
-    screens::SELECTION,
+    screens::small("A signal read outside a closure that the view tracks"),
     |now| Signals::open(now, || ((), mistakes::read_once())),
     screens::selection,
 );

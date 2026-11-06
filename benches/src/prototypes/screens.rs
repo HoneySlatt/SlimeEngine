@@ -214,10 +214,15 @@ pub(crate) const fn screen<P>(
     }
 }
 
-pub(crate) const SELECTION: (&str, (&str, &str)) = (
-    "A list whose selection moves",
-    ("mistake.style", include_str!("sheets/mistake.style")),
-);
+/// A small case of a mistake, named `name`, in the style sheet of the small cases.
+pub(crate) const fn small(name: &'static str) -> (&'static str, (&'static str, &'static str)) {
+    (
+        name,
+        ("mistake.style", include_str!("sheets/mistake.style")),
+    )
+}
+
+pub(crate) const SELECTION: (&str, (&str, &str)) = small("A list whose selection moves");
 
 /// The script of the small cases of a selection that does not show: a list of 1,000 rows,
 /// focused, its selection moved by an arrow.
