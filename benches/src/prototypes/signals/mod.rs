@@ -878,7 +878,12 @@ impl<H: Copy + 'static> Signals<H> {
             (handle, element_of(view))
         });
         let generation = self.generation + 1;
-        *self = Self::started(self.runtime.snapshot(), Instant::now(), start);
+        let replay = self.runtime.snapshot();
+        // The view before is disposed, its cleanups run: its tasks are cancelled, and the new
+        // view starts its own.
+        let before = Rc::clone(&self.runtime);
+        enter(&before, || before.dispose(before.root()));
+        *self = Self::started(replay, Instant::now(), start);
         self.generation = generation;
     }
 

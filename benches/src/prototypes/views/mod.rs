@@ -249,6 +249,9 @@ impl App {
             self.meta[entity].root = None;
             self.meta[entity].notified = false;
             self.registry.clear(&Part::View(entity));
+            for rows in self.rows.iter().filter(|rows| rows.view == entity) {
+                self.registry.clear(&Part::Rows(rows.list));
+            }
             self.rows.retain(|rows| rows.view != entity);
         }
     }
@@ -350,7 +353,11 @@ impl<T: 'static> Cx<'_, T> {
             app.runs += 1;
             view.update(app, |this, cx| {
                 let rows = processor(this, places, cx);
-                rows.into_iter().map(element_of).collect()
+                let mut elements = Vec::with_capacity(rows.len());
+                for row in rows {
+                    row.nest(&mut elements);
+                }
+                elements
             })
         })
     }
@@ -517,7 +524,9 @@ impl Sink<Listener, Own> for Placing<'_> {
                 let meta = self.app.meta[view];
                 if !meta.notified
                     && meta.root.is_some()
-                    && let Some(id) = children.keep(key.clone())
+                    && let Some(id) = children
+                        .keep(key.clone())
+                        .filter(|&id| Some(id) == meta.root)
                 {
                     return id;
                 }
@@ -570,7 +579,7 @@ impl<T: Render + Clone> Window<T> {
 impl<T: Render + Clone> Model for Window<T> {
     fn advance(&mut self, _: &mut Ui, now: Instant) {
         self.app.frame_time = now;
-        for view in std::mem::take(&mut self.app.next_frame) {
+        for view in self.app.next_frame.drain(..) {
             self.app.meta[view].notified = true;
         }
     }
@@ -605,6 +614,13 @@ impl<T: Render + Clone> Model for Window<T> {
         }
         // Each other view that said it changed renders alone, in the place that it holds.
         for view in 0..app.meta.len() {
+            // A view whose element left the tree renders again only where a parent puts it.
+            if app.meta[view]
+                .root
+                .is_some_and(|id| ui.element(id).is_none())
+            {
+                app.meta[view].root = None;
+            }
             let meta = app.meta[view];
             let Some(id) = meta
                 .root
@@ -621,6 +637,8 @@ impl<T: Render + Clone> Model for Window<T> {
                 theme: named,
                 ..
             } = desc;
+            // A limit of the prototype: a view within a view renders an element that holds its
+            // children, of the same kind from one render to the next, as the screens' do.
             let Content::Children(descs) = content else {
                 unreachable!("a view renders an element that holds its children");
             };

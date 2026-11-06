@@ -1781,7 +1781,7 @@ impl Ui {
                 node.changed.paint = true;
                 self.mark_style_subtree(id);
             }
-            (Change::Selection(place), _) => {
+            (Change::Selection(place), Kind::List { .. }) => {
                 if node.element.selection == Some(place) {
                     return;
                 }

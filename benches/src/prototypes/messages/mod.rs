@@ -34,7 +34,25 @@ pub mod prelude {
 }
 
 /// The message that a handler gives, from what its event gives it.
-type Handler<M> = Rc<dyn Fn(&Arg) -> M>;
+/// The message that a handler gives: kept by value, as Iced keeps it, or made of what its event
+/// gives by a function.
+pub enum Handler<M> {
+    Send(M),
+    Text(fn(String) -> M),
+    Place(fn(usize) -> M),
+}
+
+impl<M: Clone> Handler<M> {
+    /// The message, `arg` given by the event.
+    fn message(&self, arg: &Arg) -> M {
+        match (self, arg) {
+            (Self::Send(message), _) => message.clone(),
+            (Self::Text(message), Arg::Text(text)) => message(text.clone()),
+            (Self::Place(message), Arg::Place(place)) => message(*place),
+            _ => unreachable!("an event gives what its handler takes"),
+        }
+    }
+}
 
 /// An element that `view` describes, borrowing the state for `'a`.
 pub type El<'a, M> = Desc<Handler<M>, Own<'a, M>>;
@@ -153,6 +171,7 @@ pub fn lazy<'a, M, T: Into<El<'a, M>>>(
     part: impl FnOnce() -> T + 'a,
 ) -> El<'a, M> {
     Desc::own(
+        // Never put in the tree: a lazy part has no element of its own, its part's is.
         uwui::prelude::Element::column(),
         Own::Lazy(Rc::new(value), Box::new(|| part().into())),
     )
@@ -206,47 +225,32 @@ impl<'a, M: Clone + 'static> Widget<'a, M> {
 
     #[must_use]
     pub fn on_press(self, message: M) -> Self {
-        Self(self.0.handle(On::Press, Rc::new(move |_| message.clone())))
+        Self(self.0.handle(On::Press, Handler::Send(message)))
     }
 
     #[must_use]
-    pub fn on_change(self, message: impl Fn(String) -> M + 'static) -> Self {
-        Self(self.0.handle(
-            On::Change,
-            Rc::new(move |arg| match arg {
-                Arg::Text(text) => message(text.clone()),
-                _ => unreachable!("a change gives a text"),
-            }),
-        ))
+    pub fn on_change(self, message: fn(String) -> M) -> Self {
+        Self(self.0.handle(On::Change, Handler::Text(message)))
     }
 
     #[must_use]
-    pub fn on_step(self, message: impl Fn(usize) -> M + 'static) -> Self {
-        Self(self.0.handle(
-            On::Step,
-            Rc::new(move |arg| match arg {
-                Arg::Place(place) => message(*place),
-                _ => unreachable!("a step gives a place"),
-            }),
-        ))
+    pub fn on_step(self, message: fn(usize) -> M) -> Self {
+        Self(self.0.handle(On::Step, Handler::Place(message)))
     }
 
     #[must_use]
     pub fn on_accept(self, message: M) -> Self {
-        Self(self.0.handle(On::Accept, Rc::new(move |_| message.clone())))
+        Self(self.0.handle(On::Accept, Handler::Send(message)))
     }
 
     #[must_use]
     pub fn on_cancel(self, message: M) -> Self {
-        Self(self.0.handle(On::Cancel, Rc::new(move |_| message.clone())))
+        Self(self.0.handle(On::Cancel, Handler::Send(message)))
     }
 
     #[must_use]
     pub fn on_command(self, name: &'static str, message: M) -> Self {
-        Self(
-            self.0
-                .handle(On::Command(name), Rc::new(move |_| message.clone())),
-        )
+        Self(self.0.handle(On::Command(name), Handler::Send(message)))
     }
 }
 
@@ -518,7 +522,7 @@ fn build_rows<'a, M>(
     });
 }
 
-impl<S: Clone, M: 'static> Model for Application<S, M> {
+impl<S: Clone, M: Clone + 'static> Model for Application<S, M> {
     fn advance(&mut self, ui: &mut Ui, now: Instant) {
         self.now = now;
         if let Some(frame) = &self.frames {
@@ -529,7 +533,7 @@ impl<S: Clone, M: 'static> Model for Application<S, M> {
 
     fn act(&mut self, ui: &mut Ui, action: Action) {
         if let Some((handler, arg)) = self.registry.find(ui, &action) {
-            let message = handler(&arg);
+            let message = handler.message(&arg);
             self.queue.push(message);
         }
     }
