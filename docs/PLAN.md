@@ -29,11 +29,11 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [M6d.0b](#m6d0b--measured-from-outside-and-ten-hello-world) and
   [M6d.0c](#m6d0c--the-applications-of-the-market), the figures before, cut in three at its start
   ([ADR-0198](adr/0198-screens-of-reference-and-the-rivals-measured.md)).
-- Next: [M6d.1](#m6d1--how-an-application-is-written).
+- In progress: [M6d.1](#m6d1--how-an-application-is-written), cut in four at its start; next,
+  [M6d.1a](#m6d1a--the-survey-and-the-protocol).
 - [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and its open decisions; its code
   moves there at M6d.11.
-- May be cut at their start: M6d.1 into its survey and its decisions; M6d.5, AccessKit's translation
-  apart.
+- May be cut at its start: M6d.5, AccessKit's translation apart.
 - Stage 6c, paused since 2026-11-06, M6c.Q2e its last milestone done: its plan is in
   [`stage-6c.md`](stage-6c.md). It resumes after uwui's 1.0, the editor moved onto it
   ([ADR-0190](adr/0190-uwuis-requirements.md)).
@@ -48,7 +48,10 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.0a — The screens and the owner's programs](#m6d0a--the-screens-and-the-owners-programs) | Done |
 | [M6d.0b — Measured from outside, and ten "Hello, World!"](#m6d0b--measured-from-outside-and-ten-hello-world) | Done |
 | [M6d.0c — The applications of the market](#m6d0c--the-applications-of-the-market) | Done |
-| [M6d.1 — How an application is written](#m6d1--how-an-application-is-written) | Planned |
+| [M6d.1a — The survey and the protocol](#m6d1a--the-survey-and-the-protocol) | Planned |
+| [M6d.1b — How state changes the interface](#m6d1b--how-state-changes-the-interface) | Planned |
+| [M6d.1c — Rust's code reloaded, and the executor](#m6d1c--rusts-code-reloaded-and-the-executor) | Planned |
+| [M6d.1d — Layouts, styles and the host](#m6d1d--layouts-styles-and-the-host) | Planned |
 | [M6d.2 — Typed styles](#m6d2--typed-styles) | Planned |
 | [M6d.3 — Documents with serde](#m6d3--documents-with-serde) | Planned |
 | [M6d.4 — The canvas in uwui, on wgpu](#m6d4--the-canvas-in-uwui-on-wgpu) | Planned |
@@ -192,20 +195,63 @@ their programs are built from clones. Cut in three at its start.
 
 ### M6d.1 — How an application is written
 
-- **Goal.** The owner decides how an application on uwui is written, from prototypes measured on
-  the screens of reference.
-- **Crates.** None kept: the prototypes live on a branch, then are thrown away.
-- **Delivers.** A survey of GPUI with gpui-kit, Iced, Slint, Dioxus, Flutter, Jetpack Compose,
-  SwiftUI, Floem, Rune and Makepad ([ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)); signals, views that say
-  they changed, and messages, each prototyped on the screens over uwui's tree; the format of
-  layouts; Rust's code reloaded with its state kept, a style or a layout, a function's body and a
-  type whose state migrates each answered apart; the interface's
-  executor and its waker; the time of each frame that motion reads; an application started in one
-  call; styles written in code beside the themes' files. Each question put to the owner, then
-  recorded in an ADR, and uwui's open decisions updated.
-- **Done when.** Every question is decided and recorded; the prototypes' figures are kept.
-- **Measured.** For each model and screen: lines, concepts to learn, errors, the state kept
-  across a reload, CPU and allocations of each phase of a frame.
+The owner decides how an application on uwui is written, from prototypes measured on the screens
+of reference. No code is kept: the prototypes live on a branch of this repository, where uwui's
+tree still is, then are thrown away; their figures go to uwui's
+[`docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md). Each
+question is put to the owner, recorded in an ADR, and uwui's open decisions are updated as each
+ADR lands. Cut in four at its start, on 2026-11-06, in the order of the questions' dependencies:
+the state model decides whether Rust's code can be reloaded and who owns the interface's tasks.
+
+### M6d.1a — The survey and the protocol
+
+- **Goal.** What the field does on each question, and how the models will be compared.
+- **Crates.** None; a document in uwui's repository.
+- **Delivers.** A survey, each reference read on what it brings, each fact with its source,
+  version and date: Floem for signals; GPUI with gpui-kit for views that say they changed, and
+  its executor; Iced for messages; Makepad and Slint for the format of layouts; Dioxus, Flutter
+  and Jetpack Compose for Rust's code reloaded; [Rune](https://github.com/anomalyco/rune) for
+  motion that runs no view again; SwiftUI read only, without a Mac to measure it
+  ([ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)). The protocol of
+  comparison, put to the owner and recorded in an ADR: the criteria, the screens and their
+  scripted interactions, what is measured headless and how.
+- **Done when.** The survey covers each question; the protocol is decided and recorded.
+
+### M6d.1b — How state changes the interface
+
+- **Goal.** The owner chooses the state model.
+- **Crates.** None kept.
+- **Delivers.** Four models, today's rebuild by keys as the control, signals, views that say they
+  changed, and messages: each screen's code first written as an application's author would
+  write it, then prototyped over uwui's tree on the screens with the protocol's interactions. In
+  each, whether a function's body can be reloaded, a type's state migrated, and a task cancelled
+  with its component. What moving the editor and *Hunna Wood* to each model would cost.
+- **Done when.** The model is decided and recorded.
+- **Measured.** As the protocol says, for each model and screen: lines, concepts to learn,
+  errors, CPU and allocations of each phase of a frame.
+
+### M6d.1c — Rust's code reloaded, and the executor
+
+- **Goal.** Rust's code reloaded with its state kept, and the interface's tasks, on the chosen
+  model.
+- **Crates.** None kept.
+- **Delivers.** A function's body, and a type whose state migrates, each answered apart, timed on
+  a prototype of Slatty's size, the rivals' reloads beside them; the interface's executor, its
+  tasks bound to components, and its waker.
+- **Done when.** Each question is decided and recorded.
+- **Measured.** The time from a change saved to the frame that shows it; the state kept across
+  a reload.
+
+### M6d.1d — Layouts, styles and the host
+
+- **Goal.** The rest of how an application is written, and what M6d.5's host API takes from it.
+- **Crates.** None kept.
+- **Delivers.** The format of layouts and their reload, with a style's; styles written in code
+  beside the themes' files; the time of each frame that motion reads; an application started in
+  one call. M6d.5 updated.
+- **Done when.** Each question is decided and recorded; uwui's open decisions on how an
+  application is written are all closed.
+- **Measured.** A layout's and a style's change seen, against the budget of 2 s.
 
 ### M6d.2 — Typed styles
 
