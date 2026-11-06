@@ -12,9 +12,10 @@
   and contributions at 1.0); amended by [0194](0194-stage-6d-uwui-leaving-the-engine.md) (what Stage 6d
   builds; its decisions taken in M6d.1), [0197](0197-uwuis-repository-public-from-now.md) (the repository public
   from now; the name kept on crates.io), [0199](0199-uwuis-targets-tools-and-references-narrowed.md) (the owner's desktop no
-  longer a target; `uwui bundle` delegates; updates to be evaluated) and
+  longer a target; `uwui bundle` delegates; updates to be evaluated),
   [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) (four state models, today's as
-  the control)
+  the control) and [0203](0203-pilots-replaced-pluto-and-a-daw.md) (Pluto's client and a DAW among the pilots; the
+  state model chosen once three programs said what they ask of uwui)
 - Date: 2026-11-06
 
 ## Context

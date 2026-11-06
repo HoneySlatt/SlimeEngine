@@ -4,8 +4,9 @@
   uwui, not ported) and [0194](0194-stage-6d-uwui-leaving-the-engine.md) (M6d.0 cut in three; the
   rivals measured with the owner's programs); amended by [0199](0199-uwuis-targets-tools-and-references-narrowed.md) (M6d.1's
   references and M6d.0b's measures widened), [0200](0200-applications-measured-from-outside.md)
-  (the tenth "Hello, World!", and where the ten live) and [0201](0201-the-rivals-narrowed.md) (the
-  rivals of two screens narrowed)
+  (the tenth "Hello, World!", and where the ten live), [0201](0201-the-rivals-narrowed.md) (the
+  rivals of two screens narrowed) and [0203](0203-pilots-replaced-pluto-and-a-daw.md) (Slatty's screen kept as a
+  bench alone; Magnolia abandoned; the media application replaced)
 - Date: 2026-11-06
 
 ## Context

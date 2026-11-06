@@ -5,9 +5,10 @@
   renderer) and [0004](0004-workspace-layout-and-crate-naming.md) (the framework's crates are not
   named `slime-<role>`); amended by [0179](0179-the-framework-named-uwui.md) (the framework named
   uwui), [0180](0180-one-canvas-and-the-frameworks-foundations.md) (what leaves with the
-  framework, and when its repository moves)
-  [0181](0181-uwuis-scope.md) (four programs before the API is declared stable) and
-  [0194](0194-stage-6d-uwui-leaving-the-engine.md) (the pilots ported in uwui's first stage)
+  framework, and when its repository moves),
+  [0181](0181-uwuis-scope.md) (four programs before the API is declared stable),
+  [0194](0194-stage-6d-uwui-leaving-the-engine.md) (the pilots ported in uwui's first stage) and
+  [0203](0203-pilots-replaced-pluto-and-a-daw.md) (the launcher no longer ported)
 - Date: 2026-11-05
 
 ## Context

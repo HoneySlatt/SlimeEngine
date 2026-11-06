@@ -401,7 +401,7 @@ The stage's milestones are in `docs/PLAN.md`. It has no release of its own: it i
 
 ### uwui's stages
 
-In uwui's repository, in [its roadmap](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#4-stages): its first stage, the foundations, three programs ported and a media application written anew (ADR-0198), which holds what this stage held after the move, then its stages to its 1.0. The end of Stage 6c, then Stage 7, wait for its 1.0 (ADR-0190, ADR-0194).
+In uwui's repository, in [its roadmap](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#4-stages): its first stage, the foundations, Opium and its Android prototype ported, Pluto's native client and a DAW, and Slatty's library rebuilt as a screen alone (ADR-0198, ADR-0203), which holds what this stage held after the move, then its stages to its 1.0. The end of Stage 6c, then Stage 7, wait for its 1.0 (ADR-0190, ADR-0194).
 
 ### Stage 7 — Runtime systems → 0.8
 

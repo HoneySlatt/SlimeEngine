@@ -6,7 +6,8 @@
   the core) and [0198](0198-screens-of-reference-and-the-rivals-measured.md) (M6d.1's references
   and M6d.0b's measures widened); amended by
   [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) (the references read, not
-  written again)
+  written again) and [0203](0203-pilots-replaced-pluto-and-a-daw.md) (the pilots that `uwui bundle` and updates
+  wait for)
 - Date: 2026-11-06
 
 ## Context

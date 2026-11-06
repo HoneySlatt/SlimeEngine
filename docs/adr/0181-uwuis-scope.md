@@ -15,8 +15,10 @@
   [0190](0190-uwuis-requirements.md) (applications' lower tiers; Android without Kotlin; how agents reach an application;
   publication and contributions at 1.0), [0194](0194-stage-6d-uwui-leaving-the-engine.md) (the order of Stage 6d's
   milestones; the trials and the ports in uwui's first stage), [0197](0197-uwuis-repository-public-from-now.md)
-  (the repository made before the move) and [0198](0198-screens-of-reference-and-the-rivals-measured.md)
-  (the media application written anew, not ported)
+  (the repository made before the move), [0198](0198-screens-of-reference-and-the-rivals-measured.md)
+  (the media application written anew, not ported) and [0203](0203-pilots-replaced-pluto-and-a-daw.md)
+  (the four programs before the API is declared stable: Pluto's client and a DAW for the launcher
+  and the media application)
 - Date: 2026-11-05
 
 ## Context

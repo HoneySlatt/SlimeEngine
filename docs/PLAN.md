@@ -25,7 +25,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md),
   [ADR-0200](adr/0200-applications-measured-from-outside.md),
   [ADR-0201](adr/0201-the-rivals-narrowed.md),
-  [ADR-0202](adr/0202-how-m6d1-compares-ways-of-writing-an-application.md)).
+  [ADR-0202](adr/0202-how-m6d1-compares-ways-of-writing-an-application.md),
+  [ADR-0203](adr/0203-pilots-replaced-pluto-and-a-daw.md)).
 - Done: [M6d.0a](#m6d0a--the-screens-and-the-owners-programs),
   [M6d.0b](#m6d0b--measured-from-outside-and-ten-hello-world) and
   [M6d.0c](#m6d0c--the-applications-of-the-market), the figures before, cut in three at its start
@@ -301,8 +302,8 @@ ADR-0202's method, refined at its start:
 ### M6d.1b3a — Three models on the bench
 
 M6d.1b's third part, cut in two at its start, on 2026-11-06: the three models measured together on
-one bench, then the choice, which waits for what Opium's and Slatty's long-term direction asks of
-uwui.
+one bench, then the choice, which waits for what Opium's, Pluto's and the DAW's long-term
+directions ask of uwui ([ADR-0203](adr/0203-pilots-replaced-pluto-and-a-daw.md)).
 
 - **Goal.** Signals, views that say they changed, and messages, measured on the control's bench.
 - **Crates.** None kept.
@@ -325,9 +326,11 @@ uwui.
 
 - **Goal.** The owner chooses the state model.
 - **Crates.** None kept.
-- **Delivers.** What Opium's and Slatty's lists of what they ask of uwui mark as general, read in
-  their repositories once written and pushed: for each model, whether it covers each such need,
-  continuous streams of data, long tasks cancelled and several windows among them. A need that no
+- **Delivers.** What the lists of Opium, Pluto's client and the DAW, each of what it asks of uwui,
+  mark as general, read in their repositories once written and pushed
+  ([ADR-0203](adr/0203-pilots-replaced-pluto-and-a-daw.md)): for each model, whether it covers
+  each such need, text that streams in, data in real time at 240 Hz, timelines of great length,
+  long tasks cancelled and several windows among them. A need that no
   model covers is put to the owner, with options, before the choice. The screens of reference and
   ADR-0202's criteria stay as they are. The figures of M6d.1b3a put to the owner.
 - **Done when.** The model is decided and recorded in an ADR; uwui's open decisions are updated.

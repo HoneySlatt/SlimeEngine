@@ -8,8 +8,8 @@
   the move, in uwui's repository) and [0190](0190-uwuis-requirements.md) (what Stage 6d builds;
   its decisions taken in milestone M6d.1); amended by
   [0198](0198-screens-of-reference-and-the-rivals-measured.md) (M6d.0 cut in three; the rivals
-  measured) and [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) (M6d.1 cut in
-  four)
+  measured), [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) (M6d.1 cut in
+  four) and [0203](0203-pilots-replaced-pluto-and-a-daw.md) (the programs of uwui's first stage)
 - Date: 2026-11-06
 
 ## Context
