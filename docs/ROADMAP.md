@@ -387,7 +387,7 @@ The stage's milestones, their order and the owner's two checkpoints are decided 
 
 **Goal.** uwui, the owner's UI framework, leaves this repository for its own, decoupled from the engine and designed as a project of its own, the editor and the game working as before (ADR-0194). How an application is written is decided first, so that the host's API is written once.
 
-- The figures before: the screens of reference chosen and frozen; the four programs of uwui's pilots measured with their present frameworks; the owner's very modest laptop named and measured; what the renderer costs an application against the canvas alone (ADR-0180)
+- The figures before: the screens of reference chosen and frozen; the programs of uwui's pilots measured with their present frameworks, and their rivals of the market (ADR-0198); the owner's very modest laptop named and measured; what the renderer costs an application against the canvas alone (ADR-0180)
 - How an application is written, decided with the owner and thrown away as code: how its state changes its interface, the format of layouts, Rust's code reloaded with its state kept, the interface's executor, the time of each frame, an application started in one call; GPUI with gpui-kit, Iced, Slint, Dioxus, Flutter, Compose and SwiftUI compared (ADR-0190)
 - uwui decoupled: typed styles; its documents read with `serde`; its canvas on wgpu, its layout chosen against WebGL2's limits; the host's API, `slime-app` its first host (ADR-0181)
 - A series of headless compositors, Weston, sway, KWin, Mutter and X11 through Xvfb, in a job of CI of its own (ADR-0195)
@@ -401,7 +401,7 @@ The stage's milestones are in `docs/PLAN.md`. It has no release of its own: it i
 
 ### uwui's stages
 
-In uwui's repository, in [its roadmap](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#4-stages): its first stage, the foundations and four programs ported, which holds what this stage held after the move, then its stages to its 1.0. The end of Stage 6c, then Stage 7, wait for its 1.0 (ADR-0190, ADR-0194).
+In uwui's repository, in [its roadmap](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#4-stages): its first stage, the foundations, three programs ported and a media application written anew (ADR-0198), which holds what this stage held after the move, then its stages to its 1.0. The end of Stage 6c, then Stage 7, wait for its 1.0 (ADR-0190, ADR-0194).
 
 ### Stage 7 — Runtime systems → 0.8
 

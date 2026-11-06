@@ -249,7 +249,7 @@ the ADR linking to it.
 | [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179, 0180, 0181 and 0194 |
 | [0179](0179-the-framework-named-uwui.md) | The framework named uwui | Accepted; amends 0178 |
 | [0180](0180-one-canvas-and-the-frameworks-foundations.md) | One canvas, and the framework's foundations | Accepted; amends 0178; amended by 0181 |
-| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194 and 0197 |
+| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197 and 0198 |
 | [0182](0182-the-engine-under-mit-or-apache-2-0.md) | The engine under MIT OR Apache-2.0 | Accepted; amends 0006 and 0181 |
 | [0183](0183-uwuis-logo.md) | uwui's logo | Accepted |
 | [0184](0184-the-engines-logo.md) | The engine's logo | Accepted |
@@ -262,7 +262,8 @@ the ADR linking to it.
 | [0191](0191-input-in-sway-start-budgets-and-the-editors-rate.md) | Input given in sway, two budgets of a start, and the editor's rate | Accepted; amends 0175 and 0189 |
 | [0192](0192-the-budget-of-a-cold-start.md) | The budget of a cold start | Accepted; amends 0175 |
 | [0193](0193-first-measures-of-resources.md) | First measures of resources | Accepted; amends 0175 |
-| [0194](0194-stage-6d-uwui-leaving-the-engine.md) | Stage 6d: uwui leaving the engine | Accepted; amends 0170, 0171, 0178, 0181 and 0190 |
+| [0194](0194-stage-6d-uwui-leaving-the-engine.md) | Stage 6d: uwui leaving the engine | Accepted; amends 0170, 0171, 0178, 0181 and 0190; amended by 0198 |
 | [0195](0195-a-series-of-headless-compositors.md) | A series of headless compositors | Accepted; amends 0185 |
 | [0196](0196-checks-by-hand-on-macos.md) | Checks by hand on macOS | Accepted |
 | [0197](0197-uwuis-repository-public-from-now.md) | uwui's repository, public from now | Accepted; amends 0181 and 0190 |
+| [0198](0198-screens-of-reference-and-the-rivals-measured.md) | The screens of reference and the rivals measured | Accepted; amends 0181 and 0194 |

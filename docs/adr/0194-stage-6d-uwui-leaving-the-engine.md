@@ -6,7 +6,9 @@
   [0178](0178-two-pilots-and-the-frameworks-name.md) (the pilots ported in uwui's first stage),
   [0181](0181-uwuis-scope.md) (the order of Stage 6d's milestones; the trials and the ports after
   the move, in uwui's repository) and [0190](0190-uwuis-requirements.md) (what Stage 6d builds;
-  its decisions taken in milestone M6d.1)
+  its decisions taken in milestone M6d.1); amended by
+  [0198](0198-screens-of-reference-and-the-rivals-measured.md) (M6d.0 cut in three; the rivals
+  measured)
 - Date: 2026-11-06
 
 ## Context

@@ -20,9 +20,12 @@ documentation was updated and reread. Every milestone is also checked on Windows
   2026-11-06 ([ADR-0194](adr/0194-stage-6d-uwui-leaving-the-engine.md),
   [ADR-0195](adr/0195-a-series-of-headless-compositors.md),
   [ADR-0196](adr/0196-checks-by-hand-on-macos.md),
-  [ADR-0197](adr/0197-uwuis-repository-public-from-now.md)).
-- Done: none yet.
-- Now: [M6d.0](#m6d0--the-figures-before).
+  [ADR-0197](adr/0197-uwuis-repository-public-from-now.md),
+  [ADR-0198](adr/0198-screens-of-reference-and-the-rivals-measured.md)).
+- Done: [M6d.0a](#m6d0a--the-screens-and-the-owners-programs), the first third of the figures
+  before, cut in three at its start
+  ([ADR-0198](adr/0198-screens-of-reference-and-the-rivals-measured.md)).
+- Now: [M6d.0b](#m6d0b--measured-from-outside-and-ten-hello-world).
 - [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and its open decisions; its code
   moves there at M6d.11.
 - May be cut at their start: M6d.1 into its survey and its decisions; M6d.5, AccessKit's translation
@@ -38,7 +41,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 | Milestone | Status |
 |---|---|
-| [M6d.0 — The figures before](#m6d0--the-figures-before) | Planned |
+| [M6d.0a — The screens and the owner's programs](#m6d0a--the-screens-and-the-owners-programs) | Done |
+| [M6d.0b — Measured from outside, and ten "Hello, World!"](#m6d0b--measured-from-outside-and-ten-hello-world) | Planned |
+| [M6d.0c — The applications of the market](#m6d0c--the-applications-of-the-market) | Planned |
 | [M6d.1 — How an application is written](#m6d1--how-an-application-is-written) | Planned |
 | [M6d.2 — Typed styles](#m6d2--typed-styles) | Planned |
 | [M6d.3 — Documents with serde](#m6d3--documents-with-serde) | Planned |
@@ -91,21 +96,72 @@ Open risks:
 
 ### M6d.0 — The figures before
 
-- **Goal.** The stage starts from figures measured, and from screens of reference chosen before
-  any work and never tuned for.
-- **Crates.** None; `scripts/`; the four programs' repositories, read only.
-- **Delivers.** The screens of reference, chosen with the owner and written in uwui's quality bar:
-  gpui-kit's "Hello, World!", a screen of Slatty, one of the music player, and those the owner
-  adds. The four programs measured with their present frameworks: their start, their frames while
-  they scroll and animate, their memory, their power at rest, on the owner's machine and the
-  owner's very modest laptop, named. [ADR-0180](adr/0180-one-canvas-and-the-frameworks-foundations.md)'s
-  figures: what `Renderer::new` costs an application in start, memory and video memory against
-  the canvas alone; what a program on uwui compiles, its crates, its build time and its size.
+The stage starts from figures measured, and from screens of reference chosen before any work and
+never tuned for. Each screen has two figures: the owner's program gives the floor, the port's
+check; the rivals give the bar to beat, the best of them criterion by criterion
+([ADR-0198](adr/0198-screens-of-reference-and-the-rivals-measured.md)). The screens are written in
+[uwui's quality bar](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#screens-of-reference).
+The programs' and the rivals' figures go to uwui's
+[`docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md); the
+engine's, to [`measurements.md`](measurements.md). The other repositories are read, never written:
+their programs are built from clones. Cut in three at its start.
+
+### M6d.0a — The screens and the owner's programs
+
+- **Goal.** The screens frozen; the floor of the owner's programs and the engine's own costs
+  measured.
+- **Crates.** `slime-render`'s tests; `scripts/`; Slatty's and Opium's repositories, read only.
+- **Delivers.** The four screens of reference, written in uwui's quality bar. Slatty's library
+  measured again by `slatty-measure`, as on 2026-11-05. Opium's table of songs measured on a fake
+  library of 8,500 local songs, with Opium's own scripts: its start to its first frame, its memory
+  with the table open; its rest, frames and power need a person's input to open the table without
+  the screenshot mode, which repaints five times a second, and wait for M6d.0b. [ADR-0180](adr/0180-one-canvas-and-the-frameworks-foundations.md)'s
+  figures: what `Renderer::new` costs an application in start, memory and video memory against the
+  canvas alone; what a program on uwui compiles, its crates, its build time and its size; its two
+  others, a start and the rest, at M6d.0b.
 - **Done when.** Each figure is measured, or says why not; the screens are written down.
-- **How to test.** The existing measures, pointed at each program.
+- **How to test.** `slatty-measure`, Opium's own scripts through uwui's `scripts/opium-measure.sh`,
+  `scripts/canvas-cost.sh --gpu` and `scripts/uwui-program.sh`, on a machine at rest.
+- **Measured.** The engine's figures in
+  [`measurements.md`](measurements.md#m6d0a-the-renderer-against-the-canvas-and-a-program-on-uwui);
+  Slatty's and Opium's in
+  [uwui's](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md). Slatty's scrolling,
+  on the owner's display, was measured with its window beside others, not alone on the output.
+
+### M6d.0b — Measured from outside, and ten "Hello, World!"
+
+- **Goal.** Any application measured the same way, without a probe in its code.
+- **Crates.** None; uwui's `scripts/`; the programs' repositories, read only.
+- **Delivers.** A method, and its scripts in uwui's repository, that read from outside an
+  application's frames, start, memory, rest and power; checked against Slatty's probe. In motion,
+  while it scrolls and animates, it reads too the application's CPU, thread by thread, the
+  compositor's CPU, which shows a window that sends its whole content at each frame, and the GPU's
+  load and power: a rate held can hide their cost. A person's input given in a headless
+  compositor: ADR-0191's `wlrctl` in sway moved and clicked a pointer that never reached Opium's
+  window, why not established. Opium's table of songs at rest, scrolled, and its wave moving,
+  measured by it. ADR-0180's two figures that M6d.0a left: the `widgets` example's start to its
+  first useful frame, against the bar's budget, and its rest under Wayland and under Xwayland. gpui-kit's
+  "Hello, World!", and the same written with GPUI and gpui-kit, Flutter, Compose for the desktop,
+  Electron, Tauri, Qt Quick, Slint, Iced and egui, as each one's documentation shows, measured.
+- **Done when.** The method agrees with Slatty's probe within a stated margin; each program is
+  measured, or says why not.
+- **How to test.** The method run on Slatty beside its probe.
 - **Measured.** As delivered.
-- **By hand.** The owner: the laptop's inventory and its measures; the music player's Android
-  prototype in Compose, on the Pixel.
+
+### M6d.0c — The applications of the market
+
+- **Goal.** The bar to beat, measured on the same screens.
+- **Crates.** None; uwui's `scripts/`.
+- **Delivers.** Measured by M6d.0b's method: Steam and Heroic on the owner's accounts, Nautilus and
+  gThumb on Slatty's 10,000 covers; Spotify and Cider on the owner's accounts, Strawberry, Elisa
+  and GNOME Music on Opium's 8,500 songs; Zed scrolling a file of 100,000 lines. Each figure names
+  the application's version, its date, and the size of the library it ran on.
+- **Done when.** Each figure is measured, or says why not; the bar of each screen is written in
+  uwui's quality bar.
+- **How to test.** M6d.0b's method, pointed at each rival.
+- **Measured.** As delivered.
+- **By hand.** The owner: the very modest laptop's inventory and its measures; the music player's
+  Android prototype in Compose, on the Pixel.
 
 ### M6d.1 — How an application is written
 
@@ -281,6 +337,9 @@ own here when it is done. A check leaves the list once made, its result written 
 while the stage is in progress, then in the stage's entry of [`history.md`](history.md). The game
 is run with `--new --save <a file of its own>`, so that the owner's save is left alone.
 
+- **The very modest laptop** (M6d.0c): its inventory, from `nix-shell -p inxi --run "inxi -CGmSz"`,
+  given to an agent, then its measures.
+- **The music player's Android prototype** (M6d.0c): written in Compose and measured on the Pixel.
 - **Checkpoint A, in the Windows virtual machine** (M6c.1a): the editor's window; flying through
   the zone, selecting, rearranging it and playing it; the raw motion, the cursor held, the game's
   child process and the system's firewall, the dialogs.
@@ -327,4 +386,4 @@ is run with `--new --save <a file of its own>`, so that the owner's save is left
 
 ## Known debt
 
-The known debt still open, 164 items, is in [`debt.md`](debt.md).
+The known debt still open, 165 items, is in [`debt.md`](debt.md).
