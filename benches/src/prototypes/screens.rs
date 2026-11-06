@@ -222,6 +222,7 @@ pub(crate) const fn small(name: &'static str) -> (&'static str, (&'static str, &
     )
 }
 
+#[cfg(test)]
 pub(crate) const SELECTION: (&str, (&str, &str)) = small("A list whose selection moves");
 
 /// The script of the small cases of a selection that does not show: a list of 1,000 rows,
