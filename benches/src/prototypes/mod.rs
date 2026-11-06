@@ -23,6 +23,7 @@ mod described;
 mod host;
 mod messages;
 mod screens;
+mod views;
 
 use std::time::{Duration, Instant};
 
@@ -96,6 +97,12 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     chosen.bench("control", "songs", &control::SONGS)?;
     chosen.bench("control", "document", &control::DOCUMENT)?;
     chosen.bench("control", "mistakes", &control::REVISION_NOT_MOVED)?;
+    chosen.bench("views", "hello", &views::HELLO)?;
+    chosen.bench("views", "library", &views::LIBRARY)?;
+    chosen.bench("views", "songs", &views::SONGS)?;
+    chosen.bench("views", "document", &views::DOCUMENT)?;
+    chosen.bench("views", "mistakes", &views::NOTIFY_FORGOTTEN)?;
+    chosen.bench("views", "mistakes", &views::INNER_NOT_NOTIFIED)?;
     chosen.bench("messages", "hello", &messages::HELLO)?;
     chosen.bench("messages", "library", &messages::LIBRARY)?;
     chosen.bench("messages", "songs", &messages::SONGS)?;
@@ -525,6 +532,22 @@ mod tests {
     }
 
     #[test]
+    fn views_render_each_screen_as_a_new_interface_would() {
+        assert!(wrong(&views::HELLO, true).iter().all(|&wrong| wrong == 0));
+        assert!(
+            wrong(&views::LIBRARY, false)
+                .iter()
+                .all(|&wrong| wrong == 0)
+        );
+        assert!(wrong(&views::SONGS, false).iter().all(|&wrong| wrong == 0));
+        assert!(
+            wrong(&views::DOCUMENT, false)
+                .iter()
+                .all(|&wrong| wrong == 0)
+        );
+    }
+
+    #[test]
     fn messages_render_each_screen_as_a_new_interface_would() {
         assert!(
             wrong(&messages::HELLO, true)
@@ -608,6 +631,32 @@ mod tests {
         .expect("it plays");
         assert!(played.still.runs > 0, "update and view run at rest");
         assert_eq!(played.still.changed, 0, "though nothing changes");
+    }
+
+    #[test]
+    fn a_notify_forgotten_shows_as_a_wrong_render() {
+        let wrong = wrong(&views::NOTIFY_FORGOTTEN, false);
+        assert_eq!(wrong[..2], [0, 0], "right until the selection moves");
+        assert!(wrong[2] > 0, "the row selected before still shows");
+        let wrong = self::wrong(&views::INNER_NOT_NOTIFIED, false);
+        assert_eq!(wrong[..2], [0, 0], "right until a row plays");
+        assert!(wrong[2] > 0, "the bar does not show the row playing");
+    }
+
+    #[test]
+    fn a_view_updated_while_it_is_updated_panics() {
+        let panic = std::panic::catch_unwind(|| {
+            play(&views::UPDATED_TWICE, Scale::Short, false, false, false).map(|_| ())
+        })
+        .expect_err("the press panics");
+        let message = panic
+            .downcast_ref::<&str>()
+            .map(|message| (*message).to_owned())
+            .or_else(|| panic.downcast_ref::<String>().cloned());
+        assert_eq!(
+            message.as_deref(),
+            Some("a view updated while it is updated or renders")
+        );
     }
 
     #[test]
