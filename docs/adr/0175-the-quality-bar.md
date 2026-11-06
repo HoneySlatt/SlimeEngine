@@ -14,7 +14,7 @@
   its tier's), [0190](0190-uwuis-requirements.md) (applications' budgets of start, memory, size and changes seen; the
   owner's Steam Deck measures the handheld tier) and
   [0191](0191-input-in-sway-start-budgets-and-the-editors-rate.md) (the budgets of a level opened
-  and of a game to control)
+  and of a game to control) and [0192](0192-the-budget-of-a-cold-start.md) (a cold start's budget)
 - Date: 2026-11-05
 
 ## Context

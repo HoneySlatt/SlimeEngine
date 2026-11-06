@@ -633,7 +633,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Starts and input to present are measured on the owner's machine only, their times absolute, in a headless Weston and a headless sway: a person's path through the desktop's compositor and display is not measured ([ADR-0189](adr/0189-first-measures-of-time.md)).
   The editor's start passes its budget, its steps run one after the other: the GPU opened, the system's fonts read, the renderer's pipelines made ([`measurements.md`](measurements.md#m6cq2d-ryzen-7-5800x-and-rx-6900-xt)).
   The zone opened in the editor passes its budget too ([ADR-0191](adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md)).
-  Cold starts need root, and wait for the owner's measure.
+  Cold starts need root: a person measures them ([ADR-0192](adr/0192-the-budget-of-a-cold-start.md)).
   Memory over a session and power are not measured; M6c.Q2e.
   The editor's interface passes its budget on the owner's machine once other programs fill the memory that its GPU, without resizable BAR, lets the CPU map: the canvas's draw then meets [ADR-0041](adr/0041-render-graph.md)'s stall, whose fix is out of Stage 6c ([`measurements.md`](measurements.md#m6cq2b-ryzen-7-5800x-and-rx-6900-xt)).
   A frame of the interface standing still allocates, which `benches/counters.txt` counts without a budget.

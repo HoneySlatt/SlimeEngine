@@ -21,12 +21,12 @@ documentation was updated and reread. Every milestone is also checked on Windows
   Stage 6d and uwui's stages to its 1.0, uwui now the owner's main project
   ([ADR-0190](adr/0190-uwuis-requirements.md)).
 - Done: M6c.0, M6c.1a, M6c.1b, M6c.2a, M6c.2b, M6c.2c, M6c.3a, M6c.3b, M6c.3c, M6c.4a, M6c.4b,
-  M6c.4c, M6c.4d, M6c.5a, M6c.5b, M6c.5c, M6c.5d, M6c.5e, M6c.Q1, M6c.N, M6c.Q2a, M6c.Q2b and
-  M6c.Q2c.
+  M6c.4c, M6c.4d, M6c.5a, M6c.5b, M6c.5c, M6c.5d, M6c.5e, M6c.Q1, M6c.N, M6c.Q2a, M6c.Q2b,
+  M6c.Q2c and M6c.Q2d.
 - Checkpoint A: done on Linux; its part in the Windows virtual machine waits for the owner.
 - Next: the rest of the [quality milestones](#the-quality-milestones)
-  ([ADR-0175](adr/0175-the-quality-bar.md)), [M6c.Q2d](#m6cq2d--first-measures-of-time),
-  [M6c.Q2e](#m6cq2e--first-measures-of-resources), then, after the pause,
+  ([ADR-0175](adr/0175-the-quality-bar.md)): [M6c.Q2e](#m6cq2e--first-measures-of-resources),
+  then, after the pause,
   [M6c.Q2f](#m6cq2f--the-editor-at-the-displays-rate), M6c.Q3 and M6c.Q4;
   then [M6c.5f](#m6c5f--the-inspector), the inspector.
 - Then: M6c.6, M6c.7, Checkpoint B, M6c.8, M6c.Q5, the stage's audit, and M6c.9.
@@ -81,7 +81,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | M6c.Q2a — Rest, checked in CI | Done 2026-11-05, [ADR-0185](adr/0185-rest-checked-in-ci.md), CI green on `4164455` |
 | M6c.Q2b — Counters and ratios in CI | Done 2026-11-05, [ADR-0186](adr/0186-counters-and-ratios-in-ci.md), CI green on `7535915` |
 | [M6c.Q2c — A hidden game at rest](#m6cq2c--a-hidden-game-at-rest) | Done 2026-11-05, [ADR-0187](adr/0187-a-hidden-window-at-rest.md), CI green on `5002bf1`; by hand on Linux done, the Windows virtual machine waiting for the owner |
-| [M6c.Q2d — First measures of time](#m6cq2d--first-measures-of-time) | In progress, [ADR-0189](adr/0189-first-measures-of-time.md), [ADR-0191](adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md) |
+| [M6c.Q2d — First measures of time](#m6cq2d--first-measures-of-time) | Done 2026-11-06, [ADR-0189](adr/0189-first-measures-of-time.md), [ADR-0191](adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md), [ADR-0192](adr/0192-the-budget-of-a-cold-start.md), CI green on `649467c` |
 | [M6c.Q2e — First measures of resources](#m6cq2e--first-measures-of-resources) | Planned |
 | [M6c.Q2f — The editor at the display's rate](#m6cq2f--the-editor-at-the-displays-rate) | Planned, after the pause |
 | [M6c.Q3 — The hierarchy's search over frames](#m6cq3--the-hierarchys-search-over-frames) | Planned |
@@ -218,8 +218,7 @@ stage's audit before M6c.9. Their figures live in the
   shell, `dependencies.md` and `CONTRIBUTING.md`; first measures of the warm start, the read of the
   system's fonts included, of a level opened, a game to control and input to present; variable
   refresh rates checked against [ADR-0021](adr/0021-frame-pacing.md)'s pacing as M6c.Q2c leaves it;
-  figures decided by the owner for a level opened and a game to control, cold starts' after the
-  owner's measure.
+  figures decided by the owner for a level opened, a game to control and a cold start.
 - **Done when.** The start and input to present have a figure measured, or say why not; CI is
   green, each job within 20 minutes.
 - **How to test.** `cargo test -p slime-app -p slime-editor`; `scripts/check.sh windowed`;
@@ -229,7 +228,8 @@ stage's audit before M6c.9. Their figures live in the
   owner's displays ([`measurements.md`](measurements.md#m6cq2d-ryzen-7-5800x-and-rx-6900-xt)).
 - **By hand.** Variable refresh rates on the owner's displays, done on 2026-11-06: ADR-0021's
   pacing unchanged with adaptive sync, at 60 frames a second, which divides the refresh, so not yet
-  judged (M6c.Q2f); cold starts wait for the owner, `sudo` asked.
+  judged (M6c.Q2f); cold starts, measured by the owner the same day
+  ([ADR-0192](adr/0192-the-budget-of-a-cold-start.md)).
 
 ### M6c.Q2e — First measures of resources
 
@@ -498,8 +498,6 @@ is run with `--new --save <a file of its own>`, so that the owner's save is left
   Linux and in the Windows virtual machine.
 - **A hidden game at rest** (M6c.Q2c): *Hunna Wood* minimized in the Windows virtual machine,
   drawing nothing and waking not at all, and drawing again once shown.
-- **Cold starts** (M6c.Q2d): `sudo -v && scripts/start-times.sh --gpu --cold --runs 5`, the machine
-  at rest; their figure is proposed after.
 - **G20, in the Windows virtual machine.** A source asset whose `.meta` differs from its own name
   by case only, cooked twice: whether its ID changes at each cook, and whether `slime-cook watch`
   cooks it again without end (see [Left by the audit of 0.4](debt.md#left-by-the-audit-of-04)).

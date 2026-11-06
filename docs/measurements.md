@@ -1581,16 +1581,31 @@ as [ADR-0187](adr/0187-a-hidden-window-at-rest.md) leaves it. At 60 frames a sec
 both refreshes, a display that did not follow the frames would pace them the same: whether it
 follows them is judged at another rate (M6c.Q2f). What the display shows the engine does not see.
 
+## M6c.Q2d, cold starts, RX 6900 XT
+
+On 2026-11-06, the engine at commit `36f92bc`, `scripts/start-times.sh --gpu --cold --runs 5` run by
+the owner, the machine at rest: the system's caches dropped before each run
+([ADR-0192](adr/0192-the-budget-of-a-cold-start.md)). Medians of the logs, means of `hyperfine`:
+
+| Program | Launch, `--help` | First image, log | Start | Level or zone drawn whole, log | Run of `--frames 1` whole |
+|---|---|---|---|---|---|
+| The editor, on the yard | 16.3 ms | 395.5 ms | 411.8 ms | 396.3 ms | 447.7 ms ± 5.5 ms |
+| *Hunna Wood*'s editor, on its zone | 15.5 ms | 419.7 ms | 435.2 ms | 733.3 ms | 486.7 ms ± 6.4 ms |
+| *Hunna Wood*, to its zone drawn | 16.3 ms | 387.0 ms | 403.3 ms | 667.6 ms | 724.9 ms ± 17.0 ms |
+
+What it says: a cold start costs some 230 ms more than a warm one, the program, its libraries, the
+drivers and the data read from the disk again; the editor's is within its 500 ms.
+
 ## M6c.Q2d, CI's runners
 
-GitHub's hosted runners, on 2026-11-06, commit `36f92bc`, its run green. The cooked zone came from
+GitHub's hosted runners, on 2026-11-06, commit `649467c`, its run green. The cooked zone came from
 the cache. `check (windowed)` runs the editor once to its first image and once to its level drawn
 whole ([ADR-0189](adr/0189-first-measures-of-time.md)).
 
 | Job | Time |
 |---|---|
-| `windows` | 17 min 51 s, its tests 13 min 20 s |
-| `check (headless)` | 17 min 9 s |
-| `windows-release` | 14 min 7 s |
-| `check (game)` | 8 min 11 s |
-| `check (windowed)` | 6 min 32 s |
+| `windows` | 17 min 48 s, its tests 13 min 21 s |
+| `windows-release` | 14 min 38 s |
+| `check (headless)` | 12 min 14 s |
+| `check (game)` | 7 min 12 s |
+| `check (windowed)` | 5 min 38 s |
