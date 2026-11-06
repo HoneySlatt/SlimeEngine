@@ -1609,3 +1609,69 @@ whole ([ADR-0189](adr/0189-first-measures-of-time.md)).
 | `check (headless)` | 12 min 14 s |
 | `check (game)` | 7 min 12 s |
 | `check (windowed)` | 5 min 38 s |
+
+## M6c.Q2e, Ryzen 7 5800X and RX 6900 XT
+
+On 2026-11-06, in release builds, [ADR-0193](adr/0193-first-measures-of-resources.md)'s measure:
+`scripts/resources.sh --gpu`, a headless Weston 16 at 3840 × 2160, scale 3, through its GL renderer,
+the RX 6900 XT through RADV; `hunnawood-editor` on a copy of the zone, its window 3840 × 2400,
+driven through the MCP server. Memory at commit `06ddcce`, the machine busy with a virtual machine;
+power from a run an hour before, the desktop at rest, its measure the same but for its reading of
+the driver's sizes, which gave the same figures.
+
+Memory and video memory, read at rest, from one run; video memory asked of the driver, of it
+resident, and the system's memory that the GPU maps:
+
+| When | Resident | Anonymous | Files | Video memory asked | Of it resident | Mapped from the system's |
+|---|---|---|---|---|---|---|
+| The editor on the zone | 172.9 MiB | 106.7 MiB | 62.6 MiB | 986.0 MiB | 858.0 MiB | 209.7 MiB |
+| After a step and 300 undos and redos | 187.2 MiB | 108.2 MiB | 62.6 MiB | 986.1 MiB | 858.1 MiB | 223.2 MiB |
+| After 100 undos and redos more | 187.2 MiB | 108.2 MiB | 62.6 MiB | 986.1 MiB | 858.1 MiB | 223.2 MiB |
+| After a Play, which built the game | 187.0 MiB | 108.3 MiB | 62.3 MiB | 986.1 MiB | 858.1 MiB | 223.2 MiB |
+| After 10 Plays more | 187.8 MiB | 109.2 MiB | 62.3 MiB | 986.1 MiB | 858.1 MiB | 223.2 MiB |
+| *Hunna Wood* on its zone, running at 60 frames a second | 158.0 MiB | 98.3 MiB | 56.1 MiB | 1 236.5 MiB | 1 108.5 MiB | 218.8 MiB |
+
+Over five runs, the editor on the zone at rest was 123.6 to 172.9 MiB resident, its anonymous
+memory alone changing, and *Hunna Wood* 144.7 to 158.0 MiB. The editor's video memory asked was
+986 MiB, but 858 MiB in one run after its undos, 128 MiB fewer, as much less mapped: most likely a
+block of the GPU's memory given back once the uploads ended, which was not traced.
+
+The editor's heap, from `scripts/resources.sh --gpu --heaptrack`, at the end of each phase:
+
+| Run | At rest | After the step and 300 undos and redos | After the undos and redos measured | After a Play | After the Plays measured |
+|---|---|---|---|---|---|
+| 100 undos and redos, 10 Plays | 21.3 MiB | 28.7 MiB | 28.8 MiB | 28.8 MiB | 29.1 MiB |
+| `--undos 1000 --plays 40` | 21.3 MiB | 26.1 MiB | 28.8 MiB | 28.7 MiB | 29.3 MiB |
+| `--plays 100` | 25.4 MiB | 32.8 MiB | 32.8 MiB | 32.8 MiB | 33.3 MiB |
+
+Its peak, as the zone loads, 46.2 MiB. Over the 100 Plays, the heap rose by 0.4 to 0.7 MiB within
+the first ten, then moved between 33.2 and 33.6 MiB to the last.
+
+The GPU's power, amdgpu's sensor, 120 readings over 30 s each:
+
+| What runs | Mean | Lowest | Highest |
+|---|---|---|---|
+| Nothing but the desktop and Weston, before | 34.0 W | 33.0 W | 41.0 W |
+| The editor at rest on the zone | 34.6 W | 33.0 W | 35.0 W |
+| *Hunna Wood* at 60 frames a second, 1 804 frames in the 30 s | 71.6 W | 69.0 W | 75.0 W |
+| Nothing but the desktop and Weston, after | 34.1 W | 33.0 W | 35.0 W |
+
+What it says:
+
+- The editor's memory, at most 173 MiB, within its budget of 256 MiB; a third of it, the program
+  and its libraries mapped from their files. Its heap at rest is some 23 MiB, at its peak 46 MiB:
+  much of the rest of its anonymous memory is the allocator's, which keeps in part, more or less
+  from one run to the next, what the threads that load the zone freed.
+- Its video memory, 986 MiB asked, within its 1.5 GiB.
+- Neither undos and redos nor Play grow the heap. The first few hundred undos and redos fill some
+  7 MiB once: wgpu's pool of Vulkan command buffers, which `radv_create_cmd_buffer` allocates for
+  each pass that the viewport submits (`slime-gfx`'s `pass.rs`), grows as the frames that they
+  draw follow each other fast, and is never shrunk. The first ten Plays fill under 1 MiB once.
+- The editor at rest adds no power that the sensor sees: 34.6 W against 34.0 W before and 34.1 W
+  after, within its watt; at another run the same day, 34.4 W against 34.5 W.
+- *Hunna Wood* at 60 frames a second at 3840 × 2160 adds 37.6 W to the desktop's, within its
+  budget of 50 W; the power counts Weston's composition of each image. Runs on the busy machine
+  gave 37 to 39 W.
+- The game's memory, at most 158 MiB, and its video memory, 1.2 GiB, are far within the high
+  tier's 24 GB and 12 GB, and the handheld tier's 8 GB and 4 GB; a tier's own machine is not
+  measured.

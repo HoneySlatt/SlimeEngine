@@ -234,18 +234,23 @@ stage's audit before M6c.9. Their figures live in the
 ### M6c.Q2e — First measures of resources
 
 - **Goal.** The budgets of memory and power each have a first figure, or say why not.
-- **Crates.** `slime-editor`, `slime-mcp`; `flake.nix`, `scripts/`.
+- **Crates.** `slime-mcp`; `flake.nix`, `scripts/`.
 - **Delivers.** As [ADR-0175](adr/0175-the-quality-bar.md) decides, cut from M6c.Q2d by
-  [ADR-0189](adr/0189-first-measures-of-time.md): first measures of memory over 100 undos and redos
-  and 10 runs of Play, of the editor's memory and video memory on the zone, and of the GPU's power
-  at rest and of a game capped at 60 frames a second; `heaptrack` in the development shell,
-  `dependencies.md` and `CONTRIBUTING.md`; figures proposed to the owner for the editor's memory
-  and video memory and a game's power.
+  [ADR-0189](adr/0189-first-measures-of-time.md), and as
+  [ADR-0193](adr/0193-first-measures-of-resources.md) measures them: first measures of memory over
+  100 undos and redos and 10 runs of Play, of the editor's memory and video memory on the zone, and
+  of the GPU's power at rest and of a game capped at 60 frames a second, by
+  `crates/slime-mcp/tests/resources.rs` and `scripts/resources.sh`; `heaptrack` in the development
+  shell, `dependencies.md` and `CONTRIBUTING.md`; figures decided by the owner for the editor's
+  memory and video memory and a game's power.
 - **Done when.** Memory and power have a figure measured, or say why not; CI is green, each job
   within 20 minutes.
-- **How to test.** The measures' own commands, which it writes down.
-- **Measured.** Memory and power.
-- **By hand.** The GPU's power on the owner's machine and desktop.
+- **How to test.** `scripts/resources.sh --gpu` and `scripts/resources.sh --gpu --heaptrack`, on a
+  machine at rest; `scripts/check.sh headless`, which lints the measure.
+- **Measured.** Memory, video memory and power, on the RX 6900 XT
+  ([`measurements.md`](measurements.md#m6cq2e-ryzen-7-5800x-and-rx-6900-xt)).
+- **By hand.** The GPU's power on the owner's machine, the desktop at rest, done on 2026-11-06 in a
+  headless Weston beside it.
 
 ### M6c.Q2f — The editor at the display's rate
 

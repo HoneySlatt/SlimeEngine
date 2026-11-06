@@ -12,9 +12,11 @@
   (M6c.Q2b cut in two; the ratio of the editor's interface),
   [0189](0189-first-measures-of-time.md) (the first useful frame; a frame of input to present is
   its tier's), [0190](0190-uwuis-requirements.md) (applications' budgets of start, memory, size and changes seen; the
-  owner's Steam Deck measures the handheld tier) and
+  owner's Steam Deck measures the handheld tier),
   [0191](0191-input-in-sway-start-budgets-and-the-editors-rate.md) (the budgets of a level opened
-  and of a game to control) and [0192](0192-the-budget-of-a-cold-start.md) (a cold start's budget)
+  and of a game to control), [0192](0192-the-budget-of-a-cold-start.md) (a cold start's budget)
+  and [0193](0193-first-measures-of-resources.md) (the budgets of the editor's memory and video
+  memory and of a game's power)
 - Date: 2026-11-05
 
 ## Context
