@@ -9,7 +9,9 @@
   9b), [0175](0175-the-quality-bar.md) (applications' budgets of start, memory, size and changes
   seen; the owner's Steam Deck measures the handheld tier) and [0181](0181-uwuis-scope.md)
   (applications' lower tiers; Android without Kotlin; how agents reach an application; publication
-  and contributions at 1.0)
+  and contributions at 1.0); amended by [0194](0194-stage-6d-uwui-leaving-the-engine.md) (what Stage 6d
+  builds; its decisions taken in M6d.1) and [0197](0197-uwuis-repository-public-from-now.md) (the repository public
+  from now; the name kept on crates.io)
 - Date: 2026-11-06
 
 ## Context

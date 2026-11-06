@@ -3,7 +3,8 @@
 - Status: Accepted; amends [0170](0170-applications-on-the-ui-framework.md) (Stage 6d lays the
   foundations of the interface's effects, and measures the power that it draws); amended by
   [0190](0190-uwuis-requirements.md) (motion interrupted and driven by gestures, shared elements; effects lightened on
-  battery)
+  battery) and [0194](0194-stage-6d-uwui-leaving-the-engine.md) (the foundations built in uwui's first
+  stage)
 - Date: 2026-11-04
 
 ## Context

@@ -13,7 +13,9 @@
   [0080](0080-reflection-and-serialization.md) (uwui reads its documents with `serde`);
   amended by [0182](0182-the-engine-under-mit-or-apache-2-0.md) (the engine leaves MPL-2.0 too) and
   [0190](0190-uwuis-requirements.md) (applications' lower tiers; Android without Kotlin; how agents reach an application;
-  publication and contributions at 1.0)
+  publication and contributions at 1.0), [0194](0194-stage-6d-uwui-leaving-the-engine.md) (the order of Stage 6d's
+  milestones; the trials and the ports in uwui's first stage) and [0197](0197-uwuis-repository-public-from-now.md)
+  (the repository made before the move)
 - Date: 2026-11-05
 
 ## Context

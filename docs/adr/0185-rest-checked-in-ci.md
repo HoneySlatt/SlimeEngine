@@ -3,7 +3,9 @@
 - Status: Accepted; amends [0021](0021-frame-pacing.md) (a hidden window draws on the compositor's
   signal, from M6c.Q2c), [0156](0156-the-editors-window-and-its-operations.md) (a program sets
   its frames on demand while it runs) and [0175](0175-the-quality-bar.md) (rest read for each
-  thread; a hidden game checked from M6c.Q2c)
+  thread; a hidden game checked from M6c.Q2c); amended by
+  [0195](0195-a-series-of-headless-compositors.md) (rest also checked on each compositor of the
+  series)
 - Date: 2026-11-05
 
 ## Context

@@ -12,7 +12,9 @@
   framework named now, in a repository of its own once its drawing leaves the renderer)
   [0181](0181-uwuis-scope.md) (uwui's scope: the base of the owner's programs, in a
   repository of its own) and [0190](0190-uwuis-requirements.md) (the system's integrations in an optional layer of uwui;
-  drawing without a GPU decided; uwui's stages to its 1.0 before Stage 7)
+  drawing without a GPU decided; uwui's stages to its 1.0 before Stage 7) and
+  [0194](0194-stage-6d-uwui-leaving-the-engine.md) (Stage 6d released with 0.7, later releases moved back by one; its exit
+  moved to uwui's first stage)
 - Date: 2026-11-04
 
 ## Context

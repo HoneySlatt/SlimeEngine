@@ -6,7 +6,8 @@
   named `slime-<role>`); amended by [0179](0179-the-framework-named-uwui.md) (the framework named
   uwui), [0180](0180-one-canvas-and-the-frameworks-foundations.md) (what leaves with the
   framework, and when its repository moves)
-  and [0181](0181-uwuis-scope.md) (four programs before the API is declared stable)
+  [0181](0181-uwuis-scope.md) (four programs before the API is declared stable) and
+  [0194](0194-stage-6d-uwui-leaving-the-engine.md) (the pilots ported in uwui's first stage)
 - Date: 2026-11-05
 
 ## Context
