@@ -35,7 +35,8 @@ nix develop
 
 The shell it opens contains the pinned toolchain and the project's tools: `cargo-deny` (checks
 dependency licenses and security advisories), `lychee` (checks links in the documentation),
-`hyperfine` (times the programs' starts) and Weston (a Wayland compositor without screen, in which
+`hyperfine` (times the programs' starts), sway and `wlrctl` (a compositor without screen that takes
+virtual input, and the tool that gives it) and Weston (a Wayland compositor without screen, in which
 the checks run the windowed samples and the games). It also puts the windowing libraries that the
 engine loads at run time on the loader path.
 [`flake.lock`](flake.lock) pins every input, so every contributor and CI get the same versions.
@@ -49,8 +50,8 @@ Nix only sees the files that git tracks. If you change `flake.nix` so that it re
 
 Install [rustup](https://rustup.rs). It reads `rust-toolchain.toml` and installs the pinned
 toolchain the first time you run `cargo` in the repository. Install the tools with
-`cargo install --locked cargo-deny lychee hyperfine`, and Weston from your distribution's packages;
-CI uses the versions pinned by `flake.lock`. To open windows, the examples need the windowing system's
+`cargo install --locked cargo-deny lychee hyperfine`, and Weston, sway and wlrctl from your
+distribution's packages; CI uses the versions pinned by `flake.lock`. To open windows, the examples need the windowing system's
 libraries, which are loaded at run time: libxkbcommon for both windowing systems;
 libwayland-client for Wayland; libX11, libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11
 for X11. Without libxkbcommon, or libxkbcommon-x11 on X11, the examples panic instead of
@@ -89,6 +90,7 @@ cargo run -p slime-benches -- --write-counters [<name>...]  # write the counters
 scripts/measure.sh "<title>" >> docs/measurements.md      # time the build, run the benchmarks (ADR-0104)
 scripts/frame-pacing.py <trace.json>                      # the frames' pacing and the inputs to present in a trace written with SLIME_TRACE (ADR-0187, ADR-0189)
 scripts/start-times.sh [--gpu] [--cold] [--runs <count>]  # time the editor's and the game's starts in a headless Weston (ADR-0189)
+scripts/input-to-present.sh [--gpu]                       # measure their input to present, a person's input given in a headless sway (ADR-0189)
 scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
 blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)
 cargo run -p hunnawood                                    # play the game (games/hunnawood/README.md)
@@ -343,9 +345,11 @@ scripts/frame-pacing.py trace.json
 The same trace holds, on a track of its own, the interval from each input that a person gives the
 window to the present of the image after it, which `scripts/frame-pacing.py` reads too, in frames
 of the editor's budget of [input to present](docs/ROADMAP.md#budgets), or of a game's with
-`--frame <milliseconds>` ([ADR-0189](docs/adr/0189-first-measures-of-time.md)). No input reaches a headless Weston: input to
-present is measured on a desktop, the editor on a copy of a level, with a journal and a state
-directory of its own, so that it writes none of the user's keys, layout and recent levels:
+`--frame <milliseconds>` ([ADR-0189](docs/adr/0189-first-measures-of-time.md)).
+[`scripts/input-to-present.sh`](scripts/input-to-present.sh) measures it for the editor and the
+game in a headless sway whose output refreshes at 240 Hz, `wlrctl` giving them a person's input, on
+a machine at rest. On a desktop, by hand, the editor runs on a copy of a level, with a journal and a
+state directory of its own, so that it writes none of the user's keys, layout and recent levels:
 
 ```sh
 cp examples/assets/yard.scene examples/assets/yard.scene.meta /tmp/
@@ -418,7 +422,8 @@ two dragged, which must then be at rest, a panel floating, none of its threads w
 [ADR-0169](docs/adr/0169-the-eye-and-the-lock.md), [ADR-0172](docs/adr/0172-regions-of-tabs.md)),
 the `editor` example's start, its log saying when it presented its first image, in a run that quits
 after it, and when it drew its level whole, in a run stopped then
-([ADR-0189](docs/adr/0189-first-measures-of-time.md)), the `world` example's two views captured, the map's normals shown, its reports read and an entity
+([ADR-0189](docs/adr/0189-first-measures-of-time.md)), the `world` example's two views captured,
+the map's normals shown, its reports read and an entity
 picked at a pixel, by an agent's session through the MCP server, the benchmarks' counters, which
 must equal those that `benches/counters.txt` records, and their ratios of times, each within its
 budget, in a debug build on lavapipe ([ADR-0186](docs/adr/0186-counters-and-ratios-in-ci.md)), the `scene` example on a copy of
