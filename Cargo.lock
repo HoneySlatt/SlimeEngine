@@ -2994,6 +2994,7 @@ dependencies = [
  "slime-devui",
  "slime-editor",
  "slime-gfx",
+ "slime-input",
  "slime-render",
  "slime-world",
  "slime-world-render",
