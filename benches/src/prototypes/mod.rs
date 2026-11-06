@@ -422,11 +422,11 @@ fn print<P>(screen: &Screen<P>, measured: &Measured) {
     allocations("A frame where nothing changed", still.costs);
     if let Some(memory) = first.memory {
         println!(
-            "\nMemory held, against before the screen opened: its data alone, {} kB; open and \
-             still, {} kB; after the script and the screen closed, {} kB.\n",
-            memory.data as f64 / 1e3,
-            memory.open as f64 / 1e3,
-            memory.closed as f64 / 1e3,
+            "\nMemory held, against before the screen opened: its data alone, {:.2} MB; open and \
+             still, {:.2} MB; after the script and the screen closed, {:.2} MB.\n",
+            memory.data as f64 / 1e6,
+            memory.open as f64 / 1e6,
+            memory.closed as f64 / 1e6,
         );
     }
 }
