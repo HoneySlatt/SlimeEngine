@@ -139,7 +139,8 @@ measure() {
     fi
     : >"$log"
     local cold_runs=()
-    [ "$cold" = 1 ] && cold_runs=(--prepare "$drop_caches")
+    # The launch's run has no shell: the preparation takes its own.
+    [ "$cold" = 1 ] && cold_runs=(--prepare "bash -c '$drop_caches'")
     hyperfine --shell=bash --runs "$runs" "${cold_runs[@]}" --command-name "$name" \
         "$(printf '%q ' "$@") 2>>$(printf '%q' "$log")"
     # The launch alone: the same program, which quits as soon as it read its options. The game

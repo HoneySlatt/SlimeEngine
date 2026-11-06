@@ -195,8 +195,8 @@ if runs windowed; then
         VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" \
         timeout -k 10 300 cargo test --locked -p slime-mcp --test edit_window -- "$cooked/first" ||
         { cat "$runtime/slime-check.log"; exit 1; }
-    # The editor's start as `hyperfine` times it: on a copy of the yard, with a journal and a state
-    # of its own, it presents its first image and quits after its first frame, its log saying when,
+    # The editor's start as scripts/start-times.sh times it: on a copy of the yard, with a journal
+    # and a state of its own, it presents its first image and quits after its first frame, its log saying when,
     # since the start; then, run again until its log says that it drew its level whole, it is
     # stopped by its pid (ADR-0189).
     cp examples/assets/yard.scene examples/assets/yard.scene.meta "$runtime/"

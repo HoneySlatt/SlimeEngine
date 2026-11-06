@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Measures input to present (docs/adr/0189-first-measures-of-time.md): the editor on a copy of the
+# Measures input to present (docs/adr/0189-first-measures-of-time.md,
+# docs/adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md): the editor on a copy of the
 # examples' yard, then Hunna Wood, each given a person's input by `wlrctl` in a headless sway of its
 # own, their traces read by scripts/frame-pacing.py.
 #
@@ -7,8 +8,8 @@
 #
 # The input reaches the window through the compositor, as a person's does, through the protocols of
 # virtual pointers and keyboards that wlroots gives: inside this compositor alone, never the
-# desktop's. Two scenarios each: inputs apart, every 100 ms, the program at rest between them; then
-# inputs in a row, as fast as `wlrctl` gives them, the pointer in motion. Its output refreshes at
+# desktop's. Two runs each, read apart: inputs apart, every 100 ms, the program at rest between
+# them; and inputs in a row, about 180 a second, the pointer in motion. Its output refreshes at
 # 240 Hz, the high tier's display. Drawn with lavapipe, or with `--gpu` on the machine's GPU through
 # sway's GL renderer; a game's frame takes seconds on lavapipe, and gives few images after an
 # input. Run it on a machine at rest, in the
@@ -43,7 +44,9 @@ program_pid=
 # Stops what runs, each by its own pid, never by its name.
 trap 'for pid in $program_pid $sway_pid; do kill "$pid" 2>/dev/null || true; done; rm -rf "$work"' EXIT
 cp examples/assets/yard.scene examples/assets/yard.scene.meta "$work/"
-printf 'output HEADLESS-1 mode --custom 1920x1080@240Hz\ndefault_border none\n' >"$work/sway.config"
+# No Xwayland, which would write into the system's /tmp/.X11-unix.
+printf 'output HEADLESS-1 mode --custom 1920x1080@240Hz\ndefault_border none\nxwayland disable\n' \
+    >"$work/sway.config"
 
 renderer=pixman
 [ "$gpu" = 1 ] && renderer=gles2
@@ -62,6 +65,22 @@ for _ in $(seq 100); do
 done
 [ -n "$socket" ] || {
     cat "$work/sway.log"
+    exit 1
+}
+# Its output must refresh at 240 Hz before a program starts: sway keeps a default mode without a
+# word when it refuses the one asked.
+refresh=
+for _ in $(seq 50); do
+    refresh=$(SWAYSOCK=$(find "$work/runtime" -maxdepth 1 -name 'sway-ipc.*.sock' | head -n 1) \
+        swaymsg -t get_outputs -r 2>/dev/null |
+        python3 -I -c 'import json, sys; print(json.load(sys.stdin)[0]["current_mode"]["refresh"])' \
+        2>/dev/null || true)
+    [ "$refresh" = 240000 ] && break
+    sleep 0.1
+done
+[ "$refresh" = 240000 ] || {
+    echo "sway's output refreshes at ${refresh:-an unknown rate} mHz, not 240 Hz:" >&2
+    cat "$work/sway.log" >&2
     exit 1
 }
 
@@ -93,42 +112,59 @@ start() {
     exit 1
 }
 
-# A person's inputs: apart, then in a row, the pointer, its buttons, the wheel and the keys.
-inputs() {
-    for step in $(seq 40); do
-        wlrctl pointer move $((step % 2 ? 40 : -40)) 15
-        sleep 0.1
-    done
-    for _ in $(seq 5); do
-        wlrctl pointer click left
-        sleep 0.1
-        wlrctl pointer scroll 0 1
-        sleep 0.1
-        wlrctl keyboard type a
-        sleep 0.1
-    done
+# Inputs apart, each 100 ms after the last, the program at rest between them: the pointer, its
+# buttons, the wheel and the keys.
+apart() {
     for step in $(seq 200); do
-        wlrctl pointer move $((step % 40 < 20 ? 6 : -6)) 2
+        case $((step % 4)) in
+            0) wlrctl pointer click left ;;
+            1) wlrctl pointer scroll 0 1 ;;
+            2) wlrctl keyboard type a ;;
+            *) wlrctl pointer move $((step % 8 < 4 ? 40 : -40)) 15 ;;
+        esac
+        sleep 0.1
     done
 }
 
-# Stops the program that runs, then reads its trace.
+# Inputs in a row, about 180 a second, as a mouse moves: the pointer in motion.
+in_a_row() {
+    for step in $(seq 1000); do
+        wlrctl pointer move $((step % 40 < 20 ? 6 : -6)) 2
+        sleep 0.004
+    done
+}
+
+# Stops the program that runs, which must still run and stop well, then reads its trace.
 finish() {
     local name=$1
     shift
     sleep 0.5
+    kill -0 "$program_pid" 2>/dev/null || {
+        echo "$name ended before its inputs did:" >&2
+        cat "$work/$name.log" >&2
+        exit 1
+    }
     kill "$program_pid"
-    wait "$program_pid" || true
+    local status=0
+    wait "$program_pid" || status=$?
     program_pid=
+    [ "$status" = 0 ] || {
+        echo "$name ended with status $status:" >&2
+        cat "$work/$name.log" >&2
+        exit 1
+    }
     echo "$name:"
     grep -m1 -o "GPU adapter name=[^=]*api" "$work/$name.log" | sed 's/ api$//' || true
     scripts/frame-pacing.py "$work/$name.json" --skip 0 "$@"
 }
 
-start editor "the first image is presented" target/release/examples/editor \
-    --level "$work/yard.scene" --assets target/cooked/examples --journal "$work/yard.journal"
-inputs
-finish editor
-start game "the zone is drawn" target/release/hunnawood --new --save "$work/run.save"
-inputs
-finish game --frame "$(python3 -I -c 'print(1000 / 60)')"
+game_frame=$(python3 -I -c 'print(1000 / 60)')
+for inputs in apart in_a_row; do
+    start "editor, $inputs" "the first image is presented" target/release/examples/editor \
+        --level "$work/yard.scene" --assets target/cooked/examples --journal "$work/yard.journal"
+    $inputs
+    finish "editor, $inputs"
+    start "game, $inputs" "the zone is drawn" target/release/hunnawood --new --save "$work/run.save"
+    $inputs
+    finish "game, $inputs" --frame "$game_frame"
+done
