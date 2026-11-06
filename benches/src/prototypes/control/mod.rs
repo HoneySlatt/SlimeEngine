@@ -7,3 +7,58 @@ pub mod hello;
 pub mod library;
 pub mod mistake;
 pub mod songs;
+
+use super::data;
+use super::screens::{self, Edit, Screen, screen};
+
+pub(crate) const HELLO: Screen<hello::Hello> =
+    screen(screens::HELLO, |_| hello::Hello::default(), screens::hello);
+
+pub(crate) const LIBRARY: Screen<library::Library> = screen(
+    screens::LIBRARY,
+    |_| {
+        let games = data::games(10_000, |title, cover, art| library::Game {
+            title,
+            cover,
+            art,
+        });
+        library::Library::new(games)
+    },
+    screens::library,
+);
+
+pub(crate) const SONGS: Screen<songs::Songs> = screen(
+    screens::SONGS,
+    |now| {
+        let songs = data::songs(8_500, |(title, artist, album, length, thumbnail)| {
+            songs::Song {
+                title,
+                artist,
+                album,
+                length,
+                thumbnail,
+            }
+        });
+        songs::Songs::new(songs, now)
+    },
+    screens::songs,
+);
+
+pub(crate) const DOCUMENT: Screen<document::Document> = screen(
+    screens::DOCUMENT,
+    |_| document::Document::new(data::lines(100_000)),
+    screens::document,
+);
+
+impl Edit for document::Document {
+    fn edit(&mut self, line: usize, text: String) {
+        document::Document::edit(self, line, text);
+    }
+}
+
+/// The control's own mistake, a revision not moved.
+pub(crate) const REVISION_NOT_MOVED: Screen<mistake::Forgotten> = screen(
+    screens::SELECTION,
+    |_| mistake::Forgotten::new(),
+    screens::selection,
+);

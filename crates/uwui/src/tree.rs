@@ -1609,6 +1609,103 @@ impl Ui {
         self.asked.retain(|&asked| asked != parent);
     }
 
+    /// Gives `id` the description `element`, as a builder that adds it again under its key does
+    /// ([`Children::add`]): laid out, styled or drawn again only where it changed, its field's or
+    /// control's value taken under their rules, and a selection moved scrolled into sight. Its
+    /// children stay as they are. Used by the prototypes of M6d.1b, whose models change an
+    /// element outside its builder.
+    ///
+    /// # Panics
+    ///
+    /// If `id` names nothing, or an element of another kind.
+    pub fn describe(&mut self, id: ElementId, element: Element) {
+        let same = self.node(id).is_some_and(|node| {
+            std::mem::discriminant(&node.element.kind) == std::mem::discriminant(&element.kind)
+        });
+        assert!(same, "an element of this interface, of the same kind");
+        self.describe_kept(id, element);
+    }
+
+    /// [`Ui::describe`], for an element of the same kind, which the caller checked.
+    fn describe_kept(&mut self, id: ElementId, element: Element) {
+        let meant_before = self.means(id);
+        let node = self.node_mut(id).expect("kept");
+        // A field takes the program's text when it differs from the later of what the
+        // program gave before and what the field last committed, and keeps the user's
+        // otherwise. It is read at each build, the element unchanged too: the text that
+        // the program gave before, given again once the user committed another, replaces
+        // it.
+        let given = field::given(&element.kind);
+        if let (Some(text), Some(field)) = (given, node.field.as_mut())
+            && field.give(&text, &element.kind)
+        {
+            self.mark_layout(id);
+            self.mark_paint(id);
+            self.mark_meaning(id);
+        }
+        // A check box's or a slider's value, under the same rule.
+        let node = self.node_mut(id).expect("kept");
+        if let Some(control) = node.control.as_mut()
+            && control.give(&element.kind, &mut node.state)
+        {
+            self.mark_style(id);
+            self.mark_paint(id);
+            self.mark_meaning(id);
+        }
+        let node = self.node_mut(id).expect("kept");
+        if node.element != element {
+            let layout = lays_out_again(&node.element, &element);
+            let style = node.element.style != element.style;
+            let classes = node.element.classes != element.classes;
+            // Its role, its name and its tooltip, which it does not draw, change only what
+            // it means.
+            let drawn = node.element.kind != element.kind
+                || style
+                || classes
+                || node.element.placeholder != element.placeholder;
+            let selection = (node.element.selection != element.selection)
+                .then_some(element.selection)
+                .flatten();
+            let meant = node.element.kind != element.kind
+                || node.element.role != element.role
+                || node.element.name != element.name
+                || node.element.tooltip != element.tooltip
+                || node.element.placeholder != element.placeholder;
+            node.element = element;
+            if meant {
+                self.mark_meaning(id);
+                // Made to mean something, or nothing, it changes what the element above it
+                // that means something holds.
+                if self.means(id) != meant_before {
+                    self.mark_meaning_above(id);
+                }
+            }
+            // A selection moved shows on its row, which it scrolls into sight.
+            if let Some(selection) = selection {
+                self.selecting.push(id);
+                self.show_row(id, selection);
+            }
+            let node = self.node_mut(id).expect("kept");
+            if drawn {
+                node.changed.paint = true;
+            }
+            if layout {
+                self.mark_layout(id);
+            }
+            // Rules may select the elements below by an ancestor's class.
+            if classes {
+                self.mark_style_subtree(id);
+            } else if style {
+                self.mark_style(id);
+            }
+        }
+    }
+
+    /// The element that holds `id`; none for a root, or an id that names nothing.
+    pub fn parent(&self, id: ElementId) -> Option<ElementId> {
+        self.node(id).and_then(|node| node.parent)
+    }
+
     /// Styles the elements with the rules of `sheets`, in their order and the order of their
     /// files, their names given the values of `themes`, stacked: of the themes that give a name, the
     /// last gives its value, and the values that name it follow it. Every element's style is made
@@ -2633,77 +2730,7 @@ impl<'a> Children<'a> {
         });
         let id = match kept {
             Some(id) => {
-                let meant_before = self.ui.means(id);
-                let node = self.ui.node_mut(id).expect("kept");
-                // A field takes the program's text when it differs from the later of what the
-                // program gave before and what the field last committed, and keeps the user's
-                // otherwise. It is read at each build, the element unchanged too: the text that
-                // the program gave before, given again once the user committed another, replaces
-                // it.
-                let given = field::given(&element.kind);
-                if let (Some(text), Some(field)) = (given, node.field.as_mut())
-                    && field.give(&text, &element.kind)
-                {
-                    self.ui.mark_layout(id);
-                    self.ui.mark_paint(id);
-                    self.ui.mark_meaning(id);
-                }
-                // A check box's or a slider's value, under the same rule.
-                let node = self.ui.node_mut(id).expect("kept");
-                if let Some(control) = node.control.as_mut()
-                    && control.give(&element.kind, &mut node.state)
-                {
-                    self.ui.mark_style(id);
-                    self.ui.mark_paint(id);
-                    self.ui.mark_meaning(id);
-                }
-                let node = self.ui.node_mut(id).expect("kept");
-                if node.element != element {
-                    let layout = lays_out_again(&node.element, &element);
-                    let style = node.element.style != element.style;
-                    let classes = node.element.classes != element.classes;
-                    // Its role, its name and its tooltip, which it does not draw, change only what
-                    // it means.
-                    let drawn = node.element.kind != element.kind
-                        || style
-                        || classes
-                        || node.element.placeholder != element.placeholder;
-                    let selection = (node.element.selection != element.selection)
-                        .then_some(element.selection)
-                        .flatten();
-                    let meant = node.element.kind != element.kind
-                        || node.element.role != element.role
-                        || node.element.name != element.name
-                        || node.element.tooltip != element.tooltip
-                        || node.element.placeholder != element.placeholder;
-                    node.element = element;
-                    if meant {
-                        self.ui.mark_meaning(id);
-                        // Made to mean something, or nothing, it changes what the element above it
-                        // that means something holds.
-                        if self.ui.means(id) != meant_before {
-                            self.ui.mark_meaning_above(id);
-                        }
-                    }
-                    // A selection moved shows on its row, which it scrolls into sight.
-                    if let Some(selection) = selection {
-                        self.ui.selecting.push(id);
-                        self.ui.show_row(id, selection);
-                    }
-                    let node = self.ui.node_mut(id).expect("kept");
-                    if drawn {
-                        node.changed.paint = true;
-                    }
-                    if layout {
-                        self.ui.mark_layout(id);
-                    }
-                    // Rules may select the elements below by an ancestor's class.
-                    if classes {
-                        self.ui.mark_style_subtree(id);
-                    } else if style {
-                        self.ui.mark_style(id);
-                    }
-                }
+                self.ui.describe_kept(id, element);
                 id
             }
             None => {
@@ -2717,6 +2744,24 @@ impl<'a> Children<'a> {
         };
         self.given.push(id);
         id
+    }
+
+    /// Keeps the child given before under `key`, with its description and its children as they
+    /// are, and gives its id: none if it gave none under that key. Used by the prototypes of
+    /// M6d.1b, whose models keep a part that they did not describe again.
+    ///
+    /// # Panics
+    ///
+    /// If a sibling given before has the same key.
+    pub fn keep(&mut self, key: impl Into<Key>) -> Option<ElementId> {
+        let key = key.into();
+        let id = self.before.remove(&key)?;
+        assert!(
+            self.keys.insert(key.clone()),
+            "two siblings of the key `{key}`"
+        );
+        self.given.push(id);
+        Some(id)
     }
 
     /// For the children of a list, the rows that show: those to add, keyed by their numbers.

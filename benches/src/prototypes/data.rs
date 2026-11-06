@@ -6,9 +6,6 @@ use std::time::Duration;
 
 use uwui::display::ImageKey;
 
-use super::control::library::Game;
-use super::control::songs::Song;
-
 /// A sequence of numbers from a seed, the same at every run: xorshift64*.
 struct Sequence(u64);
 
@@ -51,43 +48,46 @@ const ARTISTS: &[&str] = &[
     "Static Bloom",
 ];
 
-/// `count` games, as Slatty's fake profile holds them: a title of two or three words, a cover and
-/// a key art.
-pub(crate) fn games(count: usize) -> Vec<Game> {
+/// `count` games, as Slatty's fake profile holds them, each made by `game` of a title of two or
+/// three words, a cover and a key art.
+pub(crate) fn games<G>(count: usize, game: fn(String, ImageKey, ImageKey) -> G) -> Vec<G> {
     let mut sequence = Sequence::new(0x5_1A77);
     (0..count)
-        .map(|game| {
+        .map(|place| {
             let mut title = format!("{} {}", sequence.pick(ADJECTIVES), sequence.pick(NOUNS));
             if sequence.below(3) == 0 {
                 title.push_str(&format!(" {}", sequence.below(4) + 2));
             }
-            Game {
+            game(
                 title,
-                cover: ImageKey(game as u64),
-                art: ImageKey(1_000_000 + game as u64),
-            }
+                ImageKey(place as u64),
+                ImageKey(1_000_000 + place as u64),
+            )
         })
         .collect()
 }
 
-/// `count` songs, as Opium's fake library holds them: albums of ten songs, each by one artist,
-/// two to six minutes long, its thumbnail its album's.
-pub(crate) fn songs(count: usize) -> Vec<Song> {
+/// A song's title, artist, album, length and thumbnail.
+pub(crate) type SongParts = (String, String, String, Duration, ImageKey);
+
+/// `count` songs, as Opium's fake library holds them, each made by `song` of its parts: albums of
+/// ten songs, each by one artist, two to six minutes long, its thumbnail its album's.
+pub(crate) fn songs<S>(count: usize, song: fn(SongParts) -> S) -> Vec<S> {
     let mut sequence = Sequence::new(0x0_9105);
     (0..count)
-        .map(|song| {
-            let album = song / 10;
-            Song {
-                title: format!("{} {}", sequence.pick(ADJECTIVES), sequence.pick(NOUNS)),
-                artist: ARTISTS[album % ARTISTS.len()].to_owned(),
-                album: format!(
+        .map(|place| {
+            let album = place / 10;
+            song((
+                format!("{} {}", sequence.pick(ADJECTIVES), sequence.pick(NOUNS)),
+                ARTISTS[album % ARTISTS.len()].to_owned(),
+                format!(
                     "{} of the {}",
                     NOUNS[album % NOUNS.len()],
                     ADJECTIVES[album % 17]
                 ),
-                length: Duration::from_secs(120 + sequence.below(240) as u64),
-                thumbnail: ImageKey(album as u64),
-            }
+                Duration::from_secs(120 + sequence.below(240) as u64),
+                ImageKey(album as u64),
+            ))
         })
         .collect()
 }

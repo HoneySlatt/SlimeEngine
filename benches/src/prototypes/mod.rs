@@ -1,4 +1,5 @@
-//! M6d.1b's bench, on the control: each screen of ADR-0202 prototyped from its ideal code and
+//! M6d.1b's bench: each screen of ADR-0202 prototyped from its ideal code in each of the four
+//! state models, the control, signals, views that say they changed, and messages, and
 //! played through its scripted interactions without a window, on a clock that the bench moves;
 //! each phase of each frame timed and its allocations counted; the items of the display list
 //! changed, out of all; the delay from an input to the display list that shows it; a frame where
@@ -8,9 +9,9 @@
 //! once M6d.1b ends.
 //!
 //! ```sh
-//! cargo run --release -p slime-benches -- --prototypes            # every screen, 21 runs
-//! cargo run --release -p slime-benches -- --prototypes library    # one screen
-//! cargo run --release -p slime-benches -- --prototypes --runs 5   # fewer runs
+//! cargo run --release -p slime-benches -- --prototypes                 # every model and screen
+//! cargo run --release -p slime-benches -- --prototypes views library   # a model, a screen
+//! cargo run --release -p slime-benches -- --prototypes --runs 5        # fewer runs than 21
 //! ```
 //!
 //! It prints Markdown, which uwui's `docs/measurements.md` takes. With `PROTOTYPES_DUMP` set, each
@@ -23,11 +24,9 @@ mod screens;
 
 use std::time::{Duration, Instant};
 
-use uwui::prelude::Program;
-
 use crate::allocations::{Allocations, counted};
-use host::{Cost, Frame, Host, Look, PHASES};
-use screens::{DOCUMENT, HELLO, LIBRARY, MISTAKE, SONGS, Scale, Screen};
+use host::{Cost, Frame, Host, Look, Model, PHASES};
+use screens::{Scale, Screen};
 
 /// The runs of each screen: enough for a median that a few slow runs do not move.
 const RUNS: usize = 21;
@@ -35,7 +34,15 @@ const RUNS: usize = 21;
 /// The frames that an interaction may take to settle, past its inputs.
 const SETTLE: usize = 600;
 
-/// Runs the bench on the screens that `arguments` name, or on all, and prints its figures.
+/// The models, in the order the bench plays them.
+const MODELS: [&str; 4] = ["control", "signals", "views", "messages"];
+
+/// The screens, in the order the bench plays them in each model: the four of ADR-0202, then the
+/// model's small cases of mistakes.
+const SCREENS: [&str; 5] = ["hello", "library", "songs", "document", "mistakes"];
+
+/// Runs the bench on the models and screens that `arguments` name, or on all, and prints its
+/// figures.
 pub fn run(arguments: &[String]) -> Result<(), String> {
     let mut runs = RUNS;
     let mut names = Vec::new();
@@ -51,7 +58,29 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
             names.push(argument.as_str());
         }
     }
-    let chosen = |name: &str| names.is_empty() || names.contains(&name);
+    let models: Vec<&str> = names
+        .iter()
+        .copied()
+        .filter(|name| MODELS.contains(name))
+        .collect();
+    let screens: Vec<&str> = names
+        .iter()
+        .copied()
+        .filter(|name| SCREENS.contains(name))
+        .collect();
+    if let Some(unknown) = names
+        .iter()
+        .find(|name| !MODELS.contains(name) && !SCREENS.contains(name))
+    {
+        return Err(format!(
+            "no model nor screen `{unknown}`: models {MODELS:?}, screens {SCREENS:?}"
+        ));
+    }
+    let chosen = Chosen {
+        models,
+        screens,
+        runs,
+    };
     println!(
         "Build: {}; {runs} runs a screen.\n",
         if cfg!(debug_assertions) {
@@ -60,22 +89,30 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
             "release"
         }
     );
-    if chosen("hello") {
-        print(&HELLO, &measure(&HELLO, Scale::Whole, runs)?);
-    }
-    if chosen("library") {
-        print(&LIBRARY, &measure(&LIBRARY, Scale::Whole, runs)?);
-    }
-    if chosen("songs") {
-        print(&SONGS, &measure(&SONGS, Scale::Whole, runs)?);
-    }
-    if chosen("document") {
-        print(&DOCUMENT, &measure(&DOCUMENT, Scale::Whole, runs)?);
-    }
-    if chosen("mistake") {
-        print(&MISTAKE, &measure(&MISTAKE, Scale::Whole, runs)?);
-    }
+    chosen.bench("control", "hello", &control::HELLO)?;
+    chosen.bench("control", "library", &control::LIBRARY)?;
+    chosen.bench("control", "songs", &control::SONGS)?;
+    chosen.bench("control", "document", &control::DOCUMENT)?;
+    chosen.bench("control", "mistakes", &control::REVISION_NOT_MOVED)?;
     Ok(())
+}
+
+/// The models, screens and runs that the bench was asked for.
+struct Chosen<'a> {
+    models: Vec<&'a str>,
+    screens: Vec<&'a str>,
+    runs: usize,
+}
+
+impl Chosen<'_> {
+    /// Measures `screen`, the screen `name` of `model`, and prints its figures, if chosen.
+    fn bench<P: Model>(&self, model: &str, name: &str, screen: &Screen<P>) -> Result<(), String> {
+        let chosen = |names: &[&str], name: &str| names.is_empty() || names.contains(&name);
+        if chosen(&self.models, model) && chosen(&self.screens, name) {
+            print(model, screen, &measure(screen, Scale::Whole, self.runs)?);
+        }
+        Ok(())
+    }
 }
 
 /// What a run of a screen's script did.
@@ -113,7 +150,7 @@ fn held(allocations: Allocations) -> i64 {
 
 /// Plays `screen`'s script once: its interactions' display lists compared with a new interface's
 /// where `compare`, its items changed counted where `counting`, its memory measured where `memory`.
-fn play<P: Program + Clone>(
+fn play<P: Model>(
     screen: &Screen<P>,
     scale: Scale,
     counting: bool,
@@ -209,11 +246,7 @@ struct Times {
 
 /// Plays `screen` `runs` times: the first compares and counts, the second counts and measures the
 /// memory, every run is timed.
-fn measure<P: Program + Clone>(
-    screen: &Screen<P>,
-    scale: Scale,
-    runs: usize,
-) -> Result<Measured, String> {
+fn measure<P: Model>(screen: &Screen<P>, scale: Scale, runs: usize) -> Result<Measured, String> {
     let first = play(screen, scale, true, true, false)?;
     let mut second = play(screen, scale, true, false, true)?;
     let exact = counts(&first) == counts(&second);
@@ -249,7 +282,7 @@ fn counts(played: &Played) -> Vec<(Vec<Allocations>, FrameCounts)> {
 /// What a frame counted.
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct FrameCounts {
-    built: usize,
+    runs: usize,
     styled: usize,
     laid_out: usize,
     painted: usize,
@@ -262,7 +295,7 @@ struct FrameCounts {
 impl FrameCounts {
     fn of(frame: &Frame) -> Self {
         Self {
-            built: frame.stats.built,
+            runs: frame.runs,
             styled: frame.stats.styled,
             laid_out: frame.stats.layouts + frame.stats.lists,
             painted: frame.stats.painted,
@@ -328,19 +361,19 @@ fn kilobytes(bytes: u64) -> String {
     format!("{:.1}", bytes as f64 / 1e3)
 }
 
-/// Prints what `measured` found of `screen`, as Markdown.
-fn print<P>(screen: &Screen<P>, measured: &Measured) {
+/// Prints what `measured` found of `screen` in `model`, as Markdown.
+fn print<P>(model: &str, screen: &Screen<P>, measured: &Measured) {
     let first = &measured.first;
     let names: Vec<&str> = (screen.script)(Scale::Short)
         .iter()
         .map(|interaction| interaction.name)
         .collect();
-    println!("### {}\n", screen.name);
+    println!("### {model}: {}\n", screen.name);
     if !measured.exact {
         println!("**A second run counted otherwise: the counts below are not exact.**\n");
     }
     println!(
-        "| Interaction | Frames | Delay: frames, CPU ms | Builders run | Elements styled | Layouts | \
+        "| Interaction | Frames | Delay: frames, CPU ms | Code run | Elements styled | Layouts | \
          Elements drawn again | Items changed / all | Items wrong |"
     );
     println!("|---|---|---|---|---|---|---|---|---|");
@@ -360,7 +393,7 @@ fn print<P>(screen: &Screen<P>, measured: &Measured) {
             frames.len(),
             delay(frames).len(),
             median(delays),
-            sum(|frame| frame.stats.built),
+            sum(|frame| frame.runs),
             sum(|frame| frame.stats.styled),
             sum(|frame| frame.stats.layouts + frame.stats.lists),
             sum(|frame| frame.stats.painted),
@@ -370,7 +403,7 @@ fn print<P>(screen: &Screen<P>, measured: &Measured) {
     let still = &first.still;
     println!(
         "| A frame where nothing changed | 1 | — | {} | {} | {} | {} | {} / {} | — |\n",
-        still.stats.built,
+        still.runs,
         still.stats.styled,
         still.stats.layouts + still.stats.lists,
         still.stats.painted,
@@ -440,7 +473,7 @@ mod tests {
     /// Plays `screen` twice, short, and gives the first run's items wrong after each interaction,
     /// checking that the second counted the same, but for the application's allocations where
     /// it `prints`: the test captures what a program prints in a buffer that grows.
-    fn wrong<P: Program + Clone>(screen: &Screen<P>, prints: bool) -> Vec<usize> {
+    pub(super) fn wrong<P: Model>(screen: &Screen<P>, prints: bool) -> Vec<usize> {
         let first = play(screen, Scale::Short, true, true, false).expect("the screen plays");
         let second = play(screen, Scale::Short, true, false, true).expect("the screen plays");
         let counted = |played: &Played| {
@@ -465,16 +498,28 @@ mod tests {
 
     #[test]
     fn the_control_renders_each_screen_as_a_new_interface_would() {
-        assert!(wrong(&HELLO, true).iter().all(|&wrong| wrong == 0));
-        assert!(wrong(&LIBRARY, false).iter().all(|&wrong| wrong == 0));
-        assert!(wrong(&SONGS, false).iter().all(|&wrong| wrong == 0));
-        assert!(wrong(&DOCUMENT, false).iter().all(|&wrong| wrong == 0));
+        assert!(wrong(&control::HELLO, true).iter().all(|&wrong| wrong == 0));
+        assert!(
+            wrong(&control::LIBRARY, false)
+                .iter()
+                .all(|&wrong| wrong == 0)
+        );
+        assert!(
+            wrong(&control::SONGS, false)
+                .iter()
+                .all(|&wrong| wrong == 0)
+        );
+        assert!(
+            wrong(&control::DOCUMENT, false)
+                .iter()
+                .all(|&wrong| wrong == 0)
+        );
     }
 
     #[test]
     fn the_screens_do_what_their_scripts_say() {
         let played = |screen: &Screen<_>| play(screen, Scale::Short, true, false, false);
-        let library = played(&LIBRARY).expect("the library plays");
+        let library = played(&control::LIBRARY).expect("the library plays");
         let frames = |at: usize| &library.interactions[at].frames;
         assert!(
             frames(1).iter().any(|frame| frame.stats.built > 0),
@@ -493,13 +538,15 @@ mod tests {
             theme.styled, theme.elements,
             "a theme styles every element again"
         );
-        let songs = play(&SONGS, Scale::Short, true, false, false).expect("the songs play");
+        let songs =
+            play(&control::SONGS, Scale::Short, true, false, false).expect("the songs play");
         let wave = &songs.interactions[7].frames;
         assert!(
             wave.iter().all(|frame| frame.stats.built == 1),
             "the wave's builder runs alone at each frame while a song plays"
         );
-        let document = play(&DOCUMENT, Scale::Short, true, false, false).expect("it plays");
+        let document =
+            play(&control::DOCUMENT, Scale::Short, true, false, false).expect("it plays");
         let shown = document.interactions[1].frames[0];
         let hidden = document.interactions[2].frames[0];
         assert_eq!(shown.changed, 1, "the line that shows changes alone");
@@ -512,7 +559,7 @@ mod tests {
 
     #[test]
     fn a_revision_not_moved_shows_as_a_wrong_render() {
-        let wrong = wrong(&MISTAKE, false);
+        let wrong = wrong(&control::REVISION_NOT_MOVED, false);
         assert_eq!(wrong[..2], [0, 0], "right until the selection moves");
         assert!(wrong[2] > 0, "the row selected before still shows");
     }

@@ -1,4 +1,5 @@
-//! The host of the control's prototypes: a screen's interface without a window, its frames on a
+//! The host of the prototypes: a screen's interface without a window, its program in any of the
+//! four models through [`Model`], its frames on a
 //! clock that the bench moves, each phase of a frame timed and its allocations counted, and its
 //! display list compared with that of a new interface built from the same state
 //! (`docs/adr/0202-how-m6d1-compares-ways-of-writing-an-application.md`).
@@ -10,7 +11,7 @@ use std::time::{Duration, Instant};
 use slime_input::{ButtonState, Key as KeyMeaning, KeyCode, KeyEvent, Modifiers, MouseButton};
 use slime_input::{NamedKey, ScrollDelta};
 use uwui::display::{DisplayItem, DisplayList, Primitive};
-use uwui::prelude::{ElementId, Program, Ui};
+use uwui::prelude::{Action, ElementId, Program, Ui};
 use uwui::shortcuts::Shortcuts;
 use uwui::style::{Display, Style, Track};
 use uwui::text::Fonts;
@@ -64,6 +65,53 @@ fn costed<T>(run: impl FnOnce() -> T) -> (T, Cost) {
     (value, Cost { time, allocations })
 }
 
+/// A screen's program, in any of the four models, as the host runs it at each frame: `advance`
+/// with the frame's time, before its input; `act` for each action of its input; then `build`.
+pub(crate) trait Model {
+    /// Takes the frame's time, `now`.
+    fn advance(&mut self, ui: &mut Ui, now: Instant);
+
+    /// Does what `action` asks.
+    fn act(&mut self, ui: &mut Ui, action: Action);
+
+    /// Builds what changed of the interface under `root`.
+    fn build(&mut self, ui: &mut Ui, root: ElementId);
+
+    /// A program in the same state, on no interface yet: what a new interface is built from.
+    fn fresh(&self) -> Self;
+
+    /// Whether work of the model's own waits for the next frame, past what the interface asks:
+    /// it lengthens the delay.
+    fn pending(&self) -> bool {
+        false
+    }
+
+    /// The units of the application's code that ran since it was last asked, the frame's `stats`
+    /// given: for the control, its builders.
+    fn runs(&mut self, stats: &FrameStats) -> usize {
+        stats.built
+    }
+}
+
+/// The control, today's rebuild by keys: a [`Program`], which a clone gives in the same state.
+impl<P: Program + Clone> Model for P {
+    fn advance(&mut self, ui: &mut Ui, now: Instant) {
+        Program::advance(self, ui, now);
+    }
+
+    fn act(&mut self, ui: &mut Ui, action: Action) {
+        Program::act(self, ui, action);
+    }
+
+    fn build(&mut self, ui: &mut Ui, root: ElementId) {
+        Program::build(self, ui, root);
+    }
+
+    fn fresh(&self) -> Self {
+        self.clone()
+    }
+}
+
 /// What a frame did.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Frame {
@@ -71,19 +119,22 @@ pub(crate) struct Frame {
     pub(crate) costs: [Cost; 5],
     /// What the interface's frame did.
     pub(crate) stats: FrameStats,
+    /// The units of the application's code that ran: [`Model::runs`].
+    pub(crate) runs: usize,
     /// The items of its display list.
     pub(crate) items: usize,
     /// Those of its items that the display list before did not hold, counted only while the host
     /// counts ([`Host::counting`]).
     pub(crate) changed: usize,
-    /// Whether a builder must run again at the next frame, which shows rows not built yet.
+    /// Whether work waits for the next frame: a builder that must run again, which shows rows not
+    /// built yet, or the model's own ([`Model::pending`]).
     pub(crate) builds_asked: bool,
 }
 
 /// What a person, or the world, does in a frame of a scripted interaction.
 pub(crate) enum Input<P> {
-    /// The pointer moved over the middle of the element at this path below the root.
-    PointerAt(Vec<Key>),
+    /// The pointer moved over the middle of the element that this finds below the root.
+    PointerAt(Find),
     /// The pointer's first button pressed and let go where it is.
     Click,
     /// The wheel turned over the pointer, the content scrolling down by these logical pixels.
@@ -96,6 +147,14 @@ pub(crate) enum Input<P> {
     Control(char),
     /// The program changed from outside the screen, as an edit does.
     Call(fn(&mut P)),
+}
+
+/// An element that a script names, the same in the four models, whose paths differ: the first
+/// element, in the tree's order, that holds a class, or a child of it by its place.
+#[derive(Clone, Copy)]
+pub(crate) enum Find {
+    Class(&'static str),
+    Child(&'static str, usize),
 }
 
 /// A scripted interaction: what comes in each of its frames. The host runs frames after them
@@ -165,7 +224,7 @@ pub(crate) struct Host<P> {
     pub(crate) counting: bool,
 }
 
-impl<P: Program + Clone> Host<P> {
+impl<P: Model> Host<P> {
     /// Opens `program` on `ui`, in `look`, its first frame at `start`: its root added, no frame
     /// run yet.
     pub(crate) fn open(mut ui: Ui, look: Look, program: P, start: Instant) -> Self {
@@ -204,11 +263,19 @@ impl<P: Program + Clone> Host<P> {
         let now = self.now();
         self.frames += 1;
         let mut costs = [Cost::default(); 5];
+        // Found before the spans measured: the search is the bench's, not the screen's.
+        let targets: Vec<Option<ElementId>> = inputs
+            .iter()
+            .map(|input| match input {
+                Input::PointerAt(find) => found(&self.ui, self.root, *find),
+                _ => None,
+            })
+            .collect();
         let ((), clock) = costed(|| self.program.advance(&mut self.ui, now));
         let ((), input) = costed(|| {
             self.ui.advance(FRAME);
-            for input in inputs {
-                self.give(input);
+            for (input, target) in inputs.iter().zip(&targets) {
+                self.give(input, *target);
             }
         });
         let ((), application) = costed(|| {
@@ -237,10 +304,11 @@ impl<P: Program + Clone> Host<P> {
         self.last = list;
         Frame {
             costs,
+            runs: self.program.runs(&stats),
             stats,
             items,
             changed,
-            builds_asked: self.ui.builds_asked(),
+            builds_asked: self.ui.builds_asked() || self.program.pending(),
         }
     }
 
@@ -248,18 +316,21 @@ impl<P: Program + Clone> Host<P> {
     /// asks frames for, and no builder is asked to run again. Gives them; at most `most`.
     pub(crate) fn settle(&mut self, most: usize) -> Vec<Frame> {
         let mut frames = Vec::new();
-        while frames.len() < most && (self.ui.animating() || self.ui.builds_asked()) {
+        while frames.len() < most
+            && (self.ui.animating() || self.ui.builds_asked() || self.program.pending())
+        {
             frames.push(self.frame(&[]));
         }
         frames
     }
 
-    /// Gives the interface `input`, as a window would.
-    fn give(&mut self, input: &Input<P>) {
+    /// Gives the interface `input`, as a window would: the pointer moved over `target`, which the
+    /// input finds.
+    fn give(&mut self, input: &Input<P>, target: Option<ElementId>) {
         let ui = &mut self.ui;
         match input {
-            Input::PointerAt(path) => {
-                let rect = ui.find(self.root, path).and_then(|id| ui.rect(id));
+            Input::PointerAt(_) => {
+                let rect = target.and_then(|id| ui.rect(id));
                 if let Some(rect) = rect {
                     let at = [rect.x + rect.width / 2.0, rect.y + rect.height / 2.0];
                     ui.pointer_moved(at[0], at[1]);
@@ -308,7 +379,7 @@ impl<P: Program + Clone> Host<P> {
             ui.set_theme(theme);
         }
         let root = ui.add_root("main", SCREEN, window());
-        let mut program = self.program.clone();
+        let mut program = self.program.fresh();
         let mut list = DisplayList::new();
         for _ in 0..64 {
             program.build(&mut ui, root);
@@ -317,7 +388,11 @@ impl<P: Program + Clone> Host<P> {
                 ui.pointer_moved(x, y);
             }
             list = ui.frame().0;
-            if !ui.animating() && !ui.builds_asked() && self.same_state(&ui, root) {
+            if !ui.animating()
+                && !ui.builds_asked()
+                && !program.pending()
+                && self.same_state(&ui, root)
+            {
                 break;
             }
             // What appears moves to its style.
@@ -408,6 +483,28 @@ impl<P: Program + Clone> Host<P> {
     fn path_below_root(&self, id: ElementId) -> Option<Vec<Key>> {
         self.ui.path(id)
     }
+}
+
+/// The first element below `root`, in the tree's order, that `find` names.
+pub(crate) fn found(ui: &Ui, root: ElementId, find: Find) -> Option<ElementId> {
+    let (class, child) = match find {
+        Find::Class(class) => (class, None),
+        Find::Child(class, place) => (class, Some(place)),
+    };
+    let mut stack = vec![root];
+    while let Some(id) = stack.pop() {
+        if ui
+            .element(id)
+            .is_some_and(|element| element.classes.iter().any(|held| held == class))
+        {
+            return match child {
+                None => Some(id),
+                Some(place) => ui.children(id).get(place).copied(),
+            };
+        }
+        stack.extend(ui.children(id).iter().rev().copied());
+    }
+    None
 }
 
 /// The style of a screen's root, as a window lays it out: a grid of one cell, which the screen
