@@ -5,6 +5,8 @@ mod cache;
 mod camera;
 mod canvas;
 mod cooked;
+#[cfg(test)]
+mod cost;
 mod drawings;
 mod environment;
 mod error;

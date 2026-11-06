@@ -1690,3 +1690,70 @@ change, ran 24 to 49 % slower than on `649467c`: a slower runner.
 | `windows-release` | 14 min 9 s |
 | `check (game)` | 9 min 2 s |
 | `check (windowed)` | 4 min 45 s |
+
+## M6d.0a, the renderer against the canvas, and a program on uwui
+
+What [ADR-0180](adr/0180-one-canvas-and-the-frameworks-foundations.md) asks to be measured first,
+on 2026-11-06, the tree of `aac4607` with the milestone's scripts: an AMD Ryzen 7 5800X, 16
+threads, 32 GB, an RX 6900 XT on RADV, Linux 7.3, Rust 1.99.0. Memory in MiB, as elsewhere in this
+file; a binary's size also in MB of 10⁶ bytes, the unit of uwui's budget.
+
+### What the renderer costs an application that draws only interfaces
+
+[`scripts/canvas-cost.sh`](../scripts/canvas-cost.sh) `--gpu`, 20 runs a part, each in a process
+of its own, after the device and a target of 1280 × 800 are made. The median, and the range.
+
+| | The device alone | The canvas alone | The renderer, its canvas in it |
+|---|---|---|---|
+| Built, and a first canvas drawn | 0.2 ms (0.1–0.2) | 7.5 ms (7.2–9.1) | 37.8 ms (36.6–42.7) |
+| Resident memory added | 0.4 MiB (0.4–0.4) | 1.8 MiB (1.8–1.8) | 3.4 MiB (3.4–3.5) |
+| GPU memory that wgpu allocates | 0 (0–0) | 9 KiB (9–9) | 117 KiB (117–117) |
+| Video memory that the driver gives | 0 (0–0) | 2.6 MiB (2.6–2.6) | 2.7 MiB (2.7–2.7) |
+
+The device itself, with the target, before either: opened in 42.7 ms (41.1–47.7), 51.5 MiB
+resident, and 195.1 MiB of video memory, every run.
+
+The times are those of a warm start. Each part's runs follow one that fills the system's caches,
+the driver's cache of compiled shaders on disk among them: `slime-gfx` keeps no cache of pipelines
+of its own, and a first start on a machine compiles every shader.
+
+On lavapipe, which compiles the shaders on the CPU, without video memory: the device opened in
+29.9 ms, with the target 59.0 MiB resident; the canvas built in 3.4 ms, with a first canvas drawn
+in 12.1 ms, and 26.8 MiB; the renderer built in 133.7 ms, with a first canvas drawn in 142.1 ms,
+and 66.4 MiB.
+
+What it says:
+
+- The renderer costs an application some 30 ms more than the canvas alone at its start, on the
+  high tier's GPU, and 1.6 MiB more resident: its pipelines, layouts and the BRDF table, computed
+  on the GPU. Its video memory is almost the canvas's.
+- The device costs more than either: some 43 ms, 52 MiB resident, and 195 MiB of video memory.
+  wgpu 30's default hint, `MemoryHints::Performance`, which `slime-gfx`'s `Gpu::new` keeps, makes
+  the first allocations reserve a block of 128 MiB of the GPU's memory and one of 64 MiB of memory
+  that the CPU sees (`wgpu-hal`'s `AllocationSizes`); a small application never fills them. The
+  debt is in [`debt.md`](debt.md).
+- On lavapipe, the canvas's and the renderer's memory is the CPU's: their shaders compiled by
+  LLVM.
+
+### What a program on uwui compiles
+
+[`scripts/uwui-program.sh`](../scripts/uwui-program.sh): the `widgets` example, which draws the
+editor's widgets with uwui through the renderer's canvas, built in a package of its own with the
+workspace's lock and profiles, from an empty target directory, on 16 threads. With `slime-app`'s
+features as the example has them, `development` and `accessibility`, and with none, as a program
+shipped without the development channel.
+
+| | `development`, `accessibility` | No feature |
+|---|---|---|
+| Crates compiled, the engine's among them | 271, 15 | 207, 14 |
+| `slime-render`, `slime-world`, `slime-editor` | compiled, compiled, not | compiled, compiled, not |
+| Debug build, from nothing / after a change of its code | 32.2 s / 1.2 s | 28.1 s / 1.0 s |
+| Release build, from nothing / after a change of its code | 55.3 s / 2.5 s | 43.0 s / 2.2 s |
+| Release binary / stripped | 32.0 MB / 24.7 MB | 25.3 MB / 19.7 MB |
+
+What it says:
+
+- A program on uwui compiles the renderer and the world today, which ADR-0180 wants it to leave
+  out: `uwui-render` draws through a `Renderer`, and `slime-app` depends on `slime-world`.
+- Its binary, stripped and without the development channel, is within uwui's budget of 20 MB by
+  0.3 MB; with the channel, over it.

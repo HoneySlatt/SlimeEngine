@@ -93,6 +93,8 @@ scripts/frame-pacing.py <trace.json>                      # the frames' pacing a
 scripts/start-times.sh [--gpu] [--cold] [--runs <count>]  # time the editor's and the game's starts in a headless Weston (ADR-0189)
 scripts/input-to-present.sh [--gpu]                       # measure their input to present, a person's input given in a headless sway (ADR-0191)
 scripts/resources.sh [--gpu] [--heaptrack] [--undos <count>] [--plays <count>]  # measure the editor's and the game's memory, video memory and the GPU's power in a headless Weston (ADR-0193)
+scripts/canvas-cost.sh [--gpu] [--runs <count>]           # measure what the renderer costs an interface against the canvas alone (ADR-0180)
+scripts/uwui-program.sh [--features <list>]               # measure what a program on uwui compiles: crates, build times, binary (ADR-0180)
 scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
 blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)
 cargo run -p hunnawood                                    # play the game (games/hunnawood/README.md)
@@ -383,6 +385,18 @@ With `--heaptrack`, the editor runs under `heaptrack`, and the script prints its
 each phase: the resident size counts memory that the allocator keeps after the program freed it,
 the heap does not. The recording stays in `target/resources/`, which `heaptrack_gui` opens to show
 where the memory went. `--undos` and `--plays` measure longer series than the budget's.
+
+[`scripts/canvas-cost.sh`](scripts/canvas-cost.sh) measures what the renderer costs an application
+that draws only interfaces, against the canvas alone
+([ADR-0180](docs/adr/0180-one-canvas-and-the-frameworks-foundations.md)): the time to build each
+and draw a first canvas, the resident memory each adds, the GPU memory that wgpu allocates and the
+video memory that the driver gives the process. Each part, and the device alone, runs in a process
+of its own, a test of `slime-render`'s `cost.rs` that `cargo test` ignores; with `--gpu`, on the
+machine's GPU. Nothing opens a window.
+[`scripts/uwui-program.sh`](scripts/uwui-program.sh) builds the `widgets` example in a package of
+its own, under `target/uwui-program`, with the workspace's lock: the crates that a program on uwui
+compiles, whether the renderer, the world or the editor are among them, its builds from nothing
+and after a change of its code, and the size of its binary.
 
 A windowed run measured on the machine's GPU, kept off the desktop in a headless Weston, needs
 Weston's GL renderer, `weston --backend=headless --renderer=gl`: with the default one, the GPU's

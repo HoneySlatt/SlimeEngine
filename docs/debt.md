@@ -6,6 +6,11 @@ Each item says what is missing or wrong, why it stayed, and where it is followed
 An item leaves this file once settled; the milestone that settles it says so.
 Items that a contributor could take on alone are also GitHub issues, linked from the item; this file stays the reference.
 
+- **A device's first allocations reserve large blocks of video memory** ([measured at M6d.0a](measurements.md#m6d0a-the-renderer-against-the-canvas-and-a-program-on-uwui)).
+  `slime-gfx`'s `Gpu::new` keeps wgpu's default hint, `MemoryHints::Performance`, whose allocator reserves its blocks at their largest.
+  A game fills them; a small application on uwui never does, and pays for them in video memory.
+  Smaller blocks, `MemoryHints::MemoryUsage` or sizes of their own, may cost a game allocations in more pieces: not measured.
+  Followed at [M6d.4](PLAN.md#m6d4--the-canvas-in-uwui-on-wgpu), where uwui opens its own device.
 - **What a load reads waits in staging memory until its copies are submitted** ([ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)).
   The renderer's uploader sends at most a budget of bytes per frame; nothing holds back loads that read faster.
   A load of many hundreds of megabytes keeps them in the CPU's memory while it lasts.
