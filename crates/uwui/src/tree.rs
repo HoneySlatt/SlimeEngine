@@ -1785,8 +1785,8 @@ impl Ui {
                 if node.element.selection == Some(place) {
                     return;
                 }
+                // As `describe`: the rows show the selection, not the list.
                 node.element.selection = Some(place);
-                node.changed.paint = true;
                 self.selecting.push(id);
                 self.show_row(id, place);
             }
