@@ -52,7 +52,8 @@ it is built this way.
 │                        game's source assets, and write their credits; subset-fonts.sh, the
 │                        fonts of uwui's tests; screen-reader-check.sh, an interface read
 │                        through AT-SPI as a screen reader does; cooker-dependencies.sh, CI's
-│                        key of the cooked zone
+│                        key of the cooked zone; frame-pacing.py, a trace's frames and inputs;
+│                        start-times.sh, the warm starts
 ├── AGENTS.md            rules for every contributor
 ├── CHANGELOG.md         notable changes, per release
 ├── CONTRIBUTING.md      environment, checks, how a change is made and reviewed
@@ -270,7 +271,9 @@ then logs one line describing the engine and the machine. From then on, every `t
 from the engine, the game or a dependency goes through that subscriber. When the `SLIME_TRACE`
 environment variable names a file, the subscriber also writes there every span entered and left,
 the phases of each frame among them, in a format that profilers open
-([ADR-0104](adr/0104-the-build-ci-and-measurements.md)). In a program built with `slime-app`'s
+([ADR-0104](adr/0104-the-build-ci-and-measurements.md)); the windowed run adds there each interval
+from a person's input to the present of the image after it
+([ADR-0189](adr/0189-first-measures-of-time.md)). In a program built with `slime-app`'s
 `development` feature and started with a token, the subscriber also keeps the last lines that the
 log writes, which the [development channel](#the-development-channel) gives the tools. Source:
 [`crates/slime-app/src/diagnostics.rs`](../crates/slime-app/src/diagnostics.rs); conventions:

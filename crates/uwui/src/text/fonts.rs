@@ -79,16 +79,21 @@ impl Fonts {
     /// Fonts that fall back on the system's for what the registered fonts do not cover, as the
     /// editor does for the writing systems that it does not ship. The system's fonts are found
     /// through fontconfig on Linux, loaded as the program runs: without it, there are none. On
-    /// Windows, through DirectWrite.
+    /// Windows, through DirectWrite. They are read here, part of a program's start, which a trace
+    /// shows as the span `system_fonts`.
     pub fn with_system_fonts() -> Self {
         Self::with(true)
     }
 
     fn with(system: bool) -> Self {
+        // Reading the system's fonts is part of a program's start, which a trace shows apart
+        // (`docs/adr/0189-first-measures-of-time.md`).
+        let span = system.then(|| tracing::trace_span!("system_fonts").entered());
         let collection = Collection::new(CollectionOptions {
             shared: false,
             system_fonts: system,
         });
+        drop(span);
         Self {
             context: FontContext {
                 collection,

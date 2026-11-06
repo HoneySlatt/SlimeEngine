@@ -277,7 +277,12 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   (`TRACE_ENV_VAR`) naming a file, it also writes there a trace of every span of every thread,
   whatever `SLIME_LOG` keeps, in the Chrome Trace Event format that Perfetto and `chrome://tracing`
   open (`docs/adr/0104-the-build-ci-and-measurements.md`): the phases of each frame and each
-  submission to the GPU, not yet the renderer's passes.
+  submission to the GPU, not yet the renderer's passes, and, on a track of its own, each interval
+  from a person's input to the present of the image after it, `input to present`, which
+  `scripts/frame-pacing.py` reads (`docs/adr/0189-first-measures-of-time.md`).
+- `since_start()`: the time since the engine first saw the program, when `init_diagnostics` first
+  ran, which `run` calls first; a windowed run logs when it presents its first image, at that time,
+  as a start is measured (`docs/adr/0189-first-measures-of-time.md`).
 - `error_chain(&error)`: an error's message followed by the message of each of its causes
   (`error: cause: cause of cause`), the line `run` logs for a failed run. A program that does not
   use `run`, as the `offscreen` example, logs its errors with it.

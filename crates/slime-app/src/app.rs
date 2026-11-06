@@ -361,7 +361,7 @@ impl Frames {
 
     /// Runs one frame that represents `raw_delta` of time: the host's phases, then, with a
     /// window's `surface`, the presentation's extraction and, when the surface can show a new
-    /// image, its rendering into it.
+    /// image, its rendering into it. Returns whether it presented an image.
     pub(crate) fn run_one(
         &mut self,
         host: &mut Host,
@@ -369,7 +369,7 @@ impl Frames {
         presentation: &mut impl Presentation,
         raw_delta: Duration,
         surface: Option<&mut Surface>,
-    ) {
+    ) -> bool {
         // The host's clock numbers its frames as this count does: one each.
         let index = self.count;
         let _frame_span = tracing::trace_span!("frame", index).entered();
@@ -385,6 +385,7 @@ impl Frames {
             );
         }
         host.frame(simulation, raw_delta);
+        let mut presented = false;
         if let Some(surface) = surface {
             {
                 let _span = tracing::trace_span!("extract").entered();
@@ -424,8 +425,10 @@ impl Frames {
                     window.pre_present_notify();
                 }
                 image.present();
+                presented = true;
             }
         }
         self.count += 1;
+        presented
     }
 }

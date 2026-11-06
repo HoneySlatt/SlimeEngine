@@ -2,7 +2,8 @@
 
 use std::io::IsTerminal;
 use std::panic::{self, PanicHookInfo};
-use std::sync::Once;
+use std::sync::{Arc, LazyLock, Once};
+use std::time::{Duration, Instant};
 
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::filter::filter_fn;
@@ -11,7 +12,7 @@ use tracing_subscriber::layer::SubscriberExt as _;
 use tracing_subscriber::util::SubscriberInitExt as _;
 use tracing_subscriber::{EnvFilter, Layer as _};
 
-use crate::trace::{TRACE_ENV_VAR, TraceLayer};
+use crate::trace::{TRACE_ENV_VAR, TraceFile, TraceLayer};
 
 /// The environment variable that selects which log events are recorded.
 ///
@@ -63,15 +64,34 @@ pub const DEFAULT_LOG_FILTER: &str =
 ///   standard library's hook, which prints the message and, when `RUST_BACKTRACE` asks for it, a
 ///   backtrace.
 ///
+/// The first call also starts the clock of [`since_start`].
+///
 /// The subscriber and the panic hook are global to the process, so only the first call does
 /// anything; later calls return immediately.
 pub fn init_diagnostics() {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
+        LazyLock::force(&STARTED);
         install_subscriber();
         install_panic_hook();
         log_system_information();
     });
+}
+
+/// When the program started, as the engine sees it: the first call to [`init_diagnostics`] or to
+/// [`since_start`].
+static STARTED: LazyLock<Instant> = LazyLock::new(Instant::now);
+
+/// The time since the program started, as the engine sees it: since [`init_diagnostics`] first ran,
+/// which [`run`](crate::run) calls before anything else, or since the first call to this function
+/// if it came before. What comes earlier, the system starting the process and the program's `main`
+/// up to then, a few milliseconds, the engine does not see: `hyperfine` times the whole
+/// (`docs/adr/0189-first-measures-of-time.md`).
+///
+/// A windowed run logs when it presents its first image, at this time; the trace that
+/// [`TRACE_ENV_VAR`] asks for counts its times from the same start.
+pub fn since_start() -> Duration {
+    STARTED.elapsed()
 }
 
 /// The message of `error` followed by the message of each of its causes in turn, as
@@ -149,27 +169,36 @@ fn install_subscriber() {
         .as_ref()
         .map(|path| (path, std::fs::File::create(path)));
     let mut unwritable = None;
-    // The trace takes spans only: the events that the log leaves out, the records of dependencies
-    // among them, are then dropped before they are made.
-    let trace = match trace_file {
-        Some((_, Ok(file))) => {
-            Some(TraceLayer::new(file).with_filter(filter_fn(|metadata| metadata.is_span())))
-        }
+    let shared = match trace_file {
+        Some((_, Ok(file))) => Some(Arc::new(TraceFile::new(file, *STARTED))),
         Some((path, Err(error))) => {
             unwritable = Some((path.clone(), error));
             None
         }
         None => None,
     };
+    // The trace takes spans only: the events that the log leaves out, the records of dependencies
+    // among them, are then dropped before they are made.
+    let trace = shared
+        .clone()
+        .map(|trace| TraceLayer(trace).with_filter(filter_fn(|metadata| metadata.is_span())));
     let installed = tracing_subscriber::registry()
         .with(log)
         .with(kept)
         .with(trace)
         .try_init();
-    if let Err(error) = installed {
-        tracing::debug!(%error, "the process already has a log subscriber or logger, keeping it");
-        if trace_path.is_some() {
-            tracing::warn!("no trace is written: the process already had a subscriber");
+    match installed {
+        // The intervals from an input to the image after it go into the same trace.
+        Ok(()) => {
+            if let Some(trace) = shared {
+                TraceFile::set_current(trace);
+            }
+        }
+        Err(error) => {
+            tracing::debug!(%error, "the process already has a log subscriber or logger, keeping it");
+            if trace_path.is_some() {
+                tracing::warn!("no trace is written: the process already had a subscriber");
+            }
         }
     }
     if let Some((path, error)) = unwritable {

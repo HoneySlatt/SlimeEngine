@@ -55,6 +55,7 @@ pub(crate) fn run_windowed(
         asked_from_outside: false,
         checked_hold: false,
         resting: false,
+        inputs: InputWait::default(),
         wanted: true,
         change_due: None,
         started: false,
@@ -104,6 +105,8 @@ struct WindowedDriver<'a, S, P> {
     /// ends the wait represents the time since what asked for it, not the wait, so that what
     /// moves at real time does not jump by the frame's longest time.
     resting: bool,
+    /// The inputs that wait for an image, whose intervals of input to present the trace holds.
+    inputs: InputWait,
     /// Whether something asked for a frame that has not run yet, when frames run on demand.
     wanted: bool,
     /// When the presentation's interface changes on its own, which a frame then shows, when frames
@@ -176,13 +179,16 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
             ui.advance(now - self.ui_clock);
             self.ui_clock = now;
         }
-        self.frames.run_one(
+        let presented = self.frames.run_one(
             &mut self.host,
             self.simulation,
             self.presentation,
             now - self.last_frame,
             self.surface.as_mut(),
         );
+        if presented {
+            self.after_present();
+        }
         self.last_frame = now;
         self.next_frame = next_due(self.next_frame, now, self.frame_period);
         let ui = self.presentation.ui();
@@ -199,6 +205,20 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
             || self.host.context.take_frame_request()
             || self.frames.waiting()
             || self.host.context.steps_asked() > 0;
+    }
+
+    /// What follows the present of an image: the interval from the oldest input that it follows,
+    /// written into the trace, and the time of the first image, logged.
+    fn after_present(&mut self) {
+        let now = Instant::now();
+        match self.inputs.presented() {
+            Presented::First => tracing::info!(
+                "the first image is presented, {:.1} ms after the start",
+                crate::since_start().as_secs_f64() * 1e3
+            ),
+            Presented::After(input) => crate::trace::input_presented(input, now),
+            Presented::Alone => {}
+        }
     }
 
     /// Whether the window has no area to draw into, as a minimized window on Windows.
@@ -288,6 +308,8 @@ impl<S: Simulation, P: Presentation> WindowedDriver<'_, S, P> {
         match surface.restore(lost) {
             Ok((gpu, surface)) => {
                 self.restores.push(now);
+                // An input's wait would hold the new device's opening, which is not a frame's.
+                self.inputs.forget();
                 // The new device's first frame runs even if the window holds its frames: a frame
                 // that the lost device presented may never have reached the compositor, whose
                 // signal would then never come.
@@ -338,6 +360,9 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
     fn event(&mut self, event: Event) {
         if !self.started {
             return;
+        }
+        if is_input(&event) {
+            self.inputs.arrived(Instant::now());
         }
         self.end_rest();
         tracing::trace!(?event, "platform event");
@@ -473,6 +498,63 @@ impl<S: Simulation, P: Presentation> EventHandler for WindowedDriver<'_, S, P> {
     }
 }
 
+/// The oldest input that no image presented since has followed: the start of its interval of input
+/// to present (`docs/adr/0189-first-measures-of-time.md`).
+#[derive(Default)]
+struct InputWait {
+    /// When that input arrived.
+    since: Option<Instant>,
+    /// Whether the run presented an image yet.
+    first_image_presented: bool,
+}
+
+/// What an image presented ends.
+#[derive(Debug, PartialEq)]
+enum Presented {
+    /// The run's first image: an input before it waited for the run's start, not for a frame, and
+    /// is forgotten.
+    First,
+    /// The wait of the input that arrived then.
+    After(Instant),
+    /// No input's wait.
+    Alone,
+}
+
+impl InputWait {
+    /// An input arrived at `now`: it starts a wait, unless an older one waits already.
+    fn arrived(&mut self, now: Instant) {
+        self.since.get_or_insert(now);
+    }
+
+    /// An image was presented: ends the wait.
+    fn presented(&mut self) -> Presented {
+        let since = self.since.take();
+        if !std::mem::replace(&mut self.first_image_presented, true) {
+            return Presented::First;
+        }
+        since.map_or(Presented::Alone, Presented::After)
+    }
+
+    /// Forgets the input that waits, whose wait would hold more than frames.
+    fn forget(&mut self) {
+        self.since = None;
+    }
+}
+
+/// Whether `event` is a person's input, whose interval to the image after it the trace holds: a
+/// key, a button, the pointer, the wheel or the input method; not what the window tells of itself.
+fn is_input(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Key(_)
+            | Event::MouseButton { .. }
+            | Event::CursorMoved { .. }
+            | Event::RawMotion { .. }
+            | Event::MouseWheel(_)
+            | Event::Ime(_)
+    )
+}
+
 /// When the frame after one that was due at `due` and started at `started` is due.
 ///
 /// Frames stay on a regular schedule, so that a frame starting a little late does not lower the
@@ -504,6 +586,56 @@ mod tests {
     use super::*;
 
     const PERIOD: Duration = Duration::from_millis(16);
+
+    #[test]
+    fn the_oldest_input_waits_until_an_image_is_presented() {
+        let start = Instant::now();
+        let at = |millis| start + Duration::from_millis(millis);
+        let mut inputs = InputWait::default();
+        // Before the first image, an input waits for the run's start: it is forgotten.
+        inputs.arrived(at(0));
+        assert_eq!(inputs.presented(), Presented::First);
+        assert_eq!(inputs.presented(), Presented::Alone);
+        // Of several inputs before an image, the oldest's wait.
+        inputs.arrived(at(10));
+        inputs.arrived(at(12));
+        assert_eq!(inputs.presented(), Presented::After(at(10)));
+        assert_eq!(inputs.presented(), Presented::Alone);
+        // A wait forgotten, as over a new device's opening, ends with no interval.
+        inputs.arrived(at(20));
+        inputs.forget();
+        assert_eq!(inputs.presented(), Presented::Alone);
+    }
+
+    #[test]
+    fn a_persons_input_is_an_input_and_the_windows_own_events_are_not() {
+        use slime_platform::{ButtonState, MouseButton, PhysicalSize, ScrollDelta};
+        let inputs = [
+            Event::CursorMoved { x: 1.0, y: 2.0 },
+            Event::RawMotion { delta: [1.0, 0.0] },
+            Event::MouseButton {
+                button: MouseButton::Left,
+                state: ButtonState::Pressed,
+            },
+            Event::MouseWheel(ScrollDelta::Lines { x: 0.0, y: 1.0 }),
+        ];
+        for event in &inputs {
+            assert!(is_input(event), "{event:?}");
+        }
+        let own = [
+            Event::CloseRequested,
+            Event::Resized(PhysicalSize {
+                width: 1,
+                height: 1,
+            }),
+            Event::Focused(true),
+            Event::CursorEntered,
+            Event::CursorLeft,
+        ];
+        for event in &own {
+            assert!(!is_input(event), "{event:?}");
+        }
+    }
 
     #[test]
     fn a_window_that_holds_its_frames_runs_one_only_when_something_asks() {
