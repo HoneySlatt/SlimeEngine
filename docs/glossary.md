@@ -429,6 +429,11 @@ changed since ([ADR-0087](adr/0087-the-worlds-documents.md),
 blinks as its coverage of the pixel changes from frame to frame. The renderer does not filter them
 (ADR-0040).
 
+**First useful frame.** The frame by which a program's start is timed: for the editor and
+applications, the first image presented, its window, panels and menus drawn, the level's meshes
+possibly still loading ([ADR-0189](adr/0189-first-measures-of-time.md)). A *level opened* is timed
+until its viewports draw it whole.
+
 **Fixed step.** A duration of time, constant for a run, in which code that must not depend on
 the frame rate advances (`slime_app::time::FixedStep`). A frame runs zero or more fixed steps.
 
@@ -639,6 +644,11 @@ script, and the *simulation* reads ([ADR-0107](adr/0107-the-execution-model.md))
 **Input method (IME).** The system's means of typing what a keyboard has no keys for, Chinese,
 Japanese or Korean: the keys compose a text, shown in a field under a line, which the user then
 commits (`slime_input::Ime`, [ADR-0145](adr/0145-text-edited.md)).
+
+**Input to present.** The time from a person's input reaching the window, a key, a button, the
+pointer, the wheel or the *input method*, to the end of the present of the next image, measured
+inside the engine; the compositor and the display add more. A trace holds each interval
+([ADR-0175](adr/0175-the-quality-bar.md), [ADR-0189](adr/0189-first-measures-of-time.md)).
 
 **Instance (render).** One thing the renderer draws: a *mesh*, a *material* and a transform from
 the mesh's space to world space (`slime_render::Instance`). A render *scene* is a flat list of
@@ -1423,6 +1433,11 @@ later takes a letter (Stage 3c), so that the numbers cited elsewhere stay right.
 **Staging buffer.** A buffer in memory that the CPU writes and the GPU reads, from which a copy
 brings bytes into a texture or a buffer that the GPU alone reads fast. The *uploader* keeps them
 from one upload to the next.
+
+**Start, warm and cold.** A program's start, from its process's launch to its *first useful frame*,
+its exit apart.
+*Warm*: after runs that filled the system's caches with its files and libraries. *Cold*: after the
+system dropped them, as after a reboot ([ADR-0189](adr/0189-first-measures-of-time.md)).
 
 **Start world.** The *world* as a game makes it at the start of a run, from the scenes it spawns and
 as it prepares them, then *settles*: the *base* of its *saves*, and the world that a save is loaded

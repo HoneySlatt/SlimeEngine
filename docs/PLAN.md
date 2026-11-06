@@ -23,15 +23,16 @@ documentation was updated and reread. Every milestone is also checked on Windows
   M6c.Q2c.
 - Checkpoint A: done on Linux; its part in the Windows virtual machine waits for the owner.
 - Next: the rest of the [quality milestones](#the-quality-milestones)
-  ([ADR-0175](adr/0175-the-quality-bar.md)), [M6c.Q2d](#m6cq2d--first-measures), M6c.Q3 and
-  M6c.Q4;
+  ([ADR-0175](adr/0175-the-quality-bar.md)), [M6c.Q2d](#m6cq2d--first-measures-of-time),
+  [M6c.Q2e](#m6cq2e--first-measures-of-resources), M6c.Q3 and M6c.Q4;
   then [M6c.5f](#m6c5f--the-inspector), the inspector.
 - Then: M6c.6, M6c.7, Checkpoint B, M6c.8, M6c.Q5, the stage's audit, and M6c.9.
 - Cuts made at a milestone's start, a part cut again at its own start where needed: M6c.1 into 1a
   and 1b; M6c.2 into 2a to 2c; M6c.3 into 3a to 3c; M6c.4 into 4a to 4d; M6c.5 into 5a to 5f;
   M6c.Q2 into Q2a and Q2b; M6c.Q2a into Q2a and Q2c, a hidden game apart
   ([ADR-0185](adr/0185-rest-checked-in-ci.md)); M6c.Q2b into Q2b and Q2d, the first measures after
-  Q2c ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)).
+  Q2c ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)); M6c.Q2d into Q2d and Q2e, time apart
+  from resources ([ADR-0189](adr/0189-first-measures-of-time.md)).
 - M6c.6 is expected to be cut in two, M6c.6a and M6c.6b.
 - After Stage 6c: Stage 6d, the interface for applications, to be released as 0.8, decided on
   2026-11-04 and 2026-11-05 ([ADR-0170](adr/0170-applications-on-the-ui-framework.md),
@@ -70,7 +71,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | M6c.Q2a — Rest, checked in CI | Done 2026-11-05, [ADR-0185](adr/0185-rest-checked-in-ci.md), CI green on `4164455` |
 | M6c.Q2b — Counters and ratios in CI | Done 2026-11-05, [ADR-0186](adr/0186-counters-and-ratios-in-ci.md), CI green on `7535915` |
 | [M6c.Q2c — A hidden game at rest](#m6cq2c--a-hidden-game-at-rest) | Done 2026-11-05, [ADR-0187](adr/0187-a-hidden-window-at-rest.md), CI green on `5002bf1`; by hand on Linux done, the Windows virtual machine waiting for the owner |
-| [M6c.Q2d — First measures](#m6cq2d--first-measures) | Planned |
+| [M6c.Q2d — First measures of time](#m6cq2d--first-measures-of-time) | In progress, [ADR-0189](adr/0189-first-measures-of-time.md) |
+| [M6c.Q2e — First measures of resources](#m6cq2e--first-measures-of-resources) | Planned |
 | [M6c.Q3 — The hierarchy's search over frames](#m6cq3--the-hierarchys-search-over-frames) | Planned |
 | [M6c.Q4 — Fuzzing and crash reports](#m6cq4--fuzzing-and-crash-reports) | Planned |
 | [M6c.5f — The inspector](#m6c5f--the-inspector) | Planned |
@@ -191,23 +193,43 @@ stage's audit before M6c.9. Their figures live in the
   ([`measurements.md`](measurements.md#m6cq2c-ryzen-7-5800x)); the Windows virtual machine waits
   for the owner.
 
-### M6c.Q2d — First measures
+### M6c.Q2d — First measures of time
 
-- **Goal.** Each budget of the quality bar has a first figure, or says why it has none.
-- **Crates.** `slime-app`, `slime-editor`, `slime-benches`; `flake.nix`.
-- **Delivers.** As [ADR-0175](adr/0175-the-quality-bar.md) decides, cut from M6c.Q2b by
-  [ADR-0186](adr/0186-counters-and-ratios-in-ci.md): first measures of the warm start, the read of
-  the system's fonts included, of input to present, measured inside the engine, of memory over 100
-  undos and redos and 10 runs of Play, and of the GPU's power at rest; variable refresh rates
-  checked against [ADR-0021](adr/0021-frame-pacing.md)'s pacing as M6c.Q2c leaves it;
-  `hyperfine` and `heaptrack` in the development shell, `dependencies.md` and `CONTRIBUTING.md`;
-  figures proposed to the owner for the budgets that have none.
-- **Done when.** Each budget of the quality bar has a figure measured, or says why not; CI is
+- **Goal.** The budgets of a start and of input to present each have a first figure, and variable
+  refresh rates are stated supported or not.
+- **Crates.** `slime-app`, `slime-editor`, `uwui`, `hunnawood`; `flake.nix`, `scripts/`.
+- **Delivers.** As [ADR-0189](adr/0189-first-measures-of-time.md) decides, cut from M6c.Q2b by
+  [ADR-0186](adr/0186-counters-and-ratios-in-ci.md): `slime_app::since_start`; the first image
+  presented logged by every windowed run, the level drawn whole by the editor and the zone drawn by
+  Hunna Wood; the editor's `--frames`; input to present in the trace, read by
+  `scripts/frame-pacing.py`; `scripts/start-times.sh`; `hyperfine` in the development shell,
+  `dependencies.md` and `CONTRIBUTING.md`; first measures of the warm start, the read of the
+  system's fonts included, of a level opened, a game to control and input to present; variable
+  refresh rates checked against [ADR-0021](adr/0021-frame-pacing.md)'s pacing as M6c.Q2c leaves it;
+  figures proposed to the owner for a level opened, a game to control and cold starts.
+- **Done when.** The start and input to present have a figure measured, or say why not; CI is
   green, each job within 20 minutes.
-- **How to test.** `cargo test --workspace`; the measures' own commands, which it writes down.
-- **Measured.** Start, input to present, memory and power.
-- **By hand.** Absolute times, the GPU's power and variable refresh rates on the owner's machine
+- **How to test.** `cargo test -p slime-app -p slime-editor`; `scripts/check.sh windowed`;
+  `scripts/start-times.sh [--gpu]`; `scripts/frame-pacing.py <trace.json>`.
+- **Measured.** Starts, warm, on lavapipe and on the RX 6900 XT; input to present.
+- **By hand.** Input to present, variable refresh rates and cold starts, on the owner's machine
   and display.
+
+### M6c.Q2e — First measures of resources
+
+- **Goal.** The budgets of memory and power each have a first figure, or say why not.
+- **Crates.** `slime-editor`, `slime-mcp`; `flake.nix`, `scripts/`.
+- **Delivers.** As [ADR-0175](adr/0175-the-quality-bar.md) decides, cut from M6c.Q2d by
+  [ADR-0189](adr/0189-first-measures-of-time.md): first measures of memory over 100 undos and redos
+  and 10 runs of Play, of the editor's memory and video memory on the zone, and of the GPU's power
+  at rest and of a game capped at 60 frames a second; `heaptrack` in the development shell,
+  `dependencies.md` and `CONTRIBUTING.md`; figures proposed to the owner for the editor's memory
+  and video memory and a game's power.
+- **Done when.** Memory and power have a figure measured, or say why not; CI is green, each job
+  within 20 minutes.
+- **How to test.** The measures' own commands, which it writes down.
+- **Measured.** Memory and power.
+- **By hand.** The GPU's power on the owner's machine and desktop.
 
 ### M6c.Q3 — The hierarchy's search over frames
 

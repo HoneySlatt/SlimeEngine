@@ -3,7 +3,9 @@
 - Status: Accepted; amends [0005](0005-lints-and-unsafe-policy.md) (`unsafe` allowed in a
   measuring tool that the engine does not ship), [0104](0104-the-build-ci-and-measurements.md)
   (the benchmarks run in CI, their counters and ratios checked, their times not) and
-  [0175](0175-the-quality-bar.md) (M6c.Q2b cut in two; the ratio of the editor's interface)
+  [0175](0175-the-quality-bar.md) (M6c.Q2b cut in two; the ratio of the editor's interface);
+  amended by [0189](0189-first-measures-of-time.md) (M6c.Q2d cut in two, memory and power in
+  M6c.Q2e)
 - Date: 2026-11-05
 
 ## Context

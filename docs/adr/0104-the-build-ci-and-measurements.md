@@ -8,7 +8,8 @@
   that the cooker is built from),
   [0175](0175-the-quality-bar.md) (CI checks budgets through counters and ratios of times) and
   [0186](0186-counters-and-ratios-in-ci.md) (the benchmarks run in CI, their counters and ratios
-  checked, their times not)
+  checked, their times not) and [0189](0189-first-measures-of-time.md) (the trace holds the
+  intervals from an input to the image after it)
 - Date: 2026-10-19
 
 ## Context
