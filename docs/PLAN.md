@@ -22,11 +22,13 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [ADR-0196](adr/0196-checks-by-hand-on-macos.md),
   [ADR-0197](adr/0197-uwuis-repository-public-from-now.md),
   [ADR-0198](adr/0198-screens-of-reference-and-the-rivals-measured.md),
-  [ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)).
-- Done: [M6d.0a](#m6d0a--the-screens-and-the-owners-programs), the first third of the figures
+  [ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md),
+  [ADR-0200](adr/0200-applications-measured-from-outside.md)).
+- Done: [M6d.0a](#m6d0a--the-screens-and-the-owners-programs) and
+  [M6d.0b](#m6d0b--measured-from-outside-and-ten-hello-world), the first two thirds of the figures
   before, cut in three at its start
   ([ADR-0198](adr/0198-screens-of-reference-and-the-rivals-measured.md)).
-- Now: [M6d.0b](#m6d0b--measured-from-outside-and-ten-hello-world).
+- Now: [M6d.0c](#m6d0c--the-applications-of-the-market).
 - [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and its open decisions; its code
   moves there at M6d.11.
 - May be cut at their start: M6d.1 into its survey and its decisions; M6d.5, AccessKit's translation
@@ -43,7 +45,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | Milestone | Status |
 |---|---|
 | [M6d.0a — The screens and the owner's programs](#m6d0a--the-screens-and-the-owners-programs) | Done |
-| [M6d.0b — Measured from outside, and ten "Hello, World!"](#m6d0b--measured-from-outside-and-ten-hello-world) | Planned |
+| [M6d.0b — Measured from outside, and ten "Hello, World!"](#m6d0b--measured-from-outside-and-ten-hello-world) | Done |
 | [M6d.0c — The applications of the market](#m6d0c--the-applications-of-the-market) | Planned |
 | [M6d.1 — How an application is written](#m6d1--how-an-application-is-written) | Planned |
 | [M6d.2 — Typed styles](#m6d2--typed-styles) | Planned |
@@ -146,11 +148,18 @@ their programs are built from clones. Cut in three at its start.
   measured by it. ADR-0180's two figures that M6d.0a left: the `widgets` example's start to its
   first useful frame, against the bar's budget, and its rest under Wayland and under Xwayland. gpui-kit's
   "Hello, World!", and the same written with GPUI and gpui-kit, Flutter, Compose for the desktop,
-  Electron, Tauri, Qt Quick, Slint, Iced and egui, as each one's documentation shows, measured.
+  Electron, Tauri, Qt Quick, Slint, Iced and egui, as each one's documentation shows, measured;
+  and GPUI alone, the tenth ([ADR-0200](adr/0200-applications-measured-from-outside.md)).
 - **Done when.** The method agrees with Slatty's probe within a stated margin; each program is
   measured, or says why not.
-- **How to test.** The method run on Slatty beside its probe.
-- **Measured.** As delivered.
+- **How to test.** The method run on Slatty beside its probe: uwui's `scripts/slatty-check.sh`.
+- **Measured.** The method, its check against Slatty's probe, Opium's table and the ten
+  "Hello, World!" in [uwui's](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md);
+  the `widgets` example's start and rest in
+  [`measurements.md`](measurements.md#m6d0b-a-program-on-uwuis-start-and-rest-measured-from-outside).
+  The `widgets` example never rests, its progress bars moving; the processor's power is not
+  measured, its sensor read by root alone. Opium's table scrolled on the owner's display waits for
+  the owner (below).
 
 ### M6d.0c — The applications of the market
 
@@ -347,6 +356,9 @@ own here when it is done. A check leaves the list once made, its result written 
 while the stage is in progress, then in the stage's entry of [`history.md`](history.md). The game
 is run with `--new --save <a file of its own>`, so that the owner's save is left alone.
 
+- **Opium's table scrolled on the owner's display** (M6d.0b): uwui's `scripts/measure.py
+  --display`, its pointer moving the owner's, some five minutes with the machine left alone; an
+  agent runs it on the owner's word.
 - **The very modest laptop** (M6d.0c): its inventory, from `nix-shell -p inxi --run "inxi -CGmSz"`,
   given to an agent, then its measures.
 - **The music player's Android prototype** (M6d.0c): written in Compose and measured on the Pixel.

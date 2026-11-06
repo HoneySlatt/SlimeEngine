@@ -1770,3 +1770,42 @@ GitHub's hosted runners, on 2026-11-06, commit `0a1ba51`, its run green.
 | `check (game)` | 9 min 1 s |
 | `check (windowed)` | 6 min 51 s |
 | `links` | 18 s |
+
+## M6d.0b, a program on uwui's start and rest, measured from outside
+
+What [ADR-0180](adr/0180-one-canvas-and-the-frameworks-foundations.md) asks that M6d.0a left: an
+application's start to its first useful frame, and its rest under Wayland and under Xwayland. The
+`widgets` example in a release build, the tree of `5390db2`, measured from outside by uwui's
+[`scripts/measure.py`](https://github.com/HoneySlatt/uwui/blob/main/scripts/measure.py)
+([ADR-0200](adr/0200-applications-measured-from-outside.md)), on 2026-11-06: an AMD Ryzen 7 5800X,
+an RX 6900 XT on RADV, Linux 7.3; sway 1.12 without a screen, one output of 3840 × 2160 at 240 Hz,
+scale 1.5, the window alone on it, drawn on the GPU. 10 starts after one not counted, the median
+and the range. Memory in MB of 10⁶ bytes, as uwui's figures. The command, inside the development
+shell, from the repository's root, with uwui's repository at `<uwui>`:
+
+```sh
+env -u VK_LOADER_DRIVERS_SELECT -u VK_LOADER_DRIVERS_DISABLE -u VK_DRIVER_FILES \
+    python3 -I <uwui>/scripts/measure.py --xwayland --power \
+    --steps <uwui>/scripts/hello-world.steps target/widgets -- target/release/examples/widgets
+```
+
+Its steps wait for a still frame that never comes, 60 s, before the memory and the rest.
+
+| | `widgets` |
+|---|---|
+| Launch to the first frame shown | 109.1 ms (108.0–111.3) |
+| Memory some 63 s after the launch: resident / proportional / video | 75.3 / 44.7 / 345.4 MB |
+| 60 s without input, Wayland: frames, the processor, the compositor | 3,600, 3.0 % of a core, 1.9 % |
+| The same, Xwayland | 3,600, 3.5 % of a core, 1.9 % |
+| The same: wake-ups, Wayland / Xwayland | 7,414 / 37,023 |
+
+What it says:
+
+- The first frame comes within the editor's budget of 150 ms, and 9 ms over uwui's 100 ms for a
+  typical application ([uwui's quality bar](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#budgets)).
+- The example is never at rest: its two progress bars, "cooking textures" and "indexing", move
+  without end, and it draws 60 frames a second, its schedule's rate. No still frame follows to
+  compare its frames with: whether its first frame is its first useful one is not checked. Its
+  rest is to be measured on an application that rests; the `window` example's is checked in CI
+  ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
+- Under Xwayland it wakes five times as often for the same frames.
