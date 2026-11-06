@@ -214,7 +214,10 @@ pub(crate) fn still_counters(frame: impl FnOnce() -> (DisplayList, FrameStats)) 
         Row::count("elements visited by a frame standing still", stats.visited),
         Row::count("items of a frame standing still", list.len()),
         Row::count("allocations of a frame standing still", allocations.calls),
-        Row::count("bytes allocated by a frame standing still", allocations.taken),
+        Row::count(
+            "bytes allocated by a frame standing still",
+            allocations.taken,
+        ),
     ]
 }
 
