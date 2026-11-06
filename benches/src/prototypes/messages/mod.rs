@@ -14,7 +14,6 @@ pub mod mistakes;
 pub mod songs;
 
 use std::any::Any;
-use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -22,7 +21,7 @@ use uwui::prelude::{Action, Children, ElementId, Ui};
 use uwui::tree::{Element, FrameStats, Key};
 
 use super::data;
-use super::described::{self, Arg, Content, Desc, On, Registry, Sink};
+use super::described::{self, Arg, Content, Desc, Map, On, Registry, Sink};
 use super::host::Model;
 use super::screens::{self, Edit, Screen, screen};
 
@@ -169,7 +168,7 @@ impl<'a, M> From<Widget<'a, M>> for El<'a, M> {
 }
 
 impl<'a, M> described::Child<El<'a, M>> for Widget<'a, M> {
-    fn push(self, children: &mut Vec<El<'a, M>>) {
+    fn nest(self, children: &mut Vec<El<'a, M>>) {
         children.push(self.0);
     }
 }
@@ -337,7 +336,7 @@ impl<S, M> Builder<S, M> {
             viewed: false,
             frames: None,
             registry: Registry::default(),
-            lazies: HashMap::new(),
+            lazies: Map::default(),
             lists: Vec::new(),
             runs: 0,
         }
@@ -365,7 +364,7 @@ pub struct Application<S, M> {
     frames: Option<Rc<dyn Fn(Instant) -> M>>,
     registry: Registry<Handler<M>, Place>,
     /// Each `lazy` part's value, by its place in the description.
-    lazies: HashMap<Vec<usize>, Rc<dyn Value>>,
+    lazies: Map<Vec<usize>, Rc<dyn Value>>,
     /// Each list put in the tree, and its place in the description.
     lists: Vec<(ElementId, Vec<usize>)>,
     /// `view`, the `lazy` parts' closures and the rows' closures run since last counted.
@@ -385,7 +384,7 @@ type RowsToBuild<'a, M> = Vec<(ElementId, Box<dyn Fn(usize) -> El<'a, M> + 'a>, 
 /// The description put in the tree, as it goes.
 struct Placing<'p, 'a, M> {
     registry: &'p mut Registry<Handler<M>, Place>,
-    lazies: &'p mut HashMap<Vec<usize>, Rc<dyn Value>>,
+    lazies: &'p mut Map<Vec<usize>, Rc<dyn Value>>,
     runs: &'p mut usize,
     /// The place in the description of the element being put.
     path: Vec<usize>,
@@ -488,7 +487,7 @@ fn build_rows<'a, M>(
     rows: &dyn Fn(usize) -> El<'a, M>,
     path: Vec<usize>,
     registry: &mut Registry<Handler<M>, Place>,
-    lazies: &mut HashMap<Vec<usize>, Rc<dyn Value>>,
+    lazies: &mut Map<Vec<usize>, Rc<dyn Value>>,
     runs: &mut usize,
 ) {
     if ui.element(list).is_none() {
@@ -649,7 +648,7 @@ impl<S: Clone, M: 'static> Model for Application<S, M> {
             viewed: false,
             frames: None,
             registry: Registry::default(),
-            lazies: HashMap::new(),
+            lazies: Map::default(),
             lists: Vec::new(),
             runs: 0,
         }

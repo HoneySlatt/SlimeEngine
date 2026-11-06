@@ -23,6 +23,7 @@ mod described;
 mod host;
 mod messages;
 mod screens;
+mod signals;
 mod views;
 
 use std::time::{Duration, Instant};
@@ -97,6 +98,11 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     chosen.bench("control", "songs", &control::SONGS)?;
     chosen.bench("control", "document", &control::DOCUMENT)?;
     chosen.bench("control", "mistakes", &control::REVISION_NOT_MOVED)?;
+    chosen.bench("signals", "hello", &signals::HELLO)?;
+    chosen.bench("signals", "library", &signals::LIBRARY)?;
+    chosen.bench("signals", "songs", &signals::SONGS)?;
+    chosen.bench("signals", "document", &signals::DOCUMENT)?;
+    chosen.bench("signals", "mistakes", &signals::READ_ONCE)?;
     chosen.bench("views", "hello", &views::HELLO)?;
     chosen.bench("views", "library", &views::LIBRARY)?;
     chosen.bench("views", "songs", &views::SONGS)?;
@@ -532,6 +538,26 @@ mod tests {
     }
 
     #[test]
+    fn signals_render_each_screen_as_a_new_interface_would() {
+        assert!(wrong(&signals::HELLO, true).iter().all(|&wrong| wrong == 0));
+        assert!(
+            wrong(&signals::LIBRARY, false)
+                .iter()
+                .all(|&wrong| wrong == 0)
+        );
+        assert!(
+            wrong(&signals::SONGS, false)
+                .iter()
+                .all(|&wrong| wrong == 0)
+        );
+        assert!(
+            wrong(&signals::DOCUMENT, false)
+                .iter()
+                .all(|&wrong| wrong == 0)
+        );
+    }
+
+    #[test]
     fn views_render_each_screen_as_a_new_interface_would() {
         assert!(wrong(&views::HELLO, true).iter().all(|&wrong| wrong == 0));
         assert!(
@@ -633,6 +659,43 @@ mod tests {
         assert_eq!(played.still.changed, 0, "though nothing changes");
     }
 
+    /// The message of the panic that `played` gives.
+    fn panicked(played: impl FnOnce() + std::panic::UnwindSafe) -> String {
+        let panic = std::panic::catch_unwind(played).expect_err("it panics");
+        panic
+            .downcast_ref::<&str>()
+            .map(|message| (*message).to_owned())
+            .or_else(|| panic.downcast_ref::<String>().cloned())
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn a_signal_read_outside_a_tracked_closure_shows_as_a_wrong_render() {
+        let wrong = wrong(&signals::READ_ONCE, false);
+        assert_eq!(wrong[..2], [0, 0], "right until the selection moves");
+        assert!(wrong[2] > 0, "the label shows the row selected before");
+    }
+
+    #[test]
+    fn a_signal_of_a_scope_disposed_read_panics() {
+        let message = panicked(|| {
+            play(&signals::READ_DISPOSED, Scale::Short, false, false, false)
+                .map(|_| ())
+                .ok();
+        });
+        assert_eq!(message, "a signal of a scope not disposed");
+    }
+
+    #[test]
+    fn a_value_borrowed_twice_panics() {
+        let message = panicked(|| {
+            play(&signals::BORROWED_TWICE, Scale::Short, false, false, false)
+                .map(|_| ())
+                .ok();
+        });
+        assert!(message.contains("already borrowed"), "{message}");
+    }
+
     #[test]
     fn a_notify_forgotten_shows_as_a_wrong_render() {
         let wrong = wrong(&views::NOTIFY_FORGOTTEN, false);
@@ -645,18 +708,12 @@ mod tests {
 
     #[test]
     fn a_view_updated_while_it_is_updated_panics() {
-        let panic = std::panic::catch_unwind(|| {
-            play(&views::UPDATED_TWICE, Scale::Short, false, false, false).map(|_| ())
-        })
-        .expect_err("the press panics");
-        let message = panic
-            .downcast_ref::<&str>()
-            .map(|message| (*message).to_owned())
-            .or_else(|| panic.downcast_ref::<String>().cloned());
-        assert_eq!(
-            message.as_deref(),
-            Some("a view updated while it is updated or renders")
-        );
+        let message = panicked(|| {
+            play(&views::UPDATED_TWICE, Scale::Short, false, false, false)
+                .map(|_| ())
+                .ok();
+        });
+        assert_eq!(message, "a view updated while it is updated or renders");
     }
 
     #[test]

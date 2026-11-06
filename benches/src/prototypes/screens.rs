@@ -250,3 +250,28 @@ pub(crate) fn played<P>(_: Scale) -> Vec<Interaction<P>> {
         },
     ]
 }
+
+/// The script of the small case of a page that closes: a list of 1,000 rows, focused, its row
+/// selected's page opened by Enter, closed by Escape, then the selection moved by an arrow.
+#[cfg(test)]
+pub(crate) fn page_closed<P>(_: Scale) -> Vec<Interaction<P>> {
+    vec![
+        open(),
+        Interaction {
+            name: "the list focused by Tab",
+            frames: each([Input::Key(NamedKey::Tab)]),
+        },
+        Interaction {
+            name: "a page opened by Enter",
+            frames: each([Input::Key(NamedKey::Enter)]),
+        },
+        Interaction {
+            name: "the page closed by Escape",
+            frames: each([Input::Key(NamedKey::Escape)]),
+        },
+        Interaction {
+            name: "the selection moved by an arrow",
+            frames: each([Input::Key(NamedKey::ArrowDown)]),
+        },
+    ]
+}

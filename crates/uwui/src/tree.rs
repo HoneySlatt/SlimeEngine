@@ -106,6 +106,23 @@ impl fmt::Display for Key {
     }
 }
 
+/// One part of an element's description, changed alone ([`Ui::change`]).
+#[derive(Clone, Debug, PartialEq)]
+pub enum Change {
+    /// A label's text, or a button's.
+    Text(String),
+    /// An image's.
+    Image(ImageKey),
+    /// A class, held or not.
+    Class(String, bool),
+    /// The place selected of a list or a grid.
+    Selection(usize),
+    /// A list's or a grid's count of rows or cells.
+    Rows(usize),
+    /// A wave's share played and phase.
+    Wave(f32, f32),
+}
+
 /// What an element is.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Kind {
@@ -1701,6 +1718,82 @@ impl Ui {
         }
     }
 
+    /// Changes one part of `id`'s description alone, `change`, as [`Ui::describe`] would with that
+    /// part changed, marking what it marks for it, without the rest of the description given
+    /// again. Nothing happens for an id that names nothing, a part that it does not have, or the
+    /// value that it holds. Used by the prototypes of M6d.1b, whose signals change one part of an
+    /// element at a time.
+    pub fn change(&mut self, id: ElementId, change: Change) {
+        let Some(node) = self.node_mut(id) else {
+            return;
+        };
+        match (change, &mut node.element.kind) {
+            (Change::Text(text), Kind::Label(held) | Kind::Button { label: held }) => {
+                if *held == text {
+                    return;
+                }
+                *held = text;
+                node.changed.paint = true;
+                self.mark_layout(id);
+                self.mark_meaning(id);
+            }
+            (Change::Image(image), Kind::Image { image: held, .. }) => {
+                if *held == image {
+                    return;
+                }
+                *held = image;
+                node.changed.paint = true;
+                self.mark_meaning(id);
+            }
+            (Change::Rows(rows), Kind::List { rows: held, .. }) => {
+                if *held == rows {
+                    return;
+                }
+                *held = rows;
+                node.changed.paint = true;
+                self.mark_layout(id);
+                self.mark_meaning(id);
+            }
+            (
+                Change::Wave(share, phase),
+                Kind::Wave {
+                    share: held,
+                    phase: at,
+                },
+            ) => {
+                if (*held, *at) == (share, phase) {
+                    return;
+                }
+                (*held, *at) = (share, phase);
+                node.changed.paint = true;
+                self.mark_meaning(id);
+            }
+            (Change::Class(class, holds), _) => {
+                let classes = &mut node.element.classes;
+                let at = classes.iter().position(|held| *held == class);
+                match (at, holds) {
+                    (None, true) => classes.push(class),
+                    (Some(at), false) => {
+                        classes.remove(at);
+                    }
+                    _ => return,
+                }
+                node.changed.paint = true;
+                self.mark_style_subtree(id);
+            }
+            (Change::Selection(place), _) => {
+                if node.element.selection == Some(place) {
+                    return;
+                }
+                node.element.selection = Some(place);
+                node.changed.paint = true;
+                self.selecting.push(id);
+                self.show_row(id, place);
+            }
+            _ => {}
+        }
+    }
+
     /// The element that holds `id`; none for a root, or an id that names nothing.
     pub fn parent(&self, id: ElementId) -> Option<ElementId> {
         self.node(id).and_then(|node| node.parent)
@@ -2795,7 +2888,11 @@ impl<'a> Children<'a> {
             ..
         } = self;
         let removed = !before.is_empty();
-        for (_, child) in before {
+        // Freed in the order of their places, so that the places that new elements take are the
+        // same at every run: the prototypes' bench counts exactly.
+        let mut removed_children: Vec<ElementId> = before.into_values().collect();
+        removed_children.sort_unstable_by_key(|child| child.index);
+        for child in removed_children {
             ui.free_subtree(child);
             ui.forget(child);
         }

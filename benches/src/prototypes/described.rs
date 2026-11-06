@@ -5,7 +5,7 @@
 //! repository, "What the four share").
 
 use std::collections::HashMap;
-use std::hash::Hash;
+use std::hash::{BuildHasherDefault, DefaultHasher, Hash};
 
 use uwui::prelude::{Action, ActionKind, Children, ElementId, FieldValue, Intent, Ui};
 use uwui::tree::{Element, Key};
@@ -14,15 +14,15 @@ use uwui::tree::{Element, Key};
 /// several nested as a tuple, an array, a `Vec`, or an `Option` that holds one or none.
 pub(crate) trait Child<N> {
     /// Puts the children that this holds at the end of `children`, in their order.
-    fn push(self, children: &mut Vec<N>);
+    fn nest(self, children: &mut Vec<N>);
 }
 
 macro_rules! tuples {
     ($($kind:ident $child:ident),+) => {
         impl<N, $($kind: Child<N>),+> Child<N> for ($($kind,)+) {
-            fn push(self, children: &mut Vec<N>) {
+            fn nest(self, children: &mut Vec<N>) {
                 let ($($child,)+) = self;
-                $($child.push(children);)+
+                $($child.nest(children);)+
             }
         }
     };
@@ -38,25 +38,25 @@ tuples!(A a, B b, C c, D d, E e, F f, G g);
 tuples!(A a, B b, C c, D d, E e, F f, G g, H h);
 
 impl<N, T: Child<N>> Child<N> for Option<T> {
-    fn push(self, children: &mut Vec<N>) {
+    fn nest(self, children: &mut Vec<N>) {
         if let Some(child) = self {
-            child.push(children);
+            child.nest(children);
         }
     }
 }
 
 impl<N, T: Child<N>, const K: usize> Child<N> for [T; K] {
-    fn push(self, children: &mut Vec<N>) {
+    fn nest(self, children: &mut Vec<N>) {
         for child in self {
-            child.push(children);
+            child.nest(children);
         }
     }
 }
 
 impl<N, T: Child<N>> Child<N> for Vec<T> {
-    fn push(self, children: &mut Vec<N>) {
+    fn nest(self, children: &mut Vec<N>) {
         for child in self {
-            child.push(children);
+            child.nest(children);
         }
     }
 }
@@ -64,7 +64,7 @@ impl<N, T: Child<N>> Child<N> for Vec<T> {
 /// The children that `child` holds, in their order.
 pub(crate) fn nested<N>(child: impl Child<N>) -> Vec<N> {
     let mut children = Vec::new();
-    child.push(&mut children);
+    child.nest(&mut children);
     children
 }
 
@@ -112,18 +112,22 @@ impl On {
     }
 }
 
+/// A map whose hasher has fixed keys: a map that takes and gives back entries grows at the same
+/// moment at every run, which a random hasher's does not, so that the bench's counts are exact.
+pub(crate) type Map<K, V> = HashMap<K, V, BuildHasherDefault<DefaultHasher>>;
+
 /// The handlers of the elements that a model described, `H`, each kept with the part, `P`, that
 /// described it: a part described again gives its handlers anew.
 pub(crate) struct Registry<H, P> {
-    handlers: HashMap<ElementId, Vec<(On, H)>>,
-    parts: HashMap<P, Vec<ElementId>>,
+    handlers: Map<ElementId, Vec<(On, H)>>,
+    parts: Map<P, Vec<ElementId>>,
 }
 
 impl<H, P: Hash + Eq> Default for Registry<H, P> {
     fn default() -> Self {
         Self {
-            handlers: HashMap::new(),
-            parts: HashMap::new(),
+            handlers: Map::default(),
+            parts: Map::default(),
         }
     }
 }
@@ -250,7 +254,7 @@ impl<H, X> Desc<H, X> {
 }
 
 impl<H, X> Child<Desc<H, X>> for Desc<H, X> {
-    fn push(self, children: &mut Vec<Self>) {
+    fn nest(self, children: &mut Vec<Self>) {
         children.push(self);
     }
 }

@@ -139,7 +139,7 @@ impl<T: 'static> View<T> {
 }
 
 impl<T> Child<El> for View<T> {
-    fn push(self, children: &mut Vec<El>) {
+    fn nest(self, children: &mut Vec<El>) {
         children.push(Desc::own(
             uwui::prelude::Element::column(),
             Own::View(self.entity),
