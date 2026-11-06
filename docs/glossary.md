@@ -646,7 +646,7 @@ Japanese or Korean: the keys compose a text, shown in a field under a line, whic
 commits (`slime_input::Ime`, [ADR-0145](adr/0145-text-edited.md)).
 
 **Input to present.** The time from a person's input reaching the window, a key, a button, the
-pointer, the wheel or the *input method*, to the end of the present of the next image, measured
+pointer, its raw motion, the wheel or the *input method*, to the end of the present of the next image, measured
 inside the engine; the compositor and the display add more. A trace holds each interval
 ([ADR-0175](adr/0175-the-quality-bar.md), [ADR-0189](adr/0189-first-measures-of-time.md)).
 

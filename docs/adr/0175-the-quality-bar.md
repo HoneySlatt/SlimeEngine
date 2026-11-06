@@ -11,8 +11,10 @@
   each thread; a hidden game checked from M6c.Q2c), [0186](0186-counters-and-ratios-in-ci.md)
   (M6c.Q2b cut in two; the ratio of the editor's interface),
   [0189](0189-first-measures-of-time.md) (the first useful frame; a frame of input to present is
-  its tier's) and [0190](0190-uwuis-requirements.md) (applications' budgets of start, memory, size and changes seen; the
-  owner's Steam Deck measures the handheld tier)
+  its tier's), [0190](0190-uwuis-requirements.md) (applications' budgets of start, memory, size and changes seen; the
+  owner's Steam Deck measures the handheld tier) and
+  [0191](0191-input-in-sway-start-budgets-and-the-editors-rate.md) (the budgets of a level opened
+  and of a game to control)
 - Date: 2026-11-05
 
 ## Context

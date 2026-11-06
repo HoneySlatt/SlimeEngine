@@ -33,11 +33,10 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **`cargo test` leaves out the tests of the cooked zone**: they need the zone fetched and cooked, so they are ignored (`#[ignore]`).
   `scripts/check.sh` and CI's `windows` job fetch and cook the zone, then run them (`cargo test -p hunnawood -p hunnawood-editor -- --ignored`).
   `slime-mcp`'s session tests, agents' sessions through the MCP server, are tests apart (`test = false`) that `scripts/check.sh` runs on Linux alone.
-- **The editor draws at most 60 frames a second** ([ADR-0189](adr/0189-first-measures-of-time.md)).
-  No program changes `AppConfig::max_frame_rate`, 60 by default: on a display at 240 Hz, the editor's frames in motion come every 16.7 ms.
-  An input during motion may wait that long for the next frame, against a budget of input to present of one frame of 4.17 ms.
-  Its input to present in motion, 16.9 ms at the 99th percentile, passes its budget.
-  The editor and applications are to aim at 240 frames a second, held to the display; M6c.Q2f.
+- **The editor draws at most 60 frames a second** ([ADR-0191](adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md)).
+  No program changes `AppConfig::max_frame_rate`, 60 by default: on a display at 240 Hz, an input during motion waits for the next frame of that schedule.
+  Its input to present in motion passes its budget of one frame ([`measurements.md`](measurements.md#m6cq2d-ryzen-7-5800x-and-rx-6900-xt)).
+  The editor and applications are to draw at the display's rate: uwui's desktop host from Stage 6d, the editor at M6c.Q2f, once Stage 6c resumes.
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)).
   With Mailbox, the default, the schedule paces frames.
   On Wayland, a frame also waits for the compositor's frame callback: a display slower than the schedule paces them, every image shown ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
@@ -632,8 +631,8 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   CI keeps the benchmarks' counters and the ratio of the editor's interface ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)), on Linux only; every time is measured by hand.
   A game hidden is checked at rest in a headless Weston in CI, and was on the owner's compositor by hand; minimized on Windows, not checked yet ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
   Starts and input to present are measured on the owner's machine only, their times absolute, in a headless Weston and a headless sway: a person's path through the desktop's compositor and display is not measured ([ADR-0189](adr/0189-first-measures-of-time.md)).
-  The editor's start, 178 ms, passes its 150 ms, its steps run one after the other: the GPU opened, the system's fonts read, the renderer's pipelines made ([`measurements.md`](measurements.md#m6cq2d-ryzen-7-5800x-and-rx-6900-xt)).
-  The zone opened in the editor, 466 ms, passes its 300 ms.
+  The editor's start passes its budget, its steps run one after the other: the GPU opened, the system's fonts read, the renderer's pipelines made ([`measurements.md`](measurements.md#m6cq2d-ryzen-7-5800x-and-rx-6900-xt)).
+  The zone opened in the editor passes its budget too ([ADR-0191](adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md)).
   Cold starts need root, and wait for the owner's measure.
   Memory over a session and power are not measured; M6c.Q2e.
   The editor's interface passes its budget on the owner's machine once other programs fill the memory that its GPU, without resizable BAR, lets the CPU map: the canvas's draw then meets [ADR-0041](adr/0041-render-graph.md)'s stall, whose fix is out of Stage 6c ([`measurements.md`](measurements.md#m6cq2b-ryzen-7-5800x-and-rx-6900-xt)).

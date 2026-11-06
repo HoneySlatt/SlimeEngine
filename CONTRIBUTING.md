@@ -51,9 +51,9 @@ Nix only sees the files that git tracks. If you change `flake.nix` so that it re
 Install [rustup](https://rustup.rs). It reads `rust-toolchain.toml` and installs the pinned
 toolchain the first time you run `cargo` in the repository. Install the tools with
 `cargo install --locked cargo-deny lychee hyperfine`, and Weston, sway and wlrctl from your
-distribution's packages; CI uses the versions pinned by `flake.lock`. To open windows, the examples need the windowing system's
-libraries, which are loaded at run time: libxkbcommon for both windowing systems;
-libwayland-client for Wayland; libX11, libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11
+distribution's packages; CI uses the versions pinned by `flake.lock`. To open windows, the examples
+need the windowing system's libraries, which are loaded at run time: libxkbcommon for both
+windowing systems; libwayland-client for Wayland; libX11, libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11
 for X11. Without libxkbcommon, or libxkbcommon-x11 on X11, the examples panic instead of
 reporting that the windowing system cannot be reached. A program that asks for the system's fonts
 loads libfontconfig, and finds none without it. The editor's dialog to open a level loads
@@ -90,7 +90,7 @@ cargo run -p slime-benches -- --write-counters [<name>...]  # write the counters
 scripts/measure.sh "<title>" >> docs/measurements.md      # time the build, run the benchmarks (ADR-0104)
 scripts/frame-pacing.py <trace.json>                      # the frames' pacing and the inputs to present in a trace written with SLIME_TRACE (ADR-0187, ADR-0189)
 scripts/start-times.sh [--gpu] [--cold] [--runs <count>]  # time the editor's and the game's starts in a headless Weston (ADR-0189)
-scripts/input-to-present.sh [--gpu]                       # measure their input to present, a person's input given in a headless sway (ADR-0189)
+scripts/input-to-present.sh [--gpu]                       # measure their input to present, a person's input given in a headless sway (ADR-0191)
 scripts/fetch-assets.sh                                   # fetch the game's source assets (games/hunnawood/README.md)
 blender --background --factory-startup --python games/hunnawood/zone/build_zone.py  # rebuild the game's zone (same README)
 cargo run -p hunnawood                                    # play the game (games/hunnawood/README.md)

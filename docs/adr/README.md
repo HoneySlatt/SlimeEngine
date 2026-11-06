@@ -243,7 +243,7 @@ the ADR linking to it.
 | [0172](0172-regions-of-tabs.md) | Regions of tabs | Accepted; amends 0153 and 0155 |
 | [0173](0173-the-platforms-of-applications.md) | The platforms of applications | Accepted; amends 0015, 0098, 0100 and 0170; amended by 0181 and 0190 |
 | [0174](0174-layouts-kept-floating-panels-and-closed-panels.md) | Layouts kept, floating panels and closed panels | Accepted; amends 0150 and 0155 |
-| [0175](0175-the-quality-bar.md) | The quality bar | Accepted; amends 0104, 0110, 0114, 0123, 0137, 0138, 0140 and 0155; amended by 0185, 0186, 0189 and 0190 |
+| [0175](0175-the-quality-bar.md) | The quality bar | Accepted; amends 0104, 0110, 0114, 0123, 0137, 0138, 0140 and 0155; amended by 0185, 0186, 0189, 0190 and 0191 |
 | [0176](0176-fuzzing-and-crash-reports.md) | Fuzzing and crash reports | Accepted; amends 0096 and 0102 |
 | [0177](0177-audits-and-releases.md) | Audits and releases | Accepted; amends 0097 and 0155 |
 | [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179, 0180 and 0181 |
@@ -257,5 +257,6 @@ the ADR linking to it.
 | [0186](0186-counters-and-ratios-in-ci.md) | Counters and ratios in CI | Accepted; amends 0005, 0104 and 0175; amended by 0189 |
 | [0187](0187-a-hidden-window-at-rest.md) | A hidden window at rest | Accepted; amends 0021 |
 | [0188](0188-a-light-check-for-documentation.md) | A light check for documentation | Accepted; amends 0007 |
-| [0189](0189-first-measures-of-time.md) | First measures of time | Accepted; amends 0104, 0175 and 0186 |
+| [0189](0189-first-measures-of-time.md) | First measures of time | Accepted; amends 0104, 0175 and 0186; amended by 0191 |
 | [0190](0190-uwuis-requirements.md) | uwui's requirements | Accepted; amends 0170, 0171, 0173, 0175 and 0181 |
+| [0191](0191-input-in-sway-start-budgets-and-the-editors-rate.md) | Input given in sway, two budgets of a start, and the editor's rate | Accepted; amends 0175 and 0189 |

@@ -17,7 +17,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 ## Current
 
 - Stage in progress: Stage 6c, the editor, to be released as 0.7
-  ([ADR-0155](adr/0155-the-editors-design.md)); it pauses once M6c.Q2d, M6c.Q2f and M6c.Q2e are done, for
+  ([ADR-0155](adr/0155-the-editors-design.md)); it pauses once M6c.Q2d and M6c.Q2e are done, for
   Stage 6d and uwui's stages to its 1.0, uwui now the owner's main project
   ([ADR-0190](adr/0190-uwuis-requirements.md)).
 - Done: M6c.0, M6c.1a, M6c.1b, M6c.2a, M6c.2b, M6c.2c, M6c.3a, M6c.3b, M6c.3c, M6c.4a, M6c.4b,
@@ -26,20 +26,21 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - Checkpoint A: done on Linux; its part in the Windows virtual machine waits for the owner.
 - Next: the rest of the [quality milestones](#the-quality-milestones)
   ([ADR-0175](adr/0175-the-quality-bar.md)), [M6c.Q2d](#m6cq2d--first-measures-of-time),
-  [M6c.Q2f](#m6cq2f--the-editor-at-the-displays-rate),
-  [M6c.Q2e](#m6cq2e--first-measures-of-resources), M6c.Q3 and M6c.Q4;
+  [M6c.Q2e](#m6cq2e--first-measures-of-resources), then, after the pause,
+  [M6c.Q2f](#m6cq2f--the-editor-at-the-displays-rate), M6c.Q3 and M6c.Q4;
   then [M6c.5f](#m6c5f--the-inspector), the inspector.
 - Then: M6c.6, M6c.7, Checkpoint B, M6c.8, M6c.Q5, the stage's audit, and M6c.9.
-- After M6c.Q2e, Stage 6c pauses: M6c.Q3, M6c.Q4, M6c.5f and the rest resume after uwui's 1.0,
-  the editor moved onto it; Stage 6d starts, planned at its start with the owner.
+- After M6c.Q2e, Stage 6c pauses: M6c.Q2f, M6c.Q3, M6c.Q4, M6c.5f and the rest resume after
+  uwui's 1.0, the editor moved onto it; Stage 6d starts, planned at its start with the owner.
 - Cuts made at a milestone's start, a part cut again at its own start where needed: M6c.1 into 1a
   and 1b; M6c.2 into 2a to 2c; M6c.3 into 3a to 3c; M6c.4 into 4a to 4d; M6c.5 into 5a to 5f;
   M6c.Q2 into Q2a and Q2b; M6c.Q2a into Q2a and Q2c, a hidden game apart
   ([ADR-0185](adr/0185-rest-checked-in-ci.md)); M6c.Q2b into Q2b and Q2d, the first measures after
   Q2c ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)); M6c.Q2d into Q2d and Q2e, time apart
   from resources ([ADR-0189](adr/0189-first-measures-of-time.md)).
-- Added on 2026-11-06: M6c.Q2f, the editor at the display's rate, before M6c.Q2e
-  ([ADR-0189](adr/0189-first-measures-of-time.md)).
+- Added on 2026-11-06: M6c.Q2f, the editor at the display's rate, after the pause; its rule is
+  designed with uwui's desktop host, at Stage 6d
+  ([ADR-0191](adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md)).
 - M6c.6 is expected to be cut in two, M6c.6a and M6c.6b.
 - After M6c.Q2e: Stage 6d, the interface for applications, to be released as 0.8, decided on
   2026-11-04 and 2026-11-05 ([ADR-0170](adr/0170-applications-on-the-ui-framework.md),
@@ -80,9 +81,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | M6c.Q2a — Rest, checked in CI | Done 2026-11-05, [ADR-0185](adr/0185-rest-checked-in-ci.md), CI green on `4164455` |
 | M6c.Q2b — Counters and ratios in CI | Done 2026-11-05, [ADR-0186](adr/0186-counters-and-ratios-in-ci.md), CI green on `7535915` |
 | [M6c.Q2c — A hidden game at rest](#m6cq2c--a-hidden-game-at-rest) | Done 2026-11-05, [ADR-0187](adr/0187-a-hidden-window-at-rest.md), CI green on `5002bf1`; by hand on Linux done, the Windows virtual machine waiting for the owner |
-| [M6c.Q2d — First measures of time](#m6cq2d--first-measures-of-time) | In progress, [ADR-0189](adr/0189-first-measures-of-time.md) |
-| [M6c.Q2f — The editor at the display's rate](#m6cq2f--the-editor-at-the-displays-rate) | Planned |
+| [M6c.Q2d — First measures of time](#m6cq2d--first-measures-of-time) | In progress, [ADR-0189](adr/0189-first-measures-of-time.md), [ADR-0191](adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md) |
 | [M6c.Q2e — First measures of resources](#m6cq2e--first-measures-of-resources) | Planned |
+| [M6c.Q2f — The editor at the display's rate](#m6cq2f--the-editor-at-the-displays-rate) | Planned, after the pause |
 | [M6c.Q3 — The hierarchy's search over frames](#m6cq3--the-hierarchys-search-over-frames) | Planned |
 | [M6c.Q4 — Fuzzing and crash reports](#m6cq4--fuzzing-and-crash-reports) | Planned |
 | [M6c.5f — The inspector](#m6c5f--the-inspector) | Planned |
@@ -213,7 +214,7 @@ stage's audit before M6c.9. Their figures live in the
   presented logged by every windowed run, the level drawn whole by the editor and the zone drawn by
   Hunna Wood; the editor's `--frames`; input to present in the trace, read by
   `scripts/frame-pacing.py`; `scripts/start-times.sh`; `scripts/input-to-present.sh`, a person's
-  input given in a headless sway by `wlrctl`; `hyperfine`, sway and `wlrctl` in the development
+  input given in a headless sway by `wlrctl` ([ADR-0191](adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md)); `hyperfine`, sway and `wlrctl` in the development
   shell, `dependencies.md` and `CONTRIBUTING.md`; first measures of the warm start, the read of the
   system's fonts included, of a level opened, a game to control and input to present; variable
   refresh rates checked against [ADR-0021](adr/0021-frame-pacing.md)'s pacing as M6c.Q2c leaves it;
@@ -227,25 +228,8 @@ stage's audit before M6c.9. Their figures live in the
 - **Measured.** Starts, warm, and input to present, on the RX 6900 XT; variable refresh rates on the
   owner's displays ([`measurements.md`](measurements.md#m6cq2d-ryzen-7-5800x-and-rx-6900-xt)).
 - **By hand.** Variable refresh rates on the owner's displays, done on 2026-11-06: ADR-0021's
-  pacing kept with adaptive sync; cold starts wait for the owner, `sudo` asked.
-
-### M6c.Q2f — The editor at the display's rate
-
-- **Goal.** The editor's input to present stays within one frame of 4.17 ms in motion, on a display
-  at 240 Hz, and no image is drawn that the display does not show.
-- **Crates.** `slime-platform`, `slime-app`, `slime-editor`.
-- **Delivers.** As [ADR-0189](adr/0189-first-measures-of-time.md) decides: the editor and
-  applications at 240 frames a second at most, held to the display: on Wayland by the compositor's
-  signal; on Windows and X11 by the refresh rate of the display that holds the window, read again
-  when the window moves to another; its design in an ADR that amends
-  [ADR-0021](adr/0021-frame-pacing.md).
-- **Done when.** The editor's input to present in motion is within its budget in a headless sway at
-  240 Hz, its frames follow a display at 60 Hz, and it rests as before; CI is green, each job within
-  20 minutes.
-- **How to test.** `scripts/input-to-present.sh --gpu`; `scripts/check.sh windowed`.
-- **Measured.** Input to present, the frames' pacing at 60 and 240 Hz, rest.
-- **By hand.** Variable refresh rates on the owner's displays; the editor's rate on Windows, in the
-  virtual machine.
+  pacing unchanged with adaptive sync, at 60 frames a second, which divides the refresh, so not yet
+  judged (M6c.Q2f); cold starts wait for the owner, `sudo` asked.
 
 ### M6c.Q2e — First measures of resources
 
@@ -262,6 +246,28 @@ stage's audit before M6c.9. Their figures live in the
 - **How to test.** The measures' own commands, which it writes down.
 - **Measured.** Memory and power.
 - **By hand.** The GPU's power on the owner's machine and desktop.
+
+### M6c.Q2f — The editor at the display's rate
+
+After Stage 6c's pause, once uwui's desktop host follows the rule
+([ADR-0191](adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md)).
+
+- **Goal.** The editor's input to present stays within one frame of 4.17 ms in motion, on a display
+  at 240 Hz, and no image is drawn that the display does not show.
+- **Crates.** Those that run the editor's frames when Stage 6c resumes, the editor moved onto uwui
+  ([ADR-0190](adr/0190-uwuis-requirements.md)).
+- **Delivers.** The rule that the ADR of uwui's desktop host decides at Stage 6d, which amends
+  [ADR-0021](adr/0021-frame-pacing.md), applied to the editor: its frames at the display's rate, on
+  Wayland by the compositor's signal, on Windows and X11 by the refresh rate of the display that
+  holds the window.
+- **Done when.** The editor's input to present in motion is within its budget in a headless sway at
+  240 Hz, its frames follow a display at 60 Hz, variable refresh rates are stated supported or not
+  at a rate that does not divide the display's refresh, and it rests as before; CI is green, each
+  job within 20 minutes.
+- **How to test.** `scripts/input-to-present.sh --gpu`; `scripts/check.sh windowed`.
+- **Measured.** Input to present, the frames' pacing at 60 and 240 Hz, rest.
+- **By hand.** Variable refresh rates on the owner's displays; the editor's rate on Windows, in the
+  virtual machine.
 
 ### M6c.Q3 — The hierarchy's search over frames
 

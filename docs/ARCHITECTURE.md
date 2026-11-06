@@ -53,7 +53,7 @@ it is built this way.
 │                        fonts of uwui's tests; screen-reader-check.sh, an interface read
 │                        through AT-SPI as a screen reader does; cooker-dependencies.sh, CI's
 │                        key of the cooked zone; frame-pacing.py, a trace's frames and inputs;
-│                        start-times.sh, the warm starts
+│                        start-times.sh, the starts; input-to-present.sh, input to present
 ├── AGENTS.md            rules for every contributor
 ├── CHANGELOG.md         notable changes, per release
 ├── CONTRIBUTING.md      environment, checks, how a change is made and reviewed

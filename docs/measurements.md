@@ -1520,8 +1520,10 @@ the cache. `check (game)`'s `drive` test watches the game minimized too
 
 ## M6c.Q2d, Ryzen 7 5800X and RX 6900 XT
 
-On 2026-11-06, from commit `36f92bc`, in release builds, the machine at rest, its desktop running
-([ADR-0189](adr/0189-first-measures-of-time.md)).
+On 2026-11-06, the engine at commit `36f92bc`, in release builds, the machine at rest, its desktop
+running ([ADR-0189](adr/0189-first-measures-of-time.md)); input to present with
+`scripts/input-to-present.sh` as it stands after `07dd6c6`
+([ADR-0191](adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md)).
 
 Warm starts, as `scripts/start-times.sh --gpu` measures them, in a headless Weston 16 through its
 GL renderer, the RX 6900 XT through RADV, 20 runs each after 3 that warm the system's caches. The
@@ -1542,23 +1544,29 @@ at 176 ms.
 What it says: the editor's start passes its budget of 150 ms by some 30 ms, its steps run one after
 the other; the zone opened in the editor passes its budget of 300 ms; *Hunna Wood* gives control
 well within its second. The yard's few meshes load within the first frame. On lavapipe the same
-day, the machine not at rest, the editor's first image came 440 to 490 ms after the engine's start.
+day, the machine not at rest, the editor's first image came 440 to 490 ms after the engine's start,
+over four series.
 
 Input to present, as `scripts/input-to-present.sh --gpu` measures it, in a headless sway 1.12
-whose output refreshes at 240 Hz, through its GL renderer: `wlrctl` gives a person's input, 40
-moves of the pointer, then clicks, wheel and keys, each 100 ms apart, then 200 moves in a row. Two
-runs; the intervals from an input to the end of the present of the image after it:
+whose output refreshes at 240 Hz, through its GL renderer: `wlrctl` gives a person's input, each
+program run twice, once with 200 inputs apart, 100 ms from each other, pointer moves, clicks, the
+wheel and keys in turn, once with 1 000 moves of the pointer in a row, about 180 a second. Two
+runs of the script, the second while another program's fuzzing started on the machine; the
+intervals from an input to the end of the present of the image after it:
 
-| Program | Images after an input | Median | 99th percentile | Longest | Budget |
-|---|---|---|---|---|---|
-| The editor, on the yard | 67, 67 | 1.00 ms, 1.65 ms | 16.92 ms, 16.57 ms | the same | 1 frame, 4.17 ms |
-| *Hunna Wood* | 51, 57 | 12.46 ms, 12.79 ms | 21.12 ms, 19.03 ms | the same | 2 frames, 33.3 ms |
+| Program | Inputs | Images after an input | Median | 99th percentile | Longest | Budget |
+|---|---|---|---|---|---|---|
+| The editor, on the yard | apart | 148, 150 | 1.87 ms, 2.07 ms | 14.07 ms, 13.53 ms | 14.10 ms, 13.64 ms | 1 frame, 4.17 ms |
+| The editor, on the yard | in a row | 554, 482 | 10.12 ms, 12.66 ms | 19.24 ms, 17.54 ms | 25.83 ms, 31.16 ms | 1 frame, 4.17 ms |
+| *Hunna Wood* | apart | 99, 78 | 11.10 ms, 12.36 ms | 19.35 ms, 16.74 ms | the same | 2 frames, 33.3 ms |
+| *Hunna Wood* | in a row | 220, 465 | 16.04 ms, 12.78 ms | 35.01 ms, 16.83 ms | 37.32 ms, 17.09 ms | 2 frames, 33.3 ms |
 
-What it says: an input to the editor at rest is answered within 2 ms, but in motion an input waits
-for the next frame of a schedule of 60 a second, 16.7 ms: its 99th percentile, about four frames of
-4.17 ms, passes its budget, which the editor's cap of 60 frames a second gives
-([`debt.md`](debt.md)). *Hunna Wood*'s inputs wait for its scheduled frames at 60 a second, within
-its two frames.
+What it says: the editor answers an input apart within about 2 ms at the median, but its 99th
+percentile, apart and in motion, passes one frame of 4.17 ms by three to four: an input waits for
+the next frame of a schedule of 60 a second, 16.7 ms ([`debt.md`](debt.md)). *Hunna Wood*'s inputs
+wait for its frames at 60 a second, within its two frames but in one run in motion, where a frame
+of 131 ms took its 99th percentile to 35.0 ms; it is to be measured again on a machine at rest.
+Fewer than 100 images give their longest as the 99th percentile.
 
 Variable refresh rates, on the owner's desktop, the `window` example in a release build, 1 200
 frames, read by `scripts/frame-pacing.py`:
@@ -1569,8 +1577,9 @@ frames, read by `scripts/frame-pacing.py`:
 | DP-3, 1920 × 1080 at 180 Hz | on | 60.00 | 16.667 ms | 0.024 ms | 16.700 ms | 16.954 ms |
 
 What it says: with adaptive sync on, the frames keep [ADR-0021](adr/0021-frame-pacing.md)'s pacing
-as [ADR-0187](adr/0187-a-hidden-window-at-rest.md) leaves it. What the display shows at each refresh
-the engine does not see.
+as [ADR-0187](adr/0187-a-hidden-window-at-rest.md) leaves it. At 60 frames a second, which divides
+both refreshes, a display that did not follow the frames would pace them the same: whether it
+follows them is judged at another rate (M6c.Q2f). What the display shows the engine does not see.
 
 ## M6c.Q2d, CI's runners
 

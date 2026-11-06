@@ -30,8 +30,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   it first draws its zone, each in milliseconds after the start; the trace that `SLIME_TRACE` asks
   for holds each interval from a person's input to the present of the image after it, which
   `scripts/frame-pacing.py` reads; the editor's `--frames <count>`, which runs that many frames
-  then quits; `scripts/start-times.sh`, which times the warm starts with `hyperfine`, now in the
-  development shell.
+  then quits; `scripts/start-times.sh`, which times the starts with `hyperfine`;
+  `scripts/input-to-present.sh`, which gives the editor and the game a person's input with `wlrctl`
+  in a headless sway (ADR-0191); `hyperfine`, sway and `wlrctl` in the development shell.
 - A game's window minimized: `slime_platform::Window::minimize`, the development channel's
   `Request::Minimize` and the MCP server's `minimize_game`; `Window::pre_present_notify`; CI checks
   that *Hunna Wood* minimized, its game time running, is at rest (ADR-0187).
