@@ -3,8 +3,9 @@
 - Status: Accepted; amends [0181](0181-uwuis-scope.md) (the media application written anew on
   uwui, not ported) and [0194](0194-stage-6d-uwui-leaving-the-engine.md) (M6d.0 cut in three; the
   rivals measured with the owner's programs); amended by [0199](0199-uwuis-targets-tools-and-references-narrowed.md) (M6d.1's
-  references and M6d.0b's measures widened) and [0200](0200-applications-measured-from-outside.md)
-  (the tenth "Hello, World!", and where the ten live)
+  references and M6d.0b's measures widened), [0200](0200-applications-measured-from-outside.md)
+  (the tenth "Hello, World!", and where the ten live) and [0201](0201-the-rivals-narrowed.md) (the
+  rivals of two screens narrowed)
 - Date: 2026-11-06
 
 ## Context

@@ -266,6 +266,7 @@ the ADR linking to it.
 | [0195](0195-a-series-of-headless-compositors.md) | A series of headless compositors | Accepted; amends 0185 |
 | [0196](0196-checks-by-hand-on-macos.md) | Checks by hand on macOS | Accepted |
 | [0197](0197-uwuis-repository-public-from-now.md) | uwui's repository, public from now | Accepted; amends 0181 and 0190 |
-| [0198](0198-screens-of-reference-and-the-rivals-measured.md) | The screens of reference and the rivals measured | Accepted; amends 0181 and 0194; amended by 0199 and 0200 |
+| [0198](0198-screens-of-reference-and-the-rivals-measured.md) | The screens of reference and the rivals measured | Accepted; amends 0181 and 0194; amended by 0199, 0200 and 0201 |
 | [0199](0199-uwuis-targets-tools-and-references-narrowed.md) | uwui's targets, tools and references narrowed | Accepted; amends 0190 and 0198 |
-| [0200](0200-applications-measured-from-outside.md) | Applications measured from outside | Accepted; amends 0191 and 0198 |
+| [0200](0200-applications-measured-from-outside.md) | Applications measured from outside | Accepted; amends 0191 and 0198; amended by 0201 |
+| [0201](0201-the-rivals-narrowed.md) | The rivals narrowed | Accepted; amends 0198 and 0200 |

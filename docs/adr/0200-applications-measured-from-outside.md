@@ -3,7 +3,8 @@
 - Status: Accepted; amends [0191](0191-input-in-sway-start-budgets-and-the-editors-rate.md) (a
   person's input given by one virtual pointer held, not by `wlrctl`) and
   [0198](0198-screens-of-reference-and-the-rivals-measured.md) (the tenth "Hello, World!", the
-  sources of the ten in uwui's repository)
+  sources of the ten in uwui's repository); amended by [0201](0201-the-rivals-narrowed.md) (how
+  the rivals run while measured)
 - Date: 2026-11-06
 
 ## Context
