@@ -13,7 +13,7 @@ use uwui::style::{Dimension, FlexDirection, Style};
 use uwui::text::Fonts;
 use uwui::tree::{LayoutDirection, RootSettings, Ui};
 
-use crate::allocations::{Allocations, counted};
+use crate::allocations::counted;
 use crate::measure::{Context, Row, timed};
 use crate::play::{copy, fresh, yard_with};
 use crate::ui::{RUNS, still_counters, times};
@@ -257,7 +257,7 @@ struct Timed {
     frame: InterfaceFrame,
     whole: Duration,
     built: Duration,
-    allocations: Allocations,
+    allocations: u64,
 }
 
 /// A frame of `window`, the core's part, then its interface built then drawn through the canvas,
@@ -268,7 +268,7 @@ fn timed_frame(gpu: &Gpu, window: &mut Offscreen) -> Result<Timed, String> {
     let (((frame, built, allocations), drawn), whole) = timed(|| {
         window.update();
         let ((frame, built), allocations) = counted(|| timed(|| window.frame()));
-        ((frame, built, allocations), window.draw())
+        ((frame, built, allocations.calls), window.draw())
     });
     drawn?;
     gpu.wait_idle().map_err(|error| error.to_string())?;
@@ -308,11 +308,7 @@ fn settle(
         ),
         Row::count(
             format!("allocations of a frame standing still{name}"),
-            still.allocations.calls,
-        ),
-        Row::count(
-            format!("bytes allocated by a frame standing still{name}"),
-            still.allocations.taken,
+            still.allocations,
         ),
     ])
 }
