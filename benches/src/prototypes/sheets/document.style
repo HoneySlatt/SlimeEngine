@@ -1,0 +1,9 @@
+# The synthetic document: lines of 20 pixels in Geist Mono.
+
+[document]
+select = { classes = ["document"] }
+style.layout.grow = 1
+
+[line]
+select = { classes = ["line"] }
+style.text.style.fonts = ["Geist Mono"]

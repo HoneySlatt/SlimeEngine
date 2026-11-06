@@ -1,0 +1,51 @@
+# Opium's songs: the header, the table, rows of 52 pixels, the song selected and the one playing,
+# and the bar below with its wave. Its colors are the theme's, dark or light, which styles the
+# class `muted` too.
+
+[header]
+select = { classes = ["header"] }
+style.layout = { size = ["auto", 32], gap = [14, 14], padding = { start = 10, end = 10 } }
+
+[table]
+select = { classes = ["table"] }
+style.layout.grow = 1
+
+[song]
+select = { classes = ["song"] }
+style.layout = { align_items = "Center", gap = [14, 14], padding = { start = 10, end = 10 } }
+style.paint = { radii = [16, 16, 16, 16] }
+
+[song-selected]
+select = { classes = ["song"], states = ["Selected"] }
+style.paint.background = "alpha($accent, 16%)"
+
+[song-playing]
+select = { classes = ["song", "playing"] }
+style.paint.background = "$secondary_container"
+
+[number]
+select = { classes = ["number"] }
+style.layout.size = [36, "auto"]
+
+[thumbnail]
+select = { classes = ["thumbnail"] }
+style.layout.size = [36, 36]
+style.paint.radii = [10, 10, 10, 10]
+
+[title]
+select = { classes = ["title"] }
+style.layout = { direction = "Column", grow = 3, min_size = [200, "auto"] }
+
+[album]
+select = { classes = ["album"] }
+style.layout = { grow = 2, min_size = [120, "auto"] }
+
+[length]
+select = { classes = ["length"] }
+style.layout.size = [52, "auto"]
+style.text.align = "End"
+
+[toolbar]
+select = { classes = ["toolbar"] }
+style.layout = { size = ["auto", 70], max_size = [1240, "auto"], align_items = "Center", gap = [16, 16] }
+style.paint = { background = "$bar", radii = [35, 35, 35, 35] }

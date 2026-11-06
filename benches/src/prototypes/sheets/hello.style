@@ -1,0 +1,6 @@
+# "Hello, World!": the text above the button, both in the window's middle. The button's look, of
+# the class `primary`, is the shipped theme's.
+
+[centered]
+select = { classes = ["centered"] }
+style.layout = { direction = "Column", align_items = "Center", justify = "Center", gap = [8, 8], grow = 1 }

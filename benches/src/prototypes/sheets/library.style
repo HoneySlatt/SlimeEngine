@@ -1,0 +1,30 @@
+# Slatty's library: the grid of covers, a cover selected, and a game's page over the grid, its key
+# art fading in over 180 ms as Slatty's does. `enter` is what an element shows as it appears, from
+# which its transition starts: no such part of a style exists yet.
+
+[covers]
+select = { classes = ["covers"] }
+style.layout = { gap = [12, 12], padding = { start = 12, end = 12, top = 12, bottom = 12 }, grow = 1 }
+
+[cover]
+select = { classes = ["cover"] }
+style.paint = { radii = [6, 6, 6, 6] }
+
+[cover-selected]
+select = { classes = ["cover"], states = ["Selected"] }
+style.paint = { border_width = 2, border = "$focus" }
+
+[page]
+select = { classes = ["page"] }
+style.paint.background = "$background"
+style.layout = { direction = "Column", gap = [16, 16], padding = { start = 32, end = 32, top = 24, bottom = 24 } }
+
+[key-art]
+select = { classes = ["key-art"] }
+style.layout.size = ["100%", "auto"]
+style.transition = { duration = 0.18, easing = "EaseOut" }
+style.enter = { opacity = 0 }
+
+[title]
+select = { classes = ["title"] }
+style.text.style = { size = 52, weight = 700 }
