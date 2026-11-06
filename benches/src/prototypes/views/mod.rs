@@ -709,3 +709,28 @@ pub(crate) const UPDATED_TWICE: Screen<Window<mistakes::Twice>> = screen(
     |now| Window::open(now, mistakes::twice),
     screens::hello,
 );
+
+/// A grid of covers, keyed by their games or, the mistake, left without a key.
+#[cfg(test)]
+pub(crate) const COVERS: [Screen<Window<mistakes::Covers>>; 2] = [
+    screen(
+        screens::SELECTION,
+        |now| Window::open(now, |cx| cx.new(|_| mistakes::Covers::new(true))),
+        screens::removed,
+    ),
+    screen(
+        screens::SELECTION,
+        |now| Window::open(now, |cx| cx.new(|_| mistakes::Covers::new(false))),
+        screens::removed,
+    ),
+];
+
+#[cfg(test)]
+impl screens::Removes for Window<mistakes::Covers> {
+    fn remove_first(&mut self) {
+        self.root.update(&mut self.app, |covers, cx| {
+            covers.shown.remove(0);
+            cx.notify();
+        });
+    }
+}

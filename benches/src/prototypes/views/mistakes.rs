@@ -161,3 +161,42 @@ pub fn twice(cx: &mut App) -> View<Twice> {
     inner.update(cx, |inner, _| inner.outer = Some(outer));
     twice
 }
+
+/// A cover's cell, in logical pixels.
+#[cfg(test)]
+const CELL: [f32; 2] = [150.0, 200.0];
+
+/// A grid of six covers, each keyed by its game, or, the mistake, left without a key: its state,
+/// the focus, passes to another game when one before it is removed.
+#[cfg(test)]
+#[derive(Clone)]
+pub struct Covers {
+    pub shown: Vec<usize>,
+    keyed: bool,
+}
+
+#[cfg(test)]
+impl Covers {
+    pub fn new(keyed: bool) -> Self {
+        Self {
+            shown: (0..6).collect(),
+            keyed,
+        }
+    }
+}
+
+#[cfg(test)]
+impl Render for Covers {
+    fn render(&mut self, cx: &mut Cx<Self>) -> impl IntoElement {
+        let covers = cx.processor(|this, places: Range<usize>, _| {
+            places
+                .map(|place| {
+                    let game = this.shown[place];
+                    let cover = pressable(label(format!("Game {game}"))).class("cover");
+                    if this.keyed { cover.key(game) } else { cover }
+                })
+                .collect()
+        });
+        grid(self.shown.len(), CELL, covers).class("table")
+    }
+}

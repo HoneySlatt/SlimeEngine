@@ -716,6 +716,62 @@ mod tests {
         assert_eq!(message, "a view updated while it is updated or renders");
     }
 
+    /// The title of the cover that holds the focus once `screen`'s script played.
+    fn focused<P: Model>(screen: &Screen<P>) -> String {
+        let look = Look::new(screen.sheet.0, screen.sheet.1);
+        let start = Instant::now();
+        let ui = look.interface().expect("the look reads");
+        let mut host = Host::open(ui, look, (screen.make)(start), start);
+        for interaction in (screen.script)(Scale::Short) {
+            for inputs in &interaction.frames {
+                host.frame(inputs);
+            }
+            host.settle(SETTLE);
+        }
+        let focus = host.ui.focus().expect("a cover holds the focus");
+        let title = host.ui.children(focus)[0];
+        match &host.ui.element(title).expect("its title").kind {
+            uwui::tree::Kind::Label(text) => text.clone(),
+            _ => String::new(),
+        }
+    }
+
+    #[test]
+    fn a_key_forgotten_passes_the_focus_to_another_game() {
+        let both = |keyed: String, placed: String| {
+            assert_eq!(keyed, "Game 1", "keyed by its game, the focus stays on it");
+            assert_eq!(
+                placed, "Game 2",
+                "keyed by its place, it passes to the next"
+            );
+        };
+        both(focused(&control::COVERS[0]), focused(&control::COVERS[1]));
+        both(focused(&signals::COVERS[0]), focused(&signals::COVERS[1]));
+        both(focused(&views::COVERS[0]), focused(&views::COVERS[1]));
+        both(focused(&messages::COVERS[0]), focused(&messages::COVERS[1]));
+    }
+
+    #[test]
+    fn an_id_kept_after_its_builder_ran_again_names_no_other_element() {
+        let look = Look::new(control::HELLO.sheet.0, control::HELLO.sheet.1);
+        let mut ui = look.interface().expect("the look reads");
+        let root = ui.add_root("main", host::SCREEN, host::window());
+        let mut close = None;
+        ui.build(root, 0, |children| {
+            let button = uwui::prelude::Element::button("Library");
+            close = Some(children.add("close", button, |_| {}));
+        });
+        // The page closes, and another opens in the place that the button held.
+        ui.build(root, 1, |_| {});
+        let mut other = None;
+        ui.build(root, 2, |children| {
+            let button = uwui::prelude::Element::button("Library");
+            other = Some(children.add("close", button, |_| {}));
+        });
+        assert_ne!(close, other, "the id kept names no new element");
+        assert!(ui.element(close.expect("built")).is_none());
+    }
+
     #[test]
     fn a_revision_not_moved_shows_as_a_wrong_render() {
         let wrong = wrong(&control::REVISION_NOT_MOVED, false);

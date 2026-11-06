@@ -1128,3 +1128,30 @@ pub(crate) const BORROWED_TWICE: Screen<Signals<()>> = screen(
     |now| Signals::open(now, || ((), mistakes::borrowed_twice())),
     screens::selection,
 );
+
+/// A grid of covers, keyed by their games or, the mistake, by their places.
+#[cfg(test)]
+pub(crate) const COVERS: [Screen<Signals<RwSignal<Vec<usize>>>>; 2] = [
+    screen(
+        screens::SELECTION,
+        |now| Signals::open(now, || mistakes::covers(true)),
+        screens::removed,
+    ),
+    screen(
+        screens::SELECTION,
+        |now| Signals::open(now, || mistakes::covers(false)),
+        screens::removed,
+    ),
+];
+
+#[cfg(test)]
+impl screens::Removes for Signals<RwSignal<Vec<usize>>> {
+    fn remove_first(&mut self) {
+        let shown = self.handle;
+        enter(&self.runtime, || {
+            shown.update(|shown| {
+                shown.remove(0);
+            });
+        });
+    }
+}

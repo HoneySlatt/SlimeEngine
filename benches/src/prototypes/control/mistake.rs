@@ -56,3 +56,59 @@ impl Program for Forgotten {
         }
     }
 }
+
+/// A cover's cell, in logical pixels.
+#[cfg(test)]
+const CELL: [f32; 2] = [150.0, 200.0];
+
+/// A grid of six covers, each matched by its game, or, the mistake, by its place: its state, the
+/// focus, passes to another game when one before it is removed.
+#[cfg(test)]
+#[derive(Clone)]
+pub struct Covers {
+    shown: Vec<usize>,
+    keyed: bool,
+    revision: u64,
+    grid: Option<ElementId>,
+}
+
+#[cfg(test)]
+impl Covers {
+    pub fn new(keyed: bool) -> Self {
+        Self {
+            shown: (0..6).collect(),
+            keyed,
+            revision: 0,
+            grid: None,
+        }
+    }
+
+    pub fn remove_first(&mut self) {
+        self.shown.remove(0);
+        self.revision += 1;
+    }
+}
+
+#[cfg(test)]
+impl Program for Covers {
+    fn build(&mut self, ui: &mut Ui, root: ElementId) {
+        let grid = &mut self.grid;
+        ui.build(root, self.revision, |children| {
+            let covers = Element::grid(self.shown.len(), CELL).class("table");
+            *grid = Some(children.add_slot("grid", covers));
+        });
+        let Some(grid) = self.grid else {
+            return;
+        };
+        ui.build(grid, self.revision, |children| {
+            for place in children.rows() {
+                let game = self.shown[place];
+                let key = if self.keyed { game } else { place };
+                children.add(key, Element::pressable().class("cover"), |children| {
+                    let title = Element::label(format!("Game {game}"));
+                    children.add("title", title, |_| {});
+                });
+            }
+        });
+    }
+}

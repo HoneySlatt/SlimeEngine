@@ -70,3 +70,38 @@ pub fn borrowed_twice() -> impl View {
             });
         })
 }
+
+/// A cover's cell, in logical pixels.
+#[cfg(test)]
+const CELL: [f32; 2] = [150.0, 200.0];
+
+/// A grid of six covers, each keyed by its game, or, the mistake, by its place, its title read
+/// from the games shown: its state, the focus, passes to another game when one before it is
+/// removed. Gives the games shown, which the bench changes.
+#[cfg(test)]
+pub fn covers(keyed: bool) -> (RwSignal<Vec<usize>>, impl View) {
+    let shown = RwSignal::new((0..6).collect::<Vec<usize>>());
+    let cover = |title: super::El| pressable(title).class("cover");
+    let grid = if keyed {
+        grid(
+            move || shown.get(),
+            |&game| game,
+            CELL,
+            move |game| cover(label(format!("Game {game}"))),
+        )
+    } else {
+        grid(
+            move || (0..shown.with(Vec::len)).collect(),
+            |&place| place,
+            CELL,
+            move |place| {
+                let title = move || {
+                    let game = shown.with(|shown| shown.get(place).copied());
+                    format!("Game {}", game.unwrap_or_default())
+                };
+                cover(label(title))
+            },
+        )
+    };
+    (shown, grid.class("table"))
+}

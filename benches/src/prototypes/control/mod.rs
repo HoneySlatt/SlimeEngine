@@ -62,3 +62,25 @@ pub(crate) const REVISION_NOT_MOVED: Screen<mistake::Forgotten> = screen(
     |_| mistake::Forgotten::new(),
     screens::selection,
 );
+
+/// A grid of covers, matched by their games or, the mistake, by their places.
+#[cfg(test)]
+pub(crate) const COVERS: [Screen<mistake::Covers>; 2] = [
+    screen(
+        screens::SELECTION,
+        |_| mistake::Covers::new(true),
+        screens::removed,
+    ),
+    screen(
+        screens::SELECTION,
+        |_| mistake::Covers::new(false),
+        screens::removed,
+    ),
+];
+
+#[cfg(test)]
+impl screens::Removes for mistake::Covers {
+    fn remove_first(&mut self) {
+        mistake::Covers::remove_first(self);
+    }
+}

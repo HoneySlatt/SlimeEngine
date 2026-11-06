@@ -275,3 +275,26 @@ pub(crate) fn page_closed<P>(_: Scale) -> Vec<Interaction<P>> {
         },
     ]
 }
+
+/// A grid of covers whose first the bench removes from outside the screen, as an edit does.
+#[cfg(test)]
+pub(crate) trait Removes {
+    fn remove_first(&mut self);
+}
+
+/// The script of the small cases of a key: a grid of six covers, the second focused by two Tabs,
+/// then the first removed.
+#[cfg(test)]
+pub(crate) fn removed<P: Removes>(_: Scale) -> Vec<Interaction<P>> {
+    vec![
+        open(),
+        Interaction {
+            name: "the second cover focused by Tab",
+            frames: each([Input::Key(NamedKey::Tab), Input::Key(NamedKey::Tab)]),
+        },
+        Interaction {
+            name: "the first cover removed",
+            frames: each([Input::Call(|covers: &mut P| covers.remove_first())]),
+        },
+    ]
+}

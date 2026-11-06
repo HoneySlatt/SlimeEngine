@@ -25,7 +25,7 @@ use crate::measure::timed;
 pub(crate) const FRAME: Duration = Duration::from_nanos(4_166_667);
 
 /// The high tier's screen, 3840 × 2160 pixels at a scale of 1.5, which the screen fills.
-const SCREEN: RootSettings = RootSettings {
+pub(crate) const SCREEN: RootSettings = RootSettings {
     size: [2560.0, 1440.0],
     scale: 1.5,
     direction: LayoutDirection::LeftToRight,
@@ -509,7 +509,7 @@ pub(crate) fn found(ui: &Ui, root: ElementId, find: Find) -> Option<ElementId> {
 
 /// The style of a screen's root, as a window lays it out: a grid of one cell, which the screen
 /// fills.
-fn window() -> Style {
+pub(crate) fn window() -> Style {
     let mut style = Style::default();
     style.layout.display = Display::Grid;
     style.layout.columns = vec![Track::Fraction(1.0)];

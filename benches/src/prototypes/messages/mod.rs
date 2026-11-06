@@ -746,3 +746,31 @@ pub(crate) const FRAMES_NOT_GIVEN_UP: Screen<Application<mistakes::Forever, mist
         },
         screens::selection,
     );
+
+/// A grid of covers, keyed by their games or, the mistake, left without a key.
+#[cfg(test)]
+pub(crate) const COVERS: [Screen<Application<mistakes::Covers, mistakes::Removal>>; 2] = [
+    screen(
+        screens::SELECTION,
+        |now| {
+            application(mistakes::Covers::update, mistakes::Covers::view)
+                .state(|| mistakes::Covers::new(true), now)
+        },
+        screens::removed,
+    ),
+    screen(
+        screens::SELECTION,
+        |now| {
+            application(mistakes::Covers::update, mistakes::Covers::view)
+                .state(|| mistakes::Covers::new(false), now)
+        },
+        screens::removed,
+    ),
+];
+
+#[cfg(test)]
+impl screens::Removes for Application<mistakes::Covers, mistakes::Removal> {
+    fn remove_first(&mut self) {
+        self.send(mistakes::Removal::RemoveFirst);
+    }
+}

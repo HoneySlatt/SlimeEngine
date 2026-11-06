@@ -76,3 +76,46 @@ impl Forever {
         frames().map(|_| Message::Frame)
     }
 }
+
+/// A cover's cell, in logical pixels.
+#[cfg(test)]
+const CELL: [f32; 2] = [150.0, 200.0];
+
+/// A grid of six covers, each keyed by its game, or, the mistake, left without a key: its state,
+/// the focus, passes to another game when one before it is removed.
+#[cfg(test)]
+#[derive(Clone)]
+pub struct Covers {
+    shown: Vec<usize>,
+    keyed: bool,
+}
+
+#[cfg(test)]
+#[derive(Clone, Debug)]
+pub enum Removal {
+    RemoveFirst,
+}
+
+#[cfg(test)]
+impl Covers {
+    pub fn new(keyed: bool) -> Self {
+        Self {
+            shown: (0..6).collect(),
+            keyed,
+        }
+    }
+
+    pub fn update(&mut self, _: Removal) {
+        self.shown.remove(0);
+    }
+
+    pub fn view(&self) -> El<'_, Removal> {
+        grid(self.shown.len(), CELL, |place| {
+            let game = self.shown[place];
+            let cover = pressable(label(format!("Game {game}"))).class("cover");
+            if self.keyed { cover.key(game) } else { cover }.into()
+        })
+        .class("table")
+        .into()
+    }
+}
