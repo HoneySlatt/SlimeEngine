@@ -21,7 +21,8 @@
 //! The bench's crate holds as many lines of code as Slatty's interface: `build.rs` adds views of
 //! the library's shape; `SLIME_HOT_SCREENS=<count>` sets how many, 0 for the bench's own size.
 //! subsecond patches only with debug assertions: the bench runs in the `dev` profile, as an author
-//! runs it. The bench puts the source back as it was once it ends; stopped by a signal, it leaves
+//! runs it. `benches/hot-rebuild.sh` times the same change built again by cargo, without a reload.
+//! The bench puts the source back as it was once it ends; stopped by a signal, it leaves
 //! the last placeholder that it wrote.
 
 use std::cell::Cell;
