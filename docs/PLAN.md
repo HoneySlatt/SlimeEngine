@@ -62,10 +62,10 @@ documentation was updated and reread. Every milestone is also checked on Windows
   ([ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md)); then M6d.1c3, cut in
   two at its start ([ADR-0212](adr/0212-a-functions-body-reloaded-through-subsecond-and-dx.md)):
   done, [M6d.1c3a](#m6d1c3a--a-functions-body-reloaded-through-subsecond), a function's body
-  reloaded through `subsecond` and `dx`; next,
-  [M6d.1c3b](#m6d1c3b--the-rivals-reloads-timed), the rivals' reloads, which closes M6d.1c. Then
-  [C1](#c1--compiling-within-its-budgets), the engine's compiling within its budgets, then
-  [M6d.1d](#m6d1d--layouts-styles-and-the-host).
+  reloaded through `subsecond` and `dx`, and
+  [M6d.1c3b](#m6d1c3b--the-rivals-reloads-timed), the rivals' reloads timed beside it, which
+  closed M6d.1c. Next, [C1](#c1--compiling-within-its-budgets), the engine's compiling within its
+  budgets, then [M6d.1d](#m6d1d--layouts-styles-and-the-host).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
   link to its code. M6d.1c's prototypes go on from it, on `m6d1c-bench`.
 - [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and its open decisions; its code
@@ -97,7 +97,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.1c1 — Signals named, and a type's state migrated](#m6d1c1--signals-named-and-a-types-state-migrated) | Done |
 | [M6d.1c2 — The executor, and other threads](#m6d1c2--the-executor-and-other-threads) | Done |
 | [M6d.1c3a — A function's body reloaded through subsecond](#m6d1c3a--a-functions-body-reloaded-through-subsecond) | Done |
-| [M6d.1c3b — The rivals' reloads, timed](#m6d1c3b--the-rivals-reloads-timed) | Planned |
+| [M6d.1c3b — The rivals' reloads, timed](#m6d1c3b--the-rivals-reloads-timed) | Done |
 | [C1 — Compiling within its budgets](#c1--compiling-within-its-budgets) | Planned |
 | [M6d.1d — Layouts, styles and the host](#m6d1d--layouts-styles-and-the-host) | Planned |
 | [M6d.2 — Typed styles](#m6d2--typed-styles) | Planned |
@@ -409,7 +409,8 @@ Rust's code reloaded with its state kept, and the interface's tasks, on signals.
 on from M6d.1b's bench, on the branch `m6d1c-bench`, thrown away once M6d.1 ends. Cut in three at
 its start, on 2026-11-07, one question and one review each, in the order that ADR-0210 gives
 ([ADR-0210](adr/0210-signals-named-for-a-reload.md)); M6d.1c3 cut in two at its start, on the same
-day ([ADR-0212](adr/0212-a-functions-body-reloaded-through-subsecond-and-dx.md)).
+day ([ADR-0212](adr/0212-a-functions-body-reloaded-through-subsecond-and-dx.md)). Done on
+2026-11-07, with M6d.1c3b.
 
 ### M6d.1c1 — Signals named, and a type's state migrated
 
@@ -485,9 +486,14 @@ day ([ADR-0212](adr/0212-a-functions-body-reloaded-through-subsecond-and-dx.md))
   "Hello, World!" where one exists, Dioxus's and Makepad's added. Each download outside the
   package managers put to the owner first.
 - **Done when.** Each rival's reload timed, or why it could not be; uwui's open decision on
-  Rust's code closed; M6d.1c marked done.
+  Rust's code closed; M6d.1c marked done. Done on 2026-11-07: six rivals timed, Makepad's change
+  never shown here, its cause not found;
+  [ADR-0212](adr/0212-a-functions-body-reloaded-through-subsecond-and-dx.md) stands, none of the
+  rivals timed reloading Rust faster than `dx` allows; the open decision closed in
+  [uwui's roadmap](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#the-first-stage-the-foundations-and-four-programs).
 - **Measured.** From a change saved to the first frame that shows it, the median of 21; the state
-  that each keeps.
+  that each keeps, measured as its process and its window kept, the rest read in uwui's survey. In
+  [uwui's `docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#the-rivals-reloads-2026-11-07).
 
 ### C1 — Compiling within its budgets
 
