@@ -1880,3 +1880,17 @@ GitHub's hosted runners, on 2026-11-07, each run green:
 | | `windows-release` | 13 min 19 s |
 | | Docs' `links` | 17 s |
 | uwui's `689b62a`, the figures | uwui's `check` | 19 s |
+
+## M6d.1c3a, a function's body reloaded through subsecond
+
+The prototype's figures are uwui's: its
+[`docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#a-functions-body-reloaded-through-subsecond-2026-11-07).
+The prototype lives on the branch `m6d1c-bench`, which runs no CI. `main` took ADR-0212 and the
+milestone marked done, documents alone, which run the `docs` job.
+
+GitHub's hosted runners, on 2026-11-07, each run green:
+
+| Commit | Job | Time |
+|---|---|---|
+| `89aa5b5`, ADR-0212 and the milestone marked done | Docs' `links` | 22 s |
+| uwui's `7e84e62`, the figures | uwui's `check` | 20 s |
