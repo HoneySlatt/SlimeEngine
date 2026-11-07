@@ -4,7 +4,8 @@
   three profiles lead the stages; a small game of the owner's shipped around Stage 9b; mobile and
   web games in the horizon) and the roadmap's principle 8 (the public Rust API stable after 1.0, as
   the C ABI); with [ADR-0208](0208-the-engines-promises-and-systems.md) and
-  [ADR-0209](0209-platforms-the-editor-and-agents.md), the record of one interview
+  [ADR-0209](0209-platforms-the-editor-and-agents.md), the record of one interview; amended by
+  [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) (a royalty above a threshold, a licence of the engine's own)
 - Date: 2026-11-07
 
 ## Context

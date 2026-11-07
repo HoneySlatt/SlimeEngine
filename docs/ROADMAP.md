@@ -9,7 +9,7 @@
 
 ## 1. Vision
 
-A general-purpose, modular, open-source (MIT OR Apache-2.0) creation platform whose runtime is written in Rust, for 3D games first.
+A general-purpose, modular creation platform whose runtime is written in Rust, for 3D games first; its source public, under a licence of its own with a royalty above a threshold (ADR-0214).
 
 Long-term targets, in order of reach:
 
@@ -19,7 +19,7 @@ Long-term targets, in order of reach:
 
 The project is a complete platform (runtime, asset pipeline, editor, SDK), not a renderer with extras. A native, full-featured editor is a first-class component.
 
-Whom it is for (ADR-0207): a public engine, adopted widely in the end, judged as a whole against Unreal, Unity and Godot, and better as a whole, never on one feature alone. It is made first for a small team helped by AI agents, making games of the class that large studios make; the tools of large teams come later. Until it opens, the owner's games direct it, and an outside need enters only if it is general. It is announced, and opens to contributions of code, at 0.14. It is free, with no royalty, ever: money comes from around it, the private layers for consoles, closed online services, a store of plugins and assets after 0.14, and the owner's games; the engine stays complete without them. Uses other than games are welcome, not aimed at. The engine and its editor send nothing over the network of their own accord.
+Whom it is for (ADR-0207): a public engine, adopted widely in the end, judged as a whole against Unreal, Unity and Godot, and better as a whole, never on one feature alone. It is made first for a small team helped by AI agents, making games of the class that large studios make; the tools of large teams come later. Until it opens, the owner's games direct it, and an outside need enters only if it is general. It is announced, and opens to contributions of code, at 0.14. It is free until a game has earned 1 M$, then takes 3 % of the revenue above, 2 % for a game on the engine's services (ADR-0214); money comes too from around it, the private layers for consoles, closed online services, a store of plugins and assets after 0.14, support and partners for studios, a hosted assistant, and the owner's games; the engine stays complete without them. Uses other than games are welcome, not aimed at. The engine and its editor send nothing over the network of their own accord.
 
 3D comes first. 2D and stylized games are made with the same renderer, through pieces that the stages add where they are needed: an orthographic camera, sprites, transparency, unlit and custom materials, crisp sampling for pixel art. There is no separate 2D renderer (ADR-0052).
 
@@ -148,7 +148,7 @@ CI checks budgets through exact counters, draws, elements, bytes, allocations, a
 | Topic | Decision |
 |---|---|
 | Engine language | Rust |
-| License | MIT OR Apache-2.0, as uwui (ADR-0182), with no royalty, ever (ADR-0207); releases before 0.7 under MPL-2.0 |
+| License | A licence of the engine's own, free until a game has earned 1 M$, 3 % above it, 2 % with the engine's services; an interim notice until its text is ready (ADR-0214); uwui under MIT OR Apache-2.0; code published from 2026-11-05 to the notice under MIT OR Apache-2.0, before it under MPL-2.0 |
 | GPU abstraction | wgpu, then native backends, Vulkan and Direct3D 12, at Stage 9c (ADR-0098). Their types stay inside the `gfx` and `render` crates, and the engine's own tests, through `slime-gfx`'s `wgpu` feature (ADR-0031); the rest of the engine uses engine-owned handles. |
 | Shaders | WGSL to start |
 | First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS is built and tested in CI from Stage 6d, and supported once a Mac can check it; wgpu stays for it after Stage 9c. The Steam Deck is a platform of the first rank, its criteria of verification checked before each game's release; consoles come through private layers, outside this repository; virtual reality, and mobile and web games for the engine's other users, are in the horizon (ADR-0209). Applications on uwui aim at macOS for its 1.0, Android phones and the web in a canvas too, iOS within reach through a trial (ADR-0098, ADR-0173, ADR-0181, ADR-0213). |
@@ -606,7 +606,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 - **Consoles.** Only with official SDK access, and hardware to test on. Built on the native backends of Stage 9c (ADR-0098), each a private layer, outside this repository, for approved studios (ADR-0209).
 - **Virtual reality** through OpenXR, after Stage 9c, when a game asks; **mobile and web games** for the engine's other users, after 1.0 (ADR-0209).
 - **Large-team workflows.** Asset locking, distributed builds and cooking, shared derived-data cache; editing at several moved to Stage 11 (ADR-0209).
-- **Ecosystem.** A store of plugins and assets after 0.14, its plugins checked and signed, a share of sales (ADR-0207); templates come with Stage 11.
+- **Ecosystem.** A store of plugins and assets after 0.14, its plugins checked and signed, 10 % of sales, none in a creator's first year (ADR-0207, ADR-0214); templates come with Stage 11.
 - **Governance.** A foundation, a second maintainer and a plan of continuation, after 1.0 (ADR-0207).
 - **Advanced world simulation.** Destruction, procedural generation. Crowds, traffic, water and weather moved to Stage 10a (ADR-0098).
 - **Visual scripting** of every logic. Node graph → IR → VM or native code, once reflection, scripting and undo/redo are mature. The graphs of each domain, dialogue, animation, materials, sound, characters' AI, come with their stages (ADR-0209).

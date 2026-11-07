@@ -9,7 +9,7 @@ version = "0.6.0"
 edition = "2024"
 # Equal to the toolchain pinned in rust-toolchain.toml (ADR-0003).
 rust-version = "1.99"
-license = "MIT OR Apache-2.0"
+license-file = "LICENSE.md"
 publish = false
 
 # Third-party dependencies, one version for the whole workspace. Each one is listed with its

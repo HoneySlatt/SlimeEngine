@@ -26,8 +26,8 @@ ignore = [
 ]
 
 [licenses]
-# Licenses compatible with distributing SlimeEngine under MIT OR Apache-2.0 and games under any
-# license (ADR-0182).
+# Licenses compatible with distributing SlimeEngine under its own licence, uwui under MIT OR
+# Apache-2.0, and games under any license (ADR-0214).
 allow = [
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
@@ -45,7 +45,8 @@ confidence-threshold = 0.8
 unused-allowed-license = "allow"
 
 [licenses.private]
-# Workspace crates are not published; their license is set once in the workspace Cargo.toml.
+# Workspace crates are not published; their licence is set once in the workspace Cargo.toml, uwui's
+# and the two crates that leave with it in their own (ADR-0214).
 ignore = true
 
 [bans]

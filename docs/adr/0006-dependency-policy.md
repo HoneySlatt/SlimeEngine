@@ -1,7 +1,8 @@
 # 0006. Dependency policy
 
 - Status: Accepted; amended by [0023](0023-dependency-checks-for-the-supported-targets.md) (targets checked), [0031](0031-dev-overlay-with-egui.md) (a license exception for one crate), [0133](0133-font-files-under-the-open-font-license.md) (a license allowed for font files)
-  and [0182](0182-the-engine-under-mit-or-apache-2-0.md) (the engine under MIT OR Apache-2.0)
+  [0182](0182-the-engine-under-mit-or-apache-2-0.md) (the engine under MIT OR Apache-2.0) and
+  [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) (licences that fit the engine's own, uwui's MIT OR Apache-2.0, and games under any)
 - Date: 2026-10-12
 
 ## Context

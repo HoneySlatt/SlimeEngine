@@ -530,7 +530,7 @@ owner's go.
    Beside the programs, CI puts DXC's library and its licence, and the licenses of the fonts and
    icons that they embed: parts of Noto in `interface.exe`; Geist, Geist Mono and Lucide in
    `widgets.exe`, and in the dev overlay of `scene.exe`, `world.exe` and `hunnawood.exe`. Add
-   `LICENSE-MIT.txt`, `LICENSE-APACHE.txt` and a `NOTICE.txt`.
+   `LICENSE.md` and a `NOTICE.txt`.
 
 ## Making a change
 
@@ -579,6 +579,10 @@ the ADRs it touches.
 
 ## License of contributions
 
-SlimeEngine is licensed under either of the [MIT license](LICENSE-MIT) or the
-[Apache License 2.0](LICENSE-APACHE), at the user's choice. Contributions are accepted under both,
-without further terms.
+SlimeEngine is to be licensed under a licence of its own, with a royalty above a threshold;
+[`LICENSE.md`](LICENSE.md) is its interim notice
+([ADR-0214](docs/adr/0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md)). Contributions of
+code are not accepted before 0.14; from then, under a contributor licence agreement, by which the
+contributor keeps the copyright and grants the owner the right to use, sell and license it again.
+uwui's crates, `crates/uwui` and `crates/uwui-render`, are under MIT OR Apache-2.0, and take
+contributions under both, without further terms.

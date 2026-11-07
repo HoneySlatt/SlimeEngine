@@ -4,7 +4,7 @@ description = "uwui, SlimeEngine's UI framework, without a GPU: its tree of elem
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+license = "MIT OR Apache-2.0"
 publish.workspace = true
 
 [lints]

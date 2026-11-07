@@ -6,7 +6,8 @@
   machine on the local network), [0122](0122-the-development-channel.md) (the channel opened to a
   paired machine) and [0190](0190-uwuis-requirements.md) (games' interfaces on uwui's core with a
   layer of the engine's); with [ADR-0207](0207-what-slimeengine-is-to-become.md) and
-  [ADR-0208](0208-the-engines-promises-and-systems.md), the record of one interview
+  [ADR-0208](0208-the-engines-promises-and-systems.md), the record of one interview; amended by
+  [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) (a paid hosted assistant beside the agent one brings)
 - Date: 2026-11-07
 
 ## Context

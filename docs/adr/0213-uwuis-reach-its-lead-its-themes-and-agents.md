@@ -7,7 +7,7 @@
   [0196](0196-checks-by-hand-on-macos.md) (macOS supported at uwui's 1.0 on its checks by hand),
   [0198](0198-screens-of-reference-and-the-rivals-measured.md) (a fifth screen and a gallery; the
   bar's lead) and [0199](0199-uwuis-targets-tools-and-references-narrowed.md) (`uwui bundle`
-  packages macOS)
+  packages macOS); amended by [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) (uwui paid for by its patrons)
 - Date: 2026-11-07
 
 ## Context

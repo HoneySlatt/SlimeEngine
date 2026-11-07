@@ -74,7 +74,7 @@ the ADR linking to it.
 | [0003](0003-toolchain-edition-and-msrv.md) | Pin the toolchain in one file, use edition 2024, set the MSRV to the pinned version | Accepted |
 | [0004](0004-workspace-layout-and-crate-naming.md) | Workspace layout and crate naming | Accepted; amended by 0014, 0055, 0104 and 0178 |
 | [0005](0005-lints-and-unsafe-policy.md) | Lints and `unsafe` policy | Accepted; amended by 0186 |
-| [0006](0006-dependency-policy.md) | Dependency policy | Accepted; amended by 0023, 0031, 0133 and 0182 |
+| [0006](0006-dependency-policy.md) | Dependency policy | Accepted; amended by 0023, 0031, 0133, 0182 and 0214 |
 | [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted; amended by 0015, 0123 and 0188 |
 | [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Accepted; amended by 0019 and 0085 |
 | [0009](0009-frame-timing.md) | Frame timing | Accepted; amended by 0107 |
@@ -250,7 +250,7 @@ the ADR linking to it.
 | [0179](0179-the-framework-named-uwui.md) | The framework named uwui | Accepted; amends 0178 |
 | [0180](0180-one-canvas-and-the-frameworks-foundations.md) | One canvas, and the framework's foundations | Accepted; amends 0178; amended by 0181 |
 | [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203 and 0213 |
-| [0182](0182-the-engine-under-mit-or-apache-2-0.md) | The engine under MIT OR Apache-2.0 | Accepted; amends 0006 and 0181 |
+| [0182](0182-the-engine-under-mit-or-apache-2-0.md) | The engine under MIT OR Apache-2.0 | Superseded by 0214 for the engine; amends 0006 and 0181 |
 | [0183](0183-uwuis-logo.md) | uwui's logo | Accepted |
 | [0184](0184-the-engines-logo.md) | The engine's logo | Accepted |
 | [0185](0185-rest-checked-in-ci.md) | Rest, checked in CI | Accepted; amends 0021, 0156 and 0175; amended by 0195 |
@@ -275,10 +275,11 @@ the ADR linking to it.
 | [0204](0204-signals-written-by-hand-for-the-prototypes.md) | Signals written by hand for M6d.1b's prototypes | Accepted; amends 0202 |
 | [0205](0205-signals-change-uwuis-interface.md) | Signals change uwui's interface, and live values its drawing | Accepted; amends 0190; amended by 0206, 0210 and 0211; checked against Slatty's and the engine's lists |
 | [0206](0206-slatty-ported-again-the-daw-later.md) | Slatty ported again; the DAW later | Accepted; amends 0203 and 0205; its check done |
-| [0207](0207-what-slimeengine-is-to-become.md) | What SlimeEngine is to become | Accepted; amends 0098 and principle 8 |
+| [0207](0207-what-slimeengine-is-to-become.md) | What SlimeEngine is to become | Accepted; amends 0098 and principle 8; amended by 0214 |
 | [0208](0208-the-engines-promises-and-systems.md) | The engine's promises and systems | Accepted; amends 0098, 0107 and 0114 |
-| [0209](0209-platforms-the-editor-and-agents.md) | Platforms, the editor and agents | Accepted; amends 0098, 0099, 0122 and 0190 |
+| [0209](0209-platforms-the-editor-and-agents.md) | Platforms, the editor and agents | Accepted; amends 0098, 0099, 0122 and 0190; amended by 0214 |
 | [0210](0210-signals-named-for-a-reload.md) | Signals named for a reload, through serde | Accepted; amends 0202 and 0205; amended by 0211 and 0212 |
 | [0211](0211-the-executor-and-other-threads-through-channels.md) | The interface's executor, and other threads through channels | Accepted; amends 0190, 0205 and 0210 |
 | [0212](0212-a-functions-body-reloaded-through-subsecond-and-dx.md) | A function's body reloaded through subsecond and dx | Accepted; amends 0190, 0202 and 0210 |
-| [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) | uwui's reach, its lead, its themes and agents | Accepted; amends 0173, 0181, 0190, 0196, 0198 and 0199 |
+| [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) | uwui's reach, its lead, its themes and agents | Accepted; amends 0173, 0181, 0190, 0196, 0198 and 0199; amended by 0214 |
+| [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) | The engine under a licence of its own, with a royalty | Accepted; supersedes 0182 for the engine; amends 0006, 0207, 0209 and 0213 |

@@ -4,7 +4,7 @@ Rules for AI agents in this repository. Read it fully at each session's start.
 
 ## Project
 
-A general-purpose, modular, open-source (MIT OR Apache-2.0) game engine in Rust: runtime, asset pipeline, editor, SDK.
+A general-purpose, modular game engine in Rust: runtime, asset pipeline, editor, SDK. Its source is public; its licence is its own, free under a threshold, a royalty above (ADR-0214); uwui stays MIT OR Apache-2.0.
 AI agents do most of the work. The owner validates direction and architecture.
 Others will use it and contribute: documentation is part of every deliverable, held to the code's standard.
 

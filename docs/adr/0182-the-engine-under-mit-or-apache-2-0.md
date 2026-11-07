@@ -1,6 +1,6 @@
 # 0182. The engine under MIT OR Apache-2.0
 
-- Status: Accepted; amends [0006](0006-dependency-policy.md) (the license that dependencies must
+- Status: Superseded by [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) for the engine, uwui staying under MIT OR Apache-2.0; amends [0006](0006-dependency-policy.md) (the license that dependencies must
   fit) and [0181](0181-uwuis-scope.md) (the engine leaves MPL-2.0, as uwui does)
 - Date: 2026-11-05
 

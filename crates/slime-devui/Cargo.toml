@@ -4,7 +4,7 @@ description = "SlimeEngine's dev overlay: panels on the engine's interface drawn
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+license-file.workspace = true
 publish.workspace = true
 
 [lints]

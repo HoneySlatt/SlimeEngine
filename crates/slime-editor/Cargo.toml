@@ -4,7 +4,7 @@ description = "SlimeEngine's editor: its core, which changes a level through com
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+license-file.workspace = true
 publish.workspace = true
 
 [lints]

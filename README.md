@@ -4,10 +4,10 @@
 
 # SlimeEngine
 
-SlimeEngine is a general-purpose, modular, open-source game engine written in Rust. It aims to
+SlimeEngine is a general-purpose, modular game engine written in Rust, its source public. It aims to
 be a complete platform (runtime, asset pipeline, native editor and SDK) for linear narrative
 games first, then open-world games, then large online worlds.
-It is free, with no royalty, and made first for a small team helped by AI agents;
+It is free until a game earns 1 M$, with a royalty above, and made first for a small team helped by AI agents;
 [`docs/ROADMAP.md`](docs/ROADMAP.md#1-vision) says whom it is for and when it opens.
 
 ## Status
@@ -177,8 +177,12 @@ are in [`docs/debt.md`](docs/debt.md).
 
 ## License
 
-SlimeEngine is licensed under either of the [MIT license](LICENSE-MIT) or the
-[Apache License 2.0](LICENSE-APACHE), at your choice. Releases before 0.7 are under the Mozilla
-Public License 2.0. A game built with the engine can use any license. The two logos are not under
-these licenses: their terms are in [`docs/logo/README.md`](docs/logo/README.md), the engine's, and
+SlimeEngine is to be licensed under a licence of its own: free until a game has earned 1 M$ of
+gross revenue, 3 % of the revenue above it, 2 % for a game that uses the engine's online services
+([ADR-0214](docs/adr/0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md)). Until its text
+is published, [`LICENSE.md`](LICENSE.md) is an interim notice: all rights reserved, the source
+visible. uwui, `crates/uwui` and `crates/uwui-render`, stays under MIT OR Apache-2.0. What was
+published before keeps its licence: MIT OR Apache-2.0 from 2026-11-05 to the notice, the Mozilla
+Public License 2.0 before, releases up to 0.6 included. A game built with the engine can use any
+license. The two logos are not under these licenses: their terms are in [`docs/logo/README.md`](docs/logo/README.md), the engine's, and
 [`crates/uwui/logo/README.md`](crates/uwui/logo/README.md), uwui's.

@@ -18,8 +18,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   channel's protocol is at version 13.
 - The frame that ends a wait of a run on demand represents the time since what asked for it, not
   the wait, which made what moves at real time jump by 250 ms (ADR-0185).
-- The license (ADR-0182): SlimeEngine is licensed under MIT OR Apache-2.0, at the user's choice,
-  in place of MPL-2.0; earlier releases keep MPL-2.0.
+- The licence (ADR-0214): SlimeEngine is to be licensed under a licence of its own, free until a
+  game has earned 1 M$ of gross revenue, 3 % of the revenue above it, 2 % for a game that uses the
+  engine's online services; until its text is ready, `LICENSE.md` is an interim notice, all rights
+  reserved, the source visible. uwui stays under MIT OR Apache-2.0. Earlier releases keep MPL-2.0;
+  the commits published from 2026-11-05 to the notice, MIT OR Apache-2.0 (ADR-0182).
 - The UI framework's crates bear its name, uwui (ADR-0179): `slime-ui` is `uwui`, and
   `slime-ui-render` is `uwui-render`; their libraries, `uwui` and `uwui_render`.
 

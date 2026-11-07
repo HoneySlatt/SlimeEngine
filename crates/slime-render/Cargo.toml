@@ -4,7 +4,7 @@ description = "SlimeEngine's renderer: meshes, materials, a camera and instances
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+license-file.workspace = true
 publish.workspace = true
 
 [lints]

@@ -4,7 +4,7 @@ description = "SlimeEngine's benchmarks, whose figures docs/measurements.md trac
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+license-file.workspace = true
 publish.workspace = true
 
 [lints]
