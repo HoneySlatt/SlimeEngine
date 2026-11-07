@@ -76,10 +76,12 @@ fn connect(host: Arc<HostWake>) -> Result<Receiver<FromDx>, String> {
         .ok()
         .zip(std::env::var("DIOXUS_DEVSERVER_PORT").ok())
         .ok_or("no dx development server: run under `dx serve --hot-patch`")?;
+    // dx numbers each build it runs, and addresses each patch to one: a program without the number
+    // would take patches meant for another.
     let build: u64 = std::env::var("DIOXUS_BUILD_ID")
         .ok()
         .and_then(|build| build.parse().ok())
-        .unwrap_or(0);
+        .ok_or("no build's number from dx: run under `dx serve --hot-patch`")?;
     let process = std::process::id();
     // dx links each patch against the running program's addresses: it needs where `main` was
     // loaded.
@@ -165,6 +167,9 @@ fn given(text: &str, build: u64, process: u32) -> Result<Option<FromDx>, String>
 struct Source {
     path: PathBuf,
     original: String,
+    /// Whether the file now differs from `original`: one put back unchanged would still be a
+    /// change that dx compiles.
+    changed: Cell<bool>,
 }
 
 impl Source {
@@ -174,7 +179,7 @@ impl Source {
             .map_err(|error| format!("{}: {error}", path.display()))?;
         if original.matches(&quoted(PLACEHOLDERS[0])).count() != 1 {
             return Err(format!(
-                "{} holds `{}` once",
+                "{} must hold `{}` exactly once",
                 path.display(),
                 PLACEHOLDERS[0]
             ));
@@ -182,6 +187,7 @@ impl Source {
         Ok(Self {
             path: path.to_owned(),
             original,
+            changed: Cell::new(false),
         })
     }
 
@@ -191,12 +197,17 @@ impl Source {
         let text = self
             .original
             .replace(&quoted(PLACEHOLDERS[0]), &quoted(placeholder));
-        written(&self.path, &text)
+        let saved = written(&self.path, &text)?;
+        self.changed.set(placeholder != PLACEHOLDERS[0]);
+        Ok(saved)
     }
 }
 
 impl Drop for Source {
     fn drop(&mut self) {
+        if !self.changed.get() {
+            return;
+        }
         if let Err(error) = written(&self.path, &self.original) {
             eprintln!("{} not put back: {error}", self.path.display());
         }
@@ -248,6 +259,10 @@ fn run(
     placeholder: &'static str,
 ) -> Result<Run, String> {
     let before = kept(host);
+    // A state kept is checked only if there is one: the script typed a filter and opened a page.
+    if !before.page || before.field.as_deref() != Some("star") {
+        return Err(format!("the library not played to its page: {before:?}"));
+    }
     // The library's games are a program's data, loaded at its start, which a reload does not
     // load again: made before the save, outside the time.
     let games = Cell::new(Some(signals::library_games()));
@@ -280,9 +295,13 @@ fn run(
         reason = "applying a patch replaces functions, which only dx's table built for this \
                   program makes sound (ADR-0212)"
     )]
-    // SAFETY: the table is dx's, built against this very program, whose build and process it
-    // names (`given` checks both). It is applied between two frames, while no function that it
-    // replaces runs on this thread, and the bench's other thread runs none of them.
+    // SAFETY: `apply_patch` replaces no code in place: it loads the patch's library, which stays
+    // loaded for the program's life, and stores the table, which only `HotFn` calls read, on this
+    // thread. The table is sound for this program: dx built it against this very executable, at
+    // the base address that the connection sent, and addressed it to this build and this process,
+    // which `given` checks. The new body, reached through `HotFn::current(library)`, has the
+    // signature of the old one, compiled by the same rustc with the arguments that dx replays, so
+    // its calls and the types that cross them, `Game` and `El`, keep their layout.
     let patched = unsafe { subsecond::apply_patch(table) };
     patched.map_err(|error| format!("the patch: {error}"))?;
     let applied = applying.elapsed();

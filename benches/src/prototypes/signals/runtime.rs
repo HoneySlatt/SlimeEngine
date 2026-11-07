@@ -134,6 +134,9 @@ pub(crate) struct Runtime {
 ///
 /// Outside an application's runtime ([`enter`]).
 pub(crate) fn current() -> Rc<Runtime> {
+    // A patch's code downcasts to the same type: dx compiles it with the arguments of the
+    // running program, which give `Runtime` the same `TypeId`. Were they to differ, this would
+    // panic rather than read a wrong type.
     runtime()
         .expect("a signal used within an application")
         .downcast()
