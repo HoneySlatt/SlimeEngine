@@ -270,11 +270,12 @@ the ADR linking to it.
 | [0199](0199-uwuis-targets-tools-and-references-narrowed.md) | uwui's targets, tools and references narrowed | Accepted; amends 0190 and 0198; amended by 0202 and 0203 |
 | [0200](0200-applications-measured-from-outside.md) | Applications measured from outside | Accepted; amends 0191 and 0198; amended by 0201 |
 | [0201](0201-the-rivals-narrowed.md) | The rivals narrowed | Accepted; amends 0198 and 0200 |
-| [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) | How M6d.1 compares ways of writing an application | Accepted; amends 0190, 0194 and 0199; amended by 0204 |
+| [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) | How M6d.1 compares ways of writing an application | Accepted; amends 0190, 0194 and 0199; amended by 0204 and 0210 |
 | [0203](0203-pilots-replaced-pluto-and-a-daw.md) | uwui's pilots replaced: Pluto's client and a DAW | Accepted; amends 0178, 0181, 0190, 0194, 0198 and 0199; amended by 0206 |
 | [0204](0204-signals-written-by-hand-for-the-prototypes.md) | Signals written by hand for M6d.1b's prototypes | Accepted; amends 0202 |
-| [0205](0205-signals-change-uwuis-interface.md) | Signals change uwui's interface, and live values its drawing | Accepted; amends 0190; amended by 0206; checked against Slatty's and the engine's lists |
+| [0205](0205-signals-change-uwuis-interface.md) | Signals change uwui's interface, and live values its drawing | Accepted; amends 0190; amended by 0206 and 0210; checked against Slatty's and the engine's lists |
 | [0206](0206-slatty-ported-again-the-daw-later.md) | Slatty ported again; the DAW later | Accepted; amends 0203 and 0205; its check done |
 | [0207](0207-what-slimeengine-is-to-become.md) | What SlimeEngine is to become | Accepted; amends 0098 and principle 8 |
 | [0208](0208-the-engines-promises-and-systems.md) | The engine's promises and systems | Accepted; amends 0098, 0107 and 0114 |
 | [0209](0209-platforms-the-editor-and-agents.md) | Platforms, the editor and agents | Accepted; amends 0098, 0099, 0122 and 0190 |
+| [0210](0210-signals-named-for-a-reload.md) | Signals named for a reload, through serde | Accepted; amends 0202 and 0205 |

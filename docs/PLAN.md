@@ -29,7 +29,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [ADR-0203](adr/0203-pilots-replaced-pluto-and-a-daw.md),
   [ADR-0204](adr/0204-signals-written-by-hand-for-the-prototypes.md),
   [ADR-0205](adr/0205-signals-change-uwuis-interface.md),
-  [ADR-0206](adr/0206-slatty-ported-again-the-daw-later.md)).
+  [ADR-0206](adr/0206-slatty-ported-again-the-daw-later.md),
+  [ADR-0210](adr/0210-signals-named-for-a-reload.md)).
 - Done: [M6d.0a](#m6d0a--the-screens-and-the-owners-programs),
   [M6d.0b](#m6d0b--measured-from-outside-and-ten-hello-world) and
   [M6d.0c](#m6d0c--the-applications-of-the-market), the figures before, cut in three at its start
@@ -38,10 +39,13 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [M6d.1a](#m6d1a--the-survey-and-the-protocol) and
   [M6d.1b](#m6d1b--how-state-changes-the-interface), signals chosen with live values
   ([ADR-0205](adr/0205-signals-change-uwuis-interface.md)), checked against Slatty's list
-  ([ADR-0206](adr/0206-slatty-ported-again-the-daw-later.md)); next,
-  [M6d.1c](#m6d1c--rusts-code-reloaded-and-the-executor), on signals.
+  ([ADR-0206](adr/0206-slatty-ported-again-the-daw-later.md)); then
+  [M6d.1c](#m6d1c--rusts-code-reloaded-and-the-executor), on signals, cut in three at its start
+  ([ADR-0210](adr/0210-signals-named-for-a-reload.md)): done,
+  [M6d.1c1](#m6d1c1--signals-named-and-a-types-state-migrated), signals named by their authors and
+  kept through `serde`; next, [M6d.1c2](#m6d1c2--the-executor-and-other-threads).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
-  link to its code.
+  link to its code. M6d.1c's prototypes go on from it, on `m6d1c-bench`.
 - [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and its open decisions; its code
   moves there at M6d.11.
 - May be cut at its start: M6d.5, AccessKit's translation apart.
@@ -64,7 +68,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.1b2 — The bench, on the control](#m6d1b2--the-bench-on-the-control) | Done |
 | [M6d.1b3a — Three models on the bench](#m6d1b3a--three-models-on-the-bench) | Done |
 | [M6d.1b3b — The choice](#m6d1b3b--the-choice) | Done |
-| [M6d.1c — Rust's code reloaded, and the executor](#m6d1c--rusts-code-reloaded-and-the-executor) | Planned |
+| [M6d.1c1 — Signals named, and a type's state migrated](#m6d1c1--signals-named-and-a-types-state-migrated) | Done |
+| [M6d.1c2 — The executor, and other threads](#m6d1c2--the-executor-and-other-threads) | Planned |
+| [M6d.1c3 — A function's body reloaded, timed](#m6d1c3--a-functions-body-reloaded-timed) | Planned |
 | [M6d.1d — Layouts, styles and the host](#m6d1d--layouts-styles-and-the-host) | Planned |
 | [M6d.2 — Typed styles](#m6d2--typed-styles) | Planned |
 | [M6d.3 — Documents with serde](#m6d3--documents-with-serde) | Planned |
@@ -369,15 +375,53 @@ directions ask of uwui ([ADR-0203](adr/0203-pilots-replaced-pluto-and-a-daw.md))
 
 ### M6d.1c — Rust's code reloaded, and the executor
 
-- **Goal.** Rust's code reloaded with its state kept, and the interface's tasks, on the chosen
-  model.
+Rust's code reloaded with its state kept, and the interface's tasks, on signals. The prototypes go
+on from M6d.1b's bench, on the branch `m6d1c-bench`, thrown away once M6d.1 ends. Cut in three at
+its start, on 2026-11-07, one question and one review each, in the order that ADR-0210 gives
+([ADR-0210](adr/0210-signals-named-for-a-reload.md)).
+
+### M6d.1c1 — Signals named, and a type's state migrated
+
+- **Goal.** A signal's state kept across a reload of its type.
+- **Crates.** None kept. On the branch, `slime-benches` takes `serde` and `serde_json`, already in
+  the lock file.
+- **Delivers.** Signals named by their authors in their scopes, `RwSignal::kept` and
+  `Stored::kept`, their values written through `serde` by their scopes' paths and their names, and
+  read again into their types; a signal not named starts again. Shown by tests on Slatty's library:
+  a body changed, a signal added before the others, a signal renamed, a value that no longer
+  reads; and apart: a field added to a kept type, a grid's cell whose state follows its item, a
+  document's lines kept with their signals, a read that fails midway, two names alike, a value
+  that cannot be written; and the two limits of a scope's path, a part used twice in one scope and
+  an element added before a dynamic view.
+- **Done when.** Decided and recorded: done on 2026-11-07, in
+  [ADR-0210](adr/0210-signals-named-for-a-reload.md).
+- **Measured.** The reload timed in the program, from its call to the frame that shows it, without
+  the compiler's part, which M6d.1c3 times; the state kept; what names cost the bench's screens.
+  In [uwui's `docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#signals-named-across-a-reload-2026-11-07).
+
+### M6d.1c2 — The executor, and other threads
+
+- **Goal.** The interface's tasks, and other threads' changes, on signals.
 - **Crates.** None kept.
-- **Delivers.** A function's body, and a type whose state migrates, each answered apart, timed on
-  a prototype of Slatty's size, the rivals' reloads beside them; the interface's executor, its
-  tasks bound to components, and its waker.
+- **Delivers.** The interface's executor, its tasks bound to components and cancelled with them,
+  run on time simulated in tests, and its waker; other threads' changes to signals gathered into
+  the next frame, the interface's thread never waiting; another thread's handle on a signal kept
+  valid across a reload.
 - **Done when.** Each question is decided and recorded.
-- **Measured.** The time from a change saved to the frame that shows it; the state kept across
-  a reload.
+- **Measured.** A change from another thread to the frame that shows it; what a frame at rest costs
+  with tasks waiting.
+
+### M6d.1c3 — A function's body reloaded, timed
+
+- **Goal.** A function's body reloaded with its state kept, timed against the rivals.
+- **Crates.** None kept.
+- **Delivers.** A function's body reloaded through `subsecond` and its tool `dx`, both put to the
+  owner first, on a prototype of Slatty's size; the rivals' reloads timed on their own examples:
+  Dioxus, Iced, GPUI, Makepad, Slint, Flutter and Compose Hot Reload, as each runs here; whether the
+  reload works on the web and on Android, weighed from the survey.
+- **Done when.** Decided and recorded.
+- **Measured.** The time from a change saved to the frame that shows it; the state kept across the
+  reload.
 
 ### M6d.1d — Layouts, styles and the host
 

@@ -2,7 +2,8 @@
 
 - Status: Accepted; amends [0190](0190-uwuis-requirements.md) (how state changes the interface
   decided; live values in uwui's tree); amended by
-  [0206](0206-slatty-ported-again-the-daw-later.md) (checked against Slatty's list once written);
+  [0206](0206-slatty-ported-again-the-daw-later.md) (checked against Slatty's list once written)
+  and [0210](0210-signals-named-for-a-reload.md) (a signal's state across a reload of its type);
   checked against Slatty's list and the engine's ([`uwui-needs.md`](../uwui-needs.md)) on
   2026-11-07: each need that they mark as general covered
 - Date: 2026-11-07

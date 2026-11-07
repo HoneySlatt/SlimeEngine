@@ -4,7 +4,8 @@
   control), [0194](0194-stage-6d-uwui-leaving-the-engine.md) (M6d.1 cut in four) and
   [0199](0199-uwuis-targets-tools-and-references-narrowed.md) (the references read, not written
   again); amended by [0204](0204-signals-written-by-hand-for-the-prototypes.md) (the signals of
-  the prototypes written by hand)
+  the prototypes written by hand) and [0210](0210-signals-named-for-a-reload.md) (M6d.1c cut in
+  three; `serde` for a type's state)
 - Date: 2026-11-06
 
 ## Context

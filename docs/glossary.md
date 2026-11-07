@@ -684,6 +684,11 @@ The *editor's program* keeps one per level's file, and recovers by itself, as it
 that holds steps that the level's file does not, which a crash or a stop without writing leaves
 ([ADR-0135](adr/0135-the-editors-program.md)).
 
+**Kept signal.** In uwui, a *signal* named by its author in its scope, whose value a reload keeps:
+written through `serde` by its scope's path and its name, then read into its type as the new code
+has it. A signal not named starts again at each reload
+([ADR-0210](adr/0210-signals-named-for-a-reload.md)).
+
 **Key (element).** What names an *element* among its siblings, a name or a number, given by the code
 that builds it (`uwui::tree::Key`); the keys from below its *root* down to it, after the root's
 number, make its *path (element)*, which names it for agents, tests and saved layouts
