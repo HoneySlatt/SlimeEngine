@@ -360,6 +360,11 @@ directions ask of uwui ([ADR-0203](adr/0203-pilots-replaced-pluto-and-a-daw.md))
   signals fed by a state outside uwui in batches, by parts and by key, is a list fed by its
   changes and a batch of sets gathered into the frame, as the prototype's bindings wait for the
   frame's build.
+- **The engine's check.** The engine's own list, [`uwui-needs.md`](uwui-needs.md), was checked the
+  same way on 2026-11-07: none left uncovered. A HUD's values at each frame are live values; the
+  editor's hierarchy of 100,000 entities is a list fed by its changes by key; a clock for each root,
+  the game's paused or slowed, feeds signals' timers and motion; an interface's state kept in a
+  save and rewound rests, as the reload does, on a signal's state named (M6d.1c).
 - **Measured.** Nothing new: M6d.1b3a's figures.
 
 ### M6d.1c — Rust's code reloaded, and the executor
@@ -513,10 +518,12 @@ directions ask of uwui ([ADR-0203](adr/0203-pilots-replaced-pluto-and-a-daw.md))
   the trials before the authoring API is built proposed; how its ADRs are numbered; the moved
   crates' names; how the engine follows uwui after the move; which repository holds the
   interface's budgets; what stands for the engine in uwui, its benchmarks and a menu driven by a
-  gamepad; how the engine keeps a series of compositors for its platform layer; whether games'
-  interfaces, HUD, inventories, dialogues and interfaces within the world, need a framework of
-  their own, a host and layers of their own over uwui's core, or uwui whole, weighed from what
-  *Hunna Wood*'s interface costs the game. MyGo read for its contracts with the platforms and its
+  gamepad; how the engine keeps a series of compositors for its platform layer; the measure that
+  confirms games' interfaces on uwui's core with a layer of the engine's, or gives them a
+  framework of their own if it fails
+  ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md)), as the engine's
+  [`uwui-needs.md`](uwui-needs.md#for-m6d10) proposes it. What the engine, Opium, Pluto's client,
+  Slatty and Magnolia ask of uwui weighed for its first stage, each list's general needs apart. MyGo read for its contracts with the platforms and its
   delivery. A matrix of uwui's platforms and functions, each available, experimental, planned or
   not checked ([ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)). uwui's `AGENTS.md`, roadmap and plan updated.
 - **Done when.** The owner has validated uwui's documents.
