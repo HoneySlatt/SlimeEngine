@@ -1,6 +1,8 @@
-# SlimeEngine
+<p align="center">
+  <img src="docs/logo/slime.svg" alt="SlimeEngine's logo: a small white winged creature with pink ears and a teal pompom on a stalk" width="192">
+</p>
 
-<img src="docs/logo/slime.svg" alt="SlimeEngine's mascot" width="160">
+# SlimeEngine
 
 SlimeEngine is a general-purpose, modular, open-source game engine written in Rust. It aims to
 be a complete platform (runtime, asset pipeline, native editor and SDK) for linear narrative
