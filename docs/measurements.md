@@ -1932,3 +1932,17 @@ What it says:
 - A game's code reloaded hot, its state kept: not measured, as it does not exist yet (Stage 8).
 - Unreal, Unity and Godot's times are not measured yet: the lead over them waits for Stage 6e
   ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
+
+## M6d.1c3b, the rivals' reloads timed
+
+The rivals' figures are uwui's: its
+[`docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#the-rivals-reloads-2026-11-07).
+`main` took the milestone marked done, a document alone, which runs the `docs` job.
+
+GitHub's hosted runners, on 2026-11-07, each run green:
+
+| Commit | Job | Time |
+|---|---|---|
+| `8c75a4b`, the milestone marked done | Docs' `links` | 18 s |
+| uwui's `ab4c7df`, its roadmap in line with ADR-0213 to ADR-0220 | uwui's `check` | 20 s |
+| uwui's `290bdd9`, the step `save` and the figures, pushed with `cdfab94` | uwui's `check` | 21 s |
