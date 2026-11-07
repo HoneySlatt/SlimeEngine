@@ -1847,3 +1847,17 @@ GitHub's hosted runners, each run green:
 | `30312b7`, the milestone marked done, on 2026-11-07 | `docs` | 23 s |
 | uwui's `732286f`, its pilots replaced, on 2026-11-06 | uwui's `ci` | 28 s |
 | uwui's `66e6d8c`, the figures, on 2026-11-07 | uwui's `ci` | 25 s |
+
+## M6d.1c1, signals named across a reload
+
+The prototype's figures are uwui's: its
+[`docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#signals-named-across-a-reload-2026-11-07).
+The prototype lives on the branch `m6d1c-bench`, which runs no CI; `main` kept only documents,
+which run CI's job of documents alone.
+
+GitHub's hosted runners, on 2026-11-07, each run green:
+
+| Commit | Job | Time |
+|---|---|---|
+| `8ee62fe`, ADR-0210 and the milestone marked done | `docs` | 18 s |
+| uwui's `47ad601`, the figures | uwui's `ci` | 21 s |
