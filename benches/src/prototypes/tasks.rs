@@ -285,6 +285,28 @@ fn signals_cancel_a_task_with_its_scope() {
 }
 
 #[test]
+fn an_application_closed_drops_the_tasks_that_wait() {
+    let screen = &SIGNALS;
+    let look = Look::new(screen.sheet.0, screen.sheet.1);
+    let start = Instant::now();
+    let ui = look.interface().expect("the look reads");
+    let mut host = Host::open(ui, look, (screen.make)(start), start);
+    for interaction in (screen.script)(Scale::Short).iter().take(3) {
+        for inputs in &interaction.frames {
+            host.frame(inputs);
+        }
+        host.settle(SETTLE);
+    }
+    assert_eq!(
+        RUNNING.with(Cell::get),
+        1,
+        "the page's task waits on its timer"
+    );
+    drop(host);
+    assert_eq!(RUNNING.with(Cell::get), 0);
+}
+
+#[test]
 fn a_task_cancelled_with_its_scope_forgets_its_timer() {
     let screen = &SIGNALS;
     let look = Look::new(screen.sheet.0, screen.sheet.1);

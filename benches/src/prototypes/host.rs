@@ -86,7 +86,8 @@ pub(crate) trait Model {
         false
     }
 
-    /// When the host must run a frame though nothing asks one: a timer's deadline.
+    /// When the host must run a frame though nothing asks one: a timer's deadline, as
+    /// `Ui::next_change` gives a host the time of a tooltip or a notification.
     fn deadline(&self) -> Option<Instant> {
         None
     }

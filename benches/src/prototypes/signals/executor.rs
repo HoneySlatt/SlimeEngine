@@ -10,13 +10,16 @@
 //!
 //! A frame at rest, no task woken and no timer due, polls nothing and allocates nothing: an
 //! empty channel read and a map's first key.
+//!
+//! A task takes at most [`MESSAGES_PER_POLL`] values from channels in one poll, then waits for
+//! the next frame: a sender faster than the interface slows the frames, never stops them.
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, VecDeque};
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering, fence};
 use std::sync::mpsc;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::task::{Context, Poll, Wake, Waker};
@@ -37,40 +40,89 @@ pub(crate) struct TaskId {
 /// for, which the host takes, and a wait that ends when one is.
 #[derive(Debug, Default)]
 pub(crate) struct HostWake {
-    asked: Mutex<bool>,
+    state: Mutex<HostState>,
     woken: Condvar,
     /// The wakes since the host was opened.
     wakes: AtomicUsize,
+}
+
+#[derive(Debug, Default)]
+struct HostState {
+    /// Whether a frame was asked for since the host last took the ask.
+    asked: bool,
+    /// Whether the host waits.
+    waiting: bool,
+    /// The wakes that found the host waiting.
+    found_waiting: usize,
 }
 
 impl HostWake {
     /// Asks the host for a frame.
     pub(crate) fn wake(&self) {
         self.wakes.fetch_add(1, Ordering::Relaxed);
-        *self.asked.lock().unwrap_or_else(PoisonError::into_inner) = true;
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        state.asked = true;
+        if state.waiting {
+            state.found_waiting += 1;
+        }
         self.woken.notify_all();
     }
 
     /// Waits until a frame is asked for, then forgets the ask.
     pub(crate) fn wait(&self) {
-        let asked = self.asked.lock().unwrap_or_else(PoisonError::into_inner);
-        let mut asked = self
+        self.wait_at_most(Duration::MAX);
+    }
+
+    /// Waits until a frame is asked for, at most `limit`; whether one was, which it forgets.
+    pub(crate) fn wait_at_most(&self, limit: Duration) -> bool {
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        state.waiting = true;
+        let (mut state, _) = self
             .woken
-            .wait_while(asked, |asked| !*asked)
+            .wait_timeout_while(state, limit, |state| !state.asked)
             .unwrap_or_else(PoisonError::into_inner);
-        *asked = false;
+        state.waiting = false;
+        std::mem::take(&mut state.asked)
     }
 
     /// The wakes since the host was opened.
     pub(crate) fn wakes(&self) -> usize {
         self.wakes.load(Ordering::Relaxed)
     }
+
+    /// The wakes that found the host waiting, rather than working.
+    pub(crate) fn found_waiting(&self) -> usize {
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .found_waiting
+    }
+}
+
+/// The values that a task may take from channels in one poll: a budget that each poll starts
+/// with, so that a poll never runs as long as a sender sends.
+pub(crate) const MESSAGES_PER_POLL: usize = 16_384;
+
+thread_local! {
+    static BUDGET: Cell<usize> = const { Cell::new(usize::MAX) };
+}
+
+/// Spends one value of the budget of the task that runs: false when none is left, and the task
+/// must wait for the next frame.
+pub(crate) fn spend_budget() -> bool {
+    BUDGET.with(|budget| match budget.get() {
+        0 => false,
+        left => {
+            budget.set(left - 1);
+            true
+        }
+    })
 }
 
 /// What the wakers of every task share with the executor, on any thread.
 struct Woken {
-    /// The tasks woken, which the executor polls at its frame: a channel whose sends and reads
-    /// never wait for another thread, so that the interface's thread never waits.
+    /// The tasks woken, which the executor polls at its frame: the standard library's channel,
+    /// whose sends and reads take no lock. A read may spin briefly behind a send caught midway.
     ready: mpsc::Sender<TaskId>,
     /// Whether a frame runs, or the host was asked for one since the executor's last frame
     /// ended: a task woken then asks none.
@@ -96,8 +148,12 @@ impl Wake for TaskWaker {
             return;
         }
         // The receiver lives as long as the executor; a send to one dropped wakes nothing.
-        if self.woken.ready.send(self.id).is_ok() && !self.woken.asked.swap(true, Ordering::AcqRel)
-        {
+        if self.woken.ready.send(self.id).is_err() {
+            return;
+        }
+        // Paired with `end_frame`'s: either it reads this id, or this reads the flag it cleared.
+        fence(Ordering::SeqCst);
+        if !self.woken.asked.swap(true, Ordering::SeqCst) {
             self.woken.host.wake();
         }
     }
@@ -113,8 +169,13 @@ struct TaskSlot {
     polled: u64,
 }
 
-/// The timers waiting, by their deadlines and the order they were made in.
-type Timers = BTreeMap<(Instant, u64), Waker>;
+/// The frame's clock, and the timers waiting on it by their deadlines and the order they were
+/// made in: apart from the executor, which the timers' futures, held by its tasks, must not hold.
+pub(crate) struct Clock {
+    now: Cell<Instant>,
+    timers: RefCell<BTreeMap<(Instant, u64), Waker>>,
+    next_timer: Cell<u64>,
+}
 
 /// The interface's executor, of one window's application. It lives across reloads: a waker of a
 /// task that a reload cancelled names a generation that no task holds.
@@ -128,9 +189,7 @@ pub(crate) struct Executor {
     /// The tasks woken again in the frame that polled them, for the next frame.
     later: RefCell<Vec<TaskId>>,
     frame: Cell<u64>,
-    now: Cell<Instant>,
-    timers: RefCell<Timers>,
-    next_timer: Cell<u64>,
+    clock: Rc<Clock>,
     /// The tasks polled, since last counted.
     pub(crate) polls: Cell<usize>,
 }
@@ -152,11 +211,18 @@ impl Executor {
             queue: RefCell::new(VecDeque::new()),
             later: RefCell::new(Vec::new()),
             frame: Cell::new(0),
-            now: Cell::new(now),
-            timers: RefCell::new(BTreeMap::new()),
-            next_timer: Cell::new(0),
+            clock: Rc::new(Clock {
+                now: Cell::new(now),
+                timers: RefCell::new(BTreeMap::new()),
+                next_timer: Cell::new(0),
+            }),
             polls: Cell::new(0),
         })
+    }
+
+    /// The frame's clock, which timers wait on.
+    pub(crate) fn clock(&self) -> Rc<Clock> {
+        Rc::clone(&self.clock)
     }
 
     /// Starts `future` as a task, polled first in the frame that runs now, or the next.
@@ -203,7 +269,7 @@ impl Executor {
             if slot.generation != id.generation {
                 return;
             }
-            slot.generation += 1;
+            slot.generation = slot.generation.wrapping_add(1);
             slot.waker = None;
             self.free.borrow_mut().push(id.index);
             slot.future.take()
@@ -219,13 +285,13 @@ impl Executor {
         // The frame runs: a task woken until it ends needs no frame of the host's.
         self.woken.asked.store(true, Ordering::Release);
         self.frame.set(self.frame.get() + 1);
-        self.now.set(now);
+        self.clock.now.set(now);
         self.queue
             .borrow_mut()
             .extend(self.later.borrow_mut().drain(..));
         loop {
             let due = {
-                let mut timers = self.timers.borrow_mut();
+                let mut timers = self.clock.timers.borrow_mut();
                 match timers.first_key_value() {
                     Some((&(at, _), _)) if at <= now => timers.pop_first(),
                     _ => None,
@@ -272,10 +338,12 @@ impl Executor {
                 continue;
             };
             polled += 1;
+            BUDGET.with(|budget| budget.set(MESSAGES_PER_POLL));
             let done = future
                 .as_mut()
                 .poll(&mut Context::from_waker(&waker))
                 .is_ready();
+            BUDGET.with(|budget| budget.set(usize::MAX));
             let mut slots = self.slots.borrow_mut();
             let slot = &mut slots[id.index as usize];
             // A task that its own poll cancelled, closing its own page, is dropped here.
@@ -285,7 +353,7 @@ impl Executor {
                 continue;
             }
             if done {
-                slot.generation += 1;
+                slot.generation = slot.generation.wrapping_add(1);
                 slot.waker = None;
                 self.free.borrow_mut().push(id.index);
                 drop(slots);
@@ -301,7 +369,9 @@ impl Executor {
     /// Ends the frame: a task woken from now on asks the host for a frame. Whether work waits for
     /// the next frame: a task woken again in this one, or woken as it ended.
     pub(crate) fn end_frame(&self) -> bool {
-        self.woken.asked.store(false, Ordering::Release);
+        self.woken.asked.store(false, Ordering::SeqCst);
+        // Paired with the wakers': either a task woken now asks the host, or this reads its id.
+        fence(Ordering::SeqCst);
         while let Ok(id) = self.ready.try_recv() {
             self.queue.borrow_mut().push_back(id);
         }
@@ -314,8 +384,10 @@ impl Executor {
     }
 
     /// The deadline of the first timer: when the host must run a frame, though nothing asks one.
+    /// In uwui, it joins `Ui::next_change`, which hosts already wait for.
     pub(crate) fn deadline(&self) -> Option<Instant> {
-        self.timers
+        self.clock
+            .timers
             .borrow()
             .first_key_value()
             .map(|(&(at, _), _)| at)
@@ -333,16 +405,16 @@ pub(crate) struct Sleep {
     at: Instant,
     /// Its place among the timers, once it waits.
     key: Option<(Instant, u64)>,
-    executor: Rc<Executor>,
+    clock: Rc<Clock>,
 }
 
 impl Sleep {
-    /// Ends `duration` after the frame that runs now, on the frame's clock.
-    pub(crate) fn new(executor: Rc<Executor>, duration: Duration) -> Self {
+    /// Ends `duration` after the frame that runs now, on `clock`.
+    pub(crate) fn new(clock: Rc<Clock>, duration: Duration) -> Self {
         Self {
-            at: executor.now.get() + duration,
+            at: clock.now.get() + duration,
             key: None,
-            executor,
+            clock,
         }
     }
 }
@@ -351,23 +423,26 @@ impl Future for Sleep {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<()> {
-        if self.executor.now.get() >= self.at {
-            if let Some(key) = self.key.take() {
-                self.executor.timers.borrow_mut().remove(&key);
+        let this = &mut *self;
+        let mut timers = this.clock.timers.borrow_mut();
+        if this.clock.now.get() >= this.at {
+            if let Some(key) = this.key.take() {
+                timers.remove(&key);
             }
             return Poll::Ready(());
         }
-        let mut timers = self.executor.timers.borrow_mut();
-        match self.key {
-            // The executor's wakers do not change: a timer that waits keeps its own.
-            Some(key) if timers.contains_key(&key) => {}
-            _ => {
-                let order = self.executor.next_timer.get();
-                self.executor.next_timer.set(order + 1);
-                let key = (self.at, order);
+        match this.key.and_then(|key| timers.get_mut(&key)) {
+            Some(held) => {
+                if !held.will_wake(context.waker()) {
+                    *held = context.waker().clone();
+                }
+            }
+            None => {
+                let order = this.clock.next_timer.get();
+                this.clock.next_timer.set(order + 1);
+                let key = (this.at, order);
                 timers.insert(key, context.waker().clone());
-                drop(timers);
-                self.key = Some(key);
+                this.key = Some(key);
             }
         }
         Poll::Pending
@@ -378,7 +453,7 @@ impl Future for Sleep {
 impl Drop for Sleep {
     fn drop(&mut self) {
         if let Some(key) = self.key.take() {
-            self.executor.timers.borrow_mut().remove(&key);
+            self.clock.timers.borrow_mut().remove(&key);
         }
     }
 }

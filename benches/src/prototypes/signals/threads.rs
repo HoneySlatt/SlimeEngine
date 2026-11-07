@@ -2,8 +2,9 @@
 //! the frame's clock, which the host waits for at rest; a frame at rest while tasks wait, which
 //! runs and allocates nothing; a burst from another thread, shown whole in the next frame; a
 //! sender kept valid across a reload, the receiver being the application's; a channel made within
-//! a view, closed with it; and the executor's own rules, a task polled once a frame and a waker of
-//! a task gone, which wakes no other.
+//! a view, closed with it; senders on several threads while frames run; and the executor's own
+//! rules, a budget of values a poll, a task polled once a frame, a task cancelled in its own poll,
+//! and a waker of a task gone, which wakes no other.
 
 use std::cell::{Cell, RefCell};
 use std::future::Future;
@@ -16,8 +17,8 @@ use std::time::{Duration, Instant};
 use super::Signals;
 use super::channel::Closed;
 use super::downloads::{Progress, downloads};
-use super::executor::{Executor, HostWake};
-use super::kept::{labels, opened, settled};
+use super::executor::{Executor, HostWake, MESSAGES_PER_POLL, TaskId};
+use super::kept::{labels, open_view, opened, settled};
 use super::prelude::*;
 use crate::prototypes::host::{Host, Model};
 use crate::prototypes::threads::waiting;
@@ -251,4 +252,138 @@ fn a_waker_of_a_task_cancelled_wakes_no_other() {
     executor.advance(now);
     assert_eq!(executor.run_ready(), 0, "its place's new task not woken");
     assert_eq!((first.get(), second.get()), (1, 1));
+}
+
+/// A view that counts what it receives on `receiver`.
+fn counter(receiver: &Rc<Receiver<u32>>) -> impl View + use<> {
+    let count = RwSignal::new(0_usize);
+    let receiver = Rc::clone(receiver);
+    spawn(async move {
+        while receiver.recv().await.is_some() {
+            count.update(|count| *count += 1);
+        }
+    });
+    label(move || count.get().to_string())
+}
+
+#[test]
+fn senders_on_several_threads_while_frames_run_lose_nothing() {
+    let (sender, receiver) = channel::<u32>();
+    let receiver = Rc::new(receiver);
+    let mut host = opened(move || ((), counter(&receiver)));
+    let wake = host.program.host_wake();
+    let threads: Vec<_> = (0..4)
+        .map(|_| {
+            let sender = sender.clone();
+            std::thread::spawn(move || {
+                for value in 0..5_000 {
+                    sender
+                        .send(value)
+                        .expect("the receiver is the application's");
+                    if value % 64 == 0 {
+                        std::thread::yield_now();
+                    }
+                }
+            })
+        })
+        .collect();
+    drop(sender);
+    let all = ["20000".to_owned()];
+    loop {
+        let frame = host.frame(&[]);
+        if labels(&host) == all {
+            break;
+        }
+        // At rest, the host waits for a wake: one lost would leave it waiting.
+        if !frame.builds_asked {
+            assert!(
+                wake.wait_at_most(Duration::from_secs(5)),
+                "a wake lost, {:?} received",
+                labels(&host)
+            );
+        }
+    }
+    for thread in threads {
+        thread.join().expect("each sender ended");
+    }
+}
+
+#[test]
+fn a_task_takes_at_most_its_budget_of_values_a_frame() {
+    let (sender, receiver) = channel::<u32>();
+    let sent = 2 * MESSAGES_PER_POLL + 1_000;
+    for value in 0..sent {
+        sender.send(value as u32).expect("the receiver waits");
+    }
+    let receiver = Rc::new(receiver);
+    let mut host = open_view(move || ((), counter(&receiver)));
+    let mut received = Vec::new();
+    loop {
+        let frame = host.frame(&[]);
+        received.push(labels(&host)[0].clone());
+        if !frame.builds_asked {
+            break;
+        }
+    }
+    let budget = MESSAGES_PER_POLL;
+    assert_eq!(
+        received,
+        [budget, 2 * budget, sent].map(|count| count.to_string()),
+        "a frame for each budget, the rest in the next"
+    );
+}
+
+/// A task that cancels itself as it is polled, holding `held`.
+struct CancelsItself {
+    executor: Rc<Executor>,
+    id: Rc<Cell<Option<TaskId>>>,
+    _held: Rc<()>,
+}
+
+impl Future for CancelsItself {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<()> {
+        self.executor.cancel(self.id.get().expect("spawned"));
+        Poll::Pending
+    }
+}
+
+#[test]
+fn a_task_cancelled_in_its_own_poll_is_dropped_after_it() {
+    let now = Instant::now();
+    let executor = Executor::new(now, Arc::new(HostWake::default()));
+    let (id, held) = (Rc::new(Cell::new(None)), Rc::new(()));
+    let task = CancelsItself {
+        executor: Rc::clone(&executor),
+        id: Rc::clone(&id),
+        _held: Rc::clone(&held),
+    };
+    id.set(Some(executor.spawn(Box::pin(task))));
+    executor.advance(now);
+    assert_eq!(executor.run_ready(), 1);
+    assert_eq!(executor.tasks(), 0);
+    assert_eq!(Rc::strong_count(&held), 1, "its future dropped");
+}
+
+#[test]
+fn the_last_sender_dropped_during_a_reload_ends_the_new_task_after_what_was_sent() {
+    let (mut host, sender, receiver) = downloads_opened(100);
+    sent_from_another_thread(
+        &sender,
+        (0..2).map(|game| Progress::One(game, 10)).collect(),
+    );
+    host.program.host_wake().wait();
+    settled(&mut host);
+    sent_from_another_thread(&sender, vec![Progress::One(2, 10)]);
+    host.program
+        .reload(move || ((), downloads(100, Rc::clone(&receiver))));
+    drop(sender);
+    settled(&mut host);
+    assert_eq!(labels(&host)[0], "3 updates");
+    assert_eq!(
+        host.program.tasks(),
+        0,
+        "the channel closed, its task ended"
+    );
 }

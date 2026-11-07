@@ -16,15 +16,22 @@ use crate::prototypes::SETTLE;
 use crate::prototypes::host::{Host, Look, Model};
 use crate::prototypes::screens::{self, Edit};
 
-/// A host of `start`'s view on the small cases' sheet, settled.
-pub(super) fn opened<H: Copy + 'static, V: View>(
+/// A host of `start`'s view on the small cases' sheet, no frame run yet.
+pub(super) fn open_view<H: Copy + 'static, V: View>(
     start: impl Fn() -> (H, V) + 'static,
 ) -> Host<Signals<H>> {
     let (sheet, text) = screens::SELECTION.1;
     let look = Look::new(sheet, text);
     let now = Instant::now();
     let ui = look.interface().expect("the look reads");
-    let mut host = Host::open(ui, look, Signals::open(now, start), now);
+    Host::open(ui, look, Signals::open(now, start), now)
+}
+
+/// A host of `start`'s view on the small cases' sheet, settled.
+pub(super) fn opened<H: Copy + 'static, V: View>(
+    start: impl Fn() -> (H, V) + 'static,
+) -> Host<Signals<H>> {
+    let mut host = open_view(start);
     settled(&mut host);
     host
 }

@@ -32,13 +32,15 @@ pub fn downloads(games: usize, updates: Rc<Receiver<Progress>>) -> impl View {
     let rows = Rc::clone(&progress);
     spawn(async move {
         while let Some(update) = updates.recv().await {
-            match update {
-                Progress::One(game, percent) => progress[game].set(percent),
-                Progress::Batch(batch) => {
-                    for (game, percent) in batch {
-                        progress[game].set(percent);
-                    }
+            // A game that the list does not hold, sent by mistake, changes nothing.
+            let set = |(game, percent): (usize, u8)| {
+                if let Some(signal) = progress.get(game) {
+                    signal.set(percent);
                 }
+            };
+            match update {
+                Progress::One(game, percent) => set((game, percent)),
+                Progress::Batch(batch) => batch.into_iter().for_each(set),
             }
             received.update(|received| *received += 1);
         }

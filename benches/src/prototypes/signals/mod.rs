@@ -209,7 +209,7 @@ pub fn spawn(task: impl Future<Output = ()> + 'static) {
 /// Ends `duration` after the frame that runs now, on the frame's clock: the bench's in tests.
 /// The host runs a frame at its deadline, though nothing else asks one.
 pub fn sleep(duration: Duration) -> Sleep {
-    Sleep::new(Rc::clone(&current().executor), duration)
+    Sleep::new(current().executor.clock(), duration)
 }
 
 /// A `Copy` handle to a value that no closure tracks.

@@ -96,8 +96,19 @@ fn sent(frames: &[Frame], delay: Option<Duration>, wakes: usize) -> Sent {
     }
 }
 
-/// One game's progress, sent while the host waits: its wake is in the delay.
+/// One game's progress, sent while the host waits: its wake is in the delay. A run whose host
+/// did not wait yet as the change was sent is run again.
 fn one_change() -> Result<Sent, String> {
+    for _ in 0..5 {
+        if let Some(sent) = one_change_once()? {
+            return Ok(sent);
+        }
+    }
+    Err("the host never waited before the send".to_owned())
+}
+
+/// One game's progress, sent while the host waits, if it did.
+fn one_change_once() -> Result<Option<Sent>, String> {
     let (sender, receiver) = channel();
     let receiver = Rc::new(receiver);
     let mut host = opened(move || ((), downloads(GAMES, Rc::clone(&receiver))));
@@ -117,7 +128,10 @@ fn one_change() -> Result<Sent, String> {
     if !shows(&host, "Game 1: 50%") {
         return Err("the change not shown".to_owned());
     }
-    Ok(sent(&frames, Some(shown - at), wake.wakes()))
+    if wake.found_waiting() != 1 {
+        return Ok(None);
+    }
+    Ok(Some(sent(&frames, Some(shown - at), wake.wakes())))
 }
 
 /// Every game's progress, sent whole before the frame: as `GAMES` messages, or as one batch.
