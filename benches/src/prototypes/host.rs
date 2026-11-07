@@ -86,6 +86,11 @@ pub(crate) trait Model {
         false
     }
 
+    /// When the host must run a frame though nothing asks one: a timer's deadline.
+    fn deadline(&self) -> Option<Instant> {
+        None
+    }
+
     /// The units of the application's code that ran since it was last asked, the frame's `stats`
     /// given: for the control, its builders.
     fn runs(&mut self, stats: &FrameStats) -> usize {
@@ -216,6 +221,10 @@ pub(crate) struct Host<P> {
     start: Instant,
     /// The frames run.
     frames: u32,
+    /// The time that the host waited, at rest, for deadlines.
+    waited: Duration,
+    /// The time of the last frame.
+    last_time: Option<Instant>,
     /// Where the pointer is, in pixels of the screen.
     pointer: Option<[f32; 2]>,
     /// The display list of the last frame.
@@ -236,6 +245,8 @@ impl<P: Model> Host<P> {
             look,
             start,
             frames: 0,
+            waited: Duration::ZERO,
+            last_time: None,
             pointer: None,
             last: DisplayList::new(),
             counting: false,
@@ -253,7 +264,19 @@ impl<P: Model> Host<P> {
 
     /// The time of the next frame.
     pub(crate) fn now(&self) -> Instant {
-        self.start + FRAME * self.frames
+        self.start + FRAME * self.frames + self.waited
+    }
+
+    /// Waits at rest, as a host's loop does, for the program's deadline, and runs its frame: the
+    /// clock moved to the deadline. Gives the frame, or none when no deadline waits.
+    #[cfg(test)]
+    pub(crate) fn wait_for_deadline(&mut self) -> Option<Frame> {
+        let deadline = self.program.deadline()?;
+        let next = self.now();
+        if deadline > next {
+            self.waited += deadline - next;
+        }
+        Some(self.frame(&[]))
     }
 
     /// Runs a frame, `inputs` coming in it: the frame's time given to the interface and the
@@ -262,6 +285,11 @@ impl<P: Model> Host<P> {
     pub(crate) fn frame(&mut self, inputs: &[Input<P>]) -> Frame {
         let now = self.now();
         self.frames += 1;
+        // A frame's step: the frame's period, or the time waited at rest before it.
+        let step = self
+            .last_time
+            .map_or(FRAME, |last| now.saturating_duration_since(last));
+        self.last_time = Some(now);
         let mut costs = [Cost::default(); 5];
         // Found before the spans measured: the search is the bench's, not the screen's.
         let targets: Vec<Option<ElementId>> = inputs
@@ -273,7 +301,7 @@ impl<P: Model> Host<P> {
             .collect();
         let ((), clock) = costed(|| self.program.advance(&mut self.ui, now));
         let ((), input) = costed(|| {
-            self.ui.advance(FRAME);
+            self.ui.advance(step);
             for (input, target) in inputs.iter().zip(&targets) {
                 self.give(input, *target);
             }

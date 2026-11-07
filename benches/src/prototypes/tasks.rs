@@ -1,6 +1,6 @@
 //! Whether each model cancels a task with the component that started it: a page that starts a
-//! task as it opens, closed. The interface's executor is M6d.1c's: a task here is a value that
-//! counts as running from its start until it is dropped.
+//! task as it opens, closed. A task here is a value that counts as running from its start until it
+//! is dropped; in signals, a task of the interface's executor holds it, waiting on a timer.
 
 use std::cell::Cell;
 use std::time::Instant;
@@ -97,10 +97,13 @@ mod control {
 }
 
 mod signals {
+    use std::time::Duration;
+
     use super::super::signals::prelude::*;
     use super::{ROW, Task};
 
-    /// A list whose row selected opens a page that starts a task, cancelled with its scope.
+    /// A list whose row selected opens a page that starts a task, which waits an hour, cancelled
+    /// with its scope.
     pub fn pages() -> impl View {
         let page = RwSignal::new(None::<usize>);
         column((
@@ -112,7 +115,10 @@ mod signals {
             dyn_view(move || {
                 page.get().map(|row| {
                     let task = Task::start();
-                    on_cleanup(move || drop(task));
+                    spawn(async move {
+                        let _running = task;
+                        sleep(Duration::from_secs(3_600)).await;
+                    });
                     label(format!("Row {row}'s page"))
                 })
             }),
@@ -276,6 +282,28 @@ fn the_control_keeps_a_task_that_its_program_does_not_drop() {
 fn signals_cancel_a_task_with_its_scope() {
     let after = after_each(&SIGNALS);
     assert_eq!((after[2].0, after[3].0), (1, 0));
+}
+
+#[test]
+fn a_task_cancelled_with_its_scope_forgets_its_timer() {
+    let screen = &SIGNALS;
+    let look = Look::new(screen.sheet.0, screen.sheet.1);
+    let start = Instant::now();
+    let ui = look.interface().expect("the look reads");
+    let mut host = Host::open(ui, look, (screen.make)(start), start);
+    let mut deadlines = Vec::new();
+    for interaction in (screen.script)(Scale::Short).iter().take(4) {
+        for inputs in &interaction.frames {
+            host.frame(inputs);
+        }
+        host.settle(SETTLE);
+        deadlines.push(host.program.deadline().is_some());
+    }
+    assert_eq!(
+        deadlines,
+        [false, false, true, false],
+        "the page's timer waits while it is open, and is forgotten as it closes"
+    );
 }
 
 #[test]

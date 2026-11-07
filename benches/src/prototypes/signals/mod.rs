@@ -6,7 +6,10 @@
 //! scope, when what it reads changes. Each file is that code, changed only where the prototype
 //! forced it. The runtime is written by hand, in `runtime.rs`, as the owner chose on 2026-11-06.
 
+pub mod channel;
 pub mod document;
+pub mod downloads;
+mod executor;
 pub mod hello;
 #[cfg(test)]
 mod kept;
@@ -14,12 +17,16 @@ pub mod library;
 pub mod mistakes;
 mod runtime;
 pub mod songs;
+#[cfg(test)]
+mod threads;
 
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
+use std::future::Future;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use std::time::Instant;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use uwui::display::ImageKey;
 use uwui::prelude::{Action, Children, ElementId, Ui};
@@ -29,13 +36,15 @@ use super::data;
 use super::described::{self, Arg, Child, Map, On, Registry};
 use super::host::Model;
 use super::screens::{self, Edit, Screen, screen};
+use executor::{Executor, HostWake, Sleep};
 use runtime::{Id, Kept, Path, Runtime, current, enter};
 
 /// What a screen's file writes with.
 pub mod prelude {
     #[cfg(test)]
-    pub use super::on_cleanup;
-    pub use super::{Memo, RwSignal, Signal, Stored, View, dyn_view, frame_time};
+    pub use super::channel::Sender;
+    pub use super::channel::{Receiver, channel};
+    pub use super::{Memo, RwSignal, Signal, Stored, View, dyn_view, frame_time, sleep, spawn};
     pub use super::{button, column, grid, image, label, list, pressable, row, search_field};
     pub use super::{stack, wave};
     pub use uwui::display::ImageKey;
@@ -187,10 +196,20 @@ pub fn frame_time() -> Signal<Instant> {
     }
 }
 
-/// Runs `cleanup` when the scope that runs this, a view's, is disposed: a task cancelled with it.
-#[cfg(test)]
-pub fn on_cleanup(cleanup: impl FnOnce() + 'static) {
-    current().on_cleanup(cleanup);
+/// Starts `task` on the interface's thread, owned by the scope that runs this, a view's or a
+/// row's: cancelled, its future dropped, when the scope is disposed. It is first polled in the
+/// frame that runs now; then in each frame after one that woke it, once a frame at most.
+pub fn spawn(task: impl Future<Output = ()> + 'static) {
+    let runtime = current();
+    let executor = Rc::clone(&runtime.executor);
+    let id = executor.spawn(Box::pin(task));
+    runtime.on_cleanup(move || executor.cancel(id));
+}
+
+/// Ends `duration` after the frame that runs now, on the frame's clock: the bench's in tests.
+/// The host runs a frame at its deadline, though nothing else asks one.
+pub fn sleep(duration: Duration) -> Sleep {
+    Sleep::new(Rc::clone(&current().executor), duration)
 }
 
 /// A `Copy` handle to a value that no closure tracks.
@@ -927,6 +946,9 @@ pub struct Signals<H> {
     made: usize,
     /// How many times the view was mounted before, by reloads.
     generation: u64,
+    /// The interface's executor, the same across reloads, and what it wakes the host through.
+    executor: Rc<Executor>,
+    host: Arc<HostWake>,
 }
 
 impl<H: Copy + 'static> Signals<H> {
@@ -936,18 +958,28 @@ impl<H: Copy + 'static> Signals<H> {
             let (handle, view) = start();
             (handle, element_of(view))
         });
-        Self::started(VecDeque::new(), (Kept::default(), Vec::new()), now, start)
+        let host = Arc::new(HostWake::default());
+        let executor = Executor::new(now, Arc::clone(&host));
+        Self::started(
+            VecDeque::new(),
+            (Kept::default(), Vec::new()),
+            now,
+            start,
+            (executor, host),
+        )
     }
 
     /// The application that `start` makes, its root scope's signals taking `replay`'s values, and
-    /// its kept signals `kept`'s, with the notes of what could not be kept.
+    /// its kept signals `kept`'s, with the notes of what could not be kept; its tasks on
+    /// `executor`, which wakes `host`.
     fn started(
         replay: VecDeque<Box<dyn std::any::Any>>,
         (kept, notes): (Kept, Vec<String>),
         now: Instant,
         start: Rc<dyn Fn() -> (H, El)>,
+        (executor, host): (Rc<Executor>, Arc<HostWake>),
     ) -> Self {
-        let runtime = Runtime::new(replay, kept, notes);
+        let runtime = Runtime::new(replay, kept, notes, Rc::clone(&executor));
         let (handle, view) = enter(&runtime, || {
             runtime.clock.set(Some(runtime.signal(now)));
             start()
@@ -961,7 +993,20 @@ impl<H: Copy + 'static> Signals<H> {
             rows: Vec::new(),
             made: 1,
             generation: 0,
+            executor,
+            host,
         }
+    }
+
+    /// What the application wakes its host through, from any thread: the bench waits on it.
+    pub(crate) fn host_wake(&self) -> Arc<HostWake> {
+        Arc::clone(&self.host)
+    }
+
+    /// The tasks alive on the interface's executor.
+    #[cfg(test)]
+    pub(crate) fn tasks(&self) -> usize {
+        self.executor.tasks()
     }
 
     /// Reloads the view's function as `start`, its body or its types changed: run again in a new
@@ -977,10 +1022,11 @@ impl<H: Copy + 'static> Signals<H> {
         // Within the runtime: a kept value that holds signals writes their values.
         let kept = enter(&self.runtime, || self.runtime.kept_values());
         // The view before is disposed, its cleanups run: its tasks are cancelled, and the new
-        // view starts its own.
+        // view starts its own on the same executor.
         let before = Rc::clone(&self.runtime);
         enter(&before, || before.dispose(before.root()));
-        *self = Self::started(VecDeque::new(), kept, Instant::now(), start);
+        let executor = (Rc::clone(&self.executor), Arc::clone(&self.host));
+        *self = Self::started(VecDeque::new(), kept, Instant::now(), start, executor);
         self.generation = generation;
     }
 
@@ -1141,6 +1187,7 @@ impl<H: Copy + 'static> Model for Signals<H> {
     fn advance(&mut self, _: &mut Ui, now: Instant) {
         let clock = self.runtime.clock.get().expect("a runtime with a clock");
         enter(&self.runtime, || RwSignal::<Instant>::of(clock).set(now));
+        self.executor.advance(now);
     }
 
     fn act(&mut self, ui: &mut Ui, action: Action) {
@@ -1181,8 +1228,18 @@ impl<H: Copy + 'static> Model for Signals<H> {
                 let made = mounting.rows;
                 self.rows.extend(made);
             }
-            self.apply_asks(ui);
-            self.build_rows(ui);
+            // The tasks woken run after what the view's change asked, and again after what they
+            // asked mounted rows that start tasks of their own: each task once a frame at most.
+            loop {
+                self.apply_asks(ui);
+                self.build_rows(ui);
+                if self.executor.run_ready() == 0 {
+                    break;
+                }
+            }
+            if self.executor.end_frame() {
+                ui.request_frame();
+            }
             let clock = runtime.clock.get().expect("a runtime with a clock");
             if runtime.read_by_any(clock) {
                 ui.request_frame();
@@ -1190,21 +1247,32 @@ impl<H: Copy + 'static> Model for Signals<H> {
         });
     }
 
+    /// A new interface's own executor: its tasks start again with it.
     fn fresh(&self) -> Self {
+        let host = Arc::new(HostWake::default());
+        let executor = Executor::new(Instant::now(), Arc::clone(&host));
         Self::started(
             self.runtime.snapshot(),
             (Kept::default(), Vec::new()),
             Instant::now(),
             Rc::clone(&self.start),
+            (executor, host),
         )
     }
 
     fn pending(&self) -> bool {
-        self.runtime.waits() || !self.shared.edits.borrow().is_empty() || self.runtime.reloading()
+        self.runtime.waits()
+            || !self.shared.edits.borrow().is_empty()
+            || self.runtime.reloading()
+            || self.executor.waits()
+    }
+
+    fn deadline(&self) -> Option<Instant> {
+        self.executor.deadline()
     }
 
     fn runs(&mut self, _: &FrameStats) -> usize {
-        self.runtime.runs.take() + std::mem::take(&mut self.made)
+        self.runtime.runs.take() + std::mem::take(&mut self.made) + self.executor.polls.take()
     }
 }
 

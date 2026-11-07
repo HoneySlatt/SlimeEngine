@@ -17,7 +17,9 @@ use crate::prototypes::host::{Host, Look, Model};
 use crate::prototypes::screens::{self, Edit};
 
 /// A host of `start`'s view on the small cases' sheet, settled.
-fn opened<H: Copy + 'static, V: View>(start: impl Fn() -> (H, V) + 'static) -> Host<Signals<H>> {
+pub(super) fn opened<H: Copy + 'static, V: View>(
+    start: impl Fn() -> (H, V) + 'static,
+) -> Host<Signals<H>> {
     let (sheet, text) = screens::SELECTION.1;
     let look = Look::new(sheet, text);
     let now = Instant::now();
@@ -27,13 +29,13 @@ fn opened<H: Copy + 'static, V: View>(start: impl Fn() -> (H, V) + 'static) -> H
     host
 }
 
-fn settled<P: Model>(host: &mut Host<P>) {
+pub(super) fn settled<P: Model>(host: &mut Host<P>) {
     host.frame(&[]);
     host.settle(SETTLE);
 }
 
 /// The texts of the labels that `host` shows, in the tree's order.
-fn labels<P>(host: &Host<P>) -> Vec<String> {
+pub(super) fn labels<P>(host: &Host<P>) -> Vec<String> {
     let ui = &host.ui;
     let mut texts = Vec::new();
     let mut stack = vec![host.root];

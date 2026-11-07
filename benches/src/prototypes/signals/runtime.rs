@@ -22,6 +22,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use uwui::tree::Key;
 
+use super::executor::Executor;
 use crate::prototypes::described::Map;
 
 /// A node of the graph: its place in the arena, and the generation of that place, so that the id
@@ -120,6 +121,8 @@ pub(crate) struct Runtime {
     notes: RefCell<Vec<String>>,
     /// The signal of each frame's time.
     pub(crate) clock: Cell<Option<Id>>,
+    /// The interface's executor, which outlives the runtime across reloads.
+    pub(crate) executor: Rc<Executor>,
 }
 
 thread_local! {
@@ -156,8 +159,13 @@ pub(crate) fn enter<R>(runtime: &Rc<Runtime>, run: impl FnOnce() -> R) -> R {
 impl Runtime {
     /// A runtime whose root scope's signals take `replay`'s values, in their order, as they are
     /// made, and whose kept signals take `kept`'s, by their names; `notes` what the reload could
-    /// not keep before.
-    pub(crate) fn new(replay: VecDeque<Box<dyn Any>>, kept: Kept, notes: Vec<String>) -> Rc<Self> {
+    /// not keep before; its tasks run on `executor`.
+    pub(crate) fn new(
+        replay: VecDeque<Box<dyn Any>>,
+        kept: Kept,
+        notes: Vec<String>,
+        executor: Rc<Executor>,
+    ) -> Rc<Self> {
         let root = Id {
             index: 0,
             generation: 0,
@@ -181,6 +189,7 @@ impl Runtime {
             kept: RefCell::new(kept),
             notes: RefCell::new(notes),
             clock: Cell::new(None),
+            executor,
         })
     }
 

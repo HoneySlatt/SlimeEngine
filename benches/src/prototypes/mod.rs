@@ -13,6 +13,7 @@
 //! cargo run --release -p slime-benches -- --prototypes views library   # a model, a screen
 //! cargo run --release -p slime-benches -- --prototypes --runs 5        # fewer runs than 21
 //! cargo run --release -p slime-benches -- --prototypes --reloads       # signals' reloads, timed
+//! cargo run --release -p slime-benches -- --prototypes --threads       # other threads, timed
 //! ```
 //!
 //! It prints Markdown, which uwui's `docs/measurements.md` takes. With `PROTOTYPES_DUMP` set, each
@@ -28,6 +29,7 @@ mod screens;
 mod signals;
 #[cfg(test)]
 mod tasks;
+mod threads;
 mod views;
 
 use std::time::{Duration, Instant};
@@ -55,10 +57,13 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     let mut runs = RUNS;
     let mut names = Vec::new();
     let mut reloads = false;
+    let mut threads = false;
     let mut arguments = arguments.iter();
     while let Some(argument) = arguments.next() {
         if argument == "--reloads" {
             reloads = true;
+        } else if argument == "--threads" {
+            threads = true;
         } else if argument == "--runs" {
             runs = arguments
                 .next()
@@ -102,6 +107,9 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     );
     if reloads {
         return reload::print_times(runs);
+    }
+    if threads {
+        return threads::print_times(runs);
     }
     chosen.bench("control", "hello", &control::HELLO)?;
     chosen.bench("control", "library", &control::LIBRARY)?;
