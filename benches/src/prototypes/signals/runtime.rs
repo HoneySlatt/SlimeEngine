@@ -557,8 +557,13 @@ impl Runtime {
     /// Tells what reads `id` that it changed: its memos are stale, its bindings wait to run.
     pub(crate) fn changed(&self, id: Id) {
         let mut slots = self.slots.borrow_mut();
-        let subscribers = node(&slots, id).map_or(Vec::new(), |node| node.subscribers.clone());
-        for subscriber in subscribers {
+        // Taken out and put back, not cloned: a change allocates nothing, a burst of them neither.
+        let Some(subscribers) =
+            node_mut(&mut slots, id).map(|node| std::mem::take(&mut node.subscribers))
+        else {
+            return;
+        };
+        for &subscriber in &subscribers {
             let Some(node) = node_mut(&mut slots, subscriber) else {
                 continue;
             };
@@ -573,6 +578,9 @@ impl Runtime {
                 }
                 _ => {}
             }
+        }
+        if let Some(node) = node_mut(&mut slots, id) {
+            node.subscribers = subscribers;
         }
     }
 
