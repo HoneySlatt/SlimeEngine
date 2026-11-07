@@ -4,7 +4,9 @@
   (M6d.1c cut in three; `serde` added for a type's state) and
   [0205](0205-signals-change-uwuis-interface.md) (a signal's state across a reload of its type
   decided); amended by [0211](0211-the-executor-and-other-threads-through-channels.md) (another
-  thread's handle across a reload: a channel made outside the view)
+  thread's handle across a reload: a channel made outside the view) and
+  [0212](0212-a-functions-body-reloaded-through-subsecond-and-dx.md) (the body's reload timed over
+  kept state)
 - Date: 2026-11-07
 
 ## Context

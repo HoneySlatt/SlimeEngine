@@ -18,9 +18,11 @@
   state model chosen once three programs said what they ask of uwui),
   [0205](0205-signals-change-uwuis-interface.md) (signals change the interface; live values in
   its tree), [0209](0209-platforms-the-editor-and-agents.md) (games' interfaces on uwui's core
-  with a layer of the engine's, confirmed at M6d.10) and
+  with a layer of the engine's, confirmed at M6d.10),
   [0211](0211-the-executor-and-other-threads-through-channels.md) (the interface's executor, its
-  timers waited for by the host)
+  timers waited for by the host) and
+  [0212](0212-a-functions-body-reloaded-through-subsecond-and-dx.md) (Rust's code reloaded through
+  `subsecond` and `dx`, under `uwui dev`)
 - Date: 2026-11-06
 
 ## Context
