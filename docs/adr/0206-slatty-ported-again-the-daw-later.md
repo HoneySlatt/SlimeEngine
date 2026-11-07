@@ -3,7 +3,7 @@
 - Status: Accepted; amends [0203](0203-pilots-replaced-pluto-and-a-daw.md) (Slatty ported again,
   the DAW no longer a program of uwui's first stage) and
   [0205](0205-signals-change-uwuis-interface.md) (signals checked against Slatty's list once
-  written)
+  written); the check done on 2026-11-07, no need left uncovered
 - Date: 2026-11-07
 
 ## Context

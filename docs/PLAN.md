@@ -37,8 +37,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - In progress: [M6d.1](#m6d1--how-an-application-is-written), cut in four at its start; done,
   [M6d.1a](#m6d1a--the-survey-and-the-protocol) and
   [M6d.1b](#m6d1b--how-state-changes-the-interface), signals chosen with live values
-  ([ADR-0205](adr/0205-signals-change-uwuis-interface.md)), to be checked against Slatty's list
-  once pushed ([ADR-0206](adr/0206-slatty-ported-again-the-daw-later.md)); next,
+  ([ADR-0205](adr/0205-signals-change-uwuis-interface.md)), checked against Slatty's list
+  ([ADR-0206](adr/0206-slatty-ported-again-the-daw-later.md)); next,
   [M6d.1c](#m6d1c--rusts-code-reloaded-and-the-executor), on signals.
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
   link to its code.
@@ -63,7 +63,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.1b1 — The ideal code](#m6d1b1--the-ideal-code) | Done |
 | [M6d.1b2 — The bench, on the control](#m6d1b2--the-bench-on-the-control) | Done |
 | [M6d.1b3a — Three models on the bench](#m6d1b3a--three-models-on-the-bench) | Done |
-| [M6d.1b3b — The choice](#m6d1b3b--the-choice) | Done; Slatty's list to check |
+| [M6d.1b3b — The choice](#m6d1b3b--the-choice) | Done |
 | [M6d.1c — Rust's code reloaded, and the executor](#m6d1c--rusts-code-reloaded-and-the-executor) | Planned |
 | [M6d.1d — Layouts, styles and the host](#m6d1d--layouts-styles-and-the-host) | Planned |
 | [M6d.2 — Typed styles](#m6d2--typed-styles) | Planned |
@@ -350,9 +350,16 @@ directions ask of uwui ([ADR-0203](adr/0203-pilots-replaced-pluto-and-a-daw.md))
 - **Done when.** The model is decided and recorded in an ADR; uwui's open decisions are updated:
   done on 2026-11-07. Signals, with live values, a primitive of uwui's tree for the frame's values
   that no model covered ([ADR-0205](adr/0205-signals-change-uwuis-interface.md)).
-- **Left.** Slatty, back among uwui's first programs, writes its list after its interview
-  ([ADR-0206](adr/0206-slatty-ported-again-the-daw-later.md)); once it is pushed, each need that it
-  marks as general is checked against signals, and one that they do not cover put to the owner.
+- **Slatty's check.** Slatty, back among uwui's first programs
+  ([ADR-0206](adr/0206-slatty-ported-again-the-daw-later.md)), wrote its list after its interview,
+  in [its repository's `docs/uwui-needs.md`](https://github.com/HoneySlatt/Slatty/blob/main/docs/uwui-needs.md).
+  Each need that it marks as general was checked against signals and live values on 2026-11-07:
+  none left uncovered. Three rest on what ADR-0205 leaves to later milestones: changes from other
+  threads gathered into the next frame and a signal's state migrated across a reload (M6d.1c),
+  and timers at the granularity that they show (uwui's first stage). The one that it marks new,
+  signals fed by a state outside uwui in batches, by parts and by key, is a list fed by its
+  changes and a batch of sets gathered into the frame, as the prototype's bindings wait for the
+  frame's build.
 - **Measured.** Nothing new: M6d.1b3a's figures.
 
 ### M6d.1c — Rust's code reloaded, and the executor
