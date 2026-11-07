@@ -7,7 +7,8 @@
   updates serve applications too) and [0170](0170-applications-on-the-ui-framework.md) (the
   platforms that Stage 6d aims at);
   amended by [0181](0181-uwuis-scope.md) (Android phones and the web aimed at; Android without
-  condition) and [0190](0190-uwuis-requirements.md) (uwui's own tool packages applications before Stage 9b)
+  condition), [0190](0190-uwuis-requirements.md) (uwui's own tool packages applications before Stage 9b)
+  and [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) (macOS aimed at for uwui's 1.0)
 - Date: 2026-11-04
 
 ## Context

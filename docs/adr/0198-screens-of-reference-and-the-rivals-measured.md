@@ -6,7 +6,9 @@
   references and M6d.0b's measures widened), [0200](0200-applications-measured-from-outside.md)
   (the tenth "Hello, World!", and where the ten live), [0201](0201-the-rivals-narrowed.md) (the
   rivals of two screens narrowed) and [0203](0203-pilots-replaced-pluto-and-a-daw.md) (Slatty's screen kept as a
-  bench alone; Magnolia abandoned; the media application replaced)
+  bench alone; Magnolia abandoned; the media application replaced) and
+  [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) (a fifth screen, rich in effects, and a
+  gallery; a lead of three times on a program's own cost)
 - Date: 2026-11-06
 
 ## Context
