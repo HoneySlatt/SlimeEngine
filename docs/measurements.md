@@ -1861,3 +1861,22 @@ GitHub's hosted runners, on 2026-11-07, each run green:
 |---|---|---|
 | `8ee62fe`, ADR-0210 and the milestone marked done | `docs` | 18 s |
 | uwui's `47ad601`, the figures | uwui's `ci` | 21 s |
+
+## M6d.1c2, the interface's executor and other threads
+
+The prototype's figures are uwui's: its
+[`docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#the-interfaces-executor-and-other-threads-2026-11-07).
+The prototype lives on the branch `m6d1c-bench`, which runs no CI. `main` took ADR-0211 and the
+milestone marked done, pushed with the new logo, whose README ran CI whole.
+
+GitHub's hosted runners, on 2026-11-07, each run green:
+
+| Commit | Job | Time |
+|---|---|---|
+| `fde479c`, the logo, over `a78ffce`, ADR-0211 | `check (headless)` | 13 min 32 s |
+| | `check (windowed)` | 5 min 11 s |
+| | `check (game)` | 8 min 1 s |
+| | `windows` | 15 min 57 s |
+| | `windows-release` | 13 min 19 s |
+| | Docs' `links` | 17 s |
+| uwui's `689b62a`, the figures | uwui's `check` | 19 s |
