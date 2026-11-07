@@ -7,7 +7,8 @@
   programs of uwui's first stage), [0198](0198-screens-of-reference-and-the-rivals-measured.md)
   (Slatty's screen kept as a bench alone; Magnolia abandoned; the media application written anew
   replaced) and [0199](0199-uwuis-targets-tools-and-references-narrowed.md) (the pilots that
-  `uwui bundle` and updates wait for)
+  `uwui bundle` and updates wait for); amended by
+  [0206](0206-slatty-ported-again-the-daw-later.md) (Slatty ported again, the DAW later)
 - Date: 2026-11-06
 
 ## Context

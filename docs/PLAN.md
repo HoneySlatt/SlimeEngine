@@ -28,7 +28,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [ADR-0202](adr/0202-how-m6d1-compares-ways-of-writing-an-application.md),
   [ADR-0203](adr/0203-pilots-replaced-pluto-and-a-daw.md),
   [ADR-0204](adr/0204-signals-written-by-hand-for-the-prototypes.md),
-  [ADR-0205](adr/0205-signals-change-uwuis-interface.md)).
+  [ADR-0205](adr/0205-signals-change-uwuis-interface.md),
+  [ADR-0206](adr/0206-slatty-ported-again-the-daw-later.md)).
 - Done: [M6d.0a](#m6d0a--the-screens-and-the-owners-programs),
   [M6d.0b](#m6d0b--measured-from-outside-and-ten-hello-world) and
   [M6d.0c](#m6d0c--the-applications-of-the-market), the figures before, cut in three at its start
@@ -36,7 +37,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - In progress: [M6d.1](#m6d1--how-an-application-is-written), cut in four at its start; done,
   [M6d.1a](#m6d1a--the-survey-and-the-protocol) and
   [M6d.1b](#m6d1b--how-state-changes-the-interface), signals chosen with live values
-  ([ADR-0205](adr/0205-signals-change-uwuis-interface.md)); next,
+  ([ADR-0205](adr/0205-signals-change-uwuis-interface.md)), to be checked against Slatty's list
+  once pushed ([ADR-0206](adr/0206-slatty-ported-again-the-daw-later.md)); next,
   [M6d.1c](#m6d1c--rusts-code-reloaded-and-the-executor), on signals.
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
   link to its code.
@@ -61,7 +63,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.1b1 — The ideal code](#m6d1b1--the-ideal-code) | Done |
 | [M6d.1b2 — The bench, on the control](#m6d1b2--the-bench-on-the-control) | Done |
 | [M6d.1b3a — Three models on the bench](#m6d1b3a--three-models-on-the-bench) | Done |
-| [M6d.1b3b — The choice](#m6d1b3b--the-choice) | Done |
+| [M6d.1b3b — The choice](#m6d1b3b--the-choice) | Done; Slatty's list to check |
 | [M6d.1c — Rust's code reloaded, and the executor](#m6d1c--rusts-code-reloaded-and-the-executor) | Planned |
 | [M6d.1d — Layouts, styles and the host](#m6d1d--layouts-styles-and-the-host) | Planned |
 | [M6d.2 — Typed styles](#m6d2--typed-styles) | Planned |
@@ -348,6 +350,9 @@ directions ask of uwui ([ADR-0203](adr/0203-pilots-replaced-pluto-and-a-daw.md))
 - **Done when.** The model is decided and recorded in an ADR; uwui's open decisions are updated:
   done on 2026-11-07. Signals, with live values, a primitive of uwui's tree for the frame's values
   that no model covered ([ADR-0205](adr/0205-signals-change-uwuis-interface.md)).
+- **Left.** Slatty, back among uwui's first programs, writes its list after its interview
+  ([ADR-0206](adr/0206-slatty-ported-again-the-daw-later.md)); once it is pushed, each need that it
+  marks as general is checked against signals, and one that they do not cover put to the owner.
 - **Measured.** Nothing new: M6d.1b3a's figures.
 
 ### M6d.1c — Rust's code reloaded, and the executor

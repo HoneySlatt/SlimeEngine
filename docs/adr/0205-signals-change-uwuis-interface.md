@@ -1,7 +1,8 @@
 # 0205. Signals change uwui's interface, and live values its drawing
 
 - Status: Accepted; amends [0190](0190-uwuis-requirements.md) (how state changes the interface
-  decided; live values in uwui's tree)
+  decided; live values in uwui's tree); amended by
+  [0206](0206-slatty-ported-again-the-daw-later.md) (checked against Slatty's list once written)
 - Date: 2026-11-07
 
 ## Context
