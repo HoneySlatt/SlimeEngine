@@ -10,7 +10,7 @@
   editor's command system), [0124](0124-driven-components-keys-and-created-entities-in-levels.md)
   (the identity that a level written back gives a created entity, which saves say) and
   [0134](0134-the-editors-core.md) (the world's commands are the editor's, and the journal holds the
-  steps made, not what they deleted)
+  steps made, not what they deleted), then by [0217](0217-worlds-by-density-generated-and-destroyed.md) (the identity of what is generated)
 - Date: 2026-10-20
 
 ## Context

@@ -16,7 +16,7 @@
   [0208](0208-the-engines-promises-and-systems.md) (light without long bakes, a reference path
   tracer, sound, characters' AI, combat, mods, networking and the open world's target) and
   [0209](0209-platforms-the-editor-and-agents.md) (consoles through private layers; the Steam Deck
-  of the first rank; virtual reality, mobile and web games in the horizon)
+  of the first rank; virtual reality, mobile and web games in the horizon), then by [0215](0215-the-engine-measured-against-the-market.md) (faces, secondary motion and crowds raised), [0216](0216-light-geometry-and-the-gpus-floor.md) (virtual geometry at Stage 9a), [0217](0217-worlds-by-density-generated-and-destroyed.md) (destruction and generation into Stage 10a) and [0220](0220-the-roadmap-reshaped-by-the-market.md) (stages split)
 - Date: 2026-10-19
 
 ## Context

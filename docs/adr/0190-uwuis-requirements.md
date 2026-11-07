@@ -24,7 +24,7 @@
   [0212](0212-a-functions-body-reloaded-through-subsecond-and-dx.md) (Rust's code reloaded through
   `subsecond` and `dx`, under `uwui dev`) and
   [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) (macOS's packages; porting a budget;
-  one look in the core, the others official themes of their own; agents measured, and users' agents)
+  one look in the core, the others official themes of their own; agents measured, and users' agents), then by [0218](0218-one-core-for-agents-in-uwui.md) (no channel of the engine kept apart) and [0220](0220-the-roadmap-reshaped-by-the-market.md) (a stage of measures before Stage 6c resumes)
 - Date: 2026-11-06
 
 ## Context

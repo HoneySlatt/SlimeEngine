@@ -5,7 +5,7 @@
   web games in the horizon) and the roadmap's principle 8 (the public Rust API stable after 1.0, as
   the C ABI); with [ADR-0208](0208-the-engines-promises-and-systems.md) and
   [ADR-0209](0209-platforms-the-editor-and-agents.md), the record of one interview; amended by
-  [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) (a royalty above a threshold, a licence of the engine's own)
+  [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) (a royalty above a threshold, a licence of the engine's own), then by [0215](0215-the-engine-measured-against-the-market.md) (games named as benches, reports sent by choice), [0219](0219-test-games-in-place-of-hunna-wood.md) (the first game sold is the 2D test game) and [0220](0220-the-roadmap-reshaped-by-the-market.md) (CI's runners before Stage 7)
 - Date: 2026-11-07
 
 ## Context

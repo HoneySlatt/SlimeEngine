@@ -10,7 +10,7 @@
   user; the milestone in two), [0130](0130-picking.md) (how picking by the GPU and by the CPU are
   built), [0132](0132-the-engines-ui-framework.md) (a texture of one channel, and a
   scissor apart from the viewport) and [0159](0159-picking-and-the-selection.md) (the scene's depth
-  resolved into its farthest sample, in the frames that outline alone)
+  resolved into its farthest sample, in the frames that outline alone), then by [0216](0216-light-geometry-and-the-gpus-floor.md) (a render graph open to games, with compute)
 - Date: 2026-10-20
 
 ## Context

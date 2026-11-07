@@ -20,7 +20,7 @@
   while a person drags; an MCP server that drives an editor and the game it plays; a game started
   with a token ending when its standard input closes) and
   [0209](0209-platforms-the-editor-and-agents.md) (the channel opened to a paired machine on the
-  local network, in development builds)
+  local network, in development builds), then by [0218](0218-one-core-for-agents-in-uwui.md) (the channel on uwui's core)
 - Date: 2026-10-21
 
 ## Context

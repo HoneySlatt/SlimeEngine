@@ -62,6 +62,8 @@ The log level of every example is set by the `SLIME_LOG` environment variable, f
   where it is needed with `#[path = "common/<file>.rs"] mod <file>;`. Each file's comment says what
   it holds.
 - [`assets/`](assets/README.md) holds the examples' sources and their licenses.
+- The examples' code is under MIT-0 ([`LICENSE-MIT-0`](LICENSE-MIT-0)), to be copied into games
+  without conditions ([ADR-0219](../docs/adr/0219-test-games-in-place-of-hunna-wood.md)).
 - The image tests compare a render with a reference image of
   [`tests/reference/`](tests/reference), within a tolerance
   ([ADR-0018](../docs/adr/0018-reference-image-tests.md), amended by

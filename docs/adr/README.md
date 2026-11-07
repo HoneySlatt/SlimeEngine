@@ -74,7 +74,7 @@ the ADR linking to it.
 | [0003](0003-toolchain-edition-and-msrv.md) | Pin the toolchain in one file, use edition 2024, set the MSRV to the pinned version | Accepted |
 | [0004](0004-workspace-layout-and-crate-naming.md) | Workspace layout and crate naming | Accepted; amended by 0014, 0055, 0104 and 0178 |
 | [0005](0005-lints-and-unsafe-policy.md) | Lints and `unsafe` policy | Accepted; amended by 0186 |
-| [0006](0006-dependency-policy.md) | Dependency policy | Accepted; amended by 0023, 0031, 0133, 0182 and 0214 |
+| [0006](0006-dependency-policy.md) | Dependency policy | Accepted; amended by 0023, 0031, 0133, 0182, 0214 and 0219 |
 | [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted; amended by 0015, 0123 and 0188 |
 | [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Accepted; amended by 0019 and 0085 |
 | [0009](0009-frame-timing.md) | Frame timing | Accepted; amended by 0107 |
@@ -102,8 +102,8 @@ the ADR linking to it.
 | [0031](0031-dev-overlay-with-egui.md) | The dev overlay with egui, and wgpu for the engine's tooling | Accepted; widened on 2026-10-13; amended by 0052, 0105, 0132; superseded by 0152 for the overlay and 0181 |
 | [0032](0032-mipmaps-computed-at-texture-creation.md) | Mipmaps computed by the engine when a texture is created | Accepted; amended by 0039 and 0071 |
 | [0033](0033-gpu-layer-for-multi-pass-rendering.md) | The GPU layer for multi-pass rendering | Accepted; amended by 0038, 0039, 0041, 0047, 0059 and 0122 |
-| [0034](0034-hdr-rendering-and-tone-mapping.md) | HDR rendering and tone mapping | Accepted; amended by 0035, 0037, 0039, 0040, 0041, 0051 and 0127 |
-| [0035](0035-physically-based-materials.md) | Physically based materials | Accepted; amended by 0037, 0039, 0069 and 0111 |
+| [0034](0034-hdr-rendering-and-tone-mapping.md) | HDR rendering and tone mapping | Accepted; amended by 0035, 0037, 0039, 0040, 0041, 0051, 0127 and 0216 |
+| [0035](0035-physically-based-materials.md) | Physically based materials | Accepted; amended by 0037, 0039, 0069, 0111 and 0216 |
 | [0036](0036-direct3d-12-shader-compiler.md) | The shader compiler of Direct3D 12 | Accepted; amended by 0066 |
 | [0037](0037-lights-in-physical-units-and-pre-exposure.md) | Lights in physical units, and pre-exposure | Accepted; amended by 0038, 0039, 0040 and 0042 |
 | [0038](0038-shadow-mapping.md) | Shadow mapping | Accepted; amended by 0039, 0041, 0047, 0049, 0050, 0061, 0063, 0064 and 0126 |
@@ -135,7 +135,7 @@ the ADR linking to it.
 | [0064](0064-cascaded-shadow-maps.md) | Cascaded shadow maps | Accepted; amended by 0065 and 0126 |
 | [0065](0065-reading-the-cascades.md) | Reading the cascades | Accepted |
 | [0066](0066-shipping-dxc-beside-the-programs.md) | Shipping DXC beside the programs | Accepted |
-| [0067](0067-hunna-wood-replaces-nightwatch.md) | Hunna Wood replaces Nightwatch as the sample game | Accepted |
+| [0067](0067-hunna-wood-replaces-nightwatch.md) | Hunna Wood replaces Nightwatch as the sample game | Accepted; amended by 0219 |
 | [0068](0068-stage-4-in-two-halves.md) | Stage 4 in two halves, and audio import at Stage 7 | Accepted; amended by 0078 |
 | [0069](0069-the-asset-pipeline.md) | The asset pipeline: identity, cooking and what a game loads | Accepted; amended by 0080, 0102 and 0106 |
 | [0070](0070-the-sample-games-source-assets.md) | The sample game's source assets: free, listed, mirrored | Accepted |
@@ -166,8 +166,8 @@ the ADR linking to it.
 | [0095](0095-cooked-scene-files.md) | Cooked scene files | Accepted |
 | [0096](0096-the-files-the-engine-reads.md) | The files the engine reads: what they may hold, and what the engine promises | Accepted; amended by 0122 and 0176 |
 | [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md) | An audit pass and a foundations pass before Stage 6, and the roadmap after them | Accepted; amended by 0098, 0099, 0100, 0107, 0112, 0114, 0116, 0131 and 0177 |
-| [0098](0098-the-games-the-engine-aims-at.md) | The games the engine aims at, and the roadmap they shape | Accepted; amended by 0114, 0116, 0131, 0132, 0170, 0173, 0207, 0208 and 0209 |
-| [0099](0099-ai-agents-drive-the-engine.md) | AI agents drive the engine through its own MCP server | Accepted; amended by 0122 and 0209 |
+| [0098](0098-the-games-the-engine-aims-at.md) | The games the engine aims at, and the roadmap they shape | Accepted; amended by 0114, 0116, 0131, 0132, 0170, 0173, 0207, 0208, 0209, 0215, 0216, 0217 and 0220 |
+| [0099](0099-ai-agents-drive-the-engine.md) | AI agents drive the engine through its own MCP server | Accepted; amended by 0122, 0209 and 0218 |
 | [0100](0100-updates-of-shipped-games.md) | Updates of shipped games | Accepted; amended by 0173 |
 | [0101](0101-saves-and-identities-that-never-mislead.md) | Saves and identities that never mislead | Accepted; amended by 0109, 0112, 0124 and 0125 |
 | [0102](0102-a-damaged-file-gives-an-error.md) | A damaged file gives an error, never a crash | Accepted; amended by 0176 |
@@ -175,22 +175,22 @@ the ADR linking to it.
 | [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted; amended by 0114, 0123, 0144, 0175, 0186 and 0189 |
 | [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Superseded by 0152 |
 | [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted; amended by 0117 and 0126 |
-| [0107](0107-the-execution-model.md) | The execution model | Accepted; amended by 0118, 0121 and 0208 |
+| [0107](0107-the-execution-model.md) | The execution model | Accepted; amended by 0118, 0121, 0208 and 0217 |
 | [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted; amended by 0119, 0124 and 0167 |
-| [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amended by 0116, 0124 and 0134 |
+| [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amended by 0116, 0124, 0134 and 0217 |
 | [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116, 0121, 0122, 0134, 0155 and 0175 |
 | [0111](0111-the-frame-contract.md) | The frame contract | Accepted; amended by 0115, 0120, 0126, 0127 and 0129 |
-| [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted; amended by 0125 and 0155 |
+| [0112](0112-levels-saves-and-worlds-for-open-worlds.md) | Levels, saves and worlds for open worlds | Accepted; amended by 0125, 0155 and 0217 |
 | [0113](0113-asset-requests-residency-and-priorities.md) | Asset requests, residency and priorities | Accepted; amended by 0120 and 0128 |
-| [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amended by 0120, 0138, 0175 and 0208 |
-| [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted; amended by 0117, 0129, 0130, 0132 and 0159 |
+| [0114](0114-hardware-tiers-and-the-gpus-limits.md) | Hardware tiers and the GPU's limits | Accepted; amended by 0120, 0138, 0175, 0208, 0215 and 0216 |
+| [0115](0115-what-the-gpu-layer-gives-the-editor.md) | What the GPU layer gives the editor | Accepted; amended by 0117, 0129, 0130, 0132, 0159 and 0216 |
 | [0116](0116-stage-6-in-two-halves.md) | Stage 6 in two halves | Accepted; amended by 0124, 0126 and 0131 |
 | [0117](0117-frustum-culling-and-instancing.md) | Frustum culling and instancing | Accepted; amended by 0128 and 0138 |
 | [0118](0118-the-task-pool-and-the-copies-to-the-gpu.md) | The task pool and the copies to the GPU | Accepted |
 | [0119](0119-the-worlds-ticks-blocks-and-log.md) | The world's ticks, blocks and log | Accepted |
 | [0120](0120-a-frame-that-owns-what-it-draws.md) | A frame that owns what it draws | Accepted; amended by 0121 |
 | [0121](0121-a-game-as-a-simulation-and-a-presentation.md) | A game as a simulation and a presentation | Accepted; amended by 0122, 0134, 0135 and 0155 |
-| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125, 0126, 0127, 0128, 0130, 0134, 0135, 0143, 0146, 0155 and 0209 |
+| [0122](0122-the-development-channel.md) | The development channel and the MCP server | Accepted; amended by 0125, 0126, 0127, 0128, 0130, 0134, 0135, 0143, 0146, 0155, 0209 and 0218 |
 | [0123](0123-the-linux-checks-in-two-jobs.md) | The Linux checks in two jobs | Accepted; amended by 0155 and 0175 |
 | [0124](0124-driven-components-keys-and-created-entities-in-levels.md) | Driven components, start keys and created entities written into levels | Accepted; amended by 0125 |
 | [0125](0125-saves-per-scene.md) | Saves per scene, scenes unloaded and adoption | Accepted |
@@ -243,8 +243,8 @@ the ADR linking to it.
 | [0172](0172-regions-of-tabs.md) | Regions of tabs | Accepted; amends 0153 and 0155 |
 | [0173](0173-the-platforms-of-applications.md) | The platforms of applications | Accepted; amends 0015, 0098, 0100 and 0170; amended by 0181, 0190 and 0213 |
 | [0174](0174-layouts-kept-floating-panels-and-closed-panels.md) | Layouts kept, floating panels and closed panels | Accepted; amends 0150 and 0155 |
-| [0175](0175-the-quality-bar.md) | The quality bar | Accepted; amends 0104, 0110, 0114, 0123, 0137, 0138, 0140 and 0155; amended by 0185, 0186, 0189, 0190, 0191, 0192 and 0193 |
-| [0176](0176-fuzzing-and-crash-reports.md) | Fuzzing and crash reports | Accepted; amends 0096 and 0102 |
+| [0175](0175-the-quality-bar.md) | The quality bar | Accepted; amends 0104, 0110, 0114, 0123, 0137, 0138, 0140 and 0155; amended by 0185, 0186, 0189, 0190, 0191, 0192, 0193 and 0215 |
+| [0176](0176-fuzzing-and-crash-reports.md) | Fuzzing and crash reports | Accepted; amends 0096 and 0102; amended by 0215 |
 | [0177](0177-audits-and-releases.md) | Audits and releases | Accepted; amends 0097 and 0155 |
 | [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179, 0180, 0181, 0194 and 0203 |
 | [0179](0179-the-framework-named-uwui.md) | The framework named uwui | Accepted; amends 0178 |
@@ -257,12 +257,12 @@ the ADR linking to it.
 | [0186](0186-counters-and-ratios-in-ci.md) | Counters and ratios in CI | Accepted; amends 0005, 0104 and 0175; amended by 0189 |
 | [0187](0187-a-hidden-window-at-rest.md) | A hidden window at rest | Accepted; amends 0021 |
 | [0188](0188-a-light-check-for-documentation.md) | A light check for documentation | Accepted; amends 0007 |
-| [0189](0189-first-measures-of-time.md) | First measures of time | Accepted; amends 0104, 0175 and 0186; amended by 0191 |
-| [0190](0190-uwuis-requirements.md) | uwui's requirements | Accepted; amends 0170, 0171, 0173, 0175 and 0181; amended by 0194, 0197, 0199, 0202, 0203, 0205, 0209, 0211, 0212 and 0213 |
+| [0189](0189-first-measures-of-time.md) | First measures of time | Accepted; amends 0104, 0175 and 0186; amended by 0191 and 0215 |
+| [0190](0190-uwuis-requirements.md) | uwui's requirements | Accepted; amends 0170, 0171, 0173, 0175 and 0181; amended by 0194, 0197, 0199, 0202, 0203, 0205, 0209, 0211, 0212, 0213, 0218 and 0220 |
 | [0191](0191-input-in-sway-start-budgets-and-the-editors-rate.md) | Input given in sway, two budgets of a start, and the editor's rate | Accepted; amends 0175 and 0189; amended by 0200 |
 | [0192](0192-the-budget-of-a-cold-start.md) | The budget of a cold start | Accepted; amends 0175 |
 | [0193](0193-first-measures-of-resources.md) | First measures of resources | Accepted; amends 0175 |
-| [0194](0194-stage-6d-uwui-leaving-the-engine.md) | Stage 6d: uwui leaving the engine | Accepted; amends 0170, 0171, 0178, 0181 and 0190; amended by 0198, 0202 and 0203 |
+| [0194](0194-stage-6d-uwui-leaving-the-engine.md) | Stage 6d: uwui leaving the engine | Accepted; amends 0170, 0171, 0178, 0181 and 0190; amended by 0198, 0202, 0203 and 0220 |
 | [0195](0195-a-series-of-headless-compositors.md) | A series of headless compositors | Accepted; amends 0185 |
 | [0196](0196-checks-by-hand-on-macos.md) | Checks by hand on macOS | Accepted; amended by 0213 |
 | [0197](0197-uwuis-repository-public-from-now.md) | uwui's repository, public from now | Accepted; amends 0181 and 0190 |
@@ -275,11 +275,17 @@ the ADR linking to it.
 | [0204](0204-signals-written-by-hand-for-the-prototypes.md) | Signals written by hand for M6d.1b's prototypes | Accepted; amends 0202 |
 | [0205](0205-signals-change-uwuis-interface.md) | Signals change uwui's interface, and live values its drawing | Accepted; amends 0190; amended by 0206, 0210 and 0211; checked against Slatty's and the engine's lists |
 | [0206](0206-slatty-ported-again-the-daw-later.md) | Slatty ported again; the DAW later | Accepted; amends 0203 and 0205; its check done |
-| [0207](0207-what-slimeengine-is-to-become.md) | What SlimeEngine is to become | Accepted; amends 0098 and principle 8; amended by 0214 |
-| [0208](0208-the-engines-promises-and-systems.md) | The engine's promises and systems | Accepted; amends 0098, 0107 and 0114 |
-| [0209](0209-platforms-the-editor-and-agents.md) | Platforms, the editor and agents | Accepted; amends 0098, 0099, 0122 and 0190; amended by 0214 |
+| [0207](0207-what-slimeengine-is-to-become.md) | What SlimeEngine is to become | Accepted; amends 0098 and principle 8; amended by 0214, 0215, 0219 and 0220 |
+| [0208](0208-the-engines-promises-and-systems.md) | The engine's promises and systems | Accepted; amends 0098, 0107 and 0114; amended by 0215, 0216 and 0217 |
+| [0209](0209-platforms-the-editor-and-agents.md) | Platforms, the editor and agents | Accepted; amends 0098, 0099, 0122 and 0190; amended by 0214, 0215 and 0218 |
 | [0210](0210-signals-named-for-a-reload.md) | Signals named for a reload, through serde | Accepted; amends 0202 and 0205; amended by 0211 and 0212 |
 | [0211](0211-the-executor-and-other-threads-through-channels.md) | The interface's executor, and other threads through channels | Accepted; amends 0190, 0205 and 0210 |
 | [0212](0212-a-functions-body-reloaded-through-subsecond-and-dx.md) | A function's body reloaded through subsecond and dx | Accepted; amends 0190, 0202 and 0210 |
-| [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) | uwui's reach, its lead, its themes and agents | Accepted; amends 0173, 0181, 0190, 0196, 0198 and 0199; amended by 0214 |
-| [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) | The engine under a licence of its own, with a royalty | Accepted; supersedes 0182 for the engine; amends 0006, 0207, 0209 and 0213 |
+| [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) | uwui's reach, its lead, its themes and agents | Accepted; amends 0173, 0181, 0190, 0196, 0198 and 0199; amended by 0214, 0215 and 0218 |
+| [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) | The engine under a licence of its own, with a royalty | Accepted; supersedes 0182 for the engine; amends 0006, 0207, 0209 and 0213; amended by 0219 |
+| [0215](0215-the-engine-measured-against-the-market.md) | The engine measured against the market | Accepted; amends 0098, 0114, 0175, 0176, 0189, 0207, 0208, 0209 and 0213 |
+| [0216](0216-light-geometry-and-the-gpus-floor.md) | Light, geometry and the GPU's floor | Accepted; amends 0034, 0035, 0098, 0114, 0115 and 0208 |
+| [0217](0217-worlds-by-density-generated-and-destroyed.md) | Worlds by density, generated and destroyed | Accepted; amends 0098, 0107, 0109, 0112 and 0208 |
+| [0218](0218-one-core-for-agents-in-uwui.md) | One core for agents, in uwui | Accepted; amends 0099, 0122, 0190, 0209 and 0213 |
+| [0219](0219-test-games-in-place-of-hunna-wood.md) | Test games in place of Hunna Wood | Accepted; amends 0006, 0067, 0207, 0214 and principle 4 |
+| [0220](0220-the-roadmap-reshaped-by-the-market.md) | The roadmap reshaped by the market | Accepted; amends 0098, 0190, 0194 and 0207 |

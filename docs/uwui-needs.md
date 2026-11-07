@@ -14,7 +14,10 @@ It comes from two sources:
 - the owner's interview of 2026-11-07 on what the engine is to become
   ([ADR-0207](adr/0207-what-slimeengine-is-to-become.md),
   [ADR-0208](adr/0208-the-engines-promises-and-systems.md),
-  [ADR-0209](adr/0209-platforms-the-editor-and-agents.md)), before any code.
+  [ADR-0209](adr/0209-platforms-the-editor-and-agents.md)), before any code;
+- the owner's decisions of the same day that measure the engine and uwui against the market
+  ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md) to
+  [ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
 
 It serves the question that [M6d.10](PLAN.md#m6d10--uwui-designed-as-a-project) weighs: whether
 games' interfaces take uwui whole, its core with a layer of their own, or a framework of their own.
@@ -26,10 +29,11 @@ below](#for-m6d10) says what the measure needs. Nothing here is measured yet.
 - uwui takes a need only if it is **general**: several kinds of applications need it. A need that
   serves only the engine, or only one benchmark, stays in the engine, in the layer of games'
   interfaces or in the editor ([ADR-0190](adr/0190-uwuis-requirements.md)).
-- **Mark**: *indispensable* when the editor, a game or a decision of ADR-0207 to ADR-0209 cannot be
-  met without it; *wished* otherwise. Each mark names the first stage that needs it: Stage 6c's
-  resumption, when the editor moves onto uwui's 1.0; Stage 7, when games draw their interfaces;
-  Stage 11, the complete editor.
+- **Mark**: *indispensable* when the editor, a game or a decision of ADR-0207 to ADR-0220 cannot be
+  met without it; *wished* otherwise. Each mark names the first stage that needs it: uwui's 1.0,
+  when one of uwui's own promises that the engine relies on needs it; Stage 6c's resumption, when
+  the editor moves onto uwui's 1.0; Stage 7, when games draw their interfaces; Stage 9b, the
+  menus' timeline; Stage 11, the complete editor.
 - **In uwui's requirements**: whether [ADR-0190](adr/0190-uwuis-requirements.md),
   [ADR-0205](adr/0205-signals-change-uwuis-interface.md) and
   [uwui's roadmap](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md) hold the need, as
@@ -73,6 +77,8 @@ The editor and games change their interfaces in two ways that applications rarel
 | One model of focus for the keyboard, gamepads and accessibility; menus driven by a gamepad alone | Every game's menus; the couch density | Indispensable: Stage 7 | Yes |
 | The keyboard on screen driven by a gamepad | A name typed on the Steam Deck | Indispensable: Stage 7 | Yes |
 | Shortcuts remapped by the user, with chords, from files of keys; several sets laid over each other | The editor's `.keys` files, Blender's way among them ([ADR-0160](adr/0160-two-viewports-and-blenders-way.md)) | Indispensable: Stage 6c | Yes |
+| A primary modifier, Ctrl or Cmd, in the format of shortcuts, a menu's shortcut shown per platform | The editor's shortcuts on macOS, the files of keys migrated once ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)) | Indispensable: Stage 6c | Yes: M6d.3 |
+| Actions declared once, which feed the menus, the system's native menus among them, the shortcuts, the palette of commands and agents | The editor's operations, each one declared once ([ADR-0218](adr/0218-one-core-for-agents-in-uwui.md)); a game's input actions | Indispensable: Stage 6c | Precision: actions declared once for agents, at M6d.9b; that menus, shortcuts and the palette read them is to say |
 | Input methods and every writing system in fields | A game's chat and names; the editor's fields | Indispensable: Stage 7 | Yes |
 
 ### Drawing and motion
@@ -82,6 +88,7 @@ The editor and games change their interfaces in two ways that applications rarel
 | No allocation at a frame once an interface is steady, counted in CI | A HUD at 240 frames a second on the minimal tier | Indispensable: Stage 7 | Precision: counters in CI exist for the engine ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)); allocations per frame as uwui's budget is to say |
 | The interface's GPU time within 0.5 ms on each tier's machine, the minimal one included | Every game | Indispensable: Stage 7 | Precision: the engine's budget ([`ROADMAP.md`](ROADMAP.md#budgets)); uwui's own budgets do not name game tiers |
 | Transforms, masks, groups drawn apart, motion with curves and springs, interrupted without a jump | Menus of a strong identity, as the toon role-playing game's | Indispensable: Stage 7 | Yes: the first stage |
+| A timeline that animates an interface without code, written by designers and by agents | The menu of reference of games, its timeline at Stage 9b with the sequencer ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)); the engine's applications share it | Indispensable: Stage 9b | New |
 | Text styled by ranges, variable fonts whose axes move, colour emoji, right to left | Dialogue with names and emphasis; damage numbers | Indispensable: Stage 7 | Yes |
 | Lists and trees of 100,000 rows changed by key, the focus, selection and scroll kept | The editor's hierarchy and asset browser | Indispensable: Stage 6c | Yes: a list fed by its changes by key |
 | Docking, floating panels as windows of the system, several windows | The editor ([ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)); panels in windows of their own at Stage 11 | Indispensable: Stage 6c | Yes |
@@ -90,7 +97,8 @@ The editor and games change their interfaces in two ways that applications rarel
 
 | Need | The engine's use | Mark | In uwui's requirements |
 |---|---|---|---|
-| Themes and densities from files, the editor's dense look, a game's theme its own | The editor's *Pro* look; each game's identity | Indispensable: Stage 6c | Yes |
+| Themes and densities from files, the editor's dense look, a game's theme its own | The editor's look, in the official theme Pro ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)); each game's identity | Indispensable: Stage 6c | Yes |
+| Themes that change a component's structure, not only its values, and no colour hidden in a component's defaults | A game's menus that look like no other game's ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)); the editor's Pro | Indispensable: Stage 6c | Yes: M6d.1d and M6d.2 |
 | Translation through Fluent, the language changed live, and a fake language of test | The editor's texts through tables from Stage 6c's resumption ([ADR-0207](adr/0207-what-slimeengine-is-to-become.md)); every game | Indispensable: Stage 6c | Yes, but the fake language: Precision |
 | The tree of what an interface means, for screen readers, from a root that is not a window | Games' menus read aloud ([ADR-0208](adr/0208-the-engines-promises-and-systems.md)) | Indispensable: Stage 7 | Precision: AccessKit from a window exists; from another root is to say |
 | Sizes of text that the user or the game chooses, honoured by every component | The guidelines that games follow | Indispensable: Stage 7 | Yes: the system's size honoured |
@@ -99,9 +107,10 @@ The editor and games change their interfaces in two ways that applications rarel
 
 | Need | The engine's use | Mark | In uwui's requirements |
 |---|---|---|---|
-| Layouts written back by a tool without losing the author's order and comments | The visual editor of games' interfaces, Stage 11 ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md)); agents that write layouts | Indispensable: Stage 11 | Precision: the format, chosen at M6d.1d, read and reloaded; written back by tools is to say |
+| Layouts written back by a tool without losing the author's order and comments | Agents that write layouts, and the agent bench's screens from mock-ups ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)); the visual editor of games' interfaces later ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md)) | Indispensable: uwui's 1.0 | Precision: the format, chosen at M6d.1d, read and reloaded; written back by tools is to say |
 | Layouts from outside read within limits of size, memory and time, never crashing | Mods that bring interfaces ([ADR-0208](adr/0208-the-engines-promises-and-systems.md)) | Indispensable: Stage 8 | Yes: content from outside within limits |
-| The agents' surface of uwui, paths, reading and acting, reached through the engine's own channel and MCP server, beside uwui's | The editor and games driven through the engine's server ([ADR-0099](adr/0099-ai-agents-drive-the-engine.md)) | Indispensable: Stage 6c | Precision: uwui's own channel exists; embedded in another's is to say |
+| One core for agents: a protocol that no transport binds, the agent named with the person's consent, numbered requests and events, attaching to a program already running, rights, previews before applying, tools found by families, and families that the program adds | The engine's channel and MCP server built on it, with its families of the world, play and editing ([ADR-0218](adr/0218-one-core-for-agents-in-uwui.md)) | Indispensable: Stage 6c | Yes: M6d.9a |
+| Commands, undo and their journal: whether uwui or the engine owns them | The editor's steps, each with its author and time; an agent's action undone as a person's | Indispensable: Stage 6c | New: decided at M6d.10 ([ADR-0218](adr/0218-one-core-for-agents-in-uwui.md)) |
 | The live inspector, absent from builds that ship | The editor and games while developed | Wished: Stage 7 | Yes |
 | Tests without a window, by paths, images of reference and counters | The engine's CI | Indispensable: Stage 6c | Yes |
 
@@ -111,6 +120,7 @@ The editor and games change their interfaces in two ways that applications rarel
 |---|---|---|---|
 | The core built and run with fonts, files, the clipboard and threads all given by the host, none taken from the system; checked by a build that uses none | Consoles one day, through private layers ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md)) | Wished: before consoles | New |
 | Linux and Windows first, the Steam Deck as a platform of the first rank | Every game | Indispensable: Stage 7 | Yes |
+| Services of files, settings, the network and long work, the same on every platform, the web and the phones included | The editor's and the tools' files and settings, and their long work, written once for every platform, as uwui's budget of porting asks ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)) | Indispensable: uwui's 1.0 | Yes: weighed at M6d.10 |
 | Semantic versioning kept strictly after uwui's 1.0 | The engine's façade, stable after its own 1.0 ([ADR-0207](adr/0207-what-slimeengine-is-to-become.md)) | Indispensable: the engine's 1.0 | Yes |
 
 ## SlimeEngine's own
@@ -128,10 +138,12 @@ These stay in the engine. They ask uwui only for the general needs above.
   reading uwui's tree of what an interface means; the game's sound lowered while it speaks.
 - **The editor's panels**: viewports, handles, the hierarchy, the inspector driven by reflection, the
   asset browser, the history; at Stage 11 the visual editor of games' interfaces, the panel of
-  agents and the optional assistant.
+  agents and the optional assistant, hosted and paid
+  ([ADR-0214](adr/0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md)).
 - **The dev overlay** of games ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)).
-- **The engine's commands, previews and rights for agents**, which reach uwui's surface through the
-  engine's channel.
+- **The engine's families of tools for agents**, the world, play and editing, added on uwui's core
+  for agents; the channel, rights and previews are the core's
+  ([ADR-0218](adr/0218-one-core-for-agents-in-uwui.md)).
 - **What an interface keeps in a game's save**, and its state rewound with the game
   ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md)).
 
@@ -140,9 +152,11 @@ These stay in the engine. They ask uwui only for the general needs above.
 ADR-0209 confirms games' interfaces on uwui's core with a layer of the engine's, once a measure
 shows it holds. The engine proposes what the measure is, for M6d.10 to decide with the owner:
 
-- **What is drawn**: a HUD of *Hunna Wood*'s whose values change at each frame, health, stamina, a
-  compass and damage rising; a menu of a strong identity, animated, with an inventory of 500 items
-  and a character shown in 3D; a dialogue with text styled by ranges; all driven by a gamepad alone.
+- **What is drawn**: a HUD of `games/open-world`'s
+  ([ADR-0219](adr/0219-test-games-in-place-of-hunna-wood.md)) whose values change at each frame,
+  health, stamina, a compass and damage rising; a menu of a strong identity, animated, with an
+  inventory of 500 items and a character shown in 3D; a dialogue with text styled by ranges; all
+  driven by a gamepad alone.
 - **Where**: the owner's machine at 3840 × 2160 at 240 frames a second, and the Steam Deck at 1280 ×
   800.
 - **Criteria**: the interface's GPU time within its budget of each tier; its CPU time at each frame
@@ -153,9 +167,10 @@ shows it holds. The engine proposes what the measure is, for M6d.10 to decide wi
 
 ## What Stage 6c's resumption needs first
 
-The editor moves onto uwui's 1.0 when Stage 6c resumes
-([ADR-0190](adr/0190-uwuis-requirements.md)). It needs, before anything else: the host and its
-frames on demand; an element drawn by the application with the pointer held; lists and trees of
-100,000 rows; docking and floating panels; files of keys with sets laid over each other; the
-editor's dense look; translation tables for every text; and uwui's agents' surface reached through
-the engine's channel.
+The editor moves onto uwui's 1.0 when Stage 6c resumes, after Stage 6e
+([ADR-0190](adr/0190-uwuis-requirements.md),
+[ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)). It needs, before anything else: the
+host and its frames on demand; an element drawn by the application with the pointer held; lists
+and trees of 100,000 rows; docking and floating panels; files of keys with sets laid over each
+other and the primary modifier; the editor's look in the theme Pro; translation tables for every
+text; and uwui's core for agents, with the editor's operations declared on it.

@@ -17,6 +17,10 @@ What this notice does not cover:
   `LICENSE-APACHE` files in each of these crates say. uwui still depends on four crates of the
   engine, `slime-reflect`, `slime-serialize`, `slime-gfx` and `slime-render`, which this notice
   covers, until Stage 6d removes those dependencies.
+- **The examples**, in `examples/`, are licensed under MIT-0, as `examples/LICENSE-MIT-0` says: code
+  made to be copied into games, without conditions
+  ([ADR-0219](docs/adr/0219-test-games-in-place-of-hunna-wood.md)). Their assets keep the licences
+  that `examples/assets/` records.
 - **What was published before this notice keeps its licence.** The commits published from
   2026-11-05 up to the commit that adds this notice are under MIT OR Apache-2.0; the releases up to
   `v0.6.0`, and the commits before 2026-11-05, under the Mozilla Public License 2.0. The history of

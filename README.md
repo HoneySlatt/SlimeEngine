@@ -181,7 +181,8 @@ SlimeEngine is to be licensed under a licence of its own: free until a game has 
 gross revenue, 3 % of the revenue above it, 2 % for a game that uses the engine's online services
 ([ADR-0214](docs/adr/0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md)). Until its text
 is published, [`LICENSE.md`](LICENSE.md) is an interim notice: all rights reserved, the source
-visible. uwui, `crates/uwui` and `crates/uwui-render`, stays under MIT OR Apache-2.0. What was
+visible. uwui, `crates/uwui` and `crates/uwui-render`, stays under MIT OR Apache-2.0; the
+examples, in `examples/`, are under MIT-0, to be copied into games. What was
 published before keeps its licence: MIT OR Apache-2.0 from 2026-11-05 to the notice, the Mozilla
 Public License 2.0 before, releases up to 0.6 included. A game built with the engine can use any
 license. The two logos are not under these licenses: their terms are in [`docs/logo/README.md`](docs/logo/README.md), the engine's, and

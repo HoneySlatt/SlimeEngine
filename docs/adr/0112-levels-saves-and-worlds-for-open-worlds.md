@@ -10,7 +10,7 @@
   brought to Stage 6) and [0101](0101-saves-and-identities-that-never-mislead.md) (an entity that
   outlives its scene); amended by [0125](0125-saves-per-scene.md) (how a scene's base is made, and
   what resets) and [0155](0155-the-editors-design.md) (how a level names its parts, and the layout
-  of scene files changed once, with `EntityRef`'s)
+  of scene files changed once, with `EntityRef`'s), then by [0217](0217-worlds-by-density-generated-and-destroyed.md) (dense content stored by cell)
 - Date: 2026-10-20
 
 ## Context

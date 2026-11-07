@@ -7,7 +7,7 @@
   [0039](0039-image-based-lighting-computed-on-the-cpu.md) (the environment's light replaces the
   ambient term), by [0069](0069-the-asset-pipeline.md) (the examples' loader is deleted, with
   ADR-0029) and by [0111](0111-the-frame-contract.md) (the physically based material is one kind of
-  material)
+  material), then by [0216](0216-light-geometry-and-the-gpus-floor.md) (the model of light apart from the surface)
 - Date: 2026-10-13
 
 ## Context

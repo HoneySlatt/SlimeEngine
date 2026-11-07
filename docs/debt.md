@@ -488,6 +488,8 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The editor never saves its world; a game that deletes and restores such an entity through the world's commands loses that difference.
 - **The editor's journal is handed to the system at each step, not forced to the disk** ([ADR-0134](adr/0134-the-editors-core.md)).
   A crash of the editor loses no step; a crash of the system may lose the last ones.
+  `Journal::add` flushes each entry and syncs none (`crates/slime-editor/src/journal.rs`).
+  It misses [ADR-0215](adr/0215-the-engine-measured-against-the-market.md)'s rule that no work is lost after a crash; followed at [M6c.Q4](stage-6c.md#m6cq4--fuzzing-and-crash-reports) ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
 - **Undoing a deletion in the editor copies what it recorded** ([ADR-0134](adr/0134-the-editors-core.md)).
   Recording it reads every component, of every entity of the world, of a type that may refer to an entity.
   `world.undo.1k` measures the world's commands on a subtree of 1 000 entities, of types that refer to none, not the editor's step.
@@ -598,6 +600,13 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Such a level fits one scene file only with entities that hold little (`slime_serialize::MAX_VALUES`), which levels of several files, M6c.6, are to settle.
   The owner chose, on 2026-10-29, to leave it until M6c.6 measures it again.
   Play asks the game how its time stands at each of its frames until it gives control, which a game that holds its time long, as behind a menu, pays for meanwhile.
+- **A change of a game's code takes about 3.1 s to run again in a debug build, over [ADR-0215](adr/0215-the-engine-measured-against-the-market.md)'s budget** ([`measurements.md`](measurements.md#compiling-ryzen-7-5800x)).
+  On the Ryzen 7 5800X, *Hunna Wood* builds again in 1.93 s after a function's body changed, and Play gives control in 1.15 s.
+  Each engine change is compiled once per set of features, and the game's differ from the editor's.
+  Dependencies are not optimised in debug builds, and no linker is chosen.
+  Followed by ADR-0220's "Compiling, now": one set of features for the workspace, dependencies optimised in debug builds, a faster linker chosen by measure ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
+  A game's Rust code reloaded hot, its state kept, does not exist yet: Stage 8.
+  There is no profile for shipping, with optimisation across crates: the budget of a game's build for shipping cannot be measured; ADR-0220 adds one.
 - **Editing while playing** ([ADR-0165](adr/0165-editing-while-playing.md)).
   An undone deletion does not reach the game, which plays on without what it restored until Play starts it again.
   A step that the game refuses stays applied in the game up to the command refused.
@@ -655,6 +664,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The benchmarks that load in the background report their longest frame, judged against no figure.
   The hierarchy's search passes the editor's interface's budget; M6c.Q3.
   The readers of files are not fuzzed, and a crash leaves no report; M6c.Q4 ([ADR-0176](adr/0176-fuzzing-and-crash-reports.md)).
+  `slime-app`'s diagnostics log a panic through a hook (`crates/slime-app/src/diagnostics.rs`), and ADR-0176 plans the report as that hook's alone: it would miss crashes that are not panics, and nothing counts the hours of use without a crash that [ADR-0215](adr/0215-the-engine-measured-against-the-market.md) asks; M6c.Q4 takes both ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
   Packages are neither signed nor built reproducibly, until Stage 11 ([ADR-0177](adr/0177-audits-and-releases.md)).
 - **The lock file holds `blocking` at 1.6.2** ([ADR-0185](adr/0185-rest-checked-in-ci.md)).
   1.7.0, the latest release, keeps an idle thread of its pool waking forever, which would wake the editor at rest through AccessKit's adapter.
@@ -782,8 +792,12 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   `editor_journal` fails once the journal is larger than the channel's largest message (`slime_serialize::MAX_SIZE`).
 - **A selection made just before a crash is lost** ([ADR-0134](adr/0134-the-editors-core.md)).
   The journal writes a selection made apart from a step with the entry that follows it.
-- **A journal whose last entry a crash of the system tore is not recovered** ([ADR-0135](adr/0135-the-editors-program.md)).
+- **A journal whose last entry a crash of the system tore is not recovered, nor one that a crash cut just after the level was written** ([ADR-0135](adr/0135-the-editors-program.md)).
   The program stops; `--discard` sets the journal aside with every step that it holds, those before the tear included, which only a journal mended by hand plays again.
+  `Editor::write` renames the level's file into place, then adds the journal's `written` entry (`crates/slime-editor/src/editor.rs`).
+  A crash between the two leaves a file that the journal does not know: `Editor::recover` refuses it as changed apart from the editor, and the start stops the same way (`crates/slime-editor/src/session.rs`).
+  It misses [ADR-0215](adr/0215-the-engine-measured-against-the-market.md)'s rule that no work is lost after a crash.
+  [M6c.Q4](stage-6c.md#m6cq4--fuzzing-and-crash-reports) keeps a journal that a torn write does not stop, and a test in CI kills the editor at random ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
 - **Two editors of one level, each with a journal of its own, do not see each other's changes** ([ADR-0135](adr/0135-the-editors-program.md)).
   The second to write the level is refused, the file changed apart from it, and its changes stay in its journal alone.
 

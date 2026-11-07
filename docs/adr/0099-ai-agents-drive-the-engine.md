@@ -4,7 +4,7 @@
   (a criterion of the foundations pass); amended by [0122](0122-the-development-channel.md) (the
   server's dependency, and where it runs) and [0209](0209-platforms-the-editor-and-agents.md)
   (rights for each agent, previews, tools found by families, replays; a paired machine on the local
-  network in development builds)
+  network in development builds), then by [0218](0218-one-core-for-agents-in-uwui.md) (agents named and attached to a program open)
 - Date: 2026-10-19
 
 ## Context

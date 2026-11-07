@@ -1894,3 +1894,41 @@ GitHub's hosted runners, on 2026-11-07, each run green:
 |---|---|---|
 | `89aa5b5`, ADR-0212 and the milestone marked done | Docs' `links` | 22 s |
 | uwui's `7e84e62`, the figures | uwui's `check` | 20 s |
+
+## Compiling, Ryzen 7 5800X
+
+Commit `c6ce9dd`, on 2026-11-07: the times of compiling, against the budgets of
+[ADR-0215](adr/0215-the-engine-measured-against-the-market.md), whose figures
+[`ROADMAP.md`](ROADMAP.md#budgets) holds. An AMD Ryzen 7 5800X, 16 logical CPUs, inside
+`nix develop -c`, from an empty target directory, each row after the one above it, debug builds
+unless the row says otherwise. Each change of code was made on a copy of the repository in `/tmp`:
+rustc reuses its work when only a file's date changes, so a run with `touch` alone, 3.5 s, does not
+stand for a real change. The benchmarks are not measured.
+
+| Build | Time | Crates compiled |
+|---|---|---|
+| `cargo build --workspace`, from nothing | 53.9 s (56.8 s on a second run) | 268 |
+| then `cargo build -p hunnawood` | 31.3 s | 79 |
+| then `cargo build --example editor` | 36.9 s | 130 |
+| a function's body changed in the game, `-p hunnawood` | 1.93 s | 1 |
+| a function's body changed in `slime-world`, `--example editor` | 3.05 s | 7 |
+| the same change, `-p hunnawood` | 2.61 s | 5 |
+| a public function added to `slime-world`, `--example editor` | 2.90 s | 7 |
+| a public function added to `slime-input`, `--example editor` | 3.16 s | 8 |
+| `cargo build --release -p hunnawood` | 70 s | 204 |
+
+What it says:
+
+- A change of a game's code to the game running again, in a debug build: over its budget. The
+  game builds again, then Play gives control in the time that [M6c.4d](#m6c4d-rx-6900-xt)
+  measured, about 3.1 s in all ([`debt.md`](debt.md)).
+- The game and the editor compile crates again after the workspace's build, as their features
+  differ from the workspace's: each engine crate is compiled once per set of features, and a change
+  in `slime-world` is compiled for the editor and for the game apart.
+- The editor built again after a change of an engine crate: within its budget.
+- The whole engine from nothing, in a debug build: within its budget.
+- A game's build for shipping: not measured, as there is no profile for shipping; the game's release
+  build above is not one.
+- A game's code reloaded hot, its state kept: not measured, as it does not exist yet (Stage 8).
+- Unreal, Unity and Godot's times are not measured yet: the lead over them waits for Stage 6e
+  ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).

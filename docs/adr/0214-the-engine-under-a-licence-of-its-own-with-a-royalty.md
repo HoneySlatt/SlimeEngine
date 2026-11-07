@@ -5,7 +5,7 @@
   dependencies must fit), [0207](0207-what-slimeengine-is-to-become.md) (how the engine is paid
   for), [0209](0209-platforms-the-editor-and-agents.md) (a paid assistant beside the agents one
   brings) and [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) (uwui paid for by its
-  patrons)
+  patrons); amended by [0219](0219-test-games-in-place-of-hunna-wood.md) (examples and templates under MIT-0)
 - Date: 2026-11-07
 
 ## Context

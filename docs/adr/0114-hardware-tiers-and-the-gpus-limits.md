@@ -11,7 +11,7 @@
   and [0175](0175-the-quality-bar.md) (the budgets' figures kept in the roadmap; CI checks
   counters and ratios of times; CPU benchmarks run on 4 cores too) and
   [0208](0208-the-engines-promises-and-systems.md) (a minimal tier below the handheld one; a mode
-  at 120 frames a second on the high tier)
+  at 120 frames a second on the high tier), then by [0215](0215-the-engine-measured-against-the-market.md) (the Deck at 40 frames a second, a mode at 120 on the modest tier, memory halved) and [0216](0216-light-geometry-and-the-gpus-floor.md) (one raised floor, the enthusiast tier's path tracing)
 - Date: 2026-10-20
 
 ## Context

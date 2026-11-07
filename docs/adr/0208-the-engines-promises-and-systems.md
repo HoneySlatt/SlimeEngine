@@ -5,7 +5,7 @@
   world's target), [0107](0107-the-execution-model.md) (the simulation parallel and deterministic by
   default) and [0114](0114-hardware-tiers-and-the-gpus-limits.md) (a minimal tier; a mode at 120
   frames a second); with [ADR-0207](0207-what-slimeengine-is-to-become.md) and
-  [ADR-0209](0209-platforms-the-editor-and-agents.md), the record of one interview
+  [ADR-0209](0209-platforms-the-editor-and-agents.md), the record of one interview; amended by [0215](0215-the-engine-measured-against-the-market.md) (criteria of physics, sound, AI, animation and the network), [0216](0216-light-geometry-and-the-gpus-floor.md) (one architecture of light, learned models at Stage 9a) and [0217](0217-worlds-by-density-generated-and-destroyed.md) (the world's target by density, generation in play, language models)
 - Date: 2026-11-07
 
 ## Context

@@ -9,7 +9,7 @@
   its decisions taken in milestone M6d.1); amended by
   [0198](0198-screens-of-reference-and-the-rivals-measured.md) (M6d.0 cut in three; the rivals
   measured), [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) (M6d.1 cut in
-  four) and [0203](0203-pilots-replaced-pluto-and-a-daw.md) (the programs of uwui's first stage)
+  four) and [0203](0203-pilots-replaced-pluto-and-a-daw.md) (the programs of uwui's first stage), then by [0220](0220-the-roadmap-reshaped-by-the-market.md) (Stage 6d's milestones widened)
 - Date: 2026-11-06
 
 ## Context

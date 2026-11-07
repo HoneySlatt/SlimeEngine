@@ -2,7 +2,7 @@
 
 - Status: Accepted; amends [0096](0096-the-files-the-engine-reads.md) (the readers are fuzzed,
   besides their damaged-input tests) and [0102](0102-a-damaged-file-gives-an-error.md) (fuzzing,
-  which it rejected, enters, outside the workspace)
+  which it rejected, enters, outside the workspace); amended by [0215](0215-the-engine-measured-against-the-market.md) (hours of use counted, reports sent by choice)
 - Date: 2026-11-05
 
 ## Context

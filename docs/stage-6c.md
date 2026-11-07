@@ -1,8 +1,9 @@
 # Stage 6c, paused
 
-Stage 6c, the editor, paused on 2026-11-06 once M6c.Q2e was done, for Stage 6d and uwui's stages
-to its 1.0 ([ADR-0190](adr/0190-uwuis-requirements.md),
-[ADR-0194](adr/0194-stage-6d-uwui-leaving-the-engine.md)). Its plan stays here whole while it is
+Stage 6c, the editor, paused on 2026-11-06 once M6c.Q2e was done, for Stage 6d, uwui's stages
+to its 1.0 and Stage 6e, the market measured ([ADR-0190](adr/0190-uwuis-requirements.md),
+[ADR-0194](adr/0194-stage-6d-uwui-leaving-the-engine.md),
+[ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)). Its plan stays here whole while it is
 paused, and returns to [`PLAN.md`](PLAN.md) when it resumes. The checks by hand that its
 milestones wait for are in [`PLAN.md`](PLAN.md#checks-by-hand-waiting-for-the-owner).
 
@@ -20,8 +21,14 @@ milestones wait for are in [`PLAN.md`](PLAN.md#checks-by-hand-waiting-for-the-ow
   [M6c.Q2f](#m6cq2f--the-editor-at-the-displays-rate), M6c.Q3 and M6c.Q4;
   then [M6c.5f](#m6c5f--the-inspector), the inspector.
 - Then: M6c.6, M6c.7, Checkpoint B, M6c.8, M6c.Q5, the stage's audit, and M6c.9.
-- Stage 6c paused: M6c.Q2f, M6c.Q3, M6c.Q4, M6c.5f and the rest resume after uwui's 1.0, the
-  editor moved onto it.
+- Stage 6c paused: M6c.Q2f, M6c.Q3, M6c.Q4, M6c.5f and the rest resume after Stage 6e, the editor
+  moved onto uwui's 1.0 ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
+- By then *Hunna Wood* has left this repository, at Stage 6e's first milestone: `games/open-world`
+  is the realistic test game, and its zone, the present one without *Hunna Wood*'s identity, is the
+  one that the editor works on ([ADR-0219](adr/0219-test-games-in-place-of-hunna-wood.md)). The
+  milestones done below name *Hunna Wood* as it was then.
+- Added on 2026-11-07, for when it resumes: each step carries its author and time, and M6c.Q4 keeps
+  the editor's work through any crash ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
 - Cuts made at a milestone's start, a part cut again at its own start where needed: M6c.1 into 1a
   and 1b; M6c.2 into 2a to 2c; M6c.3 into 3a to 3c; M6c.4 into 4a to 4d; M6c.5 into 5a to 5f;
   M6c.Q2 into Q2a and Q2b; M6c.Q2a into Q2a and Q2c, a hidden game apart
@@ -90,7 +97,10 @@ dependencies. Each milestone delivers what ADR-0155 decides for it, and:
   tests of the panels it adds;
 - measures the budgets of the [quality bar](ROADMAP.md#4-quality-bar) that it touches, and records
   how long CI's jobs take in [`measurements.md`](measurements.md), each within its limit of 20
-  minutes;
+  minutes, and the times of compiling;
+- compares the editor's figures that it touches with those of Unreal, Unity, Godot and Blender on
+  the same level, which Stage 6e measures first; the lead asked of them is the quality bar's
+  ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md));
 - may be cut in two at its start.
 
 Out of scope: panels in windows of their own (one window per process); a highlight that follows
@@ -250,7 +260,8 @@ After Stage 6c's pause, once uwui's desktop host follows the rule
   at a rate that does not divide the display's refresh, and it rests as before; CI is green, each
   job within 20 minutes.
 - **How to test.** `scripts/input-to-present.sh --gpu`; `scripts/check.sh windowed`.
-- **Measured.** Input to present, the frames' pacing at 60 and 240 Hz, rest.
+- **Measured.** Input to present, the frames' pacing at 60 and 240 Hz, rest; input to present and
+  rest against the rivals' editors.
 - **By hand.** Variable refresh rates on the owner's displays; the editor's rate on Windows, in the
   virtual machine.
 
@@ -270,16 +281,26 @@ After Stage 6c's pause, once uwui's desktop host follows the rule
 
 ### M6c.Q4 — Fuzzing and crash reports
 
-- **Goal.** The readers of files are fuzzed every week, and a crash leaves a report that the user
-  can attach to an issue.
-- **Crates.** A `fuzz/` package outside the workspace; the programs' start.
-- **Delivers.** As ADR-0176 decides: a target for each reader of untrusted files,
-  `nix develop .#fuzz`, a few minutes each in CI's weekly run, crashing inputs kept and replayed by
-  `cargo test`; the crash report, pointed to at the next start; each bug found fixed with its test.
-- **Done when.** Each target ran in CI's weekly run; a program made to panic writes its report, and
-  points to it at its next start; CI is green.
+- **Goal.** The readers of files are fuzzed every week; a crash leaves a report that the user can
+  attach to an issue, and loses no work.
+- **Crates.** A `fuzz/` package outside the workspace; the programs' start; `slime-editor`'s
+  journal.
+- **Delivers.** As [ADR-0176](adr/0176-fuzzing-and-crash-reports.md) decides, and
+  [ADR-0215](adr/0215-the-engine-measured-against-the-market.md) widens: a target for each reader
+  of untrusted files, `nix develop .#fuzz`, a few minutes each in CI's weekly run, crashing inputs
+  kept and replayed by `cargo test`; the crash report, pointed to at the next start; each bug found
+  fixed with its test. The hours of use counted; crashes that are not panics caught too; each step
+  carrying its author, a person or an agent, and its time
+  ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)); the journal synced to the disk, and
+  read past a torn write at its end. Reports stay on the machine, and testers send theirs by hand;
+  their sending by the user's choice comes at 0.14.
+- **Done when.** Each target ran in CI's weekly run; a program made to panic, and one made to crash
+  otherwise, writes its report, and points to it at its next start; a test in CI kills the editor
+  at random while it edits and finds no work lost; a journal cut in the middle of an entry opens
+  with every whole step; CI is green.
 - **How to test.** `nix develop .#fuzz -c cargo fuzz run <target>`; `cargo test --workspace`.
-- **Measured.** The weekly run's jobs.
+- **Measured.** The weekly run's jobs; the hours of use without a crash, against the quality bar's
+  budget.
 
 ### M6c.5f — The inspector
 
@@ -306,7 +327,7 @@ After Stage 6c's pause, once uwui's desktop host follows the rule
 - **Goal.** A level is made of several files, which the editor writes together, and an entity
   refers to entities of other files.
 - **Crates.** `slime-world`, `slime-serialize`, `slime-reflect`, `slime-cook`, `slime-devui`,
-  `slime-editor`; `.gitattributes`; the examples' yard and *Hunna Wood*'s zone.
+  `slime-editor`; `.gitattributes`; the examples' yard and `games/open-world`'s zone.
 - **Delivers.** As [ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md) decides too, in
   two parts, each likely a milestone; the first part's ADR amends
   [ADR-0091](adr/0091-scene-documents-and-placements.md) for the layout.
@@ -339,9 +360,9 @@ After Stage 6c's pause, once uwui's desktop host follows the rule
 ### M6c.7 — Build from a kit
 
 - **Goal.** The user builds a level from a kit of prefabs found in an asset browser, cooked by the
-  editor as its sources change, and *Hunna Wood*'s zone is made so.
+  editor as its sources change, and `games/open-world`'s zone is made so.
 - **Crates.** `slime-editor`, `slime-cook`, `slime-assets`, `slime-render`, `uwui-render`,
-  `slime-platform`; `games/hunnawood`, its zone's Blender script, its tests and its save fixture.
+  `slime-platform`; `games/open-world`, its zone's Blender script, its tests and its save fixture.
 - **Delivers.**
   - The asset browser: an index of the cooker's manifest and a scan of the sources, by folder and
     kind, with a search.
@@ -354,7 +375,7 @@ After Stage 6c's pause, once uwui's desktop host follows the rule
   - The tools' watch told of changes by notify 8.2.1, once polling's cost is measured on Windows;
     a scan again when its queue overflows; polling as its fallback.
   - Files dropped on Windows and X11 imported; the interface's images asked of the asset cache.
-  - *Hunna Wood*'s kit: its Blender script exports pieces of terrain and one prefab per variant of
+  - The zone's kit: its Blender script exports pieces of terrain and one prefab per variant of
     tree, rock and prop, with its collider; an agent converts the scatter into placements once,
     through the editor's operations; the zone's tests on the kit, and a new save fixture, which
     [ADR-0100](adr/0100-updates-of-shipped-games.md) allows before the game's first release, said
@@ -366,8 +387,8 @@ After Stage 6c's pause, once uwui's desktop host follows the rule
   the zone's tests pass on the kit, with the new fixture; CI is green.
 - **How to test.** `cargo test -p slime-editor -p slime-cook -p slime-assets`;
   `scripts/fetch-assets.sh`;
-  `blender --background --factory-startup --python games/hunnawood/zone/build_zone.py`;
-  `cargo test -p hunnawood -p hunnawood-editor -- --ignored`.
+  the zone's Blender script and the game's ignored tests, as `games/open-world`'s README gives
+  them.
 - **By hand.** The browser, its thumbnails and stamping, on Linux; G20, in
   [the list](PLAN.md#checks-by-hand-waiting-for-the-owner).
 - **Debt settled.** G16, G20 with the owner's check, G23, G49 to G53 and G56; the interface's images
@@ -375,9 +396,9 @@ After Stage 6c's pause, once uwui's desktop host follows the rule
 
 ### Checkpoint B — The exit rehearsal
 
-- **What.** The owner, on Linux and in the Windows virtual machine: erases the zone's campfire
-  clearing, builds it again by hand in the editor, plays it, writes it, opens it again, and undoes
-  and redoes through it all.
+- **What.** The owner, on Linux and in the Windows virtual machine: erases the campfire clearing
+  of `games/open-world`'s zone, builds it again by hand in the editor, plays it, writes it, opens it
+  again, and undoes and redoes through it all.
 - **Result.** The exit criterion met, or what keeps it from being met.
 
 ### M6c.8 — Panels dragged to dock
@@ -419,12 +440,12 @@ After Stage 6c's pause, once uwui's desktop host follows the rule
   [Releasing](../CONTRIBUTING.md#releasing) gains: the update from 0.6 tested, the debug symbols
   kept, a run on each platform; the dependencies and `flake.lock` updated, each in a commit of its
   own; the release, as Releasing says; Stage 6c moved to [`history.md`](history.md);
-  Stage 6d planned with the owner.
-- **Done when.** The owner ran *Hunna Wood*'s editor on Windows; the documents are reread and
+  Stage 7 planned with the owner.
+- **Done when.** The owner ran `games/open-world`'s editor on Windows; the documents are reread and
   corrected; CI is green on the release commit; the tag and the GitHub release exist, with the
   Windows programs.
-- **By hand.** In the Windows virtual machine: *Hunna Wood*'s editor, its dialogs, its viewport,
-  Play, and the asset browser.
+- **By hand.** In the Windows virtual machine: `games/open-world`'s editor, its dialogs, its
+  viewport, Play, and the asset browser.
 
 ### What the exit needs at minimum
 

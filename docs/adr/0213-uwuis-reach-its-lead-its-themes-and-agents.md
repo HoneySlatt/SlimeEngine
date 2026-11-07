@@ -7,7 +7,7 @@
   [0196](0196-checks-by-hand-on-macos.md) (macOS supported at uwui's 1.0 on its checks by hand),
   [0198](0198-screens-of-reference-and-the-rivals-measured.md) (a fifth screen and a gallery; the
   bar's lead) and [0199](0199-uwuis-targets-tools-and-references-narrowed.md) (`uwui bundle`
-  packages macOS); amended by [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) (uwui paid for by its patrons)
+  packages macOS); amended by [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) (uwui paid for by its patrons), then by [0215](0215-the-engine-measured-against-the-market.md) (uwui measured as the engine is, no look imposed) and [0218](0218-one-core-for-agents-in-uwui.md) (actions declared once serve the engine too)
 - Date: 2026-11-07
 
 ## Context

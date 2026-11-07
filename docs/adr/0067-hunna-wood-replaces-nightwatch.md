@@ -1,7 +1,7 @@
 # 0067. Hunna Wood replaces Nightwatch as the sample game
 
 - Status: Accepted; amends [0052](0052-amend-roadmap-before-0-1.md) (one game grown by every
-  stage) and [0055](0055-games-in-the-workspace.md) (the first game)
+  stage) and [0055](0055-games-in-the-workspace.md) (the first game); amended by [0219](0219-test-games-in-place-of-hunna-wood.md) (Hunna Wood no longer the sample)
 - Date: 2026-10-15
 
 ## Context

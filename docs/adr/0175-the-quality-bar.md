@@ -16,7 +16,7 @@
   [0191](0191-input-in-sway-start-budgets-and-the-editors-rate.md) (the budgets of a level opened
   and of a game to control), [0192](0192-the-budget-of-a-cold-start.md) (a cold start's budget)
   and [0193](0193-first-measures-of-resources.md) (the budgets of the editor's memory and video
-  memory and of a game's power)
+  memory and of a game's power), then by [0215](0215-the-engine-measured-against-the-market.md) (rivals measured and beaten by a margin, input timed to the photon)
 - Date: 2026-11-05
 
 ## Context

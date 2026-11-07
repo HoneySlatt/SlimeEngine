@@ -21,6 +21,15 @@ written before find it ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-wor
 **ADR (Architecture Decision Record).** A short document in [`docs/adr/`](adr/README.md) that
 records one decision: its context, the decision, the alternatives rejected and the consequences.
 
+**Agent bench.** A fixed set of tasks given to the same agents, with the same words, in the
+engine or in uwui and in their rivals, each with its own tools for agents; it measures success, the
+tries, the tokens and the time, each figure with its models, their versions and its date, at each
+release. The engine's tasks: a system of a game written, a level built from a brief, a bug fixed
+from a crash report, a scene brought within its budget, against Unreal, Unity and Godot
+([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)). uwui's: a screen from a mock-up,
+a feature added, a bug fixed, a port to the web, against other frameworks
+([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)). Not built yet.
+
 **Alpha mask.** Not drawing the fragments of a surface whose alpha falls below a cutoff, so that
 a texture can cut shapes out of it: glTF's `MASK` alpha mode (`slime_render::AlphaMode`).
 
@@ -94,11 +103,23 @@ as it reads the text, and its errors name the byte (`slime_serialize::encode`,
 *bind group layout* says which bindings it has and what each holds (`slime_gfx::BindGroupLayout`,
 [ADR-0026](adr/0026-resource-binding-and-depth.md)).
 
+**Blank window.** A program that only clears its window and presents it, measured on each
+machine and each screen beside the programs on uwui and their rivals: what any window already costs,
+its driver's memory, a start, power and the GPU's floor. A program's *own cost* is what it adds
+above it ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)).
+
 **Blending.** Laying a color over what a *render target* holds by its alpha, rather than replacing
 it, as a pipeline of the GPU layer may (`slime_gfx::Blend`): glass, smoke, the soft edges of icons
 and lines. A material blends with the alpha mode `Blend`, which only *unlit materials* draw before
 Stage 9a sorts transparent surfaces by their depth
 ([ADR-0129](adr/0129-drawing-for-the-editor.md)).
+
+**Blind test (by people).** People comparing captures without knowing which is which: of the
+engine and of Unreal on the same scenes, or of the engine and of games, at the end of each stage
+that touches rendering; stylised scenes, menus, faces and sound are judged so too. The owner and
+relatives first, the community after 0.14
+([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)). Not an *image test*, which a
+program checks.
 
 **Block (world).** Sixteen values of a component's storage side by side, whose summary, the latest
 tick at which one of them changed, lets a reader of what changed skip those that did not
@@ -228,6 +249,12 @@ program `slime-cook` cooks, before the game runs ([ADR-0069](adr/0069-the-asset-
 at every run: draw calls, items, elements, elements visited, the bytes of a save, allocations. CI
 checks that each equals the one that `benches/counters.txt` records
 ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)), and measures no time.
+
+**Creation bench.** Fixed tasks done in the engine and in Unreal by the same person and agents:
+a square kilometre of dense forest with a village, a character imported and animated, a lit
+interior, a short cutscene, a quest with its dialogue. It measures the human time, the agents'
+tokens and the machine's waits, imports, cooking, shaders and light, the quality judged in a *blind
+test* ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)). Not built yet.
 
 **Cube texture (cube map).** Six square images on the faces of a cube, which shaders read by
 direction: the face is the axis along which the direction is longest
@@ -769,6 +796,11 @@ enum whose variant holds no data (`slime_reflect::Registry::leaves`).
 many of them make the foliage of a tree for a fraction of the triangles that modelled leaves
 would take.
 
+**Levels of life (characters).** How fully a game's characters live, each level lighter than the
+one before: *visible*, drawn in the crowd; *alive*, near the player, each with a schedule,
+perception and a memory of the player's acts; *simulated out of sight*, lighter still. Their
+figures come at Stage 10a ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)).
+
 **Line (drawings).** A segment between two points of the world that a client draws into a view, as a
 band that faces the camera, a width in the output's pixels wide, its edges smoothed over a pixel
 (`slime_render::Line`, [ADR-0129](adr/0129-drawing-for-the-editor.md)).
@@ -802,6 +834,13 @@ of its dev overlay: Geist and Geist Mono, a style sheet, and *themes* stacked, a
 of colors, dark, light or high contrast, and a compact one (`uwui::look`, built with
 `uwui`'s feature `editor-look`; [ADR-0148](adr/0148-widgets.md),
 [ADR-0149](adr/0149-the-looks-foundations.md)).
+
+**Look file.** A game's file that chooses its look: each effect after the frame, and the curve of
+*tone mapping*. Nothing in the engine is on by default: a new game starts neutral, its curve Khronos
+PBR Neutral written in its look file, or from one of several looks very unlike each other
+([ADR-0215](adr/0215-the-engine-measured-against-the-market.md),
+[ADR-0216](adr/0216-light-geometry-and-the-gpus-floor.md)). Not built yet: the renderer's curve of
+tones is fixed today.
 
 **Lux (lx).** The unit of *illuminance*, lumens per square metre: the strength of a directional
 light (`illuminance`); about 100 000 for direct sunlight, 400 at sunrise.
@@ -981,6 +1020,11 @@ Stage 6b.
 or removed, an entity of the prefab removed or one added, written by the scene that places it. It
 stays when the prefab later takes the same value, and one whose target the prefab no longer has is
 kept and reported ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
+
+**Own cost (program).** What a program adds above the *blank window* on the same machine and
+screen: memory, the start, the processor, power, a frame's time and the package's size. uwui's lead
+over its rivals is measured on it
+([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)).
 
 **Own wake-up.** A thread of a program leaving its wait when nothing outside asked it: a timer or a
 poll of the program's own, not an input, a request or a load that ends. Every thread counts, its
@@ -1286,7 +1330,9 @@ a resume goes on with.
 tests coverage and depth; not the *sample* of a stage.
 
 **Sample game.** The game in `games/` that every stage grows from Stage 3c on, as its *sample*:
-*Nightwatch*, then *Hunna Wood* from Stage 4a ([ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)).
+*Nightwatch*, then *Hunna Wood* from Stage 4a ([ADR-0067](adr/0067-hunna-wood-replaces-nightwatch.md)). *Hunna Wood* leaves the
+repository at Stage 6e's first milestone, and the *test games* take its place
+([ADR-0219](adr/0219-test-games-in-place-of-hunna-wood.md)).
 
 **Sample.** What demonstrates the exit criterion of a stage: an example up to Stage 3b, the *sample
 game* from Stage 3c. Every stage ends with one.
@@ -1543,6 +1589,31 @@ for, such as a load or the cooker's encoding, which never holds every thread
 terminal), SIGTERM (a service manager or `kill`) or SIGHUP (the terminal closing). The first one
 stops a run cleanly; a second one, half a second or more later, ends the process at once
 ([ADR-0012](adr/0012-clean-shutdown-on-termination-signals.md)).
+
+**Test game.** A small game in `games/`, one per *leading profile*, which grows only by what the
+stage in progress needs, and which every stage ends with grown and run: `games/open-world`, a
+realistic slice of an open world, from *Hunna Wood*'s zone and assets without its identity;
+`games/arena`, a competitive shooter; `games/metroidvania`, a game in 2D, which becomes the first
+game sold, its content in a private repository. Their code is under MIT-0 ([ADR-0219](adr/0219-test-games-in-place-of-hunna-wood.md)). None exists yet:
+`games/open-world` takes *Hunna Wood*'s place at Stage 6e's first milestone
+([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
+
+**Test of signature.** A check that the engine imposes no look: judges shown the engine's looks
+among other engines' games guess which share an engine, and must recognise the engine's no more
+often than chance. It closes each stage that touches rendering; applications on uwui take one too
+([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)).
+
+**Test world.** A world made to measure density, apart from any game: a large world mixing a city's
+district and a forest, each at the density of the best rival measured, made mostly with the tools of
+procedural generation and crossed fast without a hitch on every tier; and a sparse world at the
+scale of a planet, to show that no limit of area holds. They come at Stage 10a
+([ADR-0217](adr/0217-worlds-by-density-generated-and-destroyed.md)).
+
+**Tester agents.** Agents that play the *test games* end to end through the MCP server at the end
+of each stage, and report what blocks, crashes or misses a budget
+([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)). Not built yet: games get input
+actions that they can drive at Stage 7
+([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
 
 **Texture role.** What a cooked texture is used for: colors, data or normals, which sets how the
 cooker averages its levels and compresses it ([ADR-0071](adr/0071-cooked-textures.md)).
