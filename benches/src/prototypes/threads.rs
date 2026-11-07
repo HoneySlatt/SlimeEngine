@@ -268,7 +268,7 @@ pub(crate) fn print_times(runs: usize) -> Result<(), String> {
             first.wakes,
             first
                 .deadline
-                .map_or("none".to_owned(), |at| format!("{} s", at.as_secs())),
+                .map_or("none".to_owned(), |at| format!("{:.0} s", at.as_secs_f64())),
         );
     }
     println!();
