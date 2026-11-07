@@ -1,9 +1,9 @@
 //! Changes from another thread with signals: Slatty's downloads, a list of games whose progress
 //! the application's core sends from its own threads, one game at a time or in batches, by the
-//! game's place. The core holds a [`Sender`], never a signal; the view's task receives each
-//! update and sets the game's signal, so that only its row's label runs again, if it shows. The
-//! receiver is the application's, made before the view: a reload's new view reads it again, and
-//! the updates counted are kept by their name.
+//! game's place. The core holds a [`Sender`](super::channel::Sender), never a signal; the view's
+//! task receives each update and sets the game's signal, so that only its row's label runs again,
+//! if it shows. The receiver is the application's, made before the view: a reload's new view
+//! reads it again, and the updates counted are kept by their name.
 //!
 //! The model's concepts, past those of the other screens:
 //! - `channel`, whose `Sender` any thread holds and whose `Receiver` the interface's thread reads
