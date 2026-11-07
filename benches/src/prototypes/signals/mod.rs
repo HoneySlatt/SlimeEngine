@@ -8,6 +8,8 @@
 
 pub mod document;
 pub mod hello;
+#[cfg(test)]
+mod kept;
 pub mod library;
 pub mod mistakes;
 mod runtime;
@@ -27,7 +29,7 @@ use super::data;
 use super::described::{self, Arg, Child, Map, On, Registry};
 use super::host::Model;
 use super::screens::{self, Edit, Screen, screen};
-use runtime::{Id, Runtime, current, enter};
+use runtime::{Id, Kept, Path, Runtime, current, enter};
 
 /// What a screen's file writes with.
 pub mod prelude {
@@ -107,12 +109,46 @@ impl<T: Clone + PartialEq + 'static> RwSignal<T> {
         runtime.changed(self.id);
     }
 
+    /// A signal named `name` in its view's scope, whose value a reload keeps, read again into `T`
+    /// as the reloaded code has it; `make` gives its first value, and runs only when no reload
+    /// kept one. A signal that is not named starts again at each reload.
+    ///
+    /// # Panics
+    ///
+    /// If its scope holds a signal of that name already.
+    pub fn kept(name: &'static str, make: impl FnOnce() -> T) -> Self
+    where
+        T: serde::Serialize + serde::de::DeserializeOwned,
+    {
+        Self::of(current().kept_signal(name, make))
+    }
+
     fn get_untracked(self) -> T {
         let held = current().value(self.id);
         let held = held.borrow();
         held.downcast_ref::<T>()
             .expect("a signal of its type")
             .clone()
+    }
+}
+
+/// A signal written as its value, as a kept value that holds signals writes them.
+impl<T: serde::Serialize + 'static> serde::Serialize for RwSignal<T> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let held = current().value(self.id);
+        let held = held.borrow();
+        held.downcast_ref::<T>()
+            .expect("a signal of its type")
+            .serialize(serializer)
+    }
+}
+
+/// A signal read as its value, made in the scope that reads it.
+impl<'de, T: Clone + PartialEq + serde::Deserialize<'de> + 'static> serde::Deserialize<'de>
+    for RwSignal<T>
+{
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        T::deserialize(deserializer).map(Self::new)
     }
 }
 
@@ -174,6 +210,17 @@ impl<T: Clone + 'static> Stored<T> {
     pub fn new(value: T) -> Self {
         Self {
             id: current().signal(value),
+            value: PhantomData,
+        }
+    }
+
+    /// A value named `name` in its view's scope, which a reload keeps, as [`RwSignal::kept`].
+    pub fn kept(name: &'static str, make: impl FnOnce() -> T) -> Self
+    where
+        T: serde::Serialize + serde::de::DeserializeOwned,
+    {
+        Self {
+            id: current().kept_signal(name, make),
             value: PhantomData,
         }
     }
@@ -592,6 +639,8 @@ struct Rows {
     row: Rc<dyn Fn(usize) -> El>,
     /// The scope that owns the rows' scopes.
     scope: Id,
+    /// The list's path, which each row's key ends.
+    path: Path,
     mounted: RefCell<Map<Key, Id>>,
     /// Moved when the rows show something else.
     revision: Cell<u64>,
@@ -612,6 +661,8 @@ struct Dyn {
     parent: Target,
     siblings: Vec<Key>,
     place: usize,
+    /// Its path, its scopes'.
+    path: Path,
     content: Cell<Option<Id>>,
     revision: Cell<u64>,
 }
@@ -670,9 +721,45 @@ impl Mounting<'_> {
     }
 }
 
-/// Puts `el` among `children` under `key`: each closure that it was given bound, its handlers
-/// kept, its children mounted.
-fn mount(children: &mut Children<'_>, key: Key, el: El, mounting: &mut Mounting<'_>) -> ElementId {
+/// The keys above an element being put in the tree, from the window's root, held on the stack:
+/// mounting allocates a path only for a list or a dynamic view, whose rows' scopes take it.
+#[derive(Clone, Copy)]
+enum Up<'a> {
+    Base(&'a [Key]),
+    Key(&'a Key, &'a Up<'a>),
+}
+
+impl Up<'_> {
+    /// The path of the element `last` below.
+    fn path(&self, last: &Key) -> Path {
+        let mut keys = vec![last.clone()];
+        let mut at = *self;
+        loop {
+            match at {
+                Up::Key(key, up) => {
+                    keys.push(key.clone());
+                    at = *up;
+                }
+                Up::Base(base) => {
+                    keys.extend(base.iter().rev().cloned());
+                    break;
+                }
+            }
+        }
+        keys.reverse();
+        keys.into()
+    }
+}
+
+/// Puts `el` among `children` under `key`, below `up`: each closure that it was given bound, its
+/// handlers kept, its children mounted.
+fn mount(
+    children: &mut Children<'_>,
+    key: Key,
+    el: El,
+    mounting: &mut Mounting<'_>,
+    up: &Up<'_>,
+) -> ElementId {
     let El {
         mut element,
         changes,
@@ -729,19 +816,22 @@ fn mount(children: &mut Children<'_>, key: Key, el: El, mounting: &mut Mounting<
     let id = match content {
         Content::Children(kids) => {
             let parent: Target = Rc::new(Cell::new(None));
+            let own = key.clone();
             let id = children.add(key, element, |children| {
-                mount_children(children, kids, &parent, mounting);
+                mount_children(children, kids, &parent, mounting, &Up::Key(&own, up));
             });
             parent.set(Some(id));
             id
         }
         Content::List(row) => {
+            let path = up.path(&key);
             let id = children.add_slot(key, element);
             mounting.rows.push(Rc::new(Rows {
                 id: Cell::new(Some(id)),
                 keys: RefCell::new(None),
                 row,
                 scope: mounting.scope,
+                path,
                 mounted: RefCell::new(Map::default()),
                 revision: Cell::new(mounting.revision),
             }));
@@ -753,6 +843,7 @@ fn mount(children: &mut Children<'_>, key: Key, el: El, mounting: &mut Mounting<
                 keys: RefCell::new(None),
                 row: cell,
                 scope: mounting.scope,
+                path: up.path(&key),
                 mounted: RefCell::new(Map::default()),
                 revision: Cell::new(mounting.revision),
             });
@@ -776,23 +867,25 @@ fn mount(children: &mut Children<'_>, key: Key, el: El, mounting: &mut Mounting<
     id
 }
 
-/// Puts `kids` among `children`, those that are dynamic views as what they show now.
+/// Puts `kids` among `children`, below `up`, those that are dynamic views as what they show now.
 fn mount_children(
     children: &mut Children<'_>,
     kids: Vec<El>,
     parent: &Target,
     mounting: &mut Mounting<'_>,
+    up: &Up<'_>,
 ) {
     let keys: Vec<Key> = (0..kids.len()).map(|at| Key::Index(at as u64)).collect();
     for (place, kid) in kids.into_iter().enumerate() {
         let Content::Dyn(view) = kid.content else {
-            mount(children, keys[place].clone(), kid, mounting);
+            mount(children, keys[place].clone(), kid, mounting, up);
             continue;
         };
         let state = Rc::new(Dyn {
             parent: Rc::clone(parent),
             siblings: keys.clone(),
             place,
+            path: up.path(&keys[place]),
             content: Cell::new(None),
             revision: Cell::new(mounting.revision),
         });
@@ -804,7 +897,7 @@ fn mount_children(
                 if let Some(before) = made.content.take() {
                     runtime.dispose(before);
                 }
-                let scope = runtime.scope();
+                let scope = runtime.scope(Rc::clone(&made.path), None);
                 made.content.set(Some(scope));
                 runtime.owned_by(scope, || view())
             },
@@ -813,7 +906,7 @@ fn mount_children(
         if let Some(shown) = first {
             let scope = state.content.get().expect("made as it ran");
             let outer = std::mem::replace(&mut mounting.scope, scope);
-            mount(children, keys[place].clone(), shown, mounting);
+            mount(children, keys[place].clone(), shown, mounting, up);
             mounting.scope = outer;
         }
     }
@@ -842,16 +935,18 @@ impl<H: Copy + 'static> Signals<H> {
             let (handle, view) = start();
             (handle, element_of(view))
         });
-        Self::started(VecDeque::new(), now, start)
+        Self::started(VecDeque::new(), (Kept::default(), Vec::new()), now, start)
     }
 
-    /// The application that `start` makes, its root scope's signals taking `replay`'s values.
+    /// The application that `start` makes, its root scope's signals taking `replay`'s values, and
+    /// its kept signals `kept`'s, with the notes of what could not be kept.
     fn started(
         replay: VecDeque<Box<dyn std::any::Any>>,
+        (kept, notes): (Kept, Vec<String>),
         now: Instant,
         start: Rc<dyn Fn() -> (H, El)>,
     ) -> Self {
-        let runtime = Runtime::new(replay);
+        let runtime = Runtime::new(replay, kept, notes);
         let (handle, view) = enter(&runtime, || {
             runtime.clock.set(Some(runtime.signal(now)));
             start()
@@ -868,23 +963,30 @@ impl<H: Copy + 'static> Signals<H> {
         }
     }
 
-    /// Reloads the view's function as `start`, as a reload of its body does: run again in a new
-    /// runtime, the root scope's signals taking their values in the order that they are made,
-    /// and mounted over the tree, whose elements its keys match keep their state.
-    #[cfg(test)]
+    /// Reloads the view's function as `start`, its body or its types changed: run again in a new
+    /// runtime, each kept signal taking the value that the one of its name and its scope's path
+    /// held, the others their first values, and mounted over the tree, whose elements its keys
+    /// match keep their state.
     pub(crate) fn reload<V: View>(&mut self, start: impl Fn() -> (H, V) + 'static) {
         let start: Rc<dyn Fn() -> (H, El)> = Rc::new(move || {
             let (handle, view) = start();
             (handle, element_of(view))
         });
         let generation = self.generation + 1;
-        let replay = self.runtime.snapshot();
+        // Within the runtime: a kept value that holds signals writes their values.
+        let kept = enter(&self.runtime, || self.runtime.kept_values());
         // The view before is disposed, its cleanups run: its tasks are cancelled, and the new
         // view starts its own.
         let before = Rc::clone(&self.runtime);
         enter(&before, || before.dispose(before.root()));
-        *self = Self::started(replay, Instant::now(), start);
+        *self = Self::started(VecDeque::new(), kept, Instant::now(), start);
         self.generation = generation;
+    }
+
+    /// What the last reload could not keep, and the kept values that no signal took yet.
+    #[cfg(test)]
+    pub(crate) fn notes(&self) -> Vec<String> {
+        self.runtime.notes()
     }
 
     /// Gives the tree what the bindings that ran again ask.
@@ -948,7 +1050,14 @@ impl<H: Copy + 'static> Signals<H> {
                 if place != state.place {
                     children.keep(key.clone());
                 } else if let Some(shown) = shown.take() {
-                    mount(children, key.clone(), *shown, &mut mounting);
+                    let parent = &state.path[..state.path.len() - 1];
+                    mount(
+                        children,
+                        key.clone(),
+                        *shown,
+                        &mut mounting,
+                        &Up::Base(parent),
+                    );
                 }
             }
         });
@@ -985,7 +1094,9 @@ impl<H: Copy + 'static> Signals<H> {
                         }
                         runtime.dispose(scope);
                     }
-                    let scope = runtime.owned_by(rows.scope, || runtime.scope());
+                    let path = Rc::clone(&rows.path);
+                    let scope =
+                        runtime.owned_by(rows.scope, || runtime.scope(path, Some(key.clone())));
                     let row = runtime.owned_by(scope, || runtime.untracked(|| (rows.row)(place)));
                     made += 1;
                     let mut mounting = Mounting {
@@ -996,7 +1107,13 @@ impl<H: Copy + 'static> Signals<H> {
                         rows: Vec::new(),
                         theme: None,
                     };
-                    mount(children, key.clone(), row, &mut mounting);
+                    mount(
+                        children,
+                        key.clone(),
+                        row,
+                        &mut mounting,
+                        &Up::Base(&rows.path),
+                    );
                     made_rows.extend(mounting.rows);
                     now.insert(key, scope);
                 }
@@ -1050,7 +1167,7 @@ impl<H: Copy + 'static> Model for Signals<H> {
                     theme: None,
                 };
                 ui.build(root, self.generation << 32, |children| {
-                    mount(children, Key::Index(0), view, &mut mounting);
+                    mount(children, Key::Index(0), view, &mut mounting, &Up::Base(&[]));
                 });
                 if let Some(theme) = mounting.theme {
                     ui.set_theme(theme);
@@ -1070,6 +1187,7 @@ impl<H: Copy + 'static> Model for Signals<H> {
     fn fresh(&self) -> Self {
         Self::started(
             self.runtime.snapshot(),
+            (Kept::default(), Vec::new()),
             Instant::now(),
             Rc::clone(&self.start),
         )
@@ -1092,18 +1210,23 @@ pub(crate) const HELLO: Screen<Signals<()>> = screen(
 
 pub(crate) const LIBRARY: Screen<Signals<()>> = screen(
     screens::LIBRARY,
-    |now| {
-        Signals::open(now, || {
-            let games = data::games(10_000, |title, cover, art| library::Game {
-                title,
-                cover,
-                art,
-            });
-            ((), library::library(games))
-        })
-    },
+    |now| Signals::open(now, library_view),
     screens::library,
 );
+
+/// Slatty's library, its 10,000 games made.
+fn library_view() -> ((), impl View) {
+    ((), library::library(library_games()))
+}
+
+/// Slatty's 10,000 games.
+pub(crate) fn library_games() -> Vec<library::Game> {
+    data::games(10_000, |title, cover, art| library::Game {
+        title,
+        cover,
+        art,
+    })
+}
 
 pub(crate) const SONGS: Screen<Signals<()>> = screen(
     screens::SONGS,
@@ -1126,14 +1249,15 @@ pub(crate) const SONGS: Screen<Signals<()>> = screen(
 
 pub(crate) const DOCUMENT: Screen<Signals<document::Document>> = screen(
     screens::DOCUMENT,
-    |now| {
-        Signals::open(now, || {
-            let document = document::Document::new(data::lines(100_000));
-            (document, document.view())
-        })
-    },
+    |now| Signals::open(now, document_view),
     screens::document,
 );
+
+/// The document of 100,000 lines, made unless a reload kept them.
+pub(crate) fn document_view() -> (document::Document, impl View) {
+    let document = document::Document::new(|| data::lines(100_000));
+    (document, document.view())
+}
 
 impl Edit for Signals<document::Document> {
     fn edit(&mut self, line: usize, text: String) {

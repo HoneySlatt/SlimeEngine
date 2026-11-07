@@ -60,7 +60,7 @@ impl Cost {
 }
 
 /// What `run` gives, and what it cost.
-fn costed<T>(run: impl FnOnce() -> T) -> (T, Cost) {
+pub(crate) fn costed<T>(run: impl FnOnce() -> T) -> (T, Cost) {
     let ((value, time), allocations) = counted(|| timed(run));
     (value, Cost { time, allocations })
 }

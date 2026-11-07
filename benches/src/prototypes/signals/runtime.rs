@@ -5,12 +5,24 @@
 //! `flush` runs, the memos first, a memo telling its own only when its value changed.
 //!
 //! Its two panics are those of Floem: a value borrowed twice, its `RefCell`'s, and a signal of a
-//! scope disposed, read.
+//! scope disposed, read; and a third of its own, two signals of one name in one scope.
+//!
+//! A signal may be named in its scope, *kept*: a reload writes its value through `serde`, by its
+//! scope's path and its name, into a form that does not depend on its type's layout, and the
+//! signal of that name in the scope of that path takes it back, read into its type as it is now.
+//! A scope's path is the keys of the element that made it, from the window's root: a row's, or a
+//! dynamic view's. A signal that is not named starts again from its first value at each reload.
 
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
+
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+use uwui::tree::Key;
+
+use crate::prototypes::described::Map;
 
 /// A node of the graph: its place in the arena, and the generation of that place, so that the id
 /// of a node disposed names no other.
@@ -26,6 +38,16 @@ pub(crate) type Value = Rc<RefCell<dyn Any>>;
 /// What clones a signal's value, for a new interface built from the same state.
 type Cloner = fn(&dyn Any) -> Box<dyn Any>;
 
+/// What writes a kept signal's value into a form by its fields' names, through `serde`.
+type Writer = fn(&dyn Any) -> serde_json::Result<serde_json::Value>;
+
+/// The keys of an element from the window's root: a scope's path.
+pub(crate) type Path = Rc<[Key]>;
+
+/// The values of a runtime's kept signals, by their scopes' paths and their names: what a reload
+/// keeps.
+pub(crate) type Kept = Map<Vec<Key>, Vec<(String, serde_json::Value)>>;
+
 enum Kind {
     /// A signal or a value stored, cloned by its cloner.
     Signal(Cloner),
@@ -34,6 +56,13 @@ enum Kind {
     /// A binding: what runs again when what it read changes.
     Binding(Rc<dyn Fn()>),
     Scope,
+}
+
+/// Where a scope is: the path of the element that made it, `base`, which a row's key ends. A
+/// list's rows share its path, so that a row's scope allocates none.
+struct Place {
+    base: Path,
+    key: Option<Key>,
 }
 
 struct Node {
@@ -79,6 +108,16 @@ pub(crate) struct Runtime {
     /// The values that the root scope's signals take as they are made, in their order, for a new
     /// interface built from the same state: none past them.
     replay: RefCell<VecDeque<Box<dyn Any>>>,
+    /// The name and the writer of each kept signal, apart from the nodes, so that a signal not
+    /// named holds no more than it did before names.
+    names: RefCell<Map<Id, (&'static str, Writer)>>,
+    /// Where each scope is but the root, whose path is empty, apart from the nodes too.
+    places: RefCell<Map<Id, Place>>,
+    /// The values that a reload kept, which the signals of their names take as they are made.
+    kept: RefCell<Kept>,
+    /// What the reload could not keep: a value that does not read as its signal's type now, or
+    /// that could not be written.
+    notes: RefCell<Vec<String>>,
     /// The signal of each frame's time.
     pub(crate) clock: Cell<Option<Id>>,
 }
@@ -116,8 +155,9 @@ pub(crate) fn enter<R>(runtime: &Rc<Runtime>, run: impl FnOnce() -> R) -> R {
 
 impl Runtime {
     /// A runtime whose root scope's signals take `replay`'s values, in their order, as they are
-    /// made.
-    pub(crate) fn new(replay: VecDeque<Box<dyn Any>>) -> Rc<Self> {
+    /// made, and whose kept signals take `kept`'s, by their names; `notes` what the reload could
+    /// not keep before.
+    pub(crate) fn new(replay: VecDeque<Box<dyn Any>>, kept: Kept, notes: Vec<String>) -> Rc<Self> {
         let root = Id {
             index: 0,
             generation: 0,
@@ -136,6 +176,10 @@ impl Runtime {
             root,
             made: RefCell::new(Vec::new()),
             replay: RefCell::new(replay),
+            names: RefCell::new(Map::default()),
+            places: RefCell::new(Map::default()),
+            kept: RefCell::new(kept),
+            notes: RefCell::new(notes),
             clock: Cell::new(None),
         })
     }
@@ -157,6 +201,56 @@ impl Runtime {
                 Some(clone(&*node.value.as_ref()?.borrow()))
             })
             .collect()
+    }
+
+    /// The values of the kept signals, written by their names: what a reload keeps; and the notes
+    /// of those that could not be written, which are not kept.
+    pub(crate) fn kept_values(&self) -> (Kept, Vec<String>) {
+        let slots = self.slots.borrow();
+        let mut kept = Kept::default();
+        let mut notes = Vec::new();
+        let mut names: Vec<_> = self
+            .names
+            .borrow()
+            .iter()
+            .map(|(&id, &named)| (id, named))
+            .collect();
+        // In the order that the signals were made in, the same at every run.
+        names.sort_unstable_by_key(|&(id, _)| id);
+        for (id, (name, write)) in names {
+            let Some(node) = node(&slots, id) else {
+                continue;
+            };
+            let value = node.value.as_ref().expect("a signal holds a value");
+            let Some(owner) = node.owner else {
+                continue;
+            };
+            let path = self.path_of(owner);
+            match write(&*value.borrow()) {
+                Ok(form) => kept.entry(path).or_default().push((name.to_owned(), form)),
+                Err(error) => notes.push(format!("`{name}` not kept: {error}")),
+            }
+        }
+        (kept, notes)
+    }
+
+    /// What the reload could not keep, and the kept values that no signal took yet: a signal
+    /// renamed, or of a scope not made again, as a row that no longer shows.
+    #[cfg(test)]
+    pub(crate) fn notes(&self) -> Vec<String> {
+        let mut notes = self.notes.borrow().clone();
+        let kept = self.kept.borrow();
+        let mut left: Vec<String> = kept
+            .iter()
+            .flat_map(|(path, names)| {
+                names
+                    .iter()
+                    .map(move |(name, _)| format!("`{name}` at {path:?} taken by no signal"))
+            })
+            .collect();
+        left.sort();
+        notes.extend(left);
+        notes
     }
 
     fn insert(&self, node: Node) -> Id {
@@ -192,6 +286,60 @@ impl Runtime {
 
     /// A signal of `value`, or, made by the root scope, of the value that it replays.
     pub(crate) fn signal<T: Clone + 'static>(&self, value: T) -> Id {
+        self.signal_named(value)
+    }
+
+    /// A signal named `name` in the scope that makes it: of the value that a reload kept under
+    /// that name, read into `T`, or else of `make`'s, which runs only then. A kept value that does
+    /// not read as `T` is noted, and `make`'s taken.
+    ///
+    /// # Panics
+    ///
+    /// If its scope holds a signal of that name already.
+    pub(crate) fn kept_signal<T: Clone + Serialize + DeserializeOwned + 'static>(
+        &self,
+        name: &'static str,
+        make: impl FnOnce() -> T,
+    ) -> Id {
+        let owner = self.owner.get().expect("a scope owns what is made");
+        {
+            let slots = self.slots.borrow();
+            let names = self.names.borrow();
+            let scope = node(&slots, owner).expect("a scope not disposed");
+            let named = scope
+                .owned
+                .iter()
+                .any(|id| names.get(id).is_some_and(|&(held, _)| held == name));
+            assert!(!named, "two signals named `{name}` in one scope");
+        }
+        // A path, which allocates, only while a reload's values wait for their signals.
+        let path = (!self.kept.borrow().is_empty()).then(|| self.path_of(owner));
+        let form = path.and_then(|path| {
+            let mut kept = self.kept.borrow_mut();
+            let names = kept.get_mut(&path)?;
+            let at = names.iter().position(|(held, _)| held == name)?;
+            let (_, form) = names.swap_remove(at);
+            if names.is_empty() {
+                kept.remove(&path);
+            }
+            Some(form)
+        });
+        let value = form.and_then(|form| match serde_json::from_value::<T>(form) {
+            Ok(value) => Some(value),
+            Err(error) => {
+                self.notes
+                    .borrow_mut()
+                    .push(format!("`{name}` started again: {error}"));
+                None
+            }
+        });
+        let value = value.unwrap_or_else(make);
+        let id = self.signal_named(value);
+        self.names.borrow_mut().insert(id, (name, write::<T>));
+        id
+    }
+
+    fn signal_named<T: Clone + 'static>(&self, value: T) -> Id {
         let owner = self.owner.get();
         let value = if owner == Some(self.root) {
             let replayed = self.replay.borrow_mut().pop_front();
@@ -232,9 +380,23 @@ impl Runtime {
         id
     }
 
-    /// A scope, owned by the scope that owns what is made now.
-    pub(crate) fn scope(&self) -> Id {
-        self.insert(Node::new(Kind::Scope, None, self.owner.get()))
+    /// A scope at the path `base`, ended by `key` if given, owned by the scope that owns what is
+    /// made now.
+    pub(crate) fn scope(&self, base: Path, key: Option<Key>) -> Id {
+        let id = self.insert(Node::new(Kind::Scope, None, self.owner.get()));
+        self.places.borrow_mut().insert(id, Place { base, key });
+        id
+    }
+
+    /// The path of the scope `id`: the root's, empty.
+    fn path_of(&self, id: Id) -> Vec<Key> {
+        let places = self.places.borrow();
+        let Some(Place { base, key }) = places.get(&id) else {
+            return Vec::new();
+        };
+        let mut path = base.to_vec();
+        path.extend(key.clone());
+        path
     }
 
     /// The root scope.
@@ -454,6 +616,8 @@ impl Runtime {
         let slot = &mut slots[id.index as usize];
         slot.node = None;
         slot.generation += 1;
+        self.names.borrow_mut().remove(&id);
+        self.places.borrow_mut().remove(&id);
         self.free.borrow_mut().push(id.index);
     }
 }
@@ -472,6 +636,11 @@ impl Node {
             queued: false,
         }
     }
+}
+
+/// Writes a value of `T` into a form by its fields' names.
+fn write<T: Serialize + 'static>(value: &dyn Any) -> serde_json::Result<serde_json::Value> {
+    serde_json::to_value(value.downcast_ref::<T>().expect("a value of its type"))
 }
 
 fn node(slots: &[Slot], id: Id) -> Option<&Node> {

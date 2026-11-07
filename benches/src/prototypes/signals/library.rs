@@ -8,6 +8,9 @@
 //!   changes, and nothing else does
 //! - `RwSignal`, a `Copy` handle to a value: `get`, `set`, which tells only of a value that
 //!   changed, `update` and `with`
+//! - `RwSignal::kept`, a signal named in its view, whose value a reload keeps, its type changed
+//!   too, through `serde`; its first value given by a closure
+//! - the rule: a signal not named starts again at each reload
 //! - `Memo`, a value worked out from signals, again when they change
 //! - `Stored`, a `Copy` handle to a value that no closure tracks
 //! - a closure given where a value would be, `move || …`, which the view tracks
@@ -42,14 +45,14 @@ const CELL: [f32; 2] = [150.0, 200.0];
 
 pub fn library(games: Vec<Game>) -> impl View {
     let games = Stored::new(games);
-    let filter = RwSignal::new(String::new());
+    let filter = RwSignal::kept("filter", String::new);
     // The games that the filter keeps, by their places in `games`.
     let shown = Memo::new(move || games.with(|games| matching(games, &filter.get())));
     // The place in `shown` of the game selected.
-    let selected = RwSignal::new(0);
+    let selected = RwSignal::kept("selected", || 0);
     // The game whose page is open.
-    let page = RwSignal::new(None);
-    let dark = RwSignal::new(true);
+    let page = RwSignal::kept("page", || None);
+    let dark = RwSignal::kept("dark", || true);
     let open = move |place: usize| page.set(shown.with(|shown| shown.get(place).copied()));
     stack((
         column((

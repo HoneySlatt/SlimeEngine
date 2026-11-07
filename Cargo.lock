@@ -2986,6 +2986,8 @@ name = "slime-benches"
 version = "0.6.0"
 dependencies = [
  "hunnawood-editor",
+ "serde",
+ "serde_json",
  "slime-app",
  "slime-assets",
  "slime-channel",

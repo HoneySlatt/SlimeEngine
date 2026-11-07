@@ -12,6 +12,7 @@
 //! cargo run --release -p slime-benches -- --prototypes                 # every model and screen
 //! cargo run --release -p slime-benches -- --prototypes views library   # a model, a screen
 //! cargo run --release -p slime-benches -- --prototypes --runs 5        # fewer runs than 21
+//! cargo run --release -p slime-benches -- --prototypes --reloads       # signals' reloads, timed
 //! ```
 //!
 //! It prints Markdown, which uwui's `docs/measurements.md` takes. With `PROTOTYPES_DUMP` set, each
@@ -22,7 +23,6 @@ mod data;
 mod described;
 mod host;
 mod messages;
-#[cfg(test)]
 mod reload;
 mod screens;
 mod signals;
@@ -54,9 +54,12 @@ const SCREENS: [&str; 5] = ["hello", "library", "songs", "document", "mistakes"]
 pub fn run(arguments: &[String]) -> Result<(), String> {
     let mut runs = RUNS;
     let mut names = Vec::new();
+    let mut reloads = false;
     let mut arguments = arguments.iter();
     while let Some(argument) = arguments.next() {
-        if argument == "--runs" {
+        if argument == "--reloads" {
+            reloads = true;
+        } else if argument == "--runs" {
             runs = arguments
                 .next()
                 .and_then(|runs| runs.parse().ok())
@@ -97,6 +100,9 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
             "release"
         }
     );
+    if reloads {
+        return reload::print_times(runs);
+    }
     chosen.bench("control", "hello", &control::HELLO)?;
     chosen.bench("control", "library", &control::LIBRARY)?;
     chosen.bench("control", "songs", &control::SONGS)?;

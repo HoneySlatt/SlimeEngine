@@ -10,6 +10,8 @@
 //! - `RwSignal`, a `Copy` handle to a value: `get`, `set`, which tells only of a value that
 //!   changed
 //! - `Stored`, a `Copy` handle to a value that no closure tracks
+//! - `Stored::kept`, a value named in its view, whose value a reload keeps through `serde`, the
+//!   signals that it holds too; its first value given by a closure
 //! - a closure given where a value would be, `move || …`, which the view tracks
 //! - the rule: a signal read outside a closure that the view tracks is read once
 //!
@@ -31,11 +33,9 @@ pub struct Document {
 }
 
 impl Document {
-    pub fn new(lines: Vec<String>) -> Self {
-        let lines = lines.into_iter().map(RwSignal::new).collect();
-        Self {
-            lines: Stored::new(lines),
-        }
+    pub fn new(lines: impl FnOnce() -> Vec<String>) -> Self {
+        let lines = Stored::kept("lines", || lines().into_iter().map(RwSignal::new).collect());
+        Self { lines }
     }
 
     /// Gives `line` the text `text`, as an edit from outside the screen would.
