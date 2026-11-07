@@ -10,7 +10,7 @@
 //! - `RwSignal`, a `Copy` handle to a value: `get`, `set`, which tells only of a value that
 //!   changed
 //! - `Stored`, a `Copy` handle to a value that no closure tracks
-//! - `Stored::kept`, a value named in its view, whose value a reload keeps through `serde`, the
+//! - `Stored::kept`, a value named in its scope, whose value a reload keeps through `serde`, the
 //!   signals that it holds too; its first value given by a closure
 //! - a closure given where a value would be, `move || …`, which the view tracks
 //! - the rule: a signal read outside a closure that the view tracks is read once

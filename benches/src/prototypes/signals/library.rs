@@ -8,7 +8,7 @@
 //!   changes, and nothing else does
 //! - `RwSignal`, a `Copy` handle to a value: `get`, `set`, which tells only of a value that
 //!   changed, `update` and `with`
-//! - `RwSignal::kept`, a signal named in its view, whose value a reload keeps, its type changed
+//! - `RwSignal::kept`, a signal named in its scope, whose value a reload keeps, its type changed
 //!   too, through `serde`; its first value given by a closure
 //! - the rule: a signal not named starts again at each reload
 //! - `Memo`, a value worked out from signals, again when they change

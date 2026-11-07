@@ -215,7 +215,7 @@ impl Runtime {
             .iter()
             .map(|(&id, &named)| (id, named))
             .collect();
-        // In the order that the signals were made in, the same at every run.
+        // In the order of their places in the arena: the same at every run.
         names.sort_unstable_by_key(|&(id, _)| id);
         for (id, (name, write)) in names {
             let Some(node) = node(&slots, id) else {
@@ -234,12 +234,11 @@ impl Runtime {
         (kept, notes)
     }
 
-    /// What the reload could not keep, and the kept values that no signal took yet: a signal
-    /// renamed, or of a scope not made again, as a row that no longer shows.
-    #[cfg(test)]
-    pub(crate) fn notes(&self) -> Vec<String> {
-        let mut notes = self.notes.borrow().clone();
-        let kept = self.kept.borrow();
+    /// Ends a reload once its frames are built: the kept values that no signal took, a signal
+    /// renamed, or of a scope not made again, as a row that no longer shows, are noted and
+    /// dropped. A scope made after does not take them.
+    pub(crate) fn end_reload(&self) {
+        let kept = std::mem::take(&mut *self.kept.borrow_mut());
         let mut left: Vec<String> = kept
             .iter()
             .flat_map(|(path, names)| {
@@ -249,8 +248,17 @@ impl Runtime {
             })
             .collect();
         left.sort();
-        notes.extend(left);
-        notes
+        self.notes.borrow_mut().extend(left);
+    }
+
+    /// Whether a reload's kept values wait for their signals.
+    pub(crate) fn reloading(&self) -> bool {
+        !self.kept.borrow().is_empty()
+    }
+
+    /// What the last reload could not keep.
+    pub(crate) fn notes(&self) -> Vec<String> {
+        self.notes.borrow().clone()
     }
 
     fn insert(&self, node: Node) -> Id {
@@ -286,7 +294,25 @@ impl Runtime {
 
     /// A signal of `value`, or, made by the root scope, of the value that it replays.
     pub(crate) fn signal<T: Clone + 'static>(&self, value: T) -> Id {
-        self.signal_named(value)
+        let owner = self.owner.get();
+        let value = if owner == Some(self.root) {
+            let replayed = self.replay.borrow_mut().pop_front();
+            replayed
+                .and_then(|replayed| replayed.downcast::<T>().ok())
+                .map_or(value, |replayed| *replayed)
+        } else {
+            value
+        };
+        let cell: Value = Rc::new(RefCell::new(value));
+        let clone: Cloner = |value| {
+            let value = value.downcast_ref::<T>().expect("a value of its type");
+            Box::new(value.clone())
+        };
+        let id = self.insert(Node::new(Kind::Signal(clone), Some(cell), owner));
+        if owner == Some(self.root) {
+            self.made.borrow_mut().push(id);
+        }
+        id
     }
 
     /// A signal named `name` in the scope that makes it: of the value that a reload kept under
@@ -312,7 +338,8 @@ impl Runtime {
                 .any(|id| names.get(id).is_some_and(|&(held, _)| held == name));
             assert!(!named, "two signals named `{name}` in one scope");
         }
-        // A path, which allocates, only while a reload's values wait for their signals.
+        // A path, which allocates, only while a reload's values wait for their signals: until
+        // the reload's frames end (`end_reload`).
         let path = (!self.kept.borrow().is_empty()).then(|| self.path_of(owner));
         let form = path.and_then(|path| {
             let mut kept = self.kept.borrow_mut();
@@ -324,41 +351,40 @@ impl Runtime {
             }
             Some(form)
         });
-        let value = form.and_then(|form| match serde_json::from_value::<T>(form) {
-            Ok(value) => Some(value),
-            Err(error) => {
-                self.notes
-                    .borrow_mut()
-                    .push(format!("`{name}` started again: {error}"));
-                None
+        let value = form.and_then(|form| {
+            // A value that holds signals makes them as it is read: those of a read that fails
+            // midway are disposed, so that none is left over.
+            let before = self.owned_count(owner);
+            match serde_json::from_value::<T>(form) {
+                Ok(value) => Some(value),
+                Err(error) => {
+                    self.dispose_made_since(owner, before);
+                    self.notes
+                        .borrow_mut()
+                        .push(format!("`{name}` started again: {error}"));
+                    None
+                }
             }
         });
         let value = value.unwrap_or_else(make);
-        let id = self.signal_named(value);
+        let id = self.signal(value);
         self.names.borrow_mut().insert(id, (name, write::<T>));
         id
     }
 
-    fn signal_named<T: Clone + 'static>(&self, value: T) -> Id {
-        let owner = self.owner.get();
-        let value = if owner == Some(self.root) {
-            let replayed = self.replay.borrow_mut().pop_front();
-            replayed
-                .and_then(|replayed| replayed.downcast::<T>().ok())
-                .map_or(value, |replayed| *replayed)
-        } else {
-            value
-        };
-        let cell: Value = Rc::new(RefCell::new(value));
-        let clone: Cloner = |value| {
-            let value = value.downcast_ref::<T>().expect("a value of its type");
-            Box::new(value.clone())
-        };
-        let id = self.insert(Node::new(Kind::Signal(clone), Some(cell), owner));
-        if owner == Some(self.root) {
-            self.made.borrow_mut().push(id);
+    /// How many nodes `scope` owns.
+    pub(crate) fn owned_count(&self, scope: Id) -> usize {
+        node(&self.slots.borrow(), scope).map_or(0, |scope| scope.owned.len())
+    }
+
+    /// Disposes what `scope` made past its first `count` nodes.
+    fn dispose_made_since(&self, scope: Id, count: usize) {
+        let made: Vec<Id> = node(&self.slots.borrow(), scope)
+            .map(|scope| scope.owned.get(count..).unwrap_or_default().to_vec())
+            .unwrap_or_default();
+        for id in made {
+            self.dispose(id);
         }
-        id
     }
 
     /// A memo, whose value `cell` holds, worked out again by `compute`, which tells whether it
@@ -589,15 +615,21 @@ impl Runtime {
     /// Disposes `id` and what it owns: what they read forgets them, their cleanups run, and each
     /// read of them after panics.
     pub(crate) fn dispose(&self, id: Id) {
-        let (owned, owner, cleanups) = {
+        let (owned, owner, cleanups, kind) = {
             let mut slots = self.slots.borrow_mut();
             let Some(node) = node_mut(&mut slots, id) else {
                 return;
+            };
+            let kind = match node.kind {
+                Kind::Signal(_) => Some(true),
+                Kind::Scope => Some(false),
+                _ => None,
             };
             (
                 std::mem::take(&mut node.owned),
                 node.owner,
                 std::mem::take(&mut node.cleanups),
+                kind,
             )
         };
         for owned in owned {
@@ -616,8 +648,18 @@ impl Runtime {
         let slot = &mut slots[id.index as usize];
         slot.node = None;
         slot.generation += 1;
-        self.names.borrow_mut().remove(&id);
-        self.places.borrow_mut().remove(&id);
+        match kind {
+            Some(true) => {
+                let mut names = self.names.borrow_mut();
+                if !names.is_empty() {
+                    names.remove(&id);
+                }
+            }
+            Some(false) => {
+                self.places.borrow_mut().remove(&id);
+            }
+            None => {}
+        }
         self.free.borrow_mut().push(id.index);
     }
 }

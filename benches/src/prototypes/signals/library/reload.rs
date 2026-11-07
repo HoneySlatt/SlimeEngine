@@ -116,10 +116,15 @@ fn a_value_whose_type_no_longer_reads_starts_again_and_says_so() {
     let before = reload::kept(&host);
     // The page now held as the game's title, which a place written as a number does not read as.
     host.program.reload(|| {
+        let games = games();
         let titled = RwSignal::kept("page", || None::<String>);
-        let page = RwSignal::new(None);
-        let _ = titled;
-        ((), changed(games(), "Find a game", "selected", page, false))
+        // The page open is the game of the title kept, if one was.
+        let open = titled.with(|title| {
+            let title = title.as_ref()?;
+            games.iter().position(|game| game.title == *title)
+        });
+        let page = RwSignal::new(open);
+        ((), changed(games, "Find a game", "selected", page, false))
     });
     reload::settled(&mut host);
     let after = reload::kept(&host);

@@ -109,9 +109,10 @@ impl<T: Clone + PartialEq + 'static> RwSignal<T> {
         runtime.changed(self.id);
     }
 
-    /// A signal named `name` in its view's scope, whose value a reload keeps, read again into `T`
-    /// as the reloaded code has it; `make` gives its first value, and runs only when no reload
-    /// kept one. A signal that is not named starts again at each reload.
+    /// A signal named `name` in its scope, whose value a reload keeps, read again into `T` as the
+    /// reloaded code has it; `make` gives its first value, and runs only when no reload kept one.
+    /// A signal that is not named starts again at each reload. Only rows and dynamic views make
+    /// scopes: a part used twice among the same scope's elements names its signals twice.
     ///
     /// # Panics
     ///
@@ -214,7 +215,7 @@ impl<T: Clone + 'static> Stored<T> {
         }
     }
 
-    /// A value named `name` in its view's scope, which a reload keeps, as [`RwSignal::kept`].
+    /// A value named `name` in its scope, which a reload keeps, as [`RwSignal::kept`].
     pub fn kept(name: &'static str, make: impl FnOnce() -> T) -> Self
     where
         T: serde::Serialize + serde::de::DeserializeOwned,
@@ -983,8 +984,8 @@ impl<H: Copy + 'static> Signals<H> {
         self.generation = generation;
     }
 
-    /// What the last reload could not keep, and the kept values that no signal took yet.
-    #[cfg(test)]
+    /// What the last reload could not keep, and the kept values that no signal took once its
+    /// frames ended.
     pub(crate) fn notes(&self) -> Vec<String> {
         self.runtime.notes()
     }
@@ -1156,6 +1157,11 @@ impl<H: Copy + 'static> Model for Signals<H> {
 
     fn build(&mut self, ui: &mut Ui, root: ElementId) {
         let runtime = Rc::clone(&self.runtime);
+        // A reload ends at the first build after the one that mounted its view, once no list
+        // asks for rows not built: every scope that it makes again is made by then.
+        if runtime.reloading() && self.view.is_none() && !ui.builds_asked() {
+            runtime.end_reload();
+        }
         enter(&runtime, || {
             if let Some(view) = self.view.take() {
                 let mut mounting = Mounting {
@@ -1194,7 +1200,7 @@ impl<H: Copy + 'static> Model for Signals<H> {
     }
 
     fn pending(&self) -> bool {
-        self.runtime.waits() || !self.shared.edits.borrow().is_empty()
+        self.runtime.waits() || !self.shared.edits.borrow().is_empty() || self.runtime.reloading()
     }
 
     fn runs(&mut self, _: &FrameStats) -> usize {

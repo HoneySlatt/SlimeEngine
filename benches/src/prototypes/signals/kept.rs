@@ -1,6 +1,8 @@
 //! What a reload keeps of signals named in their scopes, apart from the library: a kept type that
 //! gains a field, a row's state that follows its key, a document's lines, two signals of one name,
-//! and a value that cannot be written.
+//! and a value that cannot be written. And the two limits of a scope's path: only rows and dynamic
+//! views make scopes, so that a part used twice in one scope names its signals twice; and siblings
+//! are keyed by their places, so that an element added before a dynamic view moves its path.
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -193,4 +195,110 @@ fn a_value_that_cannot_be_written_starts_again_and_says_so() {
         host.program.notes(),
         ["`cells` not kept: key must be a string"]
     );
+}
+
+/// A part that keeps its own state, not a scope of its own.
+fn counter() -> impl View {
+    let count = RwSignal::kept("count", || 0_u32);
+    label(move || count.get().to_string())
+}
+
+#[test]
+fn a_part_used_twice_in_one_scope_names_its_signal_twice() {
+    let panic = std::panic::catch_unwind(|| {
+        opened(|| ((), column((counter(), counter()))));
+    })
+    .expect_err("two signals named `count`");
+    assert_eq!(
+        panic.downcast_ref::<String>().map(String::as_str),
+        Some("two signals named `count` in one scope")
+    );
+}
+
+thread_local! {
+    /// The kept signal of each panel made, by its name.
+    static PANELS: RefCell<Vec<(&'static str, RwSignal<bool>)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// A panel in a dynamic view, its state kept as `open` in the view's scope.
+fn panel(name: &'static str) -> impl View {
+    dyn_view(move || {
+        let open = RwSignal::kept("open", || false);
+        PANELS.with(|made| made.borrow_mut().push((name, open)));
+        Some(label(move || {
+            format!("{name} {}", if open.get() { "open" } else { "shut" })
+        }))
+    })
+}
+
+#[test]
+fn an_element_added_before_a_dynamic_view_moves_its_state_to_another() {
+    let mut host = opened(|| ((), column((panel("A"), panel("B")))));
+    let b = PANELS.with(|made| {
+        let made = made.borrow();
+        made.iter()
+            .find(|(name, _)| *name == "B")
+            .expect("B made")
+            .1
+    });
+    enter(&host.program.runtime, || b.set(true));
+    settled(&mut host);
+    assert_eq!(labels(&host), ["A shut", "B open"]);
+    host.program
+        .reload(|| ((), column((label("New"), panel("A"), panel("B")))));
+    settled(&mut host);
+    // Each panel is keyed by its place: A's scope now has the path that B's had, and takes B's
+    // value without a word; B's is new; only A's value, left at a path that no scope has, is noted.
+    assert_eq!(labels(&host), ["New", "A open", "B shut"]);
+    assert_eq!(
+        host.program.notes(),
+        ["`open` at [Index(0), Index(0)] taken by no signal"]
+    );
+}
+
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct Panel {
+    open: RwSignal<bool>,
+    width: u32,
+}
+
+/// `Panel`, its width now a text, which a width written as a number does not read as.
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct PanelChanged {
+    open: RwSignal<bool>,
+    width: String,
+}
+
+/// A view of a `PanelChanged`.
+fn panel_changed() -> ((), impl View) {
+    let panel = RwSignal::kept("panel", || PanelChanged {
+        open: RwSignal::new(false),
+        width: "wide".to_owned(),
+    });
+    let shown = move || {
+        let panel = panel.get();
+        format!("{} {}", panel.width, panel.open.get())
+    };
+    ((), label(shown))
+}
+
+#[test]
+fn a_value_that_fails_to_read_midway_leaves_no_signal_over() {
+    let mut host = opened(|| {
+        let panel = RwSignal::kept("panel", || Panel {
+            open: RwSignal::new(true),
+            width: 300,
+        });
+        ((), label(move || panel.get().width.to_string()))
+    });
+    host.program.reload(panel_changed);
+    settled(&mut host);
+    assert_eq!(labels(&host), ["wide false"], "started again");
+    // The signal that the failed read made for `open` was disposed: the root holds what the view
+    // holds when it opens anew.
+    let owned = |host: &Host<Signals<()>>| {
+        let runtime = &host.program.runtime;
+        runtime.owned_count(runtime.root())
+    };
+    assert_eq!(owned(&host), owned(&opened(panel_changed)));
 }

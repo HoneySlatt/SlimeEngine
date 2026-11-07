@@ -159,6 +159,7 @@ fn library_reloaded() -> Result<Timed, String> {
             "the library's state not kept: {before:?}, then {after:?}"
         ));
     }
+    noted(host.program.notes())?;
     Ok(timed)
 }
 
@@ -180,7 +181,17 @@ fn document_reloaded() -> Result<Timed, String> {
     if line != Some(Kind::Label(edited.to_owned())) {
         return Err(format!("the document's edit not kept: {line:?}"));
     }
+    noted(host.program.notes())?;
     Ok(timed)
+}
+
+/// An error if a reload noted what it could not keep.
+fn noted(notes: Vec<String>) -> Result<(), String> {
+    if notes.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("the reload noted: {notes:?}"))
+    }
 }
 
 /// A screen played, reloaded and timed.
