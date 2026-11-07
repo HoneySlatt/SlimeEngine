@@ -270,5 +270,6 @@ the ADR linking to it.
 | [0199](0199-uwuis-targets-tools-and-references-narrowed.md) | uwui's targets, tools and references narrowed | Accepted; amends 0190 and 0198; amended by 0202 and 0203 |
 | [0200](0200-applications-measured-from-outside.md) | Applications measured from outside | Accepted; amends 0191 and 0198; amended by 0201 |
 | [0201](0201-the-rivals-narrowed.md) | The rivals narrowed | Accepted; amends 0198 and 0200 |
-| [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) | How M6d.1 compares ways of writing an application | Accepted; amends 0190, 0194 and 0199 |
+| [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) | How M6d.1 compares ways of writing an application | Accepted; amends 0190, 0194 and 0199; amended by 0204 |
 | [0203](0203-pilots-replaced-pluto-and-a-daw.md) | uwui's pilots replaced: Pluto's client and a DAW | Accepted; amends 0178, 0181, 0190, 0194, 0198 and 0199 |
+| [0204](0204-signals-written-by-hand-for-the-prototypes.md) | Signals written by hand for M6d.1b's prototypes | Accepted; amends 0202 |

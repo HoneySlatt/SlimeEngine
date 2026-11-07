@@ -3,7 +3,8 @@
 - Status: Accepted; amends [0190](0190-uwuis-requirements.md) (four state models, today's as the
   control), [0194](0194-stage-6d-uwui-leaving-the-engine.md) (M6d.1 cut in four) and
   [0199](0199-uwuis-targets-tools-and-references-narrowed.md) (the references read, not written
-  again)
+  again); amended by [0204](0204-signals-written-by-hand-for-the-prototypes.md) (the signals of
+  the prototypes written by hand)
 - Date: 2026-11-06
 
 ## Context
