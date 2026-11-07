@@ -18,7 +18,9 @@
   of the protocol: a field's value read, and set) and [0155](0155-the-editors-design.md) (version 10
   of the protocol: the editor's operations listed and run by name; an editor's requests waiting
   while a person drags; an MCP server that drives an editor and the game it plays; a game started
-  with a token ending when its standard input closes)
+  with a token ending when its standard input closes) and
+  [0209](0209-platforms-the-editor-and-agents.md) (the channel opened to a paired machine on the
+  local network, in development builds)
 - Date: 2026-10-21
 
 ## Context

@@ -13,7 +13,9 @@
   [0121](0121-a-game-as-a-simulation-and-a-presentation.md) (the shape of a game's two parts and
   of its host, what the presentation reads, extraction before the window's image, the update while
   game time is paused, the pause apart from the speed, and a game's cooked data that changed
-  applied by its own simulation until the editor's hot reload)
+  applied by its own simulation until the editor's hot reload) and
+  [0208](0208-the-engines-promises-and-systems.md) (the simulation parallel and deterministic by
+  default, at three levels)
 - Date: 2026-10-20
 
 ## Context

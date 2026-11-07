@@ -5,6 +5,8 @@
 SlimeEngine is a general-purpose, modular, open-source game engine written in Rust. It aims to
 be a complete platform (runtime, asset pipeline, native editor and SDK) for linear narrative
 games first, then open-world games, then large online worlds.
+It is free, with no royalty, and made first for a small team helped by AI agents;
+[`docs/ROADMAP.md`](docs/ROADMAP.md#1-vision) says whom it is for and when it opens.
 
 ## Status
 

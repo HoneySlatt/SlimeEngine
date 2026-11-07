@@ -9,7 +9,9 @@
   [0120](0120-a-frame-that-owns-what-it-draws.md) (the floor's figures: WebGPU's default limits),
   [0138](0138-the-high-tier-at-3840-2160.md) (the high tier at 3840 × 2160)
   and [0175](0175-the-quality-bar.md) (the budgets' figures kept in the roadmap; CI checks
-  counters and ratios of times; CPU benchmarks run on 4 cores too)
+  counters and ratios of times; CPU benchmarks run on 4 cores too) and
+  [0208](0208-the-engines-promises-and-systems.md) (a minimal tier below the handheld one; a mode
+  at 120 frames a second on the high tier)
 - Date: 2026-10-20
 
 ## Context

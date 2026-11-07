@@ -11,7 +11,12 @@
   [0170](0170-applications-on-the-ui-framework.md) (Stage 6d between the editor and the runtime
   systems, which takes from Stage 7 what the framework gains for games; Stage 9c's work ships with
   0.13) and [0173](0173-the-platforms-of-applications.md) (macOS supported once a Mac can check it;
-  wgpu stays for macOS after Stage 9c)
+  wgpu stays for macOS after Stage 9c), [0207](0207-what-slimeengine-is-to-become.md) (four
+  profiles added, three leading the stages; a small game of the owner's sold around Stage 9b),
+  [0208](0208-the-engines-promises-and-systems.md) (light without long bakes, a reference path
+  tracer, sound, characters' AI, combat, mods, networking and the open world's target) and
+  [0209](0209-platforms-the-editor-and-agents.md) (consoles through private layers; the Steam Deck
+  of the first rank; virtual reality, mobile and web games in the horizon)
 - Date: 2026-10-19
 
 ## Context

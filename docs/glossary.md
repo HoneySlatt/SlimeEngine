@@ -559,7 +559,8 @@ technique of the renderer belongs to a tier ([ADR-0098](adr/0098-the-games-the-e
 Three are named, handheld, modest and high, each by a reference machine and budgets, which the
 [quality bar](ROADMAP.md#4-quality-bar) holds; an enthusiast tier comes with ray tracing
 ([ADR-0114](adr/0114-hardware-tiers-and-the-gpus-limits.md),
-[ADR-0138](adr/0138-the-high-tier-at-3840-2160.md)).
+[ADR-0138](adr/0138-the-high-tier-at-3840-2160.md)); a *minimal* tier, below the handheld one,
+holds 2D and light games ([ADR-0208](adr/0208-the-engines-promises-and-systems.md)).
 
 **Headless.** Running the engine without a window, renderer or audio output. It is a normal
 configuration, used by automated tests and, later, by dedicated servers.
@@ -744,6 +745,11 @@ another layout, a number further from the zone's than a small tolerance, is not 
 reload* starts the run again when the layout changes
 ([ADR-0088](adr/0088-saving-and-resuming-a-run.md),
 [ADR-0101](adr/0101-saves-and-identities-that-never-mislead.md)).
+
+**Leading profile.** One of the three profiles of games that each stage is planned and checked
+against: the realistic open world, the competitive shooter and the 2D game; for the other profiles,
+an ADR checks only that its design does not block them
+([ADR-0207](adr/0207-what-slimeengine-is-to-become.md)).
 
 **Leaf (reflection).** A part of a *value* that holds no other parts, which an edit sets whole: a
 number, a boolean, a text, an option, a reference to an asset or an entity, an empty list, or an

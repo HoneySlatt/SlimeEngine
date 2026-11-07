@@ -2,7 +2,9 @@
 
 - Status: Accepted; amends [0097](0097-an-audit-pass-and-a-foundations-pass-before-stage-6.md)
   (a criterion of the foundations pass); amended by [0122](0122-the-development-channel.md) (the
-  server's dependency, and where it runs)
+  server's dependency, and where it runs) and [0209](0209-platforms-the-editor-and-agents.md)
+  (rights for each agent, previews, tools found by families, replays; a paired machine on the local
+  network in development builds)
 - Date: 2026-10-19
 
 ## Context

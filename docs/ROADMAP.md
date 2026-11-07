@@ -19,6 +19,8 @@ Long-term targets, in order of reach:
 
 The project is a complete platform (runtime, asset pipeline, editor, SDK), not a renderer with extras. A native, full-featured editor is a first-class component.
 
+Whom it is for (ADR-0207): a public engine, adopted widely in the end, judged as a whole against Unreal, Unity and Godot, and better as a whole, never on one feature alone. It is made first for a small team helped by AI agents, making games of the class that large studios make; the tools of large teams come later. Until it opens, the owner's games direct it, and an outside need enters only if it is general. It is announced, and opens to contributions of code, at 0.14. It is free, with no royalty, ever: money comes from around it, the private layers for consoles, closed online services, a store of plugins and assets after 0.14, and the owner's games; the engine stays complete without them. Uses other than games are welcome, not aimed at. The engine and its editor send nothing over the network of their own accord.
+
 3D comes first. 2D and stylized games are made with the same renderer, through pieces that the stages add where they are needed: an orthographic camera, sprites, transparency, unlit and custom materials, crisp sampling for pixel art. There is no separate 2D renderer (ADR-0052).
 
 The games the engine is weighed against, as profiles (ADR-0098). The games played alone come first; the online games come after them.
@@ -32,8 +34,14 @@ The games the engine is weighed against, as profiles (ADR-0098). The games playe
 - A massively multiplayer online role-playing game told in expansions, with about 500 players in one place and few instances.
 - A competitive first-person shooter on dedicated servers, at high frame rates on modest computers.
 - Online co-op games hosted by a player, with physics-driven characters, vehicles and proximity voice chat.
+- A fighting game, its frames replayed when an opponent's input arrives late (ADR-0207).
+- A strategy game of thousands of units, one simulation run the same on every machine (ADR-0207).
+- A game of survival and building, its world changed in bulk by players together, and kept (ADR-0207).
+- A racing game: vehicles at high speed and fast streaming (ADR-0207).
 
-Each style aims at the best rendering possible: realistic, anime, painted or hand-drawn. Each game sets *visual targets*, reference images on its target hardware at its frame rate, which principle 9 measures against. The engine runs on *hardware tiers*, from handheld PCs and modest computers at high frame rates to high-end ones: handheld, modest and high, each with a reference machine and budgets, and an enthusiast tier with ray tracing at Stage 9c (ADR-0114); a game picks its minimum tier among the first three. No mobile platform is aimed at.
+Three profiles lead the stages: the realistic open world, the sample's; the competitive shooter; and the 2D game. Each stage is planned and checked against them; for the others, each ADR checks that its design does not block them (ADR-0207). The first game sold on the engine is a small, finished game of the owner's, around Stage 9b, which proves the chain from the store to updates.
+
+Each style aims at the best rendering possible: realistic, anime, painted or hand-drawn. Each game sets *visual targets*, reference images on its target hardware at its frame rate, which principle 9 measures against. The engine runs on *hardware tiers*, from handheld PCs and modest computers at high frame rates to high-end ones: handheld, modest and high, each with a reference machine and budgets, and an enthusiast tier with ray tracing at Stage 9c (ADR-0114); a game picks its minimum tier among them; a minimal tier below the handheld one holds 2D and light games (ADR-0208). The owner's games aim at no mobile platform; mobile and web games for the engine's other users are in the horizon (ADR-0209).
 
 ## 2. Architecture
 
@@ -55,9 +63,10 @@ The editor sits beside games, not inside the engine: it is a client of the engin
 5. **Headless is a normal configuration.** The engine must run without window, renderer or audio. This is what makes CI tests and dedicated servers possible.
 6. **Instrumented from day one.** Profiling spans and GPU markers are added as systems are written, not retrofitted.
 7. **Existing crates are used wherever they are not the point of the engine,** and wrapped at the boundary so they can be replaced.
-8. **Stability is promised in one place only:** the C ABI, from 1.0. Everything else may break during 0.x.
+8. **Stability is promised from 1.0:** the C ABI, and a public façade of the Rust API, under semantic versioning kept strictly, a 2.0 coming with a tool that migrates code, projects and assets; what lies behind the façade stays free to change. Before 1.0, any API may break; the user's data never does, migrated (ADR-0207).
 9. **Techniques enter because they solve a measured problem,** not to match another engine's feature list. For rendering, the measured problem is the gap between a game's image and its visual targets (section 1, ADR-0098).
 10. **What a person does, an agent does.** Every operation of the editor and of a running game that a person performs is a command that an AI agent can call through the engine's MCP server, the same command, not a path of its own (ADR-0099).
+11. **Finished or absent.** A feature is in a release only once it meets its bar, its budgets, tests and documentation, on the platforms it promises; before, it waits behind an option marked experimental, its state written, never presented as finished (ADR-0207).
 
 ## 4. Quality bar
 
@@ -82,7 +91,10 @@ Three tiers, each with a reference machine (ADR-0114, ADR-0138); a game picks th
 | High | the class of an RX 6900 XT, an RTX 4070 Ti or an RX 7800 XT: 16 GB of video memory, 8 cores, 32 GB | one | 3840 × 2160 at 60, 16.7 ms | 3840 × 2160 at 144, 6.9 ms | 12 GB, of 16 | 24 GB, of 32 |
 
 - An enthusiast tier, the class of an RTX 4090, at 3840 × 2160 with ray tracing, comes with Stage 9c.
-- The editor aims at the high tier at 240 frames a second: 4.17 ms a frame.
+- A minimal tier, below the handheld one, for 2D and light games: measured on the owner's very modest laptop, then named as a class of hardware, its integrated GPU, memory and power; whether it admits GPUs without Vulkan or Direct3D 12 is decided then (ADR-0208). The handheld tier stays the floor of realistic 3D.
+- Realistic games offer a mode of performance at 120 frames a second on the high tier, 8.3 ms, beside the mode of quality above (ADR-0208).
+- The editor aims at the high tier at 240 frames a second: 4.17 ms a frame. It stays comfortable on the modest tier, its 3D views lightened, its interface never (ADR-0209).
+- Before Stage 9a, runners of CI at the owner's, on the Steam Deck and on a desktop GPU, measure what is measured by hand today (ADR-0207).
 - Measured: the owner's machine alone, an RX 6900 XT and a Ryzen 7 5800X, and CI's lavapipe and WARP, drivers that render on the CPU. No tier's reference machine is measured; the GPUs' ratios come from public benchmarks.
 - A budget of the GPU is checked on the RX 6900 XT, times its tier's ratio.
 - The handheld tier's proxy: CPU benchmarks also run pinned to 4 cores (`taskset`); its GPU stays unmeasured. The owner has a Steam Deck, which measures the handheld tier once its measures are taken (ADR-0190).
@@ -108,10 +120,18 @@ CI checks budgets through exact counters, draws, elements, bytes, allocations, a
 | An answer of the development channel | a median under 20 ms | its test in `slime-channel` | CI, a bound far above the time measured, which shared runners keep | met, 0.14 ms |
 | The sample's zone | at most 1 000 000 triangles, 800 instances, 6 spot lights at night, 384 MiB of textures, 320 MiB cooked | `the_cooked_zone_keeps_within_its_budgets` | CI | met |
 | CI's jobs | 20 minutes each | GitHub's times, in `docs/measurements.md` at each milestone | by hand | `windows` close to it |
+| Pipelines created during play | none after a level starts: every pipeline in the game's cooked list, created while the level loads; a budget of pipelines per game, set at Stage 9b (ADR-0208) | a replay that lists the pipelines it asks for | CI, from Stage 9b | a target |
+| A change seen | an asset, a scene or a shader changed, seen in the running game and the editor within 1 s; a game's Rust code reloaded within seconds, its state kept, on games of 50,000 and 500,000 lines (ADR-0208) | from the edit to the change on screen | by hand, from Stage 8 | a target |
+| A replay | bit for bit the same on one build and one platform; across platforms for the games that ask (ADR-0208) | a hash of the world at each step of a replay | CI, from Stage 7 | a target |
+| A level merged | two people's or agents' edits of one level merged; an open world's cell opened, and its whole status read, within budgets set at Stage 10a (ADR-0208) | the merge tool on two edits of one cell | CI, from the stage that builds the tool, chosen when Stage 6c resumes | a target |
+| A networked game's feel | from an input to its effect seen, at the 99th percentile, set at Stage 10b, under a simulated network (ADR-0208) | a game played by agents on several clients | CI, from Stage 10b | a target |
+| The open world | 600 km², dense and made by hand, crossed at 300 km/h without a hitch or a detail shown late, on the handheld tier too; read at most 50 MB/s, resident within the tier's video memory for assets (ADR-0208) | a world of test of 600 km² at the density of one km² made by hand | by hand, from Stage 10a | a target, which a reviewing agent judged out of reach on the handheld tier |
 
 ### Without a figure
 
-- Games' accessibility: controls that can be remapped, subtitles, modes for colour-blind players, camera shake and motion blur that can be turned off, at Stage 7.
+- Games' accessibility: controls that can be remapped, subtitles, modes for colour-blind players, camera shake and motion blur that can be turned off, at Stage 7; then all that an engine can give of the Xbox Accessibility Guidelines, native and checked, each game choosing what it turns on (ADR-0208).
+- Games' languages: Fluent, voices per language, a fake language of test in CI (ADR-0208).
+- Nothing sent: the engine and the editor send nothing over the network of their own accord (ADR-0207).
 - Interfaces' accessibility: screen readers, full use by the keyboard, reduced motion and reduced transparency (ADR-0146, ADR-0171).
 - Text ready for translation, and written from right to left (ADR-0132).
 - Images compared with reference images in CI (ADR-0030, ADR-0054).
@@ -128,10 +148,10 @@ CI checks budgets through exact counters, draws, elements, bytes, allocations, a
 | Topic | Decision |
 |---|---|
 | Engine language | Rust |
-| License | MIT OR Apache-2.0, as uwui (ADR-0182); releases before 0.7 under MPL-2.0 |
+| License | MIT OR Apache-2.0, as uwui (ADR-0182), with no royalty, ever (ADR-0207); releases before 0.7 under MPL-2.0 |
 | GPU abstraction | wgpu, then native backends, Vulkan and Direct3D 12, at Stage 9c (ADR-0098). Their types stay inside the `gfx` and `render` crates, and the engine's own tests, through `slime-gfx`'s `wgpu` feature (ADR-0031); the rest of the engine uses engine-owned handles. |
 | Shaders | WGSL to start |
-| First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS is built and tested in CI from Stage 6d, and supported once a Mac can check it; wgpu stays for it after Stage 9c. Games aim at no mobile platform and no web. Applications on uwui aim at Android phones and the web in a canvas too, macOS and iOS within reach (ADR-0098, ADR-0173, ADR-0181). |
+| First platforms | Linux (Wayland and X11) and Windows: games run on both from Stage 2 on. macOS is built and tested in CI from Stage 6d, and supported once a Mac can check it; wgpu stays for it after Stage 9c. The Steam Deck is a platform of the first rank, its criteria of verification checked before each game's release; consoles come through private layers, outside this repository; virtual reality, and mobile and web games for the engine's other users, are in the horizon (ADR-0209). Applications on uwui aim at Android phones and the web in a canvas too, macOS and iOS within reach (ADR-0098, ADR-0173, ADR-0181). |
 | UI | uwui, the owner's framework, in a repository of its own, which receives its code at Stage 6d (ADR-0194, ADR-0197), under MIT OR Apache-2.0, which the engine depends on, never the reverse; GPU-rendered, for the editor, the UI of games and applications (ADR-0170, ADR-0179, ADR-0181): a retained tree of its own, on parley, taffy and AccessKit, embedded in a host that calls it, drawn on wgpu by its own canvas (ADR-0098, ADR-0132). The dev overlay, tooling, runs on it since Stage 6b, which removed egui (ADR-0152). No Qt or GTK. A light renderer on the CPU where there is no GPU; agents reach an application through a channel and an MCP server of uwui's own (ADR-0190). |
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
 | Windowing and input | winit, used only inside `platform`, and in uwui's desktop host; its types never leave them (ADR-0011, ADR-0181) |
@@ -144,11 +164,19 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier. uwu
 
 | Topic | Candidates | Decide at |
 |---|---|---|
-| Physics backend | rapier3d, Jolt or other, behind an abstraction, against the needs of ADR-0098 | Stage 7 |
+| Physics backend | rapier3d, Jolt or other, behind an abstraction, against the needs of ADR-0098, a simulation that replays bit for bit and an API that holds (ADR-0208) | Stage 7 |
 | Audio backend | To evaluate, against the needs of ADR-0098 | Stage 7 |
-| Scripting language | Lua, C#, dedicated VM, other | Stage 8 |
+| Scripting language | Lua, C#, dedicated VM, WebAssembly, other; one sandboxed runtime for scripts and mods; *one language, two targets*, a game's Rust compiled to WebAssembly while developed and natively to ship (ADR-0208) | Stage 8 |
 | Shader language beyond WGSL | Slang, generated WGSL, with the native backends of Stage 9c in view | Stage 9b |
 | Network transport | To evaluate | Stage 10b |
+| Games' interfaces | uwui's core with a layer of the engine's, confirmed by a measure; a framework of their own if it fails (ADR-0209) | M6d.10 |
+| The minimal tier's machine and floor | named from the owner's very modest laptop; GPUs without Vulkan or Direct3D 12 admitted or not (ADR-0208) | once the laptop is measured |
+| The merge tool of levels | the stage that builds it (ADR-0208) | Stage 6c's resumption |
+| The light of each tier | the ladder of ADR-0208, each rung's technique by measurement | Stages 9a and 10a |
+| A budget of pipelines per game | bounded permutations of the material graph (ADR-0208) | Stage 9b |
+| The first game sold | a small game of the owner's (ADR-0207) | Stage 9b's planning |
+| Learned models on the GPU | to upscale, denoise, compress textures, animate (ADR-0208) | Stage 9c |
+| Communities and site | where users talk, the site's form | 0.14 |
 
 ## 6. Repository layout
 
@@ -417,7 +445,11 @@ In uwui's repository, in [its roadmap](https://github.com/HoneySlatt/uwui/blob/m
 - Audio: sources, listener, spatialization, buses, mixing, streaming; the importer of audio files, moved from Stage 4 (ADR-0068); the backend chosen against sound placed precisely around the listener's head, reverberation per room and sounds muffled by walls (ADR-0098)
 - The core of skeletal animation: skeletons, skinning, clips, blending, moved from Stage 9b (ADR-0097); poses that are not entities, and bones that things are attached to (ADR-0108)
 - Input action mapping, on the keys and buttons held that Stage 6a keeps (ADR-0107)
-- UI of games: text, menus, HUD, on uwui, whose first stage gives it motion, transforms, masks, text styled by ranges and focus driven by gamepads (ADR-0170, ADR-0194); UI on surfaces in the world, screen readers, and UI documents, the games' screens as data (ADR-0098, ADR-0132)
+- UI of games: text, menus, HUD, on uwui, whose first stage gives it motion, transforms, masks, text styled by ranges and focus driven by gamepads (ADR-0170, ADR-0194); UI on surfaces in the world, screen readers, and UI documents, the games' screens as data (ADR-0098, ADR-0132); the engine's layer over uwui's core, drawn in the render graph with the game's materials, 3D within an interface, the game's time (ADR-0209)
+- The simulation on every core in a fixed order, replayed bit for bit on one build and one platform, checked in CI by a hash of the world at each step; across platforms as an option; time and random numbers from the engine, seeded (ADR-0208)
+- Rewinding while a game is played in a development build: its last seconds kept, stepped frame by frame, each value read (ADR-0209)
+- Replays that drive recorded runs through the sample at each push, finding the commit that breaks or slows one (ADR-0208)
+- Runners of CI on the Steam Deck and a desktop GPU, before Stage 9a (ADR-0207)
 
 **Exit.** The game has an animated character in a physical level, with sound and a UI, and is profiled end to end.
 
@@ -429,6 +461,8 @@ In uwui's repository, in [its roadmap](https://github.com/HoneySlatt/uwui/blob/m
 - Plugin architecture for runtime and editor
 - Scripting (language decided here), bound through reflection, with reload and debugging
 - The world updated in place when its scenes change while a game runs, keeping the handles that the game's code holds, moved from Stage 6 (ADR-0089, ADR-0155)
+- Mods for every game that enables them: data first; code only in the sandbox that scripts share, with declared rights, limits of memory and time, a failing mod stopped alone; manifests and plugins signed; the editor as the modders' tool (ADR-0208)
+- A game's Rust code reloaded within seconds, its state kept (ADR-0208)
 
 The C ABI and the C++ SDK moved to Stage 11, derived from the API that the editor and the game will have proven (ADR-0097).
 
@@ -451,6 +485,9 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 - The stability of the image as a measured goal: no shimmering, no trails, no detail that pops in (ADR-0098)
 - Skin lit through subsurface scattering (ADR-0098)
 - Quality set per hardware tier (section 1, ADR-0098), each technique stating its tier and its fallback, measured against the tiers' budgets (ADR-0114)
+- Light without long bakes, one rung per tier: rays traced by the hardware on the high tier, tracing in software on the modest one, probes updated over frames on the handheld one, probes computed while cooking on the minimal one; ray tracing never required (ADR-0208)
+- A reference path tracer, the ground truth of image tests and visual targets (ADR-0208)
+- The engine's own temporal upscaler, and FSR; a mode of performance at 120 frames a second on the high tier (ADR-0208)
 
 **Exit.** A level of the game, outdoors and indoors, with a day-night cycle, many lights, transparency and anti-aliasing, within the frame budgets tracked for the sample, covered by image tests.
 
@@ -460,14 +497,17 @@ Stage 9 is split in two (ADR-0052): the narrative vertical slice of Stage 9b nee
 
 - Animation beyond the core that Stage 7 builds (ADR-0097): state machines, blend trees, IK, retargeting, root motion; motion matching and quadrupeds; 2D animation (ADR-0098)
 - Faces through blend shapes, and lip sync; simple secondary motion of hair, cloth and flesh (ADR-0098)
-- Material graph → IR → shader generation; values set per instance (ADR-0057); variants, permutation cache, async compilation
+- Material graph → IR → shader generation; values set per instance (ADR-0057); variants, permutation cache, async compilation; a budget of pipelines per game, every pipeline listed when cooked, none created after a level starts (ADR-0208)
+- A track of combat for each animation: a blow's frames, its zones that hit, its windows to cancel, its stops on impact (ADR-0208)
 - Sequencer: camera, animation, audio, event and VFX tracks
 - VFX: CPU and GPU particles
-- Navigation: navmesh, pathfinding, spatial queries; the AI of characters beside it (ADR-0098)
+- Navigation: navmesh, pathfinding, spatial queries; the AI of characters beside it (ADR-0098): perception, behaviours edited as graphs, schedules, memory of the player's acts and factions saved with the story's state (ADR-0208)
 - Dialogue and quests, with the state of a story that they read and that scenes depend on; the rules of a particular game stay in the game (ADR-0098); layers of a level that exist while a condition on the story holds (ADR-0112)
 - Translation tables and voice (ADR-0098)
 - Build, cook and package: Development, Shipping, Server, Editor configurations, for Linux and Windows; packages for applications too (ADR-0173). Builds without a console (Windows games) write their log to a file.
 - Updates of shipped games: archives, patches that download only what changed, downloadable content and expansions as packages added to an installed game; from its first release, a save written by a shipped version of a game loads in all of its later versions, checked in CI with one save fixture per shipped version (ADR-0100); the same updates serve applications (ADR-0173)
+- A game built, sent to a paired device, started and driven from the editor in one action; Steam's integration as an optional crate, Steam Input and its glyphs, the keyboard on screen, saves in its cloud (ADR-0209)
+- The first game sold on the engine, a small game of the owner's (ADR-0207)
 
 **Exit.** The game grows into a short narrative vertical slice (animated character, cutscene, gameplay) that ships as a packaged build.
 
@@ -483,6 +523,7 @@ Stage 9c is added by ADR-0098: the rendering of the games of section 1, and cons
 - Work on several queues of the GPU in parallel, ray tracing, mesh shaders, resources without a declaration per binding, explicit memory, upscalers and frame generation, the vendors' tools for latency and GPU crashes
 - wgpu stays for macOS, through Metal (ADR-0173); whether it also stays as a fallback or for debugging
 - The enthusiast hardware tier, at 4K with ray tracing (ADR-0114)
+- DLSS and XeSS as optional crates; learned models run on the GPU decided (ADR-0208)
 
 Before this stage, a feature that wgpu blocks goes through wgpu's access to the API underneath it. The stage comes right after Stage 9b and has no release of its own; what it delivers is released with 0.12 (ADR-0131, ADR-0170, ADR-0194).
 
@@ -501,6 +542,7 @@ Stage 10 is split in two (ADR-0097): streaming, which an open world needs, does 
 - Crowds and traffic, with hundreds of characters drawn (ADR-0098)
 - Terrain that deforms, hair drawn strand by strand, simulated cloth (ADR-0098)
 - Water and weather (ADR-0098)
+- The open world's target: 600 km², dense and made by hand, crossed at 300 km/h without a hitch or a detail shown late, on the handheld tier too, measured on a world of test (ADR-0208); one file per cell; tools that place by rules, their result frozen as placements made by hand; a budget of cooking time per km² (ADR-0208, ADR-0209)
 
 The stage is split in two halves when it is planned (ADR-0098).
 
@@ -515,6 +557,7 @@ The stage is split in two halves when it is planned (ADR-0098).
 - The threat model of ADR-0096 extended to the network (ADR-0098)
 - The data that servers keep for players converted from one version of a game to the next (ADR-0100)
 - Dedicated server build
+- No anti-cheat in the kernel; Easy Anti-Cheat and BattlEye as optional crates; the delay felt from an input to its effect, budgeted; a simulator of networks in the editor and CI; a host that leaves replaced; players of different stores together; the relay and the server, their protocols published, run anywhere (ADR-0207, ADR-0208)
 
 The stage is split in two halves when it is planned (ADR-0098).
 
@@ -532,7 +575,9 @@ The stage is split in two halves when it is planned (ADR-0098).
 - Migration tooling for assets, projects and serialized formats
 - Deprecation policy
 - macOS as a supported platform, unless a Mac has checked it sooner (ADR-0173)
-- User, SDK and engine documentation
+- User, SDK and engine documentation: a book from nothing to a game shipped, the API's reference, examples that run, a site, checked in CI; templates of games drawn from real ones (ADR-0207)
+- Several people and agents in one level at once; the editor's panel of agents, and an assistant within it as an optional crate; a visual editor of games' interfaces; Git within the editor, Lore and Perforce later (ADR-0209)
+- The engine announced, contributions opened, a policy of its name and marks, at 0.14 (ADR-0207)
 
 **Exit for 0.14.** An external project is built without touching engine source.
 **Exit for 1.0.** A compatibility promise can be made and kept. There is no deadline for this.
@@ -547,22 +592,24 @@ These run through every stage. They are never "a phase for later".
 | Platforms | Every stage's sample builds and its tests pass in CI on Linux and Windows; windowed behaviour is checked by hand on both |
 | Profiling | Instrumentation added with each system |
 | Performance budgets | The quality bar (section 4), measured at each milestone that touches it |
-| Iteration speed | Compile times, hot reload, startup time |
+| Iteration speed | Compile times, hot reload, startup time; a change seen within 1 s (ADR-0208) |
 | Diagnostics | Logs, assertions, crash reports (ADR-0176) |
 | Documentation | ADRs, architecture notes, API docs, sample walkthroughs |
 | Samples | One runnable example per stage, kept working; from Stage 3c on, the game that each stage grows |
-| Agents | From Stage 6 on, each system exposed to AI agents through the engine's MCP server as it is written (ADR-0099) |
+| Agents | From Stage 6 on, each system exposed to AI agents through the engine's MCP server as it is written (ADR-0099), with rights for each agent, previews before applying, tools found by families and games replayed from a seed; a paired machine on the local network in development builds (ADR-0209) |
 
 ## 9. Horizon
 
 Direction only. None of this is planned work until Stage 11 is reached.
 
-- **Online platform for MMO-scale games.** Distinct from the engine: gateway, authentication, persistence, world and instance services, chat, economy, group finding, anti-cheat, observability, deployment. The engine supplies serialization, replication, headless servers and world partitioning.
-- **Consoles.** Only with official SDK access, and hardware to test on. Built on the native backends of Stage 9c (ADR-0098).
-- **Large-team workflows.** Multi-user editing, asset locking, distributed builds, shared derived-data cache.
-- **Ecosystem.** Plugin registry, templates, asset packages. After users exist, not before.
+- **Online platform for MMO-scale games.** A closed, paid service of the owner's, the engine complete without it (ADR-0207). Distinct from the engine: gateway, authentication, persistence, world and instance services, chat, economy, group finding, anti-cheat, observability, deployment. The engine supplies serialization, replication, headless servers and world partitioning.
+- **Consoles.** Only with official SDK access, and hardware to test on. Built on the native backends of Stage 9c (ADR-0098), each a private layer, outside this repository, for approved studios (ADR-0209).
+- **Virtual reality** through OpenXR, after Stage 9c, when a game asks; **mobile and web games** for the engine's other users, after 1.0 (ADR-0209).
+- **Large-team workflows.** Asset locking, distributed builds and cooking, shared derived-data cache; editing at several moved to Stage 11 (ADR-0209).
+- **Ecosystem.** A store of plugins and assets after 0.14, its plugins checked and signed, a share of sales (ADR-0207); templates come with Stage 11.
+- **Governance.** A foundation, a second maintainer and a plan of continuation, after 1.0 (ADR-0207).
 - **Advanced world simulation.** Destruction, procedural generation. Crowds, traffic, water and weather moved to Stage 10a (ADR-0098).
-- **Visual scripting.** Node graph → IR → VM or native code, once reflection, scripting and undo/redo are mature.
+- **Visual scripting** of every logic. Node graph → IR → VM or native code, once reflection, scripting and undo/redo are mature. The graphs of each domain, dialogue, animation, materials, sound, characters' AI, come with their stages (ADR-0209).
 - **Research track.** Paper → prototype → benchmark → production evaluation → merge.
 
 ## 10. Dependencies between systems
