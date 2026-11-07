@@ -665,6 +665,11 @@ the instances of one pipeline, material and mesh that it keeps (`slime_render::R
 program: next, previous, up, down, left, right, accept, cancel (`uwui::action::Intent`). The
 interface moves the *focus* for the first six ([ADR-0142](adr/0142-input-and-focus.md)).
 
+**Interface's executor.** In uwui, what runs the interface's tasks on its thread, within the
+frame: each task owned by the scope that started it and cancelled with it, its timers on the
+frame's clock, whose next deadline the host waits for. Other threads change *signals* through a
+channel that a task receives ([ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md)).
+
 **Interpolation factor.** The fraction of a fixed step accumulated but not yet run
 (`FixedStep::alpha`), between 0 and 1. Used to draw a state between the last two fixed steps:
 `World::interpolated_transform` draws what moved during the last one there

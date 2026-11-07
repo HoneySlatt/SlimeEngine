@@ -3,7 +3,8 @@
 - Status: Accepted; amends [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md)
   (M6d.1c cut in three; `serde` added for a type's state) and
   [0205](0205-signals-change-uwuis-interface.md) (a signal's state across a reload of its type
-  decided)
+  decided); amended by [0211](0211-the-executor-and-other-threads-through-channels.md) (another
+  thread's handle across a reload: a channel made outside the view)
 - Date: 2026-11-07
 
 ## Context

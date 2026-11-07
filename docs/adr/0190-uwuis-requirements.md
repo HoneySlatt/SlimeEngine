@@ -15,10 +15,12 @@
   longer a target; `uwui bundle` delegates; updates to be evaluated),
   [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) (four state models, today's as
   the control), [0203](0203-pilots-replaced-pluto-and-a-daw.md) (Pluto's client and a DAW among the pilots; the
-  state model chosen once three programs said what they ask of uwui) and
+  state model chosen once three programs said what they ask of uwui),
   [0205](0205-signals-change-uwuis-interface.md) (signals change the interface; live values in
-  its tree) and [0209](0209-platforms-the-editor-and-agents.md) (games' interfaces on uwui's core
-  with a layer of the engine's, confirmed at M6d.10)
+  its tree), [0209](0209-platforms-the-editor-and-agents.md) (games' interfaces on uwui's core
+  with a layer of the engine's, confirmed at M6d.10) and
+  [0211](0211-the-executor-and-other-threads-through-channels.md) (the interface's executor, its
+  timers waited for by the host)
 - Date: 2026-11-06
 
 ## Context

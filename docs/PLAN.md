@@ -30,7 +30,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [ADR-0204](adr/0204-signals-written-by-hand-for-the-prototypes.md),
   [ADR-0205](adr/0205-signals-change-uwuis-interface.md),
   [ADR-0206](adr/0206-slatty-ported-again-the-daw-later.md),
-  [ADR-0210](adr/0210-signals-named-for-a-reload.md)).
+  [ADR-0210](adr/0210-signals-named-for-a-reload.md),
+  [ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md)).
 - Done: [M6d.0a](#m6d0a--the-screens-and-the-owners-programs),
   [M6d.0b](#m6d0b--measured-from-outside-and-ten-hello-world) and
   [M6d.0c](#m6d0c--the-applications-of-the-market), the figures before, cut in three at its start
@@ -43,7 +44,10 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [M6d.1c](#m6d1c--rusts-code-reloaded-and-the-executor), on signals, cut in three at its start
   ([ADR-0210](adr/0210-signals-named-for-a-reload.md)): done,
   [M6d.1c1](#m6d1c1--signals-named-and-a-types-state-migrated), signals named by their authors and
-  kept through `serde`; next, [M6d.1c2](#m6d1c2--the-executor-and-other-threads).
+  kept through `serde`, and [M6d.1c2](#m6d1c2--the-executor-and-other-threads), the interface's
+  executor and other threads through channels
+  ([ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md)); next,
+  [M6d.1c3](#m6d1c3--a-functions-body-reloaded-timed).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
   link to its code. M6d.1c's prototypes go on from it, on `m6d1c-bench`.
 - [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and its open decisions; its code
@@ -69,7 +73,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.1b3a — Three models on the bench](#m6d1b3a--three-models-on-the-bench) | Done |
 | [M6d.1b3b — The choice](#m6d1b3b--the-choice) | Done |
 | [M6d.1c1 — Signals named, and a type's state migrated](#m6d1c1--signals-named-and-a-types-state-migrated) | Done |
-| [M6d.1c2 — The executor, and other threads](#m6d1c2--the-executor-and-other-threads) | Planned |
+| [M6d.1c2 — The executor, and other threads](#m6d1c2--the-executor-and-other-threads) | Done |
 | [M6d.1c3 — A function's body reloaded, timed](#m6d1c3--a-functions-body-reloaded-timed) | Planned |
 | [M6d.1d — Layouts, styles and the host](#m6d1d--layouts-styles-and-the-host) | Planned |
 | [M6d.2 — Typed styles](#m6d2--typed-styles) | Planned |
@@ -407,9 +411,19 @@ its start, on 2026-11-07, one question and one review each, in the order that AD
   run on time simulated in tests, and its waker; other threads' changes to signals gathered into
   the next frame, the interface's thread never waiting; another thread's handle on a signal kept
   valid across a reload.
-- **Done when.** Each question is decided and recorded.
+- **Done when.** Each question is decided and recorded: done on 2026-11-07, in
+  [ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md). Tasks owned by their
+  scopes, their timers on the frame's clock, the host waiting for the next deadline; other threads
+  holding a channel's sender, never a signal; the receiver made outside the view, so that a reload
+  keeps it. Shown by tests: on Slatty's downloads, 10,000 games whose progress another thread
+  sends, a burst and a batch shown whole in the next frame, and a sender valid across a reload,
+  nothing lost; apart, a timer that the host waits for, a frame at rest while 1,000 tasks wait,
+  senders on four threads while frames run, a task's budget of values a poll, a channel made
+  within a view closed with it, a task cancelled in its own poll, and an application closed with
+  tasks waiting.
 - **Measured.** A change from another thread to the frame that shows it; what a frame at rest costs
-  with tasks waiting.
+  with tasks waiting. In
+  [uwui's `docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#the-interfaces-executor-and-other-threads-2026-11-07).
 
 ### M6d.1c3 — A function's body reloaded, timed
 
@@ -486,7 +500,9 @@ its start, on 2026-11-07, one question and one review each, in the order that AD
 - **Delivers.** As [ADR-0181](adr/0181-uwuis-scope.md) decides and M6d.1 shapes: the surface
   created, lost, made again and resized, with its scale; the pointer, multi-touch, the keyboard and
   gamepads as events; the bridge to input methods; the lifecycle; the clipboard; requests for
-  frames, the time of a frame, and a waker from any thread; the translation of meaning into
+  frames and the time of uwui's next change, its tasks' timers among them
+  ([ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md)), the time of a frame,
+  and a waker from any thread; the translation of meaning into
   AccessKit's tree moved into uwui; `slime-app` a host through this API alone.
 - **Done when.** `slime-app` reaches uwui through the API alone; the editor's and the game's
   sessions, rest and input to present are unchanged; CI is green.

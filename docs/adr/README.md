@@ -258,7 +258,7 @@ the ADR linking to it.
 | [0187](0187-a-hidden-window-at-rest.md) | A hidden window at rest | Accepted; amends 0021 |
 | [0188](0188-a-light-check-for-documentation.md) | A light check for documentation | Accepted; amends 0007 |
 | [0189](0189-first-measures-of-time.md) | First measures of time | Accepted; amends 0104, 0175 and 0186; amended by 0191 |
-| [0190](0190-uwuis-requirements.md) | uwui's requirements | Accepted; amends 0170, 0171, 0173, 0175 and 0181; amended by 0194, 0197, 0199, 0202, 0203, 0205 and 0209 |
+| [0190](0190-uwuis-requirements.md) | uwui's requirements | Accepted; amends 0170, 0171, 0173, 0175 and 0181; amended by 0194, 0197, 0199, 0202, 0203, 0205, 0209 and 0211 |
 | [0191](0191-input-in-sway-start-budgets-and-the-editors-rate.md) | Input given in sway, two budgets of a start, and the editor's rate | Accepted; amends 0175 and 0189; amended by 0200 |
 | [0192](0192-the-budget-of-a-cold-start.md) | The budget of a cold start | Accepted; amends 0175 |
 | [0193](0193-first-measures-of-resources.md) | First measures of resources | Accepted; amends 0175 |
@@ -273,9 +273,10 @@ the ADR linking to it.
 | [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) | How M6d.1 compares ways of writing an application | Accepted; amends 0190, 0194 and 0199; amended by 0204 and 0210 |
 | [0203](0203-pilots-replaced-pluto-and-a-daw.md) | uwui's pilots replaced: Pluto's client and a DAW | Accepted; amends 0178, 0181, 0190, 0194, 0198 and 0199; amended by 0206 |
 | [0204](0204-signals-written-by-hand-for-the-prototypes.md) | Signals written by hand for M6d.1b's prototypes | Accepted; amends 0202 |
-| [0205](0205-signals-change-uwuis-interface.md) | Signals change uwui's interface, and live values its drawing | Accepted; amends 0190; amended by 0206 and 0210; checked against Slatty's and the engine's lists |
+| [0205](0205-signals-change-uwuis-interface.md) | Signals change uwui's interface, and live values its drawing | Accepted; amends 0190; amended by 0206, 0210 and 0211; checked against Slatty's and the engine's lists |
 | [0206](0206-slatty-ported-again-the-daw-later.md) | Slatty ported again; the DAW later | Accepted; amends 0203 and 0205; its check done |
 | [0207](0207-what-slimeengine-is-to-become.md) | What SlimeEngine is to become | Accepted; amends 0098 and principle 8 |
 | [0208](0208-the-engines-promises-and-systems.md) | The engine's promises and systems | Accepted; amends 0098, 0107 and 0114 |
 | [0209](0209-platforms-the-editor-and-agents.md) | Platforms, the editor and agents | Accepted; amends 0098, 0099, 0122 and 0190 |
-| [0210](0210-signals-named-for-a-reload.md) | Signals named for a reload, through serde | Accepted; amends 0202 and 0205 |
+| [0210](0210-signals-named-for-a-reload.md) | Signals named for a reload, through serde | Accepted; amends 0202 and 0205; amended by 0211 |
+| [0211](0211-the-executor-and-other-threads-through-channels.md) | The interface's executor, and other threads through channels | Accepted; amends 0190, 0205 and 0210 |
