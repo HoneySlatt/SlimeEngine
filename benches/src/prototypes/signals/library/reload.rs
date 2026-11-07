@@ -128,7 +128,8 @@ fn a_value_whose_type_no_longer_reads_starts_again_and_says_so() {
     let notes = host.program.notes();
     assert_eq!(notes.len(), 1, "{notes:?}");
     assert!(
-        notes[0].starts_with("`page` started again: invalid type: integer"),
+        notes[0].starts_with("`page` started again: invalid type: integer")
+            && notes[0].ends_with(", expected a string"),
         "{notes:?}"
     );
 }
