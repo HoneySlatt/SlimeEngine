@@ -20,6 +20,9 @@ use std::rc::Rc;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+// The thread's runtime, held apart from the bench's crate so that dx's patch of it reads the
+// running program's (ADR-0212).
+use slime_bench_locals::{replace_runtime, runtime};
 use uwui::tree::Key;
 
 use super::executor::Executor;
@@ -125,33 +128,27 @@ pub(crate) struct Runtime {
     pub(crate) executor: Rc<Executor>,
 }
 
-thread_local! {
-    static CURRENT: RefCell<Option<Rc<Runtime>>> = const { RefCell::new(None) };
-}
-
 /// The runtime of the application that runs on this thread.
 ///
 /// # Panics
 ///
 /// Outside an application's runtime ([`enter`]).
 pub(crate) fn current() -> Rc<Runtime> {
-    CURRENT.with(|current| {
-        current
-            .borrow()
-            .clone()
-            .expect("a signal used within an application")
-    })
+    runtime()
+        .expect("a signal used within an application")
+        .downcast()
+        .unwrap_or_else(|_| unreachable!("only `enter` sets the thread's runtime"))
 }
 
 /// Runs `run` with `runtime` as the thread's, and gives the one before back after, a panic too.
 pub(crate) fn enter<R>(runtime: &Rc<Runtime>, run: impl FnOnce() -> R) -> R {
-    struct Restore(Option<Rc<Runtime>>);
+    struct Restore(Option<Rc<dyn Any>>);
     impl Drop for Restore {
         fn drop(&mut self) {
-            CURRENT.with(|current| *current.borrow_mut() = self.0.take());
+            replace_runtime(self.0.take());
         }
     }
-    let before = CURRENT.with(|current| current.borrow_mut().replace(Rc::clone(runtime)));
+    let before = replace_runtime(Some(Rc::clone(runtime) as Rc<dyn Any>));
     let _restore = Restore(before);
     run()
 }

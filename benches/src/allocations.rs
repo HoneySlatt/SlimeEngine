@@ -4,7 +4,10 @@
 //! `docs/adr/0202-how-m6d1-compares-ways-of-writing-an-application.md`).
 
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::cell::Cell;
+
+// What each thread took of memory and gave back, held apart from the bench's crate so that dx's
+// patch of it keeps the running program's counts (ADR-0212).
+use slime_bench_locals::{allocations, count_allocation};
 
 /// The system's allocator, counting.
 pub struct Counting;
@@ -23,6 +26,7 @@ pub struct Allocations {
 
 impl Allocations {
     /// Nothing taken, nothing given back.
+    #[cfg(test)]
     const NONE: Self = Self {
         calls: 0,
         taken: 0,
@@ -39,21 +43,21 @@ impl Allocations {
     }
 }
 
-thread_local! {
-    /// What this thread took of memory and gave back.
-    static ALLOCATIONS: Cell<Allocations> = const { Cell::new(Allocations::NONE) };
+impl Allocations {
+    /// The counts that the thread-local holds, in their order.
+    fn of([calls, taken, freed]: [u64; 3]) -> Self {
+        Self {
+            calls,
+            taken,
+            freed,
+        }
+    }
 }
 
 /// Counts what a call took, `taken` bytes, and gave back, `freed` bytes, `call` whether it took
 /// memory. A thread whose locals are gone, as it ends, counts nothing.
 fn count(call: bool, taken: usize, freed: usize) {
-    let _ = ALLOCATIONS.try_with(|allocations| {
-        let mut counted = allocations.get();
-        counted.calls += u64::from(call);
-        counted.taken += taken as u64;
-        counted.freed += freed as u64;
-        allocations.set(counted);
-    });
+    count_allocation(call, taken as u64, freed as u64);
 }
 
 #[expect(
@@ -94,9 +98,9 @@ unsafe impl GlobalAlloc for Counting {
 /// What `run` gives, and what the calling thread took of memory and gave back meanwhile, not what
 /// other threads did.
 pub fn counted<T>(run: impl FnOnce() -> T) -> (T, Allocations) {
-    let before = ALLOCATIONS.with(Cell::get);
+    let before = Allocations::of(allocations());
     let value = run();
-    (value, ALLOCATIONS.with(Cell::get).since(before))
+    (value, Allocations::of(allocations()).since(before))
 }
 
 #[cfg(test)]

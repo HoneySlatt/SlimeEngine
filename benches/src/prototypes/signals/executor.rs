@@ -25,6 +25,10 @@ use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::task::{Context, Poll, Wake, Waker};
 use std::time::{Duration, Instant};
 
+// What the task that runs may still receive in its poll, held apart from the bench's crate so that
+// dx's patch of it reads the running program's (ADR-0212).
+use slime_bench_locals::{budget, set_budget};
+
 /// A task's future.
 type TaskFuture = Pin<Box<dyn Future<Output = ()>>>;
 
@@ -103,20 +107,16 @@ impl HostWake {
 /// with, so that a poll never runs as long as a sender sends.
 pub(crate) const MESSAGES_PER_POLL: usize = 16_384;
 
-thread_local! {
-    static BUDGET: Cell<usize> = const { Cell::new(usize::MAX) };
-}
-
 /// Spends one value of the budget of the task that runs: false when none is left, and the task
 /// must wait for the next frame.
 pub(crate) fn spend_budget() -> bool {
-    BUDGET.with(|budget| match budget.get() {
+    match budget() {
         0 => false,
         left => {
-            budget.set(left - 1);
+            set_budget(left - 1);
             true
         }
-    })
+    }
 }
 
 /// What the wakers of every task share with the executor, on any thread.
@@ -338,12 +338,12 @@ impl Executor {
                 continue;
             };
             polled += 1;
-            BUDGET.with(|budget| budget.set(MESSAGES_PER_POLL));
+            set_budget(MESSAGES_PER_POLL);
             let done = future
                 .as_mut()
                 .poll(&mut Context::from_waker(&waker))
                 .is_ready();
-            BUDGET.with(|budget| budget.set(usize::MAX));
+            set_budget(usize::MAX);
             let mut slots = self.slots.borrow_mut();
             let slot = &mut slots[id.index as usize];
             // A task that its own poll cancelled, closing its own page, is dropped here.

@@ -36,7 +36,18 @@ slime-input.workspace = true
 # its branch alone; already built for rmcp.
 serde.workspace = true
 serde_json.workspace = true
+# The bench's thread-locals, apart from its crate so that dx's patch of it reads the running
+# program's (ADR-0212), on its branch alone.
+slime-bench-locals = { path = "locals" }
 # The interface drawn from a display list (ADR-0139).
 uwui-render.workspace = true
 slime-world.workspace = true
 slime-world-render.workspace = true
+# A function's body reloaded by `dx serve --hot-patch` (ADR-0212), on its branch alone: subsecond's
+# table of the latest functions' addresses, and the websocket that dx sends its patches through.
+subsecond = { version = "=0.7.10", optional = true }
+tungstenite = { version = "0.28", optional = true, default-features = false, features = ["handshake"] }
+
+[features]
+# The prototype's reload of a function's body under dx (ADR-0212).
+hot = ["dep:subsecond", "dep:tungstenite"]

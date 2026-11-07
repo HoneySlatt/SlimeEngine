@@ -14,6 +14,7 @@
 //! cargo run --release -p slime-benches -- --prototypes --runs 5        # fewer runs than 21
 //! cargo run --release -p slime-benches -- --prototypes --reloads       # signals' reloads, timed
 //! cargo run --release -p slime-benches -- --prototypes --threads       # other threads, timed
+//! dx serve --hot-patch -p slime-benches --features hot --args "--prototypes --hot"  # a body, under dx
 //! ```
 //!
 //! It prints Markdown, which uwui's `docs/measurements.md` takes. With `PROTOTYPES_DUMP` set, each
@@ -23,6 +24,8 @@ mod control;
 mod data;
 mod described;
 mod host;
+#[cfg(feature = "hot")]
+mod hot;
 mod messages;
 mod reload;
 mod screens;
@@ -58,12 +61,15 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     let mut names = Vec::new();
     let mut reloads = false;
     let mut threads = false;
+    let mut hot = false;
     let mut arguments = arguments.iter();
     while let Some(argument) = arguments.next() {
         if argument == "--reloads" {
             reloads = true;
         } else if argument == "--threads" {
             threads = true;
+        } else if argument == "--hot" {
+            hot = true;
         } else if argument == "--runs" {
             runs = arguments
                 .next()
@@ -110,6 +116,12 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     }
     if threads {
         return threads::print_times(runs);
+    }
+    if hot {
+        #[cfg(feature = "hot")]
+        return hot::print_times(runs);
+        #[cfg(not(feature = "hot"))]
+        return Err("--hot needs the feature `hot`, under `dx serve --hot-patch`".to_owned());
     }
     chosen.bench("control", "hello", &control::HELLO)?;
     chosen.bench("control", "library", &control::LIBRARY)?;

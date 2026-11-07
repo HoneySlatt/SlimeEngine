@@ -17,6 +17,16 @@ pub mod library;
 pub mod mistakes;
 mod runtime;
 pub mod songs;
+/// Views that bring the bench's crate to the size of Slatty's interface, which `build.rs` writes
+/// with the feature `hot` (ADR-0212).
+#[cfg(feature = "hot")]
+pub(crate) mod sized {
+    use super::El;
+    use super::library::Game;
+    use super::prelude::*;
+
+    include!(concat!(env!("OUT_DIR"), "/sized.rs"));
+}
 #[cfg(test)]
 mod threads;
 
@@ -36,7 +46,8 @@ use super::data;
 use super::described::{self, Arg, Child, Map, On, Registry};
 use super::host::Model;
 use super::screens::{self, Edit, Screen, screen};
-use executor::{Executor, HostWake, Sleep};
+pub(crate) use executor::HostWake;
+use executor::{Executor, Sleep};
 use runtime::{Id, Kept, Path, Runtime, current, enter};
 
 /// What a screen's file writes with.
