@@ -762,6 +762,11 @@ light adds and multiplies them as they are: twice the value is twice the light. 
 image files store colors *sRGB-encoded* instead. Every color of the engine's API is linear, a
 `slime_color::LinearColor` ([ADR-0045](adr/0045-one-linear-color-type.md)).
 
+**Live value.** A cell of uwui's tree that any thread writes without a lock, keeping its latest
+value, the highest since it was last read, or a short ring of its history, and that an element
+reads as it is drawn: a meter or a playhead moves without the application's code, styles or layout
+([ADR-0205](adr/0205-signals-change-uwuis-interface.md)).
+
 **Log (world).** The entities that left a component's storage, per storage, and those destroyed,
 for the world, each with its *tick* (`World::removed`, `World::destroyed`); past a limit, a log
 forgets its older half, and a reader older than what it holds is told to read the whole world
@@ -1365,6 +1370,10 @@ a document cooked from a `.keys` file (`uwui::shortcuts::Shortcuts`,
 key, `Shift+MiddleButton`: it runs no command of its own, and the program reads what it names, as
 the editor reads what each button does over its viewport (`Ui::button_command`,
 [ADR-0160](adr/0160-two-viewports-and-blenders-way.md)).
+
+**Signal.** In uwui, a value whose readers are tracked: a closure that reads it, given where an
+element takes a value, runs again when it changes, and changes that part of its element alone
+([ADR-0205](adr/0205-signals-change-uwuis-interface.md)).
 
 **Simulated time.** Frame deltas supplied as a constant duration instead of being measured, so
 that a run gives the same results on every machine. Headless runs use it.
