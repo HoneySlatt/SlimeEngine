@@ -1831,3 +1831,19 @@ GitHub's hosted runners, on 2026-11-06, commit `db1821e`, its run green.
 `windows` came within 39 s of the limit of 20 minutes, 4 min 17 s longer than at M6d.0a's
 `0a1ba51`; why is not established. Its lack of room is known debt
 ([`debt.md`](debt.md)).
+
+## M6d.1b3a, three models on the bench
+
+The bench's figures, the four models', are uwui's: its
+[`docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#three-models-beside-the-control-on-m6d1bs-bench-2026-11-07).
+The milestone kept only documents on `main`, which run CI's job of documents alone: no code
+changed there, so the jobs of code did not run.
+
+GitHub's hosted runners, each run green:
+
+| Commit | Job | Time |
+|---|---|---|
+| `2db2af2`, ADR-0203, on 2026-11-06 | `docs` | 24 s |
+| `30312b7`, the milestone marked done, on 2026-11-07 | `docs` | 23 s |
+| uwui's `732286f`, its pilots replaced, on 2026-11-06 | uwui's `ci` | 28 s |
+| uwui's `66e6d8c`, the figures, on 2026-11-07 | uwui's `ci` | 25 s |
