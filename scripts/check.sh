@@ -161,6 +161,11 @@ if runs windowed; then
     fi
 
     step "Windowed samples and the lifecycle test in headless Wayland compositors (Weston), drawn with lavapipe"
+    # Built first, with the features of the runs below, so that `timeout` bounds the runs alone: a
+    # build from nothing, its dependencies optimised (ADR-0221), takes longer on CI's runners.
+    cargo build --locked --examples
+    cargo test --locked --no-run -p slime-mcp --test interface --test widgets --test edit_window --test views
+    cargo test --locked --no-run -p slime-app --test windowed_lifecycle
     start_weston slime-check
     # Each run takes a few seconds; `timeout` ends a stalled one, with SIGTERM, which stops the engine
     # cleanly, then SIGKILL if that is not enough, and the failure then prints Weston's log.
@@ -302,6 +307,9 @@ if runs game; then
     # without its window: a component of the game changed, an entity created, undone, redone,
     # written back.
     cargo build --locked -p hunnawood-editor
+    # Built first, so that `timeout` bounds the runs alone, here and in the game's runs below.
+    cargo test --locked --no-run -p slime-mcp --test edit_zone --test drive --test edit
+    cargo build --locked -p hunnawood
     env -u WAYLAND_DISPLAY -u DISPLAY timeout -k 10 300 cargo test --locked -p slime-mcp --test edit_zone
 
     step "The benchmarks' counters and ratios, on lavapipe (ADR-0186)"
