@@ -116,6 +116,8 @@ From the repository alone, they must grasp each part and why, then build, test a
 
 - Describe the code as it is now. Wrong documentation is worse than none.
 - No reference to past sessions, conversations or context the reader cannot see.
+- Never name a game as an inspiration of a game here; describe a game in its own terms. Its story, characters and world stay out of the repository.
+  Games and engines are named only as benches of measure, in the quality bar and `docs/measurements.md`, with version, settings and date ([ADR-0215](docs/adr/0215-the-engine-measured-against-the-market.md)).
 - Define each term the project coins where it first appears.
 - State limits and known debt (`docs/debt.md`) plainly. Never present a partial feature as complete.
 - In what agents read each session: short sentences, one fact per line.
