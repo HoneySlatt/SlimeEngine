@@ -163,9 +163,21 @@ hunnawood-editor = { path = "games/hunnawood-editor" }
 debug = true
 
 # Dependencies keep the tables that give a backtrace's frames their file and line in them, not the
-# rest of their debug information, which made most of `target`.
+# rest of their debug information, which made most of `target`. They are optimised, at the first
+# level, which gave Play its control as soon as the higher ones did, for less time to build
+# (docs/adr/0221-compiling-within-its-budgets.md); the engine's crates stay unoptimised, to be
+# stepped through.
 [profile.dev.package."*"]
 debug = "line-tables-only"
+opt-level = 1
+
+# A game's build for shipping, `cargo build --profile shipping -p <game> --no-default-features`:
+# release's, with each program optimised whole, across its crates, in one unit
+# (docs/adr/0221-compiling-within-its-budgets.md).
+[profile.shipping]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
 
 [workspace.lints.rust]
 missing_docs = "warn"

@@ -114,6 +114,17 @@ slime-devui = { git = "https://github.com/HoneySlatt/SlimeEngine", tag = "v0.6.0
 # The renderer computes a sky's lighting on the CPU, several times slower without optimizations.
 [profile.dev.package.slime-render]
 opt-level = 3
+
+# The other dependencies optimised in debug builds, the engine's crates among them, outside its
+# workspace; and a profile for shipping, optimised across crates, as the engine's workspace has them
+# (docs/adr/0221-compiling-within-its-budgets.md).
+[profile.dev.package."*"]
+opt-level = 1
+
+[profile.shipping]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
 ```
 
 - `slime-app` runs the game: its rules as a `Simulation`, what the player sees as a `Presentation`.
@@ -124,7 +135,7 @@ opt-level = 3
 - A game that tools and agents drive declares a `development` feature, on by default, which turns
   on `slime-app/development`, the *development channel* through which tools drive the game, and the
   dev overlay, an optional dependency of the game. It is built for shipping with
-  `--no-default-features`, which leaves both out, as [`games/hunnawood`](games/hunnawood/Cargo.toml) does
+  `cargo build --profile shipping --no-default-features`, which leaves both out, as [`games/hunnawood`](games/hunnawood/Cargo.toml) does
   ([`crates/slime-app/README.md`](crates/slime-app/README.md),
   [`crates/slime-devui/README.md`](crates/slime-devui/README.md)).
 - Building needs Rust 1.99 or later and, on Linux, the libraries that

@@ -64,8 +64,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
   done, [M6d.1c3a](#m6d1c3a--a-functions-body-reloaded-through-subsecond), a function's body
   reloaded through `subsecond` and `dx`, and
   [M6d.1c3b](#m6d1c3b--the-rivals-reloads-timed), the rivals' reloads timed beside it, which
-  closed M6d.1c. Next, [C1](#c1--compiling-within-its-budgets), the engine's compiling within its
-  budgets, then [M6d.1d](#m6d1d--layouts-styles-and-the-host).
+  closed M6d.1c; then [C1](#c1--compiling-within-its-budgets), the engine's compiling within its
+  budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)), in progress. Next,
+  [M6d.1d](#m6d1d--layouts-styles-and-the-host).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
   link to its code. M6d.1c's prototypes go on from it, on `m6d1c-bench`.
 - [uwui's repository](https://github.com/HoneySlatt/uwui) holds its direction, its quality bar and its open decisions; its code
@@ -98,7 +99,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.1c2 — The executor, and other threads](#m6d1c2--the-executor-and-other-threads) | Done |
 | [M6d.1c3a — A function's body reloaded through subsecond](#m6d1c3a--a-functions-body-reloaded-through-subsecond) | Done |
 | [M6d.1c3b — The rivals' reloads, timed](#m6d1c3b--the-rivals-reloads-timed) | Done |
-| [C1 — Compiling within its budgets](#c1--compiling-within-its-budgets) | Planned |
+| [C1 — Compiling within its budgets](#c1--compiling-within-its-budgets) | In progress |
 | [M6d.1d — Layouts, styles and the host](#m6d1d--layouts-styles-and-the-host) | Planned |
 | [M6d.2 — Typed styles](#m6d2--typed-styles) | Planned |
 | [M6d.3 — Documents with serde](#m6d3--documents-with-serde) | Planned |
@@ -511,6 +512,17 @@ Not a milestone of uwui's: the engine's compiling, between M6d.1c3b and M6d.1d, 
   debt written in [`debt.md`](debt.md); CI is green on Linux and Windows.
 - **Measured.** The steps of the section "Compiling, Ryzen 7 5800X" of `measurements.md`, before and
   after, and the shipping build.
+- **Result.** Measured on 2026-11-08, CI to follow
+  ([ADR-0221](adr/0221-compiling-within-its-budgets.md)):
+  - Dependencies optimised at the first level in debug builds.
+  - mold links in the Nix shell.
+  - The examples' editor's Play builds with the workspace's features, one line of
+    `examples/editor.rs` changed on the owner's choice.
+  - A profile `shipping`, optimised across crates.
+  - Every budget measurable today within, the game's change by about a tenth, with mold; three
+    sets of features remain, `cargo build --workspace`, a game with its editor, and the examples
+    with the tests, in
+    [`debt.md`](debt.md) ([`measurements.md`](measurements.md#c1-after-ryzen-7-5800x)).
 
 ### M6d.1d — Layouts, styles and the host
 
@@ -812,6 +824,9 @@ made after Stage 6e's first milestone runs on `games/open-world` where it names 
 - **G20, in the Windows virtual machine.** A source asset whose `.meta` differs from its own name
   by case only, cooked twice: whether its ID changes at each cook, and whether `slime-cook watch`
   cooks it again without end (see [Left by the audit of 0.4](debt.md#left-by-the-audit-of-04)).
+- **The build for shipping on Windows** (C1): `cargo build --profile shipping -p hunnawood
+  --no-default-features` in the Windows virtual machine, then the game run with `--new --save
+  <a file of its own>`.
 
 ## Known debt
 

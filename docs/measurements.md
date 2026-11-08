@@ -1946,3 +1946,128 @@ GitHub's hosted runners, on 2026-11-07, each run green:
 | `8c75a4b`, the milestone marked done | Docs' `links` | 18 s |
 | uwui's `ab4c7df`, its roadmap in line with ADR-0213 to ADR-0220 | uwui's `check` | 20 s |
 | uwui's `290bdd9`, the step `save` and the figures, pushed with `cdfab94` | uwui's `check` | 21 s |
+
+## C1, before, Ryzen 7 5800X
+
+Measured with [`scripts/compile-times.sh`](../scripts/compile-times.sh) on a clone of the commit
+before C1, its Play building the examples' `world` as it then did, with `-p slime-examples`. The
+processors were idle and no other build ran; the load average before the run was what remained of
+an earlier build. "Packages compiled" counts the packages that cargo printed as compiled, the
+library and the program of one package counted once.
+
+Commit `4b164dd`, on 2026-11-08: AMD Ryzen 7 5800X 8-Core Processor,
+16 logical CPUs, rustc 1.99.0, no flags of rustc set;
+runs: 7 of each change, 3 of the workspace and 1 for shipping from nothing;
+load average 0.90 1.64 3.45 before, 10.86 6.80 5.29 after.
+
+| Step | Median | Range | Packages compiled |
+|---|---|---|---|
+| the workspace from nothing, `--workspace` | 35.43 s | 34.63 to 36.23 s | 268 |
+| then the game's editor, `-p hunnawood-editor` | 23.69 s | one run | 90 |
+| then the game as Play builds it, `-p hunnawood --bin hunnawood` | 2.00 s | one run | 1 |
+| then the examples' editor, `--example editor` | 24.08 s | one run | 129 |
+| then its game as Play builds it, `-p slime-examples --example world` | 20.72 s | one run | 42 |
+| a function's body changed in the game, `-p hunnawood --bin hunnawood` | 1.42 s | 1.25 to 1.52 s | 1 |
+| a function's body changed in `slime-world`, `-p hunnawood-editor` | 2.34 s | 2.03 to 4.09 s | 8 |
+| then the game as Play builds it | 1.01 s | 0.99 to 1.07 s | 1 |
+| a function's body changed in `slime-world`, `--example editor` | 2.31 s | 2.15 to 2.38 s | 7 |
+| then its game as Play builds it | 2.37 s | 2.24 to 3.15 s | 7 |
+| a public function added to `slime-input`, `-p hunnawood-editor` | 2.43 s | 2.22 to 2.49 s | 9 |
+| the game in release from nothing, no profile for shipping, `--release -p hunnawood --no-default-features` | 38.73 s | one run | 198 |
+
+Play's time to control on *Hunna Wood*'s zone, as `cargo run -p slime-benches -- play.zone`
+measures it ([M6c.4d](#m6c4d-rx-6900-xt)), in a window on the owner's desktop drawn by the RX 6900
+XT, in a debug build: 1.11 s, median of 5, 1.24 s at the 90th percentile; of it, cargo finding
+nothing to build 0.14 s.
+
+What it says:
+
+- *Hunna Wood*'s editor and the game that its Play builds share every engine crate: only the game's
+  program is built again.
+- The examples' editor and the `world` example that its Play builds share none: each engine change
+  is compiled twice.
+- A function's body changed in the game: 1.42 s to build, then 0.97 s for Play to give control
+  without cargo's own look, about 2.4 s, over the budget of 2 s.
+- The same steps, measured once each on 2026-11-07 ([Compiling](#compiling-ryzen-7-5800x)), took
+  53.9 s, 1.93 s and 70 s where these took 35.4 s, 1.42 s and 38.7 s, on the same code. The cause
+  of the gap is not known: those runs were single, and their machine's load was not recorded.
+  ADR-0220's 3.1 s rested on them.
+
+## C1, after, Ryzen 7 5800X
+
+Measured with [`scripts/compile-times.sh`](../scripts/compile-times.sh), after
+[ADR-0221](adr/0221-compiling-within-its-budgets.md)'s changes, in the development shell, which links
+with mold; [before](#c1-before-ryzen-7-5800x). The load average before the run was what remained of
+the run before it.
+
+Commit `4b164dd`, with the working tree's changes, on 2026-11-08: AMD Ryzen 7 5800X 8-Core Processor,
+16 logical CPUs, rustc 1.99.0, Linux's `-C link-arg=-fuse-ld=mold`;
+runs: 7 of each change, 3 of the workspace and 3 for shipping from nothing;
+load average 4.19 5.61 4.98 before, 5.03 7.25 6.90 after.
+
+| Step | Median | Range | Packages compiled |
+|---|---|---|---|
+| the workspace from nothing, `--workspace` | 61.96 s | 60.95 to 62.70 s | 268 |
+| then the game's editor, `-p hunnawood-editor` | 36.44 s | one run | 90 |
+| then the game as Play builds it, `-p hunnawood --bin hunnawood` | 1.83 s | one run | 1 |
+| then the examples' editor, `--example editor` | 49.68 s | one run | 129 |
+| then its game as Play builds it, `--workspace --example world` | 2.30 s | one run | 1 |
+| a function's body changed in the game, `-p hunnawood --bin hunnawood` | 1.05 s | 0.98 to 1.25 s | 1 |
+| a function's body changed in `slime-world`, `-p hunnawood-editor` | 1.71 s | 1.63 to 1.94 s | 8 |
+| then the game as Play builds it | 0.73 s | 0.71 to 0.96 s | 1 |
+| a function's body changed in `slime-world`, `--example editor` | 1.82 s | 1.77 to 3.12 s | 7 |
+| then its game as Play builds it | 0.86 s | 0.84 to 0.98 s | 1 |
+| a public function added to `slime-input`, `-p hunnawood-editor` | 1.96 s | 1.87 to 2.36 s | 9 |
+| the game for shipping from nothing, `--profile shipping -p hunnawood --no-default-features` | 86.70 s | 85.67 to 87.00 s | 198 |
+
+Play's time to control on the zone, measured as before, after these changes: 0.89 s, median of 5,
+0.90 s at the 90th percentile; of it, cargo finding nothing to build 0.12 s.
+
+Against the budgets of [ADR-0215](adr/0215-the-engine-measured-against-the-market.md):
+
+| Budget | Before | After |
+|---|---|---|
+| A change of a game's code to the game running again, 2 s: the build, then Play's time to control without cargo's own look | 1.42 s and 0.97 s, about 2.4 s, over | 1.05 s and 0.77 s, about 1.8 s, within; 2.0 s with the slowest build of 7 |
+| The editor built again after a change of an engine crate, 10 s | 2.34 s | 1.71 s |
+| The whole engine from nothing, 3 min | 35.4 s | 62.0 s |
+| A game's build for shipping, 10 min | no profile for shipping | 86.7 s |
+| Reloaded hot, its state kept, under 1 s | does not exist (Stage 8) | does not exist (Stage 8) |
+| Four times less waiting than Unreal, Unity and Godot | not measured (Stage 6e) | not measured (Stage 6e) |
+
+What it says:
+
+- The game's change runs again within its budget, as an estimate: the sum of two medians, not one
+  interval timed end to end. With rustc's own lld, outside the shell, the trials below give about
+  2.2 s, over.
+- The examples' editor and the `world` that its Play builds now share every engine crate: Play
+  builds one package after an engine change, in 0.86 s rather than 2.37 s.
+- The workspace from nothing takes about 1.75 times as long, the dependencies optimised.
+- The game built for shipping ran: 120 frames of its zone, its run saved to a file of its own.
+- `scripts/uwui-program.sh`, run after these changes, its dependencies optimised and the engine's
+  crates not: 271 crates, 15 of the engine's; 65.3 s from nothing in debug, 0.8 s after a change of
+  its own code; 56.1 s from nothing in release; its release binary 31.9 MB, 24.1 MB stripped.
+
+### The trials
+
+The workspace from nothing, one run each, and Play's time to control on the zone, median of 5,
+dependencies optimised at each level in debug builds, rustc's own lld:
+
+| `opt-level` of the dependencies | The workspace from nothing | Play's time to control | 90th percentile |
+|---|---|---|---|
+| none | 33.1 s | 1.11 s | 1.24 s |
+| 1 | 63.7 s | 0.90 s | 1.06 s |
+| 2 | 75.2 s | 0.94 s | 0.96 s |
+| 3 | 80.0 s | 0.95 s | 1.03 s |
+
+The linkers, each on the whole of `scripts/compile-times.sh`, 7 runs of each change and 1 of the
+workspace from nothing, dependencies at level 1, one run after the other; medians, with their range.
+That version of the script let the examples' steps leak into the steps after them: only the steps
+that they did not reach are given.
+
+| Step | rustc's lld | mold 2.42.1 | wild 0.10.0 |
+|---|---|---|---|
+| a function's body changed in the game | 1.44 s, 1.21 to 1.97 s | 0.97 s, 0.94 to 1.46 s | 0.99 s, 0.94 to 1.09 s |
+| a function's body changed in `slime-world`, the game's editor | 1.86 s | 1.63 s | 1.74 s |
+| then the game as Play builds it | 0.90 s | 0.69 s | 0.72 s |
+| the workspace from nothing | 58.8 s | 61.0 s | 62.3 s |
+| the game in release from nothing | 38.3 s | 38.7 s | 38.6 s |

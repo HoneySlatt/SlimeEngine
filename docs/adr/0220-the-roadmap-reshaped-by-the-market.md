@@ -4,7 +4,8 @@
   contents), [0190](0190-uwuis-requirements.md) and [0194](0194-stage-6d-uwui-leaving-the-engine.md)
   (a stage of measures before Stage 6c resumes; Stage 6d's milestones widened) and
   [0207](0207-what-slimeengine-is-to-become.md) (CI's runners on the Deck and a desktop GPU before
-  Stage 7)
+  Stage 7); amended by [0221](0221-compiling-within-its-budgets.md) (one set of features where a
+  program and the game that its Play builds meet)
 - Date: 2026-11-07
 
 ## Context

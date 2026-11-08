@@ -172,7 +172,7 @@ the ADR linking to it.
 | [0101](0101-saves-and-identities-that-never-mislead.md) | Saves and identities that never mislead | Accepted; amended by 0109, 0112, 0124 and 0125 |
 | [0102](0102-a-damaged-file-gives-an-error.md) | A damaged file gives an error, never a crash | Accepted; amended by 0176 |
 | [0103](0103-a-lost-device-is-recovered-wherever-the-loss-is-found.md) | A lost GPU device is recovered wherever the loss is found | Accepted |
-| [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted; amended by 0114, 0123, 0144, 0175, 0186 and 0189 |
+| [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted; amended by 0114, 0123, 0144, 0175, 0186, 0189 and 0221 |
 | [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Superseded by 0152 |
 | [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted; amended by 0117 and 0126 |
 | [0107](0107-the-execution-model.md) | The execution model | Accepted; amended by 0118, 0121, 0208 and 0217 |
@@ -288,4 +288,5 @@ the ADR linking to it.
 | [0217](0217-worlds-by-density-generated-and-destroyed.md) | Worlds by density, generated and destroyed | Accepted; amends 0098, 0107, 0109, 0112 and 0208 |
 | [0218](0218-one-core-for-agents-in-uwui.md) | One core for agents, in uwui | Accepted; amends 0099, 0122, 0190, 0209 and 0213 |
 | [0219](0219-test-games-in-place-of-hunna-wood.md) | Test games in place of Hunna Wood | Accepted; amends 0006, 0067, 0207, 0214 and principle 4 |
-| [0220](0220-the-roadmap-reshaped-by-the-market.md) | The roadmap reshaped by the market | Accepted; amends 0098, 0190, 0194 and 0207 |
+| [0220](0220-the-roadmap-reshaped-by-the-market.md) | The roadmap reshaped by the market | Accepted; amends 0098, 0190, 0194 and 0207; amended by 0221 |
+| [0221](0221-compiling-within-its-budgets.md) | Compiling within its budgets | Accepted; amends 0104 and 0220 |

@@ -79,6 +79,11 @@ for crate in slime-render slime-world slime-editor; do
     printf '  %s: ' "$crate"
     printf '%s\n' "$crates" | grep -q "^$crate " && echo compiled || echo "not compiled"
 done
+# The engine's crates are members of the workspace, which `[profile.dev.package."*"]` leaves
+# unoptimised; here they are not, and would be optimised with the dependencies (ADR-0221).
+for crate in $(printf '%s\n' "$crates" | grep -E '^(slime-|uwui)' | cut -d' ' -f1); do
+    printf '\n[profile.dev.package.%s]\nopt-level = 0\n' "$crate" >>Cargo.toml
+done
 
 seconds() { python3 -I -c 'import sys, time; print(f"{time.monotonic():.3f}")'; }
 build() {

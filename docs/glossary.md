@@ -150,7 +150,9 @@ per process, 32 × 32 ([ADR-0039](adr/0039-image-based-lighting-computed-on-the-
 
 **Build for shipping.** A game built without its default features, `--no-default-features`, so
 without `slime-app`'s `development` feature and the dev *overlay*: it holds neither the
-*development channel* nor the overlay. The checks build *Hunna Wood* so, and fail if it holds either
+*development channel* nor the overlay. It is built in the profile `shipping`, release's optimised
+across the game's crates ([ADR-0221](adr/0221-compiling-within-its-budgets.md)). The checks build
+*Hunna Wood* without its default features, in debug builds, and fail if it holds either
 ([ADR-0122](adr/0122-the-development-channel.md),
 [ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)).
 

@@ -589,7 +589,6 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   *Hunna Wood* has no run without a window: an agent's editor without one plays it in a window all the same.
   A control that the game refuses is told, but the toolbar shows what the game says only once it answers the state asked after the control.
 - **Building the game again** ([ADR-0166](adr/0166-building-the-game-again.md)).
-  The game is built with its package's features alone: after a build of the whole workspace, which unifies others, cargo builds it again once.
   A change of the game's sources is seen by polling the files that cargo lists, and cargo's manifests and locks above them, until notify comes with M6c.7.
   A source that the last build did not list, a new file, is seen only with a change of one that it did.
   A new build that builds but does not start, or crashes as it starts, ends Play, and the run's save goes with Play's directory.
@@ -600,13 +599,14 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Such a level fits one scene file only with entities that hold little (`slime_serialize::MAX_VALUES`), which levels of several files, M6c.6, are to settle.
   The owner chose, on 2026-10-29, to leave it until M6c.6 measures it again.
   Play asks the game how its time stands at each of its frames until it gives control, which a game that holds its time long, as behind a menu, pays for meanwhile.
-- **A change of a game's code takes about 3.1 s to run again in a debug build, over [ADR-0215](adr/0215-the-engine-measured-against-the-market.md)'s budget** ([`measurements.md`](measurements.md#compiling-ryzen-7-5800x)).
-  On the Ryzen 7 5800X, *Hunna Wood* builds again in 1.93 s after a function's body changed, and Play gives control in 1.15 s.
-  Each engine change is compiled once per set of features, and the game's differ from the editor's.
-  Dependencies are not optimised in debug builds, and no linker is chosen.
-  Followed by ADR-0220's "Compiling, now": one set of features for the workspace, dependencies optimised in debug builds, a faster linker chosen by measure ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
+- **Compiling** ([ADR-0221](adr/0221-compiling-within-its-budgets.md), [`measurements.md`](measurements.md#c1-after-ryzen-7-5800x)).
+  A change of a game's code runs again in a debug build within [ADR-0215](adr/0215-the-engine-measured-against-the-market.md)'s budget by a tenth of it, and only with mold, in the Nix shell on Linux: rustc's own lld, outside it, misses the budget, and Windows is not measured.
+  The figure is a sum of the build's time and Play's time to control, not one interval timed end to end.
+  `cargo build --workspace`, a game with its editor, and the examples with the tests each resolve a set of features of their own: the first build of one after another compiles the engine again, once.
+  Followed by cargo's `resolver.feature-unification`, [rust-lang/cargo#14774](https://github.com/rust-lang/cargo/issues/14774), once it is stable.
   A game's Rust code reloaded hot, its state kept, does not exist yet: Stage 8.
-  There is no profile for shipping, with optimisation across crates: the budget of a game's build for shipping cannot be measured; ADR-0220 adds one.
+  The profile for shipping is built on Linux only, neither by CI nor by hand on Windows yet: a [check by hand](PLAN.md#checks-by-hand-waiting-for-the-owner).
+  Unreal's, Unity's and Godot's compiling is not measured: Stage 6e.
 - **Editing while playing** ([ADR-0165](adr/0165-editing-while-playing.md)).
   An undone deletion does not reach the game, which plays on without what it restored until Play starts it again.
   A step that the game refuses stays applied in the game up to the command refused.

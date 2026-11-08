@@ -54,8 +54,8 @@ machine's own address for the tools and the agents that drive it, which see its 
 `hero`, change its settings ([ADR-0127](../../docs/adr/0127-the-settings-of-a-view.md)) and read
 its reports, `assets`, its asset cache's requests and memory, and `views`, its view's statistics
 ([ADR-0128](../../docs/adr/0128-asset-requests.md)); started
-without one, as above, it does not. `cargo build -p hunnawood --no-default-features` builds it for shipping, without the
-channel and the dev overlay.
+without one, as above, it does not. `cargo build --profile shipping -p hunnawood --no-default-features` builds it for shipping,
+optimised across its crates, without the channel and the dev overlay.
 
 The window shows its first frame once the hero is loaded and the skies computed, while the zone
 loads in the background: until it is drawn, game time is held, the hero stands at the start under

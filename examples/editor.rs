@@ -118,9 +118,11 @@ fn program() -> slime_editor::Program {
             }
             command
         }),
+        // Built with the features of the whole workspace, as `cargo run --example editor` from its
+        // root builds the editor: the two share every engine crate, compiled once (ADR-0221).
         build: Some(slime_editor::Build {
             directory: PathBuf::from(env!("CARGO_MANIFEST_DIR")),
-            arguments: &["--package", "slime-examples", "--example", "world"],
+            arguments: &["--workspace", "--example", "world"],
         }),
         layout: None,
     }

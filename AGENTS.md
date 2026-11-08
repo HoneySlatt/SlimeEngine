@@ -44,6 +44,7 @@ cargo run --example <name>                             # examples/README.md
 cargo run --release -p slime-benches -- [<name>...]    # benches/README.md
 cargo run -p slime-benches -- --write-counters [<name>...]  # ADR-0186
 scripts/measure.sh "<title>" >> docs/measurements.md   # ADR-0104
+scripts/compile-times.sh                               # compiling's budgets, ADR-0221
 scripts/start-times.sh [--gpu] [--cold] [--runs <n>]   # starts, ADR-0189
 scripts/input-to-present.sh [--gpu]                    # input to present, ADR-0189
 scripts/resources.sh [--gpu] [--heaptrack]             # memory and power, ADR-0193

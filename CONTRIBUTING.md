@@ -36,6 +36,8 @@ nix develop
 The shell it opens contains the pinned toolchain and the project's tools: `cargo-deny` (checks
 dependency licenses and security advisories), `lychee` (checks links in the documentation),
 `hyperfine` (times the programs' starts), `heaptrack` (records a program's heap over its run),
+mold (links what is built for Linux, which the shell sets through
+`CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS`, [ADR-0221](docs/adr/0221-compiling-within-its-budgets.md)),
 sway and `wlrctl` (a compositor without screen that takes virtual input, and the tool that gives
 it) and Weston (a Wayland compositor without screen, in which the checks run the windowed samples
 and the games). It also puts the windowing libraries that the
@@ -60,6 +62,12 @@ reporting that the windowing system cannot be reached. A program that asks for t
 loads libfontconfig, and finds none without it. The editor's dialog to open a level loads
 libdbus-1, through which it asks the desktop's portal, or runs `zenity`; without either, the editor
 waits for the level's path typed. Most desktop distributions install them already.
+Without the shell, cargo links with rustc's own lld rather than mold: to build as the shell does,
+install mold and set `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=-fuse-ld=mold"`.
+cargo keeps apart what it builds with each set of rustc's flags: going from the shell to a build
+without it builds the workspace once more, beside the first. Inside the shell, that variable takes
+the place of a `build.rustflags` of one's own cargo configuration; a `RUSTFLAGS` takes the place
+of both.
 
 ### On Windows
 
@@ -89,6 +97,7 @@ taskset -c 0-3 cargo run --release -p slime-benches -- [<name>...]  # the CPU be
 cargo run -p slime-benches -- --counters [<name>...]      # check the benchmarks' counters and ratios, as CI does, on lavapipe (ADR-0186)
 cargo run -p slime-benches -- --write-counters [<name>...]  # write the counters that a change changed on purpose into benches/counters.txt
 scripts/measure.sh "<title>" >> docs/measurements.md      # time the build, run the benchmarks (ADR-0104)
+scripts/compile-times.sh [--runs <count>] [--cold-runs <count>] [--shipping-runs <count>]  # time the steps of compiling that the budgets name, on a copy of the working tree (ADR-0221)
 scripts/frame-pacing.py <trace.json>                      # the frames' pacing and the inputs to present in a trace written with SLIME_TRACE (ADR-0187, ADR-0189)
 scripts/start-times.sh [--gpu] [--cold] [--runs <count>]  # time the editor's and the game's starts in a headless Weston (ADR-0189)
 scripts/input-to-present.sh [--gpu]                       # measure their input to present, a person's input given in a headless sway (ADR-0191)
@@ -100,7 +109,8 @@ blender --background --factory-startup --python games/hunnawood/zone/build_zone.
 cargo run -p hunnawood                                    # play the game (games/hunnawood/README.md)
 cargo run -p hunnawood -- --watch                         # load its zone and the shaders again as they change
 cargo run -p hunnawood -- --new --save <file>             # play a new run, saved to <file>, not to the user's save
-cargo build -p hunnawood --no-default-features           # the game built for shipping, without the development channel and the dev overlay (ADR-0122, ADR-0152)
+cargo build -p hunnawood --no-default-features           # the game without the development channel and the dev overlay (ADR-0122, ADR-0152)
+cargo build --profile shipping -p hunnawood --no-default-features  # the game built for shipping, optimised across its crates (ADR-0221)
 cargo run --example editor -- --level <a copy of a level> --journal <file>  # the editor's window on the examples' yard (ADR-0135, ADR-0156); --headless without a window
 cargo run --example editor -- --journal <file> --output <file.png>  # the editor's window drawn into an image, without a window
 cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>  # the game's editor on its zone, Play building and running `hunnawood` (games/hunnawood-editor/README.md)
@@ -298,7 +308,8 @@ Play runs the game, `drive_played_game` points the server's game tools at that g
 tools still reaching the editor ([ADR-0165](docs/adr/0165-editing-while-playing.md)).
 
 A build for shipping leaves the channel and the dev overlay out: name the game alone, without its
-default features, `cargo build --release -p hunnawood --no-default-features`. A build of the whole
+default features, in the profile for shipping,
+`cargo build --profile shipping -p hunnawood --no-default-features`. A build of the whole
 workspace turns the channel on for every program, as cargo unifies the features of a build, through
 `slime-editor`; one of its tests or examples (`cargo test --workspace`, `--all-targets`) turns on
 the adapter of screen readers too, `slime-app`'s `accessibility` feature, which the examples turn
@@ -332,6 +343,14 @@ figures before it and after it, measured on the same machine, driver and build:
 cargo run --release -p slime-benches -- world        # the benchmarks whose names start with `world`
 scripts/measure.sh "<milestone>, <GPU>" >> docs/measurements.md
 ```
+
+[`scripts/compile-times.sh`](scripts/compile-times.sh) times the steps of compiling that the
+quality bar's budgets name ([`docs/ROADMAP.md`](docs/ROADMAP.md#budgets)), at each milestone: the
+workspace from nothing, a function's body changed in a game or an engine crate and built for an
+editor and the game that its Play builds, a public function added, a game built for shipping. It
+builds a copy of the working tree, prints a table of medians and ranges with the crates that each
+step compiled, and is run in the development shell on a machine at rest
+([ADR-0221](docs/adr/0221-compiling-within-its-budgets.md)).
 
 To see where a frame's time goes, `SLIME_TRACE=<file>` makes a program that calls
 `slime_app::init_diagnostics`, as the examples, the game and the benchmarks do, write a trace of

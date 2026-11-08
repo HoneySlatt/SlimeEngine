@@ -27,6 +27,8 @@
           (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml)
           pkgs.cargo-deny
           pkgs.lychee
+          # Links the programs built for Linux, faster than rustc's own lld (ADR-0221).
+          pkgs.mold
           # Times a program's start, from its process's launch to its exit after its first image
           # (ADR-0189).
           pkgs.hyperfine
@@ -80,6 +82,10 @@
         # Vulkan loader at it (VK_DRIVER_FILES) so that GPU tests give the same results on every
         # machine and in CI, which has no GPU.
         SLIME_LAVAPIPE_ICD = "${pkgs.mesa}/share/vulkan/icd.d/lvp_icd.x86_64.json";
+
+        # mold links what is built for Linux, in this shell only, so that a contributor without Nix
+        # still builds with rustc's own linker (ADR-0221). A `RUSTFLAGS` of one's own replaces it.
+        CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS = "-C link-arg=-fuse-ld=mold";
       };
     };
 }

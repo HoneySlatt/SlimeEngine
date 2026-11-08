@@ -8,6 +8,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- Compiling within its budgets (ADR-0221): dependencies are optimised at the first level in debug
+  builds; the Nix shell links with mold on Linux; the examples' editor's Play builds `world` with
+  the workspace's features, which share every engine crate with the editor's.
 - A hidden window rests (ADR-0187): on Wayland, a frame waits for the compositor's signal that the
   window can show a new image, so a hidden window draws nothing and wakes not at all under a
   compositor that sends it none, and a display slower than the schedule paces the frames; on
@@ -28,6 +31,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- A profile for shipping a game, `cargo build --profile shipping -p <game> --no-default-features`,
+  optimised across its crates; `scripts/compile-times.sh`, which times the steps of compiling that
+  the budgets name (ADR-0221).
 - First measures of time (ADR-0189): `slime_app::since_start`; a windowed run logs when it
   presents its first image, the editor when it first draws its level whole, and *Hunna Wood* when
   it first draws its zone, each in milliseconds after the start; the trace that `SLIME_TRACE` asks
