@@ -2071,3 +2071,23 @@ that they did not reach are given.
 | then the game as Play builds it | 0.90 s | 0.69 s | 0.72 s |
 | the workspace from nothing | 58.8 s | 61.0 s | 62.3 s |
 | the game in release from nothing | 38.3 s | 38.7 s | 38.6 s |
+
+### CI's runners
+
+GitHub's hosted runners, on 2026-11-08. On `fb2be2a`, `check (windowed)` failed: its `timeout`
+of 120 s bounded the examples' build with their run, and the build, its dependencies optimised,
+outlasted it; `8c3b9dc` builds them first. The other jobs of `fb2be2a` were green; every job of
+`8c3b9dc` is.
+
+| Job | `fb2be2a`, the changes | `8c3b9dc`, the checks' builds first |
+|---|---|---|
+| `check (headless)` | 15 min 55 s | 23 min 2 s |
+| `check (windowed)` | failed after 3 min 29 s | 9 min 9 s |
+| `check (game)` | 9 min 30 s | 9 min 50 s |
+| `windows` | 19 min 52 s | 18 min 52 s |
+| `windows-release` | 11 min 43 s | 16 min 0 s |
+| Docs' `links` | 18 s | 17 s |
+
+`check (headless)` ran the same code on both: on `8c3b9dc`, each of its steps took 1.4 to 1.6 times
+as long, the runner slower, which took it over its limit of 20 minutes.
+

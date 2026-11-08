@@ -648,6 +648,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Each milestone records its jobs' times in [`measurements.md`](measurements.md): the `windows` job has little room left under its limit, its tests' step varying most from one run to the next.
   The `windows` job builds the tests that read the zone again, with `-p`, whose features differ from the workspace's: about a minute.
   Dependencies optimised in debug builds ([ADR-0221](adr/0221-compiling-within-its-budgets.md)) lengthen `windows`'s build of its tests from nothing, which no cache keeps: 19 min 52 s on `fb2be2a`, against 19 min 21 s before.
+  The runners' speed varies: `check (headless)` took 15 min 55 s on `fb2be2a` and 23 min 2 s on `8c3b9dc`, the same code, each of its steps slower, over its limit.
   Run over the workspace, `--ignored` would also run the measurements that other crates ignore, meant for release builds.
   How the jobs grew and were split: [`history.md`](history.md#ci-and-its-limit-of-20-minutes).
 - **The quality bar's budgets are checked by hand, or not measured yet** ([ADR-0175](adr/0175-the-quality-bar.md)).

@@ -65,7 +65,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
   reloaded through `subsecond` and `dx`, and
   [M6d.1c3b](#m6d1c3b--the-rivals-reloads-timed), the rivals' reloads timed beside it, which
   closed M6d.1c; then [C1](#c1--compiling-within-its-budgets), the engine's compiling within its
-  budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)), in progress. Next,
+  budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)), done. Next,
   [M6d.1d](#m6d1d--layouts-styles-and-the-host).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
   link to its code. M6d.1c's prototypes go on from it, on `m6d1c-bench`.
@@ -99,7 +99,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.1c2 — The executor, and other threads](#m6d1c2--the-executor-and-other-threads) | Done |
 | [M6d.1c3a — A function's body reloaded through subsecond](#m6d1c3a--a-functions-body-reloaded-through-subsecond) | Done |
 | [M6d.1c3b — The rivals' reloads, timed](#m6d1c3b--the-rivals-reloads-timed) | Done |
-| [C1 — Compiling within its budgets](#c1--compiling-within-its-budgets) | In progress |
+| [C1 — Compiling within its budgets](#c1--compiling-within-its-budgets) | Done |
 | [M6d.1d — Layouts, styles and the host](#m6d1d--layouts-styles-and-the-host) | Planned |
 | [M6d.2 — Typed styles](#m6d2--typed-styles) | Planned |
 | [M6d.3 — Documents with serde](#m6d3--documents-with-serde) | Planned |
@@ -512,7 +512,7 @@ Not a milestone of uwui's: the engine's compiling, between M6d.1c3b and M6d.1d, 
   debt written in [`debt.md`](debt.md); CI is green on Linux and Windows.
 - **Measured.** The steps of the section "Compiling, Ryzen 7 5800X" of `measurements.md`, before and
   after, and the shipping build.
-- **Result.** Measured on 2026-11-08, CI to follow
+- **Result.** Done on 2026-11-08, CI green on Linux and Windows
   ([ADR-0221](adr/0221-compiling-within-its-budgets.md)):
   - Dependencies optimised at the first level in debug builds.
   - mold links in the Nix shell.
