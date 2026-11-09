@@ -71,9 +71,9 @@ in git.
     ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)): done,
     [M6d.1d2a](#m6d1d2a--layouts-their-notation-and-their-reload), layouts, their notation and
     their reload; M6d.1d2b cut in two at its start, on the same day
-    ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)): in
-    progress, [M6d.1d2b1](PLAN.md#m6d1d2b1--an-applications-start-and-its-look), an
-    application's start and its look; next,
+    ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)): done,
+    [M6d.1d2b1](#m6d1d2b1--an-applications-start-and-its-look), an application's start and its
+    look; next,
     [M6d.1d2b2](PLAN.md#m6d1d2b2--the-time-that-motion-reads), the time that motion reads.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
@@ -569,7 +569,50 @@ their notation ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-
 M6d.1d2b was cut in two at its start, on 2026-11-09, the start and the look first: the two halves
 share no decision
 ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)).
-M6d.1d2b1, in progress, and M6d.1d2b2 are in [`PLAN.md`](PLAN.md#m6d1d2b1--an-applications-start-and-its-look).
+
+### M6d.1d2b1 — An application's start and its look
+
+The first half of M6d.1d2b, cut in two at its start
+([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)). It follows
+the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** How an application starts, and the look that each of its roots names.
+- **Crates.** None kept.
+- **Delivers.** Each of these decided:
+  - an application started in one call, and where the call lives, the engine compiling no second
+    desktop host beside `slime-platform`'s;
+  - the look named at every way of starting: the one call, and a host that embeds uwui, as the
+    engine, a Kotlin activity that gives a surface, or a web page that exists; none chosen in
+    silence ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)), and ADR-0190's
+    "the default" amended;
+  - what a look is, as a theme of [ADR-0222](adr/0222-what-a-theme-is.md); how an application's
+    sheets and parts stack over it; one macro for an application's files;
+  - the system's preferences that a look follows, and on Linux the desktop's portal;
+  - blank, named Plain, defined, usable and accessible from its first frame, its name told apart
+    from the *blank window*;
+  - M6d.5 updated for them.
+- **Done when.** Each question is decided and recorded.
+- **Measured.** Nothing.
+- **Result.** Done on 2026-11-09, CI green
+  ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)):
+  - An application in the core's look names one crate, a *facade*, which holds `run` and chooses
+    the host by platform; an attribute writes each platform's entry; `run` never returns; the
+    engine depends on neither the facade nor uwui's hosts, which a check of M6d.7 proves.
+  - Every root is given its look and its target when it is made, never by default; a look is a
+    value, from code or from texts that the host gives, replaced while the root runs, its state
+    kept.
+  - An application's themes, sheets and parts stack over its look in ADR-0223's order; its parts
+    for a component replace the look's whole; one macro, `files!`, embeds every file in every
+    build.
+  - A look follows the system's preferences, forced colours and saving power among them, read by
+    one crate of uwui's that the engine's platform layer calls too; less motion keeps brief fades.
+  - Blank is *Plain*, a variant of the core's look in forced colours' roles; the blank window
+    keeps its name.
+  - What each platform gives of a frame's time, of input's and of its preferences, read for
+    M6d.1d2b2, is in
+    [uwui's survey](https://github.com/HoneySlatt/uwui/blob/main/docs/survey-writing-an-application.md#10-the-systems-preferences).
+
+M6d.1d2b2, next, is in [`PLAN.md`](PLAN.md#m6d1d2b2--the-time-that-motion-reads).
 
 ### M6d.2 — Typed styles
 

@@ -2129,3 +2129,17 @@ GitHub's hosted runners, on 2026-11-09, each run green:
 |---|---|
 | Docs' `links`, on `20444e7` | 19 s |
 | uwui's `check`, on its `7e409e6` | 20 s |
+
+## M6d.1d2b1, an application's start and its look
+
+A milestone of decisions alone
+([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)): nothing was
+measured. `main` took ADR-0226 and the documents it changes alone, which run the Docs workflow and
+not CI's jobs; the engine's code is as M6d.1d1 left it.
+
+GitHub's hosted runners, on 2026-11-09, each run green:
+
+| Job | Time |
+|---|---|
+| Docs' `links`, on `99191d2` | 17 s |
+| uwui's `check`, on its `eb5e41e` | 16 s |

@@ -19,10 +19,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 - Stage 6d, uwui leaving the engine, released with 0.7: its whole plan in
   [`stage-6d.md`](stage-6d.md).
-- Done: M6d.0a to M6d.1d2a, in the [status](#status) below. In progress:
-  [M6d.1d2b1](#m6d1d2b1--an-applications-start-and-its-look), an application's start and its
-  look, M6d.1d2b cut in two at its start; then
-  [M6d.1d2b2](#m6d1d2b2--the-time-that-motion-reads), the time that motion reads.
+- Done: M6d.0a to M6d.1d2b1, in the [status](#status) below. Next:
+  [M6d.1d2b2](#m6d1d2b2--the-time-that-motion-reads), the time that motion reads, the second half
+  of M6d.1d2b; it closes M6d.1d and M6d.1.
 - Waiting for the owner: the deletion of the branch `m6d1b-bench`, and the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
 - After Stage 6d: uwui's stages, Stage 6e, the rest of Stage 6c ([`stage-6c.md`](stage-6c.md)),
@@ -47,7 +46,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [C1 — Compiling within its budgets](stage-6d.md#c1--compiling-within-its-budgets) | Done |
 | [M6d.1d1 — Themes, and styles written in code](stage-6d.md#m6d1d1--themes-and-styles-written-in-code) | Done |
 | [M6d.1d2a — Layouts, their notation and their reload](stage-6d.md#m6d1d2a--layouts-their-notation-and-their-reload) | Done |
-| [M6d.1d2b1 — An application's start and its look](#m6d1d2b1--an-applications-start-and-its-look) | In progress |
+| [M6d.1d2b1 — An application's start and its look](stage-6d.md#m6d1d2b1--an-applications-start-and-its-look) | Done |
 | [M6d.1d2b2 — The time that motion reads](#m6d1d2b2--the-time-that-motion-reads) | Planned |
 | [M6d.2 — Typed styles](stage-6d.md#m6d2--typed-styles) | Planned |
 | [M6d.3 — Documents with serde](stage-6d.md#m6d3--documents-with-serde) | Planned |
@@ -61,30 +60,6 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.1d2b1 — An application's start and its look
-
-The first half of M6d.1d2b, cut in two at its start
-([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)). It follows
-the rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** How an application starts, and the look that each of its roots names.
-- **Crates.** None kept.
-- **Delivers.** Each of these decided:
-  - an application started in one call, and where the call lives, the engine compiling no second
-    desktop host beside `slime-platform`'s;
-  - the look named at every way of starting: the one call, and a host that embeds uwui, as the
-    engine, a Kotlin activity that gives a surface, or a web page that exists; none chosen in
-    silence ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)), and ADR-0190's
-    "the default" amended;
-  - what a look is, as a theme of [ADR-0222](adr/0222-what-a-theme-is.md); how an application's
-    sheets and parts stack over it; one macro for an application's files;
-  - the system's preferences that a look follows, and on Linux the desktop's portal;
-  - blank, named Plain, defined, usable and accessible from its first frame, its name told apart
-    from the *blank window*;
-  - M6d.5 updated for them.
-- **Done when.** Each question is decided and recorded.
-- **Measured.** Nothing.
 
 ## M6d.1d2b2 — The time that motion reads
 
