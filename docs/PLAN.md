@@ -19,8 +19,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 - Stage 6d, uwui leaving the engine, released with 0.7: its whole plan in
   [`stage-6d.md`](stage-6d.md).
-- Done: M6d.0a to M6d.1d1, in the [status](#status) below. Next:
-  [M6d.1d2](#m6d1d2--layouts-an-applications-start-and-a-frames-time), the second half of M6d.1d.
+- Done: M6d.0a to M6d.1d1, in the [status](#status) below. In progress:
+  [M6d.1d2a](#m6d1d2a--layouts-their-notation-and-their-reload), the first half of M6d.1d2.
 - Waiting for the owner: the deletion of the branch `m6d1b-bench`, and the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
 - After Stage 6d: uwui's stages, Stage 6e, the rest of Stage 6c ([`stage-6c.md`](stage-6c.md)),
@@ -44,7 +44,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.1c3b — The rivals' reloads, timed](stage-6d.md#m6d1c3b--the-rivals-reloads-timed) | Done |
 | [C1 — Compiling within its budgets](stage-6d.md#c1--compiling-within-its-budgets) | Done |
 | [M6d.1d1 — Themes, and styles written in code](stage-6d.md#m6d1d1--themes-and-styles-written-in-code) | Done |
-| [M6d.1d2 — Layouts, an application's start and a frame's time](#m6d1d2--layouts-an-applications-start-and-a-frames-time) | Planned |
+| [M6d.1d2a — Layouts, their notation and their reload](#m6d1d2a--layouts-their-notation-and-their-reload) | In progress |
+| [M6d.1d2b — An application's start, its look and a frame's time](stage-6d.md#m6d1d2b--an-applications-start-its-look-and-a-frames-time) | Planned |
 | [M6d.2 — Typed styles](stage-6d.md#m6d2--typed-styles) | Planned |
 | [M6d.3 — Documents with serde](stage-6d.md#m6d3--documents-with-serde) | Planned |
 | [M6d.4 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Planned |
@@ -58,24 +59,35 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
 
-## M6d.1d2 — Layouts, an application's start and a frame's time
+## M6d.1d2a — Layouts, their notation and their reload
 
-The second half of [M6d.1d](stage-6d.md#m6d1d--layouts-styles-and-the-host). It follows the rules
-of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
+M6d.1d2, the second half of [M6d.1d](stage-6d.md#m6d1d--layouts-styles-and-the-host), was cut in
+two at its start ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)):
+this is its first half. It follows the rules of
+[every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
 
-- **Goal.** The rest of how an application is written, on
-  [M6d.1d1's themes](stage-6d.md#m6d1d1--themes-and-styles-written-in-code).
-- **Crates.** None kept.
+- **Goal.** How an application writes its layouts, and how a layout's change reaches it.
+- **Crates.** None kept. The prototypes go on from M6d.1d1's, on the branch `m6d1c-bench`, which
+  takes `kdl` 6.7.1 on the owner's go.
 - **Delivers.** The format of layouts and their reload, the same format describing a theme's parts
   ([ADR-0222](adr/0222-what-a-theme-is.md)); its files sent by `uwui dev` as a theme's are
   ([ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md)).
-  An application started in one call, which names its look, uwui's own, Glass, Material 3
-  Expressive, Pro or blank, none chosen in silence
-  ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)). The time of each frame that
-  motion reads. M6d.5 updated.
-- **Done when.** Each question is decided and recorded; uwui's open decisions on how an
-  application is written are all closed.
+- **Done when.** Each question is decided and recorded; uwui's open decision on the format of
+  layouts is closed.
 - **Measured.** A layout's change seen, against the budget of 2 s.
+- **Result.** Decided on 2026-11-09, CI to follow
+  ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)):
+  - A layout is a screen's structure as data: elements, names, classes, literal texts, slots, and
+    the commands that its buttons run; no expression, no style.
+  - Code binds a named element by its name, through methods that a macro generates and the
+    compiler checks; a name keys its element and the scopes below it.
+  - Layouts and a theme's parts are KDL 2.0, the engine's UI documents among them, read by a
+    reader of uwui's own; the other documents stay TOML.
+  - A layout's change, the program's part, within the budget of 2 s by far, the state kept and the
+    view's function not run again
+    ([uwui's figures](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#a-layouts-change-seen-2026-11-09)).
+  - `kdl` 6.7.1 overflows its stack on some inputs: the prototype guards the cases found, not
+    every input.
 
 ## Checks by hand waiting for the owner
 

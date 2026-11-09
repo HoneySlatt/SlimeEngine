@@ -4,9 +4,10 @@
   (M6d.1c cut in three; `serde` added for a type's state) and
   [0205](0205-signals-change-uwuis-interface.md) (a signal's state across a reload of its type
   decided); amended by [0211](0211-the-executor-and-other-threads-through-channels.md) (another
-  thread's handle across a reload: a channel made outside the view) and
+  thread's handle across a reload: a channel made outside the view),
   [0212](0212-a-functions-body-reloaded-through-subsecond-and-dx.md) (the body's reload timed over
-  kept state)
+  kept state) and [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (an
+  element that a layout names keyed by its name)
 - Date: 2026-11-07
 
 ## Context

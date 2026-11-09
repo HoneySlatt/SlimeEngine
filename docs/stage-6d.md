@@ -34,8 +34,9 @@ in git.
   [ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md),
   [ADR-0221](adr/0221-compiling-within-its-budgets.md),
   [ADR-0222](adr/0222-what-a-theme-is.md),
-  [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md) and
-  [ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md).
+  [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md),
+  [ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md) and
+  [ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md).
 - Widened on 2026-11-07 by the market's decisions
   ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md#decision)): M6d.1d, M6d.2, M6d.3,
   M6d.4, M6d.5, M6d.7, M6d.10 and M6d.11 gain what those decisions need of them; M6d.9 is cut in
@@ -65,8 +66,12 @@ in git.
     [M6d.1d1](#m6d1d1--themes-and-styles-written-in-code), themes and styles written in code
     ([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md),
     [ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md));
-    next, [M6d.1d2](PLAN.md#m6d1d2--layouts-an-applications-start-and-a-frames-time), layouts, an
-    application's start and a frame's time.
+    M6d.1d2 cut in two at its start, on the same day
+    ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)): in
+    progress, [M6d.1d2a](PLAN.md#m6d1d2a--layouts-their-notation-and-their-reload), layouts, their
+    notation and their reload; next,
+    [M6d.1d2b](#m6d1d2b--an-applications-start-its-look-and-a-frames-time), an application's
+    start, its look and a frame's time.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -530,7 +535,42 @@ layout describes, and the look that an application names at its start is a theme
   - [uwui's survey](https://github.com/HoneySlatt/uwui/blob/main/docs/survey-writing-an-application.md#9-themes-that-change-a-components-structure)
     reads what ten references let a theme change of a component's parts.
 
-M6d.1d2, next, is in [`PLAN.md`](PLAN.md#m6d1d2--layouts-an-applications-start-and-a-frames-time).
+M6d.1d2 was cut in two at its start, on 2026-11-09, layouts first: a look holds parts, written in
+their notation ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)).
+M6d.1d2a, in progress, is in [`PLAN.md`](PLAN.md#m6d1d2a--layouts-their-notation-and-their-reload).
+
+### M6d.1d2b — An application's start, its look and a frame's time
+
+- **Goal.** How an application starts, the look it names, and the time that its motion reads.
+- **Crates.** None kept.
+- **Delivers.** Each of these decided; the attack on M6d.1d2's first draft raised them:
+  - An application started in one call, which names its look, uwui's own, Glass, Material 3
+    Expressive, Pro or blank, none chosen in silence
+    ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)); uwui's own design system,
+    "the default" of [ADR-0190](adr/0190-uwuis-requirements.md), amended if no look is one.
+  - The look named at every way of starting: the one call, and a host that embeds uwui, as the
+    engine, a Kotlin activity that gives a surface, or a web page that exists.
+  - Where the call lives: uwui's renderer depends on its core, so the call needs a crate above
+    both, its name left to M6d.10; the engine must not compile a second desktop host beside
+    `slime-platform`'s.
+  - What a look is, as a theme of [ADR-0222](adr/0222-what-a-theme-is.md); how an application's
+    own sheets and parts stack over it, a component's parts replaced whole or not; one macro for
+    an application's files, the layouts' included
+    ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)).
+  - The system's preferences that a look follows: light or dark, contrast, reduced motion and
+    transparency, the size of text, and on Linux the desktop portal, which winit does not read.
+  - Blank defined, usable and accessible from its first frame, its states visible; and its name
+    told apart from the *blank window*, the program that only clears and presents.
+  - The time of each frame that motion reads, for each surface and through each root's clock;
+    what timers, the executor and input's events read in its place; the time's own type, which the
+    web can hold; a fallback on the display's grid where a platform gives no time of
+    presentation; whether a late frame's gap is capped; whether `frame_time` stays a signal, which
+    runs code at each frame.
+  - M6d.5 updated: the times of input's events and of each surface's frames, a clock for each root,
+    the look at every start, the system's preferences, the time's type, and where the call lives.
+- **Done when.** Each question is decided and recorded.
+- **Measured.** Nothing: the figures that would confirm the frame's time, whether each compositor
+  gives presentation times and how much frames' starts vary at 240 Hz, come at M6d.6 and M6d.7.
 
 ### M6d.2 — Typed styles
 
@@ -563,7 +603,11 @@ M6d.1d2, next, is in [`PLAN.md`](PLAN.md#m6d1d2--layouts-an-applications-start-a
   migrate once; a menu's shortcut shown as its platform writes it
   ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md),
   [ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)). Decided at its start: the cooked
-  form of these documents, and `slime-color`'s home with its reflection.
+  form of these documents, layouts and a theme's parts among them, whose reader of KDL comes with
+  uwui's first stage; whether a theme's values and rules are written in KDL too, so that a theme
+  reads in one notation
+  ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)); and
+  `slime-color`'s home with its reflection.
 - **Done when.** Every document of the repository, and layouts and shortcuts saved by the editor
   kept as fixtures, read the same as before; a shortcut saved with Ctrl reads as the primary
   modifier, and its menu shows it as Linux, Windows and macOS write it; `cargo tree -p uwui` holds

@@ -7,7 +7,9 @@
   and [0181](0181-uwuis-scope.md) (uwui reads its documents with `serde`), then by
   [0222](0222-what-a-theme-is.md) (a theme holds parts too; rules select a component's parts and
   its states) and [0223](0223-styles-written-in-code-through-tokens.md) (the element's own style
-  takes states and tokens; the user's layer comes over it)
+  takes states and tokens; the user's layer comes over it) and
+  [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (a layout gives an element its
+  classes too)
 - Date: 2026-10-25
 
 ## Context

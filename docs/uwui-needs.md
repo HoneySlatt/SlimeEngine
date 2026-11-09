@@ -37,7 +37,7 @@ below](#for-m6d10) says what the measure needs. Nothing here is measured yet.
 - **In uwui's requirements**: whether [ADR-0190](adr/0190-uwuis-requirements.md),
   [ADR-0205](adr/0205-signals-change-uwuis-interface.md) and
   [uwui's roadmap](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md) hold the need, as
-  read on 2026-11-07. *Yes*: they hold it. *Precision*: they hold it in general terms, and this list
+  read on 2026-11-07 and updated as later ADRs decide. *Yes*: they hold it. *Precision*: they hold it in general terms, and this list
   says exactly what is needed. *New*: they do not hold it.
 
 ## How the engine's interfaces change
@@ -107,8 +107,8 @@ The editor and games change their interfaces in two ways that applications rarel
 
 | Need | The engine's use | Mark | In uwui's requirements |
 |---|---|---|---|
-| Layouts written back by a tool without losing the author's order and comments | Agents that write layouts, and the agent bench's screens from mock-ups ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)); the visual editor of games' interfaces later ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md)) | Indispensable: uwui's 1.0 | Precision: the format, chosen at M6d.1d, read and reloaded; written back by tools is to say |
-| Layouts from outside read within limits of size, memory and time, never crashing | Mods that bring interfaces ([ADR-0208](adr/0208-the-engines-promises-and-systems.md)) | Indispensable: Stage 8 | Yes: content from outside within limits |
+| Layouts written back by a tool without losing the author's order and comments | Agents that write layouts, and the agent bench's screens from mock-ups ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)); the visual editor of games' interfaces later ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md)) | Indispensable: uwui's 1.0 | Yes: KDL 2.0, decided; read, reloaded and written back with its order, formatting and comments kept by uwui's own reader, built in uwui's first stage ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)) |
+| Layouts from outside read within limits of size, memory and time, never crashing | Mods that bring interfaces ([ADR-0208](adr/0208-the-engines-promises-and-systems.md)) | Indispensable: Stage 8 | Yes: content from outside within limits; the layouts' reader bounded in depth and fuzzed ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)) |
 | One core for agents: a protocol that no transport binds, the agent named with the person's consent, numbered requests and events, attaching to a program already running, rights, previews before applying, tools found by families, and families that the program adds | The engine's channel and MCP server built on it, with its families of the world, play and editing ([ADR-0218](adr/0218-one-core-for-agents-in-uwui.md)) | Indispensable: Stage 6c | Yes: M6d.9a |
 | Commands, undo and their journal: whether uwui or the engine owns them | The editor's steps, each with its author and time; an agent's action undone as a person's | Indispensable: Stage 6c | New: decided at M6d.10 ([ADR-0218](adr/0218-one-core-for-agents-in-uwui.md)) |
 | The live inspector, absent from builds that ship | The editor and games while developed | Wished: Stage 7 | Yes |

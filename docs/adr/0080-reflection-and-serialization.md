@@ -5,7 +5,9 @@
   registered, and the `check` attribute), [0086](0086-serialization.md) (where serialization lives,
   and the conventions of its documents), [0101](0101-saves-and-identities-that-never-mislead.md)
   (aliases that collide)
-  and [0181](0181-uwuis-scope.md) (uwui reads its documents with `serde`)
+  [0181](0181-uwuis-scope.md) (uwui reads its documents with `serde`) and
+  [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (layouts, the engine's UI
+  documents among them, are KDL)
 - Date: 2026-10-16
 
 ## Context

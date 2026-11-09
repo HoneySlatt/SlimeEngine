@@ -103,6 +103,12 @@ as it reads the text, and its errors name the byte (`slime_serialize::encode`,
 *bind group layout* says which bindings it has and what each holds (`slime_gfx::BindGroupLayout`,
 [ADR-0026](adr/0026-resource-binding-and-depth.md)).
 
+**Binding (layout).** What the view's code gives an element that a *layout (screen)* names, by
+its name: a value, a handler or a slot's view. A layout's change applies the bindings again to
+the elements made anew; one whose element is gone, or now of another kind, waits unused, with a
+note ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)). Not a
+*bind group*'s bindings, nor the prototypes' closures that a signal runs again.
+
 **Blank window.** A program that only clears its window and presents it, measured on each
 machine and each screen beside the programs on uwui and their rivals: what any window already costs,
 its driver's memory, a start, power and the GPU's floor. A program's *own cost* is what it adds
@@ -222,6 +228,12 @@ start of the next frame ([ADR-0107](adr/0107-the-execution-model.md),
 entity deleted, a parent and a *rank* given, a component attached or detached, and what a deletion
 took out restored. Applying one gives back the command that undoes it, which the editor's history
 keeps; it is written as text, which the editor's *journal* holds.
+
+**Command (interface).** A name, such as `page.close`, that a *shortcut* or an element of a
+*layout (screen)* gives, and whose handler the program gives: a press or a chord runs it
+([ADR-0142](adr/0142-input-and-focus.md),
+[ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)). Not a *command*
+of the world.
 
 **Comparison sampler.** A sampler that compares a reference depth with the depths stored in a
 *depth target* instead of reading them: each pixel read gives 1 where the comparison holds and 0
@@ -780,6 +792,15 @@ default layout that it was made from, by its name and version, such as `editor 1
 user's state directory that keeps a program's layout, and a default, the editor's own or the one
 that a game's editor package gives. A layout kept against another default is set aside
 ([ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)).
+
+**Layout (screen).** In uwui, a screen's structure written as data in a file, in KDL 2.0: a tree
+of *elements* by their kinds, each with an optional name, its classes, literal texts and the
+*command (interface)* that a press runs, and *slots* that code fills. Code binds a named element by its name;
+the name keys it among its siblings, so that its state stays when a sibling comes before it, not
+when an ancestor changes. A layout holds no expression and no style. A theme's *parts*
+are written the same way. Decided, not built yet
+([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)). Not a *layout
+file (editor)*, which holds docks.
 
 **Layout (zone).** In *Hunna Wood*, what decides how the game plays in its zone: the size of its
 ground, its colliders, where the hero starts and the places of the key, the door, the campfire and
@@ -1467,9 +1488,12 @@ was drawn, after the scene pass.
 and an optional sun, whose glow, the light the sky scatters around it, it holds. The sun's disc is
 drawn by the *sky pass*, not held.
 
-**Slot (interface component).** A place in an *interface component*'s *parts* where the
+**Slot (parts and layouts).** A place in an *interface component*'s *parts* where the
 application's content goes, a button's label or a switch's icon, which the parts put where they like
-([ADR-0222](adr/0222-what-a-theme-is.md)). Decided, not built yet. Not a *slot (element)*.
+([ADR-0222](adr/0222-what-a-theme-is.md)); and a named place in a *layout (screen)* that the view's
+code fills with a view
+([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)). Decided, not
+built yet. Not a *slot (element)*.
 
 **Slot (element).** An *element* whose children its own builder gives, by its own *revision*, kept as
 they are when its parent is built again (`Children::add_slot`): a panel

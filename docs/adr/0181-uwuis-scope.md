@@ -19,8 +19,10 @@
   (the media application written anew, not ported) and [0203](0203-pilots-replaced-pluto-and-a-daw.md)
   (the four programs before the API is declared stable: Pluto's client and a DAW for the launcher
   and the media application), [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) (macOS
-  aimed at; a trial on iOS) and [0223](0223-styles-written-in-code-through-tokens.md) (without
-  `serde`, no theme written in code: its files read or turned into values another way)
+  aimed at; a trial on iOS), [0223](0223-styles-written-in-code-through-tokens.md) (without
+  `serde`, no theme written in code: its files read or turned into values another way) and
+  [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (layouts and a theme's
+  parts are KDL)
 - Date: 2026-11-05
 
 ## Context

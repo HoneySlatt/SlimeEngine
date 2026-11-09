@@ -5,7 +5,9 @@
   component differently through its parts, written as data),
   [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) (the official themes are crates of
   data, which may add components of their own) and
-  [0220](0220-the-roadmap-reshaped-by-the-market.md) (M6d.1d cut in two)
+  [0220](0220-the-roadmap-reshaped-by-the-market.md) (M6d.1d cut in two); amended by
+  [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (the parts written in
+  KDL, in a file of their own)
 - Date: 2026-11-09
 
 ## Context

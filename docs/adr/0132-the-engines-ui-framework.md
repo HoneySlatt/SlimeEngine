@@ -18,7 +18,9 @@
   [0148](0148-widgets.md) (each widget an element kind of `slime-ui`),
   [0149](0149-the-looks-foundations.md) (transitions declared in style sheets at Stage 6b, which
   Stage 7 grows) and [0170](0170-applications-on-the-ui-framework.md) (applications, a third
-  client; what Stage 7 was to add to the framework comes at Stage 6d)
+  client; what Stage 7 was to add to the framework comes at Stage 6d) and
+  [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (the notation of UI
+  documents decided: uwui's layouts)
 - Date: 2026-10-22
 
 ## Context

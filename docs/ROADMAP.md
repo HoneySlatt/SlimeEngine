@@ -183,11 +183,11 @@ CI checks budgets through exact counters, draws, elements, bytes, allocations, a
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
 | Windowing and input | winit, used only inside `platform`, and in uwui's desktop host; its types never leave them (ADR-0011, ADR-0181) |
 | Entity model | The engine's own: entities, components stored by type, and a transform hierarchy, with `f64` translations (ADR-0079) |
-| Serialization format | Driven by the engine's own reflection, without serde, but for uwui's documents, which uwui reads with serde (ADR-0181): TOML for text, sources and saves; binary formats of the engine's own for cooked data (ADR-0069, ADR-0080) |
+| Serialization format | Driven by the engine's own reflection, without serde, but for uwui's documents, which uwui reads with serde (ADR-0181): TOML for text, sources and saves, KDL for layouts, games' screens among them (ADR-0225); binary formats of the engine's own for cooked data (ADR-0069, ADR-0080) |
 
 ### Open
 
-Each is decided by ADR at the stage where it becomes necessary, not earlier. uwui's own, the notation of its UI documents among them, are in [uwui's roadmap](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#3-open-decisions).
+Each is decided by ADR at the stage where it becomes necessary, not earlier. uwui's own are in [uwui's roadmap](https://github.com/HoneySlatt/uwui/blob/main/docs/ROADMAP.md#3-open-decisions).
 
 | Topic | Candidates | Decide at |
 |---|---|---|
