@@ -2091,3 +2091,26 @@ outlasted it; `8c3b9dc` builds them first. The other jobs of `fb2be2a` were gree
 `check (headless)` ran the same code on both: on `8c3b9dc`, each of its steps took 1.4 to 1.6 times
 as long, the runner slower, which took it over its limit of 20 minutes.
 
+## M6d.1d1, themes and styles written in code
+
+A style sheet's change seen is uwui's figure: its
+[`docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#a-style-sheets-change-seen-2026-11-09).
+The prototype lives on the branch `m6d1c-bench`, which runs no CI. `main` took ADR-0222 to
+ADR-0224, documents alone, and `rmcp` raised to 3.9.0, past RUSTSEC-2026-0457 and
+RUSTSEC-2026-0462, which ran every job.
+
+GitHub's hosted runners, on 2026-11-09, each run green, on `8ff4e59`:
+
+| Job | Time |
+|---|---|
+| `check (headless)` | 23 min 23 s |
+| `check (windowed)` | 11 min 19 s |
+| `check (game)` | 9 min 20 s |
+| `windows` | 23 min 0 s |
+| `windows-release` | 16 min 1 s |
+| Docs' `links` | 20 s |
+| uwui's `check`, on its `e7cec78` | 18 s |
+
+`check (headless)` and `windows` went past their limit of 20 minutes, the cooked zone taken from its
+cache: the runners' speed alone, which [`debt.md`](debt.md) follows under "CI's jobs and their
+limit of 20 minutes".

@@ -61,9 +61,11 @@ in git.
     through `subsecond` and `dx`, and [M6d.1c3b](#m6d1c3b--the-rivals-reloads-timed), the rivals'
     reloads timed beside it, which closed M6d.1c.
   - In progress: [M6d.1d](#m6d1d--layouts-styles-and-the-host), cut in two at its start, on
-    2026-11-09 ([ADR-0222](adr/0222-what-a-theme-is.md)):
-    [M6d.1d1](PLAN.md#m6d1d1--themes-and-styles-written-in-code), themes and styles written in
-    code, then [M6d.1d2](#m6d1d2--layouts-an-applications-start-and-a-frames-time), layouts, an
+    2026-11-09 ([ADR-0222](adr/0222-what-a-theme-is.md)): done,
+    [M6d.1d1](#m6d1d1--themes-and-styles-written-in-code), themes and styles written in code
+    ([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md),
+    [ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md));
+    next, [M6d.1d2](PLAN.md#m6d1d2--layouts-an-applications-start-and-a-frames-time), layouts, an
     application's start and a frame's time.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
@@ -501,22 +503,34 @@ its start, on 2026-11-09, in the order of the questions' dependencies
 ([ADR-0222](adr/0222-what-a-theme-is.md)): the structure that a theme may change decides what a
 layout describes, and the look that an application names at its start is a theme.
 
-M6d.1d1, in progress, is in [`PLAN.md`](PLAN.md#m6d1d1--themes-and-styles-written-in-code).
+### M6d.1d1 — Themes, and styles written in code
 
-### M6d.1d2 — Layouts, an application's start and a frame's time
+- **Goal.** What a theme is, and how an application writes its styles.
+- **Crates.** None kept. The prototypes go on from M6d.1c's, on the branch `m6d1c-bench`.
+- **Delivers.** What a theme is: its values, its rules and the components' structure, which a
+  theme may change, so that uwui's official themes are crates of their own
+  ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)). Styles written in code
+  beside the themes' files. A style's change reloaded while the application runs.
+- **Done when.** Each question is decided and recorded; a theme that changes a component's
+  structure is written in the decision's examples.
+- **Measured.** A style's change seen, against the budget of 2 s.
+- **Result.** Done on 2026-11-09, CI green on Linux and Windows:
+  - A theme holds values, rules and each component's parts, written as data; the component keeps
+    its behaviour, focus, keys and meaning; the example's switch is a box with a tick in the core's
+    look and a pill with a thumb in Material 3 Expressive
+    ([ADR-0222](adr/0222-what-a-theme-is.md)).
+  - An element's own style written in code, with its states, naming the themes' values by tokens,
+    under the user's layer ([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md)).
+  - `uwui dev` watches the files and sends them over its one connection, which relays `dx`'s
+    patches
+    ([ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md)).
+  - A style sheet's change, the program's part, within the budget of 2 s by far, the state kept
+    ([uwui's figures](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#a-style-sheets-change-seen-2026-11-09));
+    the tool's whole, when it is built.
+  - [uwui's survey](https://github.com/HoneySlatt/uwui/blob/main/docs/survey-writing-an-application.md#9-themes-that-change-a-components-structure)
+    reads what ten references let a theme change of a component's parts.
 
-- **Goal.** The rest of how an application is written, on M6d.1d1's themes.
-- **Crates.** None kept.
-- **Delivers.** The format of layouts and their reload, the same format describing a theme's parts
-  ([ADR-0222](adr/0222-what-a-theme-is.md)); its files sent by `uwui dev` as a theme's are
-  ([ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md)).
-  An application started in one call, which
-  names its look, uwui's own, Glass, Material 3 Expressive, Pro or blank, none chosen in silence
-  ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)). The time of each frame that
-  motion reads. M6d.5 updated.
-- **Done when.** Each question is decided and recorded; uwui's open decisions on how an
-  application is written are all closed.
-- **Measured.** A layout's change seen, against the budget of 2 s.
+M6d.1d2, next, is in [`PLAN.md`](PLAN.md#m6d1d2--layouts-an-applications-start-and-a-frames-time).
 
 ### M6d.2 — Typed styles
 
