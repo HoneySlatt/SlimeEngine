@@ -254,6 +254,28 @@ impl<P: Model> Host<P> {
         }
     }
 
+    /// Styles the interface again with the style sheet named `name` replaced by `text`, as a
+    /// change of its file reloads it: the theme shown kept, every element styled again at the next
+    /// frame. An error, the style kept, if the sheet does not read.
+    pub(crate) fn restyle(&mut self, name: &str, text: &str) -> Result<(), String> {
+        let mut look = self.look.clone();
+        let sheet = look
+            .sheets
+            .iter_mut()
+            .find(|sheet| sheet.name() == name)
+            .ok_or_else(|| format!("no style sheet `{name}`"))?;
+        *sheet = StyleSheet::from_text(name, text);
+        let theme = self.ui.theme().map(str::to_owned);
+        self.ui
+            .set_themes(&look.sheets, &[], &look.themes)
+            .map_err(|error| error.to_string())?;
+        if let Some(theme) = theme {
+            self.ui.set_theme(&theme);
+        }
+        self.look = look;
+        Ok(())
+    }
+
     /// Closes the screen: its root removed and a frame run, which leaves the interface's other
     /// state, and gives back the interface.
     pub(crate) fn close(self) -> Ui {

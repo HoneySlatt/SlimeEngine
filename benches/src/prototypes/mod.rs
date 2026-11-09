@@ -14,6 +14,7 @@
 //! cargo run --release -p slime-benches -- --prototypes --runs 5        # fewer runs than 21
 //! cargo run --release -p slime-benches -- --prototypes --reloads       # signals' reloads, timed
 //! cargo run --release -p slime-benches -- --prototypes --threads       # other threads, timed
+//! cargo run --release -p slime-benches -- --prototypes --style         # a style sheet's change seen
 //! dx serve --hot-patch -p slime-benches --features hot --args "--prototypes --hot"  # a body, under dx
 //! ```
 //!
@@ -30,6 +31,7 @@ mod messages;
 mod reload;
 mod screens;
 mod signals;
+mod style_reload;
 #[cfg(test)]
 mod tasks;
 mod threads;
@@ -62,6 +64,7 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     let mut reloads = false;
     let mut threads = false;
     let mut hot = false;
+    let mut style = false;
     let mut arguments = arguments.iter();
     while let Some(argument) = arguments.next() {
         if argument == "--reloads" {
@@ -70,6 +73,8 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
             threads = true;
         } else if argument == "--hot" {
             hot = true;
+        } else if argument == "--style" {
+            style = true;
         } else if argument == "--runs" {
             runs = arguments
                 .next()
@@ -116,6 +121,9 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     }
     if threads {
         return threads::print_times(runs);
+    }
+    if style {
+        return style_reload::print_times(runs);
     }
     if hot {
         #[cfg(feature = "hot")]
