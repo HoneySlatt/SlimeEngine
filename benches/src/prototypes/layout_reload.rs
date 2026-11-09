@@ -50,7 +50,8 @@ const GRID: &str = "            grid covers class=covers";
 const SUBTITLE: &str = "Your games";
 
 /// The layouts' file with a subtitle, a label added before the grid, which shifts the grid's
-/// place among its siblings.
+/// place among its siblings. The frozen tests (`signals/layout/tests.rs`) keep a copy of their
+/// own, `with_subtitle`, so that the contract stays as it was frozen.
 pub(crate) fn layouts_with_subtitle() -> String {
     LIBRARY_LAYOUTS.replace(
         GRID,

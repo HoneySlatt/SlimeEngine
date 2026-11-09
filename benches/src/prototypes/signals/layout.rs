@@ -34,9 +34,10 @@
 //! (30 read) or 1,000 `a ) ` (300 read); a release build with 1,001 blocks, 1,000 `/- ` or 10,000
 //! `a ) ` (101, 100 and 1,000 read). The program then aborts where an error is due. [`read`]
 //! looks at the text before kdl reads it, its strings and comments aside, and refuses the cases
-//! found: blocks past [`DEPTH`], a `}` or a `)` that closes nothing, any `[` or `]`, and more than
-//! [`DEPTH`] `/-` in a row. kdl may recurse without a bound on others, which no test has found.
-//! uwui's own reader bounds its depth (ADR-0225). Lines are counted by KDL's newlines.
+//! that its reviews found: blocks past [`DEPTH`], a `}` or a `)` that closes nothing, a `(` within
+//! a `(`, any `[` or `]`, and more than [`DEPTH`] `/-` in a row, whatever spaces and comments lie
+//! between them. The check is partial: kdl may recurse without a bound on inputs that no one has
+//! tried. uwui's own reader bounds its depth (ADR-0225). Lines are counted by KDL's newlines.
 
 #[cfg(test)]
 mod tests;
@@ -383,6 +384,32 @@ fn newline(bytes: &[u8], at: usize) -> Option<usize> {
     }
 }
 
+/// The length of the whitespace that `bytes` holds at `at`, as KDL 2 reads it, newlines apart: a
+/// space, a tab, or one of Unicode's spaces.
+fn space(bytes: &[u8], at: usize) -> Option<usize> {
+    let rest = bytes.get(at..)?;
+    if matches!(rest.first(), Some(b' ' | b'\t')) {
+        return Some(1);
+    }
+    // The length of the character that starts here, by its first byte; none within a character.
+    let length = match rest.first()? {
+        0xC0..=0xDF => 2,
+        0xE0..=0xEF => 3,
+        0xF0..=0xF7 => 4,
+        _ => return None,
+    };
+    let character = std::str::from_utf8(rest.get(..length)?)
+        .ok()?
+        .chars()
+        .next()?;
+    let unicode = matches!(
+        character,
+        '\u{A0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200A}' | '\u{202F}' | '\u{205F}' | '\u{3000}' | '\u{FEFF}'
+    );
+    unicode.then(|| character.len_utf8())
+}
+
 /// The first newline at or past `from` in `bytes`; their length if none.
 fn line_end(bytes: &[u8], from: usize) -> usize {
     (from..bytes.len())
@@ -410,7 +437,19 @@ fn nesting(text: &str) -> Result<(), String> {
     let mut commented = 0;
     let mut at = 0;
     while at < bytes.len() {
-        if !bytes[at].is_ascii_whitespace() && !bytes[at..].starts_with(b"/-") {
+        if let Some(length) = space(bytes, at).or_else(|| newline(bytes, at)) {
+            if depth == 0 && newline(bytes, at).is_some() {
+                top = at + length;
+            }
+            at += length;
+            continue;
+        }
+        // Comments and `/-` between nodes commented out leave the run as it is: kdl recurses
+        // through them alike.
+        if !(bytes[at..].starts_with(b"/-")
+            || bytes[at..].starts_with(b"//")
+            || bytes[at..].starts_with(b"/*"))
+        {
             commented = 0;
         }
         match (bytes[at], bytes.get(at + 1)) {
@@ -428,6 +467,9 @@ fn nesting(text: &str) -> Result<(), String> {
                 }
                 at += 2;
                 continue;
+            }
+            (b'(', _) if open > 0 => {
+                return Err(format!("line {}: a `(` within a `(`", line(text, at)));
             }
             (b'(', _) => open += 1,
             (b')', _) if open == 0 => {
@@ -475,7 +517,6 @@ fn nesting(text: &str) -> Result<(), String> {
                 }
             }
             (b';', _) if depth == 0 => top = at + 1,
-            _ if depth == 0 && newline(bytes, at).is_some() => top = at + 1,
             _ => {}
         }
         at += 1;
@@ -516,7 +557,15 @@ fn string_end(bytes: &[u8], at: usize) -> usize {
             return at;
         }
         if bytes[at] == b'\\' {
-            at += 2;
+            // A `\` before whitespace escapes it all, newlines included: the string goes on.
+            at += 1;
+            let spaced = at;
+            while let Some(length) = space(bytes, at).or_else(|| newline(bytes, at)) {
+                at += length;
+            }
+            if at == spaced {
+                at += 1;
+            }
         } else if bytes[at..].starts_with(quotes) {
             return at + quotes.len();
         } else {
@@ -766,6 +815,30 @@ mod reads {
                 "}\n".repeat(300)
             );
             assert!(read_apart(text).is_err(), "{open}");
+        }
+    }
+
+    #[test]
+    fn what_the_closing_review_found_does_not_read() {
+        let deep = format!("{}{}", "column {\n".repeat(10_000), "}\n".repeat(10_000));
+        let cases = [
+            format!(
+                "layout a {{\n    column {}b\n}}\n",
+                "/-\u{A0}".repeat(10_000)
+            ),
+            format!(
+                "layout a {{\n    column {}b\n}}\n",
+                "/-\u{3000}".repeat(10_000)
+            ),
+            format!(
+                "layout a {{\n    column {}b\n}}\n",
+                "/- /* c */ ".repeat(10_000)
+            ),
+            format!("layout a {{\n    label b text=\"x\\\r\n\"\n{deep}}}\n"),
+            format!("layout a {{\n    column\n}}\n{}", "a ( ".repeat(10_000)),
+        ];
+        for (at, text) in cases.into_iter().enumerate() {
+            assert!(read_apart(text).is_err(), "case {at}");
         }
     }
 
