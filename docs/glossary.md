@@ -185,7 +185,7 @@ with the finest cascade that holds it, which fades into the next across a band a
 **Checkpoint (plan).** A check of a stage so far that the *owner* makes by hand between two of its
 *milestones*, whose findings adjust the plan: Stage 6c has two, the owner trying the editor after
 Play, then building a part of the game's zone again by hand as the stage's exit asks
-([`docs/PLAN.md`](PLAN.md), [ADR-0155](adr/0155-the-editors-design.md)).
+([`docs/stage-6c.md`](stage-6c.md), [ADR-0155](adr/0155-the-editors-design.md)).
 
 **Checks (the).** The automated checks of the *definition of done*, which `scripts/check.sh` runs
 and the three Linux CI jobs run unchanged, one for each of its parts, `headless`, `windowed` and
@@ -897,8 +897,8 @@ coordinates, which glTF's *normal textures* assume; the cooker computes them so
 (`bevy_mikktspace`, [ADR-0069](adr/0069-the-asset-pipeline.md)).
 
 **Milestone.** A small, verifiable step of a stage, listed with its goal, its done criteria and
-how to test it in [`docs/PLAN.md`](PLAN.md). Milestones are numbered `M<stage>.<n>`, for example
-M1.3; those of a *pass*, `P<n>`.
+how to test it in its stage's plan, which [`docs/PLAN.md`](PLAN.md) links to. Milestones are
+numbered `M<stage>.<n>`, for example M1.3; those of a *pass*, `P<n>`.
 
 **Mipmaps.** Copies of a texture at half, a quarter, ... of its size, down to one pixel: the
 *levels of detail* among which a *sampler* chooses by the size the texture is drawn at, so that a

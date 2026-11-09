@@ -130,7 +130,7 @@ uwui's prototypes alone.
 
 - a library of signals, or one written by hand for the prototypes (M6d.1b);
 - `subsecond`, for a function's body reloaded (M6d.1c);
-- `serde`, for a type's state migrated (M6d.1c), which [M6d.3](../PLAN.md#m6d3--documents-with-serde)
+- `serde`, for a type's state migrated (M6d.1c), which [M6d.3](../stage-6d.md#m6d3--documents-with-serde)
   brings to uwui's documents.
 
 **The method,** chosen within the milestone, not by the owner; M6d.1b may change it at its start,

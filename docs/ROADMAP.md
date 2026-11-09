@@ -455,7 +455,7 @@ The stage's milestones, their order and the owner's two checkpoints are decided 
 - One core for agents in uwui, through which agents reach an application and the engine: its protocol, the agent's identity, rights and families, and its MCP server; then the actions that an application declares once (ADR-0190, ADR-0213, ADR-0218)
 - uwui designed as a project, then its code moved, with its history, to [its repository](https://github.com/HoneySlatt/uwui), which the engine then depends on (ADR-0197)
 
-The stage's milestones are in `docs/PLAN.md`, the later ones widened so that they lock none of the limits that ADR-0213 to ADR-0219 remove (ADR-0220). It has no release of its own: it is released with 0.7 (ADR-0194).
+The stage's milestones are in `docs/stage-6d.md`, the later ones widened so that they lock none of the limits that ADR-0213 to ADR-0219 remove (ADR-0220). It has no release of its own: it is released with 0.7 (ADR-0194).
 
 **Exit.** uwui's code is in its repository, its CI green on Linux, Windows and macOS and its builds for the web, Android and iOS; the engine depends on it, the editor's and the game's checks and budgets unchanged; a program on uwui compiles neither the renderer, the world nor the editor; how an application is written is decided in ADRs; uwui's first stage is planned.
 

@@ -19,7 +19,7 @@ It comes from two sources:
   ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md) to
   [ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
 
-It serves the question that [M6d.10](PLAN.md#m6d10--uwui-designed-as-a-project) weighs: whether
+It serves the question that [M6d.10](stage-6d.md#m6d10--uwui-designed-as-a-project) weighs: whether
 games' interfaces take uwui whole, its core with a layer of their own, or a framework of their own.
 ADR-0209 chose the core with a layer of the engine's, to be confirmed by a measure; [its section
 below](#for-m6d10) says what the measure needs. Nothing here is measured yet.

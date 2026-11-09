@@ -10,7 +10,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   `slime-gfx`'s `Gpu::new` keeps wgpu's default hint, `MemoryHints::Performance`, whose allocator reserves its blocks at their largest.
   A game fills them; a small application on uwui never does, and pays for them in video memory.
   Smaller blocks, `MemoryHints::MemoryUsage` or sizes of their own, may cost a game allocations in more pieces: not measured.
-  Followed at [M6d.4](PLAN.md#m6d4--the-canvas-in-uwui-on-wgpu), where uwui opens its own device.
+  Followed at [M6d.4](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu), where uwui opens its own device.
 - **What a load reads waits in staging memory until its copies are submitted** ([ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)).
   The renderer's uploader sends at most a budget of bytes per frame; nothing holds back loads that read faster.
   A load of many hundreds of megabytes keeps them in the CPU's memory while it lasts.
@@ -44,7 +44,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The editor and applications are to draw at the display's rate: uwui's desktop host from Stage 6d, the editor at M6c.Q2f, once Stage 6c resumes.
 - **No application on uwui has been measured at rest** ([measured at M6d.0b](measurements.md#m6d0b-a-program-on-uwuis-start-and-rest-measured-from-outside)).
   The `widgets` example, which [ADR-0180](adr/0180-one-canvas-and-the-frameworks-foundations.md) names, moves two progress bars without end and draws 60 frames a second.
-  Its rest under Wayland and Xwayland is to be measured on an application that rests, from outside, with uwui's desktop host at [M6d.7](PLAN.md#m6d7--the-desktop-host-its-window-and-its-frames).
+  Its rest under Wayland and Xwayland is to be measured on an application that rests, from outside, with uwui's desktop host at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames).
 - **`scripts/input-to-present.sh` loses part of its inputs** ([ADR-0200](adr/0200-applications-measured-from-outside.md)).
   It runs `wlrctl` once an input; each run makes a virtual pointer or keyboard and destroys it at once.
   A headless sway gives its seat a pointer only while one exists: a window binds it too late, and the input goes nowhere.

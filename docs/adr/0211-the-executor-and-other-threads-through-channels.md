@@ -118,7 +118,7 @@ On where the receiver lives across a reload:
 
 ## Consequences
 
-- The host's API ([M6d.5](../PLAN.md#m6d5--the-hosts-api)) needs nothing new for timers:
+- The host's API ([M6d.5](../stage-6d.md#m6d5--the-hosts-api)) needs nothing new for timers:
   `slime-app`'s windowed loop already waits for `Ui::next_change`. A run of `slime-app` without a
   window waits on its waker without a timeout: it would run no timer.
 - An author learns `spawn`, `sleep`, `channel` and `.await`, and one rule: a channel that must

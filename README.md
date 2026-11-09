@@ -176,7 +176,8 @@ are in [`docs/debt.md`](docs/debt.md).
 | [`AGENTS.md`](AGENTS.md) | The rules every contributor follows: scope, architecture, code, documentation, commits. Written for AI agents, binding for everyone. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to set up the environment, check a change and submit it. |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Direction, order of the stages and their exit criteria. An overview, not a commitment. |
-| [`docs/PLAN.md`](docs/PLAN.md) | The current stage, its milestones and their status. |
+| [`docs/PLAN.md`](docs/PLAN.md) | The current stage's status, the milestone in progress and the checks by hand. |
+| [`docs/stage-6d.md`](docs/stage-6d.md) | Stage 6d's whole plan while it is in progress: its rules and each milestone in full. |
 | [`docs/debt.md`](docs/debt.md) | The known debt still open: what is missing or wrong, why it stayed, and where it is followed. |
 | [`docs/history.md`](docs/history.md) | The finished stages, a few lines each, with their versions and ADRs. |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The crates, their roles, how they depend on each other, and where to start reading the code. |

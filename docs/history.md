@@ -1,7 +1,8 @@
 # History
 
 This file holds the finished stages of the roadmap, newest first: what each delivered, its release
-and its decisions. [`PLAN.md`](PLAN.md) holds the stage in progress.
+and its decisions. [`PLAN.md`](PLAN.md) holds the stage in progress, its whole plan in
+[`stage-6d.md`](stage-6d.md).
 
 - What each release changed for users: [`CHANGELOG.md`](../CHANGELOG.md).
 - A stage's milestones in full, how each was checked and what it measured: the plan as it stood at
