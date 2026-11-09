@@ -3,7 +3,9 @@
 - Status: Accepted; amends [0190](0190-uwuis-requirements.md) (Rust's code reloaded: through
   `subsecond` and `dx`, under `uwui dev`), [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md)
   (M6d.1c3 cut in two) and [0210](0210-signals-named-for-a-reload.md) (the body's reload timed
-  over kept state)
+  over kept state); amended by
+  [0224](0224-a-files-change-reaches-the-application-through-the-development-tool.md) (one
+  connection in development: `uwui dev`'s, which relays `dx`'s patches)
 - Date: 2026-11-07
 
 ## Context

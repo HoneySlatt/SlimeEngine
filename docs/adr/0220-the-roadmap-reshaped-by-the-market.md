@@ -5,7 +5,8 @@
   (a stage of measures before Stage 6c resumes; Stage 6d's milestones widened) and
   [0207](0207-what-slimeengine-is-to-become.md) (CI's runners on the Deck and a desktop GPU before
   Stage 7); amended by [0221](0221-compiling-within-its-budgets.md) (one set of features where a
-  program and the game that its Play builds meet)
+  program and the game that its Play builds meet) and [0222](0222-what-a-theme-is.md) (M6d.1d cut
+  in two)
 - Date: 2026-11-07
 
 ## Context

@@ -19,8 +19,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 - Stage 6d, uwui leaving the engine, released with 0.7: its whole plan in
   [`stage-6d.md`](stage-6d.md).
-- Done: M6d.0a to C1, in the [status](#status) below. Next:
-  [M6d.1d](#m6d1d--layouts-styles-and-the-host).
+- Done: M6d.0a to C1, in the [status](#status) below. In progress:
+  [M6d.1d1](#m6d1d1--themes-and-styles-written-in-code), the first half of M6d.1d.
 - Waiting for the owner: the deletion of the branch `m6d1b-bench`, and the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
 - After Stage 6d: uwui's stages, Stage 6e, the rest of Stage 6c ([`stage-6c.md`](stage-6c.md)),
@@ -43,7 +43,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.1c3a — A function's body reloaded through subsecond](stage-6d.md#m6d1c3a--a-functions-body-reloaded-through-subsecond) | Done |
 | [M6d.1c3b — The rivals' reloads, timed](stage-6d.md#m6d1c3b--the-rivals-reloads-timed) | Done |
 | [C1 — Compiling within its budgets](stage-6d.md#c1--compiling-within-its-budgets) | Done |
-| [M6d.1d — Layouts, styles and the host](#m6d1d--layouts-styles-and-the-host) | Planned |
+| [M6d.1d1 — Themes, and styles written in code](#m6d1d1--themes-and-styles-written-in-code) | In progress |
+| [M6d.1d2 — Layouts, an application's start and a frame's time](stage-6d.md#m6d1d2--layouts-an-applications-start-and-a-frames-time) | Planned |
 | [M6d.2 — Typed styles](stage-6d.md#m6d2--typed-styles) | Planned |
 | [M6d.3 — Documents with serde](stage-6d.md#m6d3--documents-with-serde) | Planned |
 | [M6d.4 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Planned |
@@ -57,23 +58,21 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
 
-## M6d.1d — Layouts, styles and the host
+## M6d.1d1 — Themes, and styles written in code
 
-It follows the rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
+The first half of [M6d.1d](stage-6d.md#m6d1d--layouts-styles-and-the-host), cut in two at its
+start ([ADR-0222](adr/0222-what-a-theme-is.md)). It follows the rules of
+[every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
 
-- **Goal.** The rest of how an application is written, and what M6d.5's host API takes from it.
-- **Crates.** None kept.
-- **Delivers.** The format of layouts and their reload, with a style's; styles written in code
-  beside the themes' files; the time of each frame that motion reads. What a theme is: its values,
-  its rules and the components' structure, which a theme may change, so that uwui's official
-  themes are crates of their own ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)).
-  An application started in one call, which names its look, uwui's own, Glass, Material 3
-  Expressive, Pro or blank, none chosen in silence
-  ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)). M6d.5 updated.
-- **Done when.** Each question is decided and recorded; uwui's open decisions on how an
-  application is written are all closed; a theme that changes a component's structure is written
-  in the decision's examples.
-- **Measured.** A layout's and a style's change seen, against the budget of 2 s.
+- **Goal.** What a theme is, and how an application writes its styles.
+- **Crates.** None kept. The prototypes go on from M6d.1c's, on the branch `m6d1c-bench`.
+- **Delivers.** What a theme is: its values, its rules and the components' structure, which a
+  theme may change, so that uwui's official themes are crates of their own
+  ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)). Styles written in code
+  beside the themes' files. A style's change reloaded while the application runs.
+- **Done when.** Each question is decided and recorded; a theme that changes a component's
+  structure is written in the decision's examples.
+- **Measured.** A style's change seen, against the budget of 2 s.
 
 ## Checks by hand waiting for the owner
 

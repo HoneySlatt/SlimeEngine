@@ -31,8 +31,11 @@ in git.
   [ADR-0217](adr/0217-worlds-by-density-generated-and-destroyed.md),
   [ADR-0218](adr/0218-one-core-for-agents-in-uwui.md),
   [ADR-0219](adr/0219-test-games-in-place-of-hunna-wood.md),
-  [ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md) and
-  [ADR-0221](adr/0221-compiling-within-its-budgets.md).
+  [ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md),
+  [ADR-0221](adr/0221-compiling-within-its-budgets.md),
+  [ADR-0222](adr/0222-what-a-theme-is.md),
+  [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md) and
+  [ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md).
 - Widened on 2026-11-07 by the market's decisions
   ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md#decision)): M6d.1d, M6d.2, M6d.3,
   M6d.4, M6d.5, M6d.7, M6d.10 and M6d.11 gain what those decisions need of them; M6d.9 is cut in
@@ -57,7 +60,11 @@ in git.
     [M6d.1c3a](#m6d1c3a--a-functions-body-reloaded-through-subsecond), a function's body reloaded
     through `subsecond` and `dx`, and [M6d.1c3b](#m6d1c3b--the-rivals-reloads-timed), the rivals'
     reloads timed beside it, which closed M6d.1c.
-  - Next: [M6d.1d](PLAN.md#m6d1d--layouts-styles-and-the-host).
+  - In progress: [M6d.1d](#m6d1d--layouts-styles-and-the-host), cut in two at its start, on
+    2026-11-09 ([ADR-0222](adr/0222-what-a-theme-is.md)):
+    [M6d.1d1](PLAN.md#m6d1d1--themes-and-styles-written-in-code), themes and styles written in
+    code, then [M6d.1d2](#m6d1d2--layouts-an-applications-start-and-a-frames-time), layouts, an
+    application's start and a frame's time.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -487,7 +494,29 @@ Not a milestone of uwui's: the engine's compiling, between M6d.1c3b and M6d.1d, 
     with the tests, in
     [`debt.md`](debt.md) ([`measurements.md`](measurements.md#c1-after-ryzen-7-5800x)).
 
-M6d.1d, in progress, is in [`PLAN.md`](PLAN.md#m6d1d--layouts-styles-and-the-host).
+### M6d.1d — Layouts, styles and the host
+
+The rest of how an application is written, and what M6d.5's host API takes from it. Cut in two at
+its start, on 2026-11-09, in the order of the questions' dependencies
+([ADR-0222](adr/0222-what-a-theme-is.md)): the structure that a theme may change decides what a
+layout describes, and the look that an application names at its start is a theme.
+
+M6d.1d1, in progress, is in [`PLAN.md`](PLAN.md#m6d1d1--themes-and-styles-written-in-code).
+
+### M6d.1d2 — Layouts, an application's start and a frame's time
+
+- **Goal.** The rest of how an application is written, on M6d.1d1's themes.
+- **Crates.** None kept.
+- **Delivers.** The format of layouts and their reload, the same format describing a theme's parts
+  ([ADR-0222](adr/0222-what-a-theme-is.md)); its files sent by `uwui dev` as a theme's are
+  ([ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md)).
+  An application started in one call, which
+  names its look, uwui's own, Glass, Material 3 Expressive, Pro or blank, none chosen in silence
+  ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)). The time of each frame that
+  motion reads. M6d.5 updated.
+- **Done when.** Each question is decided and recorded; uwui's open decisions on how an
+  application is written are all closed.
+- **Measured.** A layout's change seen, against the budget of 2 s.
 
 ### M6d.2 — Typed styles
 
@@ -496,8 +525,10 @@ M6d.1d, in progress, is in [`PLAN.md`](PLAN.md#m6d1d--layouts-styles-and-the-hos
 - **Delivers.** Styles typed per component, each part of a style a type of its own, each field
   optional, merged by the cascade, with parts that a theme extends; the themes' named values
   resolved by type; no colour hidden in a component's defaults, each taken from its theme; styles
-  written in code as M6d.1 decides
-  ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
+  written in code as M6d.1 decides: an element's own style with its states, the themes' values
+  named by tokens, under the user's layer
+  ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md),
+  [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md)).
 - **Done when.** A property test: any style written as before reads the same through the typed
   cascade; a test finds no colour in the components' defaults; a theme extends a component's style
   with a part of its own; the look's image tests and counters are unchanged; CI is green.
@@ -511,7 +542,8 @@ M6d.1d, in progress, is in [`PLAN.md`](PLAN.md#m6d1d--layouts-styles-and-the-hos
   as before.
 - **Crates.** `uwui`, `slime-cook`, `slime-editor`, `slime-color`, `hunnawood`.
 - **Delivers.** Themes, style sheets, shortcuts and docks' layouts read and written by `serde` and
-  `toml`, behind a feature; without it, a theme written in code. A primary modifier, Ctrl on Linux
+  `toml`, behind a feature; without it, a theme's files read or turned into values another way,
+  rules staying out of Rust's code ([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md)). A primary modifier, Ctrl on Linux
   and Windows, Cmd on macOS, in the format of shortcuts, so that the shortcuts that users saved
   migrate once; a menu's shortcut shown as its platform writes it
   ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md),

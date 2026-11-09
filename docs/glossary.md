@@ -1054,6 +1054,12 @@ side by side; the View menu changes the one last pressed in
 moves the focus between, to its first element that takes the focus (`Element::pane`,
 [ADR-0172](adr/0172-regions-of-tabs.md)): each *stack of tabs* of a dock is one.
 
+**Part (component).** One of the pieces that draw a component of uwui, a switch's track and its
+thumb, named, in a tree that a *theme* gives for each component it chooses, as data in its files.
+Parts are drawn alone: the component keeps its behaviour, focus, keys and *role*, and a component
+without parts in its theme takes the core's ([ADR-0222](adr/0222-what-a-theme-is.md)). Decided,
+not built yet.
+
 **Part (level).** A scene file that a level places and that the editor edits in place, writing it to
 its own file, named in a table of the level's file of its own, `[parts.<id>]`; what a level places
 otherwise is a *prefab* ([ADR-0112](adr/0112-levels-saves-and-worlds-for-open-worlds.md),
@@ -1457,6 +1463,10 @@ was drawn, after the scene pass.
 and an optional sun, whose glow, the light the sky scatters around it, it holds. The sun's disc is
 drawn by the *sky pass*, not held.
 
+**Slot (component).** A place in a component's *parts* where the application's content goes, a
+button's label or a switch's icon, which the parts put where they like
+([ADR-0222](adr/0222-what-a-theme-is.md)). Decided, not built yet. Not a *slot (element)*.
+
 **Slot (element).** An *element* whose children its own builder gives, by its own *revision*, kept as
 they are when its parent is built again (`Children::add_slot`): a panel
 ([ADR-0140](adr/0140-the-tree-of-elements.md)).
@@ -1623,7 +1633,9 @@ cooker averages its levels and compresses it ([ADR-0071](adr/0071-cooked-texture
 **Theme (interface).** A document of named values, colors, numbers, lists, that the rules of a
 *style sheet* give as `"$name"`: another theme restyles an interface, its rules unchanged, as a
 dark theme and a light one share one style sheet (`uwui::theme::Theme`,
-[ADR-0141](adr/0141-style-sheets-and-themes.md)). Cooked from a `.theme` file.
+[ADR-0141](adr/0141-style-sheets-and-themes.md)). Cooked from a `.theme` file. uwui's themes are to hold
+rules and each component's *parts (component)* too, uwui's official themes each a crate of them
+([ADR-0222](adr/0222-what-a-theme-is.md)); decided, not built yet.
 
 **Threat model.** What the files that the engine reads from outside its program may hold, damaged,
 edited or made by a buggy tool, and what the engine promises about them: no panic, hang, exhausted
@@ -1639,6 +1651,10 @@ at which it last changed, and a reader asks what changed since the tick at which
 two of them, around a render pass, give its *GPU time* (`slime_gfx::GpuTimer`). Optional: the
 device asks for it only when the adapter offers it (`Gpu::can_time`,
 [ADR-0031](adr/0031-dev-overlay-with-egui.md)).
+
+**Token (theme).** A typed name of a theme's value in uwui's code, `Token<Color>`, with a fallback,
+which an element's own style gives in place of a value and which is resolved when the element is
+styled ([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md)). Decided, not built yet.
 
 **Token (development channel).** The secret, 128 random bits, that whoever starts a game gives it in
 its environment, never on its command line, and without which no connection to its *development
