@@ -13,6 +13,8 @@ mod executor;
 pub mod hello;
 #[cfg(test)]
 mod kept;
+pub mod laid;
+pub mod layout;
 pub mod library;
 pub mod mistakes;
 mod runtime;
@@ -34,12 +36,12 @@ use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::future::Future;
 use std::marker::PhantomData;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use uwui::display::ImageKey;
-use uwui::prelude::{Action, Children, ElementId, Ui};
+use uwui::prelude::{Action, ActionKind, Children, ElementId, Ui};
 use uwui::tree::{Change, Element, FrameStats, Key, Kind};
 
 use super::data;
@@ -362,16 +364,27 @@ impl<T, F: Fn() -> T + 'static> IntoProp<T, Tracked> for F {
 /// What an event's handler does with what the event gives it.
 type Handler = Rc<dyn Fn(&Arg)>;
 
-/// An element that a view's function gives: its description; the closures that change a part of
-/// it; its handlers; its field's signal, for a search field; the theme that it names; and what it
-/// holds.
+/// An element that a view's function gives: its description; its name, for one of a layout; the
+/// closures that change a part of it; its handlers; the command that a press on it runs; its
+/// field's signal, for a search field; the theme that it names; what it holds; and what making it
+/// noted.
 pub struct El {
     element: Element,
+    /// Its name in its layout (`layout.rs`), which keys it among its siblings, so that one put
+    /// before it leaves its state in place; none for an element that code made, keyed by its place.
+    name: Option<Arc<str>>,
     changes: Vec<Rc<dyn Fn() -> Change>>,
     on: Vec<(On, Handler)>,
+    /// The command that a press on it runs, as a shortcut that names it does: a layout's `action`.
+    /// A handler of presses that the view gave it takes the press instead: the command does not
+    /// run.
+    command: Option<Arc<str>>,
     field: Option<RwSignal<String>>,
     theme: Option<Prop<&'static str>>,
     content: Content,
+    /// What making it could not do, which the application notes as it mounts it: a layout's
+    /// binding whose name the file lost.
+    notes: Vec<String>,
 }
 
 enum Content {
@@ -409,11 +422,14 @@ impl El {
     fn new(element: Element, content: Content) -> Self {
         Self {
             element,
+            name: None,
             changes: Vec::new(),
             on: Vec::new(),
+            command: None,
             field: None,
             theme: None,
             content,
+            notes: Vec::new(),
         }
     }
 
@@ -456,6 +472,87 @@ impl El {
     #[must_use]
     pub fn placeholder(mut self, text: &str) -> Self {
         self.element = self.element.placeholder(text);
+        self
+    }
+
+    /// A label's or a button's text; nothing for another kind.
+    #[must_use]
+    pub fn text<M>(self, text: impl IntoProp<String, M>) -> Self {
+        self.with(text.into_prop(), Change::Text)
+    }
+
+    /// An image's key; nothing for another kind.
+    #[must_use]
+    pub fn image<M>(self, image: impl IntoProp<ImageKey, M>) -> Self {
+        self.with(image.into_prop(), Change::Image)
+    }
+
+    /// A search field's text, `text`, which it shows and to which it gives what the user types;
+    /// for another kind, the handler of its changes alone.
+    #[must_use]
+    pub fn value(mut self, text: RwSignal<String>) -> Self {
+        if let Kind::TextField { text: held, .. } = &mut self.element.kind {
+            *held = text.get_untracked();
+        }
+        self.field = Some(text);
+        self
+    }
+
+    /// A list's `rows` rows of `row_height` logical pixels, each that shows made by `row`, in a
+    /// scope of its own while it shows, as [`list`] makes them.
+    #[must_use]
+    pub fn rows<M, V: View>(
+        mut self,
+        rows: impl IntoProp<usize, M>,
+        row_height: f32,
+        row: impl Fn(usize) -> V + 'static,
+    ) -> Self {
+        if let Kind::List {
+            row_height: held, ..
+        } = &mut self.element.kind
+        {
+            *held = row_height;
+        }
+        self.content = Content::List(Rc::new(move |place| element_of(row(place))));
+        self.with(rows.into_prop(), Change::Rows)
+    }
+
+    /// A grid's cells of `cell` logical pixels that `items` gives, each keyed by `key` and, while
+    /// it shows, made by `view` in a scope of its own, as [`grid`] makes them.
+    #[must_use]
+    pub fn cells<T: Clone + 'static, K: Into<Key>, V: View>(
+        mut self,
+        items: impl Fn() -> Vec<T> + 'static,
+        key: impl Fn(&T) -> K + 'static,
+        cell: [f32; 2],
+        view: impl Fn(T) -> V + 'static,
+    ) -> Self {
+        if let Kind::List {
+            row_height,
+            cell_width,
+            ..
+        } = &mut self.element.kind
+        {
+            (*row_height, *cell_width) = (cell[1], Some(cell[0]));
+        }
+        let held: Rc<RefCell<Vec<T>>> = Rc::new(RefCell::new(Vec::new()));
+        let keys = {
+            let held = Rc::clone(&held);
+            move || {
+                let items = items();
+                let keys = items.iter().map(|item| key(item).into()).collect();
+                *held.borrow_mut() = items;
+                keys
+            }
+        };
+        let cell_of = move |place: usize| {
+            let item = held.borrow()[place].clone();
+            element_of(view(item))
+        };
+        self.content = Content::Grid {
+            keys: Rc::new(keys),
+            cell: Rc::new(cell_of),
+        };
         self
     }
 
@@ -569,15 +666,15 @@ fn leaf(element: Element) -> El {
 }
 
 pub fn label<M>(text: impl IntoProp<String, M>) -> El {
-    leaf(uwui::prelude::Element::label("")).with(text.into_prop(), Change::Text)
+    leaf(uwui::prelude::Element::label("")).text(text)
 }
 
 pub fn button<M>(text: impl IntoProp<String, M>) -> El {
-    leaf(uwui::prelude::Element::button("")).with(text.into_prop(), Change::Text)
+    leaf(uwui::prelude::Element::button("")).text(text)
 }
 
 pub fn image<M>(image: impl IntoProp<ImageKey, M>) -> El {
-    leaf(uwui::prelude::Element::image(ImageKey(0))).with(image.into_prop(), Change::Image)
+    leaf(uwui::prelude::Element::image(ImageKey(0))).image(image)
 }
 
 pub fn wave<M>(shown: impl IntoProp<(f32, f32), M>) -> El {
@@ -587,9 +684,7 @@ pub fn wave<M>(shown: impl IntoProp<(f32, f32), M>) -> El {
 
 /// A search field that shows `text` and gives it what the user types.
 pub fn search_field(text: RwSignal<String>) -> El {
-    let mut field = leaf(uwui::prelude::Element::search_field(text.get_untracked()));
-    field.field = Some(text);
-    field
+    leaf(uwui::prelude::Element::search_field(String::new())).value(text)
 }
 
 /// A list of `rows` rows of `row_height` logical pixels, each that shows made by `row`, in a
@@ -599,9 +694,7 @@ pub fn list<M, V: View>(
     row_height: f32,
     row: impl Fn(usize) -> V + 'static,
 ) -> El {
-    let element = uwui::prelude::Element::list(0, row_height);
-    let row = Rc::new(move |place| element_of(row(place)));
-    El::new(element, Content::List(row)).with(rows.into_prop(), Change::Rows)
+    leaf(uwui::prelude::Element::list(0, row_height)).rows(rows, row_height, row)
 }
 
 /// A grid of the cells of `cell` logical pixels that `items` gives, each keyed by `key` and, while
@@ -612,27 +705,7 @@ pub fn grid<T: Clone + 'static, K: Into<Key>, V: View>(
     cell: [f32; 2],
     view: impl Fn(T) -> V + 'static,
 ) -> El {
-    let held: Rc<RefCell<Vec<T>>> = Rc::new(RefCell::new(Vec::new()));
-    let keys = {
-        let held = Rc::clone(&held);
-        move || {
-            let items = items();
-            let keys = items.iter().map(|item| key(item).into()).collect();
-            *held.borrow_mut() = items;
-            keys
-        }
-    };
-    let cell_of = move |place: usize| {
-        let item = held.borrow()[place].clone();
-        element_of(view(item))
-    };
-    El::new(
-        uwui::prelude::Element::grid(0, cell),
-        Content::Grid {
-            keys: Rc::new(keys),
-            cell: Rc::new(cell_of),
-        },
-    )
+    leaf(uwui::prelude::Element::grid(0, cell)).cells(items, key, cell, view)
 }
 
 /// A view made by `view` again, and the one before disposed, when what it reads changes.
@@ -660,6 +733,23 @@ struct Shared {
     registry: RefCell<Registry<Handler, Id>>,
     /// The scopes that cleared their handlers' place as they are disposed.
     cleared: RefCell<Map<Id, ()>>,
+    /// The command that a press just asked for, and the element pressed, which `act` runs next.
+    command: Cell<Option<(ElementId, Arc<str>)>>,
+    /// The revisions given to builders of lists and dynamic views so far in this generation.
+    revisions: Cell<u64>,
+    /// What the elements mounted since the last relayout could not bind, each once.
+    notes: RefCell<Vec<String>>,
+}
+
+impl Shared {
+    /// A revision of a list's or a dynamic view's builder, past `base`, that no other builder
+    /// took: a builder made again over an element that keeps its id, as a layout's change makes
+    /// one, never meets the revision that the one before built it at.
+    fn revision(&self, base: u64) -> u64 {
+        let next = self.revisions.get() + 1;
+        self.revisions.set(next);
+        base + next
+    }
 }
 
 /// A list or a grid in the tree, and the scopes of its rows that show.
@@ -702,8 +792,8 @@ struct Dyn {
 struct Mounting<'m> {
     runtime: &'m Runtime,
     shared: &'m Rc<Shared>,
-    /// The first revision of the lists and dynamic views put: past those of the tree's builders
-    /// of a view mounted before, which a reload mounts over.
+    /// What the revisions of the lists and dynamic views put start past: those of the tree's
+    /// builders of a view mounted before, which a reload mounts over.
     revision: u64,
     /// The scope that owns what is made.
     scope: Id,
@@ -750,6 +840,34 @@ impl Mounting<'_> {
         }
         self.shared.registry.borrow_mut().add(scope, id, on);
     }
+
+    /// The rows of a list or a grid put now, `rows`, which end with the scope that made them: a
+    /// dynamic view made again, as a layout's change makes the laid library's, mounts other rows
+    /// over the element that these filled, which keeps its id. The root scope ends only with a
+    /// reload, which drops every list's rows.
+    fn keep_rows(&mut self, rows: Rc<Rows>) {
+        if self.scope != self.runtime.root() {
+            let ended: Weak<Rows> = Rc::downgrade(&rows);
+            self.runtime.owned_by(self.scope, || {
+                self.runtime.on_cleanup(move || {
+                    if let Some(rows) = ended.upgrade() {
+                        rows.id.set(None);
+                    }
+                });
+            });
+        }
+        self.rows.push(rows);
+    }
+
+    /// Keeps `notes`, those that the application holds already apart.
+    fn note(&self, notes: Vec<String>) {
+        let mut held = self.shared.notes.borrow_mut();
+        for note in notes {
+            if !held.contains(&note) {
+                held.push(note);
+            }
+        }
+    }
 }
 
 /// The keys above an element being put in the tree, from the window's root, held on the stack:
@@ -793,12 +911,18 @@ fn mount(
 ) -> ElementId {
     let El {
         mut element,
+        name: _,
         changes,
         mut on,
+        command,
         field,
         theme,
         content,
+        notes,
     } = el;
+    if !notes.is_empty() {
+        mounting.note(notes);
+    }
     let mut targets = Vec::new();
     for compute in changes {
         let target: Target = Rc::new(Cell::new(None));
@@ -857,14 +981,15 @@ fn mount(
         Content::List(row) => {
             let path = up.path(&key);
             let id = children.add_slot(key, element);
-            mounting.rows.push(Rc::new(Rows {
+            let revision = mounting.shared.revision(mounting.revision);
+            mounting.keep_rows(Rc::new(Rows {
                 id: Cell::new(Some(id)),
                 keys: RefCell::new(None),
                 row,
                 scope: mounting.scope,
                 path,
                 mounted: RefCell::new(Map::default()),
-                revision: Cell::new(mounting.revision),
+                revision: Cell::new(revision),
             }));
             id
         }
@@ -876,7 +1001,7 @@ fn mount(
                 scope: mounting.scope,
                 path: up.path(&key),
                 mounted: RefCell::new(Map::default()),
-                revision: Cell::new(mounting.revision),
+                revision: Cell::new(mounting.shared.revision(mounting.revision)),
             });
             let to = Rc::clone(&rows);
             let first = mounting.bind(move || keys(), move |keys| Ask::Keys(Rc::clone(&to), keys));
@@ -884,7 +1009,7 @@ fn mount(
             *rows.keys.borrow_mut() = Some(first);
             let id = children.add_slot(key, element);
             rows.id.set(Some(id));
-            mounting.rows.push(rows);
+            mounting.keep_rows(rows);
             id
         }
         Content::Dyn(_) => unreachable!("a dynamic view stands among its parent's children"),
@@ -892,13 +1017,24 @@ fn mount(
     for target in targets {
         target.set(Some(id));
     }
+    if let Some(command) = command {
+        // Weak: the shared state's registry holds the handler, which would keep it alive.
+        let shared = Rc::downgrade(mounting.shared);
+        let run: Handler = Rc::new(move |_| {
+            if let Some(shared) = shared.upgrade() {
+                shared.command.set(Some((id, Arc::clone(&command))));
+            }
+        });
+        on.push((On::Press, run));
+    }
     if !on.is_empty() {
         mounting.handlers(id, on);
     }
     id
 }
 
-/// Puts `kids` among `children`, below `up`, those that are dynamic views as what they show now.
+/// Puts `kids` among `children`, below `up`, those that are dynamic views as what they show now:
+/// each named one under its name, the others under their places.
 fn mount_children(
     children: &mut Children<'_>,
     kids: Vec<El>,
@@ -906,7 +1042,24 @@ fn mount_children(
     mounting: &mut Mounting<'_>,
     up: &Up<'_>,
 ) {
-    let keys: Vec<Key> = (0..kids.len()).map(|at| Key::Index(at as u64)).collect();
+    // The names stay unique among siblings: only a layout names elements, `layout::read` refuses a
+    // name twice in one, and the root of a layout, the only one of its elements that code puts
+    // among others, loses its name as it is made (`layout::Laid::el`). A name and a place never
+    // meet: they are keys of two kinds.
+    let keys: Vec<Key> = kids
+        .iter()
+        .enumerate()
+        .map(|(at, kid)| match &kid.name {
+            Some(name) => Key::Name(Arc::clone(name)),
+            None => Key::Index(at as u64),
+        })
+        .collect();
+    debug_assert!(
+        keys.iter()
+            .enumerate()
+            .all(|(at, key)| !keys[..at].contains(key)),
+        "siblings of one key: {keys:?}"
+    );
     for (place, kid) in kids.into_iter().enumerate() {
         let Content::Dyn(view) = kid.content else {
             mount(children, keys[place].clone(), kid, mounting, up);
@@ -918,7 +1071,7 @@ fn mount_children(
             place,
             path: up.path(&keys[place]),
             content: Cell::new(None),
-            revision: Cell::new(mounting.revision),
+            revision: Cell::new(mounting.shared.revision(mounting.revision)),
         });
         let made = Rc::clone(&state);
         let to = Rc::clone(&state);
@@ -1042,9 +1195,12 @@ impl<H: Copy + 'static> Signals<H> {
     }
 
     /// What the last reload could not keep, and the kept values that no signal took once its
-    /// frames ended.
+    /// frames ended; then the bindings of layouts whose names the file lost, since the last
+    /// relayout ([`Signals::relayout`]).
     pub(crate) fn notes(&self) -> Vec<String> {
-        self.runtime.notes()
+        let mut notes = self.runtime.notes();
+        notes.extend(self.shared.notes.borrow().iter().cloned());
+        notes
     }
 
     /// Gives the tree what the bindings that ran again ask.
@@ -1079,7 +1235,8 @@ impl<H: Copy + 'static> Signals<H> {
                             ui.change(id, Change::Rows(keys.len()));
                         }
                         *rows.keys.borrow_mut() = Some(keys);
-                        rows.revision.set(rows.revision.get() + 1);
+                        rows.revision
+                            .set(self.shared.revision(self.generation << 32));
                     }
                     Ask::Dyn(state, shown) => self.show(ui, &state, shown),
                 }
@@ -1093,7 +1250,9 @@ impl<H: Copy + 'static> Signals<H> {
             return;
         };
         let scope = state.content.get().expect("made as it ran");
-        state.revision.set(state.revision.get() + 1);
+        state
+            .revision
+            .set(self.shared.revision(self.generation << 32));
         let mut mounting = Mounting {
             runtime: &self.runtime,
             shared: &self.shared,
@@ -1139,7 +1298,11 @@ impl<H: Copy + 'static> Signals<H> {
             alive
         });
         for rows in &self.rows {
-            let id = rows.id.get().expect("kept above");
+            // A list within the rows of one built above ends as they leave: its scope disposed,
+            // its element removed with theirs. The next build drops it.
+            let Some(id) = rows.id.get().filter(|&id| ui.element(id).is_some()) else {
+                continue;
+            };
             ui.build(id, rows.revision.get(), |children| {
                 let mut before = std::mem::take(&mut *rows.mounted.borrow_mut());
                 let mut now = Map::default();
@@ -1211,6 +1374,15 @@ impl<H: Copy + 'static> Model for Signals<H> {
         if let Some((handler, arg)) = found {
             enter(&self.runtime, || self.runtime.untracked(|| handler(&arg)));
         }
+        // A press on an element that names a command runs the handler of that command, found as
+        // a shortcut's is, from the element up: the one that a shortcut naming it runs.
+        if let Some((element, name)) = self.shared.command.take() {
+            let command = Action {
+                element: Some(element),
+                kind: ActionKind::Command(name.to_string()),
+            };
+            self.act(ui, command);
+        }
     }
 
     fn build(&mut self, ui: &mut Ui, root: ElementId) {
@@ -1231,7 +1403,15 @@ impl<H: Copy + 'static> Model for Signals<H> {
                     theme: None,
                 };
                 ui.build(root, self.generation << 32, |children| {
-                    mount(children, Key::Index(0), view, &mut mounting, &Up::Base(&[]));
+                    if matches!(view.content, Content::Dyn(_)) {
+                        // A view made again as a whole when what it reads changes, as the laid
+                        // library's top layout is: a dynamic view under the window's root.
+                        let window: Target = Rc::new(Cell::new(Some(root)));
+                        let up = Up::Base(&[]);
+                        mount_children(children, vec![view], &window, &mut mounting, &up);
+                    } else {
+                        mount(children, Key::Index(0), view, &mut mounting, &Up::Base(&[]));
+                    }
                 });
                 if let Some(theme) = mounting.theme {
                     ui.set_theme(theme);
@@ -1302,6 +1482,26 @@ pub(crate) const LIBRARY: Screen<Signals<()>> = screen(
 /// Slatty's library, its 10,000 games made.
 fn library_view() -> ((), impl View) {
     ((), library::library(library_games()))
+}
+
+/// Slatty's library written as layouts, in the same look and played by the same script as
+/// [`LIBRARY`], over the same games: its handle the signal of its layouts, which
+/// [`Signals::relayout`] sets.
+pub(crate) const LAID_LIBRARY: Screen<Signals<RwSignal<layout::Layouts>>> = screen(
+    screens::LIBRARY,
+    |now| Signals::open(now, laid_library_view),
+    screens::library,
+);
+
+/// The layouts of Slatty's library, as the bench ships them.
+pub(crate) const LIBRARY_LAYOUTS: &str = include_str!("../layouts/library.kdl");
+
+/// Slatty's library written as layouts, its 10,000 games made and its layouts read from the
+/// bench's file.
+fn laid_library_view() -> (RwSignal<layout::Layouts>, impl View) {
+    // The file is the bench's own, built in: `layout::tests::the_file_reads` holds it readable.
+    let layouts = layout::read(LIBRARY_LAYOUTS).expect("the bench's layouts read");
+    laid::library(library_games(), layouts)
 }
 
 /// Slatty's 10,000 games.

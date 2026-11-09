@@ -15,6 +15,7 @@
 //! cargo run --release -p slime-benches -- --prototypes --reloads       # signals' reloads, timed
 //! cargo run --release -p slime-benches -- --prototypes --threads       # other threads, timed
 //! cargo run --release -p slime-benches -- --prototypes --style         # a style sheet's change seen
+//! cargo run --release -p slime-benches -- --prototypes --layout        # a layout's change seen
 //! dx serve --hot-patch -p slime-benches --features hot --args "--prototypes --hot"  # a body, under dx
 //! ```
 //!
@@ -27,16 +28,17 @@ mod described;
 mod host;
 #[cfg(feature = "hot")]
 mod hot;
+mod layout_reload;
 mod messages;
 mod reload;
 mod screens;
 mod signals;
 mod style_reload;
-mod watched;
 #[cfg(test)]
 mod tasks;
 mod threads;
 mod views;
+mod watched;
 
 use std::time::{Duration, Instant};
 
@@ -66,6 +68,7 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     let mut threads = false;
     let mut hot = false;
     let mut style = false;
+    let mut layout = false;
     let mut arguments = arguments.iter();
     while let Some(argument) = arguments.next() {
         if argument == "--reloads" {
@@ -76,6 +79,8 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
             hot = true;
         } else if argument == "--style" {
             style = true;
+        } else if argument == "--layout" {
+            layout = true;
         } else if argument == "--runs" {
             runs = arguments
                 .next()
@@ -125,6 +130,9 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     }
     if style {
         return style_reload::print_times(runs);
+    }
+    if layout {
+        return layout_reload::print_times(runs);
     }
     if hot {
         #[cfg(feature = "hot")]

@@ -41,7 +41,7 @@ pub struct Game {
 }
 
 /// A cover's cell, in logical pixels: 3 by 4.
-const CELL: [f32; 2] = [150.0, 200.0];
+pub(super) const CELL: [f32; 2] = [150.0, 200.0];
 
 pub fn library(games: Vec<Game>) -> impl View {
     let games = Stored::new(games);
@@ -97,7 +97,7 @@ fn game_page(games: Stored<Vec<Game>>, game: usize, page: RwSignal<Option<usize>
 }
 
 /// The games whose titles hold `filter`, whatever their case.
-fn matching(games: &[Game], filter: &str) -> Vec<usize> {
+pub(super) fn matching(games: &[Game], filter: &str) -> Vec<usize> {
     let filter = filter.to_lowercase();
     (0..games.len())
         .filter(|&game| games[game].title.to_lowercase().contains(&filter))
