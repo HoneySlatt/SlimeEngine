@@ -123,8 +123,9 @@ cargo run --quiet -p slime-mcp                            # the engine's MCP ser
 ```
 
 `scripts/check.sh headless`, `windowed` and `game` run one of its three parts, as CI's three Linux
-jobs do ([Checks](#checks)); `scripts/check.sh docs` checks the links between Markdown files alone,
-without the development shell, as CI's `docs` workflow does.
+jobs do ([Checks](#checks)); `scripts/check.sh docs` checks the links between Markdown files and
+the lengths of `AGENTS.md` and `docs/PLAN.md` alone, without the development shell, as CI's
+`docs` workflow does.
 
 ### GPU
 
@@ -484,9 +485,11 @@ inside a headless Weston compositor of its own, at 240 Hz (and that test's resiz
 scenarios in a second one, at scale 2), the game built for
 shipping, which must hold neither the development channel nor the dev overlay
 ([ADR-0152](docs/adr/0152-the-dev-overlay-on-the-engines-interface.md)), the game, which must hold
-no adapter for screen readers ([ADR-0146](docs/adr/0146-screen-readers.md)), and `lychee` (links
-between Markdown files). [Commands](#commands) lists the individual commands, to run only one of
-them.
+no adapter for screen readers ([ADR-0146](docs/adr/0146-screen-readers.md)), `lychee` (links
+between Markdown files), and the lengths of the two files that every agent reads at each
+session's start: `AGENTS.md`, at most 1,500 words, and `docs/PLAN.md`, at most 2,000; what does
+not fit goes to its home ([`AGENTS.md`](AGENTS.md#one-home-per-fact)).
+[Commands](#commands) lists the individual commands, to run only one of them.
 
 The script also runs clippy for the Windows target, which catches code that does not compile on
 Windows without a Windows machine.

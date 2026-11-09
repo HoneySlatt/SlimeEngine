@@ -7,8 +7,9 @@
 # `... scripts/check.sh game`, everything that reads the sample game's zone, which it fetches and
 # cooks first (the flag makes an incomplete flake.lock an error instead of a silent update). Without
 # an argument, it runs the three parts, one after the other. `docs` checks the links between
-# Markdown files alone, which the headless part does too: CI's `docs` workflow runs it, with lychee
-# alone, on a change of Markdown files outside the crates (ADR-0188).
+# Markdown files and the lengths of AGENTS.md and docs/PLAN.md alone, which the headless part does
+# too: CI's `docs` workflow runs it, with lychee alone, on a change of Markdown files outside the
+# crates (ADR-0188).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -399,6 +400,17 @@ if runs headless || [ "$part" = docs ]; then
         mapfile -t markdown < <(find . -name '*.md' -not -path './target/*' -not -path './.git/*')
     fi
     lychee --offline --include-fragments --no-progress "${markdown[@]}"
+
+    step "The files that every session reads, within their lengths"
+    # Every agent reads them at each session's start (AGENTS.md): their limits keep that cost low.
+    for file_and_limit in "AGENTS.md 1500" "docs/PLAN.md 2000"; do
+        read -r file limit <<< "$file_and_limit"
+        words=$(wc -w < "$file")
+        if [ "$words" -gt "$limit" ]; then
+            echo "$file has $words words, more than $limit: move what is not status or a rule to its home (AGENTS.md, \"One home per fact\")"
+            exit 1
+        fi
+    done
 fi
 
 step "All checks passed"
