@@ -523,7 +523,8 @@ M6d.1d1, in progress, is in [`PLAN.md`](PLAN.md#m6d1d1--themes-and-styles-writte
 - **Goal.** uwui's styles cascade as typed values, without the engine's reflection.
 - **Crates.** `uwui`, `slime-editor`, `hunnawood-editor`.
 - **Delivers.** Styles typed per component, each part of a style a type of its own, each field
-  optional, merged by the cascade, with parts that a theme extends; the themes' named values
+  optional, merged by the cascade, with parts of a style that a theme extends (not a component's
+  parts, which uwui's first stage builds, [ADR-0222](adr/0222-what-a-theme-is.md)); the themes' named values
   resolved by type; no colour hidden in a component's defaults, each taken from its theme; styles
   written in code as M6d.1 decides: an element's own style with its states, the themes' values
   named by tokens, under the user's layer
@@ -531,7 +532,7 @@ M6d.1d1, in progress, is in [`PLAN.md`](PLAN.md#m6d1d1--themes-and-styles-writte
   [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md)).
 - **Done when.** A property test: any style written as before reads the same through the typed
   cascade; a test finds no colour in the components' defaults; a theme extends a component's style
-  with a part of its own; the look's image tests and counters are unchanged; CI is green.
+  with a part of a style of its own; the look's image tests and counters are unchanged; CI is green.
 - **How to test.** `cargo test -p uwui -p slime-editor`; `scripts/check.sh`.
 - **Measured.** The editor's interface and its counters; a frame that styles again after a change
   of theme.

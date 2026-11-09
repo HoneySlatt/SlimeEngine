@@ -18,8 +18,9 @@
   (the repository made before the move), [0198](0198-screens-of-reference-and-the-rivals-measured.md)
   (the media application written anew, not ported) and [0203](0203-pilots-replaced-pluto-and-a-daw.md)
   (the four programs before the API is declared stable: Pluto's client and a DAW for the launcher
-  and the media application) and [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) (macOS
-  aimed at; a trial on iOS)
+  and the media application), [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) (macOS
+  aimed at; a trial on iOS) and [0223](0223-styles-written-in-code-through-tokens.md) (without
+  `serde`, no theme written in code: its files read or turned into values another way)
 - Date: 2026-11-05
 
 ## Context

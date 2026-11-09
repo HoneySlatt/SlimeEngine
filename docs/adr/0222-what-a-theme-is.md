@@ -24,10 +24,11 @@ slider's track and its thumb (`uwui::style::ControlStyle`). A theme changes thei
 It cannot add a part, remove one or order them otherwise.
 
 [uwui's survey](https://github.com/HoneySlatt/uwui/blob/main/docs/survey-writing-an-application.md#9-themes-that-change-a-components-structure)
-read ten references on 2026-11-09. Only two let a theme change the parts' tree: Qt Quick Controls,
-through a QML file per control, and WPF and WinUI, through a `ControlTemplate`. Both keep the
-control's behaviour and accessibility apart from its parts, under a contract of named parts. Slint
-lets each style own its widgets whole, behaviour and accessibility repeated in each. Flutter,
+read ten references on 2026-11-09. Two let a theme change the parts' tree while the control keeps
+its behaviour: Qt Quick Controls, through a QML file per control, and WPF and WinUI, through a
+`ControlTemplate`. Both keep the control's behaviour and accessibility apart from its parts, under
+a contract of named parts. Slint changes the tree too, but each of its styles owns its widgets
+whole, behaviour and accessibility repeated in each. Flutter,
 Compose and gpui-kit give another look as another library of components. Iced, Floem and
 gpui-kit's JSON themes change values alone.
 
@@ -90,64 +91,76 @@ from the theme too.
 its fonts and its icons, built into a release. It may also add components of its own, written in
 Rust, which an application names knowingly; never one chosen in place of a core's.
 
-**The example.** The same switch, under the core's look and under Material 3 Expressive. It is
-written in the notation of today's style sheets: M6d.1d2's format may change how it is written, not
-what it says. In the core's look, the switch is a box holding a tick:
+**The example.** The same switch, under the core's look and under Material 3 Expressive, written
+in the notation of today's style sheets and themes. Three things are new: a table of parts,
+`[switch.parts]`; a part named in a selector, `part`; and a place along a share, `along`. The kind
+`Switch` is the component's. M6d.1d2's format may change how it is written, not what it says. In
+the core's look, the switch is a box holding a tick, filled once checked:
 
 ```toml
 [switch.parts]
 box = { mark = {} }
 
 [switch-box]
-select = { component = "Switch", part = "box" }
-style.paint = { background = "$control", radii = [4, 4, 4, 4] }
-style.layout.size = [18, 18]
+select = { kind = "Switch", part = "box" }
+style.paint = { background = "$track", radii = ["$radius_s", "$radius_s", "$radius_s", "$radius_s"] }
+style.layout = { size = [{ Pixels = 18 }, { Pixels = 18 }], align_items = "Center" }
+
+[switch-box-checked]
+select = { kind = "Switch", part = "box", states = ["Checked"] }
+style.paint.background = "$accent"
 
 [switch-mark]
-select = { component = "Switch", part = "mark" }
-style.paint.opacity = 0
+select = { kind = "Switch", part = "mark" }
+style.layout.display = "None"
 
 [switch-mark-checked]
-select = { component = "Switch", part = "mark", states = ["Checked"] }
-style.paint = { opacity = 1, background = "$on_accent" }
+select = { kind = "Switch", part = "mark", states = ["Checked"] }
+style.layout.display = "Flex"
+style.paint.background = "$mark"
 ```
 
 In Material 3 Expressive, it is a pill whose thumb runs along it, grows once checked and shows the
-application's icon:
+application's icon; the track takes the primary colour once checked. Its values are the theme's
+own, which its file gives:
 
 ```toml
 [switch.parts]
 track = { thumb = { icon = { slot = "icon" } } }
 
 [switch-track]
-select = { component = "Switch", part = "track" }
-style.paint = { background = "$surface_high", radii = [16, 16, 16, 16] }
-style.layout = { size = [52, 32], align = "Center" }
+select = { kind = "Switch", part = "track" }
+style.paint = { background = "$surface_highest", radii = [16, 16, 16, 16] }
+style.layout = { size = [{ Pixels = 52 }, { Pixels = 32 }], align_items = "Center" }
+
+[switch-track-checked]
+select = { kind = "Switch", part = "track", states = ["Checked"] }
+style.paint.background = "$primary"
 
 [switch-thumb]
-select = { component = "Switch", part = "thumb" }
+select = { kind = "Switch", part = "thumb" }
 style.paint = { background = "$outline", radii = [12, 12, 12, 12] }
-style.layout = { size = [16, 16], along = "travel" }
+style.layout = { size = [{ Pixels = 16 }, { Pixels = 16 }], along = "travel" }
 style.transition = { duration = 0.2, easing = "EaseOut" }
 
 [switch-thumb-checked]
-select = { component = "Switch", part = "thumb", states = ["Checked"] }
+select = { kind = "Switch", part = "thumb", states = ["Checked"] }
 style.paint.background = "$on_primary"
-style.layout.size = [24, 24]
+style.layout.size = [{ Pixels = 24 }, { Pixels = 24 }]
 
 [switch-icon]
-select = { component = "Switch", part = "icon" }
+select = { kind = "Switch", part = "icon" }
 style.layout.display = "None"
 
 [switch-icon-checked]
-select = { component = "Switch", part = "icon", states = ["Checked"] }
+select = { kind = "Switch", part = "icon", states = ["Checked"] }
 style.layout.display = "Flex"
 ```
 
 The application's code is the same under both, `switch(enabled).icon(Icon::CHECK)`, and so is
-what a screen reader hears: a check box, checked. `along = "travel"` places the thumb at the
-switch's travel, a share from 0 to 1 that the switch moves when it is pressed and that is read when
-the part is drawn. It is a primitive of layout that uwui's first stage builds, with transforms and
+what a screen reader hears: a switch, on. `along = "travel"` places the thumb at the switch's
+travel, a share from 0 to 1 that the switch moves when it is pressed and that is read when the
+part is drawn. It is a primitive of layout that uwui's first stage builds, with transforms and
 transitions of layout.
 
 ## Alternatives considered
@@ -156,8 +169,8 @@ transitions of layout.
   can be written, typed and checked by the compiler. But the view runs for each instance, in a
   list of 100,000 rows as on a page, and at each frame of a value that moves, where live values
   exist so that no code runs. It reloads through `dx` in one to two seconds, may panic, and a
-  theme must be compiled. Qt and WPF, the two models that change a tree, write it in a language of
-  data, QML and XAML.
+  theme must be compiled. Qt and WPF, the two models that change a tree under a control, write it
+  in declarative files, QML with its bindings, and XAML.
 - **Values and rules alone**, as Iced, Floem, Flutter's `ThemeData` and gpui-kit's JSON themes:
   nothing to build. But Glass, Material 3 Expressive and Pro could not differ in shape, against
   ADR-0190, and the core would hold every variant of every design system as options.
@@ -175,11 +188,11 @@ transitions of layout.
 - uwui's first stage builds the parts. That means named parts and slots, rules on parts and on a
   component's states, and shares read when drawn. It also needs a part placed along a share,
   transforms and transitions of layout, and the core's components written as parts. It also builds
-  a kit that renders each theme's components in each state, density and direction and checks their
-  contracts.
+  the *themes' test kit*, which renders each theme's components in each state, density and
+  direction and checks their contracts.
 - Each part is an element of uwui's tree. Their cost in lists is measured when they are built,
-  against the budget of a list's frame: `ui.tree.list.100k` and `editor.hierarchy.100k`, whose rows
-  hold buttons.
+  against the budget of a list's frame: `ui.tree.list.100k`, and `editor.hierarchy.100k`, whose
+  rows hold buttons.
 - Each component's parts, states and slots become uwui's API, under its versioning: a theme
   written for one version names them.
 - M6d.2 types rules for each component and each of its parts.

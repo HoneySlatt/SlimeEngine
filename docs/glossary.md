@@ -694,6 +694,10 @@ the instances of one pipeline, material and mesh that it keeps (`slime_render::R
 program: next, previous, up, down, left, right, accept, cancel (`uwui::action::Intent`). The
 interface moves the *focus* for the first six ([ADR-0142](adr/0142-input-and-focus.md)).
 
+**Interface component.** In uwui, an element with a behaviour of its own, a button, a switch, a
+list to choose from: the *widgets* of today. Its behaviour, focus, keys and *role* are uwui's; its
+*parts* are its theme's ([ADR-0222](adr/0222-what-a-theme-is.md)). Not a *component* of a world.
+
 **Interface's executor.** In uwui, what runs the interface's tasks on its thread, within the
 frame: each task owned by the scope that started it and cancelled with it, its timers on the
 frame's clock, whose next deadline the host waits for. Other threads change *signals* through a
@@ -1054,11 +1058,11 @@ side by side; the View menu changes the one last pressed in
 moves the focus between, to its first element that takes the focus (`Element::pane`,
 [ADR-0172](adr/0172-regions-of-tabs.md)): each *stack of tabs* of a dock is one.
 
-**Part (component).** One of the pieces that draw a component of uwui, a switch's track and its
-thumb, named, in a tree that a *theme* gives for each component it chooses, as data in its files.
-Parts are drawn alone: the component keeps its behaviour, focus, keys and *role*, and a component
-without parts in its theme takes the core's ([ADR-0222](adr/0222-what-a-theme-is.md)). Decided,
-not built yet.
+**Part (interface component).** One of the pieces that draw an *interface component*, a switch's
+track and its thumb, named, in a tree that a *theme* gives for each component it chooses, as data in
+its files. Parts are drawn alone: the component keeps its behaviour, focus, keys and *role*, and a
+component without parts in its theme takes the core's ([ADR-0222](adr/0222-what-a-theme-is.md)).
+Decided, not built yet.
 
 **Part (level).** A scene file that a level places and that the editor edits in place, writing it to
 its own file, named in a table of the level's file of its own, `[parts.<id>]`; what a level places
@@ -1463,8 +1467,8 @@ was drawn, after the scene pass.
 and an optional sun, whose glow, the light the sky scatters around it, it holds. The sun's disc is
 drawn by the *sky pass*, not held.
 
-**Slot (component).** A place in a component's *parts* where the application's content goes, a
-button's label or a switch's icon, which the parts put where they like
+**Slot (interface component).** A place in an *interface component*'s *parts* where the
+application's content goes, a button's label or a switch's icon, which the parts put where they like
 ([ADR-0222](adr/0222-what-a-theme-is.md)). Decided, not built yet. Not a *slot (element)*.
 
 **Slot (element).** An *element* whose children its own builder gives, by its own *revision*, kept as
@@ -1610,6 +1614,12 @@ game sold, its content in a private repository. Their code is under MIT-0 ([ADR-
 `games/open-world` takes *Hunna Wood*'s place at Stage 6e's first milestone
 ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
 
+**Test kit (themes).** What renders each theme's *interface components* in each state, density
+and direction, and checks their contracts: the *parts* that each needs, the *tokens (theme)* given,
+literal colours flagged ([ADR-0222](adr/0222-what-a-theme-is.md),
+[ADR-0223](adr/0223-styles-written-in-code-through-tokens.md)). Decided, built in uwui's first
+stage.
+
 **Test of signature.** A check that the engine imposes no look: judges shown the engine's looks
 among other engines' games guess which share an engine, and must recognise the engine's no more
 often than chance. It closes each stage that touches rendering; applications on uwui take one too
@@ -1634,7 +1644,7 @@ cooker averages its levels and compresses it ([ADR-0071](adr/0071-cooked-texture
 *style sheet* give as `"$name"`: another theme restyles an interface, its rules unchanged, as a
 dark theme and a light one share one style sheet (`uwui::theme::Theme`,
 [ADR-0141](adr/0141-style-sheets-and-themes.md)). Cooked from a `.theme` file. uwui's themes are to hold
-rules and each component's *parts (component)* too, uwui's official themes each a crate of them
+rules and each component's *parts* too, uwui's official themes each a crate of them
 ([ADR-0222](adr/0222-what-a-theme-is.md)); decided, not built yet.
 
 **Threat model.** What the files that the engine reads from outside its program may hold, damaged,
@@ -1652,14 +1662,14 @@ two of them, around a render pass, give its *GPU time* (`slime_gfx::GpuTimer`). 
 device asks for it only when the adapter offers it (`Gpu::can_time`,
 [ADR-0031](adr/0031-dev-overlay-with-egui.md)).
 
-**Token (theme).** A typed name of a theme's value in uwui's code, `Token<Color>`, with a fallback,
-which an element's own style gives in place of a value and which is resolved when the element is
-styled ([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md)). Decided, not built yet.
-
 **Token (development channel).** The secret, 128 random bits, that whoever starts a game gives it in
 its environment, never on its command line, and without which no connection to its *development
 channel* is accepted (`slime_channel::Token`,
 [ADR-0122](adr/0122-the-development-channel.md)).
+
+**Token (theme).** A typed name of a theme's value in uwui's code, `Token<Color>`, with a fallback,
+which an element's own style gives in place of a value and which is resolved when the element is
+styled ([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md)). Decided, not built yet.
 
 **Tone mapping.** Mapping the *HDR* colors of a scene to the range a display shows, 0 to 1, with a
 curve that compresses highlights instead of clipping them. The renderer's tone-mapping pass draws a
@@ -1737,6 +1747,11 @@ names one, `#[reflect(upgrade = ...)]`, and a reader applies them in turn
 and the uploader's thread submits their copies after each frame, at most a budget of bytes per
 frame while frames are drawn, so that a frame does not wait for all of a load's copies ([ADR-0107](adr/0107-the-execution-model.md),
 [ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)).
+
+**User's layer (style).** What the user chose over every look, applied after an element's own
+style and states: the size of text, the density, which scales the lengths that code writes as
+literals too, and high contrast, under which the colours that code writes give way to the rules'
+([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md)). Decided, not built yet.
 
 **uwui.** The owner's UI framework, the base of the engine's interfaces and of *applications*: a
 retained tree of elements, its layout, text, input and widgets, embedded in a *host (uwui)*

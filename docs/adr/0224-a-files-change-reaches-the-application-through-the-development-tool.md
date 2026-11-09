@@ -21,9 +21,10 @@ are declared through Dioxus's `asset!` macro (`serve/runner.rs` of dioxus-cli 0.
 
 M6d.1d1 measured a style sheet's change on M6d.1's bench, on 2026-11-09: Slatty's library on
 signals, played to a game's page, its sheet saved with its title's size changed. A thread of the
-bench watched the file each millisecond, standing for a watcher. From the save to the end of the
-frame that shows the change, the median of 21 was 2.9 ms in a release build and 13.6 ms in a debug
-build, an author's, the state kept at each run
+bench watched the file each millisecond, standing for a watcher; there was no interval, no
+connection and no window. From the save to the end of the display list of the frame that shows the
+change, the median of 21 was 2.9 ms in a release build and 13.6 ms in a debug build, an author's,
+the state kept and no code of the application run at each run
 ([uwui's `docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#a-style-sheets-change-seen-2026-11-09)).
 The program's own part, the rules made again and the frame, took some 2.4 ms and 13.0 ms of it,
 by the medians of its parts.
@@ -43,8 +44,10 @@ dependency for it.
   server in the application's name and passes its patches on. The desktop, the web and Android
   take the same path.
 - *Files saved together are applied together.* `uwui dev` gathers the files that changed until
-  they stay as they are for a short interval, as `slime-cook watch` does. It sends them in one
-  message, which the application applies in one call.
+  they stay as they are for 50 ms, as `slime-cook watch` waits, with its own interval of 500 ms. It
+  sends them in one message, which the application applies in one call. A change should then be
+  seen some 50 to 100 ms after its save, the program's part included, far within 2 s: an estimate
+  until the tool is measured.
 - *A file that does not read keeps the last good style.* The error, with its file and line, is
   shown by the application in development, by `uwui dev`, and in the answer given to agents.
 - *A host may give texts itself.* uwui's call that takes them is the host's API. The engine may
@@ -72,8 +75,8 @@ watching thread does.
   the tool is built, in uwui's first stage.
 - Relaying `dx` ties `uwui dev` to `dx`'s protocol, which already ties uwui (ADR-0212): a version
   of `dx` changes both.
-- The watcher's own delay, the system's event to the text sent, is measured when the tool is built;
-  the bench's figure bounds the program's part alone.
+- The whole, from the save to a frame on the screen through the tool's watcher, its interval and its
+  connection, is measured when the tool is built; the bench's figure is the program's part alone.
 - The editor's and the dev overlay's look, read when they start and not from the disk while they
   run ([`debt.md`](../debt.md)), takes the same path once they run on uwui's tool or their host
   gives the texts.

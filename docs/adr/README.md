@@ -217,7 +217,7 @@ the ADR linking to it.
 | [0146](0146-screen-readers.md) | Screen readers | Accepted; amended by 0147 and 0181 |
 | [0147](0147-the-screen-readers-check-in-ci.md) | The screen readers' check in CI | Accepted |
 | [0148](0148-widgets.md) | Widgets | Accepted; amended by 0149 |
-| [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151 and 0170 |
+| [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151, 0170 and 0223 |
 | [0150](0150-layers.md) | Layers | Accepted; amended by 0154, 0157, 0174 |
 | [0151](0151-rich-widgets.md) | Rich widgets | Accepted |
 | [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
@@ -249,7 +249,7 @@ the ADR linking to it.
 | [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179, 0180, 0181, 0194 and 0203 |
 | [0179](0179-the-framework-named-uwui.md) | The framework named uwui | Accepted; amends 0178 |
 | [0180](0180-one-canvas-and-the-frameworks-foundations.md) | One canvas, and the framework's foundations | Accepted; amends 0178; amended by 0181 |
-| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203 and 0213 |
+| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213 and 0223 |
 | [0182](0182-the-engine-under-mit-or-apache-2-0.md) | The engine under MIT OR Apache-2.0 | Superseded by 0214 for the engine; amends 0006 and 0181 |
 | [0183](0183-uwuis-logo.md) | uwui's logo | Accepted |
 | [0184](0184-the-engines-logo.md) | The engine's logo | Accepted |
@@ -291,5 +291,5 @@ the ADR linking to it.
 | [0220](0220-the-roadmap-reshaped-by-the-market.md) | The roadmap reshaped by the market | Accepted; amends 0098, 0190, 0194 and 0207; amended by 0221 and 0222 |
 | [0221](0221-compiling-within-its-budgets.md) | Compiling within its budgets | Accepted; amends 0104 and 0220 |
 | [0222](0222-what-a-theme-is.md) | What a theme is: values, rules and parts written as data | Accepted; amends 0141, 0190, 0213 and 0220 |
-| [0223](0223-styles-written-in-code-through-tokens.md) | Styles written in code, through tokens, under the user's layer | Accepted; amends 0141 |
+| [0223](0223-styles-written-in-code-through-tokens.md) | Styles written in code, through tokens, under the user's layer | Accepted; amends 0141, 0149 and 0181 |
 | [0224](0224-a-files-change-reaches-the-application-through-the-development-tool.md) | A file's change reaches the application through the development tool | Accepted; amends 0212 |
