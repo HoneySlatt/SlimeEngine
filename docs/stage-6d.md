@@ -67,11 +67,11 @@ in git.
     ([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md),
     [ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md));
     M6d.1d2 cut in two at its start, on the same day
-    ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)): in
-    progress, [M6d.1d2a](PLAN.md#m6d1d2a--layouts-their-notation-and-their-reload), layouts, their
-    notation and their reload; next,
-    [M6d.1d2b](#m6d1d2b--an-applications-start-its-look-and-a-frames-time), an application's
-    start, its look and a frame's time.
+    ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)): done,
+    [M6d.1d2a](#m6d1d2a--layouts-their-notation-and-their-reload), layouts, their notation and
+    their reload; next,
+    [M6d.1d2b](PLAN.md#m6d1d2b--an-applications-start-its-look-and-a-frames-time), an
+    application's start, its look and a frame's time.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -537,40 +537,33 @@ layout describes, and the look that an application names at its start is a theme
 
 M6d.1d2 was cut in two at its start, on 2026-11-09, layouts first: a look holds parts, written in
 their notation ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)).
-M6d.1d2a, in progress, is in [`PLAN.md`](PLAN.md#m6d1d2a--layouts-their-notation-and-their-reload).
 
-### M6d.1d2b — An application's start, its look and a frame's time
+### M6d.1d2a — Layouts, their notation and their reload
 
-- **Goal.** How an application starts, the look it names, and the time that its motion reads.
-- **Crates.** None kept.
-- **Delivers.** Each of these decided; the attack on M6d.1d2's first draft raised them:
-  - An application started in one call, which names its look, uwui's own, Glass, Material 3
-    Expressive, Pro or blank, none chosen in silence
-    ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)); uwui's own design system,
-    "the default" of [ADR-0190](adr/0190-uwuis-requirements.md), amended if no look is one.
-  - The look named at every way of starting: the one call, and a host that embeds uwui, as the
-    engine, a Kotlin activity that gives a surface, or a web page that exists.
-  - Where the call lives: uwui's renderer depends on its core, so the call needs a crate above
-    both, its name left to M6d.10; the engine must not compile a second desktop host beside
-    `slime-platform`'s.
-  - What a look is, as a theme of [ADR-0222](adr/0222-what-a-theme-is.md); how an application's
-    own sheets and parts stack over it, a component's parts replaced whole or not; one macro for
-    an application's files, the layouts' included
-    ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)).
-  - The system's preferences that a look follows: light or dark, contrast, reduced motion and
-    transparency, the size of text, and on Linux the desktop portal, which winit does not read.
-  - Blank defined, usable and accessible from its first frame, its states visible; and its name
-    told apart from the *blank window*, the program that only clears and presents.
-  - The time of each frame that motion reads, for each surface and through each root's clock;
-    what timers, the executor and input's events read in its place; the time's own type, which the
-    web can hold; a fallback on the display's grid where a platform gives no time of
-    presentation; whether a late frame's gap is capped; whether `frame_time` stays a signal, which
-    runs code at each frame.
-  - M6d.5 updated: the times of input's events and of each surface's frames, a clock for each root,
-    the look at every start, the system's preferences, the time's type, and where the call lives.
-- **Done when.** Each question is decided and recorded.
-- **Measured.** Nothing: the figures that would confirm the frame's time, whether each compositor
-  gives presentation times and how much frames' starts vary at 240 Hz, come at M6d.6 and M6d.7.
+- **Goal.** How an application writes its layouts, and how a layout's change reaches it.
+- **Crates.** None kept. The prototypes go on from M6d.1d1's, on the branch `m6d1c-bench`, which
+  takes `kdl` 6.7.1 on the owner's go.
+- **Delivers.** The format of layouts and their reload, the same format describing a theme's parts
+  ([ADR-0222](adr/0222-what-a-theme-is.md)); its files sent by `uwui dev` as a theme's are
+  ([ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md)).
+- **Done when.** Each question is decided and recorded; uwui's open decision on the format of
+  layouts is closed.
+- **Measured.** A layout's change seen, against the budget of 2 s.
+- **Result.** Done on 2026-11-09, CI green
+  ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)):
+  - A layout is a screen's structure as data: elements, names, classes, literal texts, slots, and
+    the commands that its buttons run; no expression, no style.
+  - Code binds a named element by its name, through methods that a macro generates and the
+    compiler checks; a name keys its element and the scopes below it.
+  - Layouts and a theme's parts are KDL 2.0, the engine's UI documents among them, read by a
+    reader of uwui's own; the other documents stay TOML.
+  - A layout's change, the program's part, within the budget of 2 s by far, the state kept and the
+    view's function not run again
+    ([uwui's figures](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#a-layouts-change-seen-2026-11-09)).
+  - `kdl` 6.7.1 overflows its stack on some inputs: the prototype guards the cases found, not
+    every input.
+
+M6d.1d2b, next, is in [`PLAN.md`](PLAN.md#m6d1d2b--an-applications-start-its-look-and-a-frames-time).
 
 ### M6d.2 — Typed styles
 

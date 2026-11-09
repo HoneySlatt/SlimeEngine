@@ -2114,3 +2114,18 @@ GitHub's hosted runners, on 2026-11-09, each run green, on `8ff4e59`:
 `check (headless)` and `windows` went past their limit of 20 minutes, the cooked zone taken from its
 cache: the runners' speed alone, which [`debt.md`](debt.md) follows under "CI's jobs and their
 limit of 20 minutes".
+
+## M6d.1d2a, layouts, their notation and their reload
+
+A layout's change seen, and the notations counted, are uwui's figures: its
+[`docs/measurements.md`](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#a-layouts-change-seen-2026-11-09).
+The prototype lives on the branch `m6d1c-bench`, which runs no CI. `main` took ADR-0225 and the
+documents it changes alone, which run the Docs workflow and not CI's jobs; the engine's code is as
+M6d.1d1 left it.
+
+GitHub's hosted runners, on 2026-11-09, each run green:
+
+| Job | Time |
+|---|---|
+| Docs' `links`, on `20444e7` | 19 s |
+| uwui's `check`, on its `7e409e6` | 20 s |

@@ -19,8 +19,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 - Stage 6d, uwui leaving the engine, released with 0.7: its whole plan in
   [`stage-6d.md`](stage-6d.md).
-- Done: M6d.0a to M6d.1d1, in the [status](#status) below. In progress:
-  [M6d.1d2a](#m6d1d2a--layouts-their-notation-and-their-reload), the first half of M6d.1d2.
+- Done: M6d.0a to M6d.1d2a, in the [status](#status) below. Next:
+  [M6d.1d2b](#m6d1d2b--an-applications-start-its-look-and-a-frames-time), the second half of
+  M6d.1d2.
 - Waiting for the owner: the deletion of the branch `m6d1b-bench`, and the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
 - After Stage 6d: uwui's stages, Stage 6e, the rest of Stage 6c ([`stage-6c.md`](stage-6c.md)),
@@ -44,8 +45,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.1c3b — The rivals' reloads, timed](stage-6d.md#m6d1c3b--the-rivals-reloads-timed) | Done |
 | [C1 — Compiling within its budgets](stage-6d.md#c1--compiling-within-its-budgets) | Done |
 | [M6d.1d1 — Themes, and styles written in code](stage-6d.md#m6d1d1--themes-and-styles-written-in-code) | Done |
-| [M6d.1d2a — Layouts, their notation and their reload](#m6d1d2a--layouts-their-notation-and-their-reload) | In progress |
-| [M6d.1d2b — An application's start, its look and a frame's time](stage-6d.md#m6d1d2b--an-applications-start-its-look-and-a-frames-time) | Planned |
+| [M6d.1d2a — Layouts, their notation and their reload](stage-6d.md#m6d1d2a--layouts-their-notation-and-their-reload) | Done |
+| [M6d.1d2b — An application's start, its look and a frame's time](#m6d1d2b--an-applications-start-its-look-and-a-frames-time) | Planned |
 | [M6d.2 — Typed styles](stage-6d.md#m6d2--typed-styles) | Planned |
 | [M6d.3 — Documents with serde](stage-6d.md#m6d3--documents-with-serde) | Planned |
 | [M6d.4 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Planned |
@@ -59,35 +60,42 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
 
-## M6d.1d2a — Layouts, their notation and their reload
+## M6d.1d2b — An application's start, its look and a frame's time
 
-M6d.1d2, the second half of [M6d.1d](stage-6d.md#m6d1d--layouts-styles-and-the-host), was cut in
-two at its start ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)):
-this is its first half. It follows the rules of
-[every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
+The second half of M6d.1d2, cut in two at its start
+([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)). It follows the
+rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
 
-- **Goal.** How an application writes its layouts, and how a layout's change reaches it.
-- **Crates.** None kept. The prototypes go on from M6d.1d1's, on the branch `m6d1c-bench`, which
-  takes `kdl` 6.7.1 on the owner's go.
-- **Delivers.** The format of layouts and their reload, the same format describing a theme's parts
-  ([ADR-0222](adr/0222-what-a-theme-is.md)); its files sent by `uwui dev` as a theme's are
-  ([ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md)).
-- **Done when.** Each question is decided and recorded; uwui's open decision on the format of
-  layouts is closed.
-- **Measured.** A layout's change seen, against the budget of 2 s.
-- **Result.** Decided on 2026-11-09, CI to follow
-  ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)):
-  - A layout is a screen's structure as data: elements, names, classes, literal texts, slots, and
-    the commands that its buttons run; no expression, no style.
-  - Code binds a named element by its name, through methods that a macro generates and the
-    compiler checks; a name keys its element and the scopes below it.
-  - Layouts and a theme's parts are KDL 2.0, the engine's UI documents among them, read by a
-    reader of uwui's own; the other documents stay TOML.
-  - A layout's change, the program's part, within the budget of 2 s by far, the state kept and the
-    view's function not run again
-    ([uwui's figures](https://github.com/HoneySlatt/uwui/blob/main/docs/measurements.md#a-layouts-change-seen-2026-11-09)).
-  - `kdl` 6.7.1 overflows its stack on some inputs: the prototype guards the cases found, not
-    every input.
+- **Goal.** How an application starts, the look it names, and the time that its motion reads.
+- **Crates.** None kept.
+- **Delivers.** Each of these decided; the attack on M6d.1d2's first draft raised them:
+  - An application started in one call, which names its look, uwui's own, Glass, Material 3
+    Expressive, Pro or blank, none chosen in silence
+    ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)); uwui's own design system,
+    "the default" of [ADR-0190](adr/0190-uwuis-requirements.md), amended if no look is one.
+  - The look named at every way of starting: the one call, and a host that embeds uwui, as the
+    engine, a Kotlin activity that gives a surface, or a web page that exists.
+  - Where the call lives: uwui's renderer depends on its core, so the call needs a crate above
+    both, its name left to M6d.10; the engine must not compile a second desktop host beside
+    `slime-platform`'s.
+  - What a look is, as a theme of [ADR-0222](adr/0222-what-a-theme-is.md); how an application's
+    own sheets and parts stack over it, a component's parts replaced whole or not; one macro for
+    an application's files, the layouts' included
+    ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)).
+  - The system's preferences that a look follows: light or dark, contrast, reduced motion and
+    transparency, the size of text, and on Linux the desktop portal, which winit does not read.
+  - Blank defined, usable and accessible from its first frame, its states visible; and its name
+    told apart from the *blank window*, the program that only clears and presents.
+  - The time of each frame that motion reads, for each surface and through each root's clock;
+    what timers, the executor and input's events read in its place; the time's own type, which the
+    web can hold; a fallback on the display's grid where a platform gives no time of
+    presentation; whether a late frame's gap is capped; whether `frame_time` stays a signal, which
+    runs code at each frame.
+  - M6d.5 updated: the times of input's events and of each surface's frames, a clock for each root,
+    the look at every start, the system's preferences, the time's type, and where the call lives.
+- **Done when.** Each question is decided and recorded.
+- **Measured.** Nothing: the figures that would confirm the frame's time, whether each compositor
+  gives presentation times and how much frames' starts vary at 240 Hz, come at M6d.6 and M6d.7.
 
 ## Checks by hand waiting for the owner
 
