@@ -10,7 +10,7 @@
   choice), [0208](0208-the-engines-promises-and-systems.md) (criteria of physics, sound, characters'
   AI, animation and the network), [0209](0209-platforms-the-editor-and-agents.md) (the editor and
   agents measured against rivals) and [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md)
-  (uwui measured as the engine is; no look imposed on applications)
+  (uwui measured as the engine is; no look imposed on applications); amended by [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (blank is Plain, a variant of the core's look)
 - Date: 2026-11-07
 
 ## Context

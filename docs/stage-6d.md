@@ -35,8 +35,9 @@ in git.
   [ADR-0221](adr/0221-compiling-within-its-budgets.md),
   [ADR-0222](adr/0222-what-a-theme-is.md),
   [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md),
-  [ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md) and
-  [ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md).
+  [ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md),
+  [ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) and
+  [ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md).
 - Widened on 2026-11-07 by the market's decisions
   ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md#decision)): M6d.1d, M6d.2, M6d.3,
   M6d.4, M6d.5, M6d.7, M6d.10 and M6d.11 gain what those decisions need of them; M6d.9 is cut in
@@ -69,9 +70,11 @@ in git.
     M6d.1d2 cut in two at its start, on the same day
     ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)): done,
     [M6d.1d2a](#m6d1d2a--layouts-their-notation-and-their-reload), layouts, their notation and
-    their reload; next,
-    [M6d.1d2b](PLAN.md#m6d1d2b--an-applications-start-its-look-and-a-frames-time), an
-    application's start, its look and a frame's time.
+    their reload; M6d.1d2b cut in two at its start, on the same day
+    ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)): in
+    progress, [M6d.1d2b1](PLAN.md#m6d1d2b1--an-applications-start-and-its-look), an
+    application's start and its look; next,
+    [M6d.1d2b2](PLAN.md#m6d1d2b2--the-time-that-motion-reads), the time that motion reads.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -563,7 +566,10 @@ their notation ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-
   - `kdl` 6.7.1 overflows its stack on some inputs: the prototype guards the cases found, not
     every input.
 
-M6d.1d2b, next, is in [`PLAN.md`](PLAN.md#m6d1d2b--an-applications-start-its-look-and-a-frames-time).
+M6d.1d2b was cut in two at its start, on 2026-11-09, the start and the look first: the two halves
+share no decision
+([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)).
+M6d.1d2b1, in progress, and M6d.1d2b2 are in [`PLAN.md`](PLAN.md#m6d1d2b1--an-applications-start-and-its-look).
 
 ### M6d.2 — Typed styles
 
@@ -641,11 +647,17 @@ M6d.1d2b, next, is in [`PLAN.md`](PLAN.md#m6d1d2b--an-applications-start-its-loo
   ([ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md)), the time of a frame,
   and a waker from any thread; the translation of meaning into
   AccessKit's tree moved into uwui; `slime-app` a host through this API alone. The API checked,
-  item by item, against winit, Android, the web, UIKit and AppKit: a surface for each root, input
+  item by item, against winit, Android, the web, UIKit and AppKit: a target for each root, input
   methods both ways, the insets, the system's preferences, an application's events, and a model of
   menus that macOS's menu bar takes
   ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md),
-  [ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)).
+  [ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)). Each root given its target, a
+  window, a region of the host's image or a texture, and its look, which may be replaced while it
+  runs; the system's preferences and their changes, from uwui's reader, which the engine's
+  platform layer calls too; the facade, not the core, holding the one call, so that the engine
+  depends on neither the facade nor uwui's hosts
+  ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)).
+  M6d.1d2b2 adds the times of frames and of input's events.
 - **Done when.** `slime-app` reaches uwui through the API alone; a table in the API's ADR says, for
   each item and each of the five, how it maps or why it needs no mapping; the editor's and the
   game's sessions, rest and input to present are unchanged; CI is green.
@@ -679,7 +691,9 @@ M6d.1d2b, next, is in [`PLAN.md`](PLAN.md#m6d1d2b--an-applications-start-its-loo
   which M6c.Q2f waits for: on the compositor's signal on Wayland, by the refresh rate of the
   display that holds the window on Windows and X11, a display that reports none included. A waker
   from any thread; an example; a check that a program on uwui and its host compiles neither the
-  renderer, the world nor the editor; a job of CI that builds and tests uwui and its host on macOS
+  renderer, the world nor the editor, and its other side, that the engine's programs compile none
+  of uwui's hosts
+  ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); a job of CI that builds and tests uwui and its host on macOS
   ([ADR-0173](adr/0173-the-platforms-of-applications.md)). A *blank window*, a program on winit and
   wgpu that only clears its window and presents it, among the programs measured
   ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)). The host's crash reports,
@@ -687,8 +701,8 @@ M6d.1d2b, next, is in [`PLAN.md`](PLAN.md#m6d1d2b--an-applications-start-its-loo
   ([ADR-0215](adr/0215-the-engine-measured-against-the-market.md)).
 - **Done when.** The example rests on every compositor of the series; its input to present is
   within 4.17 ms in a headless sway at 240 Hz; the check fails on a program made to pull
-  `slime-render`; a program on the host made to crash leaves its report on the machine; CI is
-  green, macOS included.
+  `slime-render`, and its other side on an engine's program made to pull uwui's host; a program
+  on the host made to crash leaves its report on the machine; CI is green, macOS included.
 - **How to test.** `cargo test -p uwui`; the series' job; `scripts/input-to-present.sh`.
 - **Measured.** The host's own cost, what the example adds above the blank window, in the same run:
   start, memory, the binary's size, rest, input to present. The applications' budgets get first
@@ -756,7 +770,8 @@ One core for agents, in uwui, under MIT OR Apache-2.0, which the engine builds i
 - **Goal.** uwui's repository is ready to receive its code. Builds nothing.
 - **Delivers.** Put to the owner, then recorded: uwui's first stage, its milestones and their order,
   the trials before the authoring API is built proposed; how its ADRs are numbered; the moved
-  crates' names; how the engine follows uwui after the move; which repository holds the
+  crates' names, and those of the facade and the reader of the system's preferences
+  ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); how the engine follows uwui after the move; which repository holds the
   interface's budgets; what stands for the engine in uwui, its benchmarks and a menu driven by a
   gamepad; how the engine keeps a series of compositors for its platform layer; the measure that
   confirms games' interfaces on uwui's core with a layer of the engine's, or gives them a

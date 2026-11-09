@@ -3,7 +3,7 @@
 - Status: Accepted; amends [0141](0141-style-sheets-and-themes.md) (the element's own style takes
   states and names the themes' values by tokens; the user's layer comes over it),
   [0149](0149-the-looks-foundations.md) (the density and the contrast reach what code writes as
-  literals too) and [0181](0181-uwuis-scope.md) (without `serde`, no theme written in code)
+  literals too) and [0181](0181-uwuis-scope.md) (without `serde`, no theme written in code); amended by [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (the bottom of the stack is any look, not the core's; under forced colours, the sheets' literal colours give way too)
 - Date: 2026-11-09
 
 ## Context

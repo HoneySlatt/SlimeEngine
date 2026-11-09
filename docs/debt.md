@@ -723,6 +723,12 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   An opacity multiplies each primitive's alpha, rather than drawing the element apart and blending it whole: overlapping parts of a translucent element show through each other, until groups are drawn apart ([ADR-0171](adr/0171-effects-of-the-interface.md)).
   A shadow is not placed on whole pixels.
   On Linux, the system's dark or light preference is not read: winit reads no desktop's settings, and the portal of the desktop's settings would need a new dependency; Windows reports it.
+  Followed by uwui's reader of the system's preferences, which the engine's platform layer calls once the editor moves onto uwui's 1.0, at Stage 6c's resumption ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); the reader's dependencies are put to the owner when it is built.
+- **The interface's clock in the engine is not limited after a pause** ([ADR-0107](adr/0107-the-execution-model.md)).
+  `slime-app`'s windowed loop gives uwui the whole time since its last call, at each event and frame (`ui.advance(now - self.ui_clock)` in `windowed.rs`).
+  ADR-0107 gives the interface real time limited after a pause, as ADR-0009 decided.
+  A transition under way when the program waits long ends at once at the next event; nothing else is known to break.
+  Followed at [M6d.1d2b2](PLAN.md#m6d1d2b2--the-time-that-motion-reads), which decides whether motion's gap is limited; the code or ADR-0107 then follows.
 - **Layers** ([ADR-0150](adr/0150-layers.md)).
   A menu's separators are boxes of the class `separator` that the look styles, not a kind of their own.
   A menu has no letters that jump to an item.

@@ -217,7 +217,7 @@ the ADR linking to it.
 | [0146](0146-screen-readers.md) | Screen readers | Accepted; amended by 0147 and 0181 |
 | [0147](0147-the-screen-readers-check-in-ci.md) | The screen readers' check in CI | Accepted |
 | [0148](0148-widgets.md) | Widgets | Accepted; amended by 0149 |
-| [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151, 0170 and 0223 |
+| [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151, 0170, 0223 and 0226 |
 | [0150](0150-layers.md) | Layers | Accepted; amended by 0154, 0157, 0174 |
 | [0151](0151-rich-widgets.md) | Rich widgets | Accepted |
 | [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
@@ -249,7 +249,7 @@ the ADR linking to it.
 | [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179, 0180, 0181, 0194 and 0203 |
 | [0179](0179-the-framework-named-uwui.md) | The framework named uwui | Accepted; amends 0178 |
 | [0180](0180-one-canvas-and-the-frameworks-foundations.md) | One canvas, and the framework's foundations | Accepted; amends 0178; amended by 0181 |
-| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223 and 0225 |
+| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223, 0225 and 0226 |
 | [0182](0182-the-engine-under-mit-or-apache-2-0.md) | The engine under MIT OR Apache-2.0 | Superseded by 0214 for the engine; amends 0006 and 0181 |
 | [0183](0183-uwuis-logo.md) | uwui's logo | Accepted |
 | [0184](0184-the-engines-logo.md) | The engine's logo | Accepted |
@@ -258,7 +258,7 @@ the ADR linking to it.
 | [0187](0187-a-hidden-window-at-rest.md) | A hidden window at rest | Accepted; amends 0021 |
 | [0188](0188-a-light-check-for-documentation.md) | A light check for documentation | Accepted; amends 0007 |
 | [0189](0189-first-measures-of-time.md) | First measures of time | Accepted; amends 0104, 0175 and 0186; amended by 0191 and 0215 |
-| [0190](0190-uwuis-requirements.md) | uwui's requirements | Accepted; amends 0170, 0171, 0173, 0175 and 0181; amended by 0194, 0197, 0199, 0202, 0203, 0205, 0209, 0211, 0212, 0213, 0218, 0220, 0222 and 0225 |
+| [0190](0190-uwuis-requirements.md) | uwui's requirements | Accepted; amends 0170, 0171, 0173, 0175 and 0181; amended by 0194, 0197, 0199, 0202, 0203, 0205, 0209, 0211, 0212, 0213, 0218, 0220, 0222, 0225 and 0226 |
 | [0191](0191-input-in-sway-start-budgets-and-the-editors-rate.md) | Input given in sway, two budgets of a start, and the editor's rate | Accepted; amends 0175 and 0189; amended by 0200 |
 | [0192](0192-the-budget-of-a-cold-start.md) | The budget of a cold start | Accepted; amends 0175 |
 | [0193](0193-first-measures-of-resources.md) | First measures of resources | Accepted; amends 0175 |
@@ -281,16 +281,17 @@ the ADR linking to it.
 | [0210](0210-signals-named-for-a-reload.md) | Signals named for a reload, through serde | Accepted; amends 0202 and 0205; amended by 0211, 0212 and 0225 |
 | [0211](0211-the-executor-and-other-threads-through-channels.md) | The interface's executor, and other threads through channels | Accepted; amends 0190, 0205 and 0210 |
 | [0212](0212-a-functions-body-reloaded-through-subsecond-and-dx.md) | A function's body reloaded through subsecond and dx | Accepted; amends 0190, 0202 and 0210; amended by 0224 |
-| [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) | uwui's reach, its lead, its themes and agents | Accepted; amends 0173, 0181, 0190, 0196, 0198 and 0199; amended by 0214, 0215, 0218 and 0222 |
+| [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) | uwui's reach, its lead, its themes and agents | Accepted; amends 0173, 0181, 0190, 0196, 0198 and 0199; amended by 0214, 0215, 0218, 0222 and 0226 |
 | [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) | The engine under a licence of its own, with a royalty | Accepted; supersedes 0182 for the engine; amends 0006, 0207, 0209 and 0213; amended by 0219 |
-| [0215](0215-the-engine-measured-against-the-market.md) | The engine measured against the market | Accepted; amends 0098, 0114, 0175, 0176, 0189, 0207, 0208, 0209 and 0213 |
+| [0215](0215-the-engine-measured-against-the-market.md) | The engine measured against the market | Accepted; amends 0098, 0114, 0175, 0176, 0189, 0207, 0208, 0209 and 0213; amended by 0226 |
 | [0216](0216-light-geometry-and-the-gpus-floor.md) | Light, geometry and the GPU's floor | Accepted; amends 0034, 0035, 0098, 0114, 0115 and 0208 |
 | [0217](0217-worlds-by-density-generated-and-destroyed.md) | Worlds by density, generated and destroyed | Accepted; amends 0098, 0107, 0109, 0112 and 0208 |
 | [0218](0218-one-core-for-agents-in-uwui.md) | One core for agents, in uwui | Accepted; amends 0099, 0122, 0190, 0209 and 0213 |
 | [0219](0219-test-games-in-place-of-hunna-wood.md) | Test games in place of Hunna Wood | Accepted; amends 0006, 0067, 0207, 0214 and principle 4 |
-| [0220](0220-the-roadmap-reshaped-by-the-market.md) | The roadmap reshaped by the market | Accepted; amends 0098, 0190, 0194 and 0207; amended by 0221, 0222 and 0225 |
+| [0220](0220-the-roadmap-reshaped-by-the-market.md) | The roadmap reshaped by the market | Accepted; amends 0098, 0190, 0194 and 0207; amended by 0221, 0222, 0225 and 0226 |
 | [0221](0221-compiling-within-its-budgets.md) | Compiling within its budgets | Accepted; amends 0104 and 0220 |
-| [0222](0222-what-a-theme-is.md) | What a theme is: values, rules and parts written as data | Accepted; amends 0141, 0190, 0213 and 0220; amended by 0225 |
-| [0223](0223-styles-written-in-code-through-tokens.md) | Styles written in code, through tokens, under the user's layer | Accepted; amends 0141, 0149 and 0181 |
+| [0222](0222-what-a-theme-is.md) | What a theme is: values, rules and parts written as data | Accepted; amends 0141, 0190, 0213 and 0220; amended by 0225 and 0226 |
+| [0223](0223-styles-written-in-code-through-tokens.md) | Styles written in code, through tokens, under the user's layer | Accepted; amends 0141, 0149 and 0181; amended by 0226 |
 | [0224](0224-a-files-change-reaches-the-application-through-the-development-tool.md) | A file's change reaches the application through the development tool | Accepted; amends 0212 |
-| [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) | Layouts written in KDL, reached from code by their names | Accepted; amends 0080, 0132, 0141, 0181, 0190, 0210, 0220 and 0222 |
+| [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) | Layouts written in KDL, reached from code by their names | Accepted; amends 0080, 0132, 0141, 0181, 0190, 0210, 0220 and 0222; amended by 0226 |
+| [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) | An application started in one call, each root given its look | Accepted; amends 0149, 0181, 0190, 0213, 0215, 0220, 0222, 0223 and 0225 |

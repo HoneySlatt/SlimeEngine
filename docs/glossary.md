@@ -445,6 +445,12 @@ user's, kept in memory by persistent identity while the level is open, never wri
 undone ([ADR-0169](adr/0169-the-eye-and-the-lock.md)). Not the world's `Hidden` component, which is
 the level's.
 
+**Facade (uwui's).** The one crate that an application on uwui in the core's look names: it holds
+the call that starts the application, chooses the host for the platform, and stands above uwui's
+core, its renderer, its components and the core's look. Another look is a crate beside it. The
+engine and libraries of components depend on the core, never on it. Decided, built in uwui's first
+stage ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)).
+
 **Face (font).** One font of a font file, at one point of its variations, a variable font's
 weight among them: what draws a run of *glyphs* ([ADR-0136](adr/0136-the-interfaces-text.md)).
 
@@ -491,6 +497,13 @@ in the order of the tree and the arrows to the nearest element on screen, within
 takes the first font that has it. Without the system's fonts, a character that no font of the
 stack has is missing; with them, the system's fallback finds a font, which is named for the
 characters of that writing system from then on ([ADR-0136](adr/0136-the-interfaces-text.md)).
+
+**Forced colours.** A system's setting for people who need their own colours, Windows' contrast
+themes and the web's `forced-colors`: the system gives a few colours by their *roles*, text and its
+background, selected text, disabled text, links, a button's face and its text, and every colour of
+an interface gives way to them, its shapes kept. Not the *roles* of screen readers. Decided for
+uwui, built in its first stage
+([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)).
 
 **Former identity.** What an entity was called before it left its scene: before a game *adopted* it,
 which the world keeps and saves write, so that references written before find it
@@ -856,6 +869,12 @@ the logical key `"a"`. Suits shortcuts and text. See also *physical key*.
 display's, it covers. The sizes of `WindowConfig` are logical; `Window::inner_size`,
 `Event::CursorMoved` and render targets are physical.
 
+**Look (an application's).** The theme at the bottom of a root's stack: its values, rules and parts,
+with its fonts and icons, and its sets of values for light, dark and high contrast. uwui's own,
+*Plain*, Glass, Material 3 Expressive and Pro are looks; each root is given one when it is made,
+never by default, and it may be replaced while the root runs. Decided, built in uwui's first stage
+([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)).
+
 **Look (the editor's).** The fonts and the style made for the interfaces of the engine's editor and
 of its dev overlay: Geist and Geist Mono, a style sheet, and *themes* stacked, a base of scales, one
 of colors, dark, light or high contrast, and a compact one (`uwui::look`, built with
@@ -1159,6 +1178,12 @@ against the boxes of the meshes that a world places, then their triangles, witho
 handle ([ADR-0115](adr/0115-what-the-gpu-layer-gives-the-editor.md),
 [ADR-0130](adr/0130-picking.md)).
 
+**Plain.** A variant of uwui's core look, a designer's start: the core's parts in the colours of
+*forced colours*' roles, black on white in light and white on black in dark, with lines, marks and
+states shown by their shape, and no radius, shadow, tint, blur, motion or accent. Not the *blank
+window*, the program measured. Decided, built in uwui's first stage
+([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)).
+
 **Play (editor).** The editor running the game's program on the level as the editor holds it,
 steps not written included, as private copies of the scenes that the game reads in place of their
 cooked files, the user's files left alone; paused, stepped and stopped from a toolbar, its log in a
@@ -1345,8 +1370,8 @@ when what the panel shows changes: `Ui::build` runs the builder only when it mov
 AccessKit names roles: `Button`, `Label`, `List`, `ListItem`, `Dialog`; given by its kind, or by its
 builder (`uwui::tree::Role`, [ADR-0143](adr/0143-what-agents-see-of-the-interface.md)).
 
-**Root (interface).** A surface that an interface lays its *elements* out on, a window or any
-target, with its size in *logical pixels*, its scale and the direction of its lines
+**Root (interface).** An area that an interface lays its *elements* out on, a window or any target,
+with its size in *logical pixels*, its scale and the direction of its lines
 (`uwui::tree::RootSettings`); a root laid out from right to left is mirrored
 ([ADR-0140](adr/0140-the-tree-of-elements.md)).
 

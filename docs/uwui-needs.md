@@ -102,6 +102,7 @@ The editor and games change their interfaces in two ways that applications rarel
 | Translation through Fluent, the language changed live, and a fake language of test | The editor's texts through tables from Stage 6c's resumption ([ADR-0207](adr/0207-what-slimeengine-is-to-become.md)); every game | Indispensable: Stage 6c | Yes, but the fake language: Precision |
 | The tree of what an interface means, for screen readers, from a root that is not a window | Games' menus read aloud ([ADR-0208](adr/0208-the-engines-promises-and-systems.md)) | Indispensable: Stage 7 | Precision: AccessKit from a window exists; from another root is to say |
 | Sizes of text that the user or the game chooses, honoured by every component | The guidelines that games follow | Indispensable: Stage 7 | Yes: the system's size honoured |
+| The system's preferences, light or dark, contrast and forced colours, less motion and transparency, the size of text and saving power, read by a crate of uwui's that the engine's platform layer calls too | The editor following them on Linux, where winit reads none; games' menus under forced colours and less motion | Indispensable: Stage 6c | Yes: a reader of the system's preferences, shared by uwui's hosts and the engine ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)) |
 
 ### Documents, agents and tools
 

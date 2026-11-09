@@ -22,9 +22,9 @@
   [0211](0211-the-executor-and-other-threads-through-channels.md) (the interface's executor, its
   timers waited for by the host),
   [0212](0212-a-functions-body-reloaded-through-subsecond-and-dx.md) (Rust's code reloaded through
-  `subsecond` and `dx`, under `uwui dev`) and
+  `subsecond` and `dx`, under `uwui dev`),
   [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) (macOS's packages; porting a budget;
-  one look in the core, the others official themes of their own; agents measured, and users' agents), then by [0218](0218-one-core-for-agents-in-uwui.md) (no channel of the engine kept apart), [0220](0220-the-roadmap-reshaped-by-the-market.md) (a stage of measures before Stage 6c resumes) [0222](0222-what-a-theme-is.md) (a theme builds a component differently through its parts, written as data) and [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (the format of layouts decided)
+  one look in the core, the others official themes of their own; agents measured, and users' agents), [0218](0218-one-core-for-agents-in-uwui.md) (no channel of the engine kept apart), [0220](0220-the-roadmap-reshaped-by-the-market.md) (a stage of measures before Stage 6c resumes), [0222](0222-what-a-theme-is.md) (a theme builds a component differently through its parts, written as data), [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (the format of layouts decided) and [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (uwui's own design system no longer the default; the system's preferences that a look follows)
 - Date: 2026-11-06
 
 ## Context

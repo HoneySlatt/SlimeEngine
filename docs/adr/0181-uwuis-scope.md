@@ -11,18 +11,18 @@
   [0011](0011-windowing-with-winit.md) (uwui's desktop host uses winit too),
   [0031](0031-dev-overlay-with-egui.md) (uwui's drawing uses wgpu) and
   [0080](0080-reflection-and-serialization.md) (uwui reads its documents with `serde`);
-  amended by [0182](0182-the-engine-under-mit-or-apache-2-0.md) (the engine leaves MPL-2.0 too) and
+  amended by [0182](0182-the-engine-under-mit-or-apache-2-0.md) (the engine leaves MPL-2.0 too),
   [0190](0190-uwuis-requirements.md) (applications' lower tiers; Android without Kotlin; how agents reach an application;
   publication and contributions at 1.0), [0194](0194-stage-6d-uwui-leaving-the-engine.md) (the order of Stage 6d's
   milestones; the trials and the ports in uwui's first stage), [0197](0197-uwuis-repository-public-from-now.md)
   (the repository made before the move), [0198](0198-screens-of-reference-and-the-rivals-measured.md)
-  (the media application written anew, not ported) and [0203](0203-pilots-replaced-pluto-and-a-daw.md)
+  (the media application written anew, not ported), [0203](0203-pilots-replaced-pluto-and-a-daw.md)
   (the four programs before the API is declared stable: Pluto's client and a DAW for the launcher
   and the media application), [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) (macOS
   aimed at; a trial on iOS), [0223](0223-styles-written-in-code-through-tokens.md) (without
-  `serde`, no theme written in code: its files read or turned into values another way) and
+  `serde`, no theme written in code: its files read or turned into values another way),
   [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (layouts and a theme's
-  parts are KDL)
+  parts are KDL) and [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (each root given a look and a target; the system's preferences read by a crate of uwui's that the engine's platform layer calls too)
 - Date: 2026-11-05
 
 ## Context

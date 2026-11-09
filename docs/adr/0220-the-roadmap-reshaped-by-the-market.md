@@ -6,8 +6,8 @@
   [0207](0207-what-slimeengine-is-to-become.md) (CI's runners on the Deck and a desktop GPU before
   Stage 7); amended by [0221](0221-compiling-within-its-budgets.md) (one set of features where a
   program and the game that its Play builds meet), [0222](0222-what-a-theme-is.md) (M6d.1d cut
-  in two) and [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (M6d.1d2
-  cut in two)
+  in two), [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (M6d.1d2
+  cut in two) and [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (blank renamed Plain; M6d.5 checks a target for each root, not a surface)
 - Date: 2026-11-07
 
 ## Context

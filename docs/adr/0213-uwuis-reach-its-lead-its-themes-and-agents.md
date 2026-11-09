@@ -7,7 +7,7 @@
   [0196](0196-checks-by-hand-on-macos.md) (macOS supported at uwui's 1.0 on its checks by hand),
   [0198](0198-screens-of-reference-and-the-rivals-measured.md) (a fifth screen and a gallery; the
   bar's lead) and [0199](0199-uwuis-targets-tools-and-references-narrowed.md) (`uwui bundle`
-  packages macOS); amended by [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) (uwui paid for by its patrons), then by [0215](0215-the-engine-measured-against-the-market.md) (uwui measured as the engine is, no look imposed), [0218](0218-one-core-for-agents-in-uwui.md) (actions declared once serve the engine too) and [0222](0222-what-a-theme-is.md) (the official themes are crates of data, which may add components of their own)
+  packages macOS); amended by [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) (uwui paid for by its patrons), [0215](0215-the-engine-measured-against-the-market.md) (uwui measured as the engine is, no look imposed), [0218](0218-one-core-for-agents-in-uwui.md) (actions declared once serve the engine too), [0222](0222-what-a-theme-is.md) (the official themes are crates of data, which may add components of their own) and [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (the core's look gains a variant, Plain)
 - Date: 2026-11-07
 
 ## Context
