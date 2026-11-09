@@ -1,0 +1,27 @@
+// Slatty's library written as layouts (M6d.1d2a): the search field over the grid of covers, a
+// cover, and a game's page, which the library's view shows in its slot. The view binds each named
+// element by its name; the back button names the command that closes the page.
+layout library {
+    stack {
+        column {
+            search-field search placeholder="Search a game"
+            grid covers class=covers
+        }
+        slot page
+    }
+}
+
+layout cover {
+    pressable cover class=cover {
+        image art
+        label title
+    }
+}
+
+layout game-page {
+    column class=page {
+        button back text=Library action=page.close
+        image key-art class=key-art
+        label title class=title
+    }
+}
