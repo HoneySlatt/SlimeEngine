@@ -14,7 +14,9 @@
 //!
 //! The watcher looks at the file's time of change every millisecond, with the standard library
 //! alone; a tool's watcher is told by the system instead (inotify, `ReadDirectoryChangesW`,
-//! FSEvents), which the figure of its part bounds from above.
+//! FSEvents), and gathers files saved together over an interval, which the bench leaves out. The
+//! sizes written keep the file's length: only its time of change shows a save, which needs a file
+//! system whose grain is finer than the runs' gap, as Linux's are, not FAT's 2 s.
 //!
 //! ```sh
 //! nix develop
@@ -82,8 +84,9 @@ fn changed_at(path: &Path) -> Option<SystemTime> {
 /// which it wakes.
 fn watch(path: PathBuf, host: Arc<HostWake>, stop: Arc<AtomicBool>) -> Receiver<Read> {
     let (sender, receiver) = mpsc::channel();
+    // Read before the thread starts, so that a save made before its first look is a change.
+    let mut last = changed_at(&path);
     std::thread::spawn(move || {
-        let mut last = changed_at(&path);
         while !stop.load(Ordering::Relaxed) {
             std::thread::sleep(LOOK);
             let now = changed_at(&path);
@@ -92,8 +95,7 @@ fn watch(path: PathBuf, host: Arc<HostWake>, stop: Arc<AtomicBool>) -> Receiver<
             }
             last = now;
             let noticed = Instant::now();
-            // A file renamed over the old one is read whole: an editor never leaves it half
-            // written.
+            // A file renamed over the old one, as the bench saves it, is read whole.
             let Ok(text) = std::fs::read_to_string(&path) else {
                 continue;
             };
@@ -163,15 +165,19 @@ fn run(
     host.restyle("library.style", &change.text)?;
     let restyled = restyling.elapsed();
     let framing = Instant::now();
-    host.frame(&[]);
+    let frame = host.frame(&[]);
     let shown = Instant::now();
-    host.settle(SETTLE);
     if title_size(host) != Some(size) {
         return Err(format!(
             "the title's size {size} not shown: {:?}",
             title_size(host)
         ));
     }
+    // A style's change runs none of the application's code: no view, no binding.
+    if frame.runs != 0 {
+        return Err(format!("the change ran {} units of code", frame.runs));
+    }
+    host.settle(SETTLE);
     let after = kept(host);
     if after != before {
         return Err(format!("the state not kept: {before:?}, then {after:?}"));
@@ -274,6 +280,23 @@ mod tests {
         settled(&mut host);
         assert_eq!(title_size(&host), Some(44.0));
         assert_eq!(kept(&host), before);
+    }
+
+    #[test]
+    fn a_change_keeps_the_theme_shown() {
+        let mut host = played(&LIBRARY);
+        settled(&mut host);
+        host.ui.set_theme("light");
+        settled(&mut host);
+        host.restyle("library.style", &sheet(44.0))
+            .expect("the sheet reads");
+        let frame = host.frame(&[]);
+        assert_eq!(host.ui.theme(), Some("light"));
+        assert_eq!(title_size(&host), Some(44.0));
+        assert_eq!(
+            frame.runs, 0,
+            "a style's change runs no code of the application"
+        );
     }
 
     #[test]
