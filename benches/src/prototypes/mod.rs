@@ -32,6 +32,7 @@ mod reload;
 mod screens;
 mod signals;
 mod style_reload;
+mod watched;
 #[cfg(test)]
 mod tasks;
 mod threads;

@@ -24,17 +24,18 @@
 //! cargo run -p slime-benches -- --prototypes --style --runs 21    # as an author runs it
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver, TryRecvError};
-use std::time::{Duration, Instant, SystemTime};
+use std::sync::mpsc::{Receiver, TryRecvError};
+use std::time::{Duration, Instant};
 
 use uwui::prelude::ElementId;
 
 use super::host::{Find, Host, found};
 use super::reload::{kept, played, settled};
-use super::signals::{HostWake, LIBRARY, Signals};
+use super::signals::{LIBRARY, Signals};
+use super::watched::{LIMIT, Read, save, watch};
 use super::{SETTLE, median};
 
 /// The style sheet as the screen holds it, and the size of the title that each run changes.
@@ -43,74 +44,12 @@ const TITLE: &str = "style.text.style = { size = 52, weight = 700 }";
 /// The title's sizes that the runs write in turn, the sheet's own first.
 const SIZES: [f32; 2] = [52.0, 44.0];
 
-/// How long a run waits for its change before it fails.
-const LIMIT: Duration = Duration::from_secs(10);
-/// How often the watcher looks at the file.
-const LOOK: Duration = Duration::from_millis(1);
-
-/// A change that the watcher read.
-struct Read {
-    /// The file's text.
-    text: String,
-    /// When the watcher saw the change.
-    noticed: Instant,
-    /// When it had read the file.
-    read: Instant,
-}
-
 /// The sheet with the title's size `size`.
 fn sheet(size: f32) -> String {
     SHEET.replace(
         TITLE,
         &format!("style.text.style = {{ size = {size}, weight = 700 }}"),
     )
-}
-
-/// Writes `text` beside `path`, then renames it over `path`, as an editor saves; the time once it
-/// is saved.
-fn save(path: &Path, text: &str) -> Result<Instant, String> {
-    let beside = path.with_extension("saving");
-    std::fs::write(&beside, text).map_err(|error| format!("{}: {error}", beside.display()))?;
-    std::fs::rename(&beside, path).map_err(|error| format!("{}: {error}", path.display()))?;
-    Ok(Instant::now())
-}
-
-/// The file's time of change, if it can be read.
-fn changed_at(path: &Path) -> Option<SystemTime> {
-    std::fs::metadata(path).ok()?.modified().ok()
-}
-
-/// Watches `path` on a thread of its own until `stop`, and hands each change's text to the host,
-/// which it wakes.
-fn watch(path: PathBuf, host: Arc<HostWake>, stop: Arc<AtomicBool>) -> Receiver<Read> {
-    let (sender, receiver) = mpsc::channel();
-    // Read before the thread starts, so that a save made before its first look is a change.
-    let mut last = changed_at(&path);
-    std::thread::spawn(move || {
-        while !stop.load(Ordering::Relaxed) {
-            std::thread::sleep(LOOK);
-            let now = changed_at(&path);
-            if now == last {
-                continue;
-            }
-            last = now;
-            let noticed = Instant::now();
-            // A file renamed over the old one, as the bench saves it, is read whole.
-            let Ok(text) = std::fs::read_to_string(&path) else {
-                continue;
-            };
-            let read = Read {
-                text,
-                noticed,
-                read: Instant::now(),
-            };
-            if sender.send(read).is_err() {
-                return;
-            }
-            host.wake();
-        }
-    });
-    receiver
 }
 
 /// A run: a change saved, to the frame that shows it.
