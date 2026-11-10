@@ -2143,3 +2143,25 @@ GitHub's hosted runners, on 2026-11-09, each run green:
 |---|---|
 | Docs' `links`, on `99191d2` | 17 s |
 | uwui's `check`, on its `eb5e41e` | 16 s |
+
+## M6d.1d2b2, the time that motion reads
+
+A milestone of decisions alone ([ADR-0227](adr/0227-the-time-that-motion-reads.md)): nothing was
+measured. `main` took ADR-0227 and the documents it changes, with a comment of `slime-app`'s
+rustdoc, which ran every job; the engine's code is as M6d.1d1 left it.
+
+GitHub's hosted runners, on 2026-11-10, each run green, on `3a8e42e`:
+
+| Job | Time |
+|---|---|
+| `check (headless)` | 22 min 56 s |
+| `check (windowed)` | 11 min 16 s |
+| `check (game)` | 11 min 55 s |
+| `windows` | 23 min 25 s |
+| `windows-release` | 15 min 52 s |
+| Docs' `links` | 21 s |
+| uwui's `check`, on its `058e39e` | 22 s |
+
+`check (headless)` and `windows` went past their limit of 20 minutes again, as at M6d.1d1: the
+runners' speed alone, which [`debt.md`](debt.md) follows under "CI's jobs and their limit of 20
+minutes", waiting for the owner's decision.

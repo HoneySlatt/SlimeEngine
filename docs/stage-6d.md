@@ -36,8 +36,9 @@ in git.
   [ADR-0222](adr/0222-what-a-theme-is.md),
   [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md),
   [ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md),
-  [ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) and
-  [ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md).
+  [ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md),
+  [ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md) and
+  [ADR-0227](adr/0227-the-time-that-motion-reads.md).
 - Widened on 2026-11-07 by the market's decisions
   ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md#decision)): M6d.1d, M6d.2, M6d.3,
   M6d.4, M6d.5, M6d.7, M6d.10 and M6d.11 gain what those decisions need of them; M6d.9 is cut in
@@ -47,7 +48,7 @@ in git.
   [M6d.0a](#m6d0a--the-screens-and-the-owners-programs),
   [M6d.0b](#m6d0b--measured-from-outside-and-ten-hello-world) and
   [M6d.0c](#m6d0c--the-applications-of-the-market).
-- In progress: [M6d.1](#m6d1--how-an-application-is-written), cut in four at its start.
+- Done: [M6d.1](#m6d1--how-an-application-is-written), cut in four at its start.
   - Done: [M6d.1a](#m6d1a--the-survey-and-the-protocol), and
     [M6d.1b](#m6d1b--how-state-changes-the-interface): signals chosen with live values
     ([ADR-0205](adr/0205-signals-change-uwuis-interface.md)), checked against Slatty's list
@@ -62,7 +63,7 @@ in git.
     [M6d.1c3a](#m6d1c3a--a-functions-body-reloaded-through-subsecond), a function's body reloaded
     through `subsecond` and `dx`, and [M6d.1c3b](#m6d1c3b--the-rivals-reloads-timed), the rivals'
     reloads timed beside it, which closed M6d.1c.
-  - In progress: [M6d.1d](#m6d1d--layouts-styles-and-the-host), cut in two at its start, on
+  - Done: [M6d.1d](#m6d1d--layouts-styles-and-the-host), cut in two at its start, on
     2026-11-09 ([ADR-0222](adr/0222-what-a-theme-is.md)): done,
     [M6d.1d1](#m6d1d1--themes-and-styles-written-in-code), themes and styles written in code
     ([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md),
@@ -73,8 +74,9 @@ in git.
     their reload; M6d.1d2b cut in two at its start, on the same day
     ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)): done,
     [M6d.1d2b1](#m6d1d2b1--an-applications-start-and-its-look), an application's start and its
-    look; next,
-    [M6d.1d2b2](PLAN.md#m6d1d2b2--the-time-that-motion-reads), the time that motion reads.
+    look, and [M6d.1d2b2](#m6d1d2b2--the-time-that-motion-reads), the time that motion reads
+    ([ADR-0227](adr/0227-the-time-that-motion-reads.md)), which closed M6d.1 on 2026-11-10.
+- Next: [M6d.2](#m6d2--typed-styles), typed styles.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -612,7 +614,48 @@ the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
     M6d.1d2b2, is in
     [uwui's survey](https://github.com/HoneySlatt/uwui/blob/main/docs/survey-writing-an-application.md#10-the-systems-preferences).
 
-M6d.1d2b2, next, is in [`PLAN.md`](PLAN.md#m6d1d2b2--the-time-that-motion-reads).
+### M6d.1d2b2 — The time that motion reads
+
+The second half of M6d.1d2b
+([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)). It follows
+the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The time of each frame that motion reads, and what timers, the executor and input's
+  events read.
+- **Crates.** None kept.
+- **Delivers.** Each of these decided, as the attack on M6d.1d2b's draft raised them: the time
+  that a frame's motion reads, for each target; what follows a late frame, and the engine's real
+  time that reached uwui uncapped against [ADR-0107](adr/0107-the-execution-model.md); what a
+  root's clock drives; what timers and tasks read; how often motion asks for frames; input's
+  events' times; `frame_time`, the time's types and the time of day; M6d.5 updated.
+- **Done when.** Each question is decided and recorded.
+- **Measured.** Nothing: whether each compositor gives presentation times, and how much frames'
+  starts vary at 240 Hz, come at M6d.6 and M6d.7.
+- **Result.** Done on 2026-11-10, CI green
+  ([ADR-0227](adr/0227-the-time-that-motion-reads.md)):
+  - Motion reads when its frame shows, one time for each window: given, predicted from past
+    presentations, asked, ready under a variable refresh, on the display's grid, or simulated in
+    tests; never back. The engine gives the frame's start until M6d.7.
+  - Each input event carries a time in the host's clock, converted; winit gives none, so the
+    desktop host stamps reception, debt measured at M6d.7. A fling starts at its input's time, a
+    transition at its first frame.
+  - One host clock that counts a suspend, on every platform but the web.
+  - No cap after a late frame: motion placed by its formula; the engine's interface reads real
+    time uncapped by decision, and the debt on its clock closes.
+  - A root's clock is its time and speed at each frame, a game's interpolated between its steps;
+    hover, press, focus and uwui's own timings stay on the host's clock; what runs during a pause
+    is a root of its own.
+  - Two kinds of deadline: what changes the drawing waits while its root does not show; a task's
+    timer, and a task woken outside a frame, wake the host without a frame.
+  - A motion asks for a frame when its drawing changes visibly, under a cap that divides the
+    refresh, halved for lasting motion while saving power.
+  - `frame_time` gives way to `now`, `shown_at` and `next_frame`; two types, `Instant` and
+    `RootTime`; the civil time, its zone and offset through the timer at a granularity.
+  - What each platform gives of X11's Present, Android's past presentations, Windows'
+    presentation manager, saving power, clocks across a suspend and the time of day is in
+    [uwui's survey](https://github.com/HoneySlatt/uwui/blob/main/docs/survey-writing-an-application.md#more-of-a-frames-time-of-power-and-of-clocks).
+
+M6d.1d2b2 closed M6d.1d2b, M6d.1d2, M6d.1d and M6d.1. Next, [M6d.2](#m6d2--typed-styles).
 
 ### M6d.2 — Typed styles
 
