@@ -121,7 +121,7 @@ select = { kind = "Section" }
 style.paint = { border_width = 1, border = "$none", radii = ["$radius_m", "$radius_m", "$radius_m", "$radius_m"] }
 style.layout.padding = { start = "$space_s", end = "$space_s", top = "$space_xs", bottom = "$space_s" }
 style.text.style.weight = "$weight_title"
-style.control = { size = "$control", radius = "$radius_s", track = "$raised", fill = "$accent", mark = "$text" }
+style.control = { size = "$control", radius = "$radius_s", track = "$raised", mark = "$text" }
 style.transition = { duration = "$slow", easing = "EaseInOut" }
 
 [section-header]
@@ -187,7 +187,7 @@ style.paint.border = "$focus"
 
 [progress]
 select = { kind = "Progress" }
-style.control = { size = "$control", radius = "$radius_s", track = "$track", fill = "$accent", mark = "$mark" }
+style.control = { size = "$control", radius = "$radius_s", track = "$track", fill = "$accent" }
 
 [tab-bar]
 select = { kind = "TabBar" }
@@ -200,7 +200,7 @@ select = { kind = "Tab" }
 style.paint = { border_width = 1, border = "$none", radii = ["$radius_m", "$radius_m", 0, 0] }
 style.layout.padding = { start = "$tab_x", end = "$tab_x", top = "$tab_y", bottom = "$tab_y" }
 style.text = { style = { weight = "$weight_control" }, color = "$muted" }
-style.control = { size = "$control", radius = "$radius_s", track = "$accent_soft", fill = "$accent", mark = "$text" }
+style.control = { size = "$control", track = "$accent_soft", mark = "$text" }
 
 [tab-hovered]
 select = { kind = "Tab", states = ["Hovered"] }
@@ -217,7 +217,7 @@ style.paint.border = "$focus"
 
 [split]
 select = { kind = "Split" }
-style.control = { size = "$handle", radius = 0, track = "$panel_border", fill = "$accent", mark = "$mark" }
+style.control = { size = "$handle", track = "$panel_border", fill = "$accent" }
 
 # A dock's stack of tabs (docs/adr/0172-regions-of-tabs.md): a panel's box, its bar of tabs along
 # its top, what the chosen panel holds below, and the borders between stacks, which show as the
@@ -244,11 +244,11 @@ style.paint.background = "$accent_soft"
 
 [scroll]
 select = { kind = "Scroll" }
-style.control = { size = "$scroll_bar", radius = "$radius_s", track = "$bar_track", fill = "$accent", mark = "$bar_thumb" }
+style.control = { size = "$scroll_bar", radius = "$radius_s", track = "$bar_track", mark = "$bar_thumb" }
 
 [list]
 select = { kind = "List" }
-style.control = { size = "$scroll_bar", radius = "$radius_s", track = "$bar_track", fill = "$accent", mark = "$bar_thumb" }
+style.control = { size = "$scroll_bar", radius = "$radius_s", track = "$bar_track", mark = "$bar_thumb" }
 
 [menu-bar]
 select = { kind = "MenuBar" }
@@ -273,7 +273,7 @@ style.layout.margin = { start = "$space_s", end = "$space_s", top = "$space_xs",
 select = { kind = "MenuItem" }
 style.paint = { border_width = 1, border = "$none", radii = ["$radius_s", "$radius_s", "$radius_s", "$radius_s"] }
 style.layout.padding = { start = "$space_s", end = "$space_s", top = "$button_y", bottom = "$button_y" }
-style.control = { size = "$control", radius = "$radius_s", track = "$muted", fill = "$accent", mark = "$text" }
+style.control = { size = "$control", track = "$muted", mark = "$text" }
 
 [menu-item-focused]
 select = { kind = "MenuItem", states = ["Focused"] }
@@ -307,7 +307,7 @@ style.paint.background = "$accent_soft"
 select = { kind = "Choice" }
 style.paint = { background = "$raised", border_width = 1, border = "$raised_border", radii = ["$radius_m", "$radius_m", "$radius_m", "$radius_m"] }
 style.layout.padding = { start = "$field_x", end = "$field_x", top = "$button_y", bottom = "$button_y" }
-style.control = { size = "$control", radius = "$radius_s", track = "$track", fill = "$accent", mark = "$muted" }
+style.control = { size = "$control", mark = "$muted" }
 
 [choice-hovered]
 select = { kind = "Choice", states = ["Hovered"] }
@@ -340,7 +340,7 @@ select = { kind = "FloatingPanel" }
 style.paint = { background = "$panel", border_width = 1, border = "$panel_border", radii = ["$radius_l", "$radius_l", "$radius_l", "$radius_l"], shadow = [{ color = "$shadow", offset = [0, "$shadow_y"], blur = "$shadow_blur", spread = 0 }] }
 style.layout.padding = { start = "$space_m", end = "$space_m", top = "$space_s", bottom = "$space_m" }
 style.text.style.weight = "$weight_title"
-style.control = { size = "$control", radius = "$radius_s", track = "$muted", fill = "$accent", mark = "$text" }
+style.control = { size = "$control", radius = "$radius_s", track = "$muted", mark = "$text" }
 
 [floating-panel-focused]
 select = { kind = "FloatingPanel", states = ["FocusVisible"] }
@@ -425,7 +425,7 @@ style.text.color = "$text"
 select = { kind = "ColorWell" }
 style.paint = { background = "$field", border_width = 1, border = "$raised_border", radii = ["$radius_m", "$radius_m", "$radius_m", "$radius_m"] }
 style.layout.padding = { start = 2, end = 2, top = 2, bottom = 2 }
-style.control = { size = "$control", radius = "$radius_s", track = "$track", fill = "$accent", mark = "$mark" }
+style.control = { size = "$control", radius = "$radius_s" }
 
 [color-well-focused]
 select = { kind = "ColorWell", states = ["FocusVisible"] }
@@ -438,7 +438,7 @@ style.layout.padding = { start = "$space_m", end = "$space_m", top = "$space_m",
 
 [color-part]
 select = { kind = "ColorPart" }
-style.control = { size = "$control", radius = "$radius_s", track = "$track", fill = "$accent", mark = "$mark" }
+style.control = { radius = "$radius_s", fill = "$accent" }
 
 # The dev overlay's panels (docs/adr/0152-the-dev-overlay-on-the-engines-interface.md): a list's
 # rows, which select, the entity selected among them; references, which read as links; a heading;

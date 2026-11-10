@@ -237,6 +237,29 @@ fn a_wrong_style_sheet_or_theme_is_refused_by_name_and_place_and_the_style_is_ke
             "ui.style: line 2,",
             "not `selected`",
         ),
+        // A color set whole, never some of its channels (docs/adr/0229-styles-typed-as-declarations.md),
+        // there or inside an option.
+        (
+            "[a]\nstyle.paint.background = { r = 0.5 }\n",
+            "ui.style: line 2,",
+            "`paint.background` sets some of a color's channels",
+        ),
+        (
+            "[a]\nstyle.paint.shadow = [{ color = { g = 1, a = 1 } }]\n",
+            "ui.style: line 2,",
+            "`paint.shadow.color` sets some of a color's channels",
+        ),
+        // A rule for a kind sets what that kind reads alone.
+        (
+            "[a]\nselect = { kind = \"Label\" }\nstyle.control.fill = \"#ffffff\"\n",
+            "ui.style: line 3,",
+            "a rule for `Label` sets `control.fill`, which a `Label` does not read",
+        ),
+        (
+            "[a]\nselect = { kind = \"Button\" }\nstyle.paint.backdrop = \"#000000\"\n",
+            "ui.style: line 3,",
+            "sets `paint.backdrop`",
+        ),
         ("[a\n", "ui.style: line 1,", ""),
         ("rule = 3\n", "ui.style: line 1,", "is not a rule"),
     ];

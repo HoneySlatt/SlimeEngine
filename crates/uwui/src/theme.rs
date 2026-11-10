@@ -53,7 +53,7 @@ use slime_serialize::References;
 
 use crate::DocumentError;
 use crate::document::Source;
-use crate::style::Style;
+use crate::style::{Style, StyleDeclaration};
 
 /// A style sheet: rules that select elements and set a part of their style, in the order they are
 /// applied, read when an interface takes it ([`Ui::set_style`](crate::tree::Ui::set_style)).
@@ -170,6 +170,130 @@ pub(crate) enum KindName {
     Surface,
 }
 
+/// Whether an element of `kind` reads the field that `declaration` sets, as [`read_by`] lists it
+/// (`docs/adr/0229-styles-typed-as-declarations.md`).
+pub(crate) fn reads(kind: KindName, declaration: &StyleDeclaration) -> bool {
+    let path = declaration.path();
+    if path == "paint.backdrop" {
+        return kind == KindName::Container;
+    }
+    if ["layout.", "paint.", "transition."]
+        .iter()
+        .any(|part| path.starts_with(part))
+    {
+        return true;
+    }
+    // `text` stands for the text's style and its color, which every text is drawn in.
+    let leaf = if path.starts_with("text.style.") || path == "text.color" {
+        "text"
+    } else {
+        path.as_str()
+    };
+    read_by(kind).contains(&leaf)
+}
+
+/// The fields of a style that an element of `kind` reads, beyond its layout, its paint and its
+/// transition, which every kind reads, and a layer's backdrop, which a layer's root reads, always a
+/// container: `text` for its text's style and color, then each of the selection's, the control's
+/// and the icons' that it draws, in some of its states. A rule that names the kind and sets another
+/// is refused.
+pub(crate) fn read_by(kind: KindName) -> &'static [&'static str] {
+    const SECTION: &[&str] = &[
+        "text",
+        "control.size",
+        "control.radius",
+        "control.track",
+        "control.mark",
+        "icons.font",
+        "icons.down",
+        "icons.right",
+        "icons.left",
+    ];
+    const BARS: &[&str] = &[
+        "control.size",
+        "control.radius",
+        "control.track",
+        "control.mark",
+    ];
+    match kind {
+        KindName::Label | KindName::Button | KindName::ToggleButton | KindName::Segment => {
+            &["text"]
+        }
+        KindName::Container
+        | KindName::Image
+        | KindName::TabBar
+        | KindName::Splitter
+        | KindName::Menu
+        | KindName::MenuBar
+        | KindName::SectionHeader
+        | KindName::Segments
+        | KindName::Surface => &[],
+        KindName::Scroll | KindName::List => BARS,
+        KindName::TextField => &[
+            "text",
+            "text.selection",
+            "control.size",
+            "control.track",
+            "control.mark",
+            "icons.font",
+            "icons.search",
+            "icons.clear",
+        ],
+        KindName::NumberField => &[
+            "text",
+            "text.selection",
+            "control.size",
+            "control.track",
+            "control.mark",
+        ],
+        KindName::CheckBox => &[
+            "text",
+            "control.size",
+            "control.radius",
+            "control.track",
+            "control.fill",
+            "control.mark",
+            "icons.font",
+            "icons.tick",
+        ],
+        KindName::Slider => &[
+            "control.size",
+            "control.radius",
+            "control.track",
+            "control.fill",
+            "control.mark",
+        ],
+        KindName::Section | KindName::FloatingPanel => SECTION,
+        KindName::Tab => &["text", "control.size", "control.track", "control.mark"],
+        KindName::Split => &["control.size", "control.track", "control.fill"],
+        KindName::MenuItem => &[
+            "text",
+            "control.size",
+            "control.track",
+            "control.mark",
+            "icons.font",
+            "icons.tick",
+            "icons.right",
+            "icons.left",
+        ],
+        KindName::Choice => &[
+            "text",
+            "control.size",
+            "control.mark",
+            "icons.font",
+            "icons.down",
+        ],
+        KindName::Progress => &[
+            "control.size",
+            "control.radius",
+            "control.track",
+            "control.fill",
+        ],
+        KindName::ColorWell => &["control.size", "control.radius"],
+        KindName::ColorPart => &["control.radius", "control.fill"],
+    }
+}
+
 /// The states of an element, as a rule names them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 #[reflect(name = "UiElementState")]
@@ -198,8 +322,9 @@ pub(crate) struct Ancestor {
 #[derive(Clone, Debug)]
 pub(crate) struct Rule {
     pub(crate) selector: Selector,
-    /// A part of a [`Style`], as reflection holds it.
-    pub(crate) style: Value,
+    /// What it sets of a [`Style`], in the order of its document
+    /// (`docs/adr/0229-styles-typed-as-declarations.md`).
+    pub(crate) declarations: Vec<StyleDeclaration>,
 }
 
 /// The registry of the types that style sheets and themes hold.
@@ -219,7 +344,7 @@ pub(crate) fn rules(
 ) -> Result<Vec<Rule>, DocumentError> {
     let values = Values::new(registry, themes)?;
     values.check()?;
-    // What every rule's part is laid over, to check that it lays over a style whole.
+    // What every rule's part is laid over, to read the values that it sets whole.
     let default = Style::default().to_value();
     let mut rules = Vec::new();
     for sheet in sheets {
@@ -246,14 +371,20 @@ pub(crate) fn rules(
                 .read_part(&[&name, "style"], "UiStyle", Some(&values))
                 .map_err(sheet_error)?
                 .unwrap_or(Value::Struct(Vec::new()));
-            // A part that leaves out a field of what it sets whole, an option's value, without
-            // a default to give it, lays over no style: refused here, not when a frame styles.
-            registry
-                .overlay("UiStyle", &mut default.clone(), &style)
-                .map_err(|error| {
-                    let problem = Problem::Invalid(error.to_string());
-                    sheet_error(document.error_at(&[&name, "style"], problem))
-                })?;
+            let refuse = |problem: String| {
+                sheet_error(document.error_at(&[&name, "style"], Problem::Invalid(problem)))
+            };
+            let declarations = declarations(registry, &default, &style).map_err(refuse)?;
+            if let Some(kind) = selector.kind
+                && let Some(unread) = declarations
+                    .iter()
+                    .find(|declaration| !reads(kind, declaration))
+            {
+                return Err(refuse(format!(
+                    "a rule for `{kind:?}` sets `{}`, which a `{kind:?}` does not read",
+                    unread.path()
+                )));
+            }
             for key in document.keys(&[&name]) {
                 if key != "select" && key != "style" {
                     return Err(sheet_error(document.error_at(
@@ -262,10 +393,71 @@ pub(crate) fn rules(
                     )));
                 }
             }
-            rules.push(Rule { selector, style });
+            rules.push(Rule {
+                selector,
+                declarations,
+            });
         }
     }
     Ok(rules)
+}
+
+/// The declarations of what `part` sets, a part of a style as reflection reads one, in its order,
+/// each holding the value that the part laid over `default`, the default style's value, gives it.
+///
+/// # Errors
+///
+/// What is wrong, if the part sets some of a color's channels and not all, or leaves out a field of
+/// what it sets whole, an option's value, without a default to give it: such a part lays over no
+/// style, and is refused when the interface reads it, not when a frame styles.
+pub(crate) fn declarations(
+    registry: &Registry,
+    default: &Value,
+    part: &Value,
+) -> Result<Vec<StyleDeclaration>, String> {
+    if let Some(path) = partial_color(registry, "UiStyle", part, "") {
+        return Err(format!(
+            "`{path}` sets some of a color's channels: a rule sets a color whole, as \
+             `\"#rrggbb\"`, a value's name or `{{ r, g, b, a }}`"
+        ));
+    }
+    let mut whole = default.clone();
+    registry
+        .overlay("UiStyle", &mut whole, part)
+        .map_err(|error| error.to_string())?;
+    let whole = Style::from_value(&whole).expect("a style, read as one");
+    let mut declarations = Vec::new();
+    whole.named(part, &mut |declaration| declarations.push(declaration));
+    Ok(declarations)
+}
+
+/// The path of the first color that `part`, a part of a value of the type `ty` at `path`, sets some
+/// of the channels of and not all; none when it sets every color it holds whole.
+fn partial_color(registry: &Registry, ty: &str, part: &Value, path: &str) -> Option<String> {
+    let inner = ty
+        .strip_prefix("Option<")
+        .and_then(|inner| inner.strip_suffix('>'));
+    if let (Some(inner), Value::Option(Some(held))) = (inner, part) {
+        return partial_color(registry, inner, held, path);
+    }
+    let Value::Struct(parts) = part else {
+        return None;
+    };
+    if ty == "LinearColor" {
+        return (parts.len() < 4).then(|| path.to_owned());
+    }
+    let slime_reflect::Kind::Struct(fields) = &registry.get(ty)?.info().kind else {
+        return None;
+    };
+    parts.iter().find_map(|(name, part)| {
+        let field = fields.iter().find(|field| field.name == *name)?;
+        let path = if path.is_empty() {
+            name.clone()
+        } else {
+            format!("{path}.{name}")
+        };
+        partial_color(registry, &field.ty, part, &path)
+    })
 }
 
 /// The values of stacked themes, worked out as the rules and the themes name them: `"$name"` for a

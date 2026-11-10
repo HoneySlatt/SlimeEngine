@@ -239,3 +239,84 @@ fn the_light_s_color_well_and_its_picker_match_their_reference_image() {
     panel.handle_actions();
     check(&mut panel, "widgets-picker");
 }
+
+/// The styles of every element of the inspector and of the console, in each theme of colours and
+/// density, as `tests/reference/widgets-styles.txt` records them: a fingerprint of each element's
+/// style by its path, its numbers rounded to four places. They were recorded through the reflected
+/// cascade, which the typed one replaced (`docs/adr/0229-styles-typed-as-declarations.md`), and
+/// outlive it. A change of the look or of the example records them again, as the reference images
+/// are (`SLIME_UPDATE_REFERENCE_IMAGES`); a change of `uwui::style::Style`'s fields changes every
+/// fingerprint.
+#[test]
+fn every_element_is_styled_as_its_fixture_records() {
+    let mut styles = String::new();
+    for colors in [Colors::Dark, Colors::Light, Colors::HighContrast] {
+        for density in [Density::Comfortable, Density::Compact] {
+            for tab in ["Inspector", "Console"] {
+                let mut panel = panel(LayoutDirection::LeftToRight);
+                panel.set_look(colors, density);
+                panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+                press(&mut panel, &format!("main/window/tabs/{tab}"));
+                let root = panel.ui.element_by_path("main").expect("the panel's root");
+                let mut stack = vec![root];
+                while let Some(id) = stack.pop() {
+                    let path = panel.ui.path_text(id).expect("an element of the tree");
+                    let style = panel.ui.style(id).expect("a styled element");
+                    let fingerprint = fingerprint(&rounded(&format!("{style:?}")));
+                    styles.push_str(&format!(
+                        "{colors:?} {density:?} {tab} {path} {fingerprint:016x}\n"
+                    ));
+                    stack.extend(panel.ui.children(id).iter().rev());
+                }
+            }
+        }
+    }
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/reference/widgets-styles.txt");
+    if reference_image::update_requested() {
+        std::fs::write(&path, &styles).expect("the fixture is written");
+        return;
+    }
+    let recorded = std::fs::read_to_string(&path).expect("the fixture is read");
+    for (line, (got, want)) in styles.lines().zip(recorded.lines()).enumerate() {
+        assert_eq!(got, want, "line {} of {}", line + 1, path.display());
+    }
+    assert_eq!(
+        styles.lines().count(),
+        recorded.lines().count(),
+        "the elements of {}",
+        path.display()
+    );
+}
+
+/// `text` with each number that holds a point written to four places: the look's colours are
+/// computed through OKLCH's cube roots and arctangents, whose last bits differ between the
+/// platforms' mathematical libraries.
+fn rounded(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find(|c: char| c.is_ascii_digit() || c == '-') {
+        out.push_str(&rest[..start]);
+        rest = &rest[start..];
+        let end = rest
+            .char_indices()
+            .skip(1)
+            .find(|&(_, c)| !(c.is_ascii_digit() || matches!(c, '.' | 'e' | '-')))
+            .map_or(rest.len(), |(at, _)| at);
+        let number = &rest[..end];
+        match number.parse::<f64>() {
+            Ok(value) if number.contains('.') => out.push_str(&format!("{value:.4}")),
+            _ => out.push_str(number),
+        }
+        rest = &rest[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// FNV-1a's 64 bits of `text`: a fingerprint that every platform computes alike.
+fn fingerprint(text: &str) -> u64 {
+    text.bytes().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+    })
+}

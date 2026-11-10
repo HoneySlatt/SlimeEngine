@@ -1,0 +1,19 @@
+[package]
+name = "uwui-macros"
+description = "uwui's derive macros: the typed declarations that a style's rules are made of."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT OR Apache-2.0"
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true

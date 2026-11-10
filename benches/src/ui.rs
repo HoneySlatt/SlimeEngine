@@ -826,8 +826,9 @@ const TRANSITION_FRAMES: usize = 1_000;
 /// The tree of [`tree`] styled by the editor's look, its labels and buttons with no style of their
 /// own: a frame after its theme of colours changed between dark and light, which styles every
 /// element again under the look's rules and starts their transitions, then the frames of 240 Hz
-/// that the transitions take to end. Counted: the elements that the frame of the change styled,
-/// its allocations and their bytes, and the frames of the transition.
+/// that the transitions take to end. Counted: the allocations of reading the look's documents
+/// apart, the elements that the frame of the change styled, its allocations and their bytes, and
+/// the frames of the transition.
 pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     let runs = context.runs(RUNS);
     let mut fonts = Fonts::new();
@@ -843,14 +844,17 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     );
     editor.ui.frame();
     let mut light = false;
-    // Gives the interface its theme of the other colours and draws the frame of the change.
-    let mut change = |editor: &mut Editor| {
+    // Gives the interface its theme of the other colours, which reads the look's documents.
+    let mut restyle = |editor: &mut Editor| {
         light = !light;
         let colors = if light { Colors::Light } else { Colors::Dark };
         editor
             .ui
             .set_style(&sheets, &themes(colors))
             .expect("the look's documents are valid");
+    };
+    // The frame of the change, which styles every element again.
+    let change = |editor: &mut Editor| {
         editor.ui.advance(FRAME_240);
         editor.ui.frame()
     };
@@ -871,16 +875,19 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     };
     settle(&mut editor)?;
     // Counted before the series, whose length a run of `--counters` cuts.
+    let ((), read) = counted(|| restyle(&mut editor));
     let ((_, stats), allocations) = counted(|| change(&mut editor));
     let (frames, _) = settle(&mut editor)?;
     let mut changed = Vec::new();
     let mut transitions = Vec::new();
     for _ in 0..runs {
+        restyle(&mut editor);
         let (_, took) = timed(|| black_box(change(&mut editor)));
         changed.push(took);
         transitions.push(settle(&mut editor)?.1);
     }
     let mut rows = vec![
+        Row::count("allocations of reading the look's documents", read.calls),
         Row::count("elements styled by the frame of the change", stats.styled),
         Row::count("allocations of the frame of the change", allocations.calls),
         Row::count(

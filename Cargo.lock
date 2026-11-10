@@ -3730,6 +3730,16 @@ dependencies = [
  "taffy",
  "thiserror 2.0.21",
  "tracing",
+ "uwui-macros",
+]
+
+[[package]]
+name = "uwui-macros"
+version = "0.6.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.8",
 ]
 
 [[package]]

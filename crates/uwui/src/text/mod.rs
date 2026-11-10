@@ -41,4 +41,5 @@ pub use layout::{Affinity, Glyph, GlyphRun, PlacedGlyph, TextLayout, TextLine, T
 pub use raster::{
     GlyphImage, GlyphKey, GlyphPixels, GlyphRasterizer, Representation, SUBPIXEL_POSITIONS,
 };
+pub(crate) use style::TextStyleDeclaration;
 pub use style::{Alignment, Direction, TextBounds, TextStyle};

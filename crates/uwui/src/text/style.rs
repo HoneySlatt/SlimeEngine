@@ -3,10 +3,11 @@
 use std::num::NonZeroUsize;
 
 use slime_reflect::Reflect;
+use uwui_macros::Declare;
 
 /// How a text is drawn: its fonts, size, weight and slant, the height of its lines, how its lines
 /// align and in which direction it is written, and its language.
-#[derive(Clone, Debug, PartialEq, Reflect)]
+#[derive(Clone, Debug, PartialEq, Reflect, Declare)]
 #[reflect(name = "UiTextStyle", default)]
 pub struct TextStyle {
     /// The font families, by name, in order of preference: a character takes the first font

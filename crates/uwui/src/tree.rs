@@ -9,17 +9,19 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use slime_color::LinearColor;
-use slime_reflect::{Reflect, Registry, Value};
+use slime_reflect::Registry;
 
 use crate::DocumentError;
 use crate::Rect;
 use crate::display::{DisplayList, ImageKey, ImageKind, Primitive};
 use crate::layout;
 use crate::paint;
-use crate::style::{Display, Style};
+use crate::style::{Display, Same, Style};
 use crate::text::{Fonts, TEXT_CACHE_BUDGET, TextCache};
 use crate::theme::{self, KindName, Rule, StateName, StyleSheet, Theme};
 
+#[cfg(test)]
+mod cascade_tests;
 mod choice;
 mod color;
 mod control;
@@ -1256,11 +1258,14 @@ pub struct Ui {
     interaction: Interaction,
     /// The system's clipboard, which its fields copy to and paste from.
     clipboard: Option<Box<dyn Clipboard>>,
-    /// The types that style sheets hold, and the default style as reflection holds it.
+    /// The types that style sheets hold, which read them.
     registry: Registry,
-    default_style: Value,
+    /// The style that the rules and an element's own style are applied to.
+    default_style: Style,
     /// The styles made, by the rules that select their elements, then the elements' own styles.
     styles: HashMap<Vec<u32>, Vec<(Style, Arc<Style>)>>,
+    /// The rules that select the element being styled, a list kept to be filled again.
+    selected: Vec<u32>,
     /// The number that the next element, or run of a field's text, is given: from 1, so that 0
     /// names none.
     next_number: u64,
@@ -1310,8 +1315,9 @@ impl Ui {
             clipboard: None,
             rules: Vec::new(),
             registry: theme::registry(),
-            default_style: Style::default().to_value(),
+            default_style: Style::default(),
             styles: HashMap::new(),
+            selected: Vec::new(),
             next_number: 1,
             meant: Vec::new(),
             meaning_whole: true,
@@ -1916,32 +1922,38 @@ impl Ui {
     /// Makes the style of `id` again from the rules that select it and its element's own, and marks
     /// it laid out or drawn again as the style changed; `false` for an id that names nothing.
     fn restyle(&mut self, id: ElementId) -> bool {
-        let Some(node) = self.node(id) else {
+        if self.node(id).is_none() {
             return false;
-        };
-        let selected: Vec<u32> = (0..self.rules.len())
-            .filter(|&rule| self.selects(&self.rules[rule], id))
-            .map(|rule| rule as u32)
-            .collect();
-        let code = &node.element.style;
+        }
+        // The rules that select it, gathered in a list kept from one element to the next, so that
+        // styling an element allocates nothing when its style was made before.
+        let mut selected = std::mem::take(&mut self.selected);
+        selected.clear();
+        selected.extend(
+            (0..self.rules.len())
+                .filter(|&rule| self.selects(&self.rules[rule], id))
+                .map(|rule| rule as u32),
+        );
+        let code = &self.node(id).expect("styled above").element.style;
         // Elements of one style that the same rules select share what they make.
         let made = self
             .styles
-            .get(&selected)
-            .and_then(|made| made.iter().find(|(own, _)| own == code))
+            .get(selected.as_slice())
+            .and_then(|made| made.iter().find(|(own, _)| own.same(code)))
             .map(|(_, style)| Arc::clone(style));
         let mut style = match made {
             Some(style) => style,
             None => {
                 let code = code.clone();
                 let style = Arc::new(self.compose(&selected, &code));
-                let made = self.styles.entry(selected).or_default();
+                let made = self.styles.entry(selected.clone()).or_default();
                 if made.len() < STYLES_PER_RULES {
                     made.push((code, Arc::clone(&style)));
                 }
                 style
             }
         };
+        self.selected = selected;
         // What a folded section holds is not laid out, drawn nor reached, as an element of no
         // display: its style says so, which every walk of the tree reads.
         if self.folded(id) && style.layout.display != Display::None {
@@ -1981,31 +1993,23 @@ impl Ui {
         true
     }
 
-    /// The style that the rules `selected`, in their order, then `code`, the fields that it sets
-    /// apart from their defaults, make.
+    /// The style that the rules `selected`, in their order, then `code`, the fields whose bits
+    /// differ from the default's, make: each one's declarations applied in turn
+    /// (`docs/adr/0229-styles-typed-as-declarations.md`).
     fn compose(&self, selected: &[u32], code: &Style) -> Style {
         if selected.is_empty() {
             return code.clone();
         }
-        let mut value = self.default_style.clone();
-        let code_value = code.to_value();
-        let mut own = self
-            .registry
-            .difference("UiStyle", &self.default_style, &code_value, true)
-            .expect("a style");
-        if let Some(own) = &mut own {
-            whole_colors(&self.registry, "UiStyle", own, &code_value);
+        let mut style = self.default_style.clone();
+        for &rule in selected {
+            for declaration in &self.rules[rule as usize].declarations {
+                declaration.apply(&mut style);
+            }
         }
-        for part in selected
-            .iter()
-            .map(|&rule| &self.rules[rule as usize].style)
-            .chain(own.as_ref())
-        {
-            self.registry
-                .overlay("UiStyle", &mut value, part)
-                .expect("a part of a style, read as one");
-        }
-        Style::from_value(&value).expect("a style")
+        code.declared(&self.default_style, &mut |declaration| {
+            declaration.apply(&mut style);
+        });
+        style
     }
 
     /// Whether `rule` selects `id`.
@@ -2602,28 +2606,3 @@ fn kind_name(kind: &Kind) -> KindName {
 /// others are not is made again each time: what elements of styles of their own, sized each its
 /// way, would otherwise keep.
 const STYLES_PER_RULES: usize = 64;
-
-/// Makes whole each color that `part`, a part of a value of the type `ty`, holds a part of, as
-/// `full`, the whole value, holds it: a color is one property of a style, which an element's own
-/// style sets whole, not some of its components over a rule's.
-fn whole_colors(registry: &Registry, ty: &str, part: &mut Value, full: &Value) {
-    if ty == "LinearColor" {
-        *part = full.clone();
-        return;
-    }
-    let Some(registration) = registry.get(ty) else {
-        return;
-    };
-    let (slime_reflect::Kind::Struct(fields), Value::Struct(parts), Value::Struct(wholes)) =
-        (&registration.info().kind, part, full)
-    else {
-        return;
-    };
-    for (name, part) in parts {
-        let field = fields.iter().find(|field| field.name == *name);
-        let whole = wholes.iter().find(|(whole, _)| whole == name);
-        if let (Some(field), Some((_, whole))) = (field, whole) {
-            whole_colors(registry, &field.ty, part, whole);
-        }
-    }
-}

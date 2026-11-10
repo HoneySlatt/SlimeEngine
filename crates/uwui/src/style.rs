@@ -8,34 +8,41 @@
 
 use slime_color::LinearColor;
 use slime_reflect::Reflect;
+use uwui_macros::Declare;
 
-use crate::text::TextStyle;
+use crate::text::{TextStyle, TextStyleDeclaration};
 
 /// How an element is laid out and drawn.
-#[derive(Clone, Debug, Default, PartialEq, Reflect)]
+#[derive(Clone, Debug, Default, PartialEq, Reflect, Declare)]
 #[reflect(name = "UiStyle", default)]
 pub struct Style {
     /// How it and its children are laid out.
+    #[declare(nested)]
     pub layout: LayoutStyle,
     /// How it is drawn, which lays nothing out again.
+    #[declare(nested)]
     pub paint: PaintStyle,
     /// The text of a label or a button: its fonts and size, which lay it out, and its color.
+    #[declare(nested)]
     pub text: TextLook,
     /// The parts of a control that are not its box: a check box's mark, a slider's track and
     /// thumb.
+    #[declare(nested)]
     pub control: ControlStyle,
     /// How a change of its style shows: at once, or over a time
     /// (`docs/adr/0149-the-looks-foundations.md`).
+    #[declare(nested)]
     pub transition: Transition,
     /// The glyphs of a font of icons that its control draws in place of its shapes
     /// (`docs/adr/0150-layers.md`).
+    #[declare(nested)]
     pub icons: Icons,
 }
 
 /// The glyphs of a font of icons that controls draw, each a text of one character of `font`, empty
 /// for the shape that a control draws without it: a check box's square mark, a section's minus and
 /// plus, a bar for a chevron, a disc for a magnifier or a cross. They take the size of the control's part and its mark's color.
-#[derive(Clone, Debug, Default, PartialEq, Reflect)]
+#[derive(Clone, Debug, Default, PartialEq, Reflect, Declare)]
 #[reflect(name = "UiIcons", default)]
 pub struct Icons {
     /// The family of the font that holds them; empty for none, the controls drawing their shapes.
@@ -59,7 +66,7 @@ pub struct Icons {
 /// to what the new style gives over `duration`, along `easing`, as its state changes under the
 /// pointer, and a section growing or shrinking to its height as it opens or folds. Its layout, its
 /// text's fonts and size, and its border's width change at once.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect, Declare)]
 #[reflect(name = "UiTransition", default)]
 pub struct Transition {
     /// How long a change takes, in seconds: 0, the default, for at once.
@@ -102,7 +109,7 @@ impl Easing {
 }
 
 /// How an element and its children are laid out, by CSS's flexbox or grid, in logical pixels.
-#[derive(Clone, Debug, PartialEq, Reflect)]
+#[derive(Clone, Debug, PartialEq, Reflect, Declare)]
 #[reflect(name = "UiLayout", default)]
 pub struct LayoutStyle {
     /// How its children are laid out, or whether it is laid out at all.
@@ -121,8 +128,10 @@ pub struct LayoutStyle {
     /// The space between rows and between columns.
     pub gap: [f32; 2],
     /// The space inside its edges, around its children.
+    #[declare(nested)]
     pub padding: Sides,
     /// The space outside its edges.
+    #[declare(nested)]
     pub margin: Sides,
     /// Its width and height.
     pub size: [Dimension; 2],
@@ -141,8 +150,10 @@ pub struct LayoutStyle {
     /// A grid's rows, from the top.
     pub rows: Vec<Track>,
     /// Where it lies among its grid parent's columns.
+    #[declare(nested)]
     pub column: GridPlace,
     /// Where it lies among its grid parent's rows.
+    #[declare(nested)]
     pub row: GridPlace,
 }
 
@@ -248,7 +259,7 @@ pub enum Dimension {
 }
 
 /// The four sides of a box, by the start and the end of a line, in logical pixels.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect, Declare)]
 #[reflect(name = "UiSides", default)]
 pub struct Sides {
     /// The side where a line starts: left from left to right, right from right to left.
@@ -297,7 +308,7 @@ pub enum Track {
 
 /// Where a grid's child lies among its columns or rows: from a line, numbered from 1 at the start,
 /// or after the children before it when none; across a number of tracks.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect, Declare)]
 #[reflect(name = "UiGridPlace", default)]
 pub struct GridPlace {
     /// The line it starts at.
@@ -316,7 +327,7 @@ impl Default for GridPlace {
 }
 
 /// How an element is drawn: a box behind its children, which lays nothing out.
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect, Declare)]
 #[reflect(name = "UiPaint", default)]
 pub struct PaintStyle {
     /// The box's fill; nothing is drawn where it is transparent and there is no border.
@@ -382,7 +393,7 @@ impl Default for Shadow {
 
 /// The parts of a control drawn apart from its box: a check box's box and its mark, a slider's
 /// track, the part of the track up to its value and its thumb.
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect, Declare)]
 #[reflect(name = "UiControl", default)]
 pub struct ControlStyle {
     /// The size of the part that the pointer takes, in logical pixels: the side of a check box's
@@ -416,10 +427,11 @@ impl Default for ControlStyle {
 }
 
 /// The text of a label, a button, a field, a check box's label, a section's title or a tab's.
-#[derive(Clone, Debug, PartialEq, Reflect)]
+#[derive(Clone, Debug, PartialEq, Reflect, Declare)]
 #[reflect(name = "UiTextLook", default)]
 pub struct TextLook {
     /// Its fonts, size, weight and alignment, in logical pixels.
+    #[declare(nested)]
     pub style: TextStyle,
     /// Its color, which a field's caret and the line under what an input method composes take
     /// too.
@@ -435,5 +447,112 @@ impl Default for TextLook {
             color: LinearColor::WHITE,
             selection: LinearColor::rgba(0.2, 0.4, 0.9, 0.4),
         }
+    }
+}
+
+/// Whether two values are the same bit for bit: their floats compared by their bits, so that
+/// `-0.0` differs from `0.0` and a NaN is itself. An element's own style sets the fields whose
+/// bits differ from the default's, and elements share a style made for the same bits
+/// (`docs/adr/0229-styles-typed-as-declarations.md`).
+pub(crate) trait Same {
+    /// Whether `self` and `other` are the same bit for bit.
+    fn same(&self, other: &Self) -> bool;
+}
+
+impl Same for f32 {
+    fn same(&self, other: &Self) -> bool {
+        self.to_bits() == other.to_bits()
+    }
+}
+
+impl Same for LinearColor {
+    fn same(&self, other: &Self) -> bool {
+        [self.r, self.g, self.b, self.a]
+            .iter()
+            .zip([other.r, other.g, other.b, other.a].iter())
+            .all(|(a, b)| a.same(b))
+    }
+}
+
+impl<T: Same> Same for Option<T> {
+    fn same(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Some(a), Some(b)) => a.same(b),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+}
+
+impl<T: Same> Same for [T] {
+    fn same(&self, other: &Self) -> bool {
+        self.len() == other.len() && self.iter().zip(other).all(|(a, b)| a.same(b))
+    }
+}
+
+impl<T: Same, const N: usize> Same for [T; N] {
+    fn same(&self, other: &Self) -> bool {
+        self.as_slice().same(other.as_slice())
+    }
+}
+
+impl<T: Same> Same for Vec<T> {
+    fn same(&self, other: &Self) -> bool {
+        self.as_slice().same(other.as_slice())
+    }
+}
+
+/// `Same` for types that hold no float, whose equality is already their bits'.
+macro_rules! same_by_equality {
+    ($($ty:ty),* $(,)?) => {
+        $(impl Same for $ty {
+            fn same(&self, other: &Self) -> bool {
+                self == other
+            }
+        })*
+    };
+}
+
+same_by_equality!(
+    bool,
+    u16,
+    String,
+    Display,
+    FlexDirection,
+    Justify,
+    Align,
+    Easing,
+    crate::text::Alignment,
+    crate::text::Direction,
+);
+
+impl Same for Dimension {
+    fn same(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Auto, Self::Auto) => true,
+            (Self::Pixels(a), Self::Pixels(b)) | (Self::Share(a), Self::Share(b)) => a.same(b),
+            _ => false,
+        }
+    }
+}
+
+impl Same for Track {
+    fn same(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Auto, Self::Auto) => true,
+            (Self::Pixels(a), Self::Pixels(b)) | (Self::Fraction(a), Self::Fraction(b)) => {
+                a.same(b)
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Same for Shadow {
+    fn same(&self, other: &Self) -> bool {
+        self.color.same(&other.color)
+            && self.offset.same(&other.offset)
+            && self.blur.same(&other.blur)
+            && self.spread.same(&other.spread)
     }
 }
