@@ -10,7 +10,8 @@
   takes states and tokens; the user's layer comes over it) and
   [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (a layout gives an element its
   classes too), then by [0229](0229-styles-typed-as-declarations.md) (a rule's part as typed declarations; a colour set whole; a rule
-  refused that sets what its kind does not read)
+  refused that sets what its kind does not read), then by [0230](0230-the-cores-roles-and-each-kinds-defaults.md) (an element's style
+  starts from its kind's defaults; a role's value of another type refuses the themes)
 - Date: 2026-10-25
 
 ## Context

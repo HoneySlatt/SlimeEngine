@@ -5,7 +5,8 @@
   not read is refused), [0220](0220-the-roadmap-reshaped-by-the-market.md) (M6d.2 cut in two; the
   part of a style that a theme adds moves to uwui's first stage) and
   [0222](0222-what-a-theme-is.md) (rules are typed for each component at M6d.2, for each of its
-  parts at uwui's first stage)
+  parts at uwui's first stage); amended by [0230](0230-the-cores-roles-and-each-kinds-defaults.md)
+  (M6d.2b cut in two; the payload and the derive's list of colours move to its second half)
 - Date: 2026-11-10
 
 ## Context

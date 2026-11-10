@@ -1385,6 +1385,12 @@ when what the panel shows changes: `Ui::build` runs the builder only when it mov
 AccessKit names roles: `Button`, `Label`, `List`, `ListItem`, `Dialog`; given by its kind, or by its
 builder (`uwui::tree::Role`, [ADR-0143](adr/0143-what-agents-see-of-the-interface.md)).
 
+**Role (theme).** A colour that uwui's core declares and every look gives, which its components'
+defaults read: `canvas_text`, `gray_text`, `button_face`, `accent`, `highlight`, `highlight_text`
+and `focus`, each with a fallback taken when the themes lack it
+([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)). Not the *role (interface)* of
+screen readers, nor the roles of *forced colours*, which they will share.
+
 **Root (interface).** An area that an interface lays its *elements* out on, a window or any target,
 with its size in *logical pixels*, its scale and the direction of its lines
 (`uwui::tree::RootSettings`); a root laid out from right to left is mirrored
@@ -1738,8 +1744,10 @@ channel* is accepted (`slime_channel::Token`,
 [ADR-0122](adr/0122-the-development-channel.md)).
 
 **Token (theme).** A typed name of a theme's value in uwui's code, `Token<Color>`, with a fallback,
-which an element's own style gives in place of a value and which is resolved when the element is
-styled ([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md)). Decided, not built yet.
+which an element's own style gives in place of a value; resolved when the interface takes its
+themes, read when the element is styled
+([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md),
+[ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)). Decided, built at M6d.2b2.
 
 **Tone mapping.** Mapping the *HDR* colors of a scene to the range a display shows, 0 to 1, with a
 curve that compresses highlights instead of clipping them. The renderer's tone-mapping pass draws a
