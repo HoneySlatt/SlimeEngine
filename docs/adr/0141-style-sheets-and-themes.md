@@ -9,7 +9,8 @@
   its states) and [0223](0223-styles-written-in-code-through-tokens.md) (the element's own style
   takes states and tokens; the user's layer comes over it) and
   [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (a layout gives an element its
-  classes too)
+  classes too), then by [0229](0229-styles-typed-as-declarations.md) (a rule's part as typed declarations; a colour set whole; a rule
+  refused that sets what its kind does not read)
 - Date: 2026-10-25
 
 ## Context

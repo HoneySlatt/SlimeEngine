@@ -37,8 +37,9 @@ in git.
   [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md),
   [ADR-0224](adr/0224-a-files-change-reaches-the-application-through-the-development-tool.md),
   [ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md),
-  [ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md) and
-  [ADR-0227](adr/0227-the-time-that-motion-reads.md).
+  [ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md),
+  [ADR-0227](adr/0227-the-time-that-motion-reads.md) and
+  [ADR-0229](adr/0229-styles-typed-as-declarations.md).
 - Widened on 2026-11-07 by the market's decisions
   ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md#decision)): M6d.1d, M6d.2, M6d.3,
   M6d.4, M6d.5, M6d.7, M6d.10 and M6d.11 gain what those decisions need of them; M6d.9 is cut in
@@ -76,7 +77,10 @@ in git.
     [M6d.1d2b1](#m6d1d2b1--an-applications-start-and-its-look), an application's start and its
     look, and [M6d.1d2b2](#m6d1d2b2--the-time-that-motion-reads), the time that motion reads
     ([ADR-0227](adr/0227-the-time-that-motion-reads.md)), which closed M6d.1 on 2026-11-10.
-- Next: [M6d.2](#m6d2--typed-styles), typed styles.
+- In progress: M6d.2, typed styles, cut in two at its start, on 2026-11-10
+  ([ADR-0229](adr/0229-styles-typed-as-declarations.md)):
+  [M6d.2a](PLAN.md#m6d2a--the-typed-cascade), the typed cascade, then
+  [M6d.2b](#m6d2b--tokens-defaults-and-styles-in-code), tokens, defaults and styles in code.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -661,20 +665,52 @@ M6d.1d2b2 closed M6d.1d2b, M6d.1d2, M6d.1d and M6d.1. Next, [M6d.2](#m6d2--typed
 
 - **Goal.** uwui's styles cascade as typed values, without the engine's reflection.
 - **Crates.** `uwui`, `slime-editor`, `hunnawood-editor`.
-- **Delivers.** Styles typed per component, each part of a style a type of its own, each field
-  optional, merged by the cascade, with parts of a style that a theme extends (not a component's
-  parts, which uwui's first stage builds, [ADR-0222](adr/0222-what-a-theme-is.md)); the themes' named values
-  resolved by type; no colour hidden in a component's defaults, each taken from its theme; styles
-  written in code as M6d.1 decides: an element's own style with its states, the themes' values
-  named by tokens, under the user's layer
+- **Delivers.** Styles typed per component, as typed declarations
+  ([ADR-0229](adr/0229-styles-typed-as-declarations.md)), merged by the cascade; the themes' named
+  values resolved by type; no colour hidden in a component's defaults, each taken from its theme;
+  styles written in code as M6d.1 decides: an element's own style with its states, the themes'
+  values named by tokens, under the user's layer
   ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md),
-  [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md)).
+  [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md)). The part of a style that a theme
+  adds, and rules typed for each of a component's parts, move to uwui's first stage
+  (ADR-0229).
 - **Done when.** A property test: any style written as before reads the same through the typed
-  cascade; a test finds no colour in the components' defaults; a theme extends a component's style
-  with a part of a style of its own; the look's image tests and counters are unchanged; CI is green.
-- **How to test.** `cargo test -p uwui -p slime-editor`; `scripts/check.sh`.
+  cascade; a test finds no colour in the components' defaults; the look's image tests and counters
+  are unchanged; CI is green.
 - **Measured.** The editor's interface and its counters; a frame that styles again after a change
   of theme.
+
+Cut in two at its start, on 2026-11-10, the cascade first: the tokens, the defaults and the styles
+in code are changes of behaviour that the old cascade cannot check
+([ADR-0229](adr/0229-styles-typed-as-declarations.md)). M6d.2a, the typed cascade, is in
+[`PLAN.md`](PLAN.md#m6d2a--the-typed-cascade) while it is in progress.
+
+### M6d.2b — Tokens, defaults and styles in code
+
+The second half of M6d.2 ([ADR-0229](adr/0229-styles-typed-as-declarations.md)), likely cut again
+at its start. It follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** A component's colours taken from its theme by typed tokens, and styles written in
+  code as [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md) decides.
+- **Crates.** `uwui`, `slime-editor`, `slime-devui`, `hunnawood-editor`, the examples.
+- **Delivers.** Decided at its start, with the owner: the core's roles and their fallbacks;
+  tokens resolved when an element is styled; the themes' values typed by the tokens declared; each
+  kind's defaults from its theme, the colour picker's colours among them or declared content
+  ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); a
+  declaration's payload holding at each colour and length whether it is a literal, a token or a
+  theme's name, and the state that set it ([ADR-0227](adr/0227-the-time-that-motion-reads.md));
+  the derive's list of colours and lengths, which transitions, the user's layer and forced colours
+  read; styles written in code with their states and ADR-0223's order, the call's place kept;
+  the user's layer; the debt that code cannot set a field to its default against a rule; which of
+  the 179 `Style::default()` calls and 222 assignments of a style's field outside uwui move, and
+  when; whether a style's change in code is timed through `subsecond`, which the workspace lacks.
+- **Done when.** Tests: a state set in code beats a rule's state; a field set in code to its
+  default beats a rule; lengths written in code scale under the density; colours written in code
+  give way under high contrast; a missing token warns once; the call's place is kept; no colour in
+  the components' defaults, each kind drawn on an empty theme and each colour traced to a token;
+  the look's image tests and counters unchanged; CI green.
+- **Measured.** The editor's interface and its counters; `ui.tree.look`'s frame after a change of
+  theme and its transition.
 
 ### M6d.3 — Documents with serde
 
@@ -683,7 +719,9 @@ M6d.1d2b2 closed M6d.1d2b, M6d.1d2, M6d.1d and M6d.1. Next, [M6d.2](#m6d2--typed
 - **Crates.** `uwui`, `slime-cook`, `slime-editor`, `slime-color`, `hunnawood`.
 - **Delivers.** Themes, style sheets, shortcuts and docks' layouts read and written by `serde` and
   `toml`, behind a feature; without it, a theme's files read or turned into values another way,
-  rules staying out of Rust's code ([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md)). A primary modifier, Ctrl on Linux
+  rules staying out of Rust's code ([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md));
+  a rule's declarations read through the `Deserialize` that their derive generates, unknown fields
+  refused as reflection refuses them ([ADR-0229](adr/0229-styles-typed-as-declarations.md)). A primary modifier, Ctrl on Linux
   and Windows, Cmd on macOS, in the format of shortcuts, so that the shortcuts that users saved
   migrate once; a menu's shortcut shown as its platform writes it
   ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md),

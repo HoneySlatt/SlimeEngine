@@ -7,7 +7,7 @@
   data, which may add components of their own) and
   [0220](0220-the-roadmap-reshaped-by-the-market.md) (M6d.1d cut in two); amended by
   [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (the parts written in
-  KDL, in a file of their own) and [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (a look given to each root and replaced while it runs; how parts and rules stack over it)
+  KDL, in a file of their own) and [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (a look given to each root and replaced while it runs; how parts and rules stack over it), then by [0229](0229-styles-typed-as-declarations.md) (rules typed for each component at M6d.2, for each of its parts at uwui's first stage)
 - Date: 2026-11-09
 
 ## Context
