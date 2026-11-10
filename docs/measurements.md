@@ -2277,3 +2277,23 @@ that these steps measure stay met: the editor built again after a change of an e
 shipping in 81 s, against 10 min; a change of a game's code, 1.24 s to build. The changes' medians
 moved within their ranges; the builds from nothing took 2 to 4 s more, the workspace holding eight
 packages more than at C1, `uwui-macros` one of them.
+
+GitHub's hosted runners, on 2026-11-10, each run green, on `dc51187`:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 10 min 21 s |
+| `check (headless)` | 17 min 8 s |
+| `check (windowed)` | 11 min 17 s |
+| `check (game)` | 11 min 29 s |
+| `windows (tests)` | 14 min 6 s |
+| `windows (render)` | 5 min 53 s |
+| `windows (game)` | 7 min 37 s |
+| `windows-release` | 11 min 37 s |
+| Docs' `links` | 17 s |
+| uwui's `check`, on its `93a8c02` | 17 s |
+
+`check (headless)` took 17 min 8 s, against 13 min 54 s and 16 min 20 s at ADR-0228's split: within
+its limit of 20 minutes, with the least margin of the jobs. This milestone adds to it the counters of
+`ui.tree.look`, about 15 s in a debug build on the owner's machine, and its tests. `windows (tests)`
+ran both fixtures of styles on Windows.

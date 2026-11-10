@@ -79,7 +79,7 @@ in git.
     ([ADR-0227](adr/0227-the-time-that-motion-reads.md)), which closed M6d.1 on 2026-11-10.
 - In progress: M6d.2, typed styles, cut in two at its start, on 2026-11-10
   ([ADR-0229](adr/0229-styles-typed-as-declarations.md)):
-  [M6d.2a](PLAN.md#m6d2a--the-typed-cascade), the typed cascade, then
+  done, [M6d.2a](#m6d2a--the-typed-cascade), the typed cascade; next,
   [M6d.2b](#m6d2b--tokens-defaults-and-styles-in-code), tokens, defaults and styles in code.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
@@ -682,8 +682,60 @@ M6d.1d2b2 closed M6d.1d2b, M6d.1d2, M6d.1d and M6d.1. Next, [M6d.2](#m6d2--typed
 
 Cut in two at its start, on 2026-11-10, the cascade first: the tokens, the defaults and the styles
 in code are changes of behaviour that the old cascade cannot check
-([ADR-0229](adr/0229-styles-typed-as-declarations.md)). M6d.2a, the typed cascade, is in
-[`PLAN.md`](PLAN.md#m6d2a--the-typed-cascade) while it is in progress.
+([ADR-0229](adr/0229-styles-typed-as-declarations.md)).
+
+### M6d.2a — The typed cascade
+
+The first half of M6d.2, cut in two at its start, on 2026-11-10
+([ADR-0229](adr/0229-styles-typed-as-declarations.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** uwui's styles cascade as typed declarations; reflection stays only to read the
+  documents, until M6d.3.
+- **Crates.** `uwui`, a new proc-macro crate of uwui's, its name settled at M6d.10;
+  `slime-benches`. The editor's and the game's checks run unchanged.
+- **Delivers.**
+  - A derive that generates, from `Style` and its nested types, nested enums of declarations; a
+    rule's part as a list of them; the cascade applying them to a `Style`, a `match` each, its
+    readers unchanged. An element's own style stays a whole `Style` until M6d.2b, its declarations
+    those of its fields whose bits differ from the default's.
+  - A rule sets a colour whole; a part that sets a channel alone is refused.
+  - A table of what each kind of element reads; a rule that names a kind and sets what it does not
+    read is refused; the look's `[scroll]`, `[list]` and `[split]` trimmed.
+  - One equality, by the floats' bits, for an own style's difference and for the styles made that
+    elements share: today two own styles that differ only by `-0.0` share one style.
+  - `whole_colors` and the reflected cascade removed from `Ui`.
+- **Done when.**
+  - A property test: random rules and own styles over every leaf, `-0.0` and NaN among their
+    values, compose the same through the reflected cascade and the typed one, compared by bits.
+  - The styles of the `widgets` example's tree under the look, in every theme of colours and
+    density, and of the editor's window on the yard, kept as fixtures that outlive the reflected
+    cascade.
+  - A test checks the table: a leaf changes a kind's drawing exactly where the table says that the
+    kind reads it; tests of the two refusals.
+  - The look's image tests unchanged; the counters unchanged, but the allocations and bytes of a
+    frame that styles again, which fall and are recorded; CI green.
+- **How to test.** `cargo test -p uwui -p slime-editor`;
+  `cargo run -p slime-benches -- --counters`; `scripts/check.sh`.
+- **Measured.** `ui.tree.editor`, `ui.tree.look` (a frame after the look's colours changed, the
+  frames of the transition that it starts) and the editor's counters, before and after, on the
+  owner's machine at rest.
+- **Result.** Done on 2026-11-10, CI green
+  ([ADR-0229](adr/0229-styles-typed-as-declarations.md)):
+  - A rule is a list of typed declarations, which `uwui-macros`'s derive generates from `Style`'s
+    types; the cascade applies them, and no reflection runs when an element is styled. Reflection
+    still reads the documents, until M6d.3.
+  - A rule sets a colour whole. A rule for a kind sets only what that kind reads, after a table
+    that a test checks against every kind's drawing; eleven rules of the look that set more were
+    trimmed, no image changed.
+  - Own styles are shared by their bits: two that differed by a signed zero shared one style.
+  - A property test of 3 000 random cases, and two fixtures recorded through the reflected
+    cascade, the `widgets` example's 1 212 elements in six looks and the editor's window's 103,
+    read the same through the typed cascade.
+  - Under the editor's look, the frame that styles every element again takes 27 % less time and
+    allocates 7 % less; reading the look's documents allocates 7 % more until M6d.3, debt that the
+    owner accepted ([measurements](measurements.md#m6d2a-the-typed-cascade)).
+  - The part of a style that a theme adds waits for uwui's first stage, where a theme reads it.
 
 ### M6d.2b — Tokens, defaults and styles in code
 

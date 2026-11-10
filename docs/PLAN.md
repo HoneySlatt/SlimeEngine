@@ -19,10 +19,12 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 - Stage 6d, uwui leaving the engine, released with 0.7: its whole plan in
   [`stage-6d.md`](stage-6d.md).
-- Done: M6d.0a to M6d.1d2b2, in the [status](#status) below: M6d.1, how an application is
-  written, closed on 2026-11-10. In progress: [M6d.2a](#m6d2a--the-typed-cascade), the typed
-  cascade, the first half of M6d.2, cut in two at its start
-  ([ADR-0229](adr/0229-styles-typed-as-declarations.md)).
+- Done: M6d.0a to M6d.2a, in the [status](#status) below: M6d.1, how an application is
+  written, closed on 2026-11-10; [M6d.2a](stage-6d.md#m6d2a--the-typed-cascade), the typed
+  cascade, the first half of M6d.2, the same day
+  ([ADR-0229](adr/0229-styles-typed-as-declarations.md)). Next:
+  [M6d.2b](stage-6d.md#m6d2b--tokens-defaults-and-styles-in-code), tokens, defaults and styles in
+  code, likely cut again at its start.
 - Waiting for the owner: the deletion of the branch `m6d1b-bench`, and the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
 - After Stage 6d: uwui's stages, Stage 6e, the rest of Stage 6c ([`stage-6c.md`](stage-6c.md)),
@@ -49,7 +51,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.1d2a — Layouts, their notation and their reload](stage-6d.md#m6d1d2a--layouts-their-notation-and-their-reload) | Done |
 | [M6d.1d2b1 — An application's start and its look](stage-6d.md#m6d1d2b1--an-applications-start-and-its-look) | Done |
 | [M6d.1d2b2 — The time that motion reads](stage-6d.md#m6d1d2b2--the-time-that-motion-reads) | Done |
-| [M6d.2a — The typed cascade](#m6d2a--the-typed-cascade) | In progress |
+| [M6d.2a — The typed cascade](stage-6d.md#m6d2a--the-typed-cascade) | Done |
 | [M6d.2b — Tokens, defaults and styles in code](stage-6d.md#m6d2b--tokens-defaults-and-styles-in-code) | Planned |
 | [M6d.3 — Documents with serde](stage-6d.md#m6d3--documents-with-serde) | Planned |
 | [M6d.4 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Planned |
@@ -62,43 +64,6 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.2a — The typed cascade
-
-The first half of M6d.2, cut in two at its start, on 2026-11-10
-([ADR-0229](adr/0229-styles-typed-as-declarations.md)). It follows the rules of
-[every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** uwui's styles cascade as typed declarations; reflection stays only to read the
-  documents, until M6d.3.
-- **Crates.** `uwui`, a new proc-macro crate of uwui's, its name settled at M6d.10;
-  `slime-benches`. The editor's and the game's checks run unchanged.
-- **Delivers.**
-  - A derive that generates, from `Style` and its nested types, nested enums of declarations; a
-    rule's part as a list of them; the cascade applying them to a `Style`, a `match` each, its
-    readers unchanged. An element's own style stays a whole `Style` until M6d.2b, its declarations
-    those of its fields whose bits differ from the default's.
-  - A rule sets a colour whole; a part that sets a channel alone is refused.
-  - A table of what each kind of element reads; a rule that names a kind and sets what it does not
-    read is refused; the look's `[scroll]`, `[list]` and `[split]` trimmed.
-  - One equality, by the floats' bits, for an own style's difference and for the styles made that
-    elements share: today two own styles that differ only by `-0.0` share one style.
-  - `whole_colors` and the reflected cascade removed from `Ui`.
-- **Done when.**
-  - A property test: random rules and own styles over every leaf, `-0.0` and NaN among their
-    values, compose the same through the reflected cascade and the typed one, compared by bits.
-  - The styles of the `widgets` example's tree under the look, in every theme of colours and
-    density, and of the editor's window on the yard, kept as fixtures that outlive the reflected
-    cascade.
-  - A test checks the table: a leaf changes a kind's drawing exactly where the table says that the
-    kind reads it; tests of the two refusals.
-  - The look's image tests unchanged; the counters unchanged, but the allocations and bytes of a
-    frame that styles again, which fall and are recorded; CI green.
-- **How to test.** `cargo test -p uwui -p slime-editor`;
-  `cargo run -p slime-benches -- --counters`; `scripts/check.sh`.
-- **Measured.** `ui.tree.editor`, `ui.tree.look` (a frame after the look's colours changed, the
-  frames of the transition that it starts) and the editor's counters, before and after, on the
-  owner's machine at rest.
 
 ## Checks by hand waiting for the owner
 
