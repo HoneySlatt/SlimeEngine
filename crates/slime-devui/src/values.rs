@@ -10,7 +10,7 @@ use slime_reflect::{FieldInfo, Kind, Path, Range, Reflect, Registry, Value, Vari
 use slime_world::glam::{DVec3, Quat, Vec3};
 use slime_world::{Entity, World};
 use uwui::action::{Action, ActionKind, FieldValue};
-use uwui::style::{Align, Dimension, FlexDirection, Style};
+use uwui::style::{Align, Dimension, FlexDirection, StyleBuilder};
 use uwui::tree::{Children, ChoiceOption, Element, ElementId, Key, Tooltip, Ui, Units};
 
 use crate::reflected::{
@@ -215,7 +215,9 @@ impl ValueEditor {
         let registry = world.registry();
         for (component, value) in components {
             let component = component.as_str();
-            let mut section = Element::section(component, true, column(4.0)).named(component);
+            let mut section = Element::section(component, true)
+                .style(|s| column(s, 4.0))
+                .named(component);
             if let Some(registration) = registry.get(component)
                 && !registration.info().doc.is_empty()
             {
@@ -428,7 +430,7 @@ impl<'a> Builder<'a> {
         let name = at.name(ty);
         match (&registration.info().kind, value) {
             (_, Value::Bool(on)) => {
-                let element = Element::check_box("", *on, Style::default()).named(name);
+                let element = Element::check_box("", *on).named(name);
                 let id = children.add("value", element, |_| {});
                 self.record(id, at, Target::Bool);
             }
@@ -443,16 +445,16 @@ impl<'a> Builder<'a> {
             }
             (_, Value::F64(number)) => self.number(children, name, *number, Number::F64, at),
             (_, Value::Text(text)) => {
-                let element = Element::text_field(text.as_str(), growing()).named(name);
+                let element = Element::text_field(text.as_str())
+                    .style(growing)
+                    .named(name);
                 let id = children.add("value", element, |_| {});
                 self.record(id, at, Target::Text);
             }
             (_, Value::Asset(_)) => {
                 let element = match AssetId::from_value(value) {
-                    Ok(asset) => Element::label(asset.to_string(), Style::default()).class("fixed"),
-                    Err(error) => {
-                        Element::label(error.to_string(), Style::default()).class("muted")
-                    }
+                    Ok(asset) => Element::label(asset.to_string()).class("fixed"),
+                    Err(error) => Element::label(error.to_string()).class("muted"),
                 };
                 children.add("value", element, |_| {});
             }
@@ -507,27 +509,23 @@ impl<'a> Builder<'a> {
         let label = labelled(label, at.field);
         let help = at.field.and_then(described);
         if self.inline(ty, value) {
-            let mut row = Style::default();
-            row.layout.gap = [0.0, 8.0];
-            row.layout.align_items = Align::Center;
-            children.add(key, Element::container(row), |children| {
-                let mut style = Style::default();
-                style.layout.size[0] = Dimension::Share(LABEL_SHARE);
-                style.layout.shrink = 0.0;
-                let mut element = Element::label(label.as_str(), style).class("muted");
+            let row = Element::container().style(|s| s.column_gap(8.0).align_items(Align::Center));
+            children.add(key, row, |children| {
+                let mut element = Element::label(label.as_str())
+                    .style(|s| s.width(Dimension::Share(LABEL_SHARE)).shrink(0.0))
+                    .class("muted");
                 if let Some(help) = &help {
                     element = element.help(help.title.as_str(), help.text.as_str());
                 }
                 children.add("label", element, |_| {});
-                let mut editors = growing();
-                editors.layout.gap = [0.0, 4.0];
-                editors.layout.align_items = Align::Center;
-                children.add("editors", Element::container(editors), |children| {
+                let editors = Element::container()
+                    .style(|s| growing(s).column_gap(4.0).align_items(Align::Center));
+                children.add("editors", editors, |children| {
                     self.value(children, ty, value, at);
                 });
             });
         } else {
-            let mut section = Element::section(label.as_str(), true, column(4.0));
+            let mut section = Element::section(label.as_str(), true).style(|s| column(s, 4.0));
             if let Some(help) = &help {
                 section = section.help(help.title.as_str(), help.text.as_str());
             }
@@ -597,7 +595,8 @@ impl<'a> Builder<'a> {
             Number::Int | Number::UInt => 1.0,
             Number::F32 | Number::F64 => step(shown),
         };
-        let mut element = Element::number_field(shown, step, growing())
+        let mut element = Element::number_field(shown, step)
+            .style(growing)
             .units(units(at.unit()))
             .named(name);
         if matches!(kind, Number::F32) {
@@ -626,12 +625,12 @@ impl<'a> Builder<'a> {
                     return false;
                 };
                 for (axis, (prefix, class)) in AXES.into_iter().enumerate() {
-                    let mut element =
-                        Element::number_field(vector[axis], step(vector[axis]), growing())
-                            .prefix(prefix)
-                            .units(units)
-                            .class(class)
-                            .named(format!("{name} {}", prefix.to_lowercase()));
+                    let mut element = Element::number_field(vector[axis], step(vector[axis]))
+                        .style(growing)
+                        .prefix(prefix)
+                        .units(units)
+                        .class(class)
+                        .named(format!("{name} {}", prefix.to_lowercase()));
                     if !double {
                         element = element.single_precision();
                     }
@@ -656,7 +655,8 @@ impl<'a> Builder<'a> {
                     _ => angles(rotation).map(|angle| angle + 0.0),
                 };
                 for (turn, (prefix, class)) in TURNS.into_iter().enumerate() {
-                    let element = Element::number_field(f64::from(shown[turn]), 0.5, growing())
+                    let element = Element::number_field(f64::from(shown[turn]), 0.5)
+                        .style(growing)
                         .prefix(prefix)
                         .units(Units::Angle)
                         .single_precision()
@@ -675,10 +675,9 @@ impl<'a> Builder<'a> {
                 let Ok(color) = LinearColor::from_value(value) else {
                     return false;
                 };
-                let mut well = Style::default();
-                well.layout.size[0] = Dimension::Pixels(48.0);
-                well.layout.shrink = 0.0;
-                let element = Element::color_well(color, well).named(name);
+                let element = Element::color_well(color)
+                    .style(|s| s.width(Dimension::Pixels(48.0)).shrink(0.0))
+                    .named(name);
                 let id = children.add("value", element, |_| {});
                 self.record(id, at, Target::Color);
                 true
@@ -722,7 +721,7 @@ impl<'a> Builder<'a> {
             .iter()
             .position(|variant| variant.name == current)
             .unwrap_or(0);
-        let element = Element::choice(options, chosen, growing()).named(name);
+        let element = Element::choice(options, chosen).style(growing).named(name);
         let id = children.add("variant", element, |_| {});
         self.record(id, at, Target::Variant(taken));
     }
@@ -739,20 +738,23 @@ impl<'a> Builder<'a> {
     ) {
         let range = at.field.and_then(|field| field.range);
         let start = initial(self.registry, inner, range);
-        let element = Element::check_box("", held.is_some(), Style::default())
-            .named(format!("{name} holds a value"));
+        let element = Element::check_box("", held.is_some()).named(format!("{name} holds a value"));
         let id = children.add("holds", element, |_| {});
         // Nothing to start holding, as a reference: the box cannot be checked.
         self.boxes.push((id, held.is_none() && start.is_none()));
         self.record(id, at, Target::Option(start));
         if let Some(held) = held {
-            children.add("held", Element::container(row(4.0)), |children| {
-                let inside = At {
-                    wraps: at.wraps + 1,
-                    ..at
-                };
-                self.value(children, inner, held, inside);
-            });
+            children.add(
+                "held",
+                Element::container().style(|s| row(s, 4.0)),
+                |children| {
+                    let inside = At {
+                        wraps: at.wraps + 1,
+                        ..at
+                    };
+                    self.value(children, inner, held, inside);
+                },
+            );
         }
     }
 
@@ -761,8 +763,7 @@ impl<'a> Builder<'a> {
     fn reference(&mut self, children: &mut Children<'_>, value: &Value, at: At<'_>) {
         let text = match (Entity::from_value(value), self.world) {
             (Ok(entity), Some(world)) if world.contains(entity) => {
-                let element =
-                    Element::button(entity_name(world, entity), Style::default()).class("link");
+                let element = Element::button(entity_name(world, entity)).class("link");
                 let id = children.add("value", element, |_| {});
                 self.record(id, at, Target::Reference(entity));
                 return;
@@ -835,38 +836,26 @@ fn step(number: f64) -> f64 {
     }
 }
 
-/// A style that takes the room left in its row.
-fn growing() -> Style {
-    let mut style = Style::default();
-    style.layout.grow = 1.0;
-    style.layout.basis = Dimension::Pixels(0.0);
-    style.layout.min_size[0] = Dimension::Pixels(0.0);
-    style
+/// Writes that the element takes the room left in its row.
+fn growing(s: StyleBuilder) -> StyleBuilder {
+    s.grow(1.0)
+        .basis(Dimension::Pixels(0.0))
+        .min_width(Dimension::Pixels(0.0))
 }
 
-/// A column of children, `gap` logical pixels apart.
-fn column(gap: f32) -> Style {
-    let mut style = Style::default();
-    style.layout.direction = FlexDirection::Column;
-    style.layout.gap = [gap, 0.0];
-    style
+/// Writes a column of children, `gap` logical pixels apart.
+fn column(s: StyleBuilder, gap: f32) -> StyleBuilder {
+    s.direction(FlexDirection::Column).row_gap(gap)
 }
 
-/// A row of children, `gap` logical pixels apart, taking the room left in its own row.
-fn row(gap: f32) -> Style {
-    let mut style = growing();
-    style.layout.gap = [0.0, gap];
-    style.layout.align_items = Align::Center;
-    style
+/// Writes a row of children, `gap` logical pixels apart, taking the room left in its own row.
+fn row(s: StyleBuilder, gap: f32) -> StyleBuilder {
+    growing(s).column_gap(gap).align_items(Align::Center)
 }
 
 /// A text in the quieter color.
 fn muted(children: &mut Children<'_>, text: impl Into<String>) {
     let text = text.into();
     let key = format!("muted {text}");
-    children.add(
-        key,
-        Element::label(text, Style::default()).class("muted"),
-        |_| {},
-    );
+    children.add(key, Element::label(text).class("muted"), |_| {});
 }

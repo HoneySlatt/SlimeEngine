@@ -11,7 +11,7 @@ use slime_input::{
 use uwui::action::{ActionKind, SurfaceInput};
 use uwui::display::{ImageKey, Primitive};
 use uwui::shortcuts::Shortcuts;
-use uwui::style::{Dimension, FlexDirection, Style};
+use uwui::style::{Dimension, FlexDirection};
 use uwui::text::Fonts;
 use uwui::tree::{Element, ElementId, ItemMark, LayoutDirection, RootSettings, Ui};
 
@@ -30,17 +30,16 @@ fn interface() -> (Ui, ElementId, ElementId) {
         origin: [0.0; 2],
         modal: false,
     };
-    let mut column = Style::default();
-    column.layout.direction = FlexDirection::Column;
-    let root = ui.add_root("main", settings, column);
+    let root = ui.add_root("main", settings, |s| s.direction(FlexDirection::Column));
     let (mut field, mut surface) = (None, None);
     ui.build(root, 0, |children| {
-        let mut sized = Style::default();
-        sized.layout.size = [Dimension::Pixels(400.0), Dimension::Pixels(40.0)];
-        field = Some(children.add("field", Element::text_field("", sized), |_| {}));
-        let mut fill = Style::default();
-        fill.layout.grow = 1.0;
-        surface = Some(children.add("view", Element::surface(ImageKey(7), fill), |_| {}));
+        let sized = Element::text_field("").style(|s| {
+            s.width(Dimension::Pixels(400.0))
+                .height(Dimension::Pixels(40.0))
+        });
+        field = Some(children.add("field", sized, |_| {}));
+        let fill = Element::surface(ImageKey(7)).style(|s| s.grow(1.0));
+        surface = Some(children.add("view", fill, |_| {}));
     });
     ui.frame();
     (ui, field.expect("built"), surface.expect("built"))
@@ -210,10 +209,10 @@ fn alt_pressed_while_a_surface_holds_the_pointer_opens_no_menu() {
         origin: [0.0, 300.0],
         modal: false,
     };
-    let root = ui.add_root("bar", settings, Style::default());
+    let root = ui.add_root("bar", settings, |s| s);
     ui.build(root, 0, |children| {
-        children.add("menus", Element::menu_bar(Style::default()), |menus| {
-            let item = Element::menu_item("File", "", ItemMark::Submenu, Style::default());
+        children.add("menus", Element::menu_bar(), |menus| {
+            let item = Element::menu_item("File", "", ItemMark::Submenu);
             menus.add("File", item, |_| {});
         });
     });

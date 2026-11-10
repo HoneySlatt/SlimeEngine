@@ -91,7 +91,7 @@ use uwui::Rect;
 use uwui::action::{ActionKind, FieldValue, Intent};
 use uwui::display::{ImageKey, ImageKind};
 use uwui::shortcuts::Shortcuts;
-use uwui::style::{Align, Dimension, Display, FlexDirection, Justify, Sides, Style, Track};
+use uwui::style::{Align, Dimension, Display, FlexDirection, Justify, Sides, StyleBuilder, Track};
 use uwui::text::Fonts;
 use uwui::theme::{StyleSheet, Theme};
 use uwui::tree::{Children, Element, ElementId, Kind, LayoutDirection, Role, RootSettings, Ui};
@@ -290,7 +290,7 @@ impl Interface {
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root("main", settings, column());
+        let root = ui.add_root("main", settings, column);
         let mut interface = Self {
             shapes: Shapes::new(gpu, format)?,
             viewport: None,
@@ -450,32 +450,36 @@ impl Interface {
             origin: [0.0; 2],
             modal: true,
         };
-        let root = self.ui.add_root("dialog", settings, column());
+        let root = self.ui.add_root("dialog", settings, column);
         let mut close = None;
         self.ui.build(root, 0, |children| {
-            let mut scrim = Style::default();
-            scrim.layout.grow = 1.0;
-            scrim.layout.justify = Justify::Center;
-            scrim.layout.align_items = Align::Center;
-            let scrim = Element::container(scrim).class("scrim");
+            let scrim = Element::container()
+                .style(|s| {
+                    s.grow(1.0)
+                        .justify(Justify::Center)
+                        .align_items(Align::Center)
+                })
+                .class("scrim");
             children.add("scrim", scrim, |children| {
-                let mut dialog = sized(320.0, 140.0);
-                dialog.layout.direction = FlexDirection::Column;
-                dialog.layout.padding = Sides::all(20.0);
-                dialog.layout.gap = [16.0, 0.0];
-                let dialog = Element::container(dialog)
+                let dialog = Element::container()
+                    .style(|s| {
+                        sized(s, 320.0, 140.0)
+                            .direction(FlexDirection::Column)
+                            .padding(20.0)
+                            .row_gap(16.0)
+                    })
                     .class("dialog")
                     .role(Role::Dialog)
                     .named("dialog");
                 children.add("dialog", dialog, |children| {
                     let text = "a modal root. the focus stays in it, and escape closes it.";
-                    children.add("text", Element::label(text, Style::default()), |_| {});
-                    let mut row = Style::default();
-                    row.layout.gap = [0.0, 8.0];
-                    row.layout.justify = Justify::End;
-                    children.add("buttons", Element::container(row), |children| {
-                        children.add("ok", Element::button("accept", sized(88.0, 28.0)), |_| {});
-                        let button = Element::button("close", sized(88.0, 28.0));
+                    children.add("text", Element::label(text), |_| {});
+                    let row =
+                        Element::container().style(|s| s.column_gap(8.0).justify(Justify::End));
+                    children.add("buttons", row, |children| {
+                        let ok = Element::button("accept").style(|s| sized(s, 88.0, 28.0));
+                        children.add("ok", ok, |_| {});
+                        let button = Element::button("close").style(|s| sized(s, 88.0, 28.0));
                         close = Some(children.add("close", button, |_| {}));
                     });
                 });
@@ -605,16 +609,16 @@ fn build(
     view: &mut Option<ElementId>,
     buttons: &mut Vec<ElementId>,
 ) {
-    let mut window = column();
-    window.layout.grow = 1.0;
-    window.layout.min_size[1] = Dimension::Pixels(0.0);
-    let window = Element::container(window).class("window");
+    let window = Element::container()
+        .style(|s| column(s).grow(1.0).min_height(Dimension::Pixels(0.0)))
+        .class("window");
     children.add("window", window, |children| {
-        let mut bar = Style::default();
-        bar.layout.size[1] = Dimension::Pixels(40.0);
-        bar.layout.padding = Sides::symmetric(12.0, 6.0);
-        bar.layout.gap = [0.0, 8.0];
-        let bar = Element::container(bar)
+        let bar = Element::container()
+            .style(|s| {
+                s.height(Dimension::Pixels(40.0))
+                    .padding(Sides::symmetric(12.0, 6.0))
+                    .column_gap(8.0)
+            })
             .class("bar")
             .role(Role::Toolbar)
             .named("bar");
@@ -625,80 +629,86 @@ fn build(
                 } else {
                     &words[index * 7]
                 };
-                let element = Element::button(label, sized(88.0, 28.0));
+                let element = Element::button(label).style(|s| sized(s, 88.0, 28.0));
                 buttons.push(children.add(index, element, |_| {}));
             }
             // Fields that the program reads as their commits.
-            let name = Element::text_field(shown.name, sized(160.0, 28.0)).named("name");
+            let name = Element::text_field(shown.name)
+                .style(|s| sized(s, 160.0, 28.0))
+                .named("name");
             children.add("name", name, |_| {});
-            let scale = Element::number_field(shown.scale, 0.01, sized(80.0, 28.0)).named("scale");
+            let scale = Element::number_field(shown.scale, 0.01)
+                .style(|s| sized(s, 80.0, 28.0))
+                .named("scale");
             children.add("scale", scale, |_| {});
-            let mut status = Style::default();
-            status.layout.align_self = Some(Align::Center);
-            children.add("status", Element::label(shown.last, status), |_| {});
+            let status = Element::label(shown.last).style(|s| s.align_self(Some(Align::Center)));
+            children.add("status", status, |_| {});
         });
-        let mut main = Style::default();
-        main.layout.grow = 1.0;
-        main.layout.min_size[1] = Dimension::Pixels(0.0);
-        main.layout.padding = Sides::all(12.0);
-        main.layout.gap = [0.0, 12.0];
-        children.add("main", Element::container(main), |children| {
-            let mut rows = Style::default();
-            rows.layout.size[0] = Dimension::Pixels(260.0);
-            rows.layout.padding = Sides::all(8.0);
-            let panel = Element::container(rows).class("panel");
-            children.add("list panel", panel, |children| {
-                let mut style = Style::default();
-                style.layout.grow = 1.0;
-                let element = Element::list(100_000, 28.0, style);
+        let main = Element::container().style(|s| {
+            s.grow(1.0)
+                .min_height(Dimension::Pixels(0.0))
+                .padding(12.0)
+                .column_gap(12.0)
+        });
+        children.add("main", main, |children| {
+            let rows = Element::container()
+                .style(|s| s.width(Dimension::Pixels(260.0)).padding(8.0))
+                .class("panel");
+            children.add("list panel", rows, |children| {
+                let element = Element::list(100_000, 28.0).style(|s| s.grow(1.0));
                 *list = Some(children.add_slot("list", element));
             });
-            let mut middle = column();
-            middle.layout.grow = 1.0;
-            middle.layout.min_size = [Dimension::Pixels(0.0); 2];
-            middle.layout.gap = [12.0, 0.0];
-            children.add("middle", Element::container(middle), |children| {
-                let mut cell = Style::default();
-                cell.layout.grow = 1.0;
-                cell.layout.display = Display::Grid;
-                cell.layout.columns = vec![Track::Fraction(1.0)];
-                cell.layout.rows = vec![Track::Fraction(1.0)];
-                cell.layout.padding = Sides::all(6.0);
-                let panel = Element::container(cell).class("panel");
-                children.add("view panel", panel, |children| {
-                    let mut image = Style::default();
-                    image.layout.column.start = Some(1);
-                    image.layout.row.start = Some(1);
-                    let element = Element::image(VIEW, image.clone());
+            let middle = Element::container().style(|s| {
+                column(s)
+                    .grow(1.0)
+                    .min_width(Dimension::Pixels(0.0))
+                    .min_height(Dimension::Pixels(0.0))
+                    .row_gap(12.0)
+            });
+            children.add("middle", middle, |children| {
+                let cell = Element::container()
+                    .style(|s| {
+                        s.grow(1.0)
+                            .display(Display::Grid)
+                            .columns(vec![Track::Fraction(1.0)])
+                            .rows(vec![Track::Fraction(1.0)])
+                            .padding(6.0)
+                    })
+                    .class("panel");
+                children.add("view panel", cell, |children| {
+                    // The view and the card lie in the same cell of the grid.
+                    let element = Element::image(VIEW).style(placed);
                     *view = Some(children.add("view", element, |_| {}));
-                    card(children, words, image);
+                    card(children, words, placed);
                 });
-                let mut shelf = Style::default();
-                shelf.layout.size[1] = Dimension::Pixels(128.0);
-                shelf.layout.gap = [0.0, 12.0];
-                children.add("shelf", Element::scroll(shelf), |children| {
+                let shelf = Element::scroll()
+                    .style(|s| s.height(Dimension::Pixels(128.0)).column_gap(12.0));
+                children.add("shelf", shelf, |children| {
                     for index in 0..8_usize {
                         shelf_card(children, index);
                     }
                 });
             });
-            let mut texts = Style::default();
-            texts.layout.size[0] = Dimension::Pixels(TEXTS_WIDTH);
-            texts.layout.padding = Sides::all(12.0);
-            texts.layout.direction = FlexDirection::Column;
-            texts.layout.gap = [10.0, 0.0];
-            let panel = Element::container(texts).class("panel").class("texts");
+            let panel = Element::container()
+                .style(|s| {
+                    s.width(Dimension::Pixels(TEXTS_WIDTH))
+                        .padding(12.0)
+                        .direction(FlexDirection::Column)
+                        .row_gap(10.0)
+                })
+                .class("panel")
+                .class("texts");
             children.add("texts", panel, |children| {
                 // A sentence of each writing system, across the panel, from its start: from the
                 // right for Arabic and Hebrew. Its fonts and language are its own; its size and
                 // color, the style sheet's.
                 for (index, &(script, stack, locale)) in SCRIPTS.iter().enumerate() {
-                    let mut style = Style::default();
-                    style.text.style.fonts =
-                        stack.iter().map(|&family| family.to_owned()).collect();
-                    style.text.style.locale = Some(locale.to_owned());
                     let sentence = script.lines().next().unwrap_or_default();
-                    children.add(index, Element::label(sentence, style), |_| {});
+                    let label = Element::label(sentence).style(|s| {
+                        s.fonts(stack.iter().map(|&family| family.to_owned()).collect())
+                            .locale(Some(locale.to_owned()))
+                    });
+                    children.add(index, label, |_| {});
                 }
             });
         });
@@ -707,15 +717,16 @@ fn build(
 
 /// A row of the list: an icon and a name in a box, the sixth selected.
 fn list_row(rows: &mut Children<'_>, words: &[String], row: usize) {
-    let mut space = Style::default();
-    space.layout.padding.bottom = 4.0;
-    rows.add(row, Element::container(space), |children| {
-        let mut line = Style::default();
-        line.layout.grow = 1.0;
-        line.layout.padding.start = 6.0;
-        line.layout.gap = [0.0, 8.0];
-        line.layout.align_items = Align::Center;
-        let mut line = Element::container(line).class("row");
+    let space = Element::container().style(|s| s.padding_bottom(4.0));
+    rows.add(row, space, |children| {
+        let mut line = Element::container()
+            .style(|s| {
+                s.grow(1.0)
+                    .padding_start(6.0)
+                    .column_gap(8.0)
+                    .align_items(Align::Center)
+            })
+            .class("row");
         if row % 2 == 1 {
             line = line.class("odd");
         }
@@ -725,51 +736,54 @@ fn list_row(rows: &mut Children<'_>, words: &[String], row: usize) {
         children.add("line", line, |children| {
             children.add("icon", icon(row % 16, 16.0), |_| {});
             let word = words[row % words.len()].as_str();
-            children.add("name", Element::label(word, Style::default()), |_| {});
+            children.add("name", Element::label(word), |_| {});
         });
     });
 }
 
-/// The translucent card, at the top start of the view's cell, over the view.
-fn card(children: &mut Children<'_>, words: &[String], mut style: Style) {
-    style.layout.size = [Dimension::Pixels(220.0), Dimension::Pixels(96.0)];
-    style.layout.align_self = Some(Align::Start);
-    style.layout.margin = Sides::all(16.0);
-    style.layout.padding = Sides::all(16.0);
-    style.layout.gap = [0.0, 12.0];
-    style.layout.align_items = Align::Center;
-    children.add(
-        "card",
-        Element::container(style).class("card"),
-        |children| {
-            children.add("tick", tick(srgb(0x51CF66), 64.0), |_| {});
-            let caption = Element::label(words[3].as_str(), Style::default());
-            children.add("caption", caption, |_| {});
-        },
-    );
+/// The translucent card, at the top start of the view's cell, over the view: `place` writes the
+/// cell.
+fn card(children: &mut Children<'_>, words: &[String], place: fn(StyleBuilder) -> StyleBuilder) {
+    let card = Element::container()
+        .style(|s| {
+            place(s)
+                .width(Dimension::Pixels(220.0))
+                .height(Dimension::Pixels(96.0))
+                .align_self(Some(Align::Start))
+                .margin(16.0)
+                .padding(16.0)
+                .column_gap(12.0)
+                .align_items(Align::Center)
+        })
+        .class("card");
+    children.add("card", card, |children| {
+        children.add("tick", tick(srgb(0x51CF66), 64.0), |_| {});
+        let caption = Element::label(words[3].as_str());
+        children.add("caption", caption, |_| {});
+    });
 }
 
 /// A card of the shelf: an icon, and a tick in a color.
 fn shelf_card(children: &mut Children<'_>, index: usize) {
-    let mut style = sized(100.0, 128.0);
-    style.layout.direction = FlexDirection::Column;
-    style.layout.align_items = Align::Center;
-    style.layout.padding.top = 12.0;
-    style.layout.gap = [8.0, 0.0];
     let tint = [
         srgb(0xFF6B6B),
         srgb(0xFCC419),
         srgb(0x51CF66),
         srgb(0x339AF0),
     ][index % 4];
-    children.add(
-        index,
-        Element::container(style).class("panel"),
-        |children| {
-            children.add("icon", icon((index * 5) % 16, 64.0), |_| {});
-            children.add("tick", tick(tint, 32.0), |_| {});
-        },
-    );
+    let card = Element::container()
+        .style(|s| {
+            sized(s, 100.0, 128.0)
+                .direction(FlexDirection::Column)
+                .align_items(Align::Center)
+                .padding_top(12.0)
+                .row_gap(8.0)
+        })
+        .class("panel");
+    children.add(index, card, |children| {
+        children.add("icon", icon((index * 5) % 16, 64.0), |_| {});
+        children.add("tick", tick(tint, 32.0), |_| {});
+    });
 }
 
 /// The icon `icon` of the atlas of colors, `side` logical pixels a side.
@@ -780,7 +794,7 @@ fn icon(icon: usize, side: f32) -> Element {
         kind: ImageKind::Color,
         color: LinearColor::WHITE,
     };
-    Element::of(kind, sized(side, side))
+    Element::of(kind).style(|s| sized(s, side, side))
 }
 
 /// The ring and the tick, drawn in `color`, `side` logical pixels a side.
@@ -791,22 +805,24 @@ fn tick(color: LinearColor, side: f32) -> Element {
         kind: ImageKind::Coverage,
         color,
     };
-    Element::of(kind, sized(side, side))
+    Element::of(kind).style(|s| sized(s, side, side))
 }
 
-/// A style that lays its children out in a column.
-fn column() -> Style {
-    let mut style = Style::default();
-    style.layout.direction = FlexDirection::Column;
-    style
+/// Writes that an element lays its children out in a column.
+fn column(s: StyleBuilder) -> StyleBuilder {
+    s.direction(FlexDirection::Column)
 }
 
-/// A style of `width` by `height` logical pixels, which does not shrink.
-fn sized(width: f32, height: f32) -> Style {
-    let mut style = Style::default();
-    style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(height)];
-    style.layout.shrink = 0.0;
-    style
+/// Writes a size of `width` by `height` logical pixels, which does not shrink.
+fn sized(s: StyleBuilder, width: f32, height: f32) -> StyleBuilder {
+    s.width(Dimension::Pixels(width))
+        .height(Dimension::Pixels(height))
+        .shrink(0.0)
+}
+
+/// Writes that an element lies in the first cell of its grid parent.
+fn placed(s: StyleBuilder) -> StyleBuilder {
+    s.column_start(Some(1)).row_start(Some(1))
 }
 
 /// A color given as sRGB's 0xRRGGBB.

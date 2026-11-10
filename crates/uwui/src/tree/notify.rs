@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use super::{Element, ElementId, Layer, Place, Role, Ui};
 use crate::action::{Action, ActionKind};
-use crate::style::{FlexDirection, Style};
+use crate::style::{Align, FlexDirection};
 
 /// How far the stack of notifications stands from the window's bottom and end, in logical pixels.
 const MARGIN: f32 = 16.0;
@@ -205,7 +205,7 @@ impl Ui {
                     dismiss: false,
                 };
                 // It takes the focus from no one.
-                let root = self.add_quiet_layer("notifications", layer, Style::default());
+                let root = self.add_quiet_layer("notifications", layer, |s| s);
                 self.notices.root = Some(root);
                 root
             }
@@ -215,53 +215,41 @@ impl Ui {
         self.notices.revision += 1;
         let revision = self.notices.revision;
         self.build(root, revision, |children| {
-            let mut column = Style::default();
-            column.layout.direction = FlexDirection::Column;
-            column.layout.gap = [8.0, 0.0];
-            children.add("notifications", Element::container(column), |stack| {
+            let column =
+                Element::container().style(|s| s.direction(FlexDirection::Column).row_gap(8.0));
+            children.add("notifications", column, |stack| {
                 for (id, notification, _) in &shown {
-                    let mut card = Style::default();
-                    card.layout.direction = FlexDirection::Column;
-                    card.layout.gap = [6.0, 0.0];
                     let role = match notification.kind {
                         NotificationKind::Warning | NotificationKind::Error => Role::Alert,
                         _ => Role::Status,
                     };
-                    let element = Element::container(card)
+                    let element = Element::container()
+                        .style(|s| s.direction(FlexDirection::Column).row_gap(6.0))
                         .class("notification")
                         .class(notification.kind.class())
                         .role(role)
                         .named(notification.text.as_str());
                     stack.add(id.0, element, |card| {
-                        let mut line = Style::default();
-                        line.layout.gap = [0.0, 8.0];
-                        line.layout.align_items = crate::style::Align::Start;
-                        card.add("line", Element::container(line), |line| {
-                            let mut text = Style::default();
-                            text.layout.grow = 1.0;
-                            let label = Element::label(notification.text.as_str(), text)
+                        let line_box = Element::container()
+                            .style(|s| s.column_gap(8.0).align_items(Align::Start));
+                        card.add("line", line_box, |line| {
+                            let label = Element::label(notification.text.as_str())
+                                .style(|s| s.grow(1.0))
                                 .role(Role::GenericContainer);
                             line.add("text", label, |_| {});
-                            let close = Element::button("×", Style::default())
-                                .class("close")
-                                .named("close");
+                            let close = Element::button("×").class("close").named("close");
                             presses.push((line.add("close", close, |_| {}), *id, None));
                         });
                         if let Some(share) = notification.progress {
-                            card.add(
-                                "progress",
-                                Element::progress(share, Style::default()),
-                                |_| {},
-                            );
+                            card.add("progress", Element::progress(share), |_| {});
                         }
                         if !notification.buttons.is_empty() {
-                            let mut row = Style::default();
-                            row.layout.gap = [0.0, 8.0];
-                            card.add("buttons", Element::container(row), |row| {
+                            let row_box = Element::container().style(|s| s.column_gap(8.0));
+                            card.add("buttons", row_box, |row| {
                                 for (place, (label, command)) in
                                     notification.buttons.iter().enumerate()
                                 {
-                                    let button = Element::button(label.as_str(), Style::default());
+                                    let button = Element::button(label.as_str());
                                     let button = row.add(place, button, |_| {});
                                     presses.push((button, *id, Some(command.clone())));
                                 }

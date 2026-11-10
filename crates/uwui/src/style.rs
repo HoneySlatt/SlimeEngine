@@ -12,12 +12,17 @@ use uwui_macros::Declare;
 
 use crate::text::{TextStyle, TextStyleDeclaration};
 
+mod own;
+
+pub use own::{Base, LaysOut, OwnStyle, PointerState, State, StyleBuilder};
+pub(crate) use own::{OWN_STATES, state_bit};
+
 /// How an element is laid out and drawn.
 #[derive(Clone, Debug, Default, PartialEq, Reflect, Declare)]
 #[reflect(name = "UiStyle", default)]
 pub struct Style {
     /// How it and its children are laid out.
-    #[declare(nested)]
+    #[declare(nested, lays_out)]
     pub layout: LayoutStyle,
     /// How it is drawn, which lays nothing out again.
     #[declare(nested)]
@@ -294,6 +299,13 @@ impl Sides {
     }
 }
 
+/// The same space on every side, as [`Sides::all`] gives it.
+impl From<f32> for Sides {
+    fn from(space: f32) -> Self {
+        Self::all(space)
+    }
+}
+
 /// A track of a grid: a column or a row.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[reflect(name = "UiTrack")]
@@ -333,6 +345,7 @@ pub struct PaintStyle {
     /// The box's fill; nothing is drawn where it is transparent and there is no border.
     pub background: LinearColor,
     /// The border's width, in logical pixels, inside the box's edges.
+    #[declare(lays_out)]
     pub border_width: f32,
     /// The border's color.
     pub border: LinearColor,
@@ -400,6 +413,7 @@ pub struct ControlStyle {
     /// box, the width of a slider's thumb, the side of an item of a menu's mark and chevron, of a
     /// field of search's marks and of a list to choose from's, twice the thickness of a bar of
     /// progress, the gap after a field's prefix and a tab's title, which lay them out.
+    #[declare(lays_out)]
     pub size: f32,
     /// The radius of its corners, in logical pixels.
     pub radius: f32,
@@ -433,7 +447,7 @@ impl Default for ControlStyle {
 #[reflect(name = "UiTextLook", default)]
 pub struct TextLook {
     /// Its fonts, size, weight and alignment, in logical pixels.
-    #[declare(nested)]
+    #[declare(nested, lays_out)]
     pub style: TextStyle,
     /// Its color, which a field's caret and the line under what an input method composes take
     /// too.
@@ -455,9 +469,9 @@ impl Default for TextLook {
 }
 
 /// Whether two values are the same bit for bit: their floats compared by their bits, so that
-/// `-0.0` differs from `0.0` and a NaN is itself. An element's own style sets the fields whose
-/// bits differ from the default's, and elements share a style made for the same bits
-/// (`docs/adr/0229-styles-typed-as-declarations.md`).
+/// `-0.0` differs from `0.0` and a NaN is itself. Elements share a style made for own styles whose
+/// declarations hold the same bits (`docs/adr/0229-styles-typed-as-declarations.md`,
+/// `docs/adr/0231-an-elements-own-style-written-in-code.md`).
 pub(crate) trait Same {
     /// Whether `self` and `other` are the same bit for bit.
     fn same(&self, other: &Self) -> bool;

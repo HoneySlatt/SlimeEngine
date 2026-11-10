@@ -39,15 +39,21 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   and set a part of their style, and `theme::Theme` the named values that the rules give, which
   may name each other and compute colors in OKLCH (`mix`, `lighten`, `darken`, `alpha`), read
   from their text or their cooked binary encoding; `Ui::set_style` styles an interface with them,
-  its themes stacked, the last that gives a name giving its value, and the element's own style
-  over the rules (`docs/adr/0149-the-looks-foundations.md`). A rule becomes a list of typed
+  its themes stacked, the last that gives a name giving its value
+  (`docs/adr/0149-the-looks-foundations.md`). A rule becomes a list of typed
   declarations, which the cascade applies to a `Style` without reflection; a rule sets a color
   whole, and a rule for a kind sets only what that kind reads of a style
   (`docs/adr/0229-styles-typed-as-declarations.md`). An element's style starts from its kind's
   defaults, under every rule, which hold no color of their own: they take the core's seven
   *roles*, `canvas_text`, `accent` and the others, which each look gives and which fall back to
   the colors that an interface given no theme draws in
-  (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`).
+  (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`). An element's code writes its own
+  style, `Element::style(|s| s.padding(12.0).hover(|s| ...))`, the declarations that it sets for
+  its base and its states, with the place of the call (`style::OwnStyle`, `style::StyleBuilder`);
+  the cascade takes it in the *mask order*: the rules in their order, then the own base where the
+  last rule that set a field names no state, then the own states that hold. A hover or a press set
+  in code offers no field that lays out
+  (`docs/adr/0231-an-elements-own-style-written-in-code.md`).
 - A style's `transition` moves a change of it over time: its colors and its opacity, and a
   section's height as it opens or folds, over the time that the program gives each frame
   (`Ui::advance`), which `Ui::set_reduced_motion` drops; a frame says whether one goes on

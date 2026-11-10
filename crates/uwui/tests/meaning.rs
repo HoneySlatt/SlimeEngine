@@ -4,7 +4,7 @@
 //! which draws nothing again.
 
 use uwui::Rect;
-use uwui::style::{Dimension, Display, FlexDirection, Style};
+use uwui::style::{Dimension, Display, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
     Element, ElementAction, ElementId, ElementState, LayoutDirection, Meaning, Role, RootSettings,
@@ -32,12 +32,11 @@ fn settings(width: f32, height: f32, origin: [f32; 2], modal: bool) -> RootSetti
     }
 }
 
-/// A style of `width` by `height` logical pixels, which does not shrink.
-fn sized(width: f32, height: f32) -> Style {
-    let mut style = Style::default();
-    style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(height)];
-    style.layout.shrink = 0.0;
-    style
+/// Writes `width` by `height` logical pixels, which does not shrink.
+fn sized(s: StyleBuilder, width: f32, height: f32) -> StyleBuilder {
+    s.width(Dimension::Pixels(width))
+        .height(Dimension::Pixels(height))
+        .shrink(0.0)
 }
 
 /// What `meaning` says, short: its path, role, name and actions.
@@ -55,68 +54,81 @@ fn summary(meaning: &Meaning) -> (String, Role, String, Vec<ElementAction>) {
 /// hidden button, and a list whose rows show: what its root holds, and its root.
 fn interface() -> (Ui, ElementId) {
     let mut ui = ui();
-    let root = ui.add_root(
-        "main",
-        settings(400.0, 300.0, [0.0; 2], false),
-        Style::default(),
-    );
-    let mut column = Style::default();
-    column.layout.direction = FlexDirection::Column;
+    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
     let build = |ui: &mut Ui| {
         ui.build(root, 0, |children| {
-            children.add("page", Element::container(column.clone()), |children| {
-                let bar = Element::container(sized(400.0, 40.0))
-                    .role(Role::Toolbar)
-                    .named("tools");
-                children.add("bar", bar, |children| {
-                    children.add("open", Element::button("open", sized(100.0, 40.0)), |_| {});
-                    children.add("save", Element::button("save", sized(100.0, 40.0)), |_| {});
-                });
-                children.add(
-                    "status",
-                    Element::label("ready", sized(400.0, 20.0)),
-                    |_| {},
-                );
-                children.add(
-                    "layout",
-                    Element::container(sized(400.0, 40.0)),
-                    |children| {
-                        let panel = Element::container(sized(100.0, 40.0)).named("panel");
-                        children.add("panel", panel, |_| {});
-                    },
-                );
-                let mut scroll = sized(150.0, 40.0);
-                scroll.layout.direction = FlexDirection::Column;
-                children.add("scroll", Element::scroll(scroll), |children| {
+            children.add(
+                "page",
+                Element::container().style(|s| s.direction(FlexDirection::Column)),
+                |children| {
+                    let bar = Element::container()
+                        .style(|s| sized(s, 400.0, 40.0))
+                        .role(Role::Toolbar)
+                        .named("tools");
+                    children.add("bar", bar, |children| {
+                        children.add(
+                            "open",
+                            Element::button("open").style(|s| sized(s, 100.0, 40.0)),
+                            |_| {},
+                        );
+                        children.add(
+                            "save",
+                            Element::button("save").style(|s| sized(s, 100.0, 40.0)),
+                            |_| {},
+                        );
+                    });
                     children.add(
-                        "first",
-                        Element::button("first", sized(150.0, 30.0)),
+                        "status",
+                        Element::label("ready").style(|s| sized(s, 400.0, 20.0)),
                         |_| {},
                     );
                     children.add(
-                        "second",
-                        Element::button("second", sized(150.0, 30.0)),
-                        |_| {},
+                        "layout",
+                        Element::container().style(|s| sized(s, 400.0, 40.0)),
+                        |children| {
+                            let panel = Element::container()
+                                .style(|s| sized(s, 100.0, 40.0))
+                                .named("panel");
+                            children.add("panel", panel, |_| {});
+                        },
                     );
+                    let scroll = Element::scroll()
+                        .style(|s| sized(s, 150.0, 40.0).direction(FlexDirection::Column));
+                    children.add("scroll", scroll, |children| {
+                        children.add(
+                            "first",
+                            Element::button("first").style(|s| sized(s, 150.0, 30.0)),
+                            |_| {},
+                        );
+                        children.add(
+                            "second",
+                            Element::button("second").style(|s| sized(s, 150.0, 30.0)),
+                            |_| {},
+                        );
+                        children.add(
+                            "third",
+                            Element::button("third").style(|s| sized(s, 150.0, 30.0)),
+                            |_| {},
+                        );
+                    });
+                    let hidden = Element::button("hidden")
+                        .style(|s| sized(s, 100.0, 20.0).display(Display::None));
+                    children.add("hidden", hidden, |_| {});
                     children.add(
-                        "third",
-                        Element::button("third", sized(150.0, 30.0)),
-                        |_| {},
+                        "list",
+                        Element::list(1_000, 20.0).style(|s| sized(s, 200.0, 60.0)),
+                        |rows| {
+                            for row in rows.rows() {
+                                rows.add(
+                                    row,
+                                    Element::container().style(|s| sized(s, 200.0, 20.0)),
+                                    |_| {},
+                                );
+                            }
+                        },
                     );
-                });
-                let mut hidden = sized(100.0, 20.0);
-                hidden.layout.display = Display::None;
-                children.add("hidden", Element::button("hidden", hidden), |_| {});
-                children.add(
-                    "list",
-                    Element::list(1_000, 20.0, sized(200.0, 60.0)),
-                    |rows| {
-                        for row in rows.rows() {
-                            rows.add(row, Element::container(sized(200.0, 20.0)), |_| {});
-                        }
-                    },
-                );
-            });
+                },
+            );
         });
     };
     // The first frame lays the list out; the next builds the rows that it shows.
@@ -263,16 +275,25 @@ fn an_element_is_found_by_its_path_and_at_a_pixel() {
     let modal = ui.add_root(
         "confirm",
         settings(200.0, 100.0, [100.0, 100.0], true),
-        Style::default(),
+        |s| s,
     );
     ui.build(modal, 0, |children| {
-        let dialog = Element::container(sized(200.0, 100.0))
+        let dialog = Element::container()
+            .style(|s| sized(s, 200.0, 100.0))
             .role(Role::Dialog)
             .named("confirm");
         children.add("dialog", dialog, |children| {
-            children.add("ok", Element::button("ok", sized(80.0, 30.0)), |_| {});
+            children.add(
+                "ok",
+                Element::button("ok").style(|s| sized(s, 80.0, 30.0)),
+                |_| {},
+            );
             // A name that `#` begins, which no digits follow, is a name.
-            children.add("#no", Element::button("no", sized(80.0, 30.0)), |_| {});
+            children.add(
+                "#no",
+                Element::button("no").style(|s| sized(s, 80.0, 30.0)),
+                |_| {},
+            );
         });
     });
     ui.frame();
@@ -296,14 +317,11 @@ fn an_element_is_found_by_its_path_and_at_a_pixel() {
 #[test]
 fn a_name_or_a_role_changed_draws_nothing_again() {
     let mut ui = ui();
-    let root = ui.add_root(
-        "main",
-        settings(400.0, 300.0, [0.0; 2], false),
-        Style::default(),
-    );
+    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
     let build = |ui: &mut Ui, revision: u64, name: &str, role: Role| {
         ui.build(root, revision, |children| {
-            let panel = Element::container(sized(100.0, 40.0))
+            let panel = Element::container()
+                .style(|s| sized(s, 100.0, 40.0))
                 .named(name)
                 .role(role);
             children.add("panel", panel, |_| {});
@@ -328,14 +346,14 @@ fn a_name_or_a_role_changed_draws_nothing_again() {
 #[test]
 fn an_element_shows_only_within_its_root() {
     let mut ui = ui();
-    let root = ui.add_root(
-        "main",
-        settings(100.0, 30.0, [0.0; 2], false),
-        Style::default(),
-    );
+    let root = ui.add_root("main", settings(100.0, 30.0, [0.0; 2], false), |s| s);
     ui.build(root, 0, |children| {
         for name in ["inside", "across", "beyond"] {
-            children.add(name, Element::button(name, sized(80.0, 30.0)), |_| {});
+            children.add(
+                name,
+                Element::button(name).style(|s| sized(s, 80.0, 30.0)),
+                |_| {},
+            );
         }
     });
     ui.frame();
@@ -355,14 +373,11 @@ fn an_element_shows_only_within_its_root() {
 #[test]
 fn a_tree_s_items_mean_their_levels_and_whether_they_open() {
     let mut ui = ui();
-    let root = ui.add_root(
-        "main",
-        settings(400.0, 300.0, [0.0; 2], false),
-        Style::default(),
-    );
+    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
     let mut tree = None;
     ui.build(root, 0, |children| {
-        let list = Element::list(3, 20.0, sized(200.0, 100.0))
+        let list = Element::list(3, 20.0)
+            .style(|s| sized(s, 200.0, 100.0))
             .role(Role::Tree)
             .named("hierarchy");
         tree = Some(children.add_slot("tree", list));
@@ -373,7 +388,7 @@ fn a_tree_s_items_mean_their_levels_and_whether_they_open() {
     let mut rows = Vec::new();
     ui.build(tree, 0, |children| {
         for row in children.rows() {
-            let item = Element::container(Style::default())
+            let item = Element::container()
                 .role(Role::TreeItem)
                 .named(format!("entity {row}"))
                 .level(if row == 0 { 1 } else { 2 });

@@ -4,10 +4,7 @@
 use slime_color::LinearColor;
 use uwui::Rect;
 use uwui::display::Primitive;
-use uwui::style::{
-    Align, Dimension, Display, FlexDirection, GridPlace, LayoutStyle, PaintStyle, Shadow, Sides,
-    Style, TextLook, Track,
-};
+use uwui::style::{Align, Dimension, Display, FlexDirection, Shadow, StyleBuilder, Track};
 use uwui::text::{Fonts, TextStyle};
 use uwui::theme::{StyleSheet, Theme};
 use uwui::tree::{Element, ElementId, ElementState, Key, LayoutDirection, RootSettings, Ui};
@@ -33,55 +30,39 @@ fn root(width: f32, height: f32, scale: f32, direction: LayoutDirection) -> Root
     }
 }
 
-/// A style of `width` by `height` logical pixels.
-fn sized(width: f32, height: f32) -> Style {
-    Style {
-        layout: LayoutStyle {
-            size: [Dimension::Pixels(width), Dimension::Pixels(height)],
-            ..LayoutStyle::default()
-        },
-        ..Style::default()
-    }
+/// Writes `width` by `height` logical pixels.
+fn sized(s: StyleBuilder, width: f32, height: f32) -> StyleBuilder {
+    s.width(Dimension::Pixels(width))
+        .height(Dimension::Pixels(height))
 }
 
-/// A style whose box is filled with `color`.
-fn filled(color: LinearColor) -> Style {
-    Style {
-        paint: PaintStyle {
-            background: color,
-            ..PaintStyle::default()
-        },
-        ..Style::default()
-    }
+/// Fills the box with `color`.
+fn filled(s: StyleBuilder, color: LinearColor) -> StyleBuilder {
+    s.background(color)
 }
 
-/// A text style of the test font.
-fn text_look() -> TextLook {
-    TextLook {
-        style: TextStyle {
-            fonts: vec!["Noto Sans".to_owned()],
-            ..TextStyle::default()
-        },
-        ..TextLook::default()
+/// Writes the test font.
+fn text_look(s: StyleBuilder) -> StyleBuilder {
+    s.fonts(vec!["Noto Sans".to_owned()])
+}
+
+/// The test font, as the text of a style holds it.
+fn test_font() -> TextStyle {
+    TextStyle {
+        fonts: vec!["Noto Sans".to_owned()],
+        ..TextStyle::default()
     }
 }
 
 #[test]
 fn a_flexbox_row_is_laid_out_and_mirrored_from_right_to_left() {
     let mut ui = ui();
-    let style = Style {
-        layout: LayoutStyle {
-            padding: Sides {
-                start: 10.0,
-                end: 30.0,
-                top: 20.0,
-                bottom: 0.0,
-            },
-            gap: [0.0, 5.0],
-            align_items: Align::Start,
-            ..LayoutStyle::default()
-        },
-        ..Style::default()
+    let style = |s: StyleBuilder| {
+        s.padding_start(10.0)
+            .padding_end(30.0)
+            .padding_top(20.0)
+            .column_gap(5.0)
+            .align_items(Align::Start)
     };
     let mut rects = Vec::new();
     for (direction, scale) in [
@@ -89,15 +70,21 @@ fn a_flexbox_row_is_laid_out_and_mirrored_from_right_to_left() {
         (LayoutDirection::RightToLeft, 1.0),
         (LayoutDirection::LeftToRight, 2.0),
     ] {
-        let root = ui.add_root("main", root(400.0, 300.0, scale, direction), style.clone());
+        let root = ui.add_root("main", root(400.0, 300.0, scale, direction), style);
         let mut ids = Vec::new();
         ui.build(root, 0, |children| {
-            ids.push(children.add("a", Element::container(sized(50.0, 40.0)), |_| {}));
-            ids.push(children.add("b", Element::container(sized(60.0, 40.0)), |_| {}));
-            let mut grows = sized(0.0, 40.0);
-            grows.layout.size[0] = Dimension::Auto;
-            grows.layout.grow = 1.0;
-            ids.push(children.add("c", Element::container(grows), |_| {}));
+            ids.push(children.add(
+                "a",
+                Element::container().style(|s| sized(s, 50.0, 40.0)),
+                |_| {},
+            ));
+            ids.push(children.add(
+                "b",
+                Element::container().style(|s| sized(s, 60.0, 40.0)),
+                |_| {},
+            ));
+            let grows = Element::container().style(|s| s.height(Dimension::Pixels(40.0)).grow(1.0));
+            ids.push(children.add("c", grows, |_| {}));
         });
         rects.push(ids);
     }
@@ -137,30 +124,26 @@ fn a_flexbox_row_is_laid_out_and_mirrored_from_right_to_left() {
 #[test]
 fn a_grid_is_laid_out_and_mirrored_from_right_to_left() {
     let mut ui = ui();
-    let style = Style {
-        layout: LayoutStyle {
-            display: Display::Grid,
-            columns: vec![Track::Pixels(100.0), Track::Fraction(1.0)],
-            rows: vec![Track::Pixels(50.0), Track::Auto],
-            gap: [10.0, 20.0],
-            ..LayoutStyle::default()
-        },
-        ..Style::default()
+    let style = |s: StyleBuilder| {
+        s.display(Display::Grid)
+            .columns(vec![Track::Pixels(100.0), Track::Fraction(1.0)])
+            .rows(vec![Track::Pixels(50.0), Track::Auto])
+            .row_gap(10.0)
+            .column_gap(20.0)
     };
     let mut rects = Vec::new();
     for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
-        let root = ui.add_root("main", root(300.0, 200.0, 1.0, direction), style.clone());
+        let root = ui.add_root("main", root(300.0, 200.0, 1.0, direction), style);
         let mut ids = Vec::new();
         ui.build(root, 0, |children| {
-            ids.push(children.add("a", Element::container(Style::default()), |_| {}));
-            ids.push(children.add("b", Element::container(Style::default()), |_| {}));
-            let mut across = Style::default();
-            across.layout.size[1] = Dimension::Pixels(30.0);
-            across.layout.column = GridPlace {
-                start: Some(1),
-                span: 2,
-            };
-            ids.push(children.add("c", Element::container(across), |_| {}));
+            ids.push(children.add("a", Element::container(), |_| {}));
+            ids.push(children.add("b", Element::container(), |_| {}));
+            let across = Element::container().style(|s| {
+                s.height(Dimension::Pixels(30.0))
+                    .column_start(Some(1))
+                    .column_span(2)
+            });
+            ids.push(children.add("c", across, |_| {}));
         });
         rects.push(ids);
     }
@@ -191,30 +174,19 @@ fn a_grid_is_laid_out_and_mirrored_from_right_to_left() {
 #[test]
 fn a_label_is_as_large_as_its_text_and_breaks_its_lines_in_a_narrow_box() {
     let mut ui = ui();
-    let style = Style {
-        layout: LayoutStyle {
-            direction: FlexDirection::Column,
-            align_items: Align::Start,
-            ..LayoutStyle::default()
-        },
-        ..Style::default()
-    };
     let root = ui.add_root(
         "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        style,
+        |s| s.direction(FlexDirection::Column).align_items(Align::Start),
     );
     let words = "Some words that take more than one line";
     let (mut wide, mut narrow) = (None, None);
     ui.build(root, 0, |children| {
-        let look = Style {
-            text: text_look(),
-            ..Style::default()
-        };
-        wide = Some(children.add("wide", Element::label(words, look.clone()), |_| {}));
-        let mut boxed = look;
-        boxed.layout.max_size[0] = Dimension::Pixels(80.0);
-        narrow = Some(children.add("narrow", Element::label(words, boxed), |_| {}));
+        let look = Element::label(words).style(text_look);
+        wide = Some(children.add("wide", look, |_| {}));
+        let boxed =
+            Element::label(words).style(|s| text_look(s).max_width(Dimension::Pixels(80.0)));
+        narrow = Some(children.add("narrow", boxed, |_| {}));
     });
     let (list, _) = ui.frame();
     let (wide, narrow) = (
@@ -223,7 +195,7 @@ fn a_label_is_as_large_as_its_text_and_breaks_its_lines_in_a_narrow_box() {
     );
     let laid = ui
         .fonts_mut()
-        .lay_out(words, &text_look().style, 1.0, Default::default());
+        .lay_out(words, &test_font(), 1.0, Default::default());
     assert_eq!(
         (wide.width, wide.height),
         (laid.width().ceil(), laid.height().ceil())
@@ -254,9 +226,9 @@ fn a_panel_built_again_keeps_its_elements_and_their_states_by_their_keys() {
     let root = ui.add_root(
         "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        Style::default(),
+        |s| s,
     );
-    let button = |label: &str| Element::button(label, Style::default());
+    let button = |label: &str| Element::button(label);
     let (mut ok, mut cancel) = (None, None);
     ui.build(root, 1, |children| {
         ok = Some(children.add("ok", button("OK"), |_| {}));
@@ -287,7 +259,7 @@ fn a_panel_built_again_keeps_its_elements_and_their_states_by_their_keys() {
     // Another kind under the same key is another element.
     let mut label = None;
     ui.build(root, 3, |children| {
-        label = Some(children.add("cancel", Element::label("Cancel", Style::default()), |_| {}));
+        label = Some(children.add("cancel", Element::label("Cancel"), |_| {}));
     });
     assert_ne!(label, Some(cancel));
     assert_eq!(ui.state(label.unwrap()), Some(ElementState::default()));
@@ -301,11 +273,11 @@ fn two_siblings_of_one_key_are_refused() {
     let root = ui.add_root(
         "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        Style::default(),
+        |s| s,
     );
     ui.build(root, 0, |children| {
-        children.add("a", Element::container(Style::default()), |_| {});
-        children.add("a", Element::container(Style::default()), |_| {});
+        children.add("a", Element::container(), |_| {});
+        children.add("a", Element::container(), |_| {});
     });
 }
 
@@ -315,16 +287,15 @@ fn a_frame_counts_the_elements_that_its_walks_visit() {
     let root = ui.add_root(
         "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        Style::default(),
+        |s| s,
     );
-    let mut hidden = Style::default();
-    hidden.layout.display = Display::None;
     ui.build(root, 0, |children| {
-        children.add("shown", Element::container(Style::default()), |children| {
-            children.add("inner", Element::container(Style::default()), |_| {});
+        children.add("shown", Element::container(), |children| {
+            children.add("inner", Element::container(), |_| {});
         });
-        children.add("hidden", Element::container(hidden), |children| {
-            children.add("inside", Element::container(Style::default()), |_| {});
+        let hidden = Element::container().style(|s| s.display(Display::None));
+        children.add("hidden", hidden, |children| {
+            children.add("inside", Element::container(), |_| {});
         });
     });
     ui.frame();
@@ -343,18 +314,19 @@ fn a_frame_where_nothing_changed_lays_out_and_draws_nothing() {
     let root = ui.add_root(
         "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        Style::default(),
+        |s| s,
     );
     let build = |ui: &mut Ui, revision: u64, color: LinearColor, label: &str| {
         let mut ids = Vec::new();
         ui.build(root, revision, |children| {
-            ids.push(children.add("box", Element::container(filled(color)), |_| {}));
-            let look = Style {
-                text: text_look(),
-                ..Style::default()
-            };
-            ids.push(children.add("label", Element::label(label, look), |_| {}));
-            ids.push(children.add("button", Element::button("Go", Style::default()), |_| {}));
+            ids.push(children.add(
+                "box",
+                Element::container().style(|s| filled(s, color)),
+                |_| {},
+            ));
+            let look = Element::label(label).style(text_look);
+            ids.push(children.add("label", look, |_| {}));
+            ids.push(children.add("button", Element::button("Go"), |_| {}));
         });
         ids
     };
@@ -406,24 +378,18 @@ fn a_list_of_100_000_rows_builds_lays_out_and_draws_only_the_rows_that_show() {
     let root = ui.add_root(
         "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        Style::default(),
+        |s| s,
     );
     let mut list = None;
     let mut build = |ui: &mut Ui, revision: u64| {
         ui.build(root, revision, |children| {
-            let mut style = Style::default();
-            style.layout.grow = 1.0;
-            list = Some(
-                children.add("list", Element::list(100_000, 20.0, style), |rows| {
-                    for row in rows.rows() {
-                        let look = Style {
-                            text: text_look(),
-                            ..Style::default()
-                        };
-                        rows.add(row, Element::label(format!("Row {row}"), look), |_| {});
-                    }
-                }),
-            );
+            let rows_list = Element::list(100_000, 20.0).style(|s| s.grow(1.0));
+            list = Some(children.add("list", rows_list, |rows| {
+                for row in rows.rows() {
+                    let look = Element::label(format!("Row {row}")).style(text_look);
+                    rows.add(row, look, |_| {});
+                }
+            }));
         });
         list.unwrap()
     };
@@ -488,34 +454,24 @@ fn a_list_of_100_000_rows_builds_lays_out_and_draws_only_the_rows_that_show() {
 #[test]
 fn a_box_that_scrolls_moves_its_content_cut_to_its_edges_without_laying_it_out() {
     let mut ui = ui();
-    let column = Style {
-        layout: LayoutStyle {
-            direction: FlexDirection::Column,
-            ..LayoutStyle::default()
-        },
-        ..Style::default()
-    };
+    let column = |s: StyleBuilder| s.direction(FlexDirection::Column);
     let root = ui.add_root(
         "main",
         root(200.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        column.clone(),
+        column,
     );
     let mut scroll = None;
     let mut items = Vec::new();
     ui.build(root, 0, |children| {
-        let mut style = column.clone();
-        style.layout.size[1] = Dimension::Pixels(100.0);
-        scroll = Some(children.add("scroll", Element::scroll(style), |children| {
+        let boxed = Element::scroll().style(|s| column(s).height(Dimension::Pixels(100.0)));
+        scroll = Some(children.add("scroll", boxed, |children| {
             for index in 0..5_usize {
-                let style = Style {
-                    layout: LayoutStyle {
-                        size: [Dimension::Auto, Dimension::Pixels(40.0)],
-                        shrink: 0.0,
-                        ..LayoutStyle::default()
-                    },
-                    ..filled(LinearColor::WHITE)
-                };
-                items.push(children.add(index, Element::container(style), |_| {}));
+                let item = Element::container().style(|s| {
+                    filled(s, LinearColor::WHITE)
+                        .height(Dimension::Pixels(40.0))
+                        .shrink(0.0)
+                });
+                items.push(children.add(index, item, |_| {}));
             }
         }));
     });
@@ -541,16 +497,18 @@ fn the_display_list_draws_each_element_before_its_children_as_its_state_and_dire
     let mut ui = ui();
     let blue = LinearColor::rgba(0.0, 0.0, 1.0, 1.0);
     let green = LinearColor::rgba(0.0, 1.0, 0.0, 1.0);
-    let corners = PaintStyle {
-        background: blue,
-        radii: [1.0, 2.0, 3.0, 4.0],
-        shadow: Some(Shadow {
-            color: LinearColor::rgba(0.0, 0.0, 0.0, 0.5),
-            offset: [3.0, 5.0],
-            blur: 4.0,
-            spread: 1.0,
-        }),
-        ..PaintStyle::default()
+    let corners = |s: StyleBuilder| {
+        s.background(blue)
+            .radius_top_start(1.0)
+            .radius_top_end(2.0)
+            .radius_bottom_end(3.0)
+            .radius_bottom_start(4.0)
+            .shadow(Some(Shadow {
+                color: LinearColor::rgba(0.0, 0.0, 0.0, 0.5),
+                offset: [3.0, 5.0],
+                blur: 4.0,
+                spread: 1.0,
+            }))
     };
     let sheet = StyleSheet::from_text(
         "buttons.style",
@@ -563,23 +521,18 @@ fn the_display_list_draws_each_element_before_its_children_as_its_state_and_dire
         .expect("a style sheet and a theme");
     let mut drawn = Vec::new();
     for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
-        let mut ui_root = filled(LinearColor::WHITE);
-        ui_root.layout.align_items = Align::Start;
-        let root = ui.add_root("main", root(200.0, 100.0, 2.0, direction), ui_root);
+        let root = ui.add_root("main", root(200.0, 100.0, 2.0, direction), |s| {
+            filled(s, LinearColor::WHITE).align_items(Align::Start)
+        });
         let mut button = None;
         ui.build(root, 0, |children| {
-            let mut panel = sized(100.0, 50.0);
-            panel.paint = corners;
-            children.add("panel", Element::container(panel), |children| {
+            let panel = Element::container().style(|s| corners(sized(s, 100.0, 50.0)));
+            children.add("panel", panel, |children| {
                 // Its fill from the rules, which style its states.
-                let style = Style {
-                    text: text_look(),
-                    ..Style::default()
-                };
-                button = Some(children.add("button", Element::button("Go", style), |_| {}));
-                let mut hidden = filled(blue);
-                hidden.layout.display = Display::None;
-                children.add("hidden", Element::container(hidden), |_| {});
+                let go = Element::button("Go").style(text_look);
+                button = Some(children.add("button", go, |_| {}));
+                let hidden = Element::container().style(|s| filled(s, blue).display(Display::None));
+                children.add("hidden", hidden, |_| {});
             });
         });
         ui.set_state(
@@ -627,10 +580,14 @@ fn the_display_list_draws_each_element_before_its_children_as_its_state_and_dire
 fn a_root_at_another_scale_is_laid_out_again_in_its_pixels() {
     let mut ui = ui();
     let settings = root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight);
-    let root = ui.add_root("main", settings, Style::default());
+    let root = ui.add_root("main", settings, |s| s);
     let mut panel = None;
     ui.build(root, 0, |children| {
-        panel = Some(children.add("panel", Element::container(sized(100.0, 50.0)), |_| {}));
+        panel = Some(children.add(
+            "panel",
+            Element::container().style(|s| sized(s, 100.0, 50.0)),
+            |_| {},
+        ));
     });
     ui.frame();
     ui.set_root(
@@ -657,12 +614,12 @@ fn a_panel_in_a_slot_is_built_by_its_own_revision_and_kept_when_its_parent_is_bu
     let root = ui.add_root(
         "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        Style::default(),
+        |s| s,
     );
     let mut panel = None;
     let mut build_root = |ui: &mut Ui, revision: u64| {
         ui.build(root, revision, |children| {
-            panel = Some(children.add_slot("panel", Element::container(Style::default())));
+            panel = Some(children.add_slot("panel", Element::container()));
         });
         panel.unwrap()
     };
@@ -671,7 +628,7 @@ fn a_panel_in_a_slot_is_built_by_its_own_revision_and_kept_when_its_parent_is_bu
     let build_panel = |ui: &mut Ui, revision: u64| {
         ui.build(panel, revision, |children| {
             built.set(built.get() + 1);
-            children.add("label", Element::label("Panel", Style::default()), |_| {});
+            children.add("label", Element::label("Panel"), |_| {});
         });
     };
     build_panel(&mut ui, 0);
@@ -685,11 +642,9 @@ fn a_panel_in_a_slot_is_built_by_its_own_revision_and_kept_when_its_parent_is_bu
     assert_eq!(ui.children(panel), [label]);
 }
 
-/// A style that grows to fill its parent's main axis.
-fn grows() -> Style {
-    let mut style = Style::default();
-    style.layout.grow = 1.0;
-    style
+/// Writes a growth to fill its parent's main axis.
+fn grows(s: StyleBuilder) -> StyleBuilder {
+    s.grow(1.0)
 }
 
 #[test]
@@ -698,26 +653,23 @@ fn a_list_in_a_slot_builds_its_rows_with_its_own_builder_and_lays_out_only_them(
     let root = ui.add_root(
         "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        Style::default(),
+        |s| s,
     );
     let (root_built, rows_built) = (std::cell::Cell::new(0), std::cell::Cell::new(0));
     let frame = |ui: &mut Ui, revision: u64, row_height: f32, label: &str| {
         let mut list = None;
         ui.build(root, revision, |children| {
             root_built.set(root_built.get() + 1);
-            list = Some(children.add_slot("list", Element::list(1_000, row_height, grows())));
+            list = Some(children.add_slot("list", Element::list(1_000, row_height).style(grows)));
         });
         let list = list.unwrap_or_else(|| ui.children(root)[0]);
         ui.build(list, revision, |rows| {
             rows_built.set(rows_built.get() + 1);
             for row in rows.rows() {
-                rows.add(row, Element::container(Style::default()), |children| {
+                rows.add(row, Element::container(), |children| {
                     let text = if row == 3 { label } else { "Row" };
-                    let look = Style {
-                        text: text_look(),
-                        ..Style::default()
-                    };
-                    children.add("name", Element::label(text, look), |_| {});
+                    let look = Element::label(text).style(text_look);
+                    children.add("name", look, |_| {});
                 });
             }
         });
@@ -746,18 +698,19 @@ fn a_list_in_the_rows_of_another_shows_its_rows_after_the_other_scrolls() {
     let root = ui.add_root(
         "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        Style::default(),
+        |s| s,
     );
     let mut outer = None;
     let mut frame = |ui: &mut Ui| {
         ui.build(root, 0, |children| {
             outer = Some(
-                children.add("outer", Element::list(50, 100.0, grows()), |rows| {
+                children.add("outer", Element::list(50, 100.0).style(grows), |rows| {
                     for row in rows.rows() {
-                        rows.add(row, Element::container(Style::default()), |children| {
-                            children.add("inner", Element::list(10, 20.0, grows()), |rows| {
+                        rows.add(row, Element::container(), |children| {
+                            children.add("inner", Element::list(10, 20.0).style(grows), |rows| {
                                 for row in rows.rows() {
-                                    let element = Element::container(filled(LinearColor::WHITE));
+                                    let element = Element::container()
+                                        .style(|s| filled(s, LinearColor::WHITE));
                                     rows.add(row, element, |_| {});
                                 }
                             });
@@ -798,21 +751,15 @@ fn what_an_element_whose_display_is_none_holds_takes_no_space() {
     let root = ui.add_root(
         "main",
         root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight),
-        Style::default(),
+        |s| s,
     );
     let (mut hidden, mut child) = (None, None);
     ui.build(root, 0, |children| {
-        let mut style = sized(100.0, 100.0);
-        style.layout.display = Display::None;
-        hidden = Some(
-            children.add("hidden", Element::container(style), |children| {
-                let label = Style {
-                    text: text_look(),
-                    ..sized(50.0, 40.0)
-                };
-                child = Some(children.add("child", Element::label("Hidden", label), |_| {}));
-            }),
-        );
+        let boxed = Element::container().style(|s| sized(s, 100.0, 100.0).display(Display::None));
+        hidden = Some(children.add("hidden", boxed, |children| {
+            let label = Element::label("Hidden").style(|s| text_look(sized(s, 50.0, 40.0)));
+            child = Some(children.add("child", label, |_| {}));
+        }));
     });
     let (list, _) = ui.frame();
     assert!(list.is_empty());
@@ -826,12 +773,15 @@ fn what_an_element_whose_display_is_none_holds_takes_no_space() {
 fn a_root_turned_to_the_other_direction_draws_every_element_again_mirrored() {
     let mut ui = ui();
     let settings = root(400.0, 300.0, 1.0, LayoutDirection::LeftToRight);
-    let root = ui.add_root("main", settings, Style::default());
+    let root = ui.add_root("main", settings, |s| s);
     ui.build(root, 0, |children| {
-        let mut bar = filled(LinearColor::WHITE);
-        bar.layout.size = [Dimension::Share(1.0), Dimension::Pixels(50.0)];
-        bar.paint.radii = [8.0, 0.0, 0.0, 0.0];
-        children.add("bar", Element::container(bar), |_| {});
+        let bar = Element::container().style(|s| {
+            filled(s, LinearColor::WHITE)
+                .width(Dimension::Share(1.0))
+                .height(Dimension::Pixels(50.0))
+                .radius_top_start(8.0)
+        });
+        children.add("bar", bar, |_| {});
     });
     ui.frame();
     ui.set_root(
@@ -861,7 +811,7 @@ fn a_root_of_no_scale_is_refused() {
     ui.add_root(
         "main",
         root(400.0, 300.0, 0.0, LayoutDirection::LeftToRight),
-        Style::default(),
+        |s| s,
     );
 }
 
@@ -871,22 +821,21 @@ fn a_box_that_scrolls_from_right_to_left_scrolls_from_its_start_and_cuts_inside_
     let root = ui.add_root(
         "main",
         root(200.0, 100.0, 1.0, LayoutDirection::RightToLeft),
-        Style::default(),
+        |s| s,
     );
     let mut scroll = None;
     let mut items = Vec::new();
     ui.build(root, 0, |children| {
-        let mut style = sized(100.0, 50.0);
-        style.paint.border_width = 2.0;
-        style.paint.border = LinearColor::WHITE;
-        scroll = Some(children.add("scroll", Element::scroll(style), |children| {
+        let boxed = Element::scroll().style(|s| {
+            sized(s, 100.0, 50.0)
+                .border_width(2.0)
+                .border_color(LinearColor::WHITE)
+        });
+        scroll = Some(children.add("scroll", boxed, |children| {
             for index in 0..3_usize {
-                let mut item = Style {
-                    layout: sized(60.0, 50.0).layout,
-                    ..filled(LinearColor::WHITE)
-                };
-                item.layout.shrink = 0.0;
-                items.push(children.add(index, Element::container(item), |_| {}));
+                let item = Element::container()
+                    .style(|s| filled(sized(s, 60.0, 50.0), LinearColor::WHITE).shrink(0.0));
+                items.push(children.add(index, item, |_| {}));
             }
         }));
     });

@@ -5,20 +5,20 @@
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
-use uwui::style::{FlexDirection, Style};
+use uwui::style::{FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
     Along, Element, ElementId, ItemMark, Layer, LayoutDirection, Place, RootSettings, Side, Ui,
 };
 
-/// A style of the tests' font, laid out as a column where `column`.
-fn style(column: bool) -> Style {
-    let mut style = Style::default();
-    if column {
-        style.layout.direction = FlexDirection::Column;
-    }
-    style.text.style.fonts = vec!["Noto Sans".to_owned()];
-    style
+/// Writes the tests' font, laid out as a column where `column`.
+fn style(s: StyleBuilder, column: bool) -> StyleBuilder {
+    let s = if column {
+        s.direction(FlexDirection::Column)
+    } else {
+        s
+    };
+    s.fonts(vec!["Noto Sans".to_owned()])
 }
 
 /// A window whose root, a column, holds a bar of menus, `File`, `Edit` and `View`, then a button.
@@ -43,16 +43,25 @@ impl Window {
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root("main", settings, style(true));
+        let root = ui.add_root("main", settings, |s| style(s, true));
         let (mut items, mut button) = (Vec::new(), None);
         ui.build(root, 0, |children| {
-            children.add("bar", Element::menu_bar(style(false)), |bar| {
-                for title in ["File", "Edit", "View"] {
-                    let item = Element::menu_item(title, "", ItemMark::Submenu, style(false));
-                    items.push(bar.add(title, item, |_| {}));
-                }
-            });
-            button = Some(children.add("button", Element::button("Go", style(false)), |_| {}));
+            children.add(
+                "bar",
+                Element::menu_bar().style(|s| style(s, false)),
+                |bar| {
+                    for title in ["File", "Edit", "View"] {
+                        let item = Element::menu_item(title, "", ItemMark::Submenu)
+                            .style(|s| style(s, false));
+                        items.push(bar.add(title, item, |_| {}));
+                    }
+                },
+            );
+            button = Some(children.add(
+                "button",
+                Element::button("Go").style(|s| style(s, false)),
+                |_| {},
+            ));
         });
         ui.frame();
         Self {
@@ -92,13 +101,14 @@ impl Window {
                 modal: false,
                 dismiss: true,
             },
-            style(true),
+            |s| style(s, true),
         );
         let mut entries = Vec::new();
         self.ui.build(layer, 0, |children| {
-            children.add("menu", Element::menu(style(true)), |menu| {
+            children.add("menu", Element::menu().style(|s| style(s, true)), |menu| {
                 for label in ["one", "two"] {
-                    let entry = Element::menu_item(label, "", ItemMark::None, style(false));
+                    let entry =
+                        Element::menu_item(label, "", ItemMark::None).style(|s| style(s, false));
                     entries.push(menu.add(label, entry, |_| {}));
                 }
             });

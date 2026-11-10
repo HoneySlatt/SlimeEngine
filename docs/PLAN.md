@@ -86,7 +86,8 @@ The first half of M6d.2b2, cut in two at its start, on 2026-11-10
   - The derive numbers a style's leaves, an array one for each element, and says which lay out.
   - An own style as the declarations that code wrote, with their states, built by
     `Element::style(|s| ...)`, which keeps its call's place; a hover or a press without the fields
-    that lay out; a debug warning, once, for a state that a kind never takes.
+    that lay out; a debug warning, once, for a hover or a press written for a kind that the
+    pointer never reaches.
   - The constructors without a style, `Ui::add_root` and `Ui::open_layer` taking the builder's
     function; every call site of the repository moved, writing only what it wrote apart from the
     default before.

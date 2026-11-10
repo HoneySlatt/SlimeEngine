@@ -1,17 +1,25 @@
 //! The typed cascade checked against the reflected one that it replaced
 //! (`docs/adr/0229-styles-typed-as-declarations.md`): random rules and own styles, over every leaf
-//! of [`Style`] as reflection describes it, compose the same both ways, compared bit for bit.
+//! of [`Style`] as reflection describes it, compose the same both ways, compared bit for bit, an
+//! own style's arrays set by element (`docs/adr/0231-an-elements-own-style-written-in-code.md`);
+//! and every leaf through the mask order, the rules' states against the own style's.
 //!
 //! The reflected cascade is kept here as the test's oracle while `slime-reflect` is in uwui; once
 //! uwui reads its documents with `serde` (M6d.3), the fixtures of the `widgets` example's styles
 //! (`examples/tests/widgets.rs`) outlive it.
 
+use std::panic::Location;
+
+use slime_color::LinearColor;
 use slime_reflect::{Kind, Reflect, Registry, Value};
 
 use super::Ui;
-use crate::style::Style;
-use crate::text::Fonts;
-use crate::theme::{self, KindName, Rule, Selector};
+use crate::style::{
+    Align, Dimension, Display, Easing, FlexDirection, Justify, OwnStyle, Same, Shadow, Style,
+    StyleBuilder, StyleDeclaration, Track, state_bit,
+};
+use crate::text::{Alignment, Direction, Fonts};
+use crate::theme::{self, KindName, Rule, Selector, StateName};
 
 /// A generator of numbers that repeats from its seed: xorshift, as `tests/dock.rs`'s.
 struct Numbers(u64);
@@ -99,8 +107,64 @@ fn part(registry: &Registry, ty: &str, numbers: &mut Numbers) -> Value {
 }
 
 /// The style that the reflected cascade made of `parts`, the rules' in their order, then of `code`,
-/// an element's own: as `Ui::compose` did before the typed cascade.
+/// an element's own, as `Ui::compose` did before the typed cascade; but for an array's elements
+/// that `code` leaves at their defaults, which keep the rules', an own style setting an array by
+/// element (`docs/adr/0231-an-elements-own-style-written-in-code.md`).
 fn reflected(registry: &Registry, parts: &[Value], code: &Style) -> Style {
+    let mut style = reflected_whole(registry, parts, code);
+    let rules = reflected_whole(registry, parts, &Style::default());
+    let default = Style::default();
+    let by_element = |made: &mut [f32], code: &[f32], default: &[f32], rules: &[f32]| {
+        for (at, made) in made.iter_mut().enumerate() {
+            if code[at].same(&default[at]) {
+                *made = rules[at];
+            }
+        }
+    };
+    by_element(
+        &mut style.layout.gap,
+        &code.layout.gap,
+        &default.layout.gap,
+        &rules.layout.gap,
+    );
+    by_element(
+        &mut style.paint.radii,
+        &code.paint.radii,
+        &default.paint.radii,
+        &rules.paint.radii,
+    );
+    for (made, code, default, rules) in [
+        (
+            &mut style.layout.size,
+            &code.layout.size,
+            &default.layout.size,
+            &rules.layout.size,
+        ),
+        (
+            &mut style.layout.min_size,
+            &code.layout.min_size,
+            &default.layout.min_size,
+            &rules.layout.min_size,
+        ),
+        (
+            &mut style.layout.max_size,
+            &code.layout.max_size,
+            &default.layout.max_size,
+            &rules.layout.max_size,
+        ),
+    ] {
+        for at in 0..2 {
+            if code[at].same(&default[at]) {
+                made[at] = rules[at];
+            }
+        }
+    }
+    style
+}
+
+/// The style that the reflected cascade made of `parts` and `code`, every array of `code` that it
+/// sets set whole.
+fn reflected_whole(registry: &Registry, parts: &[Value], code: &Style) -> Style {
     if parts.is_empty() {
         return code.clone();
     }
@@ -183,7 +247,13 @@ fn random_rules_and_own_styles_compose_as_the_reflected_cascade_composed_them() 
         let selected: Vec<u32> = (0..parts.len() as u32).collect();
         // A container's base is the default style: it reads no color that a role gives.
         let base = ui.base_of[KindName::Container.index()];
-        let typed = ui.compose(base, &selected, &code);
+        let own = OwnStyle::default();
+        let own = {
+            let mut own = own;
+            own.extend(StyleBuilder::new(Location::caller()).with_style(&code));
+            own
+        };
+        let typed = ui.compose(base, &selected, &own, 0);
         let want = reflected(&registry, &parts, &code);
         assert!(
             same_bits(&registry, &typed, &want),
@@ -196,8 +266,6 @@ fn random_rules_and_own_styles_compose_as_the_reflected_cascade_composed_them() 
 #[test]
 fn own_styles_that_differ_by_a_signed_zero_share_no_style() {
     let mut ui = Ui::new(Fonts::new());
-    let mut negative = Style::default();
-    negative.layout.gap = [-0.0, 0.0];
     let sheet = theme::StyleSheet::from_text(
         "gap.style",
         "[gap]\nselect = {}\nstyle.layout.gap = [4, 4]\n",
@@ -212,29 +280,180 @@ fn own_styles_that_differ_by_a_signed_zero_share_no_style() {
             origin: [0.0; 2],
             modal: false,
         },
-        Style::default(),
+        |s| s,
     );
-    let (mut default_box, mut negative_box) = (None, None);
+    let (mut zero_box, mut negative_box) = (None, None);
     ui.build(root, 0, |children| {
-        default_box = Some(children.add(
-            "default",
-            super::Element::container(Style::default()),
+        zero_box = Some(children.add(
+            "zero",
+            super::Element::container().style(|s| s.row_gap(0.0)),
             |_| {},
         ));
         negative_box = Some(children.add(
             "negative",
-            super::Element::container(negative.clone()),
+            super::Element::container().style(|s| s.row_gap(-0.0)),
             |_| {},
         ));
     });
     ui.frame();
     let gap = |id| ui.style(id).expect("styled").layout.gap;
-    assert_eq!(gap(default_box.expect("built")), [4.0, 4.0]);
-    // The own style's gap differs from the default's by its bits, and is set whole over the rule:
-    // the two boxes share no style, as they did when styles were shared by equality.
+    // Each sets the gap between rows alone, over the rule; the gap between columns stays the
+    // rule's. The two differ by the sign of a zero, their bits: they share no style, as they did
+    // when styles were shared by equality.
+    let zero_gap = gap(zero_box.expect("built"));
     let negative_gap = gap(negative_box.expect("built"));
     assert!(
-        negative_gap[0].to_bits() == (-0.0_f32).to_bits() && negative_gap[1].to_bits() == 0,
-        "the own style's gap, set whole: {negative_gap:?}"
+        zero_gap[0].to_bits() == 0 && zero_gap[1] == 4.0,
+        "a gap between rows set to its default, the gap between columns the rule's: {zero_gap:?}"
     );
+    assert!(
+        negative_gap[0].to_bits() == (-0.0_f32).to_bits() && negative_gap[1] == 4.0,
+        "the own style's gap between rows, the rule's between columns: {negative_gap:?}"
+    );
+}
+
+/// A style whose every leaf holds another value than [`Style::default`]'s.
+fn every_leaf_changed() -> Style {
+    let color = LinearColor::rgba(0.1, 0.2, 0.3, 0.4);
+    let mut style = Style::default();
+    let layout = &mut style.layout;
+    layout.display = Display::Grid;
+    layout.direction = FlexDirection::Column;
+    layout.wrap = true;
+    layout.justify = Justify::End;
+    layout.align_items = Align::Center;
+    layout.align_self = Some(Align::End);
+    layout.gap = [1.0, 2.0];
+    layout.padding = crate::style::Sides::all(1.0);
+    layout.margin = crate::style::Sides::all(1.0);
+    layout.size = [Dimension::Pixels(1.0); 2];
+    layout.min_size = [Dimension::Pixels(1.0); 2];
+    layout.max_size = [Dimension::Pixels(1.0); 2];
+    layout.grow = 1.0;
+    layout.shrink = 0.0;
+    layout.basis = Dimension::Pixels(1.0);
+    layout.columns = vec![Track::Auto];
+    layout.rows = vec![Track::Auto];
+    layout.column.start = Some(1);
+    layout.column.span = 2;
+    layout.row.start = Some(1);
+    layout.row.span = 2;
+    let paint = &mut style.paint;
+    paint.background = color;
+    paint.border_width = 1.0;
+    paint.border = color;
+    paint.radii = [1.0; 4];
+    paint.shadow = Some(Shadow::default());
+    paint.opacity = 0.5;
+    paint.backdrop = color;
+    let text = &mut style.text;
+    text.style.fonts = vec!["Geist".to_owned()];
+    text.style.size = 12.0;
+    text.style.weight = 700.0;
+    text.style.italic = true;
+    text.style.line_height = 1.2;
+    text.style.alignment = Alignment::End;
+    text.style.direction = Direction::RightToLeft;
+    text.style.locale = Some("ja".to_owned());
+    text.style.features = vec!["tnum".to_owned()];
+    text.color = color;
+    text.selection = color;
+    let control = &mut style.control;
+    control.size = 12.0;
+    control.radius = 1.0;
+    control.track = color;
+    control.fill = color;
+    control.mark = color;
+    style.transition.duration = 0.1;
+    style.transition.easing = Easing::Linear;
+    let icons = &mut style.icons;
+    for glyph in [
+        &mut icons.font,
+        &mut icons.tick,
+        &mut icons.down,
+        &mut icons.right,
+        &mut icons.left,
+        &mut icons.search,
+        &mut icons.clear,
+    ] {
+        *glyph = "x".to_owned();
+    }
+    style
+}
+
+/// A rule that sets `declaration`, for elements in the state `state`, or in any for none.
+fn rule(state: Option<StateName>, declaration: &StyleDeclaration) -> Rule {
+    Rule {
+        selector: Selector {
+            states: state.into_iter().collect(),
+            ..Selector::default()
+        },
+        declarations: vec![declaration.clone()],
+    }
+}
+
+#[test]
+fn every_leaf_takes_the_mask_order() {
+    let changed = every_leaf_changed();
+    let default = Style::default();
+    let (mut other, mut back) = (Vec::new(), Vec::new());
+    changed.declared(&default, &mut |declaration| other.push(declaration));
+    default.declared(&changed, &mut |declaration| back.push(declaration));
+    assert_eq!(
+        other.len(),
+        Style::LEAVES,
+        "every leaf changed, one declaration each"
+    );
+    let mut ui = Ui::new(Fonts::new());
+    let base = ui.base_of[KindName::Container.index()];
+    let hovered = Some(StateName::Hovered);
+    for (set, at_default) in other.iter().zip(&back) {
+        assert_eq!(
+            set.leaf(),
+            at_default.leaf(),
+            "both in the order of the leaves"
+        );
+        let mut by_rule = default.clone();
+        set.apply(&mut by_rule);
+        let leaf = set.path();
+        let compose = |ui: &mut Ui, rules: Vec<Rule>, own: OwnStyle, held: u8| {
+            ui.rules = rules;
+            let selected: Vec<u32> = (0..ui.rules.len() as u32).collect();
+            ui.compose(base, &selected, &own, held)
+        };
+        let own_base = OwnStyle::of([(None, at_default.clone())]);
+        let own_hover = OwnStyle::of([(hovered, at_default.clone())]);
+        let hover = state_bit(StateName::Hovered);
+        // A rule's state beats a base set in code.
+        let made = compose(&mut ui, vec![rule(hovered, set)], own_base.clone(), 0);
+        assert!(
+            made.same(&by_rule),
+            "`{leaf}`: a rule's state over the own base"
+        );
+        // A stateless rule after it gives the field back to the own base, set to its default.
+        let rules = vec![rule(hovered, set), rule(None, set)];
+        let made = compose(&mut ui, rules, own_base.clone(), 0);
+        assert!(
+            made.same(&default),
+            "`{leaf}`: the own base over a stateless rule after"
+        );
+        // A field set in code to its default beats a rule.
+        let made = compose(&mut ui, vec![rule(None, set)], own_base, 0);
+        assert!(
+            made.same(&default),
+            "`{leaf}`: the own base, at its default, over a rule"
+        );
+        // An own state that holds beats a rule's state.
+        let made = compose(&mut ui, vec![rule(hovered, set)], own_hover.clone(), hover);
+        assert!(
+            made.same(&default),
+            "`{leaf}`: an own state over a rule's state"
+        );
+        // One that does not hold leaves the rule's.
+        let made = compose(&mut ui, vec![rule(None, set)], own_hover, 0);
+        assert!(
+            made.same(&by_rule),
+            "`{leaf}`: an own state that does not hold"
+        );
+    }
 }

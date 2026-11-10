@@ -8,7 +8,7 @@ use slime_reflect::{Path, Reflect, Value};
 use slime_world::glam::{DVec3, Quat, Vec3};
 use slime_world::{Command, Entity, Light, Name, World};
 use uwui::look::{self, Colors, Density};
-use uwui::style::{FlexDirection, Style};
+use uwui::style::FlexDirection;
 use uwui::text::Fonts;
 use uwui::tree::{Element, ElementId, LayoutDirection, Meaning, Role, RootSettings, Ui};
 
@@ -33,9 +33,7 @@ fn interface() -> (Ui, ElementId) {
         origin: [0.0; 2],
         modal: false,
     };
-    let mut column = Style::default();
-    column.layout.direction = FlexDirection::Column;
-    let root = ui.add_root("main", settings, column);
+    let root = ui.add_root("main", settings, |s| s.direction(FlexDirection::Column));
     (ui, root)
 }
 
@@ -485,7 +483,7 @@ fn a_value_outside_a_world_takes_the_edits_that_its_ranges_hold() {
     let (mut ui, root) = interface();
     let mut slot = None;
     ui.build(root, 0, |children| {
-        slot = Some(children.add_slot("knobs", Element::container(Style::default())));
+        slot = Some(children.add_slot("knobs", Element::container()));
     });
     let slot = slot.expect("built");
     let mut knobs = Knobs {
@@ -745,7 +743,7 @@ fn an_options_box_is_enabled_again_once_it_holds_a_value() {
     let (mut ui, root) = interface();
     let mut slot = None;
     ui.build(root, 0, |children| {
-        slot = Some(children.add_slot("pick", Element::container(Style::default())));
+        slot = Some(children.add_slot("pick", Element::container()));
     });
     let slot = slot.expect("built");
     let mut editor = ValueEditor::default();

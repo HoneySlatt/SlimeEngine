@@ -5,19 +5,17 @@
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind};
-use uwui::style::{FlexDirection, Style};
+use uwui::style::{FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
     Along, Element, ElementId, ElementState, ItemMark, Layer, LayoutDirection, Place, Role,
     RootSettings, Side, Ui,
 };
 
-/// A column of the tests' font.
-fn column() -> Style {
-    let mut style = Style::default();
-    style.layout.direction = FlexDirection::Column;
-    style.text.style.fonts = vec!["Noto Sans".to_owned()];
-    style
+/// Writes a column of the tests' font.
+fn column(s: StyleBuilder) -> StyleBuilder {
+    s.direction(FlexDirection::Column)
+        .fonts(vec!["Noto Sans".to_owned()])
 }
 
 /// A menu open below a button, by the keyboard: the interface, the button, the menu's layer and
@@ -45,10 +43,10 @@ impl Menu {
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root("main", settings, column());
+        let root = ui.add_root("main", settings, column);
         let mut button = None;
         ui.build(root, 0, |children| {
-            button = Some(children.add("file", Element::button("File", column()), |_| {}));
+            button = Some(children.add("file", Element::button("File").style(column), |_| {}));
         });
         ui.frame();
         let button = button.expect("built");
@@ -133,14 +131,14 @@ fn open_menu(ui: &mut Ui, place: Place, items: &[(&str, &str, ItemMark)]) -> Ele
             modal: false,
             dismiss: true,
         },
-        column(),
+        column,
     );
     ui.build(layer, 0, |children| {
-        children.add("menu", Element::menu(column()), |menu| {
+        children.add("menu", Element::menu().style(column), |menu| {
             for &(label, shortcut, mark) in items {
                 menu.add(
                     label,
-                    Element::menu_item(label, shortcut, mark, column()),
+                    Element::menu_item(label, shortcut, mark).style(column),
                     |_| {},
                 );
             }

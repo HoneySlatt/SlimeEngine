@@ -351,12 +351,16 @@ fn floating_layer(ui: &mut Ui, root: ElementId, modal: bool, style: Style) -> El
         modal,
         dismiss: false,
     };
-    ui.open_layer("layer", layer, style)
+    ui.open_layer("layer", layer, |s| s.with_style(&style))
 }
 
 /// A label for what a container holds, so that it holds something.
 fn label(children: &mut Children<'_>, key: &'static str) -> ElementId {
-    children.add(key, Element::label("Held", plain()), |_| {})
+    children.add(
+        key,
+        Element::label("Held").style(|s| s.with_style(&plain())),
+        |_| {},
+    )
 }
 
 /// The configurations of `kind`: what it may draw, from a reading of the code that draws it.
@@ -367,7 +371,7 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                 built(ui, root, 0, |children| {
                     children.add(
                         "subject",
-                        Element::container(sized(leaves, 120.0, 60.0)),
+                        Element::container().style(|s| s.with_style(&sized(leaves, 120.0, 60.0))),
                         |held| {
                             label(held, "held");
                         },
@@ -386,21 +390,33 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
             }),
         ],
         KindName::Label => vec![configuration("a label", |ui, root, leaves| {
-            alone(ui, root, Element::label("Name", shown(leaves)))
+            alone(
+                ui,
+                root,
+                Element::label("Name").style(|s| s.with_style(&shown(leaves))),
+            )
         })],
         KindName::Image => vec![configuration("an image", |ui, root, leaves| {
             alone(
                 ui,
                 root,
-                Element::image(ImageKey(7), sized(leaves, 40.0, 40.0)),
+                Element::image(ImageKey(7)).style(|s| s.with_style(&sized(leaves, 40.0, 40.0))),
             )
         })],
         KindName::Button => vec![
             configuration("a button", |ui, root, leaves| {
-                alone(ui, root, Element::button("Apply", shown(leaves)))
+                alone(
+                    ui,
+                    root,
+                    Element::button("Apply").style(|s| s.with_style(&shown(leaves))),
+                )
             }),
             configuration("a button pressed", |ui, root, leaves| {
-                let id = alone(ui, root, Element::button("Apply", shown(leaves)));
+                let id = alone(
+                    ui,
+                    root,
+                    Element::button("Apply").style(|s| s.with_style(&shown(leaves))),
+                );
                 ui.set_state(id, pressed());
                 id
             }),
@@ -428,7 +444,8 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
             configuration(
                 "a field holding nothing under a placeholder",
                 |ui, root, leaves| {
-                    let element = Element::text_field("", field(leaves, 200.0, 28.0));
+                    let element = Element::text_field("")
+                        .style(|s| s.with_style(&field(leaves, 200.0, 28.0)));
                     alone(ui, root, element.placeholder("Name"))
                 },
             ),
@@ -436,14 +453,16 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                 alone(
                     ui,
                     root,
-                    Element::text_field("Hello world", field(leaves, 200.0, 28.0)),
+                    Element::text_field("Hello world")
+                        .style(|s| s.with_style(&field(leaves, 200.0, 28.0))),
                 )
             }),
             configuration("a field focused, text selected", |ui, root, leaves| {
                 let id = alone(
                     ui,
                     root,
-                    Element::text_field("Hello world", field(leaves, 200.0, 28.0)),
+                    Element::text_field("Hello world")
+                        .style(|s| s.with_style(&field(leaves, 200.0, 28.0))),
                 );
                 select_start(ui, id, 5);
                 id
@@ -452,13 +471,15 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                 alone(
                     ui,
                     root,
-                    Element::text_area("Hello\nworld", field(leaves, 200.0, 80.0)),
+                    Element::text_area("Hello\nworld")
+                        .style(|s| s.with_style(&field(leaves, 200.0, 80.0))),
                 )
             }),
             configuration(
                 "a field of search holding nothing under a placeholder",
                 |ui, root, leaves| {
-                    let element = Element::search_field("", field(leaves, 200.0, 28.0));
+                    let element = Element::search_field("")
+                        .style(|s| s.with_style(&field(leaves, 200.0, 28.0)));
                     alone(ui, root, element.placeholder("Search"))
                 },
             ),
@@ -466,14 +487,19 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                 alone(
                     ui,
                     root,
-                    Element::search_field("lamp", field(leaves, 200.0, 28.0)),
+                    Element::search_field("lamp")
+                        .style(|s| s.with_style(&field(leaves, 200.0, 28.0))),
                 )
             }),
             bare(
                 "a field of search holding text, without icons",
                 |ui, root, leaves| {
                     let style = field(leaves, 200.0, 28.0);
-                    alone(ui, root, Element::search_field("lamp", style))
+                    alone(
+                        ui,
+                        root,
+                        Element::search_field("lamp").style(|s| s.with_style(&style)),
+                    )
                 },
             ),
             configuration(
@@ -482,7 +508,8 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                     let id = alone(
                         ui,
                         root,
-                        Element::search_field("lamp post", field(leaves, 200.0, 28.0)),
+                        Element::search_field("lamp post")
+                            .style(|s| s.with_style(&field(leaves, 200.0, 28.0))),
                     );
                     select_start(ui, id, 4);
                     id
@@ -494,22 +521,26 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                 alone(
                     ui,
                     root,
-                    Element::number_field(1.5, 0.1, field(leaves, 160.0, 28.0)),
+                    Element::number_field(1.5, 0.1)
+                        .style(|s| s.with_style(&field(leaves, 160.0, 28.0))),
                 )
             }),
             configuration("a number with a prefix", |ui, root, leaves| {
-                let element = Element::number_field(1.5, 0.1, field(leaves, 160.0, 28.0));
+                let element = Element::number_field(1.5, 0.1)
+                    .style(|s| s.with_style(&field(leaves, 160.0, 28.0)));
                 alone(ui, root, element.prefix("X"))
             }),
             configuration("a number with units", |ui, root, leaves| {
-                let element = Element::number_field(1.5, 0.1, field(leaves, 160.0, 28.0));
+                let element = Element::number_field(1.5, 0.1)
+                    .style(|s| s.with_style(&field(leaves, 160.0, 28.0)));
                 alone(ui, root, element.units(Units::Length))
             }),
             configuration("a number focused, text selected", |ui, root, leaves| {
                 let id = alone(
                     ui,
                     root,
-                    Element::number_field(1.5, 0.1, field(leaves, 160.0, 28.0)),
+                    Element::number_field(1.5, 0.1)
+                        .style(|s| s.with_style(&field(leaves, 160.0, 28.0))),
                 );
                 select_start(ui, id, 2);
                 id
@@ -520,26 +551,33 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                 alone(
                     ui,
                     root,
-                    Element::check_box("Casts shadows", false, sized(leaves, 200.0, 32.0)),
+                    Element::check_box("Casts shadows", false)
+                        .style(|s| s.with_style(&sized(leaves, 200.0, 32.0))),
                 )
             }),
             configuration("a check box checked", |ui, root, leaves| {
                 alone(
                     ui,
                     root,
-                    Element::check_box("Casts shadows", true, sized(leaves, 200.0, 32.0)),
+                    Element::check_box("Casts shadows", true)
+                        .style(|s| s.with_style(&sized(leaves, 200.0, 32.0))),
                 )
             }),
             bare("a check box checked, without icons", |ui, root, leaves| {
                 let style = sized(leaves, 200.0, 32.0);
-                alone(ui, root, Element::check_box("Casts shadows", true, style))
+                alone(
+                    ui,
+                    root,
+                    Element::check_box("Casts shadows", true).style(|s| s.with_style(&style)),
+                )
             }),
         ],
         KindName::Slider => vec![configuration("a slider at half", |ui, root, leaves| {
             alone(
                 ui,
                 root,
-                Element::slider(0.5, 0.0, 1.0, 0.0, sized(leaves, 200.0, 32.0)),
+                Element::slider(0.5, 0.0, 1.0, 0.0)
+                    .style(|s| s.with_style(&sized(leaves, 200.0, 32.0))),
             )
         })],
         KindName::Section => vec![
@@ -560,12 +598,17 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
             built(ui, root, 0, |children| {
                 children.add(
                     "subject",
-                    Element::tab_bar(1, sized(leaves, 240.0, 28.0)),
+                    Element::tab_bar(1).style(|s| s.with_style(&sized(leaves, 240.0, 28.0))),
                     |bar| {
                         for (place, title) in
                             ["General", "Physics", "Audio"].into_iter().enumerate()
                         {
-                            bar.add(place, Element::tab(title, plain_sized(80.0, 28.0)), |_| {});
+                            bar.add(
+                                place,
+                                Element::tab(title)
+                                    .style(|s| s.with_style(&plain_sized(80.0, 28.0))),
+                                |_| {},
+                            );
                         }
                     },
                 )
@@ -577,7 +620,7 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                     ui,
                     root,
                     0,
-                    Element::tab("Physics", sized(leaves, 80.0, 28.0)),
+                    Element::tab("Physics").style(|s| s.with_style(&sized(leaves, 80.0, 28.0))),
                 )
             }),
             configuration("a tab not chosen", |ui, root, leaves| {
@@ -585,15 +628,17 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                     ui,
                     root,
                     1,
-                    Element::tab("Physics", sized(leaves, 80.0, 28.0)),
+                    Element::tab("Physics").style(|s| s.with_style(&sized(leaves, 80.0, 28.0))),
                 )
             }),
             configuration("a tab chosen with a count", |ui, root, leaves| {
-                let element = Element::counted_tab("Physics", 12, sized(leaves, 120.0, 28.0));
+                let element = Element::counted_tab("Physics", 12)
+                    .style(|s| s.with_style(&sized(leaves, 120.0, 28.0)));
                 tab(ui, root, 0, element)
             }),
             configuration("a tab not chosen with a count", |ui, root, leaves| {
-                let element = Element::counted_tab("Physics", 12, sized(leaves, 120.0, 28.0));
+                let element = Element::counted_tab("Physics", 12)
+                    .style(|s| s.with_style(&sized(leaves, 120.0, 28.0)));
                 tab(ui, root, 1, element)
             }),
         ],
@@ -638,23 +683,33 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
             built(ui, root, 0, |children| {
                 let mut style = sized(leaves, 220.0, 64.0);
                 style.layout.direction = FlexDirection::Column;
-                children.add("subject", Element::menu(style), |menu| {
-                    for key in ["new", "open"] {
-                        let item = Element::menu_item(key, "", ItemMark::None, column());
-                        menu.add(key, item, |_| {});
-                    }
-                })
+                children.add(
+                    "subject",
+                    Element::menu().style(|s| s.with_style(&style)),
+                    |menu| {
+                        for key in ["new", "open"] {
+                            let item = Element::menu_item(key, "", ItemMark::None)
+                                .style(|s| s.with_style(&column()));
+                            menu.add(key, item, |_| {});
+                        }
+                    },
+                )
             })
         })],
         KindName::MenuBar => vec![configuration("a bar of two menus", |ui, root, leaves| {
             built(ui, root, 0, |children| {
                 let style = sized(leaves, 240.0, 28.0);
-                children.add("subject", Element::menu_bar(style), |bar| {
-                    for key in ["File", "Edit"] {
-                        let item = Element::menu_item(key, "", ItemMark::None, plain());
-                        bar.add(key, item, |_| {});
-                    }
-                })
+                children.add(
+                    "subject",
+                    Element::menu_bar().style(|s| s.with_style(&style)),
+                    |bar| {
+                        for key in ["File", "Edit"] {
+                            let item = Element::menu_item(key, "", ItemMark::None)
+                                .style(|s| s.with_style(&plain()));
+                            bar.add(key, item, |_| {});
+                        }
+                    },
+                )
             })
         })],
         KindName::MenuItem => vec![
@@ -690,15 +745,15 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
             configuration("an item of a bar of menus", |ui, root, leaves| {
                 let mut id = None;
                 built(ui, root, 0, |children| {
-                    children.add("bar", Element::menu_bar(plain_sized(240.0, 28.0)), |bar| {
-                        let item = Element::menu_item(
-                            "File",
-                            "",
-                            ItemMark::None,
-                            sized(leaves, 80.0, 28.0),
-                        );
-                        id = Some(bar.add("subject", item, |_| {}));
-                    })
+                    children.add(
+                        "bar",
+                        Element::menu_bar().style(|s| s.with_style(&plain_sized(240.0, 28.0))),
+                        |bar| {
+                            let item = Element::menu_item("File", "", ItemMark::None)
+                                .style(|s| s.with_style(&sized(leaves, 80.0, 28.0)));
+                            id = Some(bar.add("subject", item, |_| {}));
+                        },
+                    )
                 });
                 id.expect("built")
             }),
@@ -708,21 +763,27 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                 alone(
                     ui,
                     root,
-                    Element::choice(["Low", "High"], 1, sized(leaves, 160.0, 32.0)),
+                    Element::choice(["Low", "High"], 1)
+                        .style(|s| s.with_style(&sized(leaves, 160.0, 32.0))),
                 )
             }),
             bare(
                 "a list to choose from, without icons",
                 |ui, root, leaves| {
                     let style = sized(leaves, 160.0, 32.0);
-                    alone(ui, root, Element::choice(["Low", "High"], 1, style))
+                    alone(
+                        ui,
+                        root,
+                        Element::choice(["Low", "High"], 1).style(|s| s.with_style(&style)),
+                    )
                 },
             ),
             configuration("a list to choose from, pressed", |ui, root, leaves| {
                 let id = alone(
                     ui,
                     root,
-                    Element::choice(["Low", "High"], 0, sized(leaves, 160.0, 32.0)),
+                    Element::choice(["Low", "High"], 0)
+                        .style(|s| s.with_style(&sized(leaves, 160.0, 32.0))),
                 );
                 ui.set_state(id, pressed());
                 id
@@ -751,11 +812,14 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                 built(ui, root, 0, |children| {
                     children.add(
                         "section",
-                        Element::section("Light", true, plain_sized(240.0, 100.0)),
+                        Element::section("Light", true)
+                            .style(|s| s.with_style(&plain_sized(240.0, 100.0))),
                         |section| {
-                            let header = Element::section_header(shown(leaves));
+                            let header =
+                                Element::section_header().style(|s| s.with_style(&shown(leaves)));
                             id = Some(section.add("subject", header, |slot| {
-                                let reset = Element::button("Reset", plain_sized(40.0, 20.0));
+                                let reset = Element::button("Reset")
+                                    .style(|s| s.with_style(&plain_sized(40.0, 20.0)));
                                 slot.add("reset", reset, |_| {});
                             }));
                             label(section, "body");
@@ -770,14 +834,14 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                 alone(
                     ui,
                     root,
-                    Element::toggle_button("Snap", true, shown(leaves)),
+                    Element::toggle_button("Snap", true).style(|s| s.with_style(&shown(leaves))),
                 )
             }),
             configuration("a toggle button off", |ui, root, leaves| {
                 alone(
                     ui,
                     root,
-                    Element::toggle_button("Snap", false, shown(leaves)),
+                    Element::toggle_button("Snap", false).style(|s| s.with_style(&shown(leaves))),
                 )
             }),
         ],
@@ -787,10 +851,11 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                 built(ui, root, 0, |children| {
                     children.add(
                         "subject",
-                        Element::segments(0, sized(leaves, 200.0, 28.0)),
+                        Element::segments(0).style(|s| s.with_style(&sized(leaves, 200.0, 28.0))),
                         |segments| {
                             for (place, title) in ["Move", "Turn"].into_iter().enumerate() {
-                                let segment = Element::segment(title, plain_sized(100.0, 28.0));
+                                let segment = Element::segment(title)
+                                    .style(|s| s.with_style(&plain_sized(100.0, 28.0)));
                                 segments.add(place, segment, |_| {});
                             }
                         },
@@ -811,7 +876,8 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                 alone(
                     ui,
                     root,
-                    Element::progress(Some(0.4), sized(leaves, 200.0, 24.0)),
+                    Element::progress(Some(0.4))
+                        .style(|s| s.with_style(&sized(leaves, 200.0, 24.0))),
                 )
             }),
             configuration(
@@ -820,7 +886,8 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                     alone(
                         ui,
                         root,
-                        Element::progress(Some(0.0), sized(leaves, 200.0, 24.0)),
+                        Element::progress(Some(0.0))
+                            .style(|s| s.with_style(&sized(leaves, 200.0, 24.0))),
                     )
                 },
             ),
@@ -828,22 +895,34 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
                 alone(
                     ui,
                     root,
-                    Element::progress(None, sized(leaves, 200.0, 24.0)),
+                    Element::progress(None).style(|s| s.with_style(&sized(leaves, 200.0, 24.0))),
                 )
             }),
         ],
         KindName::ColorWell => vec![
             configuration("a color well of an opaque color", |ui, root, leaves| {
                 let color = LinearColor::rgba(0.8, 0.3, 0.1, 1.0);
-                alone(ui, root, Element::color_well(color, shown(leaves)))
+                alone(
+                    ui,
+                    root,
+                    Element::color_well(color).style(|s| s.with_style(&shown(leaves))),
+                )
             }),
             configuration("a color well of a translucent color", |ui, root, leaves| {
                 let color = LinearColor::rgba(0.8, 0.3, 0.1, 0.5);
-                alone(ui, root, Element::color_well(color, shown(leaves)))
+                alone(
+                    ui,
+                    root,
+                    Element::color_well(color).style(|s| s.with_style(&shown(leaves))),
+                )
             }),
             configuration("a color well with its picker open", |ui, root, leaves| {
                 let color = LinearColor::rgba(0.8, 0.3, 0.1, 1.0);
-                let id = alone(ui, root, Element::color_well(color, shown(leaves)));
+                let id = alone(
+                    ui,
+                    root,
+                    Element::color_well(color).style(|s| s.with_style(&shown(leaves))),
+                );
                 ui.frame();
                 ui.press_well(id);
                 id
@@ -873,10 +952,8 @@ pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
             alone(
                 ui,
                 root,
-                Element::of(
-                    Kind::Surface { image: ImageKey(9) },
-                    sized(leaves, 60.0, 40.0),
-                ),
+                Element::of(Kind::Surface { image: ImageKey(9) })
+                    .style(|s| s.with_style(&sized(leaves, 60.0, 40.0))),
             )
         })],
     }
@@ -887,11 +964,12 @@ fn scroll(ui: &mut Ui, root: ElementId, leaves: &Style, content: (f32, f32)) -> 
     built(ui, root, 0, |children| {
         children.add(
             "subject",
-            Element::scroll(sized(leaves, 100.0, 60.0)),
+            Element::scroll().style(|s| s.with_style(&sized(leaves, 100.0, 60.0))),
             |scroll| {
                 scroll.add(
                     "content",
-                    Element::container(plain_sized(content.0, content.1)),
+                    Element::container()
+                        .style(|s| s.with_style(&plain_sized(content.0, content.1))),
                     |_| {},
                 );
             },
@@ -907,10 +985,14 @@ fn list(ui: &mut Ui, root: ElementId, leaves: &Style, rows: usize) -> ElementId 
         subject = Some(built(ui, root, revision, |children| {
             children.add(
                 "subject",
-                Element::list(rows, 20.0, sized(leaves, 100.0, 60.0)),
+                Element::list(rows, 20.0).style(|s| s.with_style(&sized(leaves, 100.0, 60.0))),
                 |list| {
                     for row in list.rows() {
-                        list.add(row, Element::container(plain_sized(100.0, 20.0)), |_| {});
+                        list.add(
+                            row,
+                            Element::container().style(|s| s.with_style(&plain_sized(100.0, 20.0))),
+                            |_| {},
+                        );
                     }
                 },
             )
@@ -927,7 +1009,7 @@ fn section(ui: &mut Ui, root: ElementId, leaves: &Style, open: bool) -> ElementI
         style.layout.size = [Dimension::Pixels(240.0), Dimension::Auto];
         children.add(
             "subject",
-            Element::section("Transform", open, style),
+            Element::section("Transform", open).style(|s| s.with_style(&style)),
             |section| {
                 label(section, "body");
             },
@@ -939,7 +1021,7 @@ fn section(ui: &mut Ui, root: ElementId, leaves: &Style, open: bool) -> ElementI
 fn floating_panel(ui: &mut Ui, root: ElementId, leaves: &Style, open: bool) -> ElementId {
     let layer = floating_layer(ui, root, false, Style::default());
     built(ui, layer, 0, |children| {
-        let panel = Element::floating_panel("Color", open, shown(leaves));
+        let panel = Element::floating_panel("Color", open).style(|s| s.with_style(&shown(leaves)));
         children.add("subject", panel, |panel| {
             label(panel, "body");
         })
@@ -952,13 +1034,13 @@ fn tab(ui: &mut Ui, root: ElementId, chosen: usize, subject: Element) -> Element
     built(ui, root, 0, |children| {
         children.add(
             "bar",
-            Element::tab_bar(chosen, plain_sized(320.0, 28.0)),
+            Element::tab_bar(chosen).style(|s| s.with_style(&plain_sized(320.0, 28.0))),
             |bar| {
                 id = Some(bar.add(0_usize, subject, |_| {}));
                 for place in 1_usize..3 {
                     bar.add(
                         place,
-                        Element::tab("Other", plain_sized(80.0, 28.0)),
+                        Element::tab("Other").style(|s| s.with_style(&plain_sized(80.0, 28.0))),
                         |_| {},
                     );
                 }
@@ -973,12 +1055,16 @@ fn split(ui: &mut Ui, root: ElementId, leaves: &Style, side_by_side: bool) -> El
     built(ui, root, 0, |children| {
         children.add(
             "subject",
-            Element::split(side_by_side, 0.4, sized(leaves, 300.0, 100.0)),
+            Element::split(side_by_side, 0.4).style(|s| s.with_style(&sized(leaves, 300.0, 100.0))),
             |panels| {
                 for key in ["first", "second"] {
-                    panels.add(key, Element::container(plain()), |held| {
-                        label(held, "held");
-                    });
+                    panels.add(
+                        key,
+                        Element::container().style(|s| s.with_style(&plain())),
+                        |held| {
+                            label(held, "held");
+                        },
+                    );
                 }
             },
         )
@@ -991,21 +1077,24 @@ fn splitter(ui: &mut Ui, root: ElementId, leaves: &Style) -> ElementId {
     built(ui, root, 0, |children| {
         children.add(
             "box",
-            Element::container(plain_sized(300.0, 100.0)),
+            Element::container().style(|s| s.with_style(&plain_sized(300.0, 100.0))),
             |held| {
                 held.add(
                     "first",
-                    Element::container(plain_sized(100.0, 100.0)),
+                    Element::container().style(|s| s.with_style(&plain_sized(100.0, 100.0))),
                     |_| {},
                 );
-                id = Some(held.add(
-                    "subject",
-                    Element::splitter(true, 0.4, sized(leaves, 8.0, 100.0)),
-                    |_| {},
-                ));
+                id = Some(
+                    held.add(
+                        "subject",
+                        Element::splitter(true, 0.4)
+                            .style(|s| s.with_style(&sized(leaves, 8.0, 100.0))),
+                        |_| {},
+                    ),
+                );
                 held.add(
                     "second",
-                    Element::container(plain_sized(100.0, 100.0)),
+                    Element::container().style(|s| s.with_style(&plain_sized(100.0, 100.0))),
                     |_| {},
                 );
             },
@@ -1024,13 +1113,20 @@ fn menu_item(
 ) -> ElementId {
     let mut id = None;
     built(ui, root, 0, |children| {
-        children.add("menu", Element::menu(column()), |menu| {
-            id = Some(menu.add(
-                "subject",
-                Element::menu_item("Item", shortcut, mark, sized(leaves, 220.0, 28.0)),
-                |_| {},
-            ));
-        })
+        children.add(
+            "menu",
+            Element::menu().style(|s| s.with_style(&column())),
+            |menu| {
+                id = Some(
+                    menu.add(
+                        "subject",
+                        Element::menu_item("Item", shortcut, mark)
+                            .style(|s| s.with_style(&sized(leaves, 220.0, 28.0))),
+                        |_| {},
+                    ),
+                );
+            },
+        )
     });
     id.expect("built")
 }
@@ -1041,16 +1137,16 @@ fn segment(ui: &mut Ui, root: ElementId, leaves: &Style, chosen: usize) -> Eleme
     built(ui, root, 0, |children| {
         children.add(
             "segments",
-            Element::segments(chosen, plain_sized(200.0, 28.0)),
+            Element::segments(chosen).style(|s| s.with_style(&plain_sized(200.0, 28.0))),
             |segments| {
                 id = Some(segments.add(
                     0_usize,
-                    Element::segment("Move", sized(leaves, 100.0, 28.0)),
+                    Element::segment("Move").style(|s| s.with_style(&sized(leaves, 100.0, 28.0))),
                     |_| {},
                 ));
                 segments.add(
                     1_usize,
-                    Element::segment("Turn", plain_sized(100.0, 28.0)),
+                    Element::segment("Turn").style(|s| s.with_style(&plain_sized(100.0, 28.0))),
                     |_| {},
                 );
             },
@@ -1072,10 +1168,8 @@ fn color_part(
     let well = alone(
         ui,
         root,
-        Element::color_well(
-            LinearColor::rgba(0.8, 0.3, 0.1, 0.7),
-            plain_sized(60.0, 24.0),
-        ),
+        Element::color_well(LinearColor::rgba(0.8, 0.3, 0.1, 0.7))
+            .style(|s| s.with_style(&plain_sized(60.0, 24.0))),
     );
     ui.frame();
     ui.press_well(well);
@@ -1096,11 +1190,16 @@ fn color_part(
         )
     });
     let node = ui.node_mut(part).expect("a part");
-    let style = &mut node.element.style;
-    style.text = leaves.text.clone();
-    style.control = leaves.control;
-    style.icons = leaves.icons.clone();
-    style.paint.backdrop = leaves.paint.backdrop;
+    // The leaves over the part's own size, which the picker gave it.
+    let mut given = Style {
+        text: leaves.text.clone(),
+        control: leaves.control,
+        icons: leaves.icons.clone(),
+        ..Style::default()
+    };
+    given.paint.backdrop = leaves.paint.backdrop;
+    let element = node.element.clone().style(|s| s.with_style(&given));
+    node.element = element;
     ui.mark_style(part);
     ui.set_focus(focused.then_some(part));
     part
@@ -1159,7 +1258,7 @@ fn draw(
             origin: [0.0; 2],
             modal: false,
         },
-        Style::default(),
+        |s| s,
     );
     // A bare configuration has no font of icons: the controls draw the shapes that they draw
     // without one, a mark's square or bars, a chevron's bar, a magnifier's ring.

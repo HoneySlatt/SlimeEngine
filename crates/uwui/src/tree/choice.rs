@@ -9,7 +9,7 @@ use super::{
     Along, ChoiceOption, Element, ElementId, ItemMark, Kind, Layer, Place, Role, Side, Ui,
 };
 use crate::action::{Action, ActionKind, FieldValue};
-use crate::style::{Dimension, FlexDirection, Style};
+use crate::style::{Dimension, FlexDirection};
 
 impl Ui {
     /// A press of the list to choose from `id`: its list opens below it, or closes unchanged when
@@ -37,20 +37,21 @@ impl Ui {
             modal: false,
             dismiss: true,
         };
-        let root = self.open_owned_layer(id, "choices", layer, Style::default());
-        // As wide as the list to choose from, at least; read as a list of options.
-        let mut style = Style::default();
-        style.layout.direction = FlexDirection::Column;
-        style.layout.min_size[0] = Dimension::Pixels(width);
+        let root = self.open_owned_layer(id, "choices", layer, |s| s);
         let mut items = Vec::new();
         self.build(root, 0, |children| {
-            let menu = Element::menu(style).role(Role::ListBox);
+            // As wide as the list to choose from, at least; read as a list of options.
+            let menu = Element::menu()
+                .style(|s| {
+                    s.direction(FlexDirection::Column)
+                        .min_width(Dimension::Pixels(width))
+                })
+                .role(Role::ListBox);
             children.add("options", menu, |menu| {
                 for (place, option) in options.iter().enumerate() {
                     let mark = ItemMark::Check(place == chosen);
-                    let mut item =
-                        Element::menu_item(option.label.as_str(), "", mark, Style::default())
-                            .role(Role::ListBoxOption);
+                    let mut item = Element::menu_item(option.label.as_str(), "", mark)
+                        .role(Role::ListBoxOption);
                     item.tooltip.clone_from(&option.help);
                     items.push(menu.add(place, item, |_| {}));
                 }

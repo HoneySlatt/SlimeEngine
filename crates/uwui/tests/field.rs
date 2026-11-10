@@ -14,7 +14,7 @@ use slime_input::{
 use uwui::action::{ActionKind, FieldValue};
 use uwui::display::Primitive;
 use uwui::shortcuts::Shortcuts;
-use uwui::style::{Dimension, Style};
+use uwui::style::{Dimension, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{Clipboard, Element, ElementId, LayoutDirection, RootSettings, Ui};
 
@@ -30,12 +30,11 @@ fn ui() -> Ui {
     Ui::new(fonts)
 }
 
-/// A style of 200 by 30 logical pixels, of the tests' fonts.
-fn style() -> Style {
-    let mut style = Style::default();
-    style.layout.size = [Dimension::Pixels(200.0), Dimension::Pixels(30.0)];
-    style.text.style.fonts = vec!["Noto Sans".to_owned(), "Noto Sans Hebrew".to_owned()];
-    style
+/// Writes 200 by 30 logical pixels, of the tests' fonts.
+fn style(s: StyleBuilder) -> StyleBuilder {
+    s.width(Dimension::Pixels(200.0))
+        .height(Dimension::Pixels(30.0))
+        .fonts(vec!["Noto Sans".to_owned(), "Noto Sans Hebrew".to_owned()])
 }
 
 /// An interface whose root, of 400 by 300 logical pixels at scale 1, holds `element` then a
@@ -49,11 +48,11 @@ fn interface(element: Element) -> (Ui, ElementId, ElementId, ElementId) {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root("main", settings, Style::default());
+    let root = ui.add_root("main", settings, |s| s);
     let (mut field, mut button) = (None, None);
     ui.build(root, 0, |children| {
         field = Some(children.add("field", element, |_| {}));
-        button = Some(children.add("button", Element::button("", style()), |_| {}));
+        button = Some(children.add("button", Element::button("").style(style), |_| {}));
     });
     ui.frame();
     (ui, root, field.expect("built"), button.expect("built"))
@@ -146,7 +145,7 @@ impl Clipboard for Board {
 
 #[test]
 fn text_typed_is_moved_through_by_clusters_and_words_and_committed_once_changed() {
-    let (mut ui, _, field, _) = interface(Element::text_field("", style()));
+    let (mut ui, _, field, _) = interface(Element::text_field("").style(style));
     ui.set_focus(Some(field));
     type_text(&mut ui, "hello world");
     assert_eq!(ui.field_text(field), Some("hello world"));
@@ -182,7 +181,7 @@ fn text_typed_is_moved_through_by_clusters_and_words_and_committed_once_changed(
 
 #[test]
 fn typing_is_undone_whole_and_done_again() {
-    let (mut ui, _, field, _) = interface(Element::text_field("", style()));
+    let (mut ui, _, field, _) = interface(Element::text_field("").style(style));
     ui.set_focus(Some(field));
     type_text(&mut ui, "abc");
     ui.key(&named(NamedKey::Backspace));
@@ -201,7 +200,7 @@ fn typing_is_undone_whole_and_done_again() {
 
 #[test]
 fn text_is_copied_cut_and_pasted_through_the_clipboard() {
-    let (mut ui, _, field, _) = interface(Element::text_field("copy me", style()));
+    let (mut ui, _, field, _) = interface(Element::text_field("copy me").style(style));
     let board = Board::default();
     ui.set_clipboard(Box::new(board.clone()));
     assert!(ui.has_clipboard());
@@ -227,7 +226,7 @@ fn text_is_copied_cut_and_pasted_through_the_clipboard() {
 
 #[test]
 fn an_input_method_composes_text_which_one_undo_takes_back() {
-    let (mut ui, _, field, _) = interface(Element::text_field("", style()));
+    let (mut ui, _, field, _) = interface(Element::text_field("").style(style));
     let preedit = |text: &str| Ime::Preedit {
         text: text.to_owned(),
         cursor: Some((text.len(), text.len())),
@@ -265,7 +264,7 @@ fn an_input_method_composes_text_which_one_undo_takes_back() {
 
 #[test]
 fn the_pointer_places_the_caret_and_selects() {
-    let (mut ui, _, field, button) = interface(Element::text_field("pointer", style()));
+    let (mut ui, _, field, button) = interface(Element::text_field("pointer").style(style));
     let press = |ui: &mut Ui, x: f32| {
         ui.pointer_moved(x, 15.0);
         assert!(ui.pointer_button(MouseButton::Left, ButtonState::Pressed));
@@ -302,7 +301,7 @@ fn the_pointer_places_the_caret_and_selects() {
 
 #[test]
 fn a_field_of_numbers_writes_only_what_the_user_changed() {
-    let (mut ui, _, field, button) = interface(Element::number_field(1.5, 0.1, style()));
+    let (mut ui, _, field, button) = interface(Element::number_field(1.5, 0.1).style(style));
     assert_eq!(ui.field_text(field), Some("1.5"));
     // Focused and left unchanged: nothing.
     ui.set_focus(Some(field));
@@ -355,11 +354,11 @@ fn a_field_of_numbers_writes_only_what_the_user_changed() {
 
 #[test]
 fn the_program_s_text_replaces_the_user_s_only_when_it_changes() {
-    let (mut ui, root, field, _) = interface(Element::text_field("given", style()));
+    let (mut ui, root, field, _) = interface(Element::text_field("given").style(style));
     let build = |ui: &mut Ui, revision: u64, text: &str| {
         ui.build(root, revision, |children| {
-            children.add("field", Element::text_field(text, style()), |_| {});
-            children.add("button", Element::button("", style()), |_| {});
+            children.add("field", Element::text_field(text).style(style), |_| {});
+            children.add("button", Element::button("").style(style), |_| {});
         });
         ui.frame();
     };
@@ -373,7 +372,7 @@ fn the_program_s_text_replaces_the_user_s_only_when_it_changes() {
 
 #[test]
 fn words_are_moved_through_as_they_show_in_text_from_right_to_left() {
-    let (mut ui, _, field, _) = interface(Element::text_field("שלום עולם", style()));
+    let (mut ui, _, field, _) = interface(Element::text_field("שלום עולם").style(style));
     ui.set_focus(Some(field));
     // The caret at the text's logical end, which shows on the left: the word on its right is the
     // last one's start.
@@ -385,7 +384,7 @@ fn words_are_moved_through_as_they_show_in_text_from_right_to_left() {
 
 #[test]
 fn a_field_takes_what_it_types_before_the_shortcuts_and_leaves_tab_to_the_focus() {
-    let (mut ui, _, field, button) = interface(Element::text_field("", style()));
+    let (mut ui, _, field, button) = interface(Element::text_field("").style(style));
     let table = Shortcuts::from_text("keys", "[global]\nT = \"theme\"\n");
     ui.set_shortcuts(&[table]).expect("a table");
     ui.set_focus(Some(field));
@@ -417,7 +416,7 @@ fn preedit(text: &str) -> Ime {
 
 #[test]
 fn a_composition_leaves_the_text_whole_however_it_starts_and_ends() {
-    let (mut ui, _, field, button) = interface(Element::text_field("keep it", style()));
+    let (mut ui, _, field, button) = interface(Element::text_field("keep it").style(style));
     ui.set_focus(Some(field));
     chord(&mut ui, control(), &typed("a"));
     // The empty composition that input methods send before each commit deletes nothing.
@@ -452,7 +451,7 @@ fn a_composition_leaves_the_text_whole_however_it_starts_and_ends() {
 
 #[test]
 fn an_edit_that_changes_nothing_tells_nothing() {
-    let (mut ui, _, field, _) = interface(Element::text_field("text", style()));
+    let (mut ui, _, field, _) = interface(Element::text_field("text").style(style));
     ui.set_focus(Some(field));
     ui.key(&named(NamedKey::Delete));
     ui.key(&named(NamedKey::Home));
@@ -470,11 +469,11 @@ fn an_edit_that_changes_nothing_tells_nothing() {
 
 #[test]
 fn the_program_clears_a_field_or_gives_back_a_text_once_another_is_committed() {
-    let (mut ui, root, field, button) = interface(Element::text_field("", style()));
+    let (mut ui, root, field, button) = interface(Element::text_field("").style(style));
     let build = |ui: &mut Ui, revision: u64, text: &str| {
         ui.build(root, revision, |children| {
-            children.add("field", Element::text_field(text, style()), |_| {});
-            children.add("button", Element::button("", style()), |_| {});
+            children.add("field", Element::text_field(text).style(style), |_| {});
+            children.add("button", Element::button("").style(style), |_| {});
         });
         ui.frame();
     };
@@ -511,9 +510,8 @@ fn the_program_clears_a_field_or_gives_back_a_text_once_another_is_committed() {
 
 #[test]
 fn a_field_of_several_lines_breaks_lines_moves_between_them_and_commits_with_ctrl_enter() {
-    let mut style = style();
-    style.layout.size = [Dimension::Pixels(200.0), Dimension::Pixels(80.0)];
-    let (mut ui, _, field, _) = interface(Element::text_area("", style));
+    let area = Element::text_area("").style(|s| style(s).height(Dimension::Pixels(80.0)));
+    let (mut ui, _, field, _) = interface(area);
     ui.set_focus(Some(field));
     type_text(&mut ui, "ab");
     assert!(ui.key(&named(NamedKey::Enter)));
@@ -531,7 +529,7 @@ fn a_field_of_several_lines_breaks_lines_moves_between_them_and_commits_with_ctr
 
 #[test]
 fn a_field_of_one_line_leaves_up_down_and_escape_to_the_focus() {
-    let (mut ui, _, field, _) = interface(Element::text_field("one", style()));
+    let (mut ui, _, field, _) = interface(Element::text_field("one").style(style));
     ui.set_focus(Some(field));
     // Taken by the interface, which holds the focus, not typed.
     assert!(ui.key(&named(NamedKey::ArrowUp)));
@@ -547,7 +545,7 @@ fn a_field_of_one_line_leaves_up_down_and_escape_to_the_focus() {
 
 #[test]
 fn ctrl_reads_a_letter_of_another_script_by_its_place_and_altgr_types() {
-    let (mut ui, _, field, _) = interface(Element::text_field("", style()));
+    let (mut ui, _, field, _) = interface(Element::text_field("").style(style));
     ui.set_focus(Some(field));
     type_text(&mut ui, "ab");
     // Ctrl and the key in Z's place on a Cyrillic layout: an undo.
@@ -564,7 +562,7 @@ fn ctrl_reads_a_letter_of_another_script_by_its_place_and_altgr_types() {
 
 #[test]
 fn a_drag_gives_multiples_of_its_step_whatever_its_sign_and_one_undo() {
-    let (mut ui, _, field, _) = interface(Element::number_field(1.0, 0.25, style()));
+    let (mut ui, _, field, _) = interface(Element::number_field(1.0, 0.25).style(style));
     let drag = |ui: &mut Ui, to: f32| {
         ui.pointer_moved(100.0, 15.0);
         ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
@@ -578,11 +576,11 @@ fn a_drag_gives_multiples_of_its_step_whatever_its_sign_and_one_undo() {
     ui.set_focus(Some(field));
     chord(&mut ui, control(), &typed("z"));
     assert_eq!(ui.field_text(field), Some("1"), "the whole drag undone");
-    let (mut ui, _, field, _) = interface(Element::number_field(1.0, -0.5, style()));
+    let (mut ui, _, field, _) = interface(Element::number_field(1.0, -0.5).style(style));
     drag(&mut ui, 104.0);
     assert_eq!(ui.field_text(field), Some("-1"));
     // A number of more decimals than its step keeps them: 1.25, four tenths up, is 1.65.
-    let (mut ui, _, field, _) = interface(Element::number_field(1.25, 0.1, style()));
+    let (mut ui, _, field, _) = interface(Element::number_field(1.25, 0.1).style(style));
     drag(&mut ui, 104.0);
     assert_eq!(ui.field_text(field), Some("1.65"));
     // A release away from a field pressed without a drag gives it no focus.
@@ -595,7 +593,7 @@ fn a_drag_gives_multiples_of_its_step_whatever_its_sign_and_one_undo() {
 
 #[test]
 fn a_field_keeps_its_caret_in_view_and_places_a_line_written_from_right_to_left_at_its_end() {
-    let (mut ui, _, field, _) = interface(Element::text_field("", style()));
+    let (mut ui, _, field, _) = interface(Element::text_field("").style(style));
     let rect = ui.rect(field).expect("drawn");
     assert!(rect.height > 0.0);
     ui.set_focus(Some(field));
@@ -624,7 +622,7 @@ fn a_field_keeps_its_caret_in_view_and_places_a_line_written_from_right_to_left_
     let caret = ui.text_input().expect("a field takes text");
     assert!(caret.x > rect.x + rect.width / 2.0, "{caret:?}");
     // Hebrew, its start on the right, in a field wider than it.
-    let (mut ui, _, field, _) = interface(Element::text_field("שלום", style()));
+    let (mut ui, _, field, _) = interface(Element::text_field("שלום").style(style));
     ui.set_focus(Some(field));
     ui.key(&named(NamedKey::Home));
     let caret = ui.text_input().expect("a field takes text");
@@ -633,7 +631,7 @@ fn a_field_keeps_its_caret_in_view_and_places_a_line_written_from_right_to_left_
 
 #[test]
 fn fields_mean_inputs_that_take_the_focus() {
-    let (ui, _, field, _) = interface(Element::number_field(1.0, 1.0, style()));
+    let (ui, _, field, _) = interface(Element::number_field(1.0, 1.0).style(style));
     let meaning = ui.meaning_of(field).expect("a field means something");
     assert_eq!(meaning.role, uwui::tree::Role::SpinButton);
     assert_eq!(
@@ -645,7 +643,7 @@ fn fields_mean_inputs_that_take_the_focus() {
     );
     // Its value, the text that it shows.
     assert_eq!(meaning.value.as_deref(), Some("1"));
-    let (ui, _, field, button) = interface(Element::text_area("two\nlines", style()));
+    let (ui, _, field, button) = interface(Element::text_area("two\nlines").style(style));
     let meaning = ui.meaning_of(field).expect("a field means something");
     assert_eq!(meaning.role, uwui::tree::Role::MultilineTextInput);
     assert_eq!(meaning.value.as_deref(), Some("two\nlines"));
@@ -655,12 +653,16 @@ fn fields_mean_inputs_that_take_the_focus() {
 #[test]
 fn a_program_that_gives_back_each_change_keeps_what_the_user_is_typing() {
     // A program that mirrors what it reads into the field it builds, as an inspector does.
-    let (mut ui, root, field, _) = interface(Element::number_field(1.05, 0.1, style()));
+    let (mut ui, root, field, _) = interface(Element::number_field(1.05, 0.1).style(style));
     let mut mirrored = 1.05;
     let build = |ui: &mut Ui, revision: u64, value: f64| {
         ui.build(root, revision, |children| {
-            children.add("field", Element::number_field(value, 0.1, style()), |_| {});
-            children.add("button", Element::button("", style()), |_| {});
+            children.add(
+                "field",
+                Element::number_field(value, 0.1).style(style),
+                |_| {},
+            );
+            children.add("button", Element::button("").style(style), |_| {});
         });
         ui.frame();
     };
@@ -679,11 +681,11 @@ fn a_program_that_gives_back_each_change_keeps_what_the_user_is_typing() {
     type_text(&mut ui, "7");
     assert_eq!(ui.field_text(field), Some("1.07"));
     // The same while an input method composes: the text given back is the text without it.
-    let (mut ui, root, field, _) = interface(Element::text_field("hello", style()));
+    let (mut ui, root, field, _) = interface(Element::text_field("hello").style(style));
     let build = |ui: &mut Ui, revision: u64, text: &str| {
         ui.build(root, revision, |children| {
-            children.add("field", Element::text_field(text, style()), |_| {});
-            children.add("button", Element::button("", style()), |_| {});
+            children.add("field", Element::text_field(text).style(style), |_| {});
+            children.add("button", Element::button("").style(style), |_| {});
         });
         ui.frame();
     };
@@ -701,14 +703,19 @@ fn a_program_that_gives_back_each_change_keeps_what_the_user_is_typing() {
 fn a_field_of_single_precision_shows_an_f32_shortest_and_keeps_what_was_committed() {
     // A program that holds the number in an `f32`, as most components do.
     let held = f64::from(0.3f32);
-    let (mut ui, root, field, _) =
-        interface(Element::number_field(held, 0.1, style()).single_precision());
+    let (mut ui, root, field, _) = interface(
+        Element::number_field(held, 0.1)
+            .style(style)
+            .single_precision(),
+    );
     assert_eq!(ui.field_text(field), Some("0.3"));
     let build = |ui: &mut Ui, revision: u64, value: f64| {
         ui.build(root, revision, |children| {
-            let element = Element::number_field(value, 0.1, style()).single_precision();
+            let element = Element::number_field(value, 0.1)
+                .style(style)
+                .single_precision();
             children.add("field", element, |_| {});
-            children.add("button", Element::button("", style()), |_| {});
+            children.add("button", Element::button("").style(style), |_| {});
         });
         ui.frame();
     };
@@ -734,13 +741,13 @@ fn a_field_of_single_precision_shows_an_f32_shortest_and_keeps_what_was_committe
     );
     assert_eq!(ui.field_text(field), Some("0.12345679"));
     // A field of double precision shows the `f64` whole.
-    let (ui, _, field, _) = interface(Element::number_field(held, 0.1, style()));
+    let (ui, _, field, _) = interface(Element::number_field(held, 0.1).style(style));
     assert_eq!(ui.field_text(field), Some("0.30000001192092896"));
 }
 
 #[test]
 fn a_press_that_reaches_no_element_takes_the_focus_away_and_commits() {
-    let (mut ui, _, field, _) = interface(Element::text_field("", style()));
+    let (mut ui, _, field, _) = interface(Element::text_field("").style(style));
     ui.set_focus(Some(field));
     type_text(&mut ui, "typed");
     ui.take_actions();
@@ -755,9 +762,9 @@ fn a_press_that_reaches_no_element_takes_the_focus_away_and_commits() {
 
 #[test]
 fn the_caret_stays_within_a_field_whose_text_is_pushed_to_its_end() {
-    let mut aligned = style();
-    aligned.text.style.alignment = uwui::text::Alignment::End;
-    let (mut ui, _, field, _) = interface(Element::text_field("", aligned));
+    let aligned =
+        Element::text_field("").style(|s| style(s).text_align(uwui::text::Alignment::End));
+    let (mut ui, _, field, _) = interface(aligned);
     let rect = ui.rect(field).expect("drawn");
     ui.set_focus(Some(field));
     let within = |ui: &Ui| {
@@ -773,7 +780,7 @@ fn the_caret_stays_within_a_field_whose_text_is_pushed_to_its_end() {
     type_text(&mut ui, &"wide ".repeat(20));
     within(&ui);
     // Hebrew, which starts on the right, with its caret at its start.
-    let (mut ui, _, field, _) = interface(Element::text_field("שלום", style()));
+    let (mut ui, _, field, _) = interface(Element::text_field("שלום").style(style));
     ui.set_focus(Some(field));
     ui.key(&named(NamedKey::Home));
     within(&ui);
@@ -782,7 +789,7 @@ fn the_caret_stays_within_a_field_whose_text_is_pushed_to_its_end() {
 
 #[test]
 fn a_field_takes_the_keys_that_type_through_an_input_method_without_text_of_their_own() {
-    let (mut ui, _, field, _) = interface(Element::text_field("", style()));
+    let (mut ui, _, field, _) = interface(Element::text_field("").style(style));
     ui.set_focus(Some(field));
     // The key with which an input method begins to compose on Windows, before it says so, and a
     // dead key, which the key after it combines with: taken, and typing nothing of their own.
@@ -802,7 +809,7 @@ fn a_field_takes_the_keys_that_type_through_an_input_method_without_text_of_thei
 
 #[test]
 fn a_drag_cut_short_by_another_press_commits_what_it_gave() {
-    let (mut ui, _, field, _) = interface(Element::number_field(1.0, 0.5, style()));
+    let (mut ui, _, field, _) = interface(Element::number_field(1.0, 0.5).style(style));
     ui.pointer_moved(100.0, 15.0);
     ui.pointer_button(MouseButton::Left, ButtonState::Pressed);
     ui.pointer_moved(110.0, 15.0);
@@ -815,7 +822,7 @@ fn a_drag_cut_short_by_another_press_commits_what_it_gave() {
 
 #[test]
 fn a_value_set_replaces_what_the_field_holds_as_one_edit_then_commits() {
-    let (mut ui, _, field, button) = interface(Element::text_field("old", style()));
+    let (mut ui, _, field, button) = interface(Element::text_field("old").style(style));
     ui.set_focus(Some(button));
     assert!(ui.set_value(field, "new\ntext"));
     // A line break, in a field of one line, as a space; the focus where it was.
@@ -839,14 +846,14 @@ fn a_value_set_replaces_what_the_field_holds_as_one_edit_then_commits() {
     assert_eq!(ui.field_text(field), Some("set"));
     assert_eq!(values(&mut ui), ["changed \"set\"", "committed \"set\""]);
     // A field of several lines keeps its line breaks.
-    let (mut ui, _, area, _) = interface(Element::text_area("", style()));
+    let (mut ui, _, area, _) = interface(Element::text_area("").style(style));
     assert!(ui.set_value(area, "a\nb"));
     assert_eq!(ui.field_text(area), Some("a\nb"));
 }
 
 #[test]
 fn a_value_set_is_refused_where_a_person_could_not_type_it() {
-    let (mut ui, _, field, button) = interface(Element::number_field(1.0, 1.0, style()));
+    let (mut ui, _, field, button) = interface(Element::number_field(1.0, 1.0).style(style));
     // A text that reads as no number, or as none finite: the field keeps its number.
     assert!(!ui.set_value(field, "two"));
     assert!(!ui.set_value(field, "inf"));
@@ -869,7 +876,7 @@ fn a_value_set_is_refused_where_a_person_could_not_type_it() {
 
 #[test]
 fn a_selection_set_by_bytes_moves_the_caret_and_selects() {
-    let (mut ui, _, field, button) = interface(Element::text_field("héllo world", style()));
+    let (mut ui, _, field, button) = interface(Element::text_field("héllo world").style(style));
     assert!(!ui.select_text(button, 0, 0), "a button holds no text");
     ui.set_focus(Some(field));
     // Inside `é`, moved back to its start; past the end, kept at the end.
@@ -883,9 +890,9 @@ fn a_selection_set_by_bytes_moves_the_caret_and_selects() {
 
 #[test]
 fn an_empty_field_shows_its_placeholder_in_its_quieter_color_until_it_holds_text() {
-    let mut style = style();
-    style.control.track = slime_color::LinearColor::rgba(0.5, 0.5, 0.5, 1.0);
-    let field = Element::text_field("", style).placeholder("Search entities");
+    let field = Element::text_field("")
+        .style(|s| style(s).track_color(slime_color::LinearColor::rgba(0.5, 0.5, 0.5, 1.0)))
+        .placeholder("Search entities");
     let (mut ui, _, field, _) = interface(field);
     let placeholder_drawn = |ui: &mut Ui| {
         let (list, _) = ui.frame();

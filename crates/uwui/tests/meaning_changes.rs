@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 use slime_input::{ButtonState, MouseButton};
 use uwui::action::{Action, ActionKind};
-use uwui::style::{Dimension, Display, FlexDirection, Style};
+use uwui::style::{Dimension, Display, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
     Element, ElementId, FieldText, LayoutDirection, MeaningChanges, MeaningNode, Role,
@@ -37,13 +37,12 @@ fn settings(modal: bool) -> RootSettings {
     }
 }
 
-/// A style of `width` by `height` logical pixels, which does not shrink, of the tests' fonts.
-fn sized(width: f32, height: f32) -> Style {
-    let mut style = Style::default();
-    style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(height)];
-    style.layout.shrink = 0.0;
-    style.text.style.fonts = vec!["Noto Sans".to_owned(), "Noto Sans Hebrew".to_owned()];
-    style
+/// Writes `width` by `height` logical pixels, which does not shrink, of the tests' fonts.
+fn sized(s: StyleBuilder, width: f32, height: f32) -> StyleBuilder {
+    s.width(Dimension::Pixels(width))
+        .height(Dimension::Pixels(height))
+        .shrink(0.0)
+        .fonts(vec!["Noto Sans".to_owned(), "Noto Sans Hebrew".to_owned()])
 }
 
 /// What a screen reader's adapter holds of the tree, from the changes it was given.
@@ -114,37 +113,63 @@ fn number(ui: &mut Ui, id: ElementId) -> u64 {
 /// `revision` changes, a box that only lays out a named panel and, from revision 2, a second, a box
 /// that scrolls two buttons, and a field.
 fn build(ui: &mut Ui, root: ElementId, revision: u64) {
-    let mut column = sized(400.0, 300.0);
-    column.layout.direction = FlexDirection::Column;
     ui.build(root, revision, |children| {
-        children.add("page", Element::container(column), |children| {
-            let bar = Element::container(sized(400.0, 40.0)).named("tools");
+        let page =
+            Element::container().style(|s| sized(s, 400.0, 300.0).direction(FlexDirection::Column));
+        children.add("page", page, |children| {
+            let bar = Element::container()
+                .style(|s| sized(s, 400.0, 40.0))
+                .named("tools");
             children.add("bar", bar, |children| {
-                children.add("open", Element::button("open", sized(100.0, 40.0)), |_| {});
-                children.add("save", Element::button("save", sized(100.0, 40.0)), |_| {});
+                children.add(
+                    "open",
+                    Element::button("open").style(|s| sized(s, 100.0, 40.0)),
+                    |_| {},
+                );
+                children.add(
+                    "save",
+                    Element::button("save").style(|s| sized(s, 100.0, 40.0)),
+                    |_| {},
+                );
             });
             let words = format!("revision {revision}");
-            children.add("status", Element::label(words, sized(400.0, 20.0)), |_| {});
+            children.add(
+                "status",
+                Element::label(words).style(|s| sized(s, 400.0, 20.0)),
+                |_| {},
+            );
             children.add(
                 "layout",
-                Element::container(sized(400.0, 40.0)),
+                Element::container().style(|s| sized(s, 400.0, 40.0)),
                 |children| {
-                    let panel = Element::container(sized(100.0, 40.0)).named("panel");
+                    let panel = Element::container()
+                        .style(|s| sized(s, 100.0, 40.0))
+                        .named("panel");
                     children.add("panel", panel, |_| {});
                     if revision >= 2 {
-                        let second = Element::container(sized(100.0, 40.0)).named("second");
+                        let second = Element::container()
+                            .style(|s| sized(s, 100.0, 40.0))
+                            .named("second");
                         children.add("second", second, |_| {});
                     }
                 },
             );
-            let mut scroll = sized(150.0, 40.0);
-            scroll.layout.direction = FlexDirection::Column;
-            children.add("scroll", Element::scroll(scroll), |children| {
+            let scroll =
+                Element::scroll().style(|s| sized(s, 150.0, 40.0).direction(FlexDirection::Column));
+            children.add("scroll", scroll, |children| {
                 for name in ["first", "next"] {
-                    children.add(name, Element::button(name, sized(150.0, 30.0)), |_| {});
+                    children.add(
+                        name,
+                        Element::button(name).style(|s| sized(s, 150.0, 30.0)),
+                        |_| {},
+                    );
                 }
             });
-            children.add("field", Element::text_field("", sized(200.0, 30.0)), |_| {});
+            children.add(
+                "field",
+                Element::text_field("").style(|s| sized(s, 200.0, 30.0)),
+                |_| {},
+            );
         });
     });
 }
@@ -152,7 +177,7 @@ fn build(ui: &mut Ui, root: ElementId, revision: u64) {
 #[test]
 fn the_changes_hold_what_changed_and_applied_give_the_whole_tree() {
     let mut ui = ui();
-    let root = ui.add_root("main", settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), |s| s);
     build(&mut ui, root, 1);
     ui.frame();
     let mut held = Held::default();
@@ -247,16 +272,22 @@ fn the_changes_hold_what_changed_and_applied_give_the_whole_tree() {
 #[test]
 fn a_modal_root_makes_the_changes_whole_as_it_opens_and_closes() {
     let mut ui = ui();
-    let root = ui.add_root("main", settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), |s| s);
     build(&mut ui, root, 1);
     ui.frame();
     let mut held = Held::default();
     held.apply(ui.take_meaning_changes(false));
-    let dialog = ui.add_root("main", settings(true), Style::default());
+    let dialog = ui.add_root("main", settings(true), |s| s);
     ui.build(dialog, 0, |children| {
-        let box_of = Element::container(sized(200.0, 100.0)).role(Role::Dialog);
+        let box_of = Element::container()
+            .style(|s| sized(s, 200.0, 100.0))
+            .role(Role::Dialog);
         children.add("dialog", box_of, |children| {
-            children.add("ok", Element::button("ok", sized(50.0, 30.0)), |_| {});
+            children.add(
+                "ok",
+                Element::button("ok").style(|s| sized(s, 50.0, 30.0)),
+                |_| {},
+            );
         });
     });
     ui.frame();
@@ -284,15 +315,20 @@ fn a_modal_root_makes_the_changes_whole_as_it_opens_and_closes() {
 #[test]
 fn a_box_hidden_leaves_the_tree_and_shown_again_comes_back_whole() {
     let mut ui = ui();
-    let root = ui.add_root("main", settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), |s| s);
     let build = |ui: &mut Ui, revision: u64, display: Display| {
         ui.build(root, revision, |children| {
-            let mut style = sized(300.0, 100.0);
-            style.layout.display = display;
-            children.add("box", Element::container(style), |children| {
-                let group = Element::container(sized(200.0, 50.0)).named("group");
+            let boxed = Element::container().style(|s| sized(s, 300.0, 100.0).display(display));
+            children.add("box", boxed, |children| {
+                let group = Element::container()
+                    .style(|s| sized(s, 200.0, 50.0))
+                    .named("group");
                 children.add("group", group, |children| {
-                    children.add("yes", Element::button("yes", sized(50.0, 30.0)), |_| {});
+                    children.add(
+                        "yes",
+                        Element::button("yes").style(|s| sized(s, 50.0, 30.0)),
+                        |_| {},
+                    );
                 });
             });
         });
@@ -316,7 +352,7 @@ fn a_box_hidden_leaves_the_tree_and_shown_again_comes_back_whole() {
 #[test]
 fn numbers_name_one_element_or_run_each_and_find_it_again() {
     let mut ui = ui();
-    let root = ui.add_root("main", settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), |s| s);
     build(&mut ui, root, 1);
     ui.frame();
     let changes = ui.take_meaning_changes(true);
@@ -345,7 +381,11 @@ fn numbers_name_one_element_or_run_each_and_find_it_again() {
     let before = number(&mut ui, status);
     ui.remove(status);
     ui.build(root, 9, |children| {
-        children.add("again", Element::label("again", sized(100.0, 20.0)), |_| {});
+        children.add(
+            "again",
+            Element::label("again").style(|s| sized(s, 100.0, 20.0)),
+            |_| {},
+        );
     });
     ui.frame();
     let again = ui.element_by_path("main/again").expect("built");
@@ -356,7 +396,7 @@ fn numbers_name_one_element_or_run_each_and_find_it_again() {
 #[test]
 fn changes_that_no_one_takes_are_kept_within_bounds_and_then_whole() {
     let mut ui = ui();
-    let root = ui.add_root("main", settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), |s| s);
     build(&mut ui, root, 1);
     ui.frame();
     ui.take_meaning_changes(false);
@@ -374,7 +414,11 @@ fn changes_that_no_one_takes_are_kept_within_bounds_and_then_whole() {
     // Many elements made and removed, never taken: the next changes are whole.
     for revision in 0..1_500 {
         ui.build(root, 100 + revision, |children| {
-            children.add(revision, Element::label("row", sized(10.0, 10.0)), |_| {});
+            children.add(
+                revision,
+                Element::label("row").style(|s| sized(s, 10.0, 10.0)),
+                |_| {},
+            );
         });
     }
     assert!(ui.take_meaning_changes(false).whole);
@@ -384,12 +428,12 @@ fn changes_that_no_one_takes_are_kept_within_bounds_and_then_whole() {
 /// `multiline`, its selection from `anchor` to `focus`.
 fn runs(text: &str, width: f32, multiline: bool, selection: Option<(usize, usize)>) -> FieldText {
     let mut ui = ui();
-    let root = ui.add_root("main", settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), |s| s);
     let mut field = None;
     let element = if multiline {
-        Element::text_area(text, sized(width, 200.0))
+        Element::text_area(text).style(|s| sized(s, width, 200.0))
     } else {
-        Element::text_field(text, sized(width, 30.0))
+        Element::text_field(text).style(|s| sized(s, width, 30.0))
     };
     ui.build(root, 0, |children| {
         field = Some(children.add("field", element, |_| {}));
@@ -512,7 +556,7 @@ fn sorted(mut numbers: Vec<u64>) -> Vec<u64> {
 #[test]
 fn a_press_on_a_button_changes_its_state_alone() {
     let mut ui = ui();
-    let root = ui.add_root("main", settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), |s| s);
     build(&mut ui, root, 1);
     ui.frame();
     let mut held = Held::default();
@@ -534,14 +578,22 @@ fn a_press_on_a_button_changes_its_state_alone() {
 #[test]
 fn a_box_named_comes_between_its_children_and_the_element_above_them() {
     let mut ui = ui();
-    let root = ui.add_root("main", settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), |s| s);
     let build = |ui: &mut Ui, revision: u64, name: Option<&str>| {
         ui.build(root, revision, |children| {
-            let mut group = Element::container(sized(200.0, 50.0));
+            let mut group = Element::container().style(|s| sized(s, 200.0, 50.0));
             group.name = name.map(str::to_owned);
             children.add("group", group, |children| {
-                children.add("yes", Element::button("yes", sized(50.0, 30.0)), |_| {});
-                children.add("no", Element::button("no", sized(50.0, 30.0)), |_| {});
+                children.add(
+                    "yes",
+                    Element::button("yes").style(|s| sized(s, 50.0, 30.0)),
+                    |_| {},
+                );
+                children.add(
+                    "no",
+                    Element::button("no").style(|s| sized(s, 50.0, 30.0)),
+                    |_| {},
+                );
             });
         });
     };
@@ -572,26 +624,26 @@ fn a_box_named_comes_between_its_children_and_the_element_above_them() {
 #[test]
 fn rows_built_by_a_scroll_another_kind_under_a_key_and_a_disabled_button_keep_the_tree_whole() {
     let mut ui = ui();
-    let root = ui.add_root("main", settings(false), Style::default());
+    let root = ui.add_root("main", settings(false), |s| s);
     let build = |ui: &mut Ui, revision: u64, kind_of_second: bool| {
         ui.build(root, revision, |children| {
             children.add(
                 "list",
-                Element::list(1_000, 20.0, sized(200.0, 60.0)),
+                Element::list(1_000, 20.0).style(|s| sized(s, 200.0, 60.0)),
                 |rows| {
                     for row in rows.rows() {
                         rows.add(
                             row,
-                            Element::label(format!("row {row}"), sized(200.0, 20.0)),
+                            Element::label(format!("row {row}")).style(|s| sized(s, 200.0, 20.0)),
                             |_| {},
                         );
                     }
                 },
             );
             let second = if kind_of_second {
-                Element::button("second", sized(80.0, 30.0))
+                Element::button("second").style(|s| sized(s, 80.0, 30.0))
             } else {
-                Element::label("second", sized(80.0, 30.0))
+                Element::label("second").style(|s| sized(s, 80.0, 30.0))
             };
             children.add("second", second, |_| {});
         });
@@ -648,11 +700,15 @@ fn rows_built_by_a_scroll_another_kind_under_a_key_and_a_disabled_button_keep_th
 #[test]
 fn a_root_resized_or_removed_below_others_changes_what_it_shows_but_not_their_paths() {
     let mut ui = ui();
-    let first = ui.add_root("first", settings(false), Style::default());
-    let second = ui.add_root("second", settings(false), Style::default());
+    let first = ui.add_root("first", settings(false), |s| s);
+    let second = ui.add_root("second", settings(false), |s| s);
     for root in [first, second] {
         ui.build(root, 0, |children| {
-            children.add("wide", Element::button("wide", sized(350.0, 30.0)), |_| {});
+            children.add(
+                "wide",
+                Element::button("wide").style(|s| sized(s, 350.0, 30.0)),
+                |_| {},
+            );
         });
     }
     ui.frame();
@@ -687,14 +743,18 @@ fn a_root_resized_or_removed_below_others_changes_what_it_shows_but_not_their_pa
 fn a_root_is_named_by_its_key_and_a_key_already_held_by_a_variant_of_it() {
     let mut ui = ui();
     let roots = [
-        ui.add_root("main", settings(false), Style::default()),
-        ui.add_root("main", settings(false), Style::default()),
-        ui.add_root(3_u64, settings(false), Style::default()),
-        ui.add_root(3_u64, settings(false), Style::default()),
+        ui.add_root("main", settings(false), |s| s),
+        ui.add_root("main", settings(false), |s| s),
+        ui.add_root(3_u64, settings(false), |s| s),
+        ui.add_root(3_u64, settings(false), |s| s),
     ];
     for root in roots {
         ui.build(root, 0, |children| {
-            children.add("wide", Element::button("wide", sized(350.0, 30.0)), |_| {});
+            children.add(
+                "wide",
+                Element::button("wide").style(|s| sized(s, 350.0, 30.0)),
+                |_| {},
+            );
         });
     }
     ui.frame();
@@ -711,9 +771,13 @@ fn a_root_is_named_by_its_key_and_a_key_already_held_by_a_variant_of_it() {
     }
     // A key let go is free again.
     ui.remove(roots[0]);
-    let again = ui.add_root("main", settings(false), Style::default());
+    let again = ui.add_root("main", settings(false), |s| s);
     ui.build(again, 0, |children| {
-        children.add("wide", Element::button("wide", sized(350.0, 30.0)), |_| {});
+        children.add(
+            "wide",
+            Element::button("wide").style(|s| sized(s, 350.0, 30.0)),
+            |_| {},
+        );
     });
     ui.frame();
     assert_eq!(
@@ -725,27 +789,40 @@ fn a_root_is_named_by_its_key_and_a_key_already_held_by_a_variant_of_it() {
 #[test]
 fn widgets_used_change_what_they_mean_and_keep_the_tree_whole() {
     let mut ui = ui();
-    let root = ui.add_root("main", settings(false), Style::default());
-    let mut column = sized(400.0, 300.0);
-    column.layout.direction = FlexDirection::Column;
+    let root = ui.add_root("main", settings(false), |s| s);
     let build = |ui: &mut Ui| {
         ui.build(root, 0, |children| {
-            children.add("page", Element::container(column.clone()), |children| {
-                let check = Element::check_box("shadows", false, sized(200.0, 24.0));
+            let page = Element::container()
+                .style(|s| sized(s, 400.0, 300.0).direction(FlexDirection::Column));
+            children.add("page", page, |children| {
+                let check = Element::check_box("shadows", false).style(|s| sized(s, 200.0, 24.0));
                 children.add("check", check, |_| {});
-                let slider = Element::slider(0.5, 0.0, 1.0, 0.1, sized(200.0, 24.0));
+                let slider = Element::slider(0.5, 0.0, 1.0, 0.1).style(|s| sized(s, 200.0, 24.0));
                 children.add("slider", slider, |_| {});
-                let section = Element::section("physics", false, sized(200.0, 60.0));
+                let section = Element::section("physics", false).style(|s| sized(s, 200.0, 60.0));
                 children.add("section", section, |children| {
-                    children.add("mass", Element::label("mass", sized(100.0, 20.0)), |_| {});
+                    children.add(
+                        "mass",
+                        Element::label("mass").style(|s| sized(s, 100.0, 20.0)),
+                        |_| {},
+                    );
                 });
-                let bar = children.add("tabs", Element::tab_bar(0, sized(200.0, 24.0)), |tabs| {
-                    for title in ["scene", "light"] {
-                        tabs.add(title, Element::tab(title, sized(80.0, 24.0)), |_| {});
-                    }
-                });
+                let bar = children.add(
+                    "tabs",
+                    Element::tab_bar(0).style(|s| sized(s, 200.0, 24.0)),
+                    |tabs| {
+                        for title in ["scene", "light"] {
+                            tabs.add(
+                                title,
+                                Element::tab(title).style(|s| sized(s, 80.0, 24.0)),
+                                |_| {},
+                            );
+                        }
+                    },
+                );
                 let shown = ["scene", "light"][children.chosen(bar)];
-                let panel = Element::container(sized(200.0, 40.0))
+                let panel = Element::container()
+                    .style(|s| sized(s, 200.0, 40.0))
                     .role(Role::TabPanel)
                     .named(shown);
                 children.add(shown, panel, |_| {});

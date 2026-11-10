@@ -8,21 +8,22 @@ use std::time::Duration;
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
-use uwui::style::{Dimension, FlexDirection, Style};
+use uwui::style::{Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
     Along, Element, ElementId, ItemMark, Layer, LayoutDirection, Place, RootSettings, Side, Ui,
 };
 
-/// A style of the tests' font, `width` by 30 logical pixels where `width` is given.
-fn style(width: Option<f32>) -> Style {
-    let mut style = Style::default();
-    if let Some(width) = width {
-        style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(30.0)];
-        style.layout.shrink = 0.0;
-    }
-    style.text.style.fonts = vec!["Noto Sans".to_owned()];
-    style
+/// Writes the tests' font, and `width` by 30 logical pixels where `width` is given.
+fn style(s: StyleBuilder, width: Option<f32>) -> StyleBuilder {
+    let s = match width {
+        Some(width) => s
+            .width(Dimension::Pixels(width))
+            .height(Dimension::Pixels(30.0))
+            .shrink(0.0),
+        None => s,
+    };
+    s.fonts(vec!["Noto Sans".to_owned()])
 }
 
 /// An interface of 400 by 300 whose root, a column, holds two buttons of 100 by 30, the first with
@@ -41,14 +42,20 @@ fn interface() -> (Ui, ElementId, [ElementId; 2]) {
         origin: [0.0; 2],
         modal: false,
     };
-    let mut column = style(None);
-    column.layout.direction = FlexDirection::Column;
-    let root = ui.add_root("main", settings, column);
+    let root = ui.add_root("main", settings, |s| {
+        style(s, None).direction(FlexDirection::Column)
+    });
     let mut buttons = Vec::new();
     ui.build(root, 0, |children| {
-        let save = Element::button("Save", style(Some(100.0))).tooltip("Save the level");
+        let save = Element::button("Save")
+            .style(|s| style(s, Some(100.0)))
+            .tooltip("Save the level");
         buttons.push(children.add("save", save, |_| {}));
-        buttons.push(children.add("load", Element::button("Load", style(Some(100.0))), |_| {}));
+        buttons.push(children.add(
+            "load",
+            Element::button("Load").style(|s| style(s, Some(100.0))),
+            |_| {},
+        ));
     });
     ui.frame();
     (ui, root, [buttons[0], buttons[1]])
@@ -192,15 +199,14 @@ fn an_item_of_a_menu_opens_its_submenu_as_the_pointer_rests_on_it() {
             modal: false,
             dismiss: true,
         },
-        style(None),
+        |s| style(s, None),
     );
     let mut items = Vec::new();
     ui.build(layer, 0, |children| {
-        let mut column = style(None);
-        column.layout.direction = FlexDirection::Column;
-        children.add("menu", Element::menu(column), |menu| {
+        let column = Element::menu().style(|s| style(s, None).direction(FlexDirection::Column));
+        children.add("menu", column, |menu| {
             for (label, mark) in [("new", ItemMark::None), ("recent", ItemMark::Submenu)] {
-                let item = Element::menu_item(label, "", mark, style(None));
+                let item = Element::menu_item(label, "", mark).style(|s| style(s, None));
                 items.push(menu.add(label, item, |_| {}));
             }
         });
@@ -232,13 +238,13 @@ fn an_item_of_a_menu_opens_its_submenu_as_the_pointer_rests_on_it() {
             modal: false,
             dismiss: true,
         },
-        style(None),
+        |s| style(s, None),
     );
     ui.build(submenu, 0, |children| {
-        children.add("menu", Element::menu(style(None)), |menu| {
+        children.add("menu", Element::menu().style(|s| style(s, None)), |menu| {
             menu.add(
                 "one",
-                Element::menu_item("one", "", ItemMark::None, style(None)),
+                Element::menu_item("one", "", ItemMark::None).style(|s| style(s, None)),
                 |_| {},
             );
         });

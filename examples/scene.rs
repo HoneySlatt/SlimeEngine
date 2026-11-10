@@ -68,7 +68,6 @@ use slime_render::{
 };
 use slime_world::World;
 use uwui::action::{Action, ActionKind, FieldValue, Intent};
-use uwui::style::Style;
 use uwui::tree::{Element, ElementId, Ui};
 
 use sample_scene::{BLOOM, EXPOSURE, SKY, SampleScene};
@@ -336,35 +335,22 @@ impl SceneExample {
             .ui_mut()
             .build(slot, self.revision, |children| {
                 for (index, line) in lines.iter().enumerate() {
-                    children.add(
-                        index,
-                        Element::label(line.as_str(), Style::default()),
-                        |_| {},
-                    );
+                    children.add(index, Element::label(line.as_str()), |_| {});
                 }
                 for (index, (label, name, value, least, most, reversed)) in
                     sliders.into_iter().enumerate()
                 {
-                    let text = Element::label(label, Style::default());
+                    let text = Element::label(label);
                     children.add(format!("{name} label"), text, |_| {});
-                    let mut slider = Element::slider(
-                        f64::from(value),
-                        f64::from(least),
-                        f64::from(most),
-                        0.0,
-                        Style::default(),
-                    )
-                    .named(name);
+                    let mut slider =
+                        Element::slider(f64::from(value), f64::from(least), f64::from(most), 0.0)
+                            .named(name);
                     if reversed {
                         slider = slider.reversed();
                     }
                     built[index] = Some(children.add(name, slider, |_| {}));
                 }
-                children.add(
-                    "hides",
-                    Element::label("F1 hides this", Style::default()),
-                    |_| {},
-                );
+                children.add("hides", Element::label("F1 hides this"), |_| {});
             });
         self.sliders = built;
     }

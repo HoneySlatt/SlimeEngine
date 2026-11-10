@@ -8,7 +8,7 @@
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, Modifiers, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind, FieldValue};
-use uwui::style::{Dimension, FlexDirection, Style};
+use uwui::style::{Align, Dimension, FlexDirection};
 use uwui::text::Fonts;
 use uwui::tree::{
     ChoiceOption, Element, ElementAction, ElementId, LayoutDirection, Role, RootSettings, Tooltip,
@@ -41,10 +41,10 @@ impl Choice {
             origin: [0.0; 2],
             modal: false,
         };
-        let mut column = Style::default();
-        column.layout.direction = FlexDirection::Column;
-        column.text.style.fonts = vec!["Noto Sans".to_owned()];
-        let root = ui.add_root("main", settings, column);
+        let root = ui.add_root("main", settings, |s| {
+            s.direction(FlexDirection::Column)
+                .fonts(vec!["Noto Sans".to_owned()])
+        });
         let mut choice = Self {
             ui,
             root,
@@ -57,15 +57,16 @@ impl Choice {
 
     /// Builds the list to choose from again, the program giving `chosen`.
     fn build(&mut self, chosen: usize) {
-        let mut style = Style::default();
-        style.layout.size[0] = Dimension::Pixels(160.0);
-        style.layout.align_self = Some(uwui::style::Align::Start);
-        style.text.style.fonts = vec!["Noto Sans".to_owned()];
         let options = OPTIONS.map(str::to_owned).to_vec();
         let mut id = None;
         self.builds += 1;
         self.ui.build(self.root, self.builds, |children| {
-            id = Some(children.add("quality", Element::choice(options, chosen, style), |_| {}));
+            let element = Element::choice(options, chosen).style(|s| {
+                s.width(Dimension::Pixels(160.0))
+                    .align_self(Some(Align::Start))
+                    .fonts(vec!["Noto Sans".to_owned()])
+            });
+            id = Some(children.add("quality", element, |_| {}));
         });
         self.ui.frame();
         self.choice = id.expect("built");
@@ -286,15 +287,16 @@ fn a_choice_kept_by_the_user_stays_among_fewer_options() {
     choice.ui.take_actions();
     assert_eq!(choice.ui.chosen(choice.choice), Some(2));
     // The program gives one option, chosen as before: the user's choice is the last there is.
-    let mut style = Style::default();
-    style.text.style.fonts = vec!["Noto Sans".to_owned()];
     let mut id = None;
     choice.ui.build(choice.root, 99, |children| {
-        id = Some(children.add(
-            "quality",
-            Element::choice(vec!["Low".to_owned()], 0, style),
-            |_| {},
-        ));
+        id = Some(
+            children.add(
+                "quality",
+                Element::choice(vec!["Low".to_owned()], 0)
+                    .style(|s| s.fonts(vec!["Noto Sans".to_owned()])),
+                |_| {},
+            ),
+        );
     });
     choice.ui.frame();
     assert_eq!(choice.ui.chosen(choice.choice), Some(0));
@@ -316,15 +318,16 @@ fn a_list_to_choose_from_in_a_modal_layer_opens_and_chooses() {
             modal: true,
             dismiss: true,
         },
-        Style::default(),
+        |s| s,
     );
-    let mut style = Style::default();
-    style.layout.size[0] = Dimension::Pixels(160.0);
-    style.text.style.fonts = vec!["Noto Sans".to_owned()];
     let mut inner = None;
     choice.ui.build(dialog, 0, |children| {
         let options = OPTIONS.map(str::to_owned).to_vec();
-        inner = Some(children.add("quality", Element::choice(options, 0, style), |_| {}));
+        let element = Element::choice(options, 0).style(|s| {
+            s.width(Dimension::Pixels(160.0))
+                .fonts(vec!["Noto Sans".to_owned()])
+        });
+        inner = Some(children.add("quality", element, |_| {}));
     });
     choice.ui.frame();
     let inner = inner.expect("built");
@@ -348,10 +351,6 @@ fn a_list_to_choose_from_in_a_modal_layer_opens_and_chooses() {
 #[test]
 fn options_that_are_disabled_are_passed_over_and_options_show_their_help() {
     let mut choice = Choice::new(0);
-    let mut style = Style::default();
-    style.layout.size[0] = Dimension::Pixels(160.0);
-    style.layout.align_self = Some(uwui::style::Align::Start);
-    style.text.style.fonts = vec!["Noto Sans".to_owned()];
     let options = [
         ChoiceOption::from("Low"),
         ChoiceOption {
@@ -365,7 +364,11 @@ fn options_that_are_disabled_are_passed_over_and_options_show_their_help() {
         ChoiceOption::from("High"),
     ];
     choice.ui.build(choice.root, 99, |children| {
-        let element = Element::choice(options.clone(), 0, style);
+        let element = Element::choice(options.clone(), 0).style(|s| {
+            s.width(Dimension::Pixels(160.0))
+                .align_self(Some(Align::Start))
+                .fonts(vec!["Noto Sans".to_owned()])
+        });
         children.add("quality", element, |_| {});
     });
     choice.ui.frame();
@@ -403,9 +406,8 @@ fn options_that_are_disabled_are_passed_over_and_options_show_their_help() {
     // The program may give it chosen: the list opens on the nearest option that is not.
     choice.key(NamedKey::Escape);
     choice.ui.build(choice.root, 100, |children| {
-        let mut style = Style::default();
-        style.text.style.fonts = vec!["Noto Sans".to_owned()];
-        children.add("quality", Element::choice(options, 1, style), |_| {});
+        let element = Element::choice(options, 1).style(|s| s.fonts(vec!["Noto Sans".to_owned()]));
+        children.add("quality", element, |_| {});
     });
     choice.ui.frame();
     assert_eq!(choice.ui.chosen(choice.choice), Some(1));

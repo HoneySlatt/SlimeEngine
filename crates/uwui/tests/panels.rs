@@ -25,7 +25,7 @@ fn interface(direction: LayoutDirection) -> (Ui, ElementId) {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root("main", settings, Style::default());
+    let root = ui.add_root("main", settings, |s| s);
     ui.frame();
     (ui, root)
 }
@@ -44,22 +44,19 @@ fn open(ui: &mut Ui, over: ElementId, origin: [f32; 2], title: &str) -> (Element
             modal: false,
             dismiss: false,
         },
-        Style::default(),
+        |s| s,
     );
-    let mut style = Style::default();
-    style.text.style.fonts = vec!["Noto Sans".to_owned()];
-    style.layout.padding.top = 4.0;
     let mut panel = None;
     ui.build(layer, 0, |children| {
-        panel = Some(children.add(
-            "panel",
-            Element::floating_panel(title, true, style),
-            |panel| {
-                let mut boxed = Style::default();
-                boxed.layout.size = [Dimension::Pixels(50.0), Dimension::Pixels(50.0)];
-                panel.add("box", Element::container(boxed), |_| {});
-            },
-        ));
+        let floating = Element::floating_panel(title, true)
+            .style(|s| s.fonts(vec!["Noto Sans".to_owned()]).padding_top(4.0));
+        panel = Some(children.add("panel", floating, |panel| {
+            let boxed = Element::container().style(|s| {
+                s.width(Dimension::Pixels(50.0))
+                    .height(Dimension::Pixels(50.0))
+            });
+            panel.add("box", boxed, |_| {});
+        }));
     });
     ui.frame();
     (layer, panel.expect("built"))
@@ -206,9 +203,11 @@ fn a_raised_panel_keeps_the_menu_that_it_opened_above_it() {
     // A button in the first panel, and a menu beside it, then a second panel over both.
     let mut button = None;
     ui.build(panel, 0, |children| {
-        let mut style = Style::default();
-        style.layout.size = [Dimension::Pixels(60.0), Dimension::Pixels(24.0)];
-        button = Some(children.add("open", Element::button("", style), |_| {}));
+        let opener = Element::button("").style(|s| {
+            s.width(Dimension::Pixels(60.0))
+                .height(Dimension::Pixels(24.0))
+        });
+        button = Some(children.add("open", opener, |_| {}));
     });
     ui.frame();
     let button = button.expect("built");
@@ -223,12 +222,14 @@ fn a_raised_panel_keeps_the_menu_that_it_opened_above_it() {
             modal: false,
             dismiss: true,
         },
-        Style::default(),
+        |s| s,
     );
     ui.build(menu, 0, |children| {
-        let mut style = Style::default();
-        style.layout.size = [Dimension::Pixels(100.0), Dimension::Pixels(60.0)];
-        children.add("item", Element::button("", style), |_| {});
+        let item = Element::button("").style(|s| {
+            s.width(Dimension::Pixels(100.0))
+                .height(Dimension::Pixels(60.0))
+        });
+        children.add("item", item, |_| {});
     });
     ui.frame();
     let (second, _) = open(&mut ui, root, [60.0, 60.0], "Second");

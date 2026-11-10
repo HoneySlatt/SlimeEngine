@@ -5,6 +5,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::ops::Range;
+use std::panic::Location;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -16,7 +17,7 @@ use crate::Rect;
 use crate::display::{DisplayList, ImageKey, ImageKind, Primitive};
 use crate::layout;
 use crate::paint;
-use crate::style::{Display, Same, Style};
+use crate::style::{Display, OWN_STATES, OwnStyle, Same, Style, StyleBuilder, state_bit};
 use crate::text::{Fonts, TEXT_CACHE_BUDGET, TextCache};
 use crate::theme::{self, ColorRole, ColorRoles, KindName, Rule, StateName, StyleSheet, Theme};
 
@@ -582,20 +583,19 @@ pub struct ElementState {
 /// the element it built before for the same key and kind, and redoes of it only what changed.
 ///
 /// Its style starts from its kind's defaults, whose colors the themes' roles give; then come the
-/// rules' that select it, in their order, then the fields that `style` sets apart from
-/// [`Style::default`] in place of theirs ([`Ui::set_style`]): the code keeps what it sets, and a
-/// field that it leaves at its default takes the rules', or else its kind's. So the code cannot set
-/// a field to its default against a rule or its kind's defaults: a color that it writes
-/// transparent, as [`Style::default`] holds it, takes the rules' or else its kind's role. A color, an array, a list and an option
-/// are each one field, set whole: `size` set to `[Pixels(120.0), Auto]` sets both its sizes.
+/// rules that select it, in their order, then its own style, which its code writes
+/// ([`Element::style`]), in the *mask order* ([`Ui::set_style`]): what the code sets is kept,
+/// whatever its value, but where the last rule that set a field names a state, which the code's
+/// base gives way to; the code's own states come last. A color, a list and an option are each one
+/// field, set whole; an array's elements are each one: a width set leaves the height alone.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Element {
     /// What it is.
     pub kind: Kind,
     /// The classes that rules select it by.
     pub classes: Vec<String>,
-    /// How it is laid out and drawn, over what the rules give.
-    pub style: Style,
+    /// What its code wrote of its style ([`Element::style`]).
+    pub style: OwnStyle,
     /// What it is to whoever reads the interface without seeing it; `None` for what its kind
     /// makes it ([`Ui::meaning`]).
     pub role: Option<Role>,
@@ -628,88 +628,85 @@ pub struct Element {
 
 impl Element {
     /// A box that holds others.
-    pub fn container(style: Style) -> Self {
-        Self::of(Kind::Container, style)
+    pub fn container() -> Self {
+        Self::of(Kind::Container)
     }
 
     /// A text.
-    pub fn label(text: impl Into<String>, style: Style) -> Self {
-        Self::of(Kind::Label(text.into()), style)
+    pub fn label(text: impl Into<String>) -> Self {
+        Self::of(Kind::Label(text.into()))
     }
 
     /// The whole of an image of colors, drawn as it is.
-    pub fn image(image: ImageKey, style: Style) -> Self {
+    pub fn image(image: ImageKey) -> Self {
         let kind = Kind::Image {
             image,
             part: Rect::new(0.0, 0.0, 1.0, 1.0),
             kind: ImageKind::Color,
             color: LinearColor::WHITE,
         };
-        Self::of(kind, style)
+        Self::of(kind)
     }
 
     /// A surface that the program draws into `image` and moves through with the pointer
     /// ([`Kind::Surface`]).
-    pub fn surface(image: ImageKey, style: Style) -> Self {
-        Self::of(Kind::Surface { image }, style)
+    pub fn surface(image: ImageKey) -> Self {
+        Self::of(Kind::Surface { image })
     }
 
     /// A button with its label.
-    pub fn button(label: impl Into<String>, style: Style) -> Self {
-        Self::of(
-            Kind::Button {
-                label: label.into(),
-            },
-            style,
-        )
+    pub fn button(label: impl Into<String>) -> Self {
+        Self::of(Kind::Button {
+            label: label.into(),
+        })
     }
 
     /// A box whose children scroll inside it.
-    pub fn scroll(style: Style) -> Self {
-        Self::of(Kind::Scroll, style)
+    pub fn scroll() -> Self {
+        Self::of(Kind::Scroll)
     }
 
     /// A list of `rows` rows of `row_height` logical pixels, of which only those that show are
     /// built.
-    pub fn list(rows: usize, row_height: f32, style: Style) -> Self {
-        Self::of(Kind::List { rows, row_height }, style)
+    pub fn list(rows: usize, row_height: f32) -> Self {
+        Self::of(Kind::List { rows, row_height })
     }
 
     /// A field of one line of text, holding `text`.
-    pub fn text_field(text: impl Into<String>, style: Style) -> Self {
+    pub fn text_field(text: impl Into<String>) -> Self {
         let kind = Kind::TextField {
             text: text.into(),
             multiline: false,
             search: false,
         };
-        Self::of(kind, style)
+        Self::of(kind)
     }
 
     /// A field of several lines of text, holding `text`.
-    pub fn text_area(text: impl Into<String>, style: Style) -> Self {
+    pub fn text_area(text: impl Into<String>) -> Self {
         let kind = Kind::TextField {
             text: text.into(),
             multiline: true,
             search: false,
         };
-        Self::of(kind, style)
+        Self::of(kind)
     }
 
     /// A field of search, of one line, holding `text`.
-    pub fn search_field(text: impl Into<String>, style: Style) -> Self {
+    pub fn search_field(text: impl Into<String>) -> Self {
         let kind = Kind::TextField {
             text: text.into(),
             multiline: false,
             search: true,
         };
-        Self::of(kind, style)
+        Self::of(kind)
     }
 
     /// A field of a number, holding `value`, which a drag of one logical pixel changes by `step`.
     /// What the user types reads as an expression: the four operations, parentheses, a sign, `pi`,
     /// and `sqrt`, `sin`, `cos`, `abs`, `min` and `max`, whose angles are in radians; its numbers
     /// as Rust writes them, their decimals after a full stop: `2,5` reads as none.
-    pub fn number_field(value: f64, step: f64, style: Style) -> Self {
+    pub fn number_field(value: f64, step: f64) -> Self {
         let kind = Kind::NumberField {
             value,
             step,
@@ -717,138 +714,120 @@ impl Element {
             units: Units::None,
             single_precision: false,
         };
-        Self::of(kind, style)
+        Self::of(kind)
     }
 
     /// A check box with its label, checked or not.
-    pub fn check_box(label: impl Into<String>, checked: bool, style: Style) -> Self {
+    pub fn check_box(label: impl Into<String>, checked: bool) -> Self {
         let kind = Kind::CheckBox {
             label: label.into(),
             checked,
         };
-        Self::of(kind, style)
+        Self::of(kind)
     }
 
     /// A bar of tabs, the tab at `chosen` among those that its builder adds chosen.
-    pub fn tab_bar(chosen: usize, style: Style) -> Self {
-        Self::of(Kind::TabBar { chosen }, style)
+    pub fn tab_bar(chosen: usize) -> Self {
+        Self::of(Kind::TabBar { chosen })
     }
 
     /// A tab of a bar of tabs, with its title.
-    pub fn tab(title: impl Into<String>, style: Style) -> Self {
-        Self::of(
-            Kind::Tab {
-                title: title.into(),
-                count: None,
-            },
-            style,
-        )
+    pub fn tab(title: impl Into<String>) -> Self {
+        Self::of(Kind::Tab {
+            title: title.into(),
+            count: None,
+        })
     }
 
     /// A tab of a bar of tabs, with its title and the count that it shows after it.
-    pub fn counted_tab(title: impl Into<String>, count: u64, style: Style) -> Self {
-        Self::of(
-            Kind::Tab {
-                title: title.into(),
-                count: Some(count),
-            },
-            style,
-        )
+    pub fn counted_tab(title: impl Into<String>, count: u64) -> Self {
+        Self::of(Kind::Tab {
+            title: title.into(),
+            count: Some(count),
+        })
     }
 
     /// A button that stays pressed, with its label, on or off.
-    pub fn toggle_button(label: impl Into<String>, on: bool, style: Style) -> Self {
+    pub fn toggle_button(label: impl Into<String>, on: bool) -> Self {
         let kind = Kind::ToggleButton {
             label: label.into(),
             on,
         };
-        Self::of(kind, style)
+        Self::of(kind)
     }
 
     /// A control of segments, the segment at `chosen` among those that its builder adds chosen.
-    pub fn segments(chosen: usize, style: Style) -> Self {
-        Self::of(Kind::Segments { chosen }, style)
+    pub fn segments(chosen: usize) -> Self {
+        Self::of(Kind::Segments { chosen })
     }
 
     /// A segment of a control of segments, with its title.
-    pub fn segment(title: impl Into<String>, style: Style) -> Self {
-        Self::of(
-            Kind::Segment {
-                title: title.into(),
-            },
-            style,
-        )
+    pub fn segment(title: impl Into<String>) -> Self {
+        Self::of(Kind::Segment {
+            title: title.into(),
+        })
     }
 
     /// A bar of progress at `share`, from 0 to 1, or moving without one, for none.
-    pub fn progress(share: Option<f32>, style: Style) -> Self {
-        Self::of(Kind::Progress { share }, style)
+    pub fn progress(share: Option<f32>) -> Self {
+        Self::of(Kind::Progress { share })
     }
 
     /// Two panels side by side, or one above the other, the first taking `share` of its length;
     /// its builder adds them.
-    pub fn split(side_by_side: bool, share: f32, style: Style) -> Self {
-        Self::of(
-            Kind::Split {
-                side_by_side,
-                share,
-            },
-            style,
-        )
+    pub fn split(side_by_side: bool, share: f32) -> Self {
+        Self::of(Kind::Split {
+            side_by_side,
+            share,
+        })
     }
 
     /// A border between the child of its box before it and the child after it, the two side by
     /// side or one above the other, the first taking `share` of their length
     /// (`docs/adr/0172-regions-of-tabs.md`).
-    pub fn splitter(side_by_side: bool, share: f32, style: Style) -> Self {
-        Self::of(
-            Kind::Splitter {
-                side_by_side,
-                share,
-            },
-            style,
-        )
+    pub fn splitter(side_by_side: bool, share: f32) -> Self {
+        Self::of(Kind::Splitter {
+            side_by_side,
+            share,
+        })
     }
 
     /// The box of a section's header, whose builder adds what it holds.
-    pub fn section_header(style: Style) -> Self {
-        Self::of(Kind::SectionHeader, style)
+    pub fn section_header() -> Self {
+        Self::of(Kind::SectionHeader)
     }
 
     /// A section that folds, with its title, open or not.
-    pub fn section(title: impl Into<String>, open: bool, style: Style) -> Self {
+    pub fn section(title: impl Into<String>, open: bool) -> Self {
         let kind = Kind::Section {
             title: title.into(),
             open,
         };
-        Self::of(kind, style)
+        Self::of(kind)
     }
 
     /// A slider from `min` to `max`, at `value`, by multiples of `step` from `min`, 0 for any
     /// value.
-    pub fn slider(value: f64, min: f64, max: f64, step: f64, style: Style) -> Self {
-        Self::of(
-            Kind::Slider {
-                value,
-                min,
-                max,
-                step,
-                logarithmic: false,
-                reversed: false,
-            },
-            style,
-        )
+    pub fn slider(value: f64, min: f64, max: f64, step: f64) -> Self {
+        Self::of(Kind::Slider {
+            value,
+            min,
+            max,
+            step,
+            logarithmic: false,
+            reversed: false,
+        })
     }
 
     /// A menu, whose builder adds its items.
-    pub fn menu(style: Style) -> Self {
-        Self::of(Kind::Menu, style)
+    pub fn menu() -> Self {
+        Self::of(Kind::Menu)
     }
 
     /// A bar of menus, whose builder adds its items, each of [`ItemMark::Submenu`], which opens its
     /// menu: an item of another mark in a bar is pressed as a menu's item is, opening nothing.
-    pub fn menu_bar(style: Style) -> Self {
-        Self::of(Kind::MenuBar, style)
+    pub fn menu_bar() -> Self {
+        Self::of(Kind::MenuBar)
     }
 
     /// An item of a menu, with its label, the chord of its shortcut as the user reads it, empty for
@@ -857,28 +836,27 @@ impl Element {
         label: impl Into<String>,
         shortcut: impl Into<String>,
         mark: ItemMark,
-        style: Style,
     ) -> Self {
         let kind = Kind::MenuItem {
             label: label.into(),
             shortcut: shortcut.into(),
             mark,
         };
-        Self::of(kind, style)
+        Self::of(kind)
     }
 
     /// A panel that floats over a window, with its title, open or not.
-    pub fn floating_panel(title: impl Into<String>, open: bool, style: Style) -> Self {
+    pub fn floating_panel(title: impl Into<String>, open: bool) -> Self {
         let kind = Kind::FloatingPanel {
             title: title.into(),
             open,
         };
-        Self::of(kind, style)
+        Self::of(kind)
     }
 
     /// A color well of `color` ([`Kind::ColorWell`]).
-    pub fn color_well(color: LinearColor, style: Style) -> Self {
-        Self::of(Kind::ColorWell { color }, style)
+    pub fn color_well(color: LinearColor) -> Self {
+        Self::of(Kind::ColorWell { color })
     }
 
     /// A list to choose from, of `options`, the one at `chosen` chosen: each a label, or a
@@ -886,18 +864,17 @@ impl Element {
     pub fn choice(
         options: impl IntoIterator<Item = impl Into<ChoiceOption>>,
         chosen: usize,
-        style: Style,
     ) -> Self {
         let options = options.into_iter().map(Into::into).collect();
-        Self::of(Kind::Choice { options, chosen }, style)
+        Self::of(Kind::Choice { options, chosen })
     }
 
-    /// An element of `kind` and `style`, of no class.
-    pub fn of(kind: Kind, style: Style) -> Self {
+    /// An element of `kind`, of no class and no style of its own.
+    pub fn of(kind: Kind) -> Self {
         Self {
             kind,
             classes: Vec::new(),
-            style,
+            style: OwnStyle::default(),
             role: None,
             name: None,
             tooltip: None,
@@ -908,6 +885,17 @@ impl Element {
             drop_target: false,
             pane: false,
         }
+    }
+
+    /// The element, its own style written by `write` after what it held: the declarations that
+    /// `write` sets, whatever their values, for its base and its states, with the place of this
+    /// call ([`OwnStyle`], `docs/adr/0231-an-elements-own-style-written-in-code.md`).
+    #[must_use]
+    #[track_caller]
+    pub fn style(mut self, write: impl FnOnce(StyleBuilder) -> StyleBuilder) -> Self {
+        self.style
+            .extend(write(StyleBuilder::new(Location::caller())));
+        self
     }
 
     /// The element, holding the class `class` too.
@@ -1216,7 +1204,7 @@ struct Slot {
 ///
 /// ```
 /// use uwui::Rect;
-/// use uwui::style::{Dimension, Style};
+/// use uwui::style::Dimension;
 /// use uwui::text::Fonts;
 /// use uwui::tree::{Element, LayoutDirection, RootSettings, Ui};
 ///
@@ -1228,12 +1216,14 @@ struct Slot {
 ///     origin: [0.0; 2],
 ///     modal: false,
 /// };
-/// let root = ui.add_root("main", settings, Style::default());
-/// let mut style = Style::default();
-/// style.layout.size = [Dimension::Pixels(100.0), Dimension::Pixels(50.0)];
+/// let root = ui.add_root("main", settings, |s| s);
+/// let panel_box = Element::container().style(|s| {
+///     s.width(Dimension::Pixels(100.0))
+///         .height(Dimension::Pixels(50.0))
+/// });
 /// let mut panel = None;
 /// ui.build(root, 1, |children| {
-///     panel = Some(children.add("panel", Element::container(style), |_| {}));
+///     panel = Some(children.add("panel", panel_box, |_| {}));
 /// });
 /// let (_list, stats) = ui.frame();
 /// assert_eq!(stats.layouts, 1);
@@ -1267,8 +1257,6 @@ pub struct Ui {
     clipboard: Option<Box<dyn Clipboard>>,
     /// The types that style sheets hold, which read them.
     registry: Registry,
-    /// The style that an element's own style sets the fields of that differ from it.
-    default_style: Style,
     /// The value of each role, which each kind's defaults take
     /// (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`).
     roles: ColorRoles,
@@ -1279,6 +1267,9 @@ pub struct Ui {
     base_of: [u8; KindName::ALL.len()],
     /// The roles that the themes lacked and that a warning told, each once.
     warned: Vec<ColorRole>,
+    /// The kinds and states of the pointer that an own style wrote for a kind that the pointer
+    /// never reaches, which a debug build told, each once.
+    vain_states: Vec<(KindName, StateName)>,
     /// The styles made, by the rules that select their elements, then the base that they start
     /// from and the elements' own styles.
     styles: HashMap<Vec<u32>, Vec<Made>>,
@@ -1333,11 +1324,11 @@ impl Ui {
             clipboard: None,
             rules: Vec::new(),
             registry: theme::registry(),
-            default_style: Style::default(),
             roles: ColorRoles::fallbacks(),
             bases: Vec::new(),
             base_of: [0; KindName::ALL.len()],
             warned: Vec::new(),
+            vain_states: Vec::new(),
             styles: HashMap::new(),
             selected: Vec::new(),
             next_number: 1,
@@ -1370,22 +1361,35 @@ impl Ui {
     }
 
     /// Adds a root, named `key` in the paths of its elements ([`Ui::path_text`]): a surface of
-    /// `settings`, its element a container of `style`, whose size is the root's. A key that an open
+    /// `settings`, its element a container whose own style `write` writes, as
+    /// [`Element::style`] does, and whose size is the root's. A key that an open
     /// root holds already is followed by `-2`, `-3` and on, a number by the next number free, so
     /// that each root's is its own.
     ///
     /// # Panics
     ///
     /// If the settings' scale is not a finite number above 0.
+    #[track_caller]
     pub fn add_root(
         &mut self,
         key: impl Into<Key>,
         settings: RootSettings,
-        style: Style,
+        write: impl FnOnce(StyleBuilder) -> StyleBuilder,
+    ) -> ElementId {
+        let element = Element::container().style(write);
+        self.add_root_element(key.into(), settings, element)
+    }
+
+    /// Adds a root of `element`, as [`Ui::add_root`] says.
+    fn add_root_element(
+        &mut self,
+        key: Key,
+        settings: RootSettings,
+        element: Element,
     ) -> ElementId {
         assert_scale(settings.scale);
-        let key = self.free_root_key(key.into());
-        let mut node = Node::new(key, Element::container(style));
+        let key = self.free_root_key(key);
+        let mut node = Node::new(key, element);
         node.root = Some(settings);
         let id = self.insert(node);
         self.roots.push(id);
@@ -1517,11 +1521,15 @@ impl Ui {
     /// (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`). A role that the themes lack
     /// takes its fallback, the colors that an interface given no theme draws in, with a warning
     /// once for each role, given only when themes are given. A rule that selects an element sets
-    /// the fields of its style that it gives; a later rule, those it gives in turn; the element's
-    /// own style, the fields whose bits differ from [`Style::default`]'s, a color, an array, a
-    /// list and an option each one field. The styles made are kept and shared, for up to 64 pairs
-    /// of a kind's defaults and an element's own style that the same rules select: past them, the
-    /// style of such an element is made again each time, more slowly.
+    /// the fields of its style that it gives; a later rule, those it gives in turn; then the
+    /// element's own style ([`Element::style`]), in the *mask order*
+    /// (`docs/adr/0231-an-elements-own-style-written-in-code.md`): its base sets each field that
+    /// it writes, but where the last rule that set it names a state, then its states that hold
+    /// set theirs, in the order hovered, focused, focus shown, pressed, checked, expanded,
+    /// selected, disabled. A color, a list and an option are each one field; an array's elements
+    /// are each one. The styles made are kept and shared, for up to 64 of a kind's defaults, an
+    /// element's own style and its own states that hold, that the same rules select: past them,
+    /// the style of such an element is made again each time, more slowly.
     ///
     /// # Errors
     ///
@@ -1980,29 +1988,42 @@ impl Ui {
                 .filter(|&rule| self.selects(&self.rules[rule], id))
                 .map(|rule| rule as u32),
         );
-        let element = &self.node(id).expect("styled above").element;
-        let base = self.base_of[kind_name(&element.kind).index()];
-        let code = &element.style;
-        // Elements of one style, of kinds of one base, that the same rules select share what they
-        // make.
+        let node = self.node(id).expect("styled above");
+        let kind = kind_name(&node.element.kind);
+        let base = self.base_of[kind.index()];
+        let written = node.element.style.states();
+        let takes_pointer = node.element.kind.takes_pointer();
+        // The own states that hold, of those that the own style writes.
+        let held = OWN_STATES
+            .iter()
+            .filter(|&&state| holds(&node.state, state))
+            .fold(0, |held, &state| held | state_bit(state))
+            & written;
+        if cfg!(debug_assertions) && !takes_pointer {
+            self.tell_vain_states(kind, written);
+        }
+        let own = &self.node(id).expect("styled above").element.style;
+        // Elements of one own style, of kinds of one base, in the same own states, that the same
+        // rules select share what they make.
         let made = self
             .styles
             .get(selected.as_slice())
             .and_then(|made| {
                 made.iter()
-                    .find(|made| made.base == base && made.own.same(code))
+                    .find(|made| made.base == base && made.held == held && made.own.same(own))
             })
             .map(|made| Arc::clone(&made.style));
         let mut style = match made {
             Some(style) => style,
             None => {
-                let code = code.clone();
-                let style = Arc::new(self.compose(base, &selected, &code));
+                let own = own.clone();
+                let style = Arc::new(self.compose(base, &selected, &own, held));
                 let made = self.styles.entry(selected.clone()).or_default();
                 if made.len() < STYLES_PER_RULES {
                     made.push(Made {
                         base,
-                        own: code,
+                        held,
+                        own,
                         style: Arc::clone(&style),
                     });
                 }
@@ -2021,10 +2042,12 @@ impl Ui {
         node.changed.style = false;
         let target = Arc::clone(node.target());
         if *target != *style {
-            // The border's width cuts what scrolls inside: placed again with a layout.
+            // The border's width cuts what scrolls inside, and a control's size lays out its
+            // marks: placed again with a layout.
             let layout = target.layout != style.layout
                 || target.text.style != style.text.style
-                || target.paint.border_width != style.paint.border_width;
+                || target.paint.border_width != style.paint.border_width
+                || target.control.size != style.control.size;
             let shown = target.layout.display != style.layout.display;
             let first = !node.styled;
             node.styled = true;
@@ -2049,20 +2072,63 @@ impl Ui {
         true
     }
 
-    /// The style that the rules `selected`, in their order, then `code`, the fields whose bits
-    /// differ from the default's, make over the base of the place `base`: each one's declarations
-    /// applied in turn (`docs/adr/0229-styles-typed-as-declarations.md`).
-    fn compose(&self, base: u8, selected: &[u32], code: &Style) -> Style {
+    /// The style that the rules `selected` and `own`, in the own states `held`, make over the base
+    /// of the place `base`, in the mask order
+    /// (`docs/adr/0231-an-elements-own-style-written-in-code.md`): the rules' declarations in their
+    /// order; then the own base's, each where the last rule that set its leaf names no state; then
+    /// the own states' that hold, in the order of [`OWN_STATES`].
+    fn compose(&self, base: u8, selected: &[u32], own: &OwnStyle, held: u8) -> Style {
+        const _: () = assert!(
+            Style::LEAVES <= 128,
+            "a style's leaves fit in a mask of 128"
+        );
         let mut style = self.bases[usize::from(base)].clone();
+        // The leaves that a rule naming a state set last.
+        let mut by_state = 0u128;
         for &rule in selected {
-            for declaration in &self.rules[rule as usize].declarations {
+            let rule = &self.rules[rule as usize];
+            let stateful = !rule.selector.states.is_empty();
+            for declaration in &rule.declarations {
+                declaration.apply(&mut style);
+                let bit = 1u128 << declaration.leaf();
+                if stateful {
+                    by_state |= bit;
+                } else {
+                    by_state &= !bit;
+                }
+            }
+        }
+        for declaration in own.base() {
+            if by_state & (1u128 << declaration.leaf()) == 0 {
                 declaration.apply(&mut style);
             }
         }
-        code.declared(&self.default_style, &mut |declaration| {
-            declaration.apply(&mut style);
-        });
+        for state in OWN_STATES {
+            if held & state_bit(state) != 0 {
+                for declaration in own.in_state(state) {
+                    declaration.apply(&mut style);
+                }
+            }
+        }
         style
+    }
+
+    /// Tells once, for each kind and state of the pointer, of an own style that writes a hover or
+    /// a press for a kind that the pointer never hovers nor presses: what it writes shows only
+    /// where the program sets that state itself ([`Ui::set_state`]).
+    fn tell_vain_states(&mut self, kind: KindName, states: u8) {
+        for state in [StateName::Hovered, StateName::Pressed] {
+            if states & state_bit(state) == 0 || self.vain_states.contains(&(kind, state)) {
+                continue;
+            }
+            self.vain_states.push((kind, state));
+            tracing::warn!(
+                kind = ?kind,
+                state = ?state,
+                "an own style writes a state of the pointer for a kind that the pointer never \
+                 reaches: it shows only where the program sets that state"
+            );
+        }
     }
 
     /// Makes each kind's base from the roles, those of kinds whose defaults are the same shared
@@ -2098,16 +2164,10 @@ impl Ui {
                 .key
                 .as_ref()
                 .is_some_and(|key| !named(&node.key, key))
-            || !selector.states.iter().all(|state| match state {
-                StateName::Hovered => node.state.hovered,
-                StateName::Pressed => node.state.pressed,
-                StateName::Disabled => node.state.disabled,
-                StateName::Focused => node.state.focused,
-                StateName::FocusVisible => node.state.focus_visible,
-                StateName::Checked => node.state.checked,
-                StateName::Expanded => node.state.expanded,
-                StateName::Selected => node.state.selected,
-            })
+            || !selector
+                .states
+                .iter()
+                .all(|&state| holds(&node.state, state))
         {
             return false;
         }
@@ -2292,7 +2352,7 @@ impl Node {
             key,
             parent: None,
             children: Vec::new(),
-            style: Arc::new(element.style.clone()),
+            style: Arc::new(Style::default()),
             element,
             state,
             root: None,
@@ -2672,15 +2732,31 @@ fn kind_name(kind: &Kind) -> KindName {
     }
 }
 
-/// A style made, kept for the elements that the same rules select, of a kind of the same base and
-/// of the same own style, which share it.
+/// A style made, kept for the elements that the same rules select, of a kind of the same base, of
+/// the same own style, in the same own states, which share it.
 #[derive(Debug)]
 struct Made {
     /// The place in `Ui::bases` of the base that it started from.
     base: u8,
+    /// The own states that held, of those that the own style writes.
+    held: u8,
     /// The elements' own style.
-    own: Style,
+    own: OwnStyle,
     style: Arc<Style>,
+}
+
+/// Whether `state` holds in `states`.
+fn holds(states: &ElementState, state: StateName) -> bool {
+    match state {
+        StateName::Hovered => states.hovered,
+        StateName::Pressed => states.pressed,
+        StateName::Disabled => states.disabled,
+        StateName::Focused => states.focused,
+        StateName::FocusVisible => states.focus_visible,
+        StateName::Checked => states.checked,
+        StateName::Expanded => states.expanded,
+        StateName::Selected => states.selected,
+    }
 }
 
 /// The styles made that are kept for one set of rules, past which an element's style that the

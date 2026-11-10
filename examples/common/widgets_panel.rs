@@ -43,7 +43,7 @@ use uwui::action::{ActionKind, FieldValue, Intent};
 use uwui::display::DisplayList;
 use uwui::look::{self, Colors, Density};
 use uwui::shortcuts::Shortcuts;
-use uwui::style::{Align, Dimension, FlexDirection, Sides, Style};
+use uwui::style::{Align, Dimension, FlexDirection, Sides, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::theme::Theme;
 use uwui::tree::{
@@ -257,7 +257,7 @@ impl WidgetsPanel {
         let mut ui = Ui::new(fonts);
         ui.set_shortcuts(&[Shortcuts::from_text("widgets.keys", KEYS)])
             .expect("the example's shortcuts are valid");
-        let root = ui.add_root("main", settings([1.0, 1.0], 1.0, direction), column());
+        let root = ui.add_root("main", settings([1.0, 1.0], 1.0, direction), column);
         let slider = |label, value, min, max, step| Slider {
             label,
             value,
@@ -686,19 +686,18 @@ impl WidgetsPanel {
             modal: false,
             dismiss: true,
         };
-        let layer = self.ui.open_layer("menu", layer, Style::default());
+        let layer = self.ui.open_layer("menu", layer, |s| s);
         let entries = self.entries(menu);
         let mut items = Vec::new();
         self.ui.build(layer, 0, |children| {
-            children.add("menu", Element::menu(Style::default()), |menu| {
+            children.add("menu", Element::menu(), |menu| {
                 for (label, shortcut, mark, item) in entries {
                     // A line parts the command that ends the program from the others.
                     if item == Item::Command("quit") {
-                        let line = Element::container(Style::default()).class("separator");
+                        let line = Element::container().class("separator");
                         menu.add("separator", line, |_| {});
                     }
-                    let element =
-                        Element::menu_item(label.as_str(), shortcut, mark, Style::default());
+                    let element = Element::menu_item(label.as_str(), shortcut, mark);
                     items.push((menu.add(label.as_str(), element, |_| {}), item));
                 }
             });
@@ -724,11 +723,10 @@ impl WidgetsPanel {
             modal: false,
             dismiss: false,
         };
-        let layer = self.ui.open_layer("statistics", layer, Style::default());
+        let layer = self.ui.open_layer("statistics", layer, |s| s);
         self.ui.build(layer, 0, |children| {
-            let mut style = column();
-            style.layout.gap = [4.0, 0.0];
-            let panel = Element::floating_panel("Statistics", true, style);
+            let panel =
+                Element::floating_panel("Statistics", true).style(|s| column(s).row_gap(4.0));
             children.add("statistics", panel, |panel| {
                 let lines = [
                     ("entities", "entities        200"),
@@ -736,11 +734,7 @@ impl WidgetsPanel {
                     ("draws", "draw calls      412"),
                 ];
                 for (key, line) in lines {
-                    panel.add(
-                        key,
-                        Element::label(line, Style::default()).class("fixed"),
-                        |_| {},
-                    );
+                    panel.add(key, Element::label(line).class("fixed"), |_| {});
                 }
             });
         });
@@ -823,11 +817,10 @@ impl WidgetsPanel {
             self.ui.build(list, self.revision, |rows| {
                 for row in rows.rows() {
                     let name = entity_name(matches[row]);
-                    let mut style = Style::default();
-                    style.layout.padding.start = 8.0;
-                    style.layout.align_items = Align::Center;
-                    rows.add(row, Element::container(style), |line| {
-                        let label = Element::label(name, Style::default()).class("fixed");
+                    let line = Element::container()
+                        .style(|s| s.padding_start(8.0).align_items(Align::Center));
+                    rows.add(row, line, |line| {
+                        let label = Element::label(name).class("fixed");
                         line.add("name", label, |_| {});
                     });
                 }
@@ -865,34 +858,35 @@ struct Built {
 /// bar of what the last action did.
 fn build(children: &mut Children<'_>, shown: &Shown<'_>) -> Built {
     let mut built = Built::default();
-    let mut window = column();
-    window.layout.grow = 1.0;
-    window.layout.min_size[1] = Dimension::Pixels(0.0);
-    let window = Element::container(window).class("window");
+    let window = Element::container()
+        .style(|s| column(s).grow(1.0).min_height(Dimension::Pixels(0.0)))
+        .class("window");
     children.add("window", window, |children| {
-        children.add("menus", Element::menu_bar(Style::default()), |bar| {
+        children.add("menus", Element::menu_bar(), |bar| {
             for (title, menu) in [("File", Menu::File), ("View", Menu::View)] {
-                let item = Element::menu_item(title, "", ItemMark::Submenu, Style::default());
+                let item = Element::menu_item(title, "", ItemMark::Submenu);
                 built.bar.push((bar.add(title, item, |_| {}), menu));
             }
         });
         tools(children, shown, &mut built);
-        let tabs = children.add("tabs", Element::tab_bar(0, Style::default()), |tabs| {
+        let tabs = children.add("tabs", Element::tab_bar(0), |tabs| {
             for (title, tip) in TABS.into_iter().zip(TAB_TIPS) {
                 // The console's tab counts the warnings and the errors of its log.
                 let tab = match title {
-                    "Console" => Element::counted_tab(title, flagged_lines(), Style::default()),
-                    _ => Element::tab(title, Style::default()),
+                    "Console" => Element::counted_tab(title, flagged_lines()),
+                    _ => Element::tab(title),
                 };
                 tabs.add(title, tab.tooltip(tip), |_| {});
             }
         });
         let chosen = children.chosen(tabs);
-        let mut panel = column();
-        panel.layout.grow = 1.0;
-        panel.layout.min_size[1] = Dimension::Pixels(0.0);
-        panel.layout.padding = Sides::all(8.0);
-        let panel = Element::container(panel)
+        let panel = Element::container()
+            .style(|s| {
+                column(s)
+                    .grow(1.0)
+                    .min_height(Dimension::Pixels(0.0))
+                    .padding(8.0)
+            })
             .role(Role::TabPanel)
             .named(TABS[chosen]);
         children.add(TABS[chosen], panel, |children| match chosen {
@@ -900,11 +894,11 @@ fn build(children: &mut Children<'_>, shown: &Shown<'_>) -> Built {
             1 => console(children, shown, &mut built),
             _ => about(children),
         });
-        let mut status = Style::default();
-        status.layout.padding = Sides::symmetric(10.0, 4.0);
-        let status = Element::container(status).class("bar");
+        let status = Element::container()
+            .style(|s| s.padding(Sides::symmetric(10.0, 4.0)))
+            .class("bar");
         children.add("status", status, |children| {
-            let label = Element::label(shown.last, Style::default()).class("muted");
+            let label = Element::label(shown.last).class("muted");
             children.add("last", label, |_| {});
         });
     });
@@ -913,62 +907,71 @@ fn build(children: &mut Children<'_>, shown: &Shown<'_>) -> Built {
 
 /// The inspector: the list of entities and the sections of their properties, side by side.
 fn inspector(children: &mut Children<'_>, shown: &Shown<'_>, built: &mut Built) {
-    let split = Element::split(true, 0.32, filling()).named("inspector");
+    let split = Element::split(true, 0.32).style(filling).named("inspector");
     children.add("split", split, |panels| {
-        let mut entities = column();
-        entities.layout.padding = Sides::all(4.0);
-        entities.layout.min_size = [Dimension::Pixels(0.0); 2];
-        let entities = Element::container(entities).class("panel");
+        let entities = Element::container()
+            .style(|s| {
+                column(s)
+                    .padding(4.0)
+                    .min_width(Dimension::Pixels(0.0))
+                    .min_height(Dimension::Pixels(0.0))
+            })
+            .class("panel");
         panels.add("entities", entities, |children| {
-            let mut search = Style::default();
-            search.layout.margin.bottom = 4.0;
-            let search = Element::search_field(shown.query, search)
+            let search = Element::search_field(shown.query)
+                .style(|s| s.margin_bottom(4.0))
                 .named("search entities")
                 .placeholder("Search entities");
             let id = children.add("search", search, |_| {});
             built.targets.push((id, Target::Search));
-            let list = Element::list(shown.found, 22.0, filling()).named("entities");
+            let list = Element::list(shown.found, 22.0)
+                .style(filling)
+                .named("entities");
             built.list = Some(children.add_slot("list", list));
         });
-        let mut properties = column();
-        properties.layout.padding = Sides::all(8.0);
-        properties.layout.gap = [6.0, 0.0];
-        properties.layout.min_size = [Dimension::Pixels(0.0); 2];
-        let properties = Element::scroll(properties)
+        let properties = Element::scroll()
+            .style(|s| {
+                column(s)
+                    .padding(8.0)
+                    .row_gap(6.0)
+                    .min_width(Dimension::Pixels(0.0))
+                    .min_height(Dimension::Pixels(0.0))
+            })
             .class("panel")
             .named("properties");
         panels.add("properties", properties, |children| {
             for (section_index, section) in shown.sections.iter().enumerate() {
-                let mut style = column();
-                style.layout.gap = [4.0, 0.0];
-                let element = Element::section(section.title, !section.folded, style);
+                let element = Element::section(section.title, !section.folded)
+                    .style(|s| column(s).row_gap(4.0));
                 children.add(section.title, element, |children| {
                     if section.title == "Transform" {
                         position_row(children, shown.position, &mut built.targets);
                     }
                     // The light's header holds its type and a button that resets it.
                     if section.title == "Light" {
-                        let slot = Element::section_header(Style::default());
+                        let slot = Element::section_header();
                         children.add("header", slot, |slot| {
-                            let kind =
-                                Element::label("point light", Style::default()).class("muted");
+                            let kind = Element::label("point light").class("muted");
                             slot.add("type", kind, |_| {});
-                            let reset = Element::button("Reset", Style::default())
+                            let reset = Element::button("Reset")
                                 .tooltip("Gives the light its first values back");
                             built.reset = Some(slot.add("reset", reset, |_| {}));
                         });
-                        let mut row = Style::default();
-                        row.layout.gap = [0.0, 8.0];
-                        row.layout.align_items = Align::Center;
-                        children.add("color", Element::container(row), |row| {
-                            row.add("label", Element::label("color", wide(96.0)), |_| {});
-                            let mut style = Style::default();
-                            style.layout.size[0] = Dimension::Pixels(64.0);
-                            let well = Element::color_well(shown.light_color, style).named("color");
-                            built
-                                .targets
-                                .push((row.add("well", well, |_| {}), Target::LightColor));
-                        });
+                        children.add(
+                            "color",
+                            Element::container()
+                                .style(|s| s.column_gap(8.0).align_items(Align::Center)),
+                            |row| {
+                                let label = Element::label("color").style(|s| wide(s, 96.0));
+                                row.add("label", label, |_| {});
+                                let well = Element::color_well(shown.light_color)
+                                    .style(|s| s.width(Dimension::Pixels(64.0)))
+                                    .named("color");
+                                built
+                                    .targets
+                                    .push((row.add("well", well, |_| {}), Target::LightColor));
+                            },
+                        );
                     }
                     for (index, slider) in section.sliders.iter().enumerate() {
                         let target = Target::Property {
@@ -982,7 +985,7 @@ fn inspector(children: &mut Children<'_>, shown: &Shown<'_>, built: &mut Built) 
                             section: section_index,
                             index,
                         };
-                        let check = Element::check_box(label, checked, Style::default());
+                        let check = Element::check_box(label, checked);
                         built
                             .targets
                             .push((children.add(label, check, |_| {}), target));
@@ -1001,55 +1004,66 @@ fn inspector(children: &mut Children<'_>, shown: &Shown<'_>, built: &mut Built) 
 /// A row of a slider: its label, the slider, and its value in the font of fixed width; gives the
 /// slider.
 fn slider_row(children: &mut Children<'_>, slider: &Slider) -> ElementId {
-    let mut row = Style::default();
-    row.layout.gap = [0.0, 8.0];
-    row.layout.align_items = Align::Center;
     let mut id = None;
-    children.add(slider.label, Element::container(row), |children| {
-        children.add("label", Element::label(slider.label, wide(96.0)), |_| {});
-        let mut element =
-            Element::slider(slider.value, slider.min, slider.max, slider.step, filling())
+    children.add(
+        slider.label,
+        Element::container().style(|s| s.column_gap(8.0).align_items(Align::Center)),
+        |children| {
+            let label = Element::label(slider.label).style(|s| wide(s, 96.0));
+            children.add("label", label, |_| {});
+            let mut element = Element::slider(slider.value, slider.min, slider.max, slider.step)
+                .style(filling)
                 .named(slider.label);
-        // Help over the property, from the documentation of what it edits.
-        if let Some(&(_, text)) = HELP.iter().find(|(label, _)| *label == slider.label) {
-            element = element.help(slider.label, text);
-        }
-        id = Some(children.add("slider", element, |_| {}));
-        let value = Element::label(format!("{:.2}", slider.value), wide(48.0)).class("fixed");
-        children.add("value", value, |_| {});
-    });
+            // Help over the property, from the documentation of what it edits.
+            if let Some(&(_, text)) = HELP.iter().find(|(label, _)| *label == slider.label) {
+                element = element.help(slider.label, text);
+            }
+            id = Some(children.add("slider", element, |_| {}));
+            let value = Element::label(format!("{:.2}", slider.value))
+                .style(|s| wide(s, 48.0))
+                .class("fixed");
+            children.add("value", value, |_| {});
+        },
+    );
     id.expect("added above")
 }
 
 /// The bar of tools under the menus: the control of segments that chooses the tool, the button
 /// that toggles the snapping, and the bar of progress of a cook, at the bar's end.
 fn tools(children: &mut Children<'_>, shown: &Shown<'_>, built: &mut Built) {
-    let mut bar = Style::default();
-    bar.layout.padding = Sides::symmetric(8.0, 4.0);
-    bar.layout.gap = [0.0, 8.0];
-    bar.layout.align_items = Align::Center;
-    children.add("tools", Element::container(bar).class("bar"), |children| {
-        let segments = Element::segments(shown.tool, Style::default()).named("tool");
+    let bar = Element::container()
+        .style(|s| {
+            s.padding(Sides::symmetric(8.0, 4.0))
+                .column_gap(8.0)
+                .align_items(Align::Center)
+        })
+        .class("bar");
+    children.add("tools", bar, |children| {
+        let segments = Element::segments(shown.tool).named("tool");
         let id = children.add("tool", segments, |segments| {
             for title in TOOLS {
-                segments.add(title, Element::segment(title, Style::default()), |_| {});
+                segments.add(title, Element::segment(title), |_| {});
             }
         });
         built.targets.push((id, Target::Tool));
-        let snap = Element::toggle_button("Snap", shown.snap, Style::default())
+        let snap = Element::toggle_button("Snap", shown.snap)
             .tooltip("Moves go by whole steps of the grid");
         built
             .targets
             .push((children.add("snap", snap, |_| {}), Target::Snap));
-        children.add("space", Element::container(filling()), |_| {});
-        let cooking = Element::label("cooking textures", Style::default()).class("muted");
+        children.add("space", Element::container().style(filling), |_| {});
+        let cooking = Element::label("cooking textures").class("muted");
         children.add("cooking", cooking, |_| {});
-        let progress = Element::progress(Some(0.65), wide(120.0)).named("cooking textures");
+        let progress = Element::progress(Some(0.65))
+            .style(|s| wide(s, 120.0))
+            .named("cooking textures");
         children.add("progress", progress, |_| {});
         // How far the search of the assets went is not known: its bar moves with the clock.
-        let indexing = Element::label("indexing", Style::default()).class("muted");
+        let indexing = Element::label("indexing").class("muted");
         children.add("indexing", indexing, |_| {});
-        let progress = Element::progress(None, wide(60.0)).named("indexing");
+        let progress = Element::progress(None)
+            .style(|s| wide(s, 60.0))
+            .named("indexing");
         children.add("searching", progress, |_| {});
     });
 }
@@ -1061,14 +1075,15 @@ fn position_row(
     position: [f64; 3],
     targets: &mut Vec<(ElementId, Target)>,
 ) {
-    let mut row = Style::default();
-    row.layout.gap = [0.0, 8.0];
-    row.layout.align_items = Align::Center;
-    let group = Element::container(row).named("position");
+    let group = Element::container()
+        .style(|s| s.column_gap(8.0).align_items(Align::Center))
+        .named("position");
     children.add("position", group, |children| {
-        children.add("label", Element::label("position", wide(96.0)), |_| {});
+        let label = Element::label("position").style(|s| wide(s, 96.0));
+        children.add("label", label, |_| {});
         for (axis, (&value, (prefix, class))) in position.iter().zip(AXES).enumerate() {
-            let field = Element::number_field(value, 0.1, filling())
+            let field = Element::number_field(value, 0.1)
+                .style(filling)
                 .prefix(prefix)
                 .units(Units::Length)
                 .class(class)
@@ -1104,50 +1119,60 @@ fn flagged_lines() -> u64 {
 /// A row of the list to choose the quality of shadows from: its label and the list, with a
 /// tooltip; gives the list.
 fn quality_row(children: &mut Children<'_>, quality: usize) -> ElementId {
-    let mut row = Style::default();
-    row.layout.gap = [0.0, 8.0];
-    row.layout.align_items = Align::Center;
     let mut id = None;
-    children.add("shadow quality", Element::container(row), |children| {
-        let label = Element::label("shadow quality", wide(96.0));
-        children.add("label", label, |_| {});
-        let options = QUALITIES.map(str::to_owned).to_vec();
-        let choice = Element::choice(options, quality, Style::default())
-            .named("shadow quality")
-            .tooltip("How sharp the shadows are, and what they cost");
-        id = Some(children.add("choice", choice, |_| {}));
-    });
+    children.add(
+        "shadow quality",
+        Element::container().style(|s| s.column_gap(8.0).align_items(Align::Center)),
+        |children| {
+            let label = Element::label("shadow quality").style(|s| wide(s, 96.0));
+            children.add("label", label, |_| {});
+            let options = QUALITIES.map(str::to_owned).to_vec();
+            let choice = Element::choice(options, quality)
+                .named("shadow quality")
+                .tooltip("How sharp the shadows are, and what they cost");
+            id = Some(children.add("choice", choice, |_| {}));
+        },
+    );
     id.expect("added above")
 }
 
 /// The console: the lines of a log above, check boxes that choose which of its levels show below.
 fn console(children: &mut Children<'_>, shown: &Shown<'_>, built: &mut Built) {
-    let split = Element::split(false, 0.75, filling()).named("console");
+    let split = Element::split(false, 0.75).style(filling).named("console");
     children.add("split", split, |panels| {
-        let mut lines = column();
-        lines.layout.padding = Sides::all(8.0);
-        lines.layout.gap = [2.0, 0.0];
-        lines.layout.min_size = [Dimension::Pixels(0.0); 2];
-        let lines = Element::scroll(lines).class("panel").named("log");
+        let lines = Element::scroll()
+            .style(|s| {
+                column(s)
+                    .padding(8.0)
+                    .row_gap(2.0)
+                    .min_width(Dimension::Pixels(0.0))
+                    .min_height(Dimension::Pixels(0.0))
+            })
+            .class("panel")
+            .named("log");
         panels.add("log", lines, |children| {
             for number in 0..40 {
                 let (level, line) = LINES[number % LINES.len()];
                 if shown.levels[level] {
                     let text = format!("{:03} {:<7} {line}", number + 1, LEVELS[level]);
-                    let label = Element::label(text, Style::default()).class("fixed");
+                    let label = Element::label(text).class("fixed");
                     children.add(number, label, |_| {});
                 }
             }
         });
-        let mut filters = Style::default();
-        filters.layout.padding = Sides::all(8.0);
-        filters.layout.gap = [0.0, 16.0];
-        filters.layout.align_items = Align::Start;
-        filters.layout.min_size = [Dimension::Pixels(0.0); 2];
-        let filters = Element::container(filters).class("panel").named("levels");
+        let filters = Element::container()
+            .style(|s| {
+                s.padding(8.0)
+                    .column_gap(16.0)
+                    .align_items(Align::Start)
+                    .min_width(Dimension::Pixels(0.0))
+                    .min_height(Dimension::Pixels(0.0))
+            })
+            .class("panel")
+            .named("levels");
         panels.add("levels", filters, |children| {
             for (level, &label) in LEVELS.iter().enumerate() {
-                let check = Element::check_box(label, shown.levels[level], Style::default());
+                let check = Element::check_box(label, shown.levels[level]);
                 let id = children.add(label, check, |_| {});
                 built.targets.push((id, Target::Level(level)));
             }
@@ -1157,11 +1182,9 @@ fn console(children: &mut Children<'_>, shown: &Shown<'_>, built: &mut Built) {
 
 /// What the example is, in the look's two fonts.
 fn about(children: &mut Children<'_>) {
-    let mut style = column();
-    style.layout.grow = 1.0;
-    style.layout.padding = Sides::all(16.0);
-    style.layout.gap = [10.0, 0.0];
-    let panel = Element::container(style).class("panel");
+    let panel = Element::container()
+        .style(|s| column(s).grow(1.0).padding(16.0).row_gap(10.0))
+        .class("panel");
     children.add("about", panel, |children| {
         let lines = [
             ("The widgets of a panel, in the editor's look.", None),
@@ -1174,7 +1197,7 @@ fn about(children: &mut Children<'_>) {
             ("Escape, nothing focused, closes the window.", Some("muted")),
         ];
         for (index, (text, class)) in lines.into_iter().enumerate() {
-            let mut label = Element::label(text, Style::default());
+            let mut label = Element::label(text);
             if let Some(class) = class {
                 label = label.class(class);
             }
@@ -1194,25 +1217,19 @@ fn settings(size: [f32; 2], scale: f32, direction: LayoutDirection) -> RootSetti
     }
 }
 
-/// A style that lays its children out in a column.
-fn column() -> Style {
-    let mut style = Style::default();
-    style.layout.direction = FlexDirection::Column;
-    style
+/// Writes that an element lays its children out in a column.
+fn column(s: StyleBuilder) -> StyleBuilder {
+    s.direction(FlexDirection::Column)
 }
 
-/// A style that takes what its parent leaves, and may be smaller than what it holds.
-fn filling() -> Style {
-    let mut style = Style::default();
-    style.layout.grow = 1.0;
-    style.layout.min_size = [Dimension::Pixels(0.0); 2];
-    style
+/// Writes that an element takes what its parent leaves, and may be smaller than what it holds.
+fn filling(s: StyleBuilder) -> StyleBuilder {
+    s.grow(1.0)
+        .min_width(Dimension::Pixels(0.0))
+        .min_height(Dimension::Pixels(0.0))
 }
 
-/// A style `width` logical pixels wide, which does not shrink.
-fn wide(width: f32) -> Style {
-    let mut style = Style::default();
-    style.layout.size[0] = Dimension::Pixels(width);
-    style.layout.shrink = 0.0;
-    style
+/// Writes that an element is `width` logical pixels wide, and does not shrink.
+fn wide(s: StyleBuilder, width: f32) -> StyleBuilder {
+    s.width(Dimension::Pixels(width)).shrink(0.0)
 }

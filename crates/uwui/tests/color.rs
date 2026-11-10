@@ -7,7 +7,7 @@
 use slime_color::LinearColor;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{ActionKind, FieldValue};
-use uwui::style::{Dimension, FlexDirection, Style};
+use uwui::style::{Align, Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{Element, ElementId, LayoutDirection, Meaning, Role, RootSettings, Ui};
 
@@ -34,10 +34,10 @@ impl Well {
             origin: [0.0; 2],
             modal: false,
         };
-        let mut column = Style::default();
-        column.layout.direction = FlexDirection::Column;
-        column.text.style.fonts = vec!["Noto Sans".to_owned()];
-        let root = ui.add_root("main", settings, column);
+        let root = ui.add_root("main", settings, |s| {
+            s.direction(FlexDirection::Column)
+                .fonts(vec!["Noto Sans".to_owned()])
+        });
         let mut well = Self {
             ui,
             root,
@@ -50,18 +50,18 @@ impl Well {
 
     /// Builds the well again, the program giving `color`.
     fn build(&mut self, color: LinearColor) {
-        let mut style = Style::default();
-        style.layout.size = [Dimension::Pixels(60.0), Dimension::Pixels(20.0)];
-        style.layout.align_self = Some(uwui::style::Align::Start);
-        style.text.style.fonts = vec!["Noto Sans".to_owned()];
         let mut id = None;
         self.builds += 1;
         self.ui.build(self.root, self.builds, |children| {
-            id = Some(children.add(
-                "tint",
-                Element::color_well(color, style).named("tint"),
-                |_| {},
-            ));
+            let tint = Element::color_well(color)
+                .style(|s| {
+                    s.width(Dimension::Pixels(60.0))
+                        .height(Dimension::Pixels(20.0))
+                        .align_self(Some(Align::Start))
+                        .fonts(vec!["Noto Sans".to_owned()])
+                })
+                .named("tint");
+            id = Some(children.add("tint", tint, |_| {}));
         });
         self.ui.frame();
         self.well = id.expect("built");
@@ -407,16 +407,22 @@ fn the_open_picker_shows_the_color_that_the_program_gives_and_one_picker_opens_a
     let hue = well.find(Role::Slider, "hue");
     assert_eq!(hue.value.as_deref(), Some("240°"));
     // A second well: its picker opens, the first one's closes.
-    let mut style = Style::default();
-    style.layout.size = [Dimension::Pixels(60.0), Dimension::Pixels(20.0)];
-    style.layout.align_self = Some(uwui::style::Align::Start);
+    let small = |s: StyleBuilder| {
+        s.width(Dimension::Pixels(60.0))
+            .height(Dimension::Pixels(20.0))
+            .align_self(Some(Align::Start))
+    };
     let (mut first, mut second) = (None, None);
     well.builds += 1;
     let builds = well.builds;
     well.ui.build(well.root, builds, |children| {
-        let tint = Element::color_well(srgb(0, 0, 255), style.clone()).named("tint");
+        let tint = Element::color_well(srgb(0, 0, 255))
+            .style(small)
+            .named("tint");
         first = Some(children.add("tint", tint, |_| {}));
-        let glow = Element::color_well(srgb(0, 255, 0), style.clone()).named("glow");
+        let glow = Element::color_well(srgb(0, 255, 0))
+            .style(small)
+            .named("glow");
         second = Some(children.add("glow", glow, |_| {}));
     });
     well.ui.frame();

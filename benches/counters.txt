@@ -78,7 +78,9 @@ ui.draw.menu	glyphs rasterized by the first draw at 3840 × 2160	256
 ui.draw.menu	items at 1280 × 800	2645
 ui.draw.menu	items at 1920 × 1080	2645
 ui.draw.menu	items at 3840 × 2160	2645
+ui.tree.editor	allocations of a frame after one value of the inspector changed	32163
 ui.tree.editor	allocations of a frame standing still	31
+ui.tree.editor	bytes allocated by a frame after one value of the inspector changed	7157318
 ui.tree.editor	bytes allocated by a frame standing still	4565992
 ui.tree.editor	elements	12487
 ui.tree.editor	elements visited by a frame standing still	24974
@@ -89,9 +91,9 @@ ui.tree.list.100k	bytes allocated by a frame standing still	38616
 ui.tree.list.100k	elements	164
 ui.tree.list.100k	elements visited by a frame standing still	328
 ui.tree.list.100k	items of a frame standing still	110
-ui.tree.look	allocations of reading the look's documents	125017
-ui.tree.look	allocations of the frame of the change	393682
-ui.tree.look	bytes allocated by the frame of the change	37007738
+ui.tree.look	allocations of reading the look's documents	125205
+ui.tree.look	allocations of the frame of the change	393706
+ui.tree.look	bytes allocated by the frame of the change	36988023
 ui.tree.look	elements styled by the frame of the change	12487
 ui.tree.look	frames of 240 Hz of the transition	29
 world.frame.100k	instances in a frame	100000

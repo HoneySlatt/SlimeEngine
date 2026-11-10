@@ -4,7 +4,7 @@
 //! document and keep the style that the interface had.
 
 use slime_color::LinearColor;
-use uwui::style::{Dimension, Style};
+use uwui::style::{Dimension, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::theme::{StyleSheet, Theme};
 use uwui::tree::{Element, ElementId, ElementState, LayoutDirection, RootSettings, Ui};
@@ -19,7 +19,7 @@ fn ui() -> (Ui, ElementId) {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root("main", settings, Style::default());
+    let root = ui.add_root("main", settings, |s| s);
     (ui, root)
 }
 
@@ -72,18 +72,23 @@ radius = 4
 gap = 6
 "##;
 
-/// Builds a box, a panel, a toolbar holding an item, and a box keyed `special`.
-fn build(ui: &mut Ui, root: ElementId, revision: u64, panel: Style) -> Vec<ElementId> {
+/// Builds a box, a panel that `panel` styles, a toolbar holding an item, and a box keyed `special`.
+fn build(
+    ui: &mut Ui,
+    root: ElementId,
+    revision: u64,
+    panel: impl FnOnce(StyleBuilder) -> StyleBuilder,
+) -> Vec<ElementId> {
     let mut ids = Vec::new();
     ui.build(root, revision, |children| {
-        ids.push(children.add("box", Element::container(Style::default()), |_| {}));
-        let element = Element::container(panel).class("panel");
+        ids.push(children.add("box", Element::container(), |_| {}));
+        let element = Element::container().style(panel).class("panel");
         ids.push(children.add("panel", element, |_| {}));
-        let toolbar = Element::container(Style::default()).class("toolbar");
+        let toolbar = Element::container().class("toolbar");
         children.add("toolbar", toolbar, |children| {
-            ids.push(children.add("item", Element::container(Style::default()), |_| {}));
+            ids.push(children.add("item", Element::container(), |_| {}));
         });
-        ids.push(children.add("special", Element::container(Style::default()), |_| {}));
+        ids.push(children.add("special", Element::container(), |_| {}));
     });
     ids
 }
@@ -91,7 +96,7 @@ fn build(ui: &mut Ui, root: ElementId, revision: u64, panel: Style) -> Vec<Eleme
 #[test]
 fn rules_select_by_kind_class_key_state_and_ancestor_in_the_order_of_their_file() {
     let (mut ui, root) = ui();
-    let ids = build(&mut ui, root, 0, Style::default());
+    let ids = build(&mut ui, root, 0, |s| s);
     ui.set_style(
         &[StyleSheet::from_text("ui.style", SHEET)],
         &[Theme::from_text("dark.theme", DARK)],
@@ -127,10 +132,10 @@ fn rules_select_by_kind_class_key_state_and_ancestor_in_the_order_of_their_file(
 #[test]
 fn an_element_keeps_the_fields_that_its_own_style_sets_and_takes_the_rules_for_the_rest() {
     let (mut ui, root) = ui();
-    let mut panel = Style::default();
-    panel.paint.background = LinearColor::rgba(1.0, 0.0, 0.0, 1.0);
-    panel.layout.size[0] = Dimension::Pixels(120.0);
-    let ids = build(&mut ui, root, 0, panel);
+    let ids = build(&mut ui, root, 0, |s| {
+        s.background(LinearColor::rgba(1.0, 0.0, 0.0, 1.0))
+            .width(Dimension::Pixels(120.0))
+    });
     ui.set_style(
         &[StyleSheet::from_text("ui.style", SHEET)],
         &[Theme::from_text("dark.theme", DARK)],
@@ -151,7 +156,7 @@ fn an_element_keeps_the_fields_that_its_own_style_sets_and_takes_the_rules_for_t
 #[test]
 fn another_theme_styles_every_element_again_with_its_values() {
     let (mut ui, root) = ui();
-    let ids = build(&mut ui, root, 0, Style::default());
+    let ids = build(&mut ui, root, 0, |s| s);
     let sheets = [StyleSheet::from_text("ui.style", SHEET)];
     ui.set_style(&sheets, &[Theme::from_text("dark.theme", DARK)])
         .expect("dark");
@@ -168,16 +173,12 @@ fn another_theme_styles_every_element_again_with_its_values() {
     assert_eq!(ui.style(ids[1]).unwrap().paint.radii, [4.0; 4]);
     // A class taken away: the element and what it holds are styled again.
     ui.build(root, 1, |children| {
-        children.add("box", Element::container(Style::default()), |_| {});
-        children.add("panel", Element::container(Style::default()), |_| {});
-        children.add(
-            "toolbar",
-            Element::container(Style::default()),
-            |children| {
-                children.add("item", Element::container(Style::default()), |_| {});
-            },
-        );
-        children.add("special", Element::container(Style::default()), |_| {});
+        children.add("box", Element::container(), |_| {});
+        children.add("panel", Element::container(), |_| {});
+        children.add("toolbar", Element::container(), |children| {
+            children.add("item", Element::container(), |_| {});
+        });
+        children.add("special", Element::container(), |_| {});
     });
     let (_, stats) = ui.frame();
     assert_eq!(stats.styled, 3);
@@ -188,7 +189,7 @@ fn another_theme_styles_every_element_again_with_its_values() {
 #[test]
 fn style_sheets_and_themes_are_read_from_their_binary_encoding_as_from_their_text() {
     let (mut ui, root) = ui();
-    let ids = build(&mut ui, root, 0, Style::default());
+    let ids = build(&mut ui, root, 0, |s| s);
     let sheet = slime_serialize::encode(SHEET).expect("a document");
     let theme = slime_serialize::encode(DARK).expect("a document");
     ui.set_style(
@@ -203,7 +204,7 @@ fn style_sheets_and_themes_are_read_from_their_binary_encoding_as_from_their_tex
 #[test]
 fn a_wrong_style_sheet_or_theme_is_refused_by_name_and_place_and_the_style_is_kept() {
     let (mut ui, root) = ui();
-    let ids = build(&mut ui, root, 0, Style::default());
+    let ids = build(&mut ui, root, 0, |s| s);
     let theme = Theme::from_text("dark.theme", DARK);
     ui.set_style(
         &[StyleSheet::from_text("ui.style", SHEET)],
@@ -295,7 +296,7 @@ fn a_wrong_style_sheet_or_theme_is_refused_by_name_and_place_and_the_style_is_ke
 #[test]
 fn rules_apply_in_the_order_of_their_file_whatever_their_names() {
     let (mut ui, root) = ui();
-    let ids = build(&mut ui, root, 0, Style::default());
+    let ids = build(&mut ui, root, 0, |s| s);
     let sheet = "[zeta]\nselect = { kind = \"Container\" }\nstyle.paint.background = \"#111111\"\n\n\
                  [alpha]\nselect = { kind = \"Container\" }\nstyle.paint.background = \"#222222\"\n";
     ui.set_style(
@@ -310,9 +311,9 @@ fn rules_apply_in_the_order_of_their_file_whatever_their_names() {
 #[test]
 fn an_element_whose_own_style_changes_is_styled_again() {
     let (mut ui, root) = ui();
-    let mut red = Style::default();
-    red.paint.background = LinearColor::rgba(1.0, 0.0, 0.0, 1.0);
-    let ids = build(&mut ui, root, 0, red);
+    let ids = build(&mut ui, root, 0, |s| {
+        s.background(LinearColor::rgba(1.0, 0.0, 0.0, 1.0))
+    });
     ui.set_style(
         &[StyleSheet::from_text("ui.style", SHEET)],
         &[Theme::from_text("dark.theme", DARK)],
@@ -321,7 +322,7 @@ fn an_element_whose_own_style_changes_is_styled_again() {
     ui.frame();
     assert_eq!(fill(&ui, ids[1]), LinearColor::rgba(1.0, 0.0, 0.0, 1.0));
     // Its fill back at its default: the rules give theirs.
-    build(&mut ui, root, 1, Style::default());
+    build(&mut ui, root, 1, |s| s);
     let (_, stats) = ui.frame();
     assert_eq!((stats.styled, stats.painted), (1, 1));
     assert_eq!(fill(&ui, ids[1]), srgb(0x303030));
@@ -337,16 +338,13 @@ fn the_rows_of_a_list_restyled_lay_out_the_list_s_rows_alone() {
     let mut list = None;
     let mut build = |ui: &mut Ui| {
         ui.build(root, 0, |children| {
-            let mut style = Style::default();
-            style.layout.grow = 1.0;
-            list = Some(
-                children.add("list", Element::list(1_000, 20.0, style), |rows| {
-                    for row in rows.rows() {
-                        let element = Element::container(Style::default()).class("row");
-                        rows.add(row, element, |_| {});
-                    }
-                }),
-            );
+            let rows_list = Element::list(1_000, 20.0).style(|s| s.grow(1.0));
+            list = Some(children.add("list", rows_list, |rows| {
+                for row in rows.rows() {
+                    let element = Element::container().class("row");
+                    rows.add(row, element, |_| {});
+                }
+            }));
         });
         ui.frame()
     };
@@ -362,7 +360,7 @@ fn the_rows_of_a_list_restyled_lay_out_the_list_s_rows_alone() {
 #[test]
 fn a_shadow_set_in_part_takes_the_defaults_of_what_it_leaves_out_and_a_name_gives_a_whole_one() {
     let (mut ui, root) = ui();
-    let ids = build(&mut ui, root, 0, Style::default());
+    let ids = build(&mut ui, root, 0, |s| s);
     let sheet = "[box]\nselect = { kind = \"Container\" }\n\
                  style.paint.shadow = [{ offset = [0, 4], blur = 18 }]\n\n\
                  [panel]\nselect = { classes = [\"panel\"] }\nstyle.paint.shadow = \"$card\"\n";
@@ -398,7 +396,7 @@ fn computed(themes: &[(&str, &str)]) -> Result<LinearColor, String> {
         .map_err(|error| error.to_string())?;
     let mut id = None;
     ui.build(root, 0, |children| {
-        id = Some(children.add("box", Element::container(Style::default()), |_| {}));
+        id = Some(children.add("box", Element::container(), |_| {}));
     });
     ui.frame();
     Ok(fill(&ui, id.expect("built")))

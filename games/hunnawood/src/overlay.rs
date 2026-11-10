@@ -10,7 +10,7 @@ use slime_platform::PhysicalSize;
 use slime_render::{RenderError, RenderStats, Renderer, ViewSettings};
 use slime_world::{Command, World};
 use uwui::action::{ActionKind, FieldValue};
-use uwui::style::{FlexDirection, Style};
+use uwui::style::FlexDirection;
 use uwui::tree::{Element, ElementId, Ui};
 
 /// The slowest and the fastest that the statistics' slider sets game time to.
@@ -184,34 +184,20 @@ impl DevOverlay {
             .ui_mut()
             .build(slot, self.revision, |children| {
                 for (index, line) in lines.iter().enumerate() {
-                    children.add(
-                        index,
-                        Element::label(line.as_str(), Style::default()),
-                        |_| {},
-                    );
+                    children.add(index, Element::label(line.as_str()), |_| {});
                 }
-                let mut column = Style::default();
-                column.layout.direction = FlexDirection::Column;
-                view = Some(children.add_slot("view", Element::container(column)));
-                children.add(
-                    "speed label",
-                    Element::label(speed_label.as_str(), Style::default()),
-                    |_| {},
-                );
-                let slider =
-                    Element::slider(speed, *SPEEDS.start(), *SPEEDS.end(), 0.0, Style::default())
-                        .logarithmic()
-                        .named("game time");
+                let column = Element::container().style(|s| s.direction(FlexDirection::Column));
+                view = Some(children.add_slot("view", column));
+                children.add("speed label", Element::label(speed_label.as_str()), |_| {});
+                let slider = Element::slider(speed, *SPEEDS.start(), *SPEEDS.end(), 0.0)
+                    .logarithmic()
+                    .named("game time");
                 let speed = children.add("speed", slider, |_| {});
                 let hint = "F3 pauses and runs game time, F4 runs one step of it while paused";
-                children.add("hint", Element::label(hint, Style::default()), |_| {});
-                let lose = Element::button("Lose the GPU device", Style::default());
+                children.add("hint", Element::label(hint), |_| {});
+                let lose = Element::button("Lose the GPU device");
                 let lose = children.add("lose", lose, |_| {});
-                children.add(
-                    "hides",
-                    Element::label("F1 hides this", Style::default()),
-                    |_| {},
-                );
+                children.add("hides", Element::label("F1 hides this"), |_| {});
                 built = Some(Built { speed, lose });
             });
         self.built = built.or(self.built);

@@ -11,7 +11,7 @@ use super::{Along, ColorPart, Element, ElementId, Kind, Layer, Place, Side, Ui};
 use crate::Rect;
 use crate::action::{Action, ActionKind, FieldValue};
 use crate::display::{BoxPrimitive, GradientPrimitive, Primitive};
-use crate::style::{Dimension, FlexDirection, Style};
+use crate::style::{Dimension, FlexDirection};
 
 /// The size of the square of saturation and value, in logical pixels.
 const SQUARE: [f32; 2] = [200.0, 150.0];
@@ -215,7 +215,7 @@ impl Ui {
             modal: false,
             dismiss: true,
         };
-        let root = self.open_owned_layer(id, "colors", layer, Style::default());
+        let root = self.open_owned_layer(id, "colors", layer, |s| s);
         self.picker = Some(Picker {
             well: id,
             parts: Vec::new(),
@@ -248,57 +248,56 @@ impl Ui {
         let mut fields = Vec::new();
         let mut code_field = root;
         self.build(root, revision, |children| {
-            let mut column = Style::default();
-            column.layout.direction = FlexDirection::Column;
-            column.layout.gap = [8.0, 0.0];
-            children.add(
-                "picker",
-                Element::container(column).class("picker"),
-                |picker| {
-                    for (key, part, size, name) in [
-                        ("square", ColorPart::Square, SQUARE, "saturation and value"),
-                        ("hue", ColorPart::Hue, [SQUARE[0], STRIP], "hue"),
-                        ("alpha", ColorPart::Alpha, [SQUARE[0], STRIP], "alpha"),
-                    ] {
-                        let mut style = Style::default();
-                        style.layout.size = size.map(Dimension::Pixels);
-                        style.layout.shrink = 0.0;
-                        let element = Element::of(Kind::ColorPart(part), style).named(name);
-                        parts.push(picker.add(key, element, |_| {}));
-                    }
-                    // The channels in two rows of two, each wide enough for its number, shown
-                    // to three decimals: the code gives the color whole.
-                    let names = [
-                        ("R", "red"),
-                        ("G", "green"),
-                        ("B", "blue"),
-                        ("A", "alpha channel"),
-                    ];
-                    for (line, pair) in names.chunks(2).enumerate() {
-                        let mut row = Style::default();
-                        row.layout.gap = [0.0, 4.0];
-                        row.layout.size[0] = Dimension::Pixels(SQUARE[0]);
-                        picker.add(line, Element::container(row), |row| {
-                            for (column, &(prefix, name)) in pair.iter().enumerate() {
-                                let place = line * 2 + column;
-                                let mut style = Style::default();
-                                style.layout.grow = 1.0;
-                                style.layout.basis = Dimension::Pixels(0.0);
-                                style.layout.min_size[0] = Dimension::Pixels(0.0);
-                                let shown = (f64::from(channels[place]) * 1000.0).round() / 1000.0;
-                                let field = Element::number_field(shown, 0.01, style)
-                                    .prefix(prefix)
-                                    .named(name);
-                                fields.push(row.add(prefix, field, |_| {}));
-                            }
-                        });
-                    }
-                    let field = Element::text_field(code.as_str(), Style::default())
-                        .class("fixed")
-                        .named("hexadecimal code");
-                    code_field = picker.add("code", field, |_| {});
-                },
-            );
+            let column = Element::container()
+                .style(|s| s.direction(FlexDirection::Column).row_gap(8.0))
+                .class("picker");
+            children.add("picker", column, |picker| {
+                for (key, part, size, name) in [
+                    ("square", ColorPart::Square, SQUARE, "saturation and value"),
+                    ("hue", ColorPart::Hue, [SQUARE[0], STRIP], "hue"),
+                    ("alpha", ColorPart::Alpha, [SQUARE[0], STRIP], "alpha"),
+                ] {
+                    let element = Element::of(Kind::ColorPart(part))
+                        .style(|s| {
+                            s.width(Dimension::Pixels(size[0]))
+                                .height(Dimension::Pixels(size[1]))
+                                .shrink(0.0)
+                        })
+                        .named(name);
+                    parts.push(picker.add(key, element, |_| {}));
+                }
+                // The channels in two rows of two, each wide enough for its number, shown
+                // to three decimals: the code gives the color whole.
+                let names = [
+                    ("R", "red"),
+                    ("G", "green"),
+                    ("B", "blue"),
+                    ("A", "alpha channel"),
+                ];
+                for (line, pair) in names.chunks(2).enumerate() {
+                    let row_box = Element::container()
+                        .style(|s| s.column_gap(4.0).width(Dimension::Pixels(SQUARE[0])));
+                    picker.add(line, row_box, |row| {
+                        for (column, &(prefix, name)) in pair.iter().enumerate() {
+                            let place = line * 2 + column;
+                            let shown = (f64::from(channels[place]) * 1000.0).round() / 1000.0;
+                            let field = Element::number_field(shown, 0.01)
+                                .style(|s| {
+                                    s.grow(1.0)
+                                        .basis(Dimension::Pixels(0.0))
+                                        .min_width(Dimension::Pixels(0.0))
+                                })
+                                .prefix(prefix)
+                                .named(name);
+                            fields.push(row.add(prefix, field, |_| {}));
+                        }
+                    });
+                }
+                let field = Element::text_field(code.as_str())
+                    .class("fixed")
+                    .named("hexadecimal code");
+                code_field = picker.add("code", field, |_| {});
+            });
         });
         let shown = self
             .well_hsva(well)

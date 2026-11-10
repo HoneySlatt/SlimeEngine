@@ -13,7 +13,6 @@
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind};
 use uwui::dock::{Dock, Edge, LEAST, Layout, Node, Target};
-use uwui::style::Style;
 use uwui::text::Fonts;
 use uwui::tree::{ElementId, LayoutDirection, Role, RootSettings, Ui};
 
@@ -200,12 +199,11 @@ fn docked_in(direction: LayoutDirection, layout: Layout) -> (Ui, Dock, ElementId
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root("main", settings, Style::default());
+    let root = ui.add_root("main", settings, |s| s);
     let mut slot = None;
     ui.build(root, 0, |children| {
-        let mut whole = Style::default();
-        whole.layout.grow = 1.0;
-        slot = Some(children.add_slot("dock", uwui::tree::Element::container(whole)));
+        let whole = uwui::tree::Element::container().style(|s| s.grow(1.0));
+        slot = Some(children.add_slot("dock", whole));
     });
     let slot = slot.expect("built");
     let mut dock = Dock::new(layout);

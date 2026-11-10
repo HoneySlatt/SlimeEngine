@@ -115,7 +115,7 @@ impl Shown {
 #[cfg(test)]
 mod tests {
     use slime_platform::{ButtonState, Key, KeyCode, KeyEvent, MouseButton};
-    use uwui::style::{Dimension, Style};
+    use uwui::style::Dimension;
     use uwui::text::Fonts;
     use uwui::tree::{Element, LayoutDirection, RootSettings};
 
@@ -144,11 +144,13 @@ mod tests {
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root("main", settings, Style::default());
-        let mut style = Style::default();
-        style.layout.size = [Dimension::Pixels(200.0), Dimension::Pixels(30.0)];
+        let root = ui.add_root("main", settings, |s| s);
         ui.build(root, 0, |children| {
-            children.add("field", Element::text_field("", style), |_| {});
+            let field = Element::text_field("").style(|s| {
+                s.width(Dimension::Pixels(200.0))
+                    .height(Dimension::Pixels(30.0))
+            });
+            children.add("field", field, |_| {});
         });
         ui.frame();
         let press = |state| Event::MouseButton {

@@ -7,7 +7,7 @@ use slime_input::{Key, KeyEvent, NamedKey};
 
 use super::{ElementId, ItemMark, Kind, Layer, Place, Role, Ui};
 use crate::action::{Action, ActionKind};
-use crate::style::{Dimension, FlexDirection, Style};
+use crate::style::{Dimension, FlexDirection, StyleBuilder};
 
 /// How wide the palette and the sheet are, in logical pixels, and how far below the window's top
 /// they open.
@@ -58,23 +58,22 @@ impl Ui {
         let Some(root) = self.own_layer("palette") else {
             return;
         };
-        let mut column = Style::default();
-        column.layout.direction = FlexDirection::Column;
-        column.layout.size[0] = Dimension::Pixels(WIDTH);
         let (mut field, mut list) = (None, None);
         let hint = hint.to_owned();
         let surface = self.surface_size();
         self.build(root, 0, |children| {
-            let palette = super::Element::container(column.clone()).class("palette");
+            let palette = super::Element::container()
+                .style(|s| column(s).width(Dimension::Pixels(WIDTH)))
+                .class("palette");
             children.add("palette", palette, |palette| {
-                let search = super::Element::search_field("", Style::default())
+                let search = super::Element::search_field("")
                     .placeholder(hint)
                     .named("command");
                 field = Some(palette.add("search", search, |_| {}));
-                let mut rows = column;
-                rows.layout.size[0] = Dimension::Auto;
-                rows.layout.max_size[1] = Dimension::Pixels((surface[1] - 3.0 * TOP).max(120.0));
-                let commands = super::Element::scroll(rows).role(Role::ListBox);
+                let tallest = (surface[1] - 3.0 * TOP).max(120.0);
+                let commands = super::Element::scroll()
+                    .style(|s| column(s).max_height(Dimension::Pixels(tallest)))
+                    .role(Role::ListBox);
                 list = Some(palette.add("commands", commands, |_| {}));
             });
         });
@@ -129,9 +128,6 @@ impl Ui {
         let Some(root) = self.own_layer("shortcuts") else {
             return;
         };
-        let mut column = Style::default();
-        column.layout.direction = FlexDirection::Column;
-        column.layout.size[0] = Dimension::Pixels(WIDTH);
         let scopes = self.shortcuts();
         let name = |command: &str| {
             commands
@@ -142,38 +138,36 @@ impl Ui {
         let title = title.to_owned();
         let surface = self.surface_size();
         self.build(root, 0, |children| {
-            let sheet = super::Element::container(column.clone())
+            let sheet = super::Element::container()
+                .style(|s| column(s).width(Dimension::Pixels(WIDTH)))
                 .class("sheet")
                 .role(Role::Dialog)
                 .named(title.as_str());
             children.add("sheet", sheet, |sheet| {
                 sheet.add(
                     "title",
-                    super::Element::label(title.as_str(), Style::default()).class("sheet-title"),
+                    super::Element::label(title.as_str()).class("sheet-title"),
                     |_| {},
                 );
                 // Its shortcuts scroll within most of the window's height.
-                let mut rows = column;
-                rows.layout.size[0] = Dimension::Auto;
-                rows.layout.max_size[1] = Dimension::Pixels((surface[1] - 2.0 * TOP).max(120.0));
-                sheet.add("shortcuts", super::Element::scroll(rows), |rows| {
+                let tallest = (surface[1] - 2.0 * TOP).max(120.0);
+                let rows_box = super::Element::scroll()
+                    .style(|s| column(s).max_height(Dimension::Pixels(tallest)));
+                sheet.add("shortcuts", rows_box, |rows| {
                     for (number, (scope, chords)) in scopes.iter().enumerate() {
                         // Keys by the scope's place, which no chord nor scope's name can repeat.
-                        let heading = super::Element::label(scope.as_str(), Style::default())
-                            .class("sheet-scope");
+                        let heading = super::Element::label(scope.as_str()).class("sheet-scope");
                         rows.add(format!("scope {number}"), heading, |_| {});
                         for (chord, command) in chords {
-                            let mut row = Style::default();
-                            row.layout.gap = [0.0, 12.0];
-                            let row = super::Element::container(row).class("sheet-row");
+                            let row = super::Element::container()
+                                .style(|s| s.column_gap(12.0))
+                                .class("sheet-row");
                             rows.add(format!("{number} {chord}"), row, |row| {
-                                let mut keys = Style::default();
-                                keys.layout.size[0] = Dimension::Pixels(140.0);
-                                keys.layout.shrink = 0.0;
-                                let keys =
-                                    super::Element::label(chord.as_str(), keys).class("fixed");
+                                let keys = super::Element::label(chord.as_str())
+                                    .style(|s| s.width(Dimension::Pixels(140.0)).shrink(0.0))
+                                    .class("fixed");
                                 row.add("chord", keys, |_| {});
-                                let text = super::Element::label(name(command), Style::default());
+                                let text = super::Element::label(name(command));
                                 row.add("name", text, |_| {});
                             });
                         }
@@ -201,7 +195,7 @@ impl Ui {
             modal: false,
             dismiss: true,
         };
-        Some(self.add_quiet_layer(key, layer, Style::default()))
+        Some(self.add_quiet_layer(key, layer, |s| s))
     }
 
     /// Where the palette and the sheet stand: their top start corner below the window's top, so
@@ -437,7 +431,7 @@ impl Ui {
         }
         self.build(list, revision, |children| {
             for (place, (name, chord)) in rows.into_iter().enumerate() {
-                let row = super::Element::menu_item(name, chord, ItemMark::None, Style::default())
+                let row = super::Element::menu_item(name, chord, ItemMark::None)
                     .role(Role::ListBoxOption);
                 children.add(place, row, |_| {});
             }
@@ -567,6 +561,11 @@ fn score(wanted: &[char], name: &str) -> Option<i64> {
         at = found + 1;
     }
     Some(total - original.len() as i64 / 8)
+}
+
+/// A box that lays its children out in a column.
+fn column(s: StyleBuilder) -> StyleBuilder {
+    s.direction(FlexDirection::Column)
 }
 
 #[cfg(test)]

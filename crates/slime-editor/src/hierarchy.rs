@@ -10,7 +10,7 @@ use slime_reflect::{Reflect, Value};
 use slime_world::{Command, Entity, Name, PersistentId, Tick, World};
 use uwui::action::{Action, ActionKind, FieldValue, Intent};
 use uwui::look;
-use uwui::style::{Align, Dimension, FlexDirection, Style};
+use uwui::style::{Align, Dimension, FlexDirection, StyleBuilder};
 use uwui::tree::{Element, ElementId, Role, Ui};
 
 use crate::arrange::{self, Spot};
@@ -254,14 +254,12 @@ impl Hierarchy {
         let rows = self.rows.len();
         let search = self.search.clone();
         ui.build(slot, self.revision, |children| {
-            let field_element = Element::search_field(search.as_str(), Style::default())
+            let field_element = Element::search_field(search.as_str())
                 .placeholder("Search: a name, c:component, p:prefab")
                 .named("search the hierarchy");
             field = Some(children.add("search", field_element, |_| {}));
-            let mut style = Style::default();
-            style.layout.grow = 1.0;
-            style.layout.min_size[1] = Dimension::Pixels(0.0);
-            let element = Element::list(rows, ROW_HEIGHT, style)
+            let element = Element::list(rows, ROW_HEIGHT)
+                .style(|s| s.grow(1.0).min_height(Dimension::Pixels(0.0)))
                 .role(Role::Tree)
                 .class(SCOPE)
                 .named("hierarchy");
@@ -665,10 +663,13 @@ fn build_row(
     world: &World,
     shows: Look,
 ) -> Built {
-    let mut style = Style::default();
-    style.layout.direction = FlexDirection::Column;
+    // The box of a mark: the fold's, the placement's, the eye's and the lock's.
+    fn mark_box(s: StyleBuilder) -> StyleBuilder {
+        s.width(Dimension::Pixels(FOLD_WIDTH)).shrink(0.0)
+    }
     let name = entity_name(world, row.entity);
-    let mut item = Element::container(style)
+    let mut item = Element::container()
+        .style(|s| s.direction(FlexDirection::Column))
         .role(Role::TreeItem)
         .named(name.clone())
         .level(row.depth + 1)
@@ -681,29 +682,28 @@ fn build_row(
     }
     // A line where the drop would put what is dragged, from the row's name.
     let line = |children: &mut uwui::tree::Children<'_>, key: &'static str| {
-        let mut style = Style::default();
-        style.layout.size[1] = Dimension::Pixels(2.0);
-        style.layout.shrink = 0.0;
-        style.layout.margin.start = row.depth as f32 * INDENT + FOLD_WIDTH;
-        children.add(key, Element::container(style).class("drop-line"), |_| {});
+        let line = Element::container()
+            .style(|s| {
+                s.height(Dimension::Pixels(2.0))
+                    .shrink(0.0)
+                    .margin_start(row.depth as f32 * INDENT + FOLD_WIDTH)
+            })
+            .class("drop-line");
+        children.add(key, line, |_| {});
     };
     let (mut fold, mut name_element, mut eye_elements) = (None, None, None);
     let element = children.add(index, item, |children| {
         if shows.drop == Some(Place::Before) {
             line(children, "before");
         }
-        let mut content = Style::default();
-        content.layout.direction = FlexDirection::Row;
-        content.layout.grow = 1.0;
-        content.layout.min_size[1] = Dimension::Pixels(0.0);
-        children.add("content", Element::container(content), |children| {
-            let mut indent = Style::default();
-            indent.layout.size[0] = Dimension::Pixels(row.depth as f32 * INDENT);
-            indent.layout.shrink = 0.0;
-            children.add("indent", Element::container(indent), |_| {});
-            let mut mark = Style::default();
-            mark.layout.size[0] = Dimension::Pixels(FOLD_WIDTH);
-            mark.layout.shrink = 0.0;
+        let content =
+            Element::container().style(|s| s.grow(1.0).min_height(Dimension::Pixels(0.0)));
+        children.add("content", content, |children| {
+            let indent = Element::container().style(|s| {
+                s.width(Dimension::Pixels(row.depth as f32 * INDENT))
+                    .shrink(0.0)
+            });
+            children.add("indent", indent, |_| {});
             if row.children {
                 let chevron = if shows.open {
                     "chevron-down"
@@ -712,16 +712,15 @@ fn build_row(
                 };
                 let icon = look::icon(chevron).map(String::from).unwrap_or_default();
                 let name = if shows.open { "fold" } else { "unfold" };
-                let button = Element::button(icon, mark)
+                let button = Element::button(icon)
+                    .style(mark_box)
                     .class("row")
                     .class("mark")
                     .named(name);
                 fold = Some(children.add("fold", button, |_| {}));
             } else {
-                children.add("leaf", Element::container(mark), |_| {});
+                children.add("leaf", Element::container().style(mark_box), |_| {});
             }
-            let mut grows = Style::default();
-            grows.layout.grow = 1.0;
             let shown = match world.parent(row.entity) {
                 Some(parent) if shows.found => format!("{name}  —  {}", path_of(world, parent)),
                 _ => name.clone(),
@@ -731,9 +730,12 @@ fn build_row(
                 let text = world
                     .get::<Name>(row.entity)
                     .map_or_else(String::new, |name| name.0.clone());
-                Element::text_field(text, grows).named("rename")
+                Element::text_field(text)
+                    .style(|s| s.grow(1.0))
+                    .named("rename")
             } else {
-                let button = Element::button(shown, grows)
+                let button = Element::button(shown)
+                    .style(|s| s.grow(1.0))
                     .class("row")
                     .named(name.as_str())
                     .draggable();
@@ -749,21 +751,20 @@ fn build_row(
             // its glyph level with it.
             if world.placement(row.entity).is_some() {
                 let icon = look::icon("package").map(String::from).unwrap_or_default();
-                let mut style = Style::default();
-                style.layout.size[0] = Dimension::Pixels(FOLD_WIDTH);
-                style.layout.shrink = 0.0;
-                style.layout.align_self = Some(Align::Center);
-                let mark = Element::label(icon, style).class("icon").named("placement");
+                let mark = Element::label(icon)
+                    .style(|s| mark_box(s).align_self(Some(Align::Center)))
+                    .class("icon")
+                    .named("placement");
                 children.add("placement", mark, |_| {});
             }
             // The eye and the lock, each named after what a press does.
             if let Some((hidden, locked)) = shows.eye {
                 let mut button = |key: &'static str, (icon, name): (&str, &str)| {
-                    let mut style = Style::default();
-                    style.layout.size[0] = Dimension::Pixels(FOLD_WIDTH);
-                    style.layout.shrink = 0.0;
                     let icon = look::icon(icon).map(String::from).unwrap_or_default();
-                    let element = Element::button(icon, style).class("mark").named(name);
+                    let element = Element::button(icon)
+                        .style(mark_box)
+                        .class("mark")
+                        .named(name);
                     children.add(key, element, |_| {})
                 };
                 let eye = button(

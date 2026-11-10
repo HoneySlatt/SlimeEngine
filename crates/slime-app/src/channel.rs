@@ -1261,7 +1261,7 @@ mod tests {
 
     impl Panel {
         fn new() -> Self {
-            use uwui::style::{Dimension, FlexDirection, Style};
+            use uwui::style::{Dimension, FlexDirection, StyleBuilder};
             use uwui::text::Fonts;
             use uwui::tree::{Element, LayoutDirection, RootSettings};
 
@@ -1273,23 +1273,24 @@ mod tests {
                 origin: [0.0; 2],
                 modal: false,
             };
-            let root = ui.add_root("main", settings, Style::default());
-            let mut style = Style::default();
-            style.layout.size = [Dimension::Pixels(100.0), Dimension::Pixels(40.0)];
-            style.layout.shrink = 0.0;
-            let mut notes = style.clone();
-            notes.layout.direction = FlexDirection::Column;
+            let root = ui.add_root("main", settings, |s| s);
+            fn sized(s: StyleBuilder) -> StyleBuilder {
+                s.width(Dimension::Pixels(100.0))
+                    .height(Dimension::Pixels(40.0))
+                    .shrink(0.0)
+            }
             let mut save = None;
             ui.build(root, 0, |children| {
                 for name in ["open", "save", "close"] {
-                    let button = children.add(name, Element::button(name, style.clone()), |_| {});
+                    let button = children.add(name, Element::button(name).style(sized), |_| {});
                     if name == "save" {
                         save = Some(button);
                     }
                 }
-                children.add("notes", Element::scroll(notes), |children| {
+                let notes = Element::scroll().style(|s| sized(s).direction(FlexDirection::Column));
+                children.add("notes", notes, |children| {
                     for name in ["top", "below"] {
-                        children.add(name, Element::button(name, style.clone()), |_| {});
+                        children.add(name, Element::button(name).style(sized), |_| {});
                     }
                 });
             });

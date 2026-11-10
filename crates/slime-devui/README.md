@@ -49,7 +49,6 @@ use slime_app::{Context, Presentation};
 use slime_devui::{Corner, Overlay, PanelId, PanelSpec};
 use slime_gfx::RenderTarget;
 use slime_render::Renderer;
-use uwui::style::Style;
 use uwui::tree::{Element, Ui};
 use slime_world::World;
 
@@ -90,7 +89,7 @@ impl Presentation for Statistics {
         if let Some(slot) = self.overlay.slot(self.panel) {
             let text = format!("{} frames", self.frames);
             self.overlay.ui_mut().build(slot, self.frames, |children| {
-                children.add("frames", Element::label(text, Style::default()), |_| {});
+                children.add("frames", Element::label(text), |_| {});
             });
         }
     }

@@ -8,7 +8,7 @@ use std::fmt;
 use slime_reflect::Value;
 use slime_world::{Command, Entity, Name, PersistentId, Tick, World};
 use uwui::action::{Action, ActionKind, FieldValue};
-use uwui::style::{Dimension, FlexDirection, Style};
+use uwui::style::{Dimension, FlexDirection};
 use uwui::tree::{Element, ElementId, Ui};
 
 use crate::reflected::entity_name;
@@ -230,51 +230,42 @@ impl WorldPanel {
         ui.build(parent, self.revision, |children| {
             ran = true;
             if !self.alone {
-                let field = Element::search_field(self.filter.as_str(), Style::default())
+                let field = Element::search_field(self.filter.as_str())
                     .placeholder("Filter by name")
                     .named("filter by name");
                 filter_field = Some(children.add("filter", field, |_| {}));
-                let mut list = Style::default();
-                list.layout.size[1] = Dimension::Pixels(LIST_HEIGHT);
-                list.layout.shrink = 0.0;
-                let list = Element::list(self.matches.len(), ROW_HEIGHT, list).named("entities");
+                let list = Element::list(self.matches.len(), ROW_HEIGHT)
+                    .style(|s| s.height(Dimension::Pixels(LIST_HEIGHT)).shrink(0.0))
+                    .named("entities");
                 list_slot = Some(children.add_slot("list", list));
             }
-            let mut details = Style::default();
-            details.layout.direction = FlexDirection::Column;
-            details.layout.gap = [6.0, 0.0];
-            children.add("selected", Element::container(details), |children| {
+            let details =
+                Element::container().style(|s| s.direction(FlexDirection::Column).row_gap(6.0));
+            children.add("selected", details, |children| {
                 let Some(details) = &shown.selected else {
                     let text = "Select an entity to see its components.";
-                    let none = Element::label(text, Style::default()).class("muted");
+                    let none = Element::label(text).class("muted");
                     children.add("none", none, |_| {});
                     return;
                 };
-                let heading =
-                    Element::label(details.name.as_str(), Style::default()).class("heading");
+                let heading = Element::label(details.name.as_str()).class("heading");
                 children.add("name", heading, |_| {});
                 // What files and saves name it by, and what it places, if it is a placement's root.
                 let identity = match &details.identity {
-                    Some(id) => Element::label(format!("Identity: {id}"), Style::default()),
-                    None => Element::label("No identity yet: not edited", Style::default())
-                        .class("muted"),
+                    Some(id) => Element::label(format!("Identity: {id}")),
+                    None => Element::label("No identity yet: not edited").class("muted"),
                 };
                 children.add("identity", identity, |_| {});
                 if let Some(prefab) = &details.prefab {
-                    children.add(
-                        "prefab",
-                        Element::label(prefab.as_str(), Style::default()),
-                        |_| {},
-                    );
+                    children.add("prefab", Element::label(prefab.as_str()), |_| {});
                 }
                 if let Some(refusal) = &shown.refusal {
-                    let element = Element::label(refusal.as_str(), Style::default()).class("error");
+                    let element = Element::label(refusal.as_str()).class("error");
                     children.add("refusal", element, |_| {});
                 }
-                let mut components = Style::default();
-                components.layout.direction = FlexDirection::Column;
-                components.layout.gap = [4.0, 0.0];
-                children.add("components", Element::container(components), |children| {
+                let components =
+                    Element::container().style(|s| s.direction(FlexDirection::Column).row_gap(4.0));
+                children.add("components", components, |children| {
                     self.editor
                         .build_components(children, world, &details.components);
                 });
@@ -304,7 +295,7 @@ impl WorldPanel {
                 else {
                     continue;
                 };
-                let element = Element::button(text.as_str(), Style::default()).class("row");
+                let element = Element::button(text.as_str()).class("row");
                 built.push((children.add(row, element, |_| {}), entity));
             }
             rows = Some(built);

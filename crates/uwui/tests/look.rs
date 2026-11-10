@@ -10,7 +10,6 @@
 use slime_color::{LinearColor, Oklch};
 use uwui::display::Primitive;
 use uwui::look::{self, Colors, Density, FIXED_FAMILY, TEXT_FAMILY};
-use uwui::style::Style;
 use uwui::text::{Fonts, TextBounds, TextStyle};
 use uwui::theme::Theme;
 use uwui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
@@ -101,7 +100,7 @@ fn styled(themes: &[Theme], elements: Vec<Element>) -> (Ui, Vec<ElementId>) {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root("main", settings, Style::default());
+    let root = ui.add_root("main", settings, |s| s);
     let mut ids = Vec::new();
     ui.build(root, 0, |children| {
         for (index, element) in elements.into_iter().enumerate() {
@@ -115,15 +114,15 @@ fn styled(themes: &[Theme], elements: Vec<Element>) -> (Ui, Vec<ElementId>) {
 /// One element of each kind that the look styles, and a panel.
 fn every_kind() -> Vec<Element> {
     vec![
-        Element::label("Name", Style::default()),
-        Element::label("entity-0042", Style::default()).class("fixed"),
-        Element::button("Apply", Style::default()),
-        Element::check_box("Casts shadows", true, Style::default()),
-        Element::slider(0.5, 0.0, 1.0, 0.0, Style::default()),
-        Element::section("Transform", true, Style::default()),
-        Element::number_field(1.5, 0.1, Style::default()),
-        Element::container(Style::default()).class("panel"),
-        Element::text_field("name", Style::default()),
+        Element::label("Name"),
+        Element::label("entity-0042").class("fixed"),
+        Element::button("Apply"),
+        Element::check_box("Casts shadows", true),
+        Element::slider(0.5, 0.0, 1.0, 0.0),
+        Element::section("Transform", true),
+        Element::number_field(1.5, 0.1),
+        Element::container().class("panel"),
+        Element::text_field("name"),
     ]
 }
 
@@ -165,7 +164,7 @@ fn the_style_sheet_styles_each_kind_its_states_and_its_classes() {
 #[test]
 fn a_chosen_tab_takes_the_panels_color_and_the_others_a_quieter_text() {
     let themes = look::themes(Colors::Dark, Density::Comfortable);
-    let bar = Element::tab_bar(1, Style::default());
+    let bar = Element::tab_bar(1);
     let mut fonts = Fonts::new();
     look::register_fonts(&mut fonts);
     let mut ui = Ui::new(fonts);
@@ -178,12 +177,12 @@ fn a_chosen_tab_takes_the_panels_color_and_the_others_a_quieter_text() {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root("main", settings, Style::default());
+    let root = ui.add_root("main", settings, |s| s);
     let mut tabs = Vec::new();
     ui.build(root, 0, |children| {
         children.add("tabs", bar, |bar| {
             for title in ["Scene", "Lighting"] {
-                tabs.push(bar.add(title, Element::tab(title, Style::default()), |_| {}));
+                tabs.push(bar.add(title, Element::tab(title), |_| {}));
             }
         });
     });
@@ -289,12 +288,12 @@ fn the_look_styles_what_opens_over_a_panel() {
     use uwui::tree::ItemMark;
     let themes = look::themes(Colors::Dark, Density::Comfortable);
     let elements = vec![
-        Element::menu(Style::default()),
-        Element::menu_item("Save", "Ctrl+S", ItemMark::None, Style::default()),
-        Element::choice(vec!["Low".to_owned()], 0, Style::default()),
-        Element::container(Style::default()).class("tooltip"),
-        Element::floating_panel("Color", true, Style::default()),
-        Element::menu_bar(Style::default()),
+        Element::menu(),
+        Element::menu_item("Save", "Ctrl+S", ItemMark::None),
+        Element::choice(vec!["Low".to_owned()], 0),
+        Element::container().class("tooltip"),
+        Element::floating_panel("Color", true),
+        Element::menu_bar(),
     ];
     let (ui, ids) = styled(&themes, elements);
     let style = |index: usize| ui.style(ids[index]).expect("styled");
@@ -316,7 +315,7 @@ fn a_modal_layer_dims_the_window_below_it_and_another_does_not() {
     use uwui::Rect;
     use uwui::tree::{Layer, Place};
     let themes = look::themes(Colors::Dark, Density::Comfortable);
-    let (mut ui, ids) = styled(&themes, vec![Element::button("Open", Style::default())]);
+    let (mut ui, ids) = styled(&themes, vec![Element::button("Open")]);
     // The boxes that cover the whole window of 800 by 600, with the layer of `modal` open.
     let mut covering = |modal: bool| {
         let place = Place::Floating {
@@ -331,7 +330,7 @@ fn a_modal_layer_dims_the_window_below_it_and_another_does_not() {
                 modal,
                 dismiss: true,
             },
-            Style::default(),
+            |s| s,
         );
         let (list, _) = ui.frame();
         ui.remove(layer);

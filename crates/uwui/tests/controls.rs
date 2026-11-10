@@ -7,7 +7,7 @@
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind, FieldValue};
 use uwui::display::Primitive;
-use uwui::style::{Dimension, Style};
+use uwui::style::{Align, Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{Element, ElementAction, ElementId, LayoutDirection, Role, RootSettings, Ui};
 
@@ -21,13 +21,12 @@ fn ui() -> Ui {
     Ui::new(fonts)
 }
 
-/// A style of `width` by 20 logical pixels, of the tests' font.
-fn sized(width: f32) -> Style {
-    let mut style = Style::default();
-    style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(20.0)];
-    style.layout.shrink = 0.0;
-    style.text.style.fonts = vec!["Noto Sans".to_owned()];
-    style
+/// Writes `width` by 20 logical pixels, of the tests' font.
+fn sized(s: StyleBuilder, width: f32) -> StyleBuilder {
+    s.width(Dimension::Pixels(width))
+        .height(Dimension::Pixels(20.0))
+        .shrink(0.0)
+        .fonts(vec!["Noto Sans".to_owned()])
 }
 
 /// An interface whose root, of 400 by 300 logical pixels at scale 1 and laid out in `direction`,
@@ -41,7 +40,7 @@ fn interface(direction: LayoutDirection, element: Element) -> (Ui, ElementId, El
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root("main", settings, Style::default());
+    let root = ui.add_root("main", settings, |s| s);
     let mut id = None;
     ui.build(root, 0, |children| {
         id = Some(children.add("control", element, |_| {}));
@@ -93,7 +92,7 @@ fn click(ui: &mut Ui, x: f32, y: f32) {
 fn a_check_box_toggles_by_the_pointer_the_keys_and_an_agent() {
     let (mut ui, _, check) = interface(
         LayoutDirection::LeftToRight,
-        Element::check_box("Shadows", false, sized(200.0)),
+        Element::check_box("Shadows", false).style(|s| sized(s, 200.0)),
     );
     // Its meaning: a check box, named by its label, which takes a press, the focus.
     let meaning = ui.meaning_of(check).expect("it means something");
@@ -133,13 +132,13 @@ fn a_check_box_toggles_by_the_pointer_the_keys_and_an_agent() {
 fn a_check_box_keeps_what_the_user_toggled_until_the_program_changes_it() {
     let (mut ui, root, check) = interface(
         LayoutDirection::LeftToRight,
-        Element::check_box("Shadows", false, sized(200.0)),
+        Element::check_box("Shadows", false).style(|s| sized(s, 200.0)),
     );
     let build = |ui: &mut Ui, revision: u64, checked: bool| {
         ui.build(root, revision, |children| {
             children.add(
                 "control",
-                Element::check_box("Shadows", checked, sized(200.0)),
+                Element::check_box("Shadows", checked).style(|s| sized(s, 200.0)),
                 |_| {},
             );
         });
@@ -161,7 +160,7 @@ fn a_check_box_keeps_what_the_user_toggled_until_the_program_changes_it() {
 fn a_slider_is_dragged_pressed_on_its_track_and_moved_by_the_keys() {
     let (mut ui, _, slider) = interface(
         LayoutDirection::LeftToRight,
-        Element::slider(0.5, 0.0, 1.0, 0.1, sized(216.0)),
+        Element::slider(0.5, 0.0, 1.0, 0.1).style(|s| sized(s, 216.0)),
     );
     let meaning = ui.meaning_of(slider).expect("it means something");
     assert_eq!(meaning.role, Role::Slider);
@@ -213,7 +212,7 @@ fn a_slider_is_dragged_pressed_on_its_track_and_moved_by_the_keys() {
 fn a_slider_from_right_to_left_starts_at_its_right() {
     let (mut ui, _, slider) = interface(
         LayoutDirection::RightToLeft,
-        Element::slider(0.0, 0.0, 10.0, 1.0, sized(216.0)),
+        Element::slider(0.0, 0.0, 10.0, 1.0).style(|s| sized(s, 216.0)),
     );
     // In a root of 400 pixels laid out from right to left, the slider's box runs from 184 to 400.
     ui.pointer_moved(392.0, 10.0);
@@ -233,7 +232,9 @@ fn a_logarithmic_slider_multiplies_its_value_by_as_much_along_its_track() {
     // From 0.1 to 10: the track's middle is 1, its quarter 0.316.
     let (mut ui, _, slider) = interface(
         LayoutDirection::LeftToRight,
-        Element::slider(1.0, 0.1, 10.0, 0.0, sized(216.0)).logarithmic(),
+        Element::slider(1.0, 0.1, 10.0, 0.0)
+            .style(|s| sized(s, 216.0))
+            .logarithmic(),
     );
     // The thumb at 1 stands in the middle of the track, from 8 to 208.
     let middle = |ui: &mut Ui| {
@@ -262,7 +263,9 @@ fn a_logarithmic_slider_multiplies_its_value_by_as_much_along_its_track() {
     // A least value not above 0 maps the track linearly.
     let (mut ui, _, slider) = interface(
         LayoutDirection::LeftToRight,
-        Element::slider(0.0, 0.0, 10.0, 0.0, sized(216.0)).logarithmic(),
+        Element::slider(0.0, 0.0, 10.0, 0.0)
+            .style(|s| sized(s, 216.0))
+            .logarithmic(),
     );
     click(&mut ui, 108.0, 10.0);
     assert_eq!(ui.slider_value(slider), Some(5.0));
@@ -273,7 +276,9 @@ fn a_reversed_slider_runs_from_its_most_value_to_its_least() {
     // An exposure, from 18 at its left to 0 at its right.
     let (mut ui, _, slider) = interface(
         LayoutDirection::LeftToRight,
-        Element::slider(9.0, 0.0, 18.0, 1.0, sized(216.0)).reversed(),
+        Element::slider(9.0, 0.0, 18.0, 1.0)
+            .style(|s| sized(s, 216.0))
+            .reversed(),
     );
     click(&mut ui, 8.0, 10.0);
     assert_eq!(ui.slider_value(slider), Some(18.0));
@@ -292,7 +297,9 @@ fn a_reversed_slider_runs_from_its_most_value_to_its_least() {
     // From right to left, reversed, its least value lies at the left again.
     let (mut ui, _, slider) = interface(
         LayoutDirection::RightToLeft,
-        Element::slider(0.0, 0.0, 10.0, 1.0, sized(216.0)).reversed(),
+        Element::slider(0.0, 0.0, 10.0, 1.0)
+            .style(|s| sized(s, 216.0))
+            .reversed(),
     );
     click(&mut ui, 192.0, 10.0);
     assert_eq!(ui.slider_value(slider), Some(0.0));
@@ -304,13 +311,13 @@ fn a_reversed_slider_runs_from_its_most_value_to_its_least() {
 fn a_slider_keeps_its_value_until_the_program_changes_it() {
     let (mut ui, root, slider) = interface(
         LayoutDirection::LeftToRight,
-        Element::slider(2.0, 0.0, 10.0, 1.0, sized(216.0)),
+        Element::slider(2.0, 0.0, 10.0, 1.0).style(|s| sized(s, 216.0)),
     );
     let build = |ui: &mut Ui, revision: u64, value: f64| {
         ui.build(root, revision, |children| {
             children.add(
                 "control",
-                Element::slider(value, 0.0, 10.0, 1.0, sized(216.0)),
+                Element::slider(value, 0.0, 10.0, 1.0).style(|s| sized(s, 216.0)),
                 |_| {},
             );
         });
@@ -335,23 +342,21 @@ fn section(open: bool) -> (Ui, ElementId, ElementId, ElementId) {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root("main", settings, Style::default());
+    let root = ui.add_root("main", settings, |s| s);
     let (mut folding, mut button) = (None, None);
-    let mut style = sized(200.0);
-    style.layout.size[1] = Dimension::Auto;
-    style.layout.direction = uwui::style::FlexDirection::Column;
-    // As tall as it holds, not stretched to its root's height.
-    style.layout.align_self = Some(uwui::style::Align::Start);
     ui.build(root, 0, |children| {
-        folding = Some(children.add(
-            "physics",
-            Element::section("Physics", open, style),
-            |children| {
-                let mut tall = sized(200.0);
-                tall.layout.size[1] = Dimension::Pixels(40.0);
-                button = Some(children.add("apply", Element::button("Apply", tall), |_| {}));
-            },
-        ));
+        let physics = Element::section("Physics", open).style(|s| {
+            sized(s, 200.0)
+                .height(Dimension::Auto)
+                .direction(FlexDirection::Column)
+                // As tall as it holds, not stretched to its root's height.
+                .align_self(Some(Align::Start))
+        });
+        folding = Some(children.add("physics", physics, |children| {
+            let tall =
+                Element::button("Apply").style(|s| sized(s, 200.0).height(Dimension::Pixels(40.0)));
+            button = Some(children.add("apply", tall, |_| {}));
+        }));
     });
     ui.frame();
     (ui, root, folding.expect("built"), button.expect("built"))
@@ -412,15 +417,19 @@ fn a_section_opened_by_the_program_and_its_button_reached_by_tab() {
 fn build_tabs(ui: &mut Ui, root: ElementId, revision: u64, chosen: usize) -> ElementId {
     let mut bar = None;
     ui.build(root, revision, |children| {
-        let id = children.add("tabs", Element::tab_bar(chosen, Style::default()), |tabs| {
+        let id = children.add("tabs", Element::tab_bar(chosen), |tabs| {
             for (place, title) in ["General", "Physics", "Audio"].into_iter().enumerate() {
-                tabs.add(place, Element::tab(title, sized(80.0)), |_| {});
+                tabs.add(place, Element::tab(title).style(|s| sized(s, 80.0)), |_| {});
             }
         });
         let shown = ["General", "Physics", "Audio"][children.chosen(id)];
-        let panel = Element::container(Style::default()).role(Role::TabPanel);
+        let panel = Element::container().role(Role::TabPanel);
         children.add("panel", panel, |panel| {
-            panel.add("text", Element::label(shown, sized(200.0)), |_| {});
+            panel.add(
+                "text",
+                Element::label(shown).style(|s| sized(s, 200.0)),
+                |_| {},
+            );
         });
         bar = Some(id);
     });
@@ -446,7 +455,7 @@ fn a_tab_chosen_by_the_pointer_or_the_keys_shows_its_panel() {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root("main", settings, Style::default());
+    let root = ui.add_root("main", settings, |s| s);
     let bar = build_tabs(&mut ui, root, 0, 0);
     let tabs = ui.children(bar).to_vec();
     assert_eq!(ui.meaning_of(bar).expect("a bar").role, Role::TabList);
@@ -495,14 +504,19 @@ fn a_split_shares_its_length_and_its_handle_is_dragged_and_moved_by_the_keys() {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root("main", settings, Style::default());
-    let mut whole = Style::default();
-    whole.layout.size = [Dimension::Pixels(400.0), Dimension::Pixels(300.0)];
+    let root = ui.add_root("main", settings, |s| s);
     ui.build(root, 0, |children| {
-        children.add("split", Element::split(true, 0.25, whole), |panels| {
-            panels.add("left", Element::container(Style::default()), |_| {});
-            panels.add("right", Element::container(Style::default()), |_| {});
-        });
+        children.add(
+            "split",
+            Element::split(true, 0.25).style(|s| {
+                s.width(Dimension::Pixels(400.0))
+                    .height(Dimension::Pixels(300.0))
+            }),
+            |panels| {
+                panels.add("left", Element::container(), |_| {});
+                panels.add("right", Element::container(), |_| {});
+            },
+        );
     });
     ui.frame();
     let split = ui.element_by_path("main/split").expect("built");
@@ -547,17 +561,19 @@ fn a_box_whose_content_does_not_fit_shows_a_scroll_bar_that_scrolls_it() {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root("main", settings, Style::default());
-    let mut boxed = Style::default();
-    boxed.layout.size = [Dimension::Pixels(100.0), Dimension::Pixels(40.0)];
-    boxed.layout.direction = uwui::style::FlexDirection::Column;
+    let root = ui.add_root("main", settings, |s| s);
     let mut scroll = None;
     ui.build(root, 0, |children| {
-        scroll = Some(children.add("scroll", Element::scroll(boxed), |children| {
+        let boxed = Element::scroll().style(|s| {
+            s.width(Dimension::Pixels(100.0))
+                .height(Dimension::Pixels(40.0))
+                .direction(FlexDirection::Column)
+        });
+        scroll = Some(children.add("scroll", boxed, |children| {
             for name in ["a", "b", "c"] {
-                let mut tall = sized(80.0);
-                tall.layout.size[1] = Dimension::Pixels(30.0);
-                children.add(name, Element::button(name, tall), |_| {});
+                let tall =
+                    Element::button(name).style(|s| sized(s, 80.0).height(Dimension::Pixels(30.0)));
+                children.add(name, tall, |_| {});
             }
         }));
     });
@@ -594,15 +610,24 @@ fn a_third_child_of_two_panels_is_neither_drawn_nor_reached() {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root("main", settings, Style::default());
-    let mut whole = Style::default();
-    whole.layout.size = [Dimension::Pixels(400.0), Dimension::Pixels(300.0)];
+    let root = ui.add_root("main", settings, |s| s);
     ui.build(root, 0, |children| {
-        children.add("split", Element::split(true, 0.5, whole), |panels| {
-            panels.add("left", Element::container(Style::default()), |_| {});
-            panels.add("right", Element::container(Style::default()), |_| {});
-            panels.add("third", Element::button("third", sized(50.0)), |_| {});
-        });
+        children.add(
+            "split",
+            Element::split(true, 0.5).style(|s| {
+                s.width(Dimension::Pixels(400.0))
+                    .height(Dimension::Pixels(300.0))
+            }),
+            |panels| {
+                panels.add("left", Element::container(), |_| {});
+                panels.add("right", Element::container(), |_| {});
+                panels.add(
+                    "third",
+                    Element::button("third").style(|s| sized(s, 50.0)),
+                    |_| {},
+                );
+            },
+        );
     });
     ui.frame();
     let third = ui.element_by_path("main/split/third").expect("built");
@@ -616,10 +641,10 @@ fn a_check_box_s_label_and_a_section_s_title_lie_beside_their_box_from_either_si
     // Latin, and Hebrew, which the font lacks but which is laid out from right to left all the
     // same: in a root of either direction, the glyphs lie against the box, or the mark.
     let elements = [
-        Element::check_box("shadows", true, sized(300.0)),
-        Element::check_box("צללים", true, sized(300.0)),
-        Element::section("physics", true, sized(300.0)),
-        Element::section("פיזיקה", true, sized(300.0)),
+        Element::check_box("shadows", true).style(|s| sized(s, 300.0)),
+        Element::check_box("צללים", true).style(|s| sized(s, 300.0)),
+        Element::section("physics", true).style(|s| sized(s, 300.0)),
+        Element::section("פיזיקה", true).style(|s| sized(s, 300.0)),
     ];
     for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
         for element in elements.clone() {
@@ -659,7 +684,7 @@ fn a_check_box_s_label_and_a_section_s_title_lie_beside_their_box_from_either_si
 #[test]
 fn a_slider_whose_bounds_are_no_numbers_keeps_its_value_and_draws() {
     // No least bound, so no steps from it; no greatest bound.
-    let element = Element::slider(0.55, f64::NAN, f64::NAN, 0.1, sized(216.0));
+    let element = Element::slider(0.55, f64::NAN, f64::NAN, 0.1).style(|s| sized(s, 216.0));
     let (mut ui, _, slider) = interface(LayoutDirection::LeftToRight, element);
     assert_eq!(ui.slider_value(slider), Some(0.55));
     assert!(ui.set_value(slider, "7.25"));
@@ -677,7 +702,7 @@ fn a_share_reads_as_its_own_type_writes_it() {
     // 0.32 has no exact value in binary: widened, it would read 0.3199999928474426.
     let (mut ui, _, split) = interface(
         LayoutDirection::LeftToRight,
-        Element::split(true, 0.32, sized(300.0)),
+        Element::split(true, 0.32).style(|s| sized(s, 300.0)),
     );
     let meaning = ui.meaning_of(split).expect("it means something");
     assert_eq!(meaning.value.as_deref(), Some("0.32"));
@@ -690,7 +715,9 @@ fn a_share_reads_as_its_own_type_writes_it() {
 fn a_logarithmic_slider_reaches_its_bounds_exactly() {
     let (mut ui, _, slider) = interface(
         LayoutDirection::LeftToRight,
-        Element::slider(1.0, 0.7, 3.0, 0.0, sized(216.0)).logarithmic(),
+        Element::slider(1.0, 0.7, 3.0, 0.0)
+            .style(|s| sized(s, 216.0))
+            .logarithmic(),
     );
     click(&mut ui, 208.0, 10.0);
     assert_eq!(ui.slider_value(slider), Some(3.0));

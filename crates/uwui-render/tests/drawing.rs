@@ -15,7 +15,7 @@ use uwui::Rect;
 use uwui::display::{
     BoxPrimitive, DisplayList, ImageKey, ImageKind, ImagePrimitive, TextPrimitive,
 };
-use uwui::style::{Align, Dimension, Style};
+use uwui::style::{Align, Dimension};
 use uwui::text::{Fonts, GlyphPixels, GlyphRasterizer, TextBounds, TextLayout, TextStyle};
 use uwui::tree::{Element, LayoutDirection, RootSettings, Ui};
 use uwui_render::{ATLAS_PAGE_SIZE, UiRenderer};
@@ -526,10 +526,6 @@ fn a_tree_of_elements_is_drawn_where_its_layout_places_it_and_mirrored_from_righ
     ];
     for direction in [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft] {
         let mut ui = Ui::new(fonts());
-        let mut row = Style::default();
-        row.layout.padding.start = 10.0;
-        row.layout.gap = [0.0, 10.0];
-        row.layout.align_items = Align::Start;
         let settings = RootSettings {
             size: [WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0],
             scale: 2.0,
@@ -537,7 +533,11 @@ fn a_tree_of_elements_is_drawn_where_its_layout_places_it_and_mirrored_from_righ
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root("main", settings, row);
+        let root = ui.add_root("main", settings, |s| {
+            s.padding_start(10.0)
+                .column_gap(10.0)
+                .align_items(Align::Start)
+        });
         let mut ids = Vec::new();
         ui.build(root, 0, |children| {
             for (index, (color, width)) in colors
@@ -545,14 +545,15 @@ fn a_tree_of_elements_is_drawn_where_its_layout_places_it_and_mirrored_from_righ
                 .zip([Some(40.0), Some(60.0), None])
                 .enumerate()
             {
-                let mut style = Style::default();
-                style.layout.size[1] = Dimension::Pixels(30.0);
-                match width {
-                    Some(width) => style.layout.size[0] = Dimension::Pixels(width),
-                    None => style.layout.grow = 1.0,
-                }
-                style.paint.background = color;
-                ids.push(children.add(index, Element::container(style), |_| {}));
+                let element = Element::container().style(|s| {
+                    let s = s.height(Dimension::Pixels(30.0));
+                    match width {
+                        Some(width) => s.width(Dimension::Pixels(width)),
+                        None => s.grow(1.0),
+                    }
+                    .background(color)
+                });
+                ids.push(children.add(index, element, |_| {}));
             }
         });
         let (list, _) = ui.frame();

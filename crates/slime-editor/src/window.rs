@@ -29,7 +29,7 @@ use uwui::display::{BoxPrimitive, DisplayList, ImageKey};
 use uwui::dock::{Dock, Target};
 use uwui::look::{self, Colors, Density};
 use uwui::shortcuts::Shortcuts;
-use uwui::style::{Dimension, FlexDirection, Justify, Sides, Style};
+use uwui::style::{Dimension, FlexDirection, Justify, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
     Along, Element, ElementId, FrameStats, ItemMark, Key, Layer, LayoutDirection, Notification,
@@ -334,7 +334,7 @@ impl Model {
             shared.notices.extend(told.into_iter().chain(kept.notice));
             (default, kept.layout)
         };
-        let root = ui.add_root("editor", settings([1.0, 1.0], 1.0), column());
+        let root = ui.add_root("editor", settings([1.0, 1.0], 1.0), column);
         let mut model = Self {
             shared,
             ui,
@@ -962,20 +962,20 @@ impl Model {
             Menu::Panels => "panels",
             Menu::MoveTo(_) => "move to",
         };
-        let layer = self.ui.open_layer(key, layer, Style::default());
+        let layer = self.ui.open_layer(key, layer, |s| s);
         let mut items = Vec::new();
         // A recent level's path holds `/`, which a key of a path cannot: its item is keyed by its
         // place, and named by its path.
         let by_place = matches!(menu, Menu::Recent);
         self.ui.build(layer, 0, |children| {
-            children.add("menu", Element::menu(Style::default()), |menu| {
+            children.add("menu", Element::menu(), |menu| {
                 for (place, (label, chord, mark, item)) in entries.into_iter().enumerate() {
                     let Some(item) = item else {
-                        let line = Element::container(Style::default()).class("separator");
+                        let line = Element::container().class("separator");
                         menu.add(format!("separator {place}"), line, |_| {});
                         continue;
                     };
-                    let element = Element::menu_item(label.as_str(), chord, mark, Style::default());
+                    let element = Element::menu_item(label.as_str(), chord, mark);
                     let key = if by_place {
                         Key::from(place)
                     } else {
@@ -999,7 +999,7 @@ impl Model {
             modal: true,
             dismiss: true,
         };
-        let layer = self.ui.open_layer("choose", layer, Style::default());
+        let layer = self.ui.open_layer("choose", layer, |s| s);
         let dialogs = self.shared.borrow().dialogs;
         let said = if dialogs { CHOOSE } else { TYPE_THE_PATH };
         let (field, open, cancel) = self.build_choosing(layer, said, 0);
@@ -1037,26 +1037,23 @@ impl Model {
     ) -> (ElementId, ElementId, ElementId) {
         let mut built = None;
         self.ui.build(layer, revision, |children| {
-            let mut dialog = column();
-            dialog.layout.size[0] = Dimension::Pixels(CHOOSING_WIDTH);
-            let dialog = Element::container(dialog)
+            let dialog = Element::container()
+                .style(|s| column(s).width(Dimension::Pixels(CHOOSING_WIDTH)))
                 .class("dialog")
                 .role(Role::Dialog)
                 .named("Open a level");
             children.add("dialog", dialog, |dialog| {
-                let title = Element::label("Open a level", Style::default()).class("heading");
+                let title = Element::label("Open a level").class("heading");
                 dialog.add("title", title, |_| {});
-                dialog.add("said", Element::label(said, Style::default()), |_| {});
-                let field = Element::text_field("", Style::default()).named("Level's path");
+                dialog.add("said", Element::label(said), |_| {});
+                let field = Element::text_field("").named("Level's path");
                 let field = dialog.add("path", field, |_| {});
-                let mut row = Style::default();
-                row.layout.justify = Justify::End;
-                row.layout.gap = [0.0, 8.0];
                 let mut buttons = None;
-                dialog.add("buttons", Element::container(row), |row| {
-                    let cancel = Element::button("Cancel", Style::default());
+                let row = Element::container().style(|s| s.justify(Justify::End).column_gap(8.0));
+                dialog.add("buttons", row, |row| {
+                    let cancel = Element::button("Cancel");
                     let cancel = row.add("cancel", cancel, |_| {});
-                    let open = row.add("open", Element::button("Open", Style::default()), |_| {});
+                    let open = row.add("open", Element::button("Open"), |_| {});
                     buttons = Some((open, cancel));
                 });
                 let (open, cancel) = buttons.expect("built above");
@@ -1468,32 +1465,28 @@ impl Model {
             (shared.play, shared.build, shared.played)
         };
         self.ui.build(self.root, self.built, |children| {
-            let mut window = column();
-            window.layout.grow = 1.0;
-            window.layout.min_size[1] = Dimension::Pixels(0.0);
-            let window = Element::container(window).class("window");
+            let window = Element::container()
+                .style(|s| column(s).grow(1.0).min_height(Dimension::Pixels(0.0)))
+                .class("window");
             children.add("window", window, |children| {
-                children.add("menus", Element::menu_bar(Style::default()), |menus| {
+                children.add("menus", Element::menu_bar(), |menus| {
                     for (place, (title, _)) in MENUS.iter().enumerate() {
-                        let item =
-                            Element::menu_item(*title, "", ItemMark::Submenu, Style::default());
+                        let item = Element::menu_item(*title, "", ItemMark::Submenu);
                         bar.push((menus.add(*title, item, |_| {}), place));
                     }
                 });
                 // The panels in regions of tabs, which the dock builds
                 // (`docs/adr/0172-regions-of-tabs.md`).
-                let mut regions = Style::default();
-                regions.layout.grow = 1.0;
-                regions.layout.min_size[1] = Dimension::Pixels(0.0);
-                regions.layout.padding = Sides::all(8.0);
-                dock_slot = Some(children.add_slot("dock", Element::container(regions)));
-                let mut line = Style::default();
-                line.layout.padding = Sides::all(6.0);
-                line.layout.gap = [0.0, 16.0];
-                let line = Element::container(line).class("bar").named("status");
+                let regions = Element::container()
+                    .style(|s| s.grow(1.0).min_height(Dimension::Pixels(0.0)).padding(8.0));
+                dock_slot = Some(children.add_slot("dock", regions));
+                let line = Element::container()
+                    .style(|s| s.padding(6.0).column_gap(16.0))
+                    .class("bar")
+                    .named("status");
                 children.add("status", line, |line| {
                     for (key, text) in status {
-                        let label = Element::label(text, Style::default());
+                        let label = Element::label(text);
                         line.add(key, label, |_| {});
                     }
                 });
@@ -1509,25 +1502,28 @@ impl Model {
             self.dock.build(&mut self.ui, slot, &title);
         }
         // Each panel that shows, in the box that its slot of the dock holds.
-        let content = |gap: f32| {
-            let mut content = column();
-            content.layout.grow = 1.0;
-            content.layout.min_size[1] = Dimension::Pixels(0.0);
-            content.layout.gap = [gap, 0.0];
-            content
+        let content = |s: StyleBuilder, gap: f32| {
+            column(s)
+                .grow(1.0)
+                .min_height(Dimension::Pixels(0.0))
+                .row_gap(gap)
         };
-        self.hierarchy_slot = self.panel_box("hierarchy", || Element::container(content(6.0)));
-        self.slot = self.panel_box("components", || Element::scroll(content(0.0)));
-        self.history_slot = self.panel_box("history", || Element::scroll(content(0.0)));
+        self.hierarchy_slot = self.panel_box("hierarchy", || {
+            Element::container().style(|s| content(s, 6.0))
+        });
+        self.slot = self.panel_box("components", || {
+            Element::scroll().style(|s| content(s, 0.0))
+        });
+        self.history_slot =
+            self.panel_box("history", || Element::scroll().style(|s| content(s, 0.0)));
         self.build_viewport_panel(panes, playing, mark);
         self.console_slot = None;
         if let Some(slot) = self.dock.slot("console") {
             self.ui.build(slot, u64::from(played), |children| {
                 if played {
-                    children.add_slot("lines", Element::scroll(content(0.0)));
+                    children.add_slot("lines", Element::scroll().style(|s| content(s, 0.0)));
                 } else {
-                    let waiting =
-                        Element::label("Play has not run yet.", Style::default()).class("muted");
+                    let waiting = Element::label("Play has not run yet.").class("muted");
                     children.add("waiting", waiting, |_| {});
                 }
             });
@@ -1561,19 +1557,18 @@ impl Model {
         let mut surfaces = Vec::new();
         self.ui.build(slot, self.built, |center| {
             toolbar = Some(play_toolbar(center, playing, mark));
-            let mut viewports = Style::default();
-            viewports.layout.grow = 1.0;
-            viewports.layout.min_size = [Dimension::Pixels(0.0), Dimension::Pixels(0.0)];
-            viewports.layout.gap = [8.0, 8.0];
-            let row = Element::container(viewports);
+            let row = Element::container().style(|s| {
+                s.grow(1.0)
+                    .min_width(Dimension::Pixels(0.0))
+                    .min_height(Dimension::Pixels(0.0))
+                    .gap(8.0)
+            });
             center.add("viewports", row, |viewports| {
                 for pane in 0..panes {
-                    let mut surface = Style::default();
-                    surface.layout.grow = 1.0;
-                    surface.layout.min_size[0] = Dimension::Pixels(0.0);
                     let name = viewport::name(pane);
-                    let surface =
-                        Element::surface(viewport::image_key(pane), surface).named(name.as_str());
+                    let surface = Element::surface(viewport::image_key(pane))
+                        .style(|s| s.grow(1.0).min_width(Dimension::Pixels(0.0)))
+                        .named(name.as_str());
                     surfaces.push(viewports.add(name.as_str(), surface, |_| {}));
                 }
             });
@@ -1618,7 +1613,7 @@ impl Model {
                 .chain(shared.undone.iter().map(|label| (label.as_str(), true)));
             let mut built = Vec::new();
             for (count, (label, undone)) in labels.enumerate() {
-                let mut row = Element::button(label, Style::default()).class("row");
+                let mut row = Element::button(label).class("row");
                 if undone {
                     row = row.class("undone");
                 }
@@ -1654,7 +1649,7 @@ impl Model {
         self.ui.build(slot, shared.console_revision, |lines| {
             built = true;
             for (number, line) in shared.console.iter().enumerate() {
-                let label = Element::label(line.as_str(), Style::default()).class("fixed");
+                let label = Element::label(line.as_str()).class("fixed");
                 lines.add(number, label, |_| {});
             }
         });
@@ -1790,9 +1785,10 @@ fn play_toolbar(
 ) -> (Vec<(ElementId, &'static str)>, Option<ElementId>) {
     let mut buttons = Vec::new();
     let mut speeds = None;
-    let mut bar = Style::default();
-    bar.layout.gap = [0.0, 6.0];
-    center.add("play", Element::container(bar).named("play"), |bar| {
+    let bar = Element::container()
+        .style(|s| s.column_gap(6.0))
+        .named("play");
+    center.add("play", bar, |bar| {
         let (paused, speed) = match playing {
             Playing::Running { paused, speed } => (paused, speed),
             Playing::Starting | Playing::Stopped => (false, 1.0),
@@ -1804,17 +1800,17 @@ fn play_toolbar(
             ("step", "Step", "play.step"),
             ("stop", "Stop", "play.stop"),
         ] {
-            let button = bar.add(key, Element::button(label, Style::default()), |_| {});
+            let button = bar.add(key, Element::button(label), |_| {});
             buttons.push((button, name));
         }
         let chosen = SPEEDS
             .iter()
             .position(|&(_, value)| value == speed)
             .unwrap_or(2);
-        let segments = Element::segments(chosen, Style::default()).named("speed of game time");
+        let segments = Element::segments(chosen).named("speed of game time");
         speeds = Some(bar.add("speeds", segments, |segments| {
             for (label, _) in SPEEDS {
-                segments.add(label, Element::segment(label, Style::default()), |_| {});
+                segments.add(label, Element::segment(label), |_| {});
             }
         }));
         let said = match mark {
@@ -1824,7 +1820,7 @@ fn play_toolbar(
             BuildMark::BuiltAgain => Some("Built again"),
         };
         if let Some(said) = said {
-            bar.add("build", Element::label(said, Style::default()), |_| {});
+            bar.add("build", Element::label(said), |_| {});
         }
     });
     (buttons, speeds)
@@ -1896,11 +1892,9 @@ fn settings(size: [f32; 2], scale: f32) -> RootSettings {
     }
 }
 
-/// A style that lays its children out in a column.
-fn column() -> Style {
-    let mut style = Style::default();
-    style.layout.direction = FlexDirection::Column;
-    style
+/// Writes that an element lays its children out in a column.
+fn column(s: StyleBuilder) -> StyleBuilder {
+    s.direction(FlexDirection::Column)
 }
 
 /// The size of the window that [`window_image`] draws, in logical pixels: a laptop's, at its

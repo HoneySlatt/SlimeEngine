@@ -14,7 +14,7 @@ use std::collections::{HashMap, HashSet};
 use slime_reflect::Reflect;
 
 use crate::action::{Action, ActionKind, FieldValue};
-use crate::style::{Dimension, FlexDirection, Style};
+use crate::style::{Dimension, FlexDirection, StyleBuilder};
 use crate::tree::{Children, Element, ElementId, Layer, Place, Role, Ui};
 
 /// The least length of a child of a split along it, in logical pixels, which a border dragged
@@ -723,14 +723,15 @@ impl Dock {
         let built = &mut self.built;
         ui.build(slot, self.revision, |children| {
             *built = Built::default();
-            let mut style = Style::default();
-            style.layout.grow = 1.0;
-            style.layout.min_size = [Dimension::Pixels(0.0); 2];
             build_node(
                 children,
                 root,
                 &mut Vec::new(),
-                style,
+                &|s| {
+                    s.grow(1.0)
+                        .min_width(Dimension::Pixels(0.0))
+                        .min_height(Dimension::Pixels(0.0))
+                },
                 &mut Context {
                     built,
                     title,
@@ -821,18 +822,19 @@ impl Dock {
                 dismiss: false,
             };
             let key = format!("floating {}", floating.panel);
-            let root = ui.open_layer(key, layer, Style::default());
+            let root = ui.open_layer(key, layer, |s| s);
             let (mut panel, mut content) = (None, None);
             ui.build(root, 0, |children| {
-                let element =
-                    Element::floating_panel(title(&floating.panel), true, Style::default());
+                let element = Element::floating_panel(title(&floating.panel), true);
                 panel = Some(children.add("panel", element, |panel| {
-                    let mut style = Style::default();
-                    style.layout.direction = FlexDirection::Column;
-                    style.layout.grow = 1.0;
-                    style.layout.basis = Dimension::Pixels(0.0);
-                    style.layout.min_size = [Dimension::Pixels(0.0); 2];
-                    content = Some(panel.add_slot("content", Element::container(style)));
+                    let content_box = Element::container().style(|s| {
+                        s.direction(FlexDirection::Column)
+                            .grow(1.0)
+                            .basis(Dimension::Pixels(0.0))
+                            .min_width(Dimension::Pixels(0.0))
+                            .min_height(Dimension::Pixels(0.0))
+                    });
+                    content = Some(panel.add_slot("content", content_box));
                 }));
             });
             let (panel, slot) = panel.zip(content).expect("built");
@@ -958,13 +960,13 @@ struct Context<'a> {
     closed: &'a HashSet<&'a str>,
 }
 
-/// Adds `node`, at `path` in the layout, to `children`, laid out by `style` in its parent; nothing
-/// for a part whose panels are all closed.
+/// Adds `node`, at `path` in the layout, to `children`, laid out in its parent as `place` writes;
+/// nothing for a part whose panels are all closed.
 fn build_node(
     children: &mut Children<'_>,
     node: &mut Node,
     path: &mut Vec<usize>,
-    mut style: Style,
+    place: &dyn Fn(StyleBuilder) -> StyleBuilder,
     context: &mut Context<'_>,
 ) {
     let key = node.first().unwrap_or_default().to_owned();
@@ -976,8 +978,10 @@ fn build_node(
             if open.is_empty() {
                 return;
             }
-            style.layout.direction = FlexDirection::Column;
-            let element = Element::container(style).class("stack").pane();
+            let element = Element::container()
+                .style(|s| place(s).direction(FlexDirection::Column))
+                .class("stack")
+                .pane();
             let title = context.title;
             let built = &mut *context.built;
             let stack = children.add(format!("stack {key}"), element, |children| {
@@ -985,11 +989,11 @@ fn build_node(
                     .iter()
                     .position(|&at| at == *chosen as usize)
                     .unwrap_or(0);
-                let bar = Element::tab_bar(tab_chosen, Style::default());
+                let bar = Element::tab_bar(tab_chosen);
                 let bar = children.add("tabs", bar, |tabs| {
                     for &at in &open {
                         let panel = &panels[at];
-                        let tab = Element::tab(title(panel), Style::default());
+                        let tab = Element::tab(title(panel));
                         let id = tabs.add(panel.as_str(), tab, |_| {});
                         built.tabs.insert(id, panel.clone());
                     }
@@ -1000,11 +1004,13 @@ fn build_node(
                     built.chose = true;
                 }
                 let panel = &panels[shown];
-                let mut content = Style::default();
-                content.layout.direction = FlexDirection::Column;
-                content.layout.grow = 1.0;
-                content.layout.min_size = [Dimension::Pixels(0.0); 2];
-                let element = Element::container(content)
+                let element = Element::container()
+                    .style(|s| {
+                        s.direction(FlexDirection::Column)
+                            .grow(1.0)
+                            .min_width(Dimension::Pixels(0.0))
+                            .min_height(Dimension::Pixels(0.0))
+                    })
                     .class("tab-panel")
                     .role(Role::TabPanel)
                     .named(title(panel));
@@ -1026,13 +1032,16 @@ fn build_node(
                 return;
             }
             let side_by_side = *side_by_side;
-            style.layout.direction = if side_by_side {
-                FlexDirection::Row
-            } else {
-                FlexDirection::Column
-            };
-            let element = Element::container(style).class("split");
-            let axis = usize::from(!side_by_side);
+            let element = Element::container()
+                .style(|s| {
+                    let s = place(s);
+                    if side_by_side {
+                        s
+                    } else {
+                        s.direction(FlexDirection::Column)
+                    }
+                })
+                .class("split");
             // The children that show grow by their shares of what they hold together: flexbox
             // gives grows that sum below 1 only that part of the room.
             let held: f32 = shown.iter().map(|&at| parts[at].share).sum();
@@ -1047,9 +1056,6 @@ fn build_node(
                         } else {
                             0.5
                         };
-                        let mut border = Style::default();
-                        border.layout.size[axis] = Dimension::Pixels(BORDER);
-                        border.layout.shrink = 0.0;
                         // Named by the panels that it parts, for whoever reads it without seeing
                         // it.
                         let open = |part: &Share| {
@@ -1059,22 +1065,38 @@ fn build_node(
                         };
                         let name =
                             format!("between {} and {}", open(&parts[before]), open(&parts[at]));
-                        let splitter = Element::splitter(side_by_side, share, border).named(name);
+                        let splitter = Element::splitter(side_by_side, share)
+                            .style(|s| {
+                                let s = if side_by_side {
+                                    s.width(Dimension::Pixels(BORDER))
+                                } else {
+                                    s.height(Dimension::Pixels(BORDER))
+                                };
+                                s.shrink(0.0)
+                            })
+                            .named(name);
                         let id = children.add(format!("border {first}"), splitter, |_| {});
                         context.built.splitters.insert(id, (path.clone(), before));
                     }
-                    let mut style = Style::default();
-                    style.layout.grow = if held > 0.0 {
+                    let grow = if held > 0.0 {
                         parts[at].share / held
                     } else {
                         1.0
                     };
-                    style.layout.shrink = 1.0;
-                    style.layout.basis = Dimension::Pixels(0.0);
-                    style.layout.min_size[axis] = Dimension::Pixels(LEAST);
-                    style.layout.min_size[1 - axis] = Dimension::Pixels(0.0);
+                    // At least `LEAST` along the split, and nothing across it.
+                    let (least_width, least_height) = if side_by_side {
+                        (LEAST, 0.0)
+                    } else {
+                        (0.0, LEAST)
+                    };
+                    let part = move |s: StyleBuilder| {
+                        s.grow(grow)
+                            .basis(Dimension::Pixels(0.0))
+                            .min_width(Dimension::Pixels(least_width))
+                            .min_height(Dimension::Pixels(least_height))
+                    };
                     path.push(at);
-                    build_node(children, &mut parts[at].node, path, style, context);
+                    build_node(children, &mut parts[at].node, path, &part, context);
                     path.pop();
                     before = Some(at);
                 }

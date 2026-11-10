@@ -117,7 +117,7 @@ use slime_render::{
 };
 use slime_world::{Entity, Light, Meshes, PersistentId, SceneLibrary, Tick, Transform, World};
 use slime_world_render::FrameBuilder;
-use uwui::style::{FlexDirection, Style};
+use uwui::style::FlexDirection;
 use uwui::tree::{Element, Ui};
 
 use sample_scene::{BLOOM, EXPOSURE, SKY};
@@ -358,12 +358,11 @@ impl YardView {
                 for ((index, name), size) in VIEWS.into_iter().enumerate().zip(sizes) {
                     if let Some((width, height)) = size {
                         let label = format!("{name}, drawn at {width} × {height} pixels");
-                        let label = Element::label(label, Style::default());
+                        let label = Element::label(label);
                         children.add(format!("{name} size"), label, |_| {});
                     }
-                    let mut column = Style::default();
-                    column.layout.direction = FlexDirection::Column;
-                    slots[index] = Some(children.add_slot(name, Element::container(column)));
+                    let column = Element::container().style(|s| s.direction(FlexDirection::Column));
+                    slots[index] = Some(children.add_slot(name, column));
                 }
             });
         for ((editor, settings), (slot, name)) in self

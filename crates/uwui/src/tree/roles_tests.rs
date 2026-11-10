@@ -225,7 +225,7 @@ fn drawn(
             origin: [0.0; 2],
             modal: false,
         },
-        Style::default(),
+        |s| s,
     );
     let mut leaves = base_style();
     let default = Style::default();
@@ -412,17 +412,25 @@ fn kinds_of_other_bases_share_no_style() {
                 origin: [0.0; 2],
                 modal: false,
             },
-            Style::default(),
+            |s| s,
         );
         let mut own = Style::default();
         own.layout.gap = [4.0, 4.0];
         let (mut label, mut container) = (None, None);
         ui.build(root, 0, |children| {
             let make_label = |children: &mut super::Children<'_>| {
-                children.add("label", super::Element::label("Text", own.clone()), |_| {})
+                children.add(
+                    "label",
+                    super::Element::label("Text").style(|s| s.with_style(&own)),
+                    |_| {},
+                )
             };
             let make_container = |children: &mut super::Children<'_>| {
-                children.add("box", super::Element::container(own.clone()), |_| {})
+                children.add(
+                    "box",
+                    super::Element::container().style(|s| s.with_style(&own)),
+                    |_| {},
+                )
             };
             if label_first {
                 label = Some(make_label(children));

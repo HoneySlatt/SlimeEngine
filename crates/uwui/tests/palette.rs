@@ -9,7 +9,6 @@ use std::time::Duration;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
 use uwui::shortcuts::Shortcuts;
-use uwui::style::Style;
 use uwui::text::Fonts;
 use uwui::theme::StyleSheet;
 use uwui::tree::{
@@ -50,9 +49,7 @@ fn interface() -> (Ui, ElementId) {
         origin: [0.0; 2],
         modal: false,
     };
-    let mut style = Style::default();
-    style.text.style.fonts = vec!["Noto Sans".to_owned()];
-    let root = ui.add_root("main", settings, style);
+    let root = ui.add_root("main", settings, |s| s.fonts(vec!["Noto Sans".to_owned()]));
     ui.frame();
     (ui, root)
 }
@@ -406,7 +403,7 @@ fn a_notification_takes_the_focus_from_no_one_and_an_update_shows_at_once() {
     let (mut ui, root) = interface();
     let mut field = None;
     ui.build(root, 0, |children| {
-        let element = uwui::tree::Element::text_field("", Style::default());
+        let element = uwui::tree::Element::text_field("");
         field = Some(children.add("name", element, |_| {}));
     });
     ui.frame();

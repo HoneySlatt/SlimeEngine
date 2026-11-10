@@ -5,7 +5,7 @@
 
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::ActionKind;
-use uwui::style::{Dimension, FlexDirection, Style};
+use uwui::style::{Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{
     Along, Element, ElementId, Layer, LayoutDirection, Place, RootSettings, Side, Ui,
@@ -22,24 +22,26 @@ fn interface(direction: LayoutDirection, top: f32) -> (Ui, ElementId, ElementId)
         origin: [0.0; 2],
         modal: false,
     };
-    let mut column = Style::default();
-    column.layout.direction = FlexDirection::Column;
-    column.layout.padding.top = top;
-    let root = ui.add_root("main", settings, column);
+    let root = ui.add_root("main", settings, |s| {
+        s.direction(FlexDirection::Column).padding_top(top)
+    });
     let mut button = None;
     ui.build(root, 0, |children| {
-        button = Some(children.add("open", Element::button("", sized(100.0, 30.0)), |_| {}));
+        button = Some(children.add(
+            "open",
+            Element::button("").style(|s| sized(s, 100.0, 30.0)),
+            |_| {},
+        ));
     });
     ui.frame();
     (ui, root, button.expect("built"))
 }
 
-/// A style of `width` by `height` logical pixels, which does not shrink.
-fn sized(width: f32, height: f32) -> Style {
-    let mut style = Style::default();
-    style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(height)];
-    style.layout.shrink = 0.0;
-    style
+/// Writes `width` by `height` logical pixels, which does not shrink.
+fn sized(s: StyleBuilder, width: f32, height: f32) -> StyleBuilder {
+    s.width(Dimension::Pixels(width))
+        .height(Dimension::Pixels(height))
+        .shrink(0.0)
 }
 
 /// Opens a layer of `place` that closes as the user leaves it, holding a button of 80 by 120.
@@ -51,11 +53,15 @@ fn open(ui: &mut Ui, place: Place) -> (ElementId, ElementId) {
             modal: false,
             dismiss: true,
         },
-        Style::default(),
+        |s| s,
     );
     let mut item = None;
     ui.build(layer, 0, |children| {
-        item = Some(children.add("item", Element::button("", sized(80.0, 120.0)), |_| {}));
+        item = Some(children.add(
+            "item",
+            Element::button("").style(|s| sized(s, 80.0, 120.0)),
+            |_| {},
+        ));
     });
     ui.frame();
     (layer, item.expect("built"))
@@ -264,8 +270,16 @@ fn a_layer_follows_its_anchor_as_it_moves() {
     // An element built before the button pushes it down by 50: the layer comes along in the same
     // frame.
     ui.build(root, 2, |children| {
-        children.add("space", Element::container(sized(100.0, 50.0)), |_| {});
-        children.add("open", Element::button("", sized(100.0, 30.0)), |_| {});
+        children.add(
+            "space",
+            Element::container().style(|s| sized(s, 100.0, 50.0)),
+            |_| {},
+        );
+        children.add(
+            "open",
+            Element::button("").style(|s| sized(s, 100.0, 30.0)),
+            |_| {},
+        );
     });
     ui.frame();
     let button_rect = ui.rect(button).expect("laid out");
@@ -347,11 +361,15 @@ fn a_modal_layer_keeps_the_input_and_the_focus_until_it_closes() {
             modal: true,
             dismiss: true,
         },
-        Style::default(),
+        |s| s,
     );
     let mut ok = None;
     ui.build(dialog, 0, |children| {
-        ok = Some(children.add("ok", Element::button("", sized(80.0, 30.0)), |_| {}));
+        ok = Some(children.add(
+            "ok",
+            Element::button("").style(|s| sized(s, 80.0, 30.0)),
+            |_| {},
+        ));
     });
     ui.frame();
     let ok = ok.expect("built");
@@ -414,9 +432,6 @@ fn a_press_anywhere_outside_closes_a_layer_at_a_point() {
 fn a_layer_over_a_root_placed_within_the_window_stays_within_the_window() {
     let (mut ui, _, _) = interface(LayoutDirection::LeftToRight, 0.0);
     // A dialog of 200 by 100 at (100, 40), its button at its bottom.
-    let mut column = Style::default();
-    column.layout.direction = FlexDirection::Column;
-    column.layout.padding.top = 70.0;
     let dialog = ui.add_root(
         "main",
         RootSettings {
@@ -426,11 +441,15 @@ fn a_layer_over_a_root_placed_within_the_window_stays_within_the_window() {
             origin: [100.0, 40.0],
             modal: false,
         },
-        column,
+        |s| s.direction(FlexDirection::Column).padding_top(70.0),
     );
     let mut button = None;
     ui.build(dialog, 0, |children| {
-        button = Some(children.add("open", Element::button("", sized(100.0, 30.0)), |_| {}));
+        button = Some(children.add(
+            "open",
+            Element::button("").style(|s| sized(s, 100.0, 30.0)),
+            |_| {},
+        ));
     });
     ui.frame();
     let button = button.expect("built");

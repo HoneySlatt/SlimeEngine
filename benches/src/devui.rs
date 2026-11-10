@@ -8,7 +8,7 @@ use slime_devui::WorldPanel;
 use slime_world::glam::DVec3;
 use slime_world::{Light, Name, Transform, World};
 use uwui::look::{self, Colors, Density};
-use uwui::style::{FlexDirection, Style};
+use uwui::style::FlexDirection;
 use uwui::text::Fonts;
 use uwui::tree::{LayoutDirection, RootSettings, Ui};
 
@@ -58,9 +58,7 @@ pub fn world_panel(context: &mut Context) -> Result<Vec<Row>, String> {
         origin: [0.0; 2],
         modal: false,
     };
-    let mut column = Style::default();
-    column.layout.direction = FlexDirection::Column;
-    let root = ui.add_root("main", settings, column);
+    let root = ui.add_root("main", settings, |s| s.direction(FlexDirection::Column));
     let mut panel = WorldPanel::default();
     panel.select(selected);
     let frame = |ui: &mut Ui, world: &World, panel: &mut WorldPanel| {

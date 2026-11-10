@@ -9,7 +9,7 @@ use slime_color::LinearColor;
 use uwui::display::DisplayList;
 use uwui::display::ImageKey;
 use uwui::look::{self, Colors, Density};
-use uwui::style::{Dimension, Display, FlexDirection, Justify, Sides, Style, TextLook, Track};
+use uwui::style::{Dimension, Display, FlexDirection, Justify, StyleBuilder, Track};
 use uwui::text::{Fonts, GlyphKey, GlyphRasterizer, TextBounds, TextStyle};
 use uwui::theme::{StyleSheet, Theme};
 use uwui::tree::{Element, ElementId, FrameStats, LayoutDirection, RootSettings, Ui};
@@ -555,30 +555,22 @@ fn latin() -> Result<Fonts, String> {
     Ok(fonts)
 }
 
-/// The style of a text of the tree's benchmarks: its color left to its kind's, so that the rules
-/// that give one win (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`).
-fn look() -> Style {
-    Style {
-        text: TextLook {
-            style: style(&SCRIPTS[0]),
-            ..TextLook::default()
-        },
-        ..Style::default()
-    }
+/// Writes the style of a text of the tree's benchmarks: its color left to its kind's, so that the
+/// rules that give one win (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`).
+fn look(s: StyleBuilder) -> StyleBuilder {
+    let text = style(&SCRIPTS[0]);
+    s.fonts(text.fonts).locale(text.locale)
 }
 
-/// A style that lays its children out in a column.
-fn column() -> Style {
-    let mut style = Style::default();
-    style.layout.direction = FlexDirection::Column;
-    style
+/// Writes that an element lays its children out in a column.
+fn column(s: StyleBuilder) -> StyleBuilder {
+    s.direction(FlexDirection::Column)
 }
 
-/// A style of `width` by `height` logical pixels.
-fn sized(width: f32, height: f32) -> Style {
-    let mut style = Style::default();
-    style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(height)];
-    style
+/// Writes a size of `width` by `height` logical pixels.
+fn sized(s: StyleBuilder, width: f32, height: f32) -> StyleBuilder {
+    s.width(Dimension::Pixels(width))
+        .height(Dimension::Pixels(height))
 }
 
 /// A root of 1920 × 1080 logical pixels at scale 1.
@@ -635,8 +627,8 @@ fn theme(light: bool) -> Theme {
 struct Editor {
     ui: Ui,
     labels: Vec<String>,
-    /// The own style of its labels and buttons: the tree's text, or none under the look.
-    text: Style,
+    /// Writes the own style of its labels and buttons: the tree's text, or none under the look.
+    text: fn(StyleBuilder) -> StyleBuilder,
     panels: [ElementId; 4],
     /// The value that the inspector shows in its first field, which a change moves.
     value: u64,
@@ -646,7 +638,7 @@ impl Editor {
     /// The tree, its labels and buttons in the tree's text, styled by the editor's four rules.
     fn new(fonts: Fonts, labels: Vec<String>) -> Self {
         let sheets = [StyleSheet::from_text("editor.style", EDITOR_STYLE)];
-        Self::styled(fonts, labels, &sheets, &[theme(false)], look())
+        Self::styled(fonts, labels, &sheets, &[theme(false)], look)
     }
 
     /// The tree styled by `sheets` and `themes`, its labels and buttons given `text` as their own
@@ -656,30 +648,25 @@ impl Editor {
         labels: Vec<String>,
         sheets: &[StyleSheet],
         themes: &[Theme],
-        text: Style,
+        text: fn(StyleBuilder) -> StyleBuilder,
     ) -> Self {
         let mut ui = Ui::new(fonts);
-        let root = ui.add_root("main", SCREEN, column());
+        let root = ui.add_root("main", SCREEN, column);
         ui.set_style(sheets, themes).expect("the tree's style");
         let mut panels = Vec::new();
         ui.build(root, 0, |children| {
-            let mut toolbar = Style::default();
-            toolbar.layout.gap = [0.0, 4.0];
-            panels.push(children.add_slot("toolbar", Element::container(toolbar)));
-            let mut main = Style::default();
-            main.layout.grow = 1.0;
-            main.layout.min_size[1] = Dimension::Pixels(0.0);
-            children.add("main", Element::container(main), |children| {
+            let toolbar = Element::container().style(|s| s.column_gap(4.0));
+            panels.push(children.add_slot("toolbar", toolbar));
+            let main =
+                Element::container().style(|s| s.grow(1.0).min_height(Dimension::Pixels(0.0)));
+            children.add("main", main, |children| {
                 let panel = |width: f32| {
-                    let mut style = column();
-                    style.layout.size[0] = Dimension::Pixels(width);
-                    style.layout.padding = Sides::all(4.0);
-                    Element::scroll(style)
+                    Element::scroll()
+                        .style(|s| column(s).width(Dimension::Pixels(width)).padding(4.0))
                 };
                 panels.push(children.add_slot("hierarchy", panel(300.0)));
-                let mut viewport = Style::default();
-                viewport.layout.grow = 1.0;
-                children.add("viewport", Element::container(viewport), |_| {});
+                let viewport = Element::container().style(|s| s.grow(1.0));
+                children.add("viewport", viewport, |_| {});
                 panels.push(children.add_slot("inspector", panel(400.0)));
                 panels.push(children.add_slot("assets", panel(300.0)));
             });
@@ -700,9 +687,8 @@ impl Editor {
     fn build(&mut self, revision: u64) {
         let [toolbar, hierarchy, inspector, assets] = self.panels;
         let labels = &self.labels;
-        let text = &self.text;
-        let own = || text.clone();
-        let button = |label: String| Element::button(label, own());
+        let text = self.text;
+        let button = |label: String| Element::button(label).style(text);
         self.ui.build(toolbar, 0, |children| {
             for index in 0..30_usize {
                 children.add(index, button(format!("Tool {index}")), |_| {});
@@ -710,11 +696,10 @@ impl Editor {
         });
         self.ui.build(hierarchy, 0, |children| {
             for (index, label) in labels.iter().enumerate() {
-                let mut row = Style::default();
-                row.layout.padding.start = (index % 4) as f32 * 12.0;
-                row.layout.gap = [0.0, 4.0];
-                children.add(index, Element::container(row), |children| {
-                    children.add("name", Element::label(label.as_str(), own()), |_| {});
+                let row = Element::container()
+                    .style(|s| s.padding_start((index % 4) as f32 * 12.0).column_gap(4.0));
+                children.add(index, row, |children| {
+                    children.add("name", Element::label(label.as_str()).style(text), |_| {});
                     children.add("shown", button("o".to_owned()), |_| {});
                 });
             }
@@ -722,24 +707,26 @@ impl Editor {
         let value = self.value;
         // A component's fields in a grid of names and values, ten to a component.
         self.ui.build(inspector, revision, |children| {
-            let mut grid = Style::default();
-            grid.layout.display = Display::Grid;
-            grid.layout.columns = vec![Track::Pixels(160.0), Track::Fraction(1.0)];
-            grid.layout.gap = [2.0, 8.0];
+            let grid = |s: StyleBuilder| {
+                s.display(Display::Grid)
+                    .columns(vec![Track::Pixels(160.0), Track::Fraction(1.0)])
+                    .row_gap(2.0)
+                    .column_gap(8.0)
+            };
             for (component, fields) in labels.chunks(10).enumerate() {
-                children.add(component, Element::container(column()), |children| {
-                    let header = Element::label(fields[0].as_str(), own());
+                children.add(component, Element::container().style(column), |children| {
+                    let header = Element::label(fields[0].as_str()).style(text);
                     children.add("header", header, |_| {});
                     children.add(
                         "fields",
-                        Element::container(grid.clone()).class("fields"),
+                        Element::container().style(grid).class("fields"),
                         |children| {
                             for (index, label) in fields.iter().enumerate() {
-                                let name = Element::label(label.as_str(), own());
+                                let name = Element::label(label.as_str()).style(text);
                                 children.add(format!("{index} name"), name, |_| {});
                                 let first = component == 0 && index == 0;
                                 let shown = if first { value } else { index as u64 };
-                                let value = Element::label(format!("{shown}.25"), own());
+                                let value = Element::label(format!("{shown}.25")).style(text);
                                 children.add(format!("{index} value"), value, |_| {});
                             }
                         },
@@ -749,12 +736,12 @@ impl Editor {
         });
         self.ui.build(assets, 0, |children| {
             for (index, label) in labels.iter().enumerate() {
-                let mut row = Style::default();
-                row.layout.gap = [0.0, 4.0];
-                children.add(index, Element::container(row), |children| {
-                    let icon = Element::image(ImageKey(index as u64 % 16), sized(16.0, 16.0));
+                let row = Element::container().style(|s| s.column_gap(4.0));
+                children.add(index, row, |children| {
+                    let icon =
+                        Element::image(ImageKey(index as u64 % 16)).style(|s| sized(s, 16.0, 16.0));
                     children.add("icon", icon, |_| {});
-                    children.add("name", Element::label(label.as_str(), own()), |_| {});
+                    children.add("name", Element::label(label.as_str()).style(text), |_| {});
                 });
             }
         });
@@ -780,7 +767,13 @@ pub fn tree(context: &mut Context) -> Result<Vec<Row>, String> {
         editor.build(0);
         editor.ui.frame()
     });
-    let mut revision = 0;
+    // The frame after one value of the inspector changed, which builds the inspector again.
+    let (_, rebuilt) = counted(|| {
+        editor.value = 1;
+        editor.build(1);
+        editor.ui.frame()
+    });
+    let mut revision = 1;
     let changed = times(runs, || {
         revision += 1;
         editor.value = revision;
@@ -805,6 +798,14 @@ pub fn tree(context: &mut Context) -> Result<Vec<Row>, String> {
     });
     let mut rows = counters;
     rows.push(Row::count("items of the first frame", list.len()));
+    rows.push(Row::count(
+        "allocations of a frame after one value of the inspector changed",
+        rebuilt.calls,
+    ));
+    rows.push(Row::count(
+        "bytes allocated by a frame after one value of the inspector changed",
+        rebuilt.taken,
+    ));
     rows.extend(Row::times(
         "the first frame: built, its texts and its tree laid out, drawn",
         &firsts,
@@ -839,13 +840,7 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     look::register_fonts(&mut fonts);
     let sheets = [look::style_sheet()];
     let themes = |colors| look::themes(colors, Density::Comfortable);
-    let mut editor = Editor::styled(
-        fonts,
-        labels(1_500),
-        &sheets,
-        &themes(Colors::Dark),
-        Style::default(),
-    );
+    let mut editor = Editor::styled(fonts, labels(1_500), &sheets, &themes(Colors::Dark), |s| s);
     editor.ui.frame();
     let mut light = false;
     // Gives the interface its theme of the other colours, which reads the look's documents.
@@ -919,21 +914,18 @@ pub fn list(context: &mut Context) -> Result<Vec<Row>, String> {
     const ROWS: usize = 100_000;
     let labels = labels(1_000);
     let mut ui = Ui::new(latin()?);
-    let root = ui.add_root("main", SCREEN, column());
+    let root = ui.add_root("main", SCREEN, column);
     let mut list = None;
     let mut build = |ui: &mut Ui| {
         ui.build(root, 0, |children| {
-            let mut style = Style::default();
-            style.layout.grow = 1.0;
-            let element = Element::list(ROWS, 20.0, style);
+            let element = Element::list(ROWS, 20.0).style(|s| s.grow(1.0));
             list = Some(children.add("list", element, |rows| {
                 for row in rows.rows() {
-                    let mut style = Style::default();
-                    style.layout.justify = Justify::SpaceBetween;
-                    rows.add(row, Element::container(style), |children| {
+                    let item = Element::container().style(|s| s.justify(Justify::SpaceBetween));
+                    rows.add(row, item, |children| {
                         let name = labels[row % labels.len()].as_str();
-                        children.add("name", Element::label(name, look()), |_| {});
-                        let value = Element::label(format!("{row}"), look());
+                        children.add("name", Element::label(name).style(look), |_| {});
+                        let value = Element::label(format!("{row}")).style(look);
                         children.add("value", value, |_| {});
                     });
                 }

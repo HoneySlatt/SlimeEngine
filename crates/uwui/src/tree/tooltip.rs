@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use super::{Along, Element, ElementId, ItemMark, Kind, Layer, Place, Role, Side, Ui};
 use crate::action::{Action, ActionKind};
-use crate::style::{FlexDirection, Style};
+use crate::style::FlexDirection;
 
 /// How long the pointer rests on an element before its tooltip shows.
 const TOOLTIP_REST: Duration = Duration::from_millis(500);
@@ -143,21 +143,20 @@ impl Ui {
             modal: false,
             dismiss: false,
         };
-        let root = self.add_quiet_layer("tooltip", layer, Style::default());
+        let root = self.add_quiet_layer("tooltip", layer, |s| s);
         self.build(root, 0, |children| {
-            let mut column = Style::default();
-            column.layout.direction = FlexDirection::Column;
-            let tip = Element::container(column).class("tooltip");
+            let tip = Element::container()
+                .style(|s| s.direction(FlexDirection::Column))
+                .class("tooltip");
             children.add("tooltip", tip, |tip| {
                 // Screen readers read it as its element's description, not twice.
                 if !tooltip.title.is_empty() {
-                    let title = Element::label(tooltip.title, Style::default())
+                    let title = Element::label(tooltip.title)
                         .class("tooltip-title")
                         .role(Role::GenericContainer);
                     tip.add("title", title, |_| {});
                 }
-                let text =
-                    Element::label(tooltip.text, Style::default()).role(Role::GenericContainer);
+                let text = Element::label(tooltip.text).role(Role::GenericContainer);
                 tip.add("text", text, |_| {});
             });
         });

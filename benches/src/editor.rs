@@ -9,7 +9,7 @@ use slime_editor::{Hierarchy, InterfaceFrame, Offscreen};
 use slime_gfx::Gpu;
 use slime_world::{Name, World};
 use uwui::look::{self, Colors, Density};
-use uwui::style::{Dimension, FlexDirection, Style};
+use uwui::style::{Dimension, FlexDirection};
 use uwui::text::Fonts;
 use uwui::tree::{LayoutDirection, RootSettings, Ui};
 
@@ -56,16 +56,15 @@ pub fn hierarchy(context: &mut Context) -> Result<Vec<Row>, String> {
         origin: [0.0; 2],
         modal: false,
     };
-    let mut column = Style::default();
-    column.layout.direction = FlexDirection::Column;
-    let root = ui.add_root("main", settings, column);
+    let root = ui.add_root("main", settings, |s| s.direction(FlexDirection::Column));
     let mut slot = None;
     ui.build(root, 0, |children| {
-        let mut content = Style::default();
-        content.layout.direction = FlexDirection::Column;
-        content.layout.grow = 1.0;
-        content.layout.min_size[1] = Dimension::Pixels(0.0);
-        slot = Some(children.add_slot("hierarchy", uwui::tree::Element::container(content)));
+        let content = uwui::tree::Element::container().style(|s| {
+            s.direction(FlexDirection::Column)
+                .grow(1.0)
+                .min_height(Dimension::Pixels(0.0))
+        });
+        slot = Some(children.add_slot("hierarchy", content));
     });
     let slot = slot.ok_or("no slot")?;
     let mut hierarchy = Hierarchy::default();

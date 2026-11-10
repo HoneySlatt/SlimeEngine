@@ -1623,11 +1623,12 @@ through its traits on the tree's arena:
 
 ```text
 Ui::new(fonts)                                an interface, its texts laid out with fonts
-ui.add_root(key, settings, style)             a root: its key in paths, a size, a scale, a
-                                              direction
+ui.add_root(key, settings, |s| ...)           a root: its key in paths, a size, a scale, a
+                                              direction, its own style written as an element's
 ui.build(parent, revision, |children| ...)    the builder runs when revision moved, or when a list
 │                                             below it shows other rows
-├── children.add(key, element, |children| ...)   matched with the element of that key and kind
+├── children.add(key, element, |children| ...)   an element, `Element::label(text).style(|s| ...)`,
+│                                             matched with the element of that key and kind
 │                                             before, kept with its state and scroll, or made;
 │                                             what changed marks it laid out or drawn again
 └── children.add_slot(key, element)           a panel whose children its own builder gives
@@ -1666,9 +1667,11 @@ ui.set_style(&[sheet], &[base, dark])          every rule read as a part of a St
 │                                              References::value; every element marked to be
 │                                              styled again
 ui.frame()
-└── each marked element: the rules that select it, by kind, classes, key, states and ancestor, in
-    their order, then the fields that its own style sets; the style made kept for those rules and
-    that own style, shared; a style that changed lays the element out again or draws it again
+└── each marked element: its kind's defaults, the rules that select it, by kind, classes, key,
+    states and ancestor, in their order, then what its own style writes, its base where no rule
+    of a state set the field last, then its own states that hold (the mask order); the style made
+    kept for those rules, that own style and its states, shared; a style that changed lays the
+    element out again or draws it again
 ```
 
 A theme changed while a program runs is cooked again, found by a `ManifestWatch`, and given to
@@ -1727,8 +1730,9 @@ interface lays out a layer's content, then places it from its anchor's box withi
 turned or moved where it lacks room, and lays it out again when its anchor moves:
 
 ```text
-ui.open_layer(key, Layer { place, modal, dismiss })  a root over the others, named by key, its
-                                                    scale and direction its anchor's root's
+ui.open_layer(key, Layer { place, modal, dismiss }, |s| ...)  a root over the others, named by
+                                                    key, its scale and direction its anchor's
+                                                    root's, its own style written
 frame: settle_rest                              the pointer resting: a tooltip shown, a submenu
                                                 opened by a press, as the program reads it
        settle_layers                            surfaces taken from the anchors' roots; layers

@@ -783,14 +783,13 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A caret at the end of a line that breaks within the text is placed at the start of the next, its side lost.
   Screen readers scroll by an item or by what shows, not to an offset.
   `deny.toml` ignores three advisories of unmaintained crates that the adapter on Linux brings through zbus 5, zvariant, zbus_names and zvariant_derive, which zbus 6 holds: they go once AccessKit's adapter moves to zbus 6.
-- **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md), [ADR-0229](adr/0229-styles-typed-as-declarations.md)).
+- **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md), [ADR-0229](adr/0229-styles-typed-as-declarations.md), [ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)).
   A field of the type `String` takes no named value; followed at [M6d.2b2b](stage-6d.md#m6d2b2b--tokens-and-the-users-layer), which decides what a declaration names.
   An error of type in a cooked style sheet or theme is placed by its byte and the path of its part, not by its line; followed at [M6d.3](stage-6d.md#m6d3--documents-with-serde), which reads them with `serde`.
-  The code cannot set a field of an element's style to its default against a rule or its kind's defaults: a color that it writes transparent takes the rules' or its kind's role, even where no rule selects the element, as it did not before [ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md); followed at [M6d.2b2a](PLAN.md#m6d2b2a--an-elements-own-style-written-in-code), which writes styles in code as declarations ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)).
-  The styles made are kept up to a number of pairs of a kind's defaults and an element's own style for each set of rules (`Ui::set_style`).
-  Past it, an element's style is composed again at each change, its declarations applied one by one; followed at M6d.2b2a, whose own styles and their states change what the styles made are kept by.
+  The styles made are kept up to a number for each set of rules, each for a kind's defaults, an element's own style and its own states that hold (`Ui::set_style`).
+  Past it, an element's style is composed again at each change, its declarations applied one by one; followed at [M6d.2b2b](stage-6d.md#m6d2b2b--tokens-and-the-users-layer), which sets the frame after a change of theme a target.
   Selectors hold no combinators but an ancestor's kind or class.
-  An array, a list and an option of an element's own style replace the rules' whole, its height with its width; followed at M6d.2b2a, which sets an array by element and leaves lists and options whole.
+  A rule of a style sheet that names `Hovered` or `Pressed` may set what lays out the element, which a hover or a press written in code cannot ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)); no rule of the repository does; followed at uwui's first stage, which types rules for each state.
 - **uwui's own layers take no defaults, and selected text no color of its own** ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)).
   The tooltip, the palette of commands, the notifications and the colour picker are containers that the look styles by their classes: without a look they draw no box, and their colors are their elements' kinds' alone.
   A field's selected text keeps the text's color, over the selection drawn at 40 % of the role `highlight`: under forced colours, whose selection is opaque, it would not show.

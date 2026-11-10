@@ -8,7 +8,7 @@ use std::time::Duration;
 use slime_color::LinearColor;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::display::{DisplayList, Primitive};
-use uwui::style::{Dimension, FlexDirection, Style};
+use uwui::style::{Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::theme::{StyleSheet, Theme};
 use uwui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
@@ -34,19 +34,16 @@ fn ui(sheet: &str, scale: f32) -> (Ui, ElementId) {
         origin: [0.0; 2],
         modal: false,
     };
-    let mut column = Style::default();
-    column.layout.direction = FlexDirection::Column;
-    let root = ui.add_root("main", settings, column);
+    let root = ui.add_root("main", settings, |s| s.direction(FlexDirection::Column));
     (ui, root)
 }
 
-/// A style of `width` by `height` logical pixels that does not shrink.
-fn sized(width: f32, height: f32) -> Style {
-    let mut style = Style::default();
-    style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(height)];
-    style.layout.shrink = 0.0;
-    style.text.style.fonts = vec!["Noto Sans".to_owned()];
-    style
+/// Writes `width` by `height` logical pixels that does not shrink, of the tests' font.
+fn sized(s: StyleBuilder, width: f32, height: f32) -> StyleBuilder {
+    s.width(Dimension::Pixels(width))
+        .height(Dimension::Pixels(height))
+        .shrink(0.0)
+        .fonts(vec!["Noto Sans".to_owned()])
 }
 
 /// The fill of the first box of `list` as wide as `width` pixels.
@@ -75,7 +72,11 @@ style.paint.background = "#ffffff"
 fn a_color_moves_over_the_time_given_and_less_motion_drops_it() {
     let (mut ui, root) = ui(BUTTONS, 1.0);
     ui.build(root, 0, |children| {
-        children.add("button", Element::button("go", sized(100.0, 30.0)), |_| {});
+        children.add(
+            "button",
+            Element::button("go").style(|s| sized(s, 100.0, 30.0)),
+            |_| {},
+        );
     });
     ui.frame();
     ui.pointer_moved(50.0, 15.0);
@@ -107,7 +108,11 @@ fn a_color_moves_over_the_time_given_and_less_motion_drops_it() {
 fn a_new_element_shows_its_style_at_once() {
     let (mut ui, root) = ui(BUTTONS, 1.0);
     ui.build(root, 0, |children| {
-        children.add("button", Element::button("go", sized(100.0, 30.0)), |_| {});
+        children.add(
+            "button",
+            Element::button("go").style(|s| sized(s, 100.0, 30.0)),
+            |_| {},
+        );
     });
     let (list, stats) = ui.frame();
     assert_eq!(fill(&list, 100.0), LinearColor::rgba(0.0, 0.0, 0.0, 1.0));
@@ -117,15 +122,19 @@ fn a_new_element_shows_its_style_at_once() {
 #[test]
 fn an_opacity_multiplies_what_an_element_and_its_children_draw() {
     let (mut ui, root) = ui("", 1.0);
-    let mut outer = sized(200.0, 100.0);
-    outer.paint.background = LinearColor::rgba(1.0, 0.0, 0.0, 1.0);
-    outer.paint.opacity = 0.5;
-    let mut inner = sized(50.0, 50.0);
-    inner.paint.background = LinearColor::rgba(0.0, 1.0, 0.0, 0.8);
-    inner.paint.opacity = 0.5;
+    let outer = Element::container().style(|s| {
+        sized(s, 200.0, 100.0)
+            .background(LinearColor::rgba(1.0, 0.0, 0.0, 1.0))
+            .opacity(0.5)
+    });
+    let inner = Element::container().style(|s| {
+        sized(s, 50.0, 50.0)
+            .background(LinearColor::rgba(0.0, 1.0, 0.0, 0.8))
+            .opacity(0.5)
+    });
     ui.build(root, 0, |children| {
-        children.add("outer", Element::container(outer), |children| {
-            children.add("inner", Element::container(inner), |_| {});
+        children.add("outer", outer, |children| {
+            children.add("inner", inner, |_| {});
         });
     });
     let (list, _) = ui.frame();
@@ -146,16 +155,17 @@ fn a_section_grows_and_shrinks_to_its_height_over_its_transition() {
     let mut section = None;
     let mut row = None;
     ui.build(root, 0, |children| {
-        let mut style = Style::default();
-        style.layout.direction = FlexDirection::Column;
-        style.text.style.fonts = vec!["Noto Sans".to_owned()];
-        section = Some(children.add(
-            "section",
-            Element::section("physics", true, style),
-            |children| {
-                row = Some(children.add("a", Element::container(sized(100.0, 100.0)), |_| {}));
-            },
-        ));
+        let physics = Element::section("physics", true).style(|s| {
+            s.direction(FlexDirection::Column)
+                .fonts(vec!["Noto Sans".to_owned()])
+        });
+        section = Some(children.add("section", physics, |children| {
+            row = Some(children.add(
+                "a",
+                Element::container().style(|s| sized(s, 100.0, 100.0)),
+                |_| {},
+            ));
+        }));
     });
     ui.frame();
     let (section, row) = (section.expect("built"), row.expect("built"));
@@ -204,7 +214,11 @@ fn the_focus_shows_to_the_keyboard_and_not_to_the_pointer() {
     let mut buttons = Vec::new();
     ui.build(root, 0, |children| {
         for key in ["a", "b"] {
-            buttons.push(children.add(key, Element::button(key, sized(100.0, 30.0)), |_| {}));
+            buttons.push(children.add(
+                key,
+                Element::button(key).style(|s| sized(s, 100.0, 30.0)),
+                |_| {},
+            ));
         }
     });
     ui.frame();
@@ -231,14 +245,16 @@ fn the_focus_shows_to_the_keyboard_and_not_to_the_pointer() {
 #[test]
 fn boxes_lie_on_whole_pixels_at_any_scale() {
     let (mut ui, root) = ui("", 1.5);
-    let mut style = sized(10.3, 7.7);
-    style.layout.margin.start = 3.3;
-    style.layout.margin.top = 1.1;
-    style.paint.background = LinearColor::rgba(1.0, 1.0, 1.0, 1.0);
-    style.paint.border_width = 0.6;
-    style.paint.border = LinearColor::rgba(0.0, 0.0, 0.0, 1.0);
+    let boxed = Element::container().style(|s| {
+        sized(s, 10.3, 7.7)
+            .margin_start(3.3)
+            .margin_top(1.1)
+            .background(LinearColor::rgba(1.0, 1.0, 1.0, 1.0))
+            .border_width(0.6)
+            .border_color(LinearColor::rgba(0.0, 0.0, 0.0, 1.0))
+    });
     ui.build(root, 0, |children| {
-        children.add("box", Element::container(style), |_| {});
+        children.add("box", boxed, |_| {});
     });
     let (list, _) = ui.frame();
     let boxes: Vec<_> = list

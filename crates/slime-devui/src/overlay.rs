@@ -8,7 +8,7 @@ use slime_render::{RenderError, RenderStats, Renderer};
 use uwui::action::{Action, ActionKind, Intent};
 use uwui::look::{self, Colors, Density};
 use uwui::shortcuts::Shortcuts;
-use uwui::style::{Dimension, FlexDirection, Style};
+use uwui::style::{Dimension, FlexDirection};
 use uwui::text::Fonts;
 use uwui::tree::{Element, ElementId, Layer, LayoutDirection, Place, RootSettings, Ui};
 use uwui_render::UiRenderer;
@@ -103,7 +103,7 @@ impl Overlay {
         )
         .expect("the look's documents are valid, as uwui's tests check");
         ui.set_tab_enters(false);
-        let window = ui.add_root("overlay", settings([1.0, 1.0], 1.0), Style::default());
+        let window = ui.add_root("overlay", settings([1.0, 1.0], 1.0), |s| s);
         Self {
             ui,
             window,
@@ -251,18 +251,19 @@ impl Overlay {
             dismiss: false,
         };
         // Named in paths by the command that opens it: `statistics/panel/content/speed`.
-        let root = self.ui.open_layer(spec.command, layer, Style::default());
+        let root = self.ui.open_layer(spec.command, layer, |s| s);
         let mut slot = None;
         self.ui.build(root, 0, |children| {
-            let panel = Element::floating_panel(spec.title, true, Style::default());
+            let panel = Element::floating_panel(spec.title, true);
             children.add("panel", panel, |panel| {
                 // What the panel holds scrolls where the panel is smaller.
-                let mut content = Style::default();
-                content.layout.direction = FlexDirection::Column;
-                content.layout.gap = [4.0, 0.0];
-                content.layout.grow = 1.0;
-                content.layout.basis = Dimension::Pixels(0.0);
-                slot = Some(panel.add_slot("content", Element::scroll(content)));
+                let content = Element::scroll().style(|s| {
+                    s.direction(FlexDirection::Column)
+                        .row_gap(4.0)
+                        .grow(1.0)
+                        .basis(Dimension::Pixels(0.0))
+                });
+                slot = Some(panel.add_slot("content", content));
             });
         });
         let slot = slot.expect("built");
@@ -443,7 +444,7 @@ mod tests {
         overlay.take_actions();
         if let Some(slot) = overlay.slot(statistics) {
             overlay.ui_mut().build(slot, 0, |children| {
-                children.add("reset", Element::button("Reset", Style::default()), |_| {});
+                children.add("reset", Element::button("Reset"), |_| {});
             });
         }
         overlay.ui_mut().frame();

@@ -8,7 +8,7 @@ use std::time::Duration;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind, FieldValue};
 use uwui::display::Primitive;
-use uwui::style::{Dimension, Style};
+use uwui::style::{Dimension, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{Element, ElementId, LayoutDirection, Role, RootSettings, Ui, Units};
 
@@ -22,15 +22,16 @@ fn ui() -> Ui {
     Ui::new(fonts)
 }
 
-/// A style of the tests' font, `width` logical pixels wide where it is given.
-fn style(width: Option<f32>) -> Style {
-    let mut style = Style::default();
-    if let Some(width) = width {
-        style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(24.0)];
-        style.layout.shrink = 0.0;
-    }
-    style.text.style.fonts = vec!["Noto Sans".to_owned()];
-    style
+/// Writes the tests' font, and `width` logical pixels wide where it is given.
+fn style(s: StyleBuilder, width: Option<f32>) -> StyleBuilder {
+    let s = match width {
+        Some(width) => s
+            .width(Dimension::Pixels(width))
+            .height(Dimension::Pixels(24.0))
+            .shrink(0.0),
+        None => s,
+    };
+    s.fonts(vec!["Noto Sans".to_owned()])
 }
 
 /// An interface of 400 by 300 whose root holds what `build` adds, built again with its revision:
@@ -44,7 +45,7 @@ fn interface() -> (Ui, ElementId) {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root("main", settings, Style::default());
+    let root = ui.add_root("main", settings, |s| s);
     (ui, root)
 }
 
@@ -92,7 +93,7 @@ fn a_button_that_toggles_stays_pressed_and_tells_the_program() {
     let build = |ui: &mut Ui, revision: u64, on: bool| {
         let mut id = None;
         ui.build(root, revision, |children| {
-            let toggle = Element::toggle_button("Snap", on, style(Some(80.0)));
+            let toggle = Element::toggle_button("Snap", on).style(|s| style(s, Some(80.0)));
             id = Some(children.add("snap", toggle, |_| {}));
         });
         ui.frame();
@@ -131,12 +132,19 @@ fn a_control_of_segments_is_chosen_by_a_press_and_the_arrows() {
     let (mut ui, root) = interface();
     let mut ids = (None, Vec::new());
     ui.build(root, 0, |children| {
-        let control = children.add("mode", Element::segments(0, style(None)), |segments| {
-            for title in ["Move", "Turn", "Scale"] {
-                ids.1
-                    .push(segments.add(title, Element::segment(title, style(None)), |_| {}));
-            }
-        });
+        let control = children.add(
+            "mode",
+            Element::segments(0).style(|s| style(s, None)),
+            |segments| {
+                for title in ["Move", "Turn", "Scale"] {
+                    ids.1.push(segments.add(
+                        title,
+                        Element::segment(title).style(|s| style(s, None)),
+                        |_| {},
+                    ));
+                }
+            },
+        );
         ids.0 = Some(control);
     });
     ui.frame();
@@ -171,11 +179,15 @@ fn a_tabs_count_follows_its_title_and_is_part_of_its_name() {
     let (mut ui, root) = interface();
     let mut tabs = Vec::new();
     ui.build(root, 0, |children| {
-        children.add("tabs", Element::tab_bar(0, style(None)), |bar| {
-            tabs.push(bar.add("log", Element::tab("Log", style(None)), |_| {}));
-            let counted = Element::counted_tab("Log", 12, style(None));
-            tabs.push(bar.add("counted", counted, |_| {}));
-        });
+        children.add(
+            "tabs",
+            Element::tab_bar(0).style(|s| style(s, None)),
+            |bar| {
+                tabs.push(bar.add("log", Element::tab("Log").style(|s| style(s, None)), |_| {}));
+                let counted = Element::counted_tab("Log", 12).style(|s| style(s, None));
+                tabs.push(bar.add("counted", counted, |_| {}));
+            },
+        );
     });
     ui.frame();
     let (plain, counted) = (
@@ -194,12 +206,12 @@ fn a_bar_of_progress_gives_its_share_and_one_without_moves_with_the_clock() {
     ui.build(root, 0, |children| {
         bars.push(children.add(
             "known",
-            Element::progress(Some(0.4), style(Some(200.0))),
+            Element::progress(Some(0.4)).style(|s| style(s, Some(200.0))),
             |_| {},
         ));
         bars.push(children.add(
             "unknown",
-            Element::progress(None, style(Some(200.0))),
+            Element::progress(None).style(|s| style(s, Some(200.0))),
             |_| {},
         ));
     });
@@ -242,7 +254,9 @@ fn a_field_of_search_is_emptied_by_its_mark_once_it_holds_text() {
     let (mut ui, root) = interface();
     let mut id = None;
     ui.build(root, 0, |children| {
-        let search = Element::search_field("", style(Some(200.0))).placeholder("Search");
+        let search = Element::search_field("")
+            .style(|s| style(s, Some(200.0)))
+            .placeholder("Search");
         id = Some(children.add("search", search, |_| {}));
     });
     ui.frame();
@@ -292,9 +306,11 @@ fn a_fields_prefix_lies_before_its_number_and_drags_it_even_focused() {
     let (mut ui, root) = interface();
     let mut ids = Vec::new();
     ui.build(root, 0, |children| {
-        let plain = Element::number_field(1.0, 0.1, style(Some(120.0)));
+        let plain = Element::number_field(1.0, 0.1).style(|s| style(s, Some(120.0)));
         ids.push(children.add("plain", plain, |_| {}));
-        let x = Element::number_field(1.0, 0.1, style(Some(120.0))).prefix("X");
+        let x = Element::number_field(1.0, 0.1)
+            .style(|s| style(s, Some(120.0)))
+            .prefix("X");
         ids.push(children.add("x", x, |_| {}));
     });
     ui.frame();
@@ -321,9 +337,9 @@ fn a_bar_without_a_share_stops_moving_once_hidden_or_given_one() {
     let (mut ui, root) = interface();
     let build = |ui: &mut Ui, revision: u64, open: bool, share: Option<f32>| {
         ui.build(root, revision, |children| {
-            let section = Element::section("Cook", open, style(None));
+            let section = Element::section("Cook", open).style(|s| style(s, None));
             children.add("cook", section, |section| {
-                let bar = Element::progress(share, style(Some(200.0)));
+                let bar = Element::progress(share).style(|s| style(s, Some(200.0)));
                 section.add("bar", bar, |_| {});
             });
         });
@@ -363,12 +379,14 @@ fn from_right_to_left_a_fields_prefix_and_marks_stand_at_its_right_and_left() {
         origin: [0.0; 2],
         modal: false,
     };
-    let root = ui.add_root("main", settings, Style::default());
+    let root = ui.add_root("main", settings, |s| s);
     let mut ids = Vec::new();
     ui.build(root, 0, |children| {
-        let x = Element::number_field(1.0, 0.1, style(Some(120.0))).prefix("X");
+        let x = Element::number_field(1.0, 0.1)
+            .style(|s| style(s, Some(120.0)))
+            .prefix("X");
         ids.push(children.add("x", x, |_| {}));
-        let search = Element::search_field("torch", style(Some(200.0)));
+        let search = Element::search_field("torch").style(|s| style(s, Some(200.0)));
         ids.push(children.add("search", search, |_| {}));
     });
     ui.frame();
@@ -398,7 +416,9 @@ fn a_prefix_given_later_makes_room_and_a_composition_keeps_it_from_dragging() {
     let build = |ui: &mut Ui, revision: u64, prefix: &str| {
         let mut id = None;
         ui.build(root, revision, |children| {
-            let field = Element::number_field(1.0, 0.1, style(Some(120.0))).prefix(prefix);
+            let field = Element::number_field(1.0, 0.1)
+                .style(|s| style(s, Some(120.0)))
+                .prefix(prefix);
             id = Some(children.add("x", field, |_| {}));
         });
         ui.frame();
@@ -448,7 +468,7 @@ fn a_field_of_numbers_reads_an_expression_and_shows_its_result_once_committed() 
     let (mut ui, root) = interface();
     let mut id = None;
     ui.build(root, 0, |children| {
-        let field = Element::number_field(1.0, 0.1, style(Some(160.0)));
+        let field = Element::number_field(1.0, 0.1).style(|s| style(s, Some(160.0)));
         id = Some(children.add("number", field, |_| {}));
     });
     ui.frame();
@@ -475,7 +495,9 @@ fn a_field_of_lengths_shows_meters_and_converts_what_is_typed() {
     let (mut ui, root) = interface();
     let mut id = None;
     ui.build(root, 0, |children| {
-        let field = Element::number_field(1.5, 0.1, style(Some(160.0))).units(Units::Length);
+        let field = Element::number_field(1.5, 0.1)
+            .style(|s| style(s, Some(160.0)))
+            .units(Units::Length);
         id = Some(children.add("length", field, |_| {}));
     });
     ui.frame();
@@ -507,7 +529,7 @@ fn a_drag_goes_finer_with_shift_and_coarser_with_control() {
     let (mut ui, root) = interface();
     let mut id = None;
     ui.build(root, 0, |children| {
-        let field = Element::number_field(1.0, 0.1, style(Some(160.0)));
+        let field = Element::number_field(1.0, 0.1).style(|s| style(s, Some(160.0)));
         id = Some(children.add("number", field, |_| {}));
     });
     ui.frame();
@@ -544,19 +566,28 @@ fn a_sections_header_holds_its_box_at_its_end_whose_presses_do_not_fold_it() {
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root("main", settings, Style::default());
+        let root = ui.add_root("main", settings, |s| s);
         let mut ids = (None, None);
         ui.build(root, 0, |children| {
-            let mut section_style = style(Some(300.0));
-            section_style.layout.size[1] = Dimension::Auto;
-            section_style.layout.padding.start = 4.0;
-            section_style.layout.padding.end = 4.0;
-            let section = Element::section("Light", true, section_style);
+            let section = Element::section("Light", true).style(|s| {
+                style(s, Some(300.0))
+                    .height(Dimension::Auto)
+                    .padding_start(4.0)
+                    .padding_end(4.0)
+            });
             ids.0 = Some(children.add("light", section, |section| {
-                section.add("slot", Element::section_header(Style::default()), |slot| {
-                    ids.1 = Some(slot.add("reset", Element::button("", style(Some(40.0))), |_| {}));
+                section.add("slot", Element::section_header(), |slot| {
+                    ids.1 = Some(slot.add(
+                        "reset",
+                        Element::button("").style(|s| style(s, Some(40.0))),
+                        |_| {},
+                    ));
                 });
-                section.add("body", Element::label("intensity", style(None)), |_| {});
+                section.add(
+                    "body",
+                    Element::label("intensity").style(|s| style(s, None)),
+                    |_| {},
+                );
             }));
         });
         ui.frame();
@@ -595,7 +626,8 @@ fn a_tooltip_of_a_title_and_a_text_is_read_as_both() {
     let (mut ui, root) = interface();
     let mut id = None;
     ui.build(root, 0, |children| {
-        let field = Element::number_field(0.5, 0.05, style(Some(120.0)))
+        let field = Element::number_field(0.5, 0.05)
+            .style(|s| style(s, Some(120.0)))
             .help("Roughness", "How rough the surface is, from 0 to 1");
         id = Some(children.add("roughness", field, |_| {}));
     });
@@ -641,17 +673,20 @@ fn a_sections_title_keeps_beside_its_mark_and_leaves_the_room_of_its_headers_box
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root("main", settings, Style::default());
+        let root = ui.add_root("main", settings, |s| s);
         let build = |ui: &mut Ui, revision: u64, button: Option<f32>| {
             let mut id = None;
             ui.build(root, revision, |children| {
-                let mut section_style = style(Some(200.0));
-                section_style.layout.size[1] = Dimension::Auto;
-                let section = Element::section("Light", true, section_style);
+                let section = Element::section("Light", true)
+                    .style(|s| style(s, Some(200.0)).height(Dimension::Auto));
                 id = Some(children.add("light", section, |section| {
                     if let Some(width) = button {
-                        section.add("box", Element::section_header(Style::default()), |held| {
-                            held.add("reset", Element::button("", style(Some(width))), |_| {});
+                        section.add("box", Element::section_header(), |held| {
+                            held.add(
+                                "reset",
+                                Element::button("").style(|s| style(s, Some(width))),
+                                |_| {},
+                            );
                         });
                     }
                 }));
@@ -686,7 +721,7 @@ fn a_modifier_held_in_the_middle_of_a_drag_goes_on_from_where_it_was() {
     let (mut ui, root) = interface();
     let mut id = None;
     ui.build(root, 0, |children| {
-        let field = Element::number_field(0.0, 0.1, style(Some(160.0)));
+        let field = Element::number_field(0.0, 0.1).style(|s| style(s, Some(160.0)));
         id = Some(children.add("number", field, |_| {}));
     });
     ui.frame();
@@ -720,7 +755,9 @@ fn what_is_typed_in_a_field_of_lengths_reads_as_it_is_until_committed() {
     let (mut ui, root) = interface();
     let mut id = None;
     ui.build(root, 0, |children| {
-        let field = Element::number_field(1.0, 0.1, style(Some(160.0))).units(Units::Length);
+        let field = Element::number_field(1.0, 0.1)
+            .style(|s| style(s, Some(160.0)))
+            .units(Units::Length);
         id = Some(children.add("length", field, |_| {}));
     });
     ui.frame();

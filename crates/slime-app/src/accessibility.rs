@@ -528,7 +528,7 @@ mod tests {
     use accesskit_consumer::Tree;
     use slime_color::LinearColor;
     use uwui::action::FieldValue;
-    use uwui::style::{Dimension, FlexDirection, Style};
+    use uwui::style::{Dimension, FlexDirection, StyleBuilder};
     use uwui::text::Fonts;
     use uwui::tree::{Element, ItemMark, RootSettings};
 
@@ -553,7 +553,7 @@ mod tests {
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root("main", settings, Style::default());
+        let root = ui.add_root("main", settings, |s| s);
         (ui, root)
     }
 
@@ -571,26 +571,32 @@ mod tests {
 
     /// Builds the interface's elements, its text saying `status`.
     fn build(ui: &mut Ui, root: ElementId, status: &str) {
-        let sized = |width: f32, height: f32| {
-            let mut style = Style::default();
-            style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(height)];
-            style.layout.shrink = 0.0;
-            style.text.style.fonts = vec!["Noto Sans".to_owned()];
-            style
-        };
-        let mut column = sized(400.0, 300.0);
-        column.layout.direction = FlexDirection::Column;
+        fn sized(s: StyleBuilder, width: f32, height: f32) -> StyleBuilder {
+            s.width(Dimension::Pixels(width))
+                .height(Dimension::Pixels(height))
+                .shrink(0.0)
+                .fonts(vec!["Noto Sans".to_owned()])
+        }
         ui.build(root, status.len() as u64, |children| {
-            children.add("page", Element::container(column), |children| {
-                let bar = Element::container(sized(400.0, 40.0)).named("tools");
+            let page = Element::container()
+                .style(|s| sized(s, 400.0, 300.0).direction(FlexDirection::Column));
+            children.add("page", page, |children| {
+                let bar = Element::container()
+                    .style(|s| sized(s, 400.0, 40.0))
+                    .named("tools");
                 children.add("bar", bar, |children| {
-                    children.add("open", Element::button("Open", sized(100.0, 40.0)), |_| {});
-                    children.add("save", Element::button("Save", sized(100.0, 40.0)), |_| {});
+                    let open = Element::button("Open").style(|s| sized(s, 100.0, 40.0));
+                    children.add("open", open, |_| {});
+                    let save = Element::button("Save").style(|s| sized(s, 100.0, 40.0));
+                    children.add("save", save, |_| {});
                 });
-                children.add("status", Element::label(status, sized(400.0, 20.0)), |_| {});
+                let status = Element::label(status).style(|s| sized(s, 400.0, 20.0));
+                children.add("status", status, |_| {});
                 children.add(
                     "name",
-                    Element::text_field("Ada", sized(200.0, 30.0)).named("Name"),
+                    Element::text_field("Ada")
+                        .style(|s| sized(s, 200.0, 30.0))
+                        .named("Name"),
                     |_| {},
                 );
             });
@@ -669,10 +675,10 @@ mod tests {
         let mut element = ui.element(bar).expect("the bar").clone();
         element.name = None;
         ui.build(root, 99, |children| {
-            children.add("page", Element::container(Style::default()), |children| {
+            children.add("page", Element::container(), |children| {
                 children.add("bar", element, |children| {
                     for (key, label) in [("open", "Open"), ("save", "Save")] {
-                        children.add(key, Element::button(label, Style::default()), |_| {});
+                        children.add(key, Element::button(label), |_| {});
                     }
                 });
             });
@@ -812,11 +818,11 @@ mod tests {
             origin: [100.0, 100.0],
             modal: true,
         };
-        let dialog = ui.add_root("dialog", settings, Style::default());
+        let dialog = ui.add_root("dialog", settings, |s| s);
         ui.build(dialog, 0, |children| {
-            let dialog = Element::container(Style::default()).role(Role::Dialog);
+            let dialog = Element::container().role(Role::Dialog);
             children.add("dialog", dialog, |children| {
-                children.add("ok", Element::button("OK", Style::default()), |_| {});
+                children.add("ok", Element::button("OK"), |_| {});
             });
         });
         ui.frame();
@@ -886,20 +892,26 @@ mod tests {
             origin: [0.0; 2],
             modal: false,
         };
-        let root = ui.add_root("main", settings, Style::default());
-        let mut style = Style::default();
-        style.layout.size = [Dimension::Pixels(200.0), Dimension::Pixels(100.0)];
-        style.text.style.fonts = vec!["Noto Sans".to_owned()];
-        let mut wide = Style::default();
-        wide.layout.size = [Dimension::Pixels(600.0), Dimension::Pixels(200.0)];
-        wide.layout.shrink = 0.0;
+        let root = ui.add_root("main", settings, |s| s);
         let (mut area, mut scroll) = (None, None);
         ui.build(root, 0, |children| {
-            area = Some(children.add("area", Element::text_area("one\ntwo", style), |_| {}));
-            let mut boxed = Style::default();
-            boxed.layout.size = [Dimension::Pixels(100.0), Dimension::Pixels(50.0)];
-            scroll = Some(children.add("scroll", Element::scroll(boxed), |children| {
-                children.add("content", Element::container(wide), |_| {});
+            let text_area = Element::text_area("one\ntwo").style(|s| {
+                s.width(Dimension::Pixels(200.0))
+                    .height(Dimension::Pixels(100.0))
+                    .fonts(vec!["Noto Sans".to_owned()])
+            });
+            area = Some(children.add("area", text_area, |_| {}));
+            let boxed = Element::scroll().style(|s| {
+                s.width(Dimension::Pixels(100.0))
+                    .height(Dimension::Pixels(50.0))
+            });
+            scroll = Some(children.add("scroll", boxed, |children| {
+                let wide = Element::container().style(|s| {
+                    s.width(Dimension::Pixels(600.0))
+                        .height(Dimension::Pixels(200.0))
+                        .shrink(0.0)
+                });
+                children.add("content", wide, |_| {});
             }));
         });
         ui.frame();
@@ -982,35 +994,39 @@ mod tests {
     #[test]
     fn widgets_are_given_with_their_states_and_values_and_take_what_a_screen_reader_asks() {
         let (mut ui, root) = empty();
-        let sized = |width: f32| {
-            let mut style = Style::default();
-            style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(24.0)];
-            style.layout.shrink = 0.0;
-            style.text.style.fonts = vec!["Noto Sans".to_owned()];
-            style
-        };
-        let mut column = Style::default();
-        column.layout.direction = FlexDirection::Column;
+        fn sized(s: StyleBuilder, width: f32) -> StyleBuilder {
+            s.width(Dimension::Pixels(width))
+                .height(Dimension::Pixels(24.0))
+                .shrink(0.0)
+                .fonts(vec!["Noto Sans".to_owned()])
+        }
         ui.build(root, 0, |children| {
-            children.add("page", Element::container(column), |children| {
-                let check = Element::check_box("Shadows", true, sized(200.0));
+            let page = Element::container().style(|s| s.direction(FlexDirection::Column));
+            children.add("page", page, |children| {
+                let check = Element::check_box("Shadows", true).style(|s| sized(s, 200.0));
                 children.add("check", check, |_| {});
-                let slider = Element::slider(0.5, 0.0, 1.0, 0.1, sized(200.0)).named("Volume");
+                let slider = Element::slider(0.5, 0.0, 1.0, 0.1)
+                    .style(|s| sized(s, 200.0))
+                    .named("Volume");
                 children.add("slider", slider, |_| {});
-                let section = Element::section("Physics", false, sized(200.0));
+                let section = Element::section("Physics", false).style(|s| sized(s, 200.0));
                 children.add("section", section, |children| {
-                    children.add("mass", Element::label("12 kg", sized(100.0)), |_| {});
+                    let mass = Element::label("12 kg").style(|s| sized(s, 100.0));
+                    children.add("mass", mass, |_| {});
                 });
-                let bar = children.add("tabs", Element::tab_bar(1, sized(200.0)), |tabs| {
+                let tab_bar = Element::tab_bar(1).style(|s| sized(s, 200.0));
+                let bar = children.add("tabs", tab_bar, |tabs| {
                     for title in ["Scene", "Light"] {
-                        tabs.add(title, Element::tab(title, sized(80.0)), |_| {});
+                        tabs.add(title, Element::tab(title).style(|s| sized(s, 80.0)), |_| {});
                     }
                 });
                 assert_eq!(children.chosen(bar), 1);
-                let split = Element::split(true, 0.25, sized(200.0)).named("Panels");
+                let split = Element::split(true, 0.25)
+                    .style(|s| sized(s, 200.0))
+                    .named("Panels");
                 children.add("split", split, |panels| {
                     for key in ["left", "right"] {
-                        panels.add(key, Element::container(Style::default()), |_| {});
+                        panels.add(key, Element::container(), |_| {});
                     }
                 });
             });
@@ -1109,31 +1125,36 @@ mod tests {
     #[test]
     fn layers_are_given_with_their_roles_popups_and_descriptions_and_take_a_choice() {
         let (mut ui, root) = empty();
-        let sized = |width: f32| {
-            let mut style = Style::default();
-            style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(24.0)];
-            style.layout.shrink = 0.0;
-            style.text.style.fonts = vec!["Noto Sans".to_owned()];
-            style
-        };
-        let mut column = Style::default();
-        column.layout.direction = FlexDirection::Column;
+        fn sized(s: StyleBuilder, width: f32) -> StyleBuilder {
+            s.width(Dimension::Pixels(width))
+                .height(Dimension::Pixels(24.0))
+                .shrink(0.0)
+                .fonts(vec!["Noto Sans".to_owned()])
+        }
+        fn column(s: StyleBuilder) -> StyleBuilder {
+            s.direction(FlexDirection::Column)
+        }
         ui.build(root, 0, |children| {
-            children.add("page", Element::container(column.clone()), |children| {
-                children.add("menu", Element::menu(column), |menu| {
-                    let grid = Element::menu_item("Grid", "G", ItemMark::Check(true), sized(160.0));
+            children.add("page", Element::container().style(column), |children| {
+                children.add("menu", Element::menu().style(column), |menu| {
+                    let grid = Element::menu_item("Grid", "G", ItemMark::Check(true))
+                        .style(|s| sized(s, 160.0));
                     menu.add("grid", grid, |_| {});
-                    let recent = Element::menu_item("Recent", "", ItemMark::Submenu, sized(160.0));
+                    let recent = Element::menu_item("Recent", "", ItemMark::Submenu)
+                        .style(|s| sized(s, 160.0));
                     menu.add("recent", recent, |_| {});
                 });
                 let options = vec!["Low".to_owned(), "High".to_owned()];
-                let choice = Element::choice(options, 1, sized(120.0))
+                let choice = Element::choice(options, 1)
+                    .style(|s| sized(s, 120.0))
                     .named("Quality")
                     .tooltip("How sharp the shadows are");
                 children.add("choice", choice, |_| {});
-                let pane = Element::floating_panel("Statistics", true, sized(200.0));
+                let pane = Element::floating_panel("Statistics", true).style(|s| sized(s, 200.0));
                 children.add("pane", pane, |_| {});
-                let well = Element::color_well(LinearColor::WHITE, sized(60.0)).named("Tint");
+                let well = Element::color_well(LinearColor::WHITE)
+                    .style(|s| sized(s, 60.0))
+                    .named("Tint");
                 children.add("well", well, |_| {});
             });
         });
@@ -1218,11 +1239,13 @@ mod tests {
     #[test]
     fn a_tree_s_items_are_given_with_their_levels_and_shown_when_asked() {
         let (mut ui, root) = empty();
-        let mut list = Style::default();
-        list.layout.size = [Dimension::Pixels(200.0), Dimension::Pixels(40.0)];
         let mut tree = None;
         ui.build(root, 0, |children| {
-            let element = Element::list(10, 20.0, list)
+            let element = Element::list(10, 20.0)
+                .style(|s| {
+                    s.width(Dimension::Pixels(200.0))
+                        .height(Dimension::Pixels(40.0))
+                })
                 .role(Role::Tree)
                 .named("hierarchy");
             tree = Some(children.add_slot("tree", element));
@@ -1232,7 +1255,7 @@ mod tests {
         let mut items = Vec::new();
         ui.build(tree, 0, |rows| {
             for row in rows.rows() {
-                let mut item = Element::container(Style::default())
+                let mut item = Element::container()
                     .role(Role::TreeItem)
                     .named(format!("item {row}"))
                     .level(row + 1);
@@ -1294,23 +1317,24 @@ mod tests {
     #[test]
     fn rich_widgets_are_given_with_their_roles_states_and_values() {
         let (mut ui, root) = empty();
-        let mut style = Style::default();
-        style.layout.size = [Dimension::Pixels(120.0), Dimension::Pixels(24.0)];
-        style.text.style.fonts = vec!["Noto Sans".to_owned()];
-        let mut column = Style::default();
-        column.layout.direction = FlexDirection::Column;
+        fn sized(s: StyleBuilder) -> StyleBuilder {
+            s.width(Dimension::Pixels(120.0))
+                .height(Dimension::Pixels(24.0))
+                .fonts(vec!["Noto Sans".to_owned()])
+        }
         ui.build(root, 0, |children| {
-            children.add("page", Element::container(column), |children| {
-                let snap = Element::toggle_button("Snap", true, style.clone());
+            let page = Element::container().style(|s| s.direction(FlexDirection::Column));
+            children.add("page", page, |children| {
+                let snap = Element::toggle_button("Snap", true).style(sized);
                 children.add("snap", snap, |_| {});
-                children.add("tool", Element::segments(1, style.clone()), |segments| {
+                children.add("tool", Element::segments(1).style(sized), |segments| {
                     for title in ["Move", "Turn"] {
-                        segments.add(title, Element::segment(title, style.clone()), |_| {});
+                        segments.add(title, Element::segment(title).style(sized), |_| {});
                     }
                 });
-                let progress = Element::progress(Some(0.25), style.clone()).named("Cooking");
+                let progress = Element::progress(Some(0.25)).style(sized).named("Cooking");
                 children.add("progress", progress, |_| {});
-                let search = Element::search_field("", style.clone()).placeholder("Search");
+                let search = Element::search_field("").style(sized).placeholder("Search");
                 children.add("search", search, |_| {});
             });
         });

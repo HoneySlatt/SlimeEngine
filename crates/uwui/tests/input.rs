@@ -8,7 +8,7 @@ use slime_input::{
 };
 use uwui::action::{Action, ActionKind, Intent};
 use uwui::shortcuts::Shortcuts;
-use uwui::style::{Dimension, Display, FlexDirection, Style, Track};
+use uwui::style::{Dimension, Display, FlexDirection, StyleBuilder, Track};
 use uwui::text::{Alignment, Fonts};
 use uwui::theme::{StyleSheet, Theme};
 use uwui::tree::{Element, ElementId, ElementState, LayoutDirection, RootSettings, Ui};
@@ -24,26 +24,21 @@ fn settings(width: f32, height: f32, origin: [f32; 2], modal: bool) -> RootSetti
     }
 }
 
-/// A style of `width` by `height` logical pixels.
-fn sized(width: f32, height: f32) -> Style {
-    let mut style = Style::default();
-    style.layout.size = [Dimension::Pixels(width), Dimension::Pixels(height)];
-    style
+/// Writes `width` by `height` logical pixels.
+fn sized(s: StyleBuilder, width: f32, height: f32) -> StyleBuilder {
+    s.width(Dimension::Pixels(width))
+        .height(Dimension::Pixels(height))
 }
 
 /// A button of 100 by 40 logical pixels, of no text.
 fn button() -> Element {
-    Element::button("", sized(100.0, 40.0))
+    Element::button("").style(|s| sized(s, 100.0, 40.0))
 }
 
 /// An interface whose root holds three buttons in a row, at 0, 100 and 200.
 fn row() -> (Ui, Vec<ElementId>) {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(
-        "main",
-        settings(400.0, 300.0, [0.0; 2], false),
-        Style::default(),
-    );
+    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
     let mut buttons = Vec::new();
     ui.build(root, 0, |children| {
         for index in 0..3_usize {
@@ -142,22 +137,22 @@ fn an_agent_s_actions_reach_the_queue_as_a_person_s() {
 #[test]
 fn tab_moves_the_focus_in_the_order_of_the_tree_and_the_arrows_to_the_nearest_on_screen() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(
-        "main",
-        settings(400.0, 300.0, [0.0; 2], false),
-        Style::default(),
-    );
-    let mut grid = Style::default();
-    grid.layout.display = Display::Grid;
-    grid.layout.columns = vec![Track::Pixels(100.0); 3];
-    grid.layout.rows = vec![Track::Pixels(40.0); 2];
+    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
     let mut cells = Vec::new();
     ui.build(root, 0, |children| {
-        children.add("grid", Element::container(grid), |children| {
-            for index in 0..6_usize {
-                cells.push(children.add(index, button(), |_| {}));
-            }
-        });
+        children.add(
+            "grid",
+            Element::container().style(|s| {
+                s.display(Display::Grid)
+                    .columns(vec![Track::Pixels(100.0); 3])
+                    .rows(vec![Track::Pixels(40.0); 2])
+            }),
+            |children| {
+                for index in 0..6_usize {
+                    cells.push(children.add(index, button(), |_| {}));
+                }
+            },
+        );
     });
     ui.frame();
     ui.key(&named(NamedKey::Tab));
@@ -185,23 +180,22 @@ fn tab_moves_the_focus_in_the_order_of_the_tree_and_the_arrows_to_the_nearest_on
 #[test]
 fn the_focus_that_keys_move_and_a_row_asked_for_are_scrolled_into_view() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(
-        "main",
-        settings(400.0, 300.0, [0.0; 2], false),
-        Style::default(),
-    );
-    let mut column = sized(100.0, 100.0);
-    column.layout.direction = FlexDirection::Column;
+    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
+    let column = |s: StyleBuilder| sized(s, 100.0, 100.0).direction(FlexDirection::Column);
     let (mut scroll, mut buttons, mut list) = (None, Vec::new(), None);
     ui.build(root, 0, |children| {
-        scroll = Some(children.add("scroll", Element::scroll(column), |children| {
-            for index in 0..10_usize {
-                let mut tall = sized(100.0, 40.0);
-                tall.layout.shrink = 0.0;
-                buttons.push(children.add(index, Element::button("", tall), |_| {}));
-            }
-        }));
-        list = Some(children.add_slot("list", Element::list(1_000, 20.0, sized(100.0, 100.0))));
+        scroll = Some(
+            children.add("scroll", Element::scroll().style(column), |children| {
+                for index in 0..10_usize {
+                    let tall = Element::button("").style(|s| sized(s, 100.0, 40.0).shrink(0.0));
+                    buttons.push(children.add(index, tall, |_| {}));
+                }
+            }),
+        );
+        list = Some(children.add_slot(
+            "list",
+            Element::list(1_000, 20.0).style(|s| sized(s, 100.0, 100.0)),
+        ));
     });
     let (scroll, list) = (scroll.expect("built"), list.expect("built"));
     ui.frame();
@@ -240,19 +234,22 @@ fn scrolling_into_view_counts_logical_pixels_and_a_list_not_laid_out_shows_a_row
     let mut ui = Ui::new(Fonts::new());
     let mut doubled = settings(400.0, 300.0, [0.0; 2], false);
     doubled.scale = 2.0;
-    let root = ui.add_root("main", doubled, Style::default());
-    let mut column = sized(100.0, 100.0);
-    column.layout.direction = FlexDirection::Column;
+    let root = ui.add_root("main", doubled, |s| s);
+    let column = |s: StyleBuilder| sized(s, 100.0, 100.0).direction(FlexDirection::Column);
     let (mut scroll, mut buttons, mut list) = (None, Vec::new(), None);
     ui.build(root, 0, |children| {
-        scroll = Some(children.add("scroll", Element::scroll(column), |children| {
-            for index in 0..10_usize {
-                let mut tall = sized(100.0, 40.0);
-                tall.layout.shrink = 0.0;
-                buttons.push(children.add(index, Element::button("", tall), |_| {}));
-            }
-        }));
-        list = Some(children.add_slot("list", Element::list(1_000, 20.0, sized(100.0, 100.0))));
+        scroll = Some(
+            children.add("scroll", Element::scroll().style(column), |children| {
+                for index in 0..10_usize {
+                    let tall = Element::button("").style(|s| sized(s, 100.0, 40.0).shrink(0.0));
+                    buttons.push(children.add(index, tall, |_| {}));
+                }
+            }),
+        );
+        list = Some(children.add_slot(
+            "list",
+            Element::list(1_000, 20.0).style(|s| sized(s, 100.0, 100.0)),
+        ));
     });
     let (scroll, list) = (scroll.expect("built"), list.expect("built"));
     // Before any layout: the row at the list's top.
@@ -270,25 +267,25 @@ fn scrolling_into_view_counts_logical_pixels_and_a_list_not_laid_out_shows_a_row
 #[test]
 fn a_draggable_element_drops_on_a_target_and_agents_drop_it_too() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(
-        "main",
-        settings(400.0, 300.0, [0.0; 2], false),
-        Style::default(),
-    );
-    let mut column = Style::default();
-    column.layout.direction = FlexDirection::Column;
+    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
+    let column = |s: StyleBuilder| s.direction(FlexDirection::Column);
     let (mut source, mut target) = (None, None);
     ui.build(root, 0, |children| {
-        children.add("column", Element::container(column.clone()), |children| {
-            source = Some(children.add(
-                "source",
-                Element::button("", sized(100.0, 40.0)).draggable(),
-                |_| {},
-            ));
+        children.add("column", Element::container().style(column), |children| {
+            source = Some(
+                children.add(
+                    "source",
+                    Element::button("")
+                        .style(|s| sized(s, 100.0, 40.0))
+                        .draggable(),
+                    |_| {},
+                ),
+            );
             target = Some(
                 children.add(
                     "target",
-                    Element::container(sized(100.0, 40.0))
+                    Element::container()
+                        .style(|s| sized(s, 100.0, 40.0))
                         .named("target")
                         .drop_target(),
                     |_| {},
@@ -368,12 +365,17 @@ fn a_draggable_element_drops_on_a_target_and_agents_drop_it_too() {
     ui.pointer_moved(50.0, 70.0);
     let mut again = None;
     ui.build(root, 1, |children| {
-        children.add("column", Element::container(column.clone()), |children| {
-            children.add("spacer", Element::container(sized(100.0, 40.0)), |_| {});
+        children.add("column", Element::container().style(column), |children| {
+            children.add(
+                "spacer",
+                Element::container().style(|s| sized(s, 100.0, 40.0)),
+                |_| {},
+            );
             again = Some(
                 children.add(
                     "target",
-                    Element::container(sized(100.0, 40.0))
+                    Element::container()
+                        .style(|s| sized(s, 100.0, 40.0))
                         .named("target")
                         .drop_target(),
                     |_| {},
@@ -388,8 +390,12 @@ fn a_draggable_element_drops_on_a_target_and_agents_drop_it_too() {
     assert_eq!(dropped(&mut ui), [(Some(target), source, 0.75)]);
     let mut button = None;
     ui.build(root, 2, |children| {
-        children.add("column", Element::container(column.clone()), |children| {
-            button = Some(children.add("other", Element::button("", sized(100.0, 40.0)), |_| {}));
+        children.add("column", Element::container().style(column), |children| {
+            button = Some(children.add(
+                "other",
+                Element::button("").style(|s| sized(s, 100.0, 40.0)),
+                |_| {},
+            ));
         });
     });
     ui.frame();
@@ -410,11 +416,7 @@ fn a_draggable_element_drops_on_a_target_and_agents_drop_it_too() {
 fn a_modal_root_takes_the_pointer_and_the_focus_and_gives_the_focus_back_when_it_closes() {
     let (mut ui, buttons) = row();
     ui.set_focus(Some(buttons[1]));
-    let modal = ui.add_root(
-        "main",
-        settings(200.0, 100.0, [100.0, 100.0], true),
-        Style::default(),
-    );
+    let modal = ui.add_root("main", settings(200.0, 100.0, [100.0, 100.0], true), |s| s);
     let mut inside = Vec::new();
     ui.build(modal, 0, |children| {
         inside.push(children.add("ok", button(), |_| {}));
@@ -452,20 +454,15 @@ fn a_modal_root_takes_the_pointer_and_the_focus_and_gives_the_focus_back_when_it
 #[test]
 fn the_wheel_scrolls_the_box_under_the_pointer() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(
-        "main",
-        settings(400.0, 300.0, [0.0; 2], false),
-        Style::default(),
-    );
+    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
     let mut scroll = None;
     ui.build(root, 0, |children| {
-        let mut style = sized(200.0, 100.0);
-        style.layout.direction = FlexDirection::Column;
-        scroll = Some(children.add("scroll", Element::scroll(style), |children| {
+        let column =
+            Element::scroll().style(|s| sized(s, 200.0, 100.0).direction(FlexDirection::Column));
+        scroll = Some(children.add("scroll", column, |children| {
             for index in 0..10_usize {
-                let mut item = sized(200.0, 40.0);
-                item.layout.shrink = 0.0;
-                children.add(index, Element::container(item), |_| {});
+                let item = Element::container().style(|s| sized(s, 200.0, 40.0).shrink(0.0));
+                children.add(index, item, |_| {});
             }
         }));
     });
@@ -484,16 +481,12 @@ fn the_wheel_scrolls_the_box_under_the_pointer() {
 #[test]
 fn shortcuts_name_commands_by_the_key_s_meaning_in_the_scopes_of_the_focus() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(
-        "main",
-        settings(400.0, 300.0, [0.0; 2], false),
-        Style::default(),
-    );
+    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
     let mut buttons = Vec::new();
     ui.build(root, 0, |children| {
         children.add(
             "panel",
-            Element::container(Style::default()).class("hierarchy"),
+            Element::container().class("hierarchy"),
             |children| {
                 buttons.push(children.add("inside", button(), |_| {}));
             },
@@ -619,11 +612,7 @@ fn shift_is_left_out_of_a_character_without_case_and_a_letter_of_another_script_
 #[test]
 fn the_focus_moves_within_its_root_and_starts_in_the_top_root_that_can_take_it() {
     let (mut ui, below) = row();
-    let above = ui.add_root(
-        "main",
-        settings(400.0, 100.0, [0.0, 200.0], false),
-        Style::default(),
-    );
+    let above = ui.add_root("main", settings(400.0, 100.0, [0.0, 200.0], false), |s| s);
     let mut buttons = Vec::new();
     ui.build(above, 0, |children| {
         for index in 0..2_usize {
@@ -653,11 +642,7 @@ fn the_focus_moves_within_its_root_and_starts_in_the_top_root_that_can_take_it()
     );
     // A top root with nothing to focus leaves it to the one below.
     ui.remove(above);
-    let empty = ui.add_root(
-        "main",
-        settings(100.0, 100.0, [0.0; 2], false),
-        Style::default(),
-    );
+    let empty = ui.add_root("main", settings(100.0, 100.0, [0.0; 2], false), |s| s);
     ui.frame();
     ui.set_focus(None);
     ui.key(&named(NamedKey::Tab));
@@ -668,20 +653,18 @@ fn the_focus_moves_within_its_root_and_starts_in_the_top_root_that_can_take_it()
 #[test]
 fn a_disabled_or_hidden_button_is_not_pressed_and_loses_the_focus() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(
-        "main",
-        settings(400.0, 300.0, [0.0; 2], false),
-        Style::default(),
-    );
+    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
     let build = |ui: &mut Ui, revision: u64, display: Display| {
         let mut buttons = Vec::new();
-        let mut panel = Style::default();
-        panel.layout.display = display;
         ui.build(root, revision, |children| {
             buttons.push(children.add("first", button(), |_| {}));
-            children.add("panel", Element::container(panel), |children| {
-                buttons.push(children.add("inside", button(), |_| {}));
-            });
+            children.add(
+                "panel",
+                Element::container().style(|s| s.display(display)),
+                |children| {
+                    buttons.push(children.add("inside", button(), |_| {}));
+                },
+            );
         });
         ui.frame();
         buttons
@@ -741,11 +724,7 @@ fn modal_roots_closed_in_either_order_give_the_focus_back_to_what_it_was_before_
         ui.set_focus(Some(buttons[1]));
         let mut modals = Vec::new();
         for _ in 0..2 {
-            let modal = ui.add_root(
-                "main",
-                settings(200.0, 100.0, [0.0; 2], true),
-                Style::default(),
-            );
+            let modal = ui.add_root("main", settings(200.0, 100.0, [0.0; 2], true), |s| s);
             ui.build(modal, 0, |children| {
                 children.add("ok", button(), |_| {});
             });
@@ -792,11 +771,7 @@ fn a_press_without_the_release_of_the_one_before_lets_go_of_what_that_one_held()
 #[test]
 fn the_hover_follows_what_moves_under_a_still_pointer() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(
-        "main",
-        settings(400.0, 300.0, [0.0; 2], false),
-        Style::default(),
-    );
+    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
     let mut buttons = Vec::new();
     ui.build(root, 0, |children| {
         for index in 0..3_usize {
@@ -824,21 +799,22 @@ fn the_pointer_and_the_wheel_find_their_way_in_a_root_from_right_to_left() {
     let mut ui = Ui::new(Fonts::new());
     let mut root_settings = settings(300.0, 200.0, [100.0, 50.0], false);
     root_settings.direction = LayoutDirection::RightToLeft;
-    let root = ui.add_root("main", root_settings, Style::default());
+    let root = ui.add_root("main", root_settings, |s| s);
     let mut first = None;
     let mut scroll = None;
     let mut items = Vec::new();
     ui.build(root, 0, |children| {
         first = Some(children.add("first", button(), |_| {}));
-        scroll = Some(
-            children.add("scroll", Element::scroll(sized(150.0, 100.0)), |children| {
+        scroll = Some(children.add(
+            "scroll",
+            Element::scroll().style(|s| sized(s, 150.0, 100.0)),
+            |children| {
                 for index in 0..4_usize {
-                    let mut item = sized(100.0, 40.0);
-                    item.layout.shrink = 0.0;
-                    items.push(children.add(index, Element::container(item), |_| {}));
+                    let item = Element::container().style(|s| sized(s, 100.0, 40.0).shrink(0.0));
+                    items.push(children.add(index, item, |_| {}));
                 }
-            }),
-        );
+            },
+        ));
     });
     ui.frame();
     // The root starts at its origin, and its first child at its right.
@@ -873,17 +849,18 @@ fn a_rule_selects_the_element_that_holds_the_focus() {
 #[test]
 fn a_press_on_what_the_interface_draws_is_its_own_and_a_modal_root_takes_every_press_and_key() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(
-        "main",
-        settings(400.0, 300.0, [0.0; 2], false),
-        Style::default(),
-    );
+    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
     // A panel with a fill, at the left, and a box without one, at the right: the game's.
-    let mut panel = sized(200.0, 300.0);
-    panel.paint.background = slime_color::LinearColor::rgba(0.1, 0.1, 0.1, 1.0);
+    let panel = Element::container().style(|s| {
+        sized(s, 200.0, 300.0).background(slime_color::LinearColor::rgba(0.1, 0.1, 0.1, 1.0))
+    });
     ui.build(root, 0, |children| {
-        children.add("panel", Element::container(panel), |_| {});
-        children.add("empty", Element::container(sized(200.0, 300.0)), |_| {});
+        children.add("panel", panel, |_| {});
+        children.add(
+            "empty",
+            Element::container().style(|s| sized(s, 200.0, 300.0)),
+            |_| {},
+        );
     });
     ui.frame();
     let both = |ui: &mut Ui, button| {
@@ -908,11 +885,7 @@ fn a_press_on_what_the_interface_draws_is_its_own_and_a_modal_root_takes_every_p
     ui.pointer_moved(300.0, 100.0);
     assert!(ui.pointer_button(MouseButton::Left, ButtonState::Released));
     // A modal root takes every press, every wheel and every key pressed, not their releases.
-    let modal = ui.add_root(
-        "main",
-        settings(100.0, 100.0, [0.0; 2], true),
-        Style::default(),
-    );
+    let modal = ui.add_root("main", settings(100.0, 100.0, [0.0; 2], true), |s| s);
     ui.frame();
     assert_eq!(both(&mut ui, MouseButton::Left), (true, true));
     assert!(ui.wheel(ScrollDelta::Lines { x: 0.0, y: 1.0 }));
@@ -982,11 +955,7 @@ fn a_focus_that_a_press_gave_leaves_the_keys_to_the_program_but_tab_goes_on_from
 #[test]
 fn a_game_s_interface_takes_tab_once_it_holds_the_focus_and_f6_moves_between_its_roots() {
     let (mut ui, below) = row();
-    let above = ui.add_root(
-        "main",
-        settings(400.0, 100.0, [0.0, 200.0], false),
-        Style::default(),
-    );
+    let above = ui.add_root("main", settings(400.0, 100.0, [0.0, 200.0], false), |s| s);
     let mut buttons = Vec::new();
     ui.build(above, 0, |children| {
         for index in 0..2_usize {
@@ -1027,11 +996,7 @@ fn a_game_s_interface_takes_tab_once_it_holds_the_focus_and_f6_moves_between_its
     assert_eq!(ui.focus(), Some(buttons[0]));
     // A modal root takes Tab whatever the setting, and keeps the focus from F6.
     ui.set_focus(None);
-    let modal = ui.add_root(
-        "main",
-        settings(400.0, 300.0, [0.0; 2], true),
-        Style::default(),
-    );
+    let modal = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], true), |s| s);
     let mut ok = None;
     ui.build(modal, 0, |children| {
         ok = Some(children.add("ok", button(), |_| {}));
@@ -1043,11 +1008,7 @@ fn a_game_s_interface_takes_tab_once_it_holds_the_focus_and_f6_moves_between_its
     assert_eq!(ui.focus(), ok);
     // With no root that holds an element to focus, F6 is the game's.
     let mut empty = Ui::new(Fonts::new());
-    empty.add_root(
-        "main",
-        settings(400.0, 300.0, [0.0; 2], false),
-        Style::default(),
-    );
+    empty.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
     empty.frame();
     assert!(!empty.key(&named(NamedKey::F6)));
 }
@@ -1055,17 +1016,18 @@ fn a_game_s_interface_takes_tab_once_it_holds_the_focus_and_f6_moves_between_its
 #[test]
 fn a_release_of_a_press_the_interface_did_not_take_is_not_taken_and_an_empty_label_takes_none() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root(
-        "main",
-        settings(400.0, 300.0, [0.0; 2], false),
-        Style::default(),
-    );
-    let mut panel = sized(200.0, 300.0);
-    panel.paint.background = slime_color::LinearColor::rgba(0.1, 0.1, 0.1, 1.0);
+    let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
+    let panel = Element::container().style(|s| {
+        sized(s, 200.0, 300.0).background(slime_color::LinearColor::rgba(0.1, 0.1, 0.1, 1.0))
+    });
     // A label of no text, stretched across the right half: it draws nothing.
     ui.build(root, 0, |children| {
-        children.add("panel", Element::container(panel), |_| {});
-        children.add("label", Element::label("", sized(200.0, 300.0)), |_| {});
+        children.add("panel", panel, |_| {});
+        children.add(
+            "label",
+            Element::label("").style(|s| sized(s, 200.0, 300.0)),
+            |_| {},
+        );
     });
     ui.frame();
     // Pressed over nothing, let go over the panel: the game keeps both.
@@ -1091,16 +1053,14 @@ fn a_label_takes_the_presses_that_fall_on_its_glyphs_not_those_past_them() {
         let mut fonts = Fonts::new();
         fonts.register(font.clone()).expect("a font");
         let mut ui = Ui::new(fonts);
-        let root = ui.add_root(
-            "main",
-            settings(400.0, 300.0, [0.0; 2], false),
-            Style::default(),
-        );
-        let mut style = sized(300.0, 20.0);
-        style.text.style.fonts = vec!["Noto Sans".to_owned()];
-        style.text.style.alignment = alignment;
+        let root = ui.add_root("main", settings(400.0, 300.0, [0.0; 2], false), |s| s);
         ui.build(root, 0, |children| {
-            children.add("label", Element::label("ok", style), |_| {});
+            let label = Element::label("ok").style(|s| {
+                sized(s, 300.0, 20.0)
+                    .fonts(vec!["Noto Sans".to_owned()])
+                    .text_align(alignment)
+            });
+            children.add("label", label, |_| {});
         });
         ui.frame();
         for (x, taken) in [(on, true), (past, false)] {
