@@ -29,17 +29,18 @@ permissions:
 
 jobs:
   # Every check, in the same Nix shell that contributors use: a local run of scripts/check.sh does
-  # what these three jobs do together (docs/adr/0007-documentation-tooling-and-ci.md). Each runs one
+  # what these four jobs do together (docs/adr/0007-documentation-tooling-and-ci.md). Each runs one
   # part of the script, side by side, each within the owner's limit of 20 minutes
-  # (docs/adr/0123-the-linux-checks-in-two-jobs.md, docs/adr/0155-the-editors-design.md):
-  # `headless`, every check that needs neither a compositor nor the sample game's zone, `windowed`,
-  # the examples and the windowed lifecycle test run in headless Weston compositors, and `game`,
-  # everything that reads the zone.
+  # (docs/adr/0123-the-linux-checks-in-two-jobs.md, docs/adr/0155-the-editors-design.md,
+  # docs/adr/0228-ci-split-again-each-job-within-20-minutes.md): `lint`, the checks that read the
+  # code without running it, `headless`, the build, the tests and the runs that need neither a
+  # compositor nor the sample game's zone, `windowed`, the examples and the windowed lifecycle test
+  # run in headless Weston compositors, and `game`, everything that reads the zone.
   check:
     strategy:
       fail-fast: false
       matrix:
-        part: [headless, windowed, game]
+        part: [lint, headless, windowed, game]
     name: check (${{ matrix.part }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -78,11 +79,19 @@ jobs:
 
   # What can only be checked on Windows: running the build, the tests and the samples there. The
   # checks that do not depend on the platform (formatting, rustdoc, dependencies, links) and
-  # compiling for Windows already run in the Linux jobs. Two jobs run in parallel, past the 20
-  # minutes that one took (docs/adr/0081-stage-5a-the-world.md,
-  # docs/adr/0104-the-build-ci-and-measurements.md): this one runs the tests and the samples of the
-  # debug build; `windows-release` runs clippy and builds the programs that CI publishes.
+  # compiling for Windows already run in the Linux jobs. Four jobs run side by side, each within the
+  # owner's limit of 20 minutes (docs/adr/0081-stage-5a-the-world.md,
+  # docs/adr/0104-the-build-ci-and-measurements.md,
+  # docs/adr/0228-ci-split-again-each-job-within-20-minutes.md): this one in three parts, `tests`,
+  # the debug build's tests but the renderer's, and its samples, `render`, the renderer's tests, and
+  # `game`, the tests that read the sample game's zone; `windows-release` runs clippy and builds the
+  # programs that CI publishes.
   windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [tests, render, game]
+    name: windows (${{ matrix.part }})
     runs-on: windows-2025
     timeout-minutes: 45
     defaults:
@@ -101,14 +110,19 @@ jobs:
       # several threads compile shaders at once, even on separate devices (an access violation in
       # d3d10warp.dll, which no test can catch; seen in other projects too). Without failing fast,
       # every image test runs, and the last step publishes the image of each one that fails. Their
-      # output is not captured, so that the log shows what only this job can tell of WARP: the
+      # output is not captured, so that the log shows what only these jobs can tell of WARP: the
       # difference that each image test measured against its reference, the GPU timing and
       # multi-pass tests' times, the renderer's shaders made again, and the device's limits. The
       # panics that tests expect show there too. Running those tests again with `-p` to print
       # them built the workspace again, with the features of those packages alone.
       - name: Tests
-        run: cargo test --workspace --locked --no-fail-fast -- --nocapture --test-threads=1
+        if: matrix.part == 'tests'
+        run: cargo test --workspace --exclude slime-render --locked --no-fail-fast -- --nocapture --test-threads=1
+      - name: The renderer's tests
+        if: matrix.part == 'render'
+        run: cargo test -p slime-render --locked --no-fail-fast -- --nocapture --test-threads=1
       - name: Headless samples
+        if: matrix.part == 'tests'
         run: |
           cargo run --locked --example headless -- --frames 600
           cargo run --locked --example window -- --headless --frames 600
@@ -120,7 +134,8 @@ jobs:
       # The sample game's zone, fetched from its mirror and kept between runs while its list is
       # unchanged, then cooked for the tests that read it
       # (docs/adr/0070-the-sample-games-source-assets.md).
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - if: matrix.part == 'game'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             games/hunnawood/assets/zone
@@ -128,25 +143,29 @@ jobs:
           key: hunnawood-zone-${{ hashFiles('games/hunnawood/assets/sources.tsv') }}
       # The zone cooked, kept as in the Linux jobs.
       - name: The packages that the cooker is built from
+        if: matrix.part == 'game'
         id: cooker
         run: scripts/cooker-dependencies.sh >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - if: matrix.part == 'game'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: target/cooked/hunnawood
           key: hunnawood-cooked-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('games/hunnawood/assets/sources.tsv', 'games/hunnawood/assets/zone/**/*.meta', 'games/hunnawood/assets/zone/**/*.scene', 'crates/slime-cook/src/**', 'crates/slime-cook/Cargo.toml', 'crates/slime-assets/src/**', 'crates/slime-assets/Cargo.toml', 'crates/slime-color/src/**', 'crates/slime-color/Cargo.toml', 'crates/slime-reflect/src/**', 'crates/slime-reflect/Cargo.toml', 'crates/slime-reflect-derive/src/**', 'crates/slime-reflect-derive/Cargo.toml', 'crates/slime-serialize/src/**', 'crates/slime-serialize/Cargo.toml', 'crates/slime-world/src/**', 'crates/slime-world/Cargo.toml', 'rust-toolchain.toml') }}-${{ steps.cooker.outputs.hash }}
       - name: Fetch and cook the sample game's zone
+        if: matrix.part == 'game'
         run: |
           scripts/fetch-assets.sh zone/
           cargo run --locked --release -p slime-cook -- cook games/hunnawood/assets/zone target/cooked/hunnawood
       - name: The tests that read the sample game's zone
+        if: matrix.part == 'game'
         run: cargo test --locked -p hunnawood -p hunnawood-editor -- --ignored
       # An image test that fails writes the image it rendered in target/tmp (CARGO_TARGET_TMPDIR).
-      # Only this job can show what WARP drew, and the runner is discarded with that image.
+      # Only these jobs can show what WARP drew, and the runner is discarded with that image.
       - name: Publish the images rendered by the image tests that failed
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: image-test-failures-windows
+          name: image-test-failures-windows-${{ matrix.part }}
           path: target/tmp/*.actual.png
           if-no-files-found: ignore
           retention-days: 14
@@ -175,7 +194,7 @@ jobs:
         run: |
           cargo build --locked --release --examples
           cargo build --locked --release -p hunnawood
-      # The zone, fetched and cooked as in the `windows` job, for the game that CI ships.
+      # The zone, fetched and cooked as in the `windows (game)` job, for the game that CI ships.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |

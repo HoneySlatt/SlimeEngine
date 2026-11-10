@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
 # Runs every automated check of the definition of done (AGENTS.md); CONTRIBUTING.md, "Checks", says
-# what they are. CI runs it unchanged, inside the Nix development shell, in three jobs side by side
-# (ADR-0123, ADR-0155): `nix develop --no-update-lock-file -c scripts/check.sh headless`, every
-# check that needs neither a compositor nor the sample game's zone, `... scripts/check.sh windowed`,
-# the examples and the windowed lifecycle test run in headless Weston compositors, and
+# what they are. CI runs it unchanged, inside the Nix development shell, in four jobs side by side
+# (ADR-0123, ADR-0155, ADR-0228): `nix develop --no-update-lock-file -c scripts/check.sh lint`, the
+# checks that read the code without running it, formatting, clippy, rustdoc, the dependencies and
+# the documentation's links, `... scripts/check.sh headless`, the build, the tests and every run
+# that needs neither a compositor nor the sample game's zone, `... scripts/check.sh windowed`, the
+# examples and the windowed lifecycle test run in headless Weston compositors, and
 # `... scripts/check.sh game`, everything that reads the sample game's zone, which it fetches and
 # cooks first (the flag makes an incomplete flake.lock an error instead of a silent update). Without
-# an argument, it runs the three parts, one after the other. `docs` checks the links between
-# Markdown files and the lengths of AGENTS.md and docs/PLAN.md alone, which the headless part does
-# too: CI's `docs` workflow runs it, with lychee alone, on a change of Markdown files outside the
-# crates (ADR-0188).
+# an argument, it runs the four parts, one after the other. `docs` checks the links between
+# Markdown files and the lengths of AGENTS.md and docs/PLAN.md alone, which the lint part does too:
+# CI's `docs` workflow runs it, with lychee alone, on a change of Markdown files outside the crates
+# (ADR-0188).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 part=${1:-all}
 case "$part" in
-    all | headless | windowed | game | docs) ;;
+    all | lint | headless | windowed | game | docs) ;;
     *)
-        echo "usage: scripts/check.sh [headless|windowed|game|docs]" >&2
+        echo "usage: scripts/check.sh [lint|headless|windowed|game|docs]" >&2
         exit 2
         ;;
 esac
@@ -59,7 +61,7 @@ start_weston() {
     exit 1
 }
 
-if runs headless; then
+if runs lint; then
     step "Formatting"
     cargo fmt --all --check
 
@@ -93,6 +95,17 @@ if runs headless; then
     cargo clippy --locked -p slime-mcp --test resources --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p hunnawood --no-default-features --all-targets --target x86_64-pc-windows-msvc -- -D warnings
 
+    step "Rustdoc"
+    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+    # The editor's look, which only the examples' dev-dependency turns on, and so the workspace's
+    # documentation leaves out (ADR-0148).
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --locked -p uwui --features editor-look
+
+    step "Dependencies (licenses, advisories, sources)"
+    cargo deny --locked check
+fi
+
+if runs headless; then
     step "Build"
     cargo build --workspace --all-targets --locked
 
@@ -102,15 +115,6 @@ if runs headless; then
     # that turns them on also turns on in the engine (feature unification): the renderer and the
     # world must keep them.
     VK_DRIVER_FILES="$SLIME_LAVAPIPE_ICD" cargo test --locked -p slime-render -p slime-world --features glam/debug-glam-assert
-
-    step "Rustdoc"
-    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
-    # The editor's look, which only the examples' dev-dependency turns on, and so the workspace's
-    # documentation leaves out (ADR-0148).
-    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --locked -p uwui --features editor-look
-
-    step "Dependencies (licenses, advisories, sources)"
-    cargo deny --locked check
 
     step "Source assets (each with a metadata file of its own, ADR-0069)"
     cargo run --locked -p slime-cook -- check examples/assets
@@ -389,7 +393,7 @@ if runs headless; then
     fi
 fi
 
-if runs headless || [ "$part" = docs ]; then
+if runs lint || [ "$part" = docs ]; then
     step "Documentation links"
     # Tracked and new, non-ignored Markdown files. External links are not checked: they fail for
     # reasons unrelated to the change being checked.
