@@ -110,6 +110,23 @@ The first half of M6d.2b2, cut in two at its start, on 2026-11-10
   the owner's machine at rest; `uwui`'s compile times, its derive grown
   (`scripts/compile-times.sh`).
 
+## Ideas waiting for their milestone
+
+From two outside reviews, kept by the owner on 2026-11-10; each joins its milestone at its start.
+
+- [M6d.4](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu): one element animated over a still screen
+  that grows, its work counted to the canvas, which today walks the whole display list at each
+  draw (`UiRenderer::draw`).
+- Stage 7's planning: the very modest laptop measured on
+  [ADR-0216](adr/0216-light-geometry-and-the-gpus-floor.md)'s common floor before the renderer
+  stands on it; one memory budget for every load and renderer ([`debt.md`](debt.md));
+  the simulation's parallel run tried on one case before its systems.
+- uwui's first stage: a channel's capacity, and its messages told apart, last value, kept events,
+  large changes in parts ([ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md)).
+- Later: cells loaded under a budget before Stage 10a's formats; a view's durable state keyed
+  apart from its path; themes' parts tried on hard components; few concepts to start with; early
+  trials of mobile and web life cycles.
+
 ## Checks by hand waiting for the owner
 
 The owner decided on 2026-10-20 to make the checks by hand later, together. Each milestone adds its
