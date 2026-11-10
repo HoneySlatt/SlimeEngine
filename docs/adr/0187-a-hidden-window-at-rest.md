@@ -1,7 +1,8 @@
 # 0187. A hidden window at rest
 
 - Status: Accepted; amends [0021](0021-frame-pacing.md) (on Wayland, frames wait for the
-  compositor's signal, and the loop sets no deadline of its own while it asks for a frame)
+  compositor's signal, and the loop sets no deadline of its own while it asks for a frame); amended by
+  [0227](0227-the-time-that-motion-reads.md) (the loop wakes for its tasks, and draws nothing)
 - Date: 2026-11-05
 
 ## Context

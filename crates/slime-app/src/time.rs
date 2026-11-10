@@ -24,9 +24,11 @@
 use std::time::Duration;
 
 /// The two times of a frame (`docs/adr/0107-the-execution-model.md`): *real time*, the time between
-/// frames, which the camera, the UI and the dev overlay run on, and *game time*, the simulation's,
+/// frames, which the camera and the dev overlay run on, and *game time*, the simulation's,
 /// which pauses, slows down and steps. Each phase of a frame is given both, and reads the one it
-/// lives on. Before the first frame, both are zero.
+/// lives on. Before the first frame, both are zero. uwui's interface reads neither: the windowed
+/// loop gives it the time since its last call, uncapped
+/// (`docs/adr/0227-the-time-that-motion-reads.md`).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Time {
     pub(crate) real: FrameTime,

@@ -8,7 +8,7 @@
   [0151](0151-rich-widgets.md) (M6b.7d cut in two: rich fields, then what the editor tells and
   finds, M6b.7e), [0170](0170-applications-on-the-ui-framework.md) (Stage 6d, not Stage 7,
   grows the transitions), [0223](0223-styles-written-in-code-through-tokens.md) (the density and
-  the contrast reach what code writes as literals too) and [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (less motion keeps brief fades; the system's preferences read on Linux too)
+  the contrast reach what code writes as literals too) and [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (less motion keeps brief fades; the system's preferences read on Linux too), then by [0227](0227-the-time-that-motion-reads.md) (the interface's time is when its frame shows, and each root's clock)
 - Date: 2026-10-27
 
 ## Context

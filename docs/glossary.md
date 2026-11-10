@@ -529,6 +529,12 @@ the window *holds its frames*.
 **Frame.** One iteration of the main loop. Its *delta* is the time it represents: the time since
 the previous frame, limited to a maximum (`slime_app::time::FrameClock`).
 
+**Frame's time (interface).** The time at which a frame of uwui is expected to show, which its
+motion reads, one for each window that presents. Its *source* says how the host knows it: given by
+the platform, predicted from past presentations, asked of the platform, ready under a variable
+refresh, on the display's grid, or simulated in tests. `slime-app` gives the frame's start until
+M6d.7 ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
+
 **Frames on demand.** A program's loop that runs a frame only when something asks for one, an event
 of the window, a request of the *development channel*, the interface while it moves or once its
 next change is due, the program or another thread through a waker, rather than at the scheduled
@@ -723,10 +729,11 @@ interface moves the *focus* for the first six ([ADR-0142](adr/0142-input-and-foc
 list to choose from: the *widgets* of today. Its behaviour, focus, keys and *role* are uwui's; its
 *parts* are its theme's ([ADR-0222](adr/0222-what-a-theme-is.md)). Not a *component* of a world.
 
-**Interface's executor.** In uwui, what runs the interface's tasks on its thread, within the
-frame: each task owned by the scope that started it and cancelled with it, its timers on the
-frame's clock, whose next deadline the host waits for. Other threads change *signals* through a
-channel that a task receives ([ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md)).
+**Interface's executor.** In uwui, what runs the interface's tasks on its thread, within a frame or
+a *wake*: each task owned by the scope that started it and cancelled with it, its timers on its
+root's clock, whose next deadline the host waits for. Other threads change *signals* through a
+channel that a task receives ([ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md),
+[ADR-0227](adr/0227-the-time-that-motion-reads.md)).
 
 **Interpolation factor.** The fraction of a fixed step accumulated but not yet run
 (`FixedStep::alpha`), between 0 and 1. Used to draw a state between the last two fixed steps:
@@ -1280,9 +1287,10 @@ for the GPU to finish what was submitted before; `Gpu::read_render_target_later`
 and returns at once, its texels given once wgpu has seen the copy done, a frame or more later
 ([ADR-0130](adr/0130-picking.md)).
 
-**Real time.** The frames' deltas, limited after a pause, whose sum is *application time*: the UI,
-the camera, the editor and the dev overlay run on it whatever the *game time*
-([ADR-0107](adr/0107-the-execution-model.md)).
+**Real time.** The frames' deltas, limited after a pause, whose sum is *application time*: the
+camera and the dev overlay run on it whatever the *game time*
+([ADR-0107](adr/0107-the-execution-model.md)). uwui's interface reads the host's clock instead,
+uncapped ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
 
 **Redraw request.** A notice from the windowing system that the window should be drawn now:
 either the engine asked for it (`Window::request_redraw`), or the system did on its own, for
@@ -1374,6 +1382,12 @@ builder (`uwui::tree::Role`, [ADR-0143](adr/0143-what-agents-see-of-the-interfac
 with its size in *logical pixels*, its scale and the direction of its lines
 (`uwui::tree::RootSettings`); a root laid out from right to left is mirrored
 ([ADR-0140](adr/0140-the-tree-of-elements.md)).
+
+**Root's clock (interface).** The time and the *speed* that the host gives a *root* at each frame:
+the host's clock at speed 1 by default, a game's time paused or slowed. The application's motion
+and its tasks' timers follow it; hover, press, focus and uwui's own timings stay on the host's
+clock. What runs during a game's pause is a root of its own
+([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
 
 **Run of text (screen readers).** A piece of one line of a field's text, of one direction and of a
 bounded count of characters, through which a screen reader reads the text and follows its caret:
@@ -1838,6 +1852,10 @@ in it. The window shows one or two, each in a *pane (editor)*
 **Visual target.** A reference image that a game sets for its look, on its target *hardware tier*
 at its frame rate: the gap between the game's image and its targets is the measured problem by
 which a rendering technique enters the engine ([ADR-0098](adr/0098-the-games-the-engine-aims-at.md)).
+
+**Wake (interface's host).** The host leaving its wait, for a task's timer or a task woken, without
+a frame: it runs the interface's tasks and the bindings that they change, and styles, lays out and draws nothing, so
+that a hidden window's timers end ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
 
 **WARP.** Microsoft's software driver for Direct3D 12, part of Windows. wgpu uses it on Windows
 machines without a GPU, such as the CI runners.

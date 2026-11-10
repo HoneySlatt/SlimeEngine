@@ -22,7 +22,8 @@
   aimed at; a trial on iOS), [0223](0223-styles-written-in-code-through-tokens.md) (without
   `serde`, no theme written in code: its files read or turned into values another way),
   [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (layouts and a theme's
-  parts are KDL) and [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (each root given a look and a target; the system's preferences read by a crate of uwui's that the engine's platform layer calls too)
+  parts are KDL) , [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (each root given a look and a target; the system's preferences read by a crate of uwui's that the engine's platform layer calls too)
+  and [0227](0227-the-time-that-motion-reads.md) (what the host gives of frames' times, roots' clocks and input's times)
 - Date: 2026-11-05
 
 ## Context

@@ -4,7 +4,8 @@
   foundations of the interface's effects, and measures the power that it draws); amended by
   [0190](0190-uwuis-requirements.md) (motion interrupted and driven by gestures, shared elements; effects lightened on
   battery) and [0194](0194-stage-6d-uwui-leaving-the-engine.md) (the foundations built in uwui's first
-  stage)
+  stage), then by [0227](0227-the-time-that-motion-reads.md) (each animation's cap a whole divisor of the refresh, halved for lasting
+  motion while saving power)
 - Date: 2026-11-04
 
 ## Context

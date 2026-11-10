@@ -16,6 +16,7 @@
   applied by its own simulation until the editor's hot reload) and
   [0208](0208-the-engines-promises-and-systems.md) (the simulation parallel and deterministic by
   default, at three levels), then by [0217](0217-worlds-by-density-generated-and-destroyed.md) (when background work reaches the simulation)
+  and [0227](0227-the-time-that-motion-reads.md) (uwui's interface reads the host's clock, uncapped)
 - Date: 2026-10-20
 
 ## Context

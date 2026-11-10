@@ -1,6 +1,7 @@
 # 0009. Frame timing
 
 - Status: Accepted; amended by [0107](0107-the-execution-model.md) (game time apart from real time)
+  and [0227](0227-the-time-that-motion-reads.md) (uwui's interface reads the host's clock, uncapped)
 - Date: 2026-10-12
 
 ## Context

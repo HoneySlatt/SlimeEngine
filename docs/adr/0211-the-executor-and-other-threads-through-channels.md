@@ -3,7 +3,8 @@
 - Status: Accepted; amends [0190](0190-uwuis-requirements.md) (the interface's executor: its
   timers waited for by the host), [0205](0205-signals-change-uwuis-interface.md) (how other
   threads reach signals decided) and [0210](0210-signals-named-for-a-reload.md) (another thread's
-  handle across a reload answered)
+  handle across a reload answered); amended by [0227](0227-the-time-that-motion-reads.md) (tasks' timers on their clock's
+  present time, and tasks woken outside a frame, run at a wake that draws nothing)
 - Date: 2026-11-07
 
 ## Context

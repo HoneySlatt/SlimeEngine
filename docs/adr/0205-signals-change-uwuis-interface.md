@@ -5,7 +5,8 @@
   [0206](0206-slatty-ported-again-the-daw-later.md) (checked against Slatty's list once
   written), [0210](0210-signals-named-for-a-reload.md) (a signal's state across a reload of its
   type) and [0211](0211-the-executor-and-other-threads-through-channels.md) (other threads reach
-  signals through channels);
+  signals through channels), then by [0227](0227-the-time-that-motion-reads.md) (a timer at a granularity ends at civil
+  boundaries too, and rests while its root does not show);
   checked against Slatty's list and the engine's ([`uwui-needs.md`](../uwui-needs.md)) on
   2026-11-07: each need that they mark as general covered
 - Date: 2026-11-07

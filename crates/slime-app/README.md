@@ -148,8 +148,9 @@ if slime_app::run(&mut (), &mut Sky, &config).is_err() {
   (`docs/adr/0152-the-dev-overlay-on-the-engines-interface.md`); the run connects it to the window:
   each event goes to the interface first, and to `on_event` and the game's input only when the
   interface did not take it, but a key or a button let go, which always reaches the input; the
-  interface gets the system's clipboard, before each frame the time since the last, by which its
-  transitions go on (`docs/adr/0149-the-looks-foundations.md`), and after each frame the window
+  interface gets the system's clipboard, before each event and each frame the time since the
+  last, uncapped, by which its transitions go on (`docs/adr/0149-the-looks-foundations.md`,
+  `docs/adr/0227-the-time-that-motion-reads.md`), and after each frame the window
   shows the pointer's shape that it asks and allows the input method while one of its fields takes
   text (`docs/adr/0145-text-edited.md`), and, with the `accessibility` feature, screen readers get
   what changed in what it means; `gpu_lost` and `gpu_restored` when the run replaces a lost GPU

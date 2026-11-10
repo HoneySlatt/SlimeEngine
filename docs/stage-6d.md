@@ -700,10 +700,16 @@ M6d.1d2b2, next, is in [`PLAN.md`](PLAN.md#m6d1d2b2--the-time-that-motion-reads)
   platform layer calls too; the facade, not the core, holding the one call, so that the engine
   depends on neither the facade nor uwui's hosts
   ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)).
-  M6d.1d2b2 adds the times of frames and of input's events.
+  The times ([ADR-0227](adr/0227-the-time-that-motion-reads.md)): for each window that presents,
+  its frame's time and its source, its deadline where given, the display's rate and whether it
+  varies; the next frame due and the next wake, a wake running tasks without drawing; each root's
+  time and speed; each event's time and its source; the time spent suspended; the types `Instant`
+  and `RootTime`; the civil time, its zone, its offset from UTC and their changes; a rate asked for
+  a surface.
 - **Done when.** `slime-app` reaches uwui through the API alone; a table in the API's ADR says, for
-  each item and each of the five, how it maps or why it needs no mapping; the editor's and the
-  game's sessions, rest and input to present are unchanged; CI is green.
+  each item, how it maps or why it needs no mapping on each of the five, on the engine, and on
+  winit, split into Wayland, X11, Windows and macOS where it gives nothing; the editor's and the game's
+  sessions, rest and input to present are unchanged; CI is green.
 - **How to test.** `cargo test --workspace`; `scripts/check.sh`.
 - **Measured.** Rest; input to present; the editor's start.
 
@@ -715,7 +721,8 @@ M6d.1d2b2, next, is in [`PLAN.md`](PLAN.md#m6d1d2b2--the-time-that-motion-reads)
 - **Delivers.** As [ADR-0195](adr/0195-a-series-of-headless-compositors.md) decides: a development
   shell and a job of CI of their own, run when the platform layer or the desktop host changes,
   every week and on demand; input for each family, the dependency of libei's client put to the
-  owner; rest, an agent's session, decorations, the scale, frames and presentation times, the
+  owner; rest, an agent's session, decorations, the scale, frames and presentation times, how
+  much frames' starts vary at 240 Hz ([ADR-0227](adr/0227-the-time-that-motion-reads.md)), the
   clipboard and the cursor's shapes checked on each; each compositor's protocols listed by
   `wayland-info`; a table of what differs.
 - **Done when.** Each compositor runs the checks, or its report says why not; the job is within 20
@@ -732,8 +739,15 @@ M6d.1d2b2, next, is in [`PLAN.md`](PLAN.md#m6d1d2b2--the-time-that-motion-reads)
   closing intercepted; decorations of the system where the compositor draws them, drawn by uwui
   elsewhere. The ADR of the frames' rate, which amends [ADR-0021](adr/0021-frame-pacing.md) and
   which M6c.Q2f waits for: on the compositor's signal on Wayland, by the refresh rate of the
-  display that holds the window on Windows and X11, a display that reports none included. A waker
-  from any thread; an example; a check that a program on uwui and its host compiles neither the
+  display that holds the window on Windows and X11, a display that reports none included; the
+  time that the engine's windowed loop gives its interface. The platforms' times of frames read
+  with code of the host's own, since winit gives none; input's events stamped at reception,
+  measured, and a pull request proposed to winit for their times, after a search for an existing
+  one; the notice that the system resumed, on each platform; whether the host reaches the
+  presentation's times under wgpu: on Wayland, its own presentation feedback and commit timer on a
+  surface whose commits Vulkan's driver makes, on Windows DXGI's statistics, the presentation
+  manager and DWM's timing with several displays
+  ([ADR-0227](adr/0227-the-time-that-motion-reads.md)). A waker from any thread; an example; a check that a program on uwui and its host compiles neither the
   renderer, the world nor the editor, and its other side, that the engine's programs compile none
   of uwui's hosts
   ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); a job of CI that builds and tests uwui and its host on macOS

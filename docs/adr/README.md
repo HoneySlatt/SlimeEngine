@@ -77,7 +77,7 @@ the ADR linking to it.
 | [0006](0006-dependency-policy.md) | Dependency policy | Accepted; amended by 0023, 0031, 0133, 0182, 0214 and 0219 |
 | [0007](0007-documentation-tooling-and-ci.md) | Documentation tooling and continuous integration | Accepted; amended by 0015, 0123 and 0188 |
 | [0008](0008-errors-logging-and-assertions.md) | Errors, logging and assertions | Accepted; amended by 0019 and 0085 |
-| [0009](0009-frame-timing.md) | Frame timing | Accepted; amended by 0107 |
+| [0009](0009-frame-timing.md) | Frame timing | Accepted; amended by 0107 and 0227 |
 | [0010](0010-main-loop-ownership.md) | Main loop ownership and the application API | Accepted; amended by 0020 and 0107 |
 | [0011](0011-windowing-with-winit.md) | Windowing and input with winit, behind `slime-platform` | Accepted; amended by 0020 and 0181 |
 | [0012](0012-clean-shutdown-on-termination-signals.md) | Clean shutdown on termination signals | Accepted |
@@ -175,7 +175,7 @@ the ADR linking to it.
 | [0104](0104-the-build-ci-and-measurements.md) | The build, CI and measurements | Accepted; amended by 0114, 0123, 0144, 0175, 0186, 0189 and 0221 |
 | [0105](0105-egui-fonts-ship-with-the-dev-overlay.md) | egui's fonts ship with the dev overlay | Superseded by 0152 |
 | [0106](0106-the-measured-quick-wins.md) | The measured quick wins | Accepted; amended by 0117 and 0126 |
-| [0107](0107-the-execution-model.md) | The execution model | Accepted; amended by 0118, 0121, 0208 and 0217 |
+| [0107](0107-the-execution-model.md) | The execution model | Accepted; amends 0009, 0010, 0020, 0072, 0073, 0074, 0079 and 0097; amended by 0118, 0121, 0208, 0217 and 0227 |
 | [0108](0108-what-the-world-knows-of-its-changes.md) | What the world knows of its changes | Accepted; amended by 0119, 0124 and 0167 |
 | [0109](0109-stable-references-and-undo.md) | Stable references and undo | Accepted; amended by 0116, 0124, 0134 and 0217 |
 | [0110](0110-how-the-editor-runs-a-games-code.md) | How the editor runs a game's code | Accepted; amended by 0116, 0121, 0122, 0134, 0155 and 0175 |
@@ -217,7 +217,7 @@ the ADR linking to it.
 | [0146](0146-screen-readers.md) | Screen readers | Accepted; amended by 0147 and 0181 |
 | [0147](0147-the-screen-readers-check-in-ci.md) | The screen readers' check in CI | Accepted |
 | [0148](0148-widgets.md) | Widgets | Accepted; amended by 0149 |
-| [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151, 0170, 0223 and 0226 |
+| [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151, 0170, 0223, 0226 and 0227 |
 | [0150](0150-layers.md) | Layers | Accepted; amended by 0154, 0157, 0174 |
 | [0151](0151-rich-widgets.md) | Rich widgets | Accepted |
 | [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
@@ -239,7 +239,7 @@ the ADR linking to it.
 | [0168](0168-rearranging-the-hierarchy.md) | Rearranging the hierarchy | Accepted |
 | [0169](0169-the-eye-and-the-lock.md) | The eye and the lock | Accepted |
 | [0170](0170-applications-on-the-ui-framework.md) | Applications on the engine's UI framework | Accepted; amends 0098, 0132 and 0149; amended by 0171, 0173, 0178, 0181, 0190 and 0194 |
-| [0171](0171-effects-of-the-interface.md) | Effects of the interface, at their lowest cost | Accepted; amends 0170; amended by 0190 and 0194 |
+| [0171](0171-effects-of-the-interface.md) | Effects of the interface, at their lowest cost | Accepted; amends 0170; amended by 0190, 0194 and 0227 |
 | [0172](0172-regions-of-tabs.md) | Regions of tabs | Accepted; amends 0153 and 0155 |
 | [0173](0173-the-platforms-of-applications.md) | The platforms of applications | Accepted; amends 0015, 0098, 0100 and 0170; amended by 0181, 0190 and 0213 |
 | [0174](0174-layouts-kept-floating-panels-and-closed-panels.md) | Layouts kept, floating panels and closed panels | Accepted; amends 0150 and 0155 |
@@ -249,16 +249,16 @@ the ADR linking to it.
 | [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179, 0180, 0181, 0194 and 0203 |
 | [0179](0179-the-framework-named-uwui.md) | The framework named uwui | Accepted; amends 0178 |
 | [0180](0180-one-canvas-and-the-frameworks-foundations.md) | One canvas, and the framework's foundations | Accepted; amends 0178; amended by 0181 |
-| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223, 0225 and 0226 |
+| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223, 0225, 0226 and 0227 |
 | [0182](0182-the-engine-under-mit-or-apache-2-0.md) | The engine under MIT OR Apache-2.0 | Superseded by 0214 for the engine; amends 0006 and 0181 |
 | [0183](0183-uwuis-logo.md) | uwui's logo | Accepted |
 | [0184](0184-the-engines-logo.md) | The engine's logo | Accepted |
 | [0185](0185-rest-checked-in-ci.md) | Rest, checked in CI | Accepted; amends 0021, 0156 and 0175; amended by 0195 |
 | [0186](0186-counters-and-ratios-in-ci.md) | Counters and ratios in CI | Accepted; amends 0005, 0104 and 0175; amended by 0189 |
-| [0187](0187-a-hidden-window-at-rest.md) | A hidden window at rest | Accepted; amends 0021 |
+| [0187](0187-a-hidden-window-at-rest.md) | A hidden window at rest | Accepted; amends 0021; amended by 0227 |
 | [0188](0188-a-light-check-for-documentation.md) | A light check for documentation | Accepted; amends 0007 |
 | [0189](0189-first-measures-of-time.md) | First measures of time | Accepted; amends 0104, 0175 and 0186; amended by 0191 and 0215 |
-| [0190](0190-uwuis-requirements.md) | uwui's requirements | Accepted; amends 0170, 0171, 0173, 0175 and 0181; amended by 0194, 0197, 0199, 0202, 0203, 0205, 0209, 0211, 0212, 0213, 0218, 0220, 0222, 0225 and 0226 |
+| [0190](0190-uwuis-requirements.md) | uwui's requirements | Accepted; amends 0170, 0171, 0173, 0175 and 0181; amended by 0194, 0197, 0199, 0202, 0203, 0205, 0209, 0211, 0212, 0213, 0218, 0220, 0222, 0225, 0226 and 0227 |
 | [0191](0191-input-in-sway-start-budgets-and-the-editors-rate.md) | Input given in sway, two budgets of a start, and the editor's rate | Accepted; amends 0175 and 0189; amended by 0200 |
 | [0192](0192-the-budget-of-a-cold-start.md) | The budget of a cold start | Accepted; amends 0175 |
 | [0193](0193-first-measures-of-resources.md) | First measures of resources | Accepted; amends 0175 |
@@ -273,13 +273,13 @@ the ADR linking to it.
 | [0202](0202-how-m6d1-compares-ways-of-writing-an-application.md) | How M6d.1 compares ways of writing an application | Accepted; amends 0190, 0194 and 0199; amended by 0204, 0210 and 0212 |
 | [0203](0203-pilots-replaced-pluto-and-a-daw.md) | uwui's pilots replaced: Pluto's client and a DAW | Accepted; amends 0178, 0181, 0190, 0194, 0198 and 0199; amended by 0206 |
 | [0204](0204-signals-written-by-hand-for-the-prototypes.md) | Signals written by hand for M6d.1b's prototypes | Accepted; amends 0202 |
-| [0205](0205-signals-change-uwuis-interface.md) | Signals change uwui's interface, and live values its drawing | Accepted; amends 0190; amended by 0206, 0210 and 0211; checked against Slatty's and the engine's lists |
+| [0205](0205-signals-change-uwuis-interface.md) | Signals change uwui's interface, and live values its drawing | Accepted; amends 0190; amended by 0206, 0210, 0211 and 0227; checked against Slatty's and the engine's lists |
 | [0206](0206-slatty-ported-again-the-daw-later.md) | Slatty ported again; the DAW later | Accepted; amends 0203 and 0205; its check done |
 | [0207](0207-what-slimeengine-is-to-become.md) | What SlimeEngine is to become | Accepted; amends 0098 and principle 8; amended by 0214, 0215, 0219 and 0220 |
 | [0208](0208-the-engines-promises-and-systems.md) | The engine's promises and systems | Accepted; amends 0098, 0107 and 0114; amended by 0215, 0216 and 0217 |
 | [0209](0209-platforms-the-editor-and-agents.md) | Platforms, the editor and agents | Accepted; amends 0098, 0099, 0122 and 0190; amended by 0214, 0215 and 0218 |
 | [0210](0210-signals-named-for-a-reload.md) | Signals named for a reload, through serde | Accepted; amends 0202 and 0205; amended by 0211, 0212 and 0225 |
-| [0211](0211-the-executor-and-other-threads-through-channels.md) | The interface's executor, and other threads through channels | Accepted; amends 0190, 0205 and 0210 |
+| [0211](0211-the-executor-and-other-threads-through-channels.md) | The interface's executor, and other threads through channels | Accepted; amends 0190, 0205 and 0210; amended by 0227 |
 | [0212](0212-a-functions-body-reloaded-through-subsecond-and-dx.md) | A function's body reloaded through subsecond and dx | Accepted; amends 0190, 0202 and 0210; amended by 0224 |
 | [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) | uwui's reach, its lead, its themes and agents | Accepted; amends 0173, 0181, 0190, 0196, 0198 and 0199; amended by 0214, 0215, 0218, 0222 and 0226 |
 | [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) | The engine under a licence of its own, with a royalty | Accepted; supersedes 0182 for the engine; amends 0006, 0207, 0209 and 0213; amended by 0219 |
@@ -295,3 +295,4 @@ the ADR linking to it.
 | [0224](0224-a-files-change-reaches-the-application-through-the-development-tool.md) | A file's change reaches the application through the development tool | Accepted; amends 0212 |
 | [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) | Layouts written in KDL, reached from code by their names | Accepted; amends 0080, 0132, 0141, 0181, 0190, 0210, 0220 and 0222; amended by 0226 |
 | [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) | An application started in one call, each root given its look | Accepted; amends 0149, 0181, 0190, 0213, 0215, 0220, 0222, 0223 and 0225 |
+| [0227](0227-the-time-that-motion-reads.md) | The time that motion reads | Accepted; amends 0009, 0107, 0149, 0171, 0181, 0187, 0190, 0205 and 0211 |

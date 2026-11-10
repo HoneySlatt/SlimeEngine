@@ -57,6 +57,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   At 144 or 165 Hz, the default 60 frames a second last 2 or 3 refreshes in turn: judder in motion.
   A game can raise `AppConfig::max_frame_rate` to the display's rate, which the engine does not report, or choose `PresentMode::Fifo`, one image per refresh, which can stall (next item).
   Frames wait for the frame callbacks, but are not aligned on them; to reconsider when a renderer draws real scenes.
+  Followed at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames), whose ADR of the frames' rate amends ADR-0021.
 - **Without Mailbox, presenting can still stall the loop.**
   Windows that do not offer it, and applications that choose `PresentMode::Fifo`, wait for the display: one frame per second for a hidden window on niri.
   In a headless Weston with lavapipe, `acquire` waits for Weston's frame callbacks as long as the machine's load makes it.
@@ -724,11 +725,13 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A shadow is not placed on whole pixels.
   On Linux, the system's dark or light preference is not read: winit reads no desktop's settings, and the portal of the desktop's settings would need a new dependency; Windows reports it.
   Followed by uwui's reader of the system's preferences, which the engine's platform layer calls once the editor moves onto uwui's 1.0, at Stage 6c's resumption ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); the reader's dependencies are put to the owner when it is built.
-- **The interface's clock in the engine is not limited after a pause** ([ADR-0107](adr/0107-the-execution-model.md)).
-  `slime-app`'s windowed loop gives uwui the whole time since its last call, at each event and frame (`ui.advance(now - self.ui_clock)` in `windowed.rs`).
-  ADR-0107 gives the interface real time limited after a pause, as ADR-0009 decided.
-  A transition under way when the program waits long ends at once at the next event; nothing else is known to break.
-  Followed at [M6d.1d2b2](PLAN.md#m6d1d2b2--the-time-that-motion-reads), which decides whether motion's gap is limited; the code or ADR-0107 then follows.
+- **The interface reads the frame's start, one clock for every root, and events carry no time** ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
+  `slime-app`'s windowed loop gives uwui the time since its last call, read from `Instant::now()` at each event and each frame's start (`Ui::advance`), not when the frame shows; winit gives no presentation time and no event's time.
+  Motion therefore steps with the loop's wakes, and a fling's speed would be read from them.
+  Every root shares one clock; no root has a clock and a speed of its own; a motion asks for every frame while it moves; `Ui::next_change` is one deadline, not the next frame and the next wake.
+  A bar of progress without a share turns by that clock read as `f32` seconds from zero, which loses its precision as the program runs for days.
+  `std::time::Instant` does not count a suspend on Linux and macOS: a transition or a tooltip waits through a suspend by awake time alone.
+  Followed at [M6d.5](stage-6d.md#m6d5--the-hosts-api), the host's API, and [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames), which reads the platforms' times; uwui's first stage builds the rest.
 - **Layers** ([ADR-0150](adr/0150-layers.md)).
   A menu's separators are boxes of the class `separator` that the look styles, not a kind of their own.
   A menu has no letters that jump to an item.
