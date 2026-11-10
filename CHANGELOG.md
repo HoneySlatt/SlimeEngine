@@ -8,6 +8,18 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Changed
 
+- uwui's styles are typed declarations, applied without reflection (ADR-0229): a rule sets a
+  colour whole, and a rule that names a kind and sets what that kind does not read is refused.
+  Each kind starts from defaults whose colours are the core's seven roles, `canvas_text`, `accent`
+  and the others, which each look gives; a theme that gives a role a value that is no colour is
+  refused, and a role that the themes lack takes its fallback with a warning (ADR-0230).
+  `Style::default()` holds no colour but transparent.
+- An element's own style is written in code, with its states (ADR-0231): `Element::label(text)`
+  and the other constructors take no `Style`; `.style(|s| s.padding(12.0).hover(|s| ...))` writes
+  it, and `Ui::add_root` and `Ui::open_layer` take the same function. What code sets wins over the
+  rules even at its default value, but a rule that names a state wins over a base written in code;
+  an array is set by element, `width` without `height`. A hover or a press written in code cannot
+  set what lays out.
 - Compiling within its budgets (ADR-0221): dependencies are optimised at the first level in debug
   builds; the Nix shell links with mold on Linux; the examples' editor's Play builds `world` with
   the workspace's features, which share every engine crate with the editor's.

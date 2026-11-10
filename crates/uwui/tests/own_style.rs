@@ -258,3 +258,28 @@ fn a_roots_and_a_layers_own_style_keep_the_place_of_their_call() {
         assert_eq!((places[0].file(), places[0].line()), (file!(), line));
     }
 }
+
+#[test]
+fn an_element_whose_style_moved_in_its_code_keeps_the_new_place() {
+    let mut ui = Ui::new(Fonts::new());
+    let root = ui.add_root("main", settings(), |s| s);
+    let mut id = None;
+    ui.build(root, 0, |children| {
+        let button = Element::button("Save").style(|s| s.background(GREEN));
+        id = Some(children.add("subject", button, |_| {}));
+    });
+    ui.frame();
+    // The same style, written on another line, as a reload that moved it would give it.
+    let mut moved = 0;
+    ui.build(root, 1, |children| {
+        let button = Element::button("Save").style(|s| s.background(GREEN));
+        moved = line!() - 1;
+        children.add("subject", button, |_| {});
+    });
+    ui.frame();
+    let places = ui.element(id.expect("built")).expect("kept").style.places();
+    assert_eq!(
+        places.iter().map(|place| place.line()).collect::<Vec<_>>(),
+        [moved]
+    );
+}

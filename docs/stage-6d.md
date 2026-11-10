@@ -1051,7 +1051,9 @@ One core for agents, in uwui, under MIT OR Apache-2.0, which the engine builds i
   ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md),
   [ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)); uwui's MCP server built on
   it. The engine's channel speaking the core's protocol, and `slime-mcp` on uwui's MCP library with
-  the engine's families: the world, play and editing.
+  the engine's families: the world, play and editing. The place of the code that wrote an element's
+  own style given to agents, its first reader
+  ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)).
 - **Done when.** A named agent attaches to the example already running in a headless Weston and
   drives it; a request outside its rights is refused, and one asked with a preview changes nothing
   until applied; the engine's MCP session tests pass through the core; CI is green.

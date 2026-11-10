@@ -1,37 +1,6 @@
 //! An element's own style, written in code: the declarations that its code set, whatever their
 //! values, for its base and for its states, with the place of the call that wrote them
 //! (`docs/adr/0231-an-elements-own-style-written-in-code.md`).
-//!
-//! ```
-//! use uwui::style::{Dimension, StyleBuilder};
-//! use uwui::tree::Element;
-//! use slime_color::LinearColor;
-//!
-//! let surface = LinearColor::rgba(0.1, 0.1, 0.12, 1.0);
-//! let lighter = LinearColor::rgba(0.16, 0.16, 0.18, 1.0);
-//! let save = Element::button("Save").class("primary").style(|s| {
-//!     s.padding(12.0)
-//!         .width(Dimension::Pixels(120.0))
-//!         .background(surface)
-//!         .hover(|s| s.background(lighter))
-//! });
-//! // A helper writes a part of a style that several elements share.
-//! fn column(s: StyleBuilder) -> StyleBuilder {
-//!     s.direction(uwui::style::FlexDirection::Column)
-//! }
-//! let panel = Element::container().style(column);
-//! assert!(!panel.style.is_empty());
-//! ```
-//!
-//! A hover or a press cannot change the element's box (`docs/adr/0222-what-a-theme-is.md`): their
-//! builder offers no field that lays out, and the compiler refuses the call.
-//!
-//! ```compile_fail
-//! use uwui::style::Dimension;
-//! use uwui::tree::Element;
-//!
-//! let grows = Element::button("Grows").style(|s| s.hover(|s| s.width(Dimension::Pixels(200.0))));
-//! ```
 
 use std::marker::PhantomData;
 use std::panic::Location;
@@ -191,7 +160,41 @@ impl PartialEq for OwnStyle {
 
 /// What writes an own style, one call for each field that it sets: `S` says where it writes,
 /// [`Base`], a state that lays out, [`State`], or a state of the pointer, [`PointerState`], which
-/// offers no field that lays out.
+/// offers no field that lays out. [`Element::style`](crate::tree::Element::style),
+/// [`Ui::add_root`](crate::tree::Ui::add_root) and [`Ui::open_layer`](crate::tree::Ui::open_layer)
+/// give one to the function that writes
+/// (`docs/adr/0231-an-elements-own-style-written-in-code.md`).
+///
+/// ```
+/// use uwui::style::{Dimension, StyleBuilder};
+/// use uwui::tree::Element;
+/// use slime_color::LinearColor;
+///
+/// let surface = LinearColor::rgba(0.1, 0.1, 0.12, 1.0);
+/// let lighter = LinearColor::rgba(0.16, 0.16, 0.18, 1.0);
+/// let save = Element::button("Save").class("primary").style(|s| {
+///     s.padding(12.0)
+///         .width(Dimension::Pixels(120.0))
+///         .background(surface)
+///         .hover(|s| s.background(lighter))
+/// });
+/// // A helper writes a part of a style that several elements share.
+/// fn column(s: StyleBuilder) -> StyleBuilder {
+///     s.direction(uwui::style::FlexDirection::Column)
+/// }
+/// let panel = Element::container().style(column);
+/// assert!(!panel.style.is_empty());
+/// ```
+///
+/// A hover or a press cannot change the element's box (`docs/adr/0222-what-a-theme-is.md`): their
+/// builder offers no field that lays out, and the compiler refuses the call.
+///
+/// ```compile_fail,E0599
+/// use uwui::style::Dimension;
+/// use uwui::tree::Element;
+///
+/// let grows = Element::button("Grows").style(|s| s.hover(|s| s.width(Dimension::Pixels(200.0))));
+/// ```
 #[derive(Debug)]
 #[must_use]
 pub struct StyleBuilder<S = Base> {
@@ -205,7 +208,8 @@ pub struct StyleBuilder<S = Base> {
 #[derive(Debug)]
 pub struct Base;
 
-/// An own style's state that may lay out: focused, checked, expanded, selected, disabled.
+/// An own style's state that may lay out: focused, its focus shown, checked, expanded, selected,
+/// disabled.
 #[derive(Debug)]
 pub struct State;
 
@@ -264,7 +268,8 @@ impl StyleBuilder {
         self.in_state(StateName::Hovered, write)
     }
 
-    /// What holds while the element is pressed.
+    /// What holds while the element is pressed: a button or a control, not a field, which a press
+    /// focuses.
     pub fn press(
         self,
         write: impl FnOnce(StyleBuilder<PointerState>) -> StyleBuilder<PointerState>,
@@ -296,7 +301,8 @@ impl StyleBuilder {
         self.in_state(StateName::Expanded, write)
     }
 
-    /// What holds while the element is the chosen tab or segment of its bar.
+    /// What holds while the element is chosen: the tab or the segment of its bar, a row of a list
+    /// that the program selected.
     pub fn selected(self, write: impl FnOnce(StyleBuilder<State>) -> StyleBuilder<State>) -> Self {
         self.in_state(StateName::Selected, write)
     }

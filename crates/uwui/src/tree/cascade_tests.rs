@@ -457,3 +457,104 @@ fn every_leaf_takes_the_mask_order() {
         );
     }
 }
+
+/// The states that an own style may write, in the order that ADR-0231 gives them, the last
+/// winning: written here apart from the cascade's own list, as the model's.
+const ORDER: [StateName; 8] = [
+    StateName::Hovered,
+    StateName::Focused,
+    StateName::FocusVisible,
+    StateName::Pressed,
+    StateName::Checked,
+    StateName::Expanded,
+    StateName::Selected,
+    StateName::Disabled,
+];
+
+#[test]
+fn random_rules_with_states_and_own_styles_with_states_compose_as_the_mask_order_says() {
+    let changed = every_leaf_changed();
+    let default = Style::default();
+    // Two values for each leaf: the changed one, and the default.
+    let mut values: Vec<[StyleDeclaration; 2]> = Vec::new();
+    let mut other = Vec::new();
+    changed.declared(&default, &mut |declaration| other.push(declaration));
+    let mut back = Vec::new();
+    default.declared(&changed, &mut |declaration| back.push(declaration));
+    for (set, at_default) in other.into_iter().zip(back) {
+        values.push([set, at_default]);
+    }
+    let mut ui = Ui::new(Fonts::new());
+    let base = ui.base_of[KindName::Container.index()];
+    let mut numbers = Numbers(0x9e37_79b9_7f4a_7c15);
+    for case in 0..2_000 {
+        // Three leaves for each case, so that rules and states meet on the same leaves.
+        let pool: Vec<usize> = (0..3).map(|_| numbers.below(values.len())).collect();
+        let declaration = |numbers: &mut Numbers| {
+            let leaf = pool[numbers.below(pool.len())];
+            values[leaf][numbers.below(2)].clone()
+        };
+        // The rules that select the element, each stateful or not: a stateful rule selected is in
+        // a state that holds.
+        let rules: Vec<Rule> = (0..numbers.below(6))
+            .map(|_| {
+                let state = numbers.chance(2).then(|| ORDER[numbers.below(ORDER.len())]);
+                Rule {
+                    selector: Selector {
+                        states: state.into_iter().collect(),
+                        ..Selector::default()
+                    },
+                    declarations: (0..1 + numbers.below(3))
+                        .map(|_| declaration(&mut numbers))
+                        .collect(),
+                }
+            })
+            .collect();
+        let own: Vec<(Option<StateName>, StyleDeclaration)> = (0..numbers.below(6))
+            .map(|_| {
+                let state = numbers.chance(2).then(|| ORDER[numbers.below(ORDER.len())]);
+                (state, declaration(&mut numbers))
+            })
+            .collect();
+        let held: Vec<StateName> = ORDER
+            .iter()
+            .copied()
+            .filter(|_| numbers.chance(2))
+            .collect();
+        let held_bits = held.iter().fold(0, |bits, &state| bits | state_bit(state));
+        // The model: for each leaf, the declaration that wins.
+        let mut winners: Vec<Option<&StyleDeclaration>> = vec![None; Style::LEAVES];
+        let mut by_state = [false; Style::LEAVES];
+        for rule in &rules {
+            for declaration in &rule.declarations {
+                winners[declaration.leaf()] = Some(declaration);
+                by_state[declaration.leaf()] = !rule.selector.states.is_empty();
+            }
+        }
+        for (state, declaration) in &own {
+            if state.is_none() && !by_state[declaration.leaf()] {
+                winners[declaration.leaf()] = Some(declaration);
+            }
+        }
+        for state in ORDER.iter().filter(|state| held.contains(state)) {
+            for (written, declaration) in &own {
+                if *written == Some(*state) {
+                    winners[declaration.leaf()] = Some(declaration);
+                }
+            }
+        }
+        let mut want = default.clone();
+        for declaration in winners.into_iter().flatten() {
+            declaration.apply(&mut want);
+        }
+        ui.rules = rules;
+        let selected: Vec<u32> = (0..ui.rules.len() as u32).collect();
+        let own_style = OwnStyle::of(own.clone());
+        let made = ui.compose(base, &selected, &own_style, held_bits & own_style.states());
+        assert!(
+            made.same(&want),
+            "case {case}: rules {:?}, own {own:?}, held {held:?}",
+            ui.rules
+        );
+    }
+}

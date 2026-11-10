@@ -789,6 +789,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The styles made are kept up to a number for each set of rules, each for a kind's defaults, an element's own style and its own states that hold (`Ui::set_style`).
   Past it, an element's style is composed again at each change, its declarations applied one by one; followed at [M6d.2b2b](stage-6d.md#m6d2b2b--tokens-and-the-users-layer), which sets the frame after a change of theme a target.
   Selectors hold no combinators but an ancestor's kind or class.
+  The place of each call that wrote an element's own style is kept (`OwnStyle::places`), but nothing reads it yet; followed at [M6d.9a](stage-6d.md#m6d9a--one-core-for-agents-and-its-mcp-server), which gives it to agents.
   A rule of a style sheet that names `Hovered` or `Pressed` may set what lays out the element, which a hover or a press written in code cannot ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)); no rule of the repository does; followed at uwui's first stage, which types rules for each state.
 - **uwui's own layers take no defaults, and selected text no color of its own** ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)).
   The tooltip, the palette of commands, the notifications and the colour picker are containers that the look styles by their classes: without a look they draw no box, and their colors are their elements' kinds' alone.

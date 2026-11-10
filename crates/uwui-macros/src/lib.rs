@@ -283,7 +283,6 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
         }
 
         impl crate::style::Same for #declaration {
-            #[allow(unreachable_patterns)]
             fn same(&self, other: &Self) -> bool {
                 match (self, other) {
                     #(#sames)*

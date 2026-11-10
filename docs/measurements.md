@@ -2363,3 +2363,48 @@ the roles' tests, a second or so. `windows (tests)` ran both fixtures of styles 
 
 The times of compiling were not measured: the milestone adds no crate and no dependency, and the
 machine was busy throughout, a game and other sessions' builds running.
+
+## M6d.2b2a, an element's own style written in code
+
+An element's own style written in code, with its states, in the mask order
+([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)), on 2026-11-10, on the owner's
+machine, an AMD Ryzen 7 5800X, 16 logical CPUs, Linux, release builds. *Before* is `8408b1e`, the
+code of M6d.2b1, with this milestone's new counter added to its benchmark; *after* is `a3695b4`. The
+two binaries ran in turn, twice each, no build running; the load average rose from 2.3 to 4.9 over
+the runs, a program of the owner's taking more than half a core throughout, and a session's build
+started right after them. The runs of one binary differ by up to a quarter: no frame below differs
+between the sides beyond that spread.
+
+| Benchmark | Measure, median of 15 | Before | After |
+|---|---|---|---|
+| `ui.tree.look` | a frame after the look's colours changed, every element styled again | 56.72, 53.49 ms | 56.67, 52.89 ms |
+| `ui.tree.look` | the frames of the transition that it starts, together | 909.23, 733.18 ms | 743.92, 849.35 ms |
+| `ui.tree.editor` | a frame after the theme changed, every element styled again | 28.05, 28.56 ms | 27.79, 23.15 ms |
+| `ui.tree.editor` | the first frame: built, its texts and its tree laid out, drawn | 191.32, 193.53 ms | 181.53, 169.36 ms |
+| `ui.tree.editor` | a frame after one value of the inspector changed | 4.78, 5.10 ms | 7.56, 4.68 ms |
+| `ui.tree.editor` | a frame with nothing changed | 526.1, 528.3 µs | 643.8, 545.9 µs |
+
+The counters, in a debug build, as CI counts them:
+
+| Benchmark | Counter | Before | After |
+|---|---|---|---|
+| `ui.tree.editor` | allocations of a frame after one value of the inspector changed | 28 714 | 32 163 |
+| `ui.tree.editor` | bytes allocated by a frame after one value of the inspector changed | 6 384 534 | 7 157 318 |
+| `ui.tree.look` | allocations of reading the look's documents | 125 017 | 127 736 |
+| `ui.tree.look` | allocations of the frame of the change | 393 682 | 393 706 |
+| `ui.tree.look` | bytes allocated by the frame of the change | 37 007 738 | 36 988 023 |
+| `ui.tree.look` | frames of 240 Hz of the transition | 29 | 29 |
+
+What it says:
+
+- A frame that builds again allocates 12 % more, in allocations and in bytes: each element whose
+  code writes a style holds its declarations in a list of its own, where it held a whole `Style`
+  in place. The builder's list is taken whole by the element, not copied: copying it cost another
+  10 %.
+- Reading the look's documents allocates 188 more for the arrays, each now one declaration for
+  each element, and 2 531 more for the four rules that show the keyboard's focus.
+- The frame after a change of colours allocates 24 more and 20 kB less: each style kept for the
+  elements that share it holds their own style's declarations, not a whole `Style`.
+- The other benchmarks' counters are unchanged; the fixtures of the styles and the images too.
+- The times of compiling were not measured: the machine was busy with other sessions' builds
+  before and after the runs.

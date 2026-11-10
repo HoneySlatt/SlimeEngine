@@ -24,7 +24,7 @@ pub struct Style {
     /// How it and its children are laid out.
     #[declare(nested, lays_out)]
     pub layout: LayoutStyle,
-    /// How it is drawn, which lays nothing out again.
+    /// How it is drawn, which lays nothing out again but for its border's width.
     #[declare(nested)]
     pub paint: PaintStyle,
     /// The text of a label or a button: its fonts and size, which lay it out, and its color.
