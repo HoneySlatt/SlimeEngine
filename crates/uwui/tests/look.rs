@@ -162,6 +162,51 @@ fn the_style_sheet_styles_each_kind_its_states_and_its_classes() {
 }
 
 #[test]
+fn every_button_shows_the_keyboards_focus_by_its_border() {
+    // The buttons whose rules clear their border show the focus all the same: a list's rows, a
+    // row's marks, links and a notification's close button.
+    let mut fonts = Fonts::new();
+    look::register_fonts(&mut fonts);
+    let mut ui = Ui::new(fonts);
+    ui.set_style(
+        &[look::style_sheet()],
+        &look::themes(Colors::Dark, Density::Comfortable),
+    )
+    .expect("the look's documents are valid");
+    ui.set_reduced_motion(true);
+    let settings = RootSettings {
+        size: [800.0, 600.0],
+        scale: 1.0,
+        direction: LayoutDirection::LeftToRight,
+        origin: [0.0; 2],
+        modal: false,
+    };
+    let root = ui.add_root("main", settings, |s| s);
+    let mut buttons = Vec::new();
+    ui.build(root, 0, |children| {
+        for class in ["row", "mark", "link"] {
+            buttons.push(children.add(class, Element::button(class).class(class), |_| {}));
+        }
+        children.add(
+            "notification",
+            Element::container().class("notification"),
+            |card| {
+                buttons.push(card.add("close", Element::button("×").class("close"), |_| {}));
+            },
+        );
+    });
+    ui.frame();
+    let focus = lighten(srgb(0x4C8DFF), 0.08);
+    for button in buttons {
+        let border = |ui: &Ui| ui.style(button).expect("styled").paint.border;
+        assert_eq!(border(&ui).a, 0.0, "{button:?}: no border before the focus");
+        ui.set_focus(Some(button));
+        ui.frame();
+        assert!(near(border(&ui), focus), "{button:?}: {:?}", border(&ui));
+    }
+}
+
+#[test]
 fn a_chosen_tab_takes_the_panels_color_and_the_others_a_quieter_text() {
     let themes = look::themes(Colors::Dark, Density::Comfortable);
     let bar = Element::tab_bar(1);

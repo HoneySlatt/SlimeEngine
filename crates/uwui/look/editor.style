@@ -418,6 +418,10 @@ style.text.color = "$muted"
 select = { kind = "Button", classes = ["close"], states = ["Hovered"], inside = { class = "notification" } }
 style.text.color = "$text"
 
+[notification-close-focused]
+select = { kind = "Button", classes = ["close"], states = ["FocusVisible"], inside = { class = "notification" } }
+style.paint.border = "$focus"
+
 # A color well and its picker (docs/adr/0152-the-dev-overlay-on-the-engines-interface.md): the
 # swatch inside a field's frame; the picker raised as a menu is; its square and strips rounded,
 # ringed in the accent while the keyboard's focus is on them.
@@ -456,6 +460,10 @@ style.paint.background = "$hover"
 select = { kind = "Button", classes = ["row"], states = ["Selected"] }
 style.paint.background = "$accent_soft"
 
+[row-focused]
+select = { kind = "Button", classes = ["row"], states = ["FocusVisible"] }
+style.paint.border = "$focus"
+
 # The marks of a tree's row that a press turns, drawn in Lucide: the chevron that folds and unfolds
 # it (docs/adr/0167-the-hierarchy.md), its eye and its lock (docs/adr/0169-the-eye-and-the-lock.md);
 # and the name of a row that is hidden, dimmed.
@@ -469,6 +477,10 @@ style.layout.padding = { start = 0, end = 0, top = 0, bottom = 0 }
 [mark-hovered]
 select = { kind = "Button", classes = ["mark"], states = ["Hovered"] }
 style.text.color = "$text"
+
+[mark-focused]
+select = { kind = "Button", classes = ["mark"], states = ["FocusVisible"] }
+style.paint.border = "$focus"
 
 [row-hidden]
 select = { kind = "Button", classes = ["row", "hidden"] }
@@ -504,6 +516,10 @@ style.text.color = "$accent"
 [link-hovered]
 select = { kind = "Button", classes = ["link"], states = ["Hovered"] }
 style.text.color = "$accent_hover"
+
+[link-focused]
+select = { kind = "Button", classes = ["link"], states = ["FocusVisible"] }
+style.paint.border = "$focus"
 
 [heading]
 select = { kind = "Label", classes = ["heading"] }
