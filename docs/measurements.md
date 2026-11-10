@@ -2198,3 +2198,74 @@ The same jobs on `main`, on `b7fbdd7`, each run green, the runners slower than o
 | `windows (render)` | 5 min 46 s |
 | `windows (game)` | 6 min 23 s |
 | `windows-release` | 15 min 33 s |
+
+## M6d.2a, the typed cascade
+
+The cascade of styles as typed declarations
+([ADR-0229](adr/0229-styles-typed-as-declarations.md)), on 2026-11-10, on the CPU alone, an AMD
+Ryzen 7 5800X, 16 logical CPUs, Linux, release builds. *Before* is the reflected cascade, `9c2ea38`,
+given the look trimmed of its rules' unread fields and this milestone's benchmark, so that both
+sides read the same documents and time the same frames; *after* is the typed cascade. The two
+binaries ran in turn, twice each, no build running during any run, the load average between 1.5
+and 1.9.
+
+| Benchmark | Measure, median of 15 | Before | After |
+|---|---|---|---|
+| `ui.tree.look` | a frame after the look's colours changed, every element styled again | 65.27, 64.82 ms | 47.19, 47.24 ms |
+| `ui.tree.look` | the frames of the transition that it starts, together | 617.91, 610.11 ms | 606.67, 615.00 ms |
+| `ui.tree.editor` | a frame after the theme changed, every element styled again | 19.14, 19.36 ms | 18.55, 18.36 ms |
+| `ui.tree.editor` | the first frame: built, its texts and its tree laid out, drawn | 158.22, 163.53 ms | 160.11, 156.07 ms |
+| `ui.tree.editor` | a frame after one value of the inspector changed | 3.51, 3.43 ms | 3.37, 3.62 ms |
+| `ui.tree.editor` | a frame with nothing changed | 478.9, 484.2 µs | 480.0, 493.4 µs |
+| `editor.hierarchy.100k` | a frame scrolled by a row | 273.2, 269.9 µs | 271.2, 274.3 µs |
+| `editor.hierarchy.100k` | a frame that runs a search, once the typing paused | 5.37, 5.39 ms | 5.59, 5.55 ms |
+
+`ui.tree.look`'s counters, in a debug build, as CI counts them:
+
+| Counter | Before | After |
+|---|---|---|
+| allocations of reading the look's documents | 112 705 | 120 211 |
+| allocations of the frame of the change | 422 651 | 393 682 |
+| bytes allocated by the frame of the change | 38 057 261 | 37 007 450 |
+| frames of 240 Hz of the transition | 29 | 29 |
+
+What it says:
+
+- Under the editor's look, the frame that styles every element again takes 27 % less time; under
+  `ui.tree.editor`'s sheet of four rules, 4 %. The other frames do not change beyond the runs'
+  spread.
+- The frame of the change allocates 7 % less, of which one allocation an element for the list of
+  the rules that select it, kept from one element to the next. Its transitions take about 13
+  allocations an element, its cascade, meaning and drawing the rest ([`debt.md`](debt.md)).
+- Reading the look's documents allocates 7 % more: each rule's part is laid over the default
+  style and turned into declarations, until M6d.3 reads them with `serde`.
+- The other benchmarks' counters are unchanged.
+
+The times of compiling, measured with [`scripts/compile-times.sh`](../scripts/compile-times.sh) on
+`7d822db` with the working tree's documents, on 2026-11-10, on the same machine, in the
+development shell, which links with mold; runs: 7 of each change, 3 of the workspace and 1 for
+shipping from nothing; load average 0.68 1.66 2.55 before, 5.54 8.43 6.35 after. Beside them,
+[C1's after](#c1-after-ryzen-7-5800x), on 2026-11-08:
+
+| Step | Median | Range | Packages compiled | C1, after |
+|---|---|---|---|---|
+| the workspace from nothing, `--workspace` | 63.96 s | 62.19 to 69.35 s | 276 | 61.96 s, 268 |
+| then the game's editor, `-p hunnawood-editor` | 40.42 s | one run | 91 | 36.44 s, 90 |
+| then the game as Play builds it, `-p hunnawood --bin hunnawood` | 2.17 s | one run | 1 | 1.83 s |
+| then the examples' editor, `--example editor` | 53.55 s | one run | 130 | 49.68 s, 129 |
+| then its game as Play builds it, `--workspace --example world` | 3.28 s | one run | 1 | 2.30 s |
+| a function's body changed in the game, `-p hunnawood --bin hunnawood` | 1.24 s | 0.99 to 1.60 s | 1 | 1.05 s |
+| a function's body changed in `slime-world`, `-p hunnawood-editor` | 1.73 s | 1.64 to 2.11 s | 8 | 1.71 s |
+| then the game as Play builds it | 0.77 s | 0.76 to 1.32 s | 1 | 0.73 s |
+| a function's body changed in `slime-world`, `--example editor` | 1.88 s | 1.83 to 3.49 s | 7 | 1.82 s |
+| then its game as Play builds it | 0.90 s | 0.86 to 0.94 s | 1 | 0.86 s |
+| a public function added to `slime-input`, `-p hunnawood-editor` | 2.20 s | 1.88 to 4.04 s | 9 | 1.96 s |
+| the game for shipping from nothing, `--profile shipping -p hunnawood --no-default-features` | 81.38 s | one run | 199 | 86.70 s, 198 |
+
+`uwui-macros` is one more package wherever `uwui` is built, the game for shipping among them, which
+links it through `slime-app`. The budgets of [ADR-0215](adr/0215-the-engine-measured-against-the-market.md)
+that these steps measure stay met: the editor built again after a change of an engine crate in
+1.73 s, against 10 s; the whole engine from nothing in 64 s, against 3 min; a game's build for
+shipping in 81 s, against 10 min; a change of a game's code, 1.24 s to build. The changes' medians
+moved within their ranges; the builds from nothing took 2 to 4 s more, the workspace holding eight
+packages more than at C1, `uwui-macros` one of them.

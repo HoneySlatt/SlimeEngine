@@ -40,7 +40,10 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   may name each other and compute colors in OKLCH (`mix`, `lighten`, `darken`, `alpha`), read
   from their text or their cooked binary encoding; `Ui::set_style` styles an interface with them,
   its themes stacked, the last that gives a name giving its value, and the element's own style
-  over the rules (`docs/adr/0149-the-looks-foundations.md`).
+  over the rules (`docs/adr/0149-the-looks-foundations.md`). A rule becomes a list of typed
+  declarations, which the cascade applies to a `Style` without reflection; a rule sets a color
+  whole, and a rule for a kind sets only what that kind reads of a style
+  (`docs/adr/0229-styles-typed-as-declarations.md`).
 - A style's `transition` moves a change of it over time: its colors and its opacity, and a
   section's height as it opens or folds, over the time that the program gives each frame
   (`Ui::advance`), which `Ui::set_reduced_motion` drops; a frame says whether one goes on
@@ -205,7 +208,9 @@ parley, fontique and swash, the text; taffy, the tree's flexbox and grid, run th
 the tree's arena; their types stay inside the crate (`docs/adr/0132-the-engines-ui-framework.md`).
 icu_properties, for the writing system of a character; `slime-color`, the colors of the styles and
 the display list; `slime-reflect` and `slime-serialize`, the styles described and the style sheets,
-themes and shortcuts read; `slime-input`, the input it takes; thiserror and tracing. No other engine
+themes and shortcuts read, until M6d.3; `uwui-macros`, the derive of the styles' declarations
+(`docs/adr/0229-styles-typed-as-declarations.md`); `slime-input`, the input it takes; thiserror and
+tracing. No other engine
 crate: text is laid out and rasterized on the CPU, `uwui-render` draws the display list, a
 program reads the cooked documents, and the window's input reaches the interface through the
 program.

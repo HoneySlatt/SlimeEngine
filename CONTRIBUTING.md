@@ -183,6 +183,11 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
       cargo test -p slime-examples
   ```
 
+  The same writes again `examples/tests/reference/widgets-styles.txt`, the fingerprints of the
+  `widgets` example's styles: a change of the look or of `uwui::style::Style` changes them on
+  purpose; a change of the cascade must not
+  ([ADR-0229](docs/adr/0229-styles-typed-as-declarations.md)).
+
 #### Looking at a window without a display
 
 The checks run the windowed samples in a headless Weston. To see what such a window shows, run

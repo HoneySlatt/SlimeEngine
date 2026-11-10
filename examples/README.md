@@ -79,7 +79,7 @@ The log level of every example is set by the `SLIME_LOG` environment variable, f
 | [`tests/scene.rs`](tests/scene.rs) | The shapes of `common/` at a fixed time |
 | [`tests/gltf.rs`](tests/gltf.rs) | The sample scene cooked and drawn from two camera poses; small glTF files built in memory, cooked and drawn; a cooked file moved and renamed |
 | [`tests/world.rs`](tests/world.rs) | The sample drawn from a world, with the images of `tests/gltf.rs`; steps, hidden subtrees, a lost device, picking; the yard's prefabs followed when they change |
-| [`tests/widgets.rs`](tests/widgets.rs) | The `widgets` example's interface in its themes, densities, directions and layers |
+| [`tests/widgets.rs`](tests/widgets.rs) | The `widgets` example's interface in its themes, densities, directions and layers; every element's style in each theme and density, against the fingerprints of `tests/reference/widgets-styles.txt` ([ADR-0229](../docs/adr/0229-styles-typed-as-declarations.md)) |
 | [`tests/editor.rs`](tests/editor.rs) | The `editor` example's window at scales 1 and 2, with its dialog, a selection and its handles, the history, two viewports, and panels moved and floating |
 
 To add an example, put its source in this directory, declare it as an `[[example]]` in

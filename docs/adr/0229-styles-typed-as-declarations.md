@@ -73,8 +73,8 @@ A rule that names a kind and sets a leaf that the kind does not read is refused 
 reads its sheets, as an error of type is ([ADR-0141](0141-style-sheets-and-themes.md)). A rule that
 names no kind may set anything: its elements are of every kind. A test checks the table: changing a
 leaf changes a kind's drawing exactly when the table says that the kind reads it. The look's rules
-that set what their kind does not read are trimmed: `[scroll]` and `[list]` set `fill`, which a
-scroll bar does not read, and `[split]` sets `radius` and `mark`. Typing a rule for each of a
+that set what their kind does not read are trimmed, eleven: among them, `[scroll]` and `[list]` set
+`fill`, which a scroll bar does not read, and `[split]` sets `radius` and `mark`. Typing a rule for each of a
 component's parts ([ADR-0222](0222-what-a-theme-is.md)) comes with the parts, at uwui's first
 stage.
 

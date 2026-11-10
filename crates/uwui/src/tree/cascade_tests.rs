@@ -29,7 +29,8 @@ impl Numbers {
     }
 }
 
-/// The floats that the values take: signed zeros and a NaN among them, whose bits the cascade keeps.
+/// The floats that the values take: signed zeros and a NaN among them, whose bits the cascade
+/// keeps.
 const FLOATS: [f32; 7] = [0.0, -0.0, 1.0, 0.5, 12.0, f32::NAN, 3.25];
 const TEXTS: [&str; 3] = ["", "Geist", "tnum"];
 

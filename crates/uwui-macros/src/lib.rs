@@ -23,8 +23,8 @@ use syn::{Attribute, Data, DeriveInput, Fields, Ident, Type};
 ///   `serde` (M6d.3);
 /// - `Same` for `S`, field by field.
 ///
-/// The code it generates names `crate::style::Same` and `slime_reflect::Value`: it serves uwui's own
-/// styles, and its items are `pub(crate)`.
+/// The code it generates names `crate::style::Same` and `slime_reflect::Value`: it serves uwui's
+/// own styles, and its items are `pub(crate)`.
 #[proc_macro_derive(Declare, attributes(declare))]
 pub fn derive_declare(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);

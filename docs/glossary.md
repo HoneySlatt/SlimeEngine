@@ -288,6 +288,12 @@ mouse turns what a program turns with it, a camera (`Window::set_cursor_held`,
 **Debug group.** A named section of the commands of a render pass, shown by GPU capture tools such
 as RenderDoc (`RenderPass::debug_group`).
 
+**Declaration (style).** One field of a `Style` that a rule of a style sheet, or an element's own
+style, sets, with its value: `LayoutStyleDeclaration::Padding(SidesDeclaration::Top(12.0))`. A
+rule is a list of declarations, which the cascade applies in order to a style; a derive of uwui's
+generates them from the style's types
+([ADR-0229](adr/0229-styles-typed-as-declarations.md)).
+
 **Definition of done.** The conditions a milestone must meet before it is reported as finished,
 listed in [`AGENTS.md`](../AGENTS.md#definition-of-done).
 
