@@ -209,7 +209,7 @@ the ADR linking to it.
 | [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted; amended by 0175 |
 | [0139](0139-text-drawn-and-the-display-list.md) | Text drawn, and the display list | Accepted |
 | [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amended by 0141, 0143, 0146 and 0175 |
-| [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted; amended by 0149, 0181, 0222, 0223, 0225, 0229 and 0230 |
+| [0141](0141-style-sheets-and-themes.md) | Style sheets and themes | Accepted; amended by 0149, 0181, 0222, 0223, 0225, 0229, 0230 and 0231 |
 | [0142](0142-input-and-focus.md) | Input and focus | Accepted; amended by 0145, 0150, 0152, 0153, 0154 and 0160 |
 | [0143](0143-what-agents-see-of-the-interface.md) | What agents see of the interface | Accepted; amended by 0146 and 0156 |
 | [0144](0144-the-cooked-zones-key-in-ci.md) | The cooked zone's key in CI | Accepted |
@@ -291,11 +291,12 @@ the ADR linking to it.
 | [0220](0220-the-roadmap-reshaped-by-the-market.md) | The roadmap reshaped by the market | Accepted; amends 0098, 0190, 0194 and 0207; amended by 0221, 0222, 0225, 0226 and 0229 |
 | [0221](0221-compiling-within-its-budgets.md) | Compiling within its budgets | Accepted; amends 0104 and 0220 |
 | [0222](0222-what-a-theme-is.md) | What a theme is: values, rules and parts written as data | Accepted; amends 0141, 0190, 0213 and 0220; amended by 0225, 0226 and 0229 |
-| [0223](0223-styles-written-in-code-through-tokens.md) | Styles written in code, through tokens, under the user's layer | Accepted; amends 0141, 0149 and 0181; amended by 0226 and 0230 |
+| [0223](0223-styles-written-in-code-through-tokens.md) | Styles written in code, through tokens, under the user's layer | Accepted; amends 0141, 0149 and 0181; amended by 0226, 0230 and 0231 |
 | [0224](0224-a-files-change-reaches-the-application-through-the-development-tool.md) | A file's change reaches the application through the development tool | Accepted; amends 0212 |
 | [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) | Layouts written in KDL, reached from code by their names | Accepted; amends 0080, 0132, 0141, 0181, 0190, 0210, 0220 and 0222; amended by 0226 |
-| [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) | An application started in one call, each root given its look | Accepted; amends 0149, 0181, 0190, 0213, 0215, 0220, 0222, 0223 and 0225 |
+| [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) | An application started in one call, each root given its look | Accepted; amends 0149, 0181, 0190, 0213, 0215, 0220, 0222, 0223 and 0225; amended by 0231 |
 | [0227](0227-the-time-that-motion-reads.md) | The time that motion reads | Accepted; amends 0009, 0107, 0149, 0171, 0181, 0187, 0190, 0205 and 0211 |
 | [0228](0228-ci-split-again-each-job-within-20-minutes.md) | CI split again, each job within 20 minutes | Accepted; amends 0104, 0123 and 0155 |
-| [0229](0229-styles-typed-as-declarations.md) | Styles typed as declarations, a rule's kind checked | Accepted; amends 0141, 0220 and 0222; amended by 0230 |
+| [0229](0229-styles-typed-as-declarations.md) | Styles typed as declarations, a rule's kind checked | Accepted; amends 0141, 0220 and 0222; amended by 0230 and 0231 |
 | [0230](0230-the-cores-roles-and-each-kinds-defaults.md) | The core's roles, and each kind's defaults from its look | Accepted; amends 0141, 0223 and 0229 |
+| [0231](0231-an-elements-own-style-written-in-code.md) | An element's own style written in code, by declarations with states | Accepted; amends 0141, 0223, 0226 and 0229 |

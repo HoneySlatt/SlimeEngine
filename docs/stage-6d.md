@@ -39,8 +39,9 @@ in git.
   [ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md),
   [ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md),
   [ADR-0227](adr/0227-the-time-that-motion-reads.md),
-  [ADR-0229](adr/0229-styles-typed-as-declarations.md) and
-  [ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md).
+  [ADR-0229](adr/0229-styles-typed-as-declarations.md),
+  [ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md) and
+  [ADR-0231](adr/0231-an-elements-own-style-written-in-code.md).
 - Widened on 2026-11-07 by the market's decisions
   ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md#decision)): M6d.1d, M6d.2, M6d.3,
   M6d.4, M6d.5, M6d.7, M6d.10 and M6d.11 gain what those decisions need of them; M6d.9 is cut in
@@ -85,7 +86,11 @@ in git.
   in two at its start, on the same day
   ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)): done,
   [M6d.2b1](#m6d2b1--the-roles-and-each-kinds-defaults), the roles and each kind's defaults;
-  next, [M6d.2b2](#m6d2b2--styles-written-in-code), styles written in code.
+  [M6d.2b2](#m6d2b2--styles-written-in-code), styles written in code, cut in two at its start, on
+  the same day ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)): in progress,
+  [M6d.2b2a](PLAN.md#m6d2b2a--an-elements-own-style-written-in-code), an element's own style
+  written in code; then [M6d.2b2b](#m6d2b2b--tokens-and-the-users-layer), tokens and the user's
+  layer.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -816,9 +821,7 @@ The first half of M6d.2b, cut in two at its start, on 2026-11-10
 
 ### M6d.2b2 — Styles written in code
 
-The second half of M6d.2b ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)),
-likely cut again at its start. It follows the rules of
-[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+The second half of M6d.2b ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)).
 
 - **Goal.** Styles written in code, with their states and the themes' values named by tokens,
   under the user's layer, as [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md)
@@ -842,6 +845,43 @@ likely cut again at its start. It follows the rules of
   give way under high contrast; a token that the themes lack warns once; the call's place is kept;
   transitions read the derive's list and move what they moved; the look's image tests and counters
   unchanged; CI green.
+- **Measured.** The editor's interface and its counters; `ui.tree.look`'s frame after a change of
+  theme and its transition.
+
+Cut in two at its start, on 2026-11-10, behaviour first, each abstraction with its first reader
+([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)): the tokens and the payload have
+no reader until the user's layer, which tells a literal written in code from a token.
+
+### M6d.2b2a — An element's own style written in code
+
+The first half of M6d.2b2, cut in two at its start, on 2026-11-10; in progress, its card in
+[`PLAN.md`](PLAN.md#m6d2b2a--an-elements-own-style-written-in-code)
+([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)).
+
+### M6d.2b2b — Tokens and the user's layer
+
+The second half of M6d.2b2 ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)). It
+follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The themes' values named in code by tokens, and the user's layer over what code
+  writes, as [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md) decides.
+- **Crates.** `uwui`, `uwui-macros`, `slime-benches`, the examples.
+- **Delivers.** Decided at its start, with the owner: a declaration's payload holding at each
+  colour and length whether it is a literal or a token, and whether it records the state that set
+  it, which [ADR-0227](adr/0227-the-time-that-motion-reads.md)'s two clocks read; whether the
+  rules' declarations keep the origin of their values, which forced colours read; the token as a
+  public type, the core's roles as tokens, an application's own tokens (colours, lengths and
+  durations) and their lists, given with the themes; the derive's list of colours and lengths,
+  which transitions then read in place of their list kept by hand, and the user's layer and forced
+  colours later; lengths outside a `Style`, a list's rows; the size of text, the density's factor
+  on the lengths that code writes, the colours that code writes giving way under high contrast, and
+  how a program gives them; a field of text named by a theme; whether a style's change in code is
+  timed through `subsecond`, which the workspace lacks; a target for the allocations of the frame
+  after a change of theme.
+- **Done when.** Tests: lengths written in code scale under the density; colours written in code
+  give way under high contrast; a token that the themes lack warns once; a token's value of another
+  type refuses the themes; transitions read the derive's list and move what they moved; the look's
+  image tests and counters unchanged; CI green.
 - **Measured.** The editor's interface and its counters; `ui.tree.look`'s frame after a change of
   theme and its transition.
 

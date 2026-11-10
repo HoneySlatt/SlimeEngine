@@ -713,7 +713,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The editor's look has no italic faces, and its fonts hold no Greek.
   The look is built into the program, not cooked: the dev overlay carries it into a game's development build, and the game's build for shipping leaves it out.
 - **The look's foundations** ([ADR-0149](adr/0149-the-looks-foundations.md)).
-  A theme's value is typed where the theme gives it only if it is one of the core's roles ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)); any other name that holds a value of the wrong type is refused where a rule names it; followed at [M6d.2b2](stage-6d.md#m6d2b2--styles-written-in-code), which types an application's own tokens too.
+  A theme's value is typed where the theme gives it only if it is one of the core's roles ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)); any other name that holds a value of the wrong type is refused where a rule names it; followed at [M6d.2b2b](stage-6d.md#m6d2b2b--tokens-and-the-users-layer), which types an application's own tokens too.
   The color functions are four, and work on whole colors, not on their lightness, chroma or hue alone.
   Transitions move colors, opacity and a section's height, not sizes, places nor what a layout gives.
   They go on only while the program gives the interface its time; a section that opens is laid out twice in the frame that starts it.
@@ -784,13 +784,13 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Screen readers scroll by an item or by what shows, not to an offset.
   `deny.toml` ignores three advisories of unmaintained crates that the adapter on Linux brings through zbus 5, zvariant, zbus_names and zvariant_derive, which zbus 6 holds: they go once AccessKit's adapter moves to zbus 6.
 - **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md), [ADR-0229](adr/0229-styles-typed-as-declarations.md)).
-  A field of the type `String` takes no named value; followed at [M6d.2b2](stage-6d.md#m6d2b2--styles-written-in-code), which decides what a declaration names.
+  A field of the type `String` takes no named value; followed at [M6d.2b2b](stage-6d.md#m6d2b2b--tokens-and-the-users-layer), which decides what a declaration names.
   An error of type in a cooked style sheet or theme is placed by its byte and the path of its part, not by its line; followed at [M6d.3](stage-6d.md#m6d3--documents-with-serde), which reads them with `serde`.
-  The code cannot set a field of an element's style to its default against a rule or its kind's defaults: a color that it writes transparent takes the rules' or its kind's role, even where no rule selects the element, as it did not before [ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md); followed at M6d.2b2, which writes styles in code as declarations.
+  The code cannot set a field of an element's style to its default against a rule or its kind's defaults: a color that it writes transparent takes the rules' or its kind's role, even where no rule selects the element, as it did not before [ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md); followed at [M6d.2b2a](PLAN.md#m6d2b2a--an-elements-own-style-written-in-code), which writes styles in code as declarations ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)).
   The styles made are kept up to a number of pairs of a kind's defaults and an element's own style for each set of rules (`Ui::set_style`).
-  Past it, an element's style is composed again at each change, its declarations applied one by one; followed at M6d.2b2, whose own styles change what the styles made are kept by.
+  Past it, an element's style is composed again at each change, its declarations applied one by one; followed at M6d.2b2a, whose own styles and their states change what the styles made are kept by.
   Selectors hold no combinators but an ancestor's kind or class.
-  An array, a list and an option of an element's own style replace the rules' whole, its height with its width; followed at M6d.2b2.
+  An array, a list and an option of an element's own style replace the rules' whole, its height with its width; followed at M6d.2b2a, which sets an array by element and leaves lists and options whole.
 - **uwui's own layers take no defaults, and selected text no color of its own** ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)).
   The tooltip, the palette of commands, the notifications and the colour picker are containers that the look styles by their classes: without a look they draw no box, and their colors are their elements' kinds' alone.
   A field's selected text keeps the text's color, over the selection drawn at 40 % of the role `highlight`: under forced colours, whose selection is opaque, it would not show.
@@ -806,7 +806,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The transitions that it starts take some of it; the cascade, the meaning and the drawing the rest.
   No budget bounds that frame.
   M6d.2b1 left it as it was: the roles are resolved when the themes are taken, not as elements are styled ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)).
-  Followed at [M6d.2b2](stage-6d.md#m6d2b2--styles-written-in-code), which has transitions read the derive's list of colours in place of their own.
+  Followed at [M6d.2b2b](stage-6d.md#m6d2b2b--tokens-and-the-users-layer), which has transitions read the derive's list of colours in place of their own, and sets that frame a target.
 - **The system's fallback is checked only where the system has fonts** ([ADR-0136](adr/0136-the-interfaces-text.md)).
   Its test checks nothing, and says so, on a machine whose fontconfig, or whose lack of it, gives no font for Greek or Japanese, as CI's Linux runners may.
 - **An editor's journal grows across recoveries** ([ADR-0135](adr/0135-the-editors-program.md)).

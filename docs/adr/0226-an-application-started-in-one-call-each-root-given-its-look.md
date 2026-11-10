@@ -13,7 +13,8 @@
   replaced while it runs; how an application's parts and rules stack over a look's),
   [0223](0223-styles-written-in-code-through-tokens.md) (the bottom of the stack is any look, not
   the core's; under forced colours, the sheets' literal colours give way too) and [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)
-  (M6d.1d2b cut in two; `layouts!` becomes `files!`; blank renamed Plain)
+  (M6d.1d2b cut in two; `layouts!` becomes `files!`; blank renamed Plain); amended by
+  [0231](0231-an-elements-own-style-written-in-code.md) (the order of styling read field by field)
 - Date: 2026-11-09
 
 ## Context

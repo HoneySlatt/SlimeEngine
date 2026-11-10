@@ -3,7 +3,7 @@
 - Status: Accepted; amends [0141](0141-style-sheets-and-themes.md) (the element's own style takes
   states and names the themes' values by tokens; the user's layer comes over it),
   [0149](0149-the-looks-foundations.md) (the density and the contrast reach what code writes as
-  literals too) and [0181](0181-uwuis-scope.md) (without `serde`, no theme written in code); amended by [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (the bottom of the stack is any look, not the core's; under forced colours, the sheets' literal colours give way too), then by [0230](0230-the-cores-roles-and-each-kinds-defaults.md) (a token resolved when the interface takes its themes, read when an element is styled; the core's seven roles)
+  literals too) and [0181](0181-uwuis-scope.md) (without `serde`, no theme written in code); amended by [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (the bottom of the stack is any look, not the core's; under forced colours, the sheets' literal colours give way too), then by [0230](0230-the-cores-roles-and-each-kinds-defaults.md) (a token resolved when the interface takes its themes, read when an element is styled; the core's seven roles), then by [0231](0231-an-elements-own-style-written-in-code.md) (the order read field by field, the own base giving way only to a rule that names a state; eight states; tokens built at M6d.2b2b)
 - Date: 2026-11-09
 
 ## Context

@@ -913,6 +913,11 @@ selects what is drawn inside it, the outermost *placement* of each, as the GPU's
 what is hidden or locked is not selected ([ADR-0159](adr/0159-picking-and-the-selection.md),
 [ADR-0169](adr/0169-the-eye-and-the-lock.md)).
 
+**Mask order.** The order in which an element's style is made, field by field: its kind's base, the
+selected rules in the order of their files, then its *own style*'s base, for each field unless the
+last rule that set it names a state, then its own states that hold
+([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)).
+
 **Material.** How a surface looks, with glTF's *metallic-roughness model*: a base color,
 metallic and roughness, normal, occlusion and emissive textures each read with a *sampler*, an
 alpha mode and double-sidedness (`slime_render::Material`, from `MaterialData`;
@@ -1085,6 +1090,10 @@ kept and reported ([ADR-0089](adr/0089-scenes-and-prefabs.md)).
 screen: memory, the start, the processor, power, a frame's time and the package's size. uwui's lead
 over its rivals is measured on it
 ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)).
+
+**Own style.** What an element's code writes of its style, `Element::style(|s| ...)`: the
+declarations that it set, whatever their values, for its base and for its states, with the place
+of the call that wrote them ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)).
 
 **Own wake-up.** A thread of a program leaving its wait when nothing outside asked it: a timer or a
 poll of the program's own, not an input, a request or a load that ends. Every thread counts, its
@@ -1634,9 +1643,9 @@ instead (`World::names`), after which a list reads again the names that changed
 
 **Style sheet.** A document of rules that style an interface's *elements*: each selects elements by
 kind, *classes*, *key*, states and ancestor, and sets a part of their style, its fields given or
-named by a *theme*; the rules apply in the order of the file, and an element's own style wins over
-them (`uwui::theme::StyleSheet`, [ADR-0141](adr/0141-style-sheets-and-themes.md)). Cooked from
-a `.style` file.
+named by a *theme*; the rules apply in the order of the file, under an element's *own style* in
+the *mask order* (`uwui::theme::StyleSheet`, [ADR-0141](adr/0141-style-sheets-and-themes.md),
+[ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)). Cooked from a `.style` file.
 
 **Sub-asset.** An *asset* inside a source file, such as a mesh, a material or a scene of a glTF
 file, whose ID is derived from the file's ID, its kind and its name
@@ -1748,7 +1757,7 @@ channel* is accepted (`slime_channel::Token`,
 which an element's own style gives in place of a value; resolved when the interface takes its
 themes, read when the element is styled
 ([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md),
-[ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)). Decided, built at M6d.2b2.
+[ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)). Decided, built at M6d.2b2b.
 
 **Tone mapping.** Mapping the *HDR* colors of a scene to the range a display shows, 0 to 1, with a
 curve that compresses highlights instead of clipping them. The renderer's tone-mapping pass draws a

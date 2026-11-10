@@ -6,7 +6,9 @@
   part of a style that a theme adds moves to uwui's first stage) and
   [0222](0222-what-a-theme-is.md) (rules are typed for each component at M6d.2, for each of its
   parts at uwui's first stage); amended by [0230](0230-the-cores-roles-and-each-kinds-defaults.md)
-  (M6d.2b cut in two; the payload and the derive's list of colours move to its second half)
+  (M6d.2b cut in two; the payload and the derive's list of colours move to its second half), then
+  by [0231](0231-an-elements-own-style-written-in-code.md) (an array is one leaf for each element;
+  the own style is declarations, not a `Style`)
 - Date: 2026-11-10
 
 ## Context

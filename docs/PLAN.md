@@ -26,9 +26,10 @@ documentation was updated and reread. Every milestone is also checked on Windows
   [M6d.2b1](stage-6d.md#m6d2b1--the-roles-and-each-kinds-defaults), the roles and each kind's
   defaults, the first half of
   [M6d.2b](stage-6d.md#m6d2b--tokens-defaults-and-styles-in-code), cut in two at its start
-  ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)). Next:
-  [M6d.2b2](stage-6d.md#m6d2b2--styles-written-in-code), styles written in code, its questions put
-  at its start.
+  ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)). In progress:
+  [M6d.2b2a](#m6d2b2a--an-elements-own-style-written-in-code), an element's own style written in
+  code, the first half of [M6d.2b2](stage-6d.md#m6d2b2--styles-written-in-code), cut in two at its
+  start ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)).
 - Waiting for the owner: the deletion of the branch `m6d1b-bench`, and the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
 - After Stage 6d: uwui's stages, Stage 6e, the rest of Stage 6c ([`stage-6c.md`](stage-6c.md)),
@@ -57,7 +58,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.1d2b2 — The time that motion reads](stage-6d.md#m6d1d2b2--the-time-that-motion-reads) | Done |
 | [M6d.2a — The typed cascade](stage-6d.md#m6d2a--the-typed-cascade) | Done |
 | [M6d.2b1 — The roles and each kind's defaults](stage-6d.md#m6d2b1--the-roles-and-each-kinds-defaults) | Done |
-| [M6d.2b2 — Styles written in code](stage-6d.md#m6d2b2--styles-written-in-code) | Planned |
+| [M6d.2b2a — An element's own style written in code](#m6d2b2a--an-elements-own-style-written-in-code) | In progress |
+| [M6d.2b2b — Tokens and the user's layer](stage-6d.md#m6d2b2b--tokens-and-the-users-layer) | Planned |
 | [M6d.3 — Documents with serde](stage-6d.md#m6d3--documents-with-serde) | Planned |
 | [M6d.4 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Planned |
 | [M6d.5 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Planned |
@@ -69,6 +71,43 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
+
+## M6d.2b2a — An element's own style written in code
+
+The first half of M6d.2b2, cut in two at its start, on 2026-11-10
+([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)). It follows the rules of
+[every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** An element's own style written in code, with its states, under the order of
+  ADR-0231: a rule's state over a base set in code, the code's states over the rules'.
+- **Crates.** `uwui`, `uwui-macros`, `uwui-render`, `slime-editor`, `slime-devui`, `slime-app`,
+  `slime-benches`, `hunnawood`, the examples.
+- **Delivers.**
+  - The derive numbers a style's leaves, an array one for each element, and says which lay out.
+  - An own style as the declarations that code wrote, with their states, built by
+    `Element::style(|s| ...)`, which keeps its call's place; a hover or a press without the fields
+    that lay out; a debug warning, once, for a state that a kind never takes.
+  - The constructors without a style, `Ui::add_root` and `Ui::open_layer` taking the builder's
+    function; every call site of the repository moved, writing only what it wrote apart from the
+    default before.
+  - The cascade's mask order; the styles made shared by the own states that hold too.
+  - The look's keyboard focus shown on a list's rows, a row's marks, links and a notification's
+    close button, in a commit of its own.
+- **Done when.**
+  - Tests: a state set in code beats a rule's state; a rule's state beats a base set in code; a
+    base set in code beats a stateless rule that follows a stateful one; a field set in code to its
+    default beats a rule; a width set in code keeps the rule's height; an own hover shows where no
+    rule names `Hovered`, and goes; a hover's builder offers no field that lays out (a doc test that
+    fails to compile); the call's place read back against `file!()` and `line!()`; every leaf
+    through the mask order; the property test's rules against reflection, as before.
+  - The look's image tests and the two fixtures of styles unchanged; the counters unchanged but
+    those recorded again, each with its reason; a counter of a frame that builds again; CI green.
+  - A test draws each of the four buttons focused by the keyboard and finds `$focus`.
+- **How to test.** `cargo test -p uwui --features editor-look`; `cargo test -p slime-examples
+  --test widgets --test editor`; `cargo run -p slime-benches -- --counters`; `scripts/check.sh`.
+- **Measured.** `ui.tree.editor`, `ui.tree.look` and the editor's counters, before and after, on
+  the owner's machine at rest; `uwui`'s compile times, its derive grown
+  (`scripts/compile-times.sh`).
 
 ## Checks by hand waiting for the owner
 
