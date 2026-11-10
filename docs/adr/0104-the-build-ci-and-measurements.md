@@ -10,7 +10,8 @@
   [0186](0186-counters-and-ratios-in-ci.md) (the benchmarks run in CI, their counters and ratios
   checked, their times not), [0189](0189-first-measures-of-time.md) (the trace holds the
   intervals from an input to the image after it) and
-  [0221](0221-compiling-within-its-budgets.md) (dependencies optimised in debug builds)
+  [0221](0221-compiling-within-its-budgets.md) (dependencies optimised in debug builds), then by
+  [0228](0228-ci-split-again-each-job-within-20-minutes.md) (the Windows tests in three jobs)
 - Date: 2026-10-19
 
 ## Context

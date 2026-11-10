@@ -2165,3 +2165,23 @@ GitHub's hosted runners, on 2026-11-10, each run green, on `3a8e42e`:
 `check (headless)` and `windows` went past their limit of 20 minutes again, as at M6d.1d1: the
 runners' speed alone, which [`debt.md`](debt.md) follows under "CI's jobs and their limit of 20
 minutes", waiting for the owner's decision.
+
+## CI split again, 2026-11-10
+
+The jobs of [ADR-0228](adr/0228-ci-split-again-each-job-within-20-minutes.md), tried on the
+branch `ci-split` before `main`, on GitHub's hosted runners, each run green, on `8ed166e`:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 10 min 34 s |
+| `check (headless)` | 13 min 54 s |
+| `check (windowed)` | 9 min 21 s |
+| `check (game)` | 11 min 12 s |
+| `windows (tests)` | 9 min 16 s |
+| `windows (render)` | 6 min 52 s |
+| `windows (game)` | 7 min 49 s |
+| `windows-release` | 11 min 34 s |
+
+The runners were faster than on `3a8e42e` the same night: `windows-release` took 11 min 34 s
+against 15 min 52 s, the same code. `check (headless)` scaled by the slowest speed seen would take
+about 19 minutes.

@@ -37,7 +37,7 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
-scripts/check.sh [headless|windowed|game|docs]
+scripts/check.sh [lint|headless|windowed|game|docs]
 cargo run -p slime-cook -- cook examples/assets target/cooked/examples
 cargo run --example <name>
 cargo run -p hunnawood -- --new --save <file>

@@ -268,3 +268,8 @@ figures are in [`debt.md`](debt.md), "CI's jobs and their limit of 20 minutes".
   took 13 minutes 35 seconds, 4 minutes 42 seconds and 4 minutes 14 seconds. `windows`, which built
   its image and timing tests again to print their figures, now prints them from its one run of the
   tests: it went from 19 minutes 43 seconds on `a199369` to 11 minutes 20 seconds on `bb4552b`.
+- From C1, `check (headless)` and `windows` went past their limit again, the runners slower: 22
+  minutes 56 seconds and 23 minutes 25 seconds on `3a8e42e`, at M6d.1d2b2. The owner chose to split
+  them again rather than cache the compiled dependencies
+  ([ADR-0228](adr/0228-ci-split-again-each-job-within-20-minutes.md)): a `lint` part beside
+  `headless`, and the Windows tests in three jobs; the longest job then took 13 minutes 54 seconds.

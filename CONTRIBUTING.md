@@ -122,8 +122,8 @@ scripts/screen-reader-check.sh <the interface example's program> <cooked data>  
 cargo run --quiet -p slime-mcp                            # the engine's MCP server, through which an agent drives a game (crates/slime-mcp/README.md)
 ```
 
-`scripts/check.sh headless`, `windowed` and `game` run one of its three parts, as CI's three Linux
-jobs do ([Checks](#checks)); `scripts/check.sh docs` checks the links between Markdown files and
+`scripts/check.sh lint`, `headless`, `windowed` and `game` run one of its four parts, as CI's four
+Linux jobs do ([Checks](#checks)); `scripts/check.sh docs` checks the links between Markdown files and
 the lengths of `AGENTS.md` and `docs/PLAN.md` alone, without the development shell, as CI's
 `docs` workflow does.
 
@@ -504,29 +504,36 @@ weekly run runs CI whole: a project at rest still
 learns of new advisories against its dependencies (`cargo deny`) and of changes to CI's
 environment. A push during the weekly run supersedes it, as it supersedes any run of its branch.
 GitHub turns the weekly run off after 60 days without activity in a public repository; a click in
-the repository's Actions tab turns it on again. Three Linux jobs run the same script side by side, each one of its three parts
+the repository's Actions tab turns it on again. Four Linux jobs run the same script side by side, each one of its four parts
 ([ADR-0123](docs/adr/0123-the-linux-checks-in-two-jobs.md),
-[ADR-0155](docs/adr/0155-the-editors-design.md)): `scripts/check.sh headless`, every check that
-needs neither a compositor nor the sample game's zone, `scripts/check.sh windowed`, the examples and
+[ADR-0155](docs/adr/0155-the-editors-design.md),
+[ADR-0228](docs/adr/0228-ci-split-again-each-job-within-20-minutes.md)): `scripts/check.sh lint`,
+the checks that read the code without running it, formatting, clippy for Linux and for Windows,
+rustdoc, the dependencies and the documentation's links, `scripts/check.sh headless`, the build,
+the tests and every run that needs neither a compositor nor the sample game's zone,
+`scripts/check.sh windowed`, the examples and
 the windowed lifecycle test run in headless Weston compositors, which cooks first what they draw,
 and `scripts/check.sh game`,
 everything that reads the sample game's zone, which it fetches and cooks first: the tests that read
 it, the agent's session with its editor, the benchmarks' counters, and the game's runs in a headless
 Weston compositor; without
-an argument, the script runs the three, one after the other. Two Windows jobs run beside them
-([ADR-0104](docs/adr/0104-the-build-ci-and-measurements.md)). The first, `windows`, runs the tests
-with `--nocapture`, so that its log shows what the image tests, the GPU timing test and the
-multi-pass test measured on WARP, the renderer's shaders made again and the device's limits, then
-the headless samples, fetches and cooks the sample game's zone and runs the tests that read it. It runs the tests one at a time (`--test-threads=1`): WARP's shader compiler
-crashes the process, now and then, when several threads compile shaders at once. It does not stop at
-the first test program that fails, and when a step fails, it publishes the images that the failing
-image tests rendered on WARP, as an artifact named `image-test-failures-windows`. The second,
-`windows-release`, runs clippy, builds in release and runs the headless samples, and publishes the
+an argument, the script runs the four, one after the other. Four Windows jobs run beside them
+([ADR-0104](docs/adr/0104-the-build-ci-and-measurements.md),
+[ADR-0228](docs/adr/0228-ci-split-again-each-job-within-20-minutes.md)). Three are the parts of
+`windows`: `windows (tests)` runs the workspace's tests but the renderer's, then the headless
+samples; `windows (render)` runs the renderer's tests; `windows (game)` fetches and cooks the sample
+game's zone and runs the tests that read it. They run the tests with `--nocapture`, so that the log
+shows what the image tests, the GPU timing test and the multi-pass test measured on WARP, the
+renderer's shaders made again and the device's limits, and one at a time (`--test-threads=1`):
+WARP's shader compiler crashes the process, now and then, when several threads compile shaders at
+once. They do not stop at the first test program that fails, and when a step fails, each publishes
+the images that the failing image tests rendered on WARP, as an artifact named
+`image-test-failures-windows-<part>`. The fourth, `windows-release`, runs clippy, builds in release and runs the headless samples, and publishes the
 `hello`, `headless`, `window`, `offscreen`, `interface`, `widgets`, `scene` and `world` examples and
 the `hunnawood` game built for Windows, with the sample cooked for `scene` and `world` and the zone
 cooked for the game, as an artifact named `slime-examples-windows`, to run by hand on a Windows
-machine. Each job that cooks the zone, `check (game)` and the two Windows jobs, keeps it in its
-cache, keyed on what makes its bytes.
+machine. Each job that cooks the zone, `check (game)`, `windows (game)` and `windows-release`, keeps
+it in its cache, keyed on what makes its bytes.
 [ADR-0007](docs/adr/0007-documentation-tooling-and-ci.md) and
 [ADR-0015](docs/adr/0015-platforms-and-ci.md) explain the setup.
 

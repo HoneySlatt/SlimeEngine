@@ -36,7 +36,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Smaller oak cards, four times as many (M4b.8), changed it little: the day's shadow pass took 6.0 s instead of 6.2 s, in a release build.
   Leaves that cast no shadow in the farther cascades would lower it; to measure with views of the zone.
 - **`cargo test` leaves out the tests of the cooked zone**: they need the zone fetched and cooked, so they are ignored (`#[ignore]`).
-  `scripts/check.sh` and CI's `windows` job fetch and cook the zone, then run them (`cargo test -p hunnawood -p hunnawood-editor -- --ignored`).
+  `scripts/check.sh` and CI's `windows (game)` job fetch and cook the zone, then run them (`cargo test -p hunnawood -p hunnawood-editor -- --ignored`).
   `slime-mcp`'s session tests, agents' sessions through the MCP server, are tests apart (`test = false`) that `scripts/check.sh` runs on Linux alone.
 - **The editor draws at most 60 frames a second** ([ADR-0191](adr/0191-input-in-sway-start-budgets-and-the-editors-rate.md)).
   No program changes `AppConfig::max_frame_rate`, 60 by default: on a display at 240 Hz, an input during motion waits for the next frame of that schedule.
@@ -640,17 +640,13 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   fontconfig's list took some 55 to 75 ms on a Ryzen 7 5800X, measured once in a release build; the first text in a writing system found that way, some 4 ms more.
   Reading the list in the background, or at the first character that no font registered has, would take it off the start.
   M6c.Q2d measures the editor's start against its budget, and follows it.
-- **CI's jobs and their limit of 20 minutes** ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md), [ADR-0144](adr/0144-the-cooked-zones-key-in-ci.md), [ADR-0155](adr/0155-the-editors-design.md), [ADR-0175](adr/0175-the-quality-bar.md)).
-  Each job of CI must end within 20 minutes, and every session of the editor adds to the checks.
-  Since M6c.0, three Linux jobs run `scripts/check.sh`'s three parts side by side; the game's agent session draws the zone without shadows.
-  The cooked zone is cached, keyed on the packages that the cooker is built from: a change of the cooker's sources or packages cooks it again, which adds about 3 minutes to `check (game)` and to `windows`.
+- **CI's jobs and their limit of 20 minutes** ([ADR-0123](adr/0123-the-linux-checks-in-two-jobs.md), [ADR-0144](adr/0144-the-cooked-zones-key-in-ci.md), [ADR-0155](adr/0155-the-editors-design.md), [ADR-0175](adr/0175-the-quality-bar.md), [ADR-0228](adr/0228-ci-split-again-each-job-within-20-minutes.md)).
+  Each job of CI must end within 20 minutes, and every milestone adds to the checks.
+  Since ADR-0228, four Linux jobs run `scripts/check.sh`'s four parts side by side, and the Windows tests run in three jobs beside `windows-release`; each builds the workspace from nothing, which no cache keeps.
+  `check (headless)` has the least room: the runners' speed varies by about 40 % from one day to the next, the same code included, which would take it near its limit on the slowest day seen ([ADR-0228](adr/0228-ci-split-again-each-job-within-20-minutes.md)).
+  The cooked zone is cached, keyed on the packages that the cooker is built from: a change of the cooker's sources or packages cooks it again, which adds about 3 minutes to `check (game)`, `windows (game)` and `windows-release`.
   `check (game)` also runs the benchmarks' counters, about 2 minutes ([ADR-0186](adr/0186-counters-and-ratios-in-ci.md)).
-  A cooking again takes `windows` past its limit: 21 min 43 s on `0a858f8`, whose cooker's sources changed in comments alone.
-  Each milestone records its jobs' times in [`measurements.md`](measurements.md): the `windows` job has little room left under its limit, its tests' step varying most from one run to the next.
-  The `windows` job builds the tests that read the zone again, with `-p`, whose features differ from the workspace's: about a minute.
-  Dependencies optimised in debug builds ([ADR-0221](adr/0221-compiling-within-its-budgets.md)) lengthen `windows`'s build of its tests from nothing, which no cache keeps: 19 min 52 s on `fb2be2a`, against 19 min 21 s before.
-  `check (headless)` is over its limit since C1, 23 min 2 s on `8c3b9dc`, its runner slower; on `8ff4e59` (M6d.1d1), `check (headless)` took 23 min 23 s and `windows` 23 min 0 s, the cooked zone taken from its cache: the runners' speed alone ([measurements](measurements.md#m6d1d1-themes-and-styles-written-in-code)). Followed by the owner's decision, put to the owner at M6d.1d1's end.
-  The runners' speed varies: `check (headless)` took 15 min 55 s on `fb2be2a` and 23 min 2 s on `8c3b9dc`, the same code, each of its steps slower, over its limit.
+  Each milestone records its jobs' times in [`measurements.md`](measurements.md); a job that nears its limit again brings back the choice of ADR-0228: split again, or a cache of the compiled dependencies, rejected there.
   Run over the workspace, `--ignored` would also run the measurements that other crates ignore, meant for release builds.
   How the jobs grew and were split: [`history.md`](history.md#ci-and-its-limit-of-20-minutes).
 - **The quality bar's budgets are checked by hand, or not measured yet** ([ADR-0175](adr/0175-the-quality-bar.md)).

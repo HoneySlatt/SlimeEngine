@@ -34,7 +34,8 @@
   [0174](0174-layouts-kept-floating-panels-and-closed-panels.md) (a layout kept against any other
   default is set aside, not only against an older one),
   [0175](0175-the-quality-bar.md) (the quality milestones, and an idle editor that wakes itself
-  not at all) and [0177](0177-audits-and-releases.md) (M6c.9 follows the release's checklist)
+  not at all) and [0177](0177-audits-and-releases.md) (M6c.9 follows the release's checklist), then by
+  [0228](0228-ci-split-again-each-job-within-20-minutes.md) (the Linux checks in four jobs)
 - Date: 2026-10-27
 
 ## Context
