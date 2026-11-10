@@ -2185,3 +2185,16 @@ branch `ci-split` before `main`, on GitHub's hosted runners, each run green, on 
 The runners were faster than on `3a8e42e` the same night: `windows-release` took 11 min 34 s
 against 15 min 52 s, the same code. `check (headless)` scaled by the slowest speed seen would take
 about 19 minutes.
+
+The same jobs on `main`, on `b7fbdd7`, each run green, the runners slower than on the branch:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 9 min 57 s |
+| `check (headless)` | 16 min 20 s |
+| `check (windowed)` | 12 min 7 s |
+| `check (game)` | 9 min 12 s |
+| `windows (tests)` | 11 min 51 s |
+| `windows (render)` | 5 min 46 s |
+| `windows (game)` | 6 min 23 s |
+| `windows-release` | 15 min 33 s |
