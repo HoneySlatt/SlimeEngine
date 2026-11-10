@@ -14,8 +14,9 @@ uwui's styles cascade through the engine's reflection. A rule's `style` is read 
 `slime-serialize` as a reflected `Value`, a part of `UiStyle`. Each time an element is styled, the
 default style's `Value` takes each selected rule's part (`Registry::overlay`), then the element's
 own style's difference from the default, and is turned back into a `Style`. One frame that styles
-again `ui.tree.look`'s 12 487 elements under the editor's look makes 537 523 allocations of
-53.7 MB ([`benches/counters.txt`](../../benches/counters.txt)). uwui cannot leave the engine with
+again `ui.tree.look`'s 12 487 elements under the editor's look makes 422 651 allocations of
+38.1 MB, and reading the look's documents 112 705 more
+([`measurements.md`](../measurements.md#m6d2a-the-typed-cascade)). uwui cannot leave the engine with
 `slime-reflect` ([ADR-0194](0194-stage-6d-uwui-leaving-the-engine.md)).
 
 M6d.2's card asked for styles typed per component, each part of a style a type of its own with

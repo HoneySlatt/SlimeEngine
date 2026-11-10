@@ -1492,16 +1492,17 @@ impl Ui {
     /// last gives its value, and the values that name it follow it. Every element's style is made
     /// again at the next [`Ui::frame`]. A rule that selects an element sets the fields of its style
     /// that it gives; a later rule, those it gives in turn; the element's own style, the fields
-    /// that it sets apart from their defaults, a color, an array, a list and an option each one
+    /// whose bits differ from their defaults', a color, an array, a list and an option each one
     /// field. The styles made are kept and shared, for up to 64 elements' own styles that the same
-    /// rules
-    /// select: past them, the style of such an element is made again each time, more slowly.
+    /// rules select: past them, the style of such an element is made again each time, more slowly.
     ///
     /// # Errors
     ///
     /// [`DocumentError`] if a style sheet or a theme is not a document of their types, names a
     /// value that no theme gives or that holds another type, a value names itself through others,
-    /// or a color function is given what it does not take: the interface keeps the style it had.
+    /// a color function is given what it does not take, a rule sets some of a color's channels and
+    /// not all, or a rule that names a kind sets what that kind does not read
+    /// ([`theme`]): the interface keeps the style it had.
     pub fn set_style(
         &mut self,
         sheets: &[StyleSheet],

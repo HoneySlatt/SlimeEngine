@@ -75,8 +75,9 @@ The first half of M6d.2, cut in two at its start, on 2026-11-10
   `slime-benches`. The editor's and the game's checks run unchanged.
 - **Delivers.**
   - A derive that generates, from `Style` and its nested types, nested enums of declarations; a
-    rule's part and an element's own style as lists of them; the cascade applying them to a
-    `Style`, a `match` each, its readers unchanged.
+    rule's part as a list of them; the cascade applying them to a `Style`, a `match` each, its
+    readers unchanged. An element's own style stays a whole `Style` until M6d.2b, its declarations
+    those of its fields whose bits differ from the default's.
   - A rule sets a colour whole; a part that sets a channel alone is refused.
   - A table of what each kind of element reads; a rule that names a kind and sets what it does not
     read is refused; the look's `[scroll]`, `[list]` and `[split]` trimmed.
@@ -86,8 +87,9 @@ The first half of M6d.2, cut in two at its start, on 2026-11-10
 - **Done when.**
   - A property test: random rules and own styles over every leaf, `-0.0` and NaN among their
     values, compose the same through the reflected cascade and the typed one, compared by bits.
-  - The styles of the editor's tree and of the `widgets` example's under the look, in every theme
-    of colours and density, kept as fixtures that outlive the reflected cascade.
+  - The styles of the `widgets` example's tree under the look, in every theme of colours and
+    density, and of the editor's window on the yard, kept as fixtures that outlive the reflected
+    cascade.
   - A test checks the table: a leaf changes a kind's drawing exactly where the table says that the
     kind reads it; tests of the two refusals.
   - The look's image tests unchanged; the counters unchanged, but the allocations and bytes of a

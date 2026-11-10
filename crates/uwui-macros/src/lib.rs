@@ -14,8 +14,6 @@ use syn::{Attribute, Data, DeriveInput, Fields, Ident, Type};
 /// `Declare` too: `LayoutStyleDeclaration::Padding(SidesDeclaration::Top(12.0))`. It generates:
 ///
 /// - `SDeclaration::apply`, which sets the field that the declaration names;
-/// - `SDeclaration::same`, whether two declarations name one field and hold one value, its floats
-///   compared by their bits;
 /// - `SDeclaration::path`, the field's path in a style sheet, `padding.top`;
 /// - `S::declared`, the declarations of the fields of a value whose bits differ from another's;
 /// - `S::named`, the declarations of the fields that a part of `S` read by reflection names, each
@@ -108,14 +106,6 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
             quote! { Self::#variant(value) => target.#name = ::std::clone::Clone::clone(value), }
         }
     });
-    let sames = fields.iter().map(|field| {
-        let variant = &field.variant;
-        if field.nested.is_some() {
-            quote! { (Self::#variant(a), Self::#variant(b)) => a.same(b), }
-        } else {
-            quote! { (Self::#variant(a), Self::#variant(b)) => crate::style::Same::same(a, b), }
-        }
-    });
     let paths = fields.iter().map(|field| {
         let Field { name, variant, .. } = field;
         let name = name.to_string();
@@ -156,7 +146,7 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
 
     Ok(quote! {
         #[doc = #doc]
-        #[derive(Clone, Debug, PartialEq)]
+        #[derive(Clone, Debug)]
         pub(crate) enum #declaration {
             #(#variants)*
         }
@@ -166,15 +156,6 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
             pub(crate) fn apply(&self, target: &mut #ty) {
                 match self {
                     #(#applies)*
-                }
-            }
-
-            /// Whether `other` declares the same field with the same value, its floats compared
-            /// by their bits.
-            pub(crate) fn same(&self, other: &Self) -> bool {
-                match (self, other) {
-                    #(#sames)*
-                    _ => false,
                 }
             }
 

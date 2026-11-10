@@ -550,9 +550,16 @@ impl Same for Track {
 
 impl Same for Shadow {
     fn same(&self, other: &Self) -> bool {
-        self.color.same(&other.color)
-            && self.offset.same(&other.offset)
-            && self.blur.same(&other.blur)
-            && self.spread.same(&other.spread)
+        // Taken apart whole, so that a field added to a shadow is compared too.
+        let Self {
+            color,
+            offset,
+            blur,
+            spread,
+        } = self;
+        color.same(&other.color)
+            && offset.same(&other.offset)
+            && blur.same(&other.blur)
+            && spread.same(&other.spread)
     }
 }

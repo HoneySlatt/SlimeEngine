@@ -14,8 +14,9 @@
 //! cascade applies in order (`docs/adr/0229-styles-typed-as-declarations.md`). A rule sets a color
 //! whole: a part that gives some of a color's channels alone is refused. A rule that names a kind
 //! sets only what that kind reads of a style: its layout, its paint and its transition, which every
-//! kind reads, and the parts of a style that it draws, a check box its control's colors and its
-//! tick, a label its text; a rule that sets more is refused.
+//! kind reads but for a layer's backdrop, which a container alone reads, as a layer's root; and the
+//! parts of a style that it draws, a check box its control's colors and its tick, a label its text.
+//! A rule that sets more is refused.
 //!
 //! A theme's value may name another, `"$name"`, and a color may be computed by a function, in
 //! OKLCH, where equal steps look equal (`docs/adr/0149-the-looks-foundations.md`): `mix($a, $b,

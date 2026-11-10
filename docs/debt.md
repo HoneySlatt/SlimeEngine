@@ -793,12 +793,12 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   An array, a list and an option of an element's own style replace the rules' whole, its height with its width; followed at M6d.2b.
 - **A rule's part is read through reflection, then turned into declarations** ([ADR-0229](adr/0229-styles-typed-as-declarations.md)).
   `Ui::set_style` lays each rule's part over the default style, turns the result into a `Style`, and takes from it the fields that the part names.
-  Reading the editor's look allocates 120 211 times, against 112 705 before the declarations ([measurements](measurements.md#m6d2a-the-typed-cascade)).
+  Reading the editor's look allocates 7 % more than before the declarations, which the owner accepted until M6d.3 ([measurements](measurements.md#m6d2a-the-typed-cascade)).
   A walk of `uwui`'s own beside reflection's refuses a color set by some of its channels.
   Followed at [M6d.3](stage-6d.md#m6d3--documents-with-serde), where the declarations are read by `serde`.
-- **A frame that styles every element again allocates some 31 times for each** ([measurements](measurements.md#m6d2a-the-typed-cascade)).
-  Under the editor's look, `ui.tree.look`'s frame after a change of colours allocates 393 682 times, 37 MB, for 12 487 elements.
-  The transitions that it starts take about 13 allocations an element; the cascade, the meaning and the drawing the rest.
+- **A frame that styles every element again allocates many times for each** ([measurements](measurements.md#m6d2a-the-typed-cascade)).
+  Under the editor's look, `ui.tree.look`'s frame after a change of colours allocates tens of megabytes for its 12 487 elements.
+  The transitions that it starts take some of it; the cascade, the meaning and the drawing the rest.
   No budget bounds that frame.
   Followed at [M6d.2b](stage-6d.md#m6d2b--tokens-defaults-and-styles-in-code), which changes what it does when tokens are resolved as elements are styled.
 - **The system's fallback is checked only where the system has fonts** ([ADR-0136](adr/0136-the-interfaces-text.md)).

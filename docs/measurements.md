@@ -2204,8 +2204,9 @@ The same jobs on `main`, on `b7fbdd7`, each run green, the runners slower than o
 The cascade of styles as typed declarations
 ([ADR-0229](adr/0229-styles-typed-as-declarations.md)), on 2026-11-10, on the CPU alone, an AMD
 Ryzen 7 5800X, 16 logical CPUs, Linux, release builds. *Before* is the reflected cascade, `9c2ea38`,
-given the look trimmed of its rules' unread fields and this milestone's benchmark, so that both
-sides read the same documents and time the same frames; *after* is the typed cascade. The two
+given `7d822db`'s `crates/uwui/look/editor.style`, trimmed of its rules' unread fields, and
+`b3f4761`'s `benches/src/ui.rs`, so that both sides read the same documents and time the same
+frames; *after* is the typed cascade, `b3f4761`. The two
 binaries ran in turn, twice each, no build running during any run, the load average between 1.5
 and 1.9.
 
@@ -2232,11 +2233,18 @@ and 1.9.
 What it says:
 
 - Under the editor's look, the frame that styles every element again takes 27 % less time; under
-  `ui.tree.editor`'s sheet of four rules, 4 %. The other frames do not change beyond the runs'
-  spread.
+  `ui.tree.editor`'s sheet of four rules, 4 %. `editor.hierarchy.100k`'s frame that runs a search
+  took 3.5 % longer in both runs, outside both spreads; the cascade does not run in it, its rows
+  styled before it, and the cause was not looked for. The other frames do not change beyond the
+  runs' spread.
 - The frame of the change allocates 7 % less, of which one allocation an element for the list of
-  the rules that select it, kept from one element to the next. Its transitions take about 13
-  allocations an element, its cascade, meaning and drawing the rest ([`debt.md`](debt.md)).
+  the rules that select it, kept from one element to the next. With less motion asked
+  (`Ui::set_reduced_motion`), in a run of the typed cascade before that list was kept, the same
+  frame made 243 662 allocations of 25.7 MB, against 406 156 with its transitions: these take some
+  13 allocations an element, the cascade, the meaning and the drawing the rest
+  ([`debt.md`](debt.md)).
+- The figure of ADR-0229's context and of `43b1cb0`'s message, 537 523 allocations of 53.7 MB,
+  counted the reading of the look's documents with the frame; the frame alone made 422 651.
 - Reading the look's documents allocates 7 % more: each rule's part is laid over the default
   style and turned into declarations, until M6d.3 reads them with `serde`.
 - The other benchmarks' counters are unchanged.
