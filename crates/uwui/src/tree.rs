@@ -35,6 +35,8 @@ mod motion;
 mod notify;
 mod palette;
 mod panel;
+#[cfg(all(test, feature = "editor-look"))]
+mod reads_tests;
 mod scroll_bar;
 mod tooltip;
 
