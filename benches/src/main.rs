@@ -178,6 +178,13 @@ const BENCHMARKS: &[Benchmark] = &[
         run: ui::tree,
     },
     Benchmark {
+        name: "ui.tree.look",
+        about: "the editor's tree under the editor's look: its colours changed, its transitions",
+        counts: true,
+        on_request: false,
+        run: ui::look_tree,
+    },
+    Benchmark {
         name: "ui.tree.list.100k",
         about: "a list of 100 000 rows, of which only those that show are built: scrolled, still",
         counts: true,

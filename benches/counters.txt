@@ -89,5 +89,9 @@ ui.tree.list.100k	bytes allocated by a frame standing still	38616
 ui.tree.list.100k	elements	164
 ui.tree.list.100k	elements visited by a frame standing still	328
 ui.tree.list.100k	items of a frame standing still	110
+ui.tree.look	allocations of the frame of the change	537523
+ui.tree.look	bytes allocated by the frame of the change	53671658
+ui.tree.look	elements styled by the frame of the change	12487
+ui.tree.look	frames of 240 Hz of the transition	29
 world.frame.100k	instances in a frame	100000
 world.save.100k	bytes of the save	62108

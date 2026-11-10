@@ -8,6 +8,7 @@ use std::time::Duration;
 use slime_color::LinearColor;
 use uwui::display::DisplayList;
 use uwui::display::ImageKey;
+use uwui::look::{self, Colors, Density};
 use uwui::style::{Dimension, Display, FlexDirection, Justify, Sides, Style, TextLook, Track};
 use uwui::text::{Fonts, GlyphKey, GlyphRasterizer, TextBounds, TextStyle};
 use uwui::theme::{StyleSheet, Theme};
@@ -630,20 +631,32 @@ fn theme(light: bool) -> Theme {
 struct Editor {
     ui: Ui,
     labels: Vec<String>,
+    /// The own style of its labels and buttons: the tree's text, or none under the look.
+    text: Style,
     panels: [ElementId; 4],
     /// The value that the inspector shows in its first field, which a change moves.
     value: u64,
 }
 
 impl Editor {
+    /// The tree, its labels and buttons in the tree's text, styled by the editor's four rules.
     fn new(fonts: Fonts, labels: Vec<String>) -> Self {
+        let sheets = [StyleSheet::from_text("editor.style", EDITOR_STYLE)];
+        Self::styled(fonts, labels, &sheets, &[theme(false)], look())
+    }
+
+    /// The tree styled by `sheets` and `themes`, its labels and buttons given `text` as their own
+    /// style.
+    fn styled(
+        fonts: Fonts,
+        labels: Vec<String>,
+        sheets: &[StyleSheet],
+        themes: &[Theme],
+        text: Style,
+    ) -> Self {
         let mut ui = Ui::new(fonts);
         let root = ui.add_root("main", SCREEN, column());
-        ui.set_style(
-            &[StyleSheet::from_text("editor.style", EDITOR_STYLE)],
-            &[theme(false)],
-        )
-        .expect("the editor's style");
+        ui.set_style(sheets, themes).expect("the tree's style");
         let mut panels = Vec::new();
         ui.build(root, 0, |children| {
             let mut toolbar = Style::default();
@@ -670,6 +683,7 @@ impl Editor {
         let mut editor = Self {
             ui,
             labels,
+            text,
             panels: [panels[0], panels[1], panels[2], panels[3]],
             value: 0,
         };
@@ -682,7 +696,9 @@ impl Editor {
     fn build(&mut self, revision: u64) {
         let [toolbar, hierarchy, inspector, assets] = self.panels;
         let labels = &self.labels;
-        let button = |label: String| Element::button(label, look());
+        let text = &self.text;
+        let own = || text.clone();
+        let button = |label: String| Element::button(label, own());
         self.ui.build(toolbar, 0, |children| {
             for index in 0..30_usize {
                 children.add(index, button(format!("Tool {index}")), |_| {});
@@ -694,7 +710,7 @@ impl Editor {
                 row.layout.padding.start = (index % 4) as f32 * 12.0;
                 row.layout.gap = [0.0, 4.0];
                 children.add(index, Element::container(row), |children| {
-                    children.add("name", Element::label(label.as_str(), look()), |_| {});
+                    children.add("name", Element::label(label.as_str(), own()), |_| {});
                     children.add("shown", button("o".to_owned()), |_| {});
                 });
             }
@@ -708,18 +724,18 @@ impl Editor {
             grid.layout.gap = [2.0, 8.0];
             for (component, fields) in labels.chunks(10).enumerate() {
                 children.add(component, Element::container(column()), |children| {
-                    let header = Element::label(fields[0].as_str(), look());
+                    let header = Element::label(fields[0].as_str(), own());
                     children.add("header", header, |_| {});
                     children.add(
                         "fields",
                         Element::container(grid.clone()).class("fields"),
                         |children| {
                             for (index, label) in fields.iter().enumerate() {
-                                let name = Element::label(label.as_str(), look());
+                                let name = Element::label(label.as_str(), own());
                                 children.add(format!("{index} name"), name, |_| {});
                                 let first = component == 0 && index == 0;
                                 let shown = if first { value } else { index as u64 };
-                                let value = Element::label(format!("{shown}.25"), look());
+                                let value = Element::label(format!("{shown}.25"), own());
                                 children.add(format!("{index} value"), value, |_| {});
                             }
                         },
@@ -734,7 +750,7 @@ impl Editor {
                 children.add(index, Element::container(row), |children| {
                     let icon = Element::image(ImageKey(index as u64 % 16), sized(16.0, 16.0));
                     children.add("icon", icon, |_| {});
-                    children.add("name", Element::label(label.as_str(), look()), |_| {});
+                    children.add("name", Element::label(label.as_str(), own()), |_| {});
                 });
             }
         });
@@ -797,6 +813,89 @@ pub fn tree(context: &mut Context) -> Result<Vec<Row>, String> {
     rows.extend(Row::times(
         "a frame after the theme changed, every element styled again",
         &restyled,
+    ));
+    Ok(rows)
+}
+
+/// The time that a frame of 240 Hz gives the interface.
+const FRAME_240: Duration = Duration::from_nanos(4_166_667);
+
+/// The most frames that a transition is given to end, past which the benchmark fails.
+const TRANSITION_FRAMES: usize = 1_000;
+
+/// The tree of [`tree`] styled by the editor's look, its labels and buttons with no style of their
+/// own: a frame after its theme of colours changed between dark and light, which styles every
+/// element again under the look's rules and starts their transitions, then the frames of 240 Hz
+/// that the transitions take to end. Counted: the elements that the frame of the change styled,
+/// its allocations and their bytes, and the frames of the transition.
+pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
+    let runs = context.runs(RUNS);
+    let mut fonts = Fonts::new();
+    look::register_fonts(&mut fonts);
+    let sheets = [look::style_sheet()];
+    let themes = |colors| look::themes(colors, Density::Comfortable);
+    let mut editor = Editor::styled(
+        fonts,
+        labels(1_500),
+        &sheets,
+        &themes(Colors::Dark),
+        Style::default(),
+    );
+    editor.ui.frame();
+    let mut light = false;
+    // Gives the interface its theme of the other colours and draws the frame of the change.
+    let mut change = |editor: &mut Editor| {
+        light = !light;
+        let colors = if light { Colors::Light } else { Colors::Dark };
+        editor
+            .ui
+            .set_style(&sheets, &themes(colors))
+            .expect("the look's documents are valid");
+        editor.ui.advance(FRAME_240);
+        editor.ui.frame()
+    };
+    // The frames of 240 Hz until no transition goes on, and their time together.
+    let settle = |editor: &mut Editor| -> Result<(usize, Duration), String> {
+        let mut spent = Duration::ZERO;
+        for frames in 0..TRANSITION_FRAMES {
+            if !editor.ui.animating() {
+                return Ok((frames, spent));
+            }
+            editor.ui.advance(FRAME_240);
+            let (_, took) = timed(|| black_box(editor.ui.frame()));
+            spent += took;
+        }
+        Err(format!(
+            "the look's transitions go on past {TRANSITION_FRAMES} frames"
+        ))
+    };
+    settle(&mut editor)?;
+    // Counted before the series, whose length a run of `--counters` cuts.
+    let ((_, stats), allocations) = counted(|| change(&mut editor));
+    let (frames, _) = settle(&mut editor)?;
+    let mut changed = Vec::new();
+    let mut transitions = Vec::new();
+    for _ in 0..runs {
+        let (_, took) = timed(|| black_box(change(&mut editor)));
+        changed.push(took);
+        transitions.push(settle(&mut editor)?.1);
+    }
+    let mut rows = vec![
+        Row::count("elements styled by the frame of the change", stats.styled),
+        Row::count("allocations of the frame of the change", allocations.calls),
+        Row::count(
+            "bytes allocated by the frame of the change",
+            allocations.taken,
+        ),
+        Row::count("frames of 240 Hz of the transition", frames),
+    ];
+    rows.extend(Row::times(
+        "a frame after the look's colours changed, every element styled again",
+        &changed,
+    ));
+    rows.extend(Row::times(
+        "the frames of the transition that it starts, together",
+        &transitions,
     ));
     Ok(rows)
 }
