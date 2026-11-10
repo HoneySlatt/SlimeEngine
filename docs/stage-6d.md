@@ -87,10 +87,9 @@ in git.
   ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)): done,
   [M6d.2b1](#m6d2b1--the-roles-and-each-kinds-defaults), the roles and each kind's defaults;
   [M6d.2b2](#m6d2b2--styles-written-in-code), styles written in code, cut in two at its start, on
-  the same day ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)): in progress,
-  [M6d.2b2a](PLAN.md#m6d2b2a--an-elements-own-style-written-in-code), an element's own style
-  written in code; then [M6d.2b2b](#m6d2b2b--tokens-and-the-users-layer), tokens and the user's
-  layer.
+  the same day ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)): done,
+  [M6d.2b2a](#m6d2b2a--an-elements-own-style-written-in-code), an element's own style written in
+  code; next, [M6d.2b2b](#m6d2b2b--tokens-and-the-users-layer), tokens and the user's layer.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -854,9 +853,59 @@ no reader until the user's layer, which tells a literal written in code from a t
 
 ### M6d.2b2a — An element's own style written in code
 
-The first half of M6d.2b2, cut in two at its start, on 2026-11-10; in progress, its card in
-[`PLAN.md`](PLAN.md#m6d2b2a--an-elements-own-style-written-in-code)
-([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)).
+The first half of M6d.2b2, cut in two at its start, on 2026-11-10
+([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** An element's own style written in code, with its states, under the order of
+  ADR-0231: a rule's state over a base set in code, the code's states over the rules'.
+- **Crates.** `uwui`, `uwui-macros`, `uwui-render`, `slime-editor`, `slime-devui`, `slime-app`,
+  `slime-benches`, `hunnawood`, the examples.
+- **Delivers.**
+  - The derive numbers a style's leaves, an array one for each element, and says which lay out.
+  - An own style as the declarations that code wrote, with their states, built by
+    `Element::style(|s| ...)`, which keeps its call's place; a hover or a press without the fields
+    that lay out; a debug warning, once, for a hover or a press written for a kind that the
+    pointer never reaches.
+  - The constructors without a style, `Ui::add_root` and `Ui::open_layer` taking the builder's
+    function; every call site of the repository moved, writing only what it wrote apart from the
+    default before.
+  - The cascade's mask order; the styles made shared by the own states that hold too.
+  - The look's keyboard focus shown on a list's rows, a row's marks, links and a notification's
+    close button, in a commit of its own.
+- **Done when.**
+  - Tests: a state set in code beats a rule's state; a rule's state beats a base set in code; a
+    base set in code beats a stateless rule that follows a stateful one; a field set in code to its
+    default beats a rule; a width set in code keeps the rule's height; an own hover shows where no
+    rule names `Hovered`, and goes; a hover's builder offers no field that lays out (a doc test that
+    fails to compile); the call's place read back against `file!()` and `line!()`; every leaf
+    through the mask order; the property test's rules against reflection, as before.
+  - The look's image tests and the two fixtures of styles unchanged; the counters unchanged but
+    those recorded again, each with its reason; a counter of a frame that builds again; CI green.
+  - A test draws each of the four buttons focused by the keyboard and finds `$focus`.
+- **How to test.** `cargo test -p uwui --features editor-look`; `cargo test -p slime-examples
+  --test widgets --test editor`; `cargo run -p slime-benches -- --counters`; `scripts/check.sh`.
+- **Measured.** `ui.tree.editor`, `ui.tree.look` and the editor's counters, before and after, on
+  the owner's machine at rest; `uwui`'s compile times, its derive grown
+  (`scripts/compile-times.sh`).
+- **Result.** Done on 2026-11-10, CI green
+  ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)):
+  - An element's code writes its own style, `Element::style(|s| ...)`, with its states; what it
+    sets is kept whatever its value, an array by element. The place of each call is kept, which
+    M6d.9a gives to agents.
+  - The cascade takes the mask order: the rules in their order, then the own base where the last
+    rule that set a field names no state, then the own states that hold. A random test checks it
+    against a model; a test runs every one of the 66 leaves through it. A hover or a press written
+    in code offers no setter that lays out.
+  - The constructors lost their `Style`; every call site of the repository moved, writing only
+    what it wrote apart from the default before: the fixtures of the styles and the images are
+    unchanged.
+  - The look shows the keyboard's focus on rows, marks, links and a notification's close.
+  - A frame that builds again allocates 12 % more, each element's declarations in a list of its
+    own; no frame's time changed beyond the runs' spread, the machine not quite at rest; the times
+    of compiling were not measured, other sessions building
+    ([measurements](measurements.md#m6d2b2a-an-elements-own-style-written-in-code)).
+  - A change of a control's size, which a state may now write, lays the element out again.
 
 ### M6d.2b2b — Tokens and the user's layer
 

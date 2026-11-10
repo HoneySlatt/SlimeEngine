@@ -2408,3 +2408,21 @@ What it says:
 - The other benchmarks' counters are unchanged; the fixtures of the styles and the images too.
 - The times of compiling were not measured: the machine was busy with other sessions' builds
   before and after the runs.
+
+GitHub's hosted runners, on 2026-11-10, each run green, on `b749c3e`:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 6 min 39 s |
+| `check (headless)` | 12 min 28 s |
+| `check (windowed)` | 11 min 17 s |
+| `check (game)` | 9 min 31 s |
+| `windows (tests)` | 10 min 1 s |
+| `windows (render)` | 6 min 46 s |
+| `windows (game)` | 7 min 37 s |
+| `windows-release` | 15 min 13 s |
+| Docs' `links` | 20 s |
+| uwui's `check`, on its `d92475c` | 21 s |
+
+Every job stays within its limit of 20 minutes. `windows (tests)` ran both fixtures of styles on
+Windows, and the tests of the own style, the place of a call among them.
