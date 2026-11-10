@@ -2099,6 +2099,12 @@ impl Offscreen {
         InterfaceFrame { stats, items }
     }
 
+    /// The window's interface, as the last frame left it: what a test reads of its elements and
+    /// their styles (`docs/adr/0229-styles-typed-as-declarations.md`).
+    pub fn ui(&self) -> &Ui {
+        &self.model.ui
+    }
+
     /// Draws the display list of the last frame into the window's image through the canvas, on
     /// the GPU, the viewports' images as they were last drawn, without waiting for the GPU.
     ///

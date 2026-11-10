@@ -20,6 +20,9 @@
 //! - `editor-two-viewports.png`: two viewports side by side
 //!   (`docs/adr/0160-two-viewports-and-blenders-way.md`).
 //!
+//! Beside them, `editor-styles.txt` holds the styles of every element of the window once the yard
+//! is open, a fixture of `common/style_fixture.rs`.
+//!
 //! The level is named by a path relative to the examples' package, the directory that the tests
 //! run in, which the status bar shows as it is.
 //!
@@ -42,6 +45,8 @@ mod reference_image;
     reason = "the editor lights the yard with the sample's sky, exposure and bloom alone"
 )]
 mod sample_scene;
+#[path = "../common/style_fixture.rs"]
+mod style_fixture;
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -181,5 +186,43 @@ fn the_window_with_the_turning_handles_matches_its_reference_image() {
         &["edit.handles_turn", "edit.handles_local"],
         &["yard/sample/pillar"],
         1.0,
+    );
+}
+
+/// The styles of every element of the editor's window as it shows once the yard is open, as the
+/// fixture `tests/reference/editor-styles.txt` records them (`common/style_fixture.rs`).
+#[test]
+fn every_element_of_the_window_is_styled_as_its_fixture_records() {
+    let directory = cooked::directory("editor-styles");
+    let assets = directory.join("cooked");
+    slime_cook::cook(
+        Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/assets")),
+        &assets,
+    )
+    .expect("the sample cooks");
+    let arguments: Vec<OsString> = vec![
+        "--journal".into(),
+        directory.join("yard.journal").into_os_string(),
+    ];
+    let gpu =
+        slime_gfx::Gpu::new().expect("a GPU adapter must be available; CONTRIBUTING.md lists them");
+    let mut window = slime_editor::Offscreen::open(
+        &program(&assets),
+        arguments,
+        &gpu,
+        slime_editor::IMAGE_SIZE,
+        1.0,
+    )
+    .expect("the window opens");
+    // The second frame lays out what the first built, a list's rows among them.
+    for _ in 0..2 {
+        window.update();
+        window.frame();
+    }
+    let ui = window.ui();
+    let root = ui.element_by_path("editor").expect("the window's root");
+    style_fixture::check(
+        "editor-styles.txt",
+        &style_fixture::styles(ui, root, "yard"),
     );
 }

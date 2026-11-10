@@ -79,8 +79,8 @@ The log level of every example is set by the `SLIME_LOG` environment variable, f
 | [`tests/scene.rs`](tests/scene.rs) | The shapes of `common/` at a fixed time |
 | [`tests/gltf.rs`](tests/gltf.rs) | The sample scene cooked and drawn from two camera poses; small glTF files built in memory, cooked and drawn; a cooked file moved and renamed |
 | [`tests/world.rs`](tests/world.rs) | The sample drawn from a world, with the images of `tests/gltf.rs`; steps, hidden subtrees, a lost device, picking; the yard's prefabs followed when they change |
-| [`tests/widgets.rs`](tests/widgets.rs) | The `widgets` example's interface in its themes, densities, directions and layers; every element's style in each theme and density, against the fingerprints of `tests/reference/widgets-styles.txt` ([ADR-0229](../docs/adr/0229-styles-typed-as-declarations.md)) |
-| [`tests/editor.rs`](tests/editor.rs) | The `editor` example's window at scales 1 and 2, with its dialog, a selection and its handles, the history, two viewports, and panels moved and floating |
+| [`tests/widgets.rs`](tests/widgets.rs) | The `widgets` example's interface in its themes, densities, directions and layers; every element's style in each theme and density, against the fixture `tests/reference/widgets-styles.txt` (`common/style_fixture.rs`) ([ADR-0229](../docs/adr/0229-styles-typed-as-declarations.md)) |
+| [`tests/editor.rs`](tests/editor.rs) | The `editor` example's window at scales 1 and 2, with its dialog, a selection and its handles, the history, two viewports, and panels moved and floating; every element's style once the yard is open, against the fixture `tests/reference/editor-styles.txt` |
 
 To add an example, put its source in this directory, declare it as an `[[example]]` in
 [`Cargo.toml`](Cargo.toml), give it a module comment saying what it shows and how to run it, and
