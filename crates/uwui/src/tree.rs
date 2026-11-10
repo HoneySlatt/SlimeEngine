@@ -18,7 +18,7 @@ use crate::layout;
 use crate::paint;
 use crate::style::{Display, Same, Style};
 use crate::text::{Fonts, TEXT_CACHE_BUDGET, TextCache};
-use crate::theme::{self, KindName, Rule, StateName, StyleSheet, Theme};
+use crate::theme::{self, ColorRole, ColorRoles, KindName, Rule, StateName, StyleSheet, Theme};
 
 #[cfg(test)]
 mod cascade_tests;
@@ -37,6 +37,8 @@ mod palette;
 mod panel;
 #[cfg(all(test, feature = "editor-look"))]
 mod reads_tests;
+#[cfg(all(test, feature = "editor-look"))]
+mod roles_tests;
 mod scroll_bar;
 mod tooltip;
 
@@ -579,9 +581,10 @@ pub struct ElementState {
 /// An element as a builder describes it: what it is, its classes and its style. The tree keeps
 /// the element it built before for the same key and kind, and redoes of it only what changed.
 ///
-/// Its style is the rules' that select it, in their order, the fields that `style` sets apart from
+/// Its style starts from its kind's defaults, whose colors the themes' roles give; then come the
+/// rules' that select it, in their order, then the fields that `style` sets apart from
 /// [`Style::default`] in place of theirs ([`Ui::set_style`]): the code keeps what it sets, and a
-/// field that it leaves at its default takes the rules'. A color, an array, a list and an option
+/// field that it leaves at its default takes the rules', or else its kind's. A color, an array, a list and an option
 /// are each one field, set whole: `size` set to `[Pixels(120.0), Auto]` sets both its sizes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Element {
@@ -1262,10 +1265,21 @@ pub struct Ui {
     clipboard: Option<Box<dyn Clipboard>>,
     /// The types that style sheets hold, which read them.
     registry: Registry,
-    /// The style that the rules and an element's own style are applied to.
+    /// The style that an element's own style sets the fields of that differ from it.
     default_style: Style,
-    /// The styles made, by the rules that select their elements, then the elements' own styles.
-    styles: HashMap<Vec<u32>, Vec<(Style, Arc<Style>)>>,
+    /// The value of each role, which each kind's defaults take
+    /// (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`).
+    roles: ColorRoles,
+    /// The styles that elements start from, under every rule: one for each set of kinds whose
+    /// defaults are the same.
+    bases: Vec<Style>,
+    /// The place in `bases` of each kind's, by [`KindName::index`].
+    base_of: [u8; KindName::ALL.len()],
+    /// The roles that the themes lacked and that a warning told, each once.
+    warned: Vec<ColorRole>,
+    /// The styles made, by the rules that select their elements, then the base that they start
+    /// from and the elements' own styles.
+    styles: HashMap<Vec<u32>, Vec<Made>>,
     /// The rules that select the element being styled, a list kept to be filled again.
     selected: Vec<u32>,
     /// The number that the next element, or run of a field's text, is given: from 1, so that 0
@@ -1302,7 +1316,7 @@ impl Ui {
     /// An interface without roots, whose texts are laid out with `fonts`, and kept within
     /// [`TEXT_CACHE_BUDGET`].
     pub fn new(fonts: Fonts) -> Self {
-        Self {
+        let mut ui = Self {
             slots: Vec::new(),
             free: Vec::new(),
             roots: Vec::new(),
@@ -1318,6 +1332,10 @@ impl Ui {
             rules: Vec::new(),
             registry: theme::registry(),
             default_style: Style::default(),
+            roles: ColorRoles::fallbacks(),
+            bases: Vec::new(),
+            base_of: [0; KindName::ALL.len()],
+            warned: Vec::new(),
             styles: HashMap::new(),
             selected: Vec::new(),
             next_number: 1,
@@ -1333,7 +1351,9 @@ impl Ui {
             reduced_motion: false,
             moving: Vec::new(),
             tab_enters: true,
-        }
+        };
+        ui.make_bases();
+        ui
     }
 
     /// The fonts that its texts are laid out with, which the program that draws its display list
@@ -1490,25 +1510,47 @@ impl Ui {
     /// Styles the elements with the rules of `sheets`, in their order and the order of their
     /// files, their names given the values of `themes`, stacked: of the themes that give a name, the
     /// last gives its value, and the values that name it follow it. Every element's style is made
-    /// again at the next [`Ui::frame`]. A rule that selects an element sets the fields of its style
-    /// that it gives; a later rule, those it gives in turn; the element's own style, the fields
-    /// whose bits differ from their defaults', a color, an array, a list and an option each one
-    /// field. The styles made are kept and shared, for up to 64 elements' own styles that the same
-    /// rules select: past them, the style of such an element is made again each time, more slowly.
+    /// again at the next [`Ui::frame`]. It starts from its kind's defaults, whose colors are the
+    /// core's *roles* that the themes give, each read once, as a color, here: `canvas_text`,
+    /// `gray_text`, `button_face`, `accent`, `highlight`, `highlight_text` and `focus`
+    /// (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`). A role that the themes lack
+    /// takes its fallback, the colors that an interface given no theme draws in, with a warning
+    /// once for each role, given only when themes are given. A rule that selects an element sets
+    /// the fields of its style that it gives; a later rule, those it gives in turn; the element's
+    /// own style, the fields whose bits differ from [`Style::default`]'s, a color, an array, a
+    /// list and an option each one field. The styles made are kept and shared, for up to 64
+    /// elements' own styles that the same rules select: past them, the style of such an element is
+    /// made again each time, more slowly.
     ///
     /// # Errors
     ///
     /// [`DocumentError`] if a style sheet or a theme is not a document of their types, names a
     /// value that no theme gives or that holds another type, a value names itself through others,
-    /// a color function is given what it does not take, a rule sets some of a color's channels and
-    /// not all, or a rule that names a kind sets what that kind does not read
-    /// ([`theme`]): the interface keeps the style it had.
+    /// a color function is given what it does not take, a theme gives a role a value that is no
+    /// color, a rule sets some of a color's channels and not all, or a rule that names a kind sets
+    /// what that kind does not read ([`theme`]): the interface keeps the style it had.
     pub fn set_style(
         &mut self,
         sheets: &[StyleSheet],
         themes: &[Theme],
     ) -> Result<(), DocumentError> {
-        self.rules = theme::rules(&self.registry, sheets, themes)?;
+        let styling = theme::read(&self.registry, sheets, themes)?;
+        self.rules = styling.rules;
+        self.roles = styling.roles;
+        // An interface given no theme draws in the fallbacks by choice: only themes that lack a
+        // role are told of it.
+        if !themes.is_empty() {
+            for role in styling.lacking {
+                if !self.warned.contains(&role) {
+                    self.warned.push(role);
+                    tracing::warn!(
+                        role = role.name(),
+                        "the themes give no value for this role: its fallback is taken"
+                    );
+                }
+            }
+        }
+        self.make_bases();
         self.styles.clear();
         for root in self.roots.clone() {
             self.mark_style_subtree(root);
@@ -1937,21 +1979,31 @@ impl Ui {
                 .filter(|&rule| self.selects(&self.rules[rule], id))
                 .map(|rule| rule as u32),
         );
-        let code = &self.node(id).expect("styled above").element.style;
-        // Elements of one style that the same rules select share what they make.
+        let element = &self.node(id).expect("styled above").element;
+        let base = self.base_of[kind_name(&element.kind).index()];
+        let code = &element.style;
+        // Elements of one style, of kinds of one base, that the same rules select share what they
+        // make.
         let made = self
             .styles
             .get(selected.as_slice())
-            .and_then(|made| made.iter().find(|(own, _)| own.same(code)))
-            .map(|(_, style)| Arc::clone(style));
+            .and_then(|made| {
+                made.iter()
+                    .find(|made| made.base == base && made.own.same(code))
+            })
+            .map(|made| Arc::clone(&made.style));
         let mut style = match made {
             Some(style) => style,
             None => {
                 let code = code.clone();
-                let style = Arc::new(self.compose(&selected, &code));
+                let style = Arc::new(self.compose(base, &selected, &code));
                 let made = self.styles.entry(selected.clone()).or_default();
                 if made.len() < STYLES_PER_RULES {
-                    made.push((code, Arc::clone(&style)));
+                    made.push(Made {
+                        base,
+                        own: code,
+                        style: Arc::clone(&style),
+                    });
                 }
                 style
             }
@@ -1997,13 +2049,10 @@ impl Ui {
     }
 
     /// The style that the rules `selected`, in their order, then `code`, the fields whose bits
-    /// differ from the default's, make: each one's declarations applied in turn
-    /// (`docs/adr/0229-styles-typed-as-declarations.md`).
-    fn compose(&self, selected: &[u32], code: &Style) -> Style {
-        if selected.is_empty() {
-            return code.clone();
-        }
-        let mut style = self.default_style.clone();
+    /// differ from the default's, make over the base of the place `base`: each one's declarations
+    /// applied in turn (`docs/adr/0229-styles-typed-as-declarations.md`).
+    fn compose(&self, base: u8, selected: &[u32], code: &Style) -> Style {
+        let mut style = self.bases[usize::from(base)].clone();
         for &rule in selected {
             for declaration in &self.rules[rule as usize].declarations {
                 declaration.apply(&mut style);
@@ -2013,6 +2062,23 @@ impl Ui {
             declaration.apply(&mut style);
         });
         style
+    }
+
+    /// Makes each kind's base from the roles, those of kinds whose defaults are the same shared
+    /// (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`).
+    fn make_bases(&mut self) {
+        self.bases.clear();
+        for kind in KindName::ALL {
+            let base = theme::base(kind, &self.roles);
+            let place = match self.bases.iter().position(|made| made.same(&base)) {
+                Some(place) => place,
+                None => {
+                    self.bases.push(base);
+                    self.bases.len() - 1
+                }
+            };
+            self.base_of[kind.index()] = u8::try_from(place).expect("fewer bases than kinds");
+        }
     }
 
     /// Whether `rule` selects `id`.
@@ -2603,6 +2669,17 @@ fn kind_name(kind: &Kind) -> KindName {
         Kind::ColorPart(_) => KindName::ColorPart,
         Kind::Surface { .. } => KindName::Surface,
     }
+}
+
+/// A style made, kept for the elements that the same rules select, of a kind of the same base and
+/// of the same own style, which share it.
+#[derive(Debug)]
+struct Made {
+    /// The place in `Ui::bases` of the base that it started from.
+    base: u8,
+    /// The elements' own style.
+    own: Style,
+    style: Arc<Style>,
 }
 
 /// The styles made that are kept for one set of rules, past which an element's style that the

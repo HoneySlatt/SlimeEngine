@@ -24,7 +24,9 @@
 //! field shows it however it was given; the handle between two panels, by its fill.
 //!
 //! Its themes stack ([`themes`]): a base theme of the scales that every theme shares, spacings on a
-//! grid of 4 pixels, radii, sizes of text and durations; a theme of colors, dark, light or high
+//! grid of 4 pixels, radii, sizes of text and durations, and the core's roles, which uwui's
+//! components read by default, named after the colors that a theme of colors gives
+//! (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`); a theme of colors, dark, light or high
 //! contrast ([`Colors`]), a palette and the roles that the sheet names, computed from it; and, for a
 //! denser layout, a compact theme ([`Density`]). A program stacks a theme of its own after them: one
 //! that gives `accent` changes every color that follows the accent. All are documents of the

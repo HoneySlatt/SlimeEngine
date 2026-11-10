@@ -415,13 +415,15 @@ pub struct ControlStyle {
 }
 
 impl Default for ControlStyle {
+    /// Its colors transparent: each kind takes them from its look's roles
+    /// (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`).
     fn default() -> Self {
         Self {
             size: 16.0,
             radius: 3.0,
-            track: LinearColor::rgba(0.3, 0.3, 0.3, 1.0),
-            fill: LinearColor::rgba(0.2, 0.4, 0.9, 1.0),
-            mark: LinearColor::WHITE,
+            track: LinearColor::rgba(0.0, 0.0, 0.0, 0.0),
+            fill: LinearColor::rgba(0.0, 0.0, 0.0, 0.0),
+            mark: LinearColor::rgba(0.0, 0.0, 0.0, 0.0),
         }
     }
 }
@@ -441,11 +443,13 @@ pub struct TextLook {
 }
 
 impl Default for TextLook {
+    /// Its colors transparent: each kind that draws a text takes them from its look's roles
+    /// (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`).
     fn default() -> Self {
         Self {
             style: TextStyle::default(),
-            color: LinearColor::WHITE,
-            selection: LinearColor::rgba(0.2, 0.4, 0.9, 0.4),
+            color: LinearColor::rgba(0.0, 0.0, 0.0, 0.0),
+            selection: LinearColor::rgba(0.0, 0.0, 0.0, 0.0),
         }
     }
 }

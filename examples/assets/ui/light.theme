@@ -22,3 +22,13 @@ selected_text = "#FFFFFF"
 card = "#FFFFFFCC"
 card_border = "#ADB5BD99"
 card_shadow = "#00000033"
+
+# The core's roles, the colors that uwui's components read by default
+# (docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md): the scroll bars, the fields' marks and
+# selections, the check boxes, the sliders.
+canvas_text = "$text"
+gray_text = "$row_text"
+button_face = "$button"
+accent = "$pressed"
+highlight = "$selected"
+highlight_text = "$selected_text"

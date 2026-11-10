@@ -2297,3 +2297,47 @@ GitHub's hosted runners, on 2026-11-10, each run green, on `dc51187`:
 its limit of 20 minutes, with the least margin of the jobs. This milestone adds to it the counters of
 `ui.tree.look`, about 15 s in a debug build on the owner's machine, and its tests. `windows (tests)`
 ran both fixtures of styles on Windows.
+
+## M6d.2b1, the roles and each kind's defaults
+
+The core's roles and each kind's defaults taken from them
+([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)), on 2026-11-10, on the owner's
+machine, an AMD Ryzen 7 5800X, 16 logical CPUs, Linux, release builds. *Before* is `48b2f02`, the
+typed cascade of M6d.2a; *after* is the milestone's working tree. The two binaries ran in turn,
+twice each, no build running; the load average fell from 6.6 to 3.6 over the runs, another
+program, a session's own, taking more than a core throughout. Every frame below took about a fifth
+longer than at [M6d.2a](#m6d2a-the-typed-cascade) on both sides: the comparison holds between the
+two sides, not with M6d.2a's figures.
+
+| Benchmark | Measure, median of 15 | Before | After |
+|---|---|---|---|
+| `ui.tree.look` | a frame after the look's colours changed, every element styled again | 57.35, 55.67 ms | 56.21, 56.44 ms |
+| `ui.tree.look` | the frames of the transition that it starts, together | 809.15, 805.17 ms | 793.36, 792.41 ms |
+| `ui.tree.editor` | a frame after the theme changed, every element styled again | 24.04, 25.35 ms | 24.83, 26.02 ms |
+| `ui.tree.editor` | the first frame: built, its texts and its tree laid out, drawn | 199.53, 189.17 ms | 188.58, 189.27 ms |
+| `ui.tree.editor` | a frame after one value of the inspector changed | 4.96, 4.33 ms | 4.84, 4.54 ms |
+| `ui.tree.editor` | a frame with nothing changed | 573.5, 557.9 µs | 548.2, 554.0 µs |
+| `editor.hierarchy.100k` | a frame scrolled by a row | 314.3, 309.2 µs | 318.9, 311.2 µs |
+| `editor.hierarchy.100k` | a frame that runs a search, once the typing paused | 6.48, 6.23 ms | 6.58, 6.34 ms |
+
+`ui.tree.look`'s counters, in a debug build, as CI counts them:
+
+| Counter | Before | After |
+|---|---|---|
+| allocations of reading the look's documents | 120 211 | 125 017 |
+| allocations of the frame of the change | 393 682 | 393 682 |
+| bytes allocated by the frame of the change | 37 007 450 | 37 007 738 |
+| frames of 240 Hz of the transition | 29 | 29 |
+
+What it says:
+
+- No frame changes beyond the runs' spread: each kind's base is made when the themes are taken,
+  and an element is styled from it as it was from the one default style.
+- Reading the look's documents allocates 4 % more: the five roles that the base theme names after
+  the colours' themes are each read by parsing their theme again, as every value is until M6d.3.
+- The frame of the change allocates 288 bytes more, its allocations unchanged: each style kept
+  for the elements that share it holds the place of its base, 8 bytes more each.
+- The other benchmarks' counters are unchanged.
+- The fixtures of the styles changed for 1 195 of their 1 315 elements, on colours that the
+  element's kind does not draw alone, compared leaf by leaf with each kind's table; the images are
+  unchanged.

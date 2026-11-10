@@ -713,7 +713,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The editor's look has no italic faces, and its fonts hold no Greek.
   The look is built into the program, not cooked: the dev overlay carries it into a game's development build, and the game's build for shipping leaves it out.
 - **The look's foundations** ([ADR-0149](adr/0149-the-looks-foundations.md)).
-  A theme's values are typed only where a rule uses them: a name that holds a value of the wrong type is refused where a rule names it, not where the theme gives it; followed at [M6d.2b](stage-6d.md#m6d2b--tokens-defaults-and-styles-in-code), which types them by the tokens declared.
+  A theme's value is typed where the theme gives it only if it is one of the core's roles ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)); any other name that holds a value of the wrong type is refused where a rule names it; followed at [M6d.2b2](stage-6d.md#m6d2b2--styles-written-in-code), which types an application's own tokens too.
   The color functions are four, and work on whole colors, not on their lightness, chroma or hue alone.
   Transitions move colors, opacity and a section's height, not sizes, places nor what a layout gives.
   They go on only while the program gives the interface its time; a section that opens is laid out twice in the frame that starts it.
@@ -784,23 +784,29 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Screen readers scroll by an item or by what shows, not to an offset.
   `deny.toml` ignores three advisories of unmaintained crates that the adapter on Linux brings through zbus 5, zvariant, zbus_names and zvariant_derive, which zbus 6 holds: they go once AccessKit's adapter moves to zbus 6.
 - **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md), [ADR-0229](adr/0229-styles-typed-as-declarations.md)).
-  A field of the type `String` takes no named value; followed at [M6d.2b](stage-6d.md#m6d2b--tokens-defaults-and-styles-in-code), which types the themes' values.
+  A field of the type `String` takes no named value; followed at [M6d.2b2](stage-6d.md#m6d2b2--styles-written-in-code), which decides what a declaration names.
   An error of type in a cooked style sheet or theme is placed by its byte and the path of its part, not by its line; followed at [M6d.3](stage-6d.md#m6d3--documents-with-serde), which reads them with `serde`.
-  The code cannot set a field of an element's style to its default against a rule; followed at M6d.2b, which writes styles in code as declarations.
+  The code cannot set a field of an element's style to its default against a rule, a color to transparent among them; followed at M6d.2b2, which writes styles in code as declarations.
   The styles made are kept up to a number of the elements' own styles for each set of rules (`Ui::set_style`).
-  Past it, an element's style is composed again at each change, its declarations applied one by one; followed at M6d.2b, whose own styles change what the styles made are kept by.
+  Past it, an element's style is composed again at each change, its declarations applied one by one; followed at M6d.2b2, whose own styles change what the styles made are kept by.
   Selectors hold no combinators but an ancestor's kind or class.
-  An array, a list and an option of an element's own style replace the rules' whole, its height with its width; followed at M6d.2b.
+  An array, a list and an option of an element's own style replace the rules' whole, its height with its width; followed at M6d.2b2.
+- **uwui's own layers take no defaults, and selected text no color of its own** ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)).
+  The tooltip, the palette of commands, the notifications and the colour picker are containers that the look styles by their classes: without a look they draw no box, and their colors are their elements' kinds' alone.
+  A field's selected text keeps the text's color, over the selection drawn at 40 % of the role `highlight`: under forced colours, whose selection is opaque, it would not show.
+  The roles `canvas`, `button_text` and `link_text` are not declared, having no reader yet.
+  Followed at uwui's first stage, which writes these layers as parts and builds Plain and forced colours.
 - **A rule's part is read through reflection, then turned into declarations** ([ADR-0229](adr/0229-styles-typed-as-declarations.md)).
   `Ui::set_style` lays each rule's part over the default style, turns the result into a `Style`, and takes from it the fields that the part names.
-  Reading the editor's look allocates 7 % more than before the declarations, which the owner accepted until M6d.3 ([measurements](measurements.md#m6d2a-the-typed-cascade)).
+  Reading the editor's look allocates more than before the declarations, which the owner accepted until M6d.3, and more again since its themes give the core's roles, each value read parsing its theme again ([measurements](measurements.md#m6d2b1-the-roles-and-each-kinds-defaults)).
   A walk of `uwui`'s own beside reflection's refuses a color set by some of its channels.
   Followed at [M6d.3](stage-6d.md#m6d3--documents-with-serde), where the declarations are read by `serde`.
 - **A frame that styles every element again allocates many times for each** ([measurements](measurements.md#m6d2a-the-typed-cascade)).
   Under the editor's look, `ui.tree.look`'s frame after a change of colours allocates tens of megabytes for its 12 487 elements.
   The transitions that it starts take some of it; the cascade, the meaning and the drawing the rest.
   No budget bounds that frame.
-  Followed at [M6d.2b](stage-6d.md#m6d2b--tokens-defaults-and-styles-in-code), which changes what it does when tokens are resolved as elements are styled.
+  M6d.2b1 left it as it was: the roles are resolved when the themes are taken, not as elements are styled ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)).
+  Followed at [M6d.2b2](stage-6d.md#m6d2b2--styles-written-in-code), which has transitions read the derive's list of colours in place of their own.
 - **The system's fallback is checked only where the system has fonts** ([ADR-0136](adr/0136-the-interfaces-text.md)).
   Its test checks nothing, and says so, on a machine whose fontconfig, or whose lack of it, gives no font for Greek or Japanese, as CI's Linux runners may.
 - **An editor's journal grows across recoveries** ([ADR-0135](adr/0135-the-editors-program.md)).

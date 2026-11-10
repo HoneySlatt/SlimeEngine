@@ -11,7 +11,7 @@ use slime_reflect::{Kind, Reflect, Registry, Value};
 use super::Ui;
 use crate::style::Style;
 use crate::text::Fonts;
-use crate::theme::{self, Rule, Selector};
+use crate::theme::{self, KindName, Rule, Selector};
 
 /// A generator of numbers that repeats from its seed: xorshift, as `tests/dock.rs`'s.
 struct Numbers(u64);
@@ -181,7 +181,9 @@ fn random_rules_and_own_styles_compose_as_the_reflected_cascade_composed_them() 
             })
             .collect();
         let selected: Vec<u32> = (0..parts.len() as u32).collect();
-        let typed = ui.compose(&selected, &code);
+        // A container's base is the default style: it reads no color that a role gives.
+        let base = ui.base_of[KindName::Container.index()];
+        let typed = ui.compose(base, &selected, &code);
         let want = reflected(&registry, &parts, &code);
         assert!(
             same_bits(&registry, &typed, &want),

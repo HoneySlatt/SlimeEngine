@@ -18,6 +18,15 @@
 //! parts of a style that it draws, a check box its control's colors and its tick, a label its text.
 //! A rule that sets more is refused.
 //!
+//! The core declares *roles*, the colors that its components' defaults read, which every look
+//! gives under their names (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`):
+//! `canvas_text` for text and the marks beside it, `gray_text` for a placeholder and a shortcut,
+//! `button_face` for what a control is drawn on, `accent` for what it is filled with, `highlight`
+//! for a field's selection, `highlight_text` for a tick over the accent, `focus` for a ring that a
+//! component draws itself. Each is read once, as a color, when the interface takes its themes, and
+//! a value of another type refuses them; a role that the themes lack takes its fallback, another
+//! role's value or one of its own. Each kind's defaults take them, under every rule.
+//!
 //! A theme's value may name another, `"$name"`, and a color may be computed by a function, in
 //! OKLCH, where equal steps look equal (`docs/adr/0149-the-looks-foundations.md`): `mix($a, $b,
 //! 20%)`, the color a fifth of the way from `$a` to `$b`, its hue going the shorter way around, a
@@ -178,6 +187,135 @@ pub(crate) enum KindName {
     Surface,
 }
 
+impl KindName {
+    /// Every kind, in the order of the enum, by which [`KindName::index`] numbers them.
+    pub(crate) const ALL: [Self; 28] = [
+        Self::Container,
+        Self::Label,
+        Self::Image,
+        Self::Button,
+        Self::Scroll,
+        Self::List,
+        Self::TextField,
+        Self::NumberField,
+        Self::CheckBox,
+        Self::Slider,
+        Self::Section,
+        Self::TabBar,
+        Self::Tab,
+        Self::Split,
+        Self::Splitter,
+        Self::Menu,
+        Self::MenuBar,
+        Self::MenuItem,
+        Self::Choice,
+        Self::FloatingPanel,
+        Self::SectionHeader,
+        Self::ToggleButton,
+        Self::Segments,
+        Self::Segment,
+        Self::Progress,
+        Self::ColorWell,
+        Self::ColorPart,
+        Self::Surface,
+    ];
+
+    /// Its place in [`KindName::ALL`].
+    pub(crate) fn index(self) -> usize {
+        self as usize
+    }
+}
+
+/// A color that the core declares and every look gives, which its components' defaults read
+/// (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`). A theme gives it under its name,
+/// [`ColorRole::name`]; when the themes lack it, it takes its fallback, another role's value or one of its
+/// own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ColorRole {
+    /// Text, and the marks drawn beside it: a thumb, a chevron, a tick in a menu.
+    CanvasText,
+    /// Text of less weight: a field's placeholder, a menu item's shortcut.
+    GrayText,
+    /// What a control is drawn on: a box unchecked, a track, a handle.
+    ButtonFace,
+    /// What a control is filled with once checked, or up to its value.
+    Accent,
+    /// The fill behind the text that a field holds selected, drawn at
+    /// [`SELECTION_OPACITY`].
+    Highlight,
+    /// A mark drawn over [`ColorRole::Accent`]: a check box's tick.
+    HighlightText,
+    /// The ring of what holds the focus, where a component draws one itself.
+    Focus,
+}
+
+/// How opaque a field's selection is drawn over its text: a share of [`ColorRole::Highlight`]'s alpha, so
+/// that the text, drawn in its own color, still shows through it.
+pub(crate) const SELECTION_OPACITY: f32 = 0.4;
+
+impl ColorRole {
+    /// Every role, each after the roles that its fallback names.
+    pub(crate) const ALL: [Self; 7] = [
+        Self::CanvasText,
+        Self::GrayText,
+        Self::ButtonFace,
+        Self::Accent,
+        Self::Highlight,
+        Self::HighlightText,
+        Self::Focus,
+    ];
+
+    /// The name that themes give it under.
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::CanvasText => "canvas_text",
+            Self::GrayText => "gray_text",
+            Self::ButtonFace => "button_face",
+            Self::Accent => "accent",
+            Self::Highlight => "highlight",
+            Self::HighlightText => "highlight_text",
+            Self::Focus => "focus",
+        }
+    }
+
+    /// The value that it takes when the themes lack it, given the values of the roles before it:
+    /// the colors that the components drew before they took them from roles.
+    fn fallback(self, roles: &ColorRoles) -> LinearColor {
+        match self {
+            Self::CanvasText => LinearColor::WHITE,
+            Self::GrayText | Self::ButtonFace => LinearColor::rgba(0.3, 0.3, 0.3, 1.0),
+            Self::Accent => LinearColor::rgba(0.2, 0.4, 0.9, 1.0),
+            Self::Highlight | Self::Focus => roles.get(Self::Accent),
+            Self::HighlightText => roles.get(Self::CanvasText),
+        }
+    }
+}
+
+/// The value of each role, read from the themes or taken from its fallback.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ColorRoles([LinearColor; 7]);
+
+impl ColorRoles {
+    /// Every role at its fallback: what an interface given no theme draws in.
+    pub(crate) fn fallbacks() -> Self {
+        Self::from_given(|_| None)
+    }
+
+    /// The value of `role`.
+    pub(crate) fn get(&self, role: ColorRole) -> LinearColor {
+        self.0[role as usize]
+    }
+
+    /// The roles whose value `given` gives, the others at their fallbacks.
+    fn from_given(mut given: impl FnMut(ColorRole) -> Option<LinearColor>) -> Self {
+        let mut roles = Self([LinearColor::rgba(0.0, 0.0, 0.0, 0.0); 7]);
+        for role in ColorRole::ALL {
+            roles.0[role as usize] = given(role).unwrap_or_else(|| role.fallback(&roles));
+        }
+        roles
+    }
+}
+
 /// Whether an element of `kind` reads the field that `declaration` sets, as [`read_by`] lists it
 /// (`docs/adr/0229-styles-typed-as-declarations.md`).
 pub(crate) fn reads(kind: KindName, declaration: &StyleDeclaration) -> bool {
@@ -197,35 +335,64 @@ pub(crate) fn reads(kind: KindName, declaration: &StyleDeclaration) -> bool {
     } else {
         path.as_str()
     };
-    read_by(kind).contains(&leaf)
+    read_by(kind).iter().any(|(read, _)| *read == leaf)
+}
+
+/// The style that an element of `kind` starts from, under every rule: its colors from `roles`, as
+/// [`read_by`] gives them, and [`Style::default`]'s for everything else
+/// (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`).
+pub(crate) fn base(kind: KindName, roles: &ColorRoles) -> Style {
+    let mut style = Style::default();
+    for &(leaf, role) in read_by(kind) {
+        let Some(role) = role else {
+            continue;
+        };
+        let color = roles.get(role);
+        match leaf {
+            "text" => style.text.color = color,
+            "text.selection" => {
+                style.text.selection = LinearColor {
+                    a: color.a * SELECTION_OPACITY,
+                    ..color
+                };
+            }
+            "control.track" => style.control.track = color,
+            "control.fill" => style.control.fill = color,
+            "control.mark" => style.control.mark = color,
+            _ => unreachable!("`{leaf}` is no color, and names no role"),
+        }
+    }
+    style
 }
 
 /// The fields of a style that an element of `kind` reads, beyond its layout, its paint and its
 /// transition, which every kind reads, and a layer's backdrop, which a layer's root reads, always a
 /// container: `text` for its text's style and color, then each of the selection's, the control's
 /// and the icons' that it draws, in some of its states. A rule that names the kind and sets another
-/// is refused.
-pub(crate) fn read_by(kind: KindName) -> &'static [&'static str] {
-    const SECTION: &[&str] = &[
-        "text",
-        "control.size",
-        "control.radius",
-        "control.track",
-        "control.mark",
-        "icons.font",
-        "icons.down",
-        "icons.right",
-        "icons.left",
+/// is refused. Each color among them holds the role that the kind's defaults give it ([`base`]),
+/// the others none.
+pub(crate) fn read_by(kind: KindName) -> &'static [(&'static str, Option<ColorRole>)] {
+    use ColorRole::{Accent, ButtonFace, CanvasText, Focus, GrayText, Highlight, HighlightText};
+    const SECTION: &[(&str, Option<ColorRole>)] = &[
+        ("text", Some(CanvasText)),
+        ("control.size", None),
+        ("control.radius", None),
+        ("control.track", Some(ButtonFace)),
+        ("control.mark", Some(CanvasText)),
+        ("icons.font", None),
+        ("icons.down", None),
+        ("icons.right", None),
+        ("icons.left", None),
     ];
-    const BARS: &[&str] = &[
-        "control.size",
-        "control.radius",
-        "control.track",
-        "control.mark",
+    const BARS: &[(&str, Option<ColorRole>)] = &[
+        ("control.size", None),
+        ("control.radius", None),
+        ("control.track", Some(ButtonFace)),
+        ("control.mark", Some(CanvasText)),
     ];
     match kind {
         KindName::Label | KindName::Button | KindName::ToggleButton | KindName::Segment => {
-            &["text"]
+            &[("text", Some(CanvasText))]
         }
         KindName::Container
         | KindName::Image
@@ -238,67 +405,76 @@ pub(crate) fn read_by(kind: KindName) -> &'static [&'static str] {
         | KindName::Surface => &[],
         KindName::Scroll | KindName::List => BARS,
         KindName::TextField => &[
-            "text",
-            "text.selection",
-            "control.size",
-            "control.track",
-            "control.mark",
-            "icons.font",
-            "icons.search",
-            "icons.clear",
+            ("text", Some(CanvasText)),
+            ("text.selection", Some(Highlight)),
+            ("control.size", None),
+            ("control.track", Some(GrayText)),
+            ("control.mark", Some(CanvasText)),
+            ("icons.font", None),
+            ("icons.search", None),
+            ("icons.clear", None),
         ],
         KindName::NumberField => &[
-            "text",
-            "text.selection",
-            "control.size",
-            "control.track",
-            "control.mark",
+            ("text", Some(CanvasText)),
+            ("text.selection", Some(Highlight)),
+            ("control.size", None),
+            ("control.track", Some(GrayText)),
+            ("control.mark", Some(CanvasText)),
         ],
         KindName::CheckBox => &[
-            "text",
-            "control.size",
-            "control.radius",
-            "control.track",
-            "control.fill",
-            "control.mark",
-            "icons.font",
-            "icons.tick",
+            ("text", Some(CanvasText)),
+            ("control.size", None),
+            ("control.radius", None),
+            ("control.track", Some(ButtonFace)),
+            ("control.fill", Some(Accent)),
+            ("control.mark", Some(HighlightText)),
+            ("icons.font", None),
+            ("icons.tick", None),
         ],
         KindName::Slider => &[
-            "control.size",
-            "control.radius",
-            "control.track",
-            "control.fill",
-            "control.mark",
+            ("control.size", None),
+            ("control.radius", None),
+            ("control.track", Some(ButtonFace)),
+            ("control.fill", Some(Accent)),
+            ("control.mark", Some(CanvasText)),
         ],
         KindName::Section | KindName::FloatingPanel => SECTION,
-        KindName::Tab => &["text", "control.size", "control.track", "control.mark"],
-        KindName::Split => &["control.size", "control.track", "control.fill"],
+        KindName::Tab => &[
+            ("text", Some(CanvasText)),
+            ("control.size", None),
+            ("control.track", Some(ButtonFace)),
+            ("control.mark", Some(CanvasText)),
+        ],
+        KindName::Split => &[
+            ("control.size", None),
+            ("control.track", Some(ButtonFace)),
+            ("control.fill", Some(Accent)),
+        ],
         KindName::MenuItem => &[
-            "text",
-            "control.size",
-            "control.track",
-            "control.mark",
-            "icons.font",
-            "icons.tick",
-            "icons.right",
-            "icons.left",
+            ("text", Some(CanvasText)),
+            ("control.size", None),
+            ("control.track", Some(GrayText)),
+            ("control.mark", Some(CanvasText)),
+            ("icons.font", None),
+            ("icons.tick", None),
+            ("icons.right", None),
+            ("icons.left", None),
         ],
         KindName::Choice => &[
-            "text",
-            "control.size",
-            "control.mark",
-            "icons.font",
-            "icons.down",
+            ("text", Some(CanvasText)),
+            ("control.size", None),
+            ("control.mark", Some(CanvasText)),
+            ("icons.font", None),
+            ("icons.down", None),
         ],
         KindName::Progress => &[
-            "control.size",
-            "control.radius",
-            "control.track",
-            "control.fill",
+            ("control.size", None),
+            ("control.radius", None),
+            ("control.track", Some(ButtonFace)),
+            ("control.fill", Some(Accent)),
         ],
-        KindName::ColorWell => &["control.size", "control.radius"],
-        KindName::ColorPart => &["control.radius", "control.fill"],
+        KindName::ColorWell => &[("control.size", None), ("control.radius", None)],
+        KindName::ColorPart => &[("control.radius", None), ("control.fill", Some(Focus))],
     }
 }
 
@@ -343,15 +519,47 @@ pub(crate) fn registry() -> Registry {
     registry
 }
 
+/// What an interface is styled with: its rules, and the value of each role.
+pub(crate) struct Styling {
+    /// The rules of the style sheets, their themes' values in them.
+    pub(crate) rules: Vec<Rule>,
+    /// The value of each role, the themes' or its fallback.
+    pub(crate) roles: ColorRoles,
+    /// The roles that the themes lack, which took their fallbacks.
+    pub(crate) lacking: Vec<ColorRole>,
+}
+
 /// Reads the rules of `sheets`, in their order and the order of their files, their names replaced
-/// by the values of `themes`, the last that gives a name giving its value.
-pub(crate) fn rules(
+/// by the values of `themes`, the last that gives a name giving its value; and the value of each
+/// role, read once, as a color (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`).
+pub(crate) fn read(
     registry: &Registry,
     sheets: &[StyleSheet],
     themes: &[Theme],
-) -> Result<Vec<Rule>, DocumentError> {
+) -> Result<Styling, DocumentError> {
     let values = Values::new(registry, themes)?;
     values.check()?;
+    let mut lacking = Vec::new();
+    let mut fault = None;
+    let roles = ColorRoles::from_given(|role| {
+        if fault.is_some() {
+            return None;
+        }
+        if !values.owners.contains_key(role.name()) {
+            lacking.push(role);
+            return None;
+        }
+        match values.role(role) {
+            Ok(color) => Some(color),
+            Err(error) => {
+                fault = Some(error);
+                None
+            }
+        }
+    });
+    if let Some(error) = fault {
+        return Err(error);
+    }
     // What every rule's part is laid over, to read the values that it sets whole.
     let default = Style::default().to_value();
     let mut rules = Vec::new();
@@ -407,7 +615,11 @@ pub(crate) fn rules(
             });
         }
     }
-    Ok(rules)
+    Ok(Styling {
+        rules,
+        roles,
+        lacking,
+    })
 }
 
 /// The declarations of what `part` sets, a part of a style as reflection reads one, in its order,
@@ -523,22 +735,45 @@ impl<'a> Values<'a> {
                 Ok(())
             };
             if let Err(problem) = checked {
-                let theme = &self.themes[index];
-                let document =
-                    theme
-                        .source
-                        .parse(self.registry)
-                        .map_err(|error| DocumentError {
-                            document: theme.name.clone(),
-                            error,
-                        })?;
-                return Err(DocumentError {
-                    document: theme.name.clone(),
-                    error: document.error_at(&[name], Problem::Invalid(problem)),
-                });
+                return Err(self.fault(index, name, problem));
             }
         }
         Ok(())
+    }
+
+    /// The value that the themes give `role`, read as a color.
+    ///
+    /// # Errors
+    ///
+    /// The fault, placed at the role's name in the theme that gives it, if its value is no color.
+    fn role(&self, role: ColorRole) -> Result<LinearColor, DocumentError> {
+        let name = role.name();
+        let index = self.owners[name];
+        self.named(name, "LinearColor")
+            .and_then(|value| {
+                LinearColor::from_value(&value)
+                    .map_err(|_| format!("the value `{name}` is no color"))
+            })
+            .map_err(|problem| {
+                self.fault(
+                    index,
+                    name,
+                    format!("`{name}` is a role, a color that the components read: {problem}"),
+                )
+            })
+    }
+
+    /// `problem` placed at the value `name` of the theme of `index`.
+    fn fault(&self, index: usize, name: &str, problem: String) -> DocumentError {
+        let theme = &self.themes[index];
+        let error = match theme.source.parse(self.registry) {
+            Ok(document) => document.error_at(&[name], Problem::Invalid(problem)),
+            Err(error) => error,
+        };
+        DocumentError {
+            document: theme.name.clone(),
+            error,
+        }
     }
 
     /// Follows `text`, a name or a function, as far as the theme's texts go: the names it gives

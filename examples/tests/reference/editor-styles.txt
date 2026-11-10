@@ -1,103 +1,103 @@
-yard editor 00bd7abcc033c514
-yard editor/window f5706340a558653e
-yard editor/window/menus ba8bdcfe49e42073
-yard editor/window/menus/File caa236f6a7fe5fe9
-yard editor/window/menus/Edit caa236f6a7fe5fe9
-yard editor/window/menus/View caa236f6a7fe5fe9
-yard editor/window/menus/Play caa236f6a7fe5fe9
-yard editor/window/menus/Help caa236f6a7fe5fe9
-yard editor/window/dock 339e50c53ca42884
-yard editor/window/dock/split hierarchy 080fe08325201ab5
-yard editor/window/dock/split hierarchy/split hierarchy 7465ea91417e3a3b
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy 59ede2a86501a89c
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/tabs 8b9dbb51523578ef
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/tabs/hierarchy c01da3154ed8ca23
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy 40f7fe4bdb610a71
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content a89737b70e6d81b2
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/search 933235c41527301b
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows 19a1b8f6849ed500
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#0 00bd7abcc033c514
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#0/content 3ab606de39f24084
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#0/content/indent 63087be8d36dc27c
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#0/content/fold 8b0a02cf1c946c89
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#0/content/name ced8f2bcbbb24c5f
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#0/content/eye 196017bb9f95e169
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#0/content/lock 196017bb9f95e169
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1 00bd7abcc033c514
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1/content 3ab606de39f24084
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1/content/indent 890bbd810a9aa59d
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1/content/fold 8b0a02cf1c946c89
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1/content/name ced8f2bcbbb24c5f
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1/content/placement 7ad292424061c9df
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1/content/eye 196017bb9f95e169
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1/content/lock 196017bb9f95e169
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2 00bd7abcc033c514
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2/content 3ab606de39f24084
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2/content/indent 890bbd810a9aa59d
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2/content/fold 8b0a02cf1c946c89
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2/content/name ced8f2bcbbb24c5f
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2/content/placement 7ad292424061c9df
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2/content/eye 196017bb9f95e169
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2/content/lock 196017bb9f95e169
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3 00bd7abcc033c514
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3/content 3ab606de39f24084
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3/content/indent 890bbd810a9aa59d
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3/content/fold 8b0a02cf1c946c89
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3/content/name ced8f2bcbbb24c5f
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3/content/placement 7ad292424061c9df
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3/content/eye 196017bb9f95e169
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3/content/lock 196017bb9f95e169
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4 00bd7abcc033c514
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4/content 3ab606de39f24084
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4/content/indent 890bbd810a9aa59d
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4/content/fold 8b0a02cf1c946c89
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4/content/name ced8f2bcbbb24c5f
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4/content/placement 7ad292424061c9df
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4/content/eye 196017bb9f95e169
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4/content/lock 196017bb9f95e169
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5 00bd7abcc033c514
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5/content 3ab606de39f24084
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5/content/indent 890bbd810a9aa59d
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5/content/fold 8b0a02cf1c946c89
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5/content/name ced8f2bcbbb24c5f
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5/content/placement 7ad292424061c9df
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5/content/eye 196017bb9f95e169
-yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5/content/lock 196017bb9f95e169
-yard editor/window/dock/split hierarchy/split hierarchy/border components 8f76a6805583c948
-yard editor/window/dock/split hierarchy/split hierarchy/stack components 1f65995f7e8dde11
-yard editor/window/dock/split hierarchy/split hierarchy/stack components/tabs 8b9dbb51523578ef
-yard editor/window/dock/split hierarchy/split hierarchy/stack components/tabs/components c01da3154ed8ca23
-yard editor/window/dock/split hierarchy/split hierarchy/stack components/panel components 40f7fe4bdb610a71
-yard editor/window/dock/split hierarchy/split hierarchy/stack components/panel components/content 770a0604fff92c3c
-yard editor/window/dock/split hierarchy/split hierarchy/stack components/panel components/content/selected ac836712551e29e2
-yard editor/window/dock/split hierarchy/split hierarchy/stack components/panel components/content/selected/none 00b3e7010e73b0ca
-yard editor/window/dock/split hierarchy/border viewport facab0f4693f7564
-yard editor/window/dock/split hierarchy/split viewport 2f1f7570f594d06e
-yard editor/window/dock/split hierarchy/split viewport/stack viewport 686f41b91ebe4082
-yard editor/window/dock/split hierarchy/split viewport/stack viewport/tabs 8b9dbb51523578ef
-yard editor/window/dock/split hierarchy/split viewport/stack viewport/tabs/viewport c01da3154ed8ca23
-yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport 40f7fe4bdb610a71
-yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play 78f5311756c46e86
-yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/start 590fd1968a18e031
-yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/pause 590fd1968a18e031
-yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/step 590fd1968a18e031
-yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/stop 590fd1968a18e031
-yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/speeds a6bb70220f182185
-yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/speeds/¼× 041d4eb8b703b06a
-yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/speeds/½× 041d4eb8b703b06a
-yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/speeds/1× 66539d14038d1456
-yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/speeds/2× 041d4eb8b703b06a
-yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/viewports cfe1d269bffb34c5
-yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/viewports/viewport e82dfb381a3ce5d8
-yard editor/window/dock/split hierarchy/split viewport/border history 8f76a6805583c948
-yard editor/window/dock/split hierarchy/split viewport/stack history 54a8d18c6cc99913
-yard editor/window/dock/split hierarchy/split viewport/stack history/tabs 8b9dbb51523578ef
-yard editor/window/dock/split hierarchy/split viewport/stack history/tabs/history c01da3154ed8ca23
-yard editor/window/dock/split hierarchy/split viewport/stack history/tabs/console c15a4f7e731afa93
-yard editor/window/dock/split hierarchy/split viewport/stack history/panel history 40f7fe4bdb610a71
-yard editor/window/dock/split hierarchy/split viewport/stack history/panel history/content 770a0604fff92c3c
-yard editor/window/dock/split hierarchy/split viewport/stack history/panel history/content/#0 fd18d1d8845f4b0b
-yard editor/window/status 297b9f5bf4aeebc4
-yard editor/window/status/level f739cc69d6ff82c8
-yard editor/window/status/unwritten f739cc69d6ff82c8
-yard editor/window/status/selected f739cc69d6ff82c8
+yard editor 2969d1deccc53132
+yard editor/window 944eba97611379e4
+yard editor/window/menus 37e351f97809a071
+yard editor/window/menus/File d791c24c3f678769
+yard editor/window/menus/Edit d791c24c3f678769
+yard editor/window/menus/View d791c24c3f678769
+yard editor/window/menus/Play d791c24c3f678769
+yard editor/window/menus/Help d791c24c3f678769
+yard editor/window/dock 7820b994b51061a2
+yard editor/window/dock/split hierarchy 4f6e5931bad5a1d3
+yard editor/window/dock/split hierarchy/split hierarchy f7f55e63cb90d509
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy dd2a2e94aed7928a
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/tabs 8356611c26063025
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/tabs/hierarchy 11312f94038ddfef
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy 7f4deaeb285cd2f7
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content e87da571861efb30
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/search ed2f95c8d2efea13
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows 46ef7b28b7da47f0
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#0 2969d1deccc53132
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#0/content 7f386fadb25e79a2
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#0/content/indent fbd8042e072d2eea
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#0/content/fold 7d60b34f134bd0ff
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#0/content/name f078d43e11fe3315
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#0/content/eye 0945f77867b619df
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#0/content/lock 0945f77867b619df
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1 2969d1deccc53132
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1/content 7f386fadb25e79a2
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1/content/indent 6b96f7815534f98b
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1/content/fold 7d60b34f134bd0ff
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1/content/name f078d43e11fe3315
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1/content/placement 9c7273c396adb095
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1/content/eye 0945f77867b619df
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#1/content/lock 0945f77867b619df
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2 2969d1deccc53132
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2/content 7f386fadb25e79a2
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2/content/indent 6b96f7815534f98b
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2/content/fold 7d60b34f134bd0ff
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2/content/name f078d43e11fe3315
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2/content/placement 9c7273c396adb095
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2/content/eye 0945f77867b619df
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#2/content/lock 0945f77867b619df
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3 2969d1deccc53132
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3/content 7f386fadb25e79a2
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3/content/indent 6b96f7815534f98b
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3/content/fold 7d60b34f134bd0ff
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3/content/name f078d43e11fe3315
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3/content/placement 9c7273c396adb095
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3/content/eye 0945f77867b619df
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#3/content/lock 0945f77867b619df
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4 2969d1deccc53132
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4/content 7f386fadb25e79a2
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4/content/indent 6b96f7815534f98b
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4/content/fold 7d60b34f134bd0ff
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4/content/name f078d43e11fe3315
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4/content/placement 9c7273c396adb095
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4/content/eye 0945f77867b619df
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#4/content/lock 0945f77867b619df
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5 2969d1deccc53132
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5/content 7f386fadb25e79a2
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5/content/indent 6b96f7815534f98b
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5/content/fold 7d60b34f134bd0ff
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5/content/name f078d43e11fe3315
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5/content/placement 9c7273c396adb095
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5/content/eye 0945f77867b619df
+yard editor/window/dock/split hierarchy/split hierarchy/stack hierarchy/panel hierarchy/content/rows/#5/content/lock 0945f77867b619df
+yard editor/window/dock/split hierarchy/split hierarchy/border components e5cf45a528f4243e
+yard editor/window/dock/split hierarchy/split hierarchy/stack components 35091da1ebfe9217
+yard editor/window/dock/split hierarchy/split hierarchy/stack components/tabs 8356611c26063025
+yard editor/window/dock/split hierarchy/split hierarchy/stack components/tabs/components 11312f94038ddfef
+yard editor/window/dock/split hierarchy/split hierarchy/stack components/panel components 7f4deaeb285cd2f7
+yard editor/window/dock/split hierarchy/split hierarchy/stack components/panel components/content 5dfee009bbb5abf4
+yard editor/window/dock/split hierarchy/split hierarchy/stack components/panel components/content/selected 9cf513e9329c6820
+yard editor/window/dock/split hierarchy/split hierarchy/stack components/panel components/content/selected/none b70b9c580ede5f58
+yard editor/window/dock/split hierarchy/border viewport b280fd5c1f524902
+yard editor/window/dock/split hierarchy/split viewport dacac25d0b3d9154
+yard editor/window/dock/split hierarchy/split viewport/stack viewport 5d230c52d9cbf3c0
+yard editor/window/dock/split hierarchy/split viewport/stack viewport/tabs 8356611c26063025
+yard editor/window/dock/split hierarchy/split viewport/stack viewport/tabs/viewport 11312f94038ddfef
+yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport 7f4deaeb285cd2f7
+yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play dbdae8a47bb0d37c
+yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/start 88c3dc22e9928db7
+yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/pause 88c3dc22e9928db7
+yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/step 88c3dc22e9928db7
+yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/stop 88c3dc22e9928db7
+yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/speeds 733912e70fed9023
+yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/speeds/¼× a89ea23c69dbf878
+yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/speeds/½× a89ea23c69dbf878
+yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/speeds/1× 71663b791d29ca0c
+yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/play/speeds/2× a89ea23c69dbf878
+yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/viewports beeee1adcf28cc63
+yard editor/window/dock/split hierarchy/split viewport/stack viewport/panel viewport/viewports/viewport e416e7afc135018e
+yard editor/window/dock/split hierarchy/split viewport/border history e5cf45a528f4243e
+yard editor/window/dock/split hierarchy/split viewport/stack history b2693815b6072711
+yard editor/window/dock/split hierarchy/split viewport/stack history/tabs 8356611c26063025
+yard editor/window/dock/split hierarchy/split viewport/stack history/tabs/history 11312f94038ddfef
+yard editor/window/dock/split hierarchy/split viewport/stack history/tabs/console dbd6ca77ef99091f
+yard editor/window/dock/split hierarchy/split viewport/stack history/panel history 7f4deaeb285cd2f7
+yard editor/window/dock/split hierarchy/split viewport/stack history/panel history/content 5dfee009bbb5abf4
+yard editor/window/dock/split hierarchy/split viewport/stack history/panel history/content/#0 0c4a71a584316b19
+yard editor/window/status 9ce7fd81219787e2
+yard editor/window/status/level 4d926b8eaa6fddbe
+yard editor/window/status/unwritten 4d926b8eaa6fddbe
+yard editor/window/status/selected 4d926b8eaa6fddbe

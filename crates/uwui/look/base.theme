@@ -1,6 +1,7 @@
 # The base theme of the editor's look (docs/adr/0149-the-looks-foundations.md): the scales that every
-# theme of colors shares, in logical pixels and seconds. A theme of colors, `dark.theme`,
-# `light.theme` or `contrast.theme`, stacks on it, and `compact.theme` on them for a denser layout.
+# theme of colors shares, in logical pixels and seconds, and the core's roles named after the colors
+# that each theme of colors gives. A theme of colors, `dark.theme`, `light.theme` or
+# `contrast.theme`, stacks on it, and `compact.theme` on them for a denser layout.
 
 # Spacings, on a grid of 4 pixels, and half a step below it.
 space_xs = 2
@@ -46,3 +47,12 @@ notification_width = 320
 # How long a change takes: one that answers the user, one that moves things.
 fast = 0.12
 slow = 0.2
+
+# The core's roles, the colors that uwui's components read by default
+# (docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md), taken from the theme of colors
+# stacked on it, which gives `accent` and `focus` under their own names.
+canvas_text = "$text"
+gray_text = "$muted"
+button_face = "$track"
+highlight = "$accent"
+highlight_text = "$mark"

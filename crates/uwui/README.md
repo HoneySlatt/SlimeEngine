@@ -43,7 +43,11 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   over the rules (`docs/adr/0149-the-looks-foundations.md`). A rule becomes a list of typed
   declarations, which the cascade applies to a `Style` without reflection; a rule sets a color
   whole, and a rule for a kind sets only what that kind reads of a style
-  (`docs/adr/0229-styles-typed-as-declarations.md`).
+  (`docs/adr/0229-styles-typed-as-declarations.md`). An element's style starts from its kind's
+  defaults, under every rule, which hold no color of their own: they take the core's seven
+  *roles*, `canvas_text`, `accent` and the others, which each look gives and which fall back to
+  the colors that an interface given no theme draws in
+  (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`).
 - A style's `transition` moves a change of it over time: its colors and its opacity, and a
   section's height as it opens or folds, over the time that the program gives each frame
   (`Ui::advance`), which `Ui::set_reduced_motion` drops; a frame says whether one goes on

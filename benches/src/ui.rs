@@ -555,12 +555,12 @@ fn latin() -> Result<Fonts, String> {
     Ok(fonts)
 }
 
-/// The style of a text of the tree's benchmarks.
+/// The style of a text of the tree's benchmarks: its color left to its kind's, so that the rules
+/// that give one win (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`).
 fn look() -> Style {
     Style {
         text: TextLook {
             style: style(&SCRIPTS[0]),
-            color: LinearColor::WHITE,
             ..TextLook::default()
         },
         ..Style::default()

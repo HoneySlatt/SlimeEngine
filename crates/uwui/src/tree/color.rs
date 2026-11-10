@@ -23,7 +23,7 @@ const STRIP: f32 = 14.0;
 const KEY_STEP: f32 = 0.01;
 
 /// The colors of the checkerboard that shows through a color's alpha.
-const CHECKS: [LinearColor; 2] = [
+pub(super) const CHECKS: [LinearColor; 2] = [
     LinearColor::rgb(0.8, 0.8, 0.8),
     LinearColor::rgb(0.45, 0.45, 0.45),
 ];

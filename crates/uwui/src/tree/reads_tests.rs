@@ -39,7 +39,7 @@
 //! given to it, so that a kind that reads nothing is shown to have been given them.
 //!
 //! Adding a kind to [`KindName`] makes this file fail to compile, as [`configurations`] matches
-//! every kind, and the test fail until the kind is added to [`KINDS`], as it counts the enum's
+//! every kind, and the test fail until the kind is added to [`KindName::ALL`], as it counts the enum's
 //! variants through reflection. A failure names the kind, the leaf and the configuration, with the
 //! first primitive that differs. The fonts of the look come with the feature `editor-look`, which
 //! the test needs.
@@ -59,41 +59,7 @@ use crate::style::{Dimension, FlexDirection, Sides, Style, StyleDeclaration};
 use crate::text::Fonts;
 use crate::theme::{self, KindName};
 
-/// Every kind of element that the test tries. The test counts the variants of [`KindName`] through
-/// reflection and compares: a kind missing here fails it. [`configurations`] matches each kind, so
-/// a kind missing there does not compile.
-const KINDS: &[KindName] = &[
-    KindName::Container,
-    KindName::Label,
-    KindName::Image,
-    KindName::Button,
-    KindName::Scroll,
-    KindName::List,
-    KindName::TextField,
-    KindName::NumberField,
-    KindName::CheckBox,
-    KindName::Slider,
-    KindName::Section,
-    KindName::TabBar,
-    KindName::Tab,
-    KindName::Split,
-    KindName::Splitter,
-    KindName::Menu,
-    KindName::MenuBar,
-    KindName::MenuItem,
-    KindName::Choice,
-    KindName::FloatingPanel,
-    KindName::SectionHeader,
-    KindName::ToggleButton,
-    KindName::Segments,
-    KindName::Segment,
-    KindName::Progress,
-    KindName::ColorWell,
-    KindName::ColorPart,
-    KindName::Surface,
-];
-
-const DIRECTIONS: [LayoutDirection; 2] =
+pub(super) const DIRECTIONS: [LayoutDirection; 2] =
     [LayoutDirection::LeftToRight, LayoutDirection::RightToLeft];
 
 /// A color given as sRGB's 0xRRGGBB, opaque.
@@ -239,7 +205,7 @@ const BACKDROP: Leaf = Leaf {
 
 /// The style whose leaves, those of [`LEAVES`] and the backdrop, all hold a visible value. Elements
 /// take it as their own style: no style sheet applies.
-fn base_style() -> Style {
+pub(super) fn base_style() -> Style {
     let mut style = Style::default();
     style.text.style.fonts = vec![TEXT_FAMILY.to_owned()];
     style.text.style.size = 16.0;
@@ -308,14 +274,14 @@ fn column() -> Style {
 
 /// How a kind is shown: a name that failures give, and what builds the subject under a root, in
 /// the state to draw, with the style given, which holds the leaves to try.
-struct Configuration {
-    name: &'static str,
+pub(super) struct Configuration {
+    pub(super) name: &'static str,
     /// Whether the subject is given the font of icons: a bare one draws the shapes that controls
     /// draw without it.
-    icons: bool,
+    pub(super) icons: bool,
     /// Builds the subject, an element of the kind under test, under `root`, and gives it. May
     /// draw frames, open layers and set states.
-    show: fn(&mut Ui, ElementId, &Style) -> ElementId,
+    pub(super) show: fn(&mut Ui, ElementId, &Style) -> ElementId,
 }
 
 fn configuration(
@@ -394,7 +360,7 @@ fn label(children: &mut Children<'_>, key: &'static str) -> ElementId {
 }
 
 /// The configurations of `kind`: what it may draw, from a reading of the code that draws it.
-fn configurations(kind: KindName) -> Vec<Configuration> {
+pub(super) fn configurations(kind: KindName) -> Vec<Configuration> {
     match kind {
         KindName::Container => vec![
             configuration("a box holding a label", |ui, root, leaves| {
@@ -1349,14 +1315,18 @@ fn every_kind_draws_the_leaves_that_the_table_says_it_reads() {
         other => panic!("KindName is an enum, not {other:?}"),
     };
     assert_eq!(
-        KINDS.len(),
+        KindName::ALL.len(),
         variants,
-        "KindName has {variants} kinds, and KINDS lists {}: add the kind to KINDS and to \
+        "KindName has {variants} kinds, and KindName::ALL lists {}: add the kind to it and to \
          `configurations`",
-        KINDS.len()
+        KindName::ALL.len()
     );
-    for (place, kind) in KINDS.iter().enumerate() {
-        assert!(!KINDS[..place].contains(kind), "{kind:?} is listed once");
+    for (place, kind) in KindName::ALL.iter().enumerate() {
+        assert_eq!(
+            kind.index(),
+            place,
+            "{kind:?} lies in KindName::ALL in the enum's order"
+        );
     }
     let base = base_style();
     // Every leaf that the table can name, by group.
@@ -1366,7 +1336,7 @@ fn every_kind_draws_the_leaves_that_the_table_says_it_reads() {
         .map(|leaf| leaf.group)
         .collect::<BTreeSet<_>>();
     let mut problems = Vec::new();
-    for &kind in KINDS {
+    for kind in KindName::ALL {
         let (tried, observations) = observe(kind, &base);
         for &group in &groups {
             let drawn: Vec<&Observation> = observations
@@ -1394,7 +1364,7 @@ fn every_kind_draws_the_leaves_that_the_table_says_it_reads() {
                 }
                 (!drawn.is_empty(), "the drawing shows")
             } else {
-                let listed = theme::read_by(kind).contains(&group);
+                let listed = theme::read_by(kind).iter().any(|(read, _)| *read == group);
                 if listed && drawn.is_empty() {
                     let names: Vec<&str> = tried.iter().map(|tried| tried.name.as_str()).collect();
                     problems.push(format!(
