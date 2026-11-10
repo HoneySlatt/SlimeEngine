@@ -2341,3 +2341,25 @@ What it says:
 - The fixtures of the styles changed for 1 195 of their 1 315 elements, on colours that the
   element's kind does not draw alone, compared leaf by leaf with each kind's table; the images are
   unchanged.
+
+GitHub's hosted runners, on 2026-11-10, each run green, on `ded2bc7`:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 57 s |
+| `check (headless)` | 13 min 53 s |
+| `check (windowed)` | 8 min 1 s |
+| `check (game)` | 9 min 3 s |
+| `windows (tests)` | 12 min 34 s |
+| `windows (render)` | 7 min 19 s |
+| `windows (game)` | 7 min 18 s |
+| `windows-release` | 12 min 45 s |
+| Docs' `links` | 16 s |
+| uwui's `check`, on its `7c5ce7a` | 17 s |
+
+Every job stays within its limit of 20 minutes. `check (headless)` took 13 min 53 s, 3 min less than
+at M6d.2a: the runners' speed varies by minutes from run to run, and this milestone adds to it only
+the roles' tests, a second or so. `windows (tests)` ran both fixtures of styles on Windows.
+
+The times of compiling were not measured: the milestone adds no crate and no dependency, and the
+machine was busy throughout, a game and other sessions' builds running.

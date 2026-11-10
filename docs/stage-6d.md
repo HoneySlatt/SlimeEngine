@@ -83,9 +83,9 @@ in git.
   done, [M6d.2a](#m6d2a--the-typed-cascade), the typed cascade;
   [M6d.2b](#m6d2b--tokens-defaults-and-styles-in-code), tokens, defaults and styles in code, cut
   in two at its start, on the same day
-  ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)): in progress,
-  [M6d.2b1](PLAN.md#m6d2b1--the-roles-and-each-kinds-defaults), the roles and each kind's
-  defaults; next, [M6d.2b2](#m6d2b2--styles-written-in-code), styles written in code.
+  ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)): done,
+  [M6d.2b1](#m6d2b1--the-roles-and-each-kinds-defaults), the roles and each kind's defaults;
+  next, [M6d.2b2](#m6d2b2--styles-written-in-code), styles written in code.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -759,9 +759,60 @@ The second half of M6d.2 ([ADR-0229](adr/0229-styles-typed-as-declarations.md)).
 
 Cut in two at its start, on 2026-11-10, the theme's side first: the styles written in code read
 what the roles and the defaults decide
-([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)). M6d.2b1, the roles and each
-kind's defaults, is in [`PLAN.md`](PLAN.md#m6d2b1--the-roles-and-each-kinds-defaults) while it is
-in progress.
+([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)).
+
+### M6d.2b1 — The roles and each kind's defaults
+
+The first half of M6d.2b, cut in two at its start, on 2026-11-10
+([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)). It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** No colour hidden in a component's defaults: each kind's colours taken from its look
+  through the core's roles.
+- **Crates.** `uwui`, `slime-benches`, the examples. The editor's and the game's checks run
+  unchanged.
+- **Delivers.**
+  - The core's seven roles and their fallbacks, read once as colours when the interface takes its
+    themes; a role's value of another type refuses the themes; a role that the themes lack takes
+    its fallback, with one warning for each role and interface, given only when themes are given.
+  - Each kind's base style from the roles, in one table with what each kind reads;
+    `Style::default()` without a colour but transparent; the styles made shared by kind too.
+  - The look's themes and the `interface` example's giving each role.
+  - The bench's own style that writes white text written again, since it would now win over the
+    rules.
+- **Done when.**
+  - A test draws every kind, in each configuration of the test of what each kind reads, under a
+    theme that gives each role a colour of its own: every colour drawn is a role's, transparent,
+    or a literal that the test names; every colour that a kind reads draws its role.
+  - Tests: an interface given no theme draws in the fallbacks; a role's value of another type is
+    refused, by its theme and name; a role lacking takes its fallback and is warned of once.
+  - The look's image tests unchanged; the two fixtures of styles recorded again where a kind's base
+    changed a leaf that it does not draw, the images proving that nothing drawn changed; the
+    counters unchanged but those of reading the look's documents, recorded again; CI green.
+- **How to test.** `cargo test -p uwui --features editor-look`; `cargo test -p slime-examples
+  --test widgets --test editor`; `cargo run -p slime-benches -- --counters`; `scripts/check.sh`.
+- **Measured.** `ui.tree.editor`, `ui.tree.look` (a frame after the look's colours changed, the
+  frames of the transition that it starts) and the editor's counters, before and after, on the
+  owner's machine at rest.
+- **Result.** Done on 2026-11-10, CI green
+  ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)):
+  - The core declares seven roles, read once as colours when the interface takes its themes. A
+    role's value of another type, or a colour with a channel that is no finite number, refuses
+    the themes; a role lacking takes its fallback, today's colour, with one warning.
+  - Each kind starts from a base made from the roles, in one table with what the kind reads;
+    `Style::default()` holds no colour but transparent; the styles made are shared by base too.
+  - A test draws every kind, in each configuration of the test of what each kind reads, under a
+    theme that gives each role a colour of its own: every colour drawn is a role's, transparent,
+    or a literal that it names, the picker's content and markers and an image untinted; every
+    colour that a kind reads is drawn in its role.
+  - The images are unchanged. The fixtures of the styles were recorded again: 1 195 of their
+    1 315 elements changed, only on colours that their kind does not draw.
+  - No frame changed beyond the runs' spread. Reading the look's documents allocates 4 % more,
+    and the frame of the change 288 bytes more, the card having expected only the first; the
+    machine was not at rest during the measures
+    ([measurements](measurements.md#m6d2b1-the-roles-and-each-kinds-defaults)).
+  - Code that writes a colour transparent now takes its kind's role even where no rule selects
+    the element: a known debt widened, followed at M6d.2b2 ([`debt.md`](debt.md)).
 
 ### M6d.2b2 — Styles written in code
 

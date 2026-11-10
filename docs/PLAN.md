@@ -19,13 +19,16 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 - Stage 6d, uwui leaving the engine, released with 0.7: its whole plan in
   [`stage-6d.md`](stage-6d.md).
-- Done: M6d.0a to M6d.2a, in the [status](#status) below: M6d.1, how an application is
+- Done: M6d.0a to M6d.2b1, in the [status](#status) below: M6d.1, how an application is
   written, closed on 2026-11-10; [M6d.2a](stage-6d.md#m6d2a--the-typed-cascade), the typed
   cascade, the first half of M6d.2, the same day
-  ([ADR-0229](adr/0229-styles-typed-as-declarations.md)). In progress:
-  [M6d.2b1](#m6d2b1--the-roles-and-each-kinds-defaults), the roles and each kind's defaults, the
-  first half of [M6d.2b](stage-6d.md#m6d2b--tokens-defaults-and-styles-in-code), cut in two at
-  its start ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)).
+  ([ADR-0229](adr/0229-styles-typed-as-declarations.md)); then
+  [M6d.2b1](stage-6d.md#m6d2b1--the-roles-and-each-kinds-defaults), the roles and each kind's
+  defaults, the first half of
+  [M6d.2b](stage-6d.md#m6d2b--tokens-defaults-and-styles-in-code), cut in two at its start
+  ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)). Next:
+  [M6d.2b2](stage-6d.md#m6d2b2--styles-written-in-code), styles written in code, its questions put
+  at its start.
 - Waiting for the owner: the deletion of the branch `m6d1b-bench`, and the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
 - After Stage 6d: uwui's stages, Stage 6e, the rest of Stage 6c ([`stage-6c.md`](stage-6c.md)),
@@ -53,7 +56,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.1d2b1 — An application's start and its look](stage-6d.md#m6d1d2b1--an-applications-start-and-its-look) | Done |
 | [M6d.1d2b2 — The time that motion reads](stage-6d.md#m6d1d2b2--the-time-that-motion-reads) | Done |
 | [M6d.2a — The typed cascade](stage-6d.md#m6d2a--the-typed-cascade) | Done |
-| [M6d.2b1 — The roles and each kind's defaults](#m6d2b1--the-roles-and-each-kinds-defaults) | In progress |
+| [M6d.2b1 — The roles and each kind's defaults](stage-6d.md#m6d2b1--the-roles-and-each-kinds-defaults) | Done |
 | [M6d.2b2 — Styles written in code](stage-6d.md#m6d2b2--styles-written-in-code) | Planned |
 | [M6d.3 — Documents with serde](stage-6d.md#m6d3--documents-with-serde) | Planned |
 | [M6d.4 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Planned |
@@ -66,40 +69,6 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.2b1 — The roles and each kind's defaults
-
-The first half of M6d.2b, cut in two at its start, on 2026-11-10
-([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)). It follows the rules of
-[every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** No colour hidden in a component's defaults: each kind's colours taken from its look
-  through the core's roles.
-- **Crates.** `uwui`, `slime-benches`, the examples. The editor's and the game's checks run
-  unchanged.
-- **Delivers.**
-  - The core's seven roles and their fallbacks, read once as colours when the interface takes its
-    themes; a role's value of another type refuses the themes; a role that the themes lack takes
-    its fallback, with one warning for each role and interface, given only when themes are given.
-  - Each kind's base style from the roles, in one table with what each kind reads;
-    `Style::default()` without a colour but transparent; the styles made shared by kind too.
-  - The look's themes and the `interface` example's giving each role.
-  - The bench's own style that writes white text written again, since it would now win over the
-    rules.
-- **Done when.**
-  - A test draws every kind, in each configuration of the test of what each kind reads, under a
-    theme that gives each role a colour of its own: every colour drawn is a role's, transparent,
-    or a literal that the test names; every colour that a kind reads draws its role.
-  - Tests: an interface given no theme draws in the fallbacks; a role's value of another type is
-    refused, by its theme and name; a role lacking takes its fallback and is warned of once.
-  - The look's image tests unchanged; the two fixtures of styles recorded again where a kind's base
-    changed a leaf that it does not draw, the images proving that nothing drawn changed; the
-    counters unchanged but those of reading the look's documents, recorded again; CI green.
-- **How to test.** `cargo test -p uwui --features editor-look`; `cargo test -p slime-examples
-  --test widgets --test editor`; `cargo run -p slime-benches -- --counters`; `scripts/check.sh`.
-- **Measured.** `ui.tree.editor`, `ui.tree.look` (a frame after the look's colours changed, the
-  frames of the transition that it starts) and the editor's counters, before and after, on the
-  owner's machine at rest.
 
 ## Checks by hand waiting for the owner
 
