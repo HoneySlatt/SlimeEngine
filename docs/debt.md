@@ -786,8 +786,8 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md), [ADR-0229](adr/0229-styles-typed-as-declarations.md)).
   A field of the type `String` takes no named value; followed at [M6d.2b2](stage-6d.md#m6d2b2--styles-written-in-code), which decides what a declaration names.
   An error of type in a cooked style sheet or theme is placed by its byte and the path of its part, not by its line; followed at [M6d.3](stage-6d.md#m6d3--documents-with-serde), which reads them with `serde`.
-  The code cannot set a field of an element's style to its default against a rule, a color to transparent among them; followed at M6d.2b2, which writes styles in code as declarations.
-  The styles made are kept up to a number of the elements' own styles for each set of rules (`Ui::set_style`).
+  The code cannot set a field of an element's style to its default against a rule or its kind's defaults: a color that it writes transparent takes the rules' or its kind's role, even where no rule selects the element, as it did not before [ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md); followed at M6d.2b2, which writes styles in code as declarations.
+  The styles made are kept up to a number of pairs of a kind's defaults and an element's own style for each set of rules (`Ui::set_style`).
   Past it, an element's style is composed again at each change, its declarations applied one by one; followed at M6d.2b2, whose own styles change what the styles made are kept by.
   Selectors hold no combinators but an ancestor's kind or class.
   An array, a list and an option of an element's own style replace the rules' whole, its height with its width; followed at M6d.2b2.

@@ -95,8 +95,8 @@ The first half of M6d.2b, cut in two at its start, on 2026-11-10
   - The look's image tests unchanged; the two fixtures of styles recorded again where a kind's base
     changed a leaf that it does not draw, the images proving that nothing drawn changed; the
     counters unchanged but those of reading the look's documents, recorded again; CI green.
-- **How to test.** `cargo test -p uwui`; `cargo test -p slime-examples --test widgets --test
-  editor`; `cargo run -p slime-benches -- --counters`; `scripts/check.sh`.
+- **How to test.** `cargo test -p uwui --features editor-look`; `cargo test -p slime-examples
+  --test widgets --test editor`; `cargo run -p slime-benches -- --counters`; `scripts/check.sh`.
 - **Measured.** `ui.tree.editor`, `ui.tree.look` (a frame after the look's colours changed, the
   frames of the transition that it starts) and the editor's counters, before and after, on the
   owner's machine at rest.

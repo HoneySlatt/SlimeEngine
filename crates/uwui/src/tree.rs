@@ -584,7 +584,9 @@ pub struct ElementState {
 /// Its style starts from its kind's defaults, whose colors the themes' roles give; then come the
 /// rules' that select it, in their order, then the fields that `style` sets apart from
 /// [`Style::default`] in place of theirs ([`Ui::set_style`]): the code keeps what it sets, and a
-/// field that it leaves at its default takes the rules', or else its kind's. A color, an array, a list and an option
+/// field that it leaves at its default takes the rules', or else its kind's. So the code cannot set
+/// a field to its default against a rule or its kind's defaults: a color that it writes
+/// transparent, as [`Style::default`] holds it, takes the rules' or else its kind's role. A color, an array, a list and an option
 /// are each one field, set whole: `size` set to `[Pixels(120.0), Auto]` sets both its sizes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Element {
@@ -1511,16 +1513,15 @@ impl Ui {
     /// files, their names given the values of `themes`, stacked: of the themes that give a name, the
     /// last gives its value, and the values that name it follow it. Every element's style is made
     /// again at the next [`Ui::frame`]. It starts from its kind's defaults, whose colors are the
-    /// core's *roles* that the themes give, each read once, as a color, here: `canvas_text`,
-    /// `gray_text`, `button_face`, `accent`, `highlight`, `highlight_text` and `focus`
+    /// core's *roles* ([`theme`]) that the themes give, each read once, as a color, here
     /// (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`). A role that the themes lack
     /// takes its fallback, the colors that an interface given no theme draws in, with a warning
     /// once for each role, given only when themes are given. A rule that selects an element sets
     /// the fields of its style that it gives; a later rule, those it gives in turn; the element's
     /// own style, the fields whose bits differ from [`Style::default`]'s, a color, an array, a
-    /// list and an option each one field. The styles made are kept and shared, for up to 64
-    /// elements' own styles that the same rules select: past them, the style of such an element is
-    /// made again each time, more slowly.
+    /// list and an option each one field. The styles made are kept and shared, for up to 64 pairs
+    /// of a kind's defaults and an element's own style that the same rules select: past them, the
+    /// style of such an element is made again each time, more slowly.
     ///
     /// # Errors
     ///

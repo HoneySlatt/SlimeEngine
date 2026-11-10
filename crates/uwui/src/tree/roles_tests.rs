@@ -22,14 +22,57 @@ use crate::theme::{self, ColorRole, ColorRoles, KindName, SELECTION_OPACITY, Sty
 
 const TRANSPARENT: LinearColor = LinearColor::rgba(0.0, 0.0, 0.0, 0.0);
 
-/// A theme that gives each role a color of its own, which nothing else draws.
+/// Each role, the name that a theme gives it under, written out, and a color of its own in sRGB,
+/// which nothing else draws.
+const SENTINELS: [(ColorRole, &str, u32); 7] = [
+    (ColorRole::CanvasText, "canvas_text", 0xE0_10_10),
+    (ColorRole::GrayText, "gray_text", 0x10_E0_10),
+    (ColorRole::ButtonFace, "button_face", 0x10_10_E0),
+    (ColorRole::Accent, "accent", 0xE0_E0_10),
+    (ColorRole::Highlight, "highlight", 0x10_E0_E0),
+    (ColorRole::HighlightText, "highlight_text", 0xE0_10_E0),
+    (ColorRole::Focus, "focus", 0xF0_80_00),
+];
+
+/// The color that `hex` gives in sRGB, opaque.
+fn srgb(hex: u32) -> LinearColor {
+    LinearColor::from_srgb8((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
+}
+
+/// The color that [`SENTINELS`] gives `role`.
+fn sentinel(role: ColorRole) -> LinearColor {
+    let (_, _, hex) = SENTINELS
+        .iter()
+        .find(|(given, _, _)| *given == role)
+        .expect("every role has a sentinel");
+    srgb(*hex)
+}
+
+/// A theme that gives each role its sentinel, under its name as written in [`SENTINELS`].
 fn sentinels() -> Theme {
-    Theme::from_text(
-        "sentinels.theme",
-        "canvas_text = \"#E01010\"\ngray_text = \"#10E010\"\nbutton_face = \"#1010E0\"\n\
-         accent = \"#E0E010\"\nhighlight = \"#10E0E0\"\nhighlight_text = \"#E010E0\"\n\
-         focus = \"#F08000\"\n",
-    )
+    let text: String = SENTINELS
+        .iter()
+        .map(|(_, name, hex)| format!("{name} = \"#{hex:06X}\"\n"))
+        .collect();
+    Theme::from_text("sentinels.theme", text)
+}
+
+/// An interface styled by the sentinels alone, each role checked to take its sentinel, under its
+/// own name.
+fn styled_by_sentinels(fonts: Fonts) -> Ui {
+    let mut ui = Ui::new(fonts);
+    ui.set_style(&[] as &[StyleSheet], &[sentinels()])
+        .expect("the sentinels are colors");
+    for (role, name, _) in SENTINELS {
+        assert_eq!(role.name(), name, "{role:?}'s name in themes");
+        assert_eq!(
+            ui.roles.get(role),
+            sentinel(role),
+            "{role:?} read under `{name}`"
+        );
+    }
+    assert!(ui.warned.is_empty(), "the sentinels give every role");
+    ui
 }
 
 /// Every color leaf of `value`, a value of the type `ty`, by its path, found through reflection so
@@ -108,10 +151,7 @@ fn the_default_style_holds_no_color_but_transparent() {
 
 #[test]
 fn each_kind_s_base_takes_each_color_that_it_reads_from_its_role_and_no_other() {
-    let mut ui = Ui::new(Fonts::new());
-    ui.set_style(&[], &[sentinels()])
-        .expect("the sentinels are colors");
-    let roles = ui.roles;
+    let roles = styled_by_sentinels(Fonts::new()).roles;
     for kind in KindName::ALL {
         let base = theme::base(kind, &roles);
         let table = theme::read_by(kind);
@@ -154,7 +194,6 @@ fn each_kind_s_base_takes_each_color_that_it_reads_from_its_role_and_no_other() 
 /// the color edited, the checkerboard behind its alpha and the rings of black and white seen on
 /// any color.
 fn named_literal(kind: KindName, color: LinearColor, well: Option<LinearColor>) -> bool {
-    let srgb = |hex: u32| LinearColor::from_srgb8((hex >> 16) as u8, (hex >> 8) as u8, hex as u8);
     if color == srgb(0x20_24_28) {
         return true;
     }
@@ -173,12 +212,10 @@ fn drawn(
     kind: KindName,
     configuration: &Configuration,
     direction: super::LayoutDirection,
-) -> (Vec<(LinearColor, String)>, Option<LinearColor>, ColorRoles) {
+) -> (Vec<(LinearColor, String)>, Option<LinearColor>) {
     let mut fonts = Fonts::new();
     look::register_fonts(&mut fonts);
-    let mut ui = Ui::new(fonts);
-    ui.set_style(&[] as &[StyleSheet], &[sentinels()])
-        .expect("the sentinels are colors");
+    let mut ui = styled_by_sentinels(fonts);
     let root = ui.add_root(
         "main",
         RootSettings {
@@ -242,22 +279,19 @@ fn drawn(
             ),
         }
     }
-    (colors, well, ui.roles)
+    (colors, well)
 }
 
 #[test]
 fn every_kind_draws_only_its_roles_colors_under_a_theme_that_gives_each_one_its_own() {
+    // Each role's sentinel, and the highlight's as a field's selection draws it.
+    let mut sentinels: Vec<LinearColor> = ColorRole::ALL.into_iter().map(sentinel).collect();
+    sentinels.push(as_drawn("text.selection", sentinel(ColorRole::Highlight)));
     for kind in KindName::ALL {
+        let mut seen = Vec::new();
         for configuration in configurations(kind) {
             for direction in DIRECTIONS {
-                let (colors, well, roles) = drawn(kind, &configuration, direction);
-                let sentinels: Vec<LinearColor> = ColorRole::ALL
-                    .iter()
-                    .flat_map(|&role| {
-                        let color = roles.get(role);
-                        [color, as_drawn("text.selection", color)]
-                    })
-                    .collect();
+                let (colors, well) = drawn(kind, &configuration, direction);
                 for (color, what) in colors {
                     assert!(
                         color.a == 0.0
@@ -266,14 +300,24 @@ fn every_kind_draws_only_its_roles_colors_under_a_theme_that_gives_each_one_its_
                         "{kind:?}, {}, {direction:?}: {color:?} is no role's, drawn by {what}",
                         configuration.name
                     );
+                    seen.push(color);
                 }
+            }
+        }
+        for (leaf, role) in theme::read_by(kind) {
+            if let Some(role) = role {
+                let color = as_drawn(leaf, sentinel(*role));
+                assert!(
+                    seen.contains(&color),
+                    "{kind:?} reads `{leaf}`, whose role {role:?} it never draws"
+                );
             }
         }
     }
 }
 
 #[test]
-fn an_interface_given_no_theme_draws_in_the_fallbacks_and_is_warned_of_nothing() {
+fn an_interface_given_no_theme_takes_the_fallbacks_and_is_warned_of_nothing() {
     let mut ui = Ui::new(Fonts::new());
     ui.set_style(&[], &[]).expect("nothing to refuse");
     let roles = ui.roles;
@@ -331,6 +375,14 @@ fn a_role_given_a_value_of_another_type_refuses_the_themes() {
         ("accent = 12\n", "a number"),
         ("size = 12\naccent = \"$size\"\n", "a name of a number"),
         ("accent = \"twelve\"\n", "a text that is no color"),
+        (
+            "accent = { r = nan, g = 0.0, b = 0.0, a = 1.0 }\n",
+            "a color that is not a number",
+        ),
+        (
+            "accent = { r = inf, g = 0.0, b = 0.0, a = 1.0 }\n",
+            "a color without bounds",
+        ),
     ] {
         let error = ui
             .set_style(&[], &[sentinels(), Theme::from_text("wrong.theme", text)])
@@ -342,5 +394,71 @@ fn a_role_given_a_value_of_another_type_refuses_the_themes() {
             "{why}: the error names the role: {said}"
         );
         assert_eq!(ui.roles, before, "{why}: the roles that it had kept");
+    }
+}
+
+#[test]
+fn kinds_of_other_bases_share_no_style() {
+    // The same own style, no rule: a label takes its text's color from its role, a container,
+    // which draws no text, keeps it transparent, whichever is styled first.
+    for label_first in [true, false] {
+        let mut ui = styled_by_sentinels(Fonts::new());
+        let root = ui.add_root(
+            "main",
+            RootSettings {
+                size: [400.0, 300.0],
+                scale: 1.0,
+                direction: super::LayoutDirection::LeftToRight,
+                origin: [0.0; 2],
+                modal: false,
+            },
+            Style::default(),
+        );
+        let mut own = Style::default();
+        own.layout.gap = [4.0, 4.0];
+        let (mut label, mut container) = (None, None);
+        ui.build(root, 0, |children| {
+            let make_label = |children: &mut super::Children<'_>| {
+                children.add("label", super::Element::label("Text", own.clone()), |_| {})
+            };
+            let make_container = |children: &mut super::Children<'_>| {
+                children.add("box", super::Element::container(own.clone()), |_| {})
+            };
+            if label_first {
+                label = Some(make_label(children));
+                container = Some(make_container(children));
+            } else {
+                container = Some(make_container(children));
+                label = Some(make_label(children));
+            }
+        });
+        ui.frame();
+        let text = |id: Option<ElementId>| ui.style(id.expect("built")).expect("styled").text.color;
+        assert_eq!(
+            text(label),
+            sentinel(ColorRole::CanvasText),
+            "label first: {label_first}"
+        );
+        assert_eq!(text(container), TRANSPARENT, "label first: {label_first}");
+    }
+}
+
+#[test]
+fn the_look_gives_every_role_in_every_theme() {
+    for colors in [
+        look::Colors::Dark,
+        look::Colors::Light,
+        look::Colors::HighContrast,
+    ] {
+        for density in [look::Density::Comfortable, look::Density::Compact] {
+            let mut ui = Ui::new(Fonts::new());
+            ui.set_style(&[look::style_sheet()], &look::themes(colors, density))
+                .expect("the look's documents are valid");
+            assert!(
+                ui.warned.is_empty(),
+                "{colors:?}, {density:?}: the look lacks {:?}",
+                ui.warned
+            );
+        }
     }
 }

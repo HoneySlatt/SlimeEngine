@@ -234,9 +234,10 @@ impl KindName {
 pub(crate) enum ColorRole {
     /// Text, and the marks drawn beside it: a thumb, a chevron, a tick in a menu.
     CanvasText,
-    /// Text of less weight: a field's placeholder, a menu item's shortcut.
+    /// Text of less weight: a field's placeholder, a number's unit, a menu item's shortcut.
     GrayText,
-    /// What a control is drawn on: a box unchecked, a track, a handle.
+    /// What a control is drawn on: a box unchecked, a track, a handle, a floating panel's corner
+    /// that sizes it.
     ButtonFace,
     /// What a control is filled with once checked, or up to its value.
     Accent,
@@ -745,7 +746,8 @@ impl<'a> Values<'a> {
     ///
     /// # Errors
     ///
-    /// The fault, placed at the role's name in the theme that gives it, if its value is no color.
+    /// The fault, placed at the role's name in the theme that gives it, if its value is no color, or
+    /// a color with a channel that is no finite number.
     fn role(&self, role: ColorRole) -> Result<LinearColor, DocumentError> {
         let name = role.name();
         let index = self.owners[name];
@@ -753,6 +755,17 @@ impl<'a> Values<'a> {
             .and_then(|value| {
                 LinearColor::from_value(&value)
                     .map_err(|_| format!("the value `{name}` is no color"))
+            })
+            .and_then(|color| {
+                // A channel that is no number, or none of bounds, would reach every element that
+                // draws the role, and make each style differ from itself.
+                [color.r, color.g, color.b, color.a]
+                    .iter()
+                    .all(|channel| channel.is_finite())
+                    .then_some(color)
+                    .ok_or_else(|| {
+                        format!("the color `{name}` has a channel that is no finite number")
+                    })
             })
             .map_err(|problem| {
                 self.fault(

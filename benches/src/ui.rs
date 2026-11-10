@@ -609,7 +609,8 @@ select = { kind = "Label", inside = { kind = "Container", class = "fields" } }
 style.text.color = "$muted"
 "#;
 
-/// A dark or a light theme of the editor's style sheet.
+/// A dark or a light theme of the editor's style sheet, which gives the core's roles too
+/// (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`).
 fn theme(light: bool) -> Theme {
     let (text, muted, button, border, panel) = if light {
         ("#212529", "#495057", "#f8f9fa", "#ced4da", "#ffffff")
@@ -620,7 +621,10 @@ fn theme(light: bool) -> Theme {
         "editor.theme",
         format!(
             "text = \"{text}\"\nmuted = \"{muted}\"\nbutton = \"{button}\"\n\
-             border = \"{border}\"\npanel = \"{panel}\"\n"
+             border = \"{border}\"\npanel = \"{panel}\"\n\
+             canvas_text = \"$text\"\ngray_text = \"$muted\"\nbutton_face = \"$button\"\n\
+             accent = \"#4c6ef5\"\nhighlight = \"$accent\"\nhighlight_text = \"$text\"\n\
+             focus = \"$accent\"\n"
         ),
     )
 }

@@ -1386,10 +1386,11 @@ AccessKit names roles: `Button`, `Label`, `List`, `ListItem`, `Dialog`; given by
 builder (`uwui::tree::Role`, [ADR-0143](adr/0143-what-agents-see-of-the-interface.md)).
 
 **Role (theme).** A colour that uwui's core declares and every look gives, which its components'
-defaults read: `canvas_text`, `gray_text`, `button_face`, `accent`, `highlight`, `highlight_text`
-and `focus`, each with a fallback taken when the themes lack it
-([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)). Not the *role (interface)* of
-screen readers, nor the roles of *forced colours*, which they will share.
+defaults read, with a fallback taken when the themes lack it (`uwui::theme`,
+[ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)). Not the *role (interface)* of
+screen readers. The *forced colours*' roles will be among them. The editor's look calls the
+colours of its own palette that its sheet names, surfaces, borders and texts, by their uses, not
+roles.
 
 **Root (interface).** An area that an interface lays its *elements* out on, a window or any target,
 with its size in *logical pixels*, its scale and the direction of its lines

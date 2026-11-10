@@ -1,4 +1,4 @@
-# The dark theme of the editor's look: a palette, then the roles that the style sheet names, worked
+# The dark theme of the editor's look: a palette, then the colors that the style sheet names, worked
 # out from it (docs/adr/0149-the-looks-foundations.md). Colors in sRGB; `mix`, `lighten`, `darken`
 # and `alpha` work in OKLCH. A theme stacked after it that gives `accent` changes every color that
 # follows the accent.

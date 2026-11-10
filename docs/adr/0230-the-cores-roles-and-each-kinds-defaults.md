@@ -54,14 +54,15 @@ CSS's system colours where one exists. Each has a fallback, taken when the theme
 | Role | Fallback | What reads it by default |
 |---|---|---|
 | `canvas_text` | white | every text; a slider's and a scroll bar's thumb, the chevrons of a section, a menu's item and a list to choose from, a menu's tick, a tab's count's digits, a field's prefix and marks |
-| `gray_text` | grey, 0.3 in linear light | a field's placeholder, a menu item's shortcut |
-| `button_face` | grey, 0.3 in linear light | a check box unchecked, the tracks of a slider, a bar of progress and a scroll bar, a section's box, a tab's count's box, a split's handle |
+| `gray_text` | grey, 0.3 in linear light | a field's placeholder, a number's unit, a menu item's shortcut |
+| `button_face` | grey, 0.3 in linear light | a check box unchecked, the tracks of a slider, a bar of progress and a scroll bar, a section's box, a tab's count's box, a split's handle, a floating panel's corner that sizes it |
 | `accent` | blue, (0.2, 0.4, 0.9) in linear light | a check box checked, the part of a slider and of a bar of progress up to its value, a split's handle focused or dragged |
 | `highlight` | `accent` | a field's selection, at 40 % of its opacity |
 | `highlight_text` | `canvas_text` | a check box's tick |
 | `focus` | `accent` | the ring of a part of the colour picker |
 
-- The fallbacks are today's colours: an interface given no theme draws as it does today.
+- The fallbacks are today's colours: an interface given no theme draws as it does today, unless
+  its code writes a colour transparent (below).
 - A fallback serves a look that lacks a role. Every root is given a look (ADR-0226); the fallbacks
   are not a look.
 - `canvas`, `button_text` and `link_text` come with their first reader: Plain and forced colours,
@@ -140,13 +141,16 @@ A role of another type:
 
 ## Consequences
 
-- An interface given no theme draws as before; under the editor's look nothing that draws changes,
-  its themes giving each role from their palette.
+- An interface given no theme draws as before, but where code writes a colour transparent;
+  under the editor's look nothing that draws changes, its themes giving each role from their
+  palette.
 - The fixtures of the styles, which record every leaf, change where a kind's base differs from the
   old default on a leaf that the kind does not draw; the images prove that nothing drawn changed.
-- An own style that sets a colour equal to the old default, white text, now wins over the rules;
-  code still cannot set a colour to transparent against a rule (`docs/debt.md`, followed at
-  M6d.2b2).
+- An own style that sets a colour equal to the old default, white text, now wins over the rules.
+  Code still cannot set a colour to transparent against a rule, and now not against its kind's
+  role either, even where no rule selects the element: transparent is `Style::default()`'s, which
+  an own style does not set (`docs/debt.md`, followed at M6d.2b2). No code of the repository
+  does it.
 - Reading the look's documents reads the roles too, and allocates more until M6d.3.
 - A theme outside the repository that gave a role's name a value of another type is refused.
 - A test draws every kind, in each configuration of the test of what each kind reads, under a theme

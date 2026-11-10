@@ -1,4 +1,4 @@
-# The light theme of the editor's look: the roles of `dark.theme`, light, the accent darkened where
+# The light theme of the editor's look: the colors of `dark.theme`, light, the accent darkened where
 # it stands on a light ground (docs/adr/0149-the-looks-foundations.md).
 
 ground = "#ECEDF0"
