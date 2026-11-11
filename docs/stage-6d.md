@@ -104,8 +104,8 @@ in git.
   ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)), which closed M6d.2
   on 2026-11-11.
 - In progress: [M6d.3](#m6d3--documents-in-kdl), documents in KDL, cut in three at its start, on
-  2026-11-11 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)): in
-  progress, [M6d.3a](#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL; then
+  2026-11-11 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)): done,
+  [M6d.3a](#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL, on the same day; then
   [M6d.3b](#m6d3b--themes-and-style-sheets-in-kdl), themes and style sheets, and
   [M6d.3c](#m6d3c--shortcuts-docks-and-reflection-out), shortcuts, docks and reflection out.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
@@ -1142,8 +1142,54 @@ the reader that ADR-0225 planned for uwui's first stage comes first
 
 ### M6d.3a — uwui's reader of KDL
 
-In progress: its card is in [`PLAN.md`](PLAN.md#m6d3a--uwuis-reader-of-kdl), back here with its result
-when it is done.
+The first third of M6d.3, its questions decided at its start, on 2026-11-11
+([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). It follows the
+rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** uwui reads KDL 2.0 with a reader of its own, bounded, conformant to KDL's official
+  tests, its errors at their line and column.
+- **Crates.** A new crate of uwui's, below `uwui` and `uwui-macros`, its name settled at M6d.10.
+  Nothing else changes behaviour.
+- **Delivers.**
+  - A reader of KDL 2.0 into a flat tree: nodes and entries in arrays, a node's children a range,
+    each with its span; strings borrowed where they hold no escape; type annotations; duplicates
+    kept.
+  - Its limits: the input's size, a depth of 64, a count of nodes and entries; the first error of
+    syntax with its line, its column and what is wrong.
+  - One writer of a tree, in the normal form of KDL's tests.
+  - KDL's official tests, from `main` at `f490278`, in a folder of their own under CC BY-SA 4.0,
+    out of uwui's published package, and their runner.
+  - Random inputs from a seed printed on failure, run by `cargo test`, `bolero` refused by its
+    pinned `indexmap`; the test of damaged files of
+    [ADR-0102](adr/0102-a-damaged-file-gives-an-error.md); a round trip.
+  - `.gitattributes` fixing the line endings of `*.kdl`.
+- **Done when.**
+  - Every valid case of the official tests reads and prints its expected normal form; every case
+    meant to fail is refused.
+  - Inputs deeper, larger or holding more nodes than the limits are refused at their place; no
+    input of the random target or of the damaged files panics; a document read, written and read
+    again gives the same tree.
+  - CI green, Linux and Windows.
+- **How to test.** `cargo test -p` the new crate; `scripts/check.sh`.
+- **Measured.** The time and the allocations of reading, and the memory for each byte read, on a
+  document of the editor's look's size and on a large one; the new crate's compile time.
+- **Result.** Done on 2026-11-11, CI green
+  ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)):
+  - `uwui-kdl` reads KDL 2.0 into a flat tree whose nodes, entries and strings name their place in
+    the text, a string of one line without escapes borrowed; it never recurses, and refuses a text
+    past its limits of size, depth and count of items at its place. It passes every case of KDL's
+    official tests, kept with their licence out of uwui's package; its normal form reads again to
+    the same tree.
+  - Random inputs from a printed seed and the engine's damaged files never make it panic. `bolero`
+    could not join the workspace, its derive pinning `indexmap` below `toml_edit`'s: a fuzzer
+    guided by coverage waits for uwui's first stage ([`debt.md`](debt.md)).
+  - It reads some 100 MB a second, a document of the look's size in 0.27 ms, in 28 allocations; a
+    document holds some six bytes for each byte of its text, and the most nodes that its default
+    limits allow 50 MB ([measurements](measurements.md#m6d3a-uwuis-reader-of-kdl)).
+  - The frames of a transition after a change of colours, untimed since M6d.2b2b1, take 30 % less
+    time than before it, measured under some load; the times of compiling `uwui` and `uwui-kdl`
+    were not measured, the machine not at rest ([`debt.md`](debt.md)).
+  - `uwui-kdl` and `uwui-macros` gained the licence files that uwui's crates hold.
 
 ### M6d.3b — Themes and style sheets in KDL
 

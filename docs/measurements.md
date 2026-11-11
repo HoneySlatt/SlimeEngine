@@ -2486,6 +2486,24 @@ the load average between 2.2 and 2.6:
 - The other frames change within the runs' spread, which the load widens.
 - The times of compiling `uwui` and `uwui-kdl` were not measured: the machine was not at rest.
 
+GitHub's hosted runners, on 2026-11-11, each run green, on `0e675a0`:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 10 min 18 s |
+| `check (headless)` | 16 min 48 s |
+| `check (windowed)` | 9 min 11 s |
+| `check (game)` | 9 min 46 s |
+| `windows (tests)` | 14 min 13 s |
+| `windows (render)` | 7 min 41 s |
+| `windows (game)` | 5 min 55 s |
+| `windows-release` | 14 min 37 s |
+| Docs' `links` | 19 s |
+
+Every job stays within its limit of 20 minutes. `check (headless)` took as long as on `2ef0262`,
+its margin 3 min 12 s; `windows-release` 1 min 51 s less, its margin 5 min 23 s. The new crate
+and its 338 tests of KDL add some seconds to the jobs that test the workspace.
+
 ## M6d.6, the series of headless compositors
 
 The editor and *Hunna Wood* in five headless compositors

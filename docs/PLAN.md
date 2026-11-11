@@ -25,9 +25,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
   ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)).
 - M6d.3, documents in KDL, cut in three at its start, on 2026-11-11: every document of uwui is
   KDL, read by a reader of its own
-  ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). In progress on
-  track A: [M6d.3a](#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL; then
-  [M6d.3b](stage-6d.md#m6d3b--themes-and-style-sheets-in-kdl) and
+  ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). Done on the
+  same day: [M6d.3a](stage-6d.md#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL. Next on
+  track A: [M6d.3b](stage-6d.md#m6d3b--themes-and-style-sheets-in-kdl), then
   [M6d.3c](stage-6d.md#m6d3c--shortcuts-docks-and-reflection-out).
 - In parallel, the owner's choice of 2026-11-11: two tracks at most, each milestone in its own
   session.
@@ -71,7 +71,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.2b2b1 — Transitions and the frame of a change of theme](stage-6d.md#m6d2b2b1--transitions-and-the-frame-of-a-change-of-theme) | Done |
 | [M6d.2b2b2 — The user's layer over what code writes](stage-6d.md#m6d2b2b2--the-users-layer-over-what-code-writes) | Done |
 | [M6d.2b2b3 — Tokens](stage-6d.md#m6d2b2b3--tokens) | Done |
-| [M6d.3a — uwui's reader of KDL](#m6d3a--uwuis-reader-of-kdl) | In progress |
+| [M6d.3a — uwui's reader of KDL](stage-6d.md#m6d3a--uwuis-reader-of-kdl) | Done |
 | [M6d.3b — Themes and style sheets in KDL](stage-6d.md#m6d3b--themes-and-style-sheets-in-kdl) | Planned |
 | [M6d.3c — Shortcuts, docks and reflection out](stage-6d.md#m6d3c--shortcuts-docks-and-reflection-out) | Planned |
 | [M6d.4 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Planned |
@@ -84,40 +84,6 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.3a — uwui's reader of KDL
-
-The first third of M6d.3, its questions decided at its start, on 2026-11-11
-([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). It follows the
-rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** uwui reads KDL 2.0 with a reader of its own, bounded, conformant to KDL's official
-  tests, its errors at their line and column.
-- **Crates.** A new crate of uwui's, below `uwui` and `uwui-macros`, its name settled at M6d.10.
-  Nothing else changes behaviour.
-- **Delivers.**
-  - A reader of KDL 2.0 into a flat tree: nodes and entries in arrays, a node's children a range,
-    each with its span; strings borrowed where they hold no escape; type annotations; duplicates
-    kept.
-  - Its limits: the input's size, a depth of 64, a count of nodes and entries; the first error of
-    syntax with its line, its column and what is wrong.
-  - One writer of a tree, in the normal form of KDL's tests.
-  - KDL's official tests, from `main` at `f490278`, in a folder of their own under CC BY-SA 4.0,
-    out of uwui's published package, and their runner.
-  - Random inputs from a seed printed on failure, run by `cargo test`, `bolero` refused by its
-    pinned `indexmap`; the test of damaged files of
-    [ADR-0102](adr/0102-a-damaged-file-gives-an-error.md); a round trip.
-  - `.gitattributes` fixing the line endings of `*.kdl`.
-- **Done when.**
-  - Every valid case of the official tests reads and prints its expected normal form; every case
-    meant to fail is refused.
-  - Inputs deeper, larger or holding more nodes than the limits are refused at their place; no
-    input of the random target or of the damaged files panics; a document read, written and read
-    again gives the same tree.
-  - CI green, Linux and Windows.
-- **How to test.** `cargo test -p` the new crate; `scripts/check.sh`.
-- **Measured.** The time and the allocations of reading, and the memory for each byte read, on a
-  document of the editor's look's size and on a large one; the new crate's compile time.
 
 ## Ideas waiting for their milestone
 
