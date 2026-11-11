@@ -229,6 +229,8 @@ impl KindName {
     }
 }
 
+#[cfg(test)]
+mod documents_tests;
 mod token;
 
 pub use token::{
