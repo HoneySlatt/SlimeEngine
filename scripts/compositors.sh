@@ -99,6 +99,12 @@ start_compositor() {
     export XDG_CONFIG_HOME=$work/home/config XDG_DATA_HOME=$work/home/data
     export XDG_STATE_HOME=$work/home/state XDG_CACHE_HOME=$work/home/cache
     unset WAYLAND_DISPLAY DISPLAY SLIME_COMPOSITOR_INPUT
+    # KWin and Mutter draw with EGL on the CPU, as on CI's runners, which have no GPU. nixpkgs'
+    # loader of EGL finds the system's drivers in /run/opengl-driver on NixOS, and none elsewhere:
+    # there it is given nixpkgs' Mesa, which, given on NixOS, would mix with the system's.
+    local egl=(env LIBGL_ALWAYS_SOFTWARE=1)
+    [ -d /run/opengl-driver/share/glvnd/egl_vendor.d ] ||
+        egl+=(__EGL_VENDOR_LIBRARY_FILENAMES="$SLIME_MESA_EGL")
     local log=$report/compositor-$scale.log socket=slime-series
     case "$name" in
         weston)
@@ -117,7 +123,7 @@ start_compositor() {
             # Its virtual output refreshes at 60 Hz, which neither an option nor a custom mode of
             # its settings changes. `--scale` is lost to the output's settings, which KWin writes
             # at its first start: they are given the scale, and KWin started again.
-            local kwin=(kwin_wayland --virtual --socket $socket --width 1920 --height 1080 --no-lockscreen)
+            local kwin=("${egl[@]}" kwin_wayland --virtual --socket $socket --width 1920 --height 1080 --no-lockscreen)
             if [ "$scale" != 1 ]; then
                 "${kwin[@]}" >"$log" 2>&1 &
                 compositor_pid=$!
@@ -139,7 +145,7 @@ json.dump(settings, open(path, "w"), indent=4)' "$XDG_CONFIG_HOME/kwinoutputconf
             ;;
         mutter)
             # Its settings in memory, never in the user's dconf.
-            GSETTINGS_BACKEND=memory mutter --no-x11 --headless --virtual-monitor 1920x1080@240 \
+            "${egl[@]}" GSETTINGS_BACKEND=memory mutter --no-x11 --headless --virtual-monitor 1920x1080@240 \
                 --wayland-display $socket >"$log" 2>&1 &
             ;;
         x11)

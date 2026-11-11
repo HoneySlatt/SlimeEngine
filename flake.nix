@@ -110,6 +110,9 @@
           LD_LIBRARY_PATH = "${shell.LD_LIBRARY_PATH}:${pkgs.lib.makeLibraryPath [ pkgs.libei ]}";
           # Tells scripts/compositors.sh that it runs in this shell.
           SLIME_COMPOSITORS = "1";
+          # Mesa's EGL, which KWin and Mutter draw with: outside NixOS, as on CI's runners, the
+          # loader of EGL finds no driver of nixpkgs' own. scripts/compositors.sh names it to them.
+          SLIME_MESA_EGL = "${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json";
         });
       };
     };
