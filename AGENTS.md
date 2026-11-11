@@ -121,9 +121,10 @@ Each file: what it holds; when to update.
   afterwards only its status changes.
 - `docs/adr/README.md`: the ADRs' index and statuses; either changes.
 - `docs/PLAN.md`: the current stage's status, the milestone in progress, the checks by hand; every milestone.
-- `docs/stage-6d.md`: Stage 6d's whole plan while it is in progress; its summary to `docs/history.md` when it ends.
+- `docs/stage-6d.md`: Stage 6d's whole plan while in progress; summed up in `docs/history.md` at its end.
 - `docs/stage-6c.md`: Stage 6c's plan while paused; back into `docs/PLAN.md` when it resumes.
 - `docs/uwui-needs.md`: what the engine asks of uwui, general needs beyond its own; a need found or met.
+- `docs/compositors.md`: the series' compositors, what each gives; it changes.
 - `docs/debt.md`: open known debt: each item what is missing or wrong, why, where followed; introduced or settled.
 - `docs/history.md`: finished stages in brief, versions and ADRs, newest first; a stage finished.
 - `docs/ROADMAP.md`: direction, stage order, exit criteria, quality bar budgets;

@@ -59,6 +59,10 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
+- A series of headless compositors, Weston, sway, KWin, Mutter and X11 through Xvfb, in which the
+  editor and *Hunna Wood* are checked against the table of `docs/compositors.md`:
+  `nix develop .#compositors -c scripts/compositors.sh <compositor>`, and CI's `compositors`
+  workflow (ADR-0195, ADR-0240). The `window` example takes `--frame-rate <per second>`.
 - A profile for shipping a game, `cargo build --profile shipping -p <game> --no-default-features`,
   optimised across its crates; `scripts/compile-times.sh`, which times the steps of compiling that
   the budgets name (ADR-0221).

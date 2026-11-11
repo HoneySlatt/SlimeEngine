@@ -50,6 +50,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A headless sway gives its seat a pointer only while one exists: a window binds it too late, and the input goes nowhere.
   M6c.Q2d's figures came from the inputs that arrived, some three in four apart and one in two in a row.
   Followed at M6c.Q2f, which measures input to present again, with one pointer and one keyboard held for the whole run, as uwui's `scripts/wayland.py` holds a pointer.
+  `scripts/compositor-input.py` holds both for a whole run, in sway, KWin, Mutter and X11 ([ADR-0240](adr/0240-the-series-input-its-table-and-its-jobs.md)): M6c.Q2f can give its inputs through it.
 - **Frames are not synchronized with the display's refresh** (ADR-0021; issue [#1](https://github.com/HoneySlatt/SlimeEngine/issues/1)).
   With Mailbox, the default, the schedule paces frames.
   On Wayland, a frame also waits for the compositor's frame callback: a display slower than the schedule paces them, every image shown ([ADR-0187](adr/0187-a-hidden-window-at-rest.md)).
@@ -701,7 +702,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   It is turned off and on again, meant to end a composition that the focus left, which no input method was checked with yet.
   A text that the program gives while an input method composes, which the field reads without the composition, is left aside: a field clears itself once the composition ends.
   The clipboard holds text alone.
-  On Wayland, the clipboard needs a compositor that gives the protocol of the clipboard's managers, wlroots', niri's and Hyprland's among them, and falls back on X11 through XWayland elsewhere.
+  On Wayland, the clipboard needs a compositor that gives the protocol of the clipboard's managers, wlroots', niri's and Hyprland's among them, and falls back on X11 through XWayland elsewhere: in Mutter and Weston without XWayland, fields copy and paste nothing ([`compositors.md`](compositors.md)).
   An agent sets a field's value whole, and does not type in it key by key.
 - **Widgets** ([ADR-0148](adr/0148-widgets.md)).
   A check box has no third state, mixed; M6c.5f gives it one.

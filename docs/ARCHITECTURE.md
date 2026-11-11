@@ -9,7 +9,8 @@ it is built this way.
 
 ```text
 .
-├── .github/workflows/   CI: scripts/check.sh on Linux, in four parts; tests and samples on Windows
+├── .github/workflows/   CI: scripts/check.sh on Linux, in four parts; tests and samples on Windows;
+│                        the series of headless compositors, one job each (docs/compositors.md)
 ├── benches/             the engine's benchmarks (`slime-benches`), whose figures docs/ keeps
 ├── Cargo.toml           virtual workspace: shared metadata, lints and dependency versions
 ├── Cargo.lock           the exact version of every dependency, checked in

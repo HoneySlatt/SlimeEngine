@@ -2427,6 +2427,74 @@ GitHub's hosted runners, on 2026-11-10, each run green, on `b749c3e`:
 Every job stays within its limit of 20 minutes. `windows (tests)` ran both fixtures of styles on
 Windows, and the tests of the own style, the place of a call among them.
 
+## M6d.6, the series of headless compositors
+
+The editor and *Hunna Wood* in five headless compositors
+([ADR-0240](adr/0240-the-series-input-its-table-and-its-jobs.md)), on 2026-11-11, at the
+revision of nixpkgs that `flake.lock` pins. What each compositor gives, and what differs, is in
+[`compositors.md`](compositors.md).
+
+The `compositors` workflow's jobs on CI's runners, `ubuntu-24.04`, at `e59a3c0`, the code of this
+milestone before its review's changes, each from its start to its end; the series' own step, and
+the series' shell fetched beside the default one:
+
+| Job | Whole | The series | The series' shell |
+|---|---|---|---|
+| `compositors (weston)` | 14 min 21 s | 13 min 12 s | 15 s |
+| `compositors (sway)` | 15 min 8 s | 14 min 8 s | 11 s |
+| `compositors (kwin)` | 14 min 5 s | 12 min 55 s | 12 s |
+| `compositors (mutter)` | 9 min 27 s | 8 min 25 s | 9 s |
+| `compositors (x11)` | 12 min 24 s | 11 min 15 s | 12 s |
+
+Each job stays within its limit of 20 minutes; most of each is the build of the editor, the game
+and the tests, which each job makes alone.
+
+What the series' shell, `nix develop .#compositors`, adds to the store beyond the default shell,
+unpacked, by `nix path-info --recursive` on the two shells and on each package:
+
+| Package | Beyond the default shell |
+|---|---|
+| The whole shell | 712 MB |
+| KWin 6.7.5 | 360 MB |
+| Mutter 50.4 | 203 MB |
+| Xvfb 21.1.24 | 3 MB |
+| libei 1.6.0, xdotool, wayland-utils 1.3.0 | 0 MB |
+| Development outputs that the shell's inputs bring (Vulkan's headers, GTK's and others) | 146 MB |
+
+The intervals between the starts of the `window` example's frames, at most 240 a second, 590 of
+them after the first 10, by `scripts/frame-pacing.py`, drawn with lavapipe. KWin's output refreshes
+at 60 Hz alone; Xvfb gives no rate. In CI, at `e59a3c0`:
+
+| Compositor | Frames a second | Mean | Standard deviation | 99th percentile | Longest |
+|---|---|---|---|---|---|
+| Weston | 240.00 | 4.167 ms | 0.020 ms | 4.219 ms | 4.243 ms |
+| sway | 224.98 | 4.445 ms | 0.055 ms | 4.588 ms | 5.175 ms |
+| KWin, at 60 Hz | 59.94 | 16.683 ms | 0.500 ms | 17.568 ms | 17.658 ms |
+| Mutter | 233.17 | 4.289 ms | 0.944 ms | 5.957 ms | 24.884 ms |
+| X11 | 238.48 | 4.193 ms | 0.392 ms | 5.430 ms | 10.125 ms |
+
+On a Ryzen 7 5800X, in a debug build, no cargo nor rustc running as each run started, though the
+machine's load was 2 to 6, the other track of the stage and the milestone's review working beside:
+
+| Compositor | Frames a second | Mean | Standard deviation | 99th percentile | Longest |
+|---|---|---|---|---|---|
+| Weston | 240.00 | 4.167 ms | 0.016 ms | 4.217 ms | 4.227 ms |
+| sway | 226.48 | 4.415 ms | 0.075 ms | 4.670 ms | 4.802 ms |
+| KWin, at 60 Hz | 59.97 | 16.675 ms | 0.877 ms | 19.444 ms | 22.688 ms |
+| Mutter | 237.95 | 4.203 ms | 0.867 ms | 4.256 ms | 25.200 ms |
+| X11 | 240.00 | 4.167 ms | 0.073 ms | 4.244 ms | 5.316 ms |
+
+What it says:
+
+- Weston paces the frames on its signal within 0.02 ms; sway's frames fall a little behind 240 a
+  second, about 4.4 ms each, steadily.
+- Mutter's frames keep their median at the refresh, but some come up to 25 ms late, in CI and on
+  the machine alike: the widest spread of the series. X11, which gives no refresh rate, follows the
+  engine's own schedule.
+- These times are the frames' starts, which the engine reads today; when a frame shows is M6d.7's,
+  through each platform's presentation times
+  ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
+
 ## M6d.2b2b3, tokens
 
 Tokens named by own styles and read when the interface takes its themes

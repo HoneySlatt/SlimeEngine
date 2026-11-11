@@ -1210,6 +1210,26 @@ of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
   minutes; CI is green.
 - **How to test.** The new job, run on demand.
 - **Measured.** The job's time; what each compositor adds to the store.
+- **Result.** Done on 2026-11-11, CI green
+  ([ADR-0240](adr/0240-the-series-input-its-table-and-its-jobs.md)):
+  - `nix develop .#compositors` adds KWin, Mutter, Xvfb, `xdotool`, `wayland-info` and libei to
+    the default shell; `scripts/compositors.sh` runs the series in one compositor, and the
+    `compositors` workflow runs it in each, in jobs side by side, on its paths, every Wednesday and
+    on demand.
+  - Input for each family through one program held for the whole run,
+    `scripts/compositor-input.py`: wlroots' protocols spoken on sway's socket, libei's C library
+    for KWin and Mutter, the owner's choice, `xdotool` for X11.
+  - Each compositor's protocols listed; the `window` example's frames timed at 240 a second; the
+    editor's decorations, cursor, scale and clipboard read from its log, a key and a round trip
+    through the clipboard typed through the compositor; the agents' sessions of the editor and of
+    the game, their rest, and the game minimized.
+  - What differs is the table of [`compositors.md`](compositors.md), which the script compares
+    each run with: Weston and Mutter draw no decorations and give no clipboard; Weston gives
+    integer scales alone; KWin's virtual output refreshes at 60 Hz; sway and Xvfb minimize
+    nothing; Mutter configures a minimized window again later. No program of the engine asks
+    for presentation times yet.
+  - Each job within 20 minutes, the longest 15 min 8 s; the shell adds 712 MB to the store
+    ([`measurements.md`](measurements.md#m6d6-the-series-of-headless-compositors)).
 
 ### M6d.7 — The desktop host: its window and its frames
 

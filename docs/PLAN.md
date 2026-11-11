@@ -43,11 +43,14 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - In parallel, the owner's choice of 2026-11-11: two tracks at most, each milestone in its own
   session.
   - Track A, uwui's core, in the main checkout: M6d.2b2b3, then M6d.3.
-  - Track B, beside it, in a worktree on the branch `m6d6-headless-compositors`:
-    [M6d.6](stage-6d.md#m6d6--a-series-of-headless-compositors), then M6d.4.
+  - Track B, beside it, in a worktree: [M6d.6](stage-6d.md#m6d6--a-series-of-headless-compositors),
+    the series of compositors, done on 2026-11-11
+    ([ADR-0240](adr/0240-the-series-input-its-table-and-its-jobs.md)); next M6d.4.
   - M6d.5 waits for M6d.3 and M6d.4, which both touch `slime-app`; M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
-- Waiting for the owner: the deletion of the branch `m6d1b-bench`, and the
+- Waiting for the owner: the deletion of the branches `m6d1b-bench` and
+  `m6d6-headless-compositors`; the mirror of the game's assets, a private repository, which
+  `scripts/fetch-assets.sh` cannot reach, CI living on its cache; and the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
 - After Stage 6d: uwui's stages, Stage 6e, the rest of Stage 6c ([`stage-6c.md`](stage-6c.md)),
   then Stage 7 ([`ROADMAP.md`](ROADMAP.md#stage-7--runtime-systems--08)).
@@ -82,7 +85,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.3 — Documents with serde](stage-6d.md#m6d3--documents-with-serde) | Planned |
 | [M6d.4 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Planned |
 | [M6d.5 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Planned |
-| [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Planned |
+| [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
 | [M6d.8 — The desktop host: clipboard, input methods, accessibility](stage-6d.md#m6d8--the-desktop-host-clipboard-input-methods-accessibility) | Planned |
 | [M6d.9a — One core for agents, and its MCP server](stage-6d.md#m6d9a--one-core-for-agents-and-its-mcp-server) | Planned |
