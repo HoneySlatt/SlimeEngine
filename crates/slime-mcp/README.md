@@ -153,9 +153,10 @@ direction with the world panel, captures its image, finds it at rest while pause
 its game time running, and reads its log (`docs/adr/0185-rest-checked-in-ci.md`,
 `docs/adr/0187-a-hidden-window-at-rest.md`). It needs a Wayland
 compositor, the game built and its zone cooked: `scripts/check.sh` runs it in a headless Weston.
-With `SLIME_SERIES` set, in a compositor of the series that keeps a minimized window shown, it
-tells that the game draws its frames there rather than failing
-(`docs/adr/0238-the-series-input-its-table-and-its-jobs.md`).
+With `SLIME_SERIES` set, in a compositor of the series, it tells whether the minimized game is
+at rest, wakes now and then, or draws its frames, where the compositor keeps its window shown,
+rather than failing, and watches it a few seconds later
+(`docs/adr/0240-the-series-input-its-table-and-its-jobs.md`).
 `tests/views.rs` starts the `world` example, which draws the yard and a map in a corner, captures
 the whole image and each view, shows the map's normals, reads the example's reports, and picks the
 entity at a pixel of the map; it needs the examples' assets cooked, in the directory that its first

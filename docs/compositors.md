@@ -14,7 +14,9 @@ nix develop .#compositors -c scripts/compositors.sh weston|sway|kwin|mutter|x11
 ```
 
 Each run writes its report, the compositor's protocols as `wayland-info` lists them, and its logs to
-`target/compositors/<compositor>/`.
+`target/compositors/<compositor>/`. KWin and Mutter draw with Mesa on the CPU, as on CI's runners,
+which have no GPU; on a machine that has one, Mutter still opens it to allocate its buffers. CI's
+runs set the table.
 
 ## What each gives, and what the engine does there
 
@@ -22,7 +24,7 @@ A cell that starts with "—" is not observed: what it says comes from elsewhere
 
 | | Weston | sway | KWin | Mutter | X11 (Xvfb) |
 |---|---|---|---|---|---|
-| Version | 16.0 | 1.12 | 6.7.5 | 50.4 | 21.1.24 |
+| Version | — 16.0 | — 1.12 | — 6.7.5 | — 50.4 | — 21.1.24 |
 | Input | — none | — wlroots' virtual pointer and keyboard | — libei | — libei | — XTest |
 | Backend | wayland | wayland | wayland | wayland | x11 |
 | Output's refresh | 240 Hz | 240 Hz | 60 Hz | 240 Hz | — none |
@@ -43,14 +45,15 @@ The rows:
 - **Version**: nixpkgs' at the revision that `flake.lock` pins.
 - **Input**: how the series gives a person's input ([`scripts/compositor-input.py`](../scripts/compositor-input.py)).
 - **Backend**: the windowing system that winit chose, as the engine's log says.
-- **Output's refresh** and **Presentation times**: the output's rate, and the clock of
-  `wp_presentation`, as `wayland-info` lists them; the series asks each for 240 Hz.
+- **Output's refresh** and **Presentation times**: the output's current rate, and the clock of
+  `wp_presentation`, as `wayland-info` lists them; the series asks Weston, sway and Mutter for
+  240 Hz.
 - **Presentation feedback asked**: whether the program, its Vulkan driver included, asked for
   `wp_presentation`'s feedback, in the editor's log written with `WAYLAND_DEBUG=client`.
 - **Decorations**: the compositor's when it accepts `zxdg_toplevel_decoration_v1`'s server side;
   otherwise winit draws them ([`debt.md`](debt.md): no title in them).
-- **Fractional scale's protocol** and **Window's scale**: whether winit used
-  `wp_fractional_scale_v1`, and the scale that the `window` example reports on an output at 1.5,
+- **Fractional scale's protocol** and **Window's scale**: whether the editor bound
+  `wp_fractional_scale_manager_v1`, and the scale that the `window` example reports on an output at 1.5,
   at 2 in Weston, which takes integers alone.
 - **Cursor**: how the editor set its cursor as the pointer entered its window, by
   `wp_cursor_shape_v1`'s shape or by an image of a theme.
@@ -58,8 +61,9 @@ The rows:
   system's clipboard, through which protocol of the clipboard's managers, and whether a text copied
   with Ctrl+A and Ctrl+C in a field of the editor, then pasted with Ctrl+V, came back, the keys
   typed through the compositor.
-- **Game minimized**: *Hunna Wood* minimized, its game time running, watched 5 s later: at rest,
-  waking now and then, or drawing its frames, as where the compositor keeps its window shown.
+- **Game minimized**: *Hunna Wood* minimized, its game time running, watched a few seconds later
+  (slime-mcp's `drive`): at rest, waking now and then, or drawing its frames, as where the
+  compositor keeps its window shown.
 - **Agents' sessions and rest**: slime-mcp's `edit_window` and `drive`, which find the editor and
   the game at rest ([ADR-0185](adr/0185-rest-checked-in-ci.md)).
 

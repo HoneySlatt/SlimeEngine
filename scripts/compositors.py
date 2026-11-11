@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Reads what scripts/compositors.sh gathered in one compositor of the series, and compares it with
-the table of docs/compositors.md (docs/adr/0195-a-series-of-headless-compositors.md).
+the table of docs/compositors.md (docs/adr/0195-a-series-of-headless-compositors.md,
+docs/adr/0240-the-series-input-its-table-and-its-jobs.md).
 
     scripts/compositors.py protocols <wayland-info's output>
     scripts/compositors.py trace <a program's log, written with WAYLAND_DEBUG=client>
@@ -8,7 +9,8 @@ the table of docs/compositors.md (docs/adr/0195-a-series-of-headless-compositors
 
 `protocols` and `trace` print observations, one a line, `<row>: <value>`, each row named as the
 table names it; `compare` checks each observation against the compositor's column of the table,
-and fails on the first that differs, which then needs the table, or the code, changed.
+and fails if one differs, has no row, or if a cell that the series observes has no observation:
+the table, or the code, then needs changing.
 """
 
 import re
@@ -27,8 +29,9 @@ def protocols(path):
         text = file.read()
     clock = re.search(r"presentation clock id: \d+ \((\w+)\)", text)
     print(f"Presentation times: {clock.group(1) if clock else 'none'}")
-    refresh = re.search(r"refresh: ([\d.]+) Hz", text)
-    print(f"Output's refresh: {round(float(refresh.group(1))) if refresh else 'none'} Hz")
+    # The output's mode that is current, of the modes that it lists.
+    refresh = re.search(r"refresh: ([\d.]+) Hz,\s*flags: [^\n]*current", text)
+    print(f"Output's refresh: {f'{round(float(refresh.group(1)))} Hz' if refresh else 'none'}")
 
 
 def trace(path):
@@ -120,12 +123,15 @@ def table(path):
 
 
 def compare(path, compositor, observations):
-    """Compares each observation with the table's cell, and fails if one differs."""
+    """Compares each observation with the table's cell, and fails if one differs, has no row, or
+    is missing."""
     rows = table(path)
     differ = []
+    observed = set()
     with open(observations, encoding="utf-8") as file:
         for line in file:
             row, _, value = line.rstrip("\n").partition(": ")
+            observed.add(row)
             if row not in rows:
                 differ.append(f"{row}, which the table has no row for")
                 continue
@@ -138,6 +144,11 @@ def compare(path, compositor, observations):
             else:
                 print(f"{row}: {value} (DIFFERS: the table says {expected!r})")
                 differ.append(row)
+    # A cell that starts with "—" is not observed.
+    for row, cells in rows.items():
+        if row not in observed and not cells.get(compositor, "").startswith("—"):
+            print(f"{row}: not observed (DIFFERS: the table says {cells.get(compositor)!r})")
+            differ.append(row)
     if differ:
         sys.exit(f"{compositor} differs from {path} in: {', '.join(differ)}")
 

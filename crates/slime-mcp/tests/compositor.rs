@@ -1,10 +1,10 @@
 //! How the editor's window adapts to a compositor of the series
 //! (`docs/adr/0195-a-series-of-headless-compositors.md`): it starts the `editor` example on a copy
 //! of the yard through the engine's MCP server and, where the compositor takes input, moves the
-//! pointer into the window, which then shows a cursor, and makes a round trip through the system's
-//! clipboard: a text given to the palette's field, selected and copied with Ctrl+A and Ctrl+C, the
-//! field emptied, then the text pasted with Ctrl+V, as a person types them, through the
-//! compositor.
+//! pointer into the window, which then shows a cursor, types a key into the palette's field, and
+//! makes a round trip through the system's clipboard: a text given to the field, selected and
+//! copied with Ctrl+A and Ctrl+C, the field emptied, then the text pasted with Ctrl+V, as a person
+//! types them, through the compositor.
 //!
 //! `scripts/compositors.sh` runs it in each compositor of the series, with `WAYLAND_DEBUG` set, so
 //! that the editor's log holds the protocols that it used: the script reads them there, and this
@@ -58,6 +58,16 @@ fn holding(session: &mut Session, path: &str) -> String {
         .split_once("holding \"")
         .and_then(|(_, rest)| rest.split_once('"'))
         .map_or_else(String::new, |(text, _)| text.to_owned())
+}
+
+/// What the field at `path` holds once it holds a text, which a key typed through the compositor
+/// gives it at the frame after; none if it holds none within 3 s.
+fn filled(session: &mut Session, path: &str) -> Option<String> {
+    (0..30).find_map(|_| {
+        let text = holding(session, path);
+        thread::sleep(Duration::from_millis(100));
+        (!text.is_empty()).then_some(text)
+    })
 }
 
 fn main() {
@@ -117,6 +127,16 @@ fn main() {
         let (said, _) = session.tool("run_operation", json!({ "name": "view.palette" }));
         assert_eq!(said, ["done"]);
         let field = path_of(&mut session, "SearchInput", "command");
+        // A key typed through the compositor reaches the field: without it, a paste that brings
+        // nothing would say nothing of the clipboard.
+        act(&mut session, "focus", &field, json!({}));
+        input(&workspace, &["key", "s"]);
+        let typed = filled(&mut session, &field);
+        assert_eq!(
+            typed.as_deref(),
+            Some("s"),
+            "the key typed reached no field"
+        );
         act(
             &mut session,
             "set_value",
@@ -132,11 +152,7 @@ fn main() {
         // The paste reaches the field at the frame after the keys; none comes without a clipboard,
         // which a compositor that gives no protocol of the clipboard's managers leaves the
         // editor (docs/debt.md).
-        let pasted = (0..30).find_map(|_| {
-            let text = holding(&mut session, &field);
-            thread::sleep(Duration::from_millis(100));
-            (!text.is_empty()).then_some(text)
-        });
+        let pasted = filled(&mut session, &field);
         match pasted {
             Some(text) => {
                 assert_eq!(text, COPIED);

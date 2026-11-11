@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs the editor and the game in one compositor of the series, headless, and writes what it found
 # (docs/adr/0195-a-series-of-headless-compositors.md,
-# docs/adr/0238-the-series-input-its-table-and-its-jobs.md): Weston, sway, KWin, Mutter, or X11
+# docs/adr/0240-the-series-input-its-table-and-its-jobs.md): Weston, sway, KWin, Mutter, or X11
 # through Xvfb. CI's `compositors` workflow runs it for each, side by side.
 #
 #     nix develop .#compositors -c scripts/compositors.sh weston|sway|kwin|mutter|x11
@@ -35,6 +35,7 @@ unset VK_LOADER_DRIVERS_SELECT VK_LOADER_DRIVERS_DISABLE
 # and nothing reaches the desktop's.
 if [ -z "${SLIME_COMPOSITORS_BUS:-}" ]; then
     bus=$(mktemp -d)
+    trap 'rm -rf "$bus"' EXIT
     cat >"$bus/session.conf" <<CONF
 <!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
  "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
@@ -52,7 +53,6 @@ CONF
     status=0
     SLIME_COMPOSITORS_BUS=$bus dbus-run-session --config-file="$bus/session.conf" -- "$0" "$@" ||
         status=$?
-    rm -rf "$bus"
     exit "$status"
 fi
 
@@ -63,10 +63,16 @@ observations=$report/observations.txt
 work=$(mktemp -d)
 compositor_pid=
 input_pid=
-# Stops the input's server, then the compositor, each by its own pid.
+# Stops the input's server, then the compositor, each by its own pid, killed if it has not ended
+# within 10 s.
 stop_compositor() {
     for pid in $input_pid $compositor_pid; do
         kill "$pid" 2>/dev/null || true
+        for _ in $(seq 100); do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 0.1
+        done
+        kill -KILL "$pid" 2>/dev/null || true
         wait "$pid" 2>/dev/null || true
     done
     input_pid= compositor_pid=
@@ -102,15 +108,15 @@ start_compositor() {
     # KWin and Mutter draw with EGL on the CPU, as on CI's runners, which have no GPU. nixpkgs'
     # loader of EGL finds the system's drivers in /run/opengl-driver on NixOS, and none elsewhere:
     # there it is given nixpkgs' Mesa, which, given on NixOS, would mix with the system's.
-    local egl=(env LIBGL_ALWAYS_SOFTWARE=1)
+    local egl=(env LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe)
     [ -d /run/opengl-driver/share/glvnd/egl_vendor.d ] ||
         egl+=(__EGL_VENDOR_LIBRARY_FILENAMES="$SLIME_MESA_EGL")
     local log=$report/compositor-$scale.log socket=slime-series
     case "$name" in
         weston)
             # Integer scales alone.
-            weston --backend=headless --socket=$socket --idle-time=0 --refresh-rate=240000 \
-                --scale="${scale%.5}" >"$log" 2>&1 &
+            weston --backend=headless --socket=$socket --idle-time=0 --width=1920 --height=1080 \
+                --refresh-rate=240000 --scale="${scale%.5}" >"$log" 2>&1 &
             ;;
         sway)
             # No Xwayland, which would write into the system's /tmp/.X11-unix.
@@ -123,7 +129,8 @@ start_compositor() {
             # Its virtual output refreshes at 60 Hz, which neither an option nor a custom mode of
             # its settings changes. `--scale` is lost to the output's settings, which KWin writes
             # at its first start: they are given the scale, and KWin started again.
-            local kwin=("${egl[@]}" kwin_wayland --virtual --socket $socket --width 1920 --height 1080 --no-lockscreen)
+            local kwin=("${egl[@]}" kwin_wayland --virtual --socket $socket --width 1920 --height 1080
+                --no-lockscreen)
             if [ "$scale" != 1 ]; then
                 "${kwin[@]}" >"$log" 2>&1 &
                 compositor_pid=$!
@@ -145,8 +152,8 @@ json.dump(settings, open(path, "w"), indent=4)' "$XDG_CONFIG_HOME/kwinoutputconf
             ;;
         mutter)
             # Its settings in memory, never in the user's dconf.
-            "${egl[@]}" GSETTINGS_BACKEND=memory mutter --no-x11 --headless --virtual-monitor 1920x1080@240 \
-                --wayland-display $socket >"$log" 2>&1 &
+            "${egl[@]}" GSETTINGS_BACKEND=memory mutter --no-x11 --headless \
+                --virtual-monitor 1920x1080@240 --wayland-display $socket >"$log" 2>&1 &
             ;;
         x11)
             # Xvfb gives no refresh rate, and no scale.
@@ -158,11 +165,11 @@ json.dump(settings, open(path, "w"), indent=4)' "$XDG_CONFIG_HOME/kwinoutputconf
         if [ "$name" = x11 ]; then
             [ -s "$work/display" ] && break
         else
-            socket=$(find "$work/runtime" -maxdepth 1 -name 'wayland-*' -o -maxdepth 1 -name "$socket" -type s |
-                grep -v '\.lock$' | head -n 1 || true)
-            socket=${socket##*/}
-            [ -n "$socket" ] && break
-            socket=slime-series
+            # sway names its socket itself, `wayland-1`.
+            [ "$name" = sway ] &&
+                socket=$(find "$work/runtime" -maxdepth 1 -name 'wayland-*' -type s -printf '%f\n' |
+                    head -n 1)
+            [ -S "$work/runtime/$socket" ] && break
         fi
         kill -0 "$compositor_pid" 2>/dev/null || break
         sleep 0.1
@@ -177,8 +184,15 @@ json.dump(settings, open(path, "w"), indent=4)' "$XDG_CONFIG_HOME/kwinoutputconf
     if [ "$name" = mutter ] && [ "$scale" != 1 ]; then
         gdctl set --logical-monitor --primary --monitor Meta-0 --scale "$scale" >>"$log" 2>&1
     fi
-    # The first client may come before the compositor has made its output.
-    sleep 1
+    # The first client may come before the compositor has made its output: wait until one shows.
+    for _ in $(seq 100); do
+        if [ "$name" = x11 ]; then
+            xdotool getdisplaygeometry >/dev/null 2>&1 && break
+        else
+            wayland-info 2>/dev/null | grep -q "'wl_output'" && break
+        fi
+        sleep 0.1
+    done
     # The input's server, which holds a keyboard and a pointer for the whole session; Weston takes
     # no input.
     [ "$name" = weston ] && return
@@ -186,7 +200,8 @@ json.dump(settings, open(path, "w"), indent=4)' "$XDG_CONFIG_HOME/kwinoutputconf
     rm -f "$input"
     scripts/compositor-input.py serve "$name" "$input" >"$report/input-$scale.log" 2>&1 &
     input_pid=$!
-    for _ in $(seq 100); do
+    # Longer than the server waits for its devices, 10 s.
+    for _ in $(seq 200); do
         [ -S "$input" ] && break
         kill -0 "$input_pid" 2>/dev/null || break
         sleep 0.1

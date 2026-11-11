@@ -52,8 +52,13 @@ loop, the series or `flake.lock` change, every week and on demand.
 
 **The table is the check.** [`docs/compositors.md`](../compositors.md) holds, for each compositor,
 what it gives and what the engine does there; [`scripts/compositors.sh`](../../scripts/compositors.sh)
-observes each row and fails where an observation differs from its cell, or has no row. A quirk found
-becomes a row, as ADR-0195 asks.
+observes each row and fails where an observation differs from its cell, has no row, or is missing;
+a cell that starts with "—" is not observed. A quirk found becomes a row, as ADR-0195 asks.
+
+**A minimized game, in the series alone, is watched a few seconds after it is minimized**, past a
+new state that a compositor gives it later: Mutter configures a minimized window again about 3 s
+after, which wakes the game once. `scripts/check.sh`'s check in Weston watches it at once, as
+before. The owner's decision of 2026-11-11, at the milestone's closing review.
 
 ## Alternatives considered
 
@@ -67,18 +72,27 @@ becomes a row, as ADR-0195 asks.
 - **One build, then five jobs on its programs as an artifact:** one build, but artifacts of debug
   programs of hundreds of megabytes, and the session tests run outside cargo.
 - **`wlrctl` for sway, as `scripts/input-to-present.sh` uses it:** no code, but its keys are lost.
+- **The wait everywhere, in `scripts/check.sh` too:** one way, but a wake of the engine's own in
+  the seconds after a minimizing seen nowhere.
+- **No wait, Mutter's cell accepting at rest or one wake:** no check loosened, but a cell of two
+  values that depends on the machine's speed.
+- **The watch started at the window's new state, which the engine would log:** exact, but a change
+  of `slime-platform`, the desktop host's at M6d.7.
 - **A window manager in Xvfb:** decorations, minimizing and the focus as a person's X11 gives them,
   but one more dependency; left for later.
 
 ## Consequences
 
-- The series' shell, `nix develop .#compositors`, adds 712 MB to the store beyond the default shell:
-  KWin 360 MB, Mutter 203 MB, Xvfb 3 MB; libei, `xdotool` and `wayland-info` share what the default
-  shell holds (`docs/measurements.md`).
+- The series' shell, `nix develop .#compositors`, adds 712 MB to the store beyond the default
+  shell, unpacked: what KWin alone adds, 360 MB, Mutter 203 MB, Xvfb 3 MB, and 146 MB of the
+  development outputs that a shell's inputs bring, Vulkan's headers and GTK's among them; libei,
+  `xdotool` and `wayland-info` add nothing more ([`measurements.md`](../measurements.md)). In CI,
+  the series' shell takes 9 to 15 s to fetch.
 - `ctypes` signatures are the project's: a mistake shows at run time, in the weekly run. The
   signatures follow libei 1.6's `libei.h`; a pointer passed to its variadic function is typed at
   each call.
 - Five jobs build the programs five times; GitHub's runners are free for a public repository.
-- slime-mcp's `drive` test reports, rather than fails, a minimized game that draws its frames when
-  `SLIME_SERIES` names a compositor of the series; in `scripts/check.sh`, in Weston, it still fails.
+- slime-mcp's `drive` test tells, rather than fails on, a minimized game that wakes now and then or
+  draws its frames, when `SLIME_SERIES` names a compositor of the series; in `scripts/check.sh`,
+  in Weston, it still fails.
 - The `window` example takes `--frame-rate`, so that its frames are timed at 240 a second.

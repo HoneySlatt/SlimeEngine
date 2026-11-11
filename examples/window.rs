@@ -13,8 +13,8 @@
 //! `--present-mode mailbox|fifo` chooses how the window shows its images
 //! (`slime_gfx::PresentMode`): `mailbox`, the default, never waits and drops the images the
 //! display had no time to show, where the window offers it; `fifo` shows every image, one per
-//! refresh. `--frame-rate <per second>` sets the most frames a second, 60 by default
-//! (`AppConfig::max_frame_rate`): `scripts/compositors.sh` times its frames at 240.
+//! refresh. `--frame-rate <per second>` sets the most frames a second, the engine's default
+//! otherwise (`AppConfig::max_frame_rate`): `scripts/compositors.sh` times its frames at 240.
 //!
 //! ```sh
 //! cargo run --example window

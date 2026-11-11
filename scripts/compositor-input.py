@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """Gives a person's input to a compositor of the series, through the tool of its family
 (docs/adr/0195-a-series-of-headless-compositors.md,
-docs/adr/0238-the-series-input-its-table-and-its-jobs.md):
+docs/adr/0240-the-series-input-its-table-and-its-jobs.md):
 wlroots' virtual pointers and keyboards for sway, libei for KWin and Mutter, XTest for X11
 (`xdotool`). Headless Weston takes none.
 
     scripts/compositor-input.py serve sway|kwin|mutter|x11 <socket>
     scripts/compositor-input.py move-to <x> <y>   # the pointer, in the output's logical pixels
-    scripts/compositor-input.py click             # the left button, pressed and let go
     scripts/compositor-input.py key <keys>        # keys pressed together, `ctrl+a`
 
 `serve` holds a virtual keyboard and a virtual pointer for as long as it runs, and takes the other
@@ -33,22 +32,12 @@ import subprocess
 import sys
 import time
 
-# The left button, and the keys that the series types, as Linux's input codes name them
-# (linux/input-event-codes.h), which libei and wlroots' virtual keyboard take.
-BUTTON_LEFT = 0x110
-KEYS = {
-    "ctrl": 29,
-    "shift": 42,
-    "alt": 56,
-    "return": 28,
-    "escape": 1,
-    "tab": 15,
-    **{letter: code for letter, code in zip("qwertyuiop", range(16, 26))},
-    **{letter: code for letter, code in zip("asdfghjkl", range(30, 39))},
-    **{letter: code for letter, code in zip("zxcvbnm", range(44, 51))},
-}
+# The keys that the series types, as Linux's input codes name them (linux/input-event-codes.h),
+# which libei and wlroots' virtual keyboard take, and as X11's keysyms name them, which `xdotool`
+# takes.
+KEYS = {"ctrl": 29, "a": 30, "s": 31, "c": 46, "v": 47}
 # The modifiers' bits in the keymap below, which wlroots' virtual keyboard must be told.
-MODIFIERS = {"shift": 1, "ctrl": 4, "alt": 8}
+MODIFIERS = {"ctrl": 4}
 
 # The logical size of the series' output, which wlroots' absolute motion is given in.
 OUTPUT = (1920, 1080)
@@ -150,7 +139,7 @@ class Wlroots:
                 if sender == callback and opcode == 0:
                     return
                 on_event(sender, opcode, body)
-            if not select.select([self.socket], [], [], deadline - time.monotonic())[0]:
+            if not select.select([self.socket], [], [], max(0, deadline - time.monotonic()))[0]:
                 sys.exit("compositor-input: the compositor did not answer")
             data = self.socket.recv(65536)
             if not data:
@@ -165,12 +154,6 @@ class Wlroots:
         # zwlr_virtual_pointer_v1.motion_absolute, then frame.
         self.send(self.pointer, 1, struct.pack("<IIIII", self.now(), round(x), round(y), *OUTPUT))
         self.send(self.pointer, 4, b"")
-        self.roundtrip(lambda *_: None)
-
-    def click(self):
-        for state in (1, 0):
-            self.send(self.pointer, 2, struct.pack("<III", self.now(), BUTTON_LEFT, state))
-            self.send(self.pointer, 4, b"")
         self.roundtrip(lambda *_: None)
 
     def key(self, keys):
@@ -208,7 +191,6 @@ class Libei:
     # Capabilities of a device, `enum ei_device_capability`, and events, `enum ei_event_type`.
     CAP_POINTER_ABSOLUTE = 1 << 1
     CAP_KEYBOARD = 1 << 2
-    CAP_BUTTON = 1 << 5
     EVENT_DISCONNECT = 2
     EVENT_SEAT_ADDED = 3
     EVENT_DEVICE_REMOVED = 6
@@ -252,7 +234,8 @@ class Libei:
         if (error := lib.ei_setup_backend_fd(self.ei, fds.get(handle))) != 0:
             sys.exit(f"compositor-input: libei refused the compositor's socket: error {-error}")
         self.devices = {}
-        self.wanted = [self.CAP_POINTER_ABSOLUTE, self.CAP_BUTTON, self.CAP_KEYBOARD]
+        self.wanted = [self.CAP_POINTER_ABSOLUTE, self.CAP_KEYBOARD]
+        self.sequence = 0
         deadline = time.monotonic() + SETUP_SECONDS
         while any(cap not in self.devices for cap in self.wanted):
             if not select.select([self], [], [], max(0, deadline - time.monotonic()))[0]:
@@ -300,7 +283,10 @@ class Libei:
                 for cap in self.wanted:
                     if cap not in self.devices and lib.ei_device_has_capability(device, cap):
                         self.devices[cap] = lib.ei_device_ref(device)
-                        lib.ei_device_start_emulating(device, 1)
+                if device in self.devices.values():
+                    # Its sequence goes up at each start (libei.h).
+                    self.sequence += 1
+                    lib.ei_device_start_emulating(device, self.sequence)
             if kind in (self.EVENT_DEVICE_REMOVED, self.EVENT_DEVICE_PAUSED):
                 for cap, kept in list(self.devices.items()):
                     if kept == device:
@@ -315,18 +301,12 @@ class Libei:
 
     def frame(self, device):
         self.lib.ei_device_frame(device, self.lib.ei_now(self.ei))
-        self.lib.ei_dispatch(self.ei)
+        self.dispatch()
 
     def move_to(self, x, y):
         device = self.device(self.CAP_POINTER_ABSOLUTE)
         self.lib.ei_device_pointer_motion_absolute(device, x, y)
         self.frame(device)
-
-    def click(self):
-        device = self.device(self.CAP_BUTTON)
-        for pressed in (True, False):
-            self.lib.ei_device_button_button(device, BUTTON_LEFT, pressed)
-            self.frame(device)
 
     def key(self, keys):
         device = self.device(self.CAP_KEYBOARD)
@@ -358,7 +338,6 @@ def library():
         ("ei_device_start_emulating", None, [pointer, ctypes.c_uint32]),
         ("ei_device_frame", None, [pointer, ctypes.c_uint64]),
         ("ei_device_pointer_motion_absolute", None, [pointer, ctypes.c_double, ctypes.c_double]),
-        ("ei_device_button_button", None, [pointer, ctypes.c_uint32, ctypes.c_bool]),
         ("ei_device_keyboard_key", None, [pointer, ctypes.c_uint32, ctypes.c_bool]),
     ]:
         function = getattr(lib, name)
@@ -388,14 +367,19 @@ class Xtest:
         window = dict(line.split("=", 1) for line in under.split())["WINDOW"]
         self.run("windowfocus", window)
 
-    def click(self):
-        self.run("click", "1")
-
     def key(self, keys):
         self.run("key", "+".join(keys))
 
     def dispatch(self):
         pass
+
+
+def position(words):
+    """The position that `move-to` names, which must lie in the output."""
+    x, y = (float(word) for word in words)
+    if not (0 <= x < OUTPUT[0] and 0 <= y < OUTPUT[1]):
+        raise ValueError(f"({x}, {y}) lies outside the output, {OUTPUT[0]} by {OUTPUT[1]}")
+    return x, y
 
 
 def serve(compositor, path):
@@ -423,9 +407,7 @@ def serve(compositor, path):
             words = stream.readline().split()
             try:
                 if words[:1] == ["move-to"] and len(words) == 3:
-                    devices.move_to(float(words[1]), float(words[2]))
-                elif words == ["click"]:
-                    devices.click()
+                    devices.move_to(*position(words[1:]))
                 elif words[:1] == ["key"] and len(words) == 2:
                     devices.key(keys_of(words[1]))
                 else:
@@ -463,7 +445,6 @@ def main():
         serve(arguments[1], arguments[2])
     elif (
         (arguments[:1] == ["move-to"] and len(arguments) == 3)
-        or arguments == ["click"]
         or (arguments[:1] == ["key"] and len(arguments) == 2)
     ):
         send(arguments)
