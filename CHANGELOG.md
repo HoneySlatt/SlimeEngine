@@ -43,6 +43,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   gave it; a theme gives no shadow nor colour by its channels; a share that a colour function names
   is a `number`. `Theme::from_binary` is gone: a cooked theme is its text, which `slime-cook`
   checks and which `CookedAssets::theme` gives, and the cooker refuses a `.theme` file of TOML.
+  A theme is refused for `#null`, a unit written on a name, a number past an `f32`, a colour that
+  is no finite number, a chain of more than 64 names or colour functions nested more than eight
+  deep, and a value given wrongly even where a later theme gives it again; a rule can no longer
+  name a theme's value in a field of a boolean, an enum or a struct, such as `layout.wrap`. A
+  cooked theme's metadata follows its new name, `x.theme.kdl.meta`, or the theme takes a new ID.
   `Ui::set_style` gives every error found, each at its line, as `DocumentErrors`;
   `DocumentError::error` is a `Fault`, of KDL or of reflection. Style sheets stay TOML until
   M6d.3b2.

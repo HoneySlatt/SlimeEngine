@@ -1,6 +1,8 @@
 # 0241. Every document of uwui in KDL, read by a reader of its own
 
-- Status: Accepted; amends [0181](0181-uwuis-scope.md) (uwui's documents are KDL, read by uwui's
+- Status: Accepted; amends [0141](0141-style-sheets-and-themes.md) (themes and style sheets are
+  KDL, a theme's values in groups of their kinds, the cooked form their text),
+  [0181](0181-uwuis-scope.md) (uwui's documents are KDL, read by uwui's
   own reader: neither `serde` nor `toml` reads them, and no feature holds the reader),
   [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (every document of uwui
   is KDL, not layouts and parts alone; the reader is built at M6d.3a, in a crate of its own; the

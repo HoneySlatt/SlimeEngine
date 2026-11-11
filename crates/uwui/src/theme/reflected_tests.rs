@@ -2,7 +2,10 @@
 //! the reader of KDL while reflection is in uwui
 //! (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`): random stacks of
 //! themes, written in both notations, give the same tokens and the same rules' declarations, bit
-//! for bit. Its sheets are TOML, read as `theme::read` reads them until M6d.3b2.
+//! for bit. Its sheets are TOML, read as `theme::read` reads them until M6d.3b2. The random
+//! themes leave out what the reader of KDL refuses on purpose where the reflected one took it, a
+//! number past an `f32`, a share that makes a color no finite number, a value given wrongly then
+//! given again: `tests/themes.rs` tests each refusal.
 
 use std::cell::RefCell;
 use std::collections::HashMap;

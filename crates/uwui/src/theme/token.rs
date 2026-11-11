@@ -68,8 +68,8 @@ pub struct Color;
 #[derive(Clone, Copy, Debug)]
 pub struct Length;
 
-/// A time, a [`std::time::Duration`], which a theme writes as a number of seconds, never negative:
-/// how long a transition takes. It never changes with the density.
+/// A time, a [`std::time::Duration`], which a theme writes with its unit, `(ms)120` or `(s)0.12`,
+/// never negative: how long a transition takes. It never changes with the density.
 #[derive(Clone, Copy, Debug)]
 pub struct Duration;
 

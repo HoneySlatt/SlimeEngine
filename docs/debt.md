@@ -714,7 +714,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The editor's look has no italic faces, and its fonts hold no Greek.
   The look is built into the program, not cooked: the dev overlay carries it into a game's development build, and the game's build for shipping leaves it out.
 - **The look's foundations** ([ADR-0149](adr/0149-the-looks-foundations.md)).
-  A rule of a style sheet names a theme's length, duration or number in any field of numbers, the kinds of numbers told apart where a theme gives them alone; followed at [M6d.3b2](stage-6d.md#m6d3b2--style-sheets-in-kdl), whose derive marks each field's kind.
+  A rule of a style sheet names a theme's length, duration or number in any field of numbers, the kinds of numbers told apart where a theme gives them alone: a negative length that a rule names as a transition's duration is accepted; followed at [M6d.3b2](stage-6d.md#m6d3b2--style-sheets-in-kdl), whose derive marks each field's kind.
   The color functions are four, and work on whole colors, not on their lightness, chroma or hue alone.
   Transitions move colors, opacity and a section's height, not sizes, places nor what a layout gives.
   They go on only while the program gives the interface its time; a section that opens is laid out twice in the frame that starts it.

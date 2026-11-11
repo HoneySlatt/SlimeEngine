@@ -489,7 +489,7 @@ fn stacked_themes_give_the_last_value_and_what_names_it_follows() {
 #[test]
 fn a_theme_that_names_itself_a_missing_value_or_calls_wrongly_is_refused_by_its_value() {
     let cases = [
-        ("a $b\nb $a\nfill \"#000000\"\n", "names itself"),
+        ("a $b\nb $a\nfill \"#000000\"\n", "names it back"),
         (
             "other \"lighten($nowhere, 0.1)\"\nfill \"#000000\"\n",
             "no theme gives a value named `nowhere`",

@@ -1,6 +1,11 @@
 //! Themes in KDL: each value in the group of its kind, a stack's names followed once, and each
 //! refusal at its line (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
 
+#[path = "../../slime-assets/tests/common/damage.rs"]
+mod damage;
+
+use std::time::{Duration as Time, Instant};
+
 use slime_color::LinearColor;
 use uwui::DocumentErrors;
 use uwui::text::Fonts;
@@ -159,13 +164,50 @@ fn each_wrong_value_is_refused_at_its_line() {
         ),
         (
             "color {\n    fill $a\n    a $fill\n}\n",
-            "names itself through other values",
+            "which names it back through other values",
         ),
         (
             "length {\n    gap $nowhere\n}\n",
             "no theme gives a value named `nowhere`",
         ),
         ("color { fill = }\n", "a.theme: line 1,"),
+        // A number past what an `f32` holds, which would be taken as infinite.
+        ("length {\n    gap 1e39\n}\n", "past what an `f32` holds"),
+        (
+            "number {\n    weight -1e39\n}\n",
+            "past what an `f32` holds",
+        ),
+        (
+            "duration {\n    fast (s)1e30\n}\n",
+            "a duration too long to hold",
+        ),
+        // A color whose function, given a share without bounds, computes channels that are no
+        // finite number, written or named.
+        (
+            "color {\n    fill \"mix(#ff0000, #00ff00, 3e38)\"\n}\n",
+            "a color with a channel that is no finite number",
+        ),
+        (
+            "color {\n    fill \"mix(#ff0000, #00ff00, $big)\"\n}\nnumber {\n    big 3e38\n}\n",
+            "a color with a channel that is no finite number",
+        ),
+        (
+            "(kind)length {\n}\n",
+            "the group `length` holds its values in a block alone",
+        ),
+        (
+            "length {\n    (px)gap 1\n}\n",
+            "a value's name takes no type",
+        ),
+        (
+            "length {\n    gap 1 {\n        more 2\n    }\n}\n",
+            "a value holds no block",
+        ),
+        (
+            "color {\n    fill (px)\"#000000\"\n}\n",
+            "a color takes no unit `(px)`",
+        ),
+        ("text {\n    tick (px)x\n}\n", "a text takes no unit `(px)`"),
     ];
     for (theme, expected) in cases {
         let error = refused(&[("a.theme", theme)]);
@@ -217,6 +259,16 @@ fn a_chain_of_names_past_its_bound_and_functions_nested_too_deep_are_refused_wit
     short.push_str("    v60 3\n    gap $v0\n}\n");
     let (ui, root) = styled(&[("a.theme", &short)], false).expect("a chain within its bound");
     assert_eq!(ui.style(root).unwrap().layout.padding.top, 3.0);
+    // The same chain, its tail's names met first, which a bound on the walk alone would miss.
+    let mut tail_first = String::from("length {\n");
+    for at in 0..65 {
+        tail_first.push_str(&format!("    v{:03} $v{:03}\n", 200 - at, 199 - at));
+    }
+    tail_first.push_str("    v135 1\n}\n");
+    assert!(
+        refused(&[("a.theme", &tail_first)]).contains("a chain of more than 64 names"),
+        "{tail_first}"
+    );
     // Functions nested 20 000 deep, which a reader that recursed on them would overflow on.
     let deep = format!(
         "color {{\n    fill \"{}#000000{}\"\n}}\n",
@@ -249,4 +301,80 @@ fn errors_are_gathered_up_to_their_cap() {
     assert_eq!(errors.errors().len(), DocumentErrors::MOST);
     assert!(errors.more());
     assert!(errors.to_string().ends_with("and more, past the first 16"));
+}
+
+#[test]
+fn a_theme_of_many_wrong_values_is_refused_in_time_linear_in_its_size() {
+    // Each error past the cap is counted, not placed at its line, which reads the text up to it.
+    let mut many = String::from("length {\n");
+    for at in 0..50_000 {
+        many.push_str(&format!("    v{at:06} #null\n"));
+    }
+    for at in 0..50_000 {
+        many.push_str(&format!("    w{at:06} 4\n"));
+    }
+    many.push_str("}\n");
+    let start = Instant::now();
+    let error = refused(&[("a.theme", &many)]);
+    assert!(error.ends_with("and more, past the first 16"), "{error}");
+    // A debug build reads it in about a second; a time quadratic in the values, in minutes.
+    assert!(
+        start.elapsed() < Time::from_secs(20),
+        "{:?} for 100 000 values",
+        start.elapsed()
+    );
+}
+
+#[test]
+fn a_damaged_theme_is_refused_or_read_never_panicking() {
+    let mut ui = Ui::new(Fonts::new());
+    for theme in [
+        include_str!("../look/base.theme.kdl"),
+        include_str!("../look/contrast.theme.kdl"),
+    ] {
+        damage::damage(theme.as_bytes(), |bytes| {
+            let Ok(text) = std::str::from_utf8(bytes) else {
+                return;
+            };
+            let _ = ui.set_style(&[], &[Theme::from_text("damaged.theme.kdl", text)]);
+        });
+    }
+}
+
+#[test]
+fn a_whole_number_of_a_theme_sets_a_field_of_whole_numbers_and_a_fraction_is_refused() {
+    let sheet = "[box]\nselect = { kind = \"Container\" }\nstyle.layout.column.span = \"$span\"\n";
+    let mut ui = Ui::new(Fonts::new());
+    let settings = RootSettings {
+        size: [100.0, 100.0],
+        scale: 1.0,
+        direction: LayoutDirection::LeftToRight,
+        origin: [0.0; 2],
+        modal: false,
+    };
+    let root = ui.add_root("main", settings, |s| s);
+    ui.build(root, 0, |children| {
+        children.add("box", Element::container(), |_| {});
+    });
+    let sheets = [StyleSheet::from_text("box.style", sheet)];
+    ui.set_style(
+        &sheets,
+        &[Theme::from_text("a.theme", "number {\n    span 2\n}\n")],
+    )
+    .expect("a whole number");
+    ui.frame();
+    let child = ui.children(root)[0];
+    assert_eq!(ui.style(child).expect("styled").layout.column.span, 2);
+    let error = ui
+        .set_style(
+            &sheets,
+            &[Theme::from_text("a.theme", "number {\n    span 2.5\n}\n")],
+        )
+        .expect_err("a fraction");
+    assert!(
+        error
+            .to_string()
+            .contains("a number that is not whole from 0 to 65535"),
+        "{error}"
+    );
 }

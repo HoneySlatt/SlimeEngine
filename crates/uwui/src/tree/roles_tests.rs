@@ -382,8 +382,6 @@ fn a_role_given_a_value_of_another_type_refuses_the_themes() {
     let mut ui = Ui::new(Fonts::new());
     ui.set_style(&[], &[sentinels()]).expect("the sentinels");
     let before = ui.tokens.clone();
-    // A theme's color is written in sRGB, a name or a function: none can be a channel that is no
-    // finite number, which the form by channels allowed (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
     for (text, why, said) in [
         (
             "number {\n    accent 12\n}\n",
@@ -400,6 +398,16 @@ fn a_role_given_a_value_of_another_type_refuses_the_themes() {
             "color {\n    accent twelve\n}\n",
             "a text that is no color",
             "`accent`: `twelve` is no color",
+        ),
+        (
+            "color {\n    accent \"mix(#ff0000, #00ff00, 3e38)\"\n}\n",
+            "a color that is not a number",
+            "a color with a channel that is no finite number",
+        ),
+        (
+            "color {\n    accent \"mix(#ff0000, #00ff00, $far)\"\n}\nnumber {\n    far 3e38\n}\n",
+            "a color without bounds",
+            "a color with a channel that is no finite number",
         ),
     ] {
         let error = ui

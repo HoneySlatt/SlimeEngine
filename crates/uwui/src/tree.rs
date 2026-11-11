@@ -1560,9 +1560,10 @@ impl Ui {
     /// theme is not a document of KDL, gives a value outside its groups or not of its group's
     /// kind, gives a name twice, or in another group than a theme below it gave it, writes
     /// `#null`, a duration without its unit or negative, a unit on a name, a number that is not
-    /// finite, names a value that no theme gives or of another kind, a chain of names that comes
-    /// back to itself or passes 64 names, or a color function unknown, given what it does not take
-    /// or nested past eight; if a theme gives a declared token a value of another group; if a style
+    /// finite or past an `f32`, names a value that no theme gives or of another kind, a chain of
+    /// names that comes back to itself or passes its bound, or a color function unknown, given what
+    /// it does not take, nested past its bound or computing a color that is no finite number; if a
+    /// theme gives a declared token a value of another group; if a style
     /// sheet is not a document of its types, names a value that no theme gives or of a kind that its
     /// field does not hold, sets some of a color's channels and not all, or a rule that names a kind
     /// sets what that kind does not read ([`theme`]): the interface keeps the style it had.

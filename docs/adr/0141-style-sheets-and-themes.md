@@ -12,7 +12,9 @@
   classes too), then by [0229](0229-styles-typed-as-declarations.md) (a rule's part as typed declarations; a colour set whole; a rule
   refused that sets what its kind does not read), then by [0230](0230-the-cores-roles-and-each-kinds-defaults.md) (an element's style
   starts from its kind's defaults; a role's value of another type refuses the themes), then by [0231](0231-an-elements-own-style-written-in-code.md) (the own style
-  is the declarations that code wrote, with states, and gives way to a rule that names a state)
+  is the declarations that code wrote, with states, and gives way to a rule that names a state),
+  then by [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) (themes and style
+  sheets are KDL, a theme's values in groups of their kinds, a theme cooked as its text)
 - Date: 2026-10-25
 
 ## Context

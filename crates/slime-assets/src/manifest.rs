@@ -33,8 +33,9 @@ pub enum AssetKind {
     /// A style sheet of the interface, in the engine's binary encoding of documents, which
     /// `uwui` reads (`docs/adr/0141-style-sheets-and-themes.md`).
     StyleSheet,
-    /// A theme of the interface, in the engine's binary encoding of documents, which `uwui`
-    /// reads (`docs/adr/0141-style-sheets-and-themes.md`).
+    /// A theme of the interface, its text, a document of KDL, which `uwui` reads
+    /// (`docs/adr/0141-style-sheets-and-themes.md`,
+    /// `docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
     Theme,
     /// A table of the interface's shortcuts, in the engine's binary encoding of documents, which
     /// `uwui` reads (`docs/adr/0142-input-and-focus.md`).

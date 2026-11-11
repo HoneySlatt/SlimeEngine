@@ -93,8 +93,10 @@ impl std::error::Error for Fault {
     }
 }
 
-/// Why style sheets and themes cannot be taken: each error found, in the order of the documents,
-/// up to [`DocumentErrors::MOST`]; the interface keeps the style it had.
+/// Why style sheets and themes cannot be taken: each error found, up to [`DocumentErrors::MOST`];
+/// the interface keeps the style it had. The themes are read first, every value of each in turn,
+/// then the names that the values give one another, then the tokens; the style sheets are read
+/// only once the themes are taken, and each gives its first error alone until it is KDL (M6d.3b2).
 #[derive(Debug)]
 pub struct DocumentErrors {
     errors: Vec<DocumentError>,
@@ -117,8 +119,15 @@ impl DocumentErrors {
 
     /// Keeps `error`, if fewer than [`DocumentErrors::MOST`] are kept.
     pub(crate) fn push(&mut self, error: DocumentError) {
+        self.push_with(|| error);
+    }
+
+    /// Keeps the error that `make` gives, if fewer than [`DocumentErrors::MOST`] are kept; past
+    /// them, `make` is not called: placing an error at its line reads its text up to it, which a
+    /// document of many errors would pay for each.
+    pub(crate) fn push_with(&mut self, make: impl FnOnce() -> DocumentError) {
         if self.errors.len() < Self::MOST {
-            self.errors.push(error);
+            self.errors.push(make());
         } else {
             self.more = true;
         }
@@ -129,7 +138,7 @@ impl DocumentErrors {
         self.errors.is_empty()
     }
 
-    /// The errors kept, in the order of the documents, at least one.
+    /// The errors kept, in the order they were found, at least one.
     #[must_use]
     pub fn errors(&self) -> &[DocumentError] {
         &self.errors

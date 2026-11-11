@@ -7,7 +7,7 @@
 //! or names another value of its kind, `$name`. A theme stacked later gives a name again to change
 //! its value; the first theme to give a name sets its kind.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
 use slime_color::LinearColor;
@@ -17,11 +17,11 @@ use super::{call, lighten, mix, srgb};
 use crate::document::{DocumentError, DocumentErrors};
 
 /// The most names that a chain of names follows, each naming the next, before it is refused.
-pub(crate) const CHAIN: usize = 64;
+const CHAIN: usize = 64;
 
 /// The most colour functions nested in one another, `mix(lighten($a, 0.1), …)`, before a value is
 /// refused.
-pub(crate) const NESTING: usize = 8;
+const NESTING: usize = 8;
 
 /// A theme's groups, each the kind of the values it gives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -167,11 +167,15 @@ pub(crate) fn read(themes: &[(&str, &str)]) -> Result<Values, DocumentErrors> {
     // The group of each name, as the first theme to give it set it, and where.
     let mut kinds: HashMap<String, (Group, usize, usize)> = HashMap::new();
     // The names given wrongly, already told: what names them is not told again.
-    let mut wrong: Vec<String> = Vec::new();
+    let mut wrong: HashSet<String> = HashSet::new();
+    // Whether a theme is not KDL: the names that it gives are unknown, and what names them is not
+    // told that no theme gives them.
+    let mut unreadable = false;
     for (index, &(name, text)) in themes.iter().enumerate() {
         let document = match uwui_kdl::read(text) {
             Ok(document) => document,
             Err(error) => {
+                unreadable = true;
                 errors.push(DocumentError {
                     document: name.to_owned(),
                     error: crate::document::Fault::Kdl(error),
@@ -185,59 +189,69 @@ pub(crate) fn read(themes: &[(&str, &str)]) -> Result<Values, DocumentErrors> {
         for group_node in document.nodes() {
             let group_name = group_node.name().text();
             let Some(group) = Group::ALL.into_iter().find(|g| g.name() == group_name) else {
-                errors.push(fault(
-                    group_node.span().start,
-                    format!(
-                        "`{group_name}` is not a group: a theme holds `color`, `length`, \
+                errors.push_with(|| {
+                    fault(
+                        group_node.span().start,
+                        format!(
+                            "`{group_name}` is not a group: a theme holds `color`, `length`, \
                          `duration`, `number` and `text`, each a list of values"
-                    ),
-                ));
+                        ),
+                    )
+                });
                 continue;
             };
             if let Some(&(_, first)) = groups.iter().find(|(given, _)| *given == group) {
-                let (line, _) = line(text, first);
-                errors.push(fault(
-                    group_node.span().start,
-                    format!("the group `{group_name}` is given twice, first at line {line}"),
-                ));
+                errors.push_with(|| {
+                    let (line, _) = line(text, first);
+                    fault(
+                        group_node.span().start,
+                        format!("the group `{group_name}` is given twice, first at line {line}"),
+                    )
+                });
                 continue;
             }
             groups.push((group, group_node.span().start));
             if group_node.annotation().is_some() || group_node.entries().len() > 0 {
-                errors.push(fault(
-                    group_node.span().start,
-                    format!("the group `{group_name}` holds its values in a block alone"),
-                ));
+                errors.push_with(|| {
+                    fault(
+                        group_node.span().start,
+                        format!("the group `{group_name}` holds its values in a block alone"),
+                    )
+                });
                 continue;
             }
             for node in group_node.children() {
                 let value_name = node.name().text().into_owned();
                 let start = node.span().start;
                 if let Some(&first) = in_this.get(&value_name) {
-                    let (line, _) = line(text, first);
-                    errors.push(fault(
-                        start,
-                        format!(
-                            "`{value_name}` is given twice in this theme, first at line {line}"
-                        ),
-                    ));
+                    errors.push_with(|| {
+                        let (line, _) = line(text, first);
+                        fault(
+                            start,
+                            format!(
+                                "`{value_name}` is given twice in this theme, first at line {line}"
+                            ),
+                        )
+                    });
                     continue;
                 }
                 in_this.insert(value_name.clone(), start);
                 if let Some(&(kind, theme, at)) = kinds.get(&value_name)
                     && kind != group
                 {
-                    let (first_name, first_text) = themes[theme];
-                    let (line, _) = line(first_text, at);
-                    errors.push(fault(
-                        start,
-                        format!(
-                            "`{value_name}` is {} here, but {} in `{first_name}`, at line {line}: \
-                             the first theme to give a name sets its kind",
-                            group.a(),
-                            kind.a()
-                        ),
-                    ));
+                    errors.push_with(|| {
+                        let (first_name, first_text) = themes[theme];
+                        let (line, _) = line(first_text, at);
+                        fault(
+                            start,
+                            format!(
+                                "`{value_name}` is {} here, but {} in `{first_name}`, at line \
+                                 {line}: the first theme to give a name sets its kind",
+                                group.a(),
+                                kind.a()
+                            ),
+                        )
+                    });
                     continue;
                 }
                 kinds
@@ -245,7 +259,7 @@ pub(crate) fn read(themes: &[(&str, &str)]) -> Result<Values, DocumentErrors> {
                     .or_insert((group, index, start));
                 match written(group, &node) {
                     Ok(written) => {
-                        wrong.retain(|name| *name != value_name);
+                        wrong.remove(&value_name);
                         given.insert(
                             value_name,
                             Given {
@@ -258,12 +272,15 @@ pub(crate) fn read(themes: &[(&str, &str)]) -> Result<Values, DocumentErrors> {
                     }
                     Err((offset, message)) => {
                         given.remove(&value_name);
-                        wrong.push(value_name.clone());
-                        errors.push(fault(offset, format!("`{value_name}`: {message}")));
+                        errors.push_with(|| fault(offset, format!("`{value_name}`: {message}")));
+                        wrong.insert(value_name);
                     }
                 }
             }
         }
+    }
+    if unreadable {
+        return Err(errors);
     }
     let values = resolve(themes, &given, &wrong, &mut errors);
     if errors.is_empty() {
@@ -334,20 +351,12 @@ fn written(group: Group, node: &Node<'_, '_>) -> Result<Written, (usize, String)
             if let Some(unit) = &unit {
                 return unit_refused(unit);
             }
-            let text = string.text();
-            if let Some(hex) = text.strip_prefix('#') {
-                return srgb(hex)
-                    .map(|color| Written::Value(ThemeValue::Color(color)))
-                    .ok_or_else(|| {
-                        (
-                            at,
-                            format!("`{text}` is not a color: `#rrggbb` or `#rrggbbaa`"),
-                        )
-                    });
+            match expression(&string.text(), Group::Color, 0) {
+                Ok(Expression::Color(color)) => Ok(Written::Value(ThemeValue::Color(color))),
+                Ok(Expression::Name(name)) => Ok(Written::Name(name)),
+                Ok(expression) => Ok(Written::Function(expression)),
+                Err(message) => Err((at, message)),
             }
-            expression(&text, Group::Color, 0)
-                .map(Written::Function)
-                .map_err(|message| (at, message))
         }
         (Group::Text, Kdl::String(string)) => {
             if let Some(unit) = &unit {
@@ -360,14 +369,18 @@ fn written(group: Group, node: &Node<'_, '_>) -> Result<Written, (usize, String)
         }
         (Group::Length | Group::Duration | Group::Number, Kdl::Number(number)) => {
             let number = number.to_f64();
-            if !number.is_finite() {
-                return Err((at, "a number that is not finite".to_owned()));
+            // A length or a number is held in an `f32`: one past its range is refused, not taken
+            // as infinite.
+            let held = number as f32;
+            if !number.is_finite() || (group != Group::Duration && !held.is_finite()) {
+                return Err((
+                    at,
+                    "a number that is not finite, or past what an `f32` holds".to_owned(),
+                ));
             }
             match (group, unit.as_deref()) {
-                (Group::Length, None | Some("px")) => {
-                    Ok(Written::Value(ThemeValue::Length(number as f32)))
-                }
-                (Group::Number, None) => Ok(Written::Value(ThemeValue::Number(number as f32))),
+                (Group::Length, None | Some("px")) => Ok(Written::Value(ThemeValue::Length(held))),
+                (Group::Number, None) => Ok(Written::Value(ThemeValue::Number(held))),
                 (Group::Duration, Some(unit @ ("ms" | "s"))) => {
                     let seconds = if unit == "ms" {
                         number / 1000.0
@@ -478,7 +491,7 @@ fn usage(function: Function) -> String {
 
 /// The share that `text` writes: a number, `0.2`, or a percentage, `20%`, read as `f32` and the
 /// percentage scaled in `f32`, as the colour functions always read it.
-pub(crate) fn share(text: &str) -> Result<f32, String> {
+fn share(text: &str) -> Result<f32, String> {
     let text = text.trim();
     let (number, scale) = match text.strip_suffix('%') {
         Some(number) => (number, 0.01),
@@ -515,16 +528,32 @@ fn argument_group(function: Function, place: usize) -> Group {
 }
 
 /// The values that `given` writes, each name followed through the others once, without recursion:
-/// a value is worked out once those it names are, along a stack of the names being worked out.
+/// a value is worked out once those it names are, along a stack of the names being worked out. A
+/// value's *depth* is the longest chain of names below it, each naming the next; past [`CHAIN`], it
+/// is refused, whatever the order in which the names are met.
 fn resolve(
     themes: &[(&str, &str)],
     given: &HashMap<String, Given>,
-    wrong: &[String],
+    wrong: &HashSet<String>,
     errors: &mut DocumentErrors,
 ) -> HashMap<String, ThemeValue> {
+    // The names that each value needs, each with the group it must be of, read once.
+    let needs: HashMap<&str, Vec<(String, Group)>> = given
+        .iter()
+        .map(|(name, value)| {
+            let mut needed = Vec::new();
+            match &value.written {
+                Written::Value(_) => {}
+                Written::Name(other) => needed.push((other.clone(), value.group)),
+                Written::Function(expression) => names(expression, Group::Color, &mut needed),
+            }
+            (name.as_str(), needed)
+        })
+        .collect();
     let mut values: HashMap<String, ThemeValue> = HashMap::new();
+    let mut depths: HashMap<&str, usize> = HashMap::new();
     // The names whose value is wrong, or names what is wrong, already told.
-    let mut failed: Vec<&str> = wrong.iter().map(String::as_str).collect();
+    let mut failed: HashSet<&str> = wrong.iter().map(String::as_str).collect();
     let fault = |given: &Given, message: String| {
         let (name, text) = themes[given.theme];
         DocumentError::at(name, text, given.span.start, message)
@@ -532,36 +561,19 @@ fn resolve(
     let mut names_sorted: Vec<&String> = given.keys().collect();
     names_sorted.sort();
     for start in names_sorted {
-        if values.contains_key(start.as_str()) || failed.contains(&start.as_str()) {
+        if values.contains_key(start.as_str()) || failed.contains(start.as_str()) {
             continue;
         }
         let mut stack: Vec<&str> = vec![start];
         while let Some(&name) = stack.last() {
             let value = &given[name];
-            // The names it needs, each with the group it must be of.
-            let mut needed = Vec::new();
-            match &value.written {
-                Written::Value(_) => {}
-                Written::Name(other) => needed.push((other.clone(), value.group)),
-                Written::Function(expression) => names(expression, Group::Color, &mut needed),
-            }
             let mut waiting = None;
             let mut wrong = None;
-            for (other, group) in &needed {
-                if failed.contains(&other.as_str()) {
+            let mut depth = 0;
+            for (other, group) in &needs[name] {
+                if failed.contains(other.as_str()) {
                     wrong = Some(None);
                     break;
-                }
-                if let Some(found) = values.get(other) {
-                    if found.group() != *group {
-                        wrong = Some(Some(format!(
-                            "`{name}` names `{other}`, which is {}, not {}",
-                            found.group().a(),
-                            group.a()
-                        )));
-                        break;
-                    }
-                    continue;
                 }
                 let Some((other, other_given)) = given.get_key_value(other.as_str()) else {
                     wrong = Some(Some(format!("no theme gives a value named `{other}`")));
@@ -575,26 +587,31 @@ fn resolve(
                     )));
                     break;
                 }
-                if stack.contains(&other.as_str()) {
-                    wrong = Some(Some(format!("`{other}` names itself through other values")));
-                    break;
+                if let Some(&below) = depths.get(other.as_str()) {
+                    depth = depth.max(below + 1);
+                    continue;
                 }
-                if stack.len() >= CHAIN {
+                if stack.contains(&other.as_str()) {
                     wrong = Some(Some(format!(
-                        "a chain of more than {CHAIN} names, each naming the next"
+                        "`{name}` names `{other}`, which names it back through other values"
                     )));
                     break;
                 }
                 waiting = Some(other.as_str());
                 break;
             }
+            if wrong.is_none() && (depth > CHAIN || stack.len() > CHAIN) {
+                wrong = Some(Some(format!(
+                    "a chain of more than {CHAIN} names, each naming the next"
+                )));
+            }
             if let Some(message) = wrong {
                 // Every name on the stack names what is wrong: the one that does is told, the
                 // others left out.
                 if let Some(message) = message {
-                    errors.push(fault(value, message));
+                    errors.push_with(|| fault(value, message));
                 }
-                failed.append(&mut stack);
+                failed.extend(stack.drain(..));
                 break;
             }
             if let Some(next) = waiting {
@@ -611,11 +628,12 @@ fn resolve(
             match worked {
                 Ok(worked) => {
                     values.insert(name.to_owned(), worked);
+                    depths.insert(name, depth);
                     stack.pop();
                 }
                 Err(message) => {
-                    errors.push(fault(value, message));
-                    failed.append(&mut stack);
+                    errors.push_with(|| fault(value, message));
+                    failed.extend(stack.drain(..));
                 }
             }
         }
@@ -646,7 +664,7 @@ fn evaluate_color(
                 },
                 _ => Err(usage(*function)),
             };
-            Ok(match function {
+            finite(match function {
                 Function::Mix => mix(color(0)?, color(1)?, share(2)?),
                 Function::Lighten => lighten(color(0)?, share(1)?),
                 Function::Darken => lighten(color(0)?, -share(1)?),
@@ -664,6 +682,19 @@ fn evaluate_color(
 pub(crate) fn color(text: &str, values: &Values) -> Result<LinearColor, String> {
     let expression = expression(text, Group::Color, 0)?;
     evaluate_color(&expression, &values.values)
+}
+
+/// `color`, if each of its channels is a finite number: a function given a share without bounds
+/// computes one that is not, which would reach every element that names it.
+fn finite(color: LinearColor) -> Result<LinearColor, String> {
+    if [color.r, color.g, color.b, color.a]
+        .iter()
+        .all(|channel| channel.is_finite())
+    {
+        Ok(color)
+    } else {
+        Err("a color with a channel that is no finite number: a share past its bounds".to_owned())
+    }
 }
 
 #[cfg(test)]

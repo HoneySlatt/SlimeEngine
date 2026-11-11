@@ -7,9 +7,11 @@ manifest that lists it ([ADR-0069](../../docs/adr/0069-the-asset-pipeline.md)).
 
 Started in M4a.2. It holds the asset ID; the cooked formats, textures in KTX2 files
 ([ADR-0071](../../docs/adr/0071-cooked-textures.md)), meshes, materials and scenes in formats of the
-engine's own, and scene files, style sheets, themes and tables of shortcuts in the binary encoding
-of documents ([ADR-0095](../../docs/adr/0095-cooked-scene-files.md),
+engine's own, scene files, style sheets and tables of shortcuts in the binary encoding of
+documents, and themes as their text, a document of KDL
+([ADR-0095](../../docs/adr/0095-cooked-scene-files.md),
 [ADR-0141](../../docs/adr/0141-style-sheets-and-themes.md),
+[ADR-0241](../../docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md),
 [ADR-0142](../../docs/adr/0142-input-and-focus.md)); the manifest of a directory of cooked
 data; and the reading of that directory by ID, which `slime-render` does in the background, from
 tasks of the engine's pool.

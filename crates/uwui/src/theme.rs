@@ -49,8 +49,10 @@
 //! Themes stack: of several themes, the last that gives a name gives its value, and the values
 //! that name it follow it. The first theme to give a name sets its kind: a later theme that gives
 //! it in another group is refused. The stack's names are followed once, without recursion, a chain
-//! of names 64 long at most. Each error is placed at its line and column, and the errors of every
-//! document are gathered, up to [`DocumentErrors::MOST`](crate::DocumentErrors::MOST).
+//! of names 64 long at most, each named value's chain counted whatever the order of the names. A
+//! color that is no finite number, as a function given a share without bounds computes, is
+//! refused. Each error is placed at its line and column, and gathered, in the order that
+//! [`DocumentErrors`] gives.
 //!
 //! ```toml
 //! # A style sheet.
@@ -831,6 +833,12 @@ impl References for Named<'_> {
                 _ => None,
             };
             return Some(read.map(wrap).ok_or_else(|| {
+                if inner == "u16" && matches!(value, ThemeValue::Number(_)) {
+                    return format!(
+                        "the value `{name}` is a number that is not whole from 0 to 65535, which \
+                         this field holds"
+                    );
+                }
                 format!(
                     "the value `{name}` is {}, which this field does not hold",
                     value.group().a()
