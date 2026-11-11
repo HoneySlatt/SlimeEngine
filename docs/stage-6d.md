@@ -43,8 +43,9 @@ in git.
   [ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md),
   [ADR-0231](adr/0231-an-elements-own-style-written-in-code.md),
   [ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md),
-  [ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md) and
-  [ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md).
+  [ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md),
+  [ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md) and
+  [ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md).
 - Widened on 2026-11-07 by the market's decisions
   ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md#decision)): M6d.1d, M6d.2, M6d.3,
   M6d.4, M6d.5, M6d.7, M6d.10 and M6d.11 gain what those decisions need of them; M6d.9 is cut in
@@ -102,6 +103,11 @@ in git.
   done, [M6d.2b2b3](#m6d2b2b3--tokens), tokens
   ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)), which closed M6d.2
   on 2026-11-11.
+- In progress: [M6d.3](#m6d3--documents-in-kdl), documents in KDL, cut in three at its start, on
+  2026-11-11 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)): in
+  progress, [M6d.3a](#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL; then
+  [M6d.3b](#m6d3b--themes-and-style-sheets-in-kdl), themes and style sheets, and
+  [M6d.3c](#m6d3c--shortcuts-docks-and-reflection-out), shortcuts, docks and reflection out.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -1107,33 +1113,77 @@ of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
   - The look's own tokens, a text named by a theme and the tokens read by the canvas wait for
     uwui's first stage, M6d.3 and M6d.4 ([`debt.md`](debt.md)).
 
-### M6d.3 — Documents with serde
+<a id="m6d3--documents-with-serde"></a>
 
-- **Goal.** uwui reads and writes its documents with `serde`, and the files that users saved open
-  as before.
-- **Crates.** `uwui`, `slime-cook`, `slime-editor`, `slime-color`, `hunnawood`.
-- **Delivers.** Themes, style sheets, shortcuts and docks' layouts read and written by `serde` and
-  `toml`, behind a feature; without it, a theme's files read or turned into values another way,
-  rules staying out of Rust's code ([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md));
-  a rule's declarations read through the `Deserialize` that their derive generates, unknown fields
-  refused as reflection refuses them ([ADR-0229](adr/0229-styles-typed-as-declarations.md)). A primary modifier, Ctrl on Linux
-  and Windows, Cmd on macOS, in the format of shortcuts, so that the shortcuts that users saved
-  migrate once; a menu's shortcut shown as its platform writes it
-  ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md),
-  [ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)). Decided at its start: the cooked
-  form of these documents, layouts and a theme's parts among them, whose reader of KDL comes with
-  uwui's first stage; whether a theme's values and rules are written in KDL too, so that a theme
-  reads in one notation
-  ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)); a field of
-  text named by a theme, `"$name"`, and how a theme's file writes a token's kind and unit
-  ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)); and
-  `slime-color`'s home with its reflection.
-- **Done when.** Every document of the repository, and layouts and shortcuts saved by the editor
-  kept as fixtures, read the same as before; a shortcut saved with Ctrl reads as the primary
-  modifier, and its menu shows it as Linux, Windows and macOS write it; `cargo tree -p uwui` holds
-  neither `slime-reflect` nor `slime-serialize`; CI is green.
+### M6d.3 — Documents in KDL
+
+- **Goal.** uwui reads and writes its documents in KDL with a reader of its own, and the files
+  that users saved open as before.
+- **Crates.** `uwui`, a new crate of uwui's for KDL, `uwui-macros`, `slime-cook`, `slime-assets`,
+  `slime-editor`, `slime-color`, `slime-reflect`, `hunnawood`, the examples.
+- **Delivers.** Themes, style sheets, shortcuts and docks' layouts written in KDL, read by uwui's
+  own reader, without `serde`, `toml` or a feature; a rule's declarations read by code that their
+  derive generates, unknown fields refused as reflection refuses them
+  ([ADR-0229](adr/0229-styles-typed-as-declarations.md)); a theme's values in groups that give
+  their kinds, and a field of text named by a theme; the cooked form the text, checked;
+  `LinearColor`'s reflection in `slime-reflect`; the primary modifier `Primary`, Ctrl on Linux and
+  Windows, ⌘ on macOS, and a menu's shortcut shown as its platform writes it
+  ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
+- **Done when.** Every document of the repository, converted, and the docks' layouts that the
+  editor saved, kept as fixtures, read the same as before; a table that wrote Ctrl reads as the
+  primary modifier, and its menu shows it as Linux, Windows and macOS write it; `cargo tree -p uwui`
+  holds neither `slime-reflect` nor `slime-serialize`; CI is green.
 - **How to test.** `cargo test -p uwui -p slime-cook -p slime-editor`.
 - **Measured.** Reading the editor's documents at its start.
+
+Cut in three at its start, on 2026-11-11, the reader first: every document of uwui becomes KDL, and
+the reader that ADR-0225 planned for uwui's first stage comes first
+([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
+
+### M6d.3a — uwui's reader of KDL
+
+In progress: its card is in [`PLAN.md`](PLAN.md#m6d3a--uwuis-reader-of-kdl), back here with its result
+when it is done.
+
+### M6d.3b — Themes and style sheets in KDL
+
+The second third of M6d.3 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
+
+- **Goal.** uwui reads its themes and style sheets in KDL, through code that its derive generates,
+  and reflection no longer reads them.
+- **Crates.** `uwui`, `uwui-macros`, the reader's crate, `slime-benches`, the examples.
+- **Delivers.** The derive's readers of declarations from KDL's nodes, after ADR-0241's mapping,
+  each number marked a length, a duration or a number; a theme's values in groups of their kinds,
+  its names resolved once for each stack of themes, without recursion, a chain bounded; a field of
+  text named by a theme, the look's icons moved to its theme; every theme and sheet of the
+  repository, and the documents written in tests, benches and examples, converted, `.theme.kdl`
+  and `.style.kdl`; errors at their line.
+- **Done when.** A random test of sheets and themes, and fixtures of every sheet's declarations,
+  read the same through the reflected reader and the new one; the two fixtures of styles and the
+  look's images unchanged; tests of each refusal; CI green.
+- **Measured.** The allocations and the time of reading the look's documents; `uwui`'s compile
+  time; the reader's weight in a build for the web.
+
+### M6d.3c — Shortcuts, docks and reflection out
+
+The last third of M6d.3 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
+
+- **Goal.** Shortcuts and docks' layouts in KDL, the cooked form the text, and reflection out of
+  uwui.
+- **Crates.** `uwui`, the reader's crate, `slime-cook`, `slime-assets`, `slime-editor`,
+  `slime-devui`, `slime-color`, `slime-reflect`, `hunnawood`, the examples.
+- **Delivers.** Shortcuts and docks' layouts in KDL, a layout written by the reader's writer, its
+  version written, read leniently; the editor's saved layouts migrated once; the primary modifier
+  `Primary`, a text field's keys through it, the platform a value, chords compared as they resolve,
+  a menu's shortcut shown as its platform writes it; the cooked form the text, checked, `from_binary`
+  gone; `LinearColor` described by `slime-reflect`; the `Reflect` derives, `S::named` and the
+  registry gone from uwui, the tests that walked types by reflection written again.
+- **Done when.** The editor's layouts as saved, its default and a user's with floating and closed
+  panels, and one written before them, read the same; a scene as text, a scene cooked and the dev
+  overlay's values read the same; a table that wrote Ctrl reads as `Primary`; a test shows each
+  platform's way to write a shortcut; `cargo tree -p uwui` holds neither `slime-reflect` nor
+  `slime-serialize`; the `interface` example's image unchanged; CI green.
+- **Measured.** Reading the editor's documents at its start; the cooker's compile time.
 
 ### M6d.4 — The canvas in uwui, on wgpu
 

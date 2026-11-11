@@ -8,7 +8,7 @@
   layouts decided), [0210](0210-signals-named-for-a-reload.md) (an element that a layout names is
   keyed by its name, not its place), [0220](0220-the-roadmap-reshaped-by-the-market.md) (M6d.1d2
   cut in two) and [0222](0222-what-a-theme-is.md) (a theme's parts written in KDL, in a file of
-  their own beside its values and rules); amended by [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (M6d.1d2b cut in two; `layouts!` becomes `files!`; blank renamed Plain)
+  their own beside its values and rules); amended by [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (M6d.1d2b cut in two; `layouts!` becomes `files!`; blank renamed Plain), then by [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) (every document of uwui is KDL; the reader built at M6d.3a, in a crate of its own; the cooked form is the text)
 - Date: 2026-11-09
 
 ## Context

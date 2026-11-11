@@ -183,7 +183,7 @@ CI checks budgets through exact counters, draws, elements, bytes, allocations, a
 | Game-facing API | Rust first. The C ABI and C++ SDK are derived later from a proven API. |
 | Windowing and input | winit, used only inside `platform`, and in uwui's desktop host; its types never leave them (ADR-0011, ADR-0181) |
 | Entity model | The engine's own: entities, components stored by type, and a transform hierarchy, with `f64` translations (ADR-0079) |
-| Serialization format | Driven by the engine's own reflection, without serde, but for uwui's documents, which uwui reads with serde (ADR-0181): TOML for text, sources and saves, KDL for layouts, games' screens among them (ADR-0225); binary formats of the engine's own for cooked data (ADR-0069, ADR-0080) |
+| Serialization format | Driven by the engine's own reflection, without serde: TOML for text, sources and saves (ADR-0080); binary formats of the engine's own for cooked data (ADR-0069, ADR-0080). uwui's documents, games' screens among them, are KDL, read by uwui's own reader, and cooked as their text, checked (ADR-0225, ADR-0241) |
 
 ### Open
 
@@ -451,7 +451,7 @@ The stage's milestones, their order and the owner's two checkpoints are decided 
 
 - The figures before: the screens of reference chosen and frozen; the programs of uwui's pilots measured with their present frameworks, and their rivals of the market (ADR-0198); the owner's very modest laptop named and measured; what the renderer costs an application against the canvas alone (ADR-0180)
 - How an application is written, decided with the owner and thrown away as code: how its state changes its interface, the format of layouts, Rust's code reloaded with its state kept, the interface's executor, the time of each frame, an application started in one call; GPUI with gpui-kit, Iced, Slint, Dioxus, Flutter, Compose, SwiftUI, Floem, Rune and Makepad read, four models prototyped and measured on uwui's tree (ADR-0190, ADR-0199, ADR-0202)
-- uwui decoupled: typed styles; its documents read with `serde`; its canvas on wgpu, its layout chosen against WebGL2's limits; the host's API, `slime-app` its first host (ADR-0181)
+- uwui decoupled: typed styles; its documents read in KDL by its own reader (ADR-0241); its canvas on wgpu, its layout chosen against WebGL2's limits; the host's API, `slime-app` its first host (ADR-0181)
 - A series of headless compositors, Weston, sway, KWin, Mutter and X11 through Xvfb, in a job of CI of its own (ADR-0195)
 - uwui's desktop host on winit, frames at the display's rate and none at rest, on every compositor of the series, its clipboard, input methods and accessibility; built and tested on macOS in CI, checked by hand on macOS (ADR-0173, ADR-0191, ADR-0196); a check that a program on uwui compiles neither the renderer, the world nor the editor
 - One core for agents in uwui, through which agents reach an application and the engine: its protocol, the agent's identity, rights and families, and its MCP server; then the actions that an application declares once (ADR-0190, ADR-0213, ADR-0218)
@@ -725,7 +725,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 | reflect | its derive macro only (ADR-0080) |
 | serialization | reflect |
 | world | reflect, serialization, assets, color |
-| UI framework | color, input; its documents read with `serde`; headless; drawn on wgpu by its own canvas, which render composes over its views (ADR-0132, ADR-0181) |
+| UI framework | color, input; its documents read in KDL by its own reader (ADR-0241); headless; drawn on wgpu by its own canvas, which render composes over its views (ADR-0132, ADR-0181) |
 | hosts of applications | the UI framework, and a platform's own layer: winit on the desktop, a Kotlin program on Android, the page on the web; never world, a game's host, the editor or games (ADR-0170, ADR-0181) |
 | editor | world, render, assets, UI framework; its core, without its interface, today: app, assets, channel, cook, reflect, serialization, world (ADR-0134) |
 | UI of games | render, input action mapping, UI framework |

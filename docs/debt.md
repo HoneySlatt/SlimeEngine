@@ -744,7 +744,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A tooltip shows for the keys' focus alone, not the program's, and is not placed beside the pointer.
   A floating panel has a least size of its own; the dock's floating panels dock again by the program's "Move to" ([ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)), not by a drag, which M6c.8 adds.
   A floating panel does not keep its place against a window that shrinks: it is placed within the window, but keeps what the user left.
-  A style sheet reads a theme's value in place of every value but a text: the look names its icons by their codepoints in its sheet, not in a theme; followed at [M6d.3](stage-6d.md#m6d3--documents-with-serde), which decides a field of text named by a theme ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)).
+  A style sheet reads a theme's value in place of every value but a text: the look names its icons by their codepoints in its sheet, not in a theme; followed at [M6d.3b](stage-6d.md#m6d3b--themes-and-style-sheets-in-kdl), where a field of text names a theme's value and the icons move to the look's theme ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
   The bar of menus takes Alt let go alone whenever an interface holds one: a game whose interface holds a bar loses Alt as a key of its own.
 - **Rich fields** ([ADR-0151](adr/0151-rich-widgets.md)).
   A press on a focused field's prefix that does not drag places its caret at its start.
@@ -791,12 +791,12 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Screen readers scroll by an item or by what shows, not to an offset.
   `deny.toml` ignores three advisories of unmaintained crates that the adapter on Linux brings through zbus 5, zvariant, zbus_names and zvariant_derive, which zbus 6 holds: they go once AccessKit's adapter moves to zbus 6.
 - **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md), [ADR-0229](adr/0229-styles-typed-as-declarations.md), [ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)).
-  A field of the type `String` takes no named value, and a token has no kind of text; followed at [M6d.3](stage-6d.md#m6d3--documents-with-serde), which reads the documents with `serde` and decides their notation ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)).
+  A field of the type `String` takes no named value, and a token has no kind of text; followed at [M6d.3b](stage-6d.md#m6d3b--themes-and-style-sheets-in-kdl), where a theme gives texts in a group of their own; code gets no token of text until something reads one ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
   A token names a colour, a length, a duration or a number alone: no shadow, easing nor font, and a shadow written in code stays under high contrast; followed at uwui's first stage.
   A token is read by an own style alone: a component drawn on the canvas, a knob or a meter, cannot read one, nor less motion when it draws; followed at [M6d.4](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu), which reads them when it draws.
   The frames' times of `ui.tree.look` and `ui.tree.editor` since M6d.2b2b1, and `uwui`'s times of compiling since its own style's setters take a literal or a token, were not measured: the machine was not at rest, other sessions building ([measurements](measurements.md#m6d2b2b3-tokens)); followed at the next milestone that runs alone on the owner's machine at rest.
   A token that a reload of code adds takes its fallback until the next `Ui::set_style`, which reads the lists declared; followed at uwui's first stage, which builds `uwui dev`.
-  An error of type in a cooked style sheet or theme is placed by its byte and the path of its part, not by its line; followed at [M6d.3](stage-6d.md#m6d3--documents-with-serde), which reads them with `serde`.
+  An error of type in a cooked style sheet or theme is placed by its byte and the path of its part, not by its line; followed at [M6d.3c](stage-6d.md#m6d3c--shortcuts-docks-and-reflection-out), where the cooked form is the text, checked ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
   The styles made are kept up to a number for each set of rules, each for a kind's defaults, an element's own style and its own states that hold (`Ui::set_style`).
   Past it, an element's style is composed again at each change, its declarations applied one by one, and a transition makes a style of its own for it at each frame.
   Elements folded in a section make styles of their own too, which no other element shares.
@@ -814,7 +814,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   `Ui::set_style` lays each rule's part over the default style, turns the result into a `Style`, and takes from it the fields that the part names.
   Reading the editor's look allocates more than before the declarations, which the owner accepted until M6d.3, and more again since its themes give the core's roles, each value read parsing its theme again ([measurements](measurements.md#m6d2b1-the-roles-and-each-kinds-defaults)).
   A walk of `uwui`'s own beside reflection's refuses a color set by some of its channels.
-  Followed at [M6d.3](stage-6d.md#m6d3--documents-with-serde), where the declarations are read by `serde`.
+  Followed at [M6d.3b](stage-6d.md#m6d3b--themes-and-style-sheets-in-kdl), where code that the derive generates reads the declarations from KDL ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
 - **Drawing an element again allocates for each element** ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)).
   An element drawn again makes the lists of its primitives anew, and a control copies its text's look; under the editor's look, each frame of a transition allocates some eight times for each element that it draws ([measurements](measurements.md#m6d2b2b1-transitions-and-the-frame-of-a-change-of-theme)).
   An element of no display, folded in a section, is drawn again while it moves, unseen: `paint` does not skip it, as gathering the display list does.
