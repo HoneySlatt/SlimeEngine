@@ -1,0 +1,17 @@
+[package]
+name = "canvas-prototype"
+description = "Thrown away after measuring: the canvas's items drawn with three layouts, on Vulkan and on wgpu's GL backend, their images compared and their frames timed (M6d.4a, ADR-0242)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+pollster.workspace = true
+png.workspace = true
+# wgpu's GL backend, the path that WebGL2 takes, on this crate alone (ADR-0242).
+wgpu = { workspace = true, features = ["gles"] }
