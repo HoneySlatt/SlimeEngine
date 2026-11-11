@@ -35,7 +35,7 @@ A cell that starts with "—" is not observed: what it says comes from elsewhere
 | Clipboard | none | opened | opened | none | opened |
 | Clipboard's protocol | none | ext | ext | none | — X11's selections |
 | Clipboard round trip | not run, no input | round trip | round trip | nothing pasted | round trip |
-| Game minimized | at rest | draws its frames | at rest | draws its frames | draws its frames |
+| Game minimized | at rest | draws its frames | at rest | at rest | draws its frames |
 | Agents' sessions and rest | pass | pass | pass | pass | pass |
 
 The rows:
@@ -58,8 +58,8 @@ The rows:
   system's clipboard, through which protocol of the clipboard's managers, and whether a text copied
   with Ctrl+A and Ctrl+C in a field of the editor, then pasted with Ctrl+V, came back, the keys
   typed through the compositor.
-- **Game minimized**: *Hunna Wood* minimized, its game time running: at rest, or drawing its frames,
-  as where the compositor keeps its window shown.
+- **Game minimized**: *Hunna Wood* minimized, its game time running, watched 5 s later: at rest,
+  waking now and then, or drawing its frames, as where the compositor keeps its window shown.
 - **Agents' sessions and rest**: slime-mcp's `edit_window` and `drive`, which find the editor and
   the game at rest ([ADR-0185](adr/0185-rest-checked-in-ci.md)).
 
@@ -73,8 +73,8 @@ The rows:
   give `ext_data_control_v1`, X11 its selections. M6d.8 designs the desktop host's clipboard
   across the series.
 - **A minimized window.** sway minimizes nothing, and Xvfb, without a window manager, iconifies
-  nothing: the window stays shown, and the game rightly draws its frames. Mutter keeps the frames
-  of a minimized window coming: why is not read yet, and is the desktop host's question at M6d.7.
+  nothing: the window stays shown, and the game rightly draws its frames. Mutter configures a
+  minimized window again about 3 s later, which wakes the game once, then leaves it at rest.
 - **Rates and clocks.** KWin's virtual output refreshes at 60 Hz: neither an option nor a custom
   mode of its settings changes it. Weston's presentation clock is `CLOCK_MONOTONIC_RAW`, the others'
   `CLOCK_MONOTONIC`. Xvfb gives no refresh rate: the engine's frames there follow its own schedule.
