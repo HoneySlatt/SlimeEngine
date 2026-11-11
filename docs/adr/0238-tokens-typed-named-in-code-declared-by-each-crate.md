@@ -11,7 +11,7 @@
   the owner at the milestone's closing review: a token declared again, of the same name, kind and
   fallback, is the same token, declared once, and only a name declared again with another kind or
   fallback is refused; a number that is not finite refuses the themes wherever it is read, a rule
-  naming it too, and only a negative duration that a rule names stays debt until the look's tokens; amended by [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) (a theme writes a value's kind by its group; a field of text names a theme's value)
+  naming it too, and only a negative duration that a rule names stays debt until the look's tokens; amended by [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) (a theme writes a value's kind by its group; a field of text names a theme's value) and [0242](0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md) (a token and less motion read when a component is drawn come at uwui's first stage, with live values)
 - Date: 2026-11-11
 
 ## Context

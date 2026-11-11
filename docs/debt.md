@@ -10,7 +10,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   `slime-gfx`'s `Gpu::new` keeps wgpu's default hint, `MemoryHints::Performance`, whose allocator reserves its blocks at their largest.
   A game fills them; a small application on uwui never does, and pays for them in video memory.
   Smaller blocks, `MemoryHints::MemoryUsage` or sizes of their own, may cost a game allocations in more pieces: not measured.
-  Followed at [M6d.4](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu), where uwui opens its own device.
+  Followed at [M6d.7](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames), where uwui's desktop host opens its own device ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)).
 - **What a load reads waits in staging memory until its copies are submitted** ([ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)).
   The renderer's uploader sends at most a budget of bytes per frame; nothing holds back loads that read faster.
   A load of many hundreds of megabytes keeps them in the CPU's memory while it lasts.
@@ -798,7 +798,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md), [ADR-0229](adr/0229-styles-typed-as-declarations.md), [ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)).
   A field of the type `String` takes no named value, and a token has no kind of text; followed at [M6d.3b](stage-6d.md#m6d3b--themes-and-style-sheets-in-kdl), where a theme gives texts in a group of their own; code gets no token of text until something reads one ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
   A token names a colour, a length, a duration or a number alone: no shadow, easing nor font, and a shadow written in code stays under high contrast; followed at uwui's first stage.
-  A token is read by an own style alone: a component drawn on the canvas, a knob or a meter, cannot read one, nor less motion when it draws; followed at [M6d.4](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu), which reads them when it draws.
+  A token is read by an own style alone: a component drawn on the canvas, a knob or a meter, cannot read one, nor less motion when it draws; followed at uwui's first stage, with live values ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)).
   `uwui`'s times of compiling since its own style's setters take a literal or a token, and `uwui-kdl`'s, were not measured: the machine was not at rest, other sessions building; the frames' times since M6d.2b2b1 were measured at M6d.3a under a load of 2.2 to 2.6 ([measurements](measurements.md#m6d3a-uwuis-reader-of-kdl)); followed at the next milestone that runs alone on the owner's machine at rest.
   A token that a reload of code adds takes its fallback until the next `Ui::set_style`, which reads the lists declared; followed at uwui's first stage, which builds `uwui dev`.
   An error of type in a cooked style sheet or theme is placed by its byte and the path of its part, not by its line; followed at [M6d.3c](stage-6d.md#m6d3c--shortcuts-docks-and-reflection-out), where the cooked form is the text, checked ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).

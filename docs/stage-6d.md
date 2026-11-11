@@ -44,8 +44,9 @@ in git.
   [ADR-0231](adr/0231-an-elements-own-style-written-in-code.md),
   [ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md),
   [ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md),
-  [ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md) and
-  [ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md).
+  [ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md),
+  [ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) and
+  [ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md).
 - Widened on 2026-11-07 by the market's decisions
   ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md#decision)): M6d.1d, M6d.2, M6d.3,
   M6d.4, M6d.5, M6d.7, M6d.10 and M6d.11 gain what those decisions need of them; M6d.9 is cut in
@@ -108,6 +109,12 @@ in git.
   [M6d.3a](#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL, on the same day; then
   [M6d.3b](#m6d3b--themes-and-style-sheets-in-kdl), themes and style sheets, and
   [M6d.3c](#m6d3c--shortcuts-docks-and-reflection-out), shortcuts, docks and reflection out.
+- In progress on track B: [M6d.4](#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on wgpu,
+  cut in three at its start, on 2026-11-11
+  ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)):
+  [M6d.4a](#m6d4a--the-canvass-prototype-and-its-adr), the canvas's prototype and its ADR; then
+  [M6d.4b1](#m6d4b1--the-canvas-on-wgpu-as-it-is), the canvas on wgpu as it is, and
+  [M6d.4b2](#m6d4b2--the-canvass-layout-chosen), its layout chosen.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -1237,24 +1244,69 @@ The last third of M6d.3 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-
   path that WebGL2 takes.
 - **Crates.** `uwui-render`, `slime-render`, `slime-gfx`, `slime-app`, `slime-devui`,
   `slime-editor`, `hunnawood`; `AGENTS.md`.
-- **Delivers.** First, a prototype thrown away: items handed on as flat values of instances,
-  against items kept in a texture that the shader reads by their index, each counted against
+- **Delivers.** First, a prototype thrown away: items handed on as values of instances, against
+  items kept in a texture that the shader reads by their index, each counted against
   WebGL2's limits for the drawing that uwui's first stage plans, and measured; the prototype holds
   a blur of what lies behind, a group drawn apart, a transform per item and a path, and its ADR
   records the canvas's passes ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md)). Then
   the canvas in `uwui-render` on the layout chosen, taking a device, its queue and a target; the
   engine handing it its device and composing it over its views; image tests on wgpu's GL backend
   at WebGL2's limits, if the owner accepts wgpu's `gles` feature; AGENTS.md's rule on wgpu's types
-  naming `uwui-render`. What the canvas draws for a component, a knob or a meter, reads its
-  tokens and less motion when it draws, so that a change of theme or of the preferences draws
-  again without running a view
-  ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)).
-- **Done when.** The prototype's blur, group, transform and path are measured on both layouts, and
+  naming `uwui-render`.
+- **Done when.** The prototype's blur, group, transform and path are measured on its layouts, and
   the canvas's ADR records its passes; the editor, the dev overlay and *Hunna Wood*'s menus draw as
   before in their image tests; a test draws a tree of uwui with a bare wgpu device; CI is green.
 - **How to test.** `cargo test --workspace`; `scripts/check.sh`.
 - **Measured.** `render.canvas` and `ui.draw.menu`, before and after, at 3840 × 2160 on the
   RX 6900 XT, within the interface's 0.5 ms.
+
+Cut in three at its start, on 2026-11-11: the prototype first, then the canvas moved as it is,
+then its layout changed; a token and less motion read when a component is drawn move to uwui's
+first stage, with live values
+([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)).
+
+### M6d.4a — The canvas's prototype and its ADR
+
+In progress: its card is in [`PLAN.md`](PLAN.md#m6d4a--the-canvass-prototype-and-its-adr), back
+here with its result when it is done.
+
+### M6d.4b1 — The canvas on wgpu, as it is
+
+The second third of M6d.4
+([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)). It follows
+the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** `uwui-render` draws with a wgpu device, its queue and a target, without the engine's
+  renderer, its images unchanged.
+- **Crates.** `uwui-render`, `slime-render`, `slime-gfx`, `slime-app`, `slime-devui`,
+  `slime-editor`, `hunnawood`, `slime-benches`, the examples; `AGENTS.md`.
+- **Delivers.** How the engine hands its device to uwui, decided in an ADR; the canvas and the
+  glyphs' atlas moved into `uwui-render`, on wgpu directly, on today's layout; the engine composing
+  the canvas over its views; the canvas's tests, its probe of cost and its benchmarks moved with
+  it; `AGENTS.md`'s rule on wgpu's types naming `uwui-render`.
+- **Done when.** The editor, the dev overlay and *Hunna Wood*'s menus draw as before in their
+  image tests; a test draws a tree of uwui with a bare wgpu device; `slime-render` holds no
+  canvas; CI is green.
+- **How to test.** `cargo test --workspace`; `scripts/check.sh`.
+- **Measured.** `render.canvas` and `ui.draw.menu` before and after the move, at 3840 × 2160 on the
+  RX 6900 XT, within the interface's 0.5 ms.
+
+### M6d.4b2 — The canvas's layout chosen
+
+The last third of M6d.4
+([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)).
+
+- **Goal.** uwui's canvas draws on a path that WebGL2 takes.
+- **Crates.** `uwui-render`, `slime-benches`; `.github/workflows/`.
+- **Delivers.** The canvas on the layout that M6d.4a chose; image tests on wgpu's GL backend at
+  WebGL2's limits, if the owner accepts wgpu's `gles` feature in the workspace, in a job other than
+  `check (headless)`; uwui's counters and discriminating cases of the canvas checked in CI
+  ([ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)).
+- **Done when.** The canvas's images are those of M6d.4b1, on Vulkan and on GL; CI is green, each
+  job within 20 minutes.
+- **How to test.** `cargo test -p uwui-render`; `scripts/check.sh`.
+- **Measured.** `render.canvas` and `ui.draw.menu` at 3840 × 2160 on the RX 6900 XT, against
+  M6d.4b1's.
 
 ### M6d.5 — The host's API
 

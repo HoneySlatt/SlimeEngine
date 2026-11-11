@@ -288,7 +288,7 @@ the ADR linking to it.
 | [0217](0217-worlds-by-density-generated-and-destroyed.md) | Worlds by density, generated and destroyed | Accepted; amends 0098, 0107, 0109, 0112 and 0208; amended by 0239 |
 | [0218](0218-one-core-for-agents-in-uwui.md) | One core for agents, in uwui | Accepted; amends 0099, 0122, 0190, 0209 and 0213 |
 | [0219](0219-test-games-in-place-of-hunna-wood.md) | Test games in place of Hunna Wood | Accepted; amends 0006, 0067, 0207, 0214 and principle 4 |
-| [0220](0220-the-roadmap-reshaped-by-the-market.md) | The roadmap reshaped by the market | Accepted; amends 0098, 0190, 0194 and 0207; amended by 0221, 0222, 0225, 0226, 0229 and 0241 |
+| [0220](0220-the-roadmap-reshaped-by-the-market.md) | The roadmap reshaped by the market | Accepted; amends 0098, 0190, 0194 and 0207; amended by 0221, 0222, 0225, 0226, 0229, 0241 and 0242 |
 | [0221](0221-compiling-within-its-budgets.md) | Compiling within its budgets | Accepted; amends 0104 and 0220 |
 | [0222](0222-what-a-theme-is.md) | What a theme is: values, rules and parts written as data | Accepted; amends 0141, 0190, 0213 and 0220; amended by 0225, 0226 and 0229 |
 | [0223](0223-styles-written-in-code-through-tokens.md) | Styles written in code, through tokens, under the user's layer | Accepted; amends 0141, 0149 and 0181; amended by 0226, 0230, 0231, 0237 and 0238 |
@@ -306,7 +306,8 @@ the ADR linking to it.
 | [0235](0235-content-from-outside-the-tree.md) | Content from outside the tree: the element is uwui's, the player the application's | Accepted; amends 0171 and 0190 |
 | [0236](0236-one-trial-of-content-from-outside-for-aerith-and-magnolia.md) | One trial of content from outside, for Aerith and Magnolia | Accepted; amends 0181 and 0213 |
 | [0237](0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md) | The user's layer: the size of text and less motion as preferences, density and contrast by names | Accepted; amends 0149, 0223, 0226, 0231 and 0232 |
-| [0238](0238-tokens-typed-named-in-code-declared-by-each-crate.md) | Tokens: the themes' values named in code, typed by kind, declared by each crate | Accepted; amends 0223, 0229, 0230, 0231 and 0232; amended by 0241 |
+| [0238](0238-tokens-typed-named-in-code-declared-by-each-crate.md) | Tokens: the themes' values named in code, typed by kind, declared by each crate | Accepted; amends 0223, 0229, 0230, 0231 and 0232; amended by 0241 and 0242 |
 | [0239](0239-content-made-outside-and-maps-in-the-editor.md) | What a game's content needs: importers, characters, large sources, and maps in the editor | Accepted; amends 0209 and 0217 |
 | [0240](0240-the-series-input-its-table-and-its-jobs.md) | The series' input, its table and its jobs | Accepted; amends 0195 |
 | [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) | Every document of uwui in KDL, read by a reader of its own | Accepted; amends 0181, 0220, 0225, 0229 and 0238 |
+| [0242](0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md) | The canvas moved in three steps, its prototype on wgpu's GL backend; tokens read when drawn at uwui's first stage | Accepted; amends 0220 and 0238 |

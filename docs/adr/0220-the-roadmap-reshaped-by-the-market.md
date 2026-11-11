@@ -8,7 +8,7 @@
   program and the game that its Play builds meet), [0222](0222-what-a-theme-is.md) (M6d.1d cut
   in two), [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) (M6d.1d2
   cut in two) and [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) (blank renamed Plain; M6d.5 checks a target for each root, not a surface), then by
-  [0229](0229-styles-typed-as-declarations.md) (M6d.2 cut in two; the part of a style that a theme adds moves to uwui's first stage), then by [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) (M6d.3 cut in three; the primary modifier named `Primary`)
+  [0229](0229-styles-typed-as-declarations.md) (M6d.2 cut in two; the part of a style that a theme adds moves to uwui's first stage), then by [0241](0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md) (M6d.3 cut in three; the primary modifier named `Primary`), then by [0242](0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md) (M6d.4 cut in three)
 - Date: 2026-11-07
 
 ## Context

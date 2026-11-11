@@ -34,7 +34,12 @@ documentation was updated and reread. Every milestone is also checked on Windows
   - Track A, uwui's core, in the main checkout: M6d.3a, M6d.3b, then M6d.3c.
   - Track B, beside it, in a worktree: [M6d.6](stage-6d.md#m6d6--a-series-of-headless-compositors),
     the series of compositors, done on 2026-11-11
-    ([ADR-0240](adr/0240-the-series-input-its-table-and-its-jobs.md)); next M6d.4.
+    ([ADR-0240](adr/0240-the-series-input-its-table-and-its-jobs.md)); then M6d.4, cut in three
+    at its start, on 2026-11-11
+    ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)): in
+    progress, [M6d.4a](#m6d4a--the-canvass-prototype-and-its-adr), the canvas's prototype; then
+    [M6d.4b1](stage-6d.md#m6d4b1--the-canvas-on-wgpu-as-it-is) and
+    [M6d.4b2](stage-6d.md#m6d4b2--the-canvass-layout-chosen).
   - M6d.5 waits for M6d.3 and M6d.4, which both touch `slime-app`; M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: the deletion of the branches `m6d1b-bench` and
@@ -74,7 +79,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.3a — uwui's reader of KDL](stage-6d.md#m6d3a--uwuis-reader-of-kdl) | Done |
 | [M6d.3b — Themes and style sheets in KDL](stage-6d.md#m6d3b--themes-and-style-sheets-in-kdl) | Planned |
 | [M6d.3c — Shortcuts, docks and reflection out](stage-6d.md#m6d3c--shortcuts-docks-and-reflection-out) | Planned |
-| [M6d.4 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Planned |
+| [M6d.4a — The canvas's prototype and its ADR](#m6d4a--the-canvass-prototype-and-its-adr) | In progress |
+| [M6d.4b1 — The canvas on wgpu, as it is](stage-6d.md#m6d4b1--the-canvas-on-wgpu-as-it-is) | Planned |
+| [M6d.4b2 — The canvas's layout chosen](stage-6d.md#m6d4b2--the-canvass-layout-chosen) | Planned |
 | [M6d.5 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Planned |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
@@ -85,13 +92,36 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
 
+## M6d.4a — The canvas's prototype and its ADR
+
+The first third of M6d.4, its questions decided at its start, on 2026-11-11
+([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)). It follows
+the rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The canvas's layout chosen by measure, on a path that WebGL2 takes, and its passes
+  recorded.
+- **Crates.** None of the workspace's: a crate thrown away, on wgpu alone, on the branch
+  `m6d4a-prototype`, with wgpu's `gles` feature there alone.
+- **Delivers.**
+  - Three layouts drawing the screens of `render.canvas`: the storage buffers of today, the
+    control; small instances, one format for each kind of item; items in a texture read by
+    their index.
+  - On each: a blur of what lies behind, a group drawn apart, a transform per item, a path, and
+    sRGB's blending without a second view of the target; one element animated over a still screen
+    that grows, its work counted.
+  - Each run on Vulkan, on a device with WebGL2's limits, and on wgpu's GL backend; each counted
+    against WebGL2's limits for the drawing that uwui's first stage plans.
+  - The canvas's ADR: the layout, its passes, and what a target must allow.
+- **Done when.** The four effects are measured on each layout that WebGL2 takes, their images
+  compared with the control's; the ADR is written; CI is green.
+- **How to test.** The prototype's runs, on lavapipe and on Mesa's GL.
+- **Measured.** GPU and CPU time of each layout and effect at 1280 × 800, 1920 × 1080 and
+  3840 × 2160, on lavapipe and on the RX 6900 XT; the bytes written each frame.
+
 ## Ideas waiting for their milestone
 
 From two outside reviews, kept by the owner on 2026-11-10; each joins its milestone at its start.
 
-- [M6d.4](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu): one element animated over a still screen
-  that grows, its work counted to the canvas, which today walks the whole display list at each
-  draw (`UiRenderer::draw`).
 - Stage 7's planning: the very modest laptop measured on
   [ADR-0216](adr/0216-light-geometry-and-the-gpus-floor.md)'s common floor before the renderer
   stands on it; one memory budget for every load and renderer ([`debt.md`](debt.md));
