@@ -5,7 +5,7 @@
 //! and every leaf through the mask order, the rules' states against the own style's.
 //!
 //! The reflected cascade is kept here as the test's oracle while `slime-reflect` is in uwui; once
-//! uwui reads its documents with `serde` (M6d.3), the fixtures of the `widgets` example's styles
+//! uwui reads its documents in KDL (M6d.3c), the fixtures of the `widgets` example's styles
 //! (`examples/tests/widgets.rs`) outlive it.
 
 use std::panic::Location;

@@ -30,7 +30,7 @@ use syn::{Attribute, Data, DeriveInput, Fields, Ident, Type};
 ///   uwui's tests write own styles with, built for them alone;
 /// - `S::named`, the declarations of the leaves that a part of `S` read by reflection names, each
 ///   holding the value that a whole `S` gives it, an array's every element; it goes when uwui reads
-///   its documents with `serde` (M6d.3);
+///   its documents in KDL (M6d.3b);
 /// - `Same` for `S`, field by field;
 /// - `Colors` for `S`, the colors of its fields marked `#[declare(color)]` and of its nested
 ///   fields, in the order of the struct: the one list of colors that transitions move.
