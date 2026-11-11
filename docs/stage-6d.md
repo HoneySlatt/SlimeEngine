@@ -42,8 +42,9 @@ in git.
   [ADR-0229](adr/0229-styles-typed-as-declarations.md),
   [ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md),
   [ADR-0231](adr/0231-an-elements-own-style-written-in-code.md),
-  [ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md) and
-  [ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md).
+  [ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md),
+  [ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md) and
+  [ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md).
 - Widened on 2026-11-07 by the market's decisions
   ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md#decision)): M6d.1d, M6d.2, M6d.3,
   M6d.4, M6d.5, M6d.7, M6d.10 and M6d.11 gain what those decisions need of them; M6d.9 is cut in
@@ -81,7 +82,7 @@ in git.
     [M6d.1d2b1](#m6d1d2b1--an-applications-start-and-its-look), an application's start and its
     look, and [M6d.1d2b2](#m6d1d2b2--the-time-that-motion-reads), the time that motion reads
     ([ADR-0227](adr/0227-the-time-that-motion-reads.md)), which closed M6d.1 on 2026-11-10.
-- In progress: M6d.2, typed styles, cut in two at its start, on 2026-11-10
+- Done: M6d.2, typed styles, cut in two at its start, on 2026-11-10
   ([ADR-0229](adr/0229-styles-typed-as-declarations.md)):
   done, [M6d.2a](#m6d2a--the-typed-cascade), the typed cascade;
   [M6d.2b](#m6d2b--tokens-defaults-and-styles-in-code), tokens, defaults and styles in code, cut
@@ -98,7 +99,9 @@ in git.
   frame of a change of theme; done,
   [M6d.2b2b2](#m6d2b2b2--the-users-layer-over-what-code-writes), the user's layer over what code
   writes ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md));
-  next, [M6d.2b2b3](#m6d2b2b3--tokens), tokens.
+  done, [M6d.2b2b3](#m6d2b2b3--tokens), tokens
+  ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)), which closed M6d.2
+  on 2026-11-11.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -1047,41 +1050,62 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
 ### M6d.2b2b3 — Tokens
 
 The last third of M6d.2b2b
-([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)). It
-follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)), its
+questions decided at its start, on 2026-11-11
+([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)). It follows the rules
+of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
 
-- **Goal.** The themes' values named in code by typed tokens, which the user's layer tells from a
-  literal.
-- **Crates.** `uwui`, `uwui-macros`, `slime-benches`, the examples.
-- **Delivers.** Decided at its start, with the owner: a declaration's payload, and whether it
-  records the state that set it, which [ADR-0227](adr/0227-the-time-that-motion-reads.md)'s two
-  clocks read; whether the rules' declarations keep the origin of their values, which forced
-  colours read; the token as a public type, the core's roles as tokens, an application's own tokens
-  (colours, lengths, durations and numbers) and their lists, given with the themes, and what the
-  density and more contrast do to them; a field of text named by a theme; whether a style's change
-  in code is timed through `subsecond`.
-- **Done when.** Tests: a token that the themes lack warns once; a token's value of another type
-  refuses the themes; a token follows the density's and high contrast's themes, which leave a
-  number written in code
-  ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md));
-  CI green.
-- **Measured.** The editor's interface and its counters; `ui.tree.look`.
-- **Found before its start:**
-  - Nothing reads a rule's origin or the state that set a declaration: ADR-0227's clocks can be
-    chosen for each field from the rule's selector and the own declaration's state, and forced
-    colours need at most whether a rule's colour named a role, known where the sheets are read.
-    ADR-0229 put both in the payload; the `Ui` keeps no documents after `set_style`.
-  - The derive refuses generic types: a `Spec<T>` in the own declarations alone means a second
-    family of enums, where a token beside the declaration, resolved in the cascade, does not.
-  - A token's fallback cannot be an sRGB colour in a `const`: `LinearColor::from_srgb8` is not
-    `const`.
-  - A list of tokens given after `set_style` needs the themes kept, the lazy resolution that
-    ADR-0230 rejected.
-  - `"$name"` in a field of text amends ADR-0141, which says that a text takes no named value.
-  - An application's lengths follow the density through its own themes for each density, as
-    ADR-0223 has it, unless a factor reaches its tokens too.
-  - `subsecond` 0.7.10 patches a running program only through `dx serve --hotpatch` or a tool on
-    `dioxus-cli`'s protocol (read on 2026-11-11).
+- **Goal.** The themes' values named in code by tokens of four kinds, declared by each crate.
+- **Crates.** `uwui`, `slime-benches`, the examples.
+- **Delivers.**
+  - `Token<K>` of the kinds `Color`, `Length`, `Duration` and `Number`, its fallback a value, an
+    sRGB colour or another token; a crate's list, `Tokens`; `Ui::declare_tokens`, which refuses
+    a name declared again with another kind or fallback.
+  - The core's seven roles as public tokens, in place of `ColorRole`.
+  - `set_style` reads each declared token once: a value of another kind, not finite, or a negative
+    duration refuses the themes; a token lacking takes its fallback with one warning, only when
+    themes are given; a token written but not declared, the same.
+  - The own style's setters take a literal or a token of their kind; two own styles are the same
+    only if they name the same tokens.
+  - The `interface` example declares and writes its own tokens.
+  - A counter of a tree whose own styles name tokens.
+- **Done when.**
+  - Tests of each refusal and warning above; a token follows the look's compact and high-contrast
+    themes where a number written in code stays; a duration in a padding fails to compile; a token
+    and a literal of the same value share no style.
+  - The images and the two fixtures of styles unchanged; the counters unchanged but the new one;
+    CI green.
+- **How to test.** `cargo test -p uwui --features editor-look`; `cargo test -p slime-examples
+  --test widgets --test editor`; `cargo run -p slime-benches -- --counters`; `scripts/check.sh`;
+  the `interface` example drawn into an image on lavapipe, before and after.
+- **Measured.** `ui.tree.look`, `ui.tree.editor` and the new counter; `uwui`'s compile times, its
+  setters generic; on the owner's machine at rest, when track B builds nothing.
+- **Found before its start:** in [ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md#context).
+- **Result.** Done on 2026-11-11, CI green
+  ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)):
+  - Code names a theme's value by a token of its kind, `s.padding(SPACE).background(FACE)`; a
+    duration where a length goes does not compile. A crate lists its tokens and a program declares
+    each list once; `set_style` reads each in its kind and refuses a value of another kind, a
+    number that is not finite or a negative duration.
+  - The core's seven roles are public tokens. A token that the themes lack, or that no list
+    declared, takes its fallback, with one warning; the themes are read for the tokens declared
+    alone. A cycle of fallbacks between `static` tokens is refused when its list is declared.
+  - A token follows the look's compact and high-contrast themes through the names that a theme
+    gives it, where a number written in code stays the author's. The `interface` example names its
+    spaces by its own tokens; its image is unchanged.
+  - A declaration of an own style keeps its 56 bytes, the place of its token held in the room
+    that its state leaves: holding the token itself, the frame that builds the editor's inspector
+    again allocated 1.5 % more bytes.
+  - A tree whose own styles name tokens allocates 8.79 times for each element styled after a
+    change of colours, within the target of 20. Two frames of `ui.tree.look` allocate 864 bytes
+    more, each own style kept holding a list of its tokens, which the owner accepted; every other
+    counter, the images and the two fixtures of styles are unchanged. The times were not measured,
+    the machine not at rest, debt that `debt.md` follows
+    ([measurements](measurements.md#m6d2b2b3-tokens)).
+  - A theme's number that a rule names and that is not finite now refuses the themes too, the
+    debt of the look's foundations paid where the milestone opened its code.
+  - The look's own tokens, a text named by a theme and the tokens read by the canvas wait for
+    uwui's first stage, M6d.3 and M6d.4 ([`debt.md`](debt.md)).
 
 ### M6d.3 — Documents with serde
 

@@ -2463,6 +2463,24 @@ What it says:
 The times of the frames, and of compiling `uwui` with its setters generic, were not measured: the
 machine was not at rest, the other track of the stage building and running its tests.
 
+GitHub's hosted runners, on 2026-11-11, each run green, on `2ef0262`:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 9 min 52 s |
+| `check (headless)` | 16 min 48 s |
+| `check (windowed)` | 8 min 52 s |
+| `check (game)` | 12 min 50 s |
+| `windows (tests)` | 13 min 59 s |
+| `windows (render)` | 6 min 56 s |
+| `windows (game)` | 7 min 9 s |
+| `windows-release` | 16 min 28 s |
+| Docs' `links` | 25 s |
+
+Every job stays within its limit of 20 minutes. `check (headless)` took 35 s more than on `72ff330`,
+its margin now 3 min 12 s; `windows-release` 2 min 38 s more, its margin 3 min 32 s. Both run the
+whole workspace's build; the milestone adds two files of tests and no crate.
+
 ## M6d.2b2b2, the user's layer over what code writes
 
 The user's size of text through the cascade and a list's rows, given as `Preferences` with less

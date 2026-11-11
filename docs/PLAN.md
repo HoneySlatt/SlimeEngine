@@ -19,7 +19,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 - Stage 6d, uwui leaving the engine, released with 0.7: its whole plan in
   [`stage-6d.md`](stage-6d.md).
-- Done: M6d.0a to M6d.2b2b2, in the [status](#status) below: M6d.1, how an application is
+- Done: M6d.0a to M6d.2b2b3, in the [status](#status) below: M6d.1, how an application is
   written, closed on 2026-11-10; [M6d.2a](stage-6d.md#m6d2a--the-typed-cascade), the typed
   cascade, the first half of M6d.2, the same day
   ([ADR-0229](adr/0229-styles-typed-as-declarations.md)); then
@@ -36,9 +36,10 @@ documentation was updated and reread. Every milestone is also checked on Windows
   2026-11-11 ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)).
   then [M6d.2b2b2](stage-6d.md#m6d2b2b2--the-users-layer-over-what-code-writes), the user's
   layer over what code writes, on the same day
-  ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md)).
-  In progress: [M6d.2b2b3](#m6d2b2b3--tokens), tokens, its questions decided at its start
+  ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md));
+  then [M6d.2b2b3](stage-6d.md#m6d2b2b3--tokens), tokens, which closed M6d.2 on the same day
   ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)).
+  Next on track A: [M6d.3](stage-6d.md#m6d3--documents-with-serde), documents with serde.
 - In parallel, the owner's choice of 2026-11-11: two tracks at most, each milestone in its own
   session.
   - Track A, uwui's core, in the main checkout: M6d.2b2b3, then M6d.3.
@@ -77,7 +78,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.2b2a — An element's own style written in code](stage-6d.md#m6d2b2a--an-elements-own-style-written-in-code) | Done |
 | [M6d.2b2b1 — Transitions and the frame of a change of theme](stage-6d.md#m6d2b2b1--transitions-and-the-frame-of-a-change-of-theme) | Done |
 | [M6d.2b2b2 — The user's layer over what code writes](stage-6d.md#m6d2b2b2--the-users-layer-over-what-code-writes) | Done |
-| [M6d.2b2b3 — Tokens](#m6d2b2b3--tokens) | In progress |
+| [M6d.2b2b3 — Tokens](stage-6d.md#m6d2b2b3--tokens) | Done |
 | [M6d.3 — Documents with serde](stage-6d.md#m6d3--documents-with-serde) | Planned |
 | [M6d.4 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Planned |
 | [M6d.5 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Planned |
@@ -89,38 +90,6 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.2b2b3 — Tokens
-
-The last third of M6d.2b2b, its questions decided at its start, on 2026-11-11
-([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)). It follows the rules
-of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** The themes' values named in code by tokens of four kinds, declared by each crate.
-- **Crates.** `uwui`, `slime-benches`, the examples.
-- **Delivers.**
-  - `Token<K>` of the kinds `Color`, `Length`, `Duration` and `Number`, its fallback a value, an
-    sRGB colour or another token; a crate's list, `Tokens`; `Ui::declare_tokens`, which refuses
-    a name declared again with another kind or fallback.
-  - The core's seven roles as public tokens, in place of `ColorRole`.
-  - `set_style` reads each declared token once: a value of another kind, not finite, or a negative
-    duration refuses the themes; a token lacking takes its fallback with one warning, only when
-    themes are given; a token written but not declared, the same.
-  - The own style's setters take a literal or a token of their kind; two own styles are the same
-    only if they name the same tokens.
-  - The `interface` example declares and writes its own tokens.
-  - A counter of a tree whose own styles name tokens.
-- **Done when.**
-  - Tests of each refusal and warning above; a token follows the look's compact and high-contrast
-    themes where a number written in code stays; a duration in a padding fails to compile; a token
-    and a literal of the same value share no style.
-  - The images and the two fixtures of styles unchanged; the counters unchanged but the new one;
-    CI green.
-- **How to test.** `cargo test -p uwui --features editor-look`; `cargo test -p slime-examples
-  --test widgets --test editor`; `cargo run -p slime-benches -- --counters`; `scripts/check.sh`;
-  the `interface` example run through `agent-headless`.
-- **Measured.** `ui.tree.look`, `ui.tree.editor` and the new counter; `uwui`'s compile times, its
-  setters generic; on the owner's machine at rest, when track B builds nothing.
 
 ## Ideas waiting for their milestone
 
