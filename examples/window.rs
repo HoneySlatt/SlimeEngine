@@ -13,7 +13,8 @@
 //! `--present-mode mailbox|fifo` chooses how the window shows its images
 //! (`slime_gfx::PresentMode`): `mailbox`, the default, never waits and drops the images the
 //! display had no time to show, where the window offers it; `fifo` shows every image, one per
-//! refresh.
+//! refresh. `--frame-rate <per second>` sets the most frames a second, 60 by default
+//! (`AppConfig::max_frame_rate`): `scripts/compositors.sh` times its frames at 240.
 //!
 //! ```sh
 //! cargo run --example window
@@ -37,7 +38,8 @@ use slime_world::World;
 
 use triangle::{BACKGROUND, Triangle};
 
-const USAGE: &str = "usage: window [--headless] [--frames <count>] [--present-mode mailbox|fifo]";
+const USAGE: &str = "usage: window [--headless] [--frames <count>] [--present-mode mailbox|fifo] \
+                     [--frame-rate <per second>]";
 
 #[derive(Default)]
 struct WindowExample {
@@ -159,6 +161,9 @@ fn main() -> ExitCode {
         window: (!options.headless).then_some(window),
         frame_limit: options.frame_limit,
         present_mode: options.present_mode,
+        max_frame_rate: options
+            .max_frame_rate
+            .unwrap_or(AppConfig::default().max_frame_rate),
         ..AppConfig::default()
     };
     let mut example = WindowExample {
@@ -179,6 +184,7 @@ struct Options {
     headless: bool,
     frame_limit: Option<u64>,
     present_mode: PresentMode,
+    max_frame_rate: Option<u32>,
 }
 
 fn parse_options() -> Result<Options, String> {
@@ -194,6 +200,15 @@ fn parse_options() -> Result<Options, String> {
                     .and_then(|value| value.parse().ok())
                     .ok_or_else(|| format!("invalid frame count `{}`", value.display()))?;
                 options.frame_limit = Some(frames);
+            }
+            Some("--frame-rate") => {
+                let value = arguments.next().ok_or("--frame-rate needs a value")?;
+                let rate = value
+                    .to_str()
+                    .and_then(|value| value.parse().ok())
+                    .filter(|rate| *rate > 0)
+                    .ok_or_else(|| format!("invalid frame rate `{}`", value.display()))?;
+                options.max_frame_rate = Some(rate);
             }
             Some("--present-mode") => {
                 options.present_mode = match arguments.next().as_deref().and_then(OsStr::to_str) {
