@@ -31,6 +31,6 @@ Its name is provisional: the names of uwui's crates are settled at M6d.10
 ## What it must not do
 
 - Depend on any crate of the engine: it moves with uwui (M6d.11).
-- Generate code that reads documents beyond `S::named`, which goes when uwui reads its documents
-  in KDL (M6d.3b); the readers of the declarations from KDL's nodes are generated then
+- Generate code that reads documents beyond `S::named`, which goes with reflection (M6d.3c); the
+  readers of the declarations from KDL's nodes are generated at M6d.3b
   ([ADR-0241](../../docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).

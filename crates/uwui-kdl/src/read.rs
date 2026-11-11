@@ -1,6 +1,6 @@
 //! Reading KDL 2.0's text into a [`Document`], within [`Limits`], by the grammar of KDL's
-//! specification (kdl-org/kdl at `f490278`, "Full Grammar"); the functions that read a production
-//! are named after it.
+//! specification, its "Full Grammar", at the commit that `tests/kdl-suite/README.md` names; the
+//! functions that read a production are named after it.
 //!
 //! The reader is one loop over the text, which never recurses, however deep the document. A stack
 //! holds the blocks open, each with the node that owns it. A node finished waits in `pending` until

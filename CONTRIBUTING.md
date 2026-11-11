@@ -118,6 +118,7 @@ cargo run -p hunnawood-editor -- --level <a copy of the zone> --journal <file>  
 cargo run --example text -- --output <file.png>           # the interface's text in several writing systems, rasterized by the CPU (ADR-0136)
 cargo run --example interface -- --output <file.png>      # an interface built as a tree of elements, styled by a theme: text, boxes, images, a view (ADR-0140, ADR-0141)
 cargo run --example widgets -- --output <file.png>        # the widgets of a panel in the editor's look: check boxes, sliders, sections, tabs, two panels, scroll bars (ADR-0148), menus, a list to choose from, tooltips, a floating panel (ADR-0150), rich fields, notifications, the palette of commands (ADR-0151), a color well (ADR-0152)
+UWUI_KDL_SEED=<seed> cargo test -p uwui-kdl --test hostile  # replay the random inputs that failed uwui's reader of KDL, from the seed it printed (crates/uwui-kdl/README.md)
 scripts/subset-fonts.sh <noto> <noto-cjk> <noto-emoji>    # make the fonts of uwui's tests again (crates/uwui/tests/fonts/README.md)
 scripts/screen-reader-check.sh <the interface example's program> <cooked data>  # read and use it through AT-SPI, as a screen reader does, on a Wayland display (ADR-0147)
 cargo run --quiet -p slime-mcp                            # the engine's MCP server, through which an agent drives a game (crates/slime-mcp/README.md)

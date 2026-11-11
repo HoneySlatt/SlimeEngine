@@ -11,7 +11,7 @@ Its name is provisional: the names of uwui's crates are settled at M6d.10
 ## Role
 
 - `read` and `read_within` read a text into a `Document`: a flat tree of nodes and entries, each
-  placed in the text by its span, strings borrowed where they hold no escape. The reader checks
+  placed in the text by its span, strings of one line without escapes borrowed. The reader checks
   the syntax alone; what a node means is the typed layer's work above it, in `uwui`.
 - `Limits` bound what content from outside may hold: its size, its depth, its count of nodes and
   entries. The reader never recurses; its time grows with its text alone.
@@ -37,4 +37,5 @@ program is built (ADR-0225).
 - `tests/reader.rs` checks a document's contents, its errors' places and its limits.
 - `tests/hostile.rs` gives the reader damaged documents, through the engine's shared helper of
   damaged files ([ADR-0102](../../docs/adr/0102-a-damaged-file-gives-an-error.md)), and random
-  input from a seed printed on failure; it moves into the crate with uwui.
+  input from a seed printed on failure, which `UWUI_KDL_SEED` replays; the helper moves into the
+  crate with uwui.

@@ -1172,8 +1172,8 @@ The last third of M6d.3 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-
   uwui.
 - **Crates.** `uwui`, the reader's crate, `slime-cook`, `slime-assets`, `slime-editor`,
   `slime-devui`, `slime-color`, `slime-reflect`, `hunnawood`, the examples.
-- **Delivers.** Shortcuts and docks' layouts in KDL, a layout written by the reader's writer, its
-  version written, read leniently; the editor's saved layouts migrated once; the primary modifier
+- **Delivers.** Shortcuts and docks' layouts in KDL, a layout written by a writer over values or by
+  a builder of trees, decided at its start, its version written, read leniently; the editor's saved layouts migrated once; the primary modifier
   `Primary`, a text field's keys through it, the platform a value, chords compared as they resolve,
   a menu's shortcut shown as its platform writes it; the cooked form the text, checked, `from_binary`
   gone; `LinearColor` described by `slime-reflect`; the `Reflect` derives, `S::named` and the

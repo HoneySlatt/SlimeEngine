@@ -1,6 +1,9 @@
-//! KDL's official tests (`tests/kdl-suite`, from kdl-org/kdl at `f490278`, under CC BY-SA 4.0):
+//! KDL's official tests, kept in `tests/kdl-suite` (its `README.md` says from where, and under which
+//! licence):
 //! each valid input reads and is written in its expected normal form, each input meant to fail is
-//! refused, and a valid input's normal form reads again to itself.
+//! refused, and a valid input's normal form reads again to the same tree.
+
+mod common;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -73,7 +76,7 @@ fn every_valid_input_reads_to_its_normal_form_and_every_other_is_refused() {
 }
 
 #[test]
-fn a_valid_input_s_normal_form_reads_again_to_itself() {
+fn a_valid_input_s_normal_form_reads_again_to_its_tree() {
     for (name, input, expected) in cases() {
         if expected.is_none() {
             continue;
@@ -85,6 +88,11 @@ fn a_valid_input_s_normal_form_reads_again_to_itself() {
         let written = document.normal_form();
         let again = uwui_kdl::read(&written)
             .unwrap_or_else(|error| panic!("{name}'s normal form does not read: {error}"));
+        assert_eq!(
+            common::tree(&again),
+            common::tree(&document),
+            "{name}'s tree read again"
+        );
         assert_eq!(
             again.normal_form(),
             written,

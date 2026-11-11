@@ -173,7 +173,9 @@ fn a_document_larger_or_holding_more_items_than_its_limits_is_refused() {
         ..Limits::DEFAULT
     };
     assert!(read_within("node 1 2 3", &four).is_ok());
-    assert!(read_within("node 1 2 3", &three).is_err());
+    // The fourth item, the argument `3`, is the one refused.
+    let error = read_within("node 1 2 3", &three).expect_err("four items");
+    assert_eq!((error.offset, error.column), (9, 10), "{error}");
     assert!(read_within("a; b; c; d", &three).is_err());
 }
 

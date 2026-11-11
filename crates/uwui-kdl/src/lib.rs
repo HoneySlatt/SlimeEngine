@@ -4,7 +4,7 @@
 //!
 //! [`read`] reads a document into a [`Document`]: a flat tree of nodes, each with its name, its
 //! annotation, its entries (arguments and properties, in their order, duplicates kept) and its
-//! children, and each placed in the text by its span. A string that holds no escape is borrowed
+//! children, and each placed in the text by its span. A string of one line without escapes is borrowed
 //! from the text; one that does is decoded when it is asked for. The reader checks the syntax
 //! alone: what a node means, and whether a property given twice is refused, is the typed layer's
 //! work above it.
@@ -38,6 +38,9 @@ mod string;
 
 /// What a document may hold before it is refused, so that content from outside takes bounded
 /// time and memory (`docs/adr/0190-uwuis-requirements.md`).
+///
+/// A program may raise them for documents of its own; raised for content from outside, they bound
+/// it less. Whatever `size` says, a text beyond 4 GiB is refused: spans are kept in 32 bits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Limits {
     /// The most bytes of text.
@@ -51,7 +54,11 @@ pub struct Limits {
 }
 
 impl Limits {
-    /// The limits of [`read`]: 16 MiB, 64 levels, and 2^20 nodes and entries.
+    /// The limits of [`read`]: 16 MiB, 64 levels, and 2^20 nodes and entries. A document holds some
+    /// six bytes for each byte of a document of rules and values, and 48 for each node: 2^20 nodes
+    /// in 2 MiB of text, the most that these limits allow, hold 50 MB once read, and allocate
+    /// three times as much in all as their arrays grow, the old ones given back (`ui.kdl.read`,
+    /// `benches/README.md`).
     pub const DEFAULT: Self = Self {
         size: 16 << 20,
         depth: 64,
@@ -207,7 +214,8 @@ impl<'t> Document<'t> {
     /// the last node, or alone for a document without nodes.
     ///
     /// A number written in binary, octal or hexadecimal is converted exactly, at any length, in
-    /// time quadratic in its length: a number of 100 000 hexadecimal digits takes a second. Its
+    /// time quadratic in its length: a number of 100 000 hexadecimal digits takes a second, one that
+    /// fills the default limit of size hours. Its
     /// output grows with the square of a node's depth, by its indentation. Floats keep their
     /// digits, as the official tests expect: `1.50` and `1.5` are equal values written apart.
     #[must_use]
@@ -472,8 +480,7 @@ impl<'t> Number<'t> {
     }
 }
 
-/// A span kept in `u32`, as a span of `usize`: a document's text is within [`Limits::size`],
-/// below 4 GiB.
+/// A span kept in `u32`, as a span of `usize`: the reader refuses a text beyond 4 GiB.
 fn widen(span: &Range<u32>) -> Range<usize> {
     span.start as usize..span.end as usize
 }

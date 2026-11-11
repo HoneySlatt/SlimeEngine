@@ -99,7 +99,7 @@ that the project publishes.
 
 | Data | Used by | Source | License |
 |---|---|---|---|
-| KDL's official tests, 338 documents and the normal form of the 243 valid ones, in [`crates/uwui-kdl/tests/kdl-suite`](../crates/uwui-kdl/tests/kdl-suite/README.md) | `uwui-kdl`'s tests, which check its reader against KDL 2.0 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)) | [kdl-org/kdl](https://github.com/kdl-org/kdl), `tests/test_cases` at `f490278`, 2026-08-10 | CC BY-SA 4.0, KDL's contributors; left out of `uwui-kdl`'s package |
+| KDL's official tests, its documents and the normal form of its valid ones, in [`crates/uwui-kdl/tests/kdl-suite`](../crates/uwui-kdl/tests/kdl-suite/README.md) | `uwui-kdl`'s tests, which check its reader against KDL 2.0 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)) | [kdl-org/kdl](https://github.com/kdl-org/kdl), `tests/test_cases`, at the commit that the folder's README names | CC BY-SA 4.0, KDL's contributors; left out of `uwui-kdl`'s package |
 
 ## Shipped with the Windows programs
 

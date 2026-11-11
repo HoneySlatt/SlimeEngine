@@ -59,7 +59,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 
 ### Added
 
-- `uwui-kdl`, uwui's reader of KDL 2.0, through which uwui reads every document from M6d.3b: a
+- `uwui-kdl`, uwui's reader of KDL 2.0, through which uwui is to read every document: a
   flat tree whose items name their place in the text, limits of size, depth and count, errors at
   their line and column; it passes KDL's official tests (ADR-0241).
 - A series of headless compositors, Weston, sway, KWin, Mutter and X11 through Xvfb, in which the

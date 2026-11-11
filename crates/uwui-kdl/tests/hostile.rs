@@ -6,13 +6,16 @@
 //! takes bytes, as a fuzzer guided by coverage gives them, which may call it unchanged
 //! (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
 
+mod common;
+
 use std::panic::{self, AssertUnwindSafe};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[path = "../../slime-assets/tests/common/damage.rs"]
 mod damage;
 
-/// Reads `bytes` as a document and, if it reads, checks that its normal form reads again to itself.
+/// Reads `bytes` as a document and, if it reads, checks that its normal form reads again to the
+/// same tree.
 fn read_and_round_trip(bytes: &[u8]) {
     let Ok(text) = std::str::from_utf8(bytes) else {
         return;
@@ -28,6 +31,11 @@ fn read_and_round_trip(bytes: &[u8]) {
     let written = document.normal_form();
     let again = uwui_kdl::read(&written)
         .unwrap_or_else(|error| panic!("the normal form of {text:?} does not read: {error}"));
+    assert_eq!(
+        common::tree(&again),
+        common::tree(&document),
+        "the tree of {text:?} read again"
+    );
     assert_eq!(
         again.normal_form(),
         written,
@@ -99,7 +107,9 @@ fn random_inputs(check: impl Fn(&[u8])) {
 
 #[test]
 fn random_bytes_never_make_the_reader_panic() {
-    random_inputs(read_and_round_trip);
+    // Random bytes are seldom UTF-8: the bytes that are not become U+FFFD, so that the reader
+    // reads every input.
+    random_inputs(|bytes| read_and_round_trip(String::from_utf8_lossy(bytes).as_bytes()));
 }
 
 /// Pieces of KDL's syntax, which random sequences of make far more documents that read than random

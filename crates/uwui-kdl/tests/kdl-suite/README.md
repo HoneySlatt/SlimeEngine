@@ -13,5 +13,6 @@ the tests and the specification differ, the specification wins.
   authors are KDL's contributors.
 
 The files are kept byte for byte (`.gitattributes`): some test a carriage return or a byte order
-mark. To take a later commit, copy the same folder from it, write its hash here, and run
-`cargo test -p uwui-kdl --test suite`.
+mark. To take a later commit, copy the same folder from it, write its hash here, write the
+counts of its inputs in `the_suite_is_whole` (`../suite.rs`), which fails until they match, and
+run `cargo test -p uwui-kdl --test suite`.
