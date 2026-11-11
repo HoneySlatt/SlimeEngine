@@ -28,6 +28,7 @@ use uwui::action::{Action, ActionKind, FieldValue, SurfaceInput};
 use uwui::display::{BoxPrimitive, DisplayList, ImageKey};
 use uwui::dock::{Dock, Target};
 use uwui::look::{self, Colors, Density};
+use uwui::preferences::Preferences;
 use uwui::shortcuts::Shortcuts;
 use uwui::style::{Dimension, FlexDirection, Justify, StyleBuilder};
 use uwui::text::Fonts;
@@ -2007,7 +2008,10 @@ impl Offscreen {
         host.start(&mut session)
             .map_err(|error| slime_app::error_chain(&*error))?;
         let mut model = Model::new(shared);
-        model.ui.set_reduced_motion(true);
+        model.ui.set_preferences(Preferences {
+            reduced_motion: true,
+            ..Preferences::default()
+        });
         let format = TextureFormat::Rgba8UnormSrgb;
         let drawing = Drawing::new(gpu, format).map_err(|error| error.to_string())?;
         let physical = size.map(|side| (side as f32 * scale).round() as u32);
@@ -2972,7 +2976,10 @@ mod tests {
             let mut host = Host::new(&AppConfig::default());
             host.start(&mut session).expect("the yard opens");
             let mut model = Model::new(shared.clone());
-            model.ui.set_reduced_motion(true);
+            model.ui.set_preferences(Preferences {
+                reduced_motion: true,
+                ..Preferences::default()
+            });
             let mut yard = Self {
                 directory,
                 host,

@@ -23,6 +23,11 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
 - A transition moves every colour that a style holds (ADR-0232): a modal layer's backdrop now fades
   with the rest when the theme changes. Elements that move alike share the style that they show; the frame after a change
   of theme and each frame of its transition allocate about a quarter of what they did.
+- The user's size of text and less motion are given as one value (ADR-0237):
+  `Ui::set_preferences(Preferences { text_size, reduced_motion })` replaces
+  `Ui::set_reduced_motion`, and `Ui::preferences` replaces `Ui::reduced_motion`. The size of text,
+  `TextSize::factor` or a curve of stops (`TextSize::curve`), scales every text but icons, and a
+  list's rows, each row now whole in pixels of the screen at any scale.
 - Compiling within its budgets (ADR-0221): dependencies are optimised at the first level in debug
   builds; the Nix shell links with mold on Linux; the examples' editor's Play builds `world` with
   the workspace's features, which share every engine crate with the editor's.

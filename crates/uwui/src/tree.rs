@@ -17,6 +17,7 @@ use crate::Rect;
 use crate::display::{DisplayList, ImageKey, ImageKind, Primitive};
 use crate::layout;
 use crate::paint;
+use crate::preferences::Preferences;
 use crate::style::{Display, OWN_STATES, OwnStyle, Same, Style, StyleBuilder, state_bit};
 use crate::text::{Fonts, TEXT_CACHE_BUDGET, TextCache};
 use crate::theme::{self, ColorRole, ColorRoles, KindName, Rule, StateName, StyleSheet, Theme};
@@ -667,7 +668,8 @@ impl Element {
     }
 
     /// A list of `rows` rows of `row_height` logical pixels, of which only those that show are
-    /// built.
+    /// built. Its rows grow with the user's size of text at the list's own text, each whole in
+    /// pixels of the screen ([`Ui::set_preferences`]).
     pub fn list(rows: usize, row_height: f32) -> Self {
         Self::of(Kind::List { rows, row_height })
     }
@@ -1170,6 +1172,8 @@ pub(crate) struct Node {
     pub(crate) control: Option<control::Control>,
     /// Whether it was styled once: a new element shows its style at once, without a transition.
     pub(crate) styled: bool,
+    /// What the user's size of text multiplied its text by, which a list's rows grow by.
+    pub(crate) text_ratio: f32,
     /// The transition of its colors and opacity under way, its style its interpolation.
     pub(crate) motion: Option<Box<motion::Motion>>,
     /// A section's growing or shrinking under way.
@@ -1297,8 +1301,8 @@ pub struct Ui {
     notices: notify::Notices,
     /// The interface's clock: the time that its program gave it ([`Ui::advance`]).
     now: Duration,
-    /// Whether transitions end at once ([`Ui::set_reduced_motion`]).
-    reduced_motion: bool,
+    /// What the user chose over every look ([`Ui::set_preferences`]).
+    preferences: Preferences,
     /// The elements whose transition is under way.
     moving: Vec<ElementId>,
     /// The styles that transitions show at this frame, one for the elements that move alike,
@@ -1344,7 +1348,7 @@ impl Ui {
             picker: None,
             notices: notify::Notices::default(),
             now: Duration::ZERO,
-            reduced_motion: false,
+            preferences: Preferences::default(),
             moving: Vec::new(),
             shown: motion::ShownStyles::default(),
             tab_enters: true,
@@ -1530,7 +1534,8 @@ impl Ui {
     /// (`docs/adr/0231-an-elements-own-style-written-in-code.md`): its base sets each field that
     /// it writes, but where the last rule that set it names a state, then its states that hold
     /// set theirs, in the order hovered, focused, focus shown, pressed, checked, expanded,
-    /// selected, disabled. A color, a list and an option are each one field; an array's elements
+    /// selected, disabled; last, the user's size of text scales the text's size
+    /// ([`Ui::set_preferences`]). A color, a list and an option are each one field; an array's elements
     /// are each one. The styles made are kept and shared, for up to 64 of a kind's defaults, an
     /// element's own style and its own states that hold, that the same rules select: past them,
     /// the style of such an element is made again each time, more slowly.
@@ -1571,6 +1576,40 @@ impl Ui {
         Ok(())
     }
 
+    /// Applies what the user chose over every look
+    /// (`docs/adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md`).
+    ///
+    /// - The size of text scales every text's size, whether a rule or the element's own style gave
+    ///   it, after the own states, the fourth step of the mask order ([`Ui::set_style`]). A text
+    ///   whose first font is its style's font of icons (`icons.font`) keeps its size, so that icons
+    ///   stay in their boxes; a control's marks take its control's size. A list's rows grow by
+    ///   the curve's ratio at the list's own size of text, each whole in pixels of the screen.
+    ///   Other lengths stay: a box of fixed size that holds a text should take a least size
+    ///   instead. A change of it styles every element again at the next [`Ui::frame`], and lays out
+    ///   what it changed.
+    /// - Less motion ends every transition at once, those under way included, as
+    ///   `prefers-reduced-motion` asks of a web page.
+    pub fn set_preferences(&mut self, preferences: Preferences) {
+        let text_changed = preferences.text_size != self.preferences.text_size;
+        self.preferences = preferences;
+        if self.preferences.reduced_motion {
+            for id in std::mem::take(&mut self.moving) {
+                self.finish_motion(id);
+            }
+        }
+        if text_changed {
+            self.styles.clear();
+            for root in self.roots.clone() {
+                self.mark_style_subtree(root);
+            }
+        }
+    }
+
+    /// What the user chose over every look ([`Ui::set_preferences`]).
+    pub fn preferences(&self) -> &Preferences {
+        &self.preferences
+    }
+
     /// Sets the state of `id`, which rules select elements by: its style is made again. Whether it
     /// holds the focus, and whether its focus shows, stay as they were, the focus's
     /// ([`Ui::set_focus`]); whether it is hovered or pressed, which the input sets too, holds until
@@ -1598,15 +1637,17 @@ impl Ui {
     /// its builder run again at the next [`Ui::build`]. Nothing happens for an id that names
     /// nothing.
     pub fn scroll_to(&mut self, id: ElementId, offset: [f32; 2]) {
-        let scale = self.scale_of(id);
-        let Some(node) = self.node_mut(id) else {
+        let Some(node) = self.node(id) else {
             return;
         };
         // An element not laid out yet has no content to keep the offset within: its layout will.
         let offset = if node.changed.layout {
             offset
         } else {
-            layout::within(offset, &node.element.kind, &node.layout, scale)
+            layout::within(self, id, offset)
+        };
+        let Some(node) = self.node_mut(id) else {
+            return;
         };
         if node.scroll != offset {
             node.scroll = offset;
@@ -1636,13 +1677,15 @@ impl Ui {
         let Some(node) = self.node(list) else {
             return;
         };
-        let Kind::List { rows, row_height } = node.element.kind else {
+        let Kind::List { rows, .. } = node.element.kind else {
             return;
         };
         if row >= rows {
             return;
         }
-        let height = node.rect.height / self.scale_of(list);
+        let scale = self.scale_of(list);
+        let row_height = self.row_pixels(list).unwrap_or(0.0) / scale;
+        let height = node.rect.height / scale;
         let [x, y] = node.scroll;
         let top = row as f32 * row_height;
         // A list not laid out yet shows the row at its top.
@@ -2029,12 +2072,13 @@ impl Ui {
                 made.iter()
                     .find(|made| made.base == base && made.held == held && made.own.same(own))
             })
-            .map(|made| Arc::clone(&made.style));
-        let mut style = match made {
-            Some(style) => style,
+            .map(|made| (Arc::clone(&made.style), made.text_ratio));
+        let (mut style, text_ratio) = match made {
+            Some(made) => made,
             None => {
                 let own = own.clone();
-                let style = Arc::new(self.compose(base, &selected, &own, held));
+                let (style, text_ratio) = self.compose(base, &selected, &own, held);
+                let style = Arc::new(style);
                 let made = self.styles.entry(selected.clone()).or_default();
                 if made.len() < STYLES_PER_RULES {
                     made.push(Made {
@@ -2042,9 +2086,10 @@ impl Ui {
                         held,
                         own,
                         style: Arc::clone(&style),
+                        text_ratio,
                     });
                 }
-                style
+                (style, text_ratio)
             }
         };
         self.selected = selected;
@@ -2057,6 +2102,14 @@ impl Ui {
         }
         let node = self.node_mut(id).expect("styled above");
         node.changed.style = false;
+        if node.text_ratio != text_ratio {
+            node.text_ratio = text_ratio;
+            // A list's rows take the ratio of its text.
+            if matches!(node.element.kind, Kind::List { .. }) {
+                self.mark_layout(id);
+            }
+        }
+        let node = self.node_mut(id).expect("styled above");
         let target = Arc::clone(node.target());
         if *target != *style {
             // The border's width cuts what scrolls inside, and a control's size lays out its
@@ -2093,8 +2146,10 @@ impl Ui {
     /// of the place `base`, in the mask order
     /// (`docs/adr/0231-an-elements-own-style-written-in-code.md`): the rules' declarations in their
     /// order; then the own base's, each where the last rule that set its leaf names no state; then
-    /// the own states' that hold, in the order of [`OWN_STATES`].
-    fn compose(&self, base: u8, selected: &[u32], own: &OwnStyle, held: u8) -> Style {
+    /// the own states' that hold, in the order of [`OWN_STATES`]; then the user's size of text
+    /// (`docs/adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md`).
+    /// Gives the style and what the size of text multiplied its text by.
+    fn compose(&self, base: u8, selected: &[u32], own: &OwnStyle, held: u8) -> (Style, f32) {
         const _: () = assert!(
             Style::LEAVES <= 128,
             "a style's leaves fit in a mask of 128"
@@ -2127,7 +2182,24 @@ impl Ui {
                 }
             }
         }
-        style
+        let ratio = self.text_ratio(&style);
+        if ratio != 1.0 {
+            style.text.style.size *= ratio;
+        }
+        (style, ratio)
+    }
+
+    /// What the user's size of text multiplies the text of `style` by: 1 for an icon, a text whose
+    /// first font is the style's font of icons, which stays in its box.
+    fn text_ratio(&self, style: &Style) -> f32 {
+        let text_size = &self.preferences.text_size;
+        let icons = &style.icons.font;
+        let icon = !icons.is_empty() && style.text.style.fonts.first() == Some(icons);
+        if icon || text_size.is_identity() {
+            1.0
+        } else {
+            text_size.ratio(style.text.style.size)
+        }
     }
 
     /// Tells once, for each kind and state of the pointer, of an own style that writes a hover or
@@ -2224,7 +2296,7 @@ impl Ui {
             let Some(parent) = node.parent else {
                 return;
             };
-            if self.row_height(parent).is_some() {
+            if self.row_pixels(parent).is_some() {
                 self.relay(parent);
                 return;
             }
@@ -2249,7 +2321,7 @@ impl Ui {
     /// and the elements that mean something nearest below the one above it that does.
     fn children_changed(&mut self, parent: ElementId) {
         self.mark_meaning_up(parent);
-        if self.row_height(parent).is_some() {
+        if self.row_pixels(parent).is_some() {
             self.relay(parent);
         } else {
             self.mark_layout(parent);
@@ -2263,12 +2335,21 @@ impl Ui {
         }
     }
 
-    /// The height of the rows of `id`, a list, in logical pixels.
-    pub(crate) fn row_height(&self, id: ElementId) -> Option<f32> {
-        match self.node(id)?.element.kind {
-            Kind::List { row_height, .. } => Some(row_height),
-            _ => None,
-        }
+    /// The height of the rows of `id`, a list, in pixels of the screen: its element's, in logical
+    /// pixels, grown by the user's size of text at the list's own text and by its root's scale,
+    /// whole, so that rows never overlap nor leave a gap; one pixel at least for rows of some
+    /// height. Every reader of a row's height reads it here.
+    pub(crate) fn row_pixels(&self, id: ElementId) -> Option<f32> {
+        let node = self.node(id)?;
+        let Kind::List { row_height, .. } = node.element.kind else {
+            return None;
+        };
+        let pixels = (row_height * node.text_ratio * self.scale_of(id)).round();
+        Some(if row_height > 0.0 {
+            pixels.max(1.0)
+        } else {
+            0.0
+        })
     }
 
     /// The lists below `id`, itself included.
@@ -2292,17 +2373,18 @@ impl Ui {
         let Some(node) = self.node(id) else {
             return 0..0;
         };
-        let Kind::List { rows, row_height } = node.element.kind else {
+        let Kind::List { rows, .. } = node.element.kind else {
             return 0..0;
         };
-        if row_height <= 0.0 || rows == 0 {
+        let pixels = self.row_pixels(id).unwrap_or(0.0);
+        if pixels <= 0.0 || rows == 0 {
             return 0..0;
         }
         let scale = self.scale_of(id);
-        let top = node.scroll[1] - node.layout.padding.top / scale;
-        let bottom = top + node.layout.size.height / scale;
-        let first = ((top / row_height).floor().max(0.0) as usize).min(rows);
-        let last = ((bottom / row_height).ceil().max(0.0) as usize).min(rows);
+        let top = node.scroll[1] * scale - node.layout.padding.top;
+        let bottom = top + node.layout.size.height;
+        let first = ((top / pixels).floor().max(0.0) as usize).min(rows);
+        let last = ((bottom / pixels).ceil().max(0.0) as usize).min(rows);
         first..last.max(first)
     }
 
@@ -2395,6 +2477,7 @@ impl Node {
             field,
             control,
             styled: false,
+            text_ratio: 1.0,
             motion: None,
             reveal: None,
             layer: None,
@@ -2617,7 +2700,7 @@ impl<'a> Children<'a> {
         // A bar's tabs show which is chosen.
         ui.mark_chosen(parent);
         // A list's builder gave the rows that it shows.
-        if ui.row_height(parent).is_some() {
+        if ui.row_pixels(parent).is_some() {
             let visible = ui.visible_rows(parent);
             ui.node_mut(parent).expect("the parent is there").rows_built = visible;
         }
@@ -2760,6 +2843,8 @@ struct Made {
     /// The elements' own style.
     own: OwnStyle,
     style: Arc<Style>,
+    /// What the user's size of text multiplied its text by.
+    text_ratio: f32,
 }
 
 /// Whether `state` holds in `states`.

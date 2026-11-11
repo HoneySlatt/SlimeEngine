@@ -92,8 +92,7 @@ follows the rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-l
 
 - **Goal.** The size of text that the user chose reaches every text but icons, and a list's rows;
   the user's preferences are given as one value.
-- **Crates.** `uwui`, `slime-benches`, the examples; `slime-editor` and `slime-devui`, which give
-  less motion.
+- **Crates.** `uwui`, `slime-benches`, the examples; `slime-editor`, which gives less motion.
 - **Delivers.**
   - `Preferences` in uwui's core, the size of text and less motion, given by
     `Ui::set_preferences`, which replaces `Ui::set_reduced_motion`; every call site moved.
@@ -105,8 +104,8 @@ follows the rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-l
   - A list's rows grown by the curve's ratio at the list's size of text, whole in pixels of the
     screen, read through one accessor.
   - uwui's and the `widgets` example's boxes of fixed width that hold a text made least widths.
-  - `ui.tree.look` counts the frame after a change of the size of text; CI bounds it by the first
-    frame's allocations for each element.
+  - `ui.tree.look` counts the frame after a change of the size of text; CI bounds it by the same
+    tree's first frame at that size, for each element.
   - Density and more contrast leave what code writes as numbers: nothing built.
 - **Done when.**
   - Tests: the size of text reaches a text sized by a rule or by code, not an icon; a curve
@@ -115,8 +114,8 @@ follows the rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-l
     colour and a length written in code stay under high contrast and the compact theme.
   - At 200 %, no text of the `widgets` example, its layers open, cut by its box or by any ancestor
     up to the first that scrolls.
-  - The look's image tests and the two fixtures of styles unchanged; the counters unchanged but
-    those recorded again, each with its reason; the new counter within its target; CI green.
+  - The images and the editor's fixture of styles unchanged, the `widgets` example's recorded
+    again where it writes least widths; the other counters unchanged; CI green.
 - **How to test.** `cargo test -p uwui --features editor-look`; `cargo test -p slime-examples
   --test widgets --test editor`; `cargo run -p slime-benches -- --counters`; `scripts/check.sh`.
 - **Measured.** `ui.tree.look` and `ui.tree.editor`, and the editor's counters, before and after,
@@ -203,4 +202,4 @@ made after Stage 6e's first milestone runs on `games/open-world` where it names 
 
 ## Known debt
 
-The known debt still open, 173 items, is in [`debt.md`](debt.md).
+The known debt still open, 174 items, is in [`debt.md`](debt.md).

@@ -8,6 +8,7 @@ use std::time::Duration;
 use slime_color::LinearColor;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::display::{DisplayList, Primitive};
+use uwui::preferences::Preferences;
 use uwui::style::{Dimension, FlexDirection, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::theme::{StyleSheet, Theme};
@@ -97,7 +98,10 @@ fn a_color_moves_over_the_time_given_and_less_motion_drops_it() {
     assert_eq!(fill(&list, 100.0), LinearColor::rgba(1.0, 1.0, 1.0, 1.0));
     assert!(!stats.animating);
     // Less motion: the pointer leaves, and the button is black at once.
-    ui.set_reduced_motion(true);
+    ui.set_preferences(Preferences {
+        reduced_motion: true,
+        ..Preferences::default()
+    });
     ui.pointer_moved(300.0, 200.0);
     let (list, stats) = ui.frame();
     assert_eq!(fill(&list, 100.0), LinearColor::rgba(0.0, 0.0, 0.0, 1.0));

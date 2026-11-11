@@ -61,9 +61,9 @@ pub(crate) fn lay_out_list(ui: &mut Ui, list: ElementId) -> Vec<ElementId> {
     let Some(settings) = ui.root_settings(list) else {
         return Vec::new();
     };
-    let row_height = ui.row_height(list);
+    let row_pixels = ui.row_pixels(list);
     for row in ui.children(list).to_vec() {
-        convert(ui, row, row_height, settings, false);
+        convert(ui, row, row_pixels, settings, false);
     }
     // Each list after the one that holds it, whose rows give it its box.
     let lists = ui.lists(list);
@@ -75,18 +75,18 @@ pub(crate) fn lay_out_list(ui: &mut Ui, list: ElementId) -> Vec<ElementId> {
 }
 
 /// Converts the styles of `start` and the elements below it that changed into taffy's, `start`
-/// being a row of `row_height` logical pixels when given, and converted whatever changed when
-/// `forced`.
+/// being a row of `row_pixels` pixels of the screen when given, and converted whatever changed
+/// when `forced`.
 fn convert(
     ui: &mut Ui,
     start: ElementId,
-    row_height: Option<f32>,
+    row_pixels: Option<f32>,
     settings: RootSettings,
     forced: bool,
 ) {
     let scale = settings.scale;
-    let mut stack = vec![(start, row_height, forced)];
-    while let Some((id, row_height, forced)) = stack.pop() {
+    let mut stack = vec![(start, row_pixels, forced)];
+    while let Some((id, row_pixels, forced)) = stack.pop() {
         let header = section_header(ui, id, scale);
         let header_box = header_box_height(ui, id, settings);
         let room = field_room(ui, id, scale);
@@ -102,10 +102,10 @@ fn convert(
         }
         if node.changed.layout || forced {
             let mut style = taffy_style(&node.style.layout, scale);
-            if let Some(row_height) = row_height {
+            if let Some(row_pixels) = row_pixels {
                 style.size = Size {
                     width: TaffyDimension::percent(1.0),
-                    height: TaffyDimension::length(row_height * scale),
+                    height: TaffyDimension::length(row_pixels),
                 };
             }
             // A root is as large as its surface, but a layer that takes the size of its content,
@@ -205,19 +205,20 @@ fn convert(
             }
             node.taffy = style;
         }
-        let rows = match node.element.kind {
-            Kind::List { row_height, .. } => Some(row_height),
-            _ => None,
-        };
+        let is_list = matches!(node.element.kind, Kind::List { .. });
+        let changed = node.changed.layout;
+        let children = node.children.clone();
+        let rows = if is_list { ui.row_pixels(id) } else { None };
         // A list that changed may have changed the height of its rows, and a section the height
         // of its header, which the box of its header takes.
-        let forced = rows.is_some() && node.changed.layout;
-        let header = node.changed.layout
-            && matches!(
-                node.element.kind,
-                Kind::Section { .. } | Kind::FloatingPanel { .. }
-            );
-        let children = node.children.clone();
+        let forced = rows.is_some() && changed;
+        let header = changed
+            && ui.node(id).is_some_and(|node| {
+                matches!(
+                    node.element.kind,
+                    Kind::Section { .. } | Kind::FloatingPanel { .. }
+                )
+            });
         for child in children {
             let held = header
                 && ui
@@ -329,7 +330,7 @@ fn field_room(ui: &mut Ui, id: ElementId, scale: f32) -> Option<[f32; 2]> {
 
 /// Lays out each row of the list `list` alone, at the list's width and the height of a row.
 fn lay_out_rows(ui: &mut Ui, list: ElementId, settings: RootSettings) {
-    let Some(row_height) = ui.row_height(list) else {
+    let Some(row_pixels) = ui.row_pixels(list) else {
         return;
     };
     let Some(node) = ui.node(list) else {
@@ -346,7 +347,7 @@ fn lay_out_rows(ui: &mut Ui, list: ElementId, settings: RootSettings) {
             row_node,
             Size {
                 width: AvailableSpace::Definite(width),
-                height: AvailableSpace::Definite(row_height * scale),
+                height: AvailableSpace::Definite(row_pixels),
             },
         );
         round_layout(&mut tree, row_node);
@@ -424,10 +425,12 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
             node.changed.paint = true;
             moved.push((id, node.root.is_some()));
         }
-        let Some(node) = ui.node_mut(id) else {
+        let Some(scroll) = ui.node(id).map(|node| node.scroll) else {
             continue;
         };
-        node.scroll = within(node.scroll, &node.element.kind, &layout, scale);
+        let scroll = within(ui, id, scroll);
+        let node = ui.node_mut(id).expect("found above");
+        node.scroll = scroll;
         node.laid_scroll = node.scroll;
         // Content is cut inside the border, as CSS cuts it at the padding's edge.
         let border = node.style.paint.border_width * scale;
@@ -482,8 +485,8 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
             }
         }
         // Each row of a list at its place, from its number.
-        if let Some(node) = ui.node(id)
-            && let Kind::List { row_height, .. } = node.element.kind
+        if let Some(row_pixels) = ui.row_pixels(id)
+            && let Some(node) = ui.node(id)
         {
             for child in node.children.clone() {
                 let Some(row) = ui.node_mut(child) else {
@@ -496,8 +499,7 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
                 let margin = row.layout.margin;
                 row.layout.location.x = layout.padding.left + margin.left;
                 row.layout.location.y =
-                    layout.padding.top + margin.top + (number * row_height * scale).round()
-                        - scroll[1];
+                    layout.padding.top + margin.top + number * row_pixels - scroll[1];
             }
         }
     }
@@ -513,22 +515,26 @@ fn place(ui: &mut Ui, start: (ElementId, f32, f32, Option<Rect>), settings: Root
     }
 }
 
-/// `offset`, a scroll in logical pixels of an element of `kind` laid out as `layout`, kept within
-/// its content: none for an element that does not scroll.
-pub(crate) fn within(offset: [f32; 2], kind: &Kind, layout: &Layout, scale: f32) -> [f32; 2] {
-    let most = scroll_most(kind, layout, scale);
+/// `offset`, a scroll in logical pixels of `id`, kept within its content as last laid out: none
+/// for an element that does not scroll.
+pub(crate) fn within(ui: &Ui, id: ElementId, offset: [f32; 2]) -> [f32; 2] {
+    let scale = ui.scale_of(id);
+    let most = scroll_most(ui, id);
     [0, 1].map(|axis| offset[axis].clamp(0.0, most[axis] / scale))
 }
 
-/// How far the content of an element of `kind` laid out as `layout` scrolls at most, along x and
-/// y, in pixels of the screen at `scale`: 0 for an element that does not scroll, or whose content
-/// fits.
-pub(crate) fn scroll_most(kind: &Kind, layout: &Layout, scale: f32) -> [f32; 2] {
-    match *kind {
+/// How far the content of `id` scrolls at most, along x and y, in pixels of the screen, as it was
+/// last laid out: 0 for an element that does not scroll, or whose content fits.
+pub(crate) fn scroll_most(ui: &Ui, id: ElementId) -> [f32; 2] {
+    let Some(node) = ui.node(id) else {
+        return [0.0; 2];
+    };
+    let layout = &node.layout;
+    match node.element.kind {
         Kind::Scroll => [layout.scroll_width(), layout.scroll_height()],
-        Kind::List { rows, row_height } => {
-            let height =
-                rows as f32 * row_height * scale + layout.padding.top + layout.padding.bottom;
+        Kind::List { rows, .. } => {
+            let row_pixels = ui.row_pixels(id).unwrap_or(0.0);
+            let height = rows as f32 * row_pixels + layout.padding.top + layout.padding.bottom;
             [0.0, (height - layout.size.height).max(0.0)]
         }
         _ => [0.0; 2],

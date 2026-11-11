@@ -8,6 +8,7 @@ use std::time::Duration;
 use slime_input::{ButtonState, Key, KeyCode, KeyEvent, MouseButton, NamedKey};
 use uwui::action::{Action, ActionKind, FieldValue};
 use uwui::display::Primitive;
+use uwui::preferences::Preferences;
 use uwui::style::{Dimension, StyleBuilder};
 use uwui::text::Fonts;
 use uwui::tree::{Element, ElementId, LayoutDirection, Role, RootSettings, Ui, Units};
@@ -363,7 +364,10 @@ fn a_bar_without_a_share_stops_moving_once_hidden_or_given_one() {
     assert!(!stats.animating, "given a share");
     // Less motion keeps it still.
     build(&mut ui, 2, true, None);
-    ui.set_reduced_motion(true);
+    ui.set_preferences(Preferences {
+        reduced_motion: true,
+        ..Preferences::default()
+    });
     ui.frame();
     let (_, stats) = ui.frame();
     assert!(!stats.animating, "less motion");

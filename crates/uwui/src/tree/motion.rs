@@ -194,26 +194,10 @@ impl Ui {
         self.now += elapsed;
     }
 
-    /// Whether the user asked for less motion: transitions end at once, those under way included,
-    /// as `prefers-reduced-motion` asks of a web page.
-    pub fn set_reduced_motion(&mut self, reduced: bool) {
-        self.reduced_motion = reduced;
-        if reduced {
-            for id in std::mem::take(&mut self.moving) {
-                self.finish_motion(id);
-            }
-        }
-    }
-
-    /// Whether the user asked for less motion ([`Ui::set_reduced_motion`]).
-    pub fn reduced_motion(&self) -> bool {
-        self.reduced_motion
-    }
-
     /// Shows `style`, the new style of `id`: at once, or from what `id` shows now, over its
     /// transition. An element styled for the first time shows its style at once.
     pub(crate) fn show_style(&mut self, id: ElementId, style: Arc<Style>, first: bool) {
-        let (now, reduced) = (self.now, self.reduced_motion);
+        let (now, reduced) = (self.now, self.preferences.reduced_motion);
         let Some(node) = self.node_mut(id) else {
             return;
         };
@@ -241,7 +225,7 @@ impl Ui {
     /// transition, from the height that it was laid out at; nothing where its style does not move
     /// or it was never laid out.
     pub(crate) fn reveal(&mut self, id: ElementId, opening: bool) {
-        let (now, reduced) = (self.now, self.reduced_motion);
+        let (now, reduced) = (self.now, self.preferences.reduced_motion);
         let Some(node) = self.node_mut(id) else {
             return;
         };
@@ -319,7 +303,7 @@ impl Ui {
     }
 
     /// Ends the transition of `id` at once: its style's end shown, a section at its height.
-    fn finish_motion(&mut self, id: ElementId) {
+    pub(super) fn finish_motion(&mut self, id: ElementId) {
         if let Some(node) = self.node_mut(id) {
             if let Some(motion) = node.motion.take() {
                 node.style = motion.target;

@@ -164,7 +164,8 @@ impl Ui {
                                 .class("sheet-row");
                             rows.add(format!("{number} {chord}"), row, |row| {
                                 let keys = super::Element::label(chord.as_str())
-                                    .style(|s| s.width(Dimension::Pixels(140.0)).shrink(0.0))
+                                    // At least as wide as most chords, wider for a chord in a larger text.
+                                    .style(|s| s.min_width(Dimension::Pixels(140.0)).shrink(0.0))
                                     .class("fixed");
                                 row.add("chord", keys, |_| {});
                                 let text = super::Element::label(name(command));

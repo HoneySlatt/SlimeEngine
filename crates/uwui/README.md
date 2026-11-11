@@ -54,11 +54,18 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   last rule that set a field names no state, then the own states that hold. A hover or a press set
   in code offers no field that lays out
   (`docs/adr/0231-an-elements-own-style-written-in-code.md`).
+- `preferences::Preferences` is what the user chose over every look, which a program gives with
+  `Ui::set_preferences`: the size of text, a curve (`preferences::TextSize`), scales every text's
+  size but icons', whoever wrote it, and a list's rows, whole in pixels of the screen; less motion
+  ends transitions at once. Density and more contrast are not preferences: they choose the look's
+  themes, which reach what code writes by the themes' names only, so that a length or a color that
+  code writes as a number stays the author's
+  (`docs/adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md`).
 - A style's `transition` moves a change of it over time: every color that the style holds, as
   `uwui-macros`'s derive lists them, and its opacity, elements that move alike sharing the style
   that they show (`docs/adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md`);
   and a section's height as it opens or folds, over the time that the program gives each frame
-  (`Ui::advance`), which `Ui::set_reduced_motion` drops; a frame says whether one goes on
+  (`Ui::advance`), which less motion drops (`Ui::set_preferences`); a frame says whether one goes on
   (`FrameStats::animating`), and a program that draws only when something changes reads whether the
   interface moves (`Ui::animating`) or needs the next frame for the rows of a list
   (`Ui::needs_frame`), and when it next changes on its own, a tooltip's rest or a

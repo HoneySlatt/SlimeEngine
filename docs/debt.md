@@ -721,6 +721,12 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A shadow is not placed on whole pixels.
   On Linux, the system's dark or light preference is not read: winit reads no desktop's settings, and the portal of the desktop's settings would need a new dependency; Windows reports it.
   Followed by uwui's reader of the system's preferences, which the engine's platform layer calls once the editor moves onto uwui's 1.0, at Stage 6c's resumption ([ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md)); the reader's dependencies are put to the owner when it is built.
+- **The user's size of text is checked on the `widgets` example alone, and the look has one set of high contrast** ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md)).
+  At 200 %, a test finds no text of the `widgets` example cut, with the statistics, the sheet of shortcuts and a notification open; it reads labels, buttons, toggles, segments, tabs without a count and check boxes, not a field's text, a menu item's, a section's or a floating panel's title, a tab's count nor a list to choose from: menus, the palette of commands and the colour picker are not checked.
+  The editor at 200 % is not checked: its boxes of fixed size that hold a text may cut it.
+  The look's high contrast is dark alone: a user who asks for light and more contrast gets dark.
+  Light or dark and more contrast choose the look's themes by hand (`look::themes`), not from `Preferences`.
+  Followed at uwui's first stage, where the look becomes a value whose sets the interface chooses from `Preferences`, and the themes' test kit renders every look at 200 %; the editor, at Stage 6c's resumption.
 - **The interface reads the frame's start, one clock for every root, and events carry no time** ([ADR-0227](adr/0227-the-time-that-motion-reads.md)).
   `slime-app`'s windowed loop gives uwui the time since its last call, read from `Instant::now()` at each event and each frame's start (`Ui::advance`), not when the frame shows; winit gives no presentation time and no event's time.
   Motion therefore steps with the loop's wakes, and a fling's speed would be read from them.
@@ -808,6 +814,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   An element drawn again makes the lists of its primitives anew, and a control copies its text's look; under the editor's look, each frame of a transition allocates some eight times for each element that it draws ([measurements](measurements.md#m6d2b2b1-transitions-and-the-frame-of-a-change-of-theme)).
   An element of no display, folded in a section, is drawn again while it moves, unseen: `paint` does not skip it, as gathering the display list does.
   A frame whose transition only changes colours draws its elements whole again, not their colours alone.
+  A frame after a change of the user's size of text lays every text out again and allocates as much as the tree's first frame at that size ([measurements](measurements.md#m6d2b2b2-the-users-layer-over-what-code-writes)).
   Followed at uwui's first stage, which benchmarks its own paint.
 - **The system's fallback is checked only where the system has fonts** ([ADR-0136](adr/0136-the-interfaces-text.md)).
   Its test checks nothing, and says so, on a machine whose fontconfig, or whose lack of it, gives no font for Greek or Japanese, as CI's Linux runners may.

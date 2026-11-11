@@ -1371,7 +1371,7 @@ impl Ui {
                 // still in its middle for less motion.
                 let (from, length) = match share {
                     Some(share) => (0.0, share.clamp(0.0, 1.0)),
-                    None if self.reduced_motion || !self.shown(id) => (0.35, 0.3),
+                    None if self.preferences.reduced_motion || !self.shown(id) => (0.35, 0.3),
                     None => {
                         let turn = (self.now.as_secs_f32() / 1.5).fract();
                         self.spinning.push(id);

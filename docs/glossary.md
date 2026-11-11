@@ -1843,7 +1843,7 @@ style and states: the size of text, which scales every text but icons, and a lis
 ([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md),
 [ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md)). The
 density and high contrast reach styles by the themes' names only: what code writes as a number
-stays. Decided, not built yet.
+stays. A program gives it as `uwui::preferences::Preferences`, with less motion.
 
 **uwui.** The owner's UI framework, the base of the engine's interfaces and of *applications*: a
 retained tree of elements, its layout, text, input and widgets, embedded in a *host (uwui)*

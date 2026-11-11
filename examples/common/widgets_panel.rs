@@ -577,8 +577,10 @@ impl WidgetsPanel {
                 format!("accent {}", ACCENTS[self.accent].0)
             }
             "switch-motion" => {
-                let reduced = !self.ui.reduced_motion();
-                self.ui.set_reduced_motion(reduced);
+                let mut preferences = self.ui.preferences().clone();
+                let reduced = !preferences.reduced_motion;
+                preferences.reduced_motion = reduced;
+                self.ui.set_preferences(preferences);
                 format!("motion {}", if reduced { "none" } else { "on" })
             }
             _ => return false,
@@ -642,7 +644,7 @@ impl WidgetsPanel {
                 entry(
                     "Less motion",
                     "M",
-                    ItemMark::Check(self.ui.reduced_motion()),
+                    ItemMark::Check(self.ui.preferences().reduced_motion),
                     Item::Command("switch-motion"),
                 ),
                 entry(
@@ -725,17 +727,20 @@ impl WidgetsPanel {
         };
         let layer = self.ui.open_layer("statistics", layer, |s| s);
         self.ui.build(layer, 0, |children| {
-            let panel =
-                Element::floating_panel("Statistics", true).style(|s| column(s).row_gap(4.0));
+            let panel = Element::floating_panel("Statistics", true).style(column);
             children.add("statistics", panel, |panel| {
-                let lines = [
-                    ("entities", "entities        200"),
-                    ("frame", "frame       16.6 ms"),
-                    ("draws", "draw calls      412"),
-                ];
-                for (key, line) in lines {
-                    panel.add(key, Element::label(line).class("fixed"), |_| {});
-                }
+                // Its lines scroll within the panel's size, which a larger text would overflow.
+                let lines_box = Element::scroll().style(|s| filling(column(s)).row_gap(4.0));
+                panel.add("lines", lines_box, |lines_box| {
+                    let lines = [
+                        ("entities", "entities        200"),
+                        ("frame", "frame       16.6 ms"),
+                        ("draws", "draw calls      412"),
+                    ];
+                    for (key, line) in lines {
+                        lines_box.add(key, Element::label(line).class("fixed"), |_| {});
+                    }
+                });
             });
         });
         self.statistics = Some(layer);
@@ -962,7 +967,7 @@ fn inspector(children: &mut Children<'_>, shown: &Shown<'_>, built: &mut Built) 
                             Element::container()
                                 .style(|s| s.column_gap(8.0).align_items(Align::Center)),
                             |row| {
-                                let label = Element::label("color").style(|s| wide(s, 96.0));
+                                let label = Element::label("color").style(|s| least_wide(s, 96.0));
                                 row.add("label", label, |_| {});
                                 let well = Element::color_well(shown.light_color)
                                     .style(|s| s.width(Dimension::Pixels(64.0)))
@@ -1009,7 +1014,7 @@ fn slider_row(children: &mut Children<'_>, slider: &Slider) -> ElementId {
         slider.label,
         Element::container().style(|s| s.column_gap(8.0).align_items(Align::Center)),
         |children| {
-            let label = Element::label(slider.label).style(|s| wide(s, 96.0));
+            let label = Element::label(slider.label).style(|s| least_wide(s, 96.0));
             children.add("label", label, |_| {});
             let mut element = Element::slider(slider.value, slider.min, slider.max, slider.step)
                 .style(filling)
@@ -1020,7 +1025,7 @@ fn slider_row(children: &mut Children<'_>, slider: &Slider) -> ElementId {
             }
             id = Some(children.add("slider", element, |_| {}));
             let value = Element::label(format!("{:.2}", slider.value))
-                .style(|s| wide(s, 48.0))
+                .style(|s| least_wide(s, 48.0))
                 .class("fixed");
             children.add("value", value, |_| {});
         },
@@ -1079,7 +1084,7 @@ fn position_row(
         .style(|s| s.column_gap(8.0).align_items(Align::Center))
         .named("position");
     children.add("position", group, |children| {
-        let label = Element::label("position").style(|s| wide(s, 96.0));
+        let label = Element::label("position").style(|s| least_wide(s, 96.0));
         children.add("label", label, |_| {});
         for (axis, (&value, (prefix, class))) in position.iter().zip(AXES).enumerate() {
             let field = Element::number_field(value, 0.1)
@@ -1124,7 +1129,7 @@ fn quality_row(children: &mut Children<'_>, quality: usize) -> ElementId {
         "shadow quality",
         Element::container().style(|s| s.column_gap(8.0).align_items(Align::Center)),
         |children| {
-            let label = Element::label("shadow quality").style(|s| wide(s, 96.0));
+            let label = Element::label("shadow quality").style(|s| least_wide(s, 96.0));
             children.add("label", label, |_| {});
             let options = QUALITIES.map(str::to_owned).to_vec();
             let choice = Element::choice(options, quality)
@@ -1232,4 +1237,11 @@ fn filling(s: StyleBuilder) -> StyleBuilder {
 /// Writes that an element is `width` logical pixels wide, and does not shrink.
 fn wide(s: StyleBuilder, width: f32) -> StyleBuilder {
     s.width(Dimension::Pixels(width)).shrink(0.0)
+}
+
+/// Writes that an element that holds a text is at least `width` logical pixels wide, and does not
+/// shrink: a larger text widens it rather than being cut
+/// (`docs/adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md`).
+fn least_wide(s: StyleBuilder, width: f32) -> StyleBuilder {
+    s.min_width(Dimension::Pixels(width)).shrink(0.0)
 }

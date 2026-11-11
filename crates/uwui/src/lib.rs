@@ -8,6 +8,7 @@ mod layout;
 #[cfg(feature = "editor-look")]
 pub mod look;
 mod paint;
+pub mod preferences;
 mod rect;
 pub mod shortcuts;
 pub mod style;

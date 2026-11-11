@@ -253,7 +253,7 @@ fn random_rules_and_own_styles_compose_as_the_reflected_cascade_composed_them() 
             own.extend(StyleBuilder::new(Location::caller()).with_style(&code));
             own
         };
-        let typed = ui.compose(base, &selected, &own, 0);
+        let typed = ui.compose(base, &selected, &own, 0).0;
         let want = reflected(&registry, &parts, &code);
         assert!(
             same_bits(&registry, &typed, &want),
@@ -419,7 +419,7 @@ fn every_leaf_takes_the_mask_order() {
         let compose = |ui: &mut Ui, rules: Vec<Rule>, own: OwnStyle, held: u8| {
             ui.rules = rules;
             let selected: Vec<u32> = (0..ui.rules.len() as u32).collect();
-            ui.compose(base, &selected, &own, held)
+            ui.compose(base, &selected, &own, held).0
         };
         let own_base = OwnStyle::of([(None, at_default.clone())]);
         let own_hover = OwnStyle::of([(hovered, at_default.clone())]);
@@ -550,7 +550,9 @@ fn random_rules_with_states_and_own_styles_with_states_compose_as_the_mask_order
         ui.rules = rules;
         let selected: Vec<u32> = (0..ui.rules.len() as u32).collect();
         let own_style = OwnStyle::of(own.clone());
-        let made = ui.compose(base, &selected, &own_style, held_bits & own_style.states());
+        let made = ui
+            .compose(base, &selected, &own_style, held_bits & own_style.states())
+            .0;
         assert!(
             made.same(&want),
             "case {case}: rules {:?}, own {own:?}, held {held:?}",

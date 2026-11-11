@@ -10,6 +10,7 @@
 use slime_color::{LinearColor, Oklch};
 use uwui::display::Primitive;
 use uwui::look::{self, Colors, Density, FIXED_FAMILY, TEXT_FAMILY};
+use uwui::preferences::Preferences;
 use uwui::text::{Fonts, TextBounds, TextStyle};
 use uwui::theme::Theme;
 use uwui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
@@ -152,7 +153,10 @@ fn the_style_sheet_styles_each_kind_its_states_and_its_classes() {
     let before = style(&ui, 2).paint;
     ui.set_focus(Some(ids[2]));
     ui.frame();
-    ui.set_reduced_motion(true);
+    ui.set_preferences(Preferences {
+        reduced_motion: true,
+        ..Preferences::default()
+    });
     let focused = style(&ui, 2).paint;
     assert!(
         near(focused.border, lighten(srgb(0x4C8DFF), 0.08)),
@@ -173,7 +177,10 @@ fn every_button_shows_the_keyboards_focus_by_its_border() {
         &look::themes(Colors::Dark, Density::Comfortable),
     )
     .expect("the look's documents are valid");
-    ui.set_reduced_motion(true);
+    ui.set_preferences(Preferences {
+        reduced_motion: true,
+        ..Preferences::default()
+    });
     let settings = RootSettings {
         size: [800.0, 600.0],
         scale: 1.0,
@@ -264,6 +271,33 @@ fn every_theme_of_colors_and_density_styles_every_kind() {
     }
 }
 
+/// A colour and a length that code writes as numbers stay the author's under every theme of
+/// colours and density, high contrast and compact among them: density and contrast reach styles by
+/// the themes' names alone (`docs/adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md`).
+#[test]
+fn what_code_writes_as_numbers_stays_under_high_contrast_and_compact() {
+    let amber = srgb(0xFFB000);
+    let white = srgb(0xFFFFFF);
+    for colors in [Colors::Dark, Colors::Light, Colors::HighContrast] {
+        for density in [Density::Comfortable, Density::Compact] {
+            let own = Element::button("Apply").style(|s| {
+                s.background(amber)
+                    .text_color(white)
+                    .padding(12.0)
+                    .hover(|s| s.background(white))
+            });
+            let (ui, ids) = styled(&look::themes(colors, density), vec![own]);
+            let style = ui.style(ids[0]).expect("styled");
+            assert_eq!(
+                (style.paint.background, style.text.color),
+                (amber, white),
+                "{colors:?} {density:?}"
+            );
+            assert_eq!(style.layout.padding.start, 12.0, "{colors:?} {density:?}");
+        }
+    }
+}
+
 #[test]
 fn a_project_s_accent_changes_every_color_that_follows_it() {
     let mut themes = look::themes(Colors::Dark, Density::Comfortable);
@@ -272,7 +306,10 @@ fn a_project_s_accent_changes_every_color_that_follows_it() {
     let check_box = ui.style(ids[3]).expect("styled").clone();
     assert_eq!(check_box.control.fill, srgb(0x2BB673));
     // The field's focus, the accent lightened: green now.
-    ui.set_reduced_motion(true);
+    ui.set_preferences(Preferences {
+        reduced_motion: true,
+        ..Preferences::default()
+    });
     ui.set_focus(Some(ids[8]));
     ui.frame();
     let border = ui.style(ids[8]).expect("styled").paint.border;

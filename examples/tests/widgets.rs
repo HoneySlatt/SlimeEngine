@@ -38,9 +38,13 @@ mod widgets_panel;
 use slime_color::LinearColor;
 use slime_gfx::{Gpu, RenderPassDescriptor, TextureFormat};
 use slime_render::Renderer;
+use uwui::Rect;
 use uwui::action::{Action, ActionKind};
 use uwui::look::{Colors, Density};
-use uwui::tree::LayoutDirection;
+use uwui::preferences::{Preferences, TextSize};
+use uwui::style::Display;
+use uwui::text::TextBounds;
+use uwui::tree::{ElementId, Kind, LayoutDirection};
 use uwui_render::UiRenderer;
 
 use widgets_panel::WidgetsPanel;
@@ -108,7 +112,10 @@ fn press(panel: &mut WidgetsPanel, path: &str) {
 /// shows where they end.
 fn panel(direction: LayoutDirection) -> WidgetsPanel {
     let mut panel = WidgetsPanel::new(direction);
-    panel.ui.set_reduced_motion(true);
+    panel.ui.set_preferences(Preferences {
+        reduced_motion: true,
+        ..Preferences::default()
+    });
     panel
 }
 
@@ -262,4 +269,151 @@ fn every_element_is_styled_as_its_fixture_records() {
         }
     }
     style_fixture::check("widgets-styles.txt", &styled);
+}
+
+/// What `id` draws as a text and the width it has for it, in pixels at scale 1: the label of a
+/// label, a button, a toggle, a segment or a tab without a count, in its content box; a check
+/// box's, beside its box and the gap after it. None for the other kinds.
+fn drawn_text(panel: &WidgetsPanel, id: ElementId, content: Rect) -> Option<(String, f32)> {
+    let element = panel.ui.element(id)?;
+    Some(match &element.kind {
+        Kind::Label(text)
+        | Kind::Button { label: text }
+        | Kind::ToggleButton { label: text, .. }
+        | Kind::Segment { title: text }
+        | Kind::Tab {
+            title: text,
+            count: None,
+        } => (text.clone(), content.width),
+        Kind::CheckBox { label, .. } => {
+            let size = panel.ui.style(id)?.control.size;
+            (label.clone(), (content.width - size * 1.5).max(0.0))
+        }
+        _ => return None,
+    })
+}
+
+/// Whether `id` scrolls what it holds, which is reached by scrolling.
+fn scrolls(panel: &WidgetsPanel, id: ElementId) -> bool {
+    panel
+        .ui
+        .element(id)
+        .is_some_and(|element| matches!(element.kind, Kind::Scroll | Kind::List { .. }))
+}
+
+/// Whether `inner` lies within `outer`, half a pixel spared for rounding.
+fn inside(inner: Rect, outer: Rect) -> bool {
+    inner.x >= outer.x - 0.5
+        && inner.y >= outer.y - 0.5
+        && inner.x + inner.width <= outer.x + outer.width + 0.5
+        && inner.y + inner.height <= outer.y + outer.height + 0.5
+}
+
+/// The texts laid out below `root` that are cut (WCAG's failure F69), whether they show or are
+/// scrolled away: a text laid out wider or taller than its element's content box, inside its
+/// padding, or an element's box that leaves an ancestor's, up to the first ancestor
+/// that scrolls, whose content is reached by scrolling. It reads the texts that [`drawn_text`]
+/// gives; `checked` counts them.
+fn cut_texts(panel: &mut WidgetsPanel, root: ElementId, checked: &mut usize) -> Vec<String> {
+    let mut cut = Vec::new();
+    let mut stack = vec![(root, Vec::<ElementId>::new())];
+    while let Some((id, ancestors)) = stack.pop() {
+        let (Some(rect), Some(style)) = (panel.ui.rect(id), panel.ui.style(id).cloned()) else {
+            continue;
+        };
+        if style.layout.display == Display::None || rect.width <= 0.0 || rect.height <= 0.0 {
+            continue;
+        }
+        let mut below = ancestors.clone();
+        below.push(id);
+        for &child in panel.ui.children(id) {
+            stack.push((child, below.clone()));
+        }
+        // Its text is laid out inside its padding: taffy is given no border, which paint draws
+        // inside the padding.
+        let padding = style.layout.padding;
+        let content = Rect::new(
+            rect.x + padding.start,
+            rect.y + padding.top,
+            (rect.width - padding.start - padding.end).max(0.0),
+            (rect.height - padding.top - padding.bottom).max(0.0),
+        );
+        let Some((text, width)) = drawn_text(panel, id, content) else {
+            continue;
+        };
+        if text.trim().is_empty() {
+            continue;
+        }
+        *checked += 1;
+        let path = panel.ui.path_text(id).unwrap_or_default();
+        let laid =
+            panel
+                .ui
+                .fonts_mut()
+                .lay_out(&text, &style.text.style, 1.0, TextBounds::width(width));
+        if laid.width() > width + 0.5 || laid.height() > content.height + 0.5 {
+            cut.push(format!(
+                "{path} {text:?}: {:.1} × {:.1} in {width:.1} × {:.1}",
+                laid.width(),
+                laid.height(),
+                content.height
+            ));
+        }
+        for &ancestor in ancestors.iter().rev() {
+            if scrolls(panel, ancestor) {
+                break;
+            }
+            let Some(outer) = panel.ui.rect(ancestor) else {
+                break;
+            };
+            if !inside(rect, outer) {
+                let name = panel.ui.path_text(ancestor).unwrap_or_default();
+                cut.push(format!("{path} {text:?}: its box leaves {name}'s"));
+                break;
+            }
+        }
+    }
+    cut
+}
+
+/// At 200 % text, WCAG 2.2's 1.4.4, no text of the example is cut, in each tab, with the floating
+/// panel of statistics, the sheet of shortcuts and a notification open: boxes of fixed size that
+/// hold a text are least sizes, and a list's rows grow with their text
+/// (`docs/adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md`). It reads
+/// labels, buttons, toggles, segments, tabs without a count and check boxes; not a field's text, a
+/// menu item's, a section's or a floating panel's title, a tab's count, nor a list to choose from,
+/// which menus and the palette of commands hold.
+#[test]
+fn at_twice_the_size_of_text_no_text_is_cut() {
+    for factor in [1.0, 2.0] {
+        let mut cut = Vec::new();
+        let mut checked = 0;
+        for tab in ["Inspector", "Console", "About"] {
+            let mut panel = panel(LayoutDirection::LeftToRight);
+            panel.ui.set_preferences(Preferences {
+                text_size: TextSize::factor(factor).expect("within its range"),
+                reduced_motion: true,
+            });
+            panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+            press(&mut panel, &format!("main/window/tabs/{tab}"));
+            let mut layers = vec!["main"];
+            if tab == "Inspector" {
+                command(&mut panel, "statistics");
+                command(&mut panel, "shortcuts");
+                command(&mut panel, "save");
+                layers.extend(["statistics", "shortcuts", "notifications"]);
+            }
+            panel.frame([SIZE.0 as f32, SIZE.1 as f32], 1.0);
+            for layer in layers {
+                let root = panel.ui.element_by_path(layer);
+                let root = root.unwrap_or_else(|| panic!("{tab}: no layer at {layer}"));
+                cut.extend(cut_texts(&mut panel, root, &mut checked));
+            }
+        }
+        assert!(
+            checked > 120,
+            "{checked} texts checked at {factor}: the walk saw too little"
+        );
+        assert!(cut.is_empty(), "at {factor}, cut:\n{}", cut.join("\n"));
+    }
 }
