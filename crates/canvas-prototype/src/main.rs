@@ -2,13 +2,21 @@
 //! benchmark `render.canvas` drawn with three layouts of its items, S (storage buffers, today's),
 //! I (instances, one format a kind) and T (items in a texture), on three devices, `vulkan`,
 //! `vulkan-webgl2` and `gl`; their images compared with S's, their frames timed, and their
-//! pipelines counted against WebGL2's limits. `README.md` says how to run it and reads its output.
+//! pipelines counted against WebGL2's limits; with `--effect`, the same for the effects
+//! (`effects.rs`). `README.md` says how to run it and reads its output.
 
+mod blur;
 mod canvas;
+mod effects;
 mod gpu;
 mod instances;
+mod instances_fx;
+mod path;
+mod scenes;
 mod storage;
+mod storage_fx;
 mod texture;
+mod texture_fx;
 
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
@@ -60,10 +68,12 @@ struct Options {
     frames: usize,
     warm_up: usize,
     any_adapter: bool,
+    /// The effects to run in place of the screens, if any.
+    effects: Vec<effects::Effect>,
 }
 
 const USAGE: &str = "usage: canvas-prototype <vulkan|vulkan-webgl2|gl> [--frames N] [--warm-up N] \
-                     [--any-adapter]";
+                     [--any-adapter] [--effect transform|group|blur|path|grow|all]...";
 
 fn options() -> Result<Options, String> {
     let mut args = std::env::args().skip(1);
@@ -76,6 +86,7 @@ fn options() -> Result<Options, String> {
         frames: 30,
         warm_up: 10,
         any_adapter: false,
+        effects: Vec::new(),
     };
     while let Some(arg) = args.next() {
         let mut number = || {
@@ -87,6 +98,11 @@ fn options() -> Result<Options, String> {
             "--frames" => options.frames = number()?,
             "--warm-up" => options.warm_up = number()?,
             "--any-adapter" => options.any_adapter = true,
+            "--effect" => options.effects.extend(
+                args.next()
+                    .and_then(|name| effects::Effect::parse(&name))
+                    .ok_or(USAGE)?,
+            ),
             _ => return Err(USAGE.to_owned()),
         }
     }
@@ -139,6 +155,19 @@ fn run(options: &Options) -> Result<bool, String> {
     let images = Images::new(&gpu);
     gpu.check()?;
     let mut ok = true;
+    if !options.effects.is_empty() {
+        let cx = effects::Context {
+            gpu: &gpu,
+            config,
+            images: &images,
+            frames: options.frames,
+            warm_up: options.warm_up,
+        };
+        for &effect in &options.effects {
+            ok &= effects::run(&cx, effect)?;
+        }
+        return Ok(ok);
+    }
 
     let mut layouts: Vec<(&str, Box<dyn Layout>)> = Vec::new();
     match (storage::Storage::new(&gpu, &images), config) {

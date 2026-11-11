@@ -2,7 +2,7 @@
 //! read with `textureLoad` (`texture.wgsl`). One pipeline, one draw per run of one image, as S.
 
 use crate::canvas::{Batch, Canvas, ITEM_SIZE, item_bytes};
-use crate::gpu::{self, Gpu, Images, Layout};
+use crate::gpu::{self, Gpu, Images, Layout, Rewrite};
 
 pub const SOURCE: &str = include_str!("texture.wgsl");
 
@@ -199,5 +199,15 @@ impl Layout for Texture {
             pass.draw(range.start as u32 * 6..range.end as u32 * 6, 0..1);
         }
         (self.batches.len(), 1)
+    }
+}
+
+impl Rewrite for Texture {
+    fn rewrite(&mut self, gpu: &Gpu, canvas: &Canvas, index: usize) -> u64 {
+        let (texture, _, _) = self.items.as_ref().expect("uploaded first");
+        let data = item_bytes(&canvas.items[index..=index], true);
+        // An item's nine texels may end on the next row: one write each side.
+        gpu::write_texels(gpu, texture, index * ITEM_TEXELS, &data);
+        data.len() as u64
     }
 }

@@ -26,7 +26,7 @@ use crate::canvas::{
     self, BOX, COVERAGE, Canvas, GRADIENT, IMAGE, ImageId, Item, KINDS, SHADOW, push_f32s,
     push_u32s,
 };
-use crate::gpu::{self, Gpu, Images, Layout};
+use crate::gpu::{self, Gpu, Images, Layout, Rewrite};
 
 pub const SOURCE: &str = include_str!("instances.wgsl");
 
@@ -129,6 +129,9 @@ pub struct Instances {
     /// Each kind's bytes in the vertex buffer.
     regions: [Range<u64>; KINDS],
     runs: Vec<Run>,
+    /// The item that [`Rewrite::rewrite`] last wrote, and its instance's place in its kind's
+    /// region, found once as an element keeps its place; cleared by each upload.
+    rewritten: Option<(usize, u64)>,
 }
 
 impl Instances {
@@ -210,6 +213,7 @@ impl Instances {
                 vertices: None,
                 regions: std::array::from_fn(|_| 0..0),
                 runs: Vec::new(),
+                rewritten: None,
             }
         });
         match error {
@@ -359,6 +363,7 @@ impl Layout for Instances {
         let frame = gpu::frame_bytes(size);
         gpu.queue.write_buffer(&self.frame, 0, &frame);
         self.runs = runs;
+        self.rewritten = None;
         total + frame.len() as u64
     }
 
@@ -387,5 +392,29 @@ impl Layout for Instances {
             pass.draw(0..6, run.instances.clone());
         }
         (self.runs.len(), pipelines)
+    }
+}
+
+impl Rewrite for Instances {
+    fn rewrite(&mut self, gpu: &Gpu, canvas: &Canvas, index: usize) -> u64 {
+        let item = &canvas.items[index];
+        let kind = item.kind[0] as usize;
+        let offset = match self.rewritten {
+            Some((at, offset)) if at == index => offset,
+            _ => {
+                let before = canvas.items[..index]
+                    .iter()
+                    .filter(|other| other.kind[0] as usize == kind)
+                    .count() as u64;
+                let offset = self.regions[kind].start + before * stride(FORMATS[kind].attributes);
+                self.rewritten = Some((index, offset));
+                offset
+            }
+        };
+        let mut bytes = Vec::with_capacity(stride(FORMATS[kind].attributes) as usize);
+        pack(item, &mut Colours::new(), &mut bytes);
+        let (buffer, _) = self.vertices.as_ref().expect("uploaded first");
+        gpu.queue.write_buffer(buffer, offset, &bytes);
+        bytes.len() as u64
     }
 }

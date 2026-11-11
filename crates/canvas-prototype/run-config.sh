@@ -4,13 +4,14 @@
 # repository's root, after `cargo build --release -p canvas-prototype`:
 #
 #   crates/canvas-prototype/run-config.sh <vulkan|vulkan-webgl2|gl|gl-es> [--frames N] [--warm-up N]
+#       [--effect transform|group|blur|path|grow|all]...
 #
 # `gl` takes the context wgpu chooses, desktop GL; `gl-es` makes Mesa refuse desktop GL 3.3 and offer
 # OpenGL ES 3.0 alone, whose shaders, GLSL ES 3.00, are WebGL2's. Run `vulkan` first: the others
 # compare their images with the images of S that it writes.
 set -euo pipefail
 
-[ $# -ge 1 ] || { sed -n 2,10p "$0" >&2; exit 2; }
+[ $# -ge 1 ] || { sed -n 2,11p "$0" >&2; exit 2; }
 config=$1
 shift
 [ -n "${SLIME_LAVAPIPE_ICD:-}" ] || { echo "run-config.sh: run it inside nix develop" >&2; exit 2; }

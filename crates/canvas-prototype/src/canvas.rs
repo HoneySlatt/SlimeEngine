@@ -2,6 +2,10 @@
 //! two screens of the benchmark `render.canvas`, copied from `benches/src/render.rs`. The item
 //! building, its clip cut, its runs and its bytes are unchanged; images are named by their index in
 //! the prototype's table of textures ([`crate::gpu::Images`]) rather than added to the canvas.
+//!
+//! The effects add what only their pipelines draw (`effects.rs`): the kinds PATH, GLASS and
+//! LAYER, a table of transforms that items name, the paths' segments, and quads kept whole rather
+//! than cut to their clips.
 
 use std::ops::Range;
 
@@ -56,7 +60,7 @@ impl PixelRect {
     }
 
     /// Its edges: left, top, right, bottom.
-    fn edges(self) -> [f32; 4] {
+    pub fn edges(self) -> [f32; 4] {
         [self.x, self.y, self.x + self.width, self.y + self.height]
     }
 
@@ -125,6 +129,8 @@ pub struct ImageId(pub u32);
 pub enum ImageKind {
     Coverage,
     Color,
+    /// A group drawn apart ([`LAYER`]).
+    Layer,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -161,8 +167,44 @@ pub const SHADOW: u32 = 1;
 pub const COVERAGE: u32 = 2;
 pub const IMAGE: u32 = 3;
 pub const GRADIENT: u32 = 4;
-/// How many kinds there are; each kind is its own index below this.
+/// How many kinds the screens of `render.canvas` draw; each kind is its own index below this.
 pub const KINDS: usize = 5;
+/// The effects' kinds (`effects.rs`), which only the effects' pipelines draw. A filled path: its
+/// segments are [`Canvas::segments`] from `kind[2]`, `kind[3]` of them.
+pub const PATH: u32 = 5;
+/// A box whose fill is its tint laid over an image, the blurred region behind it (`blur.rs`):
+/// a box's fields, and in `uv` the map from a point to the image's coordinates, `(p - uv.xy) *
+/// uv.zw`.
+pub const GLASS: u32 = 6;
+/// An image whose texels are already multiplied by their alpha and encoded as the target is, a
+/// group drawn apart: drawn faded by the item's alpha.
+pub const LAYER: u32 = 7;
+/// How many kinds the effects' pipelines draw.
+pub const FX_KINDS: usize = 8;
+
+/// An affine transform of the plane, `[a, b, c, d, e, f]`: x' = a x + b y + c, y' = d x + e y + f.
+pub type Affine = [f32; 6];
+pub const IDENTITY: Affine = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
+
+/// A rotation by `degrees` about `center`.
+pub fn rotation_about(center: [f32; 2], degrees: f32) -> Affine {
+    let (sin, cos) = degrees.to_radians().sin_cos();
+    let [x, y] = center;
+    [
+        cos,
+        -sin,
+        x - cos * x + sin * y,
+        sin,
+        cos,
+        y - sin * x - cos * y,
+    ]
+}
+
+/// A scale by `factor` about `center`.
+pub fn scale_about(center: [f32; 2], factor: f32) -> Affine {
+    let [x, y] = center;
+    [factor, 0.0, x - factor * x, 0.0, factor, y - factor * y]
+}
 
 const NO_CLIP: [f32; 4] = [-f32::MAX, -f32::MAX, f32::MAX, f32::MAX];
 
@@ -171,6 +213,14 @@ const NO_CLIP: [f32; 4] = [-f32::MAX, -f32::MAX, f32::MAX, f32::MAX];
 pub struct Canvas {
     pub items: Vec<Item>,
     pub item_images: Vec<Option<ImageId>>,
+    /// The transforms that items name by `kind[1]`: 0 is the identity, `i` is `transforms[i -
+    /// 1]`. Only the effects' pipelines read them.
+    pub transforms: Vec<Affine>,
+    /// The paths' segments, `[x0, y0, x1, y1]` in the item's space.
+    pub segments: Vec<[f32; 4]>,
+    /// Keep each quad whole rather than cut it to its clip on the CPU: an item whose transform is
+    /// set after it is pushed may cross its clip, which stays in the target's pixels.
+    pub keep_whole: bool,
 }
 
 /// A run of items that one draw of S or T takes: those that read one image, or none, in a row.
@@ -313,6 +363,7 @@ impl Canvas {
         let kind = match quad.kind {
             ImageKind::Coverage => COVERAGE,
             ImageKind::Color => IMAGE,
+            ImageKind::Layer => LAYER,
         };
         self.push(
             Item {
@@ -335,10 +386,97 @@ impl Canvas {
         );
     }
 
-    /// Adds `item`, its quad cut down to the pixels that its clip holds in part.
+    /// A box filled with its tint laid over `behind`, which holds the region `region` of the
+    /// target ([`GLASS`]).
+    pub fn draw_glass(&mut self, shape: &CanvasBox, behind: ImageId, region: PixelRect) {
+        if shape.rect.is_empty() || region.is_empty() {
+            return;
+        }
+        let edges = shape.rect.edges();
+        let width = shape.border_width.max(0.0);
+        self.push(
+            Item {
+                quad: outward(edges),
+                shape: edges,
+                radii: radii(shape.radii, shape.rect),
+                color: straight(shape.fill),
+                border: straight(shape.border),
+                uv: [region.x, region.y, 1.0 / region.width, 1.0 / region.height],
+                clip: clip(shape.clip),
+                widths: [width, 0.0, 0.0, 0.0],
+                kind: [GLASS, 0, 0, 0],
+            },
+            Some(behind),
+        );
+    }
+
+    /// A path filled by the non-zero rule, its `segments` closed contours in the target's
+    /// pixels ([`PATH`]).
+    pub fn draw_path(
+        &mut self,
+        segments: &[[f32; 4]],
+        color: LinearColor,
+        clip_rect: Option<PixelRect>,
+    ) {
+        if segments.is_empty() || segments.iter().flatten().any(|value| !value.is_finite()) {
+            return;
+        }
+        let mut bounds = [f32::MAX, f32::MAX, f32::MIN, f32::MIN];
+        for &[x0, y0, x1, y1] in segments {
+            bounds = [
+                bounds[0].min(x0.min(x1)),
+                bounds[1].min(y0.min(y1)),
+                bounds[2].max(x0.max(x1)),
+                bounds[3].max(y0.max(y1)),
+            ];
+        }
+        let first = self.segments.len() as u32;
+        self.segments.extend_from_slice(segments);
+        // Half a pixel more on each side holds the pixels that the edge covers in part.
+        self.push(
+            Item {
+                quad: outward([
+                    bounds[0] - 0.5,
+                    bounds[1] - 0.5,
+                    bounds[2] + 0.5,
+                    bounds[3] + 0.5,
+                ]),
+                shape: bounds,
+                radii: [0.0; 4],
+                color: straight(color),
+                border: [0.0; 4],
+                uv: [0.0; 4],
+                clip: clip(clip_rect),
+                widths: [0.0; 4],
+                kind: [PATH, 0, first, segments.len() as u32],
+            },
+            None,
+        );
+    }
+
+    /// Adds a transform that items may name by `kind[1]`; gives its index.
+    pub fn add_transform(&mut self, transform: Affine) -> u32 {
+        self.transforms.push(transform);
+        self.transforms.len() as u32
+    }
+
+    /// The transforms by their index: the identity, then [`Canvas::transforms`].
+    pub fn transform_table(&self) -> Vec<Affine> {
+        std::iter::once(IDENTITY)
+            .chain(self.transforms.iter().copied())
+            .collect()
+    }
+
+    /// Adds `item`, its quad cut down to the pixels that its clip holds in part, unless
+    /// [`Canvas::keep_whole`].
     fn push(&mut self, mut item: Item, image: Option<ImageId>) {
         let [left, top, right, bottom] = item.quad;
         if !(item.clip[0] < item.clip[2] && item.clip[1] < item.clip[3]) {
+            return;
+        }
+        if self.keep_whole {
+            self.items.push(item);
+            self.item_images.push(image);
             return;
         }
         let clip = outward(item.clip);
@@ -351,7 +489,8 @@ impl Canvas {
         if !(quad[0] < quad[2] && quad[1] < quad[3]) {
             return;
         }
-        if image.is_some() {
+        // A glass's `uv` maps any point: it is not cut.
+        if image.is_some() && item.kind[0] != GLASS {
             let [u0, v0, u1, v1] = item.uv;
             let u = |x: f32| u0 + (u1 - u0) * (x - left) / (right - left);
             let v = |y: f32| v0 + (v1 - v0) * (y - top) / (bottom - top);
@@ -377,6 +516,24 @@ impl Canvas {
             }
         }
         batches
+    }
+}
+
+impl Item {
+    /// The item moved by `(dx, dy)` pixels: its quad, its shape and its clip; a glass's map of
+    /// its image too.
+    pub fn translated(mut self, dx: f32, dy: f32) -> Self {
+        let by = |edges: [f32; 4]| [edges[0] + dx, edges[1] + dy, edges[2] + dx, edges[3] + dy];
+        self.quad = by(self.quad);
+        self.shape = by(self.shape);
+        if self.clip != NO_CLIP {
+            self.clip = by(self.clip);
+        }
+        if self.kind[0] == GLASS {
+            self.uv[0] -= dx;
+            self.uv[1] -= dy;
+        }
+        self
     }
 }
 
@@ -412,7 +569,7 @@ fn clip(clip: Option<PixelRect>) -> [f32; 4] {
     clip.map_or(NO_CLIP, PixelRect::edges)
 }
 
-fn outward(edges: [f32; 4]) -> [f32; 4] {
+pub fn outward(edges: [f32; 4]) -> [f32; 4] {
     [
         edges[0].floor(),
         edges[1].floor(),
@@ -454,7 +611,7 @@ pub fn item_bytes(items: &[Item], encode: bool) -> Vec<u8> {
     for item in items {
         let gradient = item.kind[0] == GRADIENT;
         let border = match item.kind[0] {
-            BOX => mix(item.border, 1),
+            BOX | GLASS => mix(item.border, 1),
             GRADIENT => mixed(item.border, encode),
             _ => item.border,
         };
@@ -570,19 +727,52 @@ pub fn editor_screen(canvas: &mut Canvas, glyphs: ImageId, pictures: &[ImageId],
     }
 }
 
+/// The four panels of the game's menu, laid out for 1920 × 1080: x, y, width, height. The last is
+/// the list on the right.
+pub const GAME_PANELS: [(f32, f32, f32, f32); 4] = [
+    (60.0, 80.0, 820.0, 860.0),
+    (920.0, 80.0, 500.0, 520.0),
+    (920.0, 640.0, 500.0, 300.0),
+    (1460.0, 80.0, 400.0, 860.0),
+];
+
+/// The game menu's 16 cards along its bottom, as [`GAME_PANELS`].
+pub fn game_cards() -> impl Iterator<Item = (f32, f32, f32, f32)> {
+    (0..16).map(|index| (60.0 + index as f32 * 112.0, 960.0, 100.0, 100.0))
+}
+
+/// How the game's menu, laid out for 1920 × 1080, is scaled to fit a target and centred.
+#[derive(Clone, Copy, Debug)]
+pub struct GameLayout {
+    pub scale: f32,
+    pub left: f32,
+    pub top: f32,
+}
+
+impl GameLayout {
+    pub fn new(w: f32, h: f32) -> Self {
+        let scale = (w / 1920.0).min(h / 1080.0);
+        let (left, top) = ((w - 1920.0 * scale) / 2.0, (h - 1080.0 * scale) / 2.0);
+        Self { scale, left, top }
+    }
+
+    /// A rectangle of the layout for 1920 × 1080, in the target's pixels.
+    pub fn rect(self, x: f32, y: f32, width: f32, height: f32) -> PixelRect {
+        PixelRect::new(
+            self.left + x * self.scale,
+            self.top + y * self.scale,
+            width * self.scale,
+            height * self.scale,
+        )
+    }
+}
+
 /// The game's menu of `render.canvas`, laid out for 1920 × 1080, scaled to fit `w` × `h`, centred:
 /// some 290 boxes, 20 shadows, 3 900 glyphs and 50 icons.
 pub fn game_screen(canvas: &mut Canvas, glyphs: ImageId, icons: ImageId, w: f32, h: f32) {
-    let scale = (w / 1920.0).min(h / 1080.0);
-    let (left, top) = ((w - 1920.0 * scale) / 2.0, (h - 1080.0 * scale) / 2.0);
-    let rect = |x: f32, y: f32, width: f32, height: f32| {
-        PixelRect::new(
-            left + x * scale,
-            top + y * scale,
-            width * scale,
-            height * scale,
-        )
-    };
+    let layout = GameLayout::new(w, h);
+    let scale = layout.scale;
+    let rect = |x: f32, y: f32, width: f32, height: f32| layout.rect(x, y, width, height);
     let plain = |rect: PixelRect, radius: f32, fill: LinearColor| CanvasBox {
         rect,
         radii: [radius * scale; 4],
@@ -626,14 +816,7 @@ pub fn game_screen(canvas: &mut Canvas, glyphs: ImageId, icons: ImageId, w: f32,
         0.0,
         LinearColor::rgba(0.0, 0.0, 0.0, 0.6),
     ));
-    let panels = [
-        (60.0, 80.0, 820.0, 860.0),
-        (920.0, 80.0, 500.0, 520.0),
-        (920.0, 640.0, 500.0, 300.0),
-        (1460.0, 80.0, 400.0, 860.0),
-    ];
-    let cards = (0..16).map(|index| (60.0 + index as f32 * 112.0, 960.0, 100.0, 100.0));
-    for (x, y, width, height) in panels.into_iter().chain(cards) {
+    for (x, y, width, height) in GAME_PANELS.into_iter().chain(game_cards()) {
         canvas.draw_shadow(&CanvasShadow {
             rect: rect(x, y, width, height),
             radii: [12.0 * scale; 4],

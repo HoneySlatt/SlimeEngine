@@ -3,7 +3,7 @@
 //! `storage.wgsl` is `slime-render`'s `canvas.wgsl` unchanged, and so are its bindings.
 
 use crate::canvas::{Batch, Canvas, ITEM_SIZE, item_bytes};
-use crate::gpu::{self, Gpu, Images, Layout};
+use crate::gpu::{self, Gpu, Images, Layout, Rewrite};
 
 pub const SOURCE: &str = include_str!("storage.wgsl");
 
@@ -137,5 +137,15 @@ impl Layout for Storage {
             pass.draw(range.start as u32 * 6..range.end as u32 * 6, 0..1);
         }
         (self.batches.len(), 1)
+    }
+}
+
+impl Rewrite for Storage {
+    fn rewrite(&mut self, gpu: &Gpu, canvas: &Canvas, index: usize) -> u64 {
+        let (buffer, _, _) = self.items.as_ref().expect("uploaded first");
+        let data = item_bytes(&canvas.items[index..=index], true);
+        gpu.queue
+            .write_buffer(buffer, (index * ITEM_SIZE) as u64, &data);
+        data.len() as u64
     }
 }

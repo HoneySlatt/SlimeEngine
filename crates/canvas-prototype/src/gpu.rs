@@ -325,8 +325,18 @@ pub fn image_groups(
     layout: &wgpu::BindGroupLayout,
     images: &Images,
 ) -> Vec<wgpu::BindGroup> {
-    images
-        .views
+    let views: Vec<&wgpu::TextureView> = images.views.iter().collect();
+    image_groups_of(gpu, layout, &views, &images.sampler)
+}
+
+/// A bind group of `layout` ([`image_layout`]) for each of `views`, read through `sampler`.
+pub fn image_groups_of(
+    gpu: &Gpu,
+    layout: &wgpu::BindGroupLayout,
+    views: &[&wgpu::TextureView],
+    sampler: &wgpu::Sampler,
+) -> Vec<wgpu::BindGroup> {
+    views
         .iter()
         .map(|view| {
             gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -339,7 +349,7 @@ pub fn image_groups(
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&images.sampler),
+                        resource: wgpu::BindingResource::Sampler(sampler),
                     },
                 ],
             })
@@ -373,6 +383,139 @@ pub fn frame_bytes((width, height): (u32, u32)) -> [u8; 16] {
         bytes[at * 4..at * 4 + 4].copy_from_slice(&value.to_le_bytes());
     }
     bytes
+}
+
+/// The effects' frame uniform (`fx_common.wgsl`'s `Frame`): the target's size, 1, colours encoded
+/// as sRGB before they mix; then, for T, the first texels of the transforms and of the segments in
+/// its texture.
+pub fn fx_frame_bytes(
+    (width, height): (u32, u32),
+    transforms_at: u32,
+    segments_at: u32,
+) -> [u8; 32] {
+    let mut bytes = [0; 32];
+    for (at, value) in [width as f32, height as f32, 1.0].iter().enumerate() {
+        bytes[at * 4..at * 4 + 4].copy_from_slice(&value.to_le_bytes());
+    }
+    bytes[12..16].copy_from_slice(&transforms_at.to_le_bytes());
+    bytes[16..20].copy_from_slice(&segments_at.to_le_bytes());
+    bytes
+}
+
+/// The size of the effects' frame uniform.
+pub const FX_FRAME_BYTES: u64 = 32;
+
+/// A buffer that grows by powers of two, from `least` bytes; true if it was made anew, so that
+/// the bind groups that hold it must be made again.
+pub fn ensure_buffer(
+    gpu: &Gpu,
+    slot: &mut Option<(wgpu::Buffer, u64)>,
+    label: &str,
+    needed: u64,
+    least: u64,
+    usage: wgpu::BufferUsages,
+) -> bool {
+    let size = needed.next_power_of_two().max(least);
+    if slot.as_ref().is_some_and(|(_, held)| *held >= size) {
+        return false;
+    }
+    *slot = Some((gpu.buffer(label, size, usage), size));
+    true
+}
+
+/// The width, in texels, of the textures that hold variable data: WebGL2's largest.
+pub const DATA_WIDTH: u32 = 2048;
+/// The bytes of one texel of `Rgba32Uint` or `Rgba32Float`.
+pub const DATA_TEXEL: usize = 16;
+
+/// A texture for variable data, [`DATA_WIDTH`] texels wide, `height` rows.
+pub fn data_texture(
+    gpu: &Gpu,
+    label: &str,
+    format: wgpu::TextureFormat,
+    height: u32,
+) -> wgpu::Texture {
+    gpu.device.create_texture(&wgpu::TextureDescriptor {
+        label: Some(label),
+        size: wgpu::Extent3d {
+            width: DATA_WIDTH,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    })
+}
+
+/// The rows a texture of variable data needs for `texels`: a power of two, at least 16.
+pub fn data_rows(texels: usize) -> u32 {
+    (texels.div_ceil(DATA_WIDTH as usize).max(1) as u32)
+        .next_power_of_two()
+        .max(16)
+}
+
+/// Writes `bytes`, whole texels, into `texture` from its texel `first`, counted row after row: the
+/// part of a first row, the full rows in one write, and the start of a last row. No padding is
+/// written.
+pub fn write_texels(gpu: &Gpu, texture: &wgpu::Texture, first: usize, bytes: &[u8]) {
+    let width = DATA_WIDTH as usize;
+    let write = |texel: usize, bytes: &[u8], columns: usize, rows: usize| {
+        if columns == 0 || rows == 0 {
+            return;
+        }
+        gpu.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: (texel % width) as u32,
+                    y: (texel / width) as u32,
+                    z: 0,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            bytes,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some((width * DATA_TEXEL) as u32),
+                rows_per_image: Some(rows as u32),
+            },
+            wgpu::Extent3d {
+                width: columns as u32,
+                height: rows as u32,
+                depth_or_array_layers: 1,
+            },
+        );
+    };
+    let count = bytes.len() / DATA_TEXEL;
+    let mut texel = first;
+    let mut done = 0;
+    // The rest of the first row.
+    if texel % width != 0 {
+        let columns = (width - texel % width).min(count);
+        write(texel, &bytes[..columns * DATA_TEXEL], columns, 1);
+        texel += columns;
+        done += columns;
+    }
+    let rows = (count - done) / width;
+    write(
+        texel,
+        &bytes[done * DATA_TEXEL..(done + rows * width) * DATA_TEXEL],
+        width,
+        rows,
+    );
+    texel += rows * width;
+    done += rows * width;
+    write(
+        texel,
+        &bytes[done * DATA_TEXEL..count * DATA_TEXEL],
+        count - done,
+        1,
+    );
 }
 
 /// The transforms' uniform of I and T: as many affine transforms of 32 bytes as WebGL2's 16 KiB
@@ -440,6 +583,30 @@ pub trait Layout {
     fn encode(&self, pass: &mut wgpu::RenderPass<'_>) -> (usize, usize);
 }
 
+/// A layout of the screens of `render.canvas` that can also write one item alone: the growing
+/// screen's moved box (`effects.rs`).
+pub trait Rewrite: Layout {
+    /// Writes the bytes of the item `index` of `canvas` alone, the others and the draws planned
+    /// kept from the last [`Layout::upload`] of a canvas of the same kinds and images in the same
+    /// order; gives the bytes written.
+    fn rewrite(&mut self, gpu: &Gpu, canvas: &Canvas, index: usize) -> u64;
+}
+
+/// A layout of the effects' pipelines, whose images include textures that the effects draw.
+pub trait FxLayout: Layout {
+    /// The images that items name by [`ImageId`], in place of the screens' table.
+    fn set_images(&mut self, gpu: &Gpu, views: &[&wgpu::TextureView], sampler: &wgpu::Sampler);
+}
+
+/// The colour targets are cleared to: whole steps of 1/255 (51, 102, 153), so that every backend
+/// stores the same bytes.
+pub const CLEAR: wgpu::Color = wgpu::Color {
+    r: 0.2,
+    g: 0.4,
+    b: 0.6,
+    a: 1.0,
+};
+
 /// A target that the canvas draws into, and that is read back.
 pub struct Target {
     pub texture: wgpu::Texture,
@@ -483,6 +650,31 @@ impl Target {
         }
     }
 
+    /// A target that allows nothing but being drawn into, as a GL surface: what the blur's
+    /// frames are timed on. It cannot be read back.
+    pub fn surface(gpu: &Gpu, (width, height): (u32, u32)) -> Self {
+        let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("surface"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: TARGET_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        Self {
+            texture,
+            view,
+            size: (width, height),
+        }
+    }
+
     /// Fills it with an opaque colour whose components are whole steps of 1/255 (51, 102, 153), so
     /// that every backend stores the same bytes.
     pub fn clear(&self, gpu: &Gpu) -> Result<(), String> {
@@ -494,12 +686,7 @@ impl Target {
                 depth_slice: None,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.2,
-                        g: 0.4,
-                        b: 0.6,
-                        a: 1.0,
-                    }),
+                    load: wgpu::LoadOp::Clear(CLEAR),
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -562,26 +749,34 @@ impl Target {
     }
 }
 
-/// Times one render pass with two timestamps, read back once the frame is waited for.
+/// Times render passes with two timestamps each, read back once the frame is waited for.
 pub struct Timer {
     queries: wgpu::QuerySet,
     resolve: wgpu::Buffer,
     readback: wgpu::Buffer,
     period: f32,
+    /// The most passes a frame may time.
+    passes: u32,
 }
 
 impl Timer {
-    /// A timer, or none where the device has no timestamp queries.
+    /// A timer of one pass, or none where the device has no timestamp queries.
     pub fn new(gpu: &Gpu) -> Option<Self> {
+        Self::with_passes(gpu, 1)
+    }
+
+    /// A timer of up to `passes` passes a frame.
+    pub fn with_passes(gpu: &Gpu, passes: u32) -> Option<Self> {
         if !gpu.can_time() {
             return None;
         }
-        let size = 2 * u64::from(wgpu::QUERY_SIZE);
+        let size = 2 * u64::from(passes) * u64::from(wgpu::QUERY_SIZE);
         Some(Self {
+            passes,
             queries: gpu.device.create_query_set(&wgpu::QuerySetDescriptor {
                 label: Some("canvas"),
                 ty: wgpu::QueryType::Timestamp,
-                count: 2,
+                count: 2 * passes,
             }),
             resolve: gpu.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("timestamps"),
@@ -600,16 +795,35 @@ impl Timer {
     }
 
     fn writes(&self) -> wgpu::RenderPassTimestampWrites<'_> {
+        self.writes_of(0)
+    }
+
+    /// The timestamps of the pass `pass` of a frame.
+    fn writes_of(&self, pass: u32) -> wgpu::RenderPassTimestampWrites<'_> {
         wgpu::RenderPassTimestampWrites {
             query_set: &self.queries,
-            beginning_of_pass_write_index: Some(0),
-            end_of_pass_write_index: Some(1),
+            beginning_of_pass_write_index: Some(2 * pass),
+            end_of_pass_write_index: Some(2 * pass + 1),
         }
     }
 
     fn resolve(&self, encoder: &mut wgpu::CommandEncoder) {
-        encoder.resolve_query_set(&self.queries, 0..2, &self.resolve, 0);
-        encoder.copy_buffer_to_buffer(&self.resolve, 0, &self.readback, 0, None);
+        self.resolve_passes(encoder, 1);
+    }
+
+    fn resolve_passes(&self, encoder: &mut wgpu::CommandEncoder, passes: u32) {
+        encoder.resolve_query_set(&self.queries, 0..2 * passes, &self.resolve, 0);
+        let bytes = 2 * u64::from(passes) * u64::from(wgpu::QUERY_SIZE);
+        encoder.copy_buffer_to_buffer(&self.resolve, 0, &self.readback, 0, bytes);
+    }
+
+    fn map(&self) -> mpsc::Receiver<Result<(), wgpu::BufferAsyncError>> {
+        let (sender, receiver) = mpsc::channel();
+        self.readback
+            .map_async(wgpu::MapMode::Read, .., move |result| {
+                let _ = sender.send(result);
+            });
+        receiver
     }
 
     /// The pass's time, once its submission is done and the read-back mapped.
@@ -617,6 +831,15 @@ impl Timer {
         &self,
         mapped: &mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>,
     ) -> Result<Duration, String> {
+        Ok(self.read_passes(mapped, 1)?[0])
+    }
+
+    /// The times of the first `passes` passes.
+    fn read_passes(
+        &self,
+        mapped: &mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>,
+        passes: u32,
+    ) -> Result<Vec<Duration>, String> {
         mapped
             .recv()
             .map_err(|error| error.to_string())?
@@ -626,12 +849,137 @@ impl Timer {
             .get_mapped_range(..)
             .map_err(|error| format!("timestamps: {error}"))?;
         let stamp = |at: usize| u64::from_le_bytes(view[at..at + 8].try_into().expect("8 bytes"));
-        let ticks = stamp(8).saturating_sub(stamp(0));
+        let times = (0..passes as usize)
+            .map(|pass| {
+                let ticks = stamp(16 * pass + 8).saturating_sub(stamp(16 * pass));
+                Duration::from_nanos((ticks as f64 * f64::from(self.period)) as u64)
+            })
+            .collect();
         drop(view);
         self.readback.unmap();
-        Ok(Duration::from_nanos(
-            (ticks as f64 * f64::from(self.period)) as u64,
-        ))
+        Ok(times)
+    }
+}
+
+/// Records a frame of several render passes in one command buffer, each timed where the device
+/// has timestamps, then submits it and waits for it.
+pub struct Recorder<'a> {
+    gpu: &'a Gpu,
+    timer: Option<&'a Timer>,
+    encoder: wgpu::CommandEncoder,
+    start: Instant,
+    /// The names of the passes recorded, in their order.
+    pub names: Vec<String>,
+    pub draws: usize,
+    pub pipelines: usize,
+}
+
+/// What a frame recorded by a [`Recorder`] cost.
+#[derive(Clone, Debug)]
+pub struct Recorded {
+    /// CPU: from the recorder's start to the end of the submission.
+    pub encode: Duration,
+    /// From just before the submission to the end of the wait for it.
+    pub wall: Duration,
+    /// GPU: each pass, from its timestamps; none without timestamp queries.
+    pub passes: Vec<Option<Duration>>,
+    pub names: Vec<String>,
+    pub draws: usize,
+    pub pipelines: usize,
+}
+
+impl<'a> Recorder<'a> {
+    pub fn new(gpu: &'a Gpu, timer: Option<&'a Timer>) -> Self {
+        Self {
+            gpu,
+            timer,
+            encoder: gpu.device.create_command_encoder(&Default::default()),
+            start: Instant::now(),
+            names: Vec::new(),
+            draws: 0,
+            pipelines: 0,
+        }
+    }
+
+    /// Records a pass named `name` into `view`, which `load` begins with; `record` records its
+    /// draws and gives the draws and the pipelines set.
+    pub fn pass(
+        &mut self,
+        name: &str,
+        view: &wgpu::TextureView,
+        load: wgpu::LoadOp<wgpu::Color>,
+        record: impl FnOnce(&mut wgpu::RenderPass<'_>) -> (usize, usize),
+    ) {
+        let index = self.names.len() as u32;
+        let timestamps = self.timer.and_then(|timer| {
+            assert!(
+                index < timer.passes,
+                "the timer holds {} passes",
+                timer.passes
+            );
+            Some(timer.writes_of(index))
+        });
+        let mut pass = self.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some(name),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: timestamps,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        let (draws, pipelines) = record(&mut pass);
+        self.draws += draws;
+        self.pipelines += pipelines;
+        self.names.push(name.to_owned());
+    }
+
+    /// Submits the frame and waits for it.
+    pub fn finish(self) -> Result<Recorded, String> {
+        let Self {
+            gpu,
+            timer,
+            mut encoder,
+            start,
+            names,
+            draws,
+            pipelines,
+        } = self;
+        let passes = names.len() as u32;
+        if let Some(timer) = timer {
+            timer.resolve_passes(&mut encoder, passes);
+        }
+        let commands = encoder.finish();
+        let submitting = Instant::now();
+        gpu.queue.submit([commands]);
+        let submitted = Instant::now();
+        let mapped = timer.map(Timer::map);
+        gpu.wait()?;
+        let waited = Instant::now();
+        let times = match (timer, mapped) {
+            (Some(timer), Some(mapped)) => timer
+                .read_passes(&mapped, passes)?
+                .into_iter()
+                .map(Some)
+                .collect(),
+            _ => vec![None; names.len()],
+        };
+        gpu.check()?;
+        Ok(Recorded {
+            encode: submitted - start,
+            wall: waited - submitting,
+            passes: times,
+            names,
+            draws,
+            pipelines,
+        })
     }
 }
 
@@ -689,15 +1037,7 @@ pub fn frame(
     let submitting = Instant::now();
     gpu.queue.submit([commands]);
     let submitted = Instant::now();
-    let mapped = timer.map(|timer| {
-        let (sender, receiver) = mpsc::channel();
-        timer
-            .readback
-            .map_async(wgpu::MapMode::Read, .., move |result| {
-                let _ = sender.send(result);
-            });
-        receiver
-    });
+    let mapped = timer.map(Timer::map);
     gpu.wait()?;
     let waited = Instant::now();
     let gpu_time = match (timer, mapped) {
