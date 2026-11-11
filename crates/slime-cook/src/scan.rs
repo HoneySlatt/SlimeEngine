@@ -224,16 +224,16 @@ pub fn metadata_path(source: &Path) -> PathBuf {
 }
 
 /// Whether `path`'s name ends, without regard to case, with a dot and `extension`, which may hold
-/// dots itself, after something else.
+/// dots itself, after something else. The name's bytes are compared as the platform encodes them,
+/// so that a name that is not UTF-8 is a source as any other.
 fn has_extension(path: &Path, extension: &str) -> bool {
-    let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+    let Some(name) = path.file_name().map(|name| name.as_encoded_bytes()) else {
         return false;
     };
+    let extension = extension.as_bytes();
     name.len() > extension.len() + 1
-        && name
-            .get(name.len() - extension.len()..)
-            .is_some_and(|end| end.eq_ignore_ascii_case(extension))
-        && name.as_bytes()[name.len() - extension.len() - 1] == b'.'
+        && name[name.len() - extension.len()..].eq_ignore_ascii_case(extension)
+        && name[name.len() - extension.len() - 1] == b'.'
 }
 
 /// The extension of `path` among [`SOURCE_EXTENSIONS`], as that list writes it, the longest that

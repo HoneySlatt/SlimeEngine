@@ -197,3 +197,17 @@ fn an_extension_may_hold_a_dot_and_the_longest_that_a_name_ends_with_is_its_own(
     let again = scan(&root, Mode::Check).expect("scanned");
     assert!(again.problems.is_empty(), "{:?}", again.problems);
 }
+
+/// A name that is not UTF-8, which Linux allows, is a source as any other.
+#[cfg(unix)]
+#[test]
+fn a_source_whose_name_is_not_utf8_is_found() {
+    use slime_cook::scan::source_extension;
+    use std::os::unix::ffi::OsStrExt;
+    let name = std::ffi::OsStr::from_bytes(b"\xffrock.png");
+    assert_eq!(source_extension(Path::new(name)), Some("png"));
+    let root = directory("not-utf8");
+    fs::write(root.join(name), b"").expect("written");
+    let scanned = scan(&root, Mode::GiveIds).expect("scanned");
+    assert_eq!(scanned.sources.len(), 1);
+}
