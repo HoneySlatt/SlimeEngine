@@ -6,6 +6,7 @@
 channel = "1.99.0"
 components = ["clippy", "rustfmt", "rust-src", "rust-analyzer"]
 # The Windows standard library, so that Linux checks also compile the code for Windows
-# (ADR-0015). On Windows, it is the native target.
-targets = ["x86_64-pc-windows-msvc"]
+# (ADR-0015). On Windows, it is the native target. The web's, to weigh uwui in a build for the web
+# (ADR-0181, ADR-0241).
+targets = ["x86_64-pc-windows-msvc", "wasm32-unknown-unknown"]
 profile = "minimal"

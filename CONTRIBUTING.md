@@ -36,7 +36,7 @@ nix develop
 The shell it opens contains the pinned toolchain and the project's tools: `cargo-deny` (checks
 dependency licenses and security advisories), `lychee` (checks links in the documentation),
 `hyperfine` (times the programs' starts), `heaptrack` (records a program's heap over its run),
-mold (links what is built for Linux, which the shell sets through
+`brotli` (compresses a build for the web, to weigh it), mold (links what is built for Linux, which the shell sets through
 `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS`, [ADR-0221](docs/adr/0221-compiling-within-its-budgets.md)),
 sway and `wlrctl` (a compositor without screen that takes virtual input, and the tool that gives
 it) and Weston (a Wayland compositor without screen, in which the checks run the windowed samples
@@ -53,8 +53,8 @@ Nix only sees the files that git tracks. If you change `flake.nix` so that it re
 
 Install [rustup](https://rustup.rs). It reads `rust-toolchain.toml` and installs the pinned
 toolchain the first time you run `cargo` in the repository. Install the tools with
-`cargo install --locked cargo-deny lychee hyperfine`, and Weston, sway, wlrctl and heaptrack from
-your distribution's packages; CI uses the versions pinned by `flake.lock`. To open windows, the
+`cargo install --locked cargo-deny lychee hyperfine`, and Weston, sway, wlrctl, heaptrack and brotli
+from your distribution's packages; CI uses the versions pinned by `flake.lock`. To open windows, the
 examples need the windowing system's libraries, which are loaded at run time: libxkbcommon for both
 windowing systems; libwayland-client for Wayland; libX11, libX11-xcb, libXcursor, libXi, libxcb and libxkbcommon-x11
 for X11. Without libxkbcommon, or libxkbcommon-x11 on X11, the examples panic instead of

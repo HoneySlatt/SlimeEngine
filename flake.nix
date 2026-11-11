@@ -33,6 +33,9 @@
             # Times a program's start, from its process's launch to its exit after its first image
             # (ADR-0189).
             pkgs.hyperfine
+            # Compresses a build for the web as servers send it, to weigh it against uwui's budget
+            # (ADR-0181, ADR-0241).
+            pkgs.brotli
             # Records a program's heap over its run, for scripts/resources.sh (ADR-0175, ADR-0193).
             pkgs.heaptrack
             # A compositor without a screen that takes virtual input, and the tool that gives it, in
