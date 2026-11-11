@@ -3054,6 +3054,7 @@ dependencies = [
  "slime-world",
  "slime-world-render",
  "uwui",
+ "uwui-kdl",
  "uwui-render",
 ]
 

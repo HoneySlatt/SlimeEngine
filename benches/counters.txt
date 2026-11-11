@@ -78,6 +78,10 @@ ui.draw.menu	glyphs rasterized by the first draw at 3840 × 2160	256
 ui.draw.menu	items at 1280 × 800	2645
 ui.draw.menu	items at 1920 × 1080	2645
 ui.draw.menu	items at 3840 × 2160	2645
+ui.kdl.read	allocations of reading the large document	49
+ui.kdl.read	allocations of reading the look document	28
+ui.kdl.read	bytes taken reading the large document	51379952
+ui.kdl.read	bytes taken reading the look document	401136
 ui.tree.editor	allocations of a frame after one value of the inspector changed	32088
 ui.tree.editor	allocations of a frame standing still	31
 ui.tree.editor	bytes allocated by a frame after one value of the inspector changed	7147614

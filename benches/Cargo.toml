@@ -30,6 +30,8 @@ slime-editor.workspace = true
 hunnawood-editor.workspace = true
 # The interface's text (ADR-0136), and the editor's look, which the world panel is measured in.
 uwui = { workspace = true, features = ["editor-look"] }
+# uwui's reader of KDL, the notation of its documents (ADR-0241).
+uwui-kdl.workspace = true
 # The interface drawn from a display list (ADR-0139).
 uwui-render.workspace = true
 slime-world.workspace = true

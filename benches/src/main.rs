@@ -14,6 +14,7 @@ mod allocations;
 mod counters;
 mod devui;
 mod editor;
+mod kdl;
 mod loading;
 mod measure;
 mod play;
@@ -183,6 +184,13 @@ const BENCHMARKS: &[Benchmark] = &[
         counts: true,
         on_request: false,
         run: ui::look_tree,
+    },
+    Benchmark {
+        name: "ui.kdl.read",
+        about: "uwui's reader of KDL: a document of the editor's look's size, 28 kB, and one of 4 MB",
+        counts: true,
+        on_request: false,
+        run: kdl::read,
     },
     Benchmark {
         name: "ui.tree.list.100k",
