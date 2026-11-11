@@ -8,7 +8,9 @@
   reader that gives them), [0231](0231-an-elements-own-style-written-in-code.md) (the fourth step of
   the mask order is the size of text alone) and
   [0232](0232-transitions-read-the-derives-colours-and-share-what-they-show.md) (the derive lists
-  no lengths)
+  no lengths). The target of the frame after a change of the size of text compares it with the
+  same tree's first frame at the size that it changes to, decided by the owner at the milestone's
+  closing review: at 200 % more lines are laid out than at the look's own size
 - Date: 2026-11-11
 
 ## Context

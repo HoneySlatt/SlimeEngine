@@ -9,6 +9,7 @@ use slime_color::LinearColor;
 use uwui::display::DisplayList;
 use uwui::display::ImageKey;
 use uwui::look::{self, Colors, Density};
+use uwui::preferences::{Preferences, TextSize};
 use uwui::style::{Dimension, Display, FlexDirection, Justify, StyleBuilder, Track};
 use uwui::text::{Fonts, GlyphKey, GlyphRasterizer, TextBounds, TextStyle};
 use uwui::theme::{StyleSheet, Theme};
@@ -835,6 +836,10 @@ const ALLOCATIONS_PER_ELEMENT_STYLED: f64 = 20.0;
 /// (`docs/adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md`).
 const ALLOCATIONS_PER_ELEMENT_DRAWN: f64 = 19.0;
 
+/// The size of text that the frame after a change of it lays every text out at: twice the look's,
+/// WCAG's 200 % (`docs/adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md`).
+const LARGER_TEXT: f32 = 2.0;
+
 /// The most frames that a transition is given to end, past which the benchmark fails.
 const TRANSITION_FRAMES: usize = 1_000;
 
@@ -845,14 +850,41 @@ const TRANSITION_FRAMES: usize = 1_000;
 /// apart, the elements that the frame of the change styled, its allocations and their bytes, the
 /// frames of the transition, and the elements that its first frame draws again with its
 /// allocations and their bytes; and each frame's allocations for each element, which a target
-/// bounds.
+/// bounds. Then the frame after the user's size of text changed to twice the look's, which lays
+/// every text out again, as the tree's first frame does: it allocates no more for each element
+/// than the same tree's first frame at that size, its target
+/// (`docs/adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md`).
 pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     let runs = context.runs(RUNS);
-    let mut fonts = Fonts::new();
-    look::register_fonts(&mut fonts);
+    let fonts = || {
+        let mut fonts = Fonts::new();
+        look::register_fonts(&mut fonts);
+        fonts
+    };
     let sheets = [look::style_sheet()];
     let themes = |colors| look::themes(colors, Density::Comfortable);
-    let mut editor = Editor::styled(fonts, labels(1_500), &sheets, &themes(Colors::Dark), |s| s);
+    // The same tree's first frame at twice the look's size of text, which lays every text out at
+    // it, by which the frame of a change of the size of text is bounded.
+    let mut larger_first = Editor::styled(
+        fonts(),
+        labels(1_500),
+        &sheets,
+        &themes(Colors::Dark),
+        |s| s,
+    );
+    larger_first.ui.set_preferences(Preferences {
+        text_size: TextSize::factor(LARGER_TEXT).expect("within its range"),
+        ..Preferences::default()
+    });
+    let ((_, built), first) = counted(|| larger_first.ui.frame());
+    drop(larger_first);
+    let mut editor = Editor::styled(
+        fonts(),
+        labels(1_500),
+        &sheets,
+        &themes(Colors::Dark),
+        |s| s,
+    );
     editor.ui.frame();
     let mut light = false;
     // Gives the interface its theme of the other colours, which reads the look's documents.
@@ -884,8 +916,22 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
             "the look's transitions go on past {TRANSITION_FRAMES} frames"
         ))
     };
+    // Gives the interface the user's size of text, twice the look's or the look's own.
+    let mut larger = false;
+    let mut resize = |editor: &mut Editor| {
+        larger = !larger;
+        let factor = if larger { LARGER_TEXT } else { 1.0 };
+        editor.ui.set_preferences(Preferences {
+            text_size: TextSize::factor(factor).expect("within its range"),
+            ..Preferences::default()
+        });
+    };
     settle(&mut editor)?;
     // Counted before the series, whose length a run of `--counters` cuts.
+    resize(&mut editor);
+    let ((_, resized), text) = counted(|| editor.ui.frame());
+    resize(&mut editor);
+    editor.ui.frame();
     let ((), read) = counted(|| restyle(&mut editor));
     let ((_, stats), allocations) = counted(|| change(&mut editor));
     // The first frame of the transition, which draws again every element that moves.
@@ -895,12 +941,20 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     let frames = frames + 1;
     let mut changed = Vec::new();
     let mut transitions = Vec::new();
+    let mut resizes = Vec::new();
     for _ in 0..runs {
         restyle(&mut editor);
         let (_, took) = timed(|| black_box(change(&mut editor)));
         changed.push(took);
         transitions.push(settle(&mut editor)?.1);
     }
+    // To twice the look's size and back, each a change of the size of text.
+    for _ in 0..runs {
+        resize(&mut editor);
+        let (_, took) = timed(|| black_box(editor.ui.frame()));
+        resizes.push(took);
+    }
+    let first_per_element = first.calls as f64 / built.styled.max(1) as f64;
     let mut rows = vec![
         Row::count("allocations of reading the look's documents", read.calls),
         Row::count("elements styled by the frame of the change", stats.styled),
@@ -913,6 +967,26 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
         Row::count("elements drawn by a frame of the transition", moved.painted),
         Row::count("allocations of a frame of the transition", moving.calls),
         Row::count("bytes allocated by a frame of the transition", moving.taken),
+        Row::count(
+            "elements styled by the first frame at twice the size of text",
+            built.styled,
+        ),
+        Row::count(
+            "allocations of the first frame at twice the size of text",
+            first.calls,
+        ),
+        Row::count(
+            "elements styled by the frame after the size of text changed",
+            resized.styled,
+        ),
+        Row::count(
+            "allocations of the frame after the size of text changed",
+            text.calls,
+        ),
+        Row::count(
+            "bytes allocated by the frame after the size of text changed",
+            text.taken,
+        ),
         // The targets of ADR-0232, for each element that the frame styled or drew again.
         Row::per(
             "allocations of the frame of the change for each element styled",
@@ -926,6 +1000,13 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
             moved.painted as u64,
             ALLOCATIONS_PER_ELEMENT_DRAWN,
         ),
+        // ADR-0237's target: no more than the first frame at that size, for each element.
+        Row::per(
+            "allocations of the frame after the size of text changed for each element styled",
+            text.calls,
+            resized.styled as u64,
+            (first_per_element * 100.0).ceil() / 100.0,
+        ),
     ];
     rows.extend(Row::times(
         "a frame after the look's colours changed, every element styled again",
@@ -934,6 +1015,10 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     rows.extend(Row::times(
         "the frames of the transition that it starts, together",
         &transitions,
+    ));
+    rows.extend(Row::times(
+        "a frame after the size of text changed, every text laid out again",
+        &resizes,
     ));
     Ok(rows)
 }

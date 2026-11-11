@@ -2427,6 +2427,37 @@ GitHub's hosted runners, on 2026-11-10, each run green, on `b749c3e`:
 Every job stays within its limit of 20 minutes. `windows (tests)` ran both fixtures of styles on
 Windows, and the tests of the own style, the place of a call among them.
 
+## M6d.2b2b2, the user's layer over what code writes
+
+The user's size of text through the cascade and a list's rows, given as `Preferences` with less
+motion ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md)),
+on 2026-11-11. *Before* is `cd5a71e`, the code of M6d.2b2b1; *after* is the milestone's working
+tree. The counters, in a debug build, as CI counts them, on lavapipe:
+
+| Benchmark | Counter | Before | After |
+|---|---|---|---|
+| `ui.tree.look` | elements styled by the frame after the size of text changed, to 200 % | not counted | 12 487 |
+| `ui.tree.look` | allocations of the frame after the size of text changed | not counted | 894 229 |
+| `ui.tree.look` | bytes allocated by the frame after the size of text changed | not counted | 91 044 670 |
+| `ui.tree.look` | allocations of the same tree's first frame at 200 % | not counted | 894 720 |
+| `ui.tree.look` | allocations of the frame after the size of text changed for each element styled, at most the first frame's | not counted | 71.61, at most 71.66 |
+
+What it says:
+
+- A change of the size of text lays every text out again: it allocates as much as the tree's first
+  frame at that size, its target, 71.6 times for each element. At 200 % the labels of the tree's
+  panels, 300 logical pixels wide, break into more lines than at 100 %, whose first frame
+  allocates 67.2 times for each element.
+- Every other counter of every benchmark is unchanged; so are the images. The fixture of the
+  `widgets` example's styles was recorded again: 126 of its lines changed, the labels and values
+  whose width the example now writes as a least width, which draw the same.
+
+The times of the frames were not measured, by the owner's choice: the machine could not be at
+rest, other sessions building by turns. The first frame at 100 %, 67.2 allocations for each
+element, was read from a run of the benchmark during the milestone, before its counter compared
+the frame at 200 %; no counter keeps it. The times of compiling were not measured: the milestone
+adds no crate and no dependency.
+
 ## M6d.2b2b1, transitions and the frame of a change of theme
 
 Transitions reading the derive's colours and sharing what they show, and drawing again without
