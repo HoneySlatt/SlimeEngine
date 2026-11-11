@@ -197,17 +197,24 @@ fn main() {
     }
     // Hidden, its game time running, the game is at rest too: its window waits for the
     // compositor's signal, which Weston gives no minimized window, and wakes on no schedule of its
-    // own (`docs/adr/0187-a-hidden-window-at-rest.md`). A compositor of the series that keeps a
-    // minimized window shown, as sway, which minimizes nothing, rightly runs its frames: there,
-    // with `SLIME_SERIES` set, the test tells what it found, which scripts/compositors.sh compares
-    // with docs/compositors.md.
+    // own (`docs/adr/0187-a-hidden-window-at-rest.md`). A compositor may tell a window, seconds
+    // after it was minimized, a new state: Mutter does 3 s later, which wakes the game once; the
+    // watch starts after that. A compositor of the series that keeps a minimized window shown, as
+    // sway, which minimizes nothing, rightly runs its frames: there, with `SLIME_SERIES` set, the
+    // test tells what it found, which scripts/compositors.sh compares with docs/compositors.md.
     let (said, _) = session.tool("minimize_game", json!({}));
     assert_eq!(said, ["done"]);
     session.tool("resume", json!({}));
+    std::thread::sleep(Duration::from_secs(5));
     match rest::at_rest(pid, Duration::from_secs(60)) {
         Ok(()) => println!("minimized: at rest"),
         Err(woke) if std::env::var_os("SLIME_SERIES").is_some() => {
-            println!("minimized: draws its frames\n{woke}");
+            let found = if woke.contains("never still") {
+                "draws its frames"
+            } else {
+                "wakes now and then"
+            };
+            println!("minimized: {found}\n{woke}");
         }
         Err(woke) => panic!("the game hidden is not at rest: {woke}"),
     }
