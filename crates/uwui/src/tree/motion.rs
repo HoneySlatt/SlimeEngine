@@ -3,43 +3,37 @@
 //! height as it opens or folds, over the time that the program gives the interface each frame
 //! ([`Ui::advance`]), along the style's [`Easing`](crate::style::Easing).
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
 use slime_color::LinearColor;
 
 use super::{ElementId, Kind, Ui};
-use crate::style::Style;
+use crate::style::{Colors, Style};
 
-/// What a transition moves: a style's colors and its opacity.
+/// The number of colors that a transition moves: every color of a style, as the derive lists them.
+const COLORS: usize = <Style as Colors>::COUNT;
+
+/// What a transition moves: a style's colors, those that the derive lists (`Colors`), and its
+/// opacity.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Shown {
-    background: LinearColor,
-    border: LinearColor,
-    shadow: LinearColor,
-    text: LinearColor,
-    selection: LinearColor,
-    track: LinearColor,
-    fill: LinearColor,
-    mark: LinearColor,
+    colors: [LinearColor; COLORS],
     opacity: f32,
 }
 
 impl Shown {
     /// What `style` shows of what a transition moves.
     fn of(style: &Style) -> Self {
+        let mut colors = [LinearColor::rgba(0.0, 0.0, 0.0, 0.0); COLORS];
+        let mut place = 0;
+        style.read(&mut |color| {
+            colors[place] = color;
+            place += 1;
+        });
         Self {
-            background: style.paint.background,
-            border: style.paint.border,
-            shadow: style
-                .paint
-                .shadow
-                .map_or(LinearColor::rgba(0.0, 0.0, 0.0, 0.0), |shadow| shadow.color),
-            text: style.text.color,
-            selection: style.text.selection,
-            track: style.control.track,
-            fill: style.control.fill,
-            mark: style.control.mark,
+            colors,
             opacity: style.paint.opacity,
         }
     }
@@ -47,33 +41,81 @@ impl Shown {
     /// `style`, showing these colors and this opacity.
     fn applied(self, style: &Style) -> Style {
         let mut style = style.clone();
-        style.paint.background = self.background;
-        style.paint.border = self.border;
-        if let Some(shadow) = &mut style.paint.shadow {
-            shadow.color = self.shadow;
-        }
-        style.text.color = self.text;
-        style.text.selection = self.selection;
-        style.control.track = self.track;
-        style.control.fill = self.fill;
-        style.control.mark = self.mark;
+        let mut colors = self.colors.into_iter();
+        style.write(&mut || colors.next().expect("as many colors as the style holds"));
         style.paint.opacity = self.opacity;
         style
     }
 
-    /// What shows `share` of the way from these to `to`.
+    /// What shows `share` of the way from these to `to`: these exactly at the start, so that the
+    /// frame that starts a transition shows what showed, a transparent color's channels kept.
     fn toward(self, to: Self, share: f32) -> Self {
+        if share <= 0.0 {
+            return self;
+        }
         Self {
-            background: between(self.background, to.background, share),
-            border: between(self.border, to.border, share),
-            shadow: between(self.shadow, to.shadow, share),
-            text: between(self.text, to.text, share),
-            selection: between(self.selection, to.selection, share),
-            track: between(self.track, to.track, share),
-            fill: between(self.fill, to.fill, share),
-            mark: between(self.mark, to.mark, share),
+            colors: std::array::from_fn(|place| {
+                between(self.colors[place], to.colors[place], share)
+            }),
             opacity: self.opacity + (to.opacity - self.opacity) * share,
         }
+    }
+
+    /// Its colors' channels and its opacity by their bits, which tell two apart as `Same` does.
+    fn bits(self) -> [u32; COLORS * 4 + 1] {
+        let mut bits = [0; COLORS * 4 + 1];
+        for (place, color) in self.colors.iter().enumerate() {
+            for (channel, value) in [color.r, color.g, color.b, color.a].into_iter().enumerate() {
+                bits[place * 4 + channel] = value.to_bits();
+            }
+        }
+        bits[COLORS * 4] = self.opacity.to_bits();
+        bits
+    }
+}
+
+/// The styles that transitions show at one frame, each made once for the elements that move alike:
+/// from the same colors shown, towards the same style, started at the same time
+/// (`docs/adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md`). Emptied at
+/// each frame, its room kept.
+#[derive(Default)]
+pub(crate) struct ShownStyles {
+    /// Each style shown, with the target that it was made for, kept alive until the map is emptied
+    /// so that no other style takes its place in memory, and so its key, meanwhile.
+    made: HashMap<Alike, (Arc<Style>, Arc<Style>)>,
+}
+
+/// What elements that move alike share: the style that they go to, by its place, the colors that
+/// they started from, by their bits, and when they started.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct Alike {
+    target: usize,
+    from: [u32; COLORS * 4 + 1],
+    started: Duration,
+}
+
+impl ShownStyles {
+    /// The style that shows `share` of `motion`, made once for the elements that move alike.
+    fn get(&mut self, motion: &Motion, share: f32) -> Arc<Style> {
+        let alike = Alike {
+            // The style's place, which the map keeps alive with it.
+            target: Arc::as_ptr(&motion.target) as usize,
+            from: motion.from.bits(),
+            started: motion.started,
+        };
+        let (_, made) = self.made.entry(alike).or_insert_with(|| {
+            let shown = motion.from.toward(Shown::of(&motion.target), share);
+            (
+                Arc::clone(&motion.target),
+                Arc::new(shown.applied(&motion.target)),
+            )
+        });
+        Arc::clone(made)
+    }
+
+    /// Forgets the styles of the frame before.
+    pub(crate) fn clear(&mut self) {
+        self.made.clear();
     }
 }
 
@@ -181,12 +223,15 @@ impl Ui {
             node.motion = None;
             return;
         }
-        node.style = Arc::new(from.applied(&style));
-        node.motion = Some(Box::new(Motion {
+        let motion = Motion {
             target: style,
             from,
             started: now,
-        }));
+        };
+        let shown = self.shown.get(&motion, 0.0);
+        let node = self.node_mut(id).expect("styled above");
+        node.style = shown;
+        node.motion = Some(Box::new(motion));
         if !self.moving.contains(&id) {
             self.moving.push(id);
         }
@@ -234,23 +279,28 @@ impl Ui {
     /// any goes on.
     pub(crate) fn step_motions(&mut self) -> bool {
         let now = self.now;
+        self.shown.clear();
         for id in std::mem::take(&mut self.moving) {
             let Some(node) = self.node_mut(id) else {
                 continue;
             };
             let mut going = false;
-            if let Some(motion) = &node.motion {
+            if let Some(motion) = node.motion.take() {
                 let share = progress(&motion.target, motion.started, now);
-                if share >= 1.0 {
+                let node = if share >= 1.0 {
                     node.style = Arc::clone(&motion.target);
-                    node.motion = None;
+                    node
                 } else {
-                    let shown = motion.from.toward(Shown::of(&motion.target), share);
-                    node.style = Arc::new(shown.applied(&motion.target));
+                    let shown = self.shown.get(&motion, share);
+                    let node = self.node_mut(id).expect("moving above");
+                    node.style = shown;
+                    node.motion = Some(motion);
                     going = true;
-                }
+                    node
+                };
                 node.changed.paint = true;
             }
+            let node = self.node_mut(id).expect("moving above");
             if let Some(reveal) = node.reveal {
                 let ended =
                     reveal.to.is_some() && progress(&node.style, reveal.started, now) >= 1.0;

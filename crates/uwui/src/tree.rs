@@ -1301,6 +1301,9 @@ pub struct Ui {
     reduced_motion: bool,
     /// The elements whose transition is under way.
     moving: Vec<ElementId>,
+    /// The styles that transitions show at this frame, one for the elements that move alike,
+    /// emptied at each frame (`docs/adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md`).
+    shown: motion::ShownStyles,
     /// Whether Tab enters the interface while no focus takes the keys ([`Ui::set_tab_enters`]).
     tab_enters: bool,
 }
@@ -1343,6 +1346,7 @@ impl Ui {
             now: Duration::ZERO,
             reduced_motion: false,
             moving: Vec::new(),
+            shown: motion::ShownStyles::default(),
             tab_enters: true,
         };
         ui.make_bases();

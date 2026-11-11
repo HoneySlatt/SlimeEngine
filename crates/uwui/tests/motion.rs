@@ -274,3 +274,281 @@ fn boxes_lie_on_whole_pixels_at_any_scale() {
         assert_eq!(primitive.border_width, 1.0);
     }
 }
+
+/// A rule that sets every color that a style holds, and one that sets them all again under the
+/// pointer, which a transition moves between
+/// (`docs/adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md`).
+const EVERY_COLOR: &str = r##"
+[all]
+select = { classes = ["all"] }
+style.paint = { background = "#000000", border = "#000000", backdrop = "#000000", shadow = [{ color = "#000000", blur = 4 }] }
+style.text = { color = "#000000", selection = "#000000" }
+style.control = { track = "#000000", fill = "#000000", mark = "#000000" }
+style.transition = { duration = 0.2, easing = "Linear" }
+
+[all-hovered]
+select = { classes = ["all"], states = ["Hovered"] }
+style.paint = { background = "#ffffff", border = "#ffffff", backdrop = "#ffffff", shadow = [{ color = "#ffffff", blur = 4 }] }
+style.text = { color = "#ffffff", selection = "#ffffff" }
+style.control = { track = "#ffffff", fill = "#ffffff", mark = "#ffffff" }
+"##;
+
+#[test]
+fn a_transition_moves_every_color_that_a_style_holds() {
+    let (mut ui, root) = ui(EVERY_COLOR, 1.0);
+    ui.build(root, 0, |children| {
+        children.add(
+            "button",
+            Element::button("go")
+                .class("all")
+                .style(|s| sized(s, 100.0, 30.0)),
+            |_| {},
+        );
+    });
+    ui.frame();
+    let button = ui
+        .find(root, &[uwui::tree::Key::from("button")])
+        .expect("the button");
+    ui.pointer_moved(50.0, 15.0);
+    ui.frame();
+    ui.advance(Duration::from_millis(100));
+    ui.frame();
+    let style = ui.style(button).expect("styled");
+    let shadow = style.paint.shadow.expect("a shadow").color;
+    for (name, color) in [
+        ("background", style.paint.background),
+        ("border", style.paint.border),
+        ("backdrop", style.paint.backdrop),
+        ("shadow", shadow),
+        ("text", style.text.color),
+        ("selection", style.text.selection),
+        ("track", style.control.track),
+        ("fill", style.control.fill),
+        ("mark", style.control.mark),
+    ] {
+        assert!(
+            (color.r - 0.5).abs() < 1e-3,
+            "the {name} is halfway, not {color:?}"
+        );
+    }
+}
+
+/// Two buttons of one style, black, that a change of sheets turns `after`, written as a sheet writes
+/// a color, over 0.2 s, linear; white under the pointer.
+fn two_buttons(after: &str) -> (Ui, ElementId, ElementId) {
+    let (mut ui, root) = ui(BUTTONS, 1.0);
+    ui.build(root, 0, |children| {
+        for key in ["a", "b"] {
+            children.add(
+                key,
+                Element::button("go").style(|s| sized(s, 100.0, 30.0)),
+                |_| {},
+            );
+        }
+    });
+    ui.frame();
+    let changed = BUTTONS.replacen(
+        "style.paint.background = \"#000000\"",
+        &format!("style.paint.background = \"{after}\""),
+        1,
+    );
+    ui.set_style(
+        &[StyleSheet::from_text("changed.style", changed)],
+        &[Theme::from_text("empty.theme", "")],
+    )
+    .expect("the style sheet");
+    ui.frame();
+    let a = ui.find(root, &[uwui::tree::Key::from("a")]).expect("a");
+    let b = ui.find(root, &[uwui::tree::Key::from("b")]).expect("b");
+    (ui, a, b)
+}
+
+#[test]
+fn elements_that_move_alike_share_the_style_that_they_show() {
+    let (mut ui, a, b) = two_buttons("#ffffff");
+    ui.advance(Duration::from_millis(100));
+    ui.frame();
+    let (shown_a, shown_b) = (ui.style(a).expect("a"), ui.style(b).expect("b"));
+    assert!((shown_a.paint.background.r - 0.5).abs() < 1e-3);
+    assert!(
+        std::ptr::eq(shown_a, shown_b),
+        "both show one style, made once"
+    );
+}
+
+#[test]
+fn an_element_styled_again_during_its_transition_leaves_the_others() {
+    let (mut ui, a, b) = two_buttons("#808080");
+    ui.advance(Duration::from_millis(100));
+    ui.frame();
+    // The pointer over `a`, halfway: `a` goes on towards its hover, white, `b` towards grey.
+    ui.pointer_moved(50.0, 15.0);
+    ui.frame();
+    let (shown_a, shown_b) = (ui.style(a).expect("a"), ui.style(b).expect("b"));
+    assert!(!std::ptr::eq(shown_a, shown_b));
+    ui.advance(Duration::from_millis(300));
+    let (_, stats) = ui.frame();
+    assert!(!stats.animating);
+    assert_eq!(
+        ui.style(a).expect("a").paint.background,
+        LinearColor::rgba(1.0, 1.0, 1.0, 1.0)
+    );
+    assert_eq!(
+        ui.style(b).expect("b").paint.background,
+        LinearColor::from_srgb8(128, 128, 128)
+    );
+}
+
+/// The red channel of `id`'s background, as it shows.
+fn red(ui: &Ui, id: ElementId) -> f32 {
+    ui.style(id).expect("styled").paint.background.r
+}
+
+/// Two buttons, `a` and `b`, in a column, each 100 by 30, of the classes `classes`, none where
+/// empty.
+fn column_of_two(ui: &mut Ui, root: ElementId, revision: u64, classes: [&str; 2]) {
+    ui.build(root, revision, |children| {
+        for (key, class) in ["a", "b"].into_iter().zip(classes) {
+            let mut element = Element::button("go").style(|s| sized(s, 100.0, 30.0));
+            if !class.is_empty() {
+                element = element.class(class);
+            }
+            children.add(key, element, |_| {});
+        }
+    });
+}
+
+/// Two classes, each black, which a change of sheets turns apart.
+const TWO_CLASSES: &str = r##"
+[a]
+select = { classes = ["a"] }
+style.paint.background = "#000000"
+style.transition = { duration = 0.2, easing = "Linear" }
+
+[b]
+select = { classes = ["b"] }
+style.paint.background = "#000000"
+style.transition = { duration = 0.2, easing = "Linear" }
+"##;
+
+// Elements that move alike share what they show by the style that they go to, the colors that they
+// started from and when they started: each test below needs one of the three.
+
+#[test]
+fn elements_from_the_same_colors_at_the_same_time_towards_two_styles_share_nothing() {
+    let (mut ui, root) = ui(TWO_CLASSES, 1.0);
+    column_of_two(&mut ui, root, 0, ["a", "b"]);
+    ui.frame();
+    let changed = TWO_CLASSES
+        .replacen("\"#000000\"", "\"#ffffff\"", 1)
+        .replacen("\"#000000\"", "\"#808080\"", 1);
+    ui.set_style(
+        &[StyleSheet::from_text("changed.style", changed)],
+        &[Theme::from_text("empty.theme", "")],
+    )
+    .expect("the style sheet");
+    ui.frame();
+    ui.advance(Duration::from_millis(100));
+    ui.frame();
+    let a = ui.find(root, &[uwui::tree::Key::from("a")]).expect("a");
+    let b = ui.find(root, &[uwui::tree::Key::from("b")]).expect("b");
+    let grey = LinearColor::from_srgb8(128, 128, 128).r;
+    assert!((red(&ui, a) - 0.5).abs() < 1e-3, "a is {}", red(&ui, a));
+    assert!(
+        (red(&ui, b) - grey / 2.0).abs() < 1e-3,
+        "b is {}",
+        red(&ui, b)
+    );
+}
+
+#[test]
+fn elements_towards_one_style_at_the_same_time_from_two_colors_share_nothing() {
+    let (mut ui, root) = ui(BUTTONS, 1.0);
+    column_of_two(&mut ui, root, 0, ["", ""]);
+    ui.frame();
+    let a = ui.find(root, &[uwui::tree::Key::from("a")]).expect("a");
+    let b = ui.find(root, &[uwui::tree::Key::from("b")]).expect("b");
+    // `b` hovered, halfway to white.
+    ui.pointer_moved(50.0, 45.0);
+    ui.frame();
+    ui.advance(Duration::from_millis(100));
+    ui.frame();
+    assert!((red(&ui, b) - 0.5).abs() < 1e-3, "b is {}", red(&ui, b));
+    // The base turns grey as the pointer leaves: both go to one style, from two colors.
+    let changed = BUTTONS.replacen("\"#000000\"", "\"#808080\"", 1);
+    ui.set_style(
+        &[StyleSheet::from_text("changed.style", changed)],
+        &[Theme::from_text("empty.theme", "")],
+    )
+    .expect("the style sheet");
+    ui.pointer_moved(300.0, 250.0);
+    ui.frame();
+    ui.advance(Duration::from_millis(100));
+    ui.frame();
+    let grey = LinearColor::from_srgb8(128, 128, 128).r;
+    assert!(
+        (red(&ui, a) - grey / 2.0).abs() < 1e-3,
+        "a is {}",
+        red(&ui, a)
+    );
+    assert!(
+        (red(&ui, b) - (0.5 + grey) / 2.0).abs() < 1e-3,
+        "b is {}",
+        red(&ui, b)
+    );
+}
+
+/// A button lit white by a class, which a build gives one button, then the other.
+const LIT: &str = r##"
+[button]
+select = { kind = "Button" }
+style.paint.background = "#000000"
+style.transition = { duration = 0.2, easing = "Linear" }
+
+[lit]
+select = { kind = "Button", classes = ["lit"] }
+style.paint.background = "#ffffff"
+"##;
+
+#[test]
+fn elements_towards_one_style_from_one_color_started_apart_share_nothing() {
+    let (mut ui, root) = ui(LIT, 1.0);
+    column_of_two(&mut ui, root, 0, ["", ""]);
+    ui.frame();
+    let a = ui.find(root, &[uwui::tree::Key::from("a")]).expect("a");
+    let b = ui.find(root, &[uwui::tree::Key::from("b")]).expect("b");
+    column_of_two(&mut ui, root, 1, ["lit", ""]);
+    ui.frame();
+    ui.advance(Duration::from_millis(50));
+    column_of_two(&mut ui, root, 2, ["lit", "lit"]);
+    ui.frame();
+    ui.advance(Duration::from_millis(50));
+    ui.frame();
+    assert!((red(&ui, a) - 0.5).abs() < 1e-3, "a is {}", red(&ui, a));
+    assert!((red(&ui, b) - 0.25).abs() < 1e-3, "b is {}", red(&ui, b));
+}
+
+/// A button transparent white, black under the pointer.
+const CLEAR_WHITE: &str = r##"
+[button]
+select = { kind = "Button" }
+style.paint.background = "#ffffff00"
+style.transition = { duration = 0.2, easing = "Linear" }
+
+[button-hovered]
+select = { kind = "Button", states = ["Hovered"] }
+style.paint.background = "#000000"
+"##;
+
+#[test]
+fn the_frame_that_starts_a_transition_shows_exactly_what_showed() {
+    let (mut ui, root) = ui(CLEAR_WHITE, 1.0);
+    column_of_two(&mut ui, root, 0, ["", ""]);
+    ui.frame();
+    let a = ui.find(root, &[uwui::tree::Key::from("a")]).expect("a");
+    let before = ui.style(a).expect("a").paint.background;
+    assert_eq!(before, LinearColor::rgba(1.0, 1.0, 1.0, 0.0));
+    ui.pointer_moved(50.0, 15.0);
+    ui.frame();
+    assert_eq!(ui.style(a).expect("a").paint.background, before);
+}

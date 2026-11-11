@@ -343,15 +343,18 @@ impl Default for GridPlace {
 #[reflect(name = "UiPaint", default)]
 pub struct PaintStyle {
     /// The box's fill; nothing is drawn where it is transparent and there is no border.
+    #[declare(color)]
     pub background: LinearColor,
     /// The border's width, in logical pixels, inside the box's edges.
     #[declare(lays_out)]
     pub border_width: f32,
     /// The border's color.
+    #[declare(color)]
     pub border: LinearColor,
     /// The radii of its corners, in logical pixels: top start, top end, bottom end, bottom start.
     pub radii: [f32; 4],
     /// The shadow it casts, if any.
+    #[declare(color)]
     pub shadow: Option<Shadow>,
     /// How opaque it and what it holds are drawn, from 0, unseen, to 1, the default: the alpha of
     /// each of their primitives is multiplied by it, and by their ancestors', so that parts of a
@@ -361,6 +364,7 @@ pub struct PaintStyle {
     /// modal layer's scrim, which dims what takes no input while it is open
     /// ([`Layer::modal`](crate::tree::Layer::modal)). Only a layer's root draws it, under its opacity;
     /// transparent, the default, for none.
+    #[declare(color)]
     pub backdrop: LinearColor,
 }
 
@@ -419,12 +423,15 @@ pub struct ControlStyle {
     pub radius: f32,
     /// A check box's box unchecked, a slider's track and a bar of progress's, an item of a menu's
     /// shortcut, a field's placeholder, the box of a tab's count.
+    #[declare(color)]
     pub track: LinearColor,
     /// A check box's box checked, the part of a slider's track up to its value, of a bar of
     /// progress's up to its share.
+    #[declare(color)]
     pub fill: LinearColor,
     /// A check box's mark, a slider's thumb, an item of a menu's mark and chevron, a list to choose
     /// from's chevron, a field's prefix and a field of search's marks, the digits of a tab's count.
+    #[declare(color)]
     pub mark: LinearColor,
 }
 
@@ -451,8 +458,10 @@ pub struct TextLook {
     pub style: TextStyle,
     /// Its color, which a field's caret and the line under what an input method composes take
     /// too.
+    #[declare(color)]
     pub color: LinearColor,
     /// The fill behind the text that a field holds selected.
+    #[declare(color)]
     pub selection: LinearColor,
 }
 
@@ -464,6 +473,50 @@ impl Default for TextLook {
             style: TextStyle::default(),
             color: LinearColor::rgba(0.0, 0.0, 0.0, 0.0),
             selection: LinearColor::rgba(0.0, 0.0, 0.0, 0.0),
+        }
+    }
+}
+
+/// The colors that a part of a style holds, in a fixed order and number, whatever its values: the
+/// one list of colors that transitions move, which `uwui-macros`'s derive generates for the structs
+/// of a style from their fields marked `#[declare(color)]`.
+pub(crate) trait Colors {
+    /// How many colors it holds.
+    const COUNT: usize;
+
+    /// Gives `out` each of its colors, in order.
+    fn read(&self, out: &mut dyn FnMut(LinearColor));
+
+    /// Sets each of its colors, in order, to what `next` gives.
+    fn write(&mut self, next: &mut dyn FnMut() -> LinearColor);
+}
+
+impl Colors for LinearColor {
+    const COUNT: usize = 1;
+
+    fn read(&self, out: &mut dyn FnMut(LinearColor)) {
+        out(*self);
+    }
+
+    fn write(&mut self, next: &mut dyn FnMut() -> LinearColor) {
+        *self = next();
+    }
+}
+
+/// A shadow's color, transparent where it casts none, so that a shadow that comes fades in; a color
+/// written where it casts none is dropped, as the shadow is the style's to give: a shadow that a
+/// change takes away goes at once.
+impl Colors for Option<Shadow> {
+    const COUNT: usize = 1;
+
+    fn read(&self, out: &mut dyn FnMut(LinearColor)) {
+        out(self.map_or(LinearColor::rgba(0.0, 0.0, 0.0, 0.0), |shadow| shadow.color));
+    }
+
+    fn write(&mut self, next: &mut dyn FnMut() -> LinearColor) {
+        let color = next();
+        if let Some(shadow) = self {
+            shadow.color = color;
         }
     }
 }

@@ -15,7 +15,10 @@ use syn::{Attribute, Data, DeriveInput, Fields, Ident, Type};
 /// `#[declare(nested)]`, the declaration of one field of the field's own struct, which derives
 /// `Declare` too: `LayoutStyleDeclaration::Padding(SidesDeclaration::Top(12.0))`. Each *leaf*, a
 /// field that is not nested or an element of an array, has a number of its own. A field marked
-/// `#[declare(lays_out)]`, nested or not, lays out what it styles. It generates:
+/// `#[declare(lays_out)]`, nested or not, lays out what it styles; a field marked
+/// `#[declare(color)]`, not nested, holds a color that transitions move: a field whose type names
+/// `LinearColor`, an option or an array of them included, fails to compile unmarked, and an array
+/// marked is refused, its colors not listed. It generates:
 ///
 /// - `SDeclaration::apply`, which sets the leaf that the declaration names;
 /// - `SDeclaration::path`, the leaf's path in a style sheet, `padding.top` or `size[0]`;
@@ -28,9 +31,12 @@ use syn::{Attribute, Data, DeriveInput, Fields, Ident, Type};
 /// - `S::named`, the declarations of the leaves that a part of `S` read by reflection names, each
 ///   holding the value that a whole `S` gives it, an array's every element; it goes when uwui reads
 ///   its documents with `serde` (M6d.3);
-/// - `Same` for `S`, field by field.
+/// - `Same` for `S`, field by field;
+/// - `Colors` for `S`, the colors of its fields marked `#[declare(color)]` and of its nested
+///   fields, in the order of the struct: the one list of colors that transitions move.
 ///
-/// The code it generates names `crate::style::Same` and `slime_reflect::Value`: it serves uwui's
+/// The code it generates names `crate::style::Same`, `crate::style::Colors`,
+/// `slime_color::LinearColor` and `slime_reflect::Value`: it serves uwui's
 /// own styles, and its items are `pub(crate)`.
 #[proc_macro_derive(Declare, attributes(declare))]
 pub fn derive_declare(input: TokenStream) -> TokenStream {
@@ -53,6 +59,8 @@ struct Field {
     shape: Shape,
     /// Whether it lays out what it styles (`#[declare(lays_out)]`).
     lays_out: bool,
+    /// Whether it holds a color that transitions move (`#[declare(color)]`).
+    color: bool,
 }
 
 /// What a field holds, as its declarations name it.
@@ -90,7 +98,7 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
         .iter()
         .map(|field| {
             let name = field.ident.clone().expect("a named field");
-            let (shape, lays_out) = shape(field)?;
+            let (shape, lays_out, color) = shape(field)?;
             Ok(Field {
                 variant: format_ident!("{}", camel(&name.to_string())),
                 docs: field
@@ -101,6 +109,7 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
                     .collect(),
                 shape,
                 lays_out,
+                color,
                 ty: field.ty.clone(),
                 name,
             })
@@ -244,6 +253,18 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
         }
     });
 
+    // The fields that hold colors: those marked `#[declare(color)]`, and the nested ones, whose own
+    // fields say.
+    let colored: Vec<&Field> = fields
+        .iter()
+        .filter(|field| field.color || matches!(field.shape, Shape::Nested(_)))
+        .collect();
+    let color_counts = colored.iter().map(|field| {
+        let ty = &field.ty;
+        quote! { <#ty as crate::style::Colors>::COUNT }
+    });
+    let color_names: Vec<&Ident> = colored.iter().map(|field| &field.name).collect();
+
     Ok(quote! {
         #[doc = #doc]
         #[derive(Clone, Debug)]
@@ -329,14 +350,34 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
                 true #(&& crate::style::Same::same(&self.#field_names, &other.#field_names))*
             }
         }
+
+        impl crate::style::Colors for #ty {
+            const COUNT: usize = 0 #(+ #color_counts)*;
+
+            fn read(&self, out: &mut dyn FnMut(::slime_color::LinearColor)) {
+                let _ = &out;
+                #(crate::style::Colors::read(&self.#color_names, out);)*
+            }
+
+            fn write(&mut self, next: &mut dyn FnMut() -> ::slime_color::LinearColor) {
+                let _ = &next;
+                #(crate::style::Colors::write(&mut self.#color_names, next);)*
+            }
+        }
     })
 }
 
-/// What `field` holds, and whether it is marked `#[declare(lays_out)]`: a struct of its own
-/// declarations if it is marked `#[declare(nested)]`, an array of leaves if its type is an array,
-/// a leaf otherwise.
-fn shape(field: &syn::Field) -> syn::Result<(Shape, bool)> {
-    let (mut nested, mut lays_out) = (false, false);
+/// What `field` holds, whether it is marked `#[declare(lays_out)]` and whether it is marked
+/// `#[declare(color)]`: a struct of its own declarations if it is marked `#[declare(nested)]`, an
+/// array of leaves if its type is an array, a leaf otherwise.
+///
+/// # Errors
+///
+/// A field whose type names `LinearColor` and is not marked a color, so that no color is left out
+/// of the list that transitions move; an array marked a color, whose elements the list does not
+/// hold; a nested field marked a color.
+fn shape(field: &syn::Field) -> syn::Result<(Shape, bool, bool)> {
+    let (mut nested, mut lays_out, mut color) = (false, false, false);
     for attribute in &field.attrs {
         if !attribute.path().is_ident("declare") {
             continue;
@@ -348,12 +389,29 @@ fn shape(field: &syn::Field) -> syn::Result<(Shape, bool)> {
             } else if meta.path.is_ident("lays_out") {
                 lays_out = true;
                 Ok(())
+            } else if meta.path.is_ident("color") {
+                color = true;
+                Ok(())
             } else {
-                Err(meta.error("`declare` takes `nested` and `lays_out`"))
+                Err(meta.error("`declare` takes `nested`, `lays_out` and `color`"))
             }
         })?;
     }
+    // A color forgotten would not move with the others: every type that holds one by its name is
+    // marked, an option or an array of colors included.
+    if !nested && !color && names_a_color(&field.ty) {
+        return Err(syn::Error::new_spanned(
+            &field.ty,
+            "a color is marked `#[declare(color)]`, so that transitions move it",
+        ));
+    }
     if let Type::Array(array) = &field.ty {
+        if color {
+            return Err(syn::Error::new_spanned(
+                &field.ty,
+                "an array of colors is not listed for transitions: give each color a field of its own",
+            ));
+        }
         if nested {
             return Err(syn::Error::new_spanned(
                 &field.ty,
@@ -363,10 +421,17 @@ fn shape(field: &syn::Field) -> syn::Result<(Shape, bool)> {
         return Ok((
             Shape::Array(array.elem.clone(), Box::new(array.len.clone())),
             lays_out,
+            color,
         ));
     }
     if !nested {
-        return Ok((Shape::Leaf, lays_out));
+        return Ok((Shape::Leaf, lays_out, color));
+    }
+    if color {
+        return Err(syn::Error::new_spanned(
+            &field.ty,
+            "a nested field gives its colors through its own fields' `#[declare(color)]`",
+        ));
     }
     let Type::Path(path) = &field.ty else {
         return Err(syn::Error::new_spanned(
@@ -378,7 +443,22 @@ fn shape(field: &syn::Field) -> syn::Result<(Shape, bool)> {
     Ok((
         Shape::Nested(format_ident!("{}Declaration", last.ident)),
         lays_out,
+        false,
     ))
+}
+
+/// Whether `ty` names `LinearColor` anywhere in it: `LinearColor`, `Option<LinearColor>`,
+/// `[LinearColor; 2]`. A struct that holds a color within, a shadow, is not seen: it is marked by
+/// hand.
+fn names_a_color(ty: &Type) -> bool {
+    fn holds(tokens: Tokens) -> bool {
+        tokens.into_iter().any(|token| match token {
+            proc_macro2::TokenTree::Ident(ident) => ident == "LinearColor",
+            proc_macro2::TokenTree::Group(group) => holds(group.stream()),
+            _ => false,
+        })
+    }
+    holds(quote! { #ty })
 }
 
 /// `snake_case` as `UpperCamelCase`.
@@ -391,4 +471,44 @@ fn camel(name: &str) -> String {
             })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The message of the error that deriving `Declare` for `input` gives; none if it derives.
+    fn refusal(input: &DeriveInput) -> Option<String> {
+        expand(input).err().map(|error| error.to_string())
+    }
+
+    #[test]
+    fn a_color_left_unmarked_is_refused_wherever_it_is_named() {
+        let inputs: [DeriveInput; 3] = [
+            syn::parse_quote! { struct S { background: LinearColor } },
+            syn::parse_quote! { struct S { glow: Option<LinearColor> } },
+            syn::parse_quote! { struct S { stops: [LinearColor; 2] } },
+        ];
+        for input in &inputs {
+            let message = refusal(input);
+            assert!(
+                message
+                    .as_deref()
+                    .is_some_and(|text| text.contains("#[declare(color)]")),
+                "{message:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_color_marked_derives_and_an_array_marked_is_refused() {
+        let marked: DeriveInput = syn::parse_quote! {
+            struct S { #[declare(color)] background: LinearColor }
+        };
+        assert_eq!(refusal(&marked), None);
+        let array: DeriveInput = syn::parse_quote! {
+            struct S { #[declare(color)] stops: [LinearColor; 2] }
+        };
+        assert!(refusal(&array).is_some_and(|text| text.contains("field of its own")));
+    }
 }

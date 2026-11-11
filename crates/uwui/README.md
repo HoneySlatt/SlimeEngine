@@ -54,8 +54,10 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   last rule that set a field names no state, then the own states that hold. A hover or a press set
   in code offers no field that lays out
   (`docs/adr/0231-an-elements-own-style-written-in-code.md`).
-- A style's `transition` moves a change of it over time: its colors and its opacity, and a
-  section's height as it opens or folds, over the time that the program gives each frame
+- A style's `transition` moves a change of it over time: every color that the style holds, as
+  `uwui-macros`'s derive lists them, and its opacity, elements that move alike sharing the style
+  that they show (`docs/adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md`);
+  and a section's height as it opens or folds, over the time that the program gives each frame
   (`Ui::advance`), which `Ui::set_reduced_motion` drops; a frame says whether one goes on
   (`FrameStats::animating`), and a program that draws only when something changes reads whether the
   interface moves (`Ui::animating`) or needs the next frame for the rows of a list
