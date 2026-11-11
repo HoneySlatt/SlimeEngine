@@ -38,6 +38,13 @@ documentation was updated and reread. Every milestone is also checked on Windows
   layer over what code writes, on the same day
   ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md)).
   Next: [M6d.2b2b3](stage-6d.md#m6d2b2b3--tokens), tokens, its questions put at its start.
+- In parallel, the owner's choice of 2026-11-11: two tracks at most, each milestone in its own
+  session.
+  - Track A, uwui's core, in the main checkout: M6d.2b2b3, then M6d.3.
+  - Track B, beside it, in a worktree on the branch `m6d6-headless-compositors`:
+    [M6d.6](stage-6d.md#m6d6--a-series-of-headless-compositors), then M6d.4.
+  - M6d.5 waits for M6d.3 and M6d.4, which both touch `slime-app`; M6d.10 to M6d.12 run alone.
+  - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: the deletion of the branch `m6d1b-bench`, and the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
 - After Stage 6d: uwui's stages, Stage 6e, the rest of Stage 6c ([`stage-6c.md`](stage-6c.md)),
