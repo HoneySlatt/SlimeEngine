@@ -94,9 +94,11 @@ in git.
   three at its start, on 2026-11-11
   ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)): done,
   [M6d.2b2b1](#m6d2b2b1--transitions-and-the-frame-of-a-change-of-theme), transitions and the
-  frame of a change of theme; next,
+  frame of a change of theme; in progress,
   [M6d.2b2b2](#m6d2b2b2--the-users-layer-over-what-code-writes), the user's layer over what code
-  writes, and [M6d.2b2b3](#m6d2b2b3--tokens), tokens.
+  writes, its questions decided at its start
+  ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md)); next,
+  [M6d.2b2b3](#m6d2b2b3--tokens), tokens.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -761,8 +763,8 @@ The second half of M6d.2 ([ADR-0229](adr/0229-styles-typed-as-declarations.md)).
   code as [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md) decides.
 - **Crates.** `uwui`, `slime-editor`, `slime-devui`, `hunnawood-editor`, the examples.
 - **Done when.** Tests: a state set in code beats a rule's state; a field set in code to its
-  default beats a rule; lengths written in code scale under the density; colours written in code
-  give way under high contrast; a missing token warns once; the call's place is kept; no colour in
+  default beats a rule; the size of text reaches every text but icons, and a list's rows; a
+  missing token warns once; the call's place is kept; no colour in
   the components' defaults, each kind drawn on an empty theme and each colour traced to a token;
   the look's image tests and counters unchanged; CI green.
 - **Measured.** The editor's interface and its counters; `ui.tree.look`'s frame after a change of
@@ -847,8 +849,8 @@ The second half of M6d.2b ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-de
   `Style::default()` calls and 222 assignments of a style's field outside uwui move, and when;
   whether a style's change in code is timed through `subsecond`, which the workspace lacks.
 - **Done when.** Tests: a state set in code beats a rule's state; a field set in code to its
-  default beats a rule; lengths written in code scale under the density; colours written in code
-  give way under high contrast; a token that the themes lack warns once; the call's place is kept;
+  default beats a rule; the size of text reaches every text but icons, and a list's rows; a token
+  that the themes lack warns once; the call's place is kept;
   transitions read the derive's list and move every colour that a style holds; the look's image
   tests unchanged, and its counters but those that fall; CI green.
 - **Measured.** The editor's interface and its counters; `ui.tree.look`'s frame after a change of
@@ -921,8 +923,9 @@ The second half of M6d.2b2 ([ADR-0231](adr/0231-an-elements-own-style-written-in
 - **Goal.** The themes' values named in code by tokens, and the user's layer over what code
   writes, as [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md) decides.
 - **Crates.** `uwui`, `uwui-macros`, `slime-benches`, the examples.
-- **Done when.** Tests: lengths written in code scale under the density; colours written in code
-  give way under high contrast; a token that the themes lack warns once; a token's value of another
+- **Done when.** Tests: the size of text reaches every text but icons, and a list's rows
+  ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md));
+  a token that the themes lack warns once; a token's value of another
   type refuses the themes; transitions read the derive's list and move every colour that a style
   holds; the look's image tests unchanged, and its counters but those that fall; CI green.
 - **Measured.** The editor's interface and its counters; `ui.tree.look`'s frame after a change of
@@ -985,45 +988,7 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
 
 ### M6d.2b2b2 — The user's layer over what code writes
 
-The second third of M6d.2b2b
-([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)). It
-follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** The size of text, the density and more contrast reach what code writes, as
-  [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md) decides.
-- **Crates.** `uwui`, `uwui-macros`, `slime-benches`, the examples; `slime-editor` and
-  `slime-devui` if the way a program gives the layer changes `look::themes` or
-  `Ui::set_reduced_motion`.
-- **Delivers.** Decided at its start, with the owner: how a program gives the user's layer, and
-  whether `look::Colors::HighContrast` stays; the derive's list of lengths, each with its class;
-  the density on the lengths that code writes; the size of text and what it reaches beyond a
-  text's size; the colours that code writes under more contrast; a list's rows.
-- **Done when.** Tests: lengths written in code scale under the density; the size of text reaches
-  every text and a list's rows, and at 200 % no text of the `widgets` example is lost; colours
-  written in code give way under more contrast; CI green.
-- **Measured.** The editor's interface and its counters; `ui.tree.look`.
-- **Found before its start,** by two attacks of the lead's first draft, which the questions answer:
-  - One factor of density disagrees with the look's compact theme, which is no factor: `space_s`
-    and `space_xl` stay, `button_y` halves, text shrinks by 0.92. Two factors, spacings and sizes,
-    still miss it on 52 of the look's 128 uses of its steps; a table of steps on 14. A literal
-    cannot follow a theme that maps values by their names; a token can.
-  - Under a factor, a list's rows of 17.6 pixels overlap by one pixel every other row: a list's
-    row height is read in six places (`layout.rs`, `Ui::show_row`, `Ui::visible_rows`), which must
-    read one height, whole in pixels of the screen. taffy already rounds boxes.
-  - At 200 % text, 13 of the `widgets` example's 19 boxes of fixed size that hold a text overflow
-    (WCAG 1.4.4). A unit relative to the text, `Dimension::Em`, would change the sheets' format,
-    and uwui's text sizes do not pass from a parent to its children. The references grow text
-    alone and leave boxes to the layout (WinUI, Android), or scale a length relative to a text
-    style that code names (`UIFontMetrics`, `@ScaledMetric`).
-  - The size of text is a curve, not a factor, on Android 14, Windows and Flutter's
-    `TextScaler`: larger text grows less; Windows goes to 2.25.
-  - Colours of code giving way only where a rule sets the same field part a text from its
-    background: the look's `[everything]` rule sets every text's colour and no rule sets a
-    background on ten kinds, so an own amber background under white text falls from 9.4:1 to
-    1.9:1. CSS's forced colours and WinUI's contrast themes never part the pair. Giving way to the
-    kind's base, which draws no box, erases a box or a hover written only in code; ADR-0226 lets a
-    colour that is content opt out.
-  - The contrast read from `Preferences` and from the themes stacked by hand can disagree.
+The second third of M6d.2b2b, in progress: its card is in [`PLAN.md`](PLAN.md#m6d2b2b2--the-users-layer-over-what-code-writes).
 
 ### M6d.2b2b3 — Tokens
 
@@ -1042,7 +1007,10 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
   density and more contrast do to them; a field of text named by a theme; whether a style's change
   in code is timed through `subsecond`.
 - **Done when.** Tests: a token that the themes lack warns once; a token's value of another type
-  refuses the themes; a token is neither scaled nor given way as a literal is; CI green.
+  refuses the themes; a token follows the density's and high contrast's themes, which leave a
+  number written in code
+  ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md));
+  CI green.
 - **Measured.** The editor's interface and its counters; `ui.tree.look`.
 - **Found before its start:**
   - Nothing reads a rule's origin or the state that set a declaration: ADR-0227's clocks can be

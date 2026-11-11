@@ -217,7 +217,7 @@ the ADR linking to it.
 | [0146](0146-screen-readers.md) | Screen readers | Accepted; amended by 0147 and 0181 |
 | [0147](0147-the-screen-readers-check-in-ci.md) | The screen readers' check in CI | Accepted |
 | [0148](0148-widgets.md) | Widgets | Accepted; amended by 0149 |
-| [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151, 0170, 0223, 0226 and 0227 |
+| [0149](0149-the-looks-foundations.md) | The look's foundations | Accepted; amended by 0151, 0170, 0223, 0226, 0227 and 0237 |
 | [0150](0150-layers.md) | Layers | Accepted; amended by 0154, 0157, 0174 |
 | [0151](0151-rich-widgets.md) | Rich widgets | Accepted |
 | [0152](0152-the-dev-overlay-on-the-engines-interface.md) | The dev overlay on the engine's interface | Accepted; amended by 0153 |
@@ -291,17 +291,18 @@ the ADR linking to it.
 | [0220](0220-the-roadmap-reshaped-by-the-market.md) | The roadmap reshaped by the market | Accepted; amends 0098, 0190, 0194 and 0207; amended by 0221, 0222, 0225, 0226 and 0229 |
 | [0221](0221-compiling-within-its-budgets.md) | Compiling within its budgets | Accepted; amends 0104 and 0220 |
 | [0222](0222-what-a-theme-is.md) | What a theme is: values, rules and parts written as data | Accepted; amends 0141, 0190, 0213 and 0220; amended by 0225, 0226 and 0229 |
-| [0223](0223-styles-written-in-code-through-tokens.md) | Styles written in code, through tokens, under the user's layer | Accepted; amends 0141, 0149 and 0181; amended by 0226, 0230 and 0231 |
+| [0223](0223-styles-written-in-code-through-tokens.md) | Styles written in code, through tokens, under the user's layer | Accepted; amends 0141, 0149 and 0181; amended by 0226, 0230, 0231 and 0237 |
 | [0224](0224-a-files-change-reaches-the-application-through-the-development-tool.md) | A file's change reaches the application through the development tool | Accepted; amends 0212 |
 | [0225](0225-layouts-written-in-kdl-reached-from-code-by-their-names.md) | Layouts written in KDL, reached from code by their names | Accepted; amends 0080, 0132, 0141, 0181, 0190, 0210, 0220 and 0222; amended by 0226 |
-| [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) | An application started in one call, each root given its look | Accepted; amends 0149, 0181, 0190, 0213, 0215, 0220, 0222, 0223 and 0225; amended by 0231 |
+| [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) | An application started in one call, each root given its look | Accepted; amends 0149, 0181, 0190, 0213, 0215, 0220, 0222, 0223 and 0225; amended by 0231 and 0237 |
 | [0227](0227-the-time-that-motion-reads.md) | The time that motion reads | Accepted; amends 0009, 0107, 0149, 0171, 0181, 0187, 0190, 0205 and 0211 |
 | [0228](0228-ci-split-again-each-job-within-20-minutes.md) | CI split again, each job within 20 minutes | Accepted; amends 0104, 0123 and 0155 |
 | [0229](0229-styles-typed-as-declarations.md) | Styles typed as declarations, a rule's kind checked | Accepted; amends 0141, 0220 and 0222; amended by 0230, 0231 and 0232 |
 | [0230](0230-the-cores-roles-and-each-kinds-defaults.md) | The core's roles, and each kind's defaults from its look | Accepted; amends 0141, 0223 and 0229 |
-| [0231](0231-an-elements-own-style-written-in-code.md) | An element's own style written in code, by declarations with states | Accepted; amends 0141, 0223, 0226 and 0229; amended by 0232 |
-| [0232](0232-transitions-read-the-derives-colours-and-share-what-they-show.md) | Transitions read the derive's colours and share what they show; M6d.2b2b cut in three | Accepted; amends 0229 and 0231 |
+| [0231](0231-an-elements-own-style-written-in-code.md) | An element's own style written in code, by declarations with states | Accepted; amends 0141, 0223, 0226 and 0229; amended by 0232 and 0237 |
+| [0232](0232-transitions-read-the-derives-colours-and-share-what-they-show.md) | Transitions read the derive's colours and share what they show; M6d.2b2b cut in three | Accepted; amends 0229 and 0231; amended by 0237 |
 | [0233](0233-uwuis-platforms-apples-chips-ios-and-the-tvs.md) | uwui's platforms: Apple's chips, iOS behind a project, and the televisions | Accepted; amends 0181, 0196 and 0213 |
 | [0234](0234-uwuis-colour-model-before-its-api-is-stable.md) | uwui's colour model before its API is stable, HDR content after | Accepted; amends 0137 and 0190 |
 | [0235](0235-content-from-outside-the-tree.md) | Content from outside the tree: the element is uwui's, the player the application's | Accepted; amends 0171 and 0190 |
 | [0236](0236-one-trial-of-content-from-outside-for-aerith-and-magnolia.md) | One trial of content from outside, for Aerith and Magnolia | Accepted; amends 0181 and 0213 |
+| [0237](0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md) | The user's layer: the size of text and less motion as preferences, density and contrast by names | Accepted; amends 0149, 0223, 0226, 0231 and 0232 |

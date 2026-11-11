@@ -8,7 +8,7 @@
   (the same order, in its stack) and [0229](0229-styles-typed-as-declarations.md) (an array is one
   leaf for each element; the own style is declarations, not a `Style`); amended by
   [0232](0232-transitions-read-the-derives-colours-and-share-what-they-show.md) (M6d.2b2b cut in
-  three)
+  three) and [0237](0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md) (the fourth step of the mask order is the size of text)
 - Date: 2026-11-10
 
 ## Context

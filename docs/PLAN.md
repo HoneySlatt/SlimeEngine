@@ -34,9 +34,10 @@ documentation was updated and reread. Every milestone is also checked on Windows
   and the frame of a change of theme, the first third of
   [M6d.2b2b](stage-6d.md#m6d2b2b--tokens-and-the-users-layer), cut in three at its start, on
   2026-11-11 ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)).
-  Next: [M6d.2b2b2](stage-6d.md#m6d2b2b2--the-users-layer-over-what-code-writes), the user's
-  layer over what code writes, its questions put at its start; then
-  [M6d.2b2b3](stage-6d.md#m6d2b2b3--tokens), tokens.
+  In progress: [M6d.2b2b2](#m6d2b2b2--the-users-layer-over-what-code-writes), the user's layer
+  over what code writes, its questions decided at its start
+  ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md));
+  then [M6d.2b2b3](stage-6d.md#m6d2b2b3--tokens), tokens.
 - Waiting for the owner: the deletion of the branch `m6d1b-bench`, and the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
 - After Stage 6d: uwui's stages, Stage 6e, the rest of Stage 6c ([`stage-6c.md`](stage-6c.md)),
@@ -67,7 +68,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.2b1 — The roles and each kind's defaults](stage-6d.md#m6d2b1--the-roles-and-each-kinds-defaults) | Done |
 | [M6d.2b2a — An element's own style written in code](stage-6d.md#m6d2b2a--an-elements-own-style-written-in-code) | Done |
 | [M6d.2b2b1 — Transitions and the frame of a change of theme](stage-6d.md#m6d2b2b1--transitions-and-the-frame-of-a-change-of-theme) | Done |
-| [M6d.2b2b2 — The user's layer over what code writes](stage-6d.md#m6d2b2b2--the-users-layer-over-what-code-writes) | Planned |
+| [M6d.2b2b2 — The user's layer over what code writes](#m6d2b2b2--the-users-layer-over-what-code-writes) | In progress |
 | [M6d.2b2b3 — Tokens](stage-6d.md#m6d2b2b3--tokens) | Planned |
 | [M6d.3 — Documents with serde](stage-6d.md#m6d3--documents-with-serde) | Planned |
 | [M6d.4 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Planned |
@@ -80,6 +81,47 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
+
+## M6d.2b2b2 — The user's layer over what code writes
+
+The second third of M6d.2b2b
+([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)), its
+questions decided at its start, on 2026-11-11
+([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md)). It
+follows the rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The size of text that the user chose reaches every text but icons, and a list's rows;
+  the user's preferences are given as one value.
+- **Crates.** `uwui`, `slime-benches`, the examples; `slime-editor` and `slime-devui`, which give
+  less motion.
+- **Delivers.**
+  - `Preferences` in uwui's core, the size of text and less motion, given by
+    `Ui::set_preferences`, which replaces `Ui::set_reduced_motion`; every call site moved.
+  - `TextSize`, a curve of sorted stops, linear by default, `TextSize::factor`; a stop or factor
+    not finite, a ratio outside 0.5 to 3, or stops out of order refused.
+  - The size of text applied in the cascade's fourth step to every text's size, the rules' and the
+    code's, but a text whose first font is its style's font of icons; the styles made again when
+    it changes.
+  - A list's rows grown by the curve's ratio at the list's size of text, whole in pixels of the
+    screen, read through one accessor.
+  - uwui's and the `widgets` example's boxes of fixed width that hold a text made least widths.
+  - `ui.tree.look` counts the frame after a change of the size of text; CI bounds it by the first
+    frame's allocations for each element.
+  - Density and more contrast leave what code writes as numbers: nothing built.
+- **Done when.**
+  - Tests: the size of text reaches a text sized by a rule or by code, not an icon; a curve
+    interpolates its stops and refuses what it must; a list's rows grow and never overlap, at
+    scales 1.25 and 2 and at 200 % text; less motion through `Preferences` ends transitions; a
+    colour and a length written in code stay under high contrast and the compact theme.
+  - At 200 %, no text of the `widgets` example, its layers open, cut by its box or by any ancestor
+    up to the first that scrolls.
+  - The look's image tests and the two fixtures of styles unchanged; the counters unchanged but
+    those recorded again, each with its reason; the new counter within its target; CI green.
+- **How to test.** `cargo test -p uwui --features editor-look`; `cargo test -p slime-examples
+  --test widgets --test editor`; `cargo run -p slime-benches -- --counters`; `scripts/check.sh`.
+- **Measured.** `ui.tree.look` and `ui.tree.editor`, and the editor's counters, before and after,
+  on the owner's machine at rest, with the owner's go.
+- **Found before its start:** in [ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md#context).
 
 ## Ideas waiting for their milestone
 

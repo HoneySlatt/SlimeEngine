@@ -1839,9 +1839,11 @@ frame while frames are drawn, so that a frame does not wait for all of a load's 
 [ADR-0118](adr/0118-the-task-pool-and-the-copies-to-the-gpu.md)).
 
 **User's layer (style).** What the user chose over every look, applied after an element's own
-style and states: the size of text, the density, which scales the lengths that code writes as
-literals too, and high contrast, under which the colours that code writes give way to the rules'
-([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md)). Decided, not built yet.
+style and states: the size of text, which scales every text but icons, and a list's rows
+([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md),
+[ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md)). The
+density and high contrast reach styles by the themes' names only: what code writes as a number
+stays. Decided, not built yet.
 
 **uwui.** The owner's UI framework, the base of the engine's interfaces and of *applications*: a
 retained tree of elements, its layout, text, input and widgets, embedded in a *host (uwui)*
