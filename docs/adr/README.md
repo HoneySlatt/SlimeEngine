@@ -263,7 +263,7 @@ the ADR linking to it.
 | [0192](0192-the-budget-of-a-cold-start.md) | The budget of a cold start | Accepted; amends 0175 |
 | [0193](0193-first-measures-of-resources.md) | First measures of resources | Accepted; amends 0175 |
 | [0194](0194-stage-6d-uwui-leaving-the-engine.md) | Stage 6d: uwui leaving the engine | Accepted; amends 0170, 0171, 0178, 0181 and 0190; amended by 0198, 0202, 0203 and 0220 |
-| [0195](0195-a-series-of-headless-compositors.md) | A series of headless compositors | Accepted; amends 0185 |
+| [0195](0195-a-series-of-headless-compositors.md) | A series of headless compositors | Accepted; amends 0185; amended by 0240 |
 | [0196](0196-checks-by-hand-on-macos.md) | Checks by hand on macOS | Accepted; amended by 0213 and 0233 |
 | [0197](0197-uwuis-repository-public-from-now.md) | uwui's repository, public from now | Accepted; amends 0181 and 0190 |
 | [0198](0198-screens-of-reference-and-the-rivals-measured.md) | The screens of reference and the rivals measured | Accepted; amends 0181 and 0194; amended by 0199, 0200, 0201, 0203 and 0213 |
@@ -308,3 +308,4 @@ the ADR linking to it.
 | [0237](0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md) | The user's layer: the size of text and less motion as preferences, density and contrast by names | Accepted; amends 0149, 0223, 0226, 0231 and 0232 |
 | [0238](0238-tokens-typed-named-in-code-declared-by-each-crate.md) | Tokens: the themes' values named in code, typed by kind, declared by each crate | Accepted; amends 0223, 0229, 0230, 0231 and 0232 |
 | [0239](0239-content-made-outside-and-maps-in-the-editor.md) | What a game's content needs: importers, characters, large sources, and maps in the editor | Accepted; amends 0209 and 0217 |
+| [0240](0240-the-series-input-its-table-and-its-jobs.md) | The series' input, its table and its jobs | Accepted; amends 0195 |

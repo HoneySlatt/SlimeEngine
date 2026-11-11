@@ -1,7 +1,9 @@
 # 0195. A series of headless compositors
 
 - Status: Accepted; amends [0185](0185-rest-checked-in-ci.md) (rest also checked on each
-  compositor of the series, in a job of its own)
+  compositor of the series, in a job of its own); amended by
+  [0240](0240-the-series-input-its-table-and-its-jobs.md) (libei's client, XTest's tool, one job
+  for each compositor)
 - Date: 2026-11-06
 
 ## Context

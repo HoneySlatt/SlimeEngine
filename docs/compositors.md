@@ -3,7 +3,7 @@
 The editor and *Hunna Wood* run in five compositors without a screen, each the reference of a
 family: Weston, sway (wlroots), KWin (KDE), Mutter (GNOME), and X11 through Xvfb
 ([ADR-0195](adr/0195-a-series-of-headless-compositors.md),
-[ADR-0238](adr/0238-the-series-input-its-table-and-its-jobs.md)). This file holds what each gives and how the
+[ADR-0240](adr/0240-the-series-input-its-table-and-its-jobs.md)). This file holds what each gives and how the
 engine adapts there. [`scripts/compositors.sh`](../scripts/compositors.sh) observes each row of the
 table below and fails where an observation differs from its cell: a change of behaviour then changes
 the table, or the code. CI's `compositors` workflow runs it for each compositor. Its figures, the

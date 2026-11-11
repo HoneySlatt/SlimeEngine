@@ -1,6 +1,6 @@
 # Runs the editor and the game in each compositor of the series, headless: Weston, sway, KWin,
 # Mutter, and X11 through Xvfb, in the series' development shell
-# (docs/adr/0195-a-series-of-headless-compositors.md, docs/adr/0238-the-series-input-its-table-and-its-jobs.md).
+# (docs/adr/0195-a-series-of-headless-compositors.md, docs/adr/0240-the-series-input-its-table-and-its-jobs.md).
 # One job for each compositor, side by side, each within the owner's limit of 20 minutes; each
 # writes its report to the run's summary and keeps it as an artifact. Actions are pinned to commit
 # SHAs, with the release they correspond to in a comment.

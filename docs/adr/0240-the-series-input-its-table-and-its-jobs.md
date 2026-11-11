@@ -1,4 +1,4 @@
-# 0238. The series' input, its table and its jobs
+# 0240. The series' input, its table and its jobs
 
 - Status: Accepted; amends [0195](0195-a-series-of-headless-compositors.md) (libei's client in
   Python on libei's C library, XTest through `xdotool`, one job for each compositor)

@@ -92,7 +92,7 @@
 
         # The default shell and the series of headless compositors that scripts/compositors.sh runs
         # the editor and the game in, kept apart so that the default shell does not grow (ADR-0195,
-        # ADR-0238): `nix develop .#compositors`. CI's `compositors` workflow runs in it.
+        # ADR-0240): `nix develop .#compositors`. CI's `compositors` workflow runs in it.
         compositors = default.overrideAttrs (shell: {
           nativeBuildInputs = shell.nativeBuildInputs ++ [
             # KDE's compositor and GNOME's, each run with a virtual output of its own.
