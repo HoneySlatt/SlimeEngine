@@ -107,6 +107,21 @@ pub struct Error {
     pub message: String,
 }
 
+impl Error {
+    /// An error at the byte `offset` of `text`, placed by its line and column as the reader places
+    /// its own: what a reader of what a document means, above this one, gives at an item's
+    /// [span](Node::span). An offset past the text is taken at its end; one inside a character, at
+    /// that character's first byte.
+    #[must_use]
+    pub fn at(text: &str, offset: usize, message: impl Into<String>) -> Self {
+        let mut offset = offset.min(text.len());
+        while !text.is_char_boundary(offset) {
+            offset -= 1;
+        }
+        read::error_at(text, offset, message)
+    }
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(

@@ -196,3 +196,16 @@ fn reading_never_recurses_however_deep_the_document() {
         .expect("no overflow of the stack");
     assert_eq!(read, Ok(1));
 }
+
+#[test]
+fn an_error_placed_by_a_reader_above_lies_where_the_reader_would_place_it() {
+    let text = "first\r\nsecond é=1\nthird";
+    let at = text.find("é").expect("é");
+    let error = uwui_kdl::Error::at(text, at, "a fault");
+    assert_eq!((error.line, error.column, error.offset), (2, 8, at));
+    assert_eq!(error.to_string(), "line 2, column 8: a fault");
+    // Inside a character: at its first byte; past the text: at its end.
+    assert_eq!(uwui_kdl::Error::at(text, at + 1, "x").offset, at);
+    let end = uwui_kdl::Error::at(text, text.len() + 9, "x");
+    assert_eq!((end.line, end.column, end.offset), (3, 6, text.len()));
+}

@@ -689,8 +689,8 @@ fn closes(rest: &str, quotes: usize, hashes: usize) -> bool {
             .all(|&byte| byte == b'#')
 }
 
-/// An error at `offset` in `text`.
-fn error_at(text: &str, offset: usize, message: impl Into<String>) -> Error {
+/// An error at `offset` in `text`, a character's first byte.
+pub(crate) fn error_at(text: &str, offset: usize, message: impl Into<String>) -> Error {
     let (line, column) = line_and_column(&text[..offset]);
     Error {
         line,
