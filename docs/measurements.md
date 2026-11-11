@@ -2471,3 +2471,21 @@ What it says:
 The times of the frames were not measured: the owner's machine could not be at rest, other
 sessions building throughout. The times of compiling were not measured either: the milestone adds
 no crate and no dependency.
+
+GitHub's hosted runners, on 2026-11-11, each run green, on `e25112c`:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 9 min 22 s |
+| `check (headless)` | 11 min 9 s |
+| `check (windowed)` | 9 min 43 s |
+| `check (game)` | 8 min 1 s |
+| `windows (tests)` | 14 min 25 s |
+| `windows (render)` | 7 min 37 s |
+| `windows (game)` | 7 min 50 s |
+| `windows-release` | 12 min 19 s |
+| Docs' `links` | 20 s |
+| uwui's `check`, on its `a28fe47` | 16 s |
+
+Every job stays within its limit of 20 minutes; `windows (tests)`, the longest, has 5 min 35 s of
+margin. `windows (tests)` ran both fixtures of styles on Windows, and the tests of transitions.

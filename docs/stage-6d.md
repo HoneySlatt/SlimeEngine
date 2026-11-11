@@ -92,9 +92,9 @@ in git.
   [M6d.2b2a](#m6d2b2a--an-elements-own-style-written-in-code), an element's own style written in
   code; [M6d.2b2b](#m6d2b2b--tokens-and-the-users-layer), tokens and the user's layer, cut in
   three at its start, on 2026-11-11
-  ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)): in
-  progress, [M6d.2b2b1](#m6d2b2b1--transitions-and-the-frame-of-a-change-of-theme), transitions
-  and the frame of a change of theme; then
+  ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)): done,
+  [M6d.2b2b1](#m6d2b2b1--transitions-and-the-frame-of-a-change-of-theme), transitions and the
+  frame of a change of theme; next,
   [M6d.2b2b2](#m6d2b2b2--the-users-layer-over-what-code-writes), the user's layer over what code
   writes, and [M6d.2b2b3](#m6d2b2b3--tokens), tokens.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
@@ -936,7 +936,52 @@ from a literal.
 
 ### M6d.2b2b1 — Transitions and the frame of a change of theme
 
-The first third of M6d.2b2b, in progress: its card is in [`PLAN.md`](PLAN.md#m6d2b2b1--transitions-and-the-frame-of-a-change-of-theme).
+The first third of M6d.2b2b, cut in three at its start, on 2026-11-11
+([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)). It
+follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Transitions move every colour that a style holds, from the derive's list, and the frame
+  after a change of theme and its transition stay within targets of allocations.
+- **Crates.** `uwui`, `uwui-macros`, `slime-benches`.
+- **Delivers.**
+  - The derive lists a style's colours, from the fields marked `#[declare(color)]`; a colour
+    unmarked fails to compile.
+  - Transitions read that list in place of their own; the backdrop of a layer's root joins it.
+  - Elements that move alike, from the same colours towards the same style since the same time,
+    share one style shown, made once at each frame; an element styled again leaves them.
+  - Drawing again a text that the cache of texts holds copies neither its style nor the cache's
+    key.
+  - `ui.tree.look` counts a frame of the transition; CI bounds both frames.
+- **Done when.**
+  - Tests: a transition moves every colour of the derive's list, the backdrop and a shadow's
+    among them; elements that move alike show one style; an element styled again during its
+    transition ends on its own target while the others end on theirs.
+  - The targets of ADR-0232 met for the frame of the change and for the first frame of its
+    transition, checked by `--counters`.
+  - The look's image tests and the two fixtures of styles unchanged; the counters unchanged but
+    those recorded again, each with its reason; CI green.
+- **How to test.** `cargo test -p uwui --features editor-look`; `cargo test -p slime-examples
+  --test widgets --test editor`; `cargo run -p slime-benches -- --counters`; `scripts/check.sh`.
+- **Measured.** `ui.tree.look` and `ui.tree.editor`, before and after, on the owner's machine at
+  rest, with the owner's go.
+- **Result.** Done on 2026-11-11, CI green
+  ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)):
+  - Transitions move every colour that a style holds, from the derive's list; a field that names
+    `LinearColor` without its mark fails to compile. A modal layer's backdrop now fades with a
+    change of theme.
+  - Elements that move alike share one style shown, made once at each frame; three tests show that
+    elements that differ by their target, by the colours they started from or by their start share
+    nothing.
+  - The cache of texts finds a text without copying its key, and paint lays a label's text out
+    from its node.
+  - Under the editor's look, the frame after a change of colours allocates 8.8 times for each
+    element styled again, against 31.5 and a target of 20; the first frame of its transition 7.8
+    for each element drawn, against 30.5 and a target of 19, which `--counters` checks
+    ([measurements](measurements.md#m6d2b2b1-transitions-and-the-frame-of-a-change-of-theme)).
+  - The images and the two fixtures of styles are unchanged. The frames' times were not measured:
+    the owner's machine could not be at rest.
+  - What drawing again still allocates is debt, followed at uwui's first stage
+    ([`debt.md`](debt.md)).
 
 ### M6d.2b2b2 — The user's layer over what code writes
 
