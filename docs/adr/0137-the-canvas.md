@@ -5,7 +5,8 @@
   apart from the viewport; the interface blends in sRGB's encoding); amended by
   [0152](0152-the-dev-overlay-on-the-engines-interface.md) (a box filled with a gradient between its
   corners' colors)
-  and [0175](0175-the-quality-bar.md) (the interface's budget kept in the roadmap)
+  and [0175](0175-the-quality-bar.md) (the interface's budget kept in the roadmap), then by
+  [0234](0234-uwuis-colour-model-before-its-api-is-stable.md) (the interface blends in sRGB's encoding on every target, floats included)
 - Date: 2026-10-23
 
 ## Context

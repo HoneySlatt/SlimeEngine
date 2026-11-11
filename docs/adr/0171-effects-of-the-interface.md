@@ -5,7 +5,8 @@
   [0190](0190-uwuis-requirements.md) (motion interrupted and driven by gestures, shared elements; effects lightened on
   battery) and [0194](0194-stage-6d-uwui-leaving-the-engine.md) (the foundations built in uwui's first
   stage), then by [0227](0227-the-time-that-motion-reads.md) (each animation's cap a whole divisor of the refresh, halved for lasting
-  motion while saving power)
+  motion while saving power) and [0235](0235-content-from-outside-the-tree.md) (glass over a plane that uwui cannot read falls back,
+  to the system's glass among other steps on Apple's platforms)
 - Date: 2026-11-04
 
 ## Context

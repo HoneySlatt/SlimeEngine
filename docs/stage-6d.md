@@ -1222,7 +1222,11 @@ One core for agents, in uwui, under MIT OR Apache-2.0, which the engine builds i
   framework of their own if it fails
   ([ADR-0209](adr/0209-platforms-the-editor-and-agents.md)), as the engine's
   [`uwui-needs.md`](uwui-needs.md#for-m6d10) proposes it. What the engine, Opium, Pluto's client,
-  Slatty and Magnolia ask of uwui weighed for its first stage, each list's general needs apart. MyGo read for its contracts with the platforms and its
+  Slatty, Magnolia and Aerith ask of uwui weighed for its first stage, each list's general needs apart;
+  the colour model, the Android trial's milestone on a television box and the trial of content
+  from outside placed among its milestones
+  ([ADR-0233](adr/0233-uwuis-platforms-apples-chips-ios-and-the-tvs.md) to
+  [ADR-0236](adr/0236-one-trial-of-content-from-outside-for-aerith-and-magnolia.md)). MyGo read for its contracts with the platforms and its
   delivery. A matrix of uwui's platforms and functions, each available, experimental, planned or
   not checked ([ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)). Every
   decision of [ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md) to
@@ -1242,7 +1246,8 @@ One core for agents, in uwui, under MIT OR Apache-2.0, which the engine builds i
   the owner's identity alone, its links to the engine's ADRs made absolute; the crates that leave
   with it, as M6d.10 decides, under MIT OR Apache-2.0 and free of the engine's crates
   ([ADR-0214](adr/0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md)); its CI on Linux,
-  Windows and macOS, and its builds for the web, Android and iOS; the editor's look moved into the
+  Windows and macOS on Apple's chips, and its builds for the web, Android, iOS and tvOS
+  ([ADR-0233](adr/0233-uwuis-platforms-apples-chips-ios-and-the-tvs.md)); the editor's look moved into the
   official theme Pro, a crate of its own in uwui's repository, its images of reference in uwui's CI
   ([ADR-0213](adr/0213-uwuis-reach-its-lead-its-themes-and-agents.md)); the engine depending on it;
   uwui's files removed here, every document updated.

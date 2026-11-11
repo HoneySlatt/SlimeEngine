@@ -1,7 +1,8 @@
 # 0196. Checks by hand on macOS
 
 - Status: Accepted; amended by [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) (macOS
-  supported at uwui's 1.0 on these checks, Apple's chips checked when a Mac is at hand)
+  supported at uwui's 1.0 on these checks, Apple's chips checked when a Mac is at hand) and [0233](0233-uwuis-platforms-apples-chips-ios-and-the-tvs.md) (checks by hand
+  made on a Mac with Apple's chips, not in a virtual machine)
 - Date: 2026-11-06
 
 ## Context

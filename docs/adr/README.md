@@ -205,7 +205,7 @@ the ADR linking to it.
 | [0134](0134-the-editors-core.md) | The editor's core | Accepted; amended by 0135 and 0155 |
 | [0135](0135-the-editors-program.md) | The editor's program | Accepted; amended by 0156 and 0161 |
 | [0136](0136-the-interfaces-text.md) | The interface's text | Accepted |
-| [0137](0137-the-canvas.md) | The canvas | Accepted; amended by 0152 and 0175 |
+| [0137](0137-the-canvas.md) | The canvas | Accepted; amended by 0152, 0175 and 0234 |
 | [0138](0138-the-high-tier-at-3840-2160.md) | The high tier at 3840 × 2160 | Accepted; amended by 0175 |
 | [0139](0139-text-drawn-and-the-display-list.md) | Text drawn, and the display list | Accepted |
 | [0140](0140-the-tree-of-elements.md) | The tree of elements | Accepted; amended by 0141, 0143, 0146 and 0175 |
@@ -239,7 +239,7 @@ the ADR linking to it.
 | [0168](0168-rearranging-the-hierarchy.md) | Rearranging the hierarchy | Accepted |
 | [0169](0169-the-eye-and-the-lock.md) | The eye and the lock | Accepted |
 | [0170](0170-applications-on-the-ui-framework.md) | Applications on the engine's UI framework | Accepted; amends 0098, 0132 and 0149; amended by 0171, 0173, 0178, 0181, 0190 and 0194 |
-| [0171](0171-effects-of-the-interface.md) | Effects of the interface, at their lowest cost | Accepted; amends 0170; amended by 0190, 0194 and 0227 |
+| [0171](0171-effects-of-the-interface.md) | Effects of the interface, at their lowest cost | Accepted; amends 0170; amended by 0190, 0194, 0227 and 0235 |
 | [0172](0172-regions-of-tabs.md) | Regions of tabs | Accepted; amends 0153 and 0155 |
 | [0173](0173-the-platforms-of-applications.md) | The platforms of applications | Accepted; amends 0015, 0098, 0100 and 0170; amended by 0181, 0190 and 0213 |
 | [0174](0174-layouts-kept-floating-panels-and-closed-panels.md) | Layouts kept, floating panels and closed panels | Accepted; amends 0150 and 0155 |
@@ -249,7 +249,7 @@ the ADR linking to it.
 | [0178](0178-two-pilots-and-the-frameworks-name.md) | Two pilots, and the framework's name | Accepted; amends 0004 and 0170; amended by 0179, 0180, 0181, 0194 and 0203 |
 | [0179](0179-the-framework-named-uwui.md) | The framework named uwui | Accepted; amends 0178 |
 | [0180](0180-one-canvas-and-the-frameworks-foundations.md) | One canvas, and the framework's foundations | Accepted; amends 0178; amended by 0181 |
-| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223, 0225, 0226 and 0227 |
+| [0181](0181-uwuis-scope.md) | uwui's scope | Accepted; amends 0011, 0031, 0080, 0141, 0146, 0170, 0173, 0178 and 0180; amended by 0182, 0190, 0194, 0197, 0198, 0203, 0213, 0223, 0225, 0226, 0227, 0233 and 0236 |
 | [0182](0182-the-engine-under-mit-or-apache-2-0.md) | The engine under MIT OR Apache-2.0 | Superseded by 0214 for the engine; amends 0006 and 0181 |
 | [0183](0183-uwuis-logo.md) | uwui's logo | Accepted |
 | [0184](0184-the-engines-logo.md) | The engine's logo | Accepted |
@@ -258,13 +258,13 @@ the ADR linking to it.
 | [0187](0187-a-hidden-window-at-rest.md) | A hidden window at rest | Accepted; amends 0021; amended by 0227 |
 | [0188](0188-a-light-check-for-documentation.md) | A light check for documentation | Accepted; amends 0007 |
 | [0189](0189-first-measures-of-time.md) | First measures of time | Accepted; amends 0104, 0175 and 0186; amended by 0191 and 0215 |
-| [0190](0190-uwuis-requirements.md) | uwui's requirements | Accepted; amends 0170, 0171, 0173, 0175 and 0181; amended by 0194, 0197, 0199, 0202, 0203, 0205, 0209, 0211, 0212, 0213, 0218, 0220, 0222, 0225, 0226 and 0227 |
+| [0190](0190-uwuis-requirements.md) | uwui's requirements | Accepted; amends 0170, 0171, 0173, 0175 and 0181; amended by 0194, 0197, 0199, 0202, 0203, 0205, 0209, 0211, 0212, 0213, 0218, 0220, 0222, 0225, 0226, 0227, 0234 and 0235 |
 | [0191](0191-input-in-sway-start-budgets-and-the-editors-rate.md) | Input given in sway, two budgets of a start, and the editor's rate | Accepted; amends 0175 and 0189; amended by 0200 |
 | [0192](0192-the-budget-of-a-cold-start.md) | The budget of a cold start | Accepted; amends 0175 |
 | [0193](0193-first-measures-of-resources.md) | First measures of resources | Accepted; amends 0175 |
 | [0194](0194-stage-6d-uwui-leaving-the-engine.md) | Stage 6d: uwui leaving the engine | Accepted; amends 0170, 0171, 0178, 0181 and 0190; amended by 0198, 0202, 0203 and 0220 |
 | [0195](0195-a-series-of-headless-compositors.md) | A series of headless compositors | Accepted; amends 0185 |
-| [0196](0196-checks-by-hand-on-macos.md) | Checks by hand on macOS | Accepted; amended by 0213 |
+| [0196](0196-checks-by-hand-on-macos.md) | Checks by hand on macOS | Accepted; amended by 0213 and 0233 |
 | [0197](0197-uwuis-repository-public-from-now.md) | uwui's repository, public from now | Accepted; amends 0181 and 0190 |
 | [0198](0198-screens-of-reference-and-the-rivals-measured.md) | The screens of reference and the rivals measured | Accepted; amends 0181 and 0194; amended by 0199, 0200, 0201, 0203 and 0213 |
 | [0199](0199-uwuis-targets-tools-and-references-narrowed.md) | uwui's targets, tools and references narrowed | Accepted; amends 0190 and 0198; amended by 0202, 0203 and 0213 |
@@ -281,7 +281,7 @@ the ADR linking to it.
 | [0210](0210-signals-named-for-a-reload.md) | Signals named for a reload, through serde | Accepted; amends 0202 and 0205; amended by 0211, 0212 and 0225 |
 | [0211](0211-the-executor-and-other-threads-through-channels.md) | The interface's executor, and other threads through channels | Accepted; amends 0190, 0205 and 0210; amended by 0227 |
 | [0212](0212-a-functions-body-reloaded-through-subsecond-and-dx.md) | A function's body reloaded through subsecond and dx | Accepted; amends 0190, 0202 and 0210; amended by 0224 |
-| [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) | uwui's reach, its lead, its themes and agents | Accepted; amends 0173, 0181, 0190, 0196, 0198 and 0199; amended by 0214, 0215, 0218, 0222 and 0226 |
+| [0213](0213-uwuis-reach-its-lead-its-themes-and-agents.md) | uwui's reach, its lead, its themes and agents | Accepted; amends 0173, 0181, 0190, 0196, 0198 and 0199; amended by 0214, 0215, 0218, 0222, 0226, 0233 and 0236 |
 | [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) | The engine under a licence of its own, with a royalty | Accepted; supersedes 0182 for the engine; amends 0006, 0207, 0209 and 0213; amended by 0219 |
 | [0215](0215-the-engine-measured-against-the-market.md) | The engine measured against the market | Accepted; amends 0098, 0114, 0175, 0176, 0189, 0207, 0208, 0209 and 0213; amended by 0226 |
 | [0216](0216-light-geometry-and-the-gpus-floor.md) | Light, geometry and the GPU's floor | Accepted; amends 0034, 0035, 0098, 0114, 0115 and 0208 |
@@ -301,3 +301,7 @@ the ADR linking to it.
 | [0230](0230-the-cores-roles-and-each-kinds-defaults.md) | The core's roles, and each kind's defaults from its look | Accepted; amends 0141, 0223 and 0229 |
 | [0231](0231-an-elements-own-style-written-in-code.md) | An element's own style written in code, by declarations with states | Accepted; amends 0141, 0223, 0226 and 0229; amended by 0232 |
 | [0232](0232-transitions-read-the-derives-colours-and-share-what-they-show.md) | Transitions read the derive's colours and share what they show; M6d.2b2b cut in three | Accepted; amends 0229 and 0231 |
+| [0233](0233-uwuis-platforms-apples-chips-ios-and-the-tvs.md) | uwui's platforms: Apple's chips, iOS behind a project, and the televisions | Accepted; amends 0181, 0196 and 0213 |
+| [0234](0234-uwuis-colour-model-before-its-api-is-stable.md) | uwui's colour model before its API is stable, HDR content after | Accepted; amends 0137 and 0190 |
+| [0235](0235-content-from-outside-the-tree.md) | Content from outside the tree: the element is uwui's, the player the application's | Accepted; amends 0171 and 0190 |
+| [0236](0236-one-trial-of-content-from-outside-for-aerith-and-magnolia.md) | One trial of content from outside, for Aerith and Magnolia | Accepted; amends 0181 and 0213 |
