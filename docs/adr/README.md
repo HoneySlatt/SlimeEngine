@@ -277,7 +277,7 @@ the ADR linking to it.
 | [0206](0206-slatty-ported-again-the-daw-later.md) | Slatty ported again; the DAW later | Accepted; amends 0203 and 0205; its check done |
 | [0207](0207-what-slimeengine-is-to-become.md) | What SlimeEngine is to become | Accepted; amends 0098 and principle 8; amended by 0214, 0215, 0219 and 0220 |
 | [0208](0208-the-engines-promises-and-systems.md) | The engine's promises and systems | Accepted; amends 0098, 0107 and 0114; amended by 0215, 0216 and 0217 |
-| [0209](0209-platforms-the-editor-and-agents.md) | Platforms, the editor and agents | Accepted; amends 0098, 0099, 0122 and 0190; amended by 0214, 0215 and 0218 |
+| [0209](0209-platforms-the-editor-and-agents.md) | Platforms, the editor and agents | Accepted; amends 0098, 0099, 0122 and 0190; amended by 0214, 0215, 0218 and 0239 |
 | [0210](0210-signals-named-for-a-reload.md) | Signals named for a reload, through serde | Accepted; amends 0202 and 0205; amended by 0211, 0212 and 0225 |
 | [0211](0211-the-executor-and-other-threads-through-channels.md) | The interface's executor, and other threads through channels | Accepted; amends 0190, 0205 and 0210; amended by 0227 |
 | [0212](0212-a-functions-body-reloaded-through-subsecond-and-dx.md) | A function's body reloaded through subsecond and dx | Accepted; amends 0190, 0202 and 0210; amended by 0224 |
@@ -285,7 +285,7 @@ the ADR linking to it.
 | [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) | The engine under a licence of its own, with a royalty | Accepted; supersedes 0182 for the engine; amends 0006, 0207, 0209 and 0213; amended by 0219 |
 | [0215](0215-the-engine-measured-against-the-market.md) | The engine measured against the market | Accepted; amends 0098, 0114, 0175, 0176, 0189, 0207, 0208, 0209 and 0213; amended by 0226 |
 | [0216](0216-light-geometry-and-the-gpus-floor.md) | Light, geometry and the GPU's floor | Accepted; amends 0034, 0035, 0098, 0114, 0115 and 0208 |
-| [0217](0217-worlds-by-density-generated-and-destroyed.md) | Worlds by density, generated and destroyed | Accepted; amends 0098, 0107, 0109, 0112 and 0208 |
+| [0217](0217-worlds-by-density-generated-and-destroyed.md) | Worlds by density, generated and destroyed | Accepted; amends 0098, 0107, 0109, 0112 and 0208; amended by 0239 |
 | [0218](0218-one-core-for-agents-in-uwui.md) | One core for agents, in uwui | Accepted; amends 0099, 0122, 0190, 0209 and 0213 |
 | [0219](0219-test-games-in-place-of-hunna-wood.md) | Test games in place of Hunna Wood | Accepted; amends 0006, 0067, 0207, 0214 and principle 4 |
 | [0220](0220-the-roadmap-reshaped-by-the-market.md) | The roadmap reshaped by the market | Accepted; amends 0098, 0190, 0194 and 0207; amended by 0221, 0222, 0225, 0226 and 0229 |
@@ -307,3 +307,4 @@ the ADR linking to it.
 | [0236](0236-one-trial-of-content-from-outside-for-aerith-and-magnolia.md) | One trial of content from outside, for Aerith and Magnolia | Accepted; amends 0181 and 0213 |
 | [0237](0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md) | The user's layer: the size of text and less motion as preferences, density and contrast by names | Accepted; amends 0149, 0223, 0226, 0231 and 0232 |
 | [0238](0238-tokens-typed-named-in-code-declared-by-each-crate.md) | Tokens: the themes' values named in code, typed by kind, declared by each crate | Accepted; amends 0223, 0229, 0230, 0231 and 0232 |
+| [0239](0239-content-made-outside-and-maps-in-the-editor.md) | What a game's content needs: importers, characters, large sources, and maps in the editor | Accepted; amends 0209 and 0217 |

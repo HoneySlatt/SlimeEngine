@@ -5,7 +5,8 @@
   reaches the simulation), [0109](0109-stable-references-and-undo.md) (the identity of what is
   generated), [0112](0112-levels-saves-and-worlds-for-open-worlds.md) (dense content stored by cell)
   and [0208](0208-the-engines-promises-and-systems.md) (the open world's target; generation in play;
-  language models for characters)
+  language models for characters); amended by [0239](0239-content-made-outside-and-maps-in-the-editor.md)
+  (maps made in the editor, reliefs and placements imported)
 - Date: 2026-11-07
 
 ## Context

@@ -206,6 +206,8 @@ Each is decided by ADR at the stage where it becomes necessary, not earlier. uwu
 | A budget of pipelines per game | bounded permutations of the material graph (ADR-0208) | Stage 9b |
 | The genre of the 2D game sold | the 2D test game's, its directory renamed if it differs (ADR-0219) | when it is planned, around Stage 9b |
 | The module of language models in play | optional, off by default; its budgets and the facts that bind it (ADR-0217) | Stage 9b, with characters' AI |
+| A skeleton and a face's expressions shared by a game's characters | one for the engine, or one per game mapped onto the engine's; the way from a person scanned or sculpted to a character (ADR-0239) | Stage 9b's start |
+| Versions of large sources | Git with LFS, Lore, Perforce, measured on a game's sources of terabytes; the shared cache of cooked data beside them (ADR-0209, ADR-0239) | Stage 9b |
 | Learned models | in play, inference on the engine's own compute shaders on every vendor's GPU, without a vendor's kit, the upscaler and the denoiser first, then faces; in tools, capture and voice; each model's licence and training data checked; the vendors' accelerations at Stage 9c (ADR-0216, ADR-0219) | in play, Stage 9a's start; in tools, Stage 9b's start |
 | Communities and site | where users talk, the site's form | 0.14 |
 
@@ -493,7 +495,7 @@ Before it: the scenes rebuilt alike in Unreal for physics, sound and animation; 
 - Physics behind an engine abstraction: bodies, colliders, constraints, queries (a ray or a segment against the world, ADR-0057), character controller; the backend chosen against vehicles (wheels and suspension, motorbikes, free flight), walking inside a moving vehicle, 2D, characters driven by physics, worlds in double precision and a simulation that runs the same way twice (ADR-0098)
 - Riding: a character attached to a mount or a seat, with its animations, input and camera (ADR-0098)
 - Audio: sources, listener, spatialization, buses, mixing, streaming; the importer of audio files, moved from Stage 4 (ADR-0068); the backend chosen against sound placed precisely around the listener's head, reverberation per room and sounds muffled by walls (ADR-0098)
-- The core of skeletal animation: skeletons, skinning, clips, blending, moved from Stage 9b (ADR-0097); poses that are not entities, and bones that things are attached to (ADR-0108)
+- The core of skeletal animation: skeletons, skinning, clips, blending, moved from Stage 9b (ADR-0097); poses that are not entities, and bones that things are attached to (ADR-0108); clips imported from FBX and BVH beside glTF's (ADR-0209, ADR-0239)
 - Input action mapping, on the keys and buttons held that Stage 6a keeps (ADR-0107)
 - UI of games: text, menus, HUD, on uwui, whose first stage gives it motion, transforms, masks, text styled by ranges and focus driven by gamepads (ADR-0170, ADR-0194); UI on surfaces in the world, screen readers, and UI documents, the games' screens as data (ADR-0098, ADR-0132); the engine's layer over uwui's core, drawn in the render graph with the game's materials, 3D within an interface, the game's time (ADR-0209); the foundations of section 4's menus: every input answered in the frame, transitions interrupted, screens preloaded, sound on the motion (ADR-0215)
 - Physics', sound's and animation's criteria (section 4), their figures set at the stage's start, measured against Unreal's on the scenes rebuilt alike (ADR-0215)
@@ -553,7 +555,7 @@ Looks and subjects:
 
 - The look of a game in its look file: the curve of tones, each effect after the frame, its color grading; the model of light that a game writes; passes of the game's own and the kinds of materials that it registers (ADR-0098, ADR-0111, ADR-0215)
 - Stylised tools, as section 4's bar lists them, and the pieces for 2D and stylized games that no earlier stage needed (section 1, ADR-0215)
-- Realism, subject by subject (section 4): skin lit through subsurface scattering, eyes, hair; transparency, fog, ambient occlusion, decals; a day-night cycle; HDR output (ADR-0098, ADR-0215)
+- Realism, subject by subject (section 4): skin lit through subsurface scattering, eyes, hair; transparency, fog, ambient occlusion, decals; a day-night cycle; HDR output, and images of high range imported from OpenEXR (ADR-0098, ADR-0215, ADR-0239)
 - The stability of the image as a measured goal: no shimmering, no trails, no detail that pops in (ADR-0098)
 - The blind tests by people and the test of signature (section 4)
 
@@ -563,12 +565,14 @@ Looks and subjects:
 
 **Goal.** A team can produce a narrative game.
 
-The stage is in three parts, in this order, split when it is planned: the chain of production first, so that the first game sold does not wait; then characters, faces and AI; then story, sequencer, menus' timeline and effects (ADR-0220). Inference in tools, capture and voice, is decided at its start (section 5).
+The stage is in three parts, in this order, split when it is planned: the chain of production first, so that the first game sold does not wait; then characters, faces and AI; then story, sequencer, menus' timeline and effects (ADR-0220). Inference in tools, capture and voice, and the skeleton and face that a game's characters share, are decided at its start (section 5).
 
 The chain of production:
 
 - Material graph → IR → shader generation; values set per instance (ADR-0057); variants, permutation cache, async compilation; a budget of pipelines per game, every pipeline listed when cooked, none created after a level starts (ADR-0208)
 - Cooked archives redesigned, with meshes cooked in clusters for virtual geometry (ADR-0216)
+- Scenes imported from OpenUSD and caches from Alembic; Blender linked live, a change in it seen in the editor and the running game within a second (ADR-0209, ADR-0239)
+- Large sources: sources of terabytes kept in versions, and a shared cache of cooked data, so that nobody cooks again what another has cooked (section 5, ADR-0239)
 - Build, cook and package: Development, Shipping, Server, Editor configurations, for Linux and Windows; packages for applications too (ADR-0173). Builds without a console (Windows games) write their log to a file.
 - Updates of shipped games: archives, patches that download only what changed, downloadable content and expansions as packages added to an installed game; from its first release, a save written by a shipped version of a game loads in all of its later versions, checked in CI with one save fixture per shipped version (ADR-0100); the same updates serve applications (ADR-0173)
 - A game built, sent to a paired device, started and driven from the editor in one action; Steam's integration as an optional crate, Steam Input and its glyphs, the keyboard on screen, saves in its cloud (ADR-0209)
@@ -577,6 +581,8 @@ The chain of production:
 Characters, faces and AI:
 
 - Animation beyond the core that Stage 7 builds (ADR-0097): state machines, blend trees, IK, retargeting, root motion; motion matching and quadrupeds; 2D animation (ADR-0098); animation in steps, with smears, for stylised games (ADR-0215)
+- The skeleton and the face's expressions that a game's characters share, and the way from a person scanned or sculpted to a character (section 5, ADR-0239)
+- A body's performance captured, from a video, a suit of sensors or an optical studio's files, imported and cleaned in the editor (ADR-0239)
 - Faces beyond blend shapes, with learned correctives; a face driven by its voice alone in each language, with its emotions; a performance captured with a plain camera; lip sync (ADR-0098, ADR-0215)
 - Hair, cloth and flesh simulated; reactions physical, blended with animation (ADR-0215)
 - A track of combat for each animation: a blow's frames, its zones that hit, its windows to cancel, its stops on impact (ADR-0208)
@@ -587,6 +593,7 @@ Story, sequencer and effects:
 
 - Dialogue and quests, with the state of a story that they read and that scenes depend on; the rules of a particular game stay in the game (ADR-0098); layers of a level that exist while a condition on the story holds (ADR-0112)
 - Translation tables and voice (ADR-0098)
+- The tools of those who write and design: a writer's tool for trees of lines and the world's bible, its characters, places and facts; a level blocked out in simple shapes before its art; a camera held by hand for the sequencer (ADR-0239)
 - Sequencer: camera, animation, audio, event and VFX tracks; a timeline that animates menus without code, for designers and agents, a general need of uwui's (ADR-0215)
 - VFX: CPU and GPU particles
 
@@ -624,13 +631,13 @@ Streaming and the data's foundations:
 - Large-world coordinates
 - High-scale rendering beyond Stage 9a's virtual geometry and light: GPU-driven rendering, advanced culling, virtual texturing, each admitted against a measured problem (ADR-0216)
 - No visible limit to the distance seen (section 4)
-- One file per cell; a budget of cooking time per km² (ADR-0208, ADR-0209)
+- One file per cell; a budget of cooking time per km², cooking spread over several machines (ADR-0208, ADR-0209, ADR-0239)
 
 Destruction, generation and the living world:
 
 - Destruction, on Stage 7's physics: what an artist cut beforehand, and what breaks where it is struck; the same everywhere, kept in saves, the same on every machine online, updating light and the AI's paths; judged blind against the rivals, with the lead's margins on its cost; no world of voxels (ADR-0217)
 - Procedural generation. At creation: graphs of rules for terrain, rivers, roads, vegetation, villages and buildings, their result frozen, then changed by hand. In play: small details seeded on the GPU, the same each time; levels or worlds generated from a seed, as each game chooses, the same on every machine, in replays and online; a save keeps the seed and the changes; generation runs in the background within the budgets of frames. The space opera's planets stay made by hand (ADR-0098, ADR-0217)
-- Terrain, vegetation and their editing tools
+- Terrain, vegetation and their editing tools: maps made in the editor, never in Blender, which makes their pieces; a relief generated by a graph or imported from 16-bit PNG, OpenEXR or elevation data; rivers, roads and cliffs drawn as curves; zones painted, filled by graphs, their result frozen, then changed by hand; placements imported from OpenUSD (ADR-0217, ADR-0239)
 - Crowds and traffic, of thousands of characters, in the three levels of life of section 4 (ADR-0098, ADR-0215)
 - Terrain that deforms, hair drawn strand by strand, simulated cloth (ADR-0098)
 - Water and weather (ADR-0098)
@@ -699,7 +706,7 @@ Direction only. None of this is planned work until Stage 11 is reached.
 - **Online platform for MMO-scale games.** A closed, paid service of the owner's, the engine complete without it (ADR-0207). Distinct from the engine: gateway, authentication, persistence, world and instance services, chat, economy, group finding, anti-cheat, observability, deployment. The engine supplies serialization, replication, headless servers and world partitioning.
 - **Consoles.** Only with official SDK access, and hardware to test on. Built on the native backends of Stage 9c (ADR-0098), each a private layer, outside this repository, for approved studios (ADR-0209).
 - **Virtual reality** through OpenXR, after Stage 9c, when a game asks; **mobile and web games** for the engine's other users, after 1.0 (ADR-0209).
-- **Large-team workflows.** Asset locking, distributed builds and cooking, shared derived-data cache; editing at several moved to Stage 11 (ADR-0209).
+- **Large-team workflows.** Asset locking and distributed builds; editing at several moved to Stage 11 (ADR-0209); the shared cache of cooked data moved to Stage 9b, and cooking spread over machines to Stage 10a (ADR-0239).
 - **Ecosystem.** A store of plugins and assets after 0.14, its plugins checked and signed, 10 % of sales, none in a creator's first year (ADR-0207, ADR-0214); templates come with Stage 11.
 - **Products around the engine,** closed, outside this repository (ADR-0214): support for studios, maintenance extended, services of experts and licences made to measure, after 0.14; a paid programme of partners, from 0.14; a hosted assistant in the editor, beside the agents that people bring free through the MCP server; the online services, paid by use at first.
 - **Governance.** A foundation, a second maintainer and a plan of continuation, after 1.0 (ADR-0207).

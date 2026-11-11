@@ -7,7 +7,7 @@
   paired machine) and [0190](0190-uwuis-requirements.md) (games' interfaces on uwui's core with a
   layer of the engine's); with [ADR-0207](0207-what-slimeengine-is-to-become.md) and
   [ADR-0208](0208-the-engines-promises-and-systems.md), the record of one interview; amended by
-  [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) (a paid hosted assistant beside the agent one brings), then by [0215](0215-the-engine-measured-against-the-market.md) (the editor and agents measured against rivals) and [0218](0218-one-core-for-agents-in-uwui.md) (agents' protections built once)
+  [0214](0214-the-engine-under-a-licence-of-its-own-with-a-royalty.md) (a paid hosted assistant beside the agent one brings), then by [0215](0215-the-engine-measured-against-the-market.md) (the editor and agents measured against rivals) and [0218](0218-one-core-for-agents-in-uwui.md) (agents' protections built once), and by [0239](0239-content-made-outside-and-maps-in-the-editor.md) (its importers and Blender's live link placed in stages)
 - Date: 2026-11-07
 
 ## Context
