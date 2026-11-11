@@ -2427,6 +2427,56 @@ GitHub's hosted runners, on 2026-11-10, each run green, on `b749c3e`:
 Every job stays within its limit of 20 minutes. `windows (tests)` ran both fixtures of styles on
 Windows, and the tests of the own style, the place of a call among them.
 
+## M6d.3a, uwui's reader of KDL
+
+uwui's reader of KDL 2.0, `uwui-kdl`
+([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)), on 2026-11-11, on
+the CPU alone, an AMD Ryzen 7 5800X, 16 logical CPUs, Linux, release builds. `ui.kdl.read` reads two
+documents of rules and themes' values in ADR-0241's notation, run twice:
+
+| Measure, median of 30 | Run 1 | Run 2 |
+|---|---|---|
+| a document of the editor's look's size, 29 206 bytes, read | 279.7 µs | 262.4 µs |
+| a document of 4 194 497 bytes, read | 46.33 ms | 47.24 ms |
+
+Its counters, the same in a debug build, as CI counts them:
+
+| Counter | Value |
+|---|---|
+| allocations of reading the look document | 28 |
+| bytes taken reading the look document | 401 136 |
+| allocations of reading the large document | 49 |
+| bytes taken reading the large document | 51 379 952 |
+
+What it says:
+
+- The reader reads some 90 to 110 MB a second, its time growing with the text: 143 times the text
+  takes 170 times as long.
+- It takes about 13 bytes of memory for each byte of text, in a few dozen allocations whose
+  number grows with the logarithm of the text's size. Reading the look's documents through
+  reflection today takes 127 736 allocations, but holds more: the typed declarations, which
+  M6d.3b reads from this tree.
+
+The frames of `ui.tree.look` and `ui.tree.editor` had not been timed since M6d.2b2b1. *Before* is
+`13ba018`, the code of M6d.2b2a; *after* is `185ed10`, whose uwui is M6d.2b2b3's. The two binaries
+ran in turn, twice each, on lavapipe's settings; another session's `cargo` ran during some runs,
+the load average between 2.2 and 2.6:
+
+| Benchmark | Measure, median of 15 | Before | After |
+|---|---|---|---|
+| `ui.tree.look` | a frame after the look's colours changed, every element styled again | 53.34, 52.49 ms | 46.42, 44.33 ms |
+| `ui.tree.look` | the frames of the transition that it starts, together | 800.35, 765.11 ms | 571.76, 499.99 ms |
+| `ui.tree.look` | a frame after the size of text changed, every text laid out again | not measured | 155.73, 154.05 ms |
+| `ui.tree.editor` | a frame after the theme changed, every element styled again | 22.20, 22.54 ms | 20.10, 16.97 ms |
+| `ui.tree.editor` | the first frame: built, its texts and its tree laid out, drawn | 160.32, 164.77 ms | 149.95, 145.90 ms |
+| `ui.tree.editor` | a frame after one value of the inspector changed | 3.94, 4.18 ms | 3.89, 3.36 ms |
+| `ui.tree.editor` | a frame with nothing changed | 517.6, 549.1 µs | 522.3, 498.7 µs |
+
+- The frames of a transition after a change of colours take 30 % less time, which the styles
+  shared by elements that move alike give (M6d.2b2b1); the frame of the change 14 % less.
+- The other frames change within the runs' spread, which the load widens.
+- The times of compiling `uwui` and `uwui-kdl` were not measured: the machine was not at rest.
+
 ## M6d.6, the series of headless compositors
 
 The editor and *Hunna Wood* in five headless compositors
