@@ -107,10 +107,10 @@ in git.
 - In progress: [M6d.3](#m6d3--documents-in-kdl), documents in KDL, cut in three at its start, on
   2026-11-11 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)): done,
   [M6d.3a](#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL, on the same day; then
-  [M6d.3b](#m6d3b--themes-and-style-sheets-in-kdl), cut in two: in progress,
-  [M6d.3b1](#m6d3b1--themes-in-kdl), themes; then [M6d.3b2](#m6d3b2--style-sheets-in-kdl), style
-  sheets, and [M6d.3c](#m6d3c--shortcuts-docks-and-reflection-out), shortcuts, docks and
-  reflection out.
+  [M6d.3b](#m6d3b--themes-and-style-sheets-in-kdl), cut in two: done,
+  [M6d.3b1](#m6d3b1--themes-in-kdl), themes, on the same day; then
+  [M6d.3b2](#m6d3b2--style-sheets-in-kdl), style sheets, and
+  [M6d.3c](#m6d3c--shortcuts-docks-and-reflection-out), shortcuts, docks and reflection out.
 - In progress on track B: [M6d.4](#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on wgpu,
   cut in three at its start, on 2026-11-11
   ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)):
@@ -1213,8 +1213,46 @@ M6d.3c, and the precisions of the notation that the halves need were decided wit
 
 ### M6d.3b1 — Themes in KDL
 
-In progress: its card is in [`PLAN.md`](PLAN.md#m6d3b1--themes-in-kdl), back here with its result
-when it is done.
+The first half of [M6d.3b](#m6d3b--themes-and-style-sheets-in-kdl), cut on 2026-11-11
+([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). It follows the
+rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** uwui reads its themes in KDL, each value of the kind that its group gives, and
+  reflection no longer reads them.
+- **Crates.** `uwui`, `uwui-kdl`, `slime-cook`, `slime-assets`, `slime-benches`, the examples; CI's
+  cache keys, for the cooker's new dependency.
+- **Delivers.**
+  - A theme's values in the groups `color`, `length`, `duration`, `number` and `text`; a duration
+    with its unit; a name taking its group's unit, a unit on a name refused; a share in a colour
+    function named from `number` alone.
+  - A stack's names resolved once, without recursion, chains and nested functions bounded; a name
+    keeps the kind that the first theme gave it, the error naming both places; `#null` refused.
+  - Tokens read from the values resolved; today's sheets, still TOML, read them through an adapter
+    that M6d.3b2 removes.
+  - Errors at their line and column, gathered up to a cap.
+  - The repository's themes converted, `.theme.kdl`; a theme cooked as its text, checked; the
+    cooker's two-part extensions, `.theme` refused by name; `Theme::from_binary` gone.
+- **Done when.** Random themes resolve the same through the reflected reader and the new one, bit
+  for bit; the fixture of the repository's documents, the two of styles and the look's images
+  unchanged; tests of each refusal, a deep nesting refused without overflow; CI green.
+- **Measured.** The allocations and the time of reading the look's documents.
+- **Result.** Done on 2026-11-11, CI green
+  ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)):
+  - uwui reads its themes in KDL, each value in its group's kind; a stack's names are followed once
+    without recursion, a chain counted by its depth whatever the order of its names, colour
+    functions nested eight deep at most; every refusal of the card, a number past an `f32` and a
+    colour that is no finite number among them, at its line, the errors gathered up to sixteen, in
+    time linear in the theme.
+  - The reflected reader stays as a test's oracle: random stacks of themes give the same tokens
+    and declarations bit for bit, and the repository's themes, converted to `.theme.kdl`, read to
+    the fixture recorded before them. The reflected reader overflowed its stack on functions
+    nested deep and on shares naming each other in a cycle.
+  - A theme is cooked as its text, checked by `uwui-kdl`; the cooker reads two-part extensions and
+    refuses a `.theme` of TOML by its name.
+  - Reading the look's documents takes 47 % less time and allocates 25 % less, the sheet still read
+    through reflection ([measurements](measurements.md#m6d3b1-themes-in-kdl)); uwui's core already
+    passes its budget for the web before it reads a document, and the times of compiling `uwui`
+    and `uwui-kdl` were not measured, the machine not at rest ([`debt.md`](debt.md)).
 
 ### M6d.3b2 — Style sheets in KDL
 

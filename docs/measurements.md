@@ -2504,6 +2504,49 @@ Every job stays within its limit of 20 minutes. `check (headless)` took as long 
 its margin 3 min 12 s; `windows-release` 1 min 51 s less, its margin 5 min 23 s. The new crate
 and its 338 tests of KDL add some seconds to the jobs that test the workspace.
 
+## M6d.3b1, themes in KDL
+
+The look's themes read in KDL by uwui's own reader, the look's style sheet still through
+reflection ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)), on
+2026-11-11, an AMD Ryzen 7 5800X, 16 logical CPUs, Linux, release builds on lavapipe's settings.
+*Before* is `2f4dbcb`, its themes read through reflection, built with `ui.tree.look`'s new series;
+*after* is `58082b9`. The two binaries ran in turn, twice each, the load average below 1:
+
+| Measure, median of 15 | Before | After |
+|---|---|---|
+| the look's documents read, its sheet and its themes, by `Ui::set_style` | 8.22, 8.18 ms | 4.30, 4.36 ms |
+| a frame after the look's colours changed, every element styled again | 44.13, 42.91 ms | 40.63, 41.52 ms |
+| the frames of the transition that it starts, together | 474.76, 440.54 ms | 434.15, 438.17 ms |
+| a frame after the size of text changed, every text laid out again | 135.78, 132.22 ms | 130.61, 128.73 ms |
+
+Reading the look's documents allocates 95 970 times, from 127 736, in a debug build, as CI counts
+them; every other counter is unchanged.
+
+- Reading the look's documents takes 47 % less time and allocates 25 % less: a theme is read once,
+  where reflection parsed it again for each value. What remains is the sheet's, read through
+  reflection until M6d.3b2.
+- The frames change within the runs' spread.
+- The times of compiling `uwui` and `uwui-kdl` were not measured: another session's `cargo` ran,
+  the load average between 3.3 and 3.8.
+
+GitHub's hosted runners, on 2026-11-11, each run green, on `58082b9`, `windows-release` run again
+after GitHub refused its artefact five times:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 9 min 40 s |
+| `check (headless)` | 17 min 36 s |
+| `check (windowed)` | 11 min 38 s |
+| `check (game)` | 15 min 23 s |
+| `windows (tests)` | 12 min 27 s |
+| `windows (render)` | 7 min 54 s |
+| `windows (game)` | 8 min 15 s |
+| `windows-release` | 14 min 56 s |
+| Docs' `links` | 21 s |
+
+Every job stays within its limit of 20 minutes. `check (headless)` took 48 s more than on `0e675a0`,
+its margin 2 min 24 s; on `32b3f0b`, before the review's changes, it took 17 min 30 s.
+
 ## M6d.6, the series of headless compositors
 
 The editor and *Hunna Wood* in five headless compositors

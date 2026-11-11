@@ -26,9 +26,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
 - M6d.3, documents in KDL, cut in three at its start, on 2026-11-11: every document of uwui is
   KDL, read by a reader of its own
   ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). Done on the
-  same day: [M6d.3a](stage-6d.md#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL. M6d.3b cut
-  in two at its start: in progress, [M6d.3b1](#m6d3b1--themes-in-kdl), themes; then
-  [M6d.3b2](stage-6d.md#m6d3b2--style-sheets-in-kdl), style sheets, and
+  same day: [M6d.3a](stage-6d.md#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL, and, M6d.3b
+  cut in two, [M6d.3b1](stage-6d.md#m6d3b1--themes-in-kdl), themes. Next on track A:
+  [M6d.3b2](stage-6d.md#m6d3b2--style-sheets-in-kdl), style sheets, then
   [M6d.3c](stage-6d.md#m6d3c--shortcuts-docks-and-reflection-out).
 - In parallel, the owner's choice of 2026-11-11: two tracks at most, each milestone in its own
   session.
@@ -54,8 +54,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 | Milestone | Status |
 |---|---|
-| [M6d.0a to M6d.3a, and C1](stage-6d.md#where-it-stands) | Done |
-| [M6d.3b1 — Themes in KDL](#m6d3b1--themes-in-kdl) | In progress |
+| [M6d.0a to M6d.3b1, and C1](stage-6d.md#where-it-stands) | Done |
 | [M6d.3b2 — Style sheets in KDL](stage-6d.md#m6d3b2--style-sheets-in-kdl) | Planned |
 | [M6d.3c — Shortcuts, docks and reflection out](stage-6d.md#m6d3c--shortcuts-docks-and-reflection-out) | Planned |
 | [M6d.4a — The canvas's prototype and its ADR](#m6d4a--the-canvass-prototype-and-its-adr) | In progress |
@@ -70,32 +69,6 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.3b1 — Themes in KDL
-
-The first half of [M6d.3b](stage-6d.md#m6d3b--themes-and-style-sheets-in-kdl), cut on 2026-11-11
-([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). It follows the
-rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** uwui reads its themes in KDL, each value of the kind that its group gives, and
-  reflection no longer reads them.
-- **Crates.** `uwui`, `uwui-kdl`, `slime-cook`, `slime-assets`, `slime-benches`, the examples; CI's
-  cache keys, for the cooker's new dependency.
-- **Delivers.**
-  - A theme's values in the groups `color`, `length`, `duration`, `number` and `text`; a duration
-    with its unit; a name taking its group's unit, a unit on a name refused; a share in a colour
-    function named from `number` alone.
-  - A stack's names resolved once, without recursion, chains and nested functions bounded; a name
-    keeps the kind that the first theme gave it, the error naming both places; `#null` refused.
-  - Tokens read from the values resolved; today's sheets, still TOML, read them through an adapter
-    that M6d.3b2 removes.
-  - Errors at their line and column, gathered up to a cap.
-  - The repository's themes converted, `.theme.kdl`; a theme cooked as its text, checked; the
-    cooker's two-part extensions, `.theme` refused by name; `Theme::from_binary` gone.
-- **Done when.** Random themes resolve the same through the reflected reader and the new one, bit
-  for bit; the fixture of the repository's documents, the two of styles and the look's images
-  unchanged; tests of each refusal, a deep nesting refused without overflow; CI green.
-- **Measured.** The allocations and the time of reading the look's documents.
 
 ## M6d.4a — The canvas's prototype and its ADR
 
