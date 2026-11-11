@@ -12,7 +12,7 @@ use uwui::display::Primitive;
 use uwui::look::{self, Colors, Density, FIXED_FAMILY, TEXT_FAMILY};
 use uwui::preferences::Preferences;
 use uwui::text::{Fonts, TextBounds, TextStyle};
-use uwui::theme::Theme;
+use uwui::theme::{Color, Fallback, Length, Theme, Token, Tokens};
 use uwui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
 
 /// A color given as sRGB's 0xRRGGBB.
@@ -89,9 +89,21 @@ fn geist_s_digits_take_one_width_with_tnum() {
 /// An interface in the look, its themes `themes`, whose root holds `elements`, keyed by their
 /// places: the interface and the elements' ids.
 fn styled(themes: &[Theme], elements: Vec<Element>) -> (Ui, Vec<ElementId>) {
+    styled_with(&[], themes, elements)
+}
+
+/// The same, the interface declaring the lists of `tokens` first.
+fn styled_with(
+    tokens: &[Tokens],
+    themes: &[Theme],
+    elements: Vec<Element>,
+) -> (Ui, Vec<ElementId>) {
     let mut fonts = Fonts::new();
     look::register_fonts(&mut fonts);
     let mut ui = Ui::new(fonts);
+    for list in tokens {
+        ui.declare_tokens(list).expect("a list of names of its own");
+    }
     ui.set_style(&[look::style_sheet()], themes)
         .expect("the look's documents are valid");
     let settings = RootSettings {
@@ -269,6 +281,64 @@ fn every_theme_of_colors_and_density_styles_every_kind() {
             assert_eq!(size, expected, "{colors:?} {density:?}");
         }
     }
+}
+
+/// An application's tokens, which its theme gives by naming the look's values.
+const APP_FACE: Token<Color> = Token::new("app_face", Fallback::Srgb(0xFFB000));
+const APP_GAP: Token<Length> = Token::new("app_gap", Fallback::Value(99.0));
+const APP_TOKENS: Tokens = Tokens::new(&[&APP_FACE, &APP_GAP]);
+
+/// A token follows the look's themes of density and high contrast through the names that it is
+/// given, where a number written in code stays
+/// (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`).
+#[test]
+fn a_token_follows_compact_and_high_contrast_where_a_number_written_in_code_stays() {
+    let app = Theme::from_text(
+        "app.theme",
+        "app_face = \"$panel\"\napp_gap = \"$space_m\"\n",
+    );
+    let mut faces = Vec::new();
+    for colors in [Colors::Dark, Colors::HighContrast] {
+        for density in [Density::Comfortable, Density::Compact] {
+            let mut themes = look::themes(colors, density);
+            themes.push(app.clone());
+            let named = Element::container().style(|s| s.background(APP_FACE).padding(APP_GAP));
+            let written = Element::container().style(|s| s.background(srgb(0xFFB000)).padding(8.0));
+            let (ui, ids) = styled_with(&[APP_TOKENS], &themes, vec![named, written]);
+            let (named, written) = (
+                ui.style(ids[0]).expect("styled"),
+                ui.style(ids[1]).expect("styled"),
+            );
+            let gap = if density == Density::Compact {
+                6.0
+            } else {
+                8.0
+            };
+            assert_eq!(
+                named.layout.padding.start, gap,
+                "{colors:?} {density:?}: the look's space"
+            );
+            assert_eq!(
+                written.layout.padding.start, 8.0,
+                "{colors:?} {density:?}: the author's"
+            );
+            assert_eq!(
+                written.paint.background,
+                srgb(0xFFB000),
+                "{colors:?} {density:?}"
+            );
+            faces.push(named.paint.background);
+        }
+    }
+    assert_eq!(faces[0], faces[1], "the density leaves a color");
+    assert_ne!(
+        faces[0], faces[2],
+        "high contrast gives the panel its own color"
+    );
+    assert!(
+        faces.iter().all(|face| *face != srgb(0xFFB000)),
+        "the theme's, not the fallback"
+    );
 }
 
 /// A colour and a length that code writes as numbers stay the author's under every theme of

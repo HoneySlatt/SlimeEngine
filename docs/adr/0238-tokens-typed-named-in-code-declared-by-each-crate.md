@@ -7,7 +7,11 @@
   no origin), [0230](0230-the-cores-roles-and-each-kinds-defaults.md) (the core's roles are public
   tokens), [0231](0231-an-elements-own-style-written-in-code.md) and
   [0232](0232-transitions-read-the-derives-colours-and-share-what-they-show.md) (a field of text
-  named by a theme and the reload through `subsecond` leave M6d.2b2b3)
+  named by a theme and the reload through `subsecond` leave M6d.2b2b3). Two precisions decided by
+  the owner at the milestone's closing review: a token declared again, of the same name, kind and
+  fallback, is the same token, declared once, and only a name declared again with another kind or
+  fallback is refused; a number that is not finite refuses the themes wherever it is read, a rule
+  naming it too, and only a negative duration that a rule names stays debt until the look's tokens
 - Date: 2026-11-11
 
 ## Context

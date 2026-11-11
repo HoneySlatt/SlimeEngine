@@ -2427,6 +2427,42 @@ GitHub's hosted runners, on 2026-11-10, each run green, on `b749c3e`:
 Every job stays within its limit of 20 minutes. `windows (tests)` ran both fixtures of styles on
 Windows, and the tests of the own style, the place of a call among them.
 
+## M6d.2b2b3, tokens
+
+Tokens named by own styles and read when the interface takes its themes
+([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)), on 2026-11-11.
+*Before* is `ba7c3e7`, the code of M6d.2b2b2; *after* is the milestone's working tree. The
+counters, in a debug build, as CI counts them, on lavapipe:
+
+| Benchmark | Counter | Before | After |
+|---|---|---|---|
+| `ui.tree.look` | elements styled by the frame of the change, own styles naming tokens | not counted | 12 487 |
+| `ui.tree.look` | allocations of the frame of the change, own styles naming tokens | not counted | 109 804 |
+| `ui.tree.look` | allocations of the frame of the change for each element styled, own styles naming tokens | not counted | 8.79, at most 20 |
+| `ui.tree.look` | bytes allocated by the frame of the change | 24 487 625 | 24 488 489 |
+| `ui.tree.look` | bytes allocated by the frame after the size of text changed | 91 044 670 | 91 045 534 |
+
+What it says:
+
+- A tree whose labels' and buttons' own styles name a role and a token of its own allocates, in
+  the frame after its colours changed, 348 times more than the same tree whose labels and buttons
+  have no own style, for 12 487 elements styled: 8.79 allocations for each element against 8.77,
+  within ADR-0232's target of 20. The 348 count the own styles and the tokens together.
+- Two frames allocate 864 bytes more, the same number of times, 0.0035 % of the frame after a
+  change of colours and 0.0009 % of the frame after a change of the size of text: each own style
+  kept in the styles made holds a list of its tokens, empty when it names none, 24 bytes. The owner
+  accepted it. A declaration of an own style keeps the place of its token in the room that its
+  state leaves, so that it takes no more room than before: holding the token itself, it took
+  twice its 56 bytes, and the frame that builds the editor's inspector again allocated 1.5 %
+  more bytes.
+- Reading the look's documents allocates as before, 127 736 times: the tokens' values are read
+  into the table of the read before, kept for its room.
+- Every other counter of every benchmark is unchanged; so are the `interface` example's image,
+  compared before and after on lavapipe, and the two fixtures of styles.
+
+The times of the frames, and of compiling `uwui` with its setters generic, were not measured: the
+machine was not at rest, the other track of the stage building and running its tests.
+
 ## M6d.2b2b2, the user's layer over what code writes
 
 The user's size of text through the cascade and a list's rows, given as `Preferences` with less

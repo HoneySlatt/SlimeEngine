@@ -38,7 +38,10 @@
 //! is given to screen readers, Orca on Linux and Narrator on Windows, through AccessKit's adapter
 //! of the window (`docs/adr/0146-screen-readers.md`), as any example's interface is.
 //!
-//! The code gives the elements their layout and their classes; the style sheet
+//! The code gives the elements their layout and their classes, the spaces around and between its
+//! panels named by its own tokens, `interface_space` and `interface_gap`, which it declares to its
+//! interface and its themes give
+//! (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`); the style sheet
 //! `examples/assets/ui/interface.style` gives the rest, with the values of a dark or a light theme
 //! of `examples/assets/ui`, which T switches. They are read cooked with the sample, as its scenes
 //! are:
@@ -93,7 +96,7 @@ use uwui::display::{ImageKey, ImageKind};
 use uwui::shortcuts::Shortcuts;
 use uwui::style::{Align, Dimension, Display, FlexDirection, Justify, Sides, StyleBuilder, Track};
 use uwui::text::Fonts;
-use uwui::theme::{StyleSheet, Theme};
+use uwui::theme::{Fallback, Length, StyleSheet, Theme, Token, Tokens};
 use uwui::tree::{Children, Element, ElementId, Kind, LayoutDirection, Role, RootSettings, Ui};
 use uwui_render::UiRenderer;
 
@@ -113,6 +116,14 @@ const TICK: ImageKey = ImageKey(2);
 const VIEW: ImageKey = ImageKey(3);
 /// The width of the panel of writing systems, in logical pixels.
 const TEXTS_WIDTH: f32 = 360.0;
+/// The space around and between the example's panels, and the smaller one inside its bar and its
+/// list's panel: tokens that its themes give, as an application names its own values in code
+/// (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`).
+const INTERFACE_SPACE: Token<Length> = Token::new("interface_space", Fallback::Value(12.0));
+const INTERFACE_GAP: Token<Length> = Token::new("interface_gap", Fallback::Value(8.0));
+/// The example's own tokens, declared to its interface before its themes are given.
+const INTERFACE_TOKENS: Tokens = Tokens::new(&[&INTERFACE_SPACE, &INTERFACE_GAP]);
+
 /// The IDs of the style sheet, the themes and the shortcuts, in their metadata files in
 /// `examples/assets/ui`.
 const STYLE: AssetId = AssetId::from_u128(0xa3a6260c_7bc3_4e47_aa2b_d700551d3749);
@@ -283,6 +294,7 @@ impl Interface {
             .map(str::to_owned)
             .collect();
         let mut ui = Ui::new(fonts);
+        ui.declare_tokens(&INTERFACE_TOKENS)?;
         let settings = RootSettings {
             size: [1.0, 1.0],
             scale: 1.0,
@@ -617,7 +629,7 @@ fn build(
             .style(|s| {
                 s.height(Dimension::Pixels(40.0))
                     .padding(Sides::symmetric(12.0, 6.0))
-                    .column_gap(8.0)
+                    .column_gap(INTERFACE_GAP)
             })
             .class("bar")
             .role(Role::Toolbar)
@@ -647,12 +659,12 @@ fn build(
         let main = Element::container().style(|s| {
             s.grow(1.0)
                 .min_height(Dimension::Pixels(0.0))
-                .padding(12.0)
-                .column_gap(12.0)
+                .padding(INTERFACE_SPACE)
+                .column_gap(INTERFACE_SPACE)
         });
         children.add("main", main, |children| {
             let rows = Element::container()
-                .style(|s| s.width(Dimension::Pixels(260.0)).padding(8.0))
+                .style(|s| s.width(Dimension::Pixels(260.0)).padding(INTERFACE_GAP))
                 .class("panel");
             children.add("list panel", rows, |children| {
                 let element = Element::list(100_000, 28.0).style(|s| s.grow(1.0));
@@ -663,7 +675,7 @@ fn build(
                     .grow(1.0)
                     .min_width(Dimension::Pixels(0.0))
                     .min_height(Dimension::Pixels(0.0))
-                    .row_gap(12.0)
+                    .row_gap(INTERFACE_SPACE)
             });
             children.add("middle", middle, |children| {
                 let cell = Element::container()
@@ -681,8 +693,10 @@ fn build(
                     *view = Some(children.add("view", element, |_| {}));
                     card(children, words, placed);
                 });
-                let shelf = Element::scroll()
-                    .style(|s| s.height(Dimension::Pixels(128.0)).column_gap(12.0));
+                let shelf = Element::scroll().style(|s| {
+                    s.height(Dimension::Pixels(128.0))
+                        .column_gap(INTERFACE_SPACE)
+                });
                 children.add("shelf", shelf, |children| {
                     for index in 0..8_usize {
                         shelf_card(children, index);
@@ -692,7 +706,7 @@ fn build(
             let panel = Element::container()
                 .style(|s| {
                     s.width(Dimension::Pixels(TEXTS_WIDTH))
-                        .padding(12.0)
+                        .padding(INTERFACE_SPACE)
                         .direction(FlexDirection::Column)
                         .row_gap(10.0)
                 })

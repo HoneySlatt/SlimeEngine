@@ -100,12 +100,12 @@ of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
 - **Crates.** `uwui`, `slime-benches`, the examples.
 - **Delivers.**
   - `Token<K>` of the kinds `Color`, `Length`, `Duration` and `Number`, its fallback a value, an
-    sRGB colour or another token; a crate's list, `Tokens`; `Ui::declare_tokens`.
+    sRGB colour or another token; a crate's list, `Tokens`; `Ui::declare_tokens`, which refuses
+    a name declared again with another kind or fallback.
   - The core's seven roles as public tokens, in place of `ColorRole`.
   - `set_style` reads each declared token once: a value of another kind, not finite, or a negative
-    duration refuses the themes; a name declared by two lists too; a token lacking takes its
-    fallback with one warning, only when themes are given; a token written but not declared,
-    the same.
+    duration refuses the themes; a token lacking takes its fallback with one warning, only when
+    themes are given; a token written but not declared, the same.
   - The own style's setters take a literal or a token of their kind; two own styles are the same
     only if they name the same tokens.
   - The `interface` example declares and writes its own tokens.

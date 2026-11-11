@@ -32,3 +32,8 @@ button_face = "$button"
 accent = "$pressed"
 highlight = "$selected"
 highlight_text = "$selected_text"
+
+# The example's own tokens, which its code names (docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md):
+# the space around and between its panels, and the smaller one inside its bar and its list's panel.
+interface_space = 12
+interface_gap = 8

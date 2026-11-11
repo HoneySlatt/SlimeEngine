@@ -20,7 +20,9 @@ use crate::paint;
 use crate::preferences::Preferences;
 use crate::style::{Display, OWN_STATES, OwnStyle, Same, Style, StyleBuilder, state_bit};
 use crate::text::{Fonts, TEXT_CACHE_BUDGET, TextCache};
-use crate::theme::{self, ColorRole, ColorRoles, KindName, Rule, StateName, StyleSheet, Theme};
+use crate::theme::{
+    self, Erased, KindName, Rule, StateName, StyleSheet, Theme, TokenError, TokenValues, Tokens,
+};
 
 #[cfg(test)]
 mod cascade_tests;
@@ -1261,16 +1263,23 @@ pub struct Ui {
     clipboard: Option<Box<dyn Clipboard>>,
     /// The types that style sheets hold, which read them.
     registry: Registry,
-    /// The value of each role, which each kind's defaults take
-    /// (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`).
-    roles: ColorRoles,
+    /// The tokens that the interface declared, the core's roles first
+    /// (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`).
+    declared: Vec<Erased>,
+    /// The value of each token declared, which own styles and each kind's defaults take.
+    tokens: TokenValues,
+    /// The table that the next [`Ui::set_style`] reads the tokens into, the one before kept for its
+    /// room, so that reading them again allocates nothing.
+    spare_tokens: TokenValues,
     /// The styles that elements start from, under every rule: one for each set of kinds whose
     /// defaults are the same.
     bases: Vec<Style>,
     /// The place in `bases` of each kind's, by [`KindName::index`].
     base_of: [u8; KindName::ALL.len()],
-    /// The roles that the themes lacked and that a warning told, each once.
-    warned: Vec<ColorRole>,
+    /// The tokens that the themes lacked and that a warning told, each once.
+    warned: Vec<&'static str>,
+    /// The tokens that own styles named and that no list declared, which a warning told, each once.
+    undeclared: Vec<&'static str>,
     /// The kinds and states of the pointer that an own style wrote for a kind that the pointer
     /// never reaches, which a debug build told, each once.
     vain_states: Vec<(KindName, StateName)>,
@@ -1331,10 +1340,13 @@ impl Ui {
             clipboard: None,
             rules: Vec::new(),
             registry: theme::registry(),
-            roles: ColorRoles::fallbacks(),
+            declared: theme::ROLES.each().collect(),
+            tokens: TokenValues::fallbacks(&theme::ROLES.each().collect::<Vec<_>>()),
+            spare_tokens: TokenValues::default(),
             bases: Vec::new(),
             base_of: [0; KindName::ALL.len()],
             warned: Vec::new(),
+            undeclared: Vec::new(),
             vain_states: Vec::new(),
             styles: HashMap::new(),
             selected: Vec::new(),
@@ -1524,11 +1536,13 @@ impl Ui {
     /// Styles the elements with the rules of `sheets`, in their order and the order of their
     /// files, their names given the values of `themes`, stacked: of the themes that give a name, the
     /// last gives its value, and the values that name it follow it. Every element's style is made
-    /// again at the next [`Ui::frame`]. It starts from its kind's defaults, whose colors are the
-    /// core's *roles* ([`theme`]) that the themes give, each read once, as a color, here
-    /// (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`). A role that the themes lack
-    /// takes its fallback, the colors that an interface given no theme draws in, with a warning
-    /// once for each role, given only when themes are given. A rule that selects an element sets
+    /// again at the next [`Ui::frame`]. Each *token* that the interface declared
+    /// ([`Ui::declare_tokens`]), the core's *roles* among them ([`theme`]), is read here once, in
+    /// its kind (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`); a token
+    /// that the themes lack takes its fallback, the values that an interface given no theme draws
+    /// in, with a warning once for each token, given only when themes are given. An element's style
+    /// starts from its kind's defaults, whose colors are the roles' values
+    /// (`docs/adr/0230-the-cores-roles-and-each-kinds-defaults.md`). A rule that selects an element sets
     /// the fields of its style that it gives; a later rule, those it gives in turn; then the
     /// element's own style ([`Element::style`]), in the *mask order*
     /// (`docs/adr/0231-an-elements-own-style-written-in-code.md`): its base sets each field that
@@ -1544,26 +1558,34 @@ impl Ui {
     ///
     /// [`DocumentError`] if a style sheet or a theme is not a document of their types, names a
     /// value that no theme gives or that holds another type, a value names itself through others,
-    /// a color function is given what it does not take, a theme gives a role a value that is no
-    /// color, a rule sets some of a color's channels and not all, or a rule that names a kind sets
+    /// a color function is given what it does not take, a value that a rule or a token reads is a
+    /// number that is not finite, a theme gives a declared token a value that is not of its kind
+    /// or a negative duration, a rule sets some of a color's
+    /// channels and not all, or a rule that names a kind sets
     /// what that kind does not read ([`theme`]): the interface keeps the style it had.
     pub fn set_style(
         &mut self,
         sheets: &[StyleSheet],
         themes: &[Theme],
     ) -> Result<(), DocumentError> {
-        let styling = theme::read(&self.registry, sheets, themes)?;
+        let styling = theme::read(
+            &self.registry,
+            sheets,
+            themes,
+            &self.declared,
+            &mut self.spare_tokens,
+        )?;
         self.rules = styling.rules;
-        self.roles = styling.roles;
+        std::mem::swap(&mut self.tokens, &mut self.spare_tokens);
         // An interface given no theme draws in the fallbacks by choice: only themes that lack a
-        // role are told of it.
+        // token are told of it.
         if !themes.is_empty() {
-            for role in styling.lacking {
-                if !self.warned.contains(&role) {
-                    self.warned.push(role);
+            for name in styling.lacking {
+                if !self.warned.contains(&name) {
+                    self.warned.push(name);
                     tracing::warn!(
-                        role = role.name(),
-                        "the themes give no value for this role: its fallback is taken"
+                        token = name,
+                        "the themes give no value for this token: its fallback is taken"
                     );
                 }
             }
@@ -1573,6 +1595,42 @@ impl Ui {
         for root in self.roots.clone() {
             self.mark_style_subtree(root);
         }
+        Ok(())
+    }
+
+    /// Declares the tokens of `tokens`, a crate's list, which [`Ui::set_style`] then reads in their
+    /// kinds from the themes that it takes, from its next call
+    /// (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`): a program declares
+    /// each list once, before it gives its themes; until then, its tokens take their fallbacks. The
+    /// core's roles are always declared. A token declared again, of the same name, kind and
+    /// fallback, is the same token, and declared once. A token that an own style names and that no
+    /// list declared takes its fallback, the themes unread, with one warning: its list was not
+    /// declared.
+    ///
+    /// # Errors
+    ///
+    /// [`TokenError::DeclaredTwice`] if the list declares a name that a token of another kind or
+    /// another fallback already holds, the core's roles among them, or holds such a name twice;
+    /// [`TokenError::FallbackCycle`] if a token's fallbacks come back to it, which tokens written as
+    /// `static` allow: none of its tokens is declared.
+    pub fn declare_tokens(&mut self, tokens: &Tokens) -> Result<(), TokenError> {
+        let mut added: Vec<Erased> = Vec::new();
+        for token in tokens.each() {
+            match self
+                .declared
+                .iter()
+                .chain(&added)
+                .find(|declared| declared.name == token.name)
+            {
+                Some(declared) if declared.same(&token) => {}
+                Some(_) => return Err(TokenError::DeclaredTwice { name: token.name }),
+                None if token.falls_back_in_a_cycle() => {
+                    return Err(TokenError::FallbackCycle { name: token.name });
+                }
+                None => added.push(token),
+            }
+        }
+        self.declared.extend(added);
         Ok(())
     }
 
@@ -2077,6 +2135,7 @@ impl Ui {
             Some(made) => made,
             None => {
                 let own = own.clone();
+                self.tell_undeclared(&own);
                 let (style, text_ratio) = self.compose(base, &selected, &own, held);
                 let style = Arc::new(style);
                 let made = self.styles.entry(selected.clone()).or_default();
@@ -2172,13 +2231,13 @@ impl Ui {
         }
         for declaration in own.base() {
             if by_state & (1u128 << declaration.leaf()) == 0 {
-                declaration.apply(&mut style);
+                own.declaration(declaration, &self.tokens).apply(&mut style);
             }
         }
         for state in OWN_STATES {
             if held & state_bit(state) != 0 {
                 for declaration in own.in_state(state) {
-                    declaration.apply(&mut style);
+                    own.declaration(declaration, &self.tokens).apply(&mut style);
                 }
             }
         }
@@ -2199,6 +2258,27 @@ impl Ui {
             1.0
         } else {
             text_size.ratio(style.text.style.size)
+        }
+    }
+
+    /// Tells once of each token that `own` names and that no list declared, in its kind: it takes
+    /// its fallback, the themes unread.
+    fn tell_undeclared(&mut self, own: &OwnStyle) {
+        for token in own.tokens() {
+            let declared = self
+                .declared
+                .iter()
+                .any(|declared| declared.name == token.name && declared.kind == token.kind);
+            if declared || self.undeclared.contains(&token.name) {
+                continue;
+            }
+            self.undeclared.push(token.name);
+            tracing::warn!(
+                token = token.name,
+                kind = token.kind.name(),
+                "an own style names a token that no list declared to the interface: its fallback \
+                 is taken (`Ui::declare_tokens`)"
+            );
         }
     }
 
@@ -2225,7 +2305,7 @@ impl Ui {
     fn make_bases(&mut self) {
         self.bases.clear();
         for kind in KindName::ALL {
-            let base = theme::base(kind, &self.roles);
+            let base = theme::base(kind, &self.tokens);
             let place = match self.bases.iter().position(|made| made.same(&base)) {
                 Some(place) => place,
                 None => {

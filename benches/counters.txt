@@ -96,13 +96,15 @@ ui.tree.look	allocations of reading the look's documents	127736
 ui.tree.look	allocations of the first frame at twice the size of text	894720
 ui.tree.look	allocations of the frame after the size of text changed	894229
 ui.tree.look	allocations of the frame of the change	109456
+ui.tree.look	allocations of the frame of the change, own styles naming tokens	109804
 ui.tree.look	bytes allocated by a frame of the transition	22270483
-ui.tree.look	bytes allocated by the frame after the size of text changed	91044670
-ui.tree.look	bytes allocated by the frame of the change	24487625
+ui.tree.look	bytes allocated by the frame after the size of text changed	91045534
+ui.tree.look	bytes allocated by the frame of the change	24488489
 ui.tree.look	elements drawn by a frame of the transition	12487
 ui.tree.look	elements styled by the first frame at twice the size of text	12487
 ui.tree.look	elements styled by the frame after the size of text changed	12487
 ui.tree.look	elements styled by the frame of the change	12487
+ui.tree.look	elements styled by the frame of the change, own styles naming tokens	12487
 ui.tree.look	frames of 240 Hz of the transition	29
 world.frame.100k	instances in a frame	100000
 world.save.100k	bytes of the save	62108

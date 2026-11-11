@@ -12,7 +12,7 @@ use uwui::look::{self, Colors, Density};
 use uwui::preferences::{Preferences, TextSize};
 use uwui::style::{Dimension, Display, FlexDirection, Justify, StyleBuilder, Track};
 use uwui::text::{Fonts, GlyphKey, GlyphRasterizer, TextBounds, TextStyle};
-use uwui::theme::{StyleSheet, Theme};
+use uwui::theme::{self, Fallback, Length, StyleSheet, Theme, Token, Tokens};
 use uwui::tree::{Element, ElementId, FrameStats, LayoutDirection, RootSettings, Ui};
 
 use crate::allocations::counted;
@@ -574,6 +574,11 @@ fn sized(s: StyleBuilder, width: f32, height: f32) -> StyleBuilder {
         .height(Dimension::Pixels(height))
 }
 
+/// A space of the look's tree, which its own styles name in place of a number.
+const TREE_SPACE: Token<Length> = Token::new("tree_space", Fallback::Value(4.0));
+/// The look's tree's own tokens.
+const TREE_TOKENS: Tokens = Tokens::new(&[&TREE_SPACE]);
+
 /// A root of 1920 × 1080 logical pixels at scale 1.
 const SCREEN: RootSettings = RootSettings {
     size: [1920.0, 1080.0],
@@ -651,7 +656,22 @@ impl Editor {
         themes: &[Theme],
         text: fn(StyleBuilder) -> StyleBuilder,
     ) -> Self {
+        Self::styled_with(fonts, labels, &[], sheets, themes, text)
+    }
+
+    /// The same, its interface declaring the lists of `tokens` first.
+    fn styled_with(
+        fonts: Fonts,
+        labels: Vec<String>,
+        tokens: &[Tokens],
+        sheets: &[StyleSheet],
+        themes: &[Theme],
+        text: fn(StyleBuilder) -> StyleBuilder,
+    ) -> Self {
         let mut ui = Ui::new(fonts);
+        for list in tokens {
+            ui.declare_tokens(list).expect("names of the tree's own");
+        }
         let root = ui.add_root("main", SCREEN, column);
         ui.set_style(sheets, themes).expect("the tree's style");
         let mut panels = Vec::new();
@@ -853,7 +873,11 @@ const TRANSITION_FRAMES: usize = 1_000;
 /// bounds. Then the frame after the user's size of text changed to twice the look's, which lays
 /// every text out again, as the tree's first frame does: it allocates no more for each element
 /// than the same tree's first frame at that size, its target
-/// (`docs/adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md`).
+/// (`docs/adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md`). And the
+/// same tree whose labels' and buttons' own styles name a role and a token of the tree's own: the
+/// frame after the change of its colours, which reads their values again, within the same target
+/// for each element styled as the frame of the change
+/// (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`).
 pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     let runs = context.runs(RUNS);
     let fonts = || {
@@ -878,6 +902,35 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     });
     let ((_, built), first) = counted(|| larger_first.ui.frame());
     drop(larger_first);
+    // The same tree, its labels' and buttons' own styles naming a role and a token of the tree's
+    // own, which its theme gives by the look's name: the frame of a change of the look's colours
+    // reads their values again (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`).
+    let mut named_themes = themes(Colors::Dark);
+    named_themes.push(Theme::from_text(
+        "tree.theme",
+        "tree_space = \"$space_s\"\n",
+    ));
+    let mut named = Editor::styled_with(
+        fonts(),
+        labels(1_500),
+        &[TREE_TOKENS],
+        &sheets,
+        &named_themes,
+        |s| s.text_color(theme::CANVAS_TEXT).padding_start(TREE_SPACE),
+    );
+    named.ui.frame();
+    let mut light_themes = themes(Colors::Light);
+    light_themes.push(Theme::from_text(
+        "tree.theme",
+        "tree_space = \"$space_s\"\n",
+    ));
+    named
+        .ui
+        .set_style(&sheets, &light_themes)
+        .expect("the look's documents are valid");
+    named.ui.advance(FRAME_240);
+    let ((_, named_stats), named_change) = counted(|| named.ui.frame());
+    drop(named);
     let mut editor = Editor::styled(
         fonts(),
         labels(1_500),
@@ -956,6 +1009,21 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     }
     let first_per_element = first.calls as f64 / built.styled.max(1) as f64;
     let mut rows = vec![
+        Row::count(
+            "elements styled by the frame of the change, own styles naming tokens",
+            named_stats.styled,
+        ),
+        Row::count(
+            "allocations of the frame of the change, own styles naming tokens",
+            named_change.calls,
+        ),
+        Row::per(
+            "allocations of the frame of the change for each element styled, own styles naming \
+             tokens",
+            named_change.calls,
+            named_stats.styled as u64,
+            ALLOCATIONS_PER_ELEMENT_STYLED,
+        ),
         Row::count("allocations of reading the look's documents", read.calls),
         Row::count("elements styled by the frame of the change", stats.styled),
         Row::count("allocations of the frame of the change", allocations.calls),

@@ -2,6 +2,7 @@
 //! values, for its base and for its states, with the place of the call that wrote them
 //! (`docs/adr/0231-an-elements-own-style-written-in-code.md`).
 
+use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::panic::Location;
 
@@ -14,7 +15,9 @@ use super::{
     TransitionDeclaration,
 };
 use crate::text::{Alignment, Direction, TextStyleDeclaration};
-use crate::theme::StateName;
+use crate::theme::{
+    Color, Duration, Erased, Length, Number, Resolved, StateName, TokenKind, TokenOr, TokenValues,
+};
 
 /// What an element's code wrote of its style ([`Element::style`](crate::tree::Element::style)):
 /// for its base and for each of its states, the declarations that it set, in order, whatever their
@@ -23,15 +26,52 @@ use crate::theme::StateName;
 #[derive(Clone, Debug, Default)]
 pub struct OwnStyle {
     declarations: Vec<Own>,
+    /// The tokens that its declarations name, each by its place here: apart, so that a declaration
+    /// that names none, the most, takes no more room than before tokens.
+    tokens: Vec<OwnToken>,
 }
 
-/// One declaration of an own style: the state it holds in, `None` for the base, and the place of
-/// the call that wrote it.
+/// One declaration of an own style: the state it holds in, `None` for the base, the place in its
+/// style's tokens of the token that gives its value, if any, and the place of the call that wrote
+/// it.
 #[derive(Clone, Debug)]
 pub(crate) struct Own {
     state: Option<StateName>,
+    /// Four bytes, held in the room that the state leaves before the declaration, so that a
+    /// declaration takes no more room for it ([`OWN_SIZE`]).
+    token: Option<u16>,
+    /// What it sets; for a token, a value that holds nothing in place of the token's, its leaf the
+    /// same.
     declaration: StyleDeclaration,
     place: &'static Location<'static>,
+}
+
+/// The room that a declaration of an own style takes on a target of 64 bits, as before it could
+/// name a token: an element's own style holds one for each field that its code sets, and a frame
+/// that builds again makes them all.
+#[cfg(target_pointer_width = "64")]
+const OWN_SIZE: usize = 56;
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(
+    std::mem::size_of::<Own>() == OWN_SIZE,
+    "a declaration of an own style keeps its room"
+);
+
+/// A token that an own declaration names, beside it
+/// (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`): the token, and how its
+/// value makes the declaration.
+#[derive(Clone, Copy, Debug)]
+struct OwnToken {
+    token: Erased,
+    declare: fn(Resolved) -> StyleDeclaration,
+}
+
+impl Own {
+    /// The number of the leaf it sets.
+    pub(crate) fn leaf(&self) -> usize {
+        self.declaration.leaf()
+    }
 }
 
 /// The states that an own style may write, in the order that they apply, the last winning
@@ -92,36 +132,72 @@ impl OwnStyle {
                 .map(|(state, declaration)| Own {
                     state,
                     declaration,
+                    token: None,
                     place,
                 })
                 .collect(),
+            tokens: Vec::new(),
         }
     }
 
     /// Adds what `builder` wrote after what it holds.
     pub(crate) fn extend(&mut self, builder: StyleBuilder) {
         if self.declarations.is_empty() {
-            // The builder's list taken whole: no second allocation for an element's one call.
+            // The builder's lists taken whole: no second allocation for an element's one call.
             self.declarations = builder.declarations;
-        } else {
-            self.declarations.extend(builder.declarations);
+            self.tokens = builder.tokens;
+            return;
+        }
+        let before = self.tokens.len();
+        for mut own in builder.declarations {
+            if let Some(token) = own.token {
+                let at = before + usize::from(token);
+                match u16::try_from(at) {
+                    Ok(at) => own.token = Some(at),
+                    // Past 65 536 tokens in one style, the declaration takes the token's fallback.
+                    Err(_) => {
+                        let named = builder.tokens[usize::from(token)];
+                        own.declaration = (named.declare)(named.token.fallback_value(&|_, _| None));
+                        own.token = None;
+                    }
+                }
+            }
+            self.declarations.push(own);
+        }
+        self.tokens.extend(builder.tokens);
+    }
+
+    /// What `own`, one of its declarations, sets: a token's value read from `values`, its
+    /// fallback's where it was not declared.
+    pub(crate) fn declaration<'a>(
+        &'a self,
+        own: &'a Own,
+        values: &TokenValues,
+    ) -> Cow<'a, StyleDeclaration> {
+        match own.token {
+            None => Cow::Borrowed(&own.declaration),
+            Some(token) => {
+                let named = &self.tokens[usize::from(token)];
+                Cow::Owned((named.declare)(values.value(&named.token)))
+            }
         }
     }
 
     /// The declarations of its base, in order.
-    pub(crate) fn base(&self) -> impl Iterator<Item = &StyleDeclaration> {
-        self.declarations
-            .iter()
-            .filter(|own| own.state.is_none())
-            .map(|own| &own.declaration)
+    pub(crate) fn base(&self) -> impl Iterator<Item = &Own> {
+        self.declarations.iter().filter(|own| own.state.is_none())
     }
 
     /// The declarations of `state`, in order.
-    pub(crate) fn in_state(&self, state: StateName) -> impl Iterator<Item = &StyleDeclaration> {
+    pub(crate) fn in_state(&self, state: StateName) -> impl Iterator<Item = &Own> {
         self.declarations
             .iter()
             .filter(move |own| own.state == Some(state))
-            .map(|own| &own.declaration)
+    }
+
+    /// The tokens that it names, in order, each as often as it names it.
+    pub(crate) fn tokens(&self) -> impl Iterator<Item = &Erased> {
+        self.tokens.iter().map(|named| &named.token)
     }
 
     /// The states that it writes, as a set of [`state_bit`]s.
@@ -140,7 +216,17 @@ impl OwnStyle {
                 .declarations
                 .iter()
                 .zip(&other.declarations)
-                .all(|(a, b)| a.state == b.state && a.declaration.same(&b.declaration))
+                .all(|(a, b)| {
+                    a.state == b.state
+                        && a.declaration.same(&b.declaration)
+                        && match (a.token, b.token) {
+                            (None, None) => true,
+                            (Some(a), Some(b)) => self.tokens[usize::from(a)]
+                                .token
+                                .same(&other.tokens[usize::from(b)].token),
+                            _ => false,
+                        }
+                })
     }
 }
 
@@ -199,6 +285,7 @@ impl PartialEq for OwnStyle {
 #[must_use]
 pub struct StyleBuilder<S = Base> {
     declarations: Vec<Own>,
+    tokens: Vec<OwnToken>,
     state: Option<StateName>,
     place: &'static Location<'static>,
     writes: PhantomData<S>,
@@ -236,6 +323,7 @@ impl StyleBuilder {
     pub(crate) fn new(place: &'static Location<'static>) -> Self {
         Self {
             declarations: Vec::new(),
+            tokens: Vec::new(),
             state: None,
             place,
             writes: PhantomData,
@@ -250,11 +338,14 @@ impl StyleBuilder {
     ) -> Self {
         let inner = StyleBuilder {
             declarations: std::mem::take(&mut self.declarations),
+            tokens: std::mem::take(&mut self.tokens),
             state: Some(state),
             place: self.place,
             writes: PhantomData,
         };
-        self.declarations = write(inner).declarations;
+        let written = write(inner);
+        self.declarations = written.declarations;
+        self.tokens = written.tokens;
         self
     }
 
@@ -319,6 +410,24 @@ impl<S> StyleBuilder<S> {
         self.declarations.push(Own {
             state: self.state,
             declaration,
+            token: None,
+            place: self.place,
+        });
+        self
+    }
+
+    /// Adds the declaration that `declare` makes of the value of `token`, read when the element is
+    /// styled, in the builder's state. Past 65 536 tokens in one builder, it takes the token's
+    /// fallback instead.
+    fn set_token(mut self, token: Erased, declare: fn(Resolved) -> StyleDeclaration) -> Self {
+        let Ok(at) = u16::try_from(self.tokens.len()) else {
+            return self.set(declare(token.fallback_value(&|_, _| None)));
+        };
+        self.tokens.push(OwnToken { token, declare });
+        self.declarations.push(Own {
+            state: self.state,
+            token: Some(at),
+            declaration: declare(token.kind.placeholder()),
             place: self.place,
         });
         self
@@ -340,16 +449,17 @@ impl<S> StyleBuilder<S> {
 
 /// The setters of a style's leaves, each one declaration; and, for the test that finds one setter
 /// for every leaf and none that lays out offered to a state of the pointer, the function `$list`
-/// that gives their declarations.
+/// that gives their declarations. A setter whose type is followed by `as` and a kind takes a
+/// literal or a token of that kind (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`).
 macro_rules! setters {
     ($list:ident; $(
         $(#[$doc:meta])*
-        $name:ident($value:ident: $ty:ty) => $declaration:expr;
+        $name:ident($value:ident: $ty:ty $(as $kind:ident)?) => $declaration:expr;
     )*) => {
         $(
-            $(#[$doc])*
-            pub fn $name(self, $value: $ty) -> Self {
-                self.set($declaration)
+            setter! {
+                $(#[$doc])*
+                $name($value: $ty $(as $kind)?) => $declaration
             }
         )*
 
@@ -362,6 +472,76 @@ macro_rules! setters {
             }),*]
         }
     };
+}
+
+/// One setter of [`setters`].
+macro_rules! setter {
+    ($(#[$doc:meta])* $name:ident($value:ident: $ty:ty as $kind:ident) => $declaration:expr) => {
+        $(#[$doc])*
+        pub fn $name(self, $value: impl Into<TokenOr<$ty, $kind>>) -> Self {
+            match $value.into() {
+                TokenOr::Literal($value) => self.set($declaration),
+                TokenOr::Token(token) => self.set_token(token.erased(), |resolved| {
+                    let $value = <$ty as FromKind<$kind>>::from_kind(resolved);
+                    $declaration
+                }),
+            }
+        }
+    };
+    ($(#[$doc:meta])* $name:ident($value:ident: $ty:ty) => $declaration:expr) => {
+        $(#[$doc])*
+        pub fn $name(self, $value: $ty) -> Self {
+            self.set($declaration)
+        }
+    };
+}
+
+/// The literal of a setter, from the value of a token of the kind `K`.
+trait FromKind<K: TokenKind> {
+    fn from_kind(value: Resolved) -> Self;
+}
+
+impl FromKind<Color> for LinearColor {
+    fn from_kind(value: Resolved) -> Self {
+        match value {
+            Resolved::Color(color) => color,
+            _ => unreachable!("a color token's value is a color"),
+        }
+    }
+}
+
+impl FromKind<Length> for f32 {
+    fn from_kind(value: Resolved) -> Self {
+        match value {
+            Resolved::Length(length) => length,
+            _ => unreachable!("a length token's value is a length"),
+        }
+    }
+}
+
+/// A length token sets a size in logical pixels.
+impl FromKind<Length> for Dimension {
+    fn from_kind(value: Resolved) -> Self {
+        Dimension::Pixels(<f32 as FromKind<Length>>::from_kind(value))
+    }
+}
+
+impl FromKind<Number> for f32 {
+    fn from_kind(value: Resolved) -> Self {
+        match value {
+            Resolved::Number(number) => number,
+            _ => unreachable!("a number token's value is a number"),
+        }
+    }
+}
+
+impl FromKind<Duration> for std::time::Duration {
+    fn from_kind(value: Resolved) -> Self {
+        match value {
+            Resolved::Duration(time) => time,
+            _ => unreachable!("a duration token's value is a duration"),
+        }
+    }
 }
 
 /// The setters of what lays out, which a state of the pointer does not offer.
@@ -384,55 +564,55 @@ impl<S: LaysOut> StyleBuilder<S> {
         align_self(value: Option<Align>) =>
             StyleDeclaration::Layout(LayoutStyleDeclaration::AlignSelf(value));
         /// The space between its rows, in logical pixels.
-        row_gap(value: f32) => StyleDeclaration::Layout(LayoutStyleDeclaration::Gap(0, value));
+        row_gap(value: f32 as Length) => StyleDeclaration::Layout(LayoutStyleDeclaration::Gap(0, value));
         /// The space between its columns, in logical pixels.
-        column_gap(value: f32) => StyleDeclaration::Layout(LayoutStyleDeclaration::Gap(1, value));
+        column_gap(value: f32 as Length) => StyleDeclaration::Layout(LayoutStyleDeclaration::Gap(1, value));
         /// The space inside its edge where a line starts.
-        padding_start(value: f32) =>
+        padding_start(value: f32 as Length) =>
             StyleDeclaration::Layout(LayoutStyleDeclaration::Padding(SidesDeclaration::Start(value)));
         /// The space inside its edge where a line ends.
-        padding_end(value: f32) =>
+        padding_end(value: f32 as Length) =>
             StyleDeclaration::Layout(LayoutStyleDeclaration::Padding(SidesDeclaration::End(value)));
         /// The space inside its top edge.
-        padding_top(value: f32) =>
+        padding_top(value: f32 as Length) =>
             StyleDeclaration::Layout(LayoutStyleDeclaration::Padding(SidesDeclaration::Top(value)));
         /// The space inside its bottom edge.
-        padding_bottom(value: f32) =>
+        padding_bottom(value: f32 as Length) =>
             StyleDeclaration::Layout(LayoutStyleDeclaration::Padding(SidesDeclaration::Bottom(value)));
         /// The space outside its edge where a line starts.
-        margin_start(value: f32) =>
+        margin_start(value: f32 as Length) =>
             StyleDeclaration::Layout(LayoutStyleDeclaration::Margin(SidesDeclaration::Start(value)));
         /// The space outside its edge where a line ends.
-        margin_end(value: f32) =>
+        margin_end(value: f32 as Length) =>
             StyleDeclaration::Layout(LayoutStyleDeclaration::Margin(SidesDeclaration::End(value)));
         /// The space outside its top edge.
-        margin_top(value: f32) =>
+        margin_top(value: f32 as Length) =>
             StyleDeclaration::Layout(LayoutStyleDeclaration::Margin(SidesDeclaration::Top(value)));
         /// The space outside its bottom edge.
-        margin_bottom(value: f32) =>
+        margin_bottom(value: f32 as Length) =>
             StyleDeclaration::Layout(LayoutStyleDeclaration::Margin(SidesDeclaration::Bottom(value)));
         /// Its width.
-        width(value: Dimension) => StyleDeclaration::Layout(LayoutStyleDeclaration::Size(0, value));
+        width(value: Dimension as Length) => StyleDeclaration::Layout(LayoutStyleDeclaration::Size(0, value));
         /// Its height.
-        height(value: Dimension) => StyleDeclaration::Layout(LayoutStyleDeclaration::Size(1, value));
+        height(value: Dimension as Length) => StyleDeclaration::Layout(LayoutStyleDeclaration::Size(1, value));
         /// Its smallest width.
-        min_width(value: Dimension) =>
+        min_width(value: Dimension as Length) =>
             StyleDeclaration::Layout(LayoutStyleDeclaration::MinSize(0, value));
         /// Its smallest height.
-        min_height(value: Dimension) =>
+        min_height(value: Dimension as Length) =>
             StyleDeclaration::Layout(LayoutStyleDeclaration::MinSize(1, value));
         /// Its largest width.
-        max_width(value: Dimension) =>
+        max_width(value: Dimension as Length) =>
             StyleDeclaration::Layout(LayoutStyleDeclaration::MaxSize(0, value));
         /// Its largest height.
-        max_height(value: Dimension) =>
+        max_height(value: Dimension as Length) =>
             StyleDeclaration::Layout(LayoutStyleDeclaration::MaxSize(1, value));
         /// How much of the space left along its parent's main axis it takes, against its siblings.
-        grow(value: f32) => StyleDeclaration::Layout(LayoutStyleDeclaration::Grow(value));
+        grow(value: f32 as Number) => StyleDeclaration::Layout(LayoutStyleDeclaration::Grow(value));
         /// How much it gives up when its siblings lack space.
-        shrink(value: f32) => StyleDeclaration::Layout(LayoutStyleDeclaration::Shrink(value));
+        shrink(value: f32 as Number) => StyleDeclaration::Layout(LayoutStyleDeclaration::Shrink(value));
         /// Its size along its parent's main axis before it grows or shrinks.
-        basis(value: Dimension) => StyleDeclaration::Layout(LayoutStyleDeclaration::Basis(value));
+        basis(value: Dimension as Length) => StyleDeclaration::Layout(LayoutStyleDeclaration::Basis(value));
         /// A grid's columns, from the start, set whole.
         columns(value: Vec<Track>) => StyleDeclaration::Layout(LayoutStyleDeclaration::Columns(value));
         /// A grid's rows, from the top, set whole.
@@ -452,21 +632,21 @@ impl<S: LaysOut> StyleBuilder<S> {
         row_span(value: u16) =>
             StyleDeclaration::Layout(LayoutStyleDeclaration::Row(GridPlaceDeclaration::Span(value)));
         /// Its border's width, in logical pixels, inside its edges.
-        border_width(value: f32) => StyleDeclaration::Paint(PaintStyleDeclaration::BorderWidth(value));
+        border_width(value: f32 as Length) => StyleDeclaration::Paint(PaintStyleDeclaration::BorderWidth(value));
         /// Its text's font families, in order of preference, set whole.
         fonts(value: Vec<String>) =>
             StyleDeclaration::Text(TextLookDeclaration::Style(TextStyleDeclaration::Fonts(value)));
         /// Its text's size, the font's em, in logical pixels.
-        font_size(value: f32) =>
+        font_size(value: f32 as Length) =>
             StyleDeclaration::Text(TextLookDeclaration::Style(TextStyleDeclaration::Size(value)));
         /// Its text's weight, from 100 to 900.
-        font_weight(value: f32) =>
+        font_weight(value: f32 as Number) =>
             StyleDeclaration::Text(TextLookDeclaration::Style(TextStyleDeclaration::Weight(value)));
         /// Whether its text is italic.
         italic(value: bool) =>
             StyleDeclaration::Text(TextLookDeclaration::Style(TextStyleDeclaration::Italic(value)));
         /// The height of its text's lines, as a multiple of the fonts' own.
-        line_height(value: f32) =>
+        line_height(value: f32 as Number) =>
             StyleDeclaration::Text(TextLookDeclaration::Style(TextStyleDeclaration::LineHeight(value)));
         /// Where its text's lines go across its box.
         text_align(value: Alignment) =>
@@ -481,40 +661,59 @@ impl<S: LaysOut> StyleBuilder<S> {
         font_features(value: Vec<String>) =>
             StyleDeclaration::Text(TextLookDeclaration::Style(TextStyleDeclaration::Features(value)));
         /// The size of the part of its control that the pointer takes, in logical pixels.
-        control_size(value: f32) => StyleDeclaration::Control(ControlStyleDeclaration::Size(value));
+        control_size(value: f32 as Length) => StyleDeclaration::Control(ControlStyleDeclaration::Size(value));
     }
 
-    /// The same space inside each of its edges, or each its own: `padding(12.0)`.
-    pub fn padding(self, sides: impl Into<Sides>) -> Self {
-        let Sides {
-            start,
-            end,
-            top,
-            bottom,
-        } = sides.into();
-        self.padding_start(start)
-            .padding_end(end)
-            .padding_top(top)
-            .padding_bottom(bottom)
+    /// The same space inside each of its edges, or each its own: `padding(12.0)`, or a length's
+    /// token on every side.
+    pub fn padding(self, sides: impl Into<TokenOr<Sides, Length>>) -> Self {
+        match sides.into() {
+            TokenOr::Literal(Sides {
+                start,
+                end,
+                top,
+                bottom,
+            }) => self
+                .padding_start(start)
+                .padding_end(end)
+                .padding_top(top)
+                .padding_bottom(bottom),
+            TokenOr::Token(space) => self
+                .padding_start(space)
+                .padding_end(space)
+                .padding_top(space)
+                .padding_bottom(space),
+        }
     }
 
-    /// The same space outside each of its edges, or each its own.
-    pub fn margin(self, sides: impl Into<Sides>) -> Self {
-        let Sides {
-            start,
-            end,
-            top,
-            bottom,
-        } = sides.into();
-        self.margin_start(start)
-            .margin_end(end)
-            .margin_top(top)
-            .margin_bottom(bottom)
+    /// The same space outside each of its edges, or each its own, or a length's token on every
+    /// side.
+    pub fn margin(self, sides: impl Into<TokenOr<Sides, Length>>) -> Self {
+        match sides.into() {
+            TokenOr::Literal(Sides {
+                start,
+                end,
+                top,
+                bottom,
+            }) => self
+                .margin_start(start)
+                .margin_end(end)
+                .margin_top(top)
+                .margin_bottom(bottom),
+            TokenOr::Token(space) => self
+                .margin_start(space)
+                .margin_end(space)
+                .margin_top(space)
+                .margin_bottom(space),
+        }
     }
 
     /// The same space between its rows and between its columns.
-    pub fn gap(self, space: f32) -> Self {
-        self.row_gap(space).column_gap(space)
+    pub fn gap(self, space: impl Into<TokenOr<f32, Length>>) -> Self {
+        match space.into() {
+            TokenOr::Literal(space) => self.row_gap(space).column_gap(space),
+            TokenOr::Token(space) => self.row_gap(space).column_gap(space),
+        }
     }
 }
 
@@ -523,42 +722,42 @@ impl<S> StyleBuilder<S> {
     setters! {
         drawing_declarations;
         /// Its box's fill.
-        background(value: LinearColor) =>
+        background(value: LinearColor as Color) =>
             StyleDeclaration::Paint(PaintStyleDeclaration::Background(value));
         /// Its border's color.
-        border_color(value: LinearColor) =>
+        border_color(value: LinearColor as Color) =>
             StyleDeclaration::Paint(PaintStyleDeclaration::Border(value));
         /// The radius of its corner at the top, where a line starts, in logical pixels.
-        radius_top_start(value: f32) => StyleDeclaration::Paint(PaintStyleDeclaration::Radii(0, value));
+        radius_top_start(value: f32 as Length) => StyleDeclaration::Paint(PaintStyleDeclaration::Radii(0, value));
         /// The radius of its corner at the top, where a line ends.
-        radius_top_end(value: f32) => StyleDeclaration::Paint(PaintStyleDeclaration::Radii(1, value));
+        radius_top_end(value: f32 as Length) => StyleDeclaration::Paint(PaintStyleDeclaration::Radii(1, value));
         /// The radius of its corner at the bottom, where a line ends.
-        radius_bottom_end(value: f32) => StyleDeclaration::Paint(PaintStyleDeclaration::Radii(2, value));
+        radius_bottom_end(value: f32 as Length) => StyleDeclaration::Paint(PaintStyleDeclaration::Radii(2, value));
         /// The radius of its corner at the bottom, where a line starts.
-        radius_bottom_start(value: f32) =>
+        radius_bottom_start(value: f32 as Length) =>
             StyleDeclaration::Paint(PaintStyleDeclaration::Radii(3, value));
         /// The shadow it casts, set whole; none for none.
         shadow(value: Option<Shadow>) => StyleDeclaration::Paint(PaintStyleDeclaration::Shadow(value));
         /// How opaque it and what it holds are drawn, from 0 to 1.
-        opacity(value: f32) => StyleDeclaration::Paint(PaintStyleDeclaration::Opacity(value));
+        opacity(value: f32 as Number) => StyleDeclaration::Paint(PaintStyleDeclaration::Opacity(value));
         /// The fill that a layer's root lays over the window below it.
-        backdrop(value: LinearColor) => StyleDeclaration::Paint(PaintStyleDeclaration::Backdrop(value));
+        backdrop(value: LinearColor as Color) => StyleDeclaration::Paint(PaintStyleDeclaration::Backdrop(value));
         /// Its text's color.
-        text_color(value: LinearColor) => StyleDeclaration::Text(TextLookDeclaration::Color(value));
+        text_color(value: LinearColor as Color) => StyleDeclaration::Text(TextLookDeclaration::Color(value));
         /// The fill behind the text that a field holds selected.
-        selection_color(value: LinearColor) =>
+        selection_color(value: LinearColor as Color) =>
             StyleDeclaration::Text(TextLookDeclaration::Selection(value));
         /// The radius of its control's corners, in logical pixels.
-        control_radius(value: f32) => StyleDeclaration::Control(ControlStyleDeclaration::Radius(value));
+        control_radius(value: f32 as Length) => StyleDeclaration::Control(ControlStyleDeclaration::Radius(value));
         /// Its control's track: a check box unchecked, a slider's track, a field's placeholder.
-        track_color(value: LinearColor) => StyleDeclaration::Control(ControlStyleDeclaration::Track(value));
+        track_color(value: LinearColor as Color) => StyleDeclaration::Control(ControlStyleDeclaration::Track(value));
         /// Its control's fill: a check box checked, a slider up to its value.
-        fill_color(value: LinearColor) => StyleDeclaration::Control(ControlStyleDeclaration::Fill(value));
+        fill_color(value: LinearColor as Color) => StyleDeclaration::Control(ControlStyleDeclaration::Fill(value));
         /// Its control's mark: a tick, a thumb, a chevron.
-        mark_color(value: LinearColor) => StyleDeclaration::Control(ControlStyleDeclaration::Mark(value));
-        /// How long a change of its style takes, in seconds.
-        transition_duration(value: f32) =>
-            StyleDeclaration::Transition(TransitionDeclaration::Duration(value));
+        mark_color(value: LinearColor as Color) => StyleDeclaration::Control(ControlStyleDeclaration::Mark(value));
+        /// How long a change of its style takes.
+        transition_duration(value: std::time::Duration as Duration) =>
+            StyleDeclaration::Transition(TransitionDeclaration::Duration(value.as_secs_f32()));
         /// How a change of its style goes over that time.
         transition_easing(value: Easing) =>
             StyleDeclaration::Transition(TransitionDeclaration::Easing(value));
@@ -579,11 +778,19 @@ impl<S> StyleBuilder<S> {
     }
 
     /// The same radius at each of its corners.
-    pub fn radius(self, radius: f32) -> Self {
-        self.radius_top_start(radius)
-            .radius_top_end(radius)
-            .radius_bottom_end(radius)
-            .radius_bottom_start(radius)
+    pub fn radius(self, radius: impl Into<TokenOr<f32, Length>>) -> Self {
+        match radius.into() {
+            TokenOr::Literal(radius) => self
+                .radius_top_start(radius)
+                .radius_top_end(radius)
+                .radius_bottom_end(radius)
+                .radius_bottom_start(radius),
+            TokenOr::Token(radius) => self
+                .radius_top_start(radius)
+                .radius_top_end(radius)
+                .radius_bottom_end(radius)
+                .radius_bottom_start(radius),
+        }
     }
 }
 
@@ -626,6 +833,7 @@ mod tests {
         Option<Shadow>,
         Vec<Track>,
         Vec<String>,
+        std::time::Duration,
     );
 
     impl Sample for LinearColor {

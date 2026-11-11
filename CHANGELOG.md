@@ -28,6 +28,14 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `Ui::set_reduced_motion`, and `Ui::preferences` replaces `Ui::reduced_motion`. The size of text,
   `TextSize::factor` or a curve of stops (`TextSize::curve`), scales every text but icons, and a
   list's rows, each row now whole in pixels of the screen at any scale.
+- An own style names a theme's value by a token (ADR-0238): `Token<Color>`, `Token<Length>`,
+  `Token<Duration>` or `Token<Number>`, with a fallback, listed by its crate in `Tokens` and
+  declared once with `Ui::declare_tokens`; `Ui::set_style` reads each token in its kind and refuses
+  themes that give it a value of another kind, a number that is not finite or a negative duration.
+  The setters of an own style take a literal or a token of their kind; `transition_duration` takes
+  a `std::time::Duration` in place of seconds. The core's roles are public tokens,
+  `uwui::theme::ACCENT` and the others. A theme's value that a rule names and that is not a finite
+  number refuses the themes too.
 - Compiling within its budgets (ADR-0221): dependencies are optimised at the first level in debug
   builds; the Nix shell links with mold on Linux; the examples' editor's Play builds `world` with
   the workspace's features, which share every engine crate with the editor's.

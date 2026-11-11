@@ -54,6 +54,14 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   last rule that set a field names no state, then the own states that hold. A hover or a press set
   in code offers no field that lays out
   (`docs/adr/0231-an-elements-own-style-written-in-code.md`).
+- `theme::Token` names a theme's value in code, of one of four kinds, `Color`, `Length`,
+  `Duration` and `Number`, with a fallback: `s.padding(SPACE).background(FACE)`. A crate lists its
+  tokens (`theme::Tokens`) and a program declares each list once, `Ui::declare_tokens`;
+  `Ui::set_style` reads each declared token in its kind, refuses a value of another kind, and gives
+  a token that the themes lack its fallback, with one warning. The core's roles are tokens,
+  `theme::ACCENT` and the others. Density and high contrast reach a token through the themes that
+  give its name, never a number written in code
+  (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`).
 - `preferences::Preferences` is what the user chose over every look, which a program gives with
   `Ui::set_preferences`: the size of text, a curve (`preferences::TextSize`), scales every text's
   size but icons', whoever wrote it, and a list's rows, whole in pixels of the screen; less motion

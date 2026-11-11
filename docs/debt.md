@@ -713,7 +713,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The editor's look has no italic faces, and its fonts hold no Greek.
   The look is built into the program, not cooked: the dev overlay carries it into a game's development build, and the game's build for shipping leaves it out.
 - **The look's foundations** ([ADR-0149](adr/0149-the-looks-foundations.md)).
-  A theme's value is typed where the theme gives it only if it is one of the core's roles ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)); any other name that holds a value of the wrong type is refused where a rule names it; followed at [M6d.2b2b3](stage-6d.md#m6d2b2b3--tokens), which types an application's own tokens too.
+  A theme's value is typed where the theme gives it only for a token that the interface declared, the core's roles among them ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)); a name that no token declares, the look's own spacings and colours, is typed where a rule names it, and a negative duration that a rule names is accepted; followed at uwui's first stage, where the look, a value, declares its tokens.
   The color functions are four, and work on whole colors, not on their lightness, chroma or hue alone.
   Transitions move colors, opacity and a section's height, not sizes, places nor what a layout gives.
   They go on only while the program gives the interface its time; a section that opens is laid out twice in the frame that starts it.
@@ -743,7 +743,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A tooltip shows for the keys' focus alone, not the program's, and is not placed beside the pointer.
   A floating panel has a least size of its own; the dock's floating panels dock again by the program's "Move to" ([ADR-0174](adr/0174-layouts-kept-floating-panels-and-closed-panels.md)), not by a drag, which M6c.8 adds.
   A floating panel does not keep its place against a window that shrinks: it is placed within the window, but keeps what the user left.
-  A style sheet reads a theme's value in place of every value but a text: the look names its icons by their codepoints in its sheet, not in a theme.
+  A style sheet reads a theme's value in place of every value but a text: the look names its icons by their codepoints in its sheet, not in a theme; followed at [M6d.3](stage-6d.md#m6d3--documents-with-serde), which decides a field of text named by a theme ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)).
   The bar of menus takes Alt let go alone whenever an interface holds one: a game whose interface holds a bar loses Alt as a key of its own.
 - **Rich fields** ([ADR-0151](adr/0151-rich-widgets.md)).
   A press on a focused field's prefix that does not drag places its caret at its start.
@@ -790,7 +790,11 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Screen readers scroll by an item or by what shows, not to an offset.
   `deny.toml` ignores three advisories of unmaintained crates that the adapter on Linux brings through zbus 5, zvariant, zbus_names and zvariant_derive, which zbus 6 holds: they go once AccessKit's adapter moves to zbus 6.
 - **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md), [ADR-0229](adr/0229-styles-typed-as-declarations.md), [ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)).
-  A field of the type `String` takes no named value; followed at [M6d.2b2b3](stage-6d.md#m6d2b2b3--tokens), which decides what a declaration names.
+  A field of the type `String` takes no named value, and a token has no kind of text; followed at [M6d.3](stage-6d.md#m6d3--documents-with-serde), which reads the documents with `serde` and decides their notation ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)).
+  A token names a colour, a length, a duration or a number alone: no shadow, easing nor font, and a shadow written in code stays under high contrast; followed at uwui's first stage.
+  A token is read by an own style alone: a component drawn on the canvas, a knob or a meter, cannot read one, nor less motion when it draws; followed at [M6d.4](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu), which reads them when it draws.
+  The frames' times of `ui.tree.look` and `ui.tree.editor` since M6d.2b2b1, and `uwui`'s times of compiling since its own style's setters take a literal or a token, were not measured: the machine was not at rest, other sessions building ([measurements](measurements.md#m6d2b2b3-tokens)); followed at the next milestone that runs alone on the owner's machine at rest.
+  A token that a reload of code adds takes its fallback until the next `Ui::set_style`, which reads the lists declared; followed at uwui's first stage, which builds `uwui dev`.
   An error of type in a cooked style sheet or theme is placed by its byte and the path of its part, not by its line; followed at [M6d.3](stage-6d.md#m6d3--documents-with-serde), which reads them with `serde`.
   The styles made are kept up to a number for each set of rules, each for a kind's defaults, an element's own style and its own states that hold (`Ui::set_style`).
   Past it, an element's style is composed again at each change, its declarations applied one by one, and a transition makes a style of its own for it at each frame.

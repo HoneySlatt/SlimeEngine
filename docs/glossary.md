@@ -1397,8 +1397,10 @@ AccessKit names roles: `Button`, `Label`, `List`, `ListItem`, `Dialog`; given by
 builder (`uwui::tree::Role`, [ADR-0143](adr/0143-what-agents-see-of-the-interface.md)).
 
 **Role (theme).** A colour that uwui's core declares and every look gives, which its components'
-defaults read, with a fallback taken when the themes lack it (`uwui::theme`,
-[ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)). Not the *role (interface)* of
+defaults read, with a fallback taken when the themes lack it: a *token (theme)* that every
+interface declares (`uwui::theme::ACCENT` and the others,
+[ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md),
+[ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)). Not the *role (interface)* of
 screen readers. The *forced colours*' roles will be among them. The editor's look calls the
 colours of its own palette that its sheet names, surfaces, borders and texts, by their uses, not
 roles.
@@ -1755,11 +1757,12 @@ its environment, never on its command line, and without which no connection to i
 channel* is accepted (`slime_channel::Token`,
 [ADR-0122](adr/0122-the-development-channel.md)).
 
-**Token (theme).** A typed name of a theme's value in uwui's code, `Token<Color>`, with a fallback,
-which an element's own style gives in place of a value; resolved when the interface takes its
-themes, read when the element is styled
-([ADR-0223](adr/0223-styles-written-in-code-through-tokens.md),
-[ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)). Decided, built at M6d.2b2b.
+**Token (theme).** A name of a theme's value in uwui's code, of one of four kinds, a colour, a
+length, a duration or a number, `Token<Color>`, with a fallback, which an element's own style gives
+in place of a literal; each crate lists its tokens, a program declares the lists to its interface,
+which reads each token once, in its kind, when it takes its themes (`uwui::theme::Token`,
+[ADR-0223](adr/0223-styles-written-in-code-through-tokens.md),
+[ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)).
 
 **Tone mapping.** Mapping the *HDR* colors of a scene to the range a display shows, 0 to 1, with a
 curve that compresses highlights instead of clipping them. The renderer's tone-mapping pass draws a

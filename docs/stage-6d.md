@@ -1100,7 +1100,9 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
   form of these documents, layouts and a theme's parts among them, whose reader of KDL comes with
   uwui's first stage; whether a theme's values and rules are written in KDL too, so that a theme
   reads in one notation
-  ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)); and
+  ([ADR-0225](adr/0225-layouts-written-in-kdl-reached-from-code-by-their-names.md)); a field of
+  text named by a theme, `"$name"`, and how a theme's file writes a token's kind and unit
+  ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)); and
   `slime-color`'s home with its reflection.
 - **Done when.** Every document of the repository, and layouts and shortcuts saved by the editor
   kept as fixtures, read the same as before; a shortcut saved with Ctrl reads as the primary
@@ -1123,7 +1125,10 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
   the canvas in `uwui-render` on the layout chosen, taking a device, its queue and a target; the
   engine handing it its device and composing it over its views; image tests on wgpu's GL backend
   at WebGL2's limits, if the owner accepts wgpu's `gles` feature; AGENTS.md's rule on wgpu's types
-  naming `uwui-render`.
+  naming `uwui-render`. What the canvas draws for a component, a knob or a meter, reads its
+  tokens and less motion when it draws, so that a change of theme or of the preferences draws
+  again without running a view
+  ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)).
 - **Done when.** The prototype's blur, group, transform and path are measured on both layouts, and
   the canvas's ADR records its passes; the editor, the dev overlay and *Hunna Wood*'s menus draw as
   before in their image tests; a test draws a tree of uwui with a bare wgpu device; CI is green.
