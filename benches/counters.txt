@@ -91,9 +91,12 @@ ui.tree.list.100k	bytes allocated by a frame standing still	38616
 ui.tree.list.100k	elements	164
 ui.tree.list.100k	elements visited by a frame standing still	328
 ui.tree.list.100k	items of a frame standing still	110
+ui.tree.look	allocations of a frame of the transition	96763
 ui.tree.look	allocations of reading the look's documents	127736
 ui.tree.look	allocations of the frame of the change	109456
+ui.tree.look	bytes allocated by a frame of the transition	22270483
 ui.tree.look	bytes allocated by the frame of the change	24487625
+ui.tree.look	elements drawn by a frame of the transition	12487
 ui.tree.look	elements styled by the frame of the change	12487
 ui.tree.look	frames of 240 Hz of the transition	29
 world.frame.100k	instances in a frame	100000

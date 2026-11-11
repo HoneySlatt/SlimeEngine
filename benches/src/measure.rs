@@ -24,7 +24,8 @@ pub enum Check {
     ///
     /// [`counters::FILE`]: crate::counters::FILE
     Count(u64),
-    /// A ratio of times, how a cost grows with its size, which a budget bounds.
+    /// A ratio that a budget bounds: of times, how a cost grows with its size, or of counts, a
+    /// cost for each thing that a frame did.
     Ratio { value: f64, at_most: f64 },
 }
 
@@ -66,6 +67,17 @@ impl Row {
     ) -> Self {
         let value = percentile(larger, 0.5).as_secs_f64()
             / percentile(smaller, 0.5).as_secs_f64().max(1e-9);
+        Self {
+            what: what.into(),
+            value: format!("{value:.2}, at most {at_most}"),
+            check: Check::Ratio { value, at_most },
+        }
+    }
+
+    /// `count` for each of `per`, which `--counters` checks against `at_most`: a counter's cost
+    /// for each thing that it counted, the same on every machine, bounded by a target.
+    pub fn per(what: impl Into<String>, count: u64, per: u64, at_most: f64) -> Self {
+        let value = count as f64 / per.max(1) as f64;
         Self {
             what: what.into(),
             value: format!("{value:.2}, at most {at_most}"),

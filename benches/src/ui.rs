@@ -825,6 +825,16 @@ pub fn tree(context: &mut Context) -> Result<Vec<Row>, String> {
 /// The time that a frame of 240 Hz gives the interface.
 const FRAME_240: Duration = Duration::from_nanos(4_166_667);
 
+/// The most allocations that the frame after a change of the look's colours makes for each element
+/// that it styles again, in a debug build
+/// (`docs/adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md`).
+const ALLOCATIONS_PER_ELEMENT_STYLED: f64 = 20.0;
+
+/// The most allocations that the first frame of the transition makes for each element that it draws
+/// again, in a debug build: the frames after it make within a few allocations of it
+/// (`docs/adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md`).
+const ALLOCATIONS_PER_ELEMENT_DRAWN: f64 = 19.0;
+
 /// The most frames that a transition is given to end, past which the benchmark fails.
 const TRANSITION_FRAMES: usize = 1_000;
 
@@ -832,8 +842,10 @@ const TRANSITION_FRAMES: usize = 1_000;
 /// own: a frame after its theme of colours changed between dark and light, which styles every
 /// element again under the look's rules and starts their transitions, then the frames of 240 Hz
 /// that the transitions take to end. Counted: the allocations of reading the look's documents
-/// apart, the elements that the frame of the change styled, its allocations and their bytes, and
-/// the frames of the transition.
+/// apart, the elements that the frame of the change styled, its allocations and their bytes, the
+/// frames of the transition, and the elements that its first frame draws again with its
+/// allocations and their bytes; and each frame's allocations for each element, which a target
+/// bounds.
 pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     let runs = context.runs(RUNS);
     let mut fonts = Fonts::new();
@@ -876,7 +888,11 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     // Counted before the series, whose length a run of `--counters` cuts.
     let ((), read) = counted(|| restyle(&mut editor));
     let ((_, stats), allocations) = counted(|| change(&mut editor));
+    // The first frame of the transition, which draws again every element that moves.
+    editor.ui.advance(FRAME_240);
+    let ((_, moved), moving) = counted(|| editor.ui.frame());
     let (frames, _) = settle(&mut editor)?;
+    let frames = frames + 1;
     let mut changed = Vec::new();
     let mut transitions = Vec::new();
     for _ in 0..runs {
@@ -894,6 +910,22 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
             allocations.taken,
         ),
         Row::count("frames of 240 Hz of the transition", frames),
+        Row::count("elements drawn by a frame of the transition", moved.painted),
+        Row::count("allocations of a frame of the transition", moving.calls),
+        Row::count("bytes allocated by a frame of the transition", moving.taken),
+        // The targets of ADR-0232, for each element that the frame styled or drew again.
+        Row::per(
+            "allocations of the frame of the change for each element styled",
+            allocations.calls,
+            stats.styled as u64,
+            ALLOCATIONS_PER_ELEMENT_STYLED,
+        ),
+        Row::per(
+            "allocations of a frame of the transition for each element drawn",
+            moving.calls,
+            moved.painted as u64,
+            ALLOCATIONS_PER_ELEMENT_DRAWN,
+        ),
     ];
     rows.extend(Row::times(
         "a frame after the look's colours changed, every element styled again",
