@@ -6,9 +6,9 @@ use std::fmt;
 use slime_reflect::Registry;
 use slime_serialize::{Document, Mode, ReadError};
 
-/// A document read through reflection, a style sheet until M6d.3b2 or a table of shortcuts until
-/// M6d.3c, as a program has it: a text, as its author wrote it, or its binary encoding, as the
-/// cooker writes it (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
+/// A document read through reflection, a table of shortcuts until M6d.3c, as a program has it: a
+/// text, as its author wrote it, or its binary encoding, as the cooker writes it
+/// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
 #[derive(Clone, Debug)]
 pub(crate) enum Source {
     Text(String),
@@ -40,10 +40,10 @@ pub struct DocumentError {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Fault {
-    /// In a document of KDL, a theme: its line, its column and what is wrong.
+    /// In a document of KDL, a theme or a style sheet: its line, its column and what is wrong.
     Kdl(uwui_kdl::Error),
-    /// In a document still read through reflection, a style sheet until M6d.3b2 or a table of
-    /// shortcuts until M6d.3c, which then read KDL too
+    /// In a document still read through reflection, a table of shortcuts until M6d.3c, which then
+    /// reads KDL too
     /// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
     Reflected(ReadError),
 }
@@ -96,7 +96,8 @@ impl std::error::Error for Fault {
 /// Why style sheets and themes cannot be taken: each error found, up to [`DocumentErrors::MOST`];
 /// the interface keeps the style it had. The themes are read first, every value of each in turn,
 /// then the names that the values give one another, then the tokens; the style sheets are read
-/// only once the themes are taken, and each gives its first error alone until it is KDL (M6d.3b2).
+/// only once the themes are taken, in their order, each rule in the order of its file, and in a
+/// rule what it sets, then whether its kind reads it.
 #[derive(Debug)]
 pub struct DocumentErrors {
     errors: Vec<DocumentError>,

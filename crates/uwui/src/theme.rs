@@ -1,15 +1,29 @@
 //! Style sheets and themes: documents that style an interface's elements
 //! (`docs/adr/0141-style-sheets-and-themes.md`).
 //!
-//! A *style sheet* holds rules, each a table named as its author likes, applied in the order of the
-//! file: what elements it selects, `select`, and the part of their style that it sets, `style`, a
-//! part of a [`Style`] as `slime-serialize` writes one, which leaves out what it does not set and
-//! writes an option as a list of none or one value, `shadow = [{ ... }]`, so that a rule can empty
-//! one. A sheet is TOML, read through reflection, until M6d.3b2 reads it in KDL
-//! (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`). A rule's field gives
-//! a theme's value as `"$name"` in place of a value; a color may also be given as sRGB,
-//! `"#rrggbb"` or `"#rrggbbaa"`, or as a color function. Changing the theme changes the values that
-//! the rules give, the rules unchanged.
+//! A *style sheet* is a document of KDL that holds rules, each a node named as its author likes,
+//! applied in the order of the file: what elements it selects, `select`, and the parts of their
+//! style that it sets, in the groups of a [`Style`], `layout`, `paint`, `text`, `control`,
+//! `transition` and `icons`; what it leaves out it leaves as it is. Changing the theme changes the
+//! values that the rules give, the rules unchanged. Its notation follows one set of rules
+//! (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`):
+//!
+//! - a field that holds a value is a property, `border_width=1`; a struct is a child node named by
+//!   its field, `padding start=4 end=4`; an array or a list of values is a child node whose
+//!   arguments are its elements, `radii 4 4 4 4`;
+//! - an enum's variant is an identifier, `direction=Column`; an option left out is left as it is,
+//!   and `#null` empties it, a shadow too, `shadow #null`; a shadow is set whole, what it leaves out
+//!   taking [`Shadow::default`](crate::style::Shadow)'s value;
+//! - a number is a length, in logical pixels, bare or `(px)`, a duration, which writes its unit,
+//!   `(ms)120` or `(s)0.12`, never negative, or a number, as its field takes it; a size is a length,
+//!   a share of its parent's, `(%)50`, or `Auto`, and a grid's track a length, a share of the space
+//!   left, `(fr)1`, or `Auto`;
+//! - a color is sRGB's `"#rrggbb"` or `"#rrggbbaa"`, or a color function, below;
+//! - `$name` names a theme's value of the field's kind wherever a value goes, a length where a size
+//!   or a track goes, a text in a field of text, which writes `$$` for a text that starts with `$`;
+//!   a selector names none, and its numbered key is a whole number, `key=3`.
+//!
+//! A rule, a group or a field given twice is refused.
 //!
 //! A *theme* is a document of KDL that holds named values in groups, each the kind of its values,
 //! as the design tokens of the W3C's community group give a group its type: `color`, `length` in
@@ -18,9 +32,9 @@
 //! group. A value names another of its kind, `$name`, which takes the unit of its group and writes
 //! none.
 //!
-//! A rule's part becomes a list of typed *declarations*, one for each field it sets, which the
-//! cascade applies in order (`docs/adr/0229-styles-typed-as-declarations.md`). A rule sets a color
-//! whole: a part that gives some of a color's channels alone is refused. A rule that names a kind
+//! A rule's fields become a list of typed *declarations*, one for each field it sets, read by the
+//! code that `uwui-macros`'s derives generate, which the cascade applies in order
+//! (`docs/adr/0229-styles-typed-as-declarations.md`). A rule that names a kind
 //! sets only what that kind reads of a style: its layout, its paint and its transition, which every
 //! kind reads but for a layer's backdrop, which a container alone reads, as a layer's root; and the
 //! parts of a style that it draws, a check box its control's colors and its tick, a label its text.
@@ -54,15 +68,22 @@
 //! refused. Each error is placed at its line and column, and gathered, in the order that
 //! [`DocumentErrors`] gives.
 //!
-//! ```toml
-//! # A style sheet.
-//! [panel]
-//! select = { classes = ["panel"] }
-//! style.paint = { background = "$surface", radii = ["$radius", "$radius", "$radius", "$radius"] }
-//!
-//! [toolbar-button-pressed]
-//! select = { kind = "Button", states = ["Pressed"], inside = { class = "toolbar" } }
-//! style.paint.background = "$accent"
+//! ```kdl
+//! // A style sheet.
+//! panel {
+//!     select { classes panel; }
+//!     paint background=$surface {
+//!         radii $radius $radius $radius $radius
+//!     }
+//! }
+//! toolbar-button-pressed {
+//!     select kind=Button {
+//!         states Pressed
+//!         inside class=toolbar
+//!     }
+//!     paint background=$accent
+//!     transition duration=$fast
+//! }
 //! ```
 //!
 //! ```kdl
@@ -91,10 +112,14 @@
 use std::collections::HashMap;
 
 use slime_color::{LinearColor, Oklch};
-use slime_reflect::{Problem, Reflect, Registry, Value};
-use slime_serialize::References;
+use slime_reflect::Reflect;
+#[cfg(test)]
+use slime_reflect::Registry;
+#[cfg(test)]
+use slime_reflect::Value;
+use uwui_macros::Identifiers;
 
-use crate::document::{DocumentError, DocumentErrors, Fault, Source};
+use crate::document::{DocumentError, DocumentErrors};
 use crate::style::{Style, StyleDeclaration};
 
 /// A style sheet: rules that select elements and set a part of their style, in the order they are
@@ -102,7 +127,7 @@ use crate::style::{Style, StyleDeclaration};
 #[derive(Clone, Debug)]
 pub struct StyleSheet {
     name: String,
-    source: Source,
+    text: String,
 }
 
 /// A theme: the values that the rules of style sheets name, a document of KDL.
@@ -113,20 +138,13 @@ pub struct Theme {
 }
 
 impl StyleSheet {
-    /// The style sheet that `text` holds, named `name` in its errors: its file, usually.
+    /// The style sheet that `text` holds, named `name` in its errors: its file, usually. A cooked
+    /// style sheet is its text too, checked by the cooker
+    /// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
     pub fn from_text(name: impl Into<String>, text: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            source: Source::Text(text.into()),
-        }
-    }
-
-    /// The style sheet that `bytes`, the binary encoding of its document, hold, as the cooker
-    /// writes them.
-    pub fn from_binary(name: impl Into<String>, bytes: Vec<u8>) -> Self {
-        Self {
-            name: name.into(),
-            source: Source::Binary(bytes),
+            text: text.into(),
         }
     }
 
@@ -172,7 +190,7 @@ pub(crate) struct Selector {
 }
 
 /// The kinds of elements, as a rule names them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect, Identifiers)]
 #[reflect(name = "UiElementKind")]
 pub(crate) enum KindName {
     Container,
@@ -248,6 +266,7 @@ impl KindName {
 mod documents_tests;
 #[cfg(test)]
 mod reflected_tests;
+pub(crate) mod sheet;
 mod token;
 mod values;
 
@@ -519,7 +538,7 @@ pub(crate) fn read_by(kind: KindName) -> &'static [(&'static str, Option<Token<C
 }
 
 /// The states of an element, as a rule names them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect, Identifiers)]
 #[reflect(name = "UiElementState")]
 pub(crate) enum StateName {
     Hovered,
@@ -551,7 +570,9 @@ pub(crate) struct Rule {
     pub(crate) declarations: Vec<StyleDeclaration>,
 }
 
-/// The registry of the types that style sheets and themes hold.
+/// The registry of the types that style sheets hold, as reflection reads them: the oracle's of the
+/// tests while reflection is in uwui (M6d.3c).
+#[cfg(test)]
 pub(crate) fn registry() -> Registry {
     let mut registry = Registry::new();
     registry.register::<Style>();
@@ -574,11 +595,9 @@ pub(crate) struct Styling {
 /// lack takes its fallback, and a fallback that names a token takes that token's value if it was
 /// declared, else its own fallback.
 ///
-/// The themes are KDL, read by [`values`]; the sheets are still read through reflection, the
-/// themes' values given to it by [`Named`], until M6d.3b2 reads them in KDL too
+/// The themes are read first, by [`values`], then the sheets, by [`sheet`], each error gathered
 /// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
 pub(crate) fn read(
-    registry: &Registry,
     sheets: &[StyleSheet],
     themes: &[Theme],
     declared: &[Erased],
@@ -633,18 +652,14 @@ pub(crate) fn read(
         let value = token.fallback_value(&|name, kind| tokens.get(name, kind));
         tokens.0.insert(name, value);
     }
-    // What every rule's part is laid over, to read the values that it sets whole.
-    let default = Style::default().to_value();
-    let named = Named(&values);
     let mut rules = Vec::new();
-    for sheet in sheets {
-        match sheet_rules(registry, sheet, &default, &named) {
-            Ok(read) => rules.extend(read),
-            Err(error) => errors.push(DocumentError {
-                document: sheet.name.clone(),
-                error: Fault::Reflected(error),
-            }),
-        }
+    for style_sheet in sheets {
+        rules.extend(sheet::read(
+            &style_sheet.name,
+            &style_sheet.text,
+            &values,
+            &mut errors,
+        ));
     }
     if errors.is_empty() {
         Ok(Styling { rules, lacking })
@@ -670,60 +685,6 @@ fn token_value(value: &values::ThemeValue, kind: KindId) -> Option<Resolved> {
     }
 }
 
-/// The rules of `sheet`, read through reflection, the themes' values given by `named`.
-fn sheet_rules(
-    registry: &Registry,
-    sheet: &StyleSheet,
-    default: &Value,
-    named: &Named<'_>,
-) -> Result<Vec<Rule>, slime_serialize::ReadError> {
-    let mut document = sheet.source.parse(registry)?;
-    let mut rules = Vec::new();
-    for name in document.keys(&[]) {
-        if !document.is_table(&[&name]) {
-            return Err(document.error_at(
-                &[&name],
-                Problem::Invalid(format!(
-                    "`{name}` is not a rule: a rule is a table of `select` and `style`"
-                )),
-            ));
-        }
-        let selector = document
-            .read(&[&name, "select"], "UiSelector", Some(named))?
-            .map(|value| Selector::from_value(&value).expect("read as a selector"))
-            .unwrap_or_default();
-        let style = document
-            .read_part(&[&name, "style"], "UiStyle", Some(named))?
-            .unwrap_or(Value::Struct(Vec::new()));
-        let refuse =
-            |problem: String| document.error_at(&[&name, "style"], Problem::Invalid(problem));
-        let declarations = declarations(registry, default, &style).map_err(refuse)?;
-        if let Some(kind) = selector.kind
-            && let Some(unread) = declarations
-                .iter()
-                .find(|declaration| !reads(kind, declaration))
-        {
-            return Err(refuse(format!(
-                "a rule for `{kind:?}` sets `{}`, which a `{kind:?}` does not read",
-                unread.path()
-            )));
-        }
-        for key in document.keys(&[&name]) {
-            if key != "select" && key != "style" {
-                return Err(document.error_at(
-                    &[&name, &key],
-                    Problem::Invalid(format!("a rule holds `select` and `style`, not `{key}`")),
-                ));
-            }
-        }
-        rules.push(Rule {
-            selector,
-            declarations,
-        });
-    }
-    Ok(rules)
-}
-
 /// The declarations of what `part` sets, a part of a style as reflection reads one, in its order,
 /// each holding the value that the part laid over `default`, the default style's value, gives it.
 ///
@@ -731,7 +692,8 @@ fn sheet_rules(
 ///
 /// What is wrong, if the part sets some of a color's channels and not all, or leaves out a field of
 /// what it sets whole, an option's value, without a default to give it: such a part lays over no
-/// style, and is refused when the interface reads it, not when a frame styles.
+/// style. The reflected reader's, kept as the oracle of the tests while reflection is in uwui.
+#[cfg(test)]
 pub(crate) fn declarations(
     registry: &Registry,
     default: &Value,
@@ -755,6 +717,7 @@ pub(crate) fn declarations(
 
 /// The path of the first color that `part`, a part of a value of the type `ty` at `path`, sets some
 /// of the channels of and not all; none when it sets every color it holds whole.
+#[cfg(test)]
 fn partial_color(registry: &Registry, ty: &str, part: &Value, path: &str) -> Option<String> {
     let inner = ty
         .strip_prefix("Option<")
@@ -780,76 +743,6 @@ fn partial_color(registry: &Registry, ty: &str, part: &Value, path: &str) -> Opt
         };
         partial_color(registry, &field.ty, part, &path)
     })
-}
-
-/// The themes' values, as reflection reads them where a sheet's rule names one, `"$name"`, or
-/// writes a color: the adapter through which today's sheets read the themes of KDL, which M6d.3b2
-/// removes (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`). A value is
-/// taken where its kind fits the field: a color in a color, a length, a duration or a number in a
-/// number, a whole number in a field of whole numbers; the kinds of numbers are told apart in
-/// sheets once M6d.3b2's derive marks each.
-pub(crate) struct Named<'a>(pub(crate) &'a values::Values);
-
-impl References for Named<'_> {
-    fn name(&self, _: u64) -> Option<String> {
-        None
-    }
-
-    fn entity(&self, _: &str) -> Option<u64> {
-        None
-    }
-
-    fn value(&self, ty: &str, text: &str) -> Option<Result<Value, String>> {
-        use values::ThemeValue;
-        // A name in place of an option, as a part writes one, stands for the option's value.
-        let held = ty
-            .strip_prefix("Option<")
-            .and_then(|inner| inner.strip_suffix('>'));
-        let inner = held.unwrap_or(ty);
-        let wrap = |value: Value| {
-            if held.is_some() {
-                Value::Option(Some(Box::new(value)))
-            } else {
-                value
-            }
-        };
-        if let Some(name) = text.strip_prefix('$') {
-            let Some(value) = self.0.get(name) else {
-                return Some(Err(format!("no theme gives a value named `{name}`")));
-            };
-            let read = match (value, inner) {
-                (ThemeValue::Color(color), "LinearColor") => Some(color.to_value()),
-                (
-                    ThemeValue::Length(number)
-                    | ThemeValue::Duration(number)
-                    | ThemeValue::Number(number),
-                    "f32",
-                ) => Some(Value::F32(*number)),
-                (ThemeValue::Number(number), "u16")
-                    if number.fract() == 0.0 && (0.0..=f32::from(u16::MAX)).contains(number) =>
-                {
-                    Some(Value::UInt(*number as u64))
-                }
-                _ => None,
-            };
-            return Some(read.map(wrap).ok_or_else(|| {
-                if inner == "u16" && matches!(value, ThemeValue::Number(_)) {
-                    return format!(
-                        "the value `{name}` is a number that is not whole from 0 to 65535, which \
-                         this field holds"
-                    );
-                }
-                format!(
-                    "the value `{name}` is {}, which this field does not hold",
-                    value.group().a()
-                )
-            }));
-        }
-        if inner == "LinearColor" && (text.starts_with('#') || call(text).is_some()) {
-            return Some(values::color(text, self.0).map(|color| wrap(color.to_value())));
-        }
-        None
-    }
 }
 
 /// The function and the arguments of `text` if it calls one, `name(a, b)`: the arguments split at

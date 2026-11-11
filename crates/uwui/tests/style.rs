@@ -34,26 +34,31 @@ fn fill(ui: &Ui, id: ElementId) -> LinearColor {
 }
 
 const SHEET: &str = r##"
-[box]
-select = { kind = "Container" }
-style.paint.background = "$surface"
-style.layout.padding = { start = 4, end = 4, top = "$gap", bottom = "$gap" }
+box {
+    select kind=Container
+    paint background=$surface
+    layout { padding start=4 end=4 top=$gap bottom=$gap; }
+}
 
-[panel]
-select = { classes = ["panel"] }
-style.paint = { background = "$panel", radii = ["$radius", "$radius", "$radius", "$radius"] }
+panel {
+    select { classes panel; }
+    paint background=$panel { radii $radius $radius $radius $radius; }
+}
 
-[toolbar-item]
-select = { inside = { class = "toolbar" } }
-style.paint.background = "#102030"
+toolbar-item {
+    select { inside class=toolbar; }
+    paint background="#102030"
+}
 
-[named]
-select = { key = "special" }
-style.paint.border_width = 3
+named {
+    select key=special
+    paint border_width=3
+}
 
-[pressed]
-select = { states = ["Pressed"] }
-style.paint.background = "$accent"
+pressed {
+    select { states Pressed; }
+    paint background=$accent
+}
 "##;
 
 const DARK: &str = r##"
@@ -195,20 +200,6 @@ fn another_theme_styles_every_element_again_with_its_values() {
 }
 
 #[test]
-fn style_sheets_are_read_from_their_binary_encoding_as_from_their_text() {
-    let (mut ui, root) = ui();
-    let ids = build(&mut ui, root, 0, |s| s);
-    let sheet = slime_serialize::encode(SHEET).expect("a document");
-    ui.set_style(
-        &[StyleSheet::from_binary("ui.style", sheet)],
-        &[Theme::from_text("dark.theme", DARK)],
-    )
-    .expect("a style sheet and a theme");
-    ui.frame();
-    assert_eq!(fill(&ui, ids[1]), srgb(0x303030));
-}
-
-#[test]
 fn a_wrong_style_sheet_or_theme_is_refused_by_name_and_place_and_the_style_is_kept() {
     let (mut ui, root) = ui();
     let ids = build(&mut ui, root, 0, |s| s);
@@ -221,55 +212,55 @@ fn a_wrong_style_sheet_or_theme_is_refused_by_name_and_place_and_the_style_is_ke
     ui.frame();
     let cases = [
         (
-            "[a]\nselect = { kind = \"Container\" }\nstyle.paint.background = \"$missing\"\n",
+            "a {\n    select kind=Container\n    paint background=$missing\n}\n",
             "ui.style: line 3,",
             "no theme gives a value named `missing`",
         ),
         (
-            "[a]\nstyle.paint.background = \"#12345\"\n",
+            "a {\n    paint background=\"#12345\"\n}\n",
             "ui.style: line 2,",
             "is not a color",
         ),
         (
-            "[a]\nstyle.paint.radii = [\"$surface\", 0, 0, 0]\n",
-            "ui.style: line 2,",
-            "the value `surface` is a color, which this field does not hold",
+            "a {\n    paint {\n        radii $surface 0 0 0\n    }\n}\n",
+            "ui.style: line 3,",
+            "`$surface` is a color, where a length goes",
         ),
         (
-            "[a]\nselect = { kind = \"Window\" }\n",
+            "a {\n    select kind=Window\n}\n",
             "ui.style: line 2,",
             "Window",
         ),
         (
-            "[a]\nselected = {}\n",
+            "a {\n    selected\n}\n",
             "ui.style: line 2,",
-            "not `selected`",
+            "`selected` is none of what `a` holds",
         ),
-        // A color set whole, never some of its channels (docs/adr/0229-styles-typed-as-declarations.md),
-        // there or inside an option.
+        // A color is written whole, never as its channels
+        // (docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md).
         (
-            "[a]\nstyle.paint.background = { r = 0.5 }\n",
+            "a {\n    paint background=0.5\n}\n",
             "ui.style: line 2,",
-            "`paint.background` sets some of a color's channels",
+            "a color goes here",
         ),
         (
-            "[a]\nstyle.paint.shadow = [{ color = { g = 1, a = 1 } }]\n",
-            "ui.style: line 2,",
-            "`paint.shadow.color` sets some of a color's channels",
+            "a {\n    paint {\n        shadow color=1\n    }\n}\n",
+            "ui.style: line 3,",
+            "a color goes here",
         ),
         // A rule for a kind sets what that kind reads alone.
         (
-            "[a]\nselect = { kind = \"Label\" }\nstyle.control.fill = \"#ffffff\"\n",
+            "a {\n    select kind=Label\n    control fill=\"#ffffff\"\n}\n",
             "ui.style: line 3,",
             "a rule for `Label` sets `control.fill`, which a `Label` does not read",
         ),
         (
-            "[a]\nselect = { kind = \"Button\" }\nstyle.paint.backdrop = \"#000000\"\n",
+            "a {\n    select kind=Button\n    paint backdrop=\"#000000\"\n}\n",
             "ui.style: line 3,",
             "sets `paint.backdrop`",
         ),
-        ("[a\n", "ui.style: line 1,", ""),
-        ("rule = 3\n", "ui.style: line 1,", "is not a rule"),
+        ("a (\n", "ui.style: line 1,", ""),
+        ("rule 3\n", "ui.style: line 1,", "not arguments"),
     ];
     for (sheet, place, problem) in cases {
         let error = ui
@@ -304,8 +295,8 @@ fn a_wrong_style_sheet_or_theme_is_refused_by_name_and_place_and_the_style_is_ke
 fn rules_apply_in_the_order_of_their_file_whatever_their_names() {
     let (mut ui, root) = ui();
     let ids = build(&mut ui, root, 0, |s| s);
-    let sheet = "[zeta]\nselect = { kind = \"Container\" }\nstyle.paint.background = \"#111111\"\n\n\
-                 [alpha]\nselect = { kind = \"Container\" }\nstyle.paint.background = \"#222222\"\n";
+    let sheet = "zeta {\n    select kind=Container\n    paint background=\"#111111\"\n}\n\
+                 alpha {\n    select kind=Container\n    paint background=\"#222222\"\n}\n";
     ui.set_style(
         &[StyleSheet::from_text("order.style", sheet)],
         &[Theme::from_text("empty.theme", "")],
@@ -338,7 +329,7 @@ fn an_element_whose_own_style_changes_is_styled_again() {
 #[test]
 fn the_rows_of_a_list_restyled_lay_out_the_list_s_rows_alone() {
     let (mut ui, root) = ui();
-    let sheet = "[row]\nselect = { classes = [\"row\"] }\nstyle.layout.padding.top = \"$pad\"\n";
+    let sheet = "row {\n    select { classes row; }\n    layout { padding top=$pad; }\n}\n";
     let theme = |pad: u32| Theme::from_text("pad.theme", format!("length {{ pad {pad} }}\n"));
     let sheets = [StyleSheet::from_text("rows.style", sheet)];
     ui.set_style(&sheets, &[theme(2)]).expect("a style sheet");
@@ -368,8 +359,8 @@ fn the_rows_of_a_list_restyled_lay_out_the_list_s_rows_alone() {
 fn a_shadow_set_in_part_takes_the_defaults_of_what_it_leaves_out() {
     let (mut ui, root) = ui();
     let ids = build(&mut ui, root, 0, |s| s);
-    let sheet = "[box]\nselect = { kind = \"Container\" }\n\
-                 style.paint.shadow = [{ offset = [0, 4], blur = 18 }]\n";
+    let sheet = "box {\n    select kind=Container\n    paint {\n        \
+                 shadow blur=18 { offset 0 4; }\n    }\n}\n";
     ui.set_style(&[StyleSheet::from_text("shadows.style", sheet)], &[])
         .expect("a style sheet");
     ui.frame();
@@ -384,7 +375,7 @@ fn a_shadow_set_in_part_takes_the_defaults_of_what_it_leaves_out() {
 /// The fill of a box styled by the `$fill` of `themes`, stacked.
 fn computed(themes: &[(&str, &str)]) -> Result<LinearColor, String> {
     let (mut ui, root) = ui();
-    let sheet = "[box]\nselect = { kind = \"Container\" }\nstyle.paint.background = \"$fill\"\n";
+    let sheet = "box {\n    select kind=Container\n    paint background=$fill\n}\n";
     let themes: Vec<Theme> = themes
         .iter()
         .map(|(name, text)| Theme::from_text(*name, *text))

@@ -18,7 +18,10 @@ use syn::{Attribute, Data, DeriveInput, Fields, Ident, Type};
 /// `#[declare(lays_out)]`, nested or not, lays out what it styles; a field marked
 /// `#[declare(color)]`, not nested, holds a color that transitions move: a field whose type names
 /// `LinearColor`, an option or an array of them included, fails to compile unmarked, and an array
-/// marked is refused, its colors not listed. It generates:
+/// marked is refused, its colors not listed. A field whose type names `f32` is marked what its
+/// numbers measure, as a style sheet writes them, `#[declare(length)]`, `#[declare(duration)]` or
+/// `#[declare(number)]`, once, and fails to compile unmarked; another field is not marked. It
+/// generates:
 ///
 /// - `SDeclaration::apply`, which sets the leaf that the declaration names;
 /// - `SDeclaration::path`, the leaf's path in a style sheet, `padding.top` or `size[0]`;
@@ -28,22 +31,80 @@ use syn::{Attribute, Data, DeriveInput, Fields, Ident, Type};
 /// - `S::LEAVES`, the number of its leaves;
 /// - `S::declared`, the declarations of the leaves of a value whose bits differ from another's, which
 ///   uwui's tests write own styles with, built for them alone;
-/// - `S::named`, the declarations of the leaves that a part of `S` read by reflection names, each
-///   holding the value that a whole `S` gives it, an array's every element; it goes with
-///   reflection, once uwui reads its documents in KDL (M6d.3c);
+/// - `S::read_fields`, which reads from a node of KDL the declarations of the fields that its
+///   properties and children write, a leaf by its type's `Field`, an array as a child node of its
+///   elements, a nested field as a child node of its own fields, each number of its field's
+///   measure (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`);
+/// - `S::named`, in uwui's tests alone, the declarations of the leaves that a part of `S` read by
+///   reflection names, each holding the value that a whole `S` gives it, an array's every element:
+///   the reflected reader's, the oracle of `S::read_fields` until reflection leaves uwui (M6d.3c);
 /// - `Same` for `S`, field by field;
 /// - `Colors` for `S`, the colors of its fields marked `#[declare(color)]` and of its nested
 ///   fields, in the order of the struct: the one list of colors that transitions move.
 ///
 /// The code it generates names `crate::style::Same`, `crate::style::Colors`,
-/// `slime_color::LinearColor` and `slime_reflect::Value`: it serves uwui's
-/// own styles, and its items are `pub(crate)`.
+/// `crate::theme::sheet`, `uwui_kdl`, `slime_color::LinearColor` and `slime_reflect::Value`: it
+/// serves uwui's own styles, and its items are `pub(crate)`.
 #[proc_macro_derive(Declare, attributes(declare))]
 pub fn derive_declare(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
     expand(&input)
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()
+}
+
+/// Derives the reading of an enum of unit variants that a style sheet names by an identifier,
+/// `direction=Column`, its variant's name as Rust writes it
+/// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
+///
+/// It generates `crate::theme::sheet::Field` for the enum, which reads a variant from its name and
+/// refuses any other value, naming every variant; the enum is `Copy`. It serves uwui's own styles
+/// and selectors.
+#[proc_macro_derive(Identifiers)]
+pub fn derive_identifiers(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as DeriveInput);
+    identifiers(&input)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+fn identifiers(input: &DeriveInput) -> syn::Result<Tokens> {
+    let Data::Enum(data) = &input.data else {
+        return Err(syn::Error::new_spanned(
+            &input.ident,
+            "`Identifiers` is derived for an enum of unit variants",
+        ));
+    };
+    if !input.generics.params.is_empty() {
+        return Err(syn::Error::new_spanned(
+            &input.generics,
+            "`Identifiers` cannot be derived for a generic type",
+        ));
+    }
+    let mut variants = Vec::new();
+    for variant in &data.variants {
+        if !matches!(variant.fields, Fields::Unit) {
+            return Err(syn::Error::new_spanned(
+                variant,
+                "`Identifiers` is derived for an enum of unit variants",
+            ));
+        }
+        let ident = &variant.ident;
+        let name = ident.to_string();
+        variants.push(quote! { (#name, Self::#ident) });
+    }
+    let ty = &input.ident;
+    Ok(quote! {
+        impl crate::theme::sheet::Field for #ty {
+            fn from_entry(
+                entry: &::uwui_kdl::Entry<'_, '_>,
+                _: crate::theme::sheet::Measure,
+                _: &crate::theme::sheet::Reading<'_>,
+            ) -> ::std::result::Result<Self, crate::theme::sheet::Fault> {
+                crate::theme::sheet::identifier(entry, &[#(#variants),*])
+            }
+        }
+    })
 }
 
 /// A field as the generated code names it.
@@ -61,6 +122,9 @@ struct Field {
     lays_out: bool,
     /// Whether it holds a color that transitions move (`#[declare(color)]`).
     color: bool,
+    /// What its numbers measure (`#[declare(length)]`, `duration` or `number`), as a style sheet
+    /// writes them; a length for a field that holds no `f32`, whose own type reads its numbers.
+    measure: Tokens,
 }
 
 /// What a field holds, as its declarations name it.
@@ -98,8 +162,9 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
         .iter()
         .map(|field| {
             let name = field.ident.clone().expect("a named field");
-            let (shape, lays_out, color) = shape(field)?;
+            let (shape, lays_out, color, measure) = shape(field)?;
             Ok(Field {
+                measure,
                 variant: format_ident!("{}", camel(&name.to_string())),
                 docs: field
                     .attrs
@@ -202,6 +267,58 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
             },
             Shape::Leaf => quote! {
                 #key => out(#declaration::#variant(::std::clone::Clone::clone(&self.#name))),
+            },
+        }
+    });
+    // Each field as a style sheet writes it: its name, and whether it is a child node.
+    let read_forms = fields.iter().map(|field| {
+        let name = field.name.to_string();
+        match field.shape {
+            Shape::Leaf => {
+                let ty = &field.ty;
+                quote! { (#name, <#ty as crate::theme::sheet::Field>::NODE) }
+            }
+            Shape::Nested(_) | Shape::Array(..) => quote! { (#name, true) },
+        }
+    });
+    let read_arms = fields.iter().enumerate().map(|(index, field)| {
+        let Field {
+            variant,
+            ty,
+            measure,
+            ..
+        } = field;
+        match &field.shape {
+            Shape::Nested(_) => quote! {
+                #index => {
+                    if let crate::theme::sheet::Item::Node(child) = item {
+                        <#ty>::read_fields(&child, reading, &[], &mut |inner, at| {
+                            out(#declaration::#variant(inner), at);
+                        });
+                    }
+                }
+            },
+            Shape::Array(element, len) => quote! {
+                #index => {
+                    if let Some(values) =
+                        crate::theme::sheet::array::<#element, { #len }>(item, #measure, reading)
+                    {
+                        for (index, value) in values.into_iter().enumerate() {
+                            out(
+                                #declaration::#variant(
+                                    u8::try_from(index).expect("an array of a style is short"),
+                                    value,
+                                ),
+                                at,
+                            );
+                        }
+                    }
+                }
+            },
+            Shape::Leaf => quote! {
+                #index => crate::theme::sheet::leaf::<#ty>(item, #measure, reading, &mut |value| {
+                    out(#declaration::#variant(value), at);
+                }),
             },
         }
     });
@@ -324,9 +441,31 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
                 #(#declared)*
             }
 
+            /// Reads the declarations of the fields that `node` writes, its properties and its
+            /// children, in their order, giving `out` each with the byte where it is written; the
+            /// children named in `also` are left to the caller. Each error is kept in `reading`, the
+            /// fields written rightly read still (`crate::theme::sheet`).
+            pub(crate) fn read_fields(
+                node: &::uwui_kdl::Node<'_, '_>,
+                reading: &mut crate::theme::sheet::Reading<'_>,
+                also: &[&str],
+                out: &mut dyn FnMut(#declaration, usize),
+            ) {
+                const FIELDS: &[(&str, bool)] = &[#(#read_forms),*];
+                crate::theme::sheet::fields(node, reading, FIELDS, also, &mut |index, item, reading| {
+                    let at = item.offset();
+                    match index {
+                        #(#read_arms)*
+                        _ => {}
+                    }
+                });
+            }
+
             /// Gives `out` the declarations of the fields that `part`, a part of this type as
             /// reflection reads one, names, each holding the value that `self`, the whole value
-            /// laid under the part, gives it; in the order of the part.
+            /// laid under the part, gives it; in the order of the part: the reflected reader's,
+            /// kept as the oracle of the reader of KDL until reflection leaves uwui (M6d.3c).
+            #[cfg(test)]
             pub(crate) fn named(
                 &self,
                 part: &::slime_reflect::Value,
@@ -376,8 +515,9 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
 /// A field whose type names `LinearColor` and is not marked a color, so that no color is left out
 /// of the list that transitions move; an array marked a color, whose elements the list does not
 /// hold; a nested field marked a color.
-fn shape(field: &syn::Field) -> syn::Result<(Shape, bool, bool)> {
+fn shape(field: &syn::Field) -> syn::Result<(Shape, bool, bool, Tokens)> {
     let (mut nested, mut lays_out, mut color) = (false, false, false);
+    let mut measure: Option<(&str, Tokens)> = None;
     for attribute in &field.attrs {
         if !attribute.path().is_ident("declare") {
             continue;
@@ -392,14 +532,48 @@ fn shape(field: &syn::Field) -> syn::Result<(Shape, bool, bool)> {
             } else if meta.path.is_ident("color") {
                 color = true;
                 Ok(())
+            } else if let Some(mark) = ["length", "duration", "number"]
+                .into_iter()
+                .find(|mark| meta.path.is_ident(mark))
+            {
+                if let Some((first, _)) = measure {
+                    return Err(meta.error(format!("a number is marked once: `{first}` already")));
+                }
+                let variant = format_ident!("{}", camel(mark));
+                measure = Some((mark, quote! { crate::theme::sheet::Measure::#variant }));
+                Ok(())
             } else {
-                Err(meta.error("`declare` takes `nested`, `lays_out` and `color`"))
+                Err(meta.error(
+                    "`declare` takes `nested`, `lays_out`, `color`, `length`, `duration` and \
+                     `number`",
+                ))
             }
         })?;
     }
+    // A number unmarked would be read as no kind in particular: every type that holds one by its
+    // name is marked what it measures, so that a sheet that names a theme's value of another kind
+    // is refused.
+    let names_a_number = names(&field.ty, "f32");
+    if names_a_number && measure.is_none() {
+        return Err(syn::Error::new_spanned(
+            &field.ty,
+            "a number is marked `#[declare(length)]`, `#[declare(duration)]` or \
+             `#[declare(number)]`, as a style sheet writes it",
+        ));
+    }
+    if !names_a_number && measure.is_some() {
+        return Err(syn::Error::new_spanned(
+            &field.ty,
+            "only a field that holds an `f32` is marked what it measures",
+        ));
+    }
+    let measure = measure.map_or_else(
+        || quote! { crate::theme::sheet::Measure::Length },
+        |(_, measure)| measure,
+    );
     // A color forgotten would not move with the others: every type that holds one by its name is
     // marked, an option or an array of colors included.
-    if !nested && !color && names_a_color(&field.ty) {
+    if !nested && !color && names(&field.ty, "LinearColor") {
         return Err(syn::Error::new_spanned(
             &field.ty,
             "a color is marked `#[declare(color)]`, so that transitions move it",
@@ -422,10 +596,11 @@ fn shape(field: &syn::Field) -> syn::Result<(Shape, bool, bool)> {
             Shape::Array(array.elem.clone(), Box::new(array.len.clone())),
             lays_out,
             color,
+            measure,
         ));
     }
     if !nested {
-        return Ok((Shape::Leaf, lays_out, color));
+        return Ok((Shape::Leaf, lays_out, color, measure));
     }
     if color {
         return Err(syn::Error::new_spanned(
@@ -444,21 +619,22 @@ fn shape(field: &syn::Field) -> syn::Result<(Shape, bool, bool)> {
         Shape::Nested(format_ident!("{}Declaration", last.ident)),
         lays_out,
         false,
+        measure,
     ))
 }
 
-/// Whether `ty` names `LinearColor` anywhere in it: `LinearColor`, `Option<LinearColor>`,
-/// `[LinearColor; 2]`. A struct that holds a color within, a shadow, is not seen: it is marked by
-/// hand.
-fn names_a_color(ty: &Type) -> bool {
-    fn holds(tokens: Tokens) -> bool {
+/// Whether `ty` names the type `name` anywhere in it: `LinearColor`, `Option<LinearColor>`,
+/// `[LinearColor; 2]`. A struct that holds one within, a shadow's color or a size's pixels, is not
+/// seen: its own type reads it.
+fn names(ty: &Type, name: &str) -> bool {
+    fn holds(tokens: Tokens, name: &str) -> bool {
         tokens.into_iter().any(|token| match token {
-            proc_macro2::TokenTree::Ident(ident) => ident == "LinearColor",
-            proc_macro2::TokenTree::Group(group) => holds(group.stream()),
+            proc_macro2::TokenTree::Ident(ident) => ident == name,
+            proc_macro2::TokenTree::Group(group) => holds(group.stream(), name),
             _ => false,
         })
     }
-    holds(quote! { #ty })
+    holds(quote! { #ty }, name)
 }
 
 /// `snake_case` as `UpperCamelCase`.
@@ -498,6 +674,46 @@ mod tests {
                 "{message:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_number_is_marked_what_it_measures_once_and_only_a_number_is() {
+        let unmarked: [DeriveInput; 3] = [
+            syn::parse_quote! { struct S { size: f32 } },
+            syn::parse_quote! { struct S { radii: [f32; 4] } },
+            syn::parse_quote! { struct S { width: Option<f32> } },
+        ];
+        for input in &unmarked {
+            let message = refusal(input);
+            assert!(
+                message
+                    .as_deref()
+                    .is_some_and(|text| text.contains("#[declare(length)]")),
+                "{message:?}"
+            );
+        }
+        let marked: DeriveInput = syn::parse_quote! {
+            struct S { #[declare(duration)] duration: f32, #[declare(length)] radii: [f32; 4] }
+        };
+        assert_eq!(refusal(&marked), None);
+        let twice: DeriveInput = syn::parse_quote! {
+            struct S { #[declare(length, number)] size: f32 }
+        };
+        assert!(refusal(&twice).is_some_and(|text| text.contains("marked once")));
+        let not_a_number: DeriveInput = syn::parse_quote! {
+            struct S { #[declare(length)] wrap: bool }
+        };
+        assert!(refusal(&not_a_number).is_some_and(|text| text.contains("only a field")));
+    }
+
+    #[test]
+    fn identifiers_are_derived_for_unit_variants_alone() {
+        let units: DeriveInput = syn::parse_quote! { enum E { A, B } };
+        assert!(identifiers(&units).is_ok());
+        let holding: DeriveInput = syn::parse_quote! { enum E { A, B(f32) } };
+        assert!(identifiers(&holding).is_err());
+        let a_struct: DeriveInput = syn::parse_quote! { struct S { a: f32 } };
+        assert!(identifiers(&a_struct).is_err());
     }
 
     #[test]

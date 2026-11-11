@@ -1,7 +1,7 @@
 // The base theme of the editor's look (docs/adr/0149-the-looks-foundations.md): the scales that
-// every theme of colors shares, and the core's roles named after the colors that each theme of
-// colors gives. A theme of colors, `dark.theme.kdl`, `light.theme.kdl` or `contrast.theme.kdl`,
-// stacks on it, and `compact.theme.kdl` on them for a denser layout.
+// every theme of colors shares, the core's roles named after the colors that each theme of colors
+// gives, and the icons that controls draw. A theme of colors, `dark.theme.kdl`, `light.theme.kdl`
+// or `contrast.theme.kdl`, stacks on it, and `compact.theme.kdl` on them for a denser layout.
 
 length {
     // Spacings, on a grid of 4 pixels, and half a step below it.
@@ -65,4 +65,17 @@ color {
     button_face $track
     highlight $accent
     highlight_text $mark
+}
+
+text {
+    // Lucide's font of icons, and its `check`, `chevron-down`, `chevron-right`, `chevron-left`,
+    // `search` and `x`, by their codepoints, which `Lucide.codepoints.json` names, that controls
+    // draw in place of their shapes; a theme stacked after this one names others.
+    icon_font lucide
+    icon_tick "\u{E06C}"
+    icon_down "\u{E06D}"
+    icon_right "\u{E06F}"
+    icon_left "\u{E06E}"
+    icon_search "\u{E151}"
+    icon_clear "\u{E1B2}"
 }

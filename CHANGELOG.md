@@ -49,8 +49,22 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   name a theme's value in a field of a boolean, an enum or a struct, such as `layout.wrap`. A
   cooked theme's metadata follows its new name, `x.theme.kdl.meta`, or the theme takes a new ID.
   `Ui::set_style` gives every error found, each at its line, as `DocumentErrors`;
-  `DocumentError::error` is a `Fault`, of KDL or of reflection. Style sheets stay TOML until
-  M6d.3b2.
+  `DocumentError::error` is a `Fault`, of KDL or of reflection.
+- uwui's style sheets are KDL (ADR-0241): a rule is a node, `panel { select { classes panel; };
+  paint background=$surface { radii 8 8 8 8; }; }`, its children `select` and the style's groups;
+  a field that holds a value is a property, a struct, an array or a list a child node; an enum's
+  variant an identifier; `#null` empties an option, `shadow #null` a shadow; files end in
+  `.style.kdl`. A number is read as its field's measure: a length, bare or `(px)`, a duration with
+  its unit, `(ms)120` or `(s)0.12`, or a number, and a rule that names a theme's value of another
+  kind, as a length for a duration, is refused. A size is `Auto`, a length or a share, `(%)50`, in
+  place of `{ Share = 0.5 }`; a grid's track `(fr)1` in place of `{ Fraction = 1 }`. A selector's
+  numbered key is `key=3` in place of `"#3"`, and a selector names no theme's value. A colour is
+  sRGB's hex, a theme's name or a function: the form by linear channels, `{ r, g, b, a }`, is gone.
+  A field of text, as an icon, names a theme's `text`, `$$` writing a text that starts with `$`;
+  the editor's look gives its icons in its base theme. `StyleSheet::from_binary` is gone: a cooked
+  sheet is its text, which `slime-cook` checks and `CookedAssets::style_sheet` gives, and the cooker
+  refuses a `.style` file of TOML; a sheet's metadata follows its new name, `x.style.kdl.meta`, or
+  the sheet takes a new ID. Every error of a sheet is placed at its line, and gathered.
 - Compiling within its budgets (ADR-0221): dependencies are optimised at the first level in debug
   builds; the Nix shell links with mold on Linux; the examples' editor's Play builds `world` with
   the workspace's features, which share every engine crate with the editor's.

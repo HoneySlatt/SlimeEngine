@@ -3,7 +3,7 @@
 use std::num::NonZeroUsize;
 
 use slime_reflect::Reflect;
-use uwui_macros::Declare;
+use uwui_macros::{Declare, Identifiers};
 
 /// How a text is drawn: its fonts, size, weight and slant, the height of its lines, how its lines
 /// align and in which direction it is written, and its language.
@@ -15,16 +15,19 @@ pub struct TextStyle {
     pub fonts: Vec<String>,
     /// The size, the font's em, in logical pixels: a layout's scale turns it into pixels of the
     /// screen.
+    #[declare(length)]
     pub size: f32,
     /// The weight, from 100, thin, to 900, black: 400 is regular, 700 bold. A variable font
     /// draws it on its weight axis; a font of fixed weight is taken as the closest that the family
     /// has, which is not made bolder when it is lighter.
+    #[declare(number)]
     pub weight: f32,
     /// Whether the text is italic: drawn with the family's italic face. A family without one draws
     /// it upright, its slant not made up.
     pub italic: bool,
     /// The height of a line, as a multiple of the height that the fonts give it, their ascent,
     /// descent and gap: 1.0 for the fonts' own.
+    #[declare(number)]
     pub line_height: f32,
     /// Where lines go across the box's width.
     pub alignment: Alignment,
@@ -60,7 +63,7 @@ impl Default for TextStyle {
 /// Where the lines of a text go across its box: by the start and the end of a line, which are
 /// its left and its right in a text written from left to right, and the reverse in one written
 /// from right to left.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect, Identifiers)]
 #[reflect(name = "UiTextAlignment", default)]
 pub enum Alignment {
     /// Lines begin at the start.
@@ -75,7 +78,7 @@ pub enum Alignment {
 }
 
 /// The direction a text is written in.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect, Identifiers)]
 #[reflect(name = "UiTextDirection", default)]
 pub enum Direction {
     /// The direction of the text's first letter that has one: right to left for Arabic or

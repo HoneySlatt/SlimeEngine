@@ -30,8 +30,9 @@ pub enum AssetKind {
     /// A scene file, in the engine's binary encoding of documents, which a world reads
     /// (`docs/adr/0095-cooked-scene-files.md`).
     SceneFile,
-    /// A style sheet of the interface, in the engine's binary encoding of documents, which
-    /// `uwui` reads (`docs/adr/0141-style-sheets-and-themes.md`).
+    /// A style sheet of the interface, its text, a document of KDL, which `uwui` reads
+    /// (`docs/adr/0141-style-sheets-and-themes.md`,
+    /// `docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
     StyleSheet,
     /// A theme of the interface, its text, a document of KDL, which `uwui` reads
     /// (`docs/adr/0141-style-sheets-and-themes.md`,

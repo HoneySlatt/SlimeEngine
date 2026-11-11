@@ -642,17 +642,17 @@ fn a_library_of_cooked_data_reads_again_the_scenes_that_changed_and_those_that_p
 }
 
 #[test]
-fn the_interface_s_documents_are_cooked_their_syntax_checked_a_theme_as_its_text() {
+fn the_interface_s_documents_are_cooked_their_syntax_checked_a_sheet_and_a_theme_as_their_text() {
     const SHEET: AssetId = AssetId::from_u128(0x0011);
     const THEME: AssetId = AssetId::from_u128(0x0012);
     const KEYS: AssetId = AssetId::from_u128(0x0013);
     const OLD: AssetId = AssetId::from_u128(0x0014);
+    const OLD_SHEET: AssetId = AssetId::from_u128(0x0015);
     let root = directory("styles").join("sources");
     let output = root.with_file_name("cooked");
-    let sheet =
-        "[panel]\nselect = { classes = [\"panel\"] }\nstyle.paint.background = \"$surface\"\n";
+    let sheet = "// The panels.\npanel {\n    select { classes panel; }\n    paint background=$surface\n}\n";
     let theme = "// The surfaces.\ncolor {\n    surface \"#26282C\"\n}\n";
-    source(&root, "interface.style", SHEET, sheet.as_bytes());
+    source(&root, "interface.style.kdl", SHEET, sheet.as_bytes());
     source(&root, "dark.theme.kdl", THEME, theme.as_bytes());
     let keys = "[global]\n\"Ctrl+Z\" = \"undo\"\n";
     source(&root, "editor.keys", KEYS, keys.as_bytes());
@@ -661,7 +661,7 @@ fn the_interface_s_documents_are_cooked_their_syntax_checked_a_theme_as_its_text
     cook(&root, &output).expect("cooked");
     let assets = CookedAssets::open(&output).expect("cooked data");
     for (id, kind, path) in [
-        (SHEET, AssetKind::StyleSheet, "interface.style"),
+        (SHEET, AssetKind::StyleSheet, "interface.style.kdl"),
         (THEME, AssetKind::Theme, "dark.theme.kdl"),
         (KEYS, AssetKind::Shortcuts, "editor.keys"),
     ] {
@@ -671,7 +671,11 @@ fn the_interface_s_documents_are_cooked_their_syntax_checked_a_theme_as_its_text
     }
     assert_eq!(assets.manifest().len(), 3, "the notes left aside");
     let encoded = |text| slime_serialize::encode(text).expect("TOML");
-    assert_eq!(assets.style_sheet(SHEET).expect("read"), encoded(sheet));
+    assert_eq!(
+        assets.style_sheet(SHEET).expect("read"),
+        sheet.as_bytes(),
+        "a style sheet cooked as its text, its comments kept"
+    );
     assert_eq!(
         assets.theme(THEME).expect("read"),
         theme.as_bytes(),
@@ -682,8 +686,8 @@ fn the_interface_s_documents_are_cooked_their_syntax_checked_a_theme_as_its_text
         assets.style_sheet(THEME).is_err(),
         "a theme is not a style sheet"
     );
-    // A document that is not TOML, or a theme that is not KDL, is refused, by its file and its
-    // line.
+    // A document that is not KDL, or a table of shortcuts that is not TOML, is refused, by its
+    // file and its line.
     source(
         &root,
         "dark.theme.kdl",
@@ -696,18 +700,38 @@ fn the_interface_s_documents_are_cooked_their_syntax_checked_a_theme_as_its_text
         "{error}"
     );
     source(&root, "dark.theme.kdl", THEME, theme.as_bytes());
-    source(&root, "interface.style", SHEET, b"[panel\n");
+    source(
+        &root,
+        "interface.style.kdl",
+        SHEET,
+        b"panel {\n    select (\n}\n",
+    );
     let error = cook(&root, &output).unwrap_err().to_string();
     assert!(
-        error.contains("interface.style") && error.contains("line 1"),
+        error.contains("interface.style.kdl") && error.contains("line 2"),
         "{error}"
     );
-    source(&root, "interface.style", SHEET, sheet.as_bytes());
-    // A theme of TOML is refused by its name, not left aside unseen.
+    source(&root, "interface.style.kdl", SHEET, sheet.as_bytes());
+    source(&root, "editor.keys", KEYS, b"[global\n");
+    let error = cook(&root, &output).unwrap_err().to_string();
+    assert!(
+        error.contains("editor.keys") && error.contains("line 1"),
+        "{error}"
+    );
+    source(&root, "editor.keys", KEYS, keys.as_bytes());
+    // A theme or a style sheet of TOML is refused by its name, not left aside unseen.
     source(&root, "old.theme", OLD, b"surface = \"#26282C\"\n");
     let error = cook(&root, &output).unwrap_err().to_string();
     assert!(
         error.contains("old.theme") && error.contains("a theme is KDL"),
+        "{error}"
+    );
+    fs::remove_file(root.join("old.theme")).expect("removed");
+    fs::remove_file(root.join("old.theme.meta")).expect("removed");
+    source(&root, "old.style", OLD_SHEET, b"[panel]\n");
+    let error = cook(&root, &output).unwrap_err().to_string();
+    assert!(
+        error.contains("old.style") && error.contains("a style sheet is KDL"),
         "{error}"
     );
 }

@@ -317,7 +317,7 @@ fn a_name_declared_by_two_lists_is_refused_and_one_token_declared_again_is_one()
 fn a_rule_that_names_a_number_that_is_not_finite_refuses_the_themes() {
     let sheet = StyleSheet::from_text(
         "test.style",
-        "[box]\nselect = { kind = \"Container\" }\nstyle.layout.padding.top = \"$space\"\n",
+        "box {\n    select kind=Container\n    layout { padding top=$space; }\n}\n",
     );
     for text in [
         "length {\n    space #nan\n}\n",

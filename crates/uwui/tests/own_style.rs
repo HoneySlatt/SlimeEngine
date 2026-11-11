@@ -11,7 +11,11 @@ use uwui::tree::{
     Element, ElementId, ElementState, Layer, LayoutDirection, Place, RootSettings, Ui,
 };
 
-const GREY: LinearColor = LinearColor::rgba(0.5, 0.5, 0.5, 1.0);
+/// The rules' grey, sRGB's `#808080`.
+fn grey() -> LinearColor {
+    LinearColor::from_srgb8(128, 128, 128)
+}
+
 const RED: LinearColor = LinearColor::rgba(1.0, 0.0, 0.0, 1.0);
 const GREEN: LinearColor = LinearColor::rgba(0.0, 1.0, 0.0, 1.0);
 const BLUE: LinearColor = LinearColor::rgba(0.0, 0.0, 1.0, 1.0);
@@ -19,18 +23,21 @@ const BLUE: LinearColor = LinearColor::rgba(0.0, 0.0, 1.0, 1.0);
 /// A sheet whose buttons are grey, red when hovered, and 30 logical pixels tall; and whose buttons
 /// of the class `flat`, written after, are transparent.
 const SHEET: &str = r##"
-[button]
-select = { kind = "Button" }
-style.paint.background = { r = 0.5, g = 0.5, b = 0.5, a = 1.0 }
-style.layout.size = [{ Pixels = 80 }, { Pixels = 30 }]
+button {
+    select kind=Button
+    paint background="#808080"
+    layout { size 80 30; }
+}
 
-[button-hovered]
-select = { kind = "Button", states = ["Hovered"] }
-style.paint.background = { r = 1.0, g = 0.0, b = 0.0, a = 1.0 }
+button-hovered {
+    select kind=Button { states Hovered; }
+    paint background="#ff0000"
+}
 
-[flat]
-select = { kind = "Button", classes = ["flat"] }
-style.paint.background = { r = 0.0, g = 0.0, b = 0.0, a = 0.0 }
+flat {
+    select kind=Button { classes flat; }
+    paint background="#00000000"
+}
 "##;
 
 /// A root of 400 × 300 logical pixels at scale 1, from left to right.
@@ -99,7 +106,7 @@ fn a_base_set_in_code_beats_a_stateless_rule_written_after_a_rules_state() {
 fn a_state_set_in_code_beats_a_rules_state() {
     let button = Element::button("Save").style(|s| s.hover(|s| s.background(BLUE)));
     let (mut ui, button) = holding(button);
-    assert_eq!(background(&ui, button), GREY, "not hovered: the rule's");
+    assert_eq!(background(&ui, button), grey(), "not hovered: the rule's");
     hover(&mut ui, button, true);
     assert_eq!(background(&ui, button), BLUE, "hovered: the own state's");
 }
@@ -127,7 +134,7 @@ fn an_own_hover_shows_where_no_rule_names_the_hover_and_goes() {
     // other way, so that a style made in one state is never served to the other.
     let mut ui = Ui::new(Fonts::new());
     let root = ui.add_root("main", settings(), |s| s);
-    let own = |s: uwui::style::StyleBuilder| s.background(GREY).hover(|s| s.background(BLUE));
+    let own = |s: uwui::style::StyleBuilder| s.background(grey()).hover(|s| s.background(BLUE));
     let (mut first, mut second) = (None, None);
     ui.build(root, 0, |children| {
         first = Some(children.add("first", Element::button("A").style(own), |_| {}));
@@ -137,10 +144,10 @@ fn an_own_hover_shows_where_no_rule_names_the_hover_and_goes() {
     ui.frame();
     hover(&mut ui, first, true);
     assert_eq!(background(&ui, first), BLUE);
-    assert_eq!(background(&ui, second), GREY);
+    assert_eq!(background(&ui, second), grey());
     hover(&mut ui, first, false);
     hover(&mut ui, second, true);
-    assert_eq!(background(&ui, first), GREY);
+    assert_eq!(background(&ui, first), grey());
     assert_eq!(background(&ui, second), BLUE);
 }
 
@@ -239,7 +246,7 @@ fn each_place_is_given_once_however_many_calls_wrote_there() {
 #[test]
 fn a_roots_and_a_layers_own_style_keep_the_place_of_their_call() {
     let mut ui = Ui::new(Fonts::new());
-    let root = ui.add_root("main", settings(), |s| s.background(GREY));
+    let root = ui.add_root("main", settings(), |s| s.background(grey()));
     let root_line = line!() - 1;
     let layer = Layer {
         place: Place::Floating {

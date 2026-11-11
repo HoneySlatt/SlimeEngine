@@ -12,18 +12,21 @@ use uwui::tree::{Element, ElementId, LayoutDirection, RootSettings, Ui};
 /// A sheet that sizes every text at 13 logical pixels and names Lucide the font of icons; whose
 /// labels of the class `icon` are drawn in it, and those of the class `title` at 20.
 const SHEET: &str = r##"
-[everything]
-select = {}
-style.text.style.size = 13
-style.icons.font = "lucide"
+everything {
+    select
+    text { style size=13; }
+    icons font=lucide
+}
 
-[icon]
-select = { kind = "Label", classes = ["icon"] }
-style.text.style.fonts = ["lucide"]
+icon {
+    select kind=Label { classes icon; }
+    text { style { fonts lucide; }; }
+}
 
-[title]
-select = { kind = "Label", classes = ["title"] }
-style.text.style.size = 20
+title {
+    select kind=Label { classes title; }
+    text { style size=20; }
+}
 "##;
 
 /// A root of `width` × `height` logical pixels at `scale`.

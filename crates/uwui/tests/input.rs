@@ -833,7 +833,7 @@ fn the_pointer_and_the_wheel_find_their_way_in_a_root_from_right_to_left() {
 #[test]
 fn a_rule_selects_the_element_that_holds_the_focus() {
     let (mut ui, buttons) = row();
-    let sheet = "[focused]\nselect = { states = [\"Focused\"] }\nstyle.paint.border_width = 2\n";
+    let sheet = "focused {\n    select { states Focused; }\n    paint border_width=2\n}\n";
     ui.set_style(
         &[StyleSheet::from_text("focus.style", sheet)],
         &[Theme::from_text("plain.theme", "")],

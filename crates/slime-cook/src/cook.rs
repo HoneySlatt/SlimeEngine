@@ -43,8 +43,14 @@ pub const INTERFACE_COOKER_VERSION: u32 = 2;
 /// The extension of scene files (`docs/adr/0089-scenes-and-prefabs.md`).
 pub const SCENE_EXTENSION: &str = "scene";
 
-/// The extension of the interface's style sheets (`docs/adr/0141-style-sheets-and-themes.md`).
-pub const STYLE_SHEET_EXTENSION: &str = "style";
+/// The extension of the interface's style sheets, documents of KDL
+/// (`docs/adr/0141-style-sheets-and-themes.md`,
+/// `docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
+pub const STYLE_SHEET_EXTENSION: &str = "style.kdl";
+
+/// The extension of the interface's style sheets in TOML, which uwui read before its sheets were
+/// KDL: a file of it is refused by its name, rather than left aside unseen.
+const TOML_STYLE_SHEET_EXTENSION: &str = "style";
 
 /// The extension of the interface's themes, documents of KDL
 /// (`docs/adr/0141-style-sheets-and-themes.md`,
@@ -139,11 +145,12 @@ pub enum CookError {
 /// by that ID. The texture of an image in another role has an ID derived from the image's
 /// ([`crate::ids::texture_id`]). Each scene file becomes its document in the engine's binary
 /// encoding (`slime_serialize::encode`), under its own ID, of the kind [`AssetKind::SceneFile`],
-/// which needs the assets of its table (`docs/adr/0095-cooked-scene-files.md`). Each style sheet,
-/// theme and table of shortcuts of the interface becomes its document in the binary encoding, of
-/// the kind [`AssetKind::StyleSheet`], [`AssetKind::Theme`] or [`AssetKind::Shortcuts`], its syntax
-/// checked, its types left to `uwui`, which reads it
-/// (`docs/adr/0141-style-sheets-and-themes.md`, `docs/adr/0142-input-and-focus.md`). A scene file
+/// which needs the assets of its table (`docs/adr/0095-cooked-scene-files.md`). Each style sheet
+/// and theme of the interface becomes its text, of the kind [`AssetKind::StyleSheet`] or
+/// [`AssetKind::Theme`], and each table of shortcuts its document in the binary encoding, of the
+/// kind [`AssetKind::Shortcuts`], its syntax checked, its types left to `uwui`, which reads it
+/// (`docs/adr/0141-style-sheets-and-themes.md`, `docs/adr/0142-input-and-focus.md`,
+/// `docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`). A scene file
 /// is read first without the types of its values ([`slime_world::outline`]), and refused if it
 /// says something wrong there, if its table names an asset that the sources do not make, if it
 /// places an asset that is not a scene, or if scene files place each other; the path that its table
@@ -213,6 +220,7 @@ pub fn cook(sources: &Path, output: &Path) -> Result<Cooked, CookError> {
             || [
                 SCENE_EXTENSION,
                 STYLE_SHEET_EXTENSION,
+                TOML_STYLE_SHEET_EXTENSION,
                 THEME_EXTENSION,
                 TOML_THEME_EXTENSION,
                 SHORTCUTS_EXTENSION,
@@ -627,10 +635,10 @@ fn read_output(path: &Path, size: Option<u64>) -> Option<Vec<u8>> {
 /// lines of those placements, and how many of them the walk took.
 type Step = (AssetId, Vec<(AssetId, usize)>, usize);
 
-/// Cooks each document of the interface among `sources`, inside `root`, a style sheet, a theme or
-/// a table of shortcuts, into its binary encoding, of the kind [`AssetKind::StyleSheet`],
-/// [`AssetKind::Theme`] or [`AssetKind::Shortcuts`]: its syntax checked, its types left to
-/// `uwui`, which reads it, as a scene file's are left to the world.
+/// Cooks each document of the interface among `sources`, inside `root`: a style sheet or a theme
+/// into its text, of the kind [`AssetKind::StyleSheet`] or [`AssetKind::Theme`], a table of
+/// shortcuts into its binary encoding, of the kind [`AssetKind::Shortcuts`]; its syntax checked,
+/// its types left to `uwui`, which reads it, as a scene file's are left to the world.
 fn cook_interface_documents(
     sources: &[Source],
     root: &Path,
@@ -654,6 +662,12 @@ fn cook_interface_documents(
                  `.theme.kdl`, its values in groups of their kinds"
                     .to_owned(),
             ));
+        } else if found.eq_ignore_ascii_case(TOML_STYLE_SHEET_EXTENSION) {
+            return Err(refuse(
+                "a style sheet of TOML, which the interface no longer reads: a style sheet is KDL, \
+                 in a file `.style.kdl`"
+                    .to_owned(),
+            ));
         } else if found.eq_ignore_ascii_case(SHORTCUTS_EXTENSION) {
             (AssetKind::Shortcuts, SHORTCUTS_EXTENSION)
         } else {
@@ -661,10 +675,10 @@ fn cook_interface_documents(
         };
         let text = String::from_utf8(read(&source.path)?)
             .map_err(|_| refuse("not UTF-8 text".to_owned()))?;
-        // A theme is cooked as its text, its syntax and limits checked, so that an error in it
-        // keeps its line; its types are uwui's to check when it reads it. A style sheet and a
-        // table of shortcuts are cooked into the binary encoding until they are KDL too.
-        let bytes = if kind == AssetKind::Theme {
+        // A style sheet or a theme is cooked as its text, its syntax and limits checked, so that an
+        // error in it keeps its line; its types are uwui's to check when it reads it. A table of
+        // shortcuts is cooked into the binary encoding until it is KDL too (M6d.3c).
+        let bytes = if kind != AssetKind::Shortcuts {
             uwui_kdl::read(&text).map_err(|error| refuse(error.to_string()))?;
             text.into_bytes()
         } else {

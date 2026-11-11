@@ -512,9 +512,8 @@ fn the_display_list_draws_each_element_before_its_children_as_its_state_and_dire
     };
     let sheet = StyleSheet::from_text(
         "buttons.style",
-        "[button]\nselect = { kind = \"Button\" }\nstyle.paint.background = \"$blue\"\n\n\
-         [hovered]\nselect = { kind = \"Button\", states = [\"Hovered\"] }\n\
-         style.paint.background = \"#00ff00\"\n",
+        "button {\n    select kind=Button\n    paint background=$blue\n}\n\
+         hovered {\n    select kind=Button { states Hovered; }\n    paint background=\"#00ff00\"\n}\n",
     );
     let theme = Theme::from_text("plain.theme", "color {\n    blue \"#0000ff\"\n}\n");
     ui.set_style(&[sheet], std::slice::from_ref(&theme))

@@ -10,7 +10,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use slime_color::LinearColor;
-use slime_reflect::Registry;
 
 use crate::DocumentErrors;
 use crate::Rect;
@@ -1261,8 +1260,6 @@ pub struct Ui {
     interaction: Interaction,
     /// The system's clipboard, which its fields copy to and paste from.
     clipboard: Option<Box<dyn Clipboard>>,
-    /// The types that style sheets hold, which read them.
-    registry: Registry,
     /// The tokens that the interface declared, the core's roles first
     /// (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`).
     declared: Vec<Erased>,
@@ -1339,7 +1336,6 @@ impl Ui {
             interaction: Interaction::default(),
             clipboard: None,
             rules: Vec::new(),
-            registry: theme::registry(),
             declared: theme::ROLES.each().collect(),
             tokens: TokenValues::fallbacks(&theme::ROLES.each().collect::<Vec<_>>()),
             spare_tokens: TokenValues::default(),
@@ -1572,13 +1568,7 @@ impl Ui {
         sheets: &[StyleSheet],
         themes: &[Theme],
     ) -> Result<(), DocumentErrors> {
-        let styling = theme::read(
-            &self.registry,
-            sheets,
-            themes,
-            &self.declared,
-            &mut self.spare_tokens,
-        )?;
+        let styling = theme::read(sheets, themes, &self.declared, &mut self.spare_tokens)?;
         self.rules = styling.rules;
         std::mem::swap(&mut self.tokens, &mut self.spare_tokens);
         // An interface given no theme draws in the fallbacks by choice: only themes that lack a

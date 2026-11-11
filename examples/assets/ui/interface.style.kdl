@@ -1,0 +1,132 @@
+// The style of the `interface` example (docs/adr/0141-style-sheets-and-themes.md): each node is a
+// rule, applied in the order of this file, that sets a part of the style of the elements it selects.
+// Its values come from a theme, `dark.theme.kdl` or `light.theme.kdl`, which name them for it.
+
+window {
+    select { classes window }
+    paint background=$background
+}
+
+bar {
+    select { classes bar }
+    paint background=$bar
+}
+
+panel {
+    select { classes panel }
+    paint background=$panel border_width=1 border=$panel_border {
+        radii 8 8 8 8
+        shadow color=$shadow blur=18 spread=0 { offset 0 4 }
+    }
+}
+
+label {
+    select kind=Label
+    text color=$text { style size=13 { fonts "Noto Sans" } }
+}
+
+button {
+    select kind=Button
+    paint background=$button border_width=1 border=$button_border { radii 6 6 6 6 }
+    text color=$text { style size=13 alignment=Center { fonts "Noto Sans" } }
+}
+
+button-hovered {
+    select kind=Button { states Hovered }
+    paint background=$hover
+}
+
+button-pressed {
+    select kind=Button { states Pressed }
+    paint background=$pressed border=$pressed_border
+}
+
+button-focused {
+    select kind=Button { states Focused }
+    paint border_width=2 border=$focus
+}
+
+field {
+    select kind=TextField
+    paint background=$field border_width=1 border=$button_border { radii 6 6 6 6 }
+    layout { padding start=8 end=8 top=0 bottom=0 }
+    text color=$text selection=$selection { style size=13 { fonts "Noto Sans" } }
+}
+
+number {
+    select kind=NumberField
+    paint background=$field border_width=1 border=$button_border { radii 6 6 6 6 }
+    layout { padding start=8 end=8 top=0 bottom=0 }
+    text color=$text selection=$selection { style size=13 { fonts "Noto Sans" } }
+}
+
+field-focused {
+    select kind=TextField { states Focused }
+    paint border_width=2 border=$focus
+}
+
+number-focused {
+    select kind=NumberField { states Focused }
+    paint border_width=2 border=$focus
+}
+
+status {
+    select kind=Label { inside class=bar }
+    text color=$row_text
+}
+
+row {
+    select { classes row }
+    paint background=$row { radii 4 4 4 4 }
+}
+
+row-odd {
+    select { classes row odd }
+    paint background=$row_odd
+}
+
+row-selected {
+    select { classes row selected }
+    paint background=$selected
+}
+
+row-name {
+    select kind=Label { inside class=row }
+    text color=$row_text
+}
+
+row-selected-name {
+    select kind=Label { inside class=selected }
+    text color=$selected_text
+}
+
+card {
+    select { classes card }
+    paint background=$card border_width=1 border=$card_border {
+        radii 10 10 10 10
+        shadow color=$card_shadow blur=24 spread=0 { offset 0 6 }
+    }
+}
+
+caption {
+    select kind=Label { inside class=card }
+    text { style size=16 }
+}
+
+sentence {
+    select kind=Label { inside class=texts }
+    text { style size=14 }
+}
+
+scrim {
+    select { classes scrim }
+    paint background=$scrim
+}
+
+dialog {
+    select { classes dialog }
+    paint background=$panel border_width=1 border=$panel_border {
+        radii 10 10 10 10
+        shadow color=$card_shadow blur=32 spread=0 { offset 0 8 }
+    }
+}

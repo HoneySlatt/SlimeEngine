@@ -1,11 +1,12 @@
-//! The reader of themes in TOML through reflection that M6d.3b1 replaced, kept as the oracle of
-//! the reader of KDL while reflection is in uwui
+//! The reader of themes and style sheets in TOML through reflection that M6d.3b1 and M6d.3b2
+//! replaced, kept as the oracle of the reader of KDL while reflection is in uwui
 //! (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`): random stacks of
-//! themes, written in both notations, give the same tokens and the same rules' declarations, bit
-//! for bit. Its sheets are TOML, read as `theme::read` reads them until M6d.3b2. The random
-//! themes leave out what the reader of KDL refuses on purpose where the reflected one took it, a
-//! number past an `f32`, a share that makes a color no finite number, a value given wrongly then
-//! given again: `tests/themes.rs` tests each refusal.
+//! themes, and random style sheets, written in both notations, give the same tokens and the same
+//! rules' selectors and declarations, bit for bit. The random documents leave out what the reader
+//! of KDL refuses on purpose where the reflected one took it, a number past an `f32`, a share that
+//! makes a color no finite number, a value given wrongly then given again, a theme's value of
+//! another kind than its field's, and what it takes that the reflected one refused, a text named by
+//! a theme: `tests/themes.rs` and `tests/sheets.rs` test each refusal.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -26,11 +27,11 @@ fn parse<'a>(registry: &'a Registry, text: &'a str) -> Result<Document<'a>, Read
     Document::parse(registry, text, Mode::Strict)
 }
 
-/// Reads `sheets` and `themes`, a stack of themes in TOML, each `(name, text)`, as `theme::read`
-/// read them before M6d.3b1.
+/// Reads `sheets` and `themes`, style sheets and a stack of themes in TOML, each `(name, text)`, as
+/// `theme::read` read them before M6d.3b1.
 pub(super) fn read(
     registry: &Registry,
-    sheets: &[StyleSheet],
+    sheets: &[(&str, &str)],
     themes: &[(&str, &str)],
     declared: &[Erased],
     tokens: &mut TokenValues,
@@ -71,12 +72,12 @@ pub(super) fn read(
     // What every rule's part is laid over, to read the values that it sets whole.
     let default = Style::default().to_value();
     let mut rules = Vec::new();
-    for sheet in sheets {
+    for &(sheet_name, sheet_text) in sheets {
         let sheet_error = |error| DocumentError {
-            document: sheet.name.clone(),
+            document: sheet_name.to_owned(),
             error: Fault::Reflected(error),
         };
-        let mut document = sheet.source.parse(registry).map_err(sheet_error)?;
+        let mut document = parse(registry, sheet_text).map_err(sheet_error)?;
         for name in document.keys(&[]) {
             if !document.is_table(&[&name]) {
                 return Err(sheet_error(document.error_at(
@@ -599,22 +600,25 @@ fn random_theme(numbers: &mut Numbers) -> (String, String, Vec<&'static str>) {
     (toml, kdl, given)
 }
 
-/// A style sheet whose rules name each of `names`, in a field of its kind.
-fn naming_sheet(names: &[&str]) -> String {
-    let mut sheet = String::new();
+/// A style sheet whose rules name each of `names`, in a field of its kind: in TOML, then in KDL.
+fn naming_sheet(names: &[&str]) -> (String, String) {
+    let (mut toml, mut kdl) = (String::new(), String::new());
     for name in names {
-        let field = match &name[..1] {
-            "c" => "paint.background",
-            "l" => "paint.border_width",
-            "n" => "paint.opacity",
-            "d" => "transition.duration",
+        let (group, field) = match &name[..1] {
+            "c" => ("paint", "background"),
+            "l" => ("paint", "border_width"),
+            "n" => ("paint", "opacity"),
+            "d" => ("transition", "duration"),
             _ => continue,
         };
-        sheet.push_str(&format!(
-            "[uses_{name}]\nselect = {{}}\nstyle.{field} = \"${name}\"\n"
+        toml.push_str(&format!(
+            "[uses_{name}]\nselect = {{}}\nstyle.{group}.{field} = \"${name}\"\n"
+        ));
+        kdl.push_str(&format!(
+            "uses_{name} {{\n    select\n    {group} {field}=${name}\n}}\n"
         ));
     }
-    sheet
+    (toml, kdl)
 }
 
 /// A token of each name in `names`, of its kind, falling back on nothing.
@@ -666,7 +670,11 @@ fn random_stacks_of_themes_read_as_the_reflected_reader_read_them() {
         given.dedup();
         // Some names that no theme gives, which the tokens lack and no rule names.
         let declared = tokens_of(&[given.as_slice(), &["c5", "l2", "d1"]].concat());
-        let sheet = [StyleSheet::from_text("random.style", naming_sheet(&given))];
+        let (toml_sheet, kdl_sheet) = naming_sheet(&given);
+        let kdl_sheets = [StyleSheet::from_text(
+            "random.style.kdl",
+            kdl_sheet.as_str(),
+        )];
         let toml_themes: Vec<(&str, &str)> = toml
             .iter()
             .map(|text| ("random.theme", text.as_str()))
@@ -676,8 +684,14 @@ fn random_stacks_of_themes_read_as_the_reflected_reader_read_them() {
             .map(|text| super::Theme::from_text("random.theme.kdl", text.as_str()))
             .collect();
         let (mut old_tokens, mut new_tokens) = (TokenValues::default(), TokenValues::default());
-        let old = read(&registry, &sheet, &toml_themes, &declared, &mut old_tokens);
-        let new = super::read(&registry, &sheet, &kdl_themes, &declared, &mut new_tokens);
+        let old = read(
+            &registry,
+            &[("random.style", toml_sheet.as_str())],
+            &toml_themes,
+            &declared,
+            &mut old_tokens,
+        );
+        let new = super::read(&kdl_sheets, &kdl_themes, &declared, &mut new_tokens);
         let replay = format!(
             "case {case}, from the seed UWUI_THEME_SEED={seed}:\nTOML:\n{}\nKDL:\n{}",
             toml.join("---\n"),
@@ -715,5 +729,433 @@ fn random_stacks_of_themes_read_as_the_reflected_reader_read_them() {
     assert!(
         agreed > 200 && refused > 200,
         "{agreed} read, {refused} refused"
+    );
+}
+
+/// The theme that random sheets name, in TOML and in KDL: colors, lengths, a number, a whole
+/// number and a duration, each of its group.
+const SHEETS_THEME: (&str, &str) = (
+    "sc0 = \"#204060\"\nsc1 = \"mix($sc0, #FFFFFF, 30%)\"\nsl0 = 6\nsl1 = -2.5\nsn0 = 0.75\n\
+     sn1 = 3\nsd0 = 0.15\n",
+    "color {\n    sc0 \"#204060\"\n    sc1 \"mix($sc0, #FFFFFF, 30%)\"\n}\nlength {\n    sl0 6\n\
+     \x20   sl1 -2.5\n}\nnumber {\n    sn0 0.75\n    sn1 3\n}\nduration {\n    sd0 (s)0.15\n}\n",
+);
+
+/// A value written in both notations: as TOML writes it inline, and as KDL writes it as a
+/// property's value or an argument.
+struct Both {
+    toml: String,
+    kdl: String,
+}
+
+impl Both {
+    fn new(toml: impl Into<String>, kdl: impl Into<String>) -> Self {
+        Self {
+            toml: toml.into(),
+            kdl: kdl.into(),
+        }
+    }
+}
+
+/// What the number of a style at `path` measures, as the derive marks it: `l`, a length, `n`, a
+/// number, `d`, a duration. Written apart from the derive's marks, so that the test checks them.
+fn measure_of(path: &str) -> char {
+    match path {
+        "transition.duration" => 'd',
+        "layout.grow"
+        | "layout.shrink"
+        | "paint.opacity"
+        | "text.style.weight"
+        | "text.style.line_height" => 'n',
+        _ => 'l',
+    }
+}
+
+/// A random number of the measure at `path`: a literal, or a name of the theme's of its kind.
+fn random_number(numbers: &mut Numbers, path: &str) -> Both {
+    match measure_of(path) {
+        'd' => {
+            if numbers.chance(4) {
+                return Both::new("\"$sd0\"", "$sd0");
+            }
+            let (toml, kdl) = [
+                ("0", "(s)0"),
+                ("0.12", "(ms)120"),
+                ("0.2", "(s)0.2"),
+                ("1.5", "(s)1.5"),
+                ("0.25", "(ms)250"),
+            ][numbers.below(5)];
+            Both::new(toml, kdl)
+        }
+        'n' => {
+            if numbers.chance(4) {
+                return Both::new("\"$sn0\"", "$sn0");
+            }
+            let literal = numbers.pick(&["0", "0.5", "1", "500", "1.25", "-2"]);
+            Both::new(literal, literal)
+        }
+        _ => random_length(numbers),
+    }
+}
+
+/// A random length: a literal, bare or `(px)` in KDL, or a name of the theme's lengths.
+fn random_length(numbers: &mut Numbers) -> Both {
+    if numbers.chance(4) {
+        let name = numbers.pick(&["sl0", "sl1"]);
+        return Both::new(format!("\"${name}\""), format!("${name}"));
+    }
+    let literal = numbers.pick(&["0", "1", "4", "12", "-3", "2.5", "1e3"]);
+    let unit = if numbers.chance(3) { "(px)" } else { "" };
+    Both::new(literal, format!("{unit}{literal}"))
+}
+
+/// A random value of the type `ty`, at `path`, written as a property's value or an argument: a
+/// scalar, a color, a size or a track.
+fn random_scalar(registry: &Registry, ty: &str, path: &str, numbers: &mut Numbers) -> Both {
+    use slime_reflect::Kind;
+    match ty {
+        "LinearColor" => {
+            return match numbers.below(4) {
+                0 => {
+                    let name = numbers.pick(&["sc0", "sc1"]);
+                    Both::new(format!("\"${name}\""), format!("${name}"))
+                }
+                1 => Both::new("\"lighten($sc0, 0.1)\"", "\"lighten($sc0, 0.1)\""),
+                _ => {
+                    let hex: String = (0..if numbers.chance(2) { 6 } else { 8 })
+                        .map(|_| char::from(b"0123456789abcdef"[numbers.below(16)]))
+                        .collect();
+                    Both::new(format!("\"#{hex}\""), format!("\"#{hex}\""))
+                }
+            };
+        }
+        "UiDimension" => {
+            return match numbers.below(3) {
+                0 => Both::new("\"Auto\"", "Auto"),
+                1 => {
+                    let length = random_length(numbers);
+                    Both::new(format!("{{ Pixels = {} }}", length.toml), length.kdl)
+                }
+                _ => {
+                    let (share, percent) = [
+                        ("0.5", "50"),
+                        ("0.33", "33"),
+                        ("0.125", "12.5"),
+                        ("1", "100"),
+                        ("0", "0"),
+                        ("0.075", "7.5"),
+                    ][numbers.below(6)];
+                    Both::new(format!("{{ Share = {share} }}"), format!("(%){percent}"))
+                }
+            };
+        }
+        "UiTrack" => {
+            return match numbers.below(3) {
+                0 => Both::new("\"Auto\"", "Auto"),
+                1 => {
+                    let length = random_length(numbers);
+                    Both::new(format!("{{ Pixels = {} }}", length.toml), length.kdl)
+                }
+                _ => {
+                    let fraction = numbers.pick(&["1", "2", "0.5"]);
+                    Both::new(
+                        format!("{{ Fraction = {fraction} }}"),
+                        format!("(fr){fraction}"),
+                    )
+                }
+            };
+        }
+        _ => {}
+    }
+    let info = registry
+        .get(ty)
+        .unwrap_or_else(|| panic!("`{ty}` is registered"))
+        .info();
+    match &info.kind {
+        Kind::F32 => random_number(numbers, path),
+        Kind::Bool => {
+            let value = numbers.chance(2);
+            Both::new(value.to_string(), if value { "#true" } else { "#false" })
+        }
+        Kind::UInt { .. } => {
+            if numbers.chance(4) {
+                return Both::new("\"$sn1\"", "$sn1");
+            }
+            let value = numbers.pick(&["1", "2", "7"]);
+            Both::new(value, value)
+        }
+        Kind::Text => {
+            let (toml, kdl) = [
+                ("\"Geist\"", "Geist"),
+                ("\"tnum\"", "\"tnum\""),
+                ("\"\"", "\"\""),
+                ("\"a b\"", "\"a b\""),
+                ("\"\\uE06C\"", "\"\\u{E06C}\""),
+            ][numbers.below(5)];
+            Both::new(toml, kdl)
+        }
+        Kind::Enum(variants) => {
+            let variant = &variants[numbers.below(variants.len())].name;
+            Both::new(format!("\"{variant}\""), variant.clone())
+        }
+        kind => panic!("`{ty}` at `{path}` is no value written alone: {kind:?}"),
+    }
+}
+
+/// Whether a value of the type `ty` is written as a child node in KDL, rather than a property: a
+/// struct, a list or an array, or an option of one.
+fn is_node(registry: &Registry, ty: &str) -> bool {
+    use slime_reflect::Kind;
+    if matches!(ty, "LinearColor" | "UiDimension" | "UiTrack") {
+        return false;
+    }
+    match &registry.get(ty).expect("registered").info().kind {
+        Kind::Struct(_) | Kind::List { .. } => true,
+        Kind::Option(inner) => is_node(registry, inner),
+        _ => false,
+    }
+}
+
+/// A random part of the struct `ty` at `path`, as a rule sets one: some of its fields, at any depth,
+/// each as TOML writes it inline, and as KDL's properties and children.
+fn random_part(
+    registry: &Registry,
+    ty: &str,
+    path: &str,
+    numbers: &mut Numbers,
+) -> (String, Vec<String>, Vec<String>) {
+    use slime_reflect::Kind;
+    let Kind::Struct(fields) = &registry.get(ty).expect("registered").info().kind else {
+        panic!("`{ty}` is a struct");
+    };
+    let (mut toml, mut properties, mut children) = (Vec::new(), Vec::new(), Vec::new());
+    for field in fields {
+        if !numbers.chance(3) {
+            continue;
+        }
+        let name = &field.name;
+        let at = if path.is_empty() {
+            name.clone()
+        } else {
+            format!("{path}.{name}")
+        };
+        let (toml_value, kdl) = random_field(registry, &field.ty, name, &at, numbers);
+        toml.push(format!("{name} = {toml_value}"));
+        match kdl {
+            Ok(property) => properties.push(property),
+            Err(child) => children.push(child),
+        }
+    }
+    (format!("{{ {} }}", toml.join(", ")), properties, children)
+}
+
+/// A random value of the field `name`, of the type `ty`, at `path`: as TOML writes it inline, and
+/// as KDL writes it, a property, or else a child node.
+fn random_field(
+    registry: &Registry,
+    ty: &str,
+    name: &str,
+    path: &str,
+    numbers: &mut Numbers,
+) -> (String, Result<String, String>) {
+    use slime_reflect::Kind;
+    if !is_node(registry, ty) {
+        if let Kind::Option(inner) = &registry.get(ty).expect("registered").info().kind {
+            if numbers.chance(3) {
+                return ("[]".to_owned(), Ok(format!("{name}=#null")));
+            }
+            let value = random_scalar(registry, inner, path, numbers);
+            return (
+                format!("[{}]", value.toml),
+                Ok(format!("{name}={}", value.kdl)),
+            );
+        }
+        let value = random_scalar(registry, ty, path, numbers);
+        return (value.toml, Ok(format!("{name}={}", value.kdl)));
+    }
+    match &registry.get(ty).expect("registered").info().kind {
+        Kind::Option(inner) => {
+            if numbers.chance(3) {
+                return ("[]".to_owned(), Err(format!("{name} #null")));
+            }
+            let (toml, kdl) = random_field(registry, inner, name, path, numbers);
+            (format!("[{toml}]"), kdl)
+        }
+        Kind::List { element, len } => {
+            let count = len.unwrap_or_else(|| numbers.below(3));
+            let values: Vec<Both> = (0..count)
+                .map(|_| random_scalar(registry, element, path, numbers))
+                .collect();
+            let toml: Vec<&str> = values.iter().map(|value| value.toml.as_str()).collect();
+            let kdl: Vec<&str> = values.iter().map(|value| value.kdl.as_str()).collect();
+            (
+                format!("[{}]", toml.join(", ")),
+                Err(format!("{name} {}", kdl.join(" ")).trim_end().to_owned()),
+            )
+        }
+        _ => {
+            let (toml, properties, children) = random_part(registry, ty, path, numbers);
+            (toml, Err(node_text(name, &properties, &children)))
+        }
+    }
+}
+
+/// The text of a node of KDL named `name`, of `properties` and `children`.
+fn node_text(name: &str, properties: &[String], children: &[String]) -> String {
+    let mut text = std::iter::once(name)
+        .chain(properties.iter().map(String::as_str))
+        .collect::<Vec<_>>()
+        .join(" ");
+    if !children.is_empty() {
+        text.push_str(" {\n");
+        for child in children {
+            text.push_str(child);
+            text.push('\n');
+        }
+        text.push('}');
+    }
+    text
+}
+
+/// A random selector: as TOML writes it inline, and as KDL writes the node `select`.
+fn random_selector(numbers: &mut Numbers) -> (String, String) {
+    const KINDS: [&str; 4] = ["Container", "Button", "Label", "Menu"];
+    let (mut toml, mut properties, mut children) = (Vec::new(), Vec::new(), Vec::new());
+    if numbers.chance(5) {
+        let kind = numbers.pick(&KINDS);
+        toml.push(format!("kind = \"{kind}\""));
+        properties.push(format!("kind={kind}"));
+    }
+    if numbers.chance(3) {
+        let classes: Vec<&str> = (0..numbers.below(3))
+            .map(|_| numbers.pick(&["panel", "a-b", "x"]))
+            .collect();
+        toml.push(format!("classes = {classes:?}"));
+        children.push(
+            format!("classes {}", classes.join(" "))
+                .trim_end()
+                .to_owned(),
+        );
+    }
+    if numbers.chance(4) {
+        if numbers.chance(2) {
+            let index = numbers.below(5);
+            toml.push(format!("key = \"#{index}\""));
+            properties.push(format!("key={index}"));
+        } else {
+            toml.push("key = \"tabs\"".to_owned());
+            properties.push("key=tabs".to_owned());
+        }
+    }
+    if numbers.chance(3) {
+        let states: Vec<&str> = (0..1 + numbers.below(2))
+            .map(|_| numbers.pick(&["Hovered", "Pressed", "FocusVisible"]))
+            .collect();
+        toml.push(format!("states = {states:?}"));
+        children.push(format!("states {}", states.join(" ")));
+    }
+    if numbers.chance(4) {
+        let (mut inside_toml, mut inside_kdl) = (Vec::new(), Vec::new());
+        if numbers.chance(2) {
+            let kind = numbers.pick(&KINDS);
+            inside_toml.push(format!("kind = \"{kind}\""));
+            inside_kdl.push(format!("kind={kind}"));
+        }
+        if numbers.chance(2) {
+            inside_toml.push("class = \"toolbar\"".to_owned());
+            inside_kdl.push("class=toolbar".to_owned());
+        }
+        toml.push(format!("inside = {{ {} }}", inside_toml.join(", ")));
+        children.push(node_text("inside", &inside_kdl, &[]));
+    }
+    (
+        format!("{{ {} }}", toml.join(", ")),
+        node_text("select", &properties, &children),
+    )
+}
+
+/// A random style sheet of up to four rules, in TOML and in KDL.
+fn random_sheet(registry: &Registry, numbers: &mut Numbers) -> (String, String) {
+    let (mut toml, mut kdl) = (String::new(), String::new());
+    for rule in 0..1 + numbers.below(4) {
+        let (select_toml, select_kdl) = random_selector(numbers);
+        let (style_toml, properties, children) = random_part(registry, "UiStyle", "", numbers);
+        assert!(properties.is_empty(), "a style holds groups alone");
+        toml.push_str(&format!(
+            "[r{rule}]\nselect = {select_toml}\nstyle = {style_toml}\n"
+        ));
+        let body: Vec<String> = std::iter::once(select_kdl).chain(children).collect();
+        kdl.push_str(&node_text(&format!("r{rule}"), &[], &body));
+        kdl.push('\n');
+    }
+    (toml, kdl)
+}
+
+#[test]
+fn random_style_sheets_read_as_the_reflected_reader_read_them() {
+    use crate::style::Same;
+    let seed = std::env::var("UWUI_SHEET_SEED")
+        .ok()
+        .and_then(|seed| seed.parse().ok())
+        .unwrap_or_else(|| {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(1, |time| time.as_nanos() as u64)
+                | 1
+        });
+    let mut numbers = Numbers(seed);
+    let registry = super::registry();
+    let theme = [super::Theme::from_text("sheets.theme.kdl", SHEETS_THEME.1)];
+    let (mut agreed, mut refused, mut declarations) = (0, 0, 0);
+    for case in 0..2_000 {
+        let (toml, kdl) = random_sheet(&registry, &mut numbers);
+        let (mut old_tokens, mut new_tokens) = (TokenValues::default(), TokenValues::default());
+        let old = read(
+            &registry,
+            &[("random.style", toml.as_str())],
+            &[("sheets.theme", SHEETS_THEME.0)],
+            &[],
+            &mut old_tokens,
+        );
+        let new = super::read(
+            &[StyleSheet::from_text("random.style.kdl", kdl.as_str())],
+            &theme,
+            &[],
+            &mut new_tokens,
+        );
+        let replay = format!(
+            "case {case}, from the seed UWUI_SHEET_SEED={seed}:\nTOML:\n{toml}\nKDL:\n{kdl}"
+        );
+        match (old, new) {
+            (Ok(old), Ok(new)) => {
+                agreed += 1;
+                assert_eq!(old.rules.len(), new.rules.len(), "{replay}");
+                for (old, new) in old.rules.iter().zip(&new.rules) {
+                    assert_eq!(old.selector, new.selector, "{replay}");
+                    // By leaf: a rule sets each leaf once, and TOML and KDL order a rule's fields
+                    // apart.
+                    let by_leaf = |rule: &Rule| {
+                        let mut declarations = rule.declarations.clone();
+                        declarations.sort_by_key(crate::style::StyleDeclaration::leaf);
+                        declarations
+                    };
+                    let (old, new) = (by_leaf(old), by_leaf(new));
+                    declarations += new.len();
+                    assert!(old.same(&new), "{old:?} and {new:?}\n{replay}");
+                }
+            }
+            (Err(_), Err(_)) => refused += 1,
+            (Ok(_), Err(error)) => panic!("only the reader of KDL refused: {error}\n{replay}"),
+            (Err(error), Ok(_)) => panic!("only the reflected reader refused: {error}\n{replay}"),
+        }
+    }
+    // Both kinds of cases are met, and declarations of many leaves, so that neither is left
+    // untested.
+    eprintln!(
+        "{agreed} read, {refused} refused, {declarations} declarations, from the seed {seed}"
+    );
+    assert!(
+        agreed > 500 && refused > 100 && declarations > 5_000,
+        "{agreed} read, {refused} refused, {declarations} declarations"
     );
 }

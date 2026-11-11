@@ -39,7 +39,7 @@ fn interface() -> (Ui, ElementId) {
     // Every element in the tests' font, what the interface builds for itself too.
     let sheet = StyleSheet::from_text(
         "test.style",
-        "[everything]\nselect = {}\nstyle.text.style.fonts = [\"Noto Sans\"]\n",
+        "everything {\n    select\n    text { style { fonts \"Noto Sans\"; }; }\n}\n",
     );
     ui.set_style(&[sheet], &[]).expect("a valid sheet");
     let settings = RootSettings {

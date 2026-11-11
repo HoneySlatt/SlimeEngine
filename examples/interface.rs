@@ -42,7 +42,7 @@
 //! panels named by its own tokens, `interface_space` and `interface_gap`, which it declares to its
 //! interface and its themes give
 //! (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`); the style sheet
-//! `examples/assets/ui/interface.style` gives the rest, with the values of a dark or a light theme
+//! `examples/assets/ui/interface.style.kdl` gives the rest, with the values of a dark or a light theme
 //! of `examples/assets/ui`, which T switches. They are read cooked with the sample, as its scenes
 //! are:
 //!
@@ -347,7 +347,10 @@ impl Interface {
                 .get(id)
                 .map_or_else(|| id.to_string(), |entry| entry.source.clone())
         };
-        let sheet = StyleSheet::from_binary(name(STYLE), self.assets.style_sheet(STYLE)?);
+        let sheet = StyleSheet::from_text(
+            name(STYLE),
+            String::from_utf8(self.assets.style_sheet(STYLE)?)?,
+        );
         let theme = Theme::from_text(name(theme), String::from_utf8(self.assets.theme(theme)?)?);
         self.ui.set_style(&[sheet], std::slice::from_ref(&theme))?;
         let keys = Shortcuts::from_binary(name(KEYS), self.assets.shortcuts(KEYS)?);

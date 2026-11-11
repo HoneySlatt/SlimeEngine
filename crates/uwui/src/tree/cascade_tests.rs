@@ -268,7 +268,7 @@ fn own_styles_that_differ_by_a_signed_zero_share_no_style() {
     let mut ui = Ui::new(Fonts::new());
     let sheet = theme::StyleSheet::from_text(
         "gap.style",
-        "[gap]\nselect = {}\nstyle.layout.gap = [4, 4]\n",
+        "gap {\n    select\n    layout { gap 4 4; }\n}\n",
     );
     ui.set_style(&[sheet], &[]).expect("a valid sheet");
     let root = ui.add_root(

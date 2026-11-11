@@ -590,21 +590,25 @@ const SCREEN: RootSettings = RootSettings {
 
 /// The editor's style sheet: its labels, buttons and panels, the inspector's names apart.
 const EDITOR_STYLE: &str = r#"
-[label]
-select = { kind = "Label" }
-style.text.color = "$text"
+label {
+    select kind=Label
+    text color=$text
+}
 
-[button]
-select = { kind = "Button" }
-style.paint = { background = "$button", border_width = 1, border = "$border", radii = [4, 4, 4, 4] }
+button {
+    select kind=Button
+    paint background=$button border_width=1 border=$border { radii 4 4 4 4; }
+}
 
-[panel]
-select = { kind = "Scroll" }
-style.paint = { background = "$panel", border_width = 1, border = "$border" }
+panel {
+    select kind=Scroll
+    paint background=$panel border_width=1 border=$border
+}
 
-[name]
-select = { kind = "Label", inside = { kind = "Container", class = "fields" } }
-style.text.color = "$muted"
+name {
+    select kind=Label { inside kind=Container class=fields; }
+    text color=$muted
+}
 "#;
 
 /// A dark or a light theme of the editor's style sheet, which gives the core's roles too
@@ -642,7 +646,7 @@ struct Editor {
 impl Editor {
     /// The tree, its labels and buttons in the tree's text, styled by the editor's four rules.
     fn new(fonts: Fonts, labels: Vec<String>) -> Self {
-        let sheets = [StyleSheet::from_text("editor.style", EDITOR_STYLE)];
+        let sheets = [StyleSheet::from_text("editor.style.kdl", EDITOR_STYLE)];
         Self::styled(fonts, labels, &sheets, &[theme(false)], look)
     }
 
@@ -810,7 +814,7 @@ pub fn tree(context: &mut Context) -> Result<Vec<Row>, String> {
         editor
             .ui
             .set_style(
-                &[StyleSheet::from_text("editor.style", EDITOR_STYLE)],
+                &[StyleSheet::from_text("editor.style.kdl", EDITOR_STYLE)],
                 &[theme(light)],
             )
             .expect("the editor's style");

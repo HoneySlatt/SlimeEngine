@@ -12,10 +12,10 @@ use std::path::Path;
 use super::{Erased, Fallback, Length, StyleSheet, Theme, Token, TokenValues, Tokens};
 
 /// The look's sheet, and the `interface` example's.
-const LOOK_SHEET: Named = ("editor.style", include_str!("../../look/editor.style"));
+const LOOK_SHEET: Named = ("editor.style", include_str!("../../look/editor.style.kdl"));
 const EXAMPLE_SHEET: Named = (
     "interface.style",
-    include_str!("../../../../examples/assets/ui/interface.style"),
+    include_str!("../../../../examples/assets/ui/interface.style.kdl"),
 );
 
 /// The look's themes, and the `interface` example's.
@@ -75,7 +75,7 @@ fn lines() -> String {
             .map(|(name, text)| Theme::from_text(*name, *text))
             .collect();
         let mut tokens = TokenValues::default();
-        let styling = super::read(&super::registry(), &sheets, &themes, &declared, &mut tokens)
+        let styling = super::read(&sheets, &themes, &declared, &mut tokens)
             .unwrap_or_else(|error| panic!("{sheet_name} over {names:?}:\n{error}"));
         for token in &declared {
             let value = tokens.value(token);

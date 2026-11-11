@@ -16,16 +16,17 @@ use crate::metadata;
 /// The extensions of the files that the pipeline imports, its *source files*, compared without
 /// regard to case: glTF scenes, as JSON with external files or as GLB, PNG and JPEG images, and
 /// scene files, and the interface's style sheets, themes and tables of shortcuts. An extension may
-/// hold a dot, `theme.kdl`, the end of a file's name after the dot before it: a theme is KDL, and
-/// a theme of TOML, `theme`, is a source that the cook refuses by its name
-/// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
-pub const SOURCE_EXTENSIONS: [&str; 10] = [
+/// hold a dot, `style.kdl`, the end of a file's name after the dot before it: a style sheet and a
+/// theme are KDL, and one of TOML, `style` or `theme`, is a source that the cook refuses by its
+/// name (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
+pub const SOURCE_EXTENSIONS: [&str; 11] = [
     "gltf",
     "glb",
     "png",
     "jpg",
     "jpeg",
     "scene",
+    "style.kdl",
     "style",
     "theme.kdl",
     "theme",

@@ -1664,20 +1664,19 @@ interface takes them; the editor's look, behind `uwui`'s `editor-look` feature, 
 ([ADR-0149](adr/0149-the-looks-foundations.md)):
 
 ```text
-interface.style, dark.theme.kdl                sources: rules, and the named values they give
-slime-cook cook                                the sheet into its binary encoding, its syntax
-│                                              checked; the theme as its text, its syntax checked
+interface.style.kdl, dark.theme.kdl            sources: rules, and the named values they give
+slime-cook cook                                each as its text, its syntax and limits checked
 │                                              by uwui-kdl
 CookedAssets::style_sheet(id) / theme(id)      their bytes
-StyleSheet::from_binary / Theme::from_text
+StyleSheet::from_text / Theme::from_text
 ui.set_style(&[sheet], &[base, dark])          the themes read by uwui-kdl, each value in its
 │                                              group's kind, the stack's names followed once and
-│                                              colors computed in OKLCH; every rule read as a part
-│                                              of a Style, its "$name" given the value of the last
-│                                              of the stacked themes that gives it and its
-│                                              "#rrggbb" a color, through slime-serialize's
-│                                              References::value, until M6d.3b2; every element
-│                                              marked to be styled again
+│                                              colors computed in OKLCH; every rule read by the
+│                                              code that uwui-macros's derives generate, into
+│                                              declarations, its $name given the value of the
+│                                              last of the stacked themes that gives it, of its
+│                                              field's kind; every element marked to be styled
+│                                              again
 ui.frame()
 └── each marked element: its kind's defaults, the rules that select it, by kind, classes, key,
     states and ancestor, in their order, then what its own style writes, its base where no rule

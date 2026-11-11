@@ -119,8 +119,8 @@ pub fn register_fonts(fonts: &mut Fonts) {
 /// The look's style sheet, named in errors by its file.
 pub fn style_sheet() -> StyleSheet {
     StyleSheet::from_text(
-        "crates/uwui/look/editor.style",
-        include_str!("../look/editor.style"),
+        "crates/uwui/look/editor.style.kdl",
+        include_str!("../look/editor.style.kdl"),
     )
 }
 

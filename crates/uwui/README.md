@@ -36,16 +36,17 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   (`tree::Element`) are boxes, labels, parts of images, buttons, boxes that scroll, lists that build
   and lay out only the rows that show, and fields of text and of numbers, each with its classes.
 - `theme::StyleSheet` holds rules that select elements by kind, classes, key, states and ancestor
-  and set a part of their style, read from their text or their cooked binary encoding, TOML until
-  M6d.3b2; `theme::Theme` holds the named values that the rules give, a document of KDL whose
+  and set a part of their style, a document of KDL, read by the code that `uwui-macros`'s derives
+  generate, each number of its field's measure, a length, a duration or a number, and a text named
+  by a theme too; `theme::Theme` holds the named values that the rules give, a document of KDL whose
   groups give each value its kind, a color, a length, a duration, a number or a text, which may
   name each other and compute colors in OKLCH (`mix`, `lighten`, `darken`, `alpha`)
   (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`). `Ui::set_style`
   styles an interface with them, its themes stacked, the last that gives a name giving its value,
   their errors each at its line, gathered (`DocumentErrors`)
   (`docs/adr/0149-the-looks-foundations.md`). A rule becomes a list of typed
-  declarations, which the cascade applies to a `Style` without reflection; a rule sets a color
-  whole, and a rule for a kind sets only what that kind reads of a style
+  declarations, which the cascade applies to a `Style` without reflection; a rule for a kind sets
+  only what that kind reads of a style
   (`docs/adr/0229-styles-typed-as-declarations.md`). An element's style starts from its kind's
   defaults, under every rule, which hold no color of their own: they take the core's seven
   *roles*, `canvas_text`, `accent` and the others, which each look gives and which fall back to
@@ -237,9 +238,9 @@ Its logo is not under the code's licenses: its author keeps its rights, and
 parley, fontique and swash, the text; taffy, the tree's flexbox and grid, run through its traits on
 the tree's arena; their types stay inside the crate (`docs/adr/0132-the-engines-ui-framework.md`).
 icu_properties, for the writing system of a character; `slime-color`, the colors of the styles and
-the display list; `uwui-kdl`, the reader of its documents in KDL, its themes today; `slime-reflect`
-and `slime-serialize`, the styles described and the style sheets and shortcuts read, until M6d.3b2
-and M6d.3c; `uwui-macros`, the derive of the styles' declarations
+the display list; `uwui-kdl`, the reader of its documents in KDL, its themes and style sheets
+today; `slime-reflect` and `slime-serialize`, the styles described and the shortcuts read, until
+M6d.3c; `uwui-macros`, the derives of the styles' declarations and of their readers
 (`docs/adr/0229-styles-typed-as-declarations.md`); `slime-input`, the input it takes; thiserror and
 tracing. No other engine
 crate: text is laid out and rasterized on the CPU, `uwui-render` draws the display list, a

@@ -59,14 +59,16 @@ fn fill(list: &DisplayList, width: f32) -> LinearColor {
 }
 
 const BUTTONS: &str = r##"
-[button]
-select = { kind = "Button" }
-style.paint.background = "#000000"
-style.transition = { duration = 0.2, easing = "Linear" }
+button {
+    select kind=Button
+    paint background="#000000"
+    transition duration=(s)0.2 easing=Linear
+}
 
-[button-hovered]
-select = { kind = "Button", states = ["Hovered"] }
-style.paint.background = "#ffffff"
+button-hovered {
+    select kind=Button { states Hovered; }
+    paint background="#ffffff"
+}
 "##;
 
 #[test]
@@ -148,9 +150,10 @@ fn an_opacity_multiplies_what_an_element_and_its_children_draw() {
 }
 
 const SECTIONS: &str = r##"
-[section]
-select = { kind = "Section" }
-style.transition = { duration = 0.2, easing = "Linear" }
+section {
+    select kind=Section
+    transition duration=(s)0.2 easing=Linear
+}
 "##;
 
 #[test]
@@ -283,18 +286,24 @@ fn boxes_lie_on_whole_pixels_at_any_scale() {
 /// pointer, which a transition moves between
 /// (`docs/adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md`).
 const EVERY_COLOR: &str = r##"
-[all]
-select = { classes = ["all"] }
-style.paint = { background = "#000000", border = "#000000", backdrop = "#000000", shadow = [{ color = "#000000", blur = 4 }] }
-style.text = { color = "#000000", selection = "#000000" }
-style.control = { track = "#000000", fill = "#000000", mark = "#000000" }
-style.transition = { duration = 0.2, easing = "Linear" }
+all {
+    select { classes all; }
+    paint background="#000000" border="#000000" backdrop="#000000" {
+        shadow color="#000000" blur=4
+    }
+    text color="#000000" selection="#000000"
+    control track="#000000" fill="#000000" mark="#000000"
+    transition duration=(s)0.2 easing=Linear
+}
 
-[all-hovered]
-select = { classes = ["all"], states = ["Hovered"] }
-style.paint = { background = "#ffffff", border = "#ffffff", backdrop = "#ffffff", shadow = [{ color = "#ffffff", blur = 4 }] }
-style.text = { color = "#ffffff", selection = "#ffffff" }
-style.control = { track = "#ffffff", fill = "#ffffff", mark = "#ffffff" }
+all-hovered {
+    select { classes all; states Hovered; }
+    paint background="#ffffff" border="#ffffff" backdrop="#ffffff" {
+        shadow color="#ffffff" blur=4
+    }
+    text color="#ffffff" selection="#ffffff"
+    control track="#ffffff" fill="#ffffff" mark="#ffffff"
+}
 "##;
 
 #[test]
@@ -352,8 +361,8 @@ fn two_buttons(after: &str) -> (Ui, ElementId, ElementId) {
     });
     ui.frame();
     let changed = BUTTONS.replacen(
-        "style.paint.background = \"#000000\"",
-        &format!("style.paint.background = \"{after}\""),
+        "paint background=\"#000000\"",
+        &format!("paint background=\"{after}\""),
         1,
     );
     ui.set_style(
@@ -424,15 +433,17 @@ fn column_of_two(ui: &mut Ui, root: ElementId, revision: u64, classes: [&str; 2]
 
 /// Two classes, each black, which a change of sheets turns apart.
 const TWO_CLASSES: &str = r##"
-[a]
-select = { classes = ["a"] }
-style.paint.background = "#000000"
-style.transition = { duration = 0.2, easing = "Linear" }
+a {
+    select { classes a }
+    paint background="#000000"
+    transition duration=(s)0.2 easing=Linear
+}
 
-[b]
-select = { classes = ["b"] }
-style.paint.background = "#000000"
-style.transition = { duration = 0.2, easing = "Linear" }
+b {
+    select { classes b }
+    paint background="#000000"
+    transition duration=(s)0.2 easing=Linear
+}
 "##;
 
 // Elements that move alike share what they show by the style that they go to, the colors that they
@@ -504,14 +515,16 @@ fn elements_towards_one_style_at_the_same_time_from_two_colors_share_nothing() {
 
 /// A button lit white by a class, which a build gives one button, then the other.
 const LIT: &str = r##"
-[button]
-select = { kind = "Button" }
-style.paint.background = "#000000"
-style.transition = { duration = 0.2, easing = "Linear" }
+button {
+    select kind=Button
+    paint background="#000000"
+    transition duration=(s)0.2 easing=Linear
+}
 
-[lit]
-select = { kind = "Button", classes = ["lit"] }
-style.paint.background = "#ffffff"
+lit {
+    select kind=Button { classes lit }
+    paint background="#ffffff"
+}
 "##;
 
 #[test]
@@ -534,14 +547,16 @@ fn elements_towards_one_style_from_one_color_started_apart_share_nothing() {
 
 /// A button transparent white, black under the pointer.
 const CLEAR_WHITE: &str = r##"
-[button]
-select = { kind = "Button" }
-style.paint.background = "#ffffff00"
-style.transition = { duration = 0.2, easing = "Linear" }
+button {
+    select kind=Button
+    paint background="#ffffff00"
+    transition duration=(s)0.2 easing=Linear
+}
 
-[button-hovered]
-select = { kind = "Button", states = ["Hovered"] }
-style.paint.background = "#000000"
+button-hovered {
+    select kind=Button { states Hovered }
+    paint background="#000000"
+}
 "##;
 
 #[test]

@@ -8,7 +8,7 @@
 
 use slime_color::LinearColor;
 use slime_reflect::Reflect;
-use uwui_macros::Declare;
+use uwui_macros::{Declare, Identifiers};
 
 use crate::text::{TextStyle, TextStyleDeclaration};
 
@@ -75,13 +75,14 @@ pub struct Icons {
 #[reflect(name = "UiTransition", default)]
 pub struct Transition {
     /// How long a change takes, in seconds: 0, the default, for at once.
+    #[declare(duration)]
     pub duration: f32,
     /// How it goes over that time.
     pub easing: Easing,
 }
 
 /// How a transition goes from its start to its end over its time.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect, Identifiers)]
 #[reflect(name = "UiEasing")]
 pub enum Easing {
     /// At one speed.
@@ -131,6 +132,7 @@ pub struct LayoutStyle {
     /// none.
     pub align_self: Option<Align>,
     /// The space between rows and between columns.
+    #[declare(length)]
     pub gap: [f32; 2],
     /// The space inside its edges, around its children.
     #[declare(nested)]
@@ -145,8 +147,10 @@ pub struct LayoutStyle {
     /// Its largest width and height.
     pub max_size: [Dimension; 2],
     /// How much of the space left along its parent's main axis it takes, against its siblings.
+    #[declare(number)]
     pub grow: f32,
     /// How much it gives up when its siblings lack space.
+    #[declare(number)]
     pub shrink: f32,
     /// Its size along its parent's main axis before it grows or shrinks.
     pub basis: Dimension,
@@ -189,7 +193,7 @@ impl Default for LayoutStyle {
 }
 
 /// How an element's children are laid out.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect, Identifiers)]
 #[reflect(name = "UiDisplay", default)]
 pub enum Display {
     /// In a line along one axis, CSS's flexbox.
@@ -202,7 +206,7 @@ pub enum Display {
 }
 
 /// The axis along which a flexbox lays its children out.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect, Identifiers)]
 #[reflect(name = "UiFlexDirection", default)]
 pub enum FlexDirection {
     /// Along a line, from its start.
@@ -217,7 +221,7 @@ pub enum FlexDirection {
 }
 
 /// How children share the space along the main axis.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect, Identifiers)]
 #[reflect(name = "UiJustify", default)]
 pub enum Justify {
     /// Packed at the start.
@@ -236,7 +240,7 @@ pub enum Justify {
 }
 
 /// How a child is placed across the main axis.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect, Identifiers)]
 #[reflect(name = "UiAlign", default)]
 pub enum Align {
     /// At the start.
@@ -268,12 +272,16 @@ pub enum Dimension {
 #[reflect(name = "UiSides", default)]
 pub struct Sides {
     /// The side where a line starts: left from left to right, right from right to left.
+    #[declare(length)]
     pub start: f32,
     /// The side where a line ends.
+    #[declare(length)]
     pub end: f32,
     /// The top.
+    #[declare(length)]
     pub top: f32,
     /// The bottom.
+    #[declare(length)]
     pub bottom: f32,
 }
 
@@ -346,12 +354,13 @@ pub struct PaintStyle {
     #[declare(color)]
     pub background: LinearColor,
     /// The border's width, in logical pixels, inside the box's edges.
-    #[declare(lays_out)]
+    #[declare(lays_out, length)]
     pub border_width: f32,
     /// The border's color.
     #[declare(color)]
     pub border: LinearColor,
     /// The radii of its corners, in logical pixels: top start, top end, bottom end, bottom start.
+    #[declare(length)]
     pub radii: [f32; 4],
     /// The shadow it casts, if any.
     #[declare(color)]
@@ -359,6 +368,7 @@ pub struct PaintStyle {
     /// How opaque it and what it holds are drawn, from 0, unseen, to 1, the default: the alpha of
     /// each of their primitives is multiplied by it, and by their ancestors', so that parts of a
     /// translucent element that overlap show through each other.
+    #[declare(number)]
     pub opacity: f32,
     /// The fill that a layer's root lays over the whole window below it, behind its own box: a
     /// modal layer's scrim, which dims what takes no input while it is open
@@ -417,9 +427,10 @@ pub struct ControlStyle {
     /// box, the width of a slider's thumb, the side of an item of a menu's mark and chevron, of a
     /// field of search's marks and of a list to choose from's, twice the thickness of a bar of
     /// progress, the gap after a field's prefix and a tab's title, which lay them out.
-    #[declare(lays_out)]
+    #[declare(lays_out, length)]
     pub size: f32,
     /// The radius of its corners, in logical pixels.
+    #[declare(length)]
     pub radius: f32,
     /// A check box's box unchecked, a slider's track and a bar of progress's, an item of a menu's
     /// shortcut, a field's placeholder, the box of a tab's count.

@@ -38,7 +38,7 @@ fn styled(themes: &[(&str, &str)], fill: bool) -> Result<(Ui, ElementId), Docume
     ui.build(root, 0, |children| {
         children.add("box", Element::container(), |_| {});
     });
-    let sheet = "[box]\nselect = { kind = \"Container\" }\nstyle.paint.background = \"$fill\"\n";
+    let sheet = "box {\n    select kind=Container\n    paint background=$fill\n}\n";
     let sheets: Vec<StyleSheet> = fill
         .then(|| StyleSheet::from_text("box.style", sheet))
         .into_iter()
@@ -343,7 +343,7 @@ fn a_damaged_theme_is_refused_or_read_never_panicking() {
 
 #[test]
 fn a_whole_number_of_a_theme_sets_a_field_of_whole_numbers_and_a_fraction_is_refused() {
-    let sheet = "[box]\nselect = { kind = \"Container\" }\nstyle.layout.column.span = \"$span\"\n";
+    let sheet = "box {\n    select kind=Container\n    layout { column span=$span; }\n}\n";
     let mut ui = Ui::new(Fonts::new());
     let settings = RootSettings {
         size: [100.0, 100.0],

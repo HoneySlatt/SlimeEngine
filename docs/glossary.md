@@ -1654,7 +1654,8 @@ instead (`World::names`), after which a list reads again the names that changed
 kind, *classes*, *key*, states and ancestor, and sets a part of their style, its fields given or
 named by a *theme*; the rules apply in the order of the file, under an element's *own style* in
 the *mask order* (`uwui::theme::StyleSheet`, [ADR-0141](adr/0141-style-sheets-and-themes.md),
-[ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)). Cooked from a `.style` file.
+[ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)). A document of KDL, cooked as its text
+from a `.style.kdl` file.
 
 **Sub-asset.** An *asset* inside a source file, such as a mesh, a material or a scene of a glTF
 file, whose ID is derived from the file's ID, its kind and its name
