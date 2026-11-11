@@ -42,15 +42,24 @@ fn document(bytes: usize) -> String {
     PIECE.repeat(bytes.div_ceil(PIECE.len()))
 }
 
-/// The documents read: one of the editor's look's size, its sheet and five themes, 28 kB, and one of
-/// 4 MB.
+/// The documents read: one of the editor's look's size, its sheet and five themes, 28 kB; one of
+/// 4 MB; and the most nodes that [`uwui_kdl::Limits::DEFAULT`] allows, 2^20 at the top, `a;` each.
 pub fn read(context: &mut Context) -> Result<Vec<Row>, String> {
     let runs = context.runs(RUNS);
+    let most = "a;".repeat(uwui_kdl::Limits::DEFAULT.items);
     let mut rows = Vec::new();
-    for (name, text) in [("look", document(28 << 10)), ("large", document(4 << 20))] {
-        let (read, allocations) =
-            counted(|| uwui_kdl::read(&text).map(|document| document.nodes().count()));
-        read.map_err(|error| format!("the {name} document does not read: {error}"))?;
+    for (name, text) in [
+        ("look", document(28 << 10)),
+        ("large", document(4 << 20)),
+        ("most nodes", most),
+    ] {
+        // The document is kept while the allocations are counted, so that what it holds is what
+        // it took and did not give back.
+        let (read, allocations) = counted(|| uwui_kdl::read(&text));
+        let document =
+            read.map_err(|error| format!("the {name} document does not read: {error}"))?;
+        let held = allocations.taken - allocations.freed;
+        drop(document);
         let mut times = Vec::with_capacity(runs);
         for _ in 0..runs {
             let start = Instant::now();
@@ -69,9 +78,13 @@ pub fn read(context: &mut Context) -> Result<Vec<Row>, String> {
             format!("bytes taken reading the {name} document"),
             allocations.taken,
         ));
+        rows.push(Row::count(
+            format!("bytes that the {name} document holds"),
+            held,
+        ));
         rows.push(Row::new(
-            format!("bytes taken for each byte of the {name} document"),
-            format!("{:.2}", allocations.taken as f64 / text.len() as f64),
+            format!("bytes that the {name} document holds for each byte of its text"),
+            format!("{:.2}", held as f64 / text.len() as f64),
         ));
     }
     Ok(rows)

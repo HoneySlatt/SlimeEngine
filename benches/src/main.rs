@@ -187,7 +187,7 @@ const BENCHMARKS: &[Benchmark] = &[
     },
     Benchmark {
         name: "ui.kdl.read",
-        about: "uwui's reader of KDL: a document of the editor's look's size, 28 kB, and one of 4 MB",
+        about: "uwui's reader of KDL: a document of the editor's look's size, 28 kB, one of 4 MB, and 2^20 nodes",
         counts: true,
         on_request: false,
         run: kdl::read,

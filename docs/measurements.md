@@ -2445,17 +2445,26 @@ Its counters, the same in a debug build, as CI counts them:
 |---|---|
 | allocations of reading the look document | 28 |
 | bytes taken reading the look document | 401 136 |
+| bytes that the look document holds | 188 416 |
 | allocations of reading the large document | 49 |
 | bytes taken reading the large document | 51 379 952 |
+| bytes that the large document holds | 24 117 248 |
+| allocations of reading the most nodes document, 2^20 nodes `a;` | 20 |
+| bytes taken reading the most nodes document | 150 994 752 |
+| bytes that the most nodes document holds | 50 331 648 |
 
 What it says:
 
 - The reader reads some 90 to 110 MB a second, its time growing with the text: 143 times the text
   takes 170 times as long.
-- It takes about 13 bytes of memory for each byte of text, in a few dozen allocations whose
-  number grows with the logarithm of the text's size. Reading the look's documents through
-  reflection today takes 127 736 allocations, but holds more: the typed declarations, which
-  M6d.3b reads from this tree.
+- A document of rules and values holds some six bytes for each byte of its text once read, in a
+  few dozen allocations whose number grows with the logarithm of the text's size; as its arrays
+  grow, reading allocates about twice what the document holds in all, the old arrays given back.
+  The most nodes that the default limits allow, 2^20 in 2 MiB, hold 50 MB, 48 bytes a node, and
+  reading them allocates 151 MB in all: the bound of memory that the limits set, which the
+  reader's rustdoc states. Its time was not taken.
+- Reading the look's documents through reflection today takes 127 736 allocations, but holds
+  more: the typed declarations, which M6d.3b reads from this tree.
 
 The frames of `ui.tree.look` and `ui.tree.editor` had not been timed since M6d.2b2b1. *Before* is
 `13ba018`, the code of M6d.2b2a; *after* is `185ed10`, whose uwui is M6d.2b2b3's. The two binaries
