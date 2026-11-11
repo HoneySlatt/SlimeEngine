@@ -1,6 +1,8 @@
 //! Laid-out text kept from one frame to the next, within a budget.
 
+use std::borrow::Borrow;
 use std::collections::{BTreeMap, HashMap};
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use super::fonts::Fonts;
@@ -23,15 +25,16 @@ pub struct TextCache {
     used: usize,
     /// The count of uses, which numbers each and orders the texts.
     clock: u64,
-    texts: HashMap<Key, Entry>,
+    texts: HashMap<Arc<Key>, Entry>,
     /// The texts by their last use, oldest first.
-    uses: BTreeMap<u64, Key>,
+    uses: BTreeMap<u64, Arc<Key>>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+/// A text kept and its style: the fields of its style that lay it out, its numbers by their bits,
+/// since `f32` is neither `Eq` nor `Hash`. Equal to a [`Lookup`] of the same values, and hashed as
+/// one, so that a text is found without copying its key.
 struct Key {
     text: String,
-    /// The style's fields, its numbers by their bits, since `f32` is neither `Eq` nor `Hash`.
     fonts: Vec<String>,
     numbers: [u32; 4],
     italic: bool,
@@ -41,10 +44,132 @@ struct Key {
     features: Vec<String>,
 }
 
+/// A text and its style as the cache looks them up, borrowed from where they are.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct Lookup<'a> {
+    text: &'a str,
+    fonts: &'a [String],
+    numbers: [u32; 4],
+    italic: bool,
+    alignment: super::Alignment,
+    direction: super::Direction,
+    locale: Option<&'a str>,
+    features: &'a [String],
+}
+
+impl<'a> Lookup<'a> {
+    fn new(text: &'a str, style: &'a TextStyle, scale: f32) -> Self {
+        // Taken apart whole, so that a field added to a text's style is keyed too.
+        let TextStyle {
+            fonts,
+            size,
+            weight,
+            italic,
+            line_height,
+            alignment,
+            direction,
+            locale,
+            features,
+        } = style;
+        Self {
+            text,
+            fonts,
+            numbers: [
+                size.to_bits(),
+                weight.to_bits(),
+                line_height.to_bits(),
+                scale.to_bits(),
+            ],
+            italic: *italic,
+            alignment: *alignment,
+            direction: *direction,
+            locale: locale.as_deref(),
+            features,
+        }
+    }
+
+    /// A key that owns what it looks up.
+    fn key(self) -> Key {
+        Key {
+            text: self.text.to_owned(),
+            fonts: self.fonts.to_vec(),
+            numbers: self.numbers,
+            italic: self.italic,
+            alignment: self.alignment,
+            direction: self.direction,
+            locale: self.locale.map(str::to_owned),
+            features: self.features.to_vec(),
+        }
+    }
+}
+
+/// What the map's keys and the lookups share: their fields, borrowed, by which both are hashed and
+/// compared.
+trait Keyed {
+    fn lookup(&self) -> Lookup<'_>;
+}
+
+impl Keyed for Key {
+    fn lookup(&self) -> Lookup<'_> {
+        Lookup {
+            text: &self.text,
+            fonts: &self.fonts,
+            numbers: self.numbers,
+            italic: self.italic,
+            alignment: self.alignment,
+            direction: self.direction,
+            locale: self.locale.as_deref(),
+            features: &self.features,
+        }
+    }
+}
+
+impl Keyed for Lookup<'_> {
+    fn lookup(&self) -> Lookup<'_> {
+        *self
+    }
+}
+
+impl<'a> Borrow<dyn Keyed + 'a> for Arc<Key> {
+    fn borrow(&self) -> &(dyn Keyed + 'a) {
+        &**self
+    }
+}
+
+impl Hash for dyn Keyed + '_ {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.lookup().hash(state);
+    }
+}
+
+impl PartialEq for dyn Keyed + '_ {
+    fn eq(&self, other: &Self) -> bool {
+        self.lookup() == other.lookup()
+    }
+}
+
+impl Eq for dyn Keyed + '_ {}
+
+impl Hash for Key {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.lookup().hash(state);
+    }
+}
+
+impl PartialEq for Key {
+    fn eq(&self, other: &Self) -> bool {
+        self.lookup() == other.lookup()
+    }
+}
+
+impl Eq for Key {}
+
 struct Entry {
     layout: Arc<TextLayout>,
     memory: usize,
     used: u64,
+    /// Its key, which its use names too.
+    key: Arc<Key>,
 }
 
 impl TextCache {
@@ -62,7 +187,8 @@ impl TextCache {
     }
 
     /// The text `text` laid out in `style`, at `scale`, in the box `bounds`: kept from before, in
-    /// that box or laid out again in this one, or laid out with `fonts` and kept.
+    /// that box or laid out again in this one, or laid out with `fonts` and kept. A text kept is
+    /// found without copying its text nor its style.
     pub fn get(
         &mut self,
         fonts: &mut Fonts,
@@ -71,27 +197,13 @@ impl TextCache {
         scale: f32,
         bounds: TextBounds,
     ) -> &Arc<TextLayout> {
-        let key = Key {
-            text: text.to_owned(),
-            fonts: style.fonts.clone(),
-            numbers: [
-                style.size.to_bits(),
-                style.weight.to_bits(),
-                style.line_height.to_bits(),
-                scale.to_bits(),
-            ],
-            italic: style.italic,
-            alignment: style.alignment,
-            direction: style.direction,
-            locale: style.locale.clone(),
-            features: style.features.clone(),
-        };
+        let lookup = Lookup::new(text, style, scale);
         self.clock += 1;
         let clock = self.clock;
-        if let Some(entry) = self.texts.get_mut(&key) {
+        let key = if let Some(entry) = self.texts.get_mut(&lookup as &dyn Keyed) {
             self.uses.remove(&entry.used);
             entry.used = clock;
-            self.uses.insert(clock, key.clone());
+            self.uses.insert(clock, Arc::clone(&entry.key));
             // A layout that a display list holds is copied only to be laid out in another box.
             if entry.layout.bounds() != bounds {
                 let before = entry.memory;
@@ -99,20 +211,24 @@ impl TextCache {
                 entry.memory = entry.layout.memory();
                 self.used = self.used - before + entry.memory;
             }
+            Arc::clone(&entry.key)
         } else {
             let layout = Arc::new(fonts.lay_out(text, style, scale, bounds));
             let memory = layout.memory();
             self.used += memory;
-            self.uses.insert(clock, key.clone());
+            let key = Arc::new(lookup.key());
+            self.uses.insert(clock, Arc::clone(&key));
             self.texts.insert(
-                key.clone(),
+                Arc::clone(&key),
                 Entry {
                     layout,
                     memory,
                     used: clock,
+                    key: Arc::clone(&key),
                 },
             );
-        }
+            key
+        };
         self.evict(clock);
         &self.texts[&key].layout
     }

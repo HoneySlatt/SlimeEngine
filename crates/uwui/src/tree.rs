@@ -1878,6 +1878,19 @@ impl Ui {
             .flatten()
     }
 
+    /// The node of `id` beside the interface's fonts and laid-out texts, borrowed apart, so that
+    /// its text is laid out without being copied.
+    pub(crate) fn node_and_texts(
+        &mut self,
+        id: ElementId,
+    ) -> Option<(&Node, &mut Fonts, &mut TextCache)> {
+        let slot = self.slots.get(id.index as usize)?;
+        let node = (slot.generation == id.generation)
+            .then_some(slot.node.as_ref())
+            .flatten()?;
+        Some((node, &mut self.fonts, &mut self.texts))
+    }
+
     pub(crate) fn node_mut(&mut self, id: ElementId) -> Option<&mut Node> {
         let slot = self.slots.get_mut(id.index as usize)?;
         (slot.generation == id.generation)

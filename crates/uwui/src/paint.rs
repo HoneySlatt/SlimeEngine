@@ -1,5 +1,7 @@
 //! What each element draws, kept until it changes, and the display list gathered from it.
 
+use std::sync::Arc;
+
 use crate::Rect;
 use crate::display::{
     BoxPrimitive, DisplayList, ImagePrimitive, Primitive, ShadowPrimitive, TextPrimitive, snap,
@@ -46,7 +48,8 @@ fn primitives(
     scale: f32,
     direction: LayoutDirection,
 ) -> Vec<(Primitive, Option<Rect>)> {
-    let node = ui.node(id).expect("an element");
+    // The node beside the fonts and the texts, so that its text is laid out without a copy.
+    let (node, fonts, texts) = ui.node_and_texts(id).expect("an element");
     let rect = node.rect;
     let content = node.content_box();
     let element = &node.element;
@@ -57,7 +60,6 @@ fn primitives(
         .into_iter()
         .map(|primitive| (primitive, None))
         .collect();
-    let text_style = node.style.text.style.clone();
     let color = node.style.text.color;
     match &element.kind {
         Kind::Label(text)
@@ -69,18 +71,13 @@ fn primitives(
         | Kind::ToggleButton { label: text, .. }
         | Kind::Segment { title: text } => {
             let centred = !matches!(element.kind, Kind::Label(_));
-            let text = text.clone();
-            let ui = &mut *ui;
-            let layout = ui
-                .texts
-                .get(
-                    &mut ui.fonts,
-                    &text,
-                    &text_style,
-                    scale,
-                    TextBounds::width(content.width / scale),
-                )
-                .clone();
+            let layout = Arc::clone(texts.get(
+                fonts,
+                text,
+                &node.style.text.style,
+                scale,
+                TextBounds::width(content.width / scale),
+            ));
             // A button's label in the middle of its box, as browsers place it; a label's at its
             // top, as CSS does.
             let y = if centred {
