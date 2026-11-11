@@ -108,8 +108,8 @@ in git.
   2026-11-11 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)): done,
   [M6d.3a](#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL, on the same day; then
   [M6d.3b](#m6d3b--themes-and-style-sheets-in-kdl), cut in two: done,
-  [M6d.3b1](#m6d3b1--themes-in-kdl), themes, on the same day; then
-  [M6d.3b2](#m6d3b2--style-sheets-in-kdl), style sheets, and
+  [M6d.3b1](#m6d3b1--themes-in-kdl), themes, on the same day; in progress,
+  [M6d.3b2](#m6d3b2--style-sheets-in-kdl), style sheets; then
   [M6d.3c](#m6d3c--shortcuts-docks-and-reflection-out), shortcuts, docks and reflection out.
 - In progress on track B: [M6d.4](#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on wgpu,
   cut in three at its start, on 2026-11-11
@@ -1256,29 +1256,8 @@ rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
 
 ### M6d.3b2 — Style sheets in KDL
 
-The second half of M6d.3b. It follows the rules of
-[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** uwui reads its style sheets in KDL, through code that its derive generates, and
-  reflection reads no theme and no sheet.
-- **Crates.** `uwui`, `uwui-macros`, `uwui-kdl`, `slime-cook`, `slime-assets`, `slime-benches`, the
-  examples; `rust-toolchain.toml` and the development shell, for the web's target and brotli.
-- **Delivers.**
-  - The derive's readers of declarations from KDL's nodes, after ADR-0241's mapping, each number
-    marked a length, a duration or a number; the readers of enums, shadows and selectors.
-  - A dimension in pixels, bare or `(px)`, or a share, `(%)50`; a grid's track `(fr)1`; a share
-    divided by 100 in `f64` and rounded once; a name there a length; `(%)` and `(fr)` refused
-    elsewhere. A selector's numbered key written `key=3`.
-  - A field of text named by a theme, `$$` for a text that starts with `$`; the look's icons
-    moved to its theme.
-  - The rules' errors at their line, gathered; M6d.3b1's adapter gone.
-  - The look's sheet and the example's, `.style.kdl`, cooked as their text, checked;
-    `StyleSheet::from_binary` gone; the sheets written in tests, benches and examples converted.
-- **Done when.** A random test of sheets, and the fixture of the repository's documents, read the
-  same through the reflected reader and the new one; the two fixtures of styles and the look's
-  images unchanged; tests of each refusal; CI green.
-- **Measured.** The allocations and the time of reading the look's documents; `uwui`'s compile
-  time; the reading's weight in a build for the web, by difference, compressed with brotli.
+In progress: its card is in [`PLAN.md`](PLAN.md#m6d3b2--style-sheets-in-kdl), back here with its
+result when it is done.
 
 ### M6d.3c — Shortcuts, docks and reflection out
 
