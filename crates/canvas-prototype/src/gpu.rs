@@ -17,8 +17,10 @@ pub enum Config {
     Vulkan,
     /// Vulkan, with WebGL2's limits.
     VulkanWebgl2,
-    /// wgpu's GL backend, without a window, with WebGL2's limits.
+    /// wgpu's GL backend, without a window, with WebGL2's limits: the context wgpu chooses.
     Gl,
+    /// As `Gl`, refused unless the context is OpenGL ES's, whose GLSL ES 3.00 is WebGL2's.
+    GlEs,
 }
 
 impl Config {
@@ -27,6 +29,7 @@ impl Config {
             "vulkan" => Some(Self::Vulkan),
             "vulkan-webgl2" => Some(Self::VulkanWebgl2),
             "gl" => Some(Self::Gl),
+            "gl-es" => Some(Self::GlEs),
             _ => None,
         }
     }
@@ -36,13 +39,18 @@ impl Config {
             Self::Vulkan => "vulkan",
             Self::VulkanWebgl2 => "vulkan-webgl2",
             Self::Gl => "gl",
+            Self::GlEs => "gl-es",
         }
     }
 }
 
 pub struct Gpu {
-    /// The configuration's name, `-es` added on GL when the context is OpenGL ES's.
+    /// The configuration's name, `-gpu` added with `--any-adapter`: what each table's row, and
+    /// each PNG's name, begins with.
     pub label: String,
+    /// The label of the run whose images of S are the reference: `vulkan`, or `vulkan-gpu` with
+    /// `--any-adapter`, so that a run on a GPU never reads nor writes lavapipe's.
+    pub reference: String,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub info: wgpu::AdapterInfo,
@@ -64,12 +72,12 @@ pub fn webgl2_limits(adapter: &wgpu::Limits) -> wgpu::Limits {
 
 /// Opens the device of `config`. Unless `any_adapter`, refuses an adapter that is not Mesa's
 /// llvmpipe (lavapipe on Vulkan, llvmpipe on GL), so that the prototype never runs on a GPU by
-/// mistake.
+/// mistake. Refuses a context that is not OpenGL ES's on `gl-es`.
 pub fn open(config: Config, any_adapter: bool) -> Result<Gpu, String> {
     let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
     descriptor.backends = match config {
         Config::Vulkan | Config::VulkanWebgl2 => wgpu::Backends::VULKAN,
-        Config::Gl => wgpu::Backends::GL,
+        Config::Gl | Config::GlEs => wgpu::Backends::GL,
     };
     let instance = wgpu::Instance::new(descriptor);
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
@@ -85,15 +93,25 @@ pub fn open(config: Config, any_adapter: bool) -> Result<Gpu, String> {
             info.name
         ));
     }
+    // wgpu takes desktop GL whenever EGL offers it; Mesa's version overrides of `run-config.sh`
+    // make it take OpenGL ES, and without them a run named `gl-es` would measure desktop GL.
+    if config == Config::GlEs && !info.driver_info.contains("OpenGL ES") {
+        return Err(format!(
+            "gl-es: the context is `{}`, not OpenGL ES: run it through run-config.sh, which sets \
+             Mesa's version overrides",
+            info.driver_info.trim()
+        ));
+    }
     let adapter_limits = adapter.limits();
     let limits = match config {
         Config::Vulkan => adapter_limits,
-        Config::VulkanWebgl2 | Config::Gl => webgl2_limits(&adapter_limits),
+        Config::VulkanWebgl2 | Config::Gl | Config::GlEs => webgl2_limits(&adapter_limits),
     };
     let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
         label: Some("canvas prototype"),
-        // Nothing but the timer: no optional feature that WebGL2 lacks.
-        required_features: adapter.features() & wgpu::Features::TIMESTAMP_QUERY,
+        // Nothing but the timer's: no optional feature that WebGL2 lacks and a layout could use.
+        required_features: adapter.features()
+            & (wgpu::Features::TIMESTAMP_QUERY | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS),
         required_limits: limits.clone(),
         ..Default::default()
     }))
@@ -105,11 +123,10 @@ pub fn open(config: Config, any_adapter: bool) -> Result<Gpu, String> {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .push(error.to_string());
     }));
-    // wgpu takes desktop GL whenever EGL offers it; Mesa's version overrides make it take OpenGL
-    // ES, whose GLSL ES 3.00 is WebGL2's (README).
-    let es = info.backend == wgpu::Backend::Gl && info.driver_info.contains("OpenGL ES");
+    let suffix = if any_adapter { "-gpu" } else { "" };
     Ok(Gpu {
-        label: format!("{}{}", config.name(), if es { "-es" } else { "" }),
+        label: format!("{}{suffix}", config.name()),
+        reference: format!("{}{suffix}", Config::Vulkan.name()),
         device,
         queue,
         info,
@@ -144,6 +161,18 @@ impl Gpu {
         self.device
             .features()
             .contains(wgpu::Features::TIMESTAMP_QUERY)
+    }
+
+    /// Whether a timestamp can be written between two commands of an encoder, outside passes.
+    pub fn times_in_encoders(&self) -> bool {
+        self.device
+            .features()
+            .contains(wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS)
+    }
+
+    /// The first column's header of every table: the configuration, and the adapter it ran on.
+    pub fn config_header(&self) -> String {
+        format!("config, on {}", self.info.name)
     }
 
     fn wait(&self) -> Result<(), String> {
@@ -458,64 +487,252 @@ pub fn data_rows(texels: usize) -> u32 {
         .max(16)
 }
 
-/// Writes `bytes`, whole texels, into `texture` from its texel `first`, counted row after row: the
-/// part of a first row, the full rows in one write, and the start of a last row. No padding is
-/// written.
-pub fn write_texels(gpu: &Gpu, texture: &wgpu::Texture, first: usize, bytes: &[u8]) {
-    let width = DATA_WIDTH as usize;
-    let write = |texel: usize, bytes: &[u8], columns: usize, rows: usize| {
-        if columns == 0 || rows == 0 {
+/// The bytes a frame writes into buffers and textures, staged in a buffer of the layout's own that
+/// the CPU maps, then copied by commands that open the frame's encoder, after the timestamp that
+/// starts `gpu with copies`. `Queue::write_buffer` and `write_texture` would copy them in commands
+/// of wgpu's own, submitted before the encoder's, where no timestamp of the frame reaches them.
+///
+/// Each frame: the layout stages its bytes ([`Uploads::write_buffer`], [`Uploads::write_texels`]),
+/// [`Uploads::flush`] copies them into the staging buffer and unmaps it, the [`Recorder`] records
+/// the copies and, once the frame is submitted, maps the buffer again, ready when the frame is.
+#[derive(Default)]
+pub struct Uploads {
+    staging: Option<Staging>,
+    /// The bytes staged this frame, each with its offset in the staging buffer.
+    chunks: Vec<(u64, Vec<u8>)>,
+    /// The end of the bytes staged.
+    end: u64,
+    /// The copies of the bytes flushed, recorded by the next [`Recorder`].
+    copies: Vec<Copy>,
+}
+
+/// The staging buffer, `MAP_WRITE | COPY_SRC`: memory the CPU writes and the GPU reads, as
+/// wgpu's own staging is.
+struct Staging {
+    buffer: wgpu::Buffer,
+    size: u64,
+    mapping: Mapping,
+}
+
+enum Mapping {
+    /// Mapped, at creation or by a map that completed.
+    Mapped,
+    /// A map asked for once its frame was submitted.
+    Pending(mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>),
+    Unmapped,
+}
+
+/// A copy out of the staging buffer, from the offset `from`.
+enum Copy {
+    Buffer {
+        from: u64,
+        to: wgpu::Buffer,
+        offset: u64,
+        size: u64,
+    },
+    /// `columns` × `rows` texels of a texture [`DATA_WIDTH`] texels wide, from `origin`.
+    Texels {
+        from: u64,
+        to: wgpu::Texture,
+        origin: wgpu::Origin3d,
+        columns: u32,
+        rows: u32,
+    },
+}
+
+impl Uploads {
+    /// Places `bytes` in the staging buffer: each at an offset that is a multiple of 256 bytes,
+    /// which a copy into a texture or a buffer accepts.
+    fn stage(&mut self, bytes: Vec<u8>) -> u64 {
+        let from = self
+            .end
+            .next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT.into());
+        self.end = from + bytes.len() as u64;
+        self.chunks.push((from, bytes));
+        from
+    }
+
+    /// Writes `bytes` into `buffer` at `offset`: a whole number of 4 bytes.
+    pub fn write_buffer(&mut self, buffer: &wgpu::Buffer, offset: u64, bytes: Vec<u8>) {
+        if bytes.is_empty() {
             return;
         }
-        gpu.queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture,
-                mip_level: 0,
+        let size = bytes.len() as u64;
+        let from = self.stage(bytes);
+        self.copies.push(Copy::Buffer {
+            from,
+            to: buffer.clone(),
+            offset,
+            size,
+        });
+    }
+
+    /// Writes `bytes`, whole texels of 16 bytes, into `texture`, [`DATA_WIDTH`] texels wide, from
+    /// its texel `first`, counted row after row: the rest of a first row, the full rows in one
+    /// copy, and the start of a last row. No padding is written.
+    pub fn write_texels(&mut self, texture: &wgpu::Texture, first: usize, bytes: Vec<u8>) {
+        let count = bytes.len() / DATA_TEXEL;
+        if count == 0 {
+            return;
+        }
+        let from = self.stage(bytes);
+        let width = DATA_WIDTH as usize;
+        let mut copy = |done: usize, columns: usize, rows: usize| {
+            if columns == 0 || rows == 0 {
+                return;
+            }
+            let texel = first + done;
+            self.copies.push(Copy::Texels {
+                from: from + (done * DATA_TEXEL) as u64,
+                to: texture.clone(),
                 origin: wgpu::Origin3d {
                     x: (texel % width) as u32,
                     y: (texel / width) as u32,
                     z: 0,
                 },
-                aspect: wgpu::TextureAspect::All,
-            },
-            bytes,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some((width * DATA_TEXEL) as u32),
-                rows_per_image: Some(rows as u32),
-            },
-            wgpu::Extent3d {
-                width: columns as u32,
-                height: rows as u32,
-                depth_or_array_layers: 1,
-            },
-        );
-    };
-    let count = bytes.len() / DATA_TEXEL;
-    let mut texel = first;
-    let mut done = 0;
-    // The rest of the first row.
-    if texel % width != 0 {
-        let columns = (width - texel % width).min(count);
-        write(texel, &bytes[..columns * DATA_TEXEL], columns, 1);
-        texel += columns;
-        done += columns;
+                columns: columns as u32,
+                rows: rows as u32,
+            });
+        };
+        let mut done = 0;
+        if first % width != 0 {
+            let columns = (width - first % width).min(count);
+            copy(done, columns, 1);
+            done += columns;
+        }
+        let rows = (count - done) / width;
+        copy(done, width, rows);
+        done += rows * width;
+        copy(done, count - done, 1);
     }
-    let rows = (count - done) / width;
-    write(
-        texel,
-        &bytes[done * DATA_TEXEL..(done + rows * width) * DATA_TEXEL],
-        width,
-        rows,
-    );
-    texel += rows * width;
-    done += rows * width;
-    write(
-        texel,
-        &bytes[done * DATA_TEXEL..count * DATA_TEXEL],
-        count - done,
-        1,
-    );
+
+    /// Copies the bytes staged into the staging buffer, made larger first if they need it, and
+    /// unmaps it, so that the frame's copies can read it.
+    pub fn flush(&mut self, gpu: &Gpu) -> Result<(), String> {
+        if self.chunks.is_empty() {
+            return Ok(());
+        }
+        let mut staging = match self.staging.take() {
+            Some(staging) if staging.size >= self.end => staging,
+            // A larger one, by powers of two, mapped at its creation; the old one is dropped.
+            _ => {
+                let size = self.end.next_power_of_two().max(1 << 16);
+                Staging {
+                    buffer: gpu.device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some("staging"),
+                        size,
+                        usage: wgpu::BufferUsages::MAP_WRITE | wgpu::BufferUsages::COPY_SRC,
+                        mapped_at_creation: true,
+                    }),
+                    size,
+                    mapping: Mapping::Mapped,
+                }
+            }
+        };
+        if let Mapping::Unmapped = staging.mapping {
+            staging.request_map();
+        }
+        if let Mapping::Pending(receiver) = std::mem::replace(&mut staging.mapping, Mapping::Mapped)
+        {
+            // Mapped by the wait that ended the last frame, unless that frame was not waited for.
+            let result = match receiver.try_recv() {
+                Ok(result) => result,
+                Err(_) => {
+                    gpu.wait()?;
+                    receiver
+                        .recv()
+                        .map_err(|error| format!("staging: {error}"))?
+                }
+            };
+            result.map_err(|error| format!("staging: {error}"))?;
+        }
+        {
+            let mut mapped = staging
+                .buffer
+                .get_mapped_range_mut(..)
+                .map_err(|error| format!("staging: {error}"))?;
+            for (from, bytes) in self.chunks.drain(..) {
+                let from = from as usize;
+                mapped
+                    .slice(from..from + bytes.len())
+                    .copy_from_slice(&bytes);
+            }
+        }
+        staging.buffer.unmap();
+        staging.mapping = Mapping::Unmapped;
+        self.staging = Some(staging);
+        self.end = 0;
+        Ok(())
+    }
+
+    /// Records the copies of the bytes flushed into `encoder`.
+    fn record(&mut self, encoder: &mut wgpu::CommandEncoder) {
+        assert!(
+            self.chunks.is_empty(),
+            "the uploads are flushed before their copies are recorded"
+        );
+        let Some(staging) = &self.staging else {
+            return;
+        };
+        for copy in self.copies.drain(..) {
+            match copy {
+                Copy::Buffer {
+                    from,
+                    to,
+                    offset,
+                    size,
+                } => encoder.copy_buffer_to_buffer(&staging.buffer, from, &to, offset, size),
+                Copy::Texels {
+                    from,
+                    to,
+                    origin,
+                    columns,
+                    rows,
+                } => encoder.copy_buffer_to_texture(
+                    wgpu::TexelCopyBufferInfo {
+                        buffer: &staging.buffer,
+                        layout: wgpu::TexelCopyBufferLayout {
+                            offset: from,
+                            bytes_per_row: Some(DATA_WIDTH * DATA_TEXEL as u32),
+                            rows_per_image: Some(rows),
+                        },
+                    },
+                    wgpu::TexelCopyTextureInfo {
+                        texture: &to,
+                        mip_level: 0,
+                        origin,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    wgpu::Extent3d {
+                        width: columns,
+                        height: rows,
+                        depth_or_array_layers: 1,
+                    },
+                ),
+            }
+        }
+    }
+
+    /// Maps the staging buffer again, once the frame that copies from it is submitted: the map
+    /// completes when that frame does.
+    fn after_submit(&mut self) {
+        if let Some(staging) = &mut self.staging
+            && let Mapping::Unmapped = staging.mapping
+        {
+            staging.request_map();
+        }
+    }
+}
+
+impl Staging {
+    fn request_map(&mut self) {
+        let (sender, receiver) = mpsc::channel();
+        self.buffer
+            .map_async(wgpu::MapMode::Write, .., move |result| {
+                let _ = sender.send(result);
+            });
+        self.mapping = Mapping::Pending(receiver);
+    }
 }
 
 /// The transforms' uniform of I and T: as many affine transforms of 32 bytes as WebGL2's 16 KiB
@@ -576,9 +793,15 @@ pub fn pipeline(
 
 /// What a layout does with a frame's canvas.
 pub trait Layout {
-    /// Turns `canvas`'s items into the layout's bytes, writes them, and plans the draws for a
-    /// target of `size`; gives the bytes written.
-    fn upload(&mut self, gpu: &Gpu, canvas: &Canvas, size: (u32, u32)) -> u64;
+    /// Turns `canvas`'s items into the layout's bytes, stages their writes in `uploads`, and plans
+    /// the draws for a target of `size`; gives the bytes written.
+    fn upload(
+        &mut self,
+        gpu: &Gpu,
+        uploads: &mut Uploads,
+        canvas: &Canvas,
+        size: (u32, u32),
+    ) -> u64;
     /// Records the draws planned; gives the draws and the pipelines set.
     fn encode(&self, pass: &mut wgpu::RenderPass<'_>) -> (usize, usize);
 }
@@ -586,10 +809,10 @@ pub trait Layout {
 /// A layout of the screens of `render.canvas` that can also write one item alone: the growing
 /// screen's moved box (`effects.rs`).
 pub trait Rewrite: Layout {
-    /// Writes the bytes of the item `index` of `canvas` alone, the others and the draws planned
-    /// kept from the last [`Layout::upload`] of a canvas of the same kinds and images in the same
-    /// order; gives the bytes written.
-    fn rewrite(&mut self, gpu: &Gpu, canvas: &Canvas, index: usize) -> u64;
+    /// Stages in `uploads` the bytes of the item `index` of `canvas` alone, the others and the
+    /// draws planned kept from the last [`Layout::upload`] of a canvas of the same kinds and
+    /// images in the same order; gives the bytes written.
+    fn rewrite(&mut self, uploads: &mut Uploads, canvas: &Canvas, index: usize) -> u64;
 }
 
 /// A layout of the effects' pipelines, whose images include textures that the effects draw.
@@ -749,7 +972,11 @@ impl Target {
     }
 }
 
-/// Times render passes with two timestamps each, read back once the frame is waited for.
+/// Times a frame on the GPU: one timestamp before the frame's copies, then two around each render
+/// pass; read back once the frame is waited for.
+///
+/// wgpu writes a timestamp once the commands before it are done, so that a pass's first
+/// timestamp follows the copies, and the copies' own is the frame's first command.
 pub struct Timer {
     queries: wgpu::QuerySet,
     resolve: wgpu::Buffer,
@@ -757,7 +984,13 @@ pub struct Timer {
     period: f32,
     /// The most passes a frame may time.
     passes: u32,
+    /// Where the device cannot write a timestamp between two commands of an encoder, a 1 × 1
+    /// target of an empty render pass whose first timestamp marks the copies' start.
+    marker: Option<wgpu::TextureView>,
 }
+
+/// The query of the timestamp before the frame's copies; each pass's two follow it.
+const COPIES_QUERY: u32 = 0;
 
 impl Timer {
     /// A timer of one pass, or none where the device has no timestamp queries.
@@ -770,13 +1003,32 @@ impl Timer {
         if !gpu.can_time() {
             return None;
         }
-        let size = 2 * u64::from(passes) * u64::from(wgpu::QUERY_SIZE);
+        let count = 1 + 2 * passes;
+        let size = u64::from(count) * u64::from(wgpu::QUERY_SIZE);
+        let marker = (!gpu.times_in_encoders()).then(|| {
+            gpu.device
+                .create_texture(&wgpu::TextureDescriptor {
+                    label: Some("copies' start"),
+                    size: wgpu::Extent3d {
+                        width: 1,
+                        height: 1,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: TARGET_FORMAT,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    view_formats: &[],
+                })
+                .create_view(&wgpu::TextureViewDescriptor::default())
+        });
         Some(Self {
             passes,
             queries: gpu.device.create_query_set(&wgpu::QuerySetDescriptor {
                 label: Some("canvas"),
                 ty: wgpu::QueryType::Timestamp,
-                count: 2 * passes,
+                count,
             }),
             resolve: gpu.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("timestamps"),
@@ -791,29 +1043,51 @@ impl Timer {
                 mapped_at_creation: false,
             }),
             period: gpu.queue.get_timestamp_period(),
+            marker,
         })
     }
 
-    fn writes(&self) -> wgpu::RenderPassTimestampWrites<'_> {
-        self.writes_of(0)
+    /// Writes the timestamp that starts the frame's copies.
+    fn mark_copies(&self, encoder: &mut wgpu::CommandEncoder) {
+        let Some(marker) = &self.marker else {
+            encoder.write_timestamp(&self.queries, COPIES_QUERY);
+            return;
+        };
+        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("copies' start"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: marker,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: Some(wgpu::RenderPassTimestampWrites {
+                query_set: &self.queries,
+                beginning_of_pass_write_index: Some(COPIES_QUERY),
+                end_of_pass_write_index: None,
+            }),
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
     }
 
     /// The timestamps of the pass `pass` of a frame.
     fn writes_of(&self, pass: u32) -> wgpu::RenderPassTimestampWrites<'_> {
         wgpu::RenderPassTimestampWrites {
             query_set: &self.queries,
-            beginning_of_pass_write_index: Some(2 * pass),
-            end_of_pass_write_index: Some(2 * pass + 1),
+            beginning_of_pass_write_index: Some(1 + 2 * pass),
+            end_of_pass_write_index: Some(2 + 2 * pass),
         }
     }
 
-    fn resolve(&self, encoder: &mut wgpu::CommandEncoder) {
-        self.resolve_passes(encoder, 1);
-    }
-
-    fn resolve_passes(&self, encoder: &mut wgpu::CommandEncoder, passes: u32) {
-        encoder.resolve_query_set(&self.queries, 0..2 * passes, &self.resolve, 0);
-        let bytes = 2 * u64::from(passes) * u64::from(wgpu::QUERY_SIZE);
+    fn resolve(&self, encoder: &mut wgpu::CommandEncoder, passes: u32) {
+        let count = 1 + 2 * passes;
+        encoder.resolve_query_set(&self.queries, 0..count, &self.resolve, 0);
+        let bytes = u64::from(count) * u64::from(wgpu::QUERY_SIZE);
         encoder.copy_buffer_to_buffer(&self.resolve, 0, &self.readback, 0, bytes);
     }
 
@@ -826,20 +1100,13 @@ impl Timer {
         receiver
     }
 
-    /// The pass's time, once its submission is done and the read-back mapped.
+    /// The times of the first `passes` passes, and the time from the copies' start to the last
+    /// pass's end.
     fn read(
         &self,
         mapped: &mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>,
-    ) -> Result<Duration, String> {
-        Ok(self.read_passes(mapped, 1)?[0])
-    }
-
-    /// The times of the first `passes` passes.
-    fn read_passes(
-        &self,
-        mapped: &mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>,
         passes: u32,
-    ) -> Result<Vec<Duration>, String> {
+    ) -> Result<(Vec<Duration>, Duration), String> {
         mapped
             .recv()
             .map_err(|error| error.to_string())?
@@ -848,24 +1115,30 @@ impl Timer {
             .readback
             .get_mapped_range(..)
             .map_err(|error| format!("timestamps: {error}"))?;
-        let stamp = |at: usize| u64::from_le_bytes(view[at..at + 8].try_into().expect("8 bytes"));
-        let times = (0..passes as usize)
-            .map(|pass| {
-                let ticks = stamp(16 * pass + 8).saturating_sub(stamp(16 * pass));
-                Duration::from_nanos((ticks as f64 * f64::from(self.period)) as u64)
-            })
+        let stamp = |query: u32| {
+            let at = (query * wgpu::QUERY_SIZE) as usize;
+            u64::from_le_bytes(view[at..at + 8].try_into().expect("8 bytes"))
+        };
+        let between = |first: u32, last: u32| {
+            let ticks = stamp(last).saturating_sub(stamp(first));
+            Duration::from_nanos((ticks as f64 * f64::from(self.period)) as u64)
+        };
+        let times = (0..passes)
+            .map(|pass| between(1 + 2 * pass, 2 + 2 * pass))
             .collect();
+        let with_copies = between(COPIES_QUERY, 2 * passes);
         drop(view);
         self.readback.unmap();
-        Ok(times)
+        Ok((times, with_copies))
     }
 }
 
-/// Records a frame of several render passes in one command buffer, each timed where the device
-/// has timestamps, then submits it and waits for it.
+/// Records a frame in one command buffer, the copies of its uploads first, then its render passes,
+/// each timed where the device has timestamps; then submits it and waits for it.
 pub struct Recorder<'a> {
     gpu: &'a Gpu,
     timer: Option<&'a Timer>,
+    uploads: &'a mut Uploads,
     encoder: wgpu::CommandEncoder,
     start: Instant,
     /// The names of the passes recorded, in their order.
@@ -877,24 +1150,47 @@ pub struct Recorder<'a> {
 /// What a frame recorded by a [`Recorder`] cost.
 #[derive(Clone, Debug)]
 pub struct Recorded {
-    /// CPU: from the recorder's start to the end of the submission.
+    /// CPU: from the recorder's start, the copies and passes recorded, to the command buffer
+    /// finished.
     pub encode: Duration,
+    /// CPU: `Queue::submit` of the frame's command buffer alone. On GL, wgpu turns the recorded
+    /// commands into GL calls there.
+    pub submit: Duration,
     /// From just before the submission to the end of the wait for it.
     pub wall: Duration,
     /// GPU: each pass, from its timestamps; none without timestamp queries.
     pub passes: Vec<Option<Duration>>,
+    /// GPU: from the timestamp before the frame's copies to the end of its last pass; none without
+    /// timestamp queries.
+    pub with_copies: Option<Duration>,
     pub names: Vec<String>,
     pub draws: usize,
     pub pipelines: usize,
 }
 
+impl Recorded {
+    /// The GPU's time of the frame's passes: their sum, if each was timed.
+    pub fn gpu_pass(&self) -> Option<Duration> {
+        self.passes.iter().copied().sum()
+    }
+}
+
 impl<'a> Recorder<'a> {
-    pub fn new(gpu: &'a Gpu, timer: Option<&'a Timer>) -> Self {
+    /// Starts a frame: the timestamp that starts the copies, then the copies of `uploads`, which
+    /// must be flushed.
+    pub fn new(gpu: &'a Gpu, timer: Option<&'a Timer>, uploads: &'a mut Uploads) -> Self {
+        let start = Instant::now();
+        let mut encoder = gpu.device.create_command_encoder(&Default::default());
+        if let Some(timer) = timer {
+            timer.mark_copies(&mut encoder);
+        }
+        uploads.record(&mut encoder);
         Self {
             gpu,
             timer,
-            encoder: gpu.device.create_command_encoder(&Default::default()),
-            start: Instant::now(),
+            uploads,
+            encoder,
+            start,
             names: Vec::new(),
             draws: 0,
             pipelines: 0,
@@ -911,13 +1207,13 @@ impl<'a> Recorder<'a> {
         record: impl FnOnce(&mut wgpu::RenderPass<'_>) -> (usize, usize),
     ) {
         let index = self.names.len() as u32;
-        let timestamps = self.timer.and_then(|timer| {
+        let timestamps = self.timer.map(|timer| {
             assert!(
                 index < timer.passes,
                 "the timer holds {} passes",
                 timer.passes
             );
-            Some(timer.writes_of(index))
+            timer.writes_of(index)
         });
         let mut pass = self.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some(name),
@@ -946,36 +1242,44 @@ impl<'a> Recorder<'a> {
         let Self {
             gpu,
             timer,
-            mut encoder,
+            uploads,
+            encoder,
             start,
             names,
             draws,
             pipelines,
         } = self;
         let passes = names.len() as u32;
-        if let Some(timer) = timer {
-            timer.resolve_passes(&mut encoder, passes);
-        }
+        assert!(passes > 0, "a frame records a pass at least");
         let commands = encoder.finish();
-        let submitting = Instant::now();
+        let encoded = Instant::now();
         gpu.queue.submit([commands]);
         let submitted = Instant::now();
-        let mapped = timer.map(Timer::map);
+        uploads.after_submit();
+        // The queries are resolved by a submission of their own: on GL, wgpu reads their results
+        // there, which waits for the frame to be drawn, and `submit` would hold that wait.
+        let mapped = timer.map(|timer| {
+            let mut encoder = gpu.device.create_command_encoder(&Default::default());
+            timer.resolve(&mut encoder, passes);
+            gpu.queue.submit([encoder.finish()]);
+            timer.map()
+        });
         gpu.wait()?;
         let waited = Instant::now();
-        let times = match (timer, mapped) {
-            (Some(timer), Some(mapped)) => timer
-                .read_passes(&mapped, passes)?
-                .into_iter()
-                .map(Some)
-                .collect(),
-            _ => vec![None; names.len()],
+        let (times, with_copies) = match (timer, mapped) {
+            (Some(timer), Some(mapped)) => {
+                let (times, with_copies) = timer.read(&mapped, passes)?;
+                (times.into_iter().map(Some).collect(), Some(with_copies))
+            }
+            _ => (vec![None; names.len()], None),
         };
         gpu.check()?;
         Ok(Recorded {
-            encode: submitted - start,
-            wall: waited - submitting,
+            encode: encoded - start,
+            submit: submitted - encoded,
+            wall: waited - encoded,
             passes: times,
+            with_copies,
             names,
             draws,
             pipelines,
@@ -983,75 +1287,40 @@ impl<'a> Recorder<'a> {
     }
 }
 
-/// What one frame of a layout cost, and what it drew.
-#[derive(Clone, Copy, Debug)]
+/// What one frame cost, and what it drew.
+#[derive(Clone, Debug)]
 pub struct FrameCost {
-    /// CPU: the items turned into the layout's bytes and written.
+    /// CPU: the canvas's items made (the growing screen only; 0 elsewhere).
+    pub build: Duration,
+    /// CPU: the items turned into the layout's bytes, staged, and copied into the staging buffer.
     pub write: Duration,
-    /// CPU: the pass encoded, and submitted.
-    pub encode: Duration,
-    /// GPU: the pass, from its timestamps; none without timestamp queries.
-    pub gpu: Option<Duration>,
-    /// From just before the submission to the end of the wait for it.
-    pub wall: Duration,
+    /// The bytes written: items, transforms, segments, the frame's uniform.
     pub bytes: u64,
-    pub draws: usize,
-    pub pipelines: usize,
+    pub recorded: Recorded,
 }
 
-/// Draws `canvas` once with `layout` over what `target` holds, and waits for it.
+/// Draws `canvas` once with `layout` over what `target` holds, its bytes copied through
+/// `uploads`, and waits for it.
 pub fn frame(
     gpu: &Gpu,
     layout: &mut dyn Layout,
+    uploads: &mut Uploads,
     canvas: &Canvas,
     target: &Target,
     timer: Option<&Timer>,
 ) -> Result<FrameCost, String> {
     let start = Instant::now();
-    let bytes = layout.upload(gpu, canvas, target.size);
-    let written = Instant::now();
-    let mut encoder = gpu.device.create_command_encoder(&Default::default());
-    let (draws, pipelines) = {
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("canvas"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &target.view,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: timer.map(Timer::writes),
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
-        layout.encode(&mut pass)
-    };
-    if let Some(timer) = timer {
-        timer.resolve(&mut encoder);
-    }
-    let commands = encoder.finish();
-    let submitting = Instant::now();
-    gpu.queue.submit([commands]);
-    let submitted = Instant::now();
-    let mapped = timer.map(Timer::map);
-    gpu.wait()?;
-    let waited = Instant::now();
-    let gpu_time = match (timer, mapped) {
-        (Some(timer), Some(mapped)) => Some(timer.read(&mapped)?),
-        _ => None,
-    };
-    gpu.check()?;
+    let bytes = layout.upload(gpu, uploads, canvas, target.size);
+    uploads.flush(gpu)?;
+    let write = start.elapsed();
+    let mut recorder = Recorder::new(gpu, timer, uploads);
+    recorder.pass("canvas", &target.view, wgpu::LoadOp::Load, |pass| {
+        layout.encode(pass)
+    });
     Ok(FrameCost {
-        write: written - start,
-        encode: submitted - written,
-        gpu: gpu_time,
-        wall: waited - submitting,
+        build: Duration::ZERO,
+        write,
         bytes,
-        draws,
-        pipelines,
+        recorded: recorder.finish()?,
     })
 }

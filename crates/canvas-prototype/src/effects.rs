@@ -2,18 +2,19 @@
 //! blur of what lies behind, a path, and one element animated over a still screen that grows. Each
 //! runs on every layout the device takes, the first four on the effects' pipelines (S on Vulkan
 //! alone), the growing screen on the screens' pipelines. Each image at 1280 × 800 is compared with
-//! S's on `vulkan`; each frame is timed at the three sizes.
+//! S's on `vulkan`; each frame is timed at the three sizes, the layouts' frames interleaved.
 
 use std::time::{Duration, Instant};
 
 use crate::blur::{self, Backdrop, Blur};
 use crate::canvas::{Canvas, ImageId};
 use crate::gpu::{
-    self, Config, FxLayout, Gpu, Images, Layout, Recorded, Recorder, Rewrite, Target, Timer,
+    self, Config, FrameCost, FxLayout, Gpu, Images, Recorder, Rewrite, Target, Timer,
 };
 use crate::{
-    IMAGE_SIZE, SIZES, TOLERANCE, difference, instances, instances_fx, one_line, output_dir, path,
-    read_png, scenes, spread, storage, storage_fx, texture, texture_fx, varyings, write_png,
+    COST_HEADER, Entry, IMAGE_SIZE, SIZES, TOLERANCE, cost_columns, difference, instances,
+    instances_fx, interleaved, one_line, output_dir, path, reference_image, scenes, spread,
+    storage, storage_fx, texture, texture_fx, varyings, write_png,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -93,18 +94,18 @@ fn make(gpu: &Gpu, name: &str) -> Result<Box<dyn FxLayout>, String> {
     })
 }
 
+/// An effects' layout as the runs use it: one object for each canvas a frame draws.
+type FxEntry = Entry<Vec<Box<dyn FxLayout>>>;
+
 /// The effects' layouts the device takes, by name, each made `copies` times: S on `vulkan` alone,
 /// where it must be built; elsewhere its error is printed.
-fn fx_layouts(
-    cx: &Context<'_>,
-    copies: usize,
-) -> Result<Vec<(&'static str, Vec<Box<dyn FxLayout>>)>, String> {
+fn fx_layouts(cx: &Context<'_>, copies: usize) -> Result<Vec<FxEntry>, String> {
     let mut layouts = Vec::new();
     for name in ["S", "I", "T"] {
         let made: Result<Vec<_>, String> = (0..copies).map(|_| make(cx.gpu, name)).collect();
         match (made, name, cx.config) {
             (Ok(made), "S", Config::Vulkan) | (Ok(made), "I" | "T", _) => {
-                layouts.push((name, made))
+                layouts.push(Entry::new(name, made))
             }
             (Ok(_), _, _) => println!(
                 "S fx\tbuilt on {}, but it runs on vulkan alone",
@@ -123,7 +124,8 @@ fn fx_layouts(
 }
 
 /// Writes `pixels` as `<config>-<layout>-<scene>.png`; compares those of I and T with S's on
-/// `vulkan`, S's own being the reference. False if they differ by more than [`TOLERANCE`].
+/// `vulkan` (`vulkan-gpu` with `--any-adapter`), S's own being the reference. False if they
+/// differ by more than [`TOLERANCE`].
 fn compare(cx: &Context<'_>, layout: &str, scene: &str, pixels: &[u8]) -> Result<bool, String> {
     compare_with(cx, layout, scene, scene, pixels)
 }
@@ -140,17 +142,11 @@ fn compare_with(
     std::fs::create_dir_all(&dir).map_err(|error| format!("{}: {error}", dir.display()))?;
     let file = format!("{}-{layout}-{scene}.png", cx.gpu.label);
     write_png(&dir.join(&file), IMAGE_SIZE, pixels)?;
-    let reference_path = dir.join(format!("vulkan-S-{reference}.png"));
     if layout == "S" && scene == reference {
         println!("{}\tS\t{scene}\treference\t-\tok", cx.gpu.label);
         return Ok(true);
     }
-    let reference = read_png(&reference_path).map_err(|error| {
-        format!(
-            "{}: {error}; run `vulkan` first, which writes S's images",
-            reference_path.display()
-        )
-    })?;
+    let reference = reference_image(cx.gpu, reference)?;
     let (largest, over) = difference(&reference, pixels);
     let pass = largest <= TOLERANCE;
     println!(
@@ -161,43 +157,37 @@ fn compare_with(
     Ok(pass)
 }
 
-/// One frame's cost.
-struct Sample {
-    /// CPU: the canvas's items made (the growing screen only).
-    build: Duration,
-    /// CPU: the items turned into bytes and written.
-    write: Duration,
-    bytes: u64,
-    recorded: Recorded,
-}
-
-fn measure(
-    cx: &Context<'_>,
-    mut frame: impl FnMut(usize) -> Result<Sample, String>,
-) -> Result<Vec<Sample>, String> {
-    let mut samples = Vec::with_capacity(cx.frames);
-    for index in 0..cx.warm_up + cx.frames {
-        let sample = frame(index)?;
-        if index >= cx.warm_up {
-            samples.push(sample);
-        }
-    }
-    Ok(samples)
-}
-
-/// The GPU's time of a frame: its passes' sum, if each was timed.
-fn gpu_time(recorded: &Recorded) -> Option<Duration> {
-    recorded.passes.iter().copied().sum()
-}
-
-fn times_header() {
+fn images_header(cx: &Context<'_>) {
     println!(
-        "config\tlayout\teffect\tvariant\tsize\titems\tdraws\tpipelines\tpasses\tbytes\tbuild p50\t\
-         build p90\twrite p50\twrite p90\tencode p50\tencode p90\tGPU p50\tGPU p90\twall p50\twall p90"
+        "{}\tlayout\tscene\tlargest\tpixels > 1\tverdict",
+        cx.gpu.config_header()
     );
 }
 
-#[allow(clippy::too_many_arguments)]
+fn times_title(cx: &Context<'_>, more: &str) {
+    println!(
+        "\n## times, {} frames of each layout after {} of warm-up, in rounds of one frame of each \
+         layout in turn; microseconds{more}",
+        cx.frames, cx.warm_up
+    );
+    println!(
+        "{}\tlayout\teffect\tvariant\tsize\titems\tdraws\tpipelines\tpasses\tbytes\tbuild p50\t\
+         build p90\t{COST_HEADER}",
+        cx.gpu.config_header()
+    );
+}
+
+/// The interleaved frames of `layouts`: `warm_up + frames` rounds of one frame of each.
+fn rounds<L>(
+    cx: &Context<'_>,
+    layouts: &mut [Entry<L>],
+    mut frame: impl FnMut(&mut Entry<L>, usize, usize) -> Result<FrameCost, String>,
+) -> Result<Vec<Vec<FrameCost>>, String> {
+    interleaved(layouts.len(), cx.warm_up, cx.frames, |index, round| {
+        frame(&mut layouts[index], index, round)
+    })
+}
+
 fn times_row(
     cx: &Context<'_>,
     layout: &str,
@@ -205,16 +195,12 @@ fn times_row(
     variant: &str,
     size: (u32, u32),
     items: usize,
-    samples: &[Sample],
+    costs: &[FrameCost],
 ) {
-    let of = |field: fn(&Sample) -> Duration| samples.iter().map(field).collect::<Vec<_>>();
-    let gpu_times: Option<Vec<Duration>> = samples
-        .iter()
-        .map(|sample| gpu_time(&sample.recorded))
-        .collect();
-    let last = samples.last().expect("frames were measured");
+    let builds: Vec<Duration> = costs.iter().map(|cost| cost.build).collect();
+    let last = costs.last().expect("frames were measured");
     println!(
-        "{}\t{layout}\t{effect}\t{variant}\t{}x{}\t{items}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+        "{}\t{layout}\t{effect}\t{variant}\t{}x{}\t{items}\t{}\t{}\t{}\t{}\t{}\t{}",
         cx.gpu.label,
         size.0,
         size.1,
@@ -222,11 +208,8 @@ fn times_row(
         last.recorded.pipelines,
         last.recorded.names.len(),
         last.bytes,
-        spread(&of(|sample| sample.build)),
-        spread(&of(|sample| sample.write)),
-        spread(&of(|sample| sample.recorded.encode)),
-        gpu_times.map_or("none\tnone".to_owned(), |times| spread(&times)),
-        spread(&of(|sample| sample.recorded.wall)),
+        spread(&builds),
+        cost_columns(costs),
     );
 }
 
@@ -245,9 +228,9 @@ fn steps_rows(
     effect: &str,
     variant: &str,
     size: (u32, u32),
-    samples: &[Sample],
+    costs: &[FrameCost],
 ) {
-    let first = &samples[0].recorded;
+    let first = &costs[0].recorded;
     let mut steps: Vec<(String, usize)> = Vec::new();
     for name in &first.names {
         let step = step_of(name);
@@ -257,14 +240,13 @@ fn steps_rows(
         }
     }
     for (step, count) in steps {
-        let times: Option<Vec<Duration>> = samples
+        let times: Option<Vec<Duration>> = costs
             .iter()
-            .map(|sample| {
-                sample
-                    .recorded
+            .map(|cost| {
+                cost.recorded
                     .names
                     .iter()
-                    .zip(&sample.recorded.passes)
+                    .zip(&cost.recorded.passes)
                     .filter(|(name, _)| step_of(name) == step)
                     .map(|(_, time)| *time)
                     .sum::<Option<Duration>>()
@@ -280,8 +262,11 @@ fn steps_rows(
     }
 }
 
-fn steps_header() {
-    println!("config\tlayout\teffect\tvariant\tsize\tstep\tpasses\tGPU p50\tGPU p90");
+fn steps_header(cx: &Context<'_>) {
+    println!(
+        "{}\tlayout\teffect\tvariant\tsize\tstep\tpasses\tgpu pass p50\tgpu pass p90",
+        cx.gpu.config_header()
+    );
 }
 
 /// A target of `size`, cleared, drawn into by `record`, read back.
@@ -294,30 +279,6 @@ fn image_of(
     target.clear(gpu)?;
     record(&target)?;
     target.read(gpu)
-}
-
-/// One pass of `layout` over `target`, `canvas` written first.
-fn one_pass(
-    gpu: &Gpu,
-    timer: Option<&Timer>,
-    layout: &mut dyn Layout,
-    canvas: &Canvas,
-    target: &wgpu::TextureView,
-    size: (u32, u32),
-) -> Result<Sample, String> {
-    let start = Instant::now();
-    let bytes = layout.upload(gpu, canvas, size);
-    let write = start.elapsed();
-    let mut recorder = Recorder::new(gpu, timer);
-    recorder.pass("canvas", target, wgpu::LoadOp::Load, |pass| {
-        layout.encode(pass)
-    });
-    Ok(Sample {
-        build: Duration::ZERO,
-        write,
-        bytes,
-        recorded: recorder.finish()?,
-    })
 }
 
 /// The effects' pipelines against WebGL2's limits, as `print_limits` counts the screens'.
@@ -396,22 +357,22 @@ fn single(cx: &Context<'_>, effect: Effect) -> Result<bool, String> {
     }
     let mut layouts = fx_layouts(cx, 1)?;
     let views = cx.views();
-    for (_, made) in &mut layouts {
-        made[0].set_images(cx.gpu, &views, &cx.images.sampler);
+    for entry in &mut layouts {
+        entry.layout[0].set_images(cx.gpu, &views, &cx.images.sampler);
     }
     println!(
-        "\n## images at {} × {}, against S's on vulkan: largest difference, pixels > 1",
-        IMAGE_SIZE.0, IMAGE_SIZE.1
+        "\n## images at {} × {}, against S's on {}: largest difference, pixels > 1",
+        IMAGE_SIZE.0, IMAGE_SIZE.1, cx.gpu.reference
     );
-    println!("config\tlayout\tscene\tlargest\tpixels > 1\tverdict");
+    images_header(cx);
     let mut ok = true;
     let canvas = scene(IMAGE_SIZE);
-    for (name, made) in &mut layouts {
-        let layout = made[0].as_mut();
+    for entry in &mut layouts {
+        let layout = entry.layout[0].as_mut();
         let pixels = image_of(cx.gpu, IMAGE_SIZE, |target| {
-            gpu::frame(cx.gpu, layout, &canvas, target, None).map(|_| ())
+            gpu::frame(cx.gpu, layout, &mut entry.uploads, &canvas, target, None).map(|_| ())
         })?;
-        ok &= compare(cx, name, effect.name(), &pixels)?;
+        ok &= compare(cx, entry.name, effect.name(), &pixels)?;
         if effect == Effect::Transform {
             // The effects' pipelines draw the game's menu without transforms as the screens' do.
             let mut game = Canvas::default();
@@ -423,37 +384,39 @@ fn single(cx: &Context<'_>, effect: Effect) -> Result<bool, String> {
                 IMAGE_SIZE.1 as f32,
             );
             let pixels = image_of(cx.gpu, IMAGE_SIZE, |target| {
-                gpu::frame(cx.gpu, layout, &game, target, None).map(|_| ())
+                gpu::frame(cx.gpu, layout, &mut entry.uploads, &game, target, None).map(|_| ())
             })?;
-            ok &= compare_with(cx, name, "fx-game", "game", &pixels)?;
+            ok &= compare_with(cx, entry.name, "fx-game", "game", &pixels)?;
         }
     }
     if cx.frames == 0 {
         return Ok(ok);
     }
     let timer = Timer::new(cx.gpu);
-    println!(
-        "\n## times, {} frames after {} of warm-up; microseconds",
-        cx.frames, cx.warm_up
-    );
-    times_header();
+    times_title(cx, "");
     for size in SIZES {
         let target = Target::new(cx.gpu, size, false);
         target.clear(cx.gpu)?;
         let canvas = scene(size);
-        for (name, made) in &mut layouts {
-            let layout = made[0].as_mut();
-            let samples = measure(cx, |_| {
-                one_pass(cx.gpu, timer.as_ref(), layout, &canvas, &target.view, size)
-            })?;
+        let costs = rounds(cx, &mut layouts, |entry, _, _| {
+            gpu::frame(
+                cx.gpu,
+                entry.layout[0].as_mut(),
+                &mut entry.uploads,
+                &canvas,
+                &target,
+                timer.as_ref(),
+            )
+        })?;
+        for (entry, costs) in layouts.iter().zip(&costs) {
             times_row(
                 cx,
-                name,
+                entry.name,
                 effect.name(),
                 "-",
                 size,
                 canvas.items.len(),
-                &samples,
+                costs,
             );
         }
     }
@@ -491,22 +454,24 @@ impl GroupSetup {
         &self,
         gpu: &Gpu,
         timer: Option<&Timer>,
-        layouts: &mut [Box<dyn FxLayout>],
+        entry: &mut FxEntry,
         target: &wgpu::TextureView,
         size: (u32, u32),
         redraw: bool,
-    ) -> Result<Sample, String> {
-        let [group, screen] = layouts else {
+    ) -> Result<FrameCost, String> {
+        let [group, screen] = entry.layout.as_mut_slice() else {
             unreachable!("two layouts: the group's and the screen's")
         };
+        let uploads = &mut entry.uploads;
         let start = Instant::now();
         let mut bytes = 0;
         if redraw {
-            bytes += group.upload(gpu, &self.scene.group, self.scene.size());
+            bytes += group.upload(gpu, uploads, &self.scene.group, self.scene.size());
         }
-        bytes += screen.upload(gpu, &self.scene.screen, size);
+        bytes += screen.upload(gpu, uploads, &self.scene.screen, size);
+        uploads.flush(gpu)?;
         let write = start.elapsed();
-        let mut recorder = Recorder::new(gpu, timer);
+        let mut recorder = Recorder::new(gpu, timer, uploads);
         if redraw {
             recorder.pass(
                 "group",
@@ -518,7 +483,7 @@ impl GroupSetup {
         recorder.pass("canvas", target, wgpu::LoadOp::Load, |pass| {
             screen.encode(pass)
         });
-        Ok(Sample {
+        Ok(FrameCost {
             build: Duration::ZERO,
             write,
             bytes,
@@ -530,63 +495,64 @@ impl GroupSetup {
 fn group(cx: &Context<'_>) -> Result<bool, String> {
     let mut layouts = fx_layouts(cx, 2)?;
     println!(
-        "\n## images at {} × {}: the frame that draws the group again against S's; the frame that \
-         reuses its texture against that frame",
-        IMAGE_SIZE.0, IMAGE_SIZE.1
+        "\n## images at {} × {}: the frame that draws the group again against S's on {}; the \
+         frame that reuses its texture against that frame",
+        IMAGE_SIZE.0, IMAGE_SIZE.1, cx.gpu.reference
     );
-    println!("config\tlayout\tscene\tlargest\tpixels > 1\tverdict");
+    images_header(cx);
     let mut ok = true;
-    for (name, made) in &mut layouts {
-        let setup = GroupSetup::new(cx, IMAGE_SIZE, made);
+    for entry in &mut layouts {
+        let setup = GroupSetup::new(cx, IMAGE_SIZE, &mut entry.layout);
         let redrawn = image_of(cx.gpu, IMAGE_SIZE, |target| {
             setup
-                .frame(cx.gpu, None, made, &target.view, IMAGE_SIZE, true)
+                .frame(cx.gpu, None, entry, &target.view, IMAGE_SIZE, true)
                 .map(|_| ())
         })?;
         let reused = image_of(cx.gpu, IMAGE_SIZE, |target| {
             setup
-                .frame(cx.gpu, None, made, &target.view, IMAGE_SIZE, false)
+                .frame(cx.gpu, None, entry, &target.view, IMAGE_SIZE, false)
                 .map(|_| ())
         })?;
         let same = redrawn == reused;
         println!(
-            "{}\t{name}\tgroup reused\t{}\t-\t{}",
+            "{}\t{}\tgroup reused\t{}\t-\t{}",
             cx.gpu.label,
+            entry.name,
             if same { "identical bytes" } else { "differs" },
             if same { "ok" } else { "FAIL" }
         );
         ok &= same;
-        ok &= compare(cx, name, "group", &redrawn)?;
+        ok &= compare(cx, entry.name, "group", &redrawn)?;
     }
     if cx.frames == 0 {
         return Ok(ok);
     }
     let timer = Timer::with_passes(cx.gpu, 2);
-    println!(
-        "\n## times, {} frames after {} of warm-up; microseconds",
-        cx.frames, cx.warm_up
-    );
-    times_header();
+    times_title(cx, "");
     let mut steps = Vec::new();
     for size in SIZES {
         let target = Target::new(cx.gpu, size, false);
         target.clear(cx.gpu)?;
-        for (name, made) in &mut layouts {
-            let setup = GroupSetup::new(cx, size, made);
-            let items = setup.scene.screen.items.len() + setup.scene.group.items.len();
-            for (variant, redraw) in [("group drawn", true), ("group reused", false)] {
-                let samples = measure(cx, |_| {
-                    setup.frame(cx.gpu, timer.as_ref(), made, &target.view, size, redraw)
-                })?;
-                times_row(cx, name, "group", variant, size, items, &samples);
-                steps.push((*name, variant, size, samples));
+        // Each layout's own group texture, which its images name.
+        let setups: Vec<GroupSetup> = layouts
+            .iter_mut()
+            .map(|entry| GroupSetup::new(cx, size, &mut entry.layout))
+            .collect();
+        for (variant, redraw) in [("group drawn", true), ("group reused", false)] {
+            let costs = rounds(cx, &mut layouts, |entry, index, _| {
+                setups[index].frame(cx.gpu, timer.as_ref(), entry, &target.view, size, redraw)
+            })?;
+            for ((entry, setup), costs) in layouts.iter().zip(&setups).zip(costs) {
+                let items = setup.scene.screen.items.len() + setup.scene.group.items.len();
+                times_row(cx, entry.name, "group", variant, size, items, &costs);
+                steps.push((entry.name, variant, size, costs));
             }
         }
     }
     println!("\n## steps: each pass's GPU time");
-    steps_header();
-    for (name, variant, size, samples) in &steps {
-        steps_rows(cx, name, "group", variant, *size, samples);
+    steps_header(cx);
+    for (name, variant, size, costs) in &steps {
+        steps_rows(cx, name, "group", variant, *size, costs);
     }
     Ok(ok)
 }
@@ -651,17 +617,20 @@ impl BlurSetup {
         gpu: &Gpu,
         timer: Option<&Timer>,
         blur: &Blur,
-        layouts: &mut [Box<dyn FxLayout>],
+        entry: &mut FxEntry,
         target: &wgpu::TextureView,
         size: (u32, u32),
-    ) -> Result<Sample, String> {
-        let [behind, front] = layouts else {
+    ) -> Result<FrameCost, String> {
+        let [behind, front] = entry.layout.as_mut_slice() else {
             unreachable!("two layouts: behind the glasses and in front")
         };
+        let uploads = &mut entry.uploads;
         let start = Instant::now();
-        let bytes = behind.upload(gpu, &self.behind, size) + front.upload(gpu, &self.front, size);
+        let bytes = behind.upload(gpu, uploads, &self.behind, size)
+            + front.upload(gpu, uploads, &self.front, size);
+        uploads.flush(gpu)?;
         let write = start.elapsed();
-        let mut recorder = Recorder::new(gpu, timer);
+        let mut recorder = Recorder::new(gpu, timer, uploads);
         recorder.pass(
             "behind",
             &self.canvas,
@@ -687,7 +656,7 @@ impl BlurSetup {
             wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
             |pass| blur.record_copy(pass, &self.copy),
         );
-        Ok(Sample {
+        Ok(FrameCost {
             build: Duration::ZERO,
             write,
             bytes,
@@ -719,59 +688,64 @@ fn blur(cx: &Context<'_>) -> Result<bool, String> {
         );
     }
     println!(
-        "\n## images at {} × {}, against S's on vulkan",
-        IMAGE_SIZE.0, IMAGE_SIZE.1
+        "\n## images at {} × {}, against S's on {}",
+        IMAGE_SIZE.0, IMAGE_SIZE.1, cx.gpu.reference
     );
-    println!("config\tlayout\tscene\tlargest\tpixels > 1\tverdict");
+    images_header(cx);
     let mut ok = true;
-    for (name, made) in &mut layouts {
-        let setup = BlurSetup::new(cx, &blur, IMAGE_SIZE, made);
+    for entry in &mut layouts {
+        let setup = BlurSetup::new(cx, &blur, IMAGE_SIZE, &mut entry.layout);
         let pixels = image_of(cx.gpu, IMAGE_SIZE, |target| {
             setup
-                .frame(cx.gpu, None, &blur, made, &target.view, IMAGE_SIZE)
+                .frame(cx.gpu, None, &blur, entry, &target.view, IMAGE_SIZE)
                 .map(|_| ())
         })?;
-        ok &= compare(cx, name, "blur", &pixels)?;
+        ok &= compare(cx, entry.name, "blur", &pixels)?;
     }
     if cx.frames == 0 {
         return Ok(ok);
     }
     let timer = Timer::with_passes(cx.gpu, 32);
-    println!(
-        "\n## times, {} frames after {} of warm-up; microseconds; drawn onto a target that allows \
-         nothing but being drawn into",
-        cx.frames, cx.warm_up
+    times_title(
+        cx,
+        "; drawn onto a target that allows nothing but being drawn into",
     );
-    times_header();
     let mut steps = Vec::new();
     for size in SIZES {
         let surface = Target::surface(cx.gpu, size);
-        for (name, made) in &mut layouts {
-            let setup = BlurSetup::new(cx, &blur, size, made);
-            let samples = measure(cx, |_| {
-                setup.frame(cx.gpu, timer.as_ref(), &blur, made, &surface.view, size)
-            })?;
+        // Each layout's own canvas texture and backdrops, which its images name.
+        let setups: Vec<BlurSetup> = layouts
+            .iter_mut()
+            .map(|entry| BlurSetup::new(cx, &blur, size, &mut entry.layout))
+            .collect();
+        let costs = rounds(cx, &mut layouts, |entry, index, _| {
+            setups[index].frame(cx.gpu, timer.as_ref(), &blur, entry, &surface.view, size)
+        })?;
+        for ((entry, setup), costs) in layouts.iter().zip(&setups).zip(costs) {
             let items = setup.behind.items.len() + setup.front.items.len();
-            times_row(cx, name, "blur", "-", size, items, &samples);
-            steps.push((*name, size, samples));
+            times_row(cx, entry.name, "blur", "-", size, items, &costs);
+            steps.push((entry.name, size, costs));
         }
     }
     println!("\n## steps: each step's GPU time, a glass's blur its passes summed");
-    steps_header();
-    for (name, size, samples) in &steps {
-        steps_rows(cx, name, "blur", "-", *size, samples);
+    steps_header(cx);
+    for (name, size, costs) in &steps {
+        steps_rows(cx, name, "blur", "-", *size, costs);
     }
     Ok(ok)
 }
 
 /// The screens' layouts that can write one item alone: S on `vulkan` alone.
-fn rewrite_layouts(cx: &Context<'_>) -> Result<Vec<(&'static str, Box<dyn Rewrite>)>, String> {
-    let mut layouts: Vec<(&'static str, Box<dyn Rewrite>)> = Vec::new();
+fn rewrite_layouts(cx: &Context<'_>) -> Result<Vec<Entry<Box<dyn Rewrite>>>, String> {
+    let mut layouts: Vec<Entry<Box<dyn Rewrite>>> = Vec::new();
     if cx.config == Config::Vulkan {
-        layouts.push(("S", Box::new(storage::Storage::new(cx.gpu, cx.images)?)));
+        let s = storage::Storage::new(cx.gpu, cx.images, "S", storage::SOURCE)?;
+        layouts.push(Entry::new("S", Box::new(s)));
     }
-    layouts.push(("I", Box::new(instances::Instances::new(cx.gpu, cx.images)?)));
-    layouts.push(("T", Box::new(texture::Texture::new(cx.gpu, cx.images)?)));
+    let i = instances::Instances::new(cx.gpu, cx.images)?;
+    layouts.push(Entry::new("I", Box::new(i)));
+    let t = texture::Texture::new(cx.gpu, cx.images)?;
+    layouts.push(Entry::new("T", Box::new(t)));
     cx.gpu.check()?;
     Ok(layouts)
 }
@@ -792,35 +766,75 @@ fn growing(count: usize, (width, height): (u32, u32), frame: usize) -> (Canvas, 
     (canvas, moving)
 }
 
+/// A frame of the growing screen that writes the bytes of the box `moving` of `canvas` alone.
+fn box_alone(
+    gpu: &Gpu,
+    timer: Option<&Timer>,
+    entry: &mut Entry<Box<dyn Rewrite>>,
+    canvas: &Canvas,
+    moving: usize,
+    target: &Target,
+) -> Result<FrameCost, String> {
+    let start = Instant::now();
+    let bytes = entry.layout.rewrite(&mut entry.uploads, canvas, moving);
+    entry.uploads.flush(gpu)?;
+    let write = start.elapsed();
+    let layout = &entry.layout;
+    let mut recorder = Recorder::new(gpu, timer, &mut entry.uploads);
+    recorder.pass("canvas", &target.view, wgpu::LoadOp::Load, |pass| {
+        layout.encode(pass)
+    });
+    Ok(FrameCost {
+        build: Duration::ZERO,
+        write,
+        bytes,
+        recorded: recorder.finish()?,
+    })
+}
+
 fn grow(cx: &Context<'_>) -> Result<bool, String> {
     let mut layouts = rewrite_layouts(cx)?;
     let count = scenes::GROWING[1];
     println!(
         "\n## images at {} × {}, {count} items, the box moved {MOVES} times: the screen made and \
-         written again against S's; only the box's bytes written against that",
-        IMAGE_SIZE.0, IMAGE_SIZE.1
+         written again against S's on {}; only the box's bytes written against that",
+        IMAGE_SIZE.0, IMAGE_SIZE.1, cx.gpu.reference
     );
-    println!("config\tlayout\tscene\tlargest\tpixels > 1\tverdict");
+    images_header(cx);
     let mut ok = true;
-    for (name, layout) in &mut layouts {
+    for entry in &mut layouts {
         let (rebuilt, _) = growing(count, IMAGE_SIZE, MOVES);
         let rebuilt_pixels = image_of(cx.gpu, IMAGE_SIZE, |target| {
-            gpu::frame(cx.gpu, layout.as_mut(), &rebuilt, target, None).map(|_| ())
+            gpu::frame(
+                cx.gpu,
+                entry.layout.as_mut(),
+                &mut entry.uploads,
+                &rebuilt,
+                target,
+                None,
+            )
+            .map(|_| ())
         })?;
         let (mut canvas, moving) = growing(count, IMAGE_SIZE, 0);
-        layout.upload(cx.gpu, &canvas, IMAGE_SIZE);
-        for frame in 1..=MOVES {
-            scenes::move_box(
-                &mut canvas,
-                moving,
-                IMAGE_SIZE.0 as f32,
-                IMAGE_SIZE.1 as f32,
-                frame,
-            );
-            layout.rewrite(cx.gpu, &canvas, moving);
-        }
         let partial_pixels = image_of(cx.gpu, IMAGE_SIZE, |target| {
-            let mut recorder = Recorder::new(cx.gpu, None);
+            // The whole screen written, then the box's bytes alone after each move: the copies
+            // run in this order, at the start of the frame.
+            entry
+                .layout
+                .upload(cx.gpu, &mut entry.uploads, &canvas, IMAGE_SIZE);
+            for frame in 1..=MOVES {
+                scenes::move_box(
+                    &mut canvas,
+                    moving,
+                    IMAGE_SIZE.0 as f32,
+                    IMAGE_SIZE.1 as f32,
+                    frame,
+                );
+                entry.layout.rewrite(&mut entry.uploads, &canvas, moving);
+            }
+            entry.uploads.flush(cx.gpu)?;
+            let layout = &entry.layout;
+            let mut recorder = Recorder::new(cx.gpu, None, &mut entry.uploads);
             recorder.pass("canvas", &target.view, wgpu::LoadOp::Load, |pass| {
                 layout.encode(pass)
             });
@@ -828,66 +842,68 @@ fn grow(cx: &Context<'_>) -> Result<bool, String> {
         })?;
         let same = rebuilt_pixels == partial_pixels;
         println!(
-            "{}\t{name}\tgrow, the box's bytes alone\t{}\t-\t{}",
+            "{}\t{}\tgrow, the box's bytes alone\t{}\t-\t{}",
             cx.gpu.label,
+            entry.name,
             if same { "identical bytes" } else { "differs" },
             if same { "ok" } else { "FAIL" }
         );
         ok &= same;
-        ok &= compare(cx, name, "grow", &rebuilt_pixels)?;
+        ok &= compare(cx, entry.name, "grow", &rebuilt_pixels)?;
     }
     if cx.frames == 0 {
         return Ok(ok);
     }
     let timer = Timer::new(cx.gpu);
-    println!(
-        "\n## times, {} frames after {} of warm-up; microseconds; build: the canvas's items made",
-        cx.frames, cx.warm_up
-    );
-    times_header();
+    times_title(cx, "; build: the canvas's items made");
     for count in scenes::GROWING {
         for size in SIZES {
             let (w, h) = (size.0 as f32, size.1 as f32);
             let target = Target::new(cx.gpu, size, false);
             target.clear(cx.gpu)?;
-            for (name, layout) in &mut layouts {
-                let samples = measure(cx, |frame| {
-                    let start = Instant::now();
-                    let (canvas, _) = growing(count, size, frame);
-                    let build = start.elapsed();
-                    let mut sample = one_pass(
-                        cx.gpu,
-                        timer.as_ref(),
-                        layout.as_mut(),
-                        &canvas,
-                        &target.view,
-                        size,
-                    )?;
-                    sample.build = build;
-                    Ok(sample)
-                })?;
-                times_row(cx, name, "grow", "all written", size, count, &samples);
-                let (mut canvas, moving) = growing(count, size, 0);
-                layout.upload(cx.gpu, &canvas, size);
-                let samples = measure(cx, |frame| {
-                    let start = Instant::now();
-                    scenes::move_box(&mut canvas, moving, w, h, frame + 1);
-                    let build = start.elapsed();
-                    let written = Instant::now();
-                    let bytes = layout.rewrite(cx.gpu, &canvas, moving);
-                    let write = written.elapsed();
-                    let mut recorder = Recorder::new(cx.gpu, timer.as_ref());
-                    recorder.pass("canvas", &target.view, wgpu::LoadOp::Load, |pass| {
-                        layout.encode(pass)
-                    });
-                    Ok(Sample {
-                        build,
-                        write,
-                        bytes,
-                        recorded: recorder.finish()?,
-                    })
-                })?;
-                times_row(cx, name, "grow", "box alone", size, count, &samples);
+            let costs = rounds(cx, &mut layouts, |entry, _, round| {
+                let start = Instant::now();
+                let (canvas, _) = growing(count, size, round);
+                let build = start.elapsed();
+                let mut cost = gpu::frame(
+                    cx.gpu,
+                    entry.layout.as_mut(),
+                    &mut entry.uploads,
+                    &canvas,
+                    &target,
+                    timer.as_ref(),
+                )?;
+                cost.build = build;
+                Ok(cost)
+            })?;
+            for (entry, costs) in layouts.iter().zip(&costs) {
+                times_row(cx, entry.name, "grow", "all written", size, count, costs);
+            }
+            // Each layout's own screen, written whole once, then its box alone each frame.
+            let mut screens = Vec::with_capacity(layouts.len());
+            for entry in &mut layouts {
+                let (canvas, moving) = growing(count, size, 0);
+                gpu::frame(
+                    cx.gpu,
+                    entry.layout.as_mut(),
+                    &mut entry.uploads,
+                    &canvas,
+                    &target,
+                    None,
+                )?;
+                screens.push((canvas, moving));
+            }
+            let costs = rounds(cx, &mut layouts, |entry, index, round| {
+                let (canvas, moving) = &mut screens[index];
+                let start = Instant::now();
+                scenes::move_box(canvas, *moving, w, h, round + 1);
+                let build = start.elapsed();
+                let mut cost = box_alone(cx.gpu, timer.as_ref(), entry, canvas, *moving, &target)?;
+                cost.build = build;
+                Ok(cost)
+            })?;
+            for (entry, costs) in layouts.iter().zip(&costs) {
+                times_row(cx, entry.name, "grow", "box alone", size, count, costs);
             }
         }
     }

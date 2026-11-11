@@ -1,11 +1,18 @@
 //! S, the control: today's canvas. Each item is nine `vec4`s in a storage buffer, which the vertex
 //! shader reads to place its quad and the fragment shader reads again by the item's index;
 //! `storage.wgsl` is `slime-render`'s `canvas.wgsl` unchanged, and so are its bindings.
+//!
+//! S2, the same buffers and bindings, its shaders `storage_fields.wgsl`: each reads the item's
+//! fields that it needs, one by one, as T's read their texels, where S's read the whole item.
+//! Between S and T, two things change: storage buffer or texture, whole item or fields; S2 parts
+//! them.
 
 use crate::canvas::{Batch, Canvas, ITEM_SIZE, item_bytes};
-use crate::gpu::{self, Gpu, Images, Layout, Rewrite};
+use crate::gpu::{self, Gpu, Images, Layout, Rewrite, Uploads};
 
 pub const SOURCE: &str = include_str!("storage.wgsl");
+/// S2's shaders.
+pub const FIELDS_SOURCE: &str = include_str!("storage_fields.wgsl");
 
 /// The most items a canvas draws today, `slime-render`'s `MAX_CANVAS_ITEMS`.
 pub const MAX_ITEMS: usize = 1 << 19;
@@ -39,8 +46,9 @@ fn storage_entry(
 }
 
 impl Storage {
-    /// S's pipeline and buffers, or wgpu's validation error where the device cannot hold them.
-    pub fn new(gpu: &Gpu, images: &Images) -> Result<Self, String> {
+    /// S's pipeline and buffers, its shaders `source` (S's or S2's) labelled `label`, or wgpu's
+    /// validation error where the device cannot hold them.
+    pub fn new(gpu: &Gpu, images: &Images, label: &str, source: &str) -> Result<Self, String> {
         let (made, error) = gpu.catch(|| {
             let frame_layout =
                 gpu.device
@@ -56,17 +64,17 @@ impl Storage {
             let module = gpu
                 .device
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("S"),
-                    source: wgpu::ShaderSource::Wgsl(SOURCE.into()),
+                    label: Some(label),
+                    source: wgpu::ShaderSource::Wgsl(source.into()),
                 });
             let layout = gpu
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("S"),
+                    label: Some(label),
                     bind_group_layouts: &[Some(&frame_layout), Some(&image_layout)],
                     immediate_size: 0,
                 });
-            let pipeline = gpu::pipeline(gpu, "S", &module, &layout, "vs_main", "fs_main", &[]);
+            let pipeline = gpu::pipeline(gpu, label, &module, &layout, "vs_main", "fs_main", &[]);
             let transforms = gpu.buffer("S transforms", 32, wgpu::BufferUsages::STORAGE);
             let mut identity = Vec::new();
             crate::canvas::push_f32s(&mut identity, &[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
@@ -89,7 +97,13 @@ impl Storage {
 }
 
 impl Layout for Storage {
-    fn upload(&mut self, gpu: &Gpu, canvas: &Canvas, size: (u32, u32)) -> u64 {
+    fn upload(
+        &mut self,
+        gpu: &Gpu,
+        uploads: &mut Uploads,
+        canvas: &Canvas,
+        size: (u32, u32),
+    ) -> u64 {
         let count = canvas.items.len().min(MAX_ITEMS);
         // As `slime-render` grows it: by powers of two, from 64 items.
         let bytes = (count as u64 * ITEM_SIZE as u64)
@@ -119,11 +133,12 @@ impl Layout for Storage {
         }
         let (buffer, _, _) = self.items.as_ref().expect("made above");
         let data = item_bytes(&canvas.items[..count], true);
-        gpu.queue.write_buffer(buffer, 0, &data);
         let frame = gpu::frame_bytes(size);
-        gpu.queue.write_buffer(&self.frame, 0, &frame);
+        let bytes = (data.len() + frame.len()) as u64;
+        uploads.write_buffer(buffer, 0, data);
+        uploads.write_buffer(&self.frame, 0, frame.to_vec());
         self.batches = canvas.batches(count);
-        (data.len() + frame.len()) as u64
+        bytes
     }
 
     fn encode(&self, pass: &mut wgpu::RenderPass<'_>) -> (usize, usize) {
@@ -141,11 +156,11 @@ impl Layout for Storage {
 }
 
 impl Rewrite for Storage {
-    fn rewrite(&mut self, gpu: &Gpu, canvas: &Canvas, index: usize) -> u64 {
+    fn rewrite(&mut self, uploads: &mut Uploads, canvas: &Canvas, index: usize) -> u64 {
         let (buffer, _, _) = self.items.as_ref().expect("uploaded first");
         let data = item_bytes(&canvas.items[index..=index], true);
-        gpu.queue
-            .write_buffer(buffer, (index * ITEM_SIZE) as u64, &data);
-        data.len() as u64
+        let bytes = data.len() as u64;
+        uploads.write_buffer(buffer, (index * ITEM_SIZE) as u64, data);
+        bytes
     }
 }

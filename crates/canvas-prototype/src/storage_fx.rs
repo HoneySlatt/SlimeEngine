@@ -3,7 +3,7 @@
 //! segments in a third, 16 bytes each. Vulkan only, as S.
 
 use crate::canvas::{Affine, Batch, Canvas, ITEM_SIZE, item_bytes, push_f32s};
-use crate::gpu::{self, FxLayout, Gpu, Layout};
+use crate::gpu::{self, FxLayout, Gpu, Layout, Uploads};
 use crate::storage::MAX_ITEMS;
 
 pub const SOURCE: &str = concat!(
@@ -113,7 +113,13 @@ impl StorageFx {
 }
 
 impl Layout for StorageFx {
-    fn upload(&mut self, gpu: &Gpu, canvas: &Canvas, size: (u32, u32)) -> u64 {
+    fn upload(
+        &mut self,
+        gpu: &Gpu,
+        uploads: &mut Uploads,
+        canvas: &Canvas,
+        size: (u32, u32),
+    ) -> u64 {
         let count = canvas.items.len().min(MAX_ITEMS);
         let items = item_bytes(&canvas.items[..count], true);
         let transforms = transform_bytes(&canvas.transform_table());
@@ -160,20 +166,18 @@ impl Layout for StorageFx {
                 ],
             }));
         }
-        for (slot, data) in [
-            (&self.items, &items),
-            (&self.transforms, &transforms),
-            (&self.segments, &segments),
-        ] {
-            if !data.is_empty() {
-                gpu.queue
-                    .write_buffer(&slot.as_ref().expect("made above").0, 0, data);
-            }
-        }
         let frame = gpu::fx_frame_bytes(size, 0, 0);
-        gpu.queue.write_buffer(&self.frame, 0, &frame);
+        let bytes = (items.len() + transforms.len() + segments.len() + frame.len()) as u64;
+        for (slot, data) in [
+            (&self.items, items),
+            (&self.transforms, transforms),
+            (&self.segments, segments),
+        ] {
+            uploads.write_buffer(&slot.as_ref().expect("made above").0, 0, data);
+        }
+        uploads.write_buffer(&self.frame, 0, frame.to_vec());
         self.batches = canvas.batches(count);
-        (items.len() + transforms.len() + segments.len() + frame.len()) as u64
+        bytes
     }
 
     fn encode(&self, pass: &mut wgpu::RenderPass<'_>) -> (usize, usize) {

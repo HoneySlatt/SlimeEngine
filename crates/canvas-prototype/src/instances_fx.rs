@@ -19,7 +19,7 @@ use crate::canvas::{
     self, Affine, BOX, COVERAGE, Canvas, FX_KINDS, GLASS, GRADIENT, IMAGE, ImageId, Item, LAYER,
     PATH, SHADOW, push_f32s, push_u32s,
 };
-use crate::gpu::{self, DATA_TEXEL, FxLayout, Gpu, Layout};
+use crate::gpu::{self, DATA_TEXEL, FxLayout, Gpu, Layout, Uploads};
 use crate::instances::{self, KindFormat};
 use crate::storage_fx::segment_bytes;
 
@@ -313,7 +313,13 @@ fn pack(item: &Item, transform: &Affine, colours: &mut Colours, bytes: &mut Vec<
 }
 
 impl Layout for InstancesFx {
-    fn upload(&mut self, gpu: &Gpu, canvas: &Canvas, size: (u32, u32)) -> u64 {
+    fn upload(
+        &mut self,
+        gpu: &Gpu,
+        uploads: &mut Uploads,
+        canvas: &Canvas,
+        size: (u32, u32),
+    ) -> u64 {
         let transforms = canvas.transform_table();
         let mut counts = [0usize; FX_KINDS];
         for item in &canvas.items {
@@ -359,10 +365,8 @@ impl Layout for InstancesFx {
             wgpu::BufferUsages::VERTEX,
         );
         let (buffer, _) = self.vertices.as_ref().expect("made above");
-        for (region, kind_bytes) in self.regions.iter().zip(&bytes) {
-            if !kind_bytes.is_empty() {
-                gpu.queue.write_buffer(buffer, region.start, kind_bytes);
-            }
+        for (region, kind_bytes) in self.regions.iter().zip(bytes) {
+            uploads.write_buffer(buffer, region.start, kind_bytes);
         }
         let segments = segment_bytes(&canvas.segments);
         let rows = gpu::data_rows(segments.len() / DATA_TEXEL);
@@ -391,11 +395,12 @@ impl Layout for InstancesFx {
             self.segments = Some((texture, rows, group));
         }
         let (texture, _, _) = self.segments.as_ref().expect("made above");
-        gpu::write_texels(gpu, texture, 0, &segments);
         let frame = gpu::fx_frame_bytes(size, 0, 0);
-        gpu.queue.write_buffer(&self.frame, 0, &frame);
+        let bytes = offset + (segments.len() + frame.len()) as u64;
+        uploads.write_texels(texture, 0, segments);
+        uploads.write_buffer(&self.frame, 0, frame.to_vec());
         self.runs = runs;
-        offset + (segments.len() + frame.len()) as u64
+        bytes
     }
 
     fn encode(&self, pass: &mut wgpu::RenderPass<'_>) -> (usize, usize) {

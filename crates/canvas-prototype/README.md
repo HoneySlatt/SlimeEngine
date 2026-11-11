@@ -7,11 +7,11 @@ takes, since WebGL2 has no storage buffer.
 
 It draws the two screens of the benchmark `render.canvas` (`benches/src/render.rs`: an editor's
 screen, some 19 500 items, and a game's menu, some 4 200) with three layouts of the canvas's
-items, compares their images with today's, times their frames, and counts their pipelines against
-WebGL2's limits. It does the same for five effects (below): a transform per item, a group drawn
-apart, a blur of what lies behind, a path, and one element animated over a still screen that
-grows. It depends on wgpu, pollster and png alone: the canvas's items and the two screens
-are copied from `slime-render` and the benchmarks, not linked.
+items and a variant of today's, compares their images with today's, times their frames, and counts
+their pipelines against WebGL2's limits. It does the same for five effects (below): a transform
+per item, a group drawn apart, a blur of what lies behind, a path, and one element animated over a
+still screen that grows. It depends on wgpu, pollster and png alone: the canvas's items and the
+two screens are copied from `slime-render` and the benchmarks, not linked.
 
 ## The three layouts
 
@@ -32,6 +32,18 @@ coverage (one channel, drawn in a colour, as glyphs are) or colours (an icon, a 
   an `Rgba32Uint` texture 2048 texels wide, read by `textureLoad` in both shaders. One pipeline,
   one draw per run of one image, as S. The texture grows by powers of two in height, up to 2048
   rows: 466 033 items.
+
+From S to T, two things change at once: where the items are (a storage buffer, a texture) and
+how the shaders read them (S's load the whole item, `items[index]`; T's load the texels their
+kind needs, one by one). A fourth pipeline parts them:
+
+- **S2, S by fields** (`storage.rs`, `storage_fields.wgsl`): S's buffers, bindings and drawing,
+  its shaders reading the item's fields one by one as T's do: the vertex shader the quad, the
+  image's coordinates and the kind; the fragment shader the kind and the clip, then what its kind
+  reads. On `vulkan` alone, as S, for the two screens and `kinds`, not the effects. Its images must
+  equal S's: the arithmetic is S's, line for line.
+
+S against S2 measures whole item against fields; S2 against T, storage buffer against texture.
 
 Every layout draws into an `Rgba8Unorm` target, colours multiplied by their alpha and sRGB-encoded
 on the CPU, images' texels encoded in the shader, so that colours mix as sRGB values
@@ -95,18 +107,26 @@ menu (`fx-game` against S's `game`).
   100,000 items, an opaque background then rows of a box and glyphs as small as fill the screen,
   one box in the middle moving each frame, drawn with the screens' pipelines. Two ways per layout:
   `all written`, the screen's items made again and all written; `box alone`, only the box's item
-  made again and its bytes written (`write_buffer`, or `write_texture` of its texels), the rest
+  made again and its bytes written (a copy into the buffer, or into the texels it takes), the rest
   kept from the frame before. Their images after five moves must be identical.
 
 ## Configurations
 
-- `vulkan`: Vulkan, the adapter's limits. S, I and T run.
+- `vulkan`: Vulkan, the adapter's limits. S, S2, I and T run.
 - `vulkan-webgl2`: Vulkan, WebGL2's limits (`Limits::downlevel_webgl2_defaults()`), no optional
-  feature but timestamp queries. I and T run; S fails with wgpu's validation error, printed.
+  feature but the timer's: timestamp queries, and timestamps between an encoder's commands. I and T
+  run; S and S2 fail with wgpu's validation error, printed.
 - `gl`: wgpu's GL backend, without a window (EGL's surfaceless platform), WebGL2's limits. I and T
-  run; S fails, printed. wgpu takes desktop GL whenever EGL offers it: on llvmpipe, OpenGL 4.6.
+  run; S and S2 fail, printed. wgpu takes desktop GL whenever EGL offers it: on llvmpipe, OpenGL
+  4.6.
 - `gl-es`: the same, Mesa made to refuse desktop GL 3.3 and to offer OpenGL ES 3.0 alone, whose
-  shaders, GLSL ES 3.00, are WebGL2's. Its rows say `gl-es`. It has no timestamp queries, as WebGL2.
+  shaders, GLSL ES 3.00, are WebGL2's. The program exits with 1 if the context is not OpenGL ES's
+  (the adapter's driver information): run without Mesa's overrides, it would measure desktop GL.
+  On llvmpipe it has no timestamp queries, as WebGL2.
+
+Each has a twin ending in `-gpu` in `run-config.sh` (`vulkan-gpu`, `vulkan-webgl2-gpu`,
+`gl-es-gpu`) that runs on the owner's GPU, through radv or radeonsi, with `--any-adapter`. **Those
+run only with the owner's go**, for a series of measures; never by an agent on its own.
 
 On the configurations with WebGL2's limits, the size of textures is the adapter's
 (`Limits::using_resolution`), as a WebGL2 program asks for it so that its drawing buffer may be
@@ -125,8 +145,8 @@ crates/canvas-prototype/run-config.sh gl
 crates/canvas-prototype/run-config.sh gl-es
 ```
 
-Options: `--frames N` (frames measured, 30; 0 compares images only), `--warm-up N` (frames drawn
-first, 10), `--effect NAME` (above).
+Options: `--frames N` (frames measured of each layout, 30; 0 compares images only), `--warm-up N`
+(frames drawn first by each layout, 10), `--effect NAME` (above).
 
 ```sh
 crates/canvas-prototype/run-config.sh vulkan --effect all     # first: writes S's images
@@ -146,19 +166,24 @@ screens' run on `vulkan` writes: run it once first.
   and `DISPLAY` are unset. `gl-es` adds `MESA_GL_VERSION_OVERRIDE=3.2
   MESA_GLES_VERSION_OVERRIDE=3.0`.
 
-The program refuses an adapter that is not llvmpipe (lavapipe names itself so). On a GPU, run the
-binary by hand with `--any-adapter`.
+The program refuses an adapter that is not llvmpipe (lavapipe names itself so), unless given
+`--any-adapter`, which the `-gpu` configurations pass. With `--any-adapter`, every row, every
+label and every PNG's name carries `-gpu` (`vulkan-gpu`, `gl-es-gpu`), and the images are
+compared with S's of `vulkan-gpu`, never with lavapipe's, which such a run never writes: run
+`vulkan-gpu` first among them, as `vulkan` first among the others.
 
 The images are written to `target/canvas-prototype/<config>-<layout>-<screen>.png`. The program
-exits with 1 if a layout cannot be built where it must be, if an image of I or T differs from S's
-by more than 2/255 on a channel, or if S's two targets differ.
+exits with 1 if a layout cannot be built where it must be, if an image of S2, I or T differs from
+S's by more than 2/255 on a channel, if S's two targets differ, or if `gl-es`'s context is not
+OpenGL ES's.
 
 ## Reading the output
 
 Each run prints, as tab-separated lines:
 
-- `adapter`: its name, backend, type and driver; `device`: the limits it was made with, and whether
-  it has timestamp queries.
+- `adapter`: its name, backend, type and driver; `device`: the limits it was made with, whether
+  it has timestamp queries, and how the timestamp before a frame's copies is written (`copies'
+  start`, under **Times**). Each table's first header names the adapter: `config, on <adapter>`.
 - **Limits**, one row per pipeline: its vertex attributes and instance stride in bytes; its values
   between the stages (`@location`s of the vertex shader's output, `@builtin(position)` not
   counted, as WebGL2's 15 count them); its bind groups; its sampled textures in the vertex and
@@ -167,17 +192,38 @@ Each run prints, as tab-separated lines:
   texels over 9 for T. wgpu checks every limit when it builds a pipeline on `vulkan-webgl2` and
   `gl`: a pipeline built there fits.
 - **Images**, at 1280 × 800: for each layout and screen, the largest difference of a channel from
-  S's image on `vulkan`, in steps of 1/255, and the pixels where one differs by more than 1.
+  S's image on `vulkan` (`vulkan-gpu` on a `-gpu` run), in steps of 1/255, and the pixels where one
+  differs by more than 1.
 - **Times**, at 1280 × 800, 1920 × 1080 and 3840 × 2160, each screen laid out for 1920 × 1080 and
   scaled: the median (p50) and 90th percentile (p90) of the frames measured, in microseconds; each
   frame is waited for before the next.
+  - The layouts' frames are interleaved: rounds of one frame of each layout in turn (S, S2, I, T,
+    S, S2, I, T…), so that a change of the machine's load falls on every layout alike. Each
+    layout keeps its own buffers, textures and staging buffer across the rounds. `--warm-up` and
+    `--frames` count the rounds: each layout draws that many frames.
   - `items`, `draws`, `pipelines`: the items drawn, the draws, the pipelines set in the pass.
   - `bytes`: the bytes written each frame, the items' and the 16 of the frame's uniform.
-  - `write`: CPU, the items turned into the layout's bytes and written (`write_buffer`,
-    `write_texture`), the runs of draws planned.
-  - `encode`: CPU, the pass recorded, finished and submitted.
-  - `GPU`: the pass, from timestamp queries; `none` without them.
+  - `write`: CPU, the items turned into the layout's bytes, the runs of draws planned, and the
+    bytes copied into the layout's staging buffer.
+  - `encode`: CPU, the frame's copies and pass recorded and its command buffer finished.
+  - `submit`: CPU, `Queue::submit` of that command buffer alone. On GL, wgpu turns the recorded
+    commands into GL calls there (below): this is where a GL driver's cost of each draw shows.
+  - `gpu pass`: GPU, the pass, from timestamp queries; `none` without them.
+  - `gpu with copies`: GPU, from a timestamp before the frame's copies of items (and of
+    transforms, segments and the frame's uniform) to the end of its last pass; `none` without
+    timestamp queries.
   - `wall`: from just before the submission to the end of the wait for it.
+
+The bytes of a frame do not go through `Queue::write_buffer` or `write_texture`, whose copies wgpu
+submits before the frame's commands, where no timestamp of the frame reaches them. Each layout
+writes them into a staging buffer of its own, which the CPU maps (`MAP_WRITE | COPY_SRC`, as
+wgpu's own staging), and the frame's encoder begins with a timestamp, then their copies
+(`copy_buffer_to_buffer`, `copy_buffer_to_texture`), then the passes. wgpu writes a timestamp once
+the commands before it are done, so that `gpu with copies` less `gpu pass` is the copies' time.
+The timestamp before the copies is written into the encoder
+(`Features::TIMESTAMP_QUERY_INSIDE_ENCODERS`); a device that has timestamp queries but not that
+feature takes the first timestamp of an empty render pass on a 1 × 1 target instead (the `device`
+line says which). Every configuration here has the feature where it has timestamps.
 
 An effect's run prints the same three parts, as `# effect NAME`:
 
@@ -187,23 +233,27 @@ An effect's run prints the same three parts, as `# effect NAME`:
 - **Images**: as above, each effect's image against S's on `vulkan`, written as
   `<config>-<layout>-<effect>.png`. `group reused` and `grow, the box's bytes alone` compare a
   layout's two frames with each other: their bytes must be identical.
-- **Times**: as above, with `effect`, `variant` (`group drawn`, `group reused`; `all written`, `box
-  alone`), `passes` (the render passes of a frame), and `build` (the growing screen's items made on
-  the CPU; 0 elsewhere). `bytes` counts every write of the frame: items, transforms, segments,
-  frame uniforms (32 bytes for the effects' pipelines). `GPU` is the sum of the frame's passes.
+- **Times**: as above, interleaved as above, with `effect`, `variant` (`group drawn`, `group
+  reused`; `all written`, `box alone`: each variant's rounds apart), `passes` (the render passes of
+  a frame), and `build` (the growing screen's items made on the CPU; 0 elsewhere). `bytes` counts
+  every write of the frame: items, transforms, segments, frame uniforms (32 bytes for the effects'
+  pipelines). `gpu pass` is the sum of the frame's passes; `gpu with copies` spans the frame from
+  its copies to its last pass's end, the time between passes included.
 - **Steps** (`group`, `blur`): each step's GPU time, `passes` the render passes it takes: for the
   blur, `behind` (what lies behind, into the canvas's texture), `glass N blur` (its halvings and
   its two blur passes), `front` (the rest of the canvas), `copy` (the canvas's texture onto the
   target).
 
-On llvmpipe's GL, the columns of the CPU and of the GPU do not mean what they mean on Vulkan.
-wgpu's GL backend replays the recorded commands into GL calls at the submission
-(`wgpu-hal`'s `gles/queue.rs`), so that `encode` holds the GL driver's own work on the calling
-thread. With timestamps (`gl`), wgpu also asks GL for the queries' results there
-(`CopyQueryResults`), and the submission then lasts the whole frame: `encode` equals `wall`. And
-llvmpipe's timestamps come out a small fraction of `wall`: they do not span the rasterisation. On
-GL, `wall` is the measure, and `gl-es`, without queries, gives the CPU without that wait. On
-lavapipe, `GPU` agrees with `wall` and is the pass's time.
+On GL, the columns of the CPU and of the GPU do not mean what they mean on Vulkan. wgpu's GL
+backend replays the recorded commands into GL calls at the submission (`wgpu-hal`'s
+`gles/queue.rs`), so that `submit` holds the GL driver's own work on the calling thread, each
+draw's included: on a GPU, where the drawing itself is not done on the CPU, `submit` shows what
+I's many draws cost the CPU. With timestamps (`gl`), wgpu reads the queries' results when it
+replays their resolution (`CopyQueryResults`), which waits for the frame to be drawn; the
+resolution is therefore submitted apart, after the frame's own submission, and its wait falls in
+`wall`, not in `submit`. llvmpipe's GL timestamps come out a small fraction of `wall`: they do not
+span the rasterisation. On llvmpipe's GL, `wall` is the measure of the frame. On lavapipe, `gpu
+pass` agrees with `wall` and is the pass's time.
 
 lavapipe and llvmpipe draw on the CPU: their times rank the layouts for a CPU driver, which reads
 every byte of an item for each fragment, not for a GPU. The milestone times them on the RX 6900 XT

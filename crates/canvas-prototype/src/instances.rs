@@ -26,7 +26,7 @@ use crate::canvas::{
     self, BOX, COVERAGE, Canvas, GRADIENT, IMAGE, ImageId, Item, KINDS, SHADOW, push_f32s,
     push_u32s,
 };
-use crate::gpu::{self, Gpu, Images, Layout, Rewrite};
+use crate::gpu::{self, Gpu, Images, Layout, Rewrite, Uploads};
 
 pub const SOURCE: &str = include_str!("instances.wgsl");
 
@@ -313,7 +313,13 @@ fn pack(item: &Item, colours: &mut Colours, bytes: &mut Vec<u8>) {
 }
 
 impl Layout for Instances {
-    fn upload(&mut self, gpu: &Gpu, canvas: &Canvas, size: (u32, u32)) -> u64 {
+    fn upload(
+        &mut self,
+        gpu: &Gpu,
+        uploads: &mut Uploads,
+        canvas: &Canvas,
+        size: (u32, u32),
+    ) -> u64 {
         let mut counts = [0usize; KINDS];
         for item in &canvas.items {
             counts[item.kind[0] as usize] += 1;
@@ -355,13 +361,11 @@ impl Layout for Instances {
             ));
         }
         let (buffer, _) = self.vertices.as_ref().expect("made above");
-        for (region, kind_bytes) in self.regions.iter().zip(&bytes) {
-            if !kind_bytes.is_empty() {
-                gpu.queue.write_buffer(buffer, region.start, kind_bytes);
-            }
+        for (region, kind_bytes) in self.regions.iter().zip(bytes) {
+            uploads.write_buffer(buffer, region.start, kind_bytes);
         }
         let frame = gpu::frame_bytes(size);
-        gpu.queue.write_buffer(&self.frame, 0, &frame);
+        uploads.write_buffer(&self.frame, 0, frame.to_vec());
         self.runs = runs;
         self.rewritten = None;
         total + frame.len() as u64
@@ -396,7 +400,7 @@ impl Layout for Instances {
 }
 
 impl Rewrite for Instances {
-    fn rewrite(&mut self, gpu: &Gpu, canvas: &Canvas, index: usize) -> u64 {
+    fn rewrite(&mut self, uploads: &mut Uploads, canvas: &Canvas, index: usize) -> u64 {
         let item = &canvas.items[index];
         let kind = item.kind[0] as usize;
         let offset = match self.rewritten {
@@ -414,7 +418,8 @@ impl Rewrite for Instances {
         let mut bytes = Vec::with_capacity(stride(FORMATS[kind].attributes) as usize);
         pack(item, &mut Colours::new(), &mut bytes);
         let (buffer, _) = self.vertices.as_ref().expect("uploaded first");
-        gpu.queue.write_buffer(buffer, offset, &bytes);
-        bytes.len() as u64
+        let written = bytes.len() as u64;
+        uploads.write_buffer(buffer, offset, bytes);
+        written
     }
 }

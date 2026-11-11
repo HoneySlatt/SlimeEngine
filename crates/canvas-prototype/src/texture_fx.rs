@@ -4,7 +4,7 @@
 //! transforms and the segments begin. One pipeline, one draw per run of one image, as S.
 
 use crate::canvas::{Batch, Canvas, ITEM_SIZE, item_bytes};
-use crate::gpu::{self, DATA_TEXEL, FxLayout, Gpu, Layout};
+use crate::gpu::{self, DATA_TEXEL, FxLayout, Gpu, Layout, Uploads};
 use crate::storage_fx::{segment_bytes, transform_bytes};
 
 pub const SOURCE: &str = concat!(
@@ -92,7 +92,13 @@ impl TextureFx {
 }
 
 impl Layout for TextureFx {
-    fn upload(&mut self, gpu: &Gpu, canvas: &Canvas, size: (u32, u32)) -> u64 {
+    fn upload(
+        &mut self,
+        gpu: &Gpu,
+        uploads: &mut Uploads,
+        canvas: &Canvas,
+        size: (u32, u32),
+    ) -> u64 {
         let mut data = item_bytes(&canvas.items, true);
         let transforms_at = data.len() / DATA_TEXEL;
         data.extend(transform_bytes(&canvas.transform_table()));
@@ -125,11 +131,12 @@ impl Layout for TextureFx {
             self.data = Some((texture, rows, group));
         }
         let (texture, _, _) = self.data.as_ref().expect("made above");
-        gpu::write_texels(gpu, texture, 0, &data);
         let frame = gpu::fx_frame_bytes(size, transforms_at as u32, segments_at as u32);
-        gpu.queue.write_buffer(&self.frame, 0, &frame);
+        let bytes = (data.len() + frame.len()) as u64;
+        uploads.write_texels(texture, 0, data);
+        uploads.write_buffer(&self.frame, 0, frame.to_vec());
         self.batches = canvas.batches(canvas.items.len());
-        (data.len() + frame.len()) as u64
+        bytes
     }
 
     fn encode(&self, pass: &mut wgpu::RenderPass<'_>) -> (usize, usize) {

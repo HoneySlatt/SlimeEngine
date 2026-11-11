@@ -7,11 +7,13 @@
 #       [--effect transform|group|blur|path|grow|all]...
 #
 # `gl` takes the context wgpu chooses, desktop GL; `gl-es` makes Mesa refuse desktop GL 3.3 and offer
-# OpenGL ES 3.0 alone, whose shaders, GLSL ES 3.00, are WebGL2's. Run `vulkan` first: the others
-# compare their images with the images of S that it writes.
+# OpenGL ES 3.0 alone, whose shaders, GLSL ES 3.00, are WebGL2's; the program refuses a context
+# that is not ES's there. Run `vulkan` first: the others compare their images with the images of S
+# that it writes. The configurations ending in `-gpu` run on the owner's GPU, only with the owner's
+# go; run `vulkan-gpu` first among them: they compare with its images of S, never lavapipe's.
 set -euo pipefail
 
-[ $# -ge 1 ] || { sed -n 2,11p "$0" >&2; exit 2; }
+[ $# -ge 1 ] || { sed -n 2,13p "$0" >&2; exit 2; }
 config=$1
 shift
 [ -n "${SLIME_LAVAPIPE_ICD:-}" ] || { echo "run-config.sh: run it inside nix develop" >&2; exit 2; }
@@ -36,7 +38,7 @@ case $config in
             LD_LIBRARY_PATH="$glvnd/lib:${LD_LIBRARY_PATH:-}" \
             __EGL_VENDOR_LIBRARY_FILENAMES="$mesa/share/glvnd/egl_vendor.d/50_mesa.json" \
             LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe "${es[@]}" \
-            "$binary" gl "$@"
+            "$binary" "$config" "$@"
         ;;
     vulkan-gpu | vulkan-webgl2-gpu)
         # The owner's GPU, through radv, only with the owner's go for a series of measures.
@@ -51,7 +53,7 @@ case $config in
             LD_LIBRARY_PATH="$glvnd/lib:/run/opengl-driver/lib:${LD_LIBRARY_PATH:-}" \
             __EGL_VENDOR_LIBRARY_FILENAMES=/run/opengl-driver/share/glvnd/egl_vendor.d/50_mesa.json \
             MESA_GL_VERSION_OVERRIDE=3.2 MESA_GLES_VERSION_OVERRIDE=3.0 \
-            "$binary" gl --any-adapter "$@"
+            "$binary" gl-es --any-adapter "$@"
         ;;
     *)
         echo "run-config.sh: unknown configuration $config" >&2

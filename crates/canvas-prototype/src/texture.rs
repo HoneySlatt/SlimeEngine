@@ -2,18 +2,16 @@
 //! read with `textureLoad` (`texture.wgsl`). One pipeline, one draw per run of one image, as S.
 
 use crate::canvas::{Batch, Canvas, ITEM_SIZE, item_bytes};
-use crate::gpu::{self, Gpu, Images, Layout, Rewrite};
+use crate::gpu::{self, DATA_TEXEL, Gpu, Images, Layout, Rewrite, Uploads};
 
 pub const SOURCE: &str = include_str!("texture.wgsl");
 
 /// The texture's width, in texels: WebGL2's largest.
-pub const WIDTH: u32 = 2048;
+pub const WIDTH: u32 = gpu::DATA_WIDTH;
 /// Its largest height; it grows to it by powers of two.
 pub const MAX_HEIGHT: u32 = 2048;
-/// A texel's bytes: four 32-bit values.
-const TEXEL: usize = 16;
 /// The texels of an item.
-const ITEM_TEXELS: usize = ITEM_SIZE / TEXEL;
+const ITEM_TEXELS: usize = ITEM_SIZE / DATA_TEXEL;
 /// The most items the largest texture holds.
 pub const MAX_ITEMS: usize = (WIDTH as usize * MAX_HEIGHT as usize) / ITEM_TEXELS;
 
@@ -127,7 +125,13 @@ impl Texture {
 }
 
 impl Layout for Texture {
-    fn upload(&mut self, gpu: &Gpu, canvas: &Canvas, size: (u32, u32)) -> u64 {
+    fn upload(
+        &mut self,
+        gpu: &Gpu,
+        uploads: &mut Uploads,
+        canvas: &Canvas,
+        size: (u32, u32),
+    ) -> u64 {
         let count = canvas.items.len().min(MAX_ITEMS);
         if count < canvas.items.len() && !self.warned {
             eprintln!(
@@ -148,44 +152,13 @@ impl Layout for Texture {
         }
         let (texture, _, _) = self.items.as_ref().expect("made above");
         let data = item_bytes(&canvas.items[..count], true);
-        // The full rows in one write, the last row's start in another: no padding is written.
-        let row_bytes = WIDTH as usize * TEXEL;
-        let full_rows = texels / WIDTH as usize;
-        let write = |row: usize, bytes: &[u8], width: u32, height: u32| {
-            if height == 0 || width == 0 {
-                return;
-            }
-            gpu.queue.write_texture(
-                wgpu::TexelCopyTextureInfo {
-                    texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d {
-                        x: 0,
-                        y: row as u32,
-                        z: 0,
-                    },
-                    aspect: wgpu::TextureAspect::All,
-                },
-                bytes,
-                wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(row_bytes as u32),
-                    rows_per_image: Some(height),
-                },
-                wgpu::Extent3d {
-                    width,
-                    height,
-                    depth_or_array_layers: 1,
-                },
-            );
-        };
-        write(0, &data[..full_rows * row_bytes], WIDTH, full_rows as u32);
-        let rest = &data[full_rows * row_bytes..];
-        write(full_rows, rest, (rest.len() / TEXEL) as u32, 1);
         let frame = gpu::frame_bytes(size);
-        gpu.queue.write_buffer(&self.frame, 0, &frame);
+        let bytes = (data.len() + frame.len()) as u64;
+        // The full rows in one copy, the last row's start in another: no padding is written.
+        uploads.write_texels(texture, 0, data);
+        uploads.write_buffer(&self.frame, 0, frame.to_vec());
         self.batches = canvas.batches(count);
-        (data.len() + frame.len()) as u64
+        bytes
     }
 
     fn encode(&self, pass: &mut wgpu::RenderPass<'_>) -> (usize, usize) {
@@ -203,11 +176,12 @@ impl Layout for Texture {
 }
 
 impl Rewrite for Texture {
-    fn rewrite(&mut self, gpu: &Gpu, canvas: &Canvas, index: usize) -> u64 {
+    fn rewrite(&mut self, uploads: &mut Uploads, canvas: &Canvas, index: usize) -> u64 {
         let (texture, _, _) = self.items.as_ref().expect("uploaded first");
         let data = item_bytes(&canvas.items[index..=index], true);
-        // An item's nine texels may end on the next row: one write each side.
-        gpu::write_texels(gpu, texture, index * ITEM_TEXELS, &data);
-        data.len() as u64
+        let bytes = data.len() as u64;
+        // An item's nine texels may end on the next row: one copy each side.
+        uploads.write_texels(texture, index * ITEM_TEXELS, data);
+        bytes
     }
 }
