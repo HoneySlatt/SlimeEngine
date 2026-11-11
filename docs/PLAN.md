@@ -104,8 +104,9 @@ rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-en
   - One writer of a tree, in the normal form of KDL's tests.
   - KDL's official tests, from `main` at `f490278`, in a folder of their own under CC BY-SA 4.0,
     out of uwui's published package, and their runner.
-  - A target of `bolero` run by `cargo test`, the test of damaged files of
-    [ADR-0102](adr/0102-a-damaged-file-gives-an-error.md), a round trip.
+  - Random inputs from a seed printed on failure, run by `cargo test`, `bolero` refused by its
+    pinned `indexmap`; the test of damaged files of
+    [ADR-0102](adr/0102-a-damaged-file-gives-an-error.md); a round trip.
   - `.gitattributes` fixing the line endings of `*.kdl`.
 - **Done when.**
   - Every valid case of the official tests reads and prints its expected normal form; every case

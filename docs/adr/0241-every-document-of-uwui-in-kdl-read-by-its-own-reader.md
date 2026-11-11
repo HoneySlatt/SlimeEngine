@@ -9,7 +9,10 @@
   [0238](0238-tokens-typed-named-in-code-declared-by-each-crate.md) (a theme writes a value's kind
   by its group, and a text field names a theme's value) and
   [0220](0220-the-roadmap-reshaped-by-the-market.md) (M6d.3 cut in three; the primary modifier is
-  named `Primary`)
+  named `Primary`). A precision decided by the owner on 2026-11-11, as M6d.3a began: `bolero`
+  cannot join the workspace, its derive pinning `indexmap` at 2.11.2 where `toml_edit` asks for
+  2.13; the random inputs come from the repository's own generator, in `cargo test`, their seed
+  printed, through a function of bytes that a fuzzer guided by coverage calls later unchanged
 - Date: 2026-11-11
 
 ## Context

@@ -1,0 +1,13 @@
+[package]
+name = "uwui-kdl"
+description = "uwui's reader of KDL 2.0, the notation of its documents: a flat tree of nodes, each placed in its text, read within limits."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT OR Apache-2.0"
+publish.workspace = true
+# KDL's official tests are under CC BY-SA 4.0, not uwui's licence: they stay out of its package.
+exclude = ["tests/kdl-suite"]
+
+[lints]
+workspace = true

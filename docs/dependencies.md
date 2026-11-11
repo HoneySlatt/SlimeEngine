@@ -92,6 +92,15 @@ No tool checks a font's license: the change that adds a font records it here.
 | Geist and Geist Mono, the variable fonts of their upright faces, in [`crates/uwui/look`](../crates/uwui/look/README.md) | The editor's look, `uwui::look`, with `uwui`'s feature `editor-look` ([ADR-0148](adr/0148-widgets.md)): the `widgets` example, which embeds them, the dev overlay, `slime-devui` ([ADR-0152](adr/0152-the-dev-overlay-on-the-engines-interface.md)), in the `scene` and `world` examples and *Hunna Wood*'s development build, and uwui's tests of the look; shipped with `widgets.exe`, `scene.exe`, `world.exe` and `hunnawood.exe` of the Windows artifact, their license beside them | Geist's release 1.7.0, as the NixOS package `geist-font` 1.7.0 holds it, unchanged; its license from Geist's repository at the tag `1.7.0`, which the package lacks (M6b.7a) | OFL-1.1, one license file for both, which reserves no name |
 | Lucide's font of icons, whole, with its file of codepoints, in [`crates/uwui/look`](../crates/uwui/look/README.md) | The editor's look's icons, the controls' ticks and chevrons and `uwui::look::icon`, with the feature `editor-look` ([ADR-0150](adr/0150-layers.md)): the `widgets` example, which embeds it, the dev overlay in the `scene` and `world` examples and *Hunna Wood*'s development build, and uwui's tests of the look; shipped with `widgets.exe`, `scene.exe`, `world.exe` and `hunnawood.exe` of the Windows artifact, its license beside them | `lucide.ttf` and `codepoints.json` of `lucide-font-1.61.0.zip`, of Lucide's release 1.61.0 on GitHub, unchanged; its license from Lucide's repository at that tag (M6b.7c) | ISC, and MIT for the icons that it took from Feather, both in one license file |
 
+## Test data from outside
+
+Files that the tests read, made by others, each with its license beside it, outside every package
+that the project publishes.
+
+| Data | Used by | Source | License |
+|---|---|---|---|
+| KDL's official tests, 338 documents and the normal form of the 243 valid ones, in [`crates/uwui-kdl/tests/kdl-suite`](../crates/uwui-kdl/tests/kdl-suite/README.md) | `uwui-kdl`'s tests, which check its reader against KDL 2.0 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)) | [kdl-org/kdl](https://github.com/kdl-org/kdl), `tests/test_cases` at `f490278`, 2026-08-10 | CC BY-SA 4.0, KDL's contributors; left out of `uwui-kdl`'s package |
+
 ## Shipped with the Windows programs
 
 | Program | Why | Alternative considered | License |

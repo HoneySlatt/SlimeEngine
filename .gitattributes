@@ -23,3 +23,8 @@ crates/uwui/tests/texts/*.txt text eol=lf
 # (docs/adr/0134-the-editors-core.md).
 *.toml text eol=lf
 *.scene text eol=lf
+# uwui's documents, in KDL (docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md):
+# the cooker gives their text unchanged, and its errors their line, so a checkout keeps them as
+# written. KDL's own tests are kept byte for byte: some test a carriage return or a byte order mark.
+*.kdl text eol=lf
+crates/uwui-kdl/tests/kdl-suite/** -text
