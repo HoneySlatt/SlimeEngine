@@ -27,5 +27,7 @@ slime-serialize.workspace = true
 # Scene files are checked through the world, which reads them, before they are cooked (ADR-0089).
 slime-world.workspace = true
 thiserror.workspace = true
+# The interface's themes are cooked as their text, checked by uwui's reader of KDL (ADR-0241).
+uwui-kdl.workspace = true
 uuid.workspace = true
 zune-jpeg.workspace = true

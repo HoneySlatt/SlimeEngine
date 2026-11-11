@@ -1735,10 +1735,12 @@ actions that they can drive at Stage 7
 **Texture role.** What a cooked texture is used for: colors, data or normals, which sets how the
 cooker averages its levels and compresses it ([ADR-0071](adr/0071-cooked-textures.md)).
 
-**Theme (interface).** A document of named values, colors, numbers, lists, that the rules of a
-*style sheet* give as `"$name"`: another theme restyles an interface, its rules unchanged, as a
-dark theme and a light one share one style sheet (`uwui::theme::Theme`,
-[ADR-0141](adr/0141-style-sheets-and-themes.md)). Cooked from a `.theme` file. uwui's themes are to hold
+**Theme (interface).** A document of KDL of named values, each in the *group* of its kind,
+`color`, `length`, `duration`, `number` or `text`, that the rules of a *style sheet* give as
+`"$name"`: another theme restyles an interface, its rules unchanged, as a dark theme and a light
+one share one style sheet (`uwui::theme::Theme`, [ADR-0141](adr/0141-style-sheets-and-themes.md),
+[ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). Cooked from a
+`.theme.kdl` file, as its text. uwui's themes are to hold
 rules and each component's *parts* too, uwui's official themes each a crate of them
 ([ADR-0222](adr/0222-what-a-theme-is.md)); decided, not built yet.
 

@@ -516,7 +516,7 @@ fn the_display_list_draws_each_element_before_its_children_as_its_state_and_dire
          [hovered]\nselect = { kind = \"Button\", states = [\"Hovered\"] }\n\
          style.paint.background = \"#00ff00\"\n",
     );
-    let theme = Theme::from_text("plain.theme", "blue = \"#0000ff\"\n");
+    let theme = Theme::from_text("plain.theme", "color {\n    blue \"#0000ff\"\n}\n");
     ui.set_style(&[sheet], std::slice::from_ref(&theme))
         .expect("a style sheet and a theme");
     let mut drawn = Vec::new();

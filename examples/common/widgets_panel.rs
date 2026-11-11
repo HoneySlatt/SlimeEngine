@@ -362,8 +362,8 @@ impl WidgetsPanel {
         let mut themes = look::themes(self.colors, self.density);
         let (name, accent) = ACCENTS[self.accent];
         themes.push(Theme::from_text(
-            format!("{name}.theme"),
-            format!("accent = \"{accent}\"\n"),
+            format!("{name}.theme.kdl"),
+            format!("color {{\n    accent \"{accent}\"\n}}\n"),
         ));
         self.ui
             .set_style(&[look::style_sheet()], &themes)

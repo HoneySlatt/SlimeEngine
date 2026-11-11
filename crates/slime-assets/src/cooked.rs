@@ -120,8 +120,8 @@ impl CookedAssets {
         self.file(id, AssetKind::StyleSheet).map(|(_, bytes)| bytes)
     }
 
-    /// Reads the theme `id`: its document in the engine's binary encoding, which `uwui` reads
-    /// (`uwui::theme::Theme::from_binary`).
+    /// Reads the theme `id`: its text, a document of KDL whose syntax the cooker checked, which
+    /// `uwui` reads (`uwui::theme::Theme::from_text`).
     ///
     /// # Errors
     ///

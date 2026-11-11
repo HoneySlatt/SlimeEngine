@@ -1,6 +1,6 @@
 # The style of the `interface` example (docs/adr/0141-style-sheets-and-themes.md): each table is a
 # rule, applied in the order of this file, that sets a part of the style of the elements it selects.
-# Its values come from a theme, `dark.theme` or `light.theme`, which name them for it.
+# Its values come from a theme, `dark.theme.kdl` or `light.theme.kdl`, which name them for it.
 
 [window]
 select = { classes = ["window"] }

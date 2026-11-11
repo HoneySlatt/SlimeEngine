@@ -46,9 +46,17 @@ const LOOSE: Token<Length> = Token::new("test_loose", Fallback::Value(7.0));
 const TOKENS: Tokens = Tokens::new(&[&GAP]);
 
 /// The core's seven roles, and `test_gap`, given: no token lacking.
-const GIVEN: &str = "canvas_text = \"#FFFFFF\"\ngray_text = \"#888888\"\nbutton_face = \"#444444\"\n\
-                     accent = \"#4C8DFF\"\nhighlight = \"#4C8DFF\"\nhighlight_text = \"#FFFFFF\"\n\
-                     focus = \"#4C8DFF\"\n";
+const GIVEN: &str = r##"
+color {
+    canvas_text "#FFFFFF"
+    gray_text "#888888"
+    button_face "#444444"
+    accent "#4C8DFF"
+    highlight "#4C8DFF"
+    highlight_text "#FFFFFF"
+    focus "#4C8DFF"
+}
+"##;
 
 fn count(warnings: &Warnings) -> usize {
     warnings.0.load(Ordering::Relaxed)

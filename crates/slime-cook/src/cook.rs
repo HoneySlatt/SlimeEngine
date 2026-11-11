@@ -38,7 +38,7 @@ pub const SCENE_FILE_COOKER_VERSION: u32 = 1;
 /// The version of what the cooker makes of the interface's documents, a style sheet, a theme or a
 /// table of shortcuts: raised whenever the same file would give other bytes, so that every one is
 /// cooked again.
-pub const INTERFACE_COOKER_VERSION: u32 = 1;
+pub const INTERFACE_COOKER_VERSION: u32 = 2;
 
 /// The extension of scene files (`docs/adr/0089-scenes-and-prefabs.md`).
 pub const SCENE_EXTENSION: &str = "scene";
@@ -46,8 +46,14 @@ pub const SCENE_EXTENSION: &str = "scene";
 /// The extension of the interface's style sheets (`docs/adr/0141-style-sheets-and-themes.md`).
 pub const STYLE_SHEET_EXTENSION: &str = "style";
 
-/// The extension of the interface's themes (`docs/adr/0141-style-sheets-and-themes.md`).
-pub const THEME_EXTENSION: &str = "theme";
+/// The extension of the interface's themes, documents of KDL
+/// (`docs/adr/0141-style-sheets-and-themes.md`,
+/// `docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
+pub const THEME_EXTENSION: &str = "theme.kdl";
+
+/// The extension of the interface's themes in TOML, which uwui read before its themes were KDL: a
+/// file of it is refused by its name, rather than left aside unseen.
+const TOML_THEME_EXTENSION: &str = "theme";
 
 /// The extension of the interface's tables of shortcuts (`docs/adr/0142-input-and-focus.md`).
 pub const SHORTCUTS_EXTENSION: &str = "keys";
@@ -208,6 +214,7 @@ pub fn cook(sources: &Path, output: &Path) -> Result<Cooked, CookError> {
                 SCENE_EXTENSION,
                 STYLE_SHEET_EXTENSION,
                 THEME_EXTENSION,
+                TOML_THEME_EXTENSION,
                 SHORTCUTS_EXTENSION,
             ]
             .iter()
@@ -337,11 +344,10 @@ fn files(directory: &Path) -> Result<Vec<(PathBuf, FileState)>, ScanError> {
         .collect())
 }
 
-/// The extension of `path`, or nothing.
-fn extension(path: &Path) -> &str {
-    path.extension()
-        .and_then(|extension| extension.to_str())
-        .unwrap_or_default()
+/// The extension of `path` among the source files', which may hold a dot, `theme.kdl`, or nothing
+/// ([`scan::source_extension`]).
+fn extension(path: &Path) -> &'static str {
+    scan::source_extension(path).unwrap_or_default()
 }
 
 /// What importing a glTF file gave: the manifest's entries of its assets, and the image files it
@@ -634,22 +640,36 @@ fn cook_interface_documents(
 ) -> Result<(), CookError> {
     for source in sources {
         let found = extension(&source.path);
+        let refuse = |reason: String| CookError::Interface {
+            path: source.path.clone(),
+            reason,
+        };
         let (kind, made) = if found.eq_ignore_ascii_case(STYLE_SHEET_EXTENSION) {
             (AssetKind::StyleSheet, STYLE_SHEET_EXTENSION)
         } else if found.eq_ignore_ascii_case(THEME_EXTENSION) {
             (AssetKind::Theme, THEME_EXTENSION)
+        } else if found.eq_ignore_ascii_case(TOML_THEME_EXTENSION) {
+            return Err(refuse(
+                "a theme of TOML, which the interface no longer reads: a theme is KDL, in a file \
+                 `.theme.kdl`, its values in groups of their kinds"
+                    .to_owned(),
+            ));
         } else if found.eq_ignore_ascii_case(SHORTCUTS_EXTENSION) {
             (AssetKind::Shortcuts, SHORTCUTS_EXTENSION)
         } else {
             continue;
         };
-        let refuse = |reason: String| CookError::Interface {
-            path: source.path.clone(),
-            reason,
-        };
         let text = String::from_utf8(read(&source.path)?)
             .map_err(|_| refuse("not UTF-8 text".to_owned()))?;
-        let bytes = slime_serialize::encode(&text).map_err(|error| refuse(error.to_string()))?;
+        // A theme is cooked as its text, its syntax and limits checked, so that an error in it
+        // keeps its line; its types are uwui's to check when it reads it. A style sheet and a
+        // table of shortcuts are cooked into the binary encoding until they are KDL too.
+        let bytes = if kind == AssetKind::Theme {
+            uwui_kdl::read(&text).map_err(|error| refuse(error.to_string()))?;
+            text.into_bytes()
+        } else {
+            slime_serialize::encode(&text).map_err(|error| refuse(error.to_string()))?
+        };
         let mut hasher = blake3::Hasher::new();
         hasher.update(kind.name().as_bytes());
         hasher.update(&INTERFACE_COOKER_VERSION.to_le_bytes());

@@ -170,3 +170,30 @@ fn a_directory_that_does_not_exist_fails_the_scan() {
     let error = scan(&root, Mode::Check).expect_err("the scan fails");
     assert!(matches!(error, ScanError::Io { .. }), "{error:?}");
 }
+
+#[test]
+fn an_extension_may_hold_a_dot_and_the_longest_that_a_name_ends_with_is_its_own() {
+    use slime_cook::scan::source_extension;
+    for (name, extension) in [
+        ("dark.theme.kdl", Some("theme.kdl")),
+        ("Dark.THEME.Kdl", Some("theme.kdl")),
+        ("dark.theme", Some("theme")),
+        ("rock.png", Some("png")),
+        ("été.theme.kdl", Some("theme.kdl")),
+        ("notes.kdl", None),
+        ("theme.kdl", None),
+        (".theme.kdl", None),
+        ("darktheme.kdl", None),
+        ("dark.theme.kdl.meta", None),
+    ] {
+        assert_eq!(source_extension(Path::new(name)), extension, "{name}");
+    }
+    // A theme of KDL's metadata file is found beside it, by its whole name.
+    let root = directory("two-part");
+    fs::write(root.join("dark.theme.kdl"), "color {\n}\n").expect("written");
+    let scanned = scan(&root, Mode::GiveIds).expect("scanned");
+    assert_eq!(scanned.sources.len(), 1);
+    assert!(root.join("dark.theme.kdl.meta").is_file());
+    let again = scan(&root, Mode::Check).expect("scanned");
+    assert!(again.problems.is_empty(), "{:?}", again.problems);
+}

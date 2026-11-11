@@ -57,19 +57,27 @@ style.paint.background = "$accent"
 "##;
 
 const DARK: &str = r##"
-surface = "#202020"
-panel = "#303030"
-accent = "#4c6ef5"
-radius = 8
-gap = 2
+color {
+    surface "#202020"
+    panel "#303030"
+    accent "#4c6ef5"
+}
+length {
+    radius 8
+    gap 2
+}
 "##;
 
 const LIGHT: &str = r##"
-surface = "#f0f0f0"
-panel = "#e0e0e0"
-accent = "#1c3ed5"
-radius = 4
-gap = 6
+color {
+    surface "#f0f0f0"
+    panel "#e0e0e0"
+    accent "#1c3ed5"
+}
+length {
+    radius 4
+    gap 6
+}
 "##;
 
 /// Builds a box, a panel that `panel` styles, a toolbar holding an item, and a box keyed `special`.
@@ -187,14 +195,13 @@ fn another_theme_styles_every_element_again_with_its_values() {
 }
 
 #[test]
-fn style_sheets_and_themes_are_read_from_their_binary_encoding_as_from_their_text() {
+fn style_sheets_are_read_from_their_binary_encoding_as_from_their_text() {
     let (mut ui, root) = ui();
     let ids = build(&mut ui, root, 0, |s| s);
     let sheet = slime_serialize::encode(SHEET).expect("a document");
-    let theme = slime_serialize::encode(DARK).expect("a document");
     ui.set_style(
         &[StyleSheet::from_binary("ui.style", sheet)],
-        &[Theme::from_binary("dark.theme", theme)],
+        &[Theme::from_text("dark.theme", DARK)],
     )
     .expect("a style sheet and a theme");
     ui.frame();
@@ -226,7 +233,7 @@ fn a_wrong_style_sheet_or_theme_is_refused_by_name_and_place_and_the_style_is_ke
         (
             "[a]\nstyle.paint.radii = [\"$surface\", 0, 0, 0]\n",
             "ui.style: line 2,",
-            "the value `surface` of the theme `dark.theme`",
+            "the value `surface` is a color, which this field does not hold",
         ),
         (
             "[a]\nselect = { kind = \"Window\" }\n",
@@ -280,7 +287,7 @@ fn a_wrong_style_sheet_or_theme_is_refused_by_name_and_place_and_the_style_is_ke
     let error = ui
         .set_style(
             &[StyleSheet::from_text("ui.style", SHEET)],
-            &[Theme::from_text("broken.theme", "accent = \n")],
+            &[Theme::from_text("broken.theme", "color { accent = }\n")],
         )
         .unwrap_err();
     assert!(
@@ -332,7 +339,7 @@ fn an_element_whose_own_style_changes_is_styled_again() {
 fn the_rows_of_a_list_restyled_lay_out_the_list_s_rows_alone() {
     let (mut ui, root) = ui();
     let sheet = "[row]\nselect = { classes = [\"row\"] }\nstyle.layout.padding.top = \"$pad\"\n";
-    let theme = |pad: u32| Theme::from_text("pad.theme", format!("pad = {pad}\n"));
+    let theme = |pad: u32| Theme::from_text("pad.theme", format!("length {{ pad {pad} }}\n"));
     let sheets = [StyleSheet::from_text("rows.style", sheet)];
     ui.set_style(&sheets, &[theme(2)]).expect("a style sheet");
     let mut list = None;
@@ -358,18 +365,13 @@ fn the_rows_of_a_list_restyled_lay_out_the_list_s_rows_alone() {
 }
 
 #[test]
-fn a_shadow_set_in_part_takes_the_defaults_of_what_it_leaves_out_and_a_name_gives_a_whole_one() {
+fn a_shadow_set_in_part_takes_the_defaults_of_what_it_leaves_out() {
     let (mut ui, root) = ui();
     let ids = build(&mut ui, root, 0, |s| s);
     let sheet = "[box]\nselect = { kind = \"Container\" }\n\
-                 style.paint.shadow = [{ offset = [0, 4], blur = 18 }]\n\n\
-                 [panel]\nselect = { classes = [\"panel\"] }\nstyle.paint.shadow = \"$card\"\n";
-    let theme = "card = { color = \"#00000080\", offset = [0, 6], blur = 24, spread = 2 }\n";
-    ui.set_style(
-        &[StyleSheet::from_text("shadows.style", sheet)],
-        &[Theme::from_text("shadows.theme", theme)],
-    )
-    .expect("a style sheet and a theme");
+                 style.paint.shadow = [{ offset = [0, 4], blur = 18 }]\n";
+    ui.set_style(&[StyleSheet::from_text("shadows.style", sheet)], &[])
+        .expect("a style sheet");
     ui.frame();
     let plain = ui.style(ids[0]).unwrap().paint.shadow.expect("a shadow");
     assert_eq!(
@@ -377,11 +379,6 @@ fn a_shadow_set_in_part_takes_the_defaults_of_what_it_leaves_out_and_a_name_give
         ([0.0, 4.0], 18.0, 0.0)
     );
     assert_eq!(plain.color, LinearColor::rgba(0.0, 0.0, 0.0, 0.0));
-    let card = ui.style(ids[1]).unwrap().paint.shadow.expect("a shadow");
-    assert_eq!(
-        (card.offset, card.blur, card.spread),
-        ([0.0, 6.0], 24.0, 2.0)
-    );
 }
 
 /// The fill of a box styled by the `$fill` of `themes`, stacked.
@@ -409,13 +406,18 @@ fn near(a: LinearColor, b: LinearColor) -> bool {
         .all(|(x, y)| (x - y).abs() < 1e-3)
 }
 
+/// A theme of `colors`, values of the group `color`, one a line, and of the share `half`.
+fn theme(colors: &str) -> String {
+    format!("color {{\n{colors}}}\nnumber {{\n    half 0.5\n}}\n")
+}
+
 #[test]
 fn a_theme_s_values_name_others_and_compute_colors_in_oklch() {
-    let base = "accent = \"#4c8dff\"\npanel = \"#202126\"\nhalf = \"50%\"\n";
+    let base = "accent \"#4c8dff\"\npanel \"#202126\"\n";
     // A name that names a name.
     let named = computed(&[(
         "a.theme",
-        &format!("{base}fill = \"$link\"\nlink = \"$accent\"\n"),
+        &theme(&format!("{base}fill $link\nlink $accent\n")),
     )]);
     assert_eq!(named, Ok(srgb(0x4c8dff)));
     // Lighter and darker by a share of OKLCH's lightness, the hue kept.
@@ -424,7 +426,7 @@ fn a_theme_s_values_name_others_and_compute_colors_in_oklch() {
         ("lighten($accent, 0.1)", 0.1),
         ("darken($accent, 10%)", -0.1),
     ] {
-        let color = computed(&[("a.theme", &format!("{base}fill = \"{call}\"\n"))])
+        let color = computed(&[("a.theme", &theme(&format!("{base}fill \"{call}\"\n")))])
             .expect("computed")
             .to_oklch();
         assert!(
@@ -437,7 +439,7 @@ fn a_theme_s_values_name_others_and_compute_colors_in_oklch() {
     let panel = srgb(0x202126).to_oklch();
     let mixed = computed(&[(
         "a.theme",
-        &format!("{base}fill = \"mix($accent, $panel, $half)\"\n"),
+        &theme(&format!("{base}fill \"mix($accent, $panel, $half)\"\n")),
     )])
     .expect("computed")
     .to_oklch();
@@ -447,12 +449,14 @@ fn a_theme_s_values_name_others_and_compute_colors_in_oklch() {
     );
     let soft = computed(&[(
         "a.theme",
-        &format!("{base}fill = \"alpha(lighten($accent, 0.05), 20%)\"\n"),
+        &theme(&format!(
+            "{base}fill \"alpha(lighten($accent, 0.05), 20%)\"\n"
+        )),
     )])
     .expect("computed");
     assert!((soft.a - 0.2).abs() < 1e-6, "{soft:?}");
     // A mix with a grey keeps the color's hue rather than turning through the grey's.
-    let warm = computed(&[("a.theme", "fill = \"mix(#e8a33d, #808080, 30%)\"\n")])
+    let warm = computed(&[("a.theme", &theme("fill \"mix(#e8a33d, #808080, 30%)\"\n"))])
         .expect("computed")
         .to_oklch();
     assert!(
@@ -463,43 +467,43 @@ fn a_theme_s_values_name_others_and_compute_colors_in_oklch() {
 
 #[test]
 fn stacked_themes_give_the_last_value_and_what_names_it_follows() {
-    let base = "accent = \"#4c8dff\"\nfill = \"lighten($accent, 0.1)\"\n";
-    let first = computed(&[("base.theme", base)]).expect("computed");
+    let base = theme("accent \"#4c8dff\"\nfill \"lighten($accent, 0.1)\"\n");
+    let first = computed(&[("base.theme", &base)]).expect("computed");
     let green = computed(&[
-        ("base.theme", base),
-        ("user.theme", "accent = \"#2bb673\"\n"),
+        ("base.theme", &base),
+        ("user.theme", "color { accent \"#2bb673\"; }\n"),
     ])
     .expect("computed");
     let expected =
-        computed(&[("one.theme", "fill = \"lighten(#2bb673, 0.1)\"\n")]).expect("computed");
+        computed(&[("one.theme", &theme("fill \"lighten(#2bb673, 0.1)\"\n"))]).expect("computed");
     assert!(near(green, expected), "{green:?} {expected:?}");
     assert!(!near(green, first));
     // A later theme that gives the value itself wins over the earlier computation.
-    let given = computed(&[("base.theme", base), ("user.theme", "fill = \"#ff0000\"\n")]);
+    let given = computed(&[
+        ("base.theme", &base),
+        ("user.theme", "color { fill \"#ff0000\"; }\n"),
+    ]);
     assert_eq!(given, Ok(srgb(0xff0000)));
 }
 
 #[test]
 fn a_theme_that_names_itself_a_missing_value_or_calls_wrongly_is_refused_by_its_value() {
     let cases = [
+        ("a $b\nb $a\nfill \"#000000\"\n", "names itself"),
         (
-            "a = \"$b\"\nb = \"$a\"\nfill = \"#000000\"\n",
-            "names itself",
-        ),
-        (
-            "other = \"lighten($nowhere, 0.1)\"\nfill = \"#000000\"\n",
+            "other \"lighten($nowhere, 0.1)\"\nfill \"#000000\"\n",
             "no theme gives a value named `nowhere`",
         ),
         (
-            "fill = \"mix(#000000, #ffffff)\"\n",
+            "fill \"mix(#000000, #ffffff)\"\n",
             "`mix` takes two colors and a share",
         ),
-        ("fill = \"glow(#000000, 1)\"\n", "no color function `glow`"),
-        ("fill = \"lighten(#000000, much)\"\n", "`much` is no share"),
+        ("fill \"glow(#000000, 1)\"\n", "no color function `glow`"),
+        ("fill \"lighten(#000000, much)\"\n", "`much` is no share"),
     ];
-    for (theme, expected) in cases {
-        let error = computed(&[("bad.theme", theme)]).expect_err(theme);
+    for (colors, expected) in cases {
+        let error = computed(&[("bad.theme", &theme(colors))]).expect_err(colors);
         assert!(error.contains("bad.theme"), "{error}");
-        assert!(error.contains(expected), "{theme}: {error}");
+        assert!(error.contains(expected), "{colors}: {error}");
     }
 }

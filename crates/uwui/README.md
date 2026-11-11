@@ -36,10 +36,13 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   (`tree::Element`) are boxes, labels, parts of images, buttons, boxes that scroll, lists that build
   and lay out only the rows that show, and fields of text and of numbers, each with its classes.
 - `theme::StyleSheet` holds rules that select elements by kind, classes, key, states and ancestor
-  and set a part of their style, and `theme::Theme` the named values that the rules give, which
-  may name each other and compute colors in OKLCH (`mix`, `lighten`, `darken`, `alpha`), read
-  from their text or their cooked binary encoding; `Ui::set_style` styles an interface with them,
-  its themes stacked, the last that gives a name giving its value
+  and set a part of their style, read from their text or their cooked binary encoding, TOML until
+  M6d.3b2; `theme::Theme` holds the named values that the rules give, a document of KDL whose
+  groups give each value its kind, a color, a length, a duration, a number or a text, which may
+  name each other and compute colors in OKLCH (`mix`, `lighten`, `darken`, `alpha`)
+  (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`). `Ui::set_style`
+  styles an interface with them, its themes stacked, the last that gives a name giving its value,
+  their errors each at its line, gathered (`DocumentErrors`)
   (`docs/adr/0149-the-looks-foundations.md`). A rule becomes a list of typed
   declarations, which the cascade applies to a `Style` without reflection; a rule sets a color
   whole, and a rule for a kind sets only what that kind reads of a style
@@ -97,8 +100,8 @@ Its logo is not under the code's licenses: its author keeps its rights, and
   that name commands, in scopes, the classes of the elements around the focus; `Ui::set_shortcuts`
   takes them. A chord may name a button of the mouse, whose command the program reads,
   `Ui::button_command`, as the editor reads which button orbits its viewport
-  (`docs/adr/0160-two-viewports-and-blenders-way.md`). Its errors and the style sheets' are a
-  `DocumentError`.
+  (`docs/adr/0160-two-viewports-and-blenders-way.md`). Its errors are a `DocumentError`; the
+  style sheets' and themes', `DocumentErrors`.
 - A field (`Element::text_field`, `Element::text_area`, `Element::number_field`) keeps what the
   user types, selects with the keys and the pointer, undoes, copies and pastes through the clipboard
   that the program gives (`tree::Clipboard`, `Ui::set_clipboard`), which the program reads and
@@ -234,8 +237,9 @@ Its logo is not under the code's licenses: its author keeps its rights, and
 parley, fontique and swash, the text; taffy, the tree's flexbox and grid, run through its traits on
 the tree's arena; their types stay inside the crate (`docs/adr/0132-the-engines-ui-framework.md`).
 icu_properties, for the writing system of a character; `slime-color`, the colors of the styles and
-the display list; `slime-reflect` and `slime-serialize`, the styles described and the style sheets,
-themes and shortcuts read, until M6d.3; `uwui-macros`, the derive of the styles' declarations
+the display list; `uwui-kdl`, the reader of its documents in KDL, its themes today; `slime-reflect`
+and `slime-serialize`, the styles described and the style sheets and shortcuts read, until M6d.3b2
+and M6d.3c; `uwui-macros`, the derive of the styles' declarations
 (`docs/adr/0229-styles-typed-as-declarations.md`); `slime-input`, the input it takes; thiserror and
 tracing. No other engine
 crate: text is laid out and rasterized on the CPU, `uwui-render` draws the display list, a

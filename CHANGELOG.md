@@ -36,6 +36,16 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   a `std::time::Duration` in place of seconds. The core's roles are public tokens,
   `uwui::theme::ACCENT` and the others. A theme's value that a rule names and that is not a finite
   number refuses the themes too.
+- uwui's themes are KDL (ADR-0241): a theme gives its values in groups of their kinds,
+  `color { accent "#4C8DFF" }`, `length { space_m 8 }`, `duration { fast (ms)120 }`,
+  `number { weight_control 500 }`, `text { tick "\u{E06C}" }`, a name once in a theme, a duration
+  with its unit; files end in `.theme.kdl`. A name keeps the kind that the first theme of a stack
+  gave it; a theme gives no shadow nor colour by its channels; a share that a colour function names
+  is a `number`. `Theme::from_binary` is gone: a cooked theme is its text, which `slime-cook`
+  checks and which `CookedAssets::theme` gives, and the cooker refuses a `.theme` file of TOML.
+  `Ui::set_style` gives every error found, each at its line, as `DocumentErrors`;
+  `DocumentError::error` is a `Fault`, of KDL or of reflection. Style sheets stay TOML until
+  M6d.3b2.
 - Compiling within its budgets (ADR-0221): dependencies are optimised at the first level in debug
   builds; the Nix shell links with mold on Linux; the examples' editor's Play builds `world` with
   the workspace's features, which share every engine crate with the editor's.

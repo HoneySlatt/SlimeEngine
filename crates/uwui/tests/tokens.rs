@@ -61,7 +61,10 @@ fn style(ui: &Ui, id: ElementId) -> &Style {
 
 #[test]
 fn each_kind_of_token_sets_its_leaves_from_the_themes() {
-    let given = theme("test_face = \"#2BB673\"\ntest_gap = 12\ntest_dim = 0.25\ntest_fade = 0.3\n");
+    let given = theme(
+        "color {\n    test_face \"#2BB673\"\n}\nlength {\n    test_gap 12\n}\n\
+         number {\n    test_dim 0.25\n}\nduration {\n    test_fade (ms)300\n}\n",
+    );
     let element = Element::container().style(|s| {
         s.background(FACE)
             .padding(GAP)
@@ -88,7 +91,7 @@ fn a_token_that_the_themes_lack_takes_its_fallback() {
             .opacity(DIM)
             .transition_duration(FADE)
     });
-    let accent = theme("accent = \"#123456\"\n");
+    let accent = theme("color {\n    accent \"#123456\"\n}\n");
     let (ui, ids) = styled(&[accent], vec![element]);
     let style = style(&ui, ids[0]);
     // A fallback in sRGB is decoded as a theme's `"#FFB000"` is.
@@ -103,16 +106,25 @@ fn a_token_that_the_themes_lack_takes_its_fallback() {
 #[test]
 fn a_fallback_that_names_a_token_lacking_takes_that_tokens_fallback_or_its_value() {
     let echo = Element::container().style(|s| s.background(ECHO));
-    let (ui, ids) = styled(&[theme("accent = \"#123456\"\n")], vec![echo.clone()]);
+    let (ui, ids) = styled(
+        &[theme("color {\n    accent \"#123456\"\n}\n")],
+        vec![echo.clone()],
+    );
     assert_eq!(style(&ui, ids[0]).paint.background, srgb(0xFFB000));
-    let (ui, ids) = styled(&[theme("test_face = \"#2BB673\"\n")], vec![echo]);
+    let (ui, ids) = styled(
+        &[theme("color {\n    test_face \"#2BB673\"\n}\n")],
+        vec![echo],
+    );
     assert_eq!(style(&ui, ids[0]).paint.background, srgb(0x2BB673));
 }
 
 #[test]
 fn a_token_named_in_a_state_reads_the_themes_too() {
     let button = Element::button("Save").style(|s| s.hover(|s| s.background(FACE)));
-    let (mut ui, ids) = styled(&[theme("test_face = \"#2BB673\"\n")], vec![button]);
+    let (mut ui, ids) = styled(
+        &[theme("color {\n    test_face \"#2BB673\"\n}\n")],
+        vec![button],
+    );
     let state = ElementState {
         hovered: true,
         ..ui.state(ids[0]).expect("an element")
@@ -132,7 +144,7 @@ fn a_token_and_a_literal_share_no_style_whatever_their_values() {
     let transparent =
         Element::button("A").style(|s| s.background(LinearColor::rgba(0.0, 0.0, 0.0, 0.0)));
     let face = Element::button("A").style(|s| s.background(FACE));
-    let given = theme("test_gap = 9\ntest_face = \"#2BB673\"\n");
+    let given = theme("length {\n    test_gap 9\n}\ncolor {\n    test_face \"#2BB673\"\n}\n");
     let (ui, ids) = styled(&[given], vec![literal, token, transparent, face]);
     assert_eq!(style(&ui, ids[0]).layout.padding.start, 0.0);
     assert_eq!(style(&ui, ids[1]).layout.padding.start, 9.0);
@@ -146,7 +158,7 @@ fn a_change_of_themes_gives_a_token_its_new_value_and_leaves_a_literal() {
     let literal = Element::container().style(|s| s.padding(5.0));
     let (mut ui, ids) = styled(&[], vec![token, literal]);
     assert_eq!(style(&ui, ids[0]).layout.padding.start, 5.0);
-    ui.set_style(&[], &[theme("test_gap = 9\n")])
+    ui.set_style(&[], &[theme("length {\n    test_gap 9\n}\n")])
         .expect("a valid theme");
     ui.frame();
     assert_eq!(style(&ui, ids[0]).layout.padding.start, 9.0);
@@ -157,7 +169,7 @@ fn a_change_of_themes_gives_a_token_its_new_value_and_leaves_a_literal() {
 fn a_token_that_no_list_declared_takes_its_fallback_the_themes_unread() {
     const LOOSE: Token<Length> = Token::new("test_loose", Fallback::Value(7.0));
     let element = Element::container().style(|s| s.padding(LOOSE));
-    let (ui, ids) = styled(&[theme("test_loose = 30\n")], vec![element]);
+    let (ui, ids) = styled(&[theme("length {\n    test_loose 30\n}\n")], vec![element]);
     assert_eq!(style(&ui, ids[0]).layout.padding.start, 7.0);
 }
 
@@ -165,7 +177,7 @@ fn a_token_that_no_list_declared_takes_its_fallback_the_themes_unread() {
 fn a_list_declared_after_the_themes_is_read_at_their_next_giving() {
     const LATE: Token<Length> = Token::new("test_late", Fallback::Value(7.0));
     const LATE_TOKENS: Tokens = Tokens::new(&[&LATE]);
-    let given = theme("test_late = 30\n");
+    let given = theme("length {\n    test_late 30\n}\n");
     let element = Element::container().style(|s| s.padding(LATE));
     let (mut ui, ids) = styled(std::slice::from_ref(&given), vec![element]);
     assert_eq!(style(&ui, ids[0]).layout.padding.start, 7.0);
@@ -177,35 +189,55 @@ fn a_list_declared_after_the_themes_is_read_at_their_next_giving() {
 
 #[test]
 fn a_value_of_another_kind_not_finite_or_a_negative_duration_refuses_the_themes() {
-    for (text, why) in [
-        ("test_face = 12\n", "a number for a color"),
-        ("test_gap = \"#FFFFFF\"\n", "a color for a length"),
-        ("test_gap = nan\n", "a length that is no number"),
-        ("test_dim = inf\n", "a number without bounds"),
-        ("test_fade = -0.1\n", "a negative duration"),
+    for (text, why, said) in [
         (
-            "size = \"#FFFFFF\"\ntest_gap = \"$size\"\n",
+            "number {\n    test_face 12\n}\n",
+            "a number for a color",
+            "`test_face` is a token, a color that code reads: the themes give it as a number",
+        ),
+        (
+            "color {\n    test_gap \"#FFFFFF\"\n}\n",
+            "a color for a length",
+            // The theme kept, below it, gave `test_gap` as a length first.
+            "`test_gap` is a color here, but a length in `test.theme`",
+        ),
+        (
+            "length {\n    test_gap #nan\n}\n",
+            "a length that is no number",
+            "`test_gap`: a number that is not finite",
+        ),
+        (
+            "number {\n    test_dim #inf\n}\n",
+            "a number without bounds",
+            "`test_dim`: a number that is not finite",
+        ),
+        (
+            "duration {\n    test_fade (s)-0.1\n}\n",
+            "a negative duration",
+            "`test_fade`: a duration is never negative",
+        ),
+        (
+            "color {\n    size \"#FFFFFF\"\n}\nlength {\n    test_gap $size\n}\n",
             "a name of a color for a length",
+            "`test_gap` names `size`, which is a color, not a length",
         ),
     ] {
         let mut ui = Ui::new(Fonts::new());
         ui.declare_tokens(&TOKENS).expect("names of their own");
-        let kept = theme("test_gap = 3\n");
+        let kept = theme("length {\n    test_gap 3\n}\n");
         ui.set_style(&[], std::slice::from_ref(&kept))
             .expect("a valid theme");
         let error = ui
             .set_style(&[], &[kept, Theme::from_text("wrong.theme", text)])
             .expect_err(why);
-        assert_eq!(error.document, "wrong.theme", "{why}: the theme at fault");
-        let said = error.to_string();
-        let name = text
-            .lines()
-            .last()
-            .and_then(|line| line.split(' ').next())
-            .expect("a name");
+        assert_eq!(
+            error.errors()[0].document,
+            "wrong.theme",
+            "{why}: the theme at fault"
+        );
         assert!(
-            said.contains(name) && said.contains("token"),
-            "{why}: the error names the token: {said}"
+            error.to_string().contains(said),
+            "{why}: the error says why: {error}"
         );
         // The interface keeps the style it had.
         let settings = RootSettings {
@@ -264,7 +296,10 @@ fn a_name_declared_by_two_lists_is_refused_and_one_token_declared_again_is_one()
     );
     // A list refused declares none of its tokens: `test_gap` stays undeclared.
     fresh
-        .set_style(&[] as &[StyleSheet], &[theme("test_gap = 30\n")])
+        .set_style(
+            &[] as &[StyleSheet],
+            &[theme("length {\n    test_gap 30\n}\n")],
+        )
         .expect("a valid theme");
     let settings = RootSettings {
         size: [100.0, 100.0],
@@ -284,7 +319,11 @@ fn a_rule_that_names_a_number_that_is_not_finite_refuses_the_themes() {
         "test.style",
         "[box]\nselect = { kind = \"Container\" }\nstyle.layout.padding.top = \"$space\"\n",
     );
-    for text in ["space = nan\n", "space = inf\n", "space = -inf\n"] {
+    for text in [
+        "length {\n    space #nan\n}\n",
+        "length {\n    space #inf\n}\n",
+        "length {\n    space #-inf\n}\n",
+    ] {
         let mut ui = Ui::new(Fonts::new());
         let error = ui
             .set_style(
@@ -298,7 +337,7 @@ fn a_rule_that_names_a_number_that_is_not_finite_refuses_the_themes() {
         );
     }
     let mut ui = Ui::new(Fonts::new());
-    ui.set_style(&[sheet], &[theme("space = 4\n")])
+    ui.set_style(&[sheet], &[theme("length {\n    space 4\n}\n")])
         .expect("a finite number");
 }
 
@@ -307,8 +346,10 @@ fn two_calls_of_style_each_read_their_own_tokens() {
     let element = Element::container()
         .style(|s| s.padding_top(GAP).background(FACE))
         .style(|s| s.padding_bottom(GAP).border_color(RING).opacity(DIM));
-    let given =
-        theme("test_gap = 10\ntest_face = \"#2BB673\"\naccent = \"#123456\"\ntest_dim = 0.25\n");
+    let given = theme(
+        "length {\n    test_gap 10\n}\ncolor {\n    test_face \"#2BB673\"\n    accent \"#123456\"\n}\n\
+         number {\n    test_dim 0.25\n}\n",
+    );
     let (ui, ids) = styled(&[given], vec![element]);
     let style = style(&ui, ids[0]);
     assert_eq!(
@@ -329,8 +370,11 @@ fn an_element_built_again_naming_another_token_takes_its_value() {
     let mut ui = Ui::new(Fonts::new());
     ui.declare_tokens(&TOKENS).expect("names of their own");
     ui.declare_tokens(&OTHER_TOKENS).expect("a name of its own");
-    ui.set_style(&[], &[theme("test_gap = 10\ntest_other = 20\n")])
-        .expect("a valid theme");
+    ui.set_style(
+        &[],
+        &[theme("length {\n    test_gap 10\n    test_other 20\n}\n")],
+    )
+    .expect("a valid theme");
     let settings = RootSettings {
         size: [100.0, 100.0],
         scale: 1.0,
@@ -359,7 +403,7 @@ fn a_token_that_no_list_declared_takes_a_declared_tokens_value_that_its_fallback
     const LOOSE_ECHO: Token<Color> = Token::new("test_loose_echo", Fallback::Token(&LOOSE_RING));
     let ring = Element::container().style(|s| s.background(LOOSE_RING));
     let echo = Element::container().style(|s| s.background(LOOSE_ECHO));
-    let given = theme("accent = \"#123456\"\ntest_loose_ring = \"#2BB673\"\n");
+    let given = theme("color {\n    accent \"#123456\"\n    test_loose_ring \"#2BB673\"\n}\n");
     let (ui, ids) = styled(&[given], vec![ring, echo]);
     // The themes are read for the tokens declared alone: `test_loose_ring`'s value is unread.
     assert_eq!(style(&ui, ids[0]).paint.background, srgb(0x123456));
@@ -370,7 +414,7 @@ fn a_token_that_no_list_declared_takes_a_declared_tokens_value_that_its_fallback
 fn a_token_of_a_declared_name_and_another_kind_takes_its_own_fallback() {
     const WRONG_KIND: Token<Color> = Token::new("test_gap", Fallback::Srgb(0xFFB000));
     let element = Element::container().style(|s| s.background(WRONG_KIND).padding(GAP));
-    let (ui, ids) = styled(&[theme("test_gap = 10\n")], vec![element]);
+    let (ui, ids) = styled(&[theme("length {\n    test_gap 10\n}\n")], vec![element]);
     assert_eq!(style(&ui, ids[0]).paint.background, srgb(0xFFB000));
     assert_eq!(style(&ui, ids[0]).layout.padding.start, 10.0);
 }
@@ -390,7 +434,7 @@ fn a_list_whose_static_tokens_fall_back_in_a_cycle_is_refused() {
     // Named by an own style undeclared, it takes a length that holds nothing, and the program goes
     // on.
     let element = Element::container().style(|s| s.padding(LOOP_A));
-    ui.set_style(&[], &[theme("test_gap = 10\n")])
+    ui.set_style(&[], &[theme("length {\n    test_gap 10\n}\n")])
         .expect("a valid theme");
     let settings = RootSettings {
         size: [100.0, 100.0],
@@ -413,7 +457,7 @@ fn a_duration_too_long_to_hold_is_refused_and_told_so() {
     let mut ui = Ui::new(Fonts::new());
     ui.declare_tokens(&TOKENS).expect("names of their own");
     let error = ui
-        .set_style(&[], &[theme("test_fade = 1e30\n")])
+        .set_style(&[], &[theme("duration {\n    test_fade (s)1e30\n}\n")])
         .expect_err("a duration past what a time holds");
     assert!(error.to_string().contains("too long"), "{error}");
 }

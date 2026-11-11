@@ -52,11 +52,11 @@ fn sentinel(role: Token<Color>) -> LinearColor {
 
 /// A theme that gives each role its sentinel, under its name as written in [`SENTINELS`].
 fn sentinels() -> Theme {
-    let text: String = SENTINELS
+    let colors: String = SENTINELS
         .iter()
-        .map(|(_, name, hex)| format!("{name} = \"#{hex:06X}\"\n"))
+        .map(|(_, name, hex)| format!("    {name} \"#{hex:06X}\"\n"))
         .collect();
-    Theme::from_text("sentinels.theme", text)
+    Theme::from_text("sentinels.theme", format!("color {{\n{colors}}}\n"))
 }
 
 /// An interface styled by the sentinels alone, each role checked to take its sentinel, under its
@@ -358,7 +358,7 @@ fn an_interface_given_no_theme_takes_the_fallbacks_and_is_warned_of_nothing() {
 #[test]
 fn a_role_that_the_themes_lack_takes_its_fallback_and_is_warned_of_once() {
     let mut ui = Ui::new(Fonts::new());
-    let accent = Theme::from_text("accent.theme", "accent = \"#2BB673\"\n");
+    let accent = Theme::from_text("accent.theme", "color {\n    accent \"#2BB673\"\n}\n");
     ui.set_style(&[], std::slice::from_ref(&accent))
         .expect("a theme of one color");
     let green = LinearColor::from_srgb8(0x2B, 0xB6, 0x73);
@@ -382,28 +382,36 @@ fn a_role_given_a_value_of_another_type_refuses_the_themes() {
     let mut ui = Ui::new(Fonts::new());
     ui.set_style(&[], &[sentinels()]).expect("the sentinels");
     let before = ui.tokens.clone();
-    for (text, why) in [
-        ("accent = 12\n", "a number"),
-        ("size = 12\naccent = \"$size\"\n", "a name of a number"),
-        ("accent = \"twelve\"\n", "a text that is no color"),
+    // A theme's color is written in sRGB, a name or a function: none can be a channel that is no
+    // finite number, which the form by channels allowed (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
+    for (text, why, said) in [
         (
-            "accent = { r = nan, g = 0.0, b = 0.0, a = 1.0 }\n",
-            "a color that is not a number",
+            "number {\n    accent 12\n}\n",
+            "a number",
+            // The sentinels, below it, gave `accent` as a color first.
+            "`accent` is a number here, but a color in `sentinels.theme`",
         ),
         (
-            "accent = { r = inf, g = 0.0, b = 0.0, a = 1.0 }\n",
-            "a color without bounds",
+            "number {\n    size 12\n}\ncolor {\n    accent $size\n}\n",
+            "a name of a number",
+            "`accent` names `size`, which is a number, not a color",
+        ),
+        (
+            "color {\n    accent twelve\n}\n",
+            "a text that is no color",
+            "`accent`: `twelve` is no color",
         ),
     ] {
         let error = ui
             .set_style(&[], &[sentinels(), Theme::from_text("wrong.theme", text)])
             .expect_err(why);
-        assert_eq!(error.document, "wrong.theme", "{why}: the theme at fault");
-        let said = error.to_string();
-        assert!(
-            said.contains("accent") && said.contains("role"),
-            "{why}: the error names the role: {said}"
+        assert_eq!(
+            error.errors()[0].document,
+            "wrong.theme",
+            "{why}: the theme at fault"
         );
+        let error = error.to_string();
+        assert!(error.contains(said), "{why}: the error says why: {error}");
         assert_eq!(ui.tokens, before, "{why}: the roles that it had kept");
     }
 }

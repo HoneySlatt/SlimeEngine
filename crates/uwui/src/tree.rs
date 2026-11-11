@@ -12,7 +12,7 @@ use std::time::Duration;
 use slime_color::LinearColor;
 use slime_reflect::Registry;
 
-use crate::DocumentError;
+use crate::DocumentErrors;
 use crate::Rect;
 use crate::display::{DisplayList, ImageKey, ImageKind, Primitive};
 use crate::layout;
@@ -1556,18 +1556,21 @@ impl Ui {
     ///
     /// # Errors
     ///
-    /// [`DocumentError`] if a style sheet or a theme is not a document of their types, names a
-    /// value that no theme gives or that holds another type, a value names itself through others,
-    /// a color function is given what it does not take, a value that a rule or a token reads is a
-    /// number that is not finite, a theme gives a declared token a value that is not of its kind
-    /// or a negative duration, a rule sets some of a color's
-    /// channels and not all, or a rule that names a kind sets
-    /// what that kind does not read ([`theme`]): the interface keeps the style it had.
+    /// [`DocumentErrors`], each error at its line, the errors of every document gathered: if a
+    /// theme is not a document of KDL, gives a value outside its groups or not of its group's
+    /// kind, gives a name twice, or in another group than a theme below it gave it, writes
+    /// `#null`, a duration without its unit or negative, a unit on a name, a number that is not
+    /// finite, names a value that no theme gives or of another kind, a chain of names that comes
+    /// back to itself or passes 64 names, or a color function unknown, given what it does not take
+    /// or nested past eight; if a theme gives a declared token a value of another group; if a style
+    /// sheet is not a document of its types, names a value that no theme gives or of a kind that its
+    /// field does not hold, sets some of a color's channels and not all, or a rule that names a kind
+    /// sets what that kind does not read ([`theme`]): the interface keeps the style it had.
     pub fn set_style(
         &mut self,
         sheets: &[StyleSheet],
         themes: &[Theme],
-    ) -> Result<(), DocumentError> {
+    ) -> Result<(), DocumentErrors> {
         let styling = theme::read(
             &self.registry,
             sheets,

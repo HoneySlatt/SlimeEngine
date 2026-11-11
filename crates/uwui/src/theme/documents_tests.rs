@@ -19,18 +19,24 @@ const EXAMPLE_SHEET: Named = (
 );
 
 /// The look's themes, and the `interface` example's.
-const BASE: Named = ("base.theme", include_str!("../../look/base.theme"));
-const DARK: Named = ("dark.theme", include_str!("../../look/dark.theme"));
-const LIGHT: Named = ("light.theme", include_str!("../../look/light.theme"));
-const CONTRAST: Named = ("contrast.theme", include_str!("../../look/contrast.theme"));
-const COMPACT: Named = ("compact.theme", include_str!("../../look/compact.theme"));
+const BASE: Named = ("base.theme", include_str!("../../look/base.theme.kdl"));
+const DARK: Named = ("dark.theme", include_str!("../../look/dark.theme.kdl"));
+const LIGHT: Named = ("light.theme", include_str!("../../look/light.theme.kdl"));
+const CONTRAST: Named = (
+    "contrast.theme",
+    include_str!("../../look/contrast.theme.kdl"),
+);
+const COMPACT: Named = (
+    "compact.theme",
+    include_str!("../../look/compact.theme.kdl"),
+);
 const EXAMPLE_DARK: Named = (
     "example dark.theme",
-    include_str!("../../../../examples/assets/ui/dark.theme"),
+    include_str!("../../../../examples/assets/ui/dark.theme.kdl"),
 );
 const EXAMPLE_LIGHT: Named = (
     "example light.theme",
-    include_str!("../../../../examples/assets/ui/light.theme"),
+    include_str!("../../../../examples/assets/ui/light.theme.kdl"),
 );
 
 /// The `interface` example's own tokens, as `examples/interface.rs` declares them, their fallbacks
@@ -70,7 +76,7 @@ fn lines() -> String {
             .collect();
         let mut tokens = TokenValues::default();
         let styling = super::read(&super::registry(), &sheets, &themes, &declared, &mut tokens)
-            .unwrap_or_else(|error| panic!("{sheet_name} over {names:?}: {error}"));
+            .unwrap_or_else(|error| panic!("{sheet_name} over {names:?}:\n{error}"));
         for token in &declared {
             let value = tokens.value(token);
             out.push_str(&format!("token {} {value:?}\n", token.name));

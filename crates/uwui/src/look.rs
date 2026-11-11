@@ -45,7 +45,10 @@
 //! let mut ui = Ui::new(fonts);
 //! let mut themes = look::themes(Colors::Dark, Density::Comfortable);
 //! // A project's accent, which the hovers, the soft fills and the focus follow.
-//! themes.push(Theme::from_text("project.theme", "accent = \"#2BB673\"\n"));
+//! themes.push(Theme::from_text(
+//!     "project.theme.kdl",
+//!     "color { accent \"#2BB673\" }\n",
+//! ));
 //! ui.set_style(&[look::style_sheet()], &themes)
 //!     .expect("the look's documents are valid");
 //! ```
@@ -148,17 +151,20 @@ pub enum Density {
 pub fn themes(colors: Colors, density: Density) -> Vec<Theme> {
     let theme = |name: &str, text: &str| Theme::from_text(format!("crates/uwui/look/{name}"), text);
     let mut themes = vec![
-        theme("base.theme", include_str!("../look/base.theme")),
+        theme("base.theme.kdl", include_str!("../look/base.theme.kdl")),
         match colors {
-            Colors::Dark => theme("dark.theme", include_str!("../look/dark.theme")),
-            Colors::Light => theme("light.theme", include_str!("../look/light.theme")),
-            Colors::HighContrast => theme("contrast.theme", include_str!("../look/contrast.theme")),
+            Colors::Dark => theme("dark.theme.kdl", include_str!("../look/dark.theme.kdl")),
+            Colors::Light => theme("light.theme.kdl", include_str!("../look/light.theme.kdl")),
+            Colors::HighContrast => theme(
+                "contrast.theme.kdl",
+                include_str!("../look/contrast.theme.kdl"),
+            ),
         },
     ];
     if density == Density::Compact {
         themes.push(theme(
-            "compact.theme",
-            include_str!("../look/compact.theme"),
+            "compact.theme.kdl",
+            include_str!("../look/compact.theme.kdl"),
         ));
     }
     themes

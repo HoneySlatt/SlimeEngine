@@ -16,5 +16,5 @@ pub mod text;
 pub mod theme;
 pub mod tree;
 
-pub use document::DocumentError;
+pub use document::{DocumentError, DocumentErrors, Fault};
 pub use rect::Rect;

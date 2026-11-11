@@ -38,6 +38,8 @@ taffy.workspace = true
 thiserror.workspace = true
 # A warning when a stack names a family that the fonts lack (ADR-0008).
 tracing.workspace = true
+# uwui's reader of KDL, the notation of its documents (ADR-0241).
+uwui-kdl.workspace = true
 # The declarations of the styles, which the cascade applies (ADR-0229).
 uwui-macros.workspace = true
 

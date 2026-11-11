@@ -3094,6 +3094,7 @@ dependencies = [
  "slime-world",
  "thiserror 2.0.21",
  "uuid",
+ "uwui-kdl",
  "zune-jpeg",
 ]
 
@@ -3731,6 +3732,7 @@ dependencies = [
  "taffy",
  "thiserror 2.0.21",
  "tracing",
+ "uwui-kdl",
  "uwui-macros",
 ]
 

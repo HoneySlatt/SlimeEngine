@@ -616,13 +616,12 @@ fn theme(light: bool) -> Theme {
         ("#e3e5e8", "#9aa0a6", "#3a3d43", "#4e525a", "#26282c")
     };
     Theme::from_text(
-        "editor.theme",
+        "editor.theme.kdl",
         format!(
-            "text = \"{text}\"\nmuted = \"{muted}\"\nbutton = \"{button}\"\n\
-             border = \"{border}\"\npanel = \"{panel}\"\n\
-             canvas_text = \"$text\"\ngray_text = \"$muted\"\nbutton_face = \"$button\"\n\
-             accent = \"#4c6ef5\"\nhighlight = \"$accent\"\nhighlight_text = \"$text\"\n\
-             focus = \"$accent\"\n"
+            "color {{\n    text \"{text}\"\n    muted \"{muted}\"\n    button \"{button}\"\n\
+             \x20   border \"{border}\"\n    panel \"{panel}\"\n    canvas_text $text\n\
+             \x20   gray_text $muted\n    button_face $button\n    accent \"#4c6ef5\"\n\
+             \x20   highlight $accent\n    highlight_text $text\n    focus $accent\n}}\n"
         ),
     )
 }
@@ -907,8 +906,8 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     // reads their values again (`docs/adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md`).
     let mut named_themes = themes(Colors::Dark);
     named_themes.push(Theme::from_text(
-        "tree.theme",
-        "tree_space = \"$space_s\"\n",
+        "tree.theme.kdl",
+        "length {\n    tree_space $space_s\n}\n",
     ));
     let mut named = Editor::styled_with(
         fonts(),
@@ -921,8 +920,8 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     named.ui.frame();
     let mut light_themes = themes(Colors::Light);
     light_themes.push(Theme::from_text(
-        "tree.theme",
-        "tree_space = \"$space_s\"\n",
+        "tree.theme.kdl",
+        "length {\n    tree_space $space_s\n}\n",
     ));
     named
         .ui
@@ -995,8 +994,10 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
     let mut changed = Vec::new();
     let mut transitions = Vec::new();
     let mut resizes = Vec::new();
+    let mut readings = Vec::new();
     for _ in 0..runs {
-        restyle(&mut editor);
+        let ((), read) = timed(|| restyle(&mut editor));
+        readings.push(read);
         let (_, took) = timed(|| black_box(change(&mut editor)));
         changed.push(took);
         transitions.push(settle(&mut editor)?.1);
@@ -1076,6 +1077,10 @@ pub fn look_tree(context: &mut Context) -> Result<Vec<Row>, String> {
             (first_per_element * 100.0).ceil() / 100.0,
         ),
     ];
+    rows.extend(Row::times(
+        "the look's documents read, its sheet and its themes, by `Ui::set_style`",
+        &readings,
+    ));
     rows.extend(Row::times(
         "a frame after the look's colours changed, every element styled again",
         &changed,

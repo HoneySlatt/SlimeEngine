@@ -348,7 +348,7 @@ impl Interface {
                 .map_or_else(|| id.to_string(), |entry| entry.source.clone())
         };
         let sheet = StyleSheet::from_binary(name(STYLE), self.assets.style_sheet(STYLE)?);
-        let theme = Theme::from_binary(name(theme), self.assets.theme(theme)?);
+        let theme = Theme::from_text(name(theme), String::from_utf8(self.assets.theme(theme)?)?);
         self.ui.set_style(&[sheet], std::slice::from_ref(&theme))?;
         let keys = Shortcuts::from_binary(name(KEYS), self.assets.shortcuts(KEYS)?);
         self.ui.set_shortcuts(&[keys])?;

@@ -15,9 +15,21 @@ use crate::metadata;
 
 /// The extensions of the files that the pipeline imports, its *source files*, compared without
 /// regard to case: glTF scenes, as JSON with external files or as GLB, PNG and JPEG images, and
-/// scene files, and the interface's style sheets, themes and tables of shortcuts.
-pub const SOURCE_EXTENSIONS: [&str; 9] = [
-    "gltf", "glb", "png", "jpg", "jpeg", "scene", "style", "theme", "keys",
+/// scene files, and the interface's style sheets, themes and tables of shortcuts. An extension may
+/// hold a dot, `theme.kdl`, the end of a file's name after the dot before it: a theme is KDL, and
+/// a theme of TOML, `theme`, is a source that the cook refuses by its name
+/// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
+pub const SOURCE_EXTENSIONS: [&str; 10] = [
+    "gltf",
+    "glb",
+    "png",
+    "jpg",
+    "jpeg",
+    "scene",
+    "style",
+    "theme.kdl",
+    "theme",
+    "keys",
 ];
 
 /// The extension of metadata files, which follows the source file's whole name: `rock.png.meta`.
@@ -211,17 +223,31 @@ pub fn metadata_path(source: &Path) -> PathBuf {
     PathBuf::from(path)
 }
 
-/// Whether `path`'s extension, without regard to case, is `extension`.
+/// Whether `path`'s name ends, without regard to case, with a dot and `extension`, which may hold
+/// dots itself, after something else.
 fn has_extension(path: &Path, extension: &str) -> bool {
-    path.extension()
-        .and_then(|found| found.to_str())
-        .is_some_and(|found| found.eq_ignore_ascii_case(extension))
+    let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    name.len() > extension.len() + 1
+        && name
+            .get(name.len() - extension.len()..)
+            .is_some_and(|end| end.eq_ignore_ascii_case(extension))
+        && name.as_bytes()[name.len() - extension.len() - 1] == b'.'
+}
+
+/// The extension of `path` among [`SOURCE_EXTENSIONS`], as that list writes it, the longest that
+/// its name ends with: `theme.kdl` for `dark.theme.kdl`; none for a file that is no source.
+pub fn source_extension(path: &Path) -> Option<&'static str> {
+    SOURCE_EXTENSIONS
+        .iter()
+        .copied()
+        .filter(|extension| has_extension(path, extension))
+        .max_by_key(|extension| extension.len())
 }
 
 fn is_source(path: &Path) -> bool {
-    SOURCE_EXTENSIONS
-        .iter()
-        .any(|extension| has_extension(path, extension))
+    source_extension(path).is_some()
 }
 
 fn is_metadata(path: &Path) -> bool {

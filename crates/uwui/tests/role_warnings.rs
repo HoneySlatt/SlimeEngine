@@ -43,7 +43,7 @@ impl Subscriber for Warnings {
 #[test]
 fn each_role_that_the_themes_lack_is_warned_of_once() {
     let warnings = Arc::new(Warnings(AtomicUsize::new(0)));
-    let accent = Theme::from_text("accent.theme", "accent = \"#2BB673\"\n");
+    let accent = Theme::from_text("accent.theme", "color {\n    accent \"#2BB673\"\n}\n");
     tracing::subscriber::with_default(Arc::clone(&warnings), || {
         let mut ui = Ui::new(Fonts::new());
         ui.set_style(&[], &[]).expect("no theme");

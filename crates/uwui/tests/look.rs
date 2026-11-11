@@ -294,8 +294,8 @@ const APP_TOKENS: Tokens = Tokens::new(&[&APP_FACE, &APP_GAP]);
 #[test]
 fn a_token_follows_compact_and_high_contrast_where_a_number_written_in_code_stays() {
     let app = Theme::from_text(
-        "app.theme",
-        "app_face = \"$panel\"\napp_gap = \"$space_m\"\n",
+        "app.theme.kdl",
+        "color {\n    app_face $panel\n}\nlength {\n    app_gap $space_m\n}\n",
     );
     let mut faces = Vec::new();
     for colors in [Colors::Dark, Colors::HighContrast] {
@@ -371,7 +371,10 @@ fn what_code_writes_as_numbers_stays_under_high_contrast_and_compact() {
 #[test]
 fn a_project_s_accent_changes_every_color_that_follows_it() {
     let mut themes = look::themes(Colors::Dark, Density::Comfortable);
-    themes.push(Theme::from_text("project.theme", "accent = \"#2BB673\"\n"));
+    themes.push(Theme::from_text(
+        "project.theme.kdl",
+        "color {\n    accent \"#2BB673\"\n}\n",
+    ));
     let (mut ui, ids) = styled(&themes, every_kind());
     let check_box = ui.style(ids[3]).expect("styled").clone();
     assert_eq!(check_box.control.fill, srgb(0x2BB673));

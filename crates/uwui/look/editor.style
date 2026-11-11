@@ -1,7 +1,7 @@
 # The style sheet of the editor's look (docs/adr/0148-widgets.md,
 # docs/adr/0149-the-looks-foundations.md): each table is a rule, applied in the order of this file, that sets a part of the style of the
 # elements it selects (docs/adr/0141-style-sheets-and-themes.md). Its values come from the look's
-# themes, `base.theme` and a theme of colors stacked on it, which name them for it. Text is in Geist,
+# themes, `base.theme.kdl` and a theme of colors stacked on it, which name them for it. Text is in Geist,
 # its digits of one width, and in Geist Mono where an element holds the class `fixed`. Changes move
 # over the base theme's durations. Elements that take the focus show it to the keyboard by the color
 # of a border of one pixel that they always keep, transparent until then for those that show none

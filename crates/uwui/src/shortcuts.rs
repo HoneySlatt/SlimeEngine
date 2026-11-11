@@ -45,6 +45,7 @@ use slime_input::{Key, KeyEvent, Modifiers, MouseButton, NamedKey};
 use slime_reflect::{Problem, Registry, Value};
 
 use crate::DocumentError;
+use crate::document::Fault;
 use crate::document::Source;
 
 /// A table of shortcuts, read when an interface takes it
@@ -260,7 +261,7 @@ pub(crate) fn bindings(tables: &[Shortcuts]) -> Result<Vec<Binding>, DocumentErr
     for table in tables {
         let fault = |error| DocumentError {
             document: table.name.clone(),
-            error,
+            error: Fault::Reflected(error),
         };
         let mut document = table.source.parse(&registry).map_err(fault)?;
         for scope in document.keys(&[]) {

@@ -17,17 +17,21 @@ images beside them or GLB, into meshes, with MikkTSpace tangents when they have 
 scenes, and cooks the textures their materials read in the roles they read them; their nodes'
 `slime:<type name>` properties become typed components. It cooks scene files into the engine's
 binary encoding of documents, after it checks them
-([ADR-0095](../../docs/adr/0095-cooked-scene-files.md)), and the interface's style sheets, themes
-and tables of shortcuts, `.style`, `.theme` and `.keys` files, their syntax checked
+([ADR-0095](../../docs/adr/0095-cooked-scene-files.md)), and the interface's style sheets and
+tables of shortcuts, `.style` and `.keys` files, their syntax checked
 ([ADR-0141](../../docs/adr/0141-style-sheets-and-themes.md),
-[ADR-0142](../../docs/adr/0142-input-and-focus.md)). It cooks a directory again each time
+[ADR-0142](../../docs/adr/0142-input-and-focus.md)). It cooks the interface's themes, `.theme.kdl`
+files, as their text, their syntax and limits checked by uwui's reader of KDL, so that an error
+keeps its line; a theme of TOML, `.theme`, is refused by its name
+([ADR-0241](../../docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). It cooks a directory again each time
 one of its files changes, for games that load their data again while they run
 ([ADR-0076](../../docs/adr/0076-hot-reload-of-cooked-data.md)).
 
 ## Role
 
-- Knows which files are sources: glTF scenes (`.gltf`, `.glb`), PNG and JPEG images, and scene
-  files (`.scene`).
+- Knows which files are sources: glTF scenes (`.gltf`, `.glb`), PNG and JPEG images, scene files
+  (`.scene`), and the interface's documents (`.style`, `.theme.kdl`, `.keys`), an extension
+  holding a dot where the end of a name has two parts.
 - Gives each source file a random ID the first time it meets it, in a *metadata file* beside it,
   `<file>.meta`, committed with it: a file moved or renamed with its metadata file keeps its ID.
 - Reports a metadata file left without its source, and two that hold one ID, as a file copied with
@@ -48,9 +52,10 @@ one of its files changes, for games that load their data again while they run
   not a scene, a parent missing, entities that would be each other's ancestors and scene files that
   place each other; warns of a path that a table gives where the source is not; writes their
   binary encoding, which needs the assets of their table.
-- Cooks the interface's style sheets, themes and tables of shortcuts into their binary encoding,
-  refusing by file and line a document that is not TOML; `uwui` checks their types when it
-  reads them.
+- Cooks the interface's style sheets and tables of shortcuts into their binary encoding,
+  refusing by file and line a document that is not TOML, and its themes as their text, refusing by
+  file and line one that is not KDL or passes the reader's limits; `uwui` checks their types when
+  it reads them.
 - Names each cooked file by the hash of all that made it, so that what is already cooked, and
   reads back whole, is not cooked again, and the same sources cook into the same bytes on one
   platform. Writes its files, and the metadata files it gives, under temporary names of the
@@ -88,7 +93,7 @@ whole or not at all, as the cooker writes its own, which the editor writes its l
 encodes scene files, and [`slime-reflect`](../slime-reflect/README.md), which describes what
 metadata files hold; [`slime-world`](../slime-world/README.md), which reads the layout of the scene
 files that it checks; [`slime-tasks`](../slime-tasks/README.md), the engine's task pool, on which
-it encodes textures. `uuid` for random
+it encodes textures; [`uwui-kdl`](../uwui-kdl/README.md), which checks the syntax of themes. `uuid` for random
 IDs, `blake3` to derive the IDs of sub-assets and name cooked files, `png` and `zune-jpeg` to decode
 images, `block_compression` to compress textures, `gltf` to read glTF files, `bevy_mikktspace` to
 compute tangents, `glam` for their vectors, `thiserror` for its error types.
