@@ -10,7 +10,7 @@
   by [0231](0231-an-elements-own-style-written-in-code.md) (an array is one leaf for each element;
   the own style is declarations, not a `Style`), then by
   [0232](0232-transitions-read-the-derives-colours-and-share-what-they-show.md) (the derive lists a
-  style's colours by a mark on each field; lengths come with the user's layer)
+  style's colours by a mark on each field; lengths come with the user's layer), then by [0238](0238-tokens-typed-named-in-code-declared-by-each-crate.md) (a declaration holds no payload: no token, no state, no origin)
 - Date: 2026-11-10
 
 ## Context

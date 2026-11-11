@@ -8,7 +8,7 @@
   (the same order, in its stack) and [0229](0229-styles-typed-as-declarations.md) (an array is one
   leaf for each element; the own style is declarations, not a `Style`); amended by
   [0232](0232-transitions-read-the-derives-colours-and-share-what-they-show.md) (M6d.2b2b cut in
-  three) and [0237](0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md) (the fourth step of the mask order is the size of text)
+  three) and [0237](0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md) (the fourth step of the mask order is the size of text), then by [0238](0238-tokens-typed-named-in-code-declared-by-each-crate.md) (a field of text named by a theme and `subsecond` leave M6d.2b2b)
 - Date: 2026-11-10
 
 ## Context

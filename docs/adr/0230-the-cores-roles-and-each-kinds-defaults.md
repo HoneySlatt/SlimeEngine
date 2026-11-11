@@ -5,7 +5,7 @@
   is refused), [0223](0223-styles-written-in-code-through-tokens.md) (a token is resolved when the
   interface takes its themes and read when an element is styled; the core declares the roles that
   its components' defaults read) and [0229](0229-styles-typed-as-declarations.md) (M6d.2b cut in
-  two; the derive's list of colours and a declaration's payload move to its second half)
+  two; the derive's list of colours and a declaration's payload move to its second half); amended by [0238](0238-tokens-typed-named-in-code-declared-by-each-crate.md) (the roles are public tokens)
 - Date: 2026-11-10
 
 ## Context

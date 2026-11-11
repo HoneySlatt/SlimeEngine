@@ -3,7 +3,7 @@
 - Status: Accepted; amends [0231](0231-an-elements-own-style-written-in-code.md) (M6d.2b2b cut in
   three: transitions first, then the user's layer, then tokens) and
   [0229](0229-styles-typed-as-declarations.md) (the derive lists a style's colours by a mark on each
-  field; lengths are listed with the user's layer); amended by [0237](0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md) (the derive lists no lengths)
+  field; lengths are listed with the user's layer); amended by [0237](0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md) (the derive lists no lengths) and [0238](0238-tokens-typed-named-in-code-declared-by-each-crate.md) (a field of text named by a theme and `subsecond` leave M6d.2b2b3)
 - Date: 2026-11-11
 
 ## Context
