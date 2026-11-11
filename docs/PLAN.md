@@ -29,9 +29,12 @@ documentation was updated and reread. Every milestone is also checked on Windows
   ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)); then
   [M6d.2b2a](stage-6d.md#m6d2b2a--an-elements-own-style-written-in-code), an element's own style
   written in code, the first half of [M6d.2b2](stage-6d.md#m6d2b2--styles-written-in-code), cut in
-  two at its start ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)). Next:
-  [M6d.2b2b](stage-6d.md#m6d2b2b--tokens-and-the-users-layer), tokens and the user's layer, its
-  questions put at its start.
+  two at its start ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)). In progress:
+  [M6d.2b2b1](#m6d2b2b1--transitions-and-the-frame-of-a-change-of-theme), transitions and the
+  frame of a change of theme, the first third of
+  [M6d.2b2b](stage-6d.md#m6d2b2b--tokens-and-the-users-layer), cut in three at its start
+  ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)); then
+  the user's layer, then tokens, each with its questions put at its start.
 - Waiting for the owner: the deletion of the branch `m6d1b-bench`, and the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
 - After Stage 6d: uwui's stages, Stage 6e, the rest of Stage 6c ([`stage-6c.md`](stage-6c.md)),
@@ -61,7 +64,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.2a — The typed cascade](stage-6d.md#m6d2a--the-typed-cascade) | Done |
 | [M6d.2b1 — The roles and each kind's defaults](stage-6d.md#m6d2b1--the-roles-and-each-kinds-defaults) | Done |
 | [M6d.2b2a — An element's own style written in code](stage-6d.md#m6d2b2a--an-elements-own-style-written-in-code) | Done |
-| [M6d.2b2b — Tokens and the user's layer](stage-6d.md#m6d2b2b--tokens-and-the-users-layer) | Planned |
+| [M6d.2b2b1 — Transitions and the frame of a change of theme](#m6d2b2b1--transitions-and-the-frame-of-a-change-of-theme) | In progress |
+| [M6d.2b2b2 — The user's layer over what code writes](stage-6d.md#m6d2b2b2--the-users-layer-over-what-code-writes) | Planned |
+| [M6d.2b2b3 — Tokens](stage-6d.md#m6d2b2b3--tokens) | Planned |
 | [M6d.3 — Documents with serde](stage-6d.md#m6d3--documents-with-serde) | Planned |
 | [M6d.4 — The canvas in uwui, on wgpu](stage-6d.md#m6d4--the-canvas-in-uwui-on-wgpu) | Planned |
 | [M6d.5 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Planned |
@@ -73,6 +78,37 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
+
+## M6d.2b2b1 — Transitions and the frame of a change of theme
+
+The first third of M6d.2b2b, cut in three at its start, on 2026-11-11
+([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)). It
+follows the rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** Transitions move every colour that a style holds, from the derive's list, and the frame
+  after a change of theme and its transition stay within targets of allocations.
+- **Crates.** `uwui`, `uwui-macros`, `slime-benches`.
+- **Delivers.**
+  - The derive lists a style's colours, from the fields marked `#[declare(color)]`; a colour
+    unmarked fails to compile.
+  - Transitions read that list in place of their own; the backdrop of a layer's root joins it.
+  - Elements that move alike, from the same colours towards the same style since the same time,
+    share one style shown, made once at each frame; an element styled again leaves them.
+  - Drawing again a text that the cache of texts holds copies neither its style nor the cache's
+    key.
+  - `ui.tree.look` counts a frame of the transition; CI bounds both frames.
+- **Done when.**
+  - Tests: a transition moves every colour of the derive's list, the backdrop and a shadow's
+    among them; elements that move alike show one style; an element styled again during its
+    transition ends on its own target while the others end on theirs.
+  - The frame of the change at most 20 allocations for each element styled again, each frame of
+    its transition at most 19 for each element drawn, checked by `--counters`.
+  - The look's image tests and the two fixtures of styles unchanged; the counters unchanged but
+    those recorded again, each with its reason; CI green.
+- **How to test.** `cargo test -p uwui --features editor-look`; `cargo test -p slime-examples
+  --test widgets --test editor`; `cargo run -p slime-benches -- --counters`; `scripts/check.sh`.
+- **Measured.** `ui.tree.look` and `ui.tree.editor`, before and after, on the owner's machine at
+  rest, with the owner's go.
 
 ## Ideas waiting for their milestone
 

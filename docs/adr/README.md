@@ -297,6 +297,7 @@ the ADR linking to it.
 | [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md) | An application started in one call, each root given its look | Accepted; amends 0149, 0181, 0190, 0213, 0215, 0220, 0222, 0223 and 0225; amended by 0231 |
 | [0227](0227-the-time-that-motion-reads.md) | The time that motion reads | Accepted; amends 0009, 0107, 0149, 0171, 0181, 0187, 0190, 0205 and 0211 |
 | [0228](0228-ci-split-again-each-job-within-20-minutes.md) | CI split again, each job within 20 minutes | Accepted; amends 0104, 0123 and 0155 |
-| [0229](0229-styles-typed-as-declarations.md) | Styles typed as declarations, a rule's kind checked | Accepted; amends 0141, 0220 and 0222; amended by 0230 and 0231 |
+| [0229](0229-styles-typed-as-declarations.md) | Styles typed as declarations, a rule's kind checked | Accepted; amends 0141, 0220 and 0222; amended by 0230, 0231 and 0232 |
 | [0230](0230-the-cores-roles-and-each-kinds-defaults.md) | The core's roles, and each kind's defaults from its look | Accepted; amends 0141, 0223 and 0229 |
-| [0231](0231-an-elements-own-style-written-in-code.md) | An element's own style written in code, by declarations with states | Accepted; amends 0141, 0223, 0226 and 0229 |
+| [0231](0231-an-elements-own-style-written-in-code.md) | An element's own style written in code, by declarations with states | Accepted; amends 0141, 0223, 0226 and 0229; amended by 0232 |
+| [0232](0232-transitions-read-the-derives-colours-and-share-what-they-show.md) | Transitions read the derive's colours and share what they show; M6d.2b2b cut in three | Accepted; amends 0229 and 0231 |

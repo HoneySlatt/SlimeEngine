@@ -6,7 +6,9 @@
   the own base gives way only to a rule that names a state; eight states, not four; M6d.2b2 cut in
   two, tokens in its second half), [0226](0226-an-application-started-in-one-call-each-root-given-its-look.md)
   (the same order, in its stack) and [0229](0229-styles-typed-as-declarations.md) (an array is one
-  leaf for each element; the own style is declarations, not a `Style`)
+  leaf for each element; the own style is declarations, not a `Style`); amended by
+  [0232](0232-transitions-read-the-derives-colours-and-share-what-they-show.md) (M6d.2b2b cut in
+  three)
 - Date: 2026-11-10
 
 ## Context

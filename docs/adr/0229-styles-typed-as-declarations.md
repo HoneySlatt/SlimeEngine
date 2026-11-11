@@ -8,7 +8,9 @@
   parts at uwui's first stage); amended by [0230](0230-the-cores-roles-and-each-kinds-defaults.md)
   (M6d.2b cut in two; the payload and the derive's list of colours move to its second half), then
   by [0231](0231-an-elements-own-style-written-in-code.md) (an array is one leaf for each element;
-  the own style is declarations, not a `Style`)
+  the own style is declarations, not a `Style`), then by
+  [0232](0232-transitions-read-the-derives-colours-and-share-what-they-show.md) (the derive lists a
+  style's colours by a mark on each field; lengths come with the user's layer)
 - Date: 2026-11-10
 
 ## Context

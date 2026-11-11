@@ -40,8 +40,9 @@ in git.
   [ADR-0226](adr/0226-an-application-started-in-one-call-each-root-given-its-look.md),
   [ADR-0227](adr/0227-the-time-that-motion-reads.md),
   [ADR-0229](adr/0229-styles-typed-as-declarations.md),
-  [ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md) and
-  [ADR-0231](adr/0231-an-elements-own-style-written-in-code.md).
+  [ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md),
+  [ADR-0231](adr/0231-an-elements-own-style-written-in-code.md) and
+  [ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md).
 - Widened on 2026-11-07 by the market's decisions
   ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md#decision)): M6d.1d, M6d.2, M6d.3,
   M6d.4, M6d.5, M6d.7, M6d.10 and M6d.11 gain what those decisions need of them; M6d.9 is cut in
@@ -89,7 +90,13 @@ in git.
   [M6d.2b2](#m6d2b2--styles-written-in-code), styles written in code, cut in two at its start, on
   the same day ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)): done,
   [M6d.2b2a](#m6d2b2a--an-elements-own-style-written-in-code), an element's own style written in
-  code; next, [M6d.2b2b](#m6d2b2b--tokens-and-the-users-layer), tokens and the user's layer.
+  code; [M6d.2b2b](#m6d2b2b--tokens-and-the-users-layer), tokens and the user's layer, cut in
+  three at its start, on 2026-11-11
+  ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)): in
+  progress, [M6d.2b2b1](#m6d2b2b1--transitions-and-the-frame-of-a-change-of-theme), transitions
+  and the frame of a change of theme; then
+  [M6d.2b2b2](#m6d2b2b2--the-users-layer-over-what-code-writes), the user's layer over what code
+  writes, and [M6d.2b2b3](#m6d2b2b3--tokens), tokens.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -909,30 +916,105 @@ The first half of M6d.2b2, cut in two at its start, on 2026-11-10
 
 ### M6d.2b2b — Tokens and the user's layer
 
-The second half of M6d.2b2 ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)). It
-follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+The second half of M6d.2b2 ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)).
 
 - **Goal.** The themes' values named in code by tokens, and the user's layer over what code
   writes, as [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md) decides.
 - **Crates.** `uwui`, `uwui-macros`, `slime-benches`, the examples.
-- **Delivers.** Decided at its start, with the owner: a declaration's payload holding at each
-  colour and length whether it is a literal or a token, and whether it records the state that set
-  it, which [ADR-0227](adr/0227-the-time-that-motion-reads.md)'s two clocks read; whether the
-  rules' declarations keep the origin of their values, which forced colours read; the token as a
-  public type, the core's roles as tokens, an application's own tokens (colours, lengths and
-  durations) and their lists, given with the themes; the derive's list of colours and lengths,
-  which transitions then read in place of their list kept by hand, and the user's layer and forced
-  colours later; lengths outside a `Style`, a list's rows; the size of text, the density's factor
-  on the lengths that code writes, the colours that code writes giving way under high contrast, and
-  how a program gives them; a field of text named by a theme; whether a style's change in code is
-  timed through `subsecond`, which the workspace lacks; a target for the allocations of the frame
-  after a change of theme.
 - **Done when.** Tests: lengths written in code scale under the density; colours written in code
   give way under high contrast; a token that the themes lack warns once; a token's value of another
   type refuses the themes; transitions read the derive's list and move what they moved; the look's
   image tests and counters unchanged; CI green.
 - **Measured.** The editor's interface and its counters; `ui.tree.look`'s frame after a change of
   theme and its transition.
+
+Cut in three at its start, on 2026-11-11, each abstraction with its first reader
+([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)):
+transitions and the frame of a change of theme, which no image test sees, apart; then the user's
+layer, in which everything that code writes is a literal; then tokens, which the user's layer tells
+from a literal.
+
+### M6d.2b2b1 — Transitions and the frame of a change of theme
+
+The first third of M6d.2b2b, in progress: its card is in [`PLAN.md`](PLAN.md#m6d2b2b1--transitions-and-the-frame-of-a-change-of-theme).
+
+### M6d.2b2b2 — The user's layer over what code writes
+
+The second third of M6d.2b2b
+([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)). It
+follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The size of text, the density and more contrast reach what code writes, as
+  [ADR-0223](adr/0223-styles-written-in-code-through-tokens.md) decides.
+- **Crates.** `uwui`, `uwui-macros`, `slime-benches`, the examples; `slime-editor` and
+  `slime-devui` if the way a program gives the layer changes `look::themes` or
+  `Ui::set_reduced_motion`.
+- **Delivers.** Decided at its start, with the owner: how a program gives the user's layer, and
+  whether `look::Colors::HighContrast` stays; the derive's list of lengths, each with its class;
+  the density on the lengths that code writes; the size of text and what it reaches beyond a
+  text's size; the colours that code writes under more contrast; a list's rows.
+- **Done when.** Tests: lengths written in code scale under the density; the size of text reaches
+  every text and a list's rows, and at 200 % no text of the `widgets` example is lost; colours
+  written in code give way under more contrast; CI green.
+- **Measured.** The editor's interface and its counters; `ui.tree.look`.
+- **Found before its start,** by two attacks of the lead's first draft, which the questions answer:
+  - One factor of density disagrees with the look's compact theme, which is no factor: `space_s`
+    and `space_xl` stay, `button_y` halves, text shrinks by 0.92. Two factors, spacings and sizes,
+    still miss it on 52 of the look's 128 uses of its steps; a table of steps on 14. A literal
+    cannot follow a theme that maps values by their names; a token can.
+  - Under a factor, a list's rows of 17.6 pixels overlap by one pixel every other row: a list's
+    row height is read in six places (`layout.rs`, `Ui::show_row`, `Ui::visible_rows`), which must
+    read one height, whole in pixels of the screen. taffy already rounds boxes.
+  - At 200 % text, 13 of the `widgets` example's 19 boxes of fixed size that hold a text overflow
+    (WCAG 1.4.4). A unit relative to the text, `Dimension::Em`, would change the sheets' format,
+    and uwui's text sizes do not pass from a parent to its children. The references grow text
+    alone and leave boxes to the layout (WinUI, Android), or scale a length relative to a text
+    style that code names (`UIFontMetrics`, `@ScaledMetric`).
+  - The size of text is a curve, not a factor, on Android 14, Windows and Flutter's
+    `TextScaler`: larger text grows less; Windows goes to 2.25.
+  - Colours of code giving way only where a rule sets the same field part a text from its
+    background: the look's `[everything]` rule sets every text's colour and no rule sets a
+    background on ten kinds, so an own amber background under white text falls from 9.4:1 to
+    1.9:1. CSS's forced colours and WinUI's contrast themes never part the pair. Giving way to the
+    kind's base, which draws no box, erases a box or a hover written only in code; ADR-0226 lets a
+    colour that is content opt out.
+  - The contrast read from `Preferences` and from the themes stacked by hand can disagree.
+
+### M6d.2b2b3 — Tokens
+
+The last third of M6d.2b2b
+([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)). It
+follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The themes' values named in code by typed tokens, which the user's layer tells from a
+  literal.
+- **Crates.** `uwui`, `uwui-macros`, `slime-benches`, the examples.
+- **Delivers.** Decided at its start, with the owner: a declaration's payload, and whether it
+  records the state that set it, which [ADR-0227](adr/0227-the-time-that-motion-reads.md)'s two
+  clocks read; whether the rules' declarations keep the origin of their values, which forced
+  colours read; the token as a public type, the core's roles as tokens, an application's own tokens
+  (colours, lengths, durations and numbers) and their lists, given with the themes, and what the
+  density and more contrast do to them; a field of text named by a theme; whether a style's change
+  in code is timed through `subsecond`.
+- **Done when.** Tests: a token that the themes lack warns once; a token's value of another type
+  refuses the themes; a token is neither scaled nor given way as a literal is; CI green.
+- **Measured.** The editor's interface and its counters; `ui.tree.look`.
+- **Found before its start:**
+  - Nothing reads a rule's origin or the state that set a declaration: ADR-0227's clocks can be
+    chosen for each field from the rule's selector and the own declaration's state, and forced
+    colours need at most whether a rule's colour named a role, known where the sheets are read.
+    ADR-0229 put both in the payload; the `Ui` keeps no documents after `set_style`.
+  - The derive refuses generic types: a `Spec<T>` in the own declarations alone means a second
+    family of enums, where a token beside the declaration, resolved in the cascade, does not.
+  - A token's fallback cannot be an sRGB colour in a `const`: `LinearColor::from_srgb8` is not
+    `const`.
+  - A list of tokens given after `set_style` needs the themes kept, the lazy resolution that
+    ADR-0230 rejected.
+  - `"$name"` in a field of text amends ADR-0141, which says that a text takes no named value.
+  - An application's lengths follow the density through its own themes for each density, as
+    ADR-0223 has it, unless a factor reaches its tokens too.
+  - `subsecond` 0.7.10 patches a running program only through `dx serve --hotpatch` or a tool on
+    `dioxus-cli`'s protocol (read on 2026-11-11).
 
 ### M6d.3 — Documents with serde
 
