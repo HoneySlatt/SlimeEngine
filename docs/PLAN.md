@@ -19,19 +19,20 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 - Stage 6d, uwui leaving the engine, released with 0.7: its whole plan in
   [`stage-6d.md`](stage-6d.md).
-- Done: M6d.0a to M6d.2b2b3, in the [status](#status) below: M6d.1, how an application is
+- Done: M6d.0a to M6d.2b2b3: M6d.1, how an application is
   written, closed on 2026-11-10; M6d.2, typed styles, cut in two and its halves cut again, closed
   by [M6d.2b2b3](stage-6d.md#m6d2b2b3--tokens), tokens, on 2026-11-11
   ([ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md)).
 - M6d.3, documents in KDL, cut in three at its start, on 2026-11-11: every document of uwui is
   KDL, read by a reader of its own
   ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). Done on the
-  same day: [M6d.3a](stage-6d.md#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL. Next on
-  track A: [M6d.3b](stage-6d.md#m6d3b--themes-and-style-sheets-in-kdl), then
+  same day: [M6d.3a](stage-6d.md#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL. M6d.3b cut
+  in two at its start: in progress, [M6d.3b1](#m6d3b1--themes-in-kdl), themes; then
+  [M6d.3b2](stage-6d.md#m6d3b2--style-sheets-in-kdl), style sheets, and
   [M6d.3c](stage-6d.md#m6d3c--shortcuts-docks-and-reflection-out).
 - In parallel, the owner's choice of 2026-11-11: two tracks at most, each milestone in its own
   session.
-  - Track A, uwui's core, in the main checkout: M6d.3a, M6d.3b, then M6d.3c.
+  - Track A, uwui's core, in the main checkout: M6d.3a, M6d.3b1, M6d.3b2, then M6d.3c.
   - Track B, beside it, in a worktree: [M6d.6](stage-6d.md#m6d6--a-series-of-headless-compositors),
     the series of compositors, done on 2026-11-11
     ([ADR-0240](adr/0240-the-series-input-its-table-and-its-jobs.md)); then M6d.4, cut in three
@@ -53,31 +54,9 @@ documentation was updated and reread. Every milestone is also checked on Windows
 
 | Milestone | Status |
 |---|---|
-| [M6d.0a — The screens and the owner's programs](stage-6d.md#m6d0a--the-screens-and-the-owners-programs) | Done |
-| [M6d.0b — Measured from outside, and ten "Hello, World!"](stage-6d.md#m6d0b--measured-from-outside-and-ten-hello-world) | Done |
-| [M6d.0c — The applications of the market](stage-6d.md#m6d0c--the-applications-of-the-market) | Done |
-| [M6d.1a — The survey and the protocol](stage-6d.md#m6d1a--the-survey-and-the-protocol) | Done |
-| [M6d.1b1 — The ideal code](stage-6d.md#m6d1b1--the-ideal-code) | Done |
-| [M6d.1b2 — The bench, on the control](stage-6d.md#m6d1b2--the-bench-on-the-control) | Done |
-| [M6d.1b3a — Three models on the bench](stage-6d.md#m6d1b3a--three-models-on-the-bench) | Done |
-| [M6d.1b3b — The choice](stage-6d.md#m6d1b3b--the-choice) | Done |
-| [M6d.1c1 — Signals named, and a type's state migrated](stage-6d.md#m6d1c1--signals-named-and-a-types-state-migrated) | Done |
-| [M6d.1c2 — The executor, and other threads](stage-6d.md#m6d1c2--the-executor-and-other-threads) | Done |
-| [M6d.1c3a — A function's body reloaded through subsecond](stage-6d.md#m6d1c3a--a-functions-body-reloaded-through-subsecond) | Done |
-| [M6d.1c3b — The rivals' reloads, timed](stage-6d.md#m6d1c3b--the-rivals-reloads-timed) | Done |
-| [C1 — Compiling within its budgets](stage-6d.md#c1--compiling-within-its-budgets) | Done |
-| [M6d.1d1 — Themes, and styles written in code](stage-6d.md#m6d1d1--themes-and-styles-written-in-code) | Done |
-| [M6d.1d2a — Layouts, their notation and their reload](stage-6d.md#m6d1d2a--layouts-their-notation-and-their-reload) | Done |
-| [M6d.1d2b1 — An application's start and its look](stage-6d.md#m6d1d2b1--an-applications-start-and-its-look) | Done |
-| [M6d.1d2b2 — The time that motion reads](stage-6d.md#m6d1d2b2--the-time-that-motion-reads) | Done |
-| [M6d.2a — The typed cascade](stage-6d.md#m6d2a--the-typed-cascade) | Done |
-| [M6d.2b1 — The roles and each kind's defaults](stage-6d.md#m6d2b1--the-roles-and-each-kinds-defaults) | Done |
-| [M6d.2b2a — An element's own style written in code](stage-6d.md#m6d2b2a--an-elements-own-style-written-in-code) | Done |
-| [M6d.2b2b1 — Transitions and the frame of a change of theme](stage-6d.md#m6d2b2b1--transitions-and-the-frame-of-a-change-of-theme) | Done |
-| [M6d.2b2b2 — The user's layer over what code writes](stage-6d.md#m6d2b2b2--the-users-layer-over-what-code-writes) | Done |
-| [M6d.2b2b3 — Tokens](stage-6d.md#m6d2b2b3--tokens) | Done |
-| [M6d.3a — uwui's reader of KDL](stage-6d.md#m6d3a--uwuis-reader-of-kdl) | Done |
-| [M6d.3b — Themes and style sheets in KDL](stage-6d.md#m6d3b--themes-and-style-sheets-in-kdl) | Planned |
+| [M6d.0a to M6d.3a, and C1](stage-6d.md#where-it-stands) | Done |
+| [M6d.3b1 — Themes in KDL](#m6d3b1--themes-in-kdl) | In progress |
+| [M6d.3b2 — Style sheets in KDL](stage-6d.md#m6d3b2--style-sheets-in-kdl) | Planned |
 | [M6d.3c — Shortcuts, docks and reflection out](stage-6d.md#m6d3c--shortcuts-docks-and-reflection-out) | Planned |
 | [M6d.4a — The canvas's prototype and its ADR](#m6d4a--the-canvass-prototype-and-its-adr) | In progress |
 | [M6d.4b1 — The canvas on wgpu, as it is](stage-6d.md#m6d4b1--the-canvas-on-wgpu-as-it-is) | Planned |
@@ -91,6 +70,32 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
+
+## M6d.3b1 — Themes in KDL
+
+The first half of [M6d.3b](stage-6d.md#m6d3b--themes-and-style-sheets-in-kdl), cut on 2026-11-11
+([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)). It follows the
+rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** uwui reads its themes in KDL, each value of the kind that its group gives, and
+  reflection no longer reads them.
+- **Crates.** `uwui`, `uwui-kdl`, `slime-cook`, `slime-assets`, `slime-benches`, the examples; CI's
+  cache keys, for the cooker's new dependency.
+- **Delivers.**
+  - A theme's values in the groups `color`, `length`, `duration`, `number` and `text`; a duration
+    with its unit; a name taking its group's unit, a unit on a name refused; a share in a colour
+    function named from `number` alone.
+  - A stack's names resolved once, without recursion, chains and nested functions bounded; a name
+    keeps the kind that the first theme gave it, the error naming both places; `#null` refused.
+  - Tokens read from the values resolved; today's sheets, still TOML, read them through an adapter
+    that M6d.3b2 removes.
+  - Errors at their line and column, gathered up to a cap.
+  - The repository's themes converted, `.theme.kdl`; a theme cooked as its text, checked; the
+    cooker's two-part extensions, `.theme` refused by name; `Theme::from_binary` gone.
+- **Done when.** Random themes resolve the same through the reflected reader and the new one, bit
+  for bit; the fixture of the repository's documents, the two of styles and the look's images
+  unchanged; tests of each refusal, a deep nesting refused without overflow; CI green.
+- **Measured.** The allocations and the time of reading the look's documents.
 
 ## M6d.4a — The canvas's prototype and its ADR
 
@@ -195,4 +200,4 @@ made after Stage 6e's first milestone runs on `games/open-world` where it names 
 
 ## Known debt
 
-The known debt still open, 174 items, is in [`debt.md`](debt.md).
+The known debt still open, 175 items, is in [`debt.md`](debt.md).

@@ -107,8 +107,10 @@ in git.
 - In progress: [M6d.3](#m6d3--documents-in-kdl), documents in KDL, cut in three at its start, on
   2026-11-11 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)): done,
   [M6d.3a](#m6d3a--uwuis-reader-of-kdl), uwui's reader of KDL, on the same day; then
-  [M6d.3b](#m6d3b--themes-and-style-sheets-in-kdl), themes and style sheets, and
-  [M6d.3c](#m6d3c--shortcuts-docks-and-reflection-out), shortcuts, docks and reflection out.
+  [M6d.3b](#m6d3b--themes-and-style-sheets-in-kdl), cut in two: in progress,
+  [M6d.3b1](#m6d3b1--themes-in-kdl), themes; then [M6d.3b2](#m6d3b2--style-sheets-in-kdl), style
+  sheets, and [M6d.3c](#m6d3c--shortcuts-docks-and-reflection-out), shortcuts, docks and
+  reflection out.
 - In progress on track B: [M6d.4](#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on wgpu,
   cut in three at its start, on 2026-11-11
   ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)):
@@ -1201,21 +1203,44 @@ rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
 ### M6d.3b — Themes and style sheets in KDL
 
 The second third of M6d.3 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
+Cut in two at its start, on 2026-11-11, themes first: some 2,700 lines before a first check, past
+what ADR-0241 refused. Each document's cooked form, its text checked, comes with its half, not at
+M6d.3c, and the precisions of the notation that the halves need were decided with the cut
+([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)'s status).
 
 - **Goal.** uwui reads its themes and style sheets in KDL, through code that its derive generates,
   and reflection no longer reads them.
-- **Crates.** `uwui`, `uwui-macros`, the reader's crate, `slime-benches`, the examples.
-- **Delivers.** The derive's readers of declarations from KDL's nodes, after ADR-0241's mapping,
-  each number marked a length, a duration or a number; a theme's values in groups of their kinds,
-  its names resolved once for each stack of themes, without recursion, a chain bounded; a field of
-  text named by a theme, the look's icons moved to its theme; every theme and sheet of the
-  repository, and the documents written in tests, benches and examples, converted, `.theme.kdl`
-  and `.style.kdl`; errors at their line.
-- **Done when.** A random test of sheets and themes, and fixtures of every sheet's declarations,
-  read the same through the reflected reader and the new one; the two fixtures of styles and the
-  look's images unchanged; tests of each refusal; CI green.
+
+### M6d.3b1 — Themes in KDL
+
+In progress: its card is in [`PLAN.md`](PLAN.md#m6d3b1--themes-in-kdl), back here with its result
+when it is done.
+
+### M6d.3b2 — Style sheets in KDL
+
+The second half of M6d.3b. It follows the rules of
+[every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** uwui reads its style sheets in KDL, through code that its derive generates, and
+  reflection reads no theme and no sheet.
+- **Crates.** `uwui`, `uwui-macros`, `uwui-kdl`, `slime-cook`, `slime-assets`, `slime-benches`, the
+  examples; `rust-toolchain.toml` and the development shell, for the web's target and brotli.
+- **Delivers.**
+  - The derive's readers of declarations from KDL's nodes, after ADR-0241's mapping, each number
+    marked a length, a duration or a number; the readers of enums, shadows and selectors.
+  - A dimension in pixels, bare or `(px)`, or a share, `(%)50`; a grid's track `(fr)1`; a share
+    divided by 100 in `f64` and rounded once; a name there a length; `(%)` and `(fr)` refused
+    elsewhere. A selector's numbered key written `key=3`.
+  - A field of text named by a theme, `$$` for a text that starts with `$`; the look's icons
+    moved to its theme.
+  - The rules' errors at their line, gathered; M6d.3b1's adapter gone.
+  - The look's sheet and the example's, `.style.kdl`, cooked as their text, checked;
+    `StyleSheet::from_binary` gone; the sheets written in tests, benches and examples converted.
+- **Done when.** A random test of sheets, and the fixture of the repository's documents, read the
+  same through the reflected reader and the new one; the two fixtures of styles and the look's
+  images unchanged; tests of each refusal; CI green.
 - **Measured.** The allocations and the time of reading the look's documents; `uwui`'s compile
-  time; the reader's weight in a build for the web.
+  time; the reading's weight in a build for the web, by difference, compressed with brotli.
 
 ### M6d.3c — Shortcuts, docks and reflection out
 
@@ -1228,8 +1253,9 @@ The last third of M6d.3 ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-
 - **Delivers.** Shortcuts and docks' layouts in KDL, a layout written by a writer over values or by
   a builder of trees, decided at its start, its version written, read leniently; the editor's saved layouts migrated once; the primary modifier
   `Primary`, a text field's keys through it, the platform a value, chords compared as they resolve,
-  a menu's shortcut shown as its platform writes it; the cooked form the text, checked, `from_binary`
-  gone; `LinearColor` described by `slime-reflect`; the `Reflect` derives, `S::named` and the
+  a menu's shortcut shown as its platform writes it; a table of shortcuts cooked as its text,
+  checked, `Shortcuts::from_binary` and the cooked binary gone; `LinearColor` described by
+  `slime-reflect`; the `Reflect` derives, `S::named` and the
   registry gone from uwui, the tests that walked types by reflection written again.
 - **Done when.** The editor's layouts as saved, its default and a user's with floating and closed
   panels, and one written before them, read the same; a scene as text, a scene cooked and the dev

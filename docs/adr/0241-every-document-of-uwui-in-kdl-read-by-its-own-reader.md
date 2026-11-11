@@ -12,7 +12,17 @@
   named `Primary`). A precision decided by the owner on 2026-11-11, as M6d.3a began: `bolero`
   cannot join the workspace, its derive pinning `indexmap` at 2.11.2 where `toml_edit` asks for
   2.13; the random inputs come from the repository's own generator, in `cargo test`, their seed
-  printed, through a function of bytes that a fuzzer guided by coverage calls later unchanged
+  printed, through a function of bytes that a fuzzer guided by coverage calls later unchanged.
+  Precisions decided by the owner on 2026-11-11, as M6d.3b began: M6d.3b is cut in two, themes
+  (M6d.3b1) then style sheets (M6d.3b2), today's sheets reading the new themes' values through an
+  adapter in between; each document's cooked form, its text checked by the reader's syntax and
+  limits alone, comes with its half, shortcuts' at M6d.3c, the cooker reading two-part extensions;
+  in a stack, the first theme to give a name sets its kind, and a later theme that gives it in
+  another group is refused, as `#null` in a theme is; a name takes its unit from its group, and a
+  unit written on a name is refused; a share that a colour function names is a `number`; a
+  dimension's share is written `(%)50`, a grid's fraction `(fr)1`, a name there being a length;
+  a selector's numbered key is a number, `key=3`; the reader's weight on the web is measured with
+  the target `wasm32-unknown-unknown` in `rust-toolchain.toml` and brotli in the development shell
 - Date: 2026-11-11
 
 ## Context
