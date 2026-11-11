@@ -80,3 +80,11 @@ harness = false
 name = "resources"
 test = false
 harness = false
+
+# How the editor's window adapts to a compositor of the series: the cursor, and a round trip
+# through the system's clipboard by a person's keys; `scripts/compositors.sh` runs it in each
+# compositor (ADR-0195).
+[[test]]
+name = "compositor"
+test = false
+harness = false
