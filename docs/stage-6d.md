@@ -849,8 +849,8 @@ The second half of M6d.2b ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-de
 - **Done when.** Tests: a state set in code beats a rule's state; a field set in code to its
   default beats a rule; lengths written in code scale under the density; colours written in code
   give way under high contrast; a token that the themes lack warns once; the call's place is kept;
-  transitions read the derive's list and move what they moved; the look's image tests and counters
-  unchanged; CI green.
+  transitions read the derive's list and move every colour that a style holds; the look's image
+  tests unchanged, and its counters but those that fall; CI green.
 - **Measured.** The editor's interface and its counters; `ui.tree.look`'s frame after a change of
   theme and its transition.
 
@@ -923,8 +923,8 @@ The second half of M6d.2b2 ([ADR-0231](adr/0231-an-elements-own-style-written-in
 - **Crates.** `uwui`, `uwui-macros`, `slime-benches`, the examples.
 - **Done when.** Tests: lengths written in code scale under the density; colours written in code
   give way under high contrast; a token that the themes lack warns once; a token's value of another
-  type refuses the themes; transitions read the derive's list and move what they moved; the look's
-  image tests and counters unchanged; CI green.
+  type refuses the themes; transitions read the derive's list and move every colour that a style
+  holds; the look's image tests unchanged, and its counters but those that fall; CI green.
 - **Measured.** The editor's interface and its counters; `ui.tree.look`'s frame after a change of
   theme and its transition.
 

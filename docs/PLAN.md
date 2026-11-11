@@ -101,8 +101,8 @@ follows the rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-l
   - Tests: a transition moves every colour of the derive's list, the backdrop and a shadow's
     among them; elements that move alike show one style; an element styled again during its
     transition ends on its own target while the others end on theirs.
-  - The frame of the change at most 20 allocations for each element styled again, each frame of
-    its transition at most 19 for each element drawn, checked by `--counters`.
+  - The targets of ADR-0232 met for the frame of the change and for the first frame of its
+    transition, checked by `--counters`.
   - The look's image tests and the two fixtures of styles unchanged; the counters unchanged but
     those recorded again, each with its reason; CI green.
 - **How to test.** `cargo test -p uwui --features editor-look`; `cargo test -p slime-examples

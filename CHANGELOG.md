@@ -20,6 +20,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   rules even at its default value, but a rule that names a state wins over a base written in code;
   an array is set by element, `width` without `height`. A hover or a press written in code cannot
   set what lays out.
+- A transition moves every colour that a style holds (ADR-0232): a modal layer's backdrop now fades
+  with the rest when the theme changes. Elements that move alike share the style that they show; the frame after a change
+  of theme and each frame of its transition allocate about a quarter of what they did.
 - Compiling within its budgets (ADR-0221): dependencies are optimised at the first level in debug
   builds; the Nix shell links with mold on Linux; the examples' editor's Play builds `world` with
   the workspace's features, which share every engine crate with the editor's.

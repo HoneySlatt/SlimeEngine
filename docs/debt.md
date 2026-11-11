@@ -713,7 +713,7 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The editor's look has no italic faces, and its fonts hold no Greek.
   The look is built into the program, not cooked: the dev overlay carries it into a game's development build, and the game's build for shipping leaves it out.
 - **The look's foundations** ([ADR-0149](adr/0149-the-looks-foundations.md)).
-  A theme's value is typed where the theme gives it only if it is one of the core's roles ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)); any other name that holds a value of the wrong type is refused where a rule names it; followed at [M6d.2b2b](stage-6d.md#m6d2b2b--tokens-and-the-users-layer), which types an application's own tokens too.
+  A theme's value is typed where the theme gives it only if it is one of the core's roles ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)); any other name that holds a value of the wrong type is refused where a rule names it; followed at [M6d.2b2b3](stage-6d.md#m6d2b2b3--tokens), which types an application's own tokens too.
   The color functions are four, and work on whole colors, not on their lightness, chroma or hue alone.
   Transitions move colors, opacity and a section's height, not sizes, places nor what a layout gives.
   They go on only while the program gives the interface its time; a section that opens is laid out twice in the frame that starts it.
@@ -784,10 +784,13 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Screen readers scroll by an item or by what shows, not to an offset.
   `deny.toml` ignores three advisories of unmaintained crates that the adapter on Linux brings through zbus 5, zvariant, zbus_names and zvariant_derive, which zbus 6 holds: they go once AccessKit's adapter moves to zbus 6.
 - **Style sheets and themes** ([ADR-0141](adr/0141-style-sheets-and-themes.md), [ADR-0229](adr/0229-styles-typed-as-declarations.md), [ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)).
-  A field of the type `String` takes no named value; followed at [M6d.2b2b](stage-6d.md#m6d2b2b--tokens-and-the-users-layer), which decides what a declaration names.
+  A field of the type `String` takes no named value; followed at [M6d.2b2b3](stage-6d.md#m6d2b2b3--tokens), which decides what a declaration names.
   An error of type in a cooked style sheet or theme is placed by its byte and the path of its part, not by its line; followed at [M6d.3](stage-6d.md#m6d3--documents-with-serde), which reads them with `serde`.
   The styles made are kept up to a number for each set of rules, each for a kind's defaults, an element's own style and its own states that hold (`Ui::set_style`).
-  Past it, an element's style is composed again at each change, its declarations applied one by one; followed at [M6d.2b2b](stage-6d.md#m6d2b2b--tokens-and-the-users-layer), which sets the frame after a change of theme a target.
+  Past it, an element's style is composed again at each change, its declarations applied one by one, and a transition makes a style of its own for it at each frame.
+  Elements folded in a section make styles of their own too, which no other element shares.
+  The frame after a change of theme has its targets ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)), but `ui.tree.look` holds a dozen styles, far below the cap: no benchmark measures a tree past it.
+  Followed at uwui's first stage, which benchmarks its own cascade.
   Selectors hold no combinators but an ancestor's kind or class.
   The place of each call that wrote an element's own style is kept (`OwnStyle::places`), but nothing reads it yet; followed at [M6d.9a](stage-6d.md#m6d9a--one-core-for-agents-and-its-mcp-server), which gives it to agents.
   A rule of a style sheet that names `Hovered` or `Pressed` may set what lays out the element, which a hover or a press written in code cannot ([ADR-0231](adr/0231-an-elements-own-style-written-in-code.md)); no rule of the repository does; followed at uwui's first stage, which types rules for each state.
@@ -801,12 +804,11 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   Reading the editor's look allocates more than before the declarations, which the owner accepted until M6d.3, and more again since its themes give the core's roles, each value read parsing its theme again ([measurements](measurements.md#m6d2b1-the-roles-and-each-kinds-defaults)).
   A walk of `uwui`'s own beside reflection's refuses a color set by some of its channels.
   Followed at [M6d.3](stage-6d.md#m6d3--documents-with-serde), where the declarations are read by `serde`.
-- **A frame that styles every element again allocates many times for each** ([measurements](measurements.md#m6d2a-the-typed-cascade)).
-  Under the editor's look, `ui.tree.look`'s frame after a change of colours allocates tens of megabytes for its 12 487 elements.
-  The transitions that it starts take some of it; the cascade, the meaning and the drawing the rest.
-  No budget bounds that frame.
-  M6d.2b1 left it as it was: the roles are resolved when the themes are taken, not as elements are styled ([ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md)).
-  Followed at [M6d.2b2b](stage-6d.md#m6d2b2b--tokens-and-the-users-layer), which has transitions read the derive's list of colours in place of their own, and sets that frame a target.
+- **Drawing an element again allocates for each element** ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)).
+  An element drawn again makes the lists of its primitives anew, and a control copies its text's look; under the editor's look, each frame of a transition allocates some eight times for each element that it draws ([measurements](measurements.md#m6d2b2b1-transitions-and-the-frame-of-a-change-of-theme)).
+  An element of no display, folded in a section, is drawn again while it moves, unseen: `paint` does not skip it, as gathering the display list does.
+  A frame whose transition only changes colours draws its elements whole again, not their colours alone.
+  Followed at uwui's first stage, which benchmarks its own paint.
 - **The system's fallback is checked only where the system has fonts** ([ADR-0136](adr/0136-the-interfaces-text.md)).
   Its test checks nothing, and says so, on a machine whose fontconfig, or whose lack of it, gives no font for Greek or Japanese, as CI's Linux runners may.
 - **An editor's journal grows across recoveries** ([ADR-0135](adr/0135-the-editors-program.md)).

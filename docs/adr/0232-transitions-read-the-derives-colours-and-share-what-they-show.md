@@ -51,9 +51,10 @@ The owner decided on 2026-11-11, one question at a time.
 
 **The derive lists a style's colours.** A field of a style marked `#[declare(color)]` holds a colour
 that transitions move; the derive gives each struct of a style the colours of its marked and nested
-fields, in a fixed order and number (`Colors`). A field whose type is `LinearColor` without the mark
-fails to compile, so that no colour is forgotten. A shadow, an option, gives its colour,
-transparent where it casts none. Transitions read that list in place of their own; the backdrop of a
+fields, in a fixed order and number (`Colors`). A field whose type names `LinearColor`, an option
+or an array of them included, fails to compile without the mark, so that no colour is forgotten;
+an array of colours is refused, a field for each colour instead. A shadow, an option, gives its
+colour, transparent where it casts none. Transitions read that list in place of their own; the backdrop of a
 layer's root joins it, and a modal layer's scrim now fades with a change of theme.
 
 **Elements that move alike share what they show.** Elements whose transitions start at the same
@@ -65,8 +66,9 @@ during its transition starts another, from what it shows, and leaves the others.
 
 - the frame after a change of the look's colours: at most 20 allocations for each element styled
   again;
-- each frame of the transition that it starts: at most 19 allocations for each element moving, a
-  counter of its own.
+- each frame of the transition that it starts: at most 19 allocations for each element drawn
+  again, counted on its first frame, a counter of its own; the frames after it allocate within a
+  few allocations of it.
 
 Drawing an element again, when the cache of texts already holds its text, no longer copies the
 text's style nor the cache's key. What drawing again still allocates is uwui's debt, followed in
@@ -103,9 +105,10 @@ The backdrop:
 
 ## Consequences
 
-- Transitions move every colour that a style holds, and any colour added to a style later.
+- Transitions move every colour that a style holds, and any colour added to it later whose type
+  names `LinearColor`; a struct that holds a colour within, as a shadow does, is marked by hand.
 - `benches/` counts a frame of the transition; CI checks both targets.
-- The look's images, the two fixtures of styles and the frames' times are unchanged; the counters of
-  `ui.tree.look` fall, and are recorded again.
-- M6d.2b2b2 and M6d.2b2b3 start from the two attacks' findings, kept with the lead's notes; the
+- The look's images, the two fixtures of styles and the number of the transition's frames are
+  unchanged; the counters of `ui.tree.look` fall, and are recorded again.
+- M6d.2b2b2 and M6d.2b2b3 start from the two attacks' findings, kept in their cards; the
   derive's list of lengths, with each length's class, comes with M6d.2b2b2, its first reader.

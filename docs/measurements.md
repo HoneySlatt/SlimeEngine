@@ -2426,3 +2426,48 @@ GitHub's hosted runners, on 2026-11-10, each run green, on `b749c3e`:
 
 Every job stays within its limit of 20 minutes. `windows (tests)` ran both fixtures of styles on
 Windows, and the tests of the own style, the place of a call among them.
+
+## M6d.2b2b1, transitions and the frame of a change of theme
+
+Transitions reading the derive's colours and sharing what they show, and drawing again without
+copying a text's key and style
+([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)), on
+2026-11-11. *Before* is `b32daaa`, the code of M6d.2b2a; *after* is the milestone's working tree.
+The counters, in a debug build, as CI counts them, on lavapipe:
+
+| Benchmark | Counter | Before | After |
+|---|---|---|---|
+| `ui.tree.look` | allocations of the frame of the change | 393 706 | 109 456 |
+| `ui.tree.look` | bytes allocated by the frame of the change | 36 988 023 | 24 487 625 |
+| `ui.tree.look` | allocations of the frame of the change for each element styled, at most 20 | 31.53 | 8.77 |
+| `ui.tree.look` | allocations of a frame of the transition, its first | about 381 000 | 96 763 |
+| `ui.tree.look` | bytes allocated by a frame of the transition, its first | not counted | 22 270 483 |
+| `ui.tree.look` | allocations of a frame of the transition for each element drawn, at most 19 | 30.51 | 7.75 |
+| `ui.tree.look` | elements styled by the frame of the change, drawn by a frame of the transition | 12 487 | 12 487 |
+| `ui.tree.look` | frames of 240 Hz of the transition | 29 | 29 |
+| `ui.tree.editor` | allocations of a frame after one value of the inspector changed | 32 163 | 32 088 |
+| `ui.tree.editor` | bytes allocated by a frame after one value of the inspector changed | 7 157 318 | 7 147 614 |
+
+What it says:
+
+- The frame after a change of the look's colours allocates 72 % less: each element moving no
+  longer clones its style, some eleven allocations, the elements that move alike sharing one
+  style shown, about a dozen in this tree; and drawing a label again, whose text the cache holds,
+  no longer copies the cache's key and the text's style.
+- Each frame of the transition allocates 75 % less, for the same two reasons. The figure *before*
+  was counted on 2026-11-11 by a copy of the benchmark that matched CI's counter of the frame of
+  the change; no counter of a frame of the transition existed. Every later frame of the transition
+  allocates within a few allocations of the first, the last a little less, its style no longer
+  shown.
+- What remains is drawing each element again, its lists of primitives made anew
+  ([`debt.md`](debt.md)).
+- `ui.tree.editor`'s frame after a value changed draws again some labels, which no longer copy
+  their key; its other counters, and the other benchmarks', are unchanged; so are the fixtures of
+  the styles and the images.
+- The tree holds a dozen styles, all its elements moving alike in groups; a tree whose elements
+  each go to a style of their own shares nothing, and the map of styles shown then keeps room for
+  each element moving, about 3 MB for 12 487, for the interface's life.
+
+The times of the frames were not measured: the owner's machine could not be at rest, other
+sessions building throughout. The times of compiling were not measured either: the milestone adds
+no crate and no dependency.
