@@ -153,6 +153,9 @@ direction with the world panel, captures its image, finds it at rest while pause
 its game time running, and reads its log (`docs/adr/0185-rest-checked-in-ci.md`,
 `docs/adr/0187-a-hidden-window-at-rest.md`). It needs a Wayland
 compositor, the game built and its zone cooked: `scripts/check.sh` runs it in a headless Weston.
+With `SLIME_SERIES` set, in a compositor of the series that keeps a minimized window shown, it
+tells that the game draws its frames there rather than failing
+(`docs/adr/0238-the-series-input-its-table-and-its-jobs.md`).
 `tests/views.rs` starts the `world` example, which draws the yard and a map in a corner, captures
 the whole image and each view, shows the map's normals, reads the example's reports, and picks the
 entity at a pixel of the map; it needs the examples' assets cooked, in the directory that its first
@@ -177,7 +180,11 @@ editor reaches it; it needs no compositor, the examples built and their assets
 cooked. `tests/edit_zone.rs` starts `hunnawood-editor` on a copy
 of *Hunna Wood*'s zone, changes one of the game's components, creates an entity that holds
 another, undoes, redoes and writes the zone; it needs the zone cooked, and `scripts/check.sh` runs
-it with the tests that read the zone. `tests/resources.rs` is a measure, not a check: it drives
+it with the tests that read the zone. `tests/compositor.rs` starts the `editor` example on a copy of the yard in a compositor of the
+series and, where the compositor takes input, moves the pointer into its window and makes a round
+trip through the system's clipboard with keys typed through the compositor
+(`docs/adr/0195-a-series-of-headless-compositors.md`); `scripts/compositors.sh` runs it in each, and
+reads the editor's log, which it names. `tests/resources.rs` is a measure, not a check: it drives
 `hunnawood-editor` in a window on a copy of the zone, then the game, and reads their memory, their
 video memory and the GPU's power; `scripts/resources.sh` runs it in a headless Weston, and no check
 does (`docs/adr/0193-first-measures-of-resources.md`).

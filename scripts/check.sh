@@ -78,6 +78,7 @@ if runs lint; then
     cargo clippy --locked -p slime-mcp --test edit_window -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit_zone -- -D warnings
     cargo clippy --locked -p slime-mcp --test resources -- -D warnings
+    cargo clippy --locked -p slime-mcp --test compositor -- -D warnings
     # The game built for shipping, without the development channel (ADR-0122): the code that stands in
     # for the channel is compiled only there.
     cargo clippy --locked -p hunnawood --no-default-features --all-targets -- -D warnings
@@ -93,6 +94,7 @@ if runs lint; then
     cargo clippy --locked -p slime-mcp --test edit_window --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test edit_zone --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p slime-mcp --test resources --target x86_64-pc-windows-msvc -- -D warnings
+    cargo clippy --locked -p slime-mcp --test compositor --target x86_64-pc-windows-msvc -- -D warnings
     cargo clippy --locked -p hunnawood --no-default-features --all-targets --target x86_64-pc-windows-msvc -- -D warnings
 
     step "Rustdoc"

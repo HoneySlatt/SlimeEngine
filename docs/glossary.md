@@ -1482,6 +1482,11 @@ resolved once into a *resolved scene*, the prefabs that it places with it, then 
 again when new cooked data changes it ([ADR-0091](adr/0091-scene-documents-and-placements.md),
 [ADR-0095](adr/0095-cooked-scene-files.md)).
 
+**Series (of compositors).** The five compositors without a screen in which the editor and *Hunna
+Wood* are checked, each the reference of a family: Weston, sway, KWin, Mutter, and X11 through
+Xvfb ([ADR-0195](adr/0195-a-series-of-headless-compositors.md)). What each gives and what the
+engine does there is in [`compositors.md`](compositors.md).
+
 **Set aside.** Kept but not applied, and reported: an *override*, a reference or a part of a *save*
 whose target the *prefab* or the world no longer has (`slime_world::SetAside`,
 [ADR-0089](adr/0089-scenes-and-prefabs.md)). In *Hunna Wood*, a save that is not resumed is set

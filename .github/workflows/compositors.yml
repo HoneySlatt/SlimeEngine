@@ -1,0 +1,94 @@
+# Runs the editor and the game in each compositor of the series, headless: Weston, sway, KWin,
+# Mutter, and X11 through Xvfb, in the series' development shell
+# (docs/adr/0195-a-series-of-headless-compositors.md, docs/adr/0238-the-series-input-its-table-and-its-jobs.md).
+# One job for each compositor, side by side, each within the owner's limit of 20 minutes; each
+# writes its report to the run's summary and keeps it as an artifact. Actions are pinned to commit
+# SHAs, with the release they correspond to in a comment.
+name: Compositors
+
+# A new push to the same branch supersedes the run in progress, the weekly run included.
+concurrency:
+  group: compositors-${{ github.ref }}
+  cancel-in-progress: true
+
+# When the platform layer or the windowed loop changes, when the compositors' versions change with
+# flake.lock, when the series itself changes, every week, and on demand.
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - "crates/slime-platform/**"
+      - "crates/slime-app/**"
+      - "crates/slime-mcp/tests/compositor.rs"
+      - "flake.nix"
+      - "flake.lock"
+      - "scripts/compositors.sh"
+      - "scripts/compositors.py"
+      - "scripts/compositor-input.py"
+      - "crates/slime-mcp/tests/drive.rs"
+      - "examples/window.rs"
+      - "docs/compositors.md"
+      - ".github/workflows/compositors.yml"
+  pull_request:
+    paths: *paths
+  # Every Wednesday at 06:41 UTC, apart from CI's weekly run: a regression of one compositor in a
+  # change that these paths do not watch waits a week at most. Off the hour, when GitHub delays
+  # scheduled runs.
+  schedule:
+    - cron: "41 6 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  series:
+    strategy:
+      fail-fast: false
+      matrix:
+        compositor: [weston, sway, kwin, mutter, x11]
+    name: compositors (${{ matrix.compositor }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+      # The sample game's zone and the zone cooked, kept as in CI's `check (game)` job, with the
+      # same keys, which ci.yml explains: a change of one is made in both.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            games/hunnawood/assets/zone
+            !games/hunnawood/assets/zone/**/*.meta
+          key: hunnawood-zone-${{ hashFiles('games/hunnawood/assets/sources.tsv') }}
+      - name: The packages that the cooker is built from
+        id: cooker
+        run: nix develop --no-update-lock-file --command scripts/cooker-dependencies.sh >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target/cooked/hunnawood
+          key: hunnawood-cooked-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('games/hunnawood/assets/sources.tsv', 'games/hunnawood/assets/zone/**/*.meta', 'games/hunnawood/assets/zone/**/*.scene', 'crates/slime-cook/src/**', 'crates/slime-cook/Cargo.toml', 'crates/slime-assets/src/**', 'crates/slime-assets/Cargo.toml', 'crates/slime-color/src/**', 'crates/slime-color/Cargo.toml', 'crates/slime-reflect/src/**', 'crates/slime-reflect/Cargo.toml', 'crates/slime-reflect-derive/src/**', 'crates/slime-reflect-derive/Cargo.toml', 'crates/slime-serialize/src/**', 'crates/slime-serialize/Cargo.toml', 'crates/slime-world/src/**', 'crates/slime-world/Cargo.toml', 'rust-toolchain.toml') }}-${{ steps.cooker.outputs.hash }}
+      # Apart, so that its time shows: what the series' shell adds to the default one, KWin's and
+      # Mutter's packages first.
+      - name: The series' shell
+        run: nix develop --no-update-lock-file .#compositors --command true
+      - name: The series in ${{ matrix.compositor }}
+        run: nix develop --no-update-lock-file .#compositors --command scripts/compositors.sh ${{ matrix.compositor }}
+      - name: The report in the run's summary
+        if: always()
+        run: |
+          {
+            echo "## ${{ matrix.compositor }}"
+            echo
+            echo '```'
+            cat target/compositors/${{ matrix.compositor }}/compared.txt target/compositors/${{ matrix.compositor }}/frames.txt 2>/dev/null || echo "no report"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: compositors-${{ matrix.compositor }}
+          path: target/compositors/${{ matrix.compositor }}/
+          if-no-files-found: ignore
+          retention-days: 14
