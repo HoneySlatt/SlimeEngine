@@ -2458,6 +2458,26 @@ element, was read from a run of the benchmark during the milestone, before its c
 the frame at 200 %; no counter keeps it. The times of compiling were not measured: the milestone
 adds no crate and no dependency.
 
+GitHub's hosted runners, on 2026-11-11, each run green, on `72ff330`:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 8 min 12 s |
+| `check (headless)` | 16 min 13 s |
+| `check (windowed)` | 9 min 24 s |
+| `check (game)` | 11 min 48 s |
+| `windows (tests)` | 13 min 51 s |
+| `windows (render)` | 6 min 49 s |
+| `windows (game)` | 6 min 9 s |
+| `windows-release` | 13 min 50 s |
+| Docs' `links` | 20 s |
+
+Every job stays within its limit of 20 minutes. `check (headless)` took 5 min 4 s more than on
+`e25112c`, every part of it about 1.5 times as long, its build 6 min 10 s against 4 min 6 s, its
+tests 6 min 14 s against 4 min 17 s, its cook and samples alike: a slower runner, not the
+milestone's few tests; its margin is 3 min 47 s. `windows (tests)` ran both fixtures of styles on
+Windows, and the test at 200 %.
+
 ## M6d.2b2b1, transitions and the frame of a change of theme
 
 Transitions reading the derive's colours and sharing what they show, and drawing again without

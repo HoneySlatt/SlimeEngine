@@ -41,8 +41,9 @@ in git.
   [ADR-0227](adr/0227-the-time-that-motion-reads.md),
   [ADR-0229](adr/0229-styles-typed-as-declarations.md),
   [ADR-0230](adr/0230-the-cores-roles-and-each-kinds-defaults.md),
-  [ADR-0231](adr/0231-an-elements-own-style-written-in-code.md) and
-  [ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md).
+  [ADR-0231](adr/0231-an-elements-own-style-written-in-code.md),
+  [ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md) and
+  [ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md).
 - Widened on 2026-11-07 by the market's decisions
   ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md#decision)): M6d.1d, M6d.2, M6d.3,
   M6d.4, M6d.5, M6d.7, M6d.10 and M6d.11 gain what those decisions need of them; M6d.9 is cut in
@@ -94,11 +95,10 @@ in git.
   three at its start, on 2026-11-11
   ([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)): done,
   [M6d.2b2b1](#m6d2b2b1--transitions-and-the-frame-of-a-change-of-theme), transitions and the
-  frame of a change of theme; in progress,
+  frame of a change of theme; done,
   [M6d.2b2b2](#m6d2b2b2--the-users-layer-over-what-code-writes), the user's layer over what code
-  writes, its questions decided at its start
-  ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md)); next,
-  [M6d.2b2b3](#m6d2b2b3--tokens), tokens.
+  writes ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md));
+  next, [M6d.2b2b3](#m6d2b2b3--tokens), tokens.
 - Done between M6d.1c3b and M6d.1d: [C1](#c1--compiling-within-its-budgets), the engine's
   compiling within its budgets ([ADR-0221](adr/0221-compiling-within-its-budgets.md)).
 - The bench's branch, `m6d1b-bench`, waits for the owner's go to be deleted: uwui's measurements
@@ -988,7 +988,61 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
 
 ### M6d.2b2b2 — The user's layer over what code writes
 
-The second third of M6d.2b2b, in progress: its card is in [`PLAN.md`](PLAN.md#m6d2b2b2--the-users-layer-over-what-code-writes).
+The second third of M6d.2b2b
+([ADR-0232](adr/0232-transitions-read-the-derives-colours-and-share-what-they-show.md)), its
+questions decided at its start, on 2026-11-11
+([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md)). It
+follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The size of text that the user chose reaches every text but icons, and a list's rows;
+  the user's preferences are given as one value.
+- **Crates.** `uwui`, `slime-benches`, the examples; `slime-editor`, which gives less motion.
+- **Delivers.**
+  - `Preferences` in uwui's core, the size of text and less motion, given by
+    `Ui::set_preferences`, which replaces `Ui::set_reduced_motion`; every call site moved.
+  - `TextSize`, a curve of sorted stops, linear by default, `TextSize::factor`; a stop or factor
+    not finite, a ratio outside 0.5 to 3, or stops out of order refused.
+  - The size of text applied in the cascade's fourth step to every text's size, the rules' and the
+    code's, but a text whose first font is its style's font of icons; the styles made again when
+    it changes.
+  - A list's rows grown by the curve's ratio at the list's size of text, whole in pixels of the
+    screen, read through one accessor.
+  - uwui's and the `widgets` example's boxes of fixed width that hold a text made least widths.
+  - `ui.tree.look` counts the frame after a change of the size of text; CI bounds it by the same
+    tree's first frame at that size, for each element.
+  - Density and more contrast leave what code writes as numbers: nothing built.
+- **Done when.**
+  - Tests: the size of text reaches a text sized by a rule or by code, not an icon; a curve
+    interpolates its stops and refuses what it must; a list's rows grow and never overlap, at
+    scales 1.25 and 2 and at 200 % text; less motion through `Preferences` ends transitions; a
+    colour and a length written in code stay under high contrast and the compact theme.
+  - At 200 %, no text of the `widgets` example, its layers open, cut by its box or by any ancestor
+    up to the first that scrolls.
+  - The images and the editor's fixture of styles unchanged, the `widgets` example's recorded
+    again where it writes least widths; the other counters unchanged; CI green.
+- **How to test.** `cargo test -p uwui --features editor-look`; `cargo test -p slime-examples
+  --test widgets --test editor`; `cargo run -p slime-benches -- --counters`; `scripts/check.sh`.
+- **Measured.** `ui.tree.look` and `ui.tree.editor`, and the editor's counters, before and after,
+  on the owner's machine at rest, with the owner's go.
+- **Found before its start:** in [ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md#context).
+- **Result.** Done on 2026-11-11, CI green
+  ([ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md)):
+  - A program gives the user's size of text and less motion as one value,
+    `Ui::set_preferences(Preferences { .. })`, in place of `Ui::set_reduced_motion`.
+  - The size of text, a curve of stops or a factor, scales every text's size in the cascade's last
+    step, whoever wrote it, but icons'; a list's rows grow with it, their height whole in pixels of
+    the screen, read in one place, so that rows no longer overlap at a scale that is not whole.
+  - Density and high contrast leave what code writes as numbers; a test checks it under the look's
+    compact and high-contrast themes.
+  - At 200 %, no label, button, toggle, segment, tab or check box of the `widgets` example is cut;
+    uwui's sheet of shortcuts, the example's labels and values and its statistics were the five
+    that were, and a field's, a menu item's or a title's text is not checked
+    ([`debt.md`](debt.md)).
+  - The frame after a change of the size of text allocates no more for each element than the same
+    tree's first frame at that size, which CI checks; its times were not measured, the machine not
+    at rest ([measurements](measurements.md#m6d2b2b2-the-users-layer-over-what-code-writes)).
+  - The images are unchanged; the `widgets` example's fixture of styles was recorded again for its
+    least widths alone.
 
 ### M6d.2b2b3 — Tokens
 
