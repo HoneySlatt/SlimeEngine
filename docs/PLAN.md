@@ -49,9 +49,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
     [M6d.4b2](stage-6d.md#m6d4b2--the-canvass-layout-chosen).
   - M6d.5 waits for M6d.3 and M6d.4, which both touch `slime-app`; M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
-- Waiting for the owner: the deletion of the branches `m6d1b-bench`,
-  `m6d6-headless-compositors` and `m6d4a-prototype`, the last kept while measurements link to its
-  code; the mirror of the game's assets, a private repository, which `scripts/fetch-assets.sh`
+- Waiting for the owner: the deletion of the branches `m6d1b-bench` and `m6d4a-prototype`, the
+  last kept while measurements link to its code; the mirror of the game's assets, a private repository, which `scripts/fetch-assets.sh`
   cannot reach, CI living on its cache; and the
   [checks by hand](#checks-by-hand-waiting-for-the-owner).
 - After Stage 6d: uwui's stages, Stage 6e, the rest of Stage 6c ([`stage-6c.md`](stage-6c.md)),
