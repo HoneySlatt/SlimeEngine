@@ -30,7 +30,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
   cut in two, [M6d.3b1](stage-6d.md#m6d3b1--themes-in-kdl), themes, on the same day, and
   [M6d.3b2](stage-6d.md#m6d3b2--style-sheets-in-kdl), style sheets, on 2026-11-12. M6d.3c cut in
   three on 2026-11-12: done, [M6d.3c1](stage-6d.md#m6d3c1--shortcuts-in-kdl), shortcuts, on the
-  same day; in progress, [M6d.3c2](#m6d3c2--docks-layouts-in-kdl), docks' layouts; then
+  same day, and [M6d.3c2](stage-6d.md#m6d3c2--docks-layouts-in-kdl), docks' layouts; next
   [M6d.3c3](stage-6d.md#m6d3c3--reflection-out-of-uwui), reflection out.
 - In parallel, the owner's choice of 2026-11-11: two tracks at most, each milestone in its own
   session.
@@ -54,7 +54,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 |---|---|
 | [M6d.0a to M6d.3b2, and C1](stage-6d.md#where-it-stands) | Done |
 | [M6d.3c1 — Shortcuts in KDL](stage-6d.md#m6d3c1--shortcuts-in-kdl) | Done |
-| [M6d.3c2 — Docks' layouts in KDL](#m6d3c2--docks-layouts-in-kdl) | In progress |
+| [M6d.3c2 — Docks' layouts in KDL](stage-6d.md#m6d3c2--docks-layouts-in-kdl) | Done |
 | [M6d.3c3 — Reflection out of uwui](stage-6d.md#m6d3c3--reflection-out-of-uwui) | Planned |
 | [M6d.4a — The canvas's prototype and its ADR](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr) | Done |
 | [M6d.4b1a — The canvas moved into uwui-render](stage-6d.md#m6d4b1a--the-canvas-moved-into-uwui-render) | Done |
@@ -69,29 +69,6 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
-
-## M6d.3c2 — Docks' layouts in KDL
-
-The second third of M6d.3c, its questions decided at its start, on 2026-11-12
-([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)'s status). It
-follows the rules of [every milestone of the stage](stage-6d.md#stage-6d--uwui-leaves-the-engine).
-
-- **Goal.** A dock's layout in KDL, and the layouts that the editor saved migrated once.
-- **Crates.** `uwui`, `uwui-kdl`, `slime-editor`, `slime-benches`.
-- **Delivers.**
-  - A layout written and read by hand in `uwui::dock`: `version 1`, `default "editor 1"`, then
-    its tree, `Split …` at the top; a later version left as it is; read leniently within its
-    version, a default strictly.
-  - `uwui-kdl`'s printers of names, texts and numbers, an `f32` read back to its bits.
-  - The editor's layout in `<program>.layout.kdl`, migrated once from the TOML file, read a last
-    time by copies of the layout's types in the editor, never written again.
-  - The editor's default and `Program::layout` in KDL; `CHANGELOG.md`'s breaks.
-- **Done when.** The editor's default, a user's layout with floating and closed panels, and one
-  written before them, kept as fixtures, read the same as before; random layouts read the same
-  both ways, bit for bit; a layout migrated comes back under its default; a damaged file is set
-  aside; CI green.
-- **Measured.** Reading the editor's documents at its start, `ui.tree.look`; the cooker's compile
-  time, at rest.
 
 ## M6d.4b1b — The canvas on wgpu
 
@@ -195,6 +172,9 @@ made after Stage 6e's first milestone runs on `games/open-world` where it names 
   machine, `⇧⌘Z` and Apple's symbols; ⌘C, ⌘V and ⌘Z, Option and the arrows, and Option typing a
   character, in a field; Blender's `Alt+A`, whose logical key Option changes; Option alone, which
   opens the bar of menus.
+- **Layouts migrated** (M6d.3c2): the editor's layout as kept before 0.7, on Linux and in the
+  Windows virtual machine, shown as it was at the first start of an editor of 0.7, then kept in
+  `<program's name>.layout.kdl`; an editor before 0.7 started after it, which keeps its own.
 - **The interface after a lost device, on Direct3D 12** (M6d.4b1a): in the Windows virtual
   machine, *Hunna Wood*'s button that loses the GPU device, with the dev overlay open, then the
   overlay drawn again on the new device.

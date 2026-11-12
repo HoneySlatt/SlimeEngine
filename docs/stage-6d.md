@@ -112,8 +112,8 @@ in git.
   [M6d.3b1](#m6d3b1--themes-in-kdl), themes, on the same day, and
   [M6d.3b2](#m6d3b2--style-sheets-in-kdl), style sheets, on 2026-11-12; then
   [M6d.3c](#m6d3c--shortcuts-docks-and-reflection-out), shortcuts, docks and reflection out, cut
-  in three on 2026-11-12: done, [M6d.3c1](#m6d3c1--shortcuts-in-kdl), shortcuts, on the same day;
-  next [M6d.3c2](#m6d3c2--docks-layouts-in-kdl), docks' layouts, and
+  in three on 2026-11-12: done, [M6d.3c1](#m6d3c1--shortcuts-in-kdl), shortcuts, and
+  [M6d.3c2](#m6d3c2--docks-layouts-in-kdl), docks' layouts, on the same day; next
   [M6d.3c3](#m6d3c3--reflection-out-of-uwui), reflection out.
 - In progress on track B: [M6d.4](#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on wgpu,
   cut in three at its start, on 2026-11-11
@@ -1390,8 +1390,51 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
 
 ### M6d.3c2 — Docks' layouts in KDL
 
-In progress: its card is in [`PLAN.md`](PLAN.md#m6d3c2--docks-layouts-in-kdl), back here with its
-result when it is done.
+The second third of M6d.3c, its questions decided at its start, on 2026-11-12
+([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)'s status). It
+follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** A dock's layout in KDL, and the layouts that the editor saved migrated once.
+- **Crates.** `uwui`, `uwui-kdl`, `slime-editor`, `slime-benches`.
+- **Delivers.**
+  - A layout written and read by hand in `uwui::dock`: `version 1`, `default "editor 1"`, then
+    its tree, `Split …` at the top; a later version left as it is; read leniently within its
+    version, a default strictly.
+  - `uwui-kdl`'s printers of names, texts and numbers, an `f32` read back to its bits.
+  - The editor's layout in `<program>.layout.kdl`, migrated once from the TOML file, read a last
+    time by copies of the layout's types in the editor, never written again.
+  - The editor's default and `Program::layout` in KDL; `CHANGELOG.md`'s breaks.
+- **Done when.** The editor's default, a user's layout with floating and closed panels, and one
+  written before them, kept as fixtures, read the same as before; random layouts read the same
+  both ways, bit for bit; a layout migrated comes back under its default; a damaged file is set
+  aside; CI green.
+- **Measured.** Reading the editor's documents at its start, `ui.tree.look`; the cooker's compile
+  time, at rest.
+- **Result.** Done on 2026-11-12, CI green
+  ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)):
+  - A dock's layout is a document of KDL that `uwui::dock` writes and reads by hand, `version 1`,
+    then `default "editor 1"`, then its tree, `Split side_by_side=#true { children share=0.25 {
+    Tabs chosen=0 { panels hierarchy } } … }`, then `floating` and `closed`. Read leniently, what
+    it does not know is left out with a warning; strictly, an error; each error at its value's
+    line. A later version is not read; a layout whose splits lie deeper than a document is read is
+    not written.
+  - `uwui-kdl` writes a name, a text and a number, the one place that writes KDL's values; an `f32`
+    is written in its shortest decimal and read back rounded once, `Number::to_f32`, where a read
+    through an `f64` rounded ±7.038531e-26 twice.
+  - The editor keeps `<program's name>.layout.kdl`; where it finds none, it reads the file of TOML
+    of earlier editors a last time, through copies of the layout's types, writes its layout in KDL
+    and never writes the older file again. A layout of a later format is left as it is, not
+    written over during the run. The editor's default and `Program::layout` are KDL, read strictly.
+  - The editor's default, a user's layout with floating and closed panels and one written before
+    them are fixtures, read and migrated as before; random layouts read the same through both
+    readers, bit for bit. The editor ran in a headless compositor on a copy of a user's layout,
+    which it migrated to the fixture's bytes, and left a later format's file untouched.
+  - The closing review found a later format's file guarded by the window without a test, errors of
+    a value of the wrong kind at its node's line, and the default written after a layout set aside
+    where nothing called for it; each fixed and tested.
+  - Reading the editor's default allocates 50 times; with its panels fitted, 76, from 1 872
+    through reflection ([measurements](measurements.md#m6d3c2-docks-layouts-in-kdl)); its time and the cooker's time
+    of compiling again were not measured, the machine never at rest ([`debt.md`](debt.md)).
 
 ### M6d.3c3 — Reflection out of uwui
 

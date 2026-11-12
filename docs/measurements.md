@@ -2526,6 +2526,24 @@ Every finite `f32`, 4 278 190 080 values, was written by Rust's `Display` and re
 ±7.038531e-26, rounded twice to the next `f32`. A sweep of 156 s on 12 threads, run once; the tests
 of `uwui-kdl` check a sample and these two values (`write_f32`, `Number::to_f32`).
 
+GitHub's hosted runners, on 2026-11-12, each run green, on `0ccb4fa`; `Compositors` did not run, its
+paths untouched:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 6 min 39 s |
+| `check (headless)` | 11 min 55 s |
+| `check (windowed)` | 11 min 3 s |
+| `check (game)` | 15 min 12 s |
+| `windows (tests)` | 15 min 45 s |
+| `windows (render)` | 7 min 6 s |
+| `windows (game)` | 8 min 40 s |
+| `windows-release` | 16 min 12 s |
+| Docs' `links` | 17 s |
+
+Every job stays within its limit of 20 minutes; the closest, `windows-release`, has 3 min 48 s to
+spare.
+
 ## M6d.4b1a, the canvas moved into uwui-render
 
 The canvas moved out of `slime-render` into `uwui-render`, still on `slime-gfx`'s handles, and
