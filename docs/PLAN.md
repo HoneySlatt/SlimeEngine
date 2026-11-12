@@ -36,7 +36,8 @@ documentation was updated and reread. Every milestone is also checked on Windows
   - Track B, in a worktree: [M6d.6](stage-6d.md#m6d6--a-series-of-headless-compositors),
     done; then M6d.4: done, [M6d.4a](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr),
     [M6d.4b1a](stage-6d.md#m6d4b1a--the-canvas-moved-into-uwui-render) and
-    [M6d.4b1b](stage-6d.md#m6d4b1b--the-canvas-on-wgpu), on 2026-11-12; next M6d.4b2.
+    [M6d.4b1b](stage-6d.md#m6d4b1b--the-canvas-on-wgpu), on 2026-11-12; in progress,
+    [M6d.4b2](#m6d4b2--the-canvass-layout-chosen).
   - M6d.5 waits for M6d.4, which touches `slime-app` as M6d.3 did; M6d.10 to M6d.12 run alone.
   - Timed measures run one track at a time; shared files are edited by one session at a time.
 - Waiting for the owner: the deletion of the branches `m6d1b-bench` and `m6d4a-prototype`, the
@@ -54,7 +55,7 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.4a — The canvas's prototype and its ADR](stage-6d.md#m6d4a--the-canvass-prototype-and-its-adr) | Done |
 | [M6d.4b1a — The canvas moved into uwui-render](stage-6d.md#m6d4b1a--the-canvas-moved-into-uwui-render) | Done |
 | [M6d.4b1b — The canvas on wgpu](stage-6d.md#m6d4b1b--the-canvas-on-wgpu) | Done |
-| [M6d.4b2 — The canvas's layout chosen](stage-6d.md#m6d4b2--the-canvass-layout-chosen) | Planned |
+| [M6d.4b2 — The canvas's layout chosen](#m6d4b2--the-canvass-layout-chosen) | In progress |
 | [M6d.5 — The host's API](stage-6d.md#m6d5--the-hosts-api) | Planned |
 | [M6d.6 — A series of headless compositors](stage-6d.md#m6d6--a-series-of-headless-compositors) | Done |
 | [M6d.7 — The desktop host: its window and its frames](stage-6d.md#m6d7--the-desktop-host-its-window-and-its-frames) | Planned |
@@ -64,6 +65,31 @@ documentation was updated and reread. Every milestone is also checked on Windows
 | [M6d.10 — uwui designed as a project](stage-6d.md#m6d10--uwui-designed-as-a-project) | Planned |
 | [M6d.11 — The move](stage-6d.md#m6d11--the-move) | Planned |
 | [M6d.12 — The audit of Stage 6d](stage-6d.md#m6d12--the-audit-of-stage-6d) | Planned |
+
+## M6d.4b2 — The canvas's layout chosen
+
+Started on 2026-11-12, the last third of M6d.4
+([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)), under
+[the stage's rules](stage-6d.md#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** uwui's canvas draws on a path that WebGL2 takes.
+- **Crates.** `uwui-render`, `slime-benches`; `.github/workflows/`, `scripts/check.sh`, `flake.nix`.
+- **Delivers.**
+  - The canvas on the layout that M6d.4a chose, one shader reading its items from a storage buffer
+    or a texture as the device allows
+    ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)),
+    each item's fields read when its kind needs them.
+  - Image tests on wgpu's GL backend at WebGL2's limits, through a `gles` feature of `uwui-render`
+    alone, the owner's choice, in a job of their own; nothing else in the workspace builds GL.
+  - uwui's counters and discriminating cases of the canvas checked in CI
+    ([ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)).
+- **Done when.** The canvas's images are those of M6d.4b1, by both ways of reading, on Vulkan and
+  on GL; CI is green, each job within 20 minutes.
+- **How to test.** `cargo test -p uwui-render`; `scripts/check.sh`.
+- **Measured.** `render.canvas` and `ui.draw.menu` at 3840 × 2160 on the RX 6900 XT, against
+  M6d.4b1's; then, added to them, what the interface adds to a frame over a view, its own span
+  and the passes a frame takes, counted in CI
+  ([ADR-0245](adr/0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md)).
 
 ## Ideas waiting for their milestone
 

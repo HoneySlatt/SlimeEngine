@@ -1676,25 +1676,8 @@ of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
 
 ### M6d.4b2 — The canvas's layout chosen
 
-The last third of M6d.4
-([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)).
-
-- **Goal.** uwui's canvas draws on a path that WebGL2 takes.
-- **Crates.** `uwui-render`, `slime-benches`; `.github/workflows/`.
-- **Delivers.** The canvas on the layout that M6d.4a chose, one shader reading its items from a
-  storage buffer or a texture as the device allows
-  ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)), each
-  item's fields read when its kind needs them; image tests on wgpu's GL backend at WebGL2's
-  limits, if the owner accepts wgpu's `gles` feature in the workspace, in a job other than
-  `check (headless)`; uwui's counters and discriminating cases of the canvas checked in CI
-  ([ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)).
-- **Done when.** The canvas's images are those of M6d.4b1, by both ways of reading, on Vulkan and
-  on GL; CI is green, each job within 20 minutes.
-- **How to test.** `cargo test -p uwui-render`; `scripts/check.sh`.
-- **Measured.** `render.canvas` and `ui.draw.menu` at 3840 × 2160 on the RX 6900 XT, against
-  M6d.4b1's; then, added to them, what the interface adds to a frame over a view, its own span
-  and the passes a frame takes, counted in CI
-  ([ADR-0245](adr/0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md)).
+In progress: its card is in [`PLAN.md`](PLAN.md#m6d4b2--the-canvass-layout-chosen), back here with
+its result when it is done.
 
 ### M6d.5 — The host's API
 
