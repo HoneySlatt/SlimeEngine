@@ -245,12 +245,10 @@ parley, fontique and swash, the text; taffy, the tree's flexbox and grid, run th
 the tree's arena; their types stay inside the crate (`docs/adr/0132-the-engines-ui-framework.md`).
 icu_properties, for the writing system of a character; `slime-color`, the colors of the styles and
 the display list; `uwui-kdl`, the reader of its documents in KDL, its themes, style sheets,
-tables of shortcuts and docks' layouts, and the writer of their values; `slime-reflect` and
-`slime-serialize`, the styles and docks' layouts described, and the reflected readers that its
-tests keep as oracles, until M6d.3c3; `uwui-macros`, the derives of the styles' declarations and of their readers
+tables of shortcuts and docks' layouts, and the writer of their values; `uwui-macros`, the
+derives of the styles' declarations and of their readers
 (`docs/adr/0229-styles-typed-as-declarations.md`); `slime-input`, the input it takes; thiserror and
-tracing. No other engine
-crate: text is laid out and rasterized on the CPU, `uwui-render` draws the display list, a
+tracing. No other engine crate: text is laid out and rasterized on the CPU, `uwui-render` draws the display list, a
 program reads the cooked documents, and the window's input reaches the interface through the
 program.
 

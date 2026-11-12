@@ -68,8 +68,6 @@ use crate::document::{DocumentError, DocumentErrors, Fault};
 use crate::theme::values::shown as entry_text;
 
 #[cfg(test)]
-mod reflected_tests;
-#[cfg(test)]
 mod verdicts_tests;
 
 /// A table of shortcuts, read when an interface takes it

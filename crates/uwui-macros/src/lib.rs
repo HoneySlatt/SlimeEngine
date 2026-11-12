@@ -35,16 +35,14 @@ use syn::{Attribute, Data, DeriveInput, Fields, Ident, Type};
 ///   properties and children write, a leaf by its type's `Field`, an array as a child node of its
 ///   elements, a nested field as a child node of its own fields, each number of its field's
 ///   measure (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`);
-/// - `S::named`, in uwui's tests alone, the declarations of the leaves that a part of `S` read by
-///   reflection names, each holding the value that a whole `S` gives it, an array's every element:
-///   the reflected reader's, the oracle of `S::read_fields` until reflection leaves uwui (M6d.3c3);
 /// - `Same` for `S`, field by field;
 /// - `Colors` for `S`, the colors of its fields marked `#[declare(color)]` and of its nested
-///   fields, in the order of the struct: the one list of colors that transitions move.
+///   fields, in the order of the struct: the one list of colors that transitions move; and, for
+///   uwui's tests alone, each color's path, `paint.background`.
 ///
 /// The code it generates names `crate::style::Same`, `crate::style::Colors`,
-/// `crate::theme::sheet`, `uwui_kdl`, `slime_color::LinearColor` and `slime_reflect::Value`: it
-/// serves uwui's own styles, and its items are `pub(crate)`.
+/// `crate::theme::sheet`, `uwui_kdl` and `slime_color::LinearColor`: it serves uwui's own styles,
+/// and its items are `pub(crate)`.
 #[proc_macro_derive(Declare, attributes(declare))]
 pub fn derive_declare(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
@@ -57,9 +55,10 @@ pub fn derive_declare(input: TokenStream) -> TokenStream {
 /// `direction=Column`, its variant's name as Rust writes it
 /// (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
 ///
-/// It generates `crate::theme::sheet::Field` for the enum, which reads a variant from its name and
-/// refuses any other value, naming every variant; the enum is `Copy`. It serves uwui's own styles
-/// and selectors.
+/// It generates `IDENTIFIERS`, each variant by its name, in the order of the enum, and
+/// `crate::theme::sheet::Field` for the enum, which reads a variant from its name and refuses any
+/// other value, naming every variant; the enum is `Copy`. It serves uwui's own styles and
+/// selectors.
 #[proc_macro_derive(Identifiers)]
 pub fn derive_identifiers(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
@@ -95,13 +94,18 @@ fn identifiers(input: &DeriveInput) -> syn::Result<Tokens> {
     }
     let ty = &input.ident;
     Ok(quote! {
+        impl #ty {
+            /// Each variant by its name, in the order of the enum.
+            pub(crate) const IDENTIFIERS: &'static [(&'static str, Self)] = &[#(#variants),*];
+        }
+
         impl crate::theme::sheet::Field for #ty {
             fn from_entry(
                 entry: &::uwui_kdl::Entry<'_, '_>,
                 _: crate::theme::sheet::Measure,
                 _: &crate::theme::sheet::Reading<'_>,
             ) -> ::std::result::Result<Self, crate::theme::sheet::Refusal> {
-                crate::theme::sheet::identifier(entry, &[#(#variants),*])
+                crate::theme::sheet::identifier(entry, Self::IDENTIFIERS)
             }
         }
     })
@@ -247,29 +251,6 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
             },
         }
     });
-    let named_arms = fields.iter().map(|field| {
-        let Field { name, variant, .. } = field;
-        let key = name.to_string();
-        match field.shape {
-            Shape::Nested(_) => quote! {
-                #key => self.#name.named(part, &mut |inner| out(#declaration::#variant(inner))),
-            },
-            // A part sets an array whole: each of its elements.
-            Shape::Array(..) => quote! {
-                #key => {
-                    for (index, value) in self.#name.iter().enumerate() {
-                        out(#declaration::#variant(
-                            u8::try_from(index).expect("an array of a style is short"),
-                            ::std::clone::Clone::clone(value),
-                        ));
-                    }
-                }
-            },
-            Shape::Leaf => quote! {
-                #key => out(#declaration::#variant(::std::clone::Clone::clone(&self.#name))),
-            },
-        }
-    });
     // Each field as a style sheet writes it: its name, and whether it is a child node.
     let read_forms = fields.iter().map(|field| {
         let name = field.name.to_string();
@@ -381,6 +362,8 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
         quote! { <#ty as crate::style::Colors>::COUNT }
     });
     let color_names: Vec<&Ident> = colored.iter().map(|field| &field.name).collect();
+    let color_types = colored.iter().map(|field| &field.ty);
+    let color_keys = colored.iter().map(|field| field.name.to_string());
 
     Ok(quote! {
         #[doc = #doc]
@@ -460,28 +443,6 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
                     }
                 });
             }
-
-            /// Gives `out` the declarations of the fields that `part`, a part of this type as
-            /// reflection reads one, names, each holding the value that `self`, the whole value
-            /// laid under the part, gives it; in the order of the part: the reflected reader's,
-            /// kept as the oracle of the reader of KDL until reflection leaves uwui (M6d.3c3).
-            #[cfg(test)]
-            pub(crate) fn named(
-                &self,
-                part: &::slime_reflect::Value,
-                out: &mut dyn FnMut(#declaration),
-            ) {
-                let ::slime_reflect::Value::Struct(fields) = part else {
-                    return;
-                };
-                for (key, part) in fields {
-                    match key.as_str() {
-                        #(#named_arms)*
-                        // The reader refused any other name before.
-                        _ => {}
-                    }
-                }
-            }
         }
 
         impl crate::style::Same for #ty {
@@ -501,6 +462,19 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
             fn write(&mut self, next: &mut dyn FnMut() -> ::slime_color::LinearColor) {
                 let _ = &next;
                 #(crate::style::Colors::write(&mut self.#color_names, next);)*
+            }
+
+            #[cfg(test)]
+            fn paths(path: &str, out: &mut dyn FnMut(::std::string::String)) {
+                let _ = (path, &out);
+                #(<#color_types as crate::style::Colors>::paths(
+                    &if path.is_empty() {
+                        ::std::string::String::from(#color_keys)
+                    } else {
+                        ::std::format!("{}.{}", path, #color_keys)
+                    },
+                    out,
+                );)*
             }
         }
     })

@@ -6,9 +6,8 @@
 //! A fixture is a list of cases, each a line `=== case <number>`, then each document under a line
 //! `--- <label>`, its lines as they are, then the verdict under a line `+++ read`: what was read, as
 //! lines, or `refused`. No document holds a line that starts with one of these marks, a carriage
-//! return, or a last line without its line feed: the recording refuses them.
+//! return, or a last line without its line feed: the recording refused them.
 
-use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 /// A document's label and its text.
@@ -33,41 +32,6 @@ pub(crate) fn path(name: &str) -> PathBuf {
         .join(format!("{name}.txt"))
 }
 
-/// `cases` written as a fixture.
-///
-/// # Panics
-///
-/// If a document holds a line that a mark starts, a carriage return, or ends without a line feed:
-/// the fixture could not give it back as it is.
-pub(crate) fn write(cases: &[Case]) -> String {
-    let mut out = String::new();
-    for (number, case) in cases.iter().enumerate() {
-        writeln!(out, "{CASE}{number}").expect("written");
-        for (label, text) in &case.inputs {
-            assert!(
-                !text.contains('\r') && (text.is_empty() || text.ends_with('\n')),
-                "case {number}: `{label}` holds a carriage return, or lacks its last line feed"
-            );
-            assert!(
-                text.lines().all(|line| !is_mark(line)),
-                "case {number}: `{label}` holds a line that a mark starts"
-            );
-            writeln!(out, "{INPUT}{label}").expect("written");
-            out.push_str(text);
-        }
-        writeln!(out, "{VERDICT}").expect("written");
-        out.push_str(&case.verdict);
-        if !case.verdict.is_empty() && !case.verdict.ends_with('\n') {
-            out.push('\n');
-        }
-    }
-    out
-}
-
-fn is_mark(line: &str) -> bool {
-    line.starts_with(CASE) || line.starts_with(INPUT) || line.starts_with(VERDICT)
-}
-
 /// The cases of the fixture at `path`.
 ///
 /// # Panics
@@ -76,6 +40,11 @@ fn is_mark(line: &str) -> bool {
 pub(crate) fn read(path: &Path) -> Vec<Case> {
     let text = std::fs::read_to_string(path)
         .unwrap_or_else(|error| panic!("{} is read: {error}", path.display()));
+    cases(path, &text)
+}
+
+/// The cases of `text`, the fixture at `path`.
+fn cases(path: &Path, text: &str) -> Vec<Case> {
     let mut cases: Vec<Case> = Vec::new();
     // Where the lines go: a document of the last case, or its verdict.
     let mut in_verdict = false;
@@ -190,32 +159,25 @@ fn colors_apart(line: &str) -> Vec<Piece<'_>> {
 }
 
 #[test]
-fn a_fixture_reads_back_the_cases_written() {
-    let cases = vec![
-        Case {
-            inputs: vec![
-                (
-                    "a.theme".to_owned(),
-                    "color {\n  a \"#fff\"\n}\n".to_owned(),
-                ),
-                ("empty".to_owned(), String::new()),
-            ],
-            verdict: "token a 1\n".to_owned(),
-        },
-        Case {
-            inputs: vec![("b".to_owned(), "x\n".to_owned())],
-            verdict: "refused\n".to_owned(),
-        },
-    ];
-    let path = std::env::temp_dir().join(format!("uwui-verdicts-{}.txt", std::process::id()));
-    std::fs::write(&path, write(&cases)).expect("written");
-    let read = read(&path);
-    std::fs::remove_file(&path).expect("removed");
-    assert_eq!(read.len(), 2);
-    for (read, case) in read.iter().zip(&cases) {
-        assert_eq!(read.inputs, case.inputs);
-        assert_eq!(read.verdict, case.verdict);
-    }
+fn a_fixture_gives_each_case_its_documents_and_its_verdict() {
+    // As a checkout on Windows may write it, a carriage return before each line feed.
+    let text = "=== case 0\r\n--- a.theme\r\ncolor {\r\n  a \"#fff\"\r\n}\r\n--- empty\r\n\
+                +++ read\r\ntoken a 1\r\n=== case 1\r\n--- b\r\nx\r\n+++ read\r\nrefused\r\n";
+    let cases = cases(Path::new("test.txt"), text);
+    assert_eq!(cases.len(), 2);
+    assert_eq!(
+        cases[0].inputs,
+        [
+            (
+                "a.theme".to_owned(),
+                "color {\n  a \"#fff\"\n}\n".to_owned()
+            ),
+            ("empty".to_owned(), String::new()),
+        ]
+    );
+    assert_eq!(cases[0].verdict, "token a 1\n");
+    assert_eq!(cases[1].inputs, [("b".to_owned(), "x\n".to_owned())]);
+    assert_eq!(cases[1].verdict, "refused\n");
 }
 
 #[test]

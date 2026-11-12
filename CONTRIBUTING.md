@@ -192,6 +192,12 @@ The GPU layer uses Vulkan on Linux and Direct3D 12 on Windows
   them on purpose; a change of the cascade must not
   ([ADR-0229](docs/adr/0229-styles-typed-as-declarations.md)).
 
+  uwui's fixtures of verdicts, `crates/uwui/tests/reference/verdicts/`, are what the reflected
+  readers that its readers of KDL replaced read from random documents; nothing writes them again.
+  A test that fails on one is a reader that reads otherwise: change the reader, never the fixture,
+  unless the owner decides that the reader's behaviour changes
+  ([ADR-0241](docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
+
 #### Looking at a window without a display
 
 The checks run the windowed samples in a headless Weston. To see what such a window shows, run

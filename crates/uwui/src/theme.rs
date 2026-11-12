@@ -114,11 +114,6 @@
 use std::collections::HashMap;
 
 use slime_color::{LinearColor, Oklch};
-use slime_reflect::Reflect;
-#[cfg(test)]
-use slime_reflect::Registry;
-#[cfg(test)]
-use slime_reflect::Value;
 use uwui_macros::Identifiers;
 
 use crate::document::{DocumentError, DocumentErrors};
@@ -176,8 +171,7 @@ impl Theme {
 /// What a rule selects: elements of a kind, holding classes, of a key, in states, inside an
 /// ancestor of a kind or a class. A rule selects an element that every condition it gives holds
 /// for.
-#[derive(Clone, Debug, Default, PartialEq, Reflect)]
-#[reflect(name = "UiSelector", default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Selector {
     /// The kind of element.
     pub(crate) kind: Option<KindName>,
@@ -192,8 +186,7 @@ pub(crate) struct Selector {
 }
 
 /// The kinds of elements, as a rule names them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect, Identifiers)]
-#[reflect(name = "UiElementKind")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Identifiers)]
 pub(crate) enum KindName {
     Container,
     Label,
@@ -266,8 +259,6 @@ impl KindName {
 
 #[cfg(test)]
 mod documents_tests;
-#[cfg(test)]
-mod reflected_tests;
 pub(crate) mod sheet;
 mod token;
 pub(crate) mod values;
@@ -542,8 +533,7 @@ pub(crate) fn read_by(kind: KindName) -> &'static [(&'static str, Option<Token<C
 }
 
 /// The states of an element, as a rule names them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect, Identifiers)]
-#[reflect(name = "UiElementState")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Identifiers)]
 pub(crate) enum StateName {
     Hovered,
     Pressed,
@@ -556,8 +546,7 @@ pub(crate) enum StateName {
 }
 
 /// An ancestor that a rule asks for: of a kind, holding a class, or both.
-#[derive(Clone, Debug, Default, PartialEq, Reflect)]
-#[reflect(name = "UiAncestor", default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Ancestor {
     /// Its kind.
     pub(crate) kind: Option<KindName>,
@@ -572,16 +561,6 @@ pub(crate) struct Rule {
     /// What it sets of a [`Style`], in the order of its document
     /// (`docs/adr/0229-styles-typed-as-declarations.md`).
     pub(crate) declarations: Vec<StyleDeclaration>,
-}
-
-/// The registry of the types that style sheets hold, as reflection reads them: the oracle's of the
-/// tests while reflection is in uwui (M6d.3c3).
-#[cfg(test)]
-pub(crate) fn registry() -> Registry {
-    let mut registry = Registry::new();
-    registry.register::<Style>();
-    registry.register::<Selector>();
-    registry
 }
 
 /// What an interface is styled with: its rules, and the tokens that the themes lacked.
@@ -687,66 +666,6 @@ fn token_value(value: &values::ThemeValue, kind: KindId) -> Option<Resolved> {
         }
         _ => None,
     }
-}
-
-/// The declarations of what `part` sets, a part of a style as reflection reads one, in its order,
-/// each holding the value that the part laid over `default`, the default style's value, gives it.
-///
-/// # Errors
-///
-/// What is wrong, if the part sets some of a color's channels and not all, or leaves out a field of
-/// what it sets whole, an option's value, without a default to give it: such a part lays over no
-/// style. The reflected reader's, kept as the oracle of the tests while reflection is in uwui.
-#[cfg(test)]
-pub(crate) fn declarations(
-    registry: &Registry,
-    default: &Value,
-    part: &Value,
-) -> Result<Vec<StyleDeclaration>, String> {
-    if let Some(path) = partial_color(registry, "UiStyle", part, "") {
-        return Err(format!(
-            "`{path}` sets some of a color's channels: a rule sets a color whole, as \
-             `\"#rrggbb\"`, a value's name or `{{ r, g, b, a }}`"
-        ));
-    }
-    let mut whole = default.clone();
-    registry
-        .overlay("UiStyle", &mut whole, part)
-        .map_err(|error| error.to_string())?;
-    let whole = Style::from_value(&whole).expect("a style, read as one");
-    let mut declarations = Vec::new();
-    whole.named(part, &mut |declaration| declarations.push(declaration));
-    Ok(declarations)
-}
-
-/// The path of the first color that `part`, a part of a value of the type `ty` at `path`, sets some
-/// of the channels of and not all; none when it sets every color it holds whole.
-#[cfg(test)]
-fn partial_color(registry: &Registry, ty: &str, part: &Value, path: &str) -> Option<String> {
-    let inner = ty
-        .strip_prefix("Option<")
-        .and_then(|inner| inner.strip_suffix('>'));
-    if let (Some(inner), Value::Option(Some(held))) = (inner, part) {
-        return partial_color(registry, inner, held, path);
-    }
-    let Value::Struct(parts) = part else {
-        return None;
-    };
-    if ty == "LinearColor" {
-        return (parts.len() < 4).then(|| path.to_owned());
-    }
-    let slime_reflect::Kind::Struct(fields) = &registry.get(ty)?.info().kind else {
-        return None;
-    };
-    parts.iter().find_map(|(name, part)| {
-        let field = fields.iter().find(|field| field.name == *name)?;
-        let path = if path.is_empty() {
-            name.clone()
-        } else {
-            format!("{path}.{name}")
-        };
-        partial_color(registry, &field.ty, part, &path)
-    })
 }
 
 /// The function and the arguments of `text` if it calls one, `name(a, b)`: the arguments split at

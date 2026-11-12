@@ -3,8 +3,6 @@
 
 use std::fmt;
 
-use slime_serialize::ReadError;
-
 /// Why a style sheet, a theme, a table of shortcuts or a dock's layout cannot be taken: the
 /// document at fault, and what is wrong, and where in it.
 #[derive(Debug)]
@@ -22,10 +20,6 @@ pub enum Fault {
     /// In a document of KDL, a theme, a style sheet, a table of shortcuts or a dock's layout: its
     /// line, its column and what is wrong.
     Kdl(uwui_kdl::Error),
-    /// In a document read through reflection: only the oracles of uwui's tests read one, until
-    /// reflection leaves uwui (M6d.3c3,
-    /// `docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
-    Reflected(ReadError),
 }
 
 impl DocumentError {
@@ -59,7 +53,6 @@ impl fmt::Display for Fault {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Kdl(error) => error.fmt(formatter),
-            Self::Reflected(error) => error.fmt(formatter),
         }
     }
 }
@@ -68,7 +61,6 @@ impl std::error::Error for Fault {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Kdl(error) => Some(error),
-            Self::Reflected(error) => Some(error),
         }
     }
 }

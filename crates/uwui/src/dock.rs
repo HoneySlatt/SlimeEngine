@@ -8,20 +8,15 @@
 //! A panel is named by a key that the program gives, `hierarchy`, and holds what the program builds
 //! into its slot ([`Dock::slot`]). A program keeps a layout as a document of KDL, which [`write()`]
 //! writes and [`read`] reads, its version first
-//! (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`). The layout is
-//! reflected data too, until reflection leaves uwui (M6d.3c3).
+//! (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
 
 use std::collections::{HashMap, HashSet};
-
-use slime_reflect::Reflect;
 
 use crate::action::{Action, ActionKind, FieldValue};
 use crate::style::{Dimension, FlexDirection, StyleBuilder};
 use crate::tree::{Children, Element, ElementId, Layer, Place, Role, Ui};
 
 mod document;
-#[cfg(test)]
-mod reflected_tests;
 #[cfg(test)]
 mod verdicts_tests;
 
@@ -43,23 +38,19 @@ const SUM_ROUNDING: f32 = 1e-5;
 /// How a program's panels are laid out: its panels docked, those that float, and those closed.
 /// Normalized ([`Layout::normalize`]), it holds each panel once, docked or floating, its splits'
 /// shares summing to 1.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "UiDockLayout")]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Layout {
     /// The panels docked: one stack of tabs, or a split of others.
     pub root: Node,
     /// The panels that float over the window, the last above the others.
-    #[reflect(default)]
     pub floating: Vec<Floating>,
     /// The panels closed, by their keys: each stays where it was, in its stack or floating, hidden,
     /// to come back there.
-    #[reflect(default)]
     pub closed: Vec<String>,
 }
 
 /// A part of a [`Layout`]'s docked panels.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "UiDockNode")]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Node {
     /// Panels stacked as tabs, by their keys, the chosen one shown.
     Tabs {
@@ -78,8 +69,7 @@ pub enum Node {
 }
 
 /// A child of a split, and its share of the split's length.
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "UiDockShare")]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Share {
     /// Its share of the split's length, from 0 to 1.
     pub share: f32,
@@ -88,8 +78,7 @@ pub struct Share {
 }
 
 /// A panel that floats over the window, in a layer of its own ([`Place::Floating`]).
-#[derive(Clone, Debug, PartialEq, Reflect)]
-#[reflect(name = "UiDockFloating")]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Floating {
     /// Its key.
     pub panel: String,

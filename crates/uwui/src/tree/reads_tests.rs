@@ -39,15 +39,14 @@
 //! given to it, so that a kind that reads nothing is shown to have been given them.
 //!
 //! Adding a kind to [`KindName`] makes this file fail to compile, as [`configurations`] matches
-//! every kind, and the test fail until the kind is added to [`KindName::ALL`], as it counts the enum's
-//! variants through reflection. A failure names the kind, the leaf and the configuration, with the
-//! first primitive that differs. The fonts of the look come with the feature `editor-look`, which
-//! the test needs.
+//! every kind, and the test fail until the kind is added to [`KindName::ALL`], as it counts the
+//! enum's variants by the names that its derive lists. A failure names the kind, the leaf and the
+//! configuration, with the first primitive that differs. The fonts of the look come with the
+//! feature `editor-look`, which the test needs.
 
 use std::collections::BTreeSet;
 
 use slime_color::LinearColor;
-use slime_reflect::{Kind as TypeKind, Reflect};
 
 use super::{
     Children, Element, ElementId, ElementState, ItemMark, Kind, Layer, LayoutDirection, Place,
@@ -1409,10 +1408,7 @@ fn observe(kind: KindName, base: &Style) -> (Vec<Tried>, Vec<Observation>) {
 
 #[test]
 fn every_kind_draws_the_leaves_that_the_table_says_it_reads() {
-    let variants = match KindName::type_info().kind {
-        TypeKind::Enum(variants) => variants.len(),
-        other => panic!("KindName is an enum, not {other:?}"),
-    };
+    let variants = KindName::IDENTIFIERS.len();
     assert_eq!(
         KindName::ALL.len(),
         variants,

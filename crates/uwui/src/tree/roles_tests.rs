@@ -10,13 +10,12 @@
 //! drawing, the test of the bases shows that each such color is its role's.
 
 use slime_color::LinearColor;
-use slime_reflect::{Kind as TypeKind, Reflect, Registry, Value};
 
 use super::reads_tests::{Configuration, DIRECTIONS, base_style, configurations};
 use super::{ElementId, RootSettings, Ui};
 use crate::display::Primitive;
 use crate::look;
-use crate::style::Style;
+use crate::style::{Colors, Style};
 use crate::text::Fonts;
 use crate::theme::{
     self, Color, KindName, SELECTION_OPACITY, StyleSheet, Theme, Token, TokenValues,
@@ -77,57 +76,16 @@ fn styled_by_sentinels(fonts: Fonts) -> Ui {
     ui
 }
 
-/// Every color leaf of `value`, a value of the type `ty`, by its path, found through reflection so
-/// that a color added to a style is found too.
-fn colors(
-    registry: &Registry,
-    ty: &str,
-    value: &Value,
-    path: &str,
-    out: &mut Vec<(String, Value)>,
-) {
-    if ty == "LinearColor" {
-        out.push((path.to_owned(), value.clone()));
-        return;
-    }
-    let info = registry
-        .get(ty)
-        .unwrap_or_else(|| panic!("`{ty}` is registered"))
-        .info();
-    match (&info.kind, value) {
-        (TypeKind::Struct(fields), Value::Struct(values)) => {
-            for field in fields {
-                let (_, held) = values
-                    .iter()
-                    .find(|(name, _)| *name == field.name)
-                    .expect("a whole value");
-                let path = if path.is_empty() {
-                    field.name.clone()
-                } else {
-                    format!("{path}.{}", field.name)
-                };
-                colors(registry, &field.ty, held, &path, out);
-            }
-        }
-        (TypeKind::Option(inner), Value::Option(Some(held))) => {
-            colors(registry, inner, held, path, out);
-        }
-        _ => {}
-    }
-}
-
-/// Every color of `style`, by its path.
+/// Every color of `style`, by its path, as the derive of its declarations lists them, so that a
+/// color added to a style is found too: a shadow's, transparent where it casts none, by the
+/// shadow's path.
 fn style_colors(style: &Style) -> Vec<(String, LinearColor)> {
-    let registry = theme::registry();
-    let mut found = Vec::new();
-    colors(&registry, "UiStyle", &style.to_value(), "", &mut found);
-    found
-        .into_iter()
-        .map(|(path, value)| {
-            let color = LinearColor::from_value(&value).expect("a color");
-            (path, color)
-        })
-        .collect()
+    let mut paths = Vec::new();
+    Style::paths("", &mut |path| paths.push(path));
+    let mut colors = Vec::new();
+    style.read(&mut |color| colors.push(color));
+    assert_eq!(paths.len(), colors.len(), "a path for each color");
+    paths.into_iter().zip(colors).collect()
 }
 
 /// The value that `role` gives the leaf `leaf` of a kind's base.

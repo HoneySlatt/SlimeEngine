@@ -31,6 +31,9 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   `uwui-render`; `slime-devui` depends on `slime-app`. In `slime-gfx`, `Gpu::wgpu_device`,
   `RenderTarget::without_srgb`, `Gpu::write_texture` and `Blend::Premultiplied` are gone, and
   `Gpu::id` gives a device's identity, `GpuId`.
+- uwui depends on neither `slime-reflect` nor `slime-serialize` (ADR-0241): its styles, selectors,
+  docks' layouts and their parts no longer implement `slime_reflect::Reflect`, and a style or a
+  layout is read and written as KDL alone.
 - uwui's styles are typed declarations, applied without reflection (ADR-0229): a rule sets a
   colour whole, and a rule that names a kind and sets what that kind does not read is refused.
   Each kind starts from defaults whose colours are the core's seven roles, `canvas_text`, `accent`
@@ -72,7 +75,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   name a theme's value in a field of a boolean, an enum or a struct, such as `layout.wrap`. A
   cooked theme's metadata follows its new name, `x.theme.kdl.meta`, or the theme takes a new ID.
   `Ui::set_style` gives every error found, each at its line, as `DocumentErrors`;
-  `DocumentError::error` is a `Fault`, of KDL or of reflection.
+  `DocumentError::error` is a `Fault`, its line, its column and what is wrong in a document of
+  KDL.
 - uwui's style sheets are KDL (ADR-0241): a rule is a node, `panel { select { classes panel; };
   paint background=$surface { radii 8 8 8 8; }; }`, its children `select` and the style's groups;
   a field that holds a value is a property, a struct, an array or a list a child node; an enum's
@@ -196,7 +200,7 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   into another region or to an edge of the window, as `view.move_panel` does by its name, with its
   two arguments; F6 goes from one region to the next.
 - Docking in `uwui` (ADR-0172): `dock::Layout`, splits of any number of children and stacks of
-  tabs, reflected and normalized after each edit, and `dock::Dock`, which builds it into a
+  tabs, normalized after each edit, and `dock::Dock`, which builds it into a
   program's tree and changes it as the user drags its borders, chooses its tabs and moves its
   panels; `Element::splitter`, a border between two children of a box, which gives the program the
   share of the first as it moves; `Element::pane`, a place that F6 moves the focus to.

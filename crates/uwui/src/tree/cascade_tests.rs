@@ -1,22 +1,22 @@
-//! The typed cascade checked against the reflected one that it replaced
-//! (`docs/adr/0229-styles-typed-as-declarations.md`): random rules and own styles, over every leaf
-//! of [`Style`] as reflection describes it, compose the same both ways, compared bit for bit, an
-//! own style's arrays set by element (`docs/adr/0231-an-elements-own-style-written-in-code.md`);
-//! and every leaf through the mask order, the rules' states against the own style's.
+//! The typed cascade checked against a model of it (`docs/adr/0229-styles-typed-as-declarations.md`):
+//! random rules and own styles, over every leaf of [`Style`] as its derive lists them, compose as
+//! the model says, each rule's declarations applied in their order, then each leaf of the own style
+//! that is not its default, an own style's arrays set by element
+//! (`docs/adr/0231-an-elements-own-style-written-in-code.md`); and every leaf through the mask
+//! order, the rules' states against the own style's.
 //!
-//! The reflected cascade is kept here as the test's oracle while `slime-reflect` is in uwui; once
-//! reflection leaves uwui (M6d.3c3), the fixtures of the `widgets` example's styles
-//! (`examples/tests/widgets.rs`) outlive it.
+//! The model was checked to compose as the reflected cascade that the typed one replaced, on that
+//! cascade's 3,000 seeded cases, before reflection left uwui (M6d.3c3); the fixtures of the
+//! `widgets` example's styles (`examples/tests/widgets.rs`) outlive both.
 
 use std::panic::Location;
 
 use slime_color::LinearColor;
-use slime_reflect::{Kind, Reflect, Registry, Value};
 
 use super::Ui;
 use crate::style::{
-    Align, Dimension, Display, Easing, FlexDirection, Justify, OwnStyle, Same, Shadow, Style,
-    StyleBuilder, StyleDeclaration, Track, state_bit,
+    Align, Dimension, Display, Easing, FlexDirection, GridPlace, Justify, OwnStyle, Same, Shadow,
+    Sides, Style, StyleBuilder, StyleDeclaration, Track, state_bit,
 };
 use crate::text::{Alignment, Direction, Fonts};
 use crate::theme::{self, KindName, Rule, Selector, StateName};
@@ -37,243 +37,81 @@ impl Numbers {
     }
 }
 
-/// The floats that the values take: signed zeros and a NaN among them, whose bits the cascade
-/// keeps.
-const FLOATS: [f32; 7] = [0.0, -0.0, 1.0, 0.5, 12.0, f32::NAN, 3.25];
-const TEXTS: [&str; 3] = ["", "Geist", "tnum"];
-
-/// A whole value of the type named `ty`, every field and element given.
-fn whole(registry: &Registry, ty: &str, numbers: &mut Numbers) -> Value {
-    let info = registry
-        .get(ty)
-        .unwrap_or_else(|| panic!("`{ty}` is registered"))
-        .info();
-    match &info.kind {
-        Kind::Bool => Value::Bool(numbers.chance(2)),
-        Kind::UInt { .. } => Value::UInt([0, 1, 2, 7][numbers.below(4)]),
-        Kind::Int { .. } => Value::Int([-1, 0, 3][numbers.below(3)]),
-        Kind::F32 => Value::F32(FLOATS[numbers.below(FLOATS.len())]),
-        Kind::F64 => Value::F64(f64::from(FLOATS[numbers.below(FLOATS.len())])),
-        Kind::Text => Value::Text(TEXTS[numbers.below(TEXTS.len())].to_owned()),
-        Kind::Struct(fields) => Value::Struct(
-            fields
-                .iter()
-                .map(|field| (field.name.clone(), whole(registry, &field.ty, numbers)))
-                .collect(),
-        ),
-        Kind::Enum(variants) => {
-            let variant = &variants[numbers.below(variants.len())];
-            let fields = variant
-                .fields
-                .iter()
-                .map(|field| (field.name.clone(), whole(registry, &field.ty, numbers)))
-                .collect();
-            Value::Enum(variant.name.clone(), fields)
-        }
-        Kind::Option(inner) => Value::Option(
-            numbers
-                .chance(2)
-                .then(|| Box::new(whole(registry, inner, numbers))),
-        ),
-        Kind::List { element, len } => {
-            let len = len.unwrap_or_else(|| numbers.below(3));
-            Value::List(
-                (0..len)
-                    .map(|_| whole(registry, element, numbers))
-                    .collect(),
-            )
-        }
-        _ => panic!("a style holds no `{ty}`"),
-    }
-}
-
-/// A part of a value of the type named `ty`, as a rule sets one: some of the fields of each struct
-/// that the cascade merges field by field, at any depth, and whole what it sets whole, a color
-/// included.
-fn part(registry: &Registry, ty: &str, numbers: &mut Numbers) -> Value {
-    let info = registry.get(ty).expect("registered").info();
-    match &info.kind {
-        Kind::Struct(fields) if ty != "LinearColor" => {
-            let mut set = Vec::new();
-            for field in fields {
-                if numbers.chance(3) {
-                    set.push((field.name.clone(), part(registry, &field.ty, numbers)));
-                }
-            }
-            Value::Struct(set)
-        }
-        _ => whole(registry, ty, numbers),
-    }
-}
-
-/// The style that the reflected cascade made of `parts`, the rules' in their order, then of `code`,
-/// an element's own, as `Ui::compose` did before the typed cascade; but for an array's elements
-/// that `code` leaves at their defaults, which keep the rules', an own style setting an array by
-/// element (`docs/adr/0231-an-elements-own-style-written-in-code.md`).
-fn reflected(registry: &Registry, parts: &[Value], code: &Style) -> Style {
-    let mut style = reflected_whole(registry, parts, code);
-    let rules = reflected_whole(registry, parts, &Style::default());
+/// The values that random rules and own styles give each leaf, by the leaf's number: the default
+/// style's, [`every_leaf_changed`]'s and [`every_leaf_odd`]'s where it differs from the default.
+fn values() -> Vec<Vec<StyleDeclaration>> {
     let default = Style::default();
-    let by_element = |made: &mut [f32], code: &[f32], default: &[f32], rules: &[f32]| {
-        for (at, made) in made.iter_mut().enumerate() {
-            if code[at].same(&default[at]) {
-                *made = rules[at];
-            }
-        }
-    };
-    by_element(
-        &mut style.layout.gap,
-        &code.layout.gap,
-        &default.layout.gap,
-        &rules.layout.gap,
-    );
-    by_element(
-        &mut style.paint.radii,
-        &code.paint.radii,
-        &default.paint.radii,
-        &rules.paint.radii,
-    );
-    for (made, code, default, rules) in [
-        (
-            &mut style.layout.size,
-            &code.layout.size,
-            &default.layout.size,
-            &rules.layout.size,
-        ),
-        (
-            &mut style.layout.min_size,
-            &code.layout.min_size,
-            &default.layout.min_size,
-            &rules.layout.min_size,
-        ),
-        (
-            &mut style.layout.max_size,
-            &code.layout.max_size,
-            &default.layout.max_size,
-            &rules.layout.max_size,
-        ),
+    let changed = every_leaf_changed();
+    let mut values = vec![Vec::new(); Style::LEAVES];
+    for (style, other) in [
+        (&default, &changed),
+        (&changed, &default),
+        (&every_leaf_odd(), &default),
     ] {
-        for at in 0..2 {
-            if code[at].same(&default[at]) {
-                made[at] = rules[at];
-            }
+        style.declared(other, &mut |declaration| {
+            values[declaration.leaf()].push(declaration);
+        });
+    }
+    values
+}
+
+/// A part of a style, as a rule sets one: each leaf with a chance of one in three, its value one of
+/// `values`'.
+fn random_part(values: &[Vec<StyleDeclaration>], numbers: &mut Numbers) -> Vec<StyleDeclaration> {
+    let mut part = Vec::new();
+    for choices in values {
+        if numbers.chance(3) {
+            part.push(choices[numbers.below(choices.len())].clone());
         }
     }
-    style
-}
-
-/// The style that the reflected cascade made of `parts` and `code`, every array of `code` that it
-/// sets set whole.
-fn reflected_whole(registry: &Registry, parts: &[Value], code: &Style) -> Style {
-    if parts.is_empty() {
-        return code.clone();
-    }
-    let default = Style::default().to_value();
-    let mut value = default.clone();
-    let code_value = code.to_value();
-    let mut own = registry
-        .difference("UiStyle", &default, &code_value, true)
-        .expect("a style");
-    if let Some(own) = &mut own {
-        whole_colors(registry, "UiStyle", own, &code_value);
-    }
-    for part in parts.iter().chain(own.as_ref()) {
-        registry
-            .overlay("UiStyle", &mut value, part)
-            .expect("a part of a style");
-    }
-    Style::from_value(&value).expect("a style")
-}
-
-/// Makes whole each color that `part` holds a part of, as `full` holds it: the reflected cascade's
-/// own walk, which set an element's own colors whole.
-fn whole_colors(registry: &Registry, ty: &str, part: &mut Value, full: &Value) {
-    if ty == "LinearColor" {
-        *part = full.clone();
-        return;
-    }
-    let Some(registration) = registry.get(ty) else {
-        return;
-    };
-    let (Kind::Struct(fields), Value::Struct(parts), Value::Struct(wholes)) =
-        (&registration.info().kind, part, full)
-    else {
-        return;
-    };
-    for (name, part) in parts {
-        let field = fields.iter().find(|field| field.name == *name);
-        let whole = wholes.iter().find(|(whole, _)| whole == name);
-        if let (Some(field), Some((_, whole))) = (field, whole) {
-            whole_colors(registry, &field.ty, part, whole);
-        }
-    }
-}
-
-/// Whether `a` and `b` are the same bit for bit, as reflection compares them: an oracle apart from
-/// the typed cascade's own `Same`.
-fn same_bits(registry: &Registry, a: &Style, b: &Style) -> bool {
-    registry
-        .difference("UiStyle", &a.to_value(), &b.to_value(), true)
-        .expect("styles")
-        .is_none()
+    part
 }
 
 #[test]
-fn random_rules_and_own_styles_compose_as_the_reflected_cascade_composed_them() {
-    let registry = theme::registry();
-    let default = Style::default().to_value();
+fn random_rules_and_own_styles_compose_as_the_model_says() {
+    let values = values();
+    assert!(
+        values.iter().all(|choices| choices.len() >= 2),
+        "each leaf takes two values at least"
+    );
+    let default = Style::default();
     let mut ui = Ui::new(Fonts::new());
+    // A container's base is the default style: it reads no color that a role gives.
+    let base = ui.base_of[KindName::Container.index()];
     let mut numbers = Numbers(0x2545_f491_4f6c_dd1d);
     for case in 0..3_000 {
-        let parts: Vec<Value> = (0..numbers.below(5))
-            .map(|_| part(&registry, "UiStyle", &mut numbers))
-            .collect();
-        // An own style at its default, or the default with some of its fields set.
-        let mut own = default.clone();
-        if !numbers.chance(4) {
-            let set = part(&registry, "UiStyle", &mut numbers);
-            registry
-                .overlay("UiStyle", &mut own, &set)
-                .expect("a part of a style");
-        }
-        let code = Style::from_value(&own).expect("a style");
-        ui.rules = parts
-            .iter()
-            .map(|part| Rule {
+        let rules: Vec<Rule> = (0..numbers.below(5))
+            .map(|_| Rule {
                 selector: Selector::default(),
-                declarations: theme::declarations(&registry, &default, part).expect("a whole part"),
+                declarations: random_part(&values, &mut numbers),
             })
             .collect();
-        let selected: Vec<u32> = (0..parts.len() as u32).collect();
-        // A container's base is the default style: it reads no color that a role gives.
-        let base = ui.base_of[KindName::Container.index()];
-        let own = OwnStyle::default();
-        let own = {
-            let mut own = own;
-            own.extend(StyleBuilder::new(Location::caller()).with_style(&code));
-            own
-        };
-        let typed = ui.compose(base, &selected, &own, 0).0;
-        let want = reflected(&registry, &parts, &code);
-        assert!(
-            same_bits(&registry, &typed, &want),
-            "case {case}: the rules {parts:?} and the own style {code:?} composed {typed:?}, \
-             where the reflected cascade composed {want:?}"
-        );
-        // The model that outlives the reflected cascade: each rule's declarations applied in
-        // their order, then each leaf of the own style that is not its default.
-        let mut model = Style::default();
-        for rule in &ui.rules {
-            for declaration in &rule.declarations {
-                declaration.apply(&mut model);
+        // An own style at its default, or the default with some of its leaves set.
+        let mut code = default.clone();
+        if !numbers.chance(4) {
+            for declaration in random_part(&values, &mut numbers) {
+                declaration.apply(&mut code);
             }
         }
-        code.declared(&Style::default(), &mut |declaration| {
-            declaration.apply(&mut model);
-        });
-        assert!(
-            same_bits(&registry, &model, &want),
-            "case {case}: the model composed {model:?}, the reflected cascade {want:?}"
+        let mut want = default.clone();
+        for rule in &rules {
+            for declaration in &rule.declarations {
+                declaration.apply(&mut want);
+            }
+        }
+        code.declared(&default, &mut |declaration| declaration.apply(&mut want));
+        ui.rules = rules;
+        let selected: Vec<u32> = (0..ui.rules.len() as u32).collect();
+        let mut own = OwnStyle::default();
+        own.extend(StyleBuilder::new(Location::caller()).with_style(&code));
+        let typed = ui.compose(base, &selected, &own, 0).0;
+        // Compared by `Debug`, apart from the cascade's own `Same`: it writes `-0.0` apart from
+        // `0.0`, and each float that is a number by the shortest text that reads back to it.
+        assert_eq!(
+            format!("{typed:?}"),
+            format!("{want:?}"),
+            "case {case}: the rules {:?} and the own style {code:?}",
+            ui.rules
         );
     }
 }
@@ -393,6 +231,77 @@ fn every_leaf_changed() -> Style {
     ] {
         *glyph = "x".to_owned();
     }
+    style
+}
+
+/// A style whose leaves hold a third value where they can, apart from the default's and
+/// [`every_leaf_changed`]'s: signed zeros, values that are not a number, other variants and empty
+/// texts, whose bits the cascade keeps.
+fn every_leaf_odd() -> Style {
+    let color = LinearColor::rgba(-0.0, f32::NAN, 3.25, 0.0);
+    let mut style = every_leaf_changed();
+    let layout = &mut style.layout;
+    layout.display = Display::None;
+    layout.direction = FlexDirection::ColumnReverse;
+    layout.justify = Justify::Center;
+    layout.align_items = Align::Start;
+    layout.align_self = Some(Align::Stretch);
+    layout.gap = [-0.0, f32::NAN];
+    layout.padding = Sides {
+        start: -0.0,
+        end: f32::NAN,
+        top: 3.25,
+        bottom: 0.5,
+    };
+    layout.margin = Sides::all(f32::NAN);
+    layout.size = [Dimension::Share(0.5), Dimension::Pixels(-0.0)];
+    layout.min_size = [Dimension::Pixels(f32::NAN), Dimension::Share(-0.0)];
+    layout.max_size = [Dimension::Share(1.0), Dimension::Pixels(12.0)];
+    layout.grow = -0.0;
+    layout.shrink = f32::NAN;
+    layout.basis = Dimension::Share(0.25);
+    layout.columns = vec![Track::Fraction(1.0), Track::Pixels(-0.0)];
+    layout.rows = vec![Track::Pixels(f32::NAN)];
+    layout.column = GridPlace {
+        start: Some(7),
+        span: 0,
+    };
+    layout.row = GridPlace {
+        start: Some(0),
+        span: 3,
+    };
+    let paint = &mut style.paint;
+    paint.background = color;
+    paint.border_width = -0.0;
+    paint.border = color;
+    paint.radii = [-0.0, f32::NAN, 0.5, 12.0];
+    paint.shadow = Some(Shadow {
+        color,
+        offset: [-0.0, f32::NAN],
+        blur: 3.25,
+        spread: -1.0,
+    });
+    paint.opacity = f32::NAN;
+    paint.backdrop = color;
+    let text = &mut style.text;
+    text.style.fonts = vec!["Geist".to_owned(), String::new()];
+    text.style.size = -0.0;
+    text.style.weight = f32::NAN;
+    text.style.line_height = -0.0;
+    text.style.alignment = Alignment::Center;
+    text.style.locale = Some(String::new());
+    text.style.features = vec![String::new()];
+    text.color = color;
+    text.selection = color;
+    let control = &mut style.control;
+    control.size = -0.0;
+    control.radius = f32::NAN;
+    control.track = color;
+    control.fill = color;
+    control.mark = color;
+    style.transition.duration = -0.0;
+    style.transition.easing = Easing::EaseOut;
+    style.icons.font = "tnum".to_owned();
     style
 }
 

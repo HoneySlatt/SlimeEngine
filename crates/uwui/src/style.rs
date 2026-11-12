@@ -7,7 +7,6 @@
 //! of a line, not left and right, so that a root laid out from right to left mirrors them.
 
 use slime_color::LinearColor;
-use slime_reflect::Reflect;
 use uwui_macros::{Declare, Identifiers};
 
 use crate::text::{TextStyle, TextStyleDeclaration};
@@ -18,8 +17,7 @@ pub use own::{Base, LaysOut, OwnStyle, PointerState, State, StyleBuilder};
 pub(crate) use own::{OWN_STATES, state_bit};
 
 /// How an element is laid out and drawn.
-#[derive(Clone, Debug, Default, PartialEq, Reflect, Declare)]
-#[reflect(name = "UiStyle", default)]
+#[derive(Clone, Debug, Default, PartialEq, Declare)]
 pub struct Style {
     /// How it and its children are laid out.
     #[declare(nested, lays_out)]
@@ -47,8 +45,7 @@ pub struct Style {
 /// The glyphs of a font of icons that controls draw, each a text of one character of `font`, empty
 /// for the shape that a control draws without it: a check box's square mark, a section's minus and
 /// plus, a bar for a chevron, a disc for a magnifier or a cross. They take the size of the control's part and its mark's color.
-#[derive(Clone, Debug, Default, PartialEq, Reflect, Declare)]
-#[reflect(name = "UiIcons", default)]
+#[derive(Clone, Debug, Default, PartialEq, Declare)]
 pub struct Icons {
     /// The family of the font that holds them; empty for none, the controls drawing their shapes.
     pub font: String,
@@ -71,8 +68,7 @@ pub struct Icons {
 /// to what the new style gives over `duration`, along `easing`, as its state changes under the
 /// pointer, and a section growing or shrinking to its height as it opens or folds. Its layout, its
 /// text's fonts and size, and its border's width change at once.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect, Declare)]
-#[reflect(name = "UiTransition", default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Declare)]
 pub struct Transition {
     /// How long a change takes, in seconds: 0, the default, for at once.
     #[declare(duration)]
@@ -82,8 +78,7 @@ pub struct Transition {
 }
 
 /// How a transition goes from its start to its end over its time.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect, Identifiers)]
-#[reflect(name = "UiEasing")]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Identifiers)]
 pub enum Easing {
     /// At one speed.
     Linear,
@@ -115,8 +110,7 @@ impl Easing {
 }
 
 /// How an element and its children are laid out, by CSS's flexbox or grid, in logical pixels.
-#[derive(Clone, Debug, PartialEq, Reflect, Declare)]
-#[reflect(name = "UiLayout", default)]
+#[derive(Clone, Debug, PartialEq, Declare)]
 pub struct LayoutStyle {
     /// How its children are laid out, or whether it is laid out at all.
     pub display: Display,
@@ -193,8 +187,7 @@ impl Default for LayoutStyle {
 }
 
 /// How an element's children are laid out.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect, Identifiers)]
-#[reflect(name = "UiDisplay", default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Identifiers)]
 pub enum Display {
     /// In a line along one axis, CSS's flexbox.
     #[default]
@@ -206,8 +199,7 @@ pub enum Display {
 }
 
 /// The axis along which a flexbox lays its children out.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect, Identifiers)]
-#[reflect(name = "UiFlexDirection", default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Identifiers)]
 pub enum FlexDirection {
     /// Along a line, from its start.
     #[default]
@@ -221,8 +213,7 @@ pub enum FlexDirection {
 }
 
 /// How children share the space along the main axis.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect, Identifiers)]
-#[reflect(name = "UiJustify", default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Identifiers)]
 pub enum Justify {
     /// Packed at the start.
     #[default]
@@ -240,8 +231,7 @@ pub enum Justify {
 }
 
 /// How a child is placed across the main axis.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect, Identifiers)]
-#[reflect(name = "UiAlign", default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Identifiers)]
 pub enum Align {
     /// At the start.
     Start,
@@ -255,8 +245,7 @@ pub enum Align {
 }
 
 /// A size: as its content or its parent makes it, in logical pixels, or a share of its parent's.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect)]
-#[reflect(name = "UiDimension", default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Dimension {
     /// As the layout makes it.
     #[default]
@@ -268,8 +257,7 @@ pub enum Dimension {
 }
 
 /// The four sides of a box, by the start and the end of a line, in logical pixels.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Reflect, Declare)]
-#[reflect(name = "UiSides", default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Declare)]
 pub struct Sides {
     /// The side where a line starts: left from left to right, right from right to left.
     #[declare(length)]
@@ -315,8 +303,7 @@ impl From<f32> for Sides {
 }
 
 /// A track of a grid: a column or a row.
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(name = "UiTrack")]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Track {
     /// Logical pixels.
     Pixels(f32),
@@ -328,8 +315,7 @@ pub enum Track {
 
 /// Where a grid's child lies among its columns or rows: from a line, numbered from 1 at the start,
 /// or after the children before it when none; across a number of tracks.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect, Declare)]
-#[reflect(name = "UiGridPlace", default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Declare)]
 pub struct GridPlace {
     /// The line it starts at.
     pub start: Option<u16>,
@@ -347,8 +333,7 @@ impl Default for GridPlace {
 }
 
 /// How an element is drawn: a box behind its children, which lays nothing out.
-#[derive(Clone, Copy, Debug, PartialEq, Reflect, Declare)]
-#[reflect(name = "UiPaint", default)]
+#[derive(Clone, Copy, Debug, PartialEq, Declare)]
 pub struct PaintStyle {
     /// The box's fill; nothing is drawn where it is transparent and there is no border.
     #[declare(color)]
@@ -393,8 +378,7 @@ impl Default for PaintStyle {
 }
 
 /// The shadow that an element's box casts.
-#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
-#[reflect(name = "UiShadow", default)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Shadow {
     /// Its color, its alpha its darkness where it is whole.
     pub color: LinearColor,
@@ -420,8 +404,7 @@ impl Default for Shadow {
 
 /// The parts of a control drawn apart from its box: a check box's box and its mark, a slider's
 /// track, the part of the track up to its value and its thumb.
-#[derive(Clone, Copy, Debug, PartialEq, Reflect, Declare)]
-#[reflect(name = "UiControl", default)]
+#[derive(Clone, Copy, Debug, PartialEq, Declare)]
 pub struct ControlStyle {
     /// The size of the part that the pointer takes, in logical pixels: the side of a check box's
     /// box, the width of a slider's thumb, the side of an item of a menu's mark and chevron, of a
@@ -461,8 +444,7 @@ impl Default for ControlStyle {
 }
 
 /// The text of a label, a button, a field, a check box's label, a section's title or a tab's.
-#[derive(Clone, Debug, PartialEq, Reflect, Declare)]
-#[reflect(name = "UiTextLook", default)]
+#[derive(Clone, Debug, PartialEq, Declare)]
 pub struct TextLook {
     /// Its fonts, size, weight and alignment, in logical pixels.
     #[declare(nested, lays_out)]
@@ -500,6 +482,12 @@ pub(crate) trait Colors {
 
     /// Sets each of its colors, in order, to what `next` gives.
     fn write(&mut self, next: &mut dyn FnMut() -> LinearColor);
+
+    /// Gives `out` the path of each of its colors, in order, as a declaration names its leaf,
+    /// `paint.background`, the part's own path being `path`: uwui's tests find every color of a
+    /// style so, a color added to a style included.
+    #[cfg(test)]
+    fn paths(path: &str, out: &mut dyn FnMut(String));
 }
 
 impl Colors for LinearColor {
@@ -511,6 +499,11 @@ impl Colors for LinearColor {
 
     fn write(&mut self, next: &mut dyn FnMut() -> LinearColor) {
         *self = next();
+    }
+
+    #[cfg(test)]
+    fn paths(path: &str, out: &mut dyn FnMut(String)) {
+        out(path.to_owned());
     }
 }
 
@@ -529,6 +522,11 @@ impl Colors for Option<Shadow> {
         if let Some(shadow) = self {
             shadow.color = color;
         }
+    }
+
+    #[cfg(test)]
+    fn paths(path: &str, out: &mut dyn FnMut(String)) {
+        out(path.to_owned());
     }
 }
 

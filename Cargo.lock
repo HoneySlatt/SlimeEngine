@@ -3724,8 +3724,6 @@ dependencies = [
  "parley",
  "slime-color",
  "slime-input",
- "slime-reflect",
- "slime-serialize",
  "swash",
  "taffy",
  "thiserror 2.0.21",

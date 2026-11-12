@@ -3,8 +3,8 @@
 //! (`docs/adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md`).
 //!
 //! The types here copy those of `uwui::dock` as they were written then, reflected, so that these
-//! files read the same once reflection leaves uwui (M6d.3c3). Their names in reflection are their
-//! own: a document of `slime-serialize` does not write them, and they never meet uwui's.
+//! files read the same now that uwui's types are not. Their names in reflection are their own: a
+//! document of `slime-serialize` does not write them.
 
 use slime_reflect::Reflect;
 use slime_serialize::Mode;
