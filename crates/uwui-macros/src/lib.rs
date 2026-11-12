@@ -464,7 +464,7 @@ fn expand(input: &DeriveInput) -> syn::Result<Tokens> {
                 #(crate::style::Colors::write(&mut self.#color_names, next);)*
             }
 
-            #[cfg(test)]
+            #[cfg(all(test, feature = "editor-look"))]
             fn paths(path: &str, out: &mut dyn FnMut(::std::string::String)) {
                 let _ = (path, &out);
                 #(<#color_types as crate::style::Colors>::paths(

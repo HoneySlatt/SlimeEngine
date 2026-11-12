@@ -485,8 +485,8 @@ pub(crate) trait Colors {
 
     /// Gives `out` the path of each of its colors, in order, as a declaration names its leaf,
     /// `paint.background`, the part's own path being `path`: uwui's tests find every color of a
-    /// style so, a color added to a style included.
-    #[cfg(test)]
+    /// style so, a color added to a style included. Only the tests of the editor's look read it.
+    #[cfg(all(test, feature = "editor-look"))]
     fn paths(path: &str, out: &mut dyn FnMut(String));
 }
 
@@ -501,7 +501,7 @@ impl Colors for LinearColor {
         *self = next();
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "editor-look"))]
     fn paths(path: &str, out: &mut dyn FnMut(String)) {
         out(path.to_owned());
     }
@@ -524,7 +524,7 @@ impl Colors for Option<Shadow> {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "editor-look"))]
     fn paths(path: &str, out: &mut dyn FnMut(String)) {
         out(path.to_owned());
     }
