@@ -15,6 +15,8 @@ workspace = true
 etagere.workspace = true
 # The canvas's colors, encoded into sRGB as an sRGB target mixes them (ADR-0137).
 slime-color.workspace = true
+# Its errors' `Display` and `Error`, derived (ADR-0008).
+thiserror.workspace = true
 uwui.workspace = true
 # A warning when a frame's glyphs do not fit the atlas's budget, or a canvas's items its bound
 # (ADR-0008).

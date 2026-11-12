@@ -1886,8 +1886,9 @@ One core for agents, in uwui, under MIT OR Apache-2.0, which the engine builds i
   them, the services of files, settings, the network and long work that the web and the phones
   lack, with [ADR-0211](adr/0211-the-executor-and-other-threads-through-channels.md) amended for
   the web. Who owns commands, undo and their journal, uwui or the engine, now that the actions are
-  declared ([ADR-0218](adr/0218-one-core-for-agents-in-uwui.md)). uwui's `AGENTS.md`, roadmap and
-  plan updated.
+  declared ([ADR-0218](adr/0218-one-core-for-agents-in-uwui.md)). uwui's rule for its errors:
+  derived with `thiserror` or written by hand, and whether its enumerations are
+  `#[non_exhaustive]` ([`debt.md`](debt.md)). uwui's `AGENTS.md`, roadmap and plan updated.
 - **Done when.** The owner has validated uwui's documents; each decision is recorded in an ADR.
 
 ### M6d.11 — The move

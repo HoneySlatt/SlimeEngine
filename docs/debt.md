@@ -634,6 +634,11 @@ Items that a contributor could take on alone are also GitHub issues, linked from
 - **`uwui-render` reads its error scopes at once** ([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)).
   On Vulkan, Direct3D 12 and Metal, wgpu answers a scope before the call returns; in a browser it answers later, and `uwui-render` then knows no error: memory that runs out, or a shader refused, goes unreported there.
   Followed at the web's trial, where uwui draws in a browser ([`stage-6d.md`](stage-6d.md#stage-6d--uwui-leaves-the-engine)).
+- **uwui writes five of its errors by hand** ([ADR-0008](adr/0008-errors-logging-and-assertions.md)), where `uwui-render` and uwui's others derive them with `thiserror`.
+  They are `DocumentError` and `DocumentErrors` in `document.rs`, `ReadError` and `WriteError` in `dock/document.rs`, and `TokenError` in `theme/token.rs`.
+  Four could be derived; `DocumentErrors` could not, its message walking a list.
+  `uwui-kdl` writes its own by hand on purpose: it depends on nothing ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
+  Followed at [M6d.10](stage-6d.md#m6d10--uwui-designed-as-a-project), which sets uwui's rule for errors.
 - **The interface's images are textures that the program gives** for the keys of its display list ([ADR-0139](adr/0139-text-drawn-and-the-display-list.md)).
   Cooked images that the asset cache holds come with their first user, M6c.7's asset browser.
   A draw that asks for more glyphs than the atlas's budget holds leaves some out; a glyph larger than a page is never drawn.

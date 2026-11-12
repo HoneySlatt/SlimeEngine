@@ -3749,6 +3749,7 @@ version = "0.6.0"
 dependencies = [
  "etagere",
  "slime-color",
+ "thiserror 2.0.21",
  "tracing",
  "uwui",
  "wgpu",

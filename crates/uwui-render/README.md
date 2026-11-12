@@ -90,7 +90,7 @@ and panics.
 `uwui`, whose display list and glyphs it draws; wgpu, the workspace's version and features, the
 GPU it draws with and whose textures hold the atlas; `slime-color`, the colors of the canvas's
 items, encoded into sRGB as an sRGB target mixes them; etagere, which places the glyphs in the
-atlas; tracing.
+atlas; thiserror, which derives its errors; tracing.
 
 ## Must not
 

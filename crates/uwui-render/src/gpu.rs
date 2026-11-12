@@ -26,15 +26,21 @@ pub struct DrawContext<'a> {
 /// refuses. A device lost is not one of them: wgpu cannot be asked whether a device is lost, and
 /// on a lost device every creation seems to succeed and draws nothing; the host, which knows of
 /// the loss, reports it.
-#[derive(Clone, Debug, PartialEq, Eq)]
+///
+/// The enumeration is closed, not `#[non_exhaustive]`: a host matches each case to an error of
+/// its own, as the engine's bridge does (`gfx_error` in `slime-app`'s `drawing.rs`), and a new
+/// case must break that match where it is compiled. Adding one costs a minor version before 1.0.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
     /// The GPU's memory cannot hold an object being created, a buffer or a texture: nothing was
     /// created, the device goes on, and the same draw can succeed once memory is freed.
+    #[error("out of GPU memory: cannot create `{label}`")]
     OutOfMemory {
         /// The label of the object.
         label: String,
     },
     /// A shader module was refused, usually because its WGSL does not compile.
+    #[error("shader `{label}` was rejected:\n{message}")]
     Shader {
         /// The label of the shader.
         label: String,
@@ -43,6 +49,7 @@ pub enum Error {
     },
     /// A render pipeline was refused, as Direct3D 12's shader compiler may refuse one whose
     /// shader wgpu accepted.
+    #[error("render pipeline `{label}` was rejected:\n{message}")]
     Pipeline {
         /// The label of the pipeline.
         label: String,
@@ -50,22 +57,6 @@ pub enum Error {
         message: String,
     },
 }
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::OutOfMemory { label } => write!(f, "out of GPU memory: cannot create `{label}`"),
-            Self::Shader { label, message } => {
-                write!(f, "shader `{label}` was rejected:\n{message}")
-            }
-            Self::Pipeline { label, message } => {
-                write!(f, "render pipeline `{label}` was rejected:\n{message}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for Error {}
 
 /// Runs `create`, which creates the GPU objects of `label`, inside an error scope of memory, and
 /// returns what it created, or [`Error::OutOfMemory`] if memory ran out. A scope of its own, so
