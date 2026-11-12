@@ -2688,6 +2688,91 @@ Every job stays within its limit of 20 minutes; the closest, `windows-release`, 
 spare. `check (lint)` and `check (headless)` took 3 and 2 minutes more than at M6d.4b1a, all their
 jobs starting together: the door's check adds a `cargo tree` and a `git grep`, seconds.
 
+## M6d.4b2, the canvas's layout chosen
+
+The canvas reads its items by their index, each field when its kind needs it, from a storage
+buffer or from a texture as the device allows
+([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)), and is
+tested on Mesa's OpenGL ES
+([ADR-0247](adr/0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md)).
+
+### `render.canvas` and `ui.draw.menu` before and after
+
+At 3840 × 2160 on the RX 6900 XT (RADV, Mesa 26.2.6), the GPU's clock fixed at `high`, offscreen,
+release builds, on 2026-11-12: three runs of each, before on `38bc80b`, M6d.4b1b's code, and after
+on `5291eb1`, in turn, run after run, in the same minute, the load average under 1.5 at their
+start. Each figure is a median of 30 frames; the range is that of the three runs. The GPU's figure
+is the canvas's pass alone, its GPU idle before it, as M6d.4b1b measured it. The device has
+storage buffers: the canvas reads from one.
+
+| Screen | GPU before | GPU after | CPU before | CPU after |
+|---|---|---|---|---|
+| `render.canvas`, the editor's screen | 291.2–291.4 µs | 258.6–258.8 µs | 368.7–408.9 µs | 345.2–378.3 µs |
+| `render.canvas`, the game's menu | 233.6–233.8 µs | 221.4 µs | 155.9–163.9 µs | 137.6–160.9 µs |
+| `ui.draw.menu` | 207.7–207.8 µs | 198.6–198.8 µs | 329.9–331.3 µs | 332.2–383.4 µs |
+
+What the interface adds to a frame over a view, the examples' sky with its bloom and tone mapping,
+as [ADR-0245](adr/0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md) counts the
+budget, the same runs, the median of 30 pairs of frames; its passes within that frame beside it,
+one pass, which is its own span:
+
+| Screen | Added to the frame | Its passes within the frame |
+|---|---|---|
+| `render.canvas`, the editor's screen | 260.2–260.6 µs | 258.8–258.9 µs |
+| `render.canvas`, the game's menu | 221.9–222.6 µs | 221.3–221.4 µs |
+| `ui.draw.menu` | 199.0–199.8 µs | 199.0 µs |
+
+At the smaller tiers, what the interface adds, in the same runs: the editor's screen 44.6–44.7 µs
+at 1280 × 800 and 76.3–76.5 µs at 1920 × 1080; the game's menu 31.0–31.1 µs and 60.0–60.3 µs;
+`ui.draw.menu` 28.2–28.3 µs and 53.9–54.2 µs.
+
+What they say:
+
+- Reading each field when its kind needs it takes 11 % off the editor's screen on the GPU, 5 % off
+  the game's menu and 4 % off `ui.draw.menu`: a fragment no longer loads the item's nine words
+  whole. Its images are the same: the `interface`
+  example's five images, dark and light, mirrored, at twice the scale and with its dialog, identical
+  byte for byte on lavapipe before and after.
+- The CPU stays within the runs' spread: the items' bytes are written as before, 32 bytes of
+  transforms after them.
+- What the interface adds to a frame is its passes' time and 1 to 2 µs: one boundary between
+  the view's last pass and the canvas's, the GPU's wait there. Every screen keeps the interface's
+  0.5 ms, counted so, at 3840 × 2160; at 1280 × 800 the editor's screen adds 44.6 µs, within the
+  handheld tier's 50 µs with one pass.
+- The texture's store was not timed on the RX 6900 XT, which has storage buffers; M6d.4a's
+  prototype measured it 13 to 20 % slower than S2. On lavapipe, at WebGL2's limits, it draws the
+  bytes of the buffer, and on Mesa's OpenGL ES 3.0 those of lavapipe within 1/255 on 106 channels
+  of 65,536.
+- The counters of CI gain `passes of the interface`, 1 on each screen and tier.
+
+### CI
+
+GitHub's hosted runners, on 2026-11-12, each run green, on `5291eb1`; `Compositors` ran, since
+`flake.nix` changed:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 10 min 10 s |
+| `check (headless)` | 11 min 1 s |
+| `check (windowed)` | 7 min 20 s |
+| `check (game)` | 12 min 58 s |
+| `check (gles)` | 3 min 17 s |
+| `windows (tests)` | 15 min 38 s |
+| `windows (render)` | 7 min 16 s |
+| `windows (game)` | 5 min 30 s |
+| `windows-release` | 15 min 43 s |
+| `compositors`, the longest, Mutter | 14 min 24 s |
+| Docs' `links` | 19 s |
+
+Every job stays within its limit of 20 minutes; the closest, `windows-release` and
+`windows (tests)`, have some 4 minutes 20 s to spare. The new job, `check (gles)`, builds
+`uwui-render`'s tree alone with wgpu's GL backend and runs its tests twice, in 3 min 17 s.
+`check (game)` took 5 min 9 s more than at M6d.4b1b. Its steps whose code did not change took 1.5
+to 2 times as long, the zone cooked and its tests 5 min 5 s against 3 min 22 s, the game in
+Weston 4 min 1 s against 2 min 3 s: the runner was slower, as the runners' speed varies from one
+day to the next ([`debt.md`](debt.md)). The counters' step took 2 min 18 s against 1 min 2 s, which
+also counts the frames that `render.canvas` and `ui.draw.menu` now draw over a view.
+
 ## M6d.3c3, reflection out of uwui
 
 uwui without `slime-reflect` and `slime-serialize`, and `LinearColor` described by `slime-reflect`

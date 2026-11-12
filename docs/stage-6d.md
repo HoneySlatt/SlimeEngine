@@ -46,8 +46,9 @@ in git.
   [ADR-0237](adr/0237-the-users-text-size-and-less-motion-density-and-contrast-by-names.md),
   [ADR-0238](adr/0238-tokens-typed-named-in-code-declared-by-each-crate.md),
   [ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md),
-  [ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md) and
-  [ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md).
+  [ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md),
+  [ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md) and
+  [ADR-0247](adr/0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md).
 - Widened on 2026-11-07 by the market's decisions
   ([ADR-0220](adr/0220-the-roadmap-reshaped-by-the-market.md#decision)): M6d.1d, M6d.2, M6d.3,
   M6d.4, M6d.5, M6d.7, M6d.10 and M6d.11 gain what those decisions need of them; M6d.9 is cut in
@@ -116,7 +117,7 @@ in git.
   [M6d.3c2](#m6d3c2--docks-layouts-in-kdl), docks' layouts, and
   [M6d.3c3](#m6d3c3--reflection-out-of-uwui), reflection out, on the same day, which closed M6d.3
   on 2026-11-12.
-- In progress on track B: [M6d.4](#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on wgpu,
+- Done on track B: [M6d.4](#m6d4--the-canvas-in-uwui-on-wgpu), the canvas in uwui on wgpu,
   cut in three at its start, on 2026-11-11
   ([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)): done,
   [M6d.4a](#m6d4a--the-canvass-prototype-and-its-adr), the canvas's prototype and its ADR, on
@@ -125,7 +126,9 @@ in git.
   ([ADR-0244](adr/0244-the-engine-lends-its-device-through-a-guarded-door.md)): done,
   [M6d.4b1a](#m6d4b1a--the-canvas-moved-into-uwui-render), the canvas moved, and
   [M6d.4b1b](#m6d4b1b--the-canvas-on-wgpu), the canvas on wgpu, on the same day; then
-  [M6d.4b2](#m6d4b2--the-canvass-layout-chosen), its layout chosen.
+  [M6d.4b2](#m6d4b2--the-canvass-layout-chosen), its layout chosen, on the same day, which closed
+  M6d.4 on 2026-11-12
+  ([ADR-0247](adr/0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md)).
 - In progress on track A: [M6d.9a](#m6d9a--one-core-for-agents-and-its-mcp-server), one core for
   agents and its MCP server, cut in five at its start, on 2026-11-12
   ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)): in
@@ -1525,7 +1528,8 @@ follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-e
 Cut in three at its start, on 2026-11-11: the prototype first, then the canvas moved as it is,
 then its layout changed; a token and less motion read when a component is drawn move to uwui's
 first stage, with live values
-([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)).
+([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)). Closed
+with [M6d.4b2](#m6d4b2--the-canvass-layout-chosen) on 2026-11-12.
 
 ### M6d.4a — The canvas's prototype and its ADR
 
@@ -1684,8 +1688,58 @@ of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
 
 ### M6d.4b2 — The canvas's layout chosen
 
-In progress: its card is in [`PLAN.md`](PLAN.md#m6d4b2--the-canvass-layout-chosen), back here with
-its result when it is done.
+The last third of M6d.4
+([ADR-0242](adr/0242-the-canvas-moved-in-three-steps-tokens-read-when-drawn-later.md)). It follows
+the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** uwui's canvas draws on a path that WebGL2 takes.
+- **Crates.** `uwui-render`, `slime-benches`; `.github/workflows/`, `scripts/check.sh`, `flake.nix`.
+- **Delivers.** The canvas on the layout that M6d.4a chose, one shader reading its items from a
+  storage buffer or a texture as the device allows
+  ([ADR-0243](adr/0243-the-canvas-reads-its-items-by-index-from-a-buffer-or-a-texture.md)), each
+  item's fields read when its kind needs them; image tests on wgpu's GL backend at WebGL2's
+  limits, through a `gles` feature of `uwui-render` alone, the owner's choice, in a job other than
+  `check (headless)`; uwui's counters and discriminating cases of the canvas checked in CI
+  ([ADR-0199](adr/0199-uwuis-targets-tools-and-references-narrowed.md)).
+- **Done when.** The canvas's images are those of M6d.4b1, by both ways of reading, on Vulkan and
+  on GL; CI is green, each job within 20 minutes.
+- **How to test.** `cargo test -p uwui-render`; `scripts/check.sh`.
+- **Measured.** `render.canvas` and `ui.draw.menu` at 3840 × 2160 on the RX 6900 XT, against
+  M6d.4b1's; then, added to them, what the interface adds to a frame over a view, its own span
+  and the passes a frame takes, counted in CI
+  ([ADR-0245](adr/0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md)).
+- **Result.** Done on 2026-11-12, CI green, which closed M6d.4
+  ([ADR-0247](adr/0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md)):
+  - One shader reads each item by its index, each field when its kind needs it, through one
+    function, `word`, appended to it: from a storage buffer, or from a texture of `Rgba32Uint`
+    2048 texels wide where the device's limits allow no storage buffer, or it refuses one to the
+    vertex stage, tried in an error scope; a device carries no downlevel flags. The transforms
+    follow the items in the same store. A store made anew is filled through a buffer's mapping, a
+    texture then copied from it, so that a renderer made after a lost device draws nothing.
+    `CanvasRenderer::item_store` and `max_items` say where and how many: 466,033 items in a
+    texture at WebGL2's limits. Colours written into `Rgba8Unorm` and `Bgra8Unorm` are encoded, as
+    into an sRGB target, the targets that OpenGL ES draws into.
+  - wgpu's GL backend through `uwui-render`'s `gles` feature alone, the owner's choice: a part of
+    `scripts/check.sh` and a job of CI, `check (gles)`, run the tests at WebGL2's limits on
+    lavapipe and on Mesa's OpenGL ES 3.0 on the CPU, refusing any other context; a guard keeps GL
+    out of the rest of the workspace. Seven crates join `Cargo.lock`, built by the feature alone.
+  - Images: the `interface` example's five images identical byte for byte before and after; both
+    stores draw the same bytes on lavapipe, on every kind of item and over the texture's rows, and
+    OpenGL ES draws lavapipe's within 1/255 on 106 channels of 65,536.
+  - `render.canvas` and `ui.draw.menu` measure what the interface adds to a frame over a view, its
+    passes within it, and count its passes, 1, in CI
+    ([ADR-0245](adr/0245-the-interfaces-gpu-budget-counts-what-it-adds-to-the-frame.md)). The
+    canvas's GPU time fell 4 to 11 % on the RX 6900 XT, each field read when needed; its CPU stayed
+    within the runs' spread; every screen keeps the interface's 0.5 ms
+    ([measurements](measurements.md#m6d4b2-the-canvass-layout-chosen)).
+  - Discriminating cases: the stores' and OpenGL ES's images, the store's capacity and its parts
+    are tests that CI runs; the benchmarks draw with the engine's device, which has storage
+    buffers, so no benchmark runs the texture: its cost on a GPU was M6d.4a's prototype's.
+  - Debt: the choice of a texture on a device that refuses storage buffers to the vertex stage,
+    and GL's own storage buffers, run nowhere; the interface's budget is not measured without
+    timestamps, and its frames alternate by blocks of three, not frame by frame as ADR-0245 writes
+    ([`debt.md`](debt.md)). The items that the milestone touched, the canvas's own transforms and
+    its items written each frame, keep uwui's first stage, which keeps items across frames.
 
 ### M6d.5 — The host's API
 
