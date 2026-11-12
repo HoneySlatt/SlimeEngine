@@ -260,6 +260,21 @@ fn random_rules_and_own_styles_compose_as_the_reflected_cascade_composed_them() 
             "case {case}: the rules {parts:?} and the own style {code:?} composed {typed:?}, \
              where the reflected cascade composed {want:?}"
         );
+        // The model that outlives the reflected cascade: each rule's declarations applied in
+        // their order, then each leaf of the own style that is not its default.
+        let mut model = Style::default();
+        for rule in &ui.rules {
+            for declaration in &rule.declarations {
+                declaration.apply(&mut model);
+            }
+        }
+        code.declared(&Style::default(), &mut |declaration| {
+            declaration.apply(&mut model);
+        });
+        assert!(
+            same_bits(&registry, &model, &want),
+            "case {case}: the model composed {model:?}, the reflected cascade {want:?}"
+        );
     }
 }
 

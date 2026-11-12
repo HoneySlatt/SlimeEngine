@@ -22,6 +22,8 @@ use crate::tree::{Children, Element, ElementId, Layer, Place, Role, Ui};
 mod document;
 #[cfg(test)]
 mod reflected_tests;
+#[cfg(test)]
+mod verdicts_tests;
 
 pub use document::{Read, ReadError, Reading, VERSION, WriteError, read, write};
 

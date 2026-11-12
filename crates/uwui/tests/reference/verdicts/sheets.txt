@@ -1,0 +1,4689 @@
+=== case 0
+--- sheet
+r0 {
+select kind=Container
+paint border="#6b0c73" {
+radii 2.5 4 4 $sl0
+shadow color="lighten($sc0, 0.1)" blur=1e3
+}
+text
+control fill="lighten($sc0, 0.1)"
+}
++++ read
+refused
+=== case 1
+--- sheet
+r0 {
+select {
+states Pressed Pressed
+inside class=toolbar
+}
+layout justify=Start basis=4 {
+max_size (%)50 (px)12
+row span=2
+}
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [Pressed, Pressed], inside: Some(Ancestor { kind: None, class: Some("toolbar") }) }
+  Layout(Justify(Start))
+  Layout(MaxSize(0, Share(0.5)))
+  Layout(MaxSize(1, Pixels(12.0)))
+  Layout(Basis(Pixels(4.0)))
+  Layout(Row(Span(2)))
+=== case 2
+--- sheet
+r0 {
+select key=4 {
+classes
+states Pressed
+inside class=toolbar
+}
+layout direction=Column justify=End shrink=$sn0 {
+padding end=(px)1e3 top=2.5
+min_size Auto (%)0.7
+max_size 0 -3
+column span=$sn1
+}
+text {
+style size=$sl0 weight=0.5 line_height=0.5 direction=Auto {
+features "tnum" "a b"
+}
+}
+transition
+icons font="tnum" down="tnum" search="tnum"
+}
+r1 {
+select kind=Menu {
+inside kind=Label
+}
+paint
+}
+r2 {
+select {
+classes a-b
+}
+layout direction=RowReverse wrap=#false justify=Center basis=Auto {
+gap (px)0 (px)-3
+margin start=2.5 top=(px)0 bottom=2.5
+max_size (%)100 Auto
+rows $sl1 (fr)2
+column span=$sn1
+}
+text
+icons down="\u{E06C}" right="a b" search="tnum"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: Some("#4"), states: [Pressed], inside: Some(Ancestor { kind: None, class: Some("toolbar") }) }
+  Layout(Direction(Column))
+  Layout(Justify(End))
+  Layout(Padding(End(1000.0)))
+  Layout(Padding(Top(2.5)))
+  Layout(MinSize(0, Auto))
+  Layout(MinSize(1, Share(0.007)))
+  Layout(MaxSize(0, Pixels(0.0)))
+  Layout(MaxSize(1, Pixels(-3.0)))
+  Layout(Shrink(0.75))
+  Layout(Column(Span(3)))
+  Text(Style(Size(6.0)))
+  Text(Style(Weight(0.5)))
+  Text(Style(LineHeight(0.5)))
+  Text(Style(Direction(Auto)))
+  Text(Style(Features(["tnum", "a b"])))
+  Icons(Font("tnum"))
+  Icons(Down("tnum"))
+  Icons(Search("tnum"))
+rule 2 Selector { kind: Some(Menu), classes: [], key: None, states: [], inside: Some(Ancestor { kind: Some(Label), class: None }) }
+rule 3 Selector { kind: None, classes: ["a-b"], key: None, states: [], inside: None }
+  Layout(Direction(RowReverse))
+  Layout(Wrap(false))
+  Layout(Justify(Center))
+  Layout(Gap(0, 0.0))
+  Layout(Gap(1, -3.0))
+  Layout(Margin(Start(2.5)))
+  Layout(Margin(Top(0.0)))
+  Layout(Margin(Bottom(2.5)))
+  Layout(MaxSize(0, Share(1.0)))
+  Layout(MaxSize(1, Auto))
+  Layout(Basis(Auto))
+  Layout(Rows([Pixels(-2.5), Fraction(2.0)]))
+  Layout(Column(Span(3)))
+  Icons(Down("\u{e06c}"))
+  Icons(Right("a b"))
+  Icons(Search("tnum"))
+=== case 3
+--- sheet
+r0 {
+select key=tabs {
+states FocusVisible
+}
+control fill=$sc1 mark=$sc1
+transition
+}
+r1 {
+select
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: Some("tabs"), states: [FocusVisible], inside: None }
+  Control(Fill(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+  Control(Mark(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+=== case 4
+--- sheet
+r0 {
+select {
+classes
+}
+paint border_width=12
+}
+r1 {
+select key=4
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Paint(BorderWidth(12.0))
+rule 2 Selector { kind: None, classes: [], key: Some("#4"), states: [], inside: None }
+=== case 5
+--- sheet
+r0 {
+select kind=Menu {
+inside
+}
+layout direction=Row align_self=End grow=0 {
+size Auto (%)0.7
+rows
+column start=#null
+row start=2
+}
+transition duration=(ms)120 easing=EaseInOut
+}
+r1 {
+select key=2
+layout direction=Row align_self=Center basis=Auto {
+min_size Auto Auto
+max_size $sl0 (%)100
+row start=2
+}
+paint background=$sc1 border_width=(px)1e3 opacity=1 {
+shadow
+}
+text selection=$sc1
+transition duration=(ms)250
+}
+r2 {
+select kind=Menu {
+classes a-b
+states Hovered
+}
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Menu), classes: [], key: None, states: [], inside: Some(Ancestor { kind: None, class: None }) }
+  Layout(Direction(Row))
+  Layout(AlignSelf(Some(End)))
+  Layout(Size(0, Auto))
+  Layout(Size(1, Share(0.007)))
+  Layout(Grow(0.0))
+  Layout(Rows([]))
+  Layout(Column(Start(None)))
+  Layout(Row(Start(Some(2))))
+  Transition(Duration(0.12))
+  Transition(Easing(EaseInOut))
+rule 2 Selector { kind: None, classes: [], key: Some("#2"), states: [], inside: None }
+  Layout(Direction(Row))
+  Layout(AlignSelf(Some(Center)))
+  Layout(MinSize(0, Auto))
+  Layout(MinSize(1, Auto))
+  Layout(MaxSize(0, Pixels(6.0)))
+  Layout(MaxSize(1, Share(1.0)))
+  Layout(Basis(Auto))
+  Layout(Row(Start(Some(2))))
+  Paint(Background(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+  Paint(BorderWidth(1000.0))
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }, offset: [0.0, 0.0], blur: 0.0, spread: 0.0 })))
+  Paint(Opacity(1.0))
+  Text(Selection(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+  Transition(Duration(0.25))
+rule 3 Selector { kind: Some(Menu), classes: ["a-b"], key: None, states: [Hovered], inside: None }
+=== case 6
+--- sheet
+r0 {
+select kind=Button {
+classes a-b
+}
+transition easing=EaseOut
+}
+r1 {
+select {
+classes
+states Hovered
+}
+layout display=None justify=SpaceAround align_items=Stretch align_self=Center grow=0 {
+margin end=4 top=(px)12 bottom=2.5
+size Auto 12
+min_size (px)2.5 (px)1
+column span=$sn1
+row span=1
+}
+control radius=$sl1 track="#97cdb4ec" mark=$sc1
+transition
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Button), classes: ["a-b"], key: None, states: [], inside: None }
+  Transition(Easing(EaseOut))
+rule 2 Selector { kind: None, classes: [], key: None, states: [Hovered], inside: None }
+  Layout(Display(None))
+  Layout(Justify(SpaceAround))
+  Layout(AlignItems(Stretch))
+  Layout(AlignSelf(Some(Center)))
+  Layout(Margin(End(4.0)))
+  Layout(Margin(Top(12.0)))
+  Layout(Margin(Bottom(2.5)))
+  Layout(Size(0, Auto))
+  Layout(Size(1, Pixels(12.0)))
+  Layout(MinSize(0, Pixels(2.5)))
+  Layout(MinSize(1, Pixels(1.0)))
+  Layout(Grow(0.0))
+  Layout(Column(Span(3)))
+  Layout(Row(Span(1)))
+  Control(Radius(-2.5))
+  Control(Track(LinearColor { r: 0.30946895, g: 0.6104956, b: 0.45641106, a: 0.9254902 }))
+  Control(Mark(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+=== case 7
+--- sheet
+r0 {
+select key=tabs
+layout display=None direction=Column align_self=#null grow=0 shrink=0 {
+gap (px)12 12
+min_size Auto (%)33
+column
+}
+}
+r1 {
+select {
+classes a-b
+}
+layout display=Grid direction=Column align_self=#null grow=1 {
+padding top=$sl0
+row
+}
+control radius=1e3 mark="#5782e1"
+icons font="tnum" left=Geist
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: None }
+  Layout(Display(None))
+  Layout(Direction(Column))
+  Layout(AlignSelf(None))
+  Layout(Gap(0, 12.0))
+  Layout(Gap(1, 12.0))
+  Layout(MinSize(0, Auto))
+  Layout(MinSize(1, Share(0.33)))
+  Layout(Grow(0.0))
+  Layout(Shrink(0.0))
+rule 2 Selector { kind: None, classes: ["a-b"], key: None, states: [], inside: None }
+  Layout(Display(Grid))
+  Layout(Direction(Column))
+  Layout(AlignSelf(None))
+  Layout(Padding(Top(6.0)))
+  Layout(Grow(1.0))
+  Control(Radius(1000.0))
+  Control(Mark(LinearColor { r: 0.095307484, g: 0.22322798, b: 0.7529423, a: 1.0 }))
+  Icons(Font("tnum"))
+  Icons(Left("Geist"))
+=== case 8
+--- sheet
+r0 {
+select
+layout wrap=#true grow=1 basis=$sl0 {
+min_size (px)4 Auto
+}
+paint opacity=$sn0
+text {
+style line_height=$sn0 direction=Auto {
+fonts "tnum" "\u{E06C}"
+features Geist
+}
+}
+control mark="#b26d2d"
+}
+r1 {
+select {
+states Hovered
+}
+layout align_items=Center grow=$sn0 shrink=1 basis=(%)0.7
+control radius=$sl1 track="lighten($sc0, 0.1)" fill="#8cfb525c" mark="#b0ef7f0d"
+transition
+icons tick="tnum" down="a b" right="tnum" left="" search="a b" clear=""
+}
+r2 {
+select key=tabs {
+states FocusVisible FocusVisible
+}
+layout display=None direction=Row {
+gap $sl0 0
+size (%)12.5 Auto
+min_size 4 Auto
+columns Auto (fr)1
+rows
+row span=7
+}
+paint
+icons
+}
+r3 {
+select
+text color=$sc1 selection="lighten($sc0, 0.1)"
+transition easing=Linear
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Wrap(true))
+  Layout(MinSize(0, Pixels(4.0)))
+  Layout(MinSize(1, Auto))
+  Layout(Grow(1.0))
+  Layout(Basis(Pixels(6.0)))
+  Paint(Opacity(0.75))
+  Text(Style(Fonts(["tnum", "\u{e06c}"])))
+  Text(Style(LineHeight(0.75)))
+  Text(Style(Direction(Auto)))
+  Text(Style(Features(["Geist"])))
+  Control(Mark(LinearColor { r: 0.44520125, g: 0.15292616, b: 0.026241222, a: 1.0 }))
+rule 2 Selector { kind: None, classes: [], key: None, states: [Hovered], inside: None }
+  Layout(AlignItems(Center))
+  Layout(Grow(0.75))
+  Layout(Shrink(1.0))
+  Layout(Basis(Share(0.007)))
+  Control(Radius(-2.5))
+  Control(Track(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Control(Fill(LinearColor { r: 0.26225072, g: 0.9646863, b: 0.084376216, a: 0.36078432 }))
+  Control(Mark(LinearColor { r: 0.4341537, g: 0.8631573, b: 0.21223073, a: 0.050980393 }))
+  Icons(Tick("tnum"))
+  Icons(Down("a b"))
+  Icons(Right("tnum"))
+  Icons(Left(""))
+  Icons(Search("a b"))
+  Icons(Clear(""))
+rule 3 Selector { kind: None, classes: [], key: Some("tabs"), states: [FocusVisible, FocusVisible], inside: None }
+  Layout(Display(None))
+  Layout(Direction(Row))
+  Layout(Gap(0, 6.0))
+  Layout(Gap(1, 0.0))
+  Layout(Size(0, Share(0.125)))
+  Layout(Size(1, Auto))
+  Layout(MinSize(0, Pixels(4.0)))
+  Layout(MinSize(1, Auto))
+  Layout(Columns([Auto, Fraction(1.0)]))
+  Layout(Rows([]))
+  Layout(Row(Span(7)))
+rule 4 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Text(Color(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+  Text(Selection(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Transition(Easing(Linear))
+=== case 9
+--- sheet
+r0 {
+select {
+states Hovered FocusVisible
+}
+text selection="#f4e0c283"
+transition duration=$sd0
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [Hovered, FocusVisible], inside: None }
+  Text(Selection(LinearColor { r: 0.90466136, g: 0.74540436, b: 0.5394796, a: 0.5137255 }))
+  Transition(Duration(0.15))
+=== case 10
+--- sheet
+r0 {
+select kind=Container {
+states Hovered
+}
+layout justify=End align_items=Start grow=0.5 basis=(%)33 {
+gap (px)2.5 1
+padding start=$sl1 top=(px)-3 bottom=$sl1
+margin top=$sl0
+max_size Auto Auto
+columns Auto
+rows
+column span=7
+}
+icons font="tnum" right="" left="tnum" search="a b"
+}
++++ read
+refused
+=== case 11
+--- sheet
+r0 {
+select kind=Label key=1 {
+inside class=toolbar
+}
+}
+r1 {
+select
+layout display=Flex wrap=#false justify=SpaceEvenly shrink=0.5 {
+margin end=2.5
+size Auto 12
+min_size 2.5 Auto
+max_size (%)100 Auto
+columns
+}
+control
+}
+r2 {
+select {
+classes a-b x
+inside class=toolbar
+}
+text color="#7a0427"
+control track="lighten($sc0, 0.1)"
+}
+r3 {
+select {
+states Pressed
+}
+layout display=None wrap=#false align_self=#null shrink=1 {
+gap 12 (px)1e3
+columns $sl0
+column
+row span=7
+}
+icons font="a b" tick="" clear="a b"
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Label), classes: [], key: Some("#1"), states: [], inside: Some(Ancestor { kind: None, class: Some("toolbar") }) }
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Display(Flex))
+  Layout(Wrap(false))
+  Layout(Justify(SpaceEvenly))
+  Layout(Margin(End(2.5)))
+  Layout(Size(0, Auto))
+  Layout(Size(1, Pixels(12.0)))
+  Layout(MinSize(0, Pixels(2.5)))
+  Layout(MinSize(1, Auto))
+  Layout(MaxSize(0, Share(1.0)))
+  Layout(MaxSize(1, Auto))
+  Layout(Shrink(0.5))
+  Layout(Columns([]))
+rule 3 Selector { kind: None, classes: ["a-b", "x"], key: None, states: [], inside: Some(Ancestor { kind: None, class: Some("toolbar") }) }
+  Text(Color(LinearColor { r: 0.19461781, g: 0.001214108, b: 0.020288562, a: 1.0 }))
+  Control(Track(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+rule 4 Selector { kind: None, classes: [], key: None, states: [Pressed], inside: None }
+  Layout(Display(None))
+  Layout(Wrap(false))
+  Layout(AlignSelf(None))
+  Layout(Gap(0, 12.0))
+  Layout(Gap(1, 1000.0))
+  Layout(Shrink(1.0))
+  Layout(Columns([Pixels(6.0)]))
+  Layout(Row(Span(7)))
+  Icons(Font("a b"))
+  Icons(Tick(""))
+  Icons(Clear("a b"))
+=== case 12
+--- sheet
+r0 {
+select kind=Menu key=tabs {
+classes panel
+}
+}
+r1 {
+select {
+inside kind=Label
+}
+control radius=(px)12 track="#b5599f"
+}
+r2 {
+select {
+states Hovered
+}
+paint background="lighten($sc0, 0.1)" border_width=1 border="lighten($sc0, 0.1)" backdrop="#0745fe77" {
+radii (px)2.5 $sl1 1 (px)12
+shadow #null
+}
+text
+control size=(px)0 fill="#49e2ae"
+icons font="a b" right=Geist left="" clear="tnum"
+}
+r3 {
+select key=1 {
+inside kind=Button class=toolbar
+}
+paint {
+radii 4 (px)-3 (px)1e3 12
+}
+icons tick=Geist down="" search="a b"
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Menu), classes: ["panel"], key: Some("tabs"), states: [], inside: None }
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: Some(Label), class: None }) }
+  Control(Radius(12.0))
+  Control(Track(LinearColor { r: 0.46207705, g: 0.09989874, b: 0.3467041, a: 1.0 }))
+rule 3 Selector { kind: None, classes: [], key: None, states: [Hovered], inside: None }
+  Paint(Background(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Paint(BorderWidth(1.0))
+  Paint(Border(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Paint(Radii(0, 2.5))
+  Paint(Radii(1, -2.5))
+  Paint(Radii(2, 1.0))
+  Paint(Radii(3, 12.0))
+  Paint(Shadow(None))
+  Paint(Backdrop(LinearColor { r: 0.0021246888, g: 0.05951124, b: 0.9911022, a: 0.46666667 }))
+  Control(Size(0.0))
+  Control(Fill(LinearColor { r: 0.06662595, g: 0.76052463, b: 0.42326775, a: 1.0 }))
+  Icons(Font("a b"))
+  Icons(Right("Geist"))
+  Icons(Left(""))
+  Icons(Clear("tnum"))
+rule 4 Selector { kind: None, classes: [], key: Some("#1"), states: [], inside: Some(Ancestor { kind: Some(Button), class: Some("toolbar") }) }
+  Paint(Radii(0, 4.0))
+  Paint(Radii(1, -3.0))
+  Paint(Radii(2, 1000.0))
+  Paint(Radii(3, 12.0))
+  Icons(Tick("Geist"))
+  Icons(Down(""))
+  Icons(Search("a b"))
+=== case 13
+--- sheet
+r0 {
+select
+transition
+}
+r1 {
+select
+paint border_width=-3 opacity=1.25 backdrop="lighten($sc0, 0.1)"
+text
+icons down="a b" search="a b" clear=""
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Paint(BorderWidth(-3.0))
+  Paint(Opacity(1.25))
+  Paint(Backdrop(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Icons(Down("a b"))
+  Icons(Search("a b"))
+  Icons(Clear(""))
+=== case 14
+--- sheet
+r0 {
+select kind=Container {
+classes a-b
+states Hovered FocusVisible
+}
+layout direction=Row align_items=Stretch align_self=#null {
+margin start=(px)-3 top=(px)0
+size -3 12
+columns (fr)2
+column
+}
+transition easing=Linear
+icons down="\u{E06C}"
+}
++++ read
+refused
+=== case 15
+--- sheet
+r0 {
+select {
+classes x
+states Pressed
+}
+text color=$sc0
+transition easing=Linear
+}
+r1 {
+select
+}
+r2 {
+select key=tabs {
+classes
+inside kind=Container
+}
+layout align_self=#null {
+size (%)100 Auto
+row start=#null span=1
+}
+icons tick="" down="tnum" left="tnum" search=Geist
+}
+r3 {
+select {
+classes x
+inside
+}
+transition
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["x"], key: None, states: [Pressed], inside: None }
+  Text(Color(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+  Transition(Easing(Linear))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+rule 3 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: Some(Ancestor { kind: Some(Container), class: None }) }
+  Layout(AlignSelf(None))
+  Layout(Size(0, Share(1.0)))
+  Layout(Size(1, Auto))
+  Layout(Row(Start(None)))
+  Layout(Row(Span(1)))
+  Icons(Tick(""))
+  Icons(Down("tnum"))
+  Icons(Left("tnum"))
+  Icons(Search("Geist"))
+rule 4 Selector { kind: None, classes: ["x"], key: None, states: [], inside: Some(Ancestor { kind: None, class: None }) }
+=== case 16
+--- sheet
+r0 {
+select key=1 {
+states FocusVisible
+}
+paint background="#5204be" border_width=0
+text
+}
+r1 {
+select key=tabs {
+inside kind=Label class=toolbar
+}
+paint background="#40cdcb57" {
+radii (px)12 1e3 $sl0 0
+}
+text selection="#7eb069df" {
+style size=$sl1 weight=$sn0 italic=#true
+}
+}
+r2 {
+select {
+classes panel
+}
+text {
+style weight=500 alignment=Justify locale=Geist {
+fonts
+}
+}
+transition duration=(s)1.5 easing=Linear
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: Some("#1"), states: [FocusVisible], inside: None }
+  Paint(Background(LinearColor { r: 0.084376216, g: 0.001214108, b: 0.5149178, a: 1.0 }))
+  Paint(BorderWidth(0.0))
+rule 2 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: Some(Ancestor { kind: Some(Label), class: Some("toolbar") }) }
+  Paint(Background(LinearColor { r: 0.051269468, g: 0.6104956, b: 0.5972019, a: 0.34117648 }))
+  Paint(Radii(0, 12.0))
+  Paint(Radii(1, 1000.0))
+  Paint(Radii(2, 6.0))
+  Paint(Radii(3, 0.0))
+  Text(Style(Size(-2.5)))
+  Text(Style(Weight(0.75)))
+  Text(Style(Italic(true)))
+  Text(Selection(LinearColor { r: 0.20863685, g: 0.4341537, b: 0.1412633, a: 0.8745098 }))
+rule 3 Selector { kind: None, classes: ["panel"], key: None, states: [], inside: None }
+  Text(Style(Fonts([])))
+  Text(Style(Weight(500.0)))
+  Text(Style(Alignment(Justify)))
+  Text(Style(Locale(Some("Geist"))))
+  Transition(Duration(1.5))
+  Transition(Easing(Linear))
+=== case 17
+--- sheet
+r0 {
+select {
+inside
+}
+layout direction=ColumnReverse align_items=Start grow=0.5 {
+gap $sl1 (px)12
+padding bottom=$sl1
+size 0 Auto
+min_size $sl1 (%)33
+column start=7
+row span=$sn1
+}
+paint opacity=1 backdrop="#0db3f9" {
+shadow
+}
+text color=$sc1 selection="lighten($sc0, 0.1)" {
+style weight=500
+}
+icons down="a b" clear="a b"
+}
+r1 {
+select key=3
+text {
+style alignment=End {
+fonts "\u{E06C}" "\u{E06C}"
+}
+}
+control size=2.5 mark="#159ce5"
+transition duration=(ms)120 easing=EaseOut
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: None, class: None }) }
+  Layout(Direction(ColumnReverse))
+  Layout(AlignItems(Start))
+  Layout(Gap(0, -2.5))
+  Layout(Gap(1, 12.0))
+  Layout(Padding(Bottom(-2.5)))
+  Layout(Size(0, Pixels(0.0)))
+  Layout(Size(1, Auto))
+  Layout(MinSize(0, Pixels(-2.5)))
+  Layout(MinSize(1, Share(0.33)))
+  Layout(Grow(0.5))
+  Layout(Column(Start(Some(7))))
+  Layout(Row(Span(3)))
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }, offset: [0.0, 0.0], blur: 0.0, spread: 0.0 })))
+  Paint(Opacity(1.0))
+  Paint(Backdrop(LinearColor { r: 0.004024717, g: 0.45078585, b: 0.9473066, a: 1.0 }))
+  Text(Style(Weight(500.0)))
+  Text(Color(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+  Text(Selection(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Icons(Down("a b"))
+  Icons(Clear("a b"))
+rule 2 Selector { kind: None, classes: [], key: Some("#3"), states: [], inside: None }
+  Text(Style(Fonts(["\u{e06c}", "\u{e06c}"])))
+  Text(Style(Alignment(End)))
+  Control(Size(2.5))
+  Control(Mark(LinearColor { r: 0.0074990317, g: 0.33245158, b: 0.7835379, a: 1.0 }))
+  Transition(Duration(0.12))
+  Transition(Easing(EaseOut))
+=== case 18
+--- sheet
+r0 {
+select {
+inside
+}
+layout display=None align_items=Stretch grow=-2 {
+padding
+columns (px)-3
+}
+paint background="#fbb445" border="lighten($sc0, 0.1)" opacity=1.25
+control mark="#4e9c4b4e"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: None, class: None }) }
+  Layout(Display(None))
+  Layout(AlignItems(Stretch))
+  Layout(Grow(-2.0))
+  Layout(Columns([Pixels(-3.0)]))
+  Paint(Background(LinearColor { r: 0.9646863, g: 0.45641106, b: 0.05951124, a: 1.0 }))
+  Paint(Border(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Paint(Opacity(1.25))
+  Control(Mark(LinearColor { r: 0.07618539, g: 0.33245158, b: 0.07036011, a: 0.30588236 }))
+=== case 19
+--- sheet
+r0 {
+select {
+classes x
+states FocusVisible
+inside class=toolbar
+}
+paint {
+radii -3 1 12 12
+shadow #null
+}
+text selection="lighten($sc0, 0.1)"
+icons tick="\u{E06C}" search="" clear="tnum"
+}
+r1 {
+select {
+classes
+states Hovered
+}
+icons font="" tick="\u{E06C}" right="tnum"
+}
+r2 {
+select
+layout grow=-2 {
+margin top=(px)0
+size Auto (%)0.7
+min_size Auto (%)0
+max_size (%)0.7 (px)4
+row
+}
+text selection="#e48397ab" {
+style alignment=Center locale="a b" {
+features Geist
+}
+}
+}
+r3 {
+select {
+states Hovered FocusVisible
+}
+layout align_self=End shrink=1.25 {
+size Auto (%)50
+max_size (%)7.5 Auto
+columns
+rows (fr)0.5
+}
+text selection="#e8834477" {
+style size=$sl1 weight=1 italic=#false direction=LeftToRight {
+features
+}
+}
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["x"], key: None, states: [FocusVisible], inside: Some(Ancestor { kind: None, class: Some("toolbar") }) }
+  Paint(Radii(0, -3.0))
+  Paint(Radii(1, 1.0))
+  Paint(Radii(2, 12.0))
+  Paint(Radii(3, 12.0))
+  Paint(Shadow(None))
+  Text(Selection(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Icons(Tick("\u{e06c}"))
+  Icons(Search(""))
+  Icons(Clear("tnum"))
+rule 2 Selector { kind: None, classes: [], key: None, states: [Hovered], inside: None }
+  Icons(Font(""))
+  Icons(Tick("\u{e06c}"))
+  Icons(Right("tnum"))
+rule 3 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Margin(Top(0.0)))
+  Layout(Size(0, Auto))
+  Layout(Size(1, Share(0.007)))
+  Layout(MinSize(0, Auto))
+  Layout(MinSize(1, Share(0.0)))
+  Layout(MaxSize(0, Share(0.007)))
+  Layout(MaxSize(1, Pixels(4.0)))
+  Layout(Grow(-2.0))
+  Text(Style(Alignment(Center)))
+  Text(Style(Locale(Some("a b"))))
+  Text(Style(Features(["Geist"])))
+  Text(Selection(LinearColor { r: 0.77582234, g: 0.22696589, b: 0.30946895, a: 0.67058825 }))
+rule 4 Selector { kind: None, classes: [], key: None, states: [Hovered, FocusVisible], inside: None }
+  Layout(AlignSelf(Some(End)))
+  Layout(Size(0, Auto))
+  Layout(Size(1, Share(0.5)))
+  Layout(MaxSize(0, Share(0.075)))
+  Layout(MaxSize(1, Auto))
+  Layout(Shrink(1.25))
+  Layout(Columns([]))
+  Layout(Rows([Fraction(0.5)]))
+  Text(Style(Size(-2.5)))
+  Text(Style(Weight(1.0)))
+  Text(Style(Italic(false)))
+  Text(Style(Direction(LeftToRight)))
+  Text(Style(Features([])))
+  Text(Selection(LinearColor { r: 0.80695236, g: 0.22696589, b: 0.057805434, a: 0.46666667 }))
+=== case 20
+--- sheet
+r0 {
+select
+layout {
+max_size Auto 1e3
+rows Auto Auto
+column
+}
+paint opacity=1.25 backdrop="#caa446"
+control track="#d3ee810f"
+}
+r1 {
+select {
+states FocusVisible Hovered
+}
+transition
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(MaxSize(0, Auto))
+  Layout(MaxSize(1, Pixels(1000.0)))
+  Layout(Rows([Auto, Auto]))
+  Paint(Opacity(1.25))
+  Paint(Backdrop(LinearColor { r: 0.5906189, g: 0.37123778, b: 0.06124607, a: 1.0 }))
+  Control(Track(LinearColor { r: 0.6514057, g: 0.8549927, b: 0.21952623, a: 0.05882353 }))
+rule 2 Selector { kind: None, classes: [], key: None, states: [FocusVisible, Hovered], inside: None }
+=== case 21
+--- sheet
+r0 {
+select key=0 {
+states FocusVisible FocusVisible
+}
+transition duration=(ms)120 easing=EaseOut
+}
+r1 {
+select
+text
+control radius=4 fill=$sc1
+transition easing=EaseInOut
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: Some("#0"), states: [FocusVisible, FocusVisible], inside: None }
+  Transition(Duration(0.12))
+  Transition(Easing(EaseOut))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Control(Radius(4.0))
+  Control(Fill(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+  Transition(Easing(EaseInOut))
+=== case 22
+--- sheet
+r0 {
+select kind=Button {
+classes x a-b
+states FocusVisible Pressed
+}
+layout direction=ColumnReverse align_items=Center {
+gap 1e3 $sl1
+padding start=(px)0 end=4 bottom=-3
+margin start=1 top=(px)0
+}
+text
+control size=1 radius=(px)2.5 fill="#e0deb5" mark="lighten($sc0, 0.1)"
+}
++++ read
+refused
+=== case 23
+--- sheet
+r0 {
+select key=tabs {
+classes panel
+}
+control track="#3a7a06" mark="#6a9320b2"
+transition easing=EaseOut
+}
+r1 {
+select {
+classes panel a-b
+states FocusVisible Pressed
+}
+layout display=Grid wrap=#true grow=-2 {
+min_size Auto 0
+column
+}
+icons left="a b" clear="tnum"
+}
+r2 {
+select key=tabs {
+inside kind=Container class=toolbar
+}
+paint background=$sc1 opacity=$sn0
+text
+control size=$sl0 radius=(px)12
+}
+r3 {
+select {
+states FocusVisible FocusVisible
+}
+paint {
+shadow color="#acc2ff" {
+offset $sl1 (px)1
+}
+}
+icons down="a b"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["panel"], key: Some("tabs"), states: [], inside: None }
+  Control(Track(LinearColor { r: 0.04231141, g: 0.19461781, b: 0.001821162, a: 1.0 }))
+  Control(Mark(LinearColor { r: 0.14412849, g: 0.2917707, b: 0.014443844, a: 0.69803923 }))
+  Transition(Easing(EaseOut))
+rule 2 Selector { kind: None, classes: ["panel", "a-b"], key: None, states: [FocusVisible, Pressed], inside: None }
+  Layout(Display(Grid))
+  Layout(Wrap(true))
+  Layout(MinSize(0, Auto))
+  Layout(MinSize(1, Pixels(0.0)))
+  Layout(Grow(-2.0))
+  Icons(Left("a b"))
+  Icons(Clear("tnum"))
+rule 3 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: Some(Ancestor { kind: Some(Container), class: Some("toolbar") }) }
+  Paint(Background(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+  Paint(Opacity(0.75))
+  Control(Size(6.0))
+  Control(Radius(12.0))
+rule 4 Selector { kind: None, classes: [], key: None, states: [FocusVisible, FocusVisible], inside: None }
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.4125427, g: 0.5394796, b: 1.0, a: 1.0 }, offset: [-2.5, 1.0], blur: 0.0, spread: 0.0 })))
+  Icons(Down("a b"))
+=== case 24
+--- sheet
+r0 {
+select
+text color="#38c625" selection="#5b921d7e" {
+style weight=1 italic=#false alignment=Justify locale=#null {
+fonts ""
+}
+}
+icons search="a b"
+}
+r1 {
+select kind=Label {
+classes x a-b
+inside kind=Menu class=toolbar
+}
+transition easing=Linear
+icons down="\u{E06C}" left="a b" search="\u{E06C}"
+}
++++ read
+refused
+=== case 25
+--- sheet
+r0 {
+select {
+inside kind=Label
+}
+layout direction=ColumnReverse wrap=#false align_items=Start align_self=#null shrink=0.5 basis=(px)-3 {
+gap 0 $sl1
+padding
+margin start=12
+max_size Auto (%)7.5
+rows
+}
+icons font="" tick="" right=Geist clear="tnum"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: Some(Label), class: None }) }
+  Layout(Direction(ColumnReverse))
+  Layout(Wrap(false))
+  Layout(AlignItems(Start))
+  Layout(AlignSelf(None))
+  Layout(Gap(0, 0.0))
+  Layout(Gap(1, -2.5))
+  Layout(Margin(Start(12.0)))
+  Layout(MaxSize(0, Auto))
+  Layout(MaxSize(1, Share(0.075)))
+  Layout(Shrink(0.5))
+  Layout(Basis(Pixels(-3.0)))
+  Layout(Rows([]))
+  Icons(Font(""))
+  Icons(Tick(""))
+  Icons(Right("Geist"))
+  Icons(Clear("tnum"))
+=== case 26
+--- sheet
+r0 {
+select {
+states FocusVisible
+}
+transition duration=(s)1.5
+}
+r1 {
+select kind=Button
+layout justify=SpaceBetween grow=500 basis=(%)12.5 {
+padding top=2.5
+margin start=12
+size Auto Auto
+columns -3
+rows Auto
+column span=2
+}
+transition
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [FocusVisible], inside: None }
+  Transition(Duration(1.5))
+rule 2 Selector { kind: Some(Button), classes: [], key: None, states: [], inside: None }
+  Layout(Justify(SpaceBetween))
+  Layout(Padding(Top(2.5)))
+  Layout(Margin(Start(12.0)))
+  Layout(Size(0, Auto))
+  Layout(Size(1, Auto))
+  Layout(Grow(500.0))
+  Layout(Basis(Share(0.125)))
+  Layout(Columns([Pixels(-3.0)]))
+  Layout(Rows([Auto]))
+  Layout(Column(Span(2)))
+=== case 27
+--- sheet
+r0 {
+select
+control size=2.5 fill=$sc0
+transition duration=(ms)250 easing=EaseOut
+icons search=Geist
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Control(Size(2.5))
+  Control(Fill(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+  Transition(Duration(0.25))
+  Transition(Easing(EaseOut))
+  Icons(Search("Geist"))
+=== case 28
+--- sheet
+r0 {
+select key=tabs {
+classes a-b
+inside class=toolbar
+}
+icons tick=Geist
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["a-b"], key: Some("tabs"), states: [], inside: Some(Ancestor { kind: None, class: Some("toolbar") }) }
+  Icons(Tick("Geist"))
+=== case 29
+--- sheet
+r0 {
+select key=tabs
+layout direction=RowReverse align_items=Start {
+padding end=2.5
+max_size Auto $sl1
+}
+paint border_width=(px)1e3 backdrop="lighten($sc0, 0.1)"
+}
+r1 {
+select key=0 {
+classes
+states Hovered Pressed
+}
+text
+control
+icons down="a b" right="a b" clear=""
+}
+r2 {
+select
+control size=1 track="lighten($sc0, 0.1)" fill="#998a63ca"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: None }
+  Layout(Direction(RowReverse))
+  Layout(AlignItems(Start))
+  Layout(Padding(End(2.5)))
+  Layout(MaxSize(0, Auto))
+  Layout(MaxSize(1, Pixels(-2.5)))
+  Paint(BorderWidth(1000.0))
+  Paint(Backdrop(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+rule 2 Selector { kind: None, classes: [], key: Some("#0"), states: [Hovered, Pressed], inside: None }
+  Icons(Down("a b"))
+  Icons(Right("a b"))
+  Icons(Clear(""))
+rule 3 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Control(Size(1.0))
+  Control(Track(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Control(Fill(LinearColor { r: 0.31854683, g: 0.25415218, b: 0.12477184, a: 0.7921569 }))
+=== case 30
+--- sheet
+r0 {
+select {
+classes panel panel
+}
+transition easing=EaseOut
+}
+r1 {
+select
+paint border="lighten($sc0, 0.1)" opacity=1.25 backdrop="#c0334a"
+transition duration=$sd0
+}
+r2 {
+select {
+classes a-b x
+}
+text {
+style size=4 alignment=Start locale="a b" {
+fonts Geist Geist
+}
+}
+transition easing=EaseOut
+}
+r3 {
+select kind=Menu {
+classes a-b
+inside class=toolbar
+}
+paint border="#ad0b70e9" {
+radii 12 (px)-3 (px)1e3 $sl0
+shadow color="#8c2e72" blur=$sl1 spread=(px)-3
+}
+text
+transition easing=EaseInOut
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["panel", "panel"], key: None, states: [], inside: None }
+  Transition(Easing(EaseOut))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Paint(Border(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Paint(Opacity(1.25))
+  Paint(Backdrop(LinearColor { r: 0.5271152, g: 0.033104762, b: 0.06847818, a: 1.0 }))
+  Transition(Duration(0.15))
+rule 3 Selector { kind: None, classes: ["a-b", "x"], key: None, states: [], inside: None }
+  Text(Style(Fonts(["Geist", "Geist"])))
+  Text(Style(Size(4.0)))
+  Text(Style(Alignment(Start)))
+  Text(Style(Locale(Some("a b"))))
+  Transition(Easing(EaseOut))
+rule 4 Selector { kind: Some(Menu), classes: ["a-b"], key: None, states: [], inside: Some(Ancestor { kind: None, class: Some("toolbar") }) }
+  Paint(Border(LinearColor { r: 0.41788515, g: 0.0033465356, b: 0.1620294, a: 0.9137255 }))
+  Paint(Radii(0, 12.0))
+  Paint(Radii(1, -3.0))
+  Paint(Radii(2, 1000.0))
+  Paint(Radii(3, 6.0))
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.26225072, g: 0.027320892, b: 0.1682694, a: 1.0 }, offset: [0.0, 0.0], blur: -2.5, spread: -3.0 })))
+  Transition(Easing(EaseInOut))
+=== case 31
+--- sheet
+r0 {
+select key=tabs {
+inside kind=Label class=toolbar
+}
+layout direction=Row wrap=#true align_items=Start {
+gap 1e3 $sl0
+margin start=$sl1 end=2.5 bottom=1
+min_size (%)0 Auto
+columns Auto
+}
+transition
+icons tick="a b" right="" clear=""
+}
+r1 {
+select key=tabs {
+classes a-b a-b
+states FocusVisible FocusVisible
+}
+}
+r2 {
+select key=1
+layout direction=RowReverse align_self=#null {
+padding bottom=$sl1
+margin
+size (px)2.5 (%)100
+min_size 1e3 (px)2.5
+columns
+column
+}
+icons font="tnum" tick=Geist down="tnum"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: Some(Ancestor { kind: Some(Label), class: Some("toolbar") }) }
+  Layout(Direction(Row))
+  Layout(Wrap(true))
+  Layout(AlignItems(Start))
+  Layout(Gap(0, 1000.0))
+  Layout(Gap(1, 6.0))
+  Layout(Margin(Start(-2.5)))
+  Layout(Margin(End(2.5)))
+  Layout(Margin(Bottom(1.0)))
+  Layout(MinSize(0, Share(0.0)))
+  Layout(MinSize(1, Auto))
+  Layout(Columns([Auto]))
+  Icons(Tick("a b"))
+  Icons(Right(""))
+  Icons(Clear(""))
+rule 2 Selector { kind: None, classes: ["a-b", "a-b"], key: Some("tabs"), states: [FocusVisible, FocusVisible], inside: None }
+rule 3 Selector { kind: None, classes: [], key: Some("#1"), states: [], inside: None }
+  Layout(Direction(RowReverse))
+  Layout(AlignSelf(None))
+  Layout(Padding(Bottom(-2.5)))
+  Layout(Size(0, Pixels(2.5)))
+  Layout(Size(1, Share(1.0)))
+  Layout(MinSize(0, Pixels(1000.0)))
+  Layout(MinSize(1, Pixels(2.5)))
+  Layout(Columns([]))
+  Icons(Font("tnum"))
+  Icons(Tick("Geist"))
+  Icons(Down("tnum"))
+=== case 32
+--- sheet
+r0 {
+select
+icons tick="" down="" right=Geist left="a b" search="\u{E06C}" clear=""
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Icons(Tick(""))
+  Icons(Down(""))
+  Icons(Right("Geist"))
+  Icons(Left("a b"))
+  Icons(Search("\u{e06c}"))
+  Icons(Clear(""))
+=== case 33
+--- sheet
+r0 {
+select kind=Container {
+states Pressed FocusVisible
+}
+layout direction=ColumnReverse justify=SpaceEvenly {
+gap (px)1e3 $sl1
+padding bottom=(px)1
+margin top=1e3
+columns
+column span=$sn1
+}
+transition
+}
+r1 {
+select kind=Button
+transition duration=(s)0.2
+icons
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Container), classes: [], key: None, states: [Pressed, FocusVisible], inside: None }
+  Layout(Direction(ColumnReverse))
+  Layout(Justify(SpaceEvenly))
+  Layout(Gap(0, 1000.0))
+  Layout(Gap(1, -2.5))
+  Layout(Padding(Bottom(1.0)))
+  Layout(Margin(Top(1000.0)))
+  Layout(Columns([]))
+  Layout(Column(Span(3)))
+rule 2 Selector { kind: Some(Button), classes: [], key: None, states: [], inside: None }
+  Transition(Duration(0.2))
+=== case 34
+--- sheet
+r0 {
+select
+layout justify=SpaceAround align_items=Start shrink=1 {
+gap 1 $sl1
+size Auto 4
+min_size (%)0 1e3
+column start=1
+}
+icons font="\u{E06C}" down="tnum" left=Geist
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Justify(SpaceAround))
+  Layout(AlignItems(Start))
+  Layout(Gap(0, 1.0))
+  Layout(Gap(1, -2.5))
+  Layout(Size(0, Auto))
+  Layout(Size(1, Pixels(4.0)))
+  Layout(MinSize(0, Share(0.0)))
+  Layout(MinSize(1, Pixels(1000.0)))
+  Layout(Shrink(1.0))
+  Layout(Column(Start(Some(1))))
+  Icons(Font("\u{e06c}"))
+  Icons(Down("tnum"))
+  Icons(Left("Geist"))
+=== case 35
+--- sheet
+r0 {
+select
+transition duration=(s)1.5
+icons right="\u{E06C}" clear=""
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Transition(Duration(1.5))
+  Icons(Right("\u{e06c}"))
+  Icons(Clear(""))
+=== case 36
+--- sheet
+r0 {
+select kind=Container {
+states Hovered
+inside
+}
+paint backdrop="lighten($sc0, 0.1)" {
+radii 1 $sl1 (px)1e3 1e3
+shadow {
+offset 4 $sl0
+}
+}
+transition duration=$sd0
+}
+r1 {
+select key=3 {
+classes x
+states FocusVisible
+}
+layout display=Grid direction=ColumnReverse justify=End align_items=Stretch align_self=End shrink=1 {
+gap 2.5 1
+padding
+columns (fr)0.5
+rows Auto 1e3
+row start=7 span=1
+}
+paint border="#b56608" backdrop="lighten($sc0, 0.1)" {
+radii 2.5 (px)12 4 (px)1e3
+shadow
+}
+control
+transition duration=(s)0.2 easing=Linear
+}
+r2 {
+select key=1 {
+classes a-b x
+states Pressed
+}
+text selection="#8553bf46"
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Container), classes: [], key: None, states: [Hovered], inside: Some(Ancestor { kind: None, class: None }) }
+  Paint(Radii(0, 1.0))
+  Paint(Radii(1, -2.5))
+  Paint(Radii(2, 1000.0))
+  Paint(Radii(3, 1000.0))
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }, offset: [4.0, 6.0], blur: 0.0, spread: 0.0 })))
+  Paint(Backdrop(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Transition(Duration(0.15))
+rule 2 Selector { kind: None, classes: ["x"], key: Some("#3"), states: [FocusVisible], inside: None }
+  Layout(Display(Grid))
+  Layout(Direction(ColumnReverse))
+  Layout(Justify(End))
+  Layout(AlignItems(Stretch))
+  Layout(AlignSelf(Some(End)))
+  Layout(Gap(0, 2.5))
+  Layout(Gap(1, 1.0))
+  Layout(Shrink(1.0))
+  Layout(Columns([Fraction(0.5)]))
+  Layout(Rows([Auto, Pixels(1000.0)]))
+  Layout(Row(Start(Some(7))))
+  Layout(Row(Span(1)))
+  Paint(Border(LinearColor { r: 0.46207705, g: 0.13286833, b: 0.002428216, a: 1.0 }))
+  Paint(Radii(0, 2.5))
+  Paint(Radii(1, 12.0))
+  Paint(Radii(2, 4.0))
+  Paint(Radii(3, 1000.0))
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }, offset: [0.0, 0.0], blur: 0.0, spread: 0.0 })))
+  Paint(Backdrop(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Transition(Duration(0.2))
+  Transition(Easing(Linear))
+rule 3 Selector { kind: None, classes: ["a-b", "x"], key: Some("#1"), states: [Pressed], inside: None }
+  Text(Selection(LinearColor { r: 0.23455065, g: 0.086500466, b: 0.5209957, a: 0.27450982 }))
+=== case 37
+--- sheet
+r0 {
+select {
+classes panel
+states Pressed Hovered
+}
+paint opacity=-2 backdrop="lighten($sc0, 0.1)" {
+radii 4 -3 (px)12 0
+}
+text selection="#4f8f077c"
+control fill=$sc1
+transition
+}
+r1 {
+select key=1
+text {
+style weight=1 italic=#false
+}
+control radius=$sl1 fill="lighten($sc0, 0.1)" mark="#8ced6c62"
+}
+r2 {
+select {
+classes x
+}
+}
+r3 {
+select
+paint border_width=(px)0 {
+shadow blur=$sl1 {
+offset $sl1 (px)2.5
+}
+}
+text color="#c609ee32" selection="lighten($sc0, 0.1)" {
+style weight=$sn0 italic=#false direction=RightToLeft
+}
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["panel"], key: None, states: [Pressed, Hovered], inside: None }
+  Paint(Radii(0, 4.0))
+  Paint(Radii(1, -3.0))
+  Paint(Radii(2, 12.0))
+  Paint(Radii(3, 0.0))
+  Paint(Opacity(-2.0))
+  Paint(Backdrop(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Text(Selection(LinearColor { r: 0.07818743, g: 0.27467737, b: 0.0021246888, a: 0.4862745 }))
+  Control(Fill(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+rule 2 Selector { kind: None, classes: [], key: Some("#1"), states: [], inside: None }
+  Text(Style(Weight(1.0)))
+  Text(Style(Italic(false)))
+  Control(Radius(-2.5))
+  Control(Fill(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Control(Mark(LinearColor { r: 0.26225072, g: 0.8468733, b: 0.1499598, a: 0.38431373 }))
+rule 3 Selector { kind: None, classes: ["x"], key: None, states: [], inside: None }
+rule 4 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Paint(BorderWidth(0.0))
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }, offset: [-2.5, 2.5], blur: -2.5, spread: 0.0 })))
+  Text(Style(Weight(0.75)))
+  Text(Style(Italic(false)))
+  Text(Style(Direction(RightToLeft)))
+  Text(Color(LinearColor { r: 0.56471163, g: 0.002731743, b: 0.8549927, a: 0.19607843 }))
+  Text(Selection(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+=== case 38
+--- sheet
+r0 {
+select
+paint border="#ec396e" {
+shadow color=$sc1 blur=-3 spread=2.5
+}
+}
+r1 {
+select {
+inside kind=Label class=toolbar
+}
+text
+}
+r2 {
+select {
+inside class=toolbar
+}
+paint
+text
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Paint(Border(LinearColor { r: 0.8387991, g: 0.0409152, b: 0.15592647, a: 1.0 }))
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }, offset: [0.0, 0.0], blur: -3.0, spread: 2.5 })))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: Some(Label), class: Some("toolbar") }) }
+rule 3 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: None, class: Some("toolbar") }) }
+=== case 39
+--- sheet
+r0 {
+select kind=Container
+layout shrink=500 {
+min_size (%)50 Auto
+max_size Auto Auto
+columns Auto Auto
+column start=$sn1 span=2
+}
+}
+r1 {
+select {
+states Pressed
+}
+text
+control radius=(px)0 track="#2f801b" fill="#96ba06dd" mark=$sc1
+transition easing=Linear
+icons font="a b" tick=Geist right="\u{E06C}" left="tnum" clear="\u{E06C}"
+}
+r2 {
+select key=4 {
+inside
+}
+control fill="lighten($sc0, 0.1)"
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Container), classes: [], key: None, states: [], inside: None }
+  Layout(MinSize(0, Share(0.5)))
+  Layout(MinSize(1, Auto))
+  Layout(MaxSize(0, Auto))
+  Layout(MaxSize(1, Auto))
+  Layout(Shrink(500.0))
+  Layout(Columns([Auto, Auto]))
+  Layout(Column(Start(Some(3))))
+  Layout(Column(Span(2)))
+rule 2 Selector { kind: None, classes: [], key: None, states: [Pressed], inside: None }
+  Control(Radius(0.0))
+  Control(Track(LinearColor { r: 0.028426038, g: 0.21586053, b: 0.010960094, a: 1.0 }))
+  Control(Fill(LinearColor { r: 0.30498737, g: 0.4910209, b: 0.001821162, a: 0.8666667 }))
+  Control(Mark(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+  Transition(Easing(Linear))
+  Icons(Font("a b"))
+  Icons(Tick("Geist"))
+  Icons(Right("\u{e06c}"))
+  Icons(Left("tnum"))
+  Icons(Clear("\u{e06c}"))
+rule 3 Selector { kind: None, classes: [], key: Some("#4"), states: [], inside: Some(Ancestor { kind: None, class: None }) }
+  Control(Fill(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+=== case 40
+--- sheet
+r0 {
+select
+}
+r1 {
+select {
+states FocusVisible Hovered
+}
+layout wrap=#true justify=SpaceAround grow=$sn0 {
+gap 12 (px)1
+margin top=$sl1 bottom=$sl0
+size (px)0 1e3
+min_size 0 Auto
+max_size (%)0 Auto
+columns Auto (fr)2
+row span=$sn1
+}
+control size=(px)4
+transition
+}
+r2 {
+select kind=Menu
+}
+r3 {
+select key=tabs {
+classes
+states FocusVisible Hovered
+}
+text color="#f5898aa3" {
+style alignment=Justify direction=LeftToRight
+}
+control size=4 fill="lighten($sc0, 0.1)"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+rule 2 Selector { kind: None, classes: [], key: None, states: [FocusVisible, Hovered], inside: None }
+  Layout(Wrap(true))
+  Layout(Justify(SpaceAround))
+  Layout(Gap(0, 12.0))
+  Layout(Gap(1, 1.0))
+  Layout(Margin(Top(-2.5)))
+  Layout(Margin(Bottom(6.0)))
+  Layout(Size(0, Pixels(0.0)))
+  Layout(Size(1, Pixels(1000.0)))
+  Layout(MinSize(0, Pixels(0.0)))
+  Layout(MinSize(1, Auto))
+  Layout(MaxSize(0, Share(0.0)))
+  Layout(MaxSize(1, Auto))
+  Layout(Grow(0.75))
+  Layout(Columns([Auto, Fraction(2.0)]))
+  Layout(Row(Span(3)))
+  Control(Size(4.0))
+rule 3 Selector { kind: Some(Menu), classes: [], key: None, states: [], inside: None }
+rule 4 Selector { kind: None, classes: [], key: Some("tabs"), states: [FocusVisible, Hovered], inside: None }
+  Text(Style(Alignment(Justify)))
+  Text(Style(Direction(LeftToRight)))
+  Text(Color(LinearColor { r: 0.9130987, g: 0.25015837, b: 0.25415218, a: 0.6392157 }))
+  Control(Size(4.0))
+  Control(Fill(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+=== case 41
+--- sheet
+r0 {
+select {
+classes a-b x
+}
+text {
+style line_height=$sn0 locale=#null
+}
+transition
+icons down="a b"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["a-b", "x"], key: None, states: [], inside: None }
+  Text(Style(LineHeight(0.75)))
+  Text(Style(Locale(None)))
+  Icons(Down("a b"))
+=== case 42
+--- sheet
+r0 {
+select {
+states Hovered
+}
+layout display=None direction=Row justify=SpaceAround align_items=End align_self=End shrink=$sn0 {
+padding bottom=12
+margin top=$sl0
+min_size (%)12.5 (%)0.7
+rows $sl0
+column span=$sn1
+row
+}
+}
+r1 {
+select key=tabs {
+classes a-b
+}
+paint background="lighten($sc0, 0.1)" border_width=12 border="#d225f7f3" {
+radii 1 12 0 -3
+}
+control track=$sc0 fill="lighten($sc0, 0.1)"
+}
+r2 {
+select {
+classes panel
+}
+paint background="lighten($sc0, 0.1)" border_width=-3 {
+shadow blur=(px)-3
+}
+transition
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [Hovered], inside: None }
+  Layout(Display(None))
+  Layout(Direction(Row))
+  Layout(Justify(SpaceAround))
+  Layout(AlignItems(End))
+  Layout(AlignSelf(Some(End)))
+  Layout(Padding(Bottom(12.0)))
+  Layout(Margin(Top(6.0)))
+  Layout(MinSize(0, Share(0.125)))
+  Layout(MinSize(1, Share(0.007)))
+  Layout(Shrink(0.75))
+  Layout(Rows([Pixels(6.0)]))
+  Layout(Column(Span(3)))
+rule 2 Selector { kind: None, classes: ["a-b"], key: Some("tabs"), states: [], inside: None }
+  Paint(Background(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Paint(BorderWidth(12.0))
+  Paint(Border(LinearColor { r: 0.64447975, g: 0.018500218, b: 0.9301109, a: 0.9529412 }))
+  Paint(Radii(0, 1.0))
+  Paint(Radii(1, 12.0))
+  Paint(Radii(2, 0.0))
+  Paint(Radii(3, -3.0))
+  Control(Track(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+  Control(Fill(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+rule 3 Selector { kind: None, classes: ["panel"], key: None, states: [], inside: None }
+  Paint(Background(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Paint(BorderWidth(-3.0))
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }, offset: [0.0, 0.0], blur: -3.0, spread: 0.0 })))
+=== case 43
+--- sheet
+r0 {
+select
+text selection=$sc1 {
+style italic=#false direction=Auto {
+fonts "a b" "a b"
+}
+}
+transition easing=EaseInOut
+}
+r1 {
+select {
+states Pressed
+}
+}
+r2 {
+select key=4
+text color="#999cf036"
+}
+r3 {
+select key=0 {
+states FocusVisible
+inside
+}
+layout wrap=#false {
+gap 1e3 -3
+padding top=1e3
+margin start=1 bottom=$sl1
+size Auto Auto
+min_size (%)0.7 -3
+column start=7 span=2
+}
+paint background=$sc0 border="#cfa334fd" opacity=0.5
+icons font="a b" down="\u{E06C}" left=Geist
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Text(Style(Fonts(["a b", "a b"])))
+  Text(Style(Italic(false)))
+  Text(Style(Direction(Auto)))
+  Text(Selection(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+  Transition(Easing(EaseInOut))
+rule 2 Selector { kind: None, classes: [], key: None, states: [Pressed], inside: None }
+rule 3 Selector { kind: None, classes: [], key: Some("#4"), states: [], inside: None }
+  Text(Color(LinearColor { r: 0.31854683, g: 0.33245158, b: 0.8713672, a: 0.21176471 }))
+rule 4 Selector { kind: None, classes: [], key: Some("#0"), states: [FocusVisible], inside: Some(Ancestor { kind: None, class: None }) }
+  Layout(Wrap(false))
+  Layout(Gap(0, 1000.0))
+  Layout(Gap(1, -3.0))
+  Layout(Padding(Top(1000.0)))
+  Layout(Margin(Start(1.0)))
+  Layout(Margin(Bottom(-2.5)))
+  Layout(Size(0, Auto))
+  Layout(Size(1, Auto))
+  Layout(MinSize(0, Share(0.007)))
+  Layout(MinSize(1, Pixels(-3.0)))
+  Layout(Column(Start(Some(7))))
+  Layout(Column(Span(2)))
+  Paint(Background(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+  Paint(Border(LinearColor { r: 0.62396044, g: 0.3662527, b: 0.034339808, a: 0.99215686 }))
+  Paint(Opacity(0.5))
+  Icons(Font("a b"))
+  Icons(Down("\u{e06c}"))
+  Icons(Left("Geist"))
+=== case 44
+--- sheet
+r0 {
+select kind=Menu {
+states Pressed
+inside kind=Button
+}
+text selection="#056df2"
+icons font=Geist left=Geist
+}
+r1 {
+select key=1
+paint background="#38704e" {
+shadow color="lighten($sc0, 0.1)"
+}
+text color="#3dbe8b"
+transition easing=Linear
+icons font=Geist tick=Geist search="" clear="a b"
+}
++++ read
+refused
+=== case 45
+--- sheet
+r0 {
+select {
+inside
+}
+control radius=4 track="#1eae00"
+transition duration=(s)0 easing=EaseOut
+}
+r1 {
+select {
+inside kind=Label class=toolbar
+}
+layout direction=RowReverse basis=Auto {
+gap -3 $sl0
+padding top=0 bottom=(px)2.5
+column start=2 span=7
+row start=1
+}
+text {
+style size=(px)12 italic=#true alignment=Start direction=RightToLeft locale=Geist {
+features
+}
+}
+transition duration=(ms)250 easing=EaseOut
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: None, class: None }) }
+  Control(Radius(4.0))
+  Control(Track(LinearColor { r: 0.012983031, g: 0.42326775, b: 0.0, a: 1.0 }))
+  Transition(Duration(0.0))
+  Transition(Easing(EaseOut))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: Some(Label), class: Some("toolbar") }) }
+  Layout(Direction(RowReverse))
+  Layout(Gap(0, -3.0))
+  Layout(Gap(1, 6.0))
+  Layout(Padding(Top(0.0)))
+  Layout(Padding(Bottom(2.5)))
+  Layout(Basis(Auto))
+  Layout(Column(Start(Some(2))))
+  Layout(Column(Span(7)))
+  Layout(Row(Start(Some(1))))
+  Text(Style(Size(12.0)))
+  Text(Style(Italic(true)))
+  Text(Style(Alignment(Start)))
+  Text(Style(Direction(RightToLeft)))
+  Text(Style(Locale(Some("Geist"))))
+  Text(Style(Features([])))
+  Transition(Duration(0.25))
+  Transition(Easing(EaseOut))
+=== case 46
+--- sheet
+r0 {
+select {
+classes panel
+}
+layout justify=Start grow=1 {
+gap 12 1
+padding bottom=(px)0
+max_size Auto (px)-3
+rows
+column
+row
+}
+paint border_width=$sl0 backdrop="lighten($sc0, 0.1)"
+control size=(px)12
+icons down="\u{E06C}" left="" search="\u{E06C}"
+}
+r1 {
+select {
+classes
+inside
+}
+transition
+}
+r2 {
+select
+layout display=Flex direction=ColumnReverse align_items=Center align_self=#null basis=(px)1e3 {
+padding start=12 end=(px)4
+margin start=(px)1e3
+row start=$sn1
+}
+text color="lighten($sc0, 0.1)" selection="#0c020339"
+transition
+}
+r3 {
+select kind=Label
+layout align_self=End {
+gap -3 (px)1e3
+padding bottom=(px)1e3
+rows 1e3 Auto
+}
+transition easing=Linear
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["panel"], key: None, states: [], inside: None }
+  Layout(Justify(Start))
+  Layout(Gap(0, 12.0))
+  Layout(Gap(1, 1.0))
+  Layout(Padding(Bottom(0.0)))
+  Layout(MaxSize(0, Auto))
+  Layout(MaxSize(1, Pixels(-3.0)))
+  Layout(Grow(1.0))
+  Layout(Rows([]))
+  Paint(BorderWidth(6.0))
+  Paint(Backdrop(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Control(Size(12.0))
+  Icons(Down("\u{e06c}"))
+  Icons(Left(""))
+  Icons(Search("\u{e06c}"))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: None, class: None }) }
+rule 3 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Display(Flex))
+  Layout(Direction(ColumnReverse))
+  Layout(AlignItems(Center))
+  Layout(AlignSelf(None))
+  Layout(Padding(Start(12.0)))
+  Layout(Padding(End(4.0)))
+  Layout(Margin(Start(1000.0)))
+  Layout(Basis(Pixels(1000.0)))
+  Layout(Row(Start(Some(3))))
+  Text(Color(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Text(Selection(LinearColor { r: 0.003676507, g: 0.000607054, b: 0.000910581, a: 0.22352941 }))
+rule 4 Selector { kind: Some(Label), classes: [], key: None, states: [], inside: None }
+  Layout(AlignSelf(Some(End)))
+  Layout(Gap(0, -3.0))
+  Layout(Gap(1, 1000.0))
+  Layout(Padding(Bottom(1000.0)))
+  Layout(Rows([Pixels(1000.0), Auto]))
+  Transition(Easing(Linear))
+=== case 47
+--- sheet
+r0 {
+select {
+classes
+states FocusVisible
+}
+text selection="#7410b5"
+control radius=-3 fill=$sc0 mark=$sc1
+icons font="a b" down="a b" left="" search="tnum"
+}
+r1 {
+select key=0 {
+states Hovered Hovered
+}
+paint border_width=4 border=$sc0 {
+shadow spread=(px)4
+}
+transition easing=EaseInOut
+}
+r2 {
+select key=tabs {
+states Hovered Hovered
+}
+layout direction=ColumnReverse wrap=#false grow=1.25 {
+margin bottom=12
+max_size Auto (%)0.7
+column
+row start=#null
+}
+paint background="#0f452b" border="#2219ecba"
+control size=(px)12 mark="lighten($sc0, 0.1)"
+transition
+icons right="a b"
+}
+r3 {
+select kind=Label {
+states Pressed Hovered
+}
+paint opacity=$sn0 backdrop="#5ce4bf" {
+radii 1 1 12 (px)1
+shadow #null
+}
+}
++++ read
+refused
+=== case 48
+--- sheet
+r0 {
+select key=tabs {
+classes x x
+states Pressed Hovered
+inside kind=Label
+}
+layout direction=RowReverse shrink=$sn0 basis=(%)7.5 {
+gap 2.5 2.5
+padding
+margin
+columns
+column
+}
+icons search="tnum"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["x", "x"], key: Some("tabs"), states: [Pressed, Hovered], inside: Some(Ancestor { kind: Some(Label), class: None }) }
+  Layout(Direction(RowReverse))
+  Layout(Gap(0, 2.5))
+  Layout(Gap(1, 2.5))
+  Layout(Shrink(0.75))
+  Layout(Basis(Share(0.075)))
+  Layout(Columns([]))
+  Icons(Search("tnum"))
+=== case 49
+--- sheet
+r0 {
+select kind=Label {
+states Pressed
+}
+layout justify=SpaceBetween {
+max_size 2.5 (%)0
+columns
+rows Auto
+}
+}
+r1 {
+select {
+classes panel panel
+}
+layout {
+margin start=$sl1
+min_size Auto (%)33
+column
+row
+}
+icons down="tnum" clear="a b"
+}
+r2 {
+select key=tabs
+paint border_width=(px)4 border="#4c21b3" backdrop="#2846e8"
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Label), classes: [], key: None, states: [Pressed], inside: None }
+  Layout(Justify(SpaceBetween))
+  Layout(MaxSize(0, Pixels(2.5)))
+  Layout(MaxSize(1, Share(0.0)))
+  Layout(Columns([]))
+  Layout(Rows([Auto]))
+rule 2 Selector { kind: None, classes: ["panel", "panel"], key: None, states: [], inside: None }
+  Layout(Margin(Start(-2.5)))
+  Layout(MinSize(0, Auto))
+  Layout(MinSize(1, Share(0.33)))
+  Icons(Down("tnum"))
+  Icons(Clear("a b"))
+rule 3 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: None }
+  Paint(BorderWidth(4.0))
+  Paint(Border(LinearColor { r: 0.07227186, g: 0.015208514, b: 0.45078585, a: 1.0 }))
+  Paint(Backdrop(LinearColor { r: 0.02121901, g: 0.06124607, b: 0.80695236, a: 1.0 }))
+=== case 50
+--- sheet
+r0 {
+select key=tabs {
+classes x a-b
+inside kind=Container
+}
+}
+r1 {
+select {
+classes
+}
+paint border=$sc1 backdrop="lighten($sc0, 0.1)"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["x", "a-b"], key: Some("tabs"), states: [], inside: Some(Ancestor { kind: Some(Container), class: None }) }
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Paint(Border(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+  Paint(Backdrop(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+=== case 51
+--- sheet
+r0 {
+select kind=Button {
+classes x
+states Hovered
+}
+paint
+transition duration=(ms)250
+icons clear="tnum"
+}
++++ read
+refused
+=== case 52
+--- sheet
+r0 {
+select
+}
+r1 {
+select {
+states FocusVisible
+}
+layout display=Flex direction=Row wrap=#false align_items=Center align_self=End grow=0 {
+min_size (px)-3 (%)0.7
+rows 2.5
+column
+row
+}
+}
+r2 {
+select key=tabs {
+inside
+}
+text color="#02e2f733"
+control fill="#f73af08b"
+transition duration=(ms)120 easing=Linear
+}
+r3 {
+select key=tabs {
+classes x a-b
+}
+layout direction=Column justify=End align_items=Start {
+margin top=$sl1
+}
+control size=0 track="#2f05f0"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+rule 2 Selector { kind: None, classes: [], key: None, states: [FocusVisible], inside: None }
+  Layout(Display(Flex))
+  Layout(Direction(Row))
+  Layout(Wrap(false))
+  Layout(AlignItems(Center))
+  Layout(AlignSelf(Some(End)))
+  Layout(MinSize(0, Pixels(-3.0)))
+  Layout(MinSize(1, Share(0.007)))
+  Layout(Grow(0.0))
+  Layout(Rows([Pixels(2.5)]))
+rule 3 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: Some(Ancestor { kind: None, class: None }) }
+  Text(Color(LinearColor { r: 0.000607054, g: 0.76052463, b: 0.9301109, a: 0.2 }))
+  Control(Fill(LinearColor { r: 0.9301109, g: 0.04231141, b: 0.8713672, a: 0.54509807 }))
+  Transition(Duration(0.12))
+  Transition(Easing(Linear))
+rule 4 Selector { kind: None, classes: ["x", "a-b"], key: Some("tabs"), states: [], inside: None }
+  Layout(Direction(Column))
+  Layout(Justify(End))
+  Layout(AlignItems(Start))
+  Layout(Margin(Top(-2.5)))
+  Control(Size(0.0))
+  Control(Track(LinearColor { r: 0.028426038, g: 0.001517635, b: 0.8713672, a: 1.0 }))
+=== case 53
+--- sheet
+r0 {
+select kind=Container {
+classes x
+}
+paint background="#801795" backdrop="lighten($sc0, 0.1)"
+text color="#ab6052" {
+style weight=1 line_height=1 {
+features "\u{E06C}"
+}
+}
+icons right="" left=Geist clear=Geist
+}
++++ read
+refused
+=== case 54
+--- sheet
+r0 {
+select {
+states FocusVisible
+}
+transition duration=(s)0.2 easing=EaseOut
+}
+r1 {
+select {
+states Pressed Hovered
+}
+layout justify=SpaceEvenly grow=-2 {
+min_size (%)33 1e3
+}
+paint background="#5e7f5545" border_width=0 backdrop="#ccfcf8"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [FocusVisible], inside: None }
+  Transition(Duration(0.2))
+  Transition(Easing(EaseOut))
+rule 2 Selector { kind: None, classes: [], key: None, states: [Pressed, Hovered], inside: None }
+  Layout(Justify(SpaceEvenly))
+  Layout(MinSize(0, Share(0.33)))
+  Layout(MinSize(1, Pixels(1000.0)))
+  Layout(Grow(-2.0))
+  Paint(Background(LinearColor { r: 0.111932434, g: 0.21223073, b: 0.09084173, a: 0.27058825 }))
+  Paint(BorderWidth(0.0))
+  Paint(Backdrop(LinearColor { r: 0.6038274, g: 0.9734455, b: 0.9386859, a: 1.0 }))
+=== case 55
+--- sheet
+r0 {
+select key=4
+paint background="lighten($sc0, 0.1)" opacity=$sn0 backdrop="#21aad040"
+text selection="#64df33" {
+style size=12 italic=#true line_height=1.25 direction=Auto {
+fonts "a b" ""
+}
+}
+icons left="a b"
+}
+r1 {
+select
+layout display=Grid direction=Row align_items=Stretch grow=0 {
+min_size Auto 1e3
+max_size (px)1 (px)4
+}
+transition duration=(s)1.5
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: Some("#4"), states: [], inside: None }
+  Paint(Background(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Paint(Opacity(0.75))
+  Paint(Backdrop(LinearColor { r: 0.015208514, g: 0.40197787, b: 0.6307572, a: 0.2509804 }))
+  Text(Style(Fonts(["a b", ""])))
+  Text(Style(Size(12.0)))
+  Text(Style(Italic(true)))
+  Text(Style(LineHeight(1.25)))
+  Text(Style(Direction(Auto)))
+  Text(Selection(LinearColor { r: 0.1274377, g: 0.73791057, b: 0.033104762, a: 1.0 }))
+  Icons(Left("a b"))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Display(Grid))
+  Layout(Direction(Row))
+  Layout(AlignItems(Stretch))
+  Layout(MinSize(0, Auto))
+  Layout(MinSize(1, Pixels(1000.0)))
+  Layout(MaxSize(0, Pixels(1.0)))
+  Layout(MaxSize(1, Pixels(4.0)))
+  Layout(Grow(0.0))
+  Transition(Duration(1.5))
+=== case 56
+--- sheet
+r0 {
+select {
+states FocusVisible
+}
+layout basis=(px)0 {
+gap 1e3 2.5
+margin
+size $sl1 (px)0
+column
+}
+}
+r1 {
+select {
+inside class=toolbar
+}
+text {
+style direction=RightToLeft locale="tnum"
+}
+transition easing=Linear
+}
+r2 {
+select key=tabs
+text
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [FocusVisible], inside: None }
+  Layout(Gap(0, 1000.0))
+  Layout(Gap(1, 2.5))
+  Layout(Size(0, Pixels(-2.5)))
+  Layout(Size(1, Pixels(0.0)))
+  Layout(Basis(Pixels(0.0)))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: None, class: Some("toolbar") }) }
+  Text(Style(Direction(RightToLeft)))
+  Text(Style(Locale(Some("tnum"))))
+  Transition(Easing(Linear))
+rule 3 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: None }
+=== case 57
+--- sheet
+r0 {
+select kind=Menu key=1 {
+classes
+states Pressed FocusVisible
+}
+layout display=Grid justify=SpaceAround grow=0 basis=$sl1 {
+size (%)100 $sl1
+min_size $sl0 Auto
+max_size (%)7.5 $sl0
+row start=7 span=7
+}
+paint background="#77fbdf91" border_width=(px)2.5 opacity=1
+transition easing=EaseInOut
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Menu), classes: [], key: Some("#1"), states: [Pressed, FocusVisible], inside: None }
+  Layout(Display(Grid))
+  Layout(Justify(SpaceAround))
+  Layout(Size(0, Share(1.0)))
+  Layout(Size(1, Pixels(-2.5)))
+  Layout(MinSize(0, Pixels(6.0)))
+  Layout(MinSize(1, Auto))
+  Layout(MaxSize(0, Share(0.075)))
+  Layout(MaxSize(1, Pixels(6.0)))
+  Layout(Grow(0.0))
+  Layout(Basis(Pixels(-2.5)))
+  Layout(Row(Start(Some(7))))
+  Layout(Row(Span(7)))
+  Paint(Background(LinearColor { r: 0.18447499, g: 0.9646863, b: 0.73791057, a: 0.5686275 }))
+  Paint(BorderWidth(2.5))
+  Paint(Opacity(1.0))
+  Transition(Easing(EaseInOut))
+=== case 58
+--- sheet
+r0 {
+select {
+states FocusVisible
+}
+layout align_self=Start {
+max_size $sl0 (px)-3
+columns 2.5
+column
+row
+}
+transition duration=(s)0
+}
+r1 {
+select key=0 {
+states Pressed
+}
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [FocusVisible], inside: None }
+  Layout(AlignSelf(Some(Start)))
+  Layout(MaxSize(0, Pixels(6.0)))
+  Layout(MaxSize(1, Pixels(-3.0)))
+  Layout(Columns([Pixels(2.5)]))
+  Transition(Duration(0.0))
+rule 2 Selector { kind: None, classes: [], key: Some("#0"), states: [Pressed], inside: None }
+=== case 59
+--- sheet
+r0 {
+select
+paint {
+radii 1e3 12 (px)2.5 $sl0
+shadow color="#bf902890" {
+offset (px)1e3 $sl1
+}
+}
+}
+r1 {
+select {
+states Pressed
+}
+paint {
+radii 2.5 (px)2.5 $sl1 12
+}
+text color=$sc0 {
+style size=2.5 alignment=End locale="a b" {
+fonts "" "\u{E06C}"
+features "tnum"
+}
+}
+}
+r2 {
+select {
+states FocusVisible FocusVisible
+}
+layout display=Flex align_items=Stretch align_self=Stretch {
+gap 4 $sl0
+padding start=0 end=$sl0 top=(px)2.5
+min_size 1 Auto
+max_size 4 $sl0
+columns
+column span=1
+}
+icons font=Geist tick=Geist down=Geist left="a b" search="a b"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Paint(Radii(0, 1000.0))
+  Paint(Radii(1, 12.0))
+  Paint(Radii(2, 2.5))
+  Paint(Radii(3, 6.0))
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.5209957, g: 0.27889434, b: 0.02121901, a: 0.5647059 }, offset: [1000.0, -2.5], blur: 0.0, spread: 0.0 })))
+rule 2 Selector { kind: None, classes: [], key: None, states: [Pressed], inside: None }
+  Paint(Radii(0, 2.5))
+  Paint(Radii(1, 2.5))
+  Paint(Radii(2, -2.5))
+  Paint(Radii(3, 12.0))
+  Text(Style(Fonts(["", "\u{e06c}"])))
+  Text(Style(Size(2.5)))
+  Text(Style(Alignment(End)))
+  Text(Style(Locale(Some("a b"))))
+  Text(Style(Features(["tnum"])))
+  Text(Color(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+rule 3 Selector { kind: None, classes: [], key: None, states: [FocusVisible, FocusVisible], inside: None }
+  Layout(Display(Flex))
+  Layout(AlignItems(Stretch))
+  Layout(AlignSelf(Some(Stretch)))
+  Layout(Gap(0, 4.0))
+  Layout(Gap(1, 6.0))
+  Layout(Padding(Start(0.0)))
+  Layout(Padding(End(6.0)))
+  Layout(Padding(Top(2.5)))
+  Layout(MinSize(0, Pixels(1.0)))
+  Layout(MinSize(1, Auto))
+  Layout(MaxSize(0, Pixels(4.0)))
+  Layout(MaxSize(1, Pixels(6.0)))
+  Layout(Columns([]))
+  Layout(Column(Span(1)))
+  Icons(Font("Geist"))
+  Icons(Tick("Geist"))
+  Icons(Down("Geist"))
+  Icons(Left("a b"))
+  Icons(Search("a b"))
+=== case 60
+--- sheet
+r0 {
+select {
+inside kind=Container class=toolbar
+}
+layout display=None justify=Start grow=1 basis=(px)12 {
+size (px)2.5 (%)12.5
+columns 1e3 0
+row start=#null span=1
+}
+text
+control size=1 radius=(px)1
+}
+r1 {
+select
+transition
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: Some(Container), class: Some("toolbar") }) }
+  Layout(Display(None))
+  Layout(Justify(Start))
+  Layout(Size(0, Pixels(2.5)))
+  Layout(Size(1, Share(0.125)))
+  Layout(Grow(1.0))
+  Layout(Basis(Pixels(12.0)))
+  Layout(Columns([Pixels(1000.0), Pixels(0.0)]))
+  Layout(Row(Start(None)))
+  Layout(Row(Span(1)))
+  Control(Size(1.0))
+  Control(Radius(1.0))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+=== case 61
+--- sheet
+r0 {
+select kind=Button key=3
+layout justify=End align_items=Stretch align_self=End grow=0.5 shrink=-2 {
+padding start=12 end=-3 top=(px)4
+margin start=4 end=4
+min_size Auto (%)12.5
+rows Auto
+column
+}
+paint background=$sc0 {
+shadow #null
+}
+icons font=""
+}
+r1 {
+select {
+classes panel
+}
+layout display=Grid direction=ColumnReverse justify=SpaceBetween align_self=Stretch grow=1.25 basis=Auto {
+column
+}
+paint
+text selection="#dd5701" {
+style weight=0 line_height=500 direction=Auto
+}
+icons tick="" right="\u{E06C}" clear=""
+}
+r2 {
+select
+icons tick="\u{E06C}"
+}
+r3 {
+select {
+states FocusVisible
+inside
+}
+paint background="#46b6bf" border_width=(px)12 backdrop="lighten($sc0, 0.1)" {
+shadow #null
+}
+text color="#a4235ee3" {
+style
+}
+transition duration=(s)0.2
+}
++++ read
+refused
+=== case 62
+--- sheet
+r0 {
+select {
+classes x a-b
+}
+paint
+text color="lighten($sc0, 0.1)"
+control radius=-3 track="#f368c3"
+}
+r1 {
+select kind=Menu {
+states Hovered FocusVisible
+}
+paint border="#b88f2fca" opacity=-2 {
+radii (px)0 1e3 (px)2.5 $sl0
+}
+text
+icons down=""
+}
+r2 {
+select kind=Container {
+inside kind=Button
+}
+layout display=Grid direction=Column grow=-2 shrink=0.5 basis=$sl1 {
+margin end=(px)2.5
+rows Auto Auto
+column
+}
+paint
+}
++++ read
+refused
+=== case 63
+--- sheet
+r0 {
+select {
+classes
+inside
+}
+layout shrink=-2 {
+size Auto $sl0
+columns $sl0
+row
+}
+transition duration=(ms)120
+icons tick=Geist right="tnum" left="a b"
+}
+r1 {
+select key=tabs
+}
+r2 {
+select key=tabs {
+classes panel x
+}
+layout display=Flex {
+gap -3 (px)4
+padding start=12 top=(px)4 bottom=(px)1e3
+max_size (%)12.5 $sl0
+rows
+column span=2
+}
+transition
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: None, class: None }) }
+  Layout(Size(0, Auto))
+  Layout(Size(1, Pixels(6.0)))
+  Layout(Shrink(-2.0))
+  Layout(Columns([Pixels(6.0)]))
+  Transition(Duration(0.12))
+  Icons(Tick("Geist"))
+  Icons(Right("tnum"))
+  Icons(Left("a b"))
+rule 2 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: None }
+rule 3 Selector { kind: None, classes: ["panel", "x"], key: Some("tabs"), states: [], inside: None }
+  Layout(Display(Flex))
+  Layout(Gap(0, -3.0))
+  Layout(Gap(1, 4.0))
+  Layout(Padding(Start(12.0)))
+  Layout(Padding(Top(4.0)))
+  Layout(Padding(Bottom(1000.0)))
+  Layout(MaxSize(0, Share(0.125)))
+  Layout(MaxSize(1, Pixels(6.0)))
+  Layout(Rows([]))
+  Layout(Column(Span(2)))
+=== case 64
+--- sheet
+r0 {
+select kind=Menu key=tabs
+transition duration=(s)1.5
+}
+r1 {
+select key=0 {
+states FocusVisible Hovered
+}
+layout justify=Start {
+margin end=12 top=$sl0
+min_size (px)1 (px)12
+columns
+column start=#null
+}
+text selection="lighten($sc0, 0.1)"
+transition
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Menu), classes: [], key: Some("tabs"), states: [], inside: None }
+  Transition(Duration(1.5))
+rule 2 Selector { kind: None, classes: [], key: Some("#0"), states: [FocusVisible, Hovered], inside: None }
+  Layout(Justify(Start))
+  Layout(Margin(End(12.0)))
+  Layout(Margin(Top(6.0)))
+  Layout(MinSize(0, Pixels(1.0)))
+  Layout(MinSize(1, Pixels(12.0)))
+  Layout(Columns([]))
+  Layout(Column(Start(None)))
+  Text(Selection(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+=== case 65
+--- sheet
+r0 {
+select
+layout display=Flex {
+padding top=(px)-3
+margin start=1e3
+size (%)100 4
+rows
+row
+}
+text
+}
+r1 {
+select kind=Menu key=tabs {
+states FocusVisible Pressed
+inside class=toolbar
+}
+paint border_width=$sl0 border=$sc1 opacity=500 {
+shadow #null
+}
+icons down="" search=Geist clear=""
+}
+r2 {
+select {
+states Hovered Pressed
+}
+paint border="#0d9bdfc6" backdrop=$sc1
+text
+}
+r3 {
+select key=1
+control
+}
++++ read
+refused
+=== case 66
+--- sheet
+r0 {
+select key=tabs {
+classes panel x
+}
+icons font="a b" tick="\u{E06C}" clear=Geist
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["panel", "x"], key: Some("tabs"), states: [], inside: None }
+  Icons(Font("a b"))
+  Icons(Tick("\u{e06c}"))
+  Icons(Clear("Geist"))
+=== case 67
+--- sheet
+r0 {
+select
+paint {
+radii (px)4 (px)1 1e3 0
+}
+control
+icons font="a b" down="tnum"
+}
+r1 {
+select kind=Menu {
+classes a-b
+states Pressed FocusVisible
+inside class=toolbar
+}
+text selection="#90f305"
+control size=$sl0 track=$sc1 mark="#d6a089"
+transition
+}
+r2 {
+select kind=Button {
+states Hovered FocusVisible
+}
+layout direction=RowReverse align_self=Center grow=$sn0 basis=(%)0.7 {
+gap 1 $sl0
+size (%)7.5 (%)100
+columns (px)12 Auto
+row start=7 span=2
+}
+paint border_width=(px)12 backdrop="lighten($sc0, 0.1)"
+control radius=1 track="#9aaa1a" fill="#e8f8cf51"
+}
+r3 {
+select {
+classes panel panel
+states Hovered
+}
+layout wrap=#false align_self=Start shrink=$sn0 {
+margin top=1e3 bottom=12
+size Auto 0
+max_size (%)33 (px)4
+}
+text color=$sc0 {
+style italic=#true locale="\u{E06C}"
+}
+transition duration=(s)0
+}
++++ read
+refused
+=== case 68
+--- sheet
+r0 {
+select
+layout justify=End grow=1.25 shrink=0.5 basis=(%)100 {
+rows (fr)1 Auto
+}
+icons down="tnum" right=""
+}
+r1 {
+select
+layout display=Grid direction=Column wrap=#false align_items=End basis=(%)7.5 {
+gap $sl1 $sl1
+margin end=2.5
+size (px)0 (%)100
+min_size (%)0.7 $sl1
+max_size Auto 4
+rows (px)2.5
+}
+control size=0
+transition easing=Linear
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Justify(End))
+  Layout(Grow(1.25))
+  Layout(Shrink(0.5))
+  Layout(Basis(Share(1.0)))
+  Layout(Rows([Fraction(1.0), Auto]))
+  Icons(Down("tnum"))
+  Icons(Right(""))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Display(Grid))
+  Layout(Direction(Column))
+  Layout(Wrap(false))
+  Layout(AlignItems(End))
+  Layout(Gap(0, -2.5))
+  Layout(Gap(1, -2.5))
+  Layout(Margin(End(2.5)))
+  Layout(Size(0, Pixels(0.0)))
+  Layout(Size(1, Share(1.0)))
+  Layout(MinSize(0, Share(0.007)))
+  Layout(MinSize(1, Pixels(-2.5)))
+  Layout(MaxSize(0, Auto))
+  Layout(MaxSize(1, Pixels(4.0)))
+  Layout(Basis(Share(0.075)))
+  Layout(Rows([Pixels(2.5)]))
+  Control(Size(0.0))
+  Transition(Easing(Linear))
+=== case 69
+--- sheet
+r0 {
+select kind=Button key=2 {
+classes
+states FocusVisible Hovered
+}
+text {
+style size=$sl1 weight=500 line_height=0 direction=RightToLeft locale="\u{E06C}" {
+features "tnum"
+}
+}
+transition
+icons
+}
+r1 {
+select {
+inside
+}
+paint border_width=0 border=$sc0 backdrop="#d8c58988" {
+radii $sl1 2.5 (px)2.5 (px)0
+}
+text color="#d3209471" {
+style alignment=End direction=Auto
+}
+}
+r2 {
+select kind=Button key=4 {
+classes panel panel
+states FocusVisible FocusVisible
+}
+paint backdrop="lighten($sc0, 0.1)"
+control size=12
+}
++++ read
+refused
+=== case 70
+--- sheet
+r0 {
+select key=tabs {
+classes a-b
+inside class=toolbar
+}
+paint opacity=0
+control track="#b42888" mark="#be9434"
+icons font=Geist tick="\u{E06C}" clear="tnum"
+}
+r1 {
+select key=tabs {
+classes a-b
+states Hovered Hovered
+}
+layout display=Flex justify=Center align_items=Center align_self=Start grow=-2 shrink=1.25 basis=Auto {
+gap 1e3 0
+max_size (px)4 (%)0.7
+rows 4 12
+column
+}
+text color="#cd27af3b"
+control size=$sl0
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["a-b"], key: Some("tabs"), states: [], inside: Some(Ancestor { kind: None, class: Some("toolbar") }) }
+  Paint(Opacity(0.0))
+  Control(Track(LinearColor { r: 0.45641106, g: 0.02121901, b: 0.2462014, a: 1.0 }))
+  Control(Mark(LinearColor { r: 0.5149178, g: 0.29613832, b: 0.034339808, a: 1.0 }))
+  Icons(Font("Geist"))
+  Icons(Tick("\u{e06c}"))
+  Icons(Clear("tnum"))
+rule 2 Selector { kind: None, classes: ["a-b"], key: Some("tabs"), states: [Hovered, Hovered], inside: None }
+  Layout(Display(Flex))
+  Layout(Justify(Center))
+  Layout(AlignItems(Center))
+  Layout(AlignSelf(Some(Start)))
+  Layout(Gap(0, 1000.0))
+  Layout(Gap(1, 0.0))
+  Layout(MaxSize(0, Pixels(4.0)))
+  Layout(MaxSize(1, Share(0.007)))
+  Layout(Grow(-2.0))
+  Layout(Shrink(1.25))
+  Layout(Basis(Auto))
+  Layout(Rows([Pixels(4.0), Pixels(12.0)]))
+  Text(Color(LinearColor { r: 0.6104956, g: 0.020288562, b: 0.42869055, a: 0.23137255 }))
+  Control(Size(6.0))
+=== case 71
+--- sheet
+r0 {
+select {
+classes x a-b
+states Pressed Hovered
+}
+layout wrap=#false grow=1 {
+padding start=$sl1 top=4 bottom=-3
+margin bottom=(px)0
+size 0 (%)33
+min_size (%)100 Auto
+columns Auto
+rows (fr)2 Auto
+}
+paint border_width=$sl0 backdrop="#8cc23208"
+}
+r1 {
+select kind=Container
+transition duration=(s)1.5
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["x", "a-b"], key: None, states: [Pressed, Hovered], inside: None }
+  Layout(Wrap(false))
+  Layout(Padding(Start(-2.5)))
+  Layout(Padding(Top(4.0)))
+  Layout(Padding(Bottom(-3.0)))
+  Layout(Margin(Bottom(0.0)))
+  Layout(Size(0, Pixels(0.0)))
+  Layout(Size(1, Share(0.33)))
+  Layout(MinSize(0, Share(1.0)))
+  Layout(MinSize(1, Auto))
+  Layout(Grow(1.0))
+  Layout(Columns([Auto]))
+  Layout(Rows([Fraction(2.0), Auto]))
+  Paint(BorderWidth(6.0))
+  Paint(Backdrop(LinearColor { r: 0.26225072, g: 0.5394796, b: 0.03189603, a: 0.03137255 }))
+rule 2 Selector { kind: Some(Container), classes: [], key: None, states: [], inside: None }
+  Transition(Duration(1.5))
+=== case 72
+--- sheet
+r0 {
+select {
+classes x panel
+}
+paint border_width=$sl1 backdrop="#6d0211b8" {
+radii 2.5 (px)4 4 (px)-3
+}
+transition
+}
+r1 {
+select
+layout direction=RowReverse wrap=#true grow=1 shrink=$sn0 {
+gap (px)1e3 (px)1e3
+margin bottom=0
+max_size 2.5 4
+rows Auto
+}
+}
+r2 {
+select
+text {
+style italic=#true line_height=$sn0 direction=LeftToRight locale=#null
+}
+control track="#9cf9426e"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["x", "panel"], key: None, states: [], inside: None }
+  Paint(BorderWidth(-2.5))
+  Paint(Radii(0, 2.5))
+  Paint(Radii(1, 4.0))
+  Paint(Radii(2, 4.0))
+  Paint(Radii(3, -3.0))
+  Paint(Backdrop(LinearColor { r: 0.15292616, g: 0.000607054, b: 0.0056053917, a: 0.72156864 }))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Direction(RowReverse))
+  Layout(Wrap(true))
+  Layout(Gap(0, 1000.0))
+  Layout(Gap(1, 1000.0))
+  Layout(Margin(Bottom(0.0)))
+  Layout(MaxSize(0, Pixels(2.5)))
+  Layout(MaxSize(1, Pixels(4.0)))
+  Layout(Grow(1.0))
+  Layout(Shrink(0.75))
+  Layout(Rows([Auto]))
+rule 3 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Text(Style(Italic(true)))
+  Text(Style(LineHeight(0.75)))
+  Text(Style(Direction(LeftToRight)))
+  Text(Style(Locale(None)))
+  Control(Track(LinearColor { r: 0.33245158, g: 0.9473066, b: 0.05448028, a: 0.43137255 }))
+=== case 73
+--- sheet
+r0 {
+select kind=Menu {
+classes panel
+}
+text
+}
+r1 {
+select
+}
+r2 {
+select {
+states Hovered
+inside kind=Button class=toolbar
+}
+paint {
+radii (px)12 2.5 4 $sl1
+}
+text color="#3d36b65f" selection="#953489"
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Menu), classes: ["panel"], key: None, states: [], inside: None }
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+rule 3 Selector { kind: None, classes: [], key: None, states: [Hovered], inside: Some(Ancestor { kind: Some(Button), class: Some("toolbar") }) }
+  Paint(Radii(0, 12.0))
+  Paint(Radii(1, 2.5))
+  Paint(Radii(2, 4.0))
+  Paint(Radii(3, -2.5))
+  Text(Color(LinearColor { r: 0.046665084, g: 0.036889445, b: 0.46778384, a: 0.37254903 }))
+  Text(Selection(LinearColor { r: 0.30054384, g: 0.034339808, b: 0.25015837, a: 1.0 }))
+=== case 74
+--- sheet
+r0 {
+select
+paint border="#d1eba6" {
+shadow color=$sc1 spread=12
+}
+}
+r1 {
+select {
+classes
+inside
+}
+transition
+}
+r2 {
+select {
+classes
+}
+paint border_width=12
+}
+r3 {
+select key=tabs {
+inside kind=Button class=toolbar
+}
+layout direction=ColumnReverse justify=SpaceEvenly grow=1.25 {
+gap $sl0 12
+padding end=-3
+margin top=1 bottom=1e3
+min_size (%)12.5 Auto
+rows
+row
+}
+text color="#1d6ee2" {
+style weight=-2 italic=#true line_height=1.25 direction=RightToLeft locale="a b" {
+fonts
+features Geist
+}
+}
+transition duration=(s)0 easing=EaseInOut
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Paint(Border(LinearColor { r: 0.63759696, g: 0.83076996, b: 0.3813261, a: 1.0 }))
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }, offset: [0.0, 0.0], blur: 0.0, spread: 12.0 })))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: None, class: None }) }
+rule 3 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Paint(BorderWidth(12.0))
+rule 4 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: Some(Ancestor { kind: Some(Button), class: Some("toolbar") }) }
+  Layout(Direction(ColumnReverse))
+  Layout(Justify(SpaceEvenly))
+  Layout(Gap(0, 6.0))
+  Layout(Gap(1, 12.0))
+  Layout(Padding(End(-3.0)))
+  Layout(Margin(Top(1.0)))
+  Layout(Margin(Bottom(1000.0)))
+  Layout(MinSize(0, Share(0.125)))
+  Layout(MinSize(1, Auto))
+  Layout(Grow(1.25))
+  Layout(Rows([]))
+  Text(Style(Fonts([])))
+  Text(Style(Weight(-2.0)))
+  Text(Style(Italic(true)))
+  Text(Style(LineHeight(1.25)))
+  Text(Style(Direction(RightToLeft)))
+  Text(Style(Locale(Some("a b"))))
+  Text(Style(Features(["Geist"])))
+  Text(Color(LinearColor { r: 0.012286487, g: 0.15592647, b: 0.76052463, a: 1.0 }))
+  Transition(Duration(0.0))
+  Transition(Easing(EaseInOut))
+=== case 75
+--- sheet
+r0 {
+select
+}
+r1 {
+select {
+classes panel
+states Hovered FocusVisible
+}
+paint border_width=$sl0 {
+radii 12 -3 $sl0 (px)-3
+shadow #null
+}
+}
+r2 {
+select
+control size=0 fill="lighten($sc0, 0.1)" mark="lighten($sc0, 0.1)"
+}
+r3 {
+select {
+inside class=toolbar
+}
+paint border_width=(px)-3 backdrop=$sc0
+text
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+rule 2 Selector { kind: None, classes: ["panel"], key: None, states: [Hovered, FocusVisible], inside: None }
+  Paint(BorderWidth(6.0))
+  Paint(Radii(0, 12.0))
+  Paint(Radii(1, -3.0))
+  Paint(Radii(2, 6.0))
+  Paint(Radii(3, -3.0))
+  Paint(Shadow(None))
+rule 3 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Control(Size(0.0))
+  Control(Fill(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Control(Mark(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+rule 4 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: None, class: Some("toolbar") }) }
+  Paint(BorderWidth(-3.0))
+  Paint(Backdrop(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+=== case 76
+--- sheet
+r0 {
+select {
+states Pressed
+}
+layout align_items=Stretch grow=$sn0 {
+padding start=1
+max_size Auto -3
+rows Auto $sl1
+}
+text {
+style size=(px)1 line_height=$sn0
+}
+}
+r1 {
+select {
+states Hovered Pressed
+inside class=toolbar
+}
+layout display=Grid wrap=#false grow=0.5 basis=(%)0.7 {
+padding end=(px)0
+margin start=$sl1 top=0 bottom=(px)12
+size (px)0 (px)1e3
+max_size (%)0 Auto
+columns $sl1
+}
+paint border_width=$sl1 backdrop="#9428a5" {
+radii -3 (px)1 (px)12 $sl0
+}
+icons
+}
+r2 {
+select {
+classes x
+}
+layout display=Grid wrap=#false justify=SpaceBetween {
+min_size (px)1e3 Auto
+max_size $sl0 Auto
+}
+text color="lighten($sc0, 0.1)"
+}
+r3 {
+select kind=Container {
+classes
+}
+icons font="\u{E06C}" left="\u{E06C}"
+}
++++ read
+refused
+=== case 77
+--- sheet
+r0 {
+select
+paint background=$sc0 opacity=500
+text
+icons tick="" right=""
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Paint(Background(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+  Paint(Opacity(500.0))
+  Icons(Tick(""))
+  Icons(Right(""))
+=== case 78
+--- sheet
+r0 {
+select
+paint background=$sc0 border_width=12
+control fill="#f7c6d0e7"
+transition duration=(s)0.2
+icons down="\u{E06C}" clear="a b"
+}
+r1 {
+select kind=Menu {
+states Hovered FocusVisible
+}
+layout display=Flex align_items=Start align_self=Stretch basis=Auto {
+margin top=1 bottom=(px)4
+columns (px)2.5
+rows 4 0
+}
+}
+r2 {
+select kind=Container key=2 {
+states Hovered Pressed
+}
+layout wrap=#false shrink=-2 basis=Auto {
+padding top=$sl1
+max_size (%)0.7 Auto
+}
+text {
+style weight=$sn0 italic=#false
+}
+}
++++ read
+refused
+=== case 79
+--- sheet
+r0 {
+select {
+inside
+}
+}
+r1 {
+select kind=Menu {
+states Hovered
+}
+control track="#53e3d964" fill=$sc1 mark="#59ca666a"
+icons tick="a b" right="\u{E06C}" left="a b" search="tnum"
+}
+r2 {
+select
+text color="#4bb22907"
+transition
+icons tick="" right="\u{E06C}"
+}
++++ read
+refused
+=== case 80
+--- sheet
+r0 {
+select {
+inside kind=Menu class=toolbar
+}
+transition duration=(s)1.5
+icons right="a b"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: Some(Menu), class: Some("toolbar") }) }
+  Transition(Duration(1.5))
+  Icons(Right("a b"))
+=== case 81
+--- sheet
+r0 {
+select {
+classes a-b x
+states Hovered FocusVisible
+inside kind=Menu
+}
+paint background="lighten($sc0, 0.1)" border_width=0 border="#46bdd5"
+text color="#fd387f" selection="#a26183" {
+style size=1 weight=0.5 line_height=0.5 direction=RightToLeft locale="\u{E06C}" {
+fonts "tnum"
+}
+}
+control track=$sc0
+}
+r1 {
+select {
+classes panel panel
+inside kind=Menu
+}
+paint background="#d614fb" border="#16d88c3f" backdrop="#7571212a"
+control mark="#a9bf7b"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["a-b", "x"], key: None, states: [Hovered, FocusVisible], inside: Some(Ancestor { kind: Some(Menu), class: None }) }
+  Paint(Background(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Paint(BorderWidth(0.0))
+  Paint(Border(LinearColor { r: 0.06124607, g: 0.50888145, b: 0.66538733, a: 1.0 }))
+  Text(Style(Fonts(["tnum"])))
+  Text(Style(Size(1.0)))
+  Text(Style(Weight(0.5)))
+  Text(Style(LineHeight(0.5)))
+  Text(Style(Direction(RightToLeft)))
+  Text(Style(Locale(Some("\u{e06c}"))))
+  Text(Color(LinearColor { r: 0.9822506, g: 0.039546236, b: 0.21223073, a: 1.0 }))
+  Text(Selection(LinearColor { r: 0.36130688, g: 0.119538434, b: 0.22696589, a: 1.0 }))
+  Control(Track(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+rule 2 Selector { kind: None, classes: ["panel", "panel"], key: None, states: [], inside: Some(Ancestor { kind: Some(Menu), class: None }) }
+  Paint(Background(LinearColor { r: 0.6724432, g: 0.00699541, b: 0.9646863, a: 1.0 }))
+  Paint(Border(LinearColor { r: 0.008023192, g: 0.68668544, b: 0.26225072, a: 0.24705882 }))
+  Paint(Backdrop(LinearColor { r: 0.17788841, g: 0.16513222, b: 0.015208514, a: 0.16470589 }))
+  Control(Mark(LinearColor { r: 0.3967553, g: 0.5209957, b: 0.1980693, a: 1.0 }))
+=== case 82
+--- sheet
+r0 {
+select {
+classes a-b
+inside
+}
+layout display=Flex grow=0 shrink=500 {
+padding
+margin start=0 end=1
+min_size (px)1 (%)0.7
+columns Auto
+row span=1
+}
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["a-b"], key: None, states: [], inside: Some(Ancestor { kind: None, class: None }) }
+  Layout(Display(Flex))
+  Layout(Margin(Start(0.0)))
+  Layout(Margin(End(1.0)))
+  Layout(MinSize(0, Pixels(1.0)))
+  Layout(MinSize(1, Share(0.007)))
+  Layout(Grow(0.0))
+  Layout(Shrink(500.0))
+  Layout(Columns([Auto]))
+  Layout(Row(Span(1)))
+=== case 83
+--- sheet
+r0 {
+select kind=Button
+layout justify=SpaceBetween align_items=Center shrink=-2 {
+gap 4 $sl0
+margin start=(px)1
+max_size (px)0 (%)0
+}
+control size=$sl1 fill="#d9c96d51"
+transition easing=EaseInOut
+icons
+}
+r1 {
+select {
+classes panel
+}
+layout display=None wrap=#false basis=(%)7.5 {
+size 2.5 (px)4
+min_size 0 Auto
+rows $sl1
+}
+text {
+style line_height=$sn0 direction=Auto {
+fonts "tnum"
+features "a b"
+}
+}
+control radius=-3 fill="lighten($sc0, 0.1)"
+icons down="" right="a b"
+}
+r2 {
+select {
+classes a-b panel
+inside class=toolbar
+}
+paint background="#4b632062" {
+radii (px)0 $sl1 (px)2.5 12
+shadow color="lighten($sc0, 0.1)" spread=$sl0
+}
+transition
+}
+r3 {
+select key=tabs
+layout display=Grid shrink=-2 {
+margin start=-3
+columns
+column start=$sn1
+}
+control radius=-3
+transition
+icons tick="a b" down="tnum" right="a b" left=Geist search=""
+}
++++ read
+refused
+=== case 84
+--- sheet
+r0 {
+select {
+inside class=toolbar
+}
+layout display=None grow=-2 shrink=0 {
+margin end=(px)-3 bottom=1e3
+size (%)100 Auto
+min_size 4 (%)12.5
+column start=7
+}
+}
+r1 {
+select {
+classes panel x
+}
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: None, class: Some("toolbar") }) }
+  Layout(Display(None))
+  Layout(Margin(End(-3.0)))
+  Layout(Margin(Bottom(1000.0)))
+  Layout(Size(0, Share(1.0)))
+  Layout(Size(1, Auto))
+  Layout(MinSize(0, Pixels(4.0)))
+  Layout(MinSize(1, Share(0.125)))
+  Layout(Grow(-2.0))
+  Layout(Shrink(0.0))
+  Layout(Column(Start(Some(7))))
+rule 2 Selector { kind: None, classes: ["panel", "x"], key: None, states: [], inside: None }
+=== case 85
+--- sheet
+r0 {
+select {
+states FocusVisible FocusVisible
+}
+text selection="#f6ea3bef"
+}
+r1 {
+select {
+states FocusVisible
+}
+transition easing=EaseOut
+}
+r2 {
+select {
+classes x a-b
+states Pressed
+inside class=toolbar
+}
+paint {
+shadow blur=1 {
+offset 12 $sl0
+}
+}
+}
+r3 {
+select kind=Container {
+classes
+}
+layout align_items=Center align_self=#null shrink=$sn0 basis=-3 {
+padding top=12
+margin
+size (%)33 Auto
+min_size 12 (%)7.5
+column start=$sn1
+}
+icons down="a b" right="\u{E06C}"
+}
++++ read
+refused
+=== case 86
+--- sheet
+r0 {
+select
+}
+r1 {
+select key=4 {
+classes panel x
+}
+control size=1e3 track=$sc0
+transition duration=(ms)120
+}
+r2 {
+select {
+inside kind=Menu class=toolbar
+}
+control size=0 radius=12 track=$sc0
+icons left=Geist
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+rule 2 Selector { kind: None, classes: ["panel", "x"], key: Some("#4"), states: [], inside: None }
+  Control(Size(1000.0))
+  Control(Track(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+  Transition(Duration(0.12))
+rule 3 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: Some(Menu), class: Some("toolbar") }) }
+  Control(Size(0.0))
+  Control(Radius(12.0))
+  Control(Track(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+  Icons(Left("Geist"))
+=== case 87
+--- sheet
+r0 {
+select {
+classes a-b a-b
+states Hovered
+}
+icons tick=Geist right="a b"
+}
+r1 {
+select
+paint background="#6dc508" border_width=$sl1 border=$sc1
+control size=2.5 track=$sc1 fill=$sc1
+}
+r2 {
+select key=tabs {
+states Pressed
+}
+icons right="\u{E06C}"
+}
+r3 {
+select {
+states Hovered Pressed
+}
+layout wrap=#true justify=Center {
+padding bottom=(px)4
+size Auto $sl1
+rows Auto
+row
+}
+control track="#b8fb8503"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["a-b", "a-b"], key: None, states: [Hovered], inside: None }
+  Icons(Tick("Geist"))
+  Icons(Right("a b"))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Paint(Background(LinearColor { r: 0.15292616, g: 0.5583405, b: 0.002428216, a: 1.0 }))
+  Paint(BorderWidth(-2.5))
+  Paint(Border(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+  Control(Size(2.5))
+  Control(Track(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+  Control(Fill(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+rule 3 Selector { kind: None, classes: [], key: Some("tabs"), states: [Pressed], inside: None }
+  Icons(Right("\u{e06c}"))
+rule 4 Selector { kind: None, classes: [], key: None, states: [Hovered, Pressed], inside: None }
+  Layout(Wrap(true))
+  Layout(Justify(Center))
+  Layout(Padding(Bottom(4.0)))
+  Layout(Size(0, Auto))
+  Layout(Size(1, Pixels(-2.5)))
+  Layout(Rows([Auto]))
+  Control(Track(LinearColor { r: 0.47932023, g: 0.9646863, b: 0.23455065, a: 0.011764706 }))
+=== case 88
+--- sheet
+r0 {
+select
+layout {
+size (%)12.5 Auto
+columns (fr)0.5 (fr)0.5
+row span=7
+}
+control
+icons tick=Geist left="\u{E06C}" search="tnum"
+}
+r1 {
+select {
+classes
+inside class=toolbar
+}
+control size=12
+transition
+}
+r2 {
+select key=0 {
+states Hovered
+inside
+}
+paint background=$sc0 border="#b2ccd2" opacity=1 backdrop="#df08dd" {
+radii 2.5 4 4 (px)1
+}
+text color="#c68fd012"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Size(0, Share(0.125)))
+  Layout(Size(1, Auto))
+  Layout(Columns([Fraction(0.5), Fraction(0.5)]))
+  Layout(Row(Span(7)))
+  Icons(Tick("Geist"))
+  Icons(Left("\u{e06c}"))
+  Icons(Search("tnum"))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: None, class: Some("toolbar") }) }
+  Control(Size(12.0))
+rule 3 Selector { kind: None, classes: [], key: Some("#0"), states: [Hovered], inside: Some(Ancestor { kind: None, class: None }) }
+  Paint(Background(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+  Paint(Border(LinearColor { r: 0.44520125, g: 0.6038274, b: 0.64447975, a: 1.0 }))
+  Paint(Radii(0, 2.5))
+  Paint(Radii(1, 4.0))
+  Paint(Radii(2, 4.0))
+  Paint(Radii(3, 1.0))
+  Paint(Opacity(1.0))
+  Paint(Backdrop(LinearColor { r: 0.73791057, g: 0.002428216, b: 0.72305524, a: 1.0 }))
+  Text(Color(LinearColor { r: 0.56471163, g: 0.27467737, b: 0.6307572, a: 0.07058824 }))
+=== case 89
+--- sheet
+r0 {
+select {
+classes a-b
+inside kind=Container
+}
+paint background="#f18e6e8e" border="lighten($sc0, 0.1)" opacity=$sn0
+icons
+}
+r1 {
+select {
+states Pressed Hovered
+inside
+}
+paint background="#02e4fe" backdrop="lighten($sc0, 0.1)"
+text selection="lighten($sc0, 0.1)"
+}
+r2 {
+select key=0 {
+classes x
+inside
+}
+paint border_width=$sl0 {
+shadow blur=1
+}
+text color=$sc0 selection="#e901a9d2"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["a-b"], key: None, states: [], inside: Some(Ancestor { kind: Some(Container), class: None }) }
+  Paint(Background(LinearColor { r: 0.87962234, g: 0.27049786, b: 0.15592647, a: 0.5568628 }))
+  Paint(Border(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Paint(Opacity(0.75))
+rule 2 Selector { kind: None, classes: [], key: None, states: [Pressed, Hovered], inside: Some(Ancestor { kind: None, class: None }) }
+  Paint(Background(LinearColor { r: 0.000607054, g: 0.77582234, b: 0.9911022, a: 1.0 }))
+  Paint(Backdrop(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Text(Selection(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+rule 3 Selector { kind: None, classes: ["x"], key: Some("#0"), states: [], inside: Some(Ancestor { kind: None, class: None }) }
+  Paint(BorderWidth(6.0))
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }, offset: [0.0, 0.0], blur: 1.0, spread: 0.0 })))
+  Text(Color(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+  Text(Selection(LinearColor { r: 0.8148467, g: 0.000303527, b: 0.3967553, a: 0.8235294 }))
+=== case 90
+--- sheet
+r0 {
+select kind=Menu {
+classes panel
+}
+text
+}
+r1 {
+select
+icons
+}
+r2 {
+select {
+classes a-b panel
+}
+layout display=None direction=Column justify=End align_items=End align_self=Center {
+gap 0 $sl0
+max_size Auto Auto
+column start=#null
+}
+transition
+}
+r3 {
+select
+layout wrap=#false justify=Center shrink=500 {
+margin end=12 top=(px)4
+size (%)12.5 Auto
+}
+text color="lighten($sc0, 0.1)" selection=$sc0
+icons search="tnum"
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Menu), classes: ["panel"], key: None, states: [], inside: None }
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+rule 3 Selector { kind: None, classes: ["a-b", "panel"], key: None, states: [], inside: None }
+  Layout(Display(None))
+  Layout(Direction(Column))
+  Layout(Justify(End))
+  Layout(AlignItems(End))
+  Layout(AlignSelf(Some(Center)))
+  Layout(Gap(0, 0.0))
+  Layout(Gap(1, 6.0))
+  Layout(MaxSize(0, Auto))
+  Layout(MaxSize(1, Auto))
+  Layout(Column(Start(None)))
+rule 4 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Wrap(false))
+  Layout(Justify(Center))
+  Layout(Margin(End(12.0)))
+  Layout(Margin(Top(4.0)))
+  Layout(Size(0, Share(0.125)))
+  Layout(Size(1, Auto))
+  Layout(Shrink(500.0))
+  Text(Color(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Text(Selection(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+  Icons(Search("tnum"))
+=== case 91
+--- sheet
+r0 {
+select key=tabs {
+inside kind=Button class=toolbar
+}
+control radius=12
+transition
+icons font="tnum" down=Geist right="a b"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: Some(Ancestor { kind: Some(Button), class: Some("toolbar") }) }
+  Control(Radius(12.0))
+  Icons(Font("tnum"))
+  Icons(Down("Geist"))
+  Icons(Right("a b"))
+=== case 92
+--- sheet
+r0 {
+select key=tabs {
+classes x
+}
+layout wrap=#false align_self=End grow=0 {
+padding end=0
+size Auto 1
+min_size Auto Auto
+max_size Auto (%)33
+rows Auto
+}
+}
+r1 {
+select
+layout wrap=#true justify=SpaceAround align_self=#null grow=1.25 shrink=1.25 basis=Auto {
+gap 1e3 2.5
+padding end=1
+margin
+min_size 2.5 (%)12.5
+rows (fr)2
+column
+}
+text {
+style italic=#false direction=RightToLeft
+}
+control size=(px)1e3 track="#dcabb0"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["x"], key: Some("tabs"), states: [], inside: None }
+  Layout(Wrap(false))
+  Layout(AlignSelf(Some(End)))
+  Layout(Padding(End(0.0)))
+  Layout(Size(0, Auto))
+  Layout(Size(1, Pixels(1.0)))
+  Layout(MinSize(0, Auto))
+  Layout(MinSize(1, Auto))
+  Layout(MaxSize(0, Auto))
+  Layout(MaxSize(1, Share(0.33)))
+  Layout(Grow(0.0))
+  Layout(Rows([Auto]))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Wrap(true))
+  Layout(Justify(SpaceAround))
+  Layout(AlignSelf(None))
+  Layout(Gap(0, 1000.0))
+  Layout(Gap(1, 2.5))
+  Layout(Padding(End(1.0)))
+  Layout(MinSize(0, Pixels(2.5)))
+  Layout(MinSize(1, Share(0.125)))
+  Layout(Grow(1.25))
+  Layout(Shrink(1.25))
+  Layout(Basis(Auto))
+  Layout(Rows([Fraction(2.0)]))
+  Text(Style(Italic(false)))
+  Text(Style(Direction(RightToLeft)))
+  Control(Size(1000.0))
+  Control(Track(LinearColor { r: 0.71569365, g: 0.4072403, b: 0.4341537, a: 1.0 }))
+=== case 93
+--- sheet
+r0 {
+select {
+classes
+}
+control mark="#710a7a"
+}
+r1 {
+select kind=Button key=1 {
+classes a-b x
+}
+transition easing=Linear
+}
+r2 {
+select {
+classes
+states Pressed
+}
+text color=$sc0 {
+style {
+fonts
+}
+}
+control size=2.5 mark="#7ab9b60b"
+}
+r3 {
+select key=tabs
+text
+control track="#3c157671" mark=$sc1
+transition duration=(ms)250 easing=EaseInOut
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Control(Mark(LinearColor { r: 0.16513222, g: 0.00303527, b: 0.19461781, a: 1.0 }))
+rule 2 Selector { kind: Some(Button), classes: ["a-b", "x"], key: Some("#1"), states: [], inside: None }
+  Transition(Easing(Linear))
+rule 3 Selector { kind: None, classes: [], key: None, states: [Pressed], inside: None }
+  Text(Style(Fonts([])))
+  Text(Color(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+  Control(Size(2.5))
+  Control(Mark(LinearColor { r: 0.19461781, g: 0.48514998, b: 0.46778384, a: 0.043137256 }))
+rule 4 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: None }
+  Control(Track(LinearColor { r: 0.045186203, g: 0.0074990317, b: 0.18116423, a: 0.44313726 }))
+  Control(Mark(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+  Transition(Duration(0.25))
+  Transition(Easing(EaseInOut))
+=== case 94
+--- sheet
+r0 {
+select
+icons clear="a b"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Icons(Clear("a b"))
+=== case 95
+--- sheet
+r0 {
+select
+layout wrap=#true align_self=#null {
+margin start=(px)-3
+max_size -3 Auto
+}
+text
+transition
+}
+r1 {
+select
+paint background="#f40338" opacity=-2 {
+radii 2.5 (px)1e3 $sl1 4
+}
+transition easing=EaseOut
+icons font="tnum" search="\u{E06C}"
+}
+r2 {
+select kind=Container key=tabs
+paint border_width=12 border="#3f7f82"
+text selection="lighten($sc0, 0.1)" {
+style alignment=Justify
+}
+control size=(px)12 track=$sc1 fill="#39c791"
+transition duration=$sd0
+icons down=Geist right=Geist
+}
+r3 {
+select {
+classes panel x
+}
+paint background="#d63bec50" border="#58bb76" backdrop="lighten($sc0, 0.1)" {
+radii $sl0 $sl0 0 2.5
+}
+text {
+style size=$sl0 line_height=0.5
+}
+icons left="" clear="a b"
+}
++++ read
+refused
+=== case 96
+--- sheet
+r0 {
+select
+layout display=Grid justify=Center {
+gap (px)1e3 (px)12
+size $sl1 (%)0.7
+max_size Auto Auto
+column start=1 span=1
+}
+text color="#c1e78d97"
+transition
+}
+r1 {
+select key=3
+control size=(px)2.5 track=$sc1 mark="#bb3ec7"
+}
+r2 {
+select {
+states Pressed FocusVisible
+}
+control size=(px)12 radius=1
+icons font="tnum" tick="tnum" clear="tnum"
+}
+r3 {
+select key=tabs
+layout direction=ColumnReverse wrap=#false justify=SpaceAround align_items=End align_self=Start shrink=1.25 basis=Auto {
+gap 12 $sl1
+padding
+}
+paint backdrop=$sc1 {
+radii $sl0 -3 12 1
+shadow #null
+}
+control size=$sl0 track="lighten($sc0, 0.1)"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Display(Grid))
+  Layout(Justify(Center))
+  Layout(Gap(0, 1000.0))
+  Layout(Gap(1, 12.0))
+  Layout(Size(0, Pixels(-2.5)))
+  Layout(Size(1, Share(0.007)))
+  Layout(MaxSize(0, Auto))
+  Layout(MaxSize(1, Auto))
+  Layout(Column(Start(Some(1))))
+  Layout(Column(Span(1)))
+  Text(Color(LinearColor { r: 0.5332765, g: 0.79910284, b: 0.26635566, a: 0.5921569 }))
+rule 2 Selector { kind: None, classes: [], key: Some("#3"), states: [], inside: None }
+  Control(Size(2.5))
+  Control(Track(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+  Control(Mark(LinearColor { r: 0.49693304, g: 0.048171822, b: 0.5711249, a: 1.0 }))
+rule 3 Selector { kind: None, classes: [], key: None, states: [Pressed, FocusVisible], inside: None }
+  Control(Size(12.0))
+  Control(Radius(1.0))
+  Icons(Font("tnum"))
+  Icons(Tick("tnum"))
+  Icons(Clear("tnum"))
+rule 4 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: None }
+  Layout(Direction(ColumnReverse))
+  Layout(Wrap(false))
+  Layout(Justify(SpaceAround))
+  Layout(AlignItems(End))
+  Layout(AlignSelf(Some(Start)))
+  Layout(Gap(0, 12.0))
+  Layout(Gap(1, -2.5))
+  Layout(Shrink(1.25))
+  Layout(Basis(Auto))
+  Paint(Radii(0, 6.0))
+  Paint(Radii(1, -3.0))
+  Paint(Radii(2, 12.0))
+  Paint(Radii(3, 1.0))
+  Paint(Shadow(None))
+  Paint(Backdrop(LinearColor { r: 0.112130076, g: 0.1788038, b: 0.26998198, a: 1.0 }))
+  Control(Size(6.0))
+  Control(Track(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+=== case 97
+--- sheet
+r0 {
+select
+icons font="\u{E06C}" right="\u{E06C}" clear=""
+}
+r1 {
+select {
+states FocusVisible FocusVisible
+}
+control size=(px)4
+}
+r2 {
+select {
+states Pressed Pressed
+}
+transition
+}
+r3 {
+select key=tabs {
+inside kind=Button
+}
+transition
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Icons(Font("\u{e06c}"))
+  Icons(Right("\u{e06c}"))
+  Icons(Clear(""))
+rule 2 Selector { kind: None, classes: [], key: None, states: [FocusVisible, FocusVisible], inside: None }
+  Control(Size(4.0))
+rule 3 Selector { kind: None, classes: [], key: None, states: [Pressed, Pressed], inside: None }
+rule 4 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: Some(Ancestor { kind: Some(Button), class: None }) }
+=== case 98
+--- sheet
+r0 {
+select kind=Container
+layout display=Flex direction=Row justify=SpaceBetween align_items=Start grow=1 {
+min_size -3 (%)0
+column
+row span=7
+}
+paint border_width=0
+transition
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Container), classes: [], key: None, states: [], inside: None }
+  Layout(Display(Flex))
+  Layout(Direction(Row))
+  Layout(Justify(SpaceBetween))
+  Layout(AlignItems(Start))
+  Layout(MinSize(0, Pixels(-3.0)))
+  Layout(MinSize(1, Share(0.0)))
+  Layout(Grow(1.0))
+  Layout(Row(Span(7)))
+  Paint(BorderWidth(0.0))
+=== case 99
+--- sheet
+r0 {
+select key=3 {
+classes panel
+states Pressed Pressed
+}
+layout direction=Row wrap=#false justify=Start basis=(%)100 {
+columns (fr)1
+rows 2.5 12
+row span=7
+}
+control radius=12 fill="#4d32b9f1"
+}
+r1 {
+select {
+inside
+}
+control
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["panel"], key: Some("#3"), states: [Pressed, Pressed], inside: None }
+  Layout(Direction(Row))
+  Layout(Wrap(false))
+  Layout(Justify(Start))
+  Layout(Basis(Share(1.0)))
+  Layout(Columns([Fraction(1.0)]))
+  Layout(Rows([Pixels(2.5), Pixels(12.0)]))
+  Layout(Row(Span(7)))
+  Control(Radius(12.0))
+  Control(Fill(LinearColor { r: 0.07421358, g: 0.03189603, b: 0.48514998, a: 0.94509804 }))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: None, class: None }) }
+=== case 100
+--- sheet
+r0 {
+select
+transition
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+=== case 101
+--- sheet
+r0 {
+select {
+classes x
+states Hovered FocusVisible
+}
+paint background="#d7b150d6" {
+radii $sl0 (px)0 1 1e3
+}
+transition easing=EaseOut
+icons font=Geist left=Geist search=Geist
+}
+r1 {
+select kind=Button {
+classes panel
+}
+paint border_width=(px)2.5 backdrop="#5fe4bf" {
+shadow #null
+}
+transition duration=(ms)250
+}
+r2 {
+select
+layout display=Flex direction=RowReverse {
+padding
+min_size (%)100 (%)0
+rows (px)1
+column
+}
+paint opacity=500 {
+radii (px)0 2.5 $sl1 0
+}
+}
+r3 {
+select {
+classes panel
+inside kind=Container class=toolbar
+}
+layout direction=Column justify=SpaceAround basis=Auto {
+padding end=0 top=(px)-3
+max_size (%)100 (%)0.7
+columns (fr)2
+rows Auto
+row
+}
+}
++++ read
+refused
+=== case 102
+--- sheet
+r0 {
+select kind=Label {
+classes
+inside kind=Menu
+}
+transition
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Label), classes: [], key: None, states: [], inside: Some(Ancestor { kind: Some(Menu), class: None }) }
+=== case 103
+--- sheet
+r0 {
+select kind=Menu {
+states Hovered Hovered
+}
+paint border_width=12
+text
+}
+r1 {
+select kind=Label
+icons
+}
+r2 {
+select key=4 {
+states Pressed FocusVisible
+inside class=toolbar
+}
+layout direction=Row align_self=#null grow=1 {
+column start=2
+row
+}
+control
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Menu), classes: [], key: None, states: [Hovered, Hovered], inside: None }
+  Paint(BorderWidth(12.0))
+rule 2 Selector { kind: Some(Label), classes: [], key: None, states: [], inside: None }
+rule 3 Selector { kind: None, classes: [], key: Some("#4"), states: [Pressed, FocusVisible], inside: Some(Ancestor { kind: None, class: Some("toolbar") }) }
+  Layout(Direction(Row))
+  Layout(AlignSelf(None))
+  Layout(Grow(1.0))
+  Layout(Column(Start(Some(2))))
+=== case 104
+--- sheet
+r0 {
+select
+layout display=Grid wrap=#false align_self=End grow=1.25 {
+min_size Auto Auto
+max_size Auto 12
+}
+control track="lighten($sc0, 0.1)"
+}
+r1 {
+select
+transition
+}
+r2 {
+select key=tabs
+paint opacity=1 {
+radii 12 $sl0 1 (px)-3
+}
+transition easing=EaseInOut
+}
+r3 {
+select {
+states Pressed
+}
+icons font="a b" left="a b" search="a b" clear=Geist
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Display(Grid))
+  Layout(Wrap(false))
+  Layout(AlignSelf(Some(End)))
+  Layout(MinSize(0, Auto))
+  Layout(MinSize(1, Auto))
+  Layout(MaxSize(0, Auto))
+  Layout(MaxSize(1, Pixels(12.0)))
+  Layout(Grow(1.25))
+  Control(Track(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+rule 3 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: None }
+  Paint(Radii(0, 12.0))
+  Paint(Radii(1, 6.0))
+  Paint(Radii(2, 1.0))
+  Paint(Radii(3, -3.0))
+  Paint(Opacity(1.0))
+  Transition(Easing(EaseInOut))
+rule 4 Selector { kind: None, classes: [], key: None, states: [Pressed], inside: None }
+  Icons(Font("a b"))
+  Icons(Left("a b"))
+  Icons(Search("a b"))
+  Icons(Clear("Geist"))
+=== case 105
+--- sheet
+r0 {
+select {
+states FocusVisible FocusVisible
+}
+paint {
+radii $sl0 4 4 0
+}
+}
+r1 {
+select {
+states Hovered Pressed
+inside kind=Menu class=toolbar
+}
+layout direction=RowReverse wrap=#true {
+padding start=(px)12 bottom=12
+margin
+min_size Auto Auto
+columns Auto Auto
+column
+row span=1
+}
+text selection="#29460e"
+}
+r2 {
+select kind=Button {
+classes
+states Hovered FocusVisible
+}
+icons tick="tnum" right=""
+}
++++ read
+refused
+=== case 106
+--- sheet
+r0 {
+select {
+inside class=toolbar
+}
+paint background="#97fba8" border_width=0 border=$sc0
+icons font="" tick="" down="a b"
+}
+r1 {
+select kind=Container
+layout wrap=#false align_items=Start {
+min_size Auto Auto
+columns
+column
+}
+transition
+}
+r2 {
+select {
+classes panel
+states Hovered FocusVisible
+}
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: None, class: Some("toolbar") }) }
+  Paint(Background(LinearColor { r: 0.30946895, g: 0.9646863, b: 0.39157256, a: 1.0 }))
+  Paint(BorderWidth(0.0))
+  Paint(Border(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+  Icons(Font(""))
+  Icons(Tick(""))
+  Icons(Down("a b"))
+rule 2 Selector { kind: Some(Container), classes: [], key: None, states: [], inside: None }
+  Layout(Wrap(false))
+  Layout(AlignItems(Start))
+  Layout(MinSize(0, Auto))
+  Layout(MinSize(1, Auto))
+  Layout(Columns([]))
+rule 3 Selector { kind: None, classes: ["panel"], key: None, states: [Hovered, FocusVisible], inside: None }
+=== case 107
+--- sheet
+r0 {
+select kind=Container {
+inside kind=Container class=toolbar
+}
+layout direction=Row wrap=#false {
+margin start=0 end=$sl1
+max_size (%)7.5 Auto
+}
+icons clear=Geist
+}
++++ read
+refused
+=== case 108
+--- sheet
+r0 {
+select kind=Menu key=tabs {
+classes
+inside kind=Button
+}
+layout align_self=#null shrink=1 {
+gap $sl0 $sl0
+padding
+row span=1
+}
+paint border_width=(px)-3 opacity=500 {
+radii (px)4 $sl1 0 (px)0
+}
+control mark="#070f6e03"
+}
+r1 {
+select kind=Button {
+inside kind=Button
+}
+transition easing=EaseInOut
+}
+r2 {
+select kind=Button {
+classes panel
+states Hovered Hovered
+}
+layout display=Grid direction=ColumnReverse {
+size (%)12.5 Auto
+rows (fr)2 0
+column span=2
+}
+}
+r3 {
+select
+paint {
+shadow #null
+}
+}
++++ read
+refused
+=== case 109
+--- sheet
+r0 {
+select key=tabs {
+classes x
+inside kind=Label
+}
+control fill="lighten($sc0, 0.1)" mark="#75bd1269"
+transition
+icons font="a b" left="\u{E06C}"
+}
+r1 {
+select {
+classes x
+}
+layout display=None align_self=Center {
+margin
+size 1e3 Auto
+min_size (%)7.5 Auto
+rows Auto
+row span=1
+}
+transition
+}
+r2 {
+select {
+inside kind=Container class=toolbar
+}
+paint background="lighten($sc0, 0.1)" border="#fb3de1" {
+radii 1 12 4 12
+shadow blur=(px)2.5 {
+offset $sl0 (px)1
+}
+}
+control mark="#4dfa6e"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["x"], key: Some("tabs"), states: [], inside: Some(Ancestor { kind: Some(Label), class: None }) }
+  Control(Fill(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Control(Mark(LinearColor { r: 0.17788841, g: 0.50888145, b: 0.0060488326, a: 0.4117647 }))
+  Icons(Font("a b"))
+  Icons(Left("\u{e06c}"))
+rule 2 Selector { kind: None, classes: ["x"], key: None, states: [], inside: None }
+  Layout(Display(None))
+  Layout(AlignSelf(Some(Center)))
+  Layout(Size(0, Pixels(1000.0)))
+  Layout(Size(1, Auto))
+  Layout(MinSize(0, Share(0.075)))
+  Layout(MinSize(1, Auto))
+  Layout(Rows([Auto]))
+  Layout(Row(Span(1)))
+rule 3 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: Some(Container), class: Some("toolbar") }) }
+  Paint(Background(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Paint(Border(LinearColor { r: 0.9646863, g: 0.046665084, b: 0.7529423, a: 1.0 }))
+  Paint(Radii(0, 1.0))
+  Paint(Radii(1, 12.0))
+  Paint(Radii(2, 4.0))
+  Paint(Radii(3, 12.0))
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }, offset: [6.0, 1.0], blur: 2.5, spread: 0.0 })))
+  Control(Mark(LinearColor { r: 0.07421358, g: 0.9559735, b: 0.15592647, a: 1.0 }))
+=== case 110
+--- sheet
+r0 {
+select {
+inside kind=Menu
+}
+paint border="#10734d" opacity=0.5
+text
+transition
+}
+r1 {
+select key=tabs
+layout display=Flex grow=0 shrink=$sn0 basis=Auto {
+column start=7
+}
+transition
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: Some(Ancestor { kind: Some(Menu), class: None }) }
+  Paint(Border(LinearColor { r: 0.005181517, g: 0.1714411, b: 0.07421358, a: 1.0 }))
+  Paint(Opacity(0.5))
+rule 2 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: None }
+  Layout(Display(Flex))
+  Layout(Grow(0.0))
+  Layout(Shrink(0.75))
+  Layout(Basis(Auto))
+  Layout(Column(Start(Some(7))))
+=== case 111
+--- sheet
+r0 {
+select
+layout direction=ColumnReverse grow=0.5 {
+size 1e3 (%)0.7
+rows 2.5
+row
+}
+text
+transition
+}
+r1 {
+select {
+classes a-b panel
+states Pressed
+}
+layout wrap=#false align_self=Stretch shrink=500 basis=(%)12.5 {
+margin bottom=1e3
+size (%)0 Auto
+min_size Auto Auto
+max_size Auto 2.5
+}
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Direction(ColumnReverse))
+  Layout(Size(0, Pixels(1000.0)))
+  Layout(Size(1, Share(0.007)))
+  Layout(Grow(0.5))
+  Layout(Rows([Pixels(2.5)]))
+rule 2 Selector { kind: None, classes: ["a-b", "panel"], key: None, states: [Pressed], inside: None }
+  Layout(Wrap(false))
+  Layout(AlignSelf(Some(Stretch)))
+  Layout(Margin(Bottom(1000.0)))
+  Layout(Size(0, Share(0.0)))
+  Layout(Size(1, Auto))
+  Layout(MinSize(0, Auto))
+  Layout(MinSize(1, Auto))
+  Layout(MaxSize(0, Auto))
+  Layout(MaxSize(1, Pixels(2.5)))
+  Layout(Shrink(500.0))
+  Layout(Basis(Share(0.125)))
+=== case 112
+--- sheet
+r0 {
+select {
+classes a-b
+}
+transition
+}
+r1 {
+select key=tabs
+text
+control
+icons font="\u{E06C}" tick="tnum" right="\u{E06C}"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: ["a-b"], key: None, states: [], inside: None }
+rule 2 Selector { kind: None, classes: [], key: Some("tabs"), states: [], inside: None }
+  Icons(Font("\u{e06c}"))
+  Icons(Tick("tnum"))
+  Icons(Right("\u{e06c}"))
+=== case 113
+--- sheet
+r0 {
+select
+paint background=$sc0 {
+shadow #null
+}
+icons tick=Geist clear=""
+}
+r1 {
+select {
+classes x x
+inside
+}
+layout display=Grid wrap=#true grow=0.5 {
+row start=$sn1
+}
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Paint(Background(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+  Paint(Shadow(None))
+  Icons(Tick("Geist"))
+  Icons(Clear(""))
+rule 2 Selector { kind: None, classes: ["x", "x"], key: None, states: [], inside: Some(Ancestor { kind: None, class: None }) }
+  Layout(Display(Grid))
+  Layout(Wrap(true))
+  Layout(Grow(0.5))
+  Layout(Row(Start(Some(3))))
+=== case 114
+--- sheet
+r0 {
+select {
+states Hovered
+}
+transition
+}
+r1 {
+select kind=Button {
+classes panel
+states Hovered Hovered
+inside
+}
+text color="#93deea" selection="lighten($sc0, 0.1)"
+control size=$sl1
+}
++++ read
+refused
+=== case 115
+--- sheet
+r0 {
+select key=2 {
+states Pressed Hovered
+}
+}
+r1 {
+select {
+classes
+states Pressed Pressed
+}
+layout display=Flex direction=RowReverse wrap=#false justify=Start grow=0 shrink=$sn0 {
+gap 0 4
+padding
+margin end=4 top=12
+min_size $sl0 $sl1
+max_size $sl0 (%)0
+}
+control track="lighten($sc0, 0.1)" mark="#09b55014"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: Some("#2"), states: [Pressed, Hovered], inside: None }
+rule 2 Selector { kind: None, classes: [], key: None, states: [Pressed, Pressed], inside: None }
+  Layout(Display(Flex))
+  Layout(Direction(RowReverse))
+  Layout(Wrap(false))
+  Layout(Justify(Start))
+  Layout(Gap(0, 0.0))
+  Layout(Gap(1, 4.0))
+  Layout(Margin(End(4.0)))
+  Layout(Margin(Top(12.0)))
+  Layout(MinSize(0, Pixels(6.0)))
+  Layout(MinSize(1, Pixels(-2.5)))
+  Layout(MaxSize(0, Pixels(6.0)))
+  Layout(MaxSize(1, Share(0.0)))
+  Layout(Grow(0.0))
+  Layout(Shrink(0.75))
+  Control(Track(LinearColor { r: 0.043517604, g: 0.10608946, b: 0.20647857, a: 1.0 }))
+  Control(Mark(LinearColor { r: 0.002731743, g: 0.46207705, b: 0.08021983, a: 0.078431375 }))
+=== case 116
+--- sheet
+r0 {
+select kind=Menu {
+states Pressed Pressed
+}
+control fill="#426b2c"
+transition
+}
+r1 {
+select key=1 {
+classes panel
+states FocusVisible FocusVisible
+}
+paint {
+shadow
+}
+control radius=$sl0 track="lighten($sc0, 0.1)"
+transition easing=EaseOut
+}
++++ read
+refused
+=== case 117
+--- sheet
+r0 {
+select kind=Menu {
+classes a-b x
+states FocusVisible
+}
+layout direction=RowReverse wrap=#false {
+padding
+margin start=(px)1
+rows 1e3
+column span=7
+}
+}
+r1 {
+select
+icons down="" search="tnum"
+}
+r2 {
+select {
+states Pressed
+}
+paint background="#d3956cb8" {
+shadow
+}
+}
+r3 {
+select key=tabs {
+classes panel
+}
+paint border_width=-3 backdrop="#f1e3f1c6" {
+radii (px)2.5 12 1 4
+shadow blur=(px)-3
+}
+control radius=(px)4
+}
++++ read
+lacking []
+rule 1 Selector { kind: Some(Menu), classes: ["a-b", "x"], key: None, states: [FocusVisible], inside: None }
+  Layout(Direction(RowReverse))
+  Layout(Wrap(false))
+  Layout(Margin(Start(1.0)))
+  Layout(Rows([Pixels(1000.0)]))
+  Layout(Column(Span(7)))
+rule 2 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Icons(Down(""))
+  Icons(Search("tnum"))
+rule 3 Selector { kind: None, classes: [], key: None, states: [Pressed], inside: None }
+  Paint(Background(LinearColor { r: 0.6514057, g: 0.30054384, b: 0.1499598, a: 0.72156864 }))
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }, offset: [0.0, 0.0], blur: 0.0, spread: 0.0 })))
+rule 4 Selector { kind: None, classes: ["panel"], key: Some("tabs"), states: [], inside: None }
+  Paint(BorderWidth(-3.0))
+  Paint(Radii(0, 2.5))
+  Paint(Radii(1, 12.0))
+  Paint(Radii(2, 1.0))
+  Paint(Radii(3, 4.0))
+  Paint(Shadow(Some(Shadow { color: LinearColor { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }, offset: [0.0, 0.0], blur: -3.0, spread: 0.0 })))
+  Paint(Backdrop(LinearColor { r: 0.87962234, g: 0.7681513, b: 0.87962234, a: 0.7764706 }))
+  Control(Radius(4.0))
+=== case 118
+--- sheet
+r0 {
+select
+paint border="#27e301"
+text {
+style size=(px)12 locale=#null {
+features "\u{E06C}" "tnum"
+}
+}
+control size=4 radius=1e3 mark=$sc0
+transition
+icons font=Geist down="" right="tnum" clear=""
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Paint(Border(LinearColor { r: 0.020288562, g: 0.7681513, b: 0.000303527, a: 1.0 }))
+  Text(Style(Size(12.0)))
+  Text(Style(Locale(None)))
+  Text(Style(Features(["\u{e06c}", "tnum"])))
+  Control(Size(4.0))
+  Control(Radius(1000.0))
+  Control(Mark(LinearColor { r: 0.014443844, g: 0.051269468, b: 0.11697067, a: 1.0 }))
+  Icons(Font("Geist"))
+  Icons(Down(""))
+  Icons(Right("tnum"))
+  Icons(Clear(""))
+=== case 119
+--- sheet
+r0 {
+select
+layout {
+gap 1 $sl0
+size (%)0 Auto
+column span=$sn1
+}
+text
+control size=-3 fill="#d0379b" mark="#b32695"
+icons right="tnum"
+}
++++ read
+lacking []
+rule 1 Selector { kind: None, classes: [], key: None, states: [], inside: None }
+  Layout(Gap(0, 1.0))
+  Layout(Gap(1, 6.0))
+  Layout(Size(0, Share(0.0)))
+  Layout(Size(1, Auto))
+  Layout(Column(Span(3)))
+  Control(Size(-3.0))
+  Control(Fill(LinearColor { r: 0.6307572, g: 0.038204364, b: 0.32777813, a: 1.0 }))
+  Control(Mark(LinearColor { r: 0.45078585, g: 0.019382361, b: 0.30054384, a: 1.0 }))
+  Icons(Right("tnum"))

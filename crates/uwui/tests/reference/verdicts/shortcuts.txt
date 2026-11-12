@@ -1,0 +1,3277 @@
+=== case 0
+--- table 0
+scope hierarchy {
+    "Super+Ctrl+LeftButton" view.frame_selection
+    Super+Shift+Alt+Ctrl+ArrowUp edit.redo
+    Ctrl+Alt+Shift+ArrowUp view.frame_selection
+    Super+Shift+Alt+Tab edit.redo
+}
++++ read
+"hierarchy" "view.frame_selection" Button(Left) held(cw)/held(cw)
+"hierarchy" "edit.redo" Named(ArrowUp) held(casw)/held(casw)
+"hierarchy" "view.frame_selection" Named(ArrowUp) held(cas)/held(cas)
+"hierarchy" "edit.redo" Named(Tab) held(asw)/held(asw)
+=== case 1
+--- table 0
+scope viewport {
+    "Primary+;" "view.frame_selection"
+    Primary+Alt+Shift+RightButton file.save
+    Primary+Home edit.redo
+}
+scope hierarchy {
+    "Alt+A" view.frame_selection
+    "Alt+z" orbit
+    Alt+Primary+z file.save
+}
+--- table 1
+scope "global" {
+    "Alt+;" edit.redo
+    "Hyper+Shift+Delete" undo
+    "Primary+;" edit.redo
+    "." view.frame_selection
+    "Foo" view.frame_selection
+    Alt+Home "edit.redo"
+}
+scope hierarchy {
+    Alt+LeftButton undo
+    "Shift+ж" "undo"
+}
+scope panel-1 {
+    Super+Shift+Alt+Ctrl+MiddleButton "file.save"
+    "Super+Alt+LeftButton" file.save
+    Alt+Super+1 "view.frame_selection"
+}
++++ read
+refused
+=== case 2
+--- table 0
+scope panel-1 {
+    q undo
+    Shift+Alt+LeftButton "file.save"
+}
+--- table 1
+scope viewport {
+    Tab undo
+    "Ctrl+Alt+Shift+Super+Z" "view.frame_selection"
+    Alt+Delete "undo"
+    "+" "edit.redo"
+}
+scope panel-1 {
+}
++++ read
+"panel-1" "undo" Character("q") held()/held()
+"panel-1" "file.save" Button(Left) held(as)/held(as)
+"viewport" "undo" Named(Tab) held()/held()
+"viewport" "view.frame_selection" Character("z") held(casw)/held(casw)
+"viewport" "undo" Named(Delete) held(a)/held(a)
+"viewport" "edit.redo" Character("+") held()/held()
+=== case 3
+--- table 0
+scope global {
+    Shift+Alt+ArrowUp orbit
+    "Super+=" edit.redo
+}
+scope hierarchy {
+    Enter file.save
+    "Alt+z" edit.redo
+    Super+Home orbit
+}
+scope "viewport" {
+}
++++ read
+"global" "orbit" Named(ArrowUp) held(as)/held(as)
+"global" "edit.redo" Character("=") held(w)/held(w)
+"hierarchy" "file.save" Named(Enter) held()/held()
+"hierarchy" "edit.redo" Character("z") held(a)/held(a)
+"hierarchy" "orbit" Named(Home) held(w)/held(w)
+=== case 4
+--- table 0
+scope "panel-1" {
+}
+scope hierarchy {
+    "Shift+MiddleButton" orbit
+    "+" file.save
+    Shift+Z undo
+    "1" edit.redo
+    Super+Shift+Alt+Home file.save
+}
+scope global {
+    Shift+Ctrl+Tab view.frame_selection
+    Ctrl+RightButton "file.save"
+    Super+1 view.frame_selection
+    "Ctrl+Super+é" edit.redo
+    Ctrl+Super+Z undo
+    Shift+z orbit
+}
+--- table 1
+scope panel-1 {
+    "Ctrl+Alt+Shift+z" view.frame_selection
+    "Super++" "orbit"
+    Super+1 undo
+    Shift+MiddleButton view.frame_selection
+    "é" "undo"
+    Ctrl+A "file.save"
+}
+scope global {
+    Alt+Super+Hyper+z file.save
+    Tab undo
+    Hyper+Shift+z edit.redo
+    Super+Ctrl+q "edit.redo"
+    Alt+Super+q view.frame_selection
+}
++++ read
+refused
+=== case 5
+--- table 0
+scope global {
+    "Alt+;" file.save
+    F2 view.frame_selection
+}
+scope "panel-1" {
+    Alt+Home "undo"
+    ";" undo
+    Primary+q view.frame_selection
+    "-" undo
+}
++++ read
+"global" "file.save" Character(";") held(a)/held(a)
+"global" "view.frame_selection" Named(F2) held()/held()
+"panel-1" "undo" Named(Home) held(a)/held(a)
+"panel-1" "undo" Character(";") held()/held()
+"panel-1" "view.frame_selection" Character("q") held(c)/held(c)
+"panel-1" "undo" Character("-") held()/held()
+=== case 6
+--- table 0
+scope panel-1 {
+    "Primary+Z" view.frame_selection
+    "Alt++" edit.redo
+}
+scope hierarchy {
+}
+scope "viewport" {
+    MiddleButton orbit
+}
+--- table 1
+scope global {
+    Alt+- orbit
+    Primary+Alt+1 file.save
+    "Alt+Primary+;" file.save
+    Shift+Primary+Delete edit.redo
+    "Alt+=" file.save
+}
+scope hierarchy {
+    Z "view.frame_selection"
+    F2 file.save
+    ";" view.frame_selection
+    A undo
+}
++++ read
+"panel-1" "view.frame_selection" Character("z") held(c)/held(c)
+"panel-1" "edit.redo" Character("+") held(a)/held(a)
+"viewport" "orbit" Button(Middle) held()/held()
+"global" "orbit" Character("-") held(a)/held(a)
+"global" "file.save" Character("1") held(ca)/held(ca)
+"global" "file.save" Character(";") held(ca)/held(ca)
+"global" "edit.redo" Named(Delete) held(cs)/held(cs)
+"global" "file.save" Character("=") held(a)/held(a)
+"hierarchy" "view.frame_selection" Character("z") held()/held()
+"hierarchy" "file.save" Named(F2) held()/held()
+"hierarchy" "view.frame_selection" Character(";") held()/held()
+"hierarchy" "undo" Character("a") held()/held()
+=== case 7
+--- table 0
+scope viewport {
+    Alt+Super+ArrowUp "file.save"
+    Super+Alt+. undo
+    Alt+Super+MiddleButton orbit
+    "Super++" "edit.redo"
+    Super+Foo "view.frame_selection"
+    "Shift+Enter" edit.redo
+}
++++ read
+refused
+=== case 8
+--- table 0
+scope panel-1 {
+    "+" edit.redo
+    Hyper+Ctrl+q view.frame_selection
+}
++++ read
+refused
+=== case 9
+--- table 0
+scope global {
+    Delete orbit
+    Ctrl+Alt+Super+ж "edit.redo"
+    Alt+Shift+ArrowUp "view.frame_selection"
+    Shift+Delete "orbit"
+    "Alt+Z" orbit
+}
+scope panel-1 {
+    "Primary+;" "file.save"
+    "Shift+RightButton" edit.redo
+}
++++ read
+"global" "orbit" Named(Delete) held()/held()
+"global" "edit.redo" Character("ж") held(caw)/held(caw)
+"global" "view.frame_selection" Named(ArrowUp) held(as)/held(as)
+"global" "orbit" Named(Delete) held(s)/held(s)
+"global" "orbit" Character("z") held(a)/held(a)
+"panel-1" "file.save" Character(";") held(c)/held(c)
+"panel-1" "edit.redo" Button(Right) held(s)/held(s)
+=== case 10
+--- table 0
+scope hierarchy {
+    Super+Z orbit
+}
+scope viewport {
+}
+--- table 1
+scope global {
+    "." orbit
+    Ctrl+RightButton edit.redo
+    Alt+Home file.save
+    "Alt+Super++" orbit
+    Super+MiddleButton view.frame_selection
+}
++++ read
+"hierarchy" "orbit" Character("z") held(w)/held(w)
+"global" "orbit" Character(".") held()/held()
+"global" "edit.redo" Button(Right) held(c)/held(c)
+"global" "file.save" Named(Home) held(a)/held(a)
+"global" "orbit" Character("+") held(aw)/held(aw)
+"global" "view.frame_selection" Button(Middle) held(w)/held(w)
+=== case 11
+--- table 0
+scope global {
+    Shift+Z "view.frame_selection"
+}
+scope viewport {
+    "Super+Shift+Ctrl+Home" "orbit"
+    Ctrl+- view.frame_selection
+    Alt+Ctrl++ edit.redo
+    "+" view.frame_selection
+    ArrowUp edit.redo
+    Super+LeftButton orbit
+}
++++ read
+"global" "view.frame_selection" Character("z") held(s)/held(s)
+"viewport" "orbit" Named(Home) held(csw)/held(csw)
+"viewport" "view.frame_selection" Character("-") held(c)/held(c)
+"viewport" "edit.redo" Character("+") held(ca)/held(ca)
+"viewport" "view.frame_selection" Character("+") held()/held()
+"viewport" "edit.redo" Named(ArrowUp) held()/held()
+"viewport" "orbit" Button(Left) held(w)/held(w)
+=== case 12
+--- table 0
+scope hierarchy {
+    "Hyper+=" view.frame_selection
+    Ctrl+Super+Delete "edit.redo"
+    Super++ "edit.redo"
+}
+scope "panel-1" {
+}
+scope viewport {
+}
+--- table 1
+scope hierarchy {
+    Shift+A undo
+    "Shift+Ctrl+Z" file.save
+    Alt+LeftButton file.save
+}
++++ read
+refused
+=== case 13
+--- table 0
+scope viewport {
+    Ctrl+Super+q edit.redo
+    Super+Shift+Alt+ж "undo"
+    Ctrl+Alt+Super+LeftButton edit.redo
+    "Shift+Super+Home" orbit
+    ж orbit
+    "Super+A" file.save
+}
+scope hierarchy {
+}
++++ read
+"viewport" "edit.redo" Character("q") held(cw)/held(cw)
+"viewport" "undo" Character("ж") held(asw)/held(asw)
+"viewport" "edit.redo" Button(Left) held(caw)/held(caw)
+"viewport" "orbit" Named(Home) held(sw)/held(sw)
+"viewport" "orbit" Character("ж") held()/held()
+"viewport" "file.save" Character("a") held(w)/held(w)
+=== case 14
+--- table 0
+scope global {
+    Ctrl+é undo
+    Shift+ж undo
+    "Super+Ctrl+;" view.frame_selection
+}
+scope "hierarchy" {
+    RightButton view.frame_selection
+    Alt+MiddleButton view.frame_selection
+    Home edit.redo
+    Shift+Tab undo
+}
+--- table 1
+scope hierarchy {
+    Super+Alt+Ctrl+1 orbit
+    "Shift+A" "view.frame_selection"
+    "+" edit.redo
+    Ctrl+Z "edit.redo"
+    Alt+Ctrl+1 undo
+}
++++ read
+"global" "undo" Character("é") held(c)/held(c)
+"global" "undo" Character("ж") held(s)/held(s)
+"global" "view.frame_selection" Character(";") held(cw)/held(cw)
+"hierarchy" "view.frame_selection" Button(Right) held()/held()
+"hierarchy" "view.frame_selection" Button(Middle) held(a)/held(a)
+"hierarchy" "edit.redo" Named(Home) held()/held()
+"hierarchy" "undo" Named(Tab) held(s)/held(s)
+"hierarchy" "orbit" Character("1") held(caw)/held(caw)
+"hierarchy" "view.frame_selection" Character("a") held(s)/held(s)
+"hierarchy" "edit.redo" Character("+") held()/held()
+"hierarchy" "edit.redo" Character("z") held(c)/held(c)
+"hierarchy" "undo" Character("1") held(ca)/held(ca)
+=== case 15
+--- table 0
+scope viewport {
+    Super+Alt+1 file.save
+}
+--- table 1
+scope global {
+    "A" "undo"
+    Ctrl+1 "orbit"
+    Alt+Super+A file.save
+    "Alt+;" "view.frame_selection"
+}
+scope viewport {
+    Primary+Shift+Home file.save
+    Shift+q view.frame_selection
+    "." "file.save"
+    "Tab" undo
+}
++++ read
+"viewport" "file.save" Character("1") held(aw)/held(aw)
+"global" "undo" Character("a") held()/held()
+"global" "orbit" Character("1") held(c)/held(c)
+"global" "file.save" Character("a") held(aw)/held(aw)
+"global" "view.frame_selection" Character(";") held(a)/held(a)
+"viewport" "file.save" Named(Home) held(cs)/held(cs)
+"viewport" "view.frame_selection" Character("q") held(s)/held(s)
+"viewport" "file.save" Character(".") held()/held()
+"viewport" "undo" Named(Tab) held()/held()
+=== case 16
+--- table 0
+scope panel-1 {
+    Super+é view.frame_selection
+    Super+Shift+Ctrl+LeftButton view.frame_selection
+    "Alt+MiddleButton" orbit
+    Ctrl+Alt+Super+Delete edit.redo
+    "-" orbit
+    "Ctrl+Alt+Hyper+=" "view.frame_selection"
+}
+scope viewport {
+    Shift+Ctrl+ArrowUp file.save
+    z "view.frame_selection"
+    Shift+é orbit
+}
+--- table 1
+scope "hierarchy" {
+    Super+q edit.redo
+    Shift+LeftButton undo
+}
+scope global {
+    Alt++ view.frame_selection
+}
++++ read
+refused
+=== case 17
+--- table 0
+scope hierarchy {
+    "Ctrl+q" orbit
+    "Enter" undo
+    Alt+RightButton orbit
+    "Shift+Enter" "file.save"
+}
+--- table 1
+scope "viewport" {
+    "Ctrl+=" view.frame_selection
+}
++++ read
+"hierarchy" "orbit" Character("q") held(c)/held(c)
+"hierarchy" "undo" Named(Enter) held()/held()
+"hierarchy" "orbit" Button(Right) held(a)/held(a)
+"hierarchy" "file.save" Named(Enter) held(s)/held(s)
+"viewport" "view.frame_selection" Character("=") held(c)/held(c)
+=== case 18
+--- table 0
+scope panel-1 {
+    "Ctrl+Super+;" orbit
+}
++++ read
+"panel-1" "orbit" Character(";") held(cw)/held(cw)
+=== case 19
+--- table 0
+scope "viewport" {
+}
+scope hierarchy {
+    "-" undo
+    Alt+Super+F2 orbit
+    Alt++ orbit
+    "Alt+A" edit.redo
+}
++++ read
+"hierarchy" "undo" Character("-") held()/held()
+"hierarchy" "orbit" Named(F2) held(aw)/held(aw)
+"hierarchy" "orbit" Character("+") held(a)/held(a)
+"hierarchy" "edit.redo" Character("a") held(a)/held(a)
+=== case 20
+--- table 0
+scope viewport {
+}
+--- table 1
+scope "panel-1" {
+}
++++ read
+=== case 21
+--- table 0
+scope "hierarchy" {
+    Alt+LeftButton undo
+    ";" file.save
+    Shift+Primary+LeftButton file.save
+}
++++ read
+"hierarchy" "undo" Button(Left) held(a)/held(a)
+"hierarchy" "file.save" Character(";") held()/held()
+"hierarchy" "file.save" Button(Left) held(cs)/held(cs)
+=== case 22
+--- table 0
+scope hierarchy {
+}
+scope panel-1 {
+    "-" file.save
+    Alt+. view.frame_selection
+    Ctrl+. file.save
+    "Alt+;" orbit
+    Alt+Shift+Super+Enter file.save
+    Shift+é edit.redo
+}
+--- table 1
+scope global {
+    Shift+Alt+z edit.redo
+    Primary+Home edit.redo
+    Shift+Tab edit.redo
+    Primary+RightButton "orbit"
+}
++++ read
+"panel-1" "file.save" Character("-") held()/held()
+"panel-1" "view.frame_selection" Character(".") held(a)/held(a)
+"panel-1" "file.save" Character(".") held(c)/held(c)
+"panel-1" "orbit" Character(";") held(a)/held(a)
+"panel-1" "file.save" Named(Enter) held(asw)/held(asw)
+"panel-1" "edit.redo" Character("é") held(s)/held(s)
+"global" "edit.redo" Character("z") held(as)/held(as)
+"global" "edit.redo" Named(Home) held(c)/held(c)
+"global" "edit.redo" Named(Tab) held(s)/held(s)
+"global" "orbit" Button(Right) held(c)/held(c)
+=== case 23
+--- table 0
+scope "hierarchy" {
+    Hyper+Super+Shift+Alt+MiddleButton file.save
+    "Ctrl+F2" orbit
+    Super+Shift+Ctrl+MiddleButton undo
+    "Super+=" edit.redo
+}
+--- table 1
+scope hierarchy {
+    Alt+z file.save
+    "." undo
+    "Alt+ж" view.frame_selection
+    "Shift+Alt+q" view.frame_selection
+    Shift+A view.frame_selection
+    z view.frame_selection
+}
++++ read
+refused
+=== case 24
+--- table 0
+scope "panel-1" {
+    Super+ArrowUp edit.redo
+    "Alt+Ctrl+MiddleButton" file.save
+    "Alt+F2" orbit
+    "Alt+=" undo
+}
+scope viewport {
+    Home orbit
+    Alt+Tab "file.save"
+    Z undo
+    "Super+=" view.frame_selection
+    Delete view.frame_selection
+}
+--- table 1
+scope viewport {
+}
++++ read
+"panel-1" "edit.redo" Named(ArrowUp) held(w)/held(w)
+"panel-1" "file.save" Button(Middle) held(ca)/held(ca)
+"panel-1" "orbit" Named(F2) held(a)/held(a)
+"panel-1" "undo" Character("=") held(a)/held(a)
+"viewport" "orbit" Named(Home) held()/held()
+"viewport" "file.save" Named(Tab) held(a)/held(a)
+"viewport" "undo" Character("z") held()/held()
+"viewport" "view.frame_selection" Character("=") held(w)/held(w)
+"viewport" "view.frame_selection" Named(Delete) held()/held()
+=== case 25
+--- table 0
+scope global {
+}
+scope panel-1 {
+}
++++ read
+=== case 26
+--- table 0
+scope global {
+    ArrowUp file.save
+    LeftButton edit.redo
+    Shift+Tab orbit
+    Primary+Z "orbit"
+    Alt+Tab view.frame_selection
+    é "edit.redo"
+}
+scope panel-1 {
+    "-" "edit.redo"
+    Alt+Primary+z file.save
+}
+--- table 1
+scope viewport {
+    Z orbit
+    "Super+;" "orbit"
+    "Alt+Shift+ж" "edit.redo"
+    Alt+é edit.redo
+    "Super+Ctrl+1" "orbit"
+}
++++ read
+"global" "file.save" Named(ArrowUp) held()/held()
+"global" "edit.redo" Button(Left) held()/held()
+"global" "orbit" Named(Tab) held(s)/held(s)
+"global" "orbit" Character("z") held(c)/held(c)
+"global" "view.frame_selection" Named(Tab) held(a)/held(a)
+"global" "edit.redo" Character("é") held()/held()
+"panel-1" "edit.redo" Character("-") held()/held()
+"panel-1" "file.save" Character("z") held(ca)/held(ca)
+"viewport" "orbit" Character("z") held()/held()
+"viewport" "orbit" Character(";") held(w)/held(w)
+"viewport" "edit.redo" Character("ж") held(as)/held(as)
+"viewport" "edit.redo" Character("é") held(a)/held(a)
+"viewport" "orbit" Character("1") held(cw)/held(cw)
+=== case 27
+--- table 0
+scope "viewport" {
+}
+scope global {
+    Primary+z edit.redo
+    z undo
+}
++++ read
+"global" "edit.redo" Character("z") held(c)/held(c)
+"global" "undo" Character("z") held()/held()
+=== case 28
+--- table 0
+scope panel-1 {
+    "Super+Alt+Ctrl+." view.frame_selection
+    q edit.redo
+    "Ctrl+=" "view.frame_selection"
+    "Super++" undo
+    Ctrl+Shift+Tab orbit
+    "Home" edit.redo
+}
++++ read
+"panel-1" "view.frame_selection" Character(".") held(caw)/held(caw)
+"panel-1" "edit.redo" Character("q") held()/held()
+"panel-1" "view.frame_selection" Character("=") held(c)/held(c)
+"panel-1" "undo" Character("+") held(w)/held(w)
+"panel-1" "orbit" Named(Tab) held(cs)/held(cs)
+"panel-1" "edit.redo" Named(Home) held()/held()
+=== case 29
+--- table 0
+scope viewport {
+    "Alt+q" edit.redo
+    "Shift+ArrowUp" view.frame_selection
+    "Primary+=" orbit
+    "Primary+Shift+é" undo
+}
+--- table 1
+scope panel-1 {
+    q edit.redo
+    Primary+. undo
+    Shift+Primary+MiddleButton orbit
+    Alt+Primary++ file.save
+    Alt+LeftButton view.frame_selection
+}
+scope global {
+    Alt+Shift+Enter view.frame_selection
+}
++++ read
+"viewport" "edit.redo" Character("q") held(a)/held(a)
+"viewport" "view.frame_selection" Named(ArrowUp) held(s)/held(s)
+"viewport" "orbit" Character("=") held(c)/held(c)
+"viewport" "undo" Character("é") held(cs)/held(cs)
+"panel-1" "edit.redo" Character("q") held()/held()
+"panel-1" "undo" Character(".") held(c)/held(c)
+"panel-1" "orbit" Button(Middle) held(cs)/held(cs)
+"panel-1" "file.save" Character("+") held(ca)/held(ca)
+"panel-1" "view.frame_selection" Button(Left) held(a)/held(a)
+"global" "view.frame_selection" Named(Enter) held(as)/held(as)
+=== case 30
+--- table 0
+scope viewport {
+    Primary+Alt+z undo
+}
+scope hierarchy {
+}
+scope global {
+}
++++ read
+"viewport" "undo" Character("z") held(ca)/held(ca)
+=== case 31
+--- table 0
+scope panel-1 {
+    "Primary+Alt+Shift+-" file.save
+    ";" view.frame_selection
+}
+scope "hierarchy" {
+    Ctrl+Alt+Shift+z "orbit"
+}
+--- table 1
+scope viewport {
+    "Primary+1" orbit
+    "." "file.save"
+    Shift+Alt+ж orbit
+}
++++ read
+refused
+=== case 32
+--- table 0
+scope hierarchy {
+    "." undo
+    ж view.frame_selection
+    z file.save
+    Hyper+z view.frame_selection
+    Super+Shift+Ctrl+MiddleButton "view.frame_selection"
+    Alt+Super+RightButton edit.redo
+}
++++ read
+refused
+=== case 33
+--- table 0
+scope "viewport" {
+    Alt+F2 view.frame_selection
+    Hyper+LeftButton "orbit"
+    "-" "edit.redo"
+}
+scope "global" {
+    "Alt+MiddleButton" undo
+}
+--- table 1
+scope "viewport" {
+    "+" orbit
+    Alt+. edit.redo
+    Enter edit.redo
+    "Alt+q" view.frame_selection
+    Alt+MiddleButton edit.redo
+}
+scope global {
+    "Super+Alt+q" "view.frame_selection"
+    Ctrl+Alt+Super+Tab view.frame_selection
+    Super+Alt+F2 orbit
+    "=" undo
+}
++++ read
+refused
+=== case 34
+--- table 0
+scope hierarchy {
+    Super+. view.frame_selection
+    Shift+q edit.redo
+    "Alt+Super+=" "edit.redo"
+    "Shift+MiddleButton" edit.redo
+}
++++ read
+"hierarchy" "view.frame_selection" Character(".") held(w)/held(w)
+"hierarchy" "edit.redo" Character("q") held(s)/held(s)
+"hierarchy" "edit.redo" Character("=") held(aw)/held(aw)
+"hierarchy" "edit.redo" Button(Middle) held(s)/held(s)
+=== case 35
+--- table 0
+scope viewport {
+    "Alt+q" edit.redo
+}
+scope global {
+    "A" "orbit"
+    Ctrl+Shift+z "orbit"
+}
+--- table 1
+scope viewport {
+}
+scope hierarchy {
+    "Ctrl+=" undo
+    Ctrl+RightButton orbit
+    Super+Shift+Ctrl+ж "edit.redo"
+    A "file.save"
+    Shift+Alt+ArrowUp edit.redo
+    Super+Shift+Alt+F2 undo
+}
++++ read
+"viewport" "edit.redo" Character("q") held(a)/held(a)
+"global" "orbit" Character("a") held()/held()
+"global" "orbit" Character("z") held(cs)/held(cs)
+"hierarchy" "undo" Character("=") held(c)/held(c)
+"hierarchy" "orbit" Button(Right) held(c)/held(c)
+"hierarchy" "edit.redo" Character("ж") held(csw)/held(csw)
+"hierarchy" "file.save" Character("a") held()/held()
+"hierarchy" "edit.redo" Named(ArrowUp) held(as)/held(as)
+"hierarchy" "undo" Named(F2) held(asw)/held(asw)
+=== case 36
+--- table 0
+scope global {
+    Alt+1 undo
+    "Primary+Enter" "orbit"
+    Alt+Shift+Home edit.redo
+    Alt+Tab "file.save"
+}
+scope "panel-1" {
+    "Primary+Alt+q" view.frame_selection
+    "Shift+A" "undo"
+    Shift+Alt+Z orbit
+    Alt++ orbit
+}
++++ read
+"global" "undo" Character("1") held(a)/held(a)
+"global" "orbit" Named(Enter) held(c)/held(c)
+"global" "edit.redo" Named(Home) held(as)/held(as)
+"global" "file.save" Named(Tab) held(a)/held(a)
+"panel-1" "view.frame_selection" Character("q") held(ca)/held(ca)
+"panel-1" "undo" Character("a") held(s)/held(s)
+"panel-1" "orbit" Character("z") held(as)/held(as)
+"panel-1" "orbit" Character("+") held(a)/held(a)
+=== case 37
+--- table 0
+scope global {
+    Delete edit.redo
+    "." undo
+    Ctrl+z edit.redo
+    Ctrl+Alt+Shift+Super+Z view.frame_selection
+    Super+A file.save
+}
+scope hierarchy {
+    Enter undo
+    Super+LeftButton view.frame_selection
+}
+--- table 1
+scope global {
+    "+" "orbit"
+    "." edit.redo
+    Primary+q view.frame_selection
+}
+scope hierarchy {
+    "Ctrl+é" undo
+    "Ctrl+q" undo
+    Shift+Z undo
+}
++++ read
+"global" "edit.redo" Named(Delete) held()/held()
+"global" "undo" Character(".") held()/held()
+"global" "edit.redo" Character("z") held(c)/held(c)
+"global" "view.frame_selection" Character("z") held(casw)/held(casw)
+"global" "file.save" Character("a") held(w)/held(w)
+"hierarchy" "undo" Named(Enter) held()/held()
+"hierarchy" "view.frame_selection" Button(Left) held(w)/held(w)
+"global" "orbit" Character("+") held()/held()
+"global" "edit.redo" Character(".") held()/held()
+"global" "view.frame_selection" Character("q") held(c)/held(c)
+"hierarchy" "undo" Character("é") held(c)/held(c)
+"hierarchy" "undo" Character("q") held(c)/held(c)
+"hierarchy" "undo" Character("z") held(s)/held(s)
+=== case 38
+--- table 0
+scope "panel-1" {
+    "Alt+Shift+Home" view.frame_selection
+    Super+MiddleButton "orbit"
+    "Shift+;" "file.save"
+    "q" "orbit"
+}
+scope viewport {
+    Alt+ArrowUp file.save
+    Primary+Shift+Home file.save
+    "Hyper+;" edit.redo
+}
++++ read
+refused
+=== case 39
+--- table 0
+scope global {
+    "Super+=" view.frame_selection
+}
++++ read
+"global" "view.frame_selection" Character("=") held(w)/held(w)
+=== case 40
+--- table 0
+scope panel-1 {
+    Ctrl++ file.save
+    "Shift+Alt+LeftButton" view.frame_selection
+    Alt+A file.save
+}
+--- table 1
+scope "viewport" {
+    "1" "view.frame_selection"
+    Shift+LeftButton "file.save"
+    Shift+Alt+Delete file.save
+    Primary+Alt+Home "orbit"
+}
++++ read
+"panel-1" "file.save" Character("+") held(c)/held(c)
+"panel-1" "view.frame_selection" Button(Left) held(as)/held(as)
+"panel-1" "file.save" Character("a") held(a)/held(a)
+"viewport" "view.frame_selection" Character("1") held()/held()
+"viewport" "file.save" Button(Left) held(s)/held(s)
+"viewport" "file.save" Named(Delete) held(as)/held(as)
+"viewport" "orbit" Named(Home) held(ca)/held(ca)
+=== case 41
+--- table 0
+scope viewport {
+    Primary+Delete edit.redo
+    "Shift+A" "orbit"
+    "Alt+Primary+;" view.frame_selection
+    "Alt+1" orbit
+    Primary+q orbit
+}
+scope hierarchy {
+    Enter undo
+    Super+Alt+- undo
+    Ctrl+Super+RightButton undo
+    "+" orbit
+    Ctrl+Alt+Super+Delete "view.frame_selection"
+    é file.save
+}
+scope global {
+    "Super+Alt+z" orbit
+}
+--- table 1
+scope panel-1 {
+    Home orbit
+    "Shift+z" view.frame_selection
+}
+scope viewport {
+    Shift+z "undo"
+    Shift+Super+Delete undo
+    "=" undo
+    Ctrl+Alt+Super+RightButton undo
+    Alt+Super+ж undo
+}
+scope global {
+    "Ctrl+Alt+Super+=" orbit
+    "Super+Ctrl+q" view.frame_selection
+}
++++ read
+"viewport" "edit.redo" Named(Delete) held(c)/held(c)
+"viewport" "orbit" Character("a") held(s)/held(s)
+"viewport" "view.frame_selection" Character(";") held(ca)/held(ca)
+"viewport" "orbit" Character("1") held(a)/held(a)
+"viewport" "orbit" Character("q") held(c)/held(c)
+"hierarchy" "undo" Named(Enter) held()/held()
+"hierarchy" "undo" Character("-") held(aw)/held(aw)
+"hierarchy" "undo" Button(Right) held(cw)/held(cw)
+"hierarchy" "orbit" Character("+") held()/held()
+"hierarchy" "view.frame_selection" Named(Delete) held(caw)/held(caw)
+"hierarchy" "file.save" Character("é") held()/held()
+"global" "orbit" Character("z") held(aw)/held(aw)
+"panel-1" "orbit" Named(Home) held()/held()
+"panel-1" "view.frame_selection" Character("z") held(s)/held(s)
+"viewport" "undo" Character("z") held(s)/held(s)
+"viewport" "undo" Named(Delete) held(sw)/held(sw)
+"viewport" "undo" Character("=") held()/held()
+"viewport" "undo" Button(Right) held(caw)/held(caw)
+"viewport" "undo" Character("ж") held(aw)/held(aw)
+"global" "orbit" Character("=") held(caw)/held(caw)
+"global" "view.frame_selection" Character("q") held(cw)/held(cw)
+=== case 42
+--- table 0
+scope viewport {
+}
+scope "global" {
+}
++++ read
+=== case 43
+--- table 0
+scope hierarchy {
+    Shift+RightButton file.save
+    Super+Alt+ж undo
+}
++++ read
+"hierarchy" "file.save" Button(Right) held(s)/held(s)
+"hierarchy" "undo" Character("ж") held(aw)/held(aw)
+=== case 44
+--- table 0
+scope "viewport" {
+    "Shift+Alt+Tab" orbit
+    é "file.save"
+    Ctrl+Shift+Super+z "view.frame_selection"
+    Ctrl+Alt+Super+A "view.frame_selection"
+    "Alt+Ctrl+Z" "undo"
+    Super+Ctrl+é orbit
+}
+scope "global" {
+    "Shift+Primary+F2" "orbit"
+}
+--- table 1
+scope global {
+    Hyper+F2 file.save
+    ж "edit.redo"
+    "Shift+Tab" undo
+    ";" file.save
+}
+scope panel-1 {
+    Alt+F2 view.frame_selection
+    MiddleButton orbit
+    "-" view.frame_selection
+    Alt+Primary+ж "view.frame_selection"
+    "Shift+Primary+MiddleButton" "view.frame_selection"
+    Shift+é view.frame_selection
+}
++++ read
+refused
+=== case 45
+--- table 0
+scope viewport {
+    Z undo
+    Shift+z "view.frame_selection"
+    Alt+é undo
+}
+--- table 1
+scope global {
+    F2 edit.redo
+}
+scope hierarchy {
+    "Shift+Primary+F2" view.frame_selection
+    Primary+. view.frame_selection
+    "-" "orbit"
+}
++++ read
+"viewport" "undo" Character("z") held()/held()
+"viewport" "view.frame_selection" Character("z") held(s)/held(s)
+"viewport" "undo" Character("é") held(a)/held(a)
+"global" "edit.redo" Named(F2) held()/held()
+"hierarchy" "view.frame_selection" Named(F2) held(cs)/held(cs)
+"hierarchy" "view.frame_selection" Character(".") held(c)/held(c)
+"hierarchy" "orbit" Character("-") held()/held()
+=== case 46
+--- table 0
+scope "hierarchy" {
+    Z orbit
+    "RightButton" "file.save"
+}
+scope panel-1 {
+    Alt+Ctrl+. "orbit"
+    Shift+Z orbit
+    "Alt+z" orbit
+    Ctrl+F2 undo
+}
+scope global {
+    "Shift+LeftButton" edit.redo
+    "Alt++" edit.redo
+}
+--- table 1
+scope panel-1 {
+    Ctrl+. file.save
+    Super+Alt+q "file.save"
+    Ctrl+Shift+Super+MiddleButton file.save
+}
++++ read
+"hierarchy" "orbit" Character("z") held()/held()
+"hierarchy" "file.save" Button(Right) held()/held()
+"panel-1" "orbit" Character(".") held(ca)/held(ca)
+"panel-1" "orbit" Character("z") held(s)/held(s)
+"panel-1" "orbit" Character("z") held(a)/held(a)
+"panel-1" "undo" Named(F2) held(c)/held(c)
+"global" "edit.redo" Button(Left) held(s)/held(s)
+"global" "edit.redo" Character("+") held(a)/held(a)
+"panel-1" "file.save" Character(".") held(c)/held(c)
+"panel-1" "file.save" Character("q") held(aw)/held(aw)
+"panel-1" "file.save" Button(Middle) held(csw)/held(csw)
+=== case 47
+--- table 0
+scope viewport {
+    Alt+MiddleButton "view.frame_selection"
+    "Super+é" view.frame_selection
+    "Ctrl+=" undo
+    Ctrl+z file.save
+    ";" orbit
+}
+scope "hierarchy" {
+    "Primary+;" "undo"
+    Alt+Primary+q "view.frame_selection"
+}
+scope global {
+    "Enter" view.frame_selection
+    Shift+F2 edit.redo
+    Primary+1 view.frame_selection
+    Primary+Alt+Shift+LeftButton file.save
+    Alt+Home edit.redo
+}
+--- table 1
+scope panel-1 {
+}
+scope "global" {
+    Super+Tab edit.redo
+    "Super+-" edit.redo
+    Ctrl+Alt++ undo
+    "Ctrl+MiddleButton" undo
+}
++++ read
+"viewport" "view.frame_selection" Button(Middle) held(a)/held(a)
+"viewport" "view.frame_selection" Character("é") held(w)/held(w)
+"viewport" "undo" Character("=") held(c)/held(c)
+"viewport" "file.save" Character("z") held(c)/held(c)
+"viewport" "orbit" Character(";") held()/held()
+"hierarchy" "undo" Character(";") held(c)/held(c)
+"hierarchy" "view.frame_selection" Character("q") held(ca)/held(ca)
+"global" "view.frame_selection" Named(Enter) held()/held()
+"global" "edit.redo" Named(F2) held(s)/held(s)
+"global" "view.frame_selection" Character("1") held(c)/held(c)
+"global" "file.save" Button(Left) held(cas)/held(cas)
+"global" "edit.redo" Named(Home) held(a)/held(a)
+"global" "edit.redo" Named(Tab) held(w)/held(w)
+"global" "edit.redo" Character("-") held(w)/held(w)
+"global" "undo" Character("+") held(ca)/held(ca)
+"global" "undo" Button(Middle) held(c)/held(c)
+=== case 48
+--- table 0
+scope hierarchy {
+    Super+. undo
+    "Alt+Home" undo
+    Super+Alt+Ctrl+Delete undo
+    "Alt+Shift+Super+F2" edit.redo
+}
+--- table 1
+scope hierarchy {
+    Super+LeftButton undo
+}
+scope "viewport" {
+    Ctrl+Shift+q view.frame_selection
+    Foo view.frame_selection
+    Super+Shift+Ctrl+Delete orbit
+}
++++ read
+refused
+=== case 49
+--- table 0
+scope global {
+    Shift+F2 orbit
+    Alt+LeftButton orbit
+    Super+Shift+Foo view.frame_selection
+    Super+Alt+Ctrl++ edit.redo
+    Super+Alt+Ctrl+. "orbit"
+    ";" "orbit"
+}
+scope hierarchy {
+    Alt+Enter edit.redo
+}
+--- table 1
+scope panel-1 {
+    Ctrl+ArrowUp undo
+    Super+Enter edit.redo
+    "Super+Ctrl+ж" view.frame_selection
+    "1" "file.save"
+    Alt+F2 orbit
+    "Alt+Super+é" "file.save"
+}
++++ read
+refused
+=== case 50
+--- table 0
+scope viewport {
+}
+scope panel-1 {
+    z "undo"
+    Primary+Alt+Shift+LeftButton file.save
+    "+" undo
+}
+--- table 1
+scope hierarchy {
+}
++++ read
+"panel-1" "undo" Character("z") held()/held()
+"panel-1" "file.save" Button(Left) held(cas)/held(cas)
+"panel-1" "undo" Character("+") held()/held()
+=== case 51
+--- table 0
+scope panel-1 {
+}
+scope "hierarchy" {
+    Ctrl+q edit.redo
+    "Home" file.save
+}
++++ read
+"hierarchy" "edit.redo" Character("q") held(c)/held(c)
+"hierarchy" "file.save" Named(Home) held()/held()
+=== case 52
+--- table 0
+scope "panel-1" {
+    "Super+Shift+Alt+Tab" "undo"
+    Super+Z "orbit"
+    Tab view.frame_selection
+    A "view.frame_selection"
+    Enter "orbit"
+    "MiddleButton" orbit
+}
+scope viewport {
+    "Alt+Primary+F2" orbit
+    "Primary+Home" view.frame_selection
+    ж undo
+}
++++ read
+"panel-1" "undo" Named(Tab) held(asw)/held(asw)
+"panel-1" "orbit" Character("z") held(w)/held(w)
+"panel-1" "view.frame_selection" Named(Tab) held()/held()
+"panel-1" "view.frame_selection" Character("a") held()/held()
+"panel-1" "orbit" Named(Enter) held()/held()
+"panel-1" "orbit" Button(Middle) held()/held()
+"viewport" "orbit" Named(F2) held(ca)/held(ca)
+"viewport" "view.frame_selection" Named(Home) held(c)/held(c)
+"viewport" "undo" Character("ж") held()/held()
+=== case 53
+--- table 0
+scope "panel-1" {
+    Super+Shift+Alt+q "undo"
+    Shift+Alt+Ctrl+ж view.frame_selection
+    Ctrl+Alt+Super+. "edit.redo"
+}
+scope hierarchy {
+    Alt+Z view.frame_selection
+    Alt+LeftButton undo
+    Primary+Shift+Tab undo
+    Tab undo
+    Z orbit
+}
+--- table 1
+scope panel-1 {
+    Alt+Primary+. file.save
+    "Alt+A" "view.frame_selection"
+    Shift+MiddleButton orbit
+    A undo
+    "-" file.save
+}
++++ read
+"panel-1" "undo" Character("q") held(asw)/held(asw)
+"panel-1" "view.frame_selection" Character("ж") held(cas)/held(cas)
+"panel-1" "edit.redo" Character(".") held(caw)/held(caw)
+"hierarchy" "view.frame_selection" Character("z") held(a)/held(a)
+"hierarchy" "undo" Button(Left) held(a)/held(a)
+"hierarchy" "undo" Named(Tab) held(cs)/held(cs)
+"hierarchy" "undo" Named(Tab) held()/held()
+"hierarchy" "orbit" Character("z") held()/held()
+"panel-1" "file.save" Character(".") held(ca)/held(ca)
+"panel-1" "view.frame_selection" Character("a") held(a)/held(a)
+"panel-1" "orbit" Button(Middle) held(s)/held(s)
+"panel-1" "undo" Character("a") held()/held()
+"panel-1" "file.save" Character("-") held()/held()
+=== case 54
+--- table 0
+scope panel-1 {
+    Ctrl+Shift+ж "edit.redo"
+    "Ctrl+=" file.save
+    Super+Delete file.save
+    Super+Tab "edit.redo"
+}
+--- table 1
+scope hierarchy {
+    F2 file.save
+    Alt+1 file.save
+    "." file.save
+    "Alt+-" edit.redo
+}
+scope global {
+}
++++ read
+"panel-1" "edit.redo" Character("ж") held(cs)/held(cs)
+"panel-1" "file.save" Character("=") held(c)/held(c)
+"panel-1" "file.save" Named(Delete) held(w)/held(w)
+"panel-1" "edit.redo" Named(Tab) held(w)/held(w)
+"hierarchy" "file.save" Named(F2) held()/held()
+"hierarchy" "file.save" Character("1") held(a)/held(a)
+"hierarchy" "file.save" Character(".") held()/held()
+"hierarchy" "edit.redo" Character("-") held(a)/held(a)
+=== case 55
+--- table 0
+scope "panel-1" {
+    "Alt+F2" orbit
+    Alt+. file.save
+    "Primary+Alt+=" "orbit"
+    Primary+Home "view.frame_selection"
+    Shift+Primary+Delete undo
+}
++++ read
+"panel-1" "orbit" Named(F2) held(a)/held(a)
+"panel-1" "file.save" Character(".") held(a)/held(a)
+"panel-1" "orbit" Character("=") held(ca)/held(ca)
+"panel-1" "view.frame_selection" Named(Home) held(c)/held(c)
+"panel-1" "undo" Named(Delete) held(cs)/held(cs)
+=== case 56
+--- table 0
+scope global {
+    "." view.frame_selection
+    Alt+Z file.save
+}
+scope panel-1 {
+    "Super+Ctrl+Home" "orbit"
+    Shift+q undo
+}
+--- table 1
+scope viewport {
+    "-" "file.save"
+    "Ctrl+Delete" "view.frame_selection"
+}
++++ read
+"global" "view.frame_selection" Character(".") held()/held()
+"global" "file.save" Character("z") held(a)/held(a)
+"panel-1" "orbit" Named(Home) held(cw)/held(cw)
+"panel-1" "undo" Character("q") held(s)/held(s)
+"viewport" "file.save" Character("-") held()/held()
+"viewport" "view.frame_selection" Named(Delete) held(c)/held(c)
+=== case 57
+--- table 0
+scope "global" {
+    Super+é edit.redo
+    q file.save
+    Alt+F2 file.save
+    "Shift+RightButton" file.save
+    "Shift+Alt+Ctrl+é" file.save
+}
+--- table 1
+scope panel-1 {
+    Primary+Shift+Enter "orbit"
+    Shift+Primary+Home edit.redo
+    Alt+Z file.save
+    Shift+Z orbit
+    ж file.save
+}
+scope viewport {
+    Ctrl+F2 undo
+    ArrowUp file.save
+}
++++ read
+"global" "edit.redo" Character("é") held(w)/held(w)
+"global" "file.save" Character("q") held()/held()
+"global" "file.save" Named(F2) held(a)/held(a)
+"global" "file.save" Button(Right) held(s)/held(s)
+"global" "file.save" Character("é") held(cas)/held(cas)
+"panel-1" "orbit" Named(Enter) held(cs)/held(cs)
+"panel-1" "edit.redo" Named(Home) held(cs)/held(cs)
+"panel-1" "file.save" Character("z") held(a)/held(a)
+"panel-1" "orbit" Character("z") held(s)/held(s)
+"panel-1" "file.save" Character("ж") held()/held()
+"viewport" "undo" Named(F2) held(c)/held(c)
+"viewport" "file.save" Named(ArrowUp) held()/held()
+=== case 58
+--- table 0
+scope viewport {
+    A orbit
+    Shift+Primary+é "edit.redo"
+    "Primary+Alt+1" view.frame_selection
+    Alt+Shift+LeftButton orbit
+}
+scope "global" {
+    "+" orbit
+    Shift+Primary+Z edit.redo
+}
++++ read
+"viewport" "orbit" Character("a") held()/held()
+"viewport" "edit.redo" Character("é") held(cs)/held(cs)
+"viewport" "view.frame_selection" Character("1") held(ca)/held(ca)
+"viewport" "orbit" Button(Left) held(as)/held(as)
+"global" "orbit" Character("+") held()/held()
+"global" "edit.redo" Character("z") held(cs)/held(cs)
+=== case 59
+--- table 0
+scope panel-1 {
+    Primary+. orbit
+    ";" orbit
+    "Alt+A" edit.redo
+    Primary+1 "undo"
+    Primary+q undo
+    Primary+MiddleButton edit.redo
+}
+scope "global" {
+    "." view.frame_selection
+    Primary+é undo
+    "+" edit.redo
+    Shift+Home edit.redo
+    "1" view.frame_selection
+    Shift+é view.frame_selection
+}
+scope hierarchy {
+    Alt+Super+1 edit.redo
+    Alt+Super+Hyper+Z "edit.redo"
+    "Ctrl+Alt+Super+Tab" "orbit"
+    Shift+Alt+ж edit.redo
+}
+--- table 1
+scope "hierarchy" {
+    Alt+1 "edit.redo"
+    Shift+MiddleButton view.frame_selection
+    F2 "edit.redo"
+    "-" edit.redo
+    Hyper+MiddleButton view.frame_selection
+    Shift+z view.frame_selection
+}
++++ read
+refused
+=== case 60
+--- table 0
+scope viewport {
+    "Shift+Alt+Primary+Tab" orbit
+    Primary+LeftButton undo
+    Home file.save
+    "." "undo"
+}
++++ read
+"viewport" "orbit" Named(Tab) held(cas)/held(cas)
+"viewport" "undo" Button(Left) held(c)/held(c)
+"viewport" "file.save" Named(Home) held()/held()
+"viewport" "undo" Character(".") held()/held()
+=== case 61
+--- table 0
+scope panel-1 {
+    "Alt+Primary+é" "undo"
+}
+scope viewport {
+    "Shift+Primary+F2" "orbit"
+    Alt+- edit.redo
+    F2 orbit
+    Alt+1 "file.save"
+}
+--- table 1
+scope viewport {
+    Ctrl+Shift+Super+Delete "orbit"
+    "Ctrl+Alt+=" edit.redo
+}
++++ read
+"panel-1" "undo" Character("é") held(ca)/held(ca)
+"viewport" "orbit" Named(F2) held(cs)/held(cs)
+"viewport" "edit.redo" Character("-") held(a)/held(a)
+"viewport" "orbit" Named(F2) held()/held()
+"viewport" "file.save" Character("1") held(a)/held(a)
+"viewport" "orbit" Named(Delete) held(csw)/held(csw)
+"viewport" "edit.redo" Character("=") held(ca)/held(ca)
+=== case 62
+--- table 0
+scope viewport {
+    "=" undo
+    "Ctrl+Alt+=" "file.save"
+    "Alt+=" "view.frame_selection"
+}
+scope panel-1 {
+    "." "undo"
+    Primary+z view.frame_selection
+}
+--- table 1
+scope viewport {
+    Shift+Ctrl+ж undo
+    "Ctrl+Super+=" "undo"
+    Ctrl+A file.save
+    Ctrl+. view.frame_selection
+}
++++ read
+"viewport" "undo" Character("=") held()/held()
+"viewport" "file.save" Character("=") held(ca)/held(ca)
+"viewport" "view.frame_selection" Character("=") held(a)/held(a)
+"panel-1" "undo" Character(".") held()/held()
+"panel-1" "view.frame_selection" Character("z") held(c)/held(c)
+"viewport" "undo" Character("ж") held(cs)/held(cs)
+"viewport" "undo" Character("=") held(cw)/held(cw)
+"viewport" "file.save" Character("a") held(c)/held(c)
+"viewport" "view.frame_selection" Character(".") held(c)/held(c)
+=== case 63
+--- table 0
+scope "hierarchy" {
+    Super+ArrowUp "edit.redo"
+    Alt+Home view.frame_selection
+    "LeftButton" undo
+    Home file.save
+    "Enter" orbit
+}
+--- table 1
+scope panel-1 {
+    "LeftButton" orbit
+    Shift+Primary+F2 edit.redo
+    Primary+F2 file.save
+    é view.frame_selection
+}
++++ read
+"hierarchy" "edit.redo" Named(ArrowUp) held(w)/held(w)
+"hierarchy" "view.frame_selection" Named(Home) held(a)/held(a)
+"hierarchy" "undo" Button(Left) held()/held()
+"hierarchy" "file.save" Named(Home) held()/held()
+"hierarchy" "orbit" Named(Enter) held()/held()
+"panel-1" "orbit" Button(Left) held()/held()
+"panel-1" "edit.redo" Named(F2) held(cs)/held(cs)
+"panel-1" "file.save" Named(F2) held(c)/held(c)
+"panel-1" "view.frame_selection" Character("é") held()/held()
+=== case 64
+--- table 0
+scope panel-1 {
+    Super+Ctrl+. view.frame_selection
+    Ctrl+Z "orbit"
+    Ctrl+Shift+Super+é "view.frame_selection"
+}
+scope global {
+    F2 view.frame_selection
+    Primary+é file.save
+    "+" file.save
+    ArrowUp "view.frame_selection"
+    é "undo"
+    Primary+Alt+1 view.frame_selection
+}
++++ read
+"panel-1" "view.frame_selection" Character(".") held(cw)/held(cw)
+"panel-1" "orbit" Character("z") held(c)/held(c)
+"panel-1" "view.frame_selection" Character("é") held(csw)/held(csw)
+"global" "view.frame_selection" Named(F2) held()/held()
+"global" "file.save" Character("é") held(c)/held(c)
+"global" "file.save" Character("+") held()/held()
+"global" "view.frame_selection" Named(ArrowUp) held()/held()
+"global" "undo" Character("é") held()/held()
+"global" "view.frame_selection" Character("1") held(ca)/held(ca)
+=== case 65
+--- table 0
+scope viewport {
+    Super+Ctrl+F2 undo
+}
+scope hierarchy {
+    "Shift+Super+ж" view.frame_selection
+    Shift+Tab undo
+    "Super+Ctrl+=" file.save
+    "Super+Home" file.save
+    "1" "undo"
+    Shift+Super+z edit.redo
+}
+--- table 1
+scope "panel-1" {
+    "Alt+Primary+=" view.frame_selection
+    Primary+Alt+A "undo"
+    Shift+Enter "orbit"
+    Foo undo
+}
+scope hierarchy {
+    "Alt+;" file.save
+    Primary+A undo
+    é undo
+    z edit.redo
+    "Shift+z" orbit
+}
++++ read
+refused
+=== case 66
+--- table 0
+scope viewport {
+    Shift+Alt+é "file.save"
+    "Ctrl+Tab" "file.save"
+    Ctrl+Delete edit.redo
+    Super+Shift+Ctrl+Delete view.frame_selection
+    "Alt+Super+." edit.redo
+}
+--- table 1
+scope hierarchy {
+    Alt+Z edit.redo
+    Shift+Delete "undo"
+    Alt+- edit.redo
+    "Alt+=" undo
+    MiddleButton view.frame_selection
+}
++++ read
+"viewport" "file.save" Character("é") held(as)/held(as)
+"viewport" "file.save" Named(Tab) held(c)/held(c)
+"viewport" "edit.redo" Named(Delete) held(c)/held(c)
+"viewport" "view.frame_selection" Named(Delete) held(csw)/held(csw)
+"viewport" "edit.redo" Character(".") held(aw)/held(aw)
+"hierarchy" "edit.redo" Character("z") held(a)/held(a)
+"hierarchy" "undo" Named(Delete) held(s)/held(s)
+"hierarchy" "edit.redo" Character("-") held(a)/held(a)
+"hierarchy" "undo" Character("=") held(a)/held(a)
+"hierarchy" "view.frame_selection" Button(Middle) held()/held()
+=== case 67
+--- table 0
+scope global {
+    Alt+Enter edit.redo
+}
+--- table 1
+scope viewport {
+    "Ctrl+;" undo
+    Alt+Super+1 edit.redo
+    Shift+Alt+F2 "orbit"
+    "Hyper+Ctrl+é" edit.redo
+    Super+Enter edit.redo
+}
+scope "panel-1" {
+}
++++ read
+refused
+=== case 68
+--- table 0
+scope "hierarchy" {
+    Ctrl+Alt+1 orbit
+    Hyper+MiddleButton "file.save"
+    Tab file.save
+    Alt+q edit.redo
+}
++++ read
+refused
+=== case 69
+--- table 0
+scope panel-1 {
+    A "undo"
+    Primary+LeftButton orbit
+    Hyper+- orbit
+    Shift+LeftButton file.save
+    Primary++ edit.redo
+    Alt+Primary+ж undo
+}
+scope viewport {
+    "Shift+MiddleButton" undo
+    Ctrl+Super++ undo
+    Super+Ctrl+é "edit.redo"
+    Ctrl+é undo
+    Tab undo
+    Shift+Ctrl+q undo
+}
++++ read
+refused
+=== case 70
+--- table 0
+scope panel-1 {
+    "Shift+LeftButton" view.frame_selection
+    "Primary+Alt+Delete" view.frame_selection
+}
+scope viewport {
+    "Alt+Primary+LeftButton" file.save
+    Primary+Shift+MiddleButton undo
+    Shift+Alt+Foo orbit
+    "Alt+Shift+LeftButton" undo
+}
++++ read
+refused
+=== case 71
+--- table 0
+scope hierarchy {
+    "Enter" orbit
+}
+scope "panel-1" {
+    "Alt+MiddleButton" view.frame_selection
+    "Alt+LeftButton" undo
+    "Primary+F2" "edit.redo"
+    "Tab" undo
+    "Alt+Primary+." edit.redo
+}
++++ read
+"hierarchy" "orbit" Named(Enter) held()/held()
+"panel-1" "view.frame_selection" Button(Middle) held(a)/held(a)
+"panel-1" "undo" Button(Left) held(a)/held(a)
+"panel-1" "edit.redo" Named(F2) held(c)/held(c)
+"panel-1" "undo" Named(Tab) held()/held()
+"panel-1" "edit.redo" Character(".") held(ca)/held(ca)
+=== case 72
+--- table 0
+scope hierarchy {
+    z "orbit"
+    Shift+Home "view.frame_selection"
+}
++++ read
+"hierarchy" "orbit" Character("z") held()/held()
+"hierarchy" "view.frame_selection" Named(Home) held(s)/held(s)
+=== case 73
+--- table 0
+scope panel-1 {
+    LeftButton "file.save"
+}
++++ read
+"panel-1" "file.save" Button(Left) held()/held()
+=== case 74
+--- table 0
+scope global {
+    "." "view.frame_selection"
+    Primary+. file.save
+}
+--- table 1
+scope hierarchy {
+    "Ctrl+MiddleButton" view.frame_selection
+    Z undo
+    "Super+Shift+Alt+Ctrl+Enter" edit.redo
+    Alt+Super+z "file.save"
+}
+scope panel-1 {
+    "Alt+Primary+é" view.frame_selection
+    "Primary+Alt+LeftButton" file.save
+}
++++ read
+"global" "view.frame_selection" Character(".") held()/held()
+"global" "file.save" Character(".") held(c)/held(c)
+"hierarchy" "view.frame_selection" Button(Middle) held(c)/held(c)
+"hierarchy" "undo" Character("z") held()/held()
+"hierarchy" "edit.redo" Named(Enter) held(casw)/held(casw)
+"hierarchy" "file.save" Character("z") held(aw)/held(aw)
+"panel-1" "view.frame_selection" Character("é") held(ca)/held(ca)
+"panel-1" "file.save" Button(Left) held(ca)/held(ca)
+=== case 75
+--- table 0
+scope viewport {
+}
+--- table 1
+scope viewport {
+    "Alt+-" file.save
+    Primary+Alt+LeftButton view.frame_selection
+    Primary+Alt+Hyper+ArrowUp orbit
+    Shift+Alt+Primary+Enter edit.redo
+}
+scope "hierarchy" {
+    Ctrl+Super+Delete file.save
+    Alt+é edit.redo
+    Shift+é "edit.redo"
+    Super+Shift+Ctrl+Home orbit
+}
++++ read
+refused
+=== case 76
+--- table 0
+scope global {
+    Ctrl+Shift+Super+ArrowUp "edit.redo"
+    Super+. view.frame_selection
+    "Ctrl+=" view.frame_selection
+    Delete "file.save"
+    Ctrl+Hyper+MiddleButton view.frame_selection
+}
+scope viewport {
+    Foo orbit
+    "Shift+Super+F2" edit.redo
+    Super+Shift+z orbit
+    Alt+- view.frame_selection
+    Alt+Shift+Enter edit.redo
+    "Alt+Super+;" file.save
+}
+scope panel-1 {
+    "Super+Alt+;" undo
+    "Ctrl+Shift+A" view.frame_selection
+    Ctrl+z undo
+}
+--- table 1
+scope global {
+    ж edit.redo
+    Tab edit.redo
+    Shift+Enter view.frame_selection
+    "-" file.save
+    "ArrowUp" orbit
+}
+scope panel-1 {
+    Ctrl+LeftButton view.frame_selection
+}
++++ read
+refused
+=== case 77
+--- table 0
+scope hierarchy {
+    ";" edit.redo
+    "Alt+=" "orbit"
+    Alt+. file.save
+}
+--- table 1
+scope global {
+    Enter undo
+    Super+Z "edit.redo"
+}
++++ read
+"hierarchy" "edit.redo" Character(";") held()/held()
+"hierarchy" "orbit" Character("=") held(a)/held(a)
+"hierarchy" "file.save" Character(".") held(a)/held(a)
+"global" "undo" Named(Enter) held()/held()
+"global" "edit.redo" Character("z") held(w)/held(w)
+=== case 78
+--- table 0
+scope hierarchy {
+    "Alt+Super+=" view.frame_selection
+    Super+Alt+Delete file.save
+    Alt+LeftButton edit.redo
+    "Super+1" "edit.redo"
+}
+scope global {
+    ж "orbit"
+}
++++ read
+"hierarchy" "view.frame_selection" Character("=") held(aw)/held(aw)
+"hierarchy" "file.save" Named(Delete) held(aw)/held(aw)
+"hierarchy" "edit.redo" Button(Left) held(a)/held(a)
+"hierarchy" "edit.redo" Character("1") held(w)/held(w)
+"global" "orbit" Character("ж") held()/held()
+=== case 79
+--- table 0
+scope global {
+    Alt+Hyper+MiddleButton undo
+}
+scope panel-1 {
+    LeftButton edit.redo
+    "1" orbit
+}
++++ read
+refused
+=== case 80
+--- table 0
+scope "viewport" {
+    RightButton undo
+    Shift+Primary+ArrowUp orbit
+    "Shift+Alt+ж" edit.redo
+    "Shift+Tab" orbit
+    Alt+é "undo"
+}
++++ read
+"viewport" "undo" Button(Right) held()/held()
+"viewport" "orbit" Named(ArrowUp) held(cs)/held(cs)
+"viewport" "edit.redo" Character("ж") held(as)/held(as)
+"viewport" "orbit" Named(Tab) held(s)/held(s)
+"viewport" "undo" Character("é") held(a)/held(a)
+=== case 81
+--- table 0
+scope viewport {
+}
+scope panel-1 {
+    ж orbit
+    Primary+Shift+Z file.save
+    "+" file.save
+    A "file.save"
+}
++++ read
+"panel-1" "orbit" Character("ж") held()/held()
+"panel-1" "file.save" Character("z") held(cs)/held(cs)
+"panel-1" "file.save" Character("+") held()/held()
+"panel-1" "file.save" Character("a") held()/held()
+=== case 82
+--- table 0
+scope hierarchy {
+    "1" edit.redo
+    MiddleButton orbit
+    Alt+Super+Tab orbit
+    Alt+Super+Enter edit.redo
+}
++++ read
+"hierarchy" "edit.redo" Character("1") held()/held()
+"hierarchy" "orbit" Button(Middle) held()/held()
+"hierarchy" "orbit" Named(Tab) held(aw)/held(aw)
+"hierarchy" "edit.redo" Named(Enter) held(aw)/held(aw)
+=== case 83
+--- table 0
+scope "global" {
+}
+--- table 1
+scope panel-1 {
+    Alt+Ctrl+Home edit.redo
+    Alt+Super+MiddleButton "edit.redo"
+    "Super+Home" edit.redo
+}
+scope viewport {
+    ";" view.frame_selection
+    Primary+Shift+MiddleButton view.frame_selection
+}
++++ read
+"panel-1" "edit.redo" Named(Home) held(ca)/held(ca)
+"panel-1" "edit.redo" Button(Middle) held(aw)/held(aw)
+"panel-1" "edit.redo" Named(Home) held(w)/held(w)
+"viewport" "view.frame_selection" Character(";") held()/held()
+"viewport" "view.frame_selection" Button(Middle) held(cs)/held(cs)
+=== case 84
+--- table 0
+scope viewport {
+    Primary+z edit.redo
+    "Alt+Primary+RightButton" "view.frame_selection"
+    Shift+Home view.frame_selection
+    "Primary+;" "edit.redo"
+}
+scope global {
+    RightButton file.save
+    Shift+q edit.redo
+    Ctrl+Super+Tab file.save
+    "Home" orbit
+    Alt+Super+ж file.save
+    Alt+z undo
+}
+scope "hierarchy" {
+}
++++ read
+"viewport" "edit.redo" Character("z") held(c)/held(c)
+"viewport" "view.frame_selection" Button(Right) held(ca)/held(ca)
+"viewport" "view.frame_selection" Named(Home) held(s)/held(s)
+"viewport" "edit.redo" Character(";") held(c)/held(c)
+"global" "file.save" Button(Right) held()/held()
+"global" "edit.redo" Character("q") held(s)/held(s)
+"global" "file.save" Named(Tab) held(cw)/held(cw)
+"global" "orbit" Named(Home) held()/held()
+"global" "file.save" Character("ж") held(aw)/held(aw)
+"global" "undo" Character("z") held(a)/held(a)
+=== case 85
+--- table 0
+scope "global" {
+    "Primary+=" "undo"
+    "Alt+;" "file.save"
+}
+scope panel-1 {
+    "Shift+Delete" edit.redo
+    Home "file.save"
+    Ctrl+Super++ file.save
+}
+--- table 1
+scope viewport {
+    Shift+z orbit
+    Primary+ж view.frame_selection
+}
+scope hierarchy {
+    Shift+LeftButton file.save
+    Alt+Primary+z file.save
+    Alt+MiddleButton orbit
+}
+scope panel-1 {
+    LeftButton file.save
+}
++++ read
+"global" "undo" Character("=") held(c)/held(c)
+"global" "file.save" Character(";") held(a)/held(a)
+"panel-1" "edit.redo" Named(Delete) held(s)/held(s)
+"panel-1" "file.save" Named(Home) held()/held()
+"panel-1" "file.save" Character("+") held(cw)/held(cw)
+"viewport" "orbit" Character("z") held(s)/held(s)
+"viewport" "view.frame_selection" Character("ж") held(c)/held(c)
+"hierarchy" "file.save" Button(Left) held(s)/held(s)
+"hierarchy" "file.save" Character("z") held(ca)/held(ca)
+"hierarchy" "orbit" Button(Middle) held(a)/held(a)
+"panel-1" "file.save" Button(Left) held()/held()
+=== case 86
+--- table 0
+scope "panel-1" {
+    "Super+Shift+Alt+RightButton" undo
+    Super+q edit.redo
+    Alt+Hyper+q orbit
+    "Super+Ctrl+Tab" orbit
+}
+scope global {
+    "Super+Alt+F2" file.save
+    Alt+Ctrl+ArrowUp view.frame_selection
+    Super+MiddleButton undo
+    Super+Shift+Alt+RightButton undo
+    Ctrl+. undo
+}
+--- table 1
+scope hierarchy {
+    Alt+LeftButton file.save
+}
++++ read
+refused
+=== case 87
+--- table 0
+scope global {
+}
+--- table 1
+scope panel-1 {
+    Shift+z undo
+    "Primary++" edit.redo
+    Shift+Primary+Z undo
+    "=" "orbit"
+}
++++ read
+"panel-1" "undo" Character("z") held(s)/held(s)
+"panel-1" "edit.redo" Character("+") held(c)/held(c)
+"panel-1" "undo" Character("z") held(cs)/held(cs)
+"panel-1" "orbit" Character("=") held()/held()
+=== case 88
+--- table 0
+scope viewport {
+    Alt+MiddleButton file.save
+}
+--- table 1
+scope hierarchy {
+}
++++ read
+"viewport" "file.save" Button(Middle) held(a)/held(a)
+=== case 89
+--- table 0
+scope viewport {
+    Primary++ view.frame_selection
+    Shift+Tab orbit
+    Primary+ArrowUp "edit.redo"
+}
+scope panel-1 {
+    é "orbit"
+    Shift+ж view.frame_selection
+}
+--- table 1
+scope hierarchy {
+    Shift+Ctrl+Delete orbit
+    Shift+é view.frame_selection
+    "Alt+Ctrl+é" file.save
+}
+scope viewport {
+    "LeftButton" "orbit"
+}
++++ read
+"viewport" "view.frame_selection" Character("+") held(c)/held(c)
+"viewport" "orbit" Named(Tab) held(s)/held(s)
+"viewport" "edit.redo" Named(ArrowUp) held(c)/held(c)
+"panel-1" "orbit" Character("é") held()/held()
+"panel-1" "view.frame_selection" Character("ж") held(s)/held(s)
+"hierarchy" "orbit" Named(Delete) held(cs)/held(cs)
+"hierarchy" "view.frame_selection" Character("é") held(s)/held(s)
+"hierarchy" "file.save" Character("é") held(ca)/held(ca)
+"viewport" "orbit" Button(Left) held()/held()
+=== case 90
+--- table 0
+scope "panel-1" {
+    "Primary+=" file.save
+    "-" view.frame_selection
+}
+--- table 1
+scope viewport {
+    Alt+Tab undo
+    Alt+ж undo
+    Alt+A edit.redo
+    Primary++ orbit
+    Shift+Tab "undo"
+    Shift+Primary+MiddleButton "orbit"
+}
+scope global {
+    Ctrl+Alt+Delete orbit
+    "ж" undo
+    "Shift+q" file.save
+}
++++ read
+"panel-1" "file.save" Character("=") held(c)/held(c)
+"panel-1" "view.frame_selection" Character("-") held()/held()
+"viewport" "undo" Named(Tab) held(a)/held(a)
+"viewport" "undo" Character("ж") held(a)/held(a)
+"viewport" "edit.redo" Character("a") held(a)/held(a)
+"viewport" "orbit" Character("+") held(c)/held(c)
+"viewport" "undo" Named(Tab) held(s)/held(s)
+"viewport" "orbit" Button(Middle) held(cs)/held(cs)
+"global" "orbit" Named(Delete) held(ca)/held(ca)
+"global" "undo" Character("ж") held()/held()
+"global" "file.save" Character("q") held(s)/held(s)
+=== case 91
+--- table 0
+scope "panel-1" {
+    Ctrl+Shift+ж view.frame_selection
+    Alt+MiddleButton orbit
+    Shift+ArrowUp "view.frame_selection"
+    "Super+Alt+F2" file.save
+    Super+Ctrl+ж view.frame_selection
+}
+--- table 1
+scope "hierarchy" {
+    "Super+Shift+Enter" orbit
+    Super+Tab orbit
+    "Z" view.frame_selection
+    "Ctrl+RightButton" "undo"
+}
++++ read
+"panel-1" "view.frame_selection" Character("ж") held(cs)/held(cs)
+"panel-1" "orbit" Button(Middle) held(a)/held(a)
+"panel-1" "view.frame_selection" Named(ArrowUp) held(s)/held(s)
+"panel-1" "file.save" Named(F2) held(aw)/held(aw)
+"panel-1" "view.frame_selection" Character("ж") held(cw)/held(cw)
+"hierarchy" "orbit" Named(Enter) held(sw)/held(sw)
+"hierarchy" "orbit" Named(Tab) held(w)/held(w)
+"hierarchy" "view.frame_selection" Character("z") held()/held()
+"hierarchy" "undo" Button(Right) held(c)/held(c)
+=== case 92
+--- table 0
+scope viewport {
+}
+scope panel-1 {
+}
+--- table 1
+scope viewport {
+    Shift+ж undo
+    Z edit.redo
+    Shift+z file.save
+    ";" edit.redo
+    Shift+Home orbit
+    Shift+Delete undo
+}
+scope "global" {
+    Shift+Home edit.redo
+}
+scope hierarchy {
+    "MiddleButton" orbit
+}
++++ read
+"viewport" "undo" Character("ж") held(s)/held(s)
+"viewport" "edit.redo" Character("z") held()/held()
+"viewport" "file.save" Character("z") held(s)/held(s)
+"viewport" "edit.redo" Character(";") held()/held()
+"viewport" "orbit" Named(Home) held(s)/held(s)
+"viewport" "undo" Named(Delete) held(s)/held(s)
+"global" "edit.redo" Named(Home) held(s)/held(s)
+"hierarchy" "orbit" Button(Middle) held()/held()
+=== case 93
+--- table 0
+scope global {
+}
+scope viewport {
+    "Hyper+Primary+=" view.frame_selection
+    LeftButton "view.frame_selection"
+    Alt+MiddleButton view.frame_selection
+    Alt+F2 "view.frame_selection"
+}
++++ read
+refused
+=== case 94
+--- table 0
+scope global {
+    Shift+Primary+é file.save
+    é edit.redo
+    Primary+Shift+z edit.redo
+    "Alt+Primary+=" view.frame_selection
+}
++++ read
+"global" "file.save" Character("é") held(cs)/held(cs)
+"global" "edit.redo" Character("é") held()/held()
+"global" "edit.redo" Character("z") held(cs)/held(cs)
+"global" "view.frame_selection" Character("=") held(ca)/held(ca)
+=== case 95
+--- table 0
+scope "global" {
+    "Super+1" undo
+    Ctrl+Alt+ArrowUp "undo"
+}
+scope hierarchy {
+}
+--- table 1
+scope viewport {
+    é view.frame_selection
+    Ctrl+Alt+- file.save
+    Super+é view.frame_selection
+}
+scope global {
+    Primary+MiddleButton edit.redo
+    Alt+RightButton file.save
+    "F2" undo
+    RightButton "undo"
+    Shift+Primary+Delete view.frame_selection
+    Shift+A "edit.redo"
+}
++++ read
+"global" "undo" Character("1") held(w)/held(w)
+"global" "undo" Named(ArrowUp) held(ca)/held(ca)
+"viewport" "view.frame_selection" Character("é") held()/held()
+"viewport" "file.save" Character("-") held(ca)/held(ca)
+"viewport" "view.frame_selection" Character("é") held(w)/held(w)
+"global" "edit.redo" Button(Middle) held(c)/held(c)
+"global" "file.save" Button(Right) held(a)/held(a)
+"global" "undo" Named(F2) held()/held()
+"global" "undo" Button(Right) held()/held()
+"global" "view.frame_selection" Named(Delete) held(cs)/held(cs)
+"global" "edit.redo" Character("a") held(s)/held(s)
+=== case 96
+--- table 0
+scope global {
+}
+scope hierarchy {
+    "." edit.redo
+    "Alt+Super+z" orbit
+    F2 view.frame_selection
+    Alt+MiddleButton "orbit"
+    "Alt+Ctrl+." orbit
+}
+scope "panel-1" {
+    "Super+Shift+Ctrl+z" edit.redo
+}
++++ read
+"hierarchy" "edit.redo" Character(".") held()/held()
+"hierarchy" "orbit" Character("z") held(aw)/held(aw)
+"hierarchy" "view.frame_selection" Named(F2) held()/held()
+"hierarchy" "orbit" Button(Middle) held(a)/held(a)
+"hierarchy" "orbit" Character(".") held(ca)/held(ca)
+"panel-1" "edit.redo" Character("z") held(csw)/held(csw)
+=== case 97
+--- table 0
+scope global {
+    "Primary+=" "file.save"
+    Shift+q "view.frame_selection"
+    ";" orbit
+}
+--- table 1
+scope panel-1 {
+}
+scope "global" {
+    Primary+q undo
+    Alt+Primary+z "file.save"
+    Primary+Home "undo"
+}
+scope viewport {
+    Ctrl+Alt+Shift+F2 undo
+    Ctrl+F2 undo
+}
++++ read
+"global" "file.save" Character("=") held(c)/held(c)
+"global" "view.frame_selection" Character("q") held(s)/held(s)
+"global" "orbit" Character(";") held()/held()
+"global" "undo" Character("q") held(c)/held(c)
+"global" "file.save" Character("z") held(ca)/held(ca)
+"global" "undo" Named(Home) held(c)/held(c)
+"viewport" "undo" Named(F2) held(cas)/held(cas)
+"viewport" "undo" Named(F2) held(c)/held(c)
+=== case 98
+--- table 0
+scope global {
+    "=" edit.redo
+    "Alt+Home" undo
+    Alt+Super+ж undo
+    "Alt+=" "view.frame_selection"
+}
+scope viewport {
+    Super+Tab orbit
+    Alt+Ctrl+Enter orbit
+    "." edit.redo
+    Super+1 view.frame_selection
+}
+--- table 1
+scope hierarchy {
+    Primary+1 orbit
+}
++++ read
+"global" "edit.redo" Character("=") held()/held()
+"global" "undo" Named(Home) held(a)/held(a)
+"global" "undo" Character("ж") held(aw)/held(aw)
+"global" "view.frame_selection" Character("=") held(a)/held(a)
+"viewport" "orbit" Named(Tab) held(w)/held(w)
+"viewport" "orbit" Named(Enter) held(ca)/held(ca)
+"viewport" "edit.redo" Character(".") held()/held()
+"viewport" "view.frame_selection" Character("1") held(w)/held(w)
+"hierarchy" "orbit" Character("1") held(c)/held(c)
+=== case 99
+--- table 0
+scope viewport {
+    "Super+Shift+Alt+Z" orbit
+    Ctrl+Enter "orbit"
+    Alt+. view.frame_selection
+    "ж" file.save
+}
+scope "global" {
+}
++++ read
+"viewport" "orbit" Character("z") held(asw)/held(asw)
+"viewport" "orbit" Named(Enter) held(c)/held(c)
+"viewport" "view.frame_selection" Character(".") held(a)/held(a)
+"viewport" "file.save" Character("ж") held()/held()
+=== case 100
+--- table 0
+scope hierarchy {
+}
++++ read
+=== case 101
+--- table 0
+scope "viewport" {
+    Delete file.save
+    "Alt+é" "view.frame_selection"
+    MiddleButton undo
+}
+scope "hierarchy" {
+    Super+Alt+. "view.frame_selection"
+    z file.save
+    ж edit.redo
+    é file.save
+    "Shift+Hyper+ArrowUp" edit.redo
+    Ctrl+Shift+Super+Home undo
+}
+--- table 1
+scope "viewport" {
+    Super+Alt+z view.frame_selection
+}
++++ read
+refused
+=== case 102
+--- table 0
+scope panel-1 {
+    "Shift+Tab" "orbit"
+    "+" undo
+}
++++ read
+"panel-1" "orbit" Named(Tab) held(s)/held(s)
+"panel-1" "undo" Character("+") held()/held()
+=== case 103
+--- table 0
+scope "global" {
+    Shift+MiddleButton "undo"
+    "Super+Shift+Alt+Ctrl+Home" view.frame_selection
+}
+scope hierarchy {
+    Alt+z view.frame_selection
+    Shift+Alt+q "edit.redo"
+    Delete file.save
+}
+--- table 1
+scope "global" {
+    "=" orbit
+    "-" file.save
+    "Alt+;" undo
+    Shift+Primary+é edit.redo
+}
+scope hierarchy {
+    Ctrl+Alt++ file.save
+    Ctrl+1 "undo"
+    Super+Alt+MiddleButton file.save
+    "Alt+Ctrl+Tab" undo
+    "Alt+Super+Z" "view.frame_selection"
+}
++++ read
+"global" "undo" Button(Middle) held(s)/held(s)
+"global" "view.frame_selection" Named(Home) held(casw)/held(casw)
+"hierarchy" "view.frame_selection" Character("z") held(a)/held(a)
+"hierarchy" "edit.redo" Character("q") held(as)/held(as)
+"hierarchy" "file.save" Named(Delete) held()/held()
+"global" "orbit" Character("=") held()/held()
+"global" "file.save" Character("-") held()/held()
+"global" "undo" Character(";") held(a)/held(a)
+"global" "edit.redo" Character("é") held(cs)/held(cs)
+"hierarchy" "file.save" Character("+") held(ca)/held(ca)
+"hierarchy" "undo" Character("1") held(c)/held(c)
+"hierarchy" "file.save" Button(Middle) held(aw)/held(aw)
+"hierarchy" "undo" Named(Tab) held(ca)/held(ca)
+"hierarchy" "view.frame_selection" Character("z") held(aw)/held(aw)
+=== case 104
+--- table 0
+scope viewport {
+}
+scope global {
+    ж file.save
+    "Alt+Primary+Tab" undo
+    ";" file.save
+    Alt+Shift+F2 "undo"
+}
++++ read
+"global" "file.save" Character("ж") held()/held()
+"global" "undo" Named(Tab) held(ca)/held(ca)
+"global" "file.save" Character(";") held()/held()
+"global" "undo" Named(F2) held(as)/held(as)
+=== case 105
+--- table 0
+scope "viewport" {
+    Shift+Home "view.frame_selection"
+    Alt+ж "view.frame_selection"
+    Shift+RightButton undo
+}
+scope panel-1 {
+}
+scope hierarchy {
+    Super++ edit.redo
+    Enter orbit
+    Ctrl+A "view.frame_selection"
+}
++++ read
+"viewport" "view.frame_selection" Named(Home) held(s)/held(s)
+"viewport" "view.frame_selection" Character("ж") held(a)/held(a)
+"viewport" "undo" Button(Right) held(s)/held(s)
+"hierarchy" "edit.redo" Character("+") held(w)/held(w)
+"hierarchy" "orbit" Named(Enter) held()/held()
+"hierarchy" "view.frame_selection" Character("a") held(c)/held(c)
+=== case 106
+--- table 0
+scope hierarchy {
+    "Shift+Enter" undo
+}
+scope panel-1 {
+    "1" edit.redo
+}
+--- table 1
+scope hierarchy {
+}
++++ read
+"hierarchy" "undo" Named(Enter) held(s)/held(s)
+"panel-1" "edit.redo" Character("1") held()/held()
+=== case 107
+--- table 0
+scope global {
+    Super+Shift+Alt+Ctrl+Enter orbit
+}
++++ read
+"global" "orbit" Named(Enter) held(casw)/held(casw)
+=== case 108
+--- table 0
+scope hierarchy {
+    Super+Shift+A file.save
+    "Ctrl+Super+;" file.save
+    Tab view.frame_selection
+    Alt+ж edit.redo
+    "Super+ж" "orbit"
+    "Ctrl+Alt+Super+A" view.frame_selection
+}
++++ read
+"hierarchy" "file.save" Character("a") held(sw)/held(sw)
+"hierarchy" "file.save" Character(";") held(cw)/held(cw)
+"hierarchy" "view.frame_selection" Named(Tab) held()/held()
+"hierarchy" "edit.redo" Character("ж") held(a)/held(a)
+"hierarchy" "orbit" Character("ж") held(w)/held(w)
+"hierarchy" "view.frame_selection" Character("a") held(caw)/held(caw)
+=== case 109
+--- table 0
+scope hierarchy {
+    "F2" file.save
+}
+scope "global" {
+    z orbit
+    Shift+Primary+Home "orbit"
+    A orbit
+}
+--- table 1
+scope viewport {
+    Super+Alt+1 undo
+    Ctrl+Alt+Super+Delete view.frame_selection
+    Alt+Enter "view.frame_selection"
+    Alt++ orbit
+    "Super+Ctrl+Delete" edit.redo
+    Alt+Ctrl+- orbit
+}
+scope "panel-1" {
+    Alt+Hyper+A "edit.redo"
+    Alt+Shift+Z view.frame_selection
+    Alt+. "view.frame_selection"
+}
+scope global {
+}
++++ read
+refused
+=== case 110
+--- table 0
+scope global {
+    "1" "view.frame_selection"
+    "Alt+=" view.frame_selection
+}
+scope viewport {
+    F2 view.frame_selection
+}
+--- table 1
+scope hierarchy {
+    "+" "edit.redo"
+}
+scope global {
+    Ctrl+Delete file.save
+    Ctrl+Super+RightButton edit.redo
+    Alt+Shift+Super+ж view.frame_selection
+    Alt+ж "undo"
+}
++++ read
+"global" "view.frame_selection" Character("1") held()/held()
+"global" "view.frame_selection" Character("=") held(a)/held(a)
+"viewport" "view.frame_selection" Named(F2) held()/held()
+"hierarchy" "edit.redo" Character("+") held()/held()
+"global" "file.save" Named(Delete) held(c)/held(c)
+"global" "edit.redo" Button(Right) held(cw)/held(cw)
+"global" "view.frame_selection" Character("ж") held(asw)/held(asw)
+"global" "undo" Character("ж") held(a)/held(a)
+=== case 111
+--- table 0
+scope "global" {
+}
++++ read
+=== case 112
+--- table 0
+scope viewport {
+    "Primary+z" file.save
+    Alt++ file.save
+    Alt+z "edit.redo"
+    "+" orbit
+    "MiddleButton" file.save
+    "-" view.frame_selection
+}
++++ read
+"viewport" "file.save" Character("z") held(c)/held(c)
+"viewport" "file.save" Character("+") held(a)/held(a)
+"viewport" "edit.redo" Character("z") held(a)/held(a)
+"viewport" "orbit" Character("+") held()/held()
+"viewport" "file.save" Button(Middle) held()/held()
+"viewport" "view.frame_selection" Character("-") held()/held()
+=== case 113
+--- table 0
+scope "viewport" {
+    MiddleButton undo
+    "Super+Shift+RightButton" file.save
+    "Alt+LeftButton" file.save
+    "Alt+Super+=" view.frame_selection
+    "Ctrl+Alt+Enter" file.save
+}
+scope "global" {
+    Shift+Ctrl+A edit.redo
+    Super+LeftButton "undo"
+    "Super+Ctrl+=" orbit
+    LeftButton file.save
+    "Tab" edit.redo
+}
+scope "hierarchy" {
+    "Shift+LeftButton" orbit
+    Primary+Alt+Shift+RightButton edit.redo
+    "Primary+." view.frame_selection
+}
+--- table 1
+scope hierarchy {
+    "Super+Ctrl+MiddleButton" orbit
+    "Shift+RightButton" edit.redo
+    Alt+Shift+z file.save
+    Super+Ctrl+RightButton file.save
+    Ctrl+Super+Enter "orbit"
+}
+scope global {
+}
++++ read
+"viewport" "undo" Button(Middle) held()/held()
+"viewport" "file.save" Button(Right) held(sw)/held(sw)
+"viewport" "file.save" Button(Left) held(a)/held(a)
+"viewport" "view.frame_selection" Character("=") held(aw)/held(aw)
+"viewport" "file.save" Named(Enter) held(ca)/held(ca)
+"global" "edit.redo" Character("a") held(cs)/held(cs)
+"global" "undo" Button(Left) held(w)/held(w)
+"global" "orbit" Character("=") held(cw)/held(cw)
+"global" "file.save" Button(Left) held()/held()
+"global" "edit.redo" Named(Tab) held()/held()
+"hierarchy" "orbit" Button(Left) held(s)/held(s)
+"hierarchy" "edit.redo" Button(Right) held(cas)/held(cas)
+"hierarchy" "view.frame_selection" Character(".") held(c)/held(c)
+"hierarchy" "orbit" Button(Middle) held(cw)/held(cw)
+"hierarchy" "edit.redo" Button(Right) held(s)/held(s)
+"hierarchy" "file.save" Character("z") held(as)/held(as)
+"hierarchy" "file.save" Button(Right) held(cw)/held(cw)
+"hierarchy" "orbit" Named(Enter) held(cw)/held(cw)
+=== case 114
+--- table 0
+scope "viewport" {
+    "Alt+Primary+=" view.frame_selection
+    Shift+Alt+LeftButton edit.redo
+    Alt+Delete file.save
+    ж edit.redo
+}
+scope panel-1 {
+    Super+Alt+Ctrl+MiddleButton view.frame_selection
+    Super+Shift+é "undo"
+    Alt+F2 "view.frame_selection"
+    Shift+ж file.save
+}
++++ read
+"viewport" "view.frame_selection" Character("=") held(ca)/held(ca)
+"viewport" "edit.redo" Button(Left) held(as)/held(as)
+"viewport" "file.save" Named(Delete) held(a)/held(a)
+"viewport" "edit.redo" Character("ж") held()/held()
+"panel-1" "view.frame_selection" Button(Middle) held(caw)/held(caw)
+"panel-1" "undo" Character("é") held(sw)/held(sw)
+"panel-1" "view.frame_selection" Named(F2) held(a)/held(a)
+"panel-1" "file.save" Character("ж") held(s)/held(s)
+=== case 115
+--- table 0
+scope global {
+    Primary+ArrowUp undo
+    Primary+Z "orbit"
+    "Shift+Primary+ж" orbit
+    "q" view.frame_selection
+}
+scope viewport {
+    Alt+z "undo"
+}
+scope panel-1 {
+    Primary+Home undo
+    Alt+. view.frame_selection
+    "Primary+-" edit.redo
+}
++++ read
+"global" "undo" Named(ArrowUp) held(c)/held(c)
+"global" "orbit" Character("z") held(c)/held(c)
+"global" "orbit" Character("ж") held(cs)/held(cs)
+"global" "view.frame_selection" Character("q") held()/held()
+"viewport" "undo" Character("z") held(a)/held(a)
+"panel-1" "undo" Named(Home) held(c)/held(c)
+"panel-1" "view.frame_selection" Character(".") held(a)/held(a)
+"panel-1" "edit.redo" Character("-") held(c)/held(c)
+=== case 116
+--- table 0
+scope global {
+    Alt+Primary+A orbit
+}
+scope "panel-1" {
+}
+scope "viewport" {
+    "+" "file.save"
+    "Shift+Home" "file.save"
+    Shift+RightButton orbit
+}
+--- table 1
+scope "viewport" {
+    Ctrl+LeftButton orbit
+}
+scope global {
+    Alt+Foo file.save
+    ";" file.save
+}
++++ read
+refused
+=== case 117
+--- table 0
+scope hierarchy {
+    ";" undo
+    Tab view.frame_selection
+}
+scope "global" {
+    Ctrl+ArrowUp "view.frame_selection"
+    Super+é undo
+    Ctrl+Alt+1 view.frame_selection
+}
++++ read
+"hierarchy" "undo" Character(";") held()/held()
+"hierarchy" "view.frame_selection" Named(Tab) held()/held()
+"global" "view.frame_selection" Named(ArrowUp) held(c)/held(c)
+"global" "undo" Character("é") held(w)/held(w)
+"global" "view.frame_selection" Character("1") held(ca)/held(ca)
+=== case 118
+--- table 0
+scope global {
+}
+scope panel-1 {
+    "=" edit.redo
+    Hyper+z undo
+    Alt+RightButton orbit
+    Primary+z view.frame_selection
+    é file.save
+}
+scope viewport {
+    "Alt+Primary+=" "edit.redo"
+    "Alt+;" undo
+    Alt+Foo view.frame_selection
+    LeftButton edit.redo
+}
++++ read
+refused
+=== case 119
+--- table 0
+scope hierarchy {
+    Alt+Enter orbit
+    RightButton "orbit"
+    Shift+A "view.frame_selection"
+}
+--- table 1
+scope "viewport" {
+    "Super+LeftButton" "undo"
+    "Hyper+Alt+Ctrl+MiddleButton" orbit
+    Super+Shift+ArrowUp edit.redo
+}
++++ read
+refused
+=== case 120
+--- table 0
+scope hierarchy {
+    Shift+ArrowUp undo
+    Alt+. file.save
+    Shift+A file.save
+    Alt+Shift+Home "view.frame_selection"
+    Alt++ edit.redo
+}
+--- table 1
+scope global {
+}
+scope viewport {
+    Hyper+Z "file.save"
+    "Primary+=" undo
+    Alt+A undo
+    "Primary+Alt+=" "edit.redo"
+    Alt+z orbit
+}
++++ read
+refused
+=== case 121
+--- table 0
+scope hierarchy {
+}
+--- table 1
+scope panel-1 {
+}
+scope "viewport" {
+    "Alt+ArrowUp" file.save
+    "Hyper+Shift+Alt+Ctrl+q" orbit
+    "Shift+ж" edit.redo
+}
++++ read
+refused
+=== case 122
+--- table 0
+scope panel-1 {
+    "Shift+Tab" "file.save"
+    "Shift+Z" "view.frame_selection"
+    Shift+Alt+ArrowUp orbit
+}
+scope "hierarchy" {
+    "Alt+." "edit.redo"
+    "Shift+Alt+Tab" "view.frame_selection"
+}
+--- table 1
+scope global {
+    Shift+Primary+ArrowUp view.frame_selection
+    Alt+Enter undo
+    ";" orbit
+    Primary+Alt+Tab view.frame_selection
+}
+scope hierarchy {
+    Alt+Primary+1 edit.redo
+    Shift+Tab view.frame_selection
+    Primary+. view.frame_selection
+    "Alt+Primary+ArrowUp" orbit
+    Shift+Alt+é orbit
+}
+scope "viewport" {
+    Ctrl+ArrowUp edit.redo
+    "Ctrl+Alt+-" "orbit"
+    Alt+Shift+Enter orbit
+    Super+Shift+Ctrl+RightButton view.frame_selection
+    Shift+RightButton undo
+    "Shift+Super+ж" file.save
+}
++++ read
+"panel-1" "file.save" Named(Tab) held(s)/held(s)
+"panel-1" "view.frame_selection" Character("z") held(s)/held(s)
+"panel-1" "orbit" Named(ArrowUp) held(as)/held(as)
+"hierarchy" "edit.redo" Character(".") held(a)/held(a)
+"hierarchy" "view.frame_selection" Named(Tab) held(as)/held(as)
+"global" "view.frame_selection" Named(ArrowUp) held(cs)/held(cs)
+"global" "undo" Named(Enter) held(a)/held(a)
+"global" "orbit" Character(";") held()/held()
+"global" "view.frame_selection" Named(Tab) held(ca)/held(ca)
+"hierarchy" "edit.redo" Character("1") held(ca)/held(ca)
+"hierarchy" "view.frame_selection" Named(Tab) held(s)/held(s)
+"hierarchy" "view.frame_selection" Character(".") held(c)/held(c)
+"hierarchy" "orbit" Named(ArrowUp) held(ca)/held(ca)
+"hierarchy" "orbit" Character("é") held(as)/held(as)
+"viewport" "edit.redo" Named(ArrowUp) held(c)/held(c)
+"viewport" "orbit" Character("-") held(ca)/held(ca)
+"viewport" "orbit" Named(Enter) held(as)/held(as)
+"viewport" "view.frame_selection" Button(Right) held(csw)/held(csw)
+"viewport" "undo" Button(Right) held(s)/held(s)
+"viewport" "file.save" Character("ж") held(sw)/held(sw)
+=== case 123
+--- table 0
+scope viewport {
+    Shift+Z edit.redo
+    Primary+LeftButton undo
+    F2 undo
+    "MiddleButton" view.frame_selection
+}
+scope hierarchy {
+    "Primary+q" undo
+}
+--- table 1
+scope "panel-1" {
+    "Alt+;" undo
+    Ctrl+Alt+Z undo
+}
++++ read
+"viewport" "edit.redo" Character("z") held(s)/held(s)
+"viewport" "undo" Button(Left) held(c)/held(c)
+"viewport" "undo" Named(F2) held()/held()
+"viewport" "view.frame_selection" Button(Middle) held()/held()
+"hierarchy" "undo" Character("q") held(c)/held(c)
+"panel-1" "undo" Character(";") held(a)/held(a)
+"panel-1" "undo" Character("z") held(ca)/held(ca)
+=== case 124
+--- table 0
+scope viewport {
+    "Shift+F2" "edit.redo"
+    "1" "view.frame_selection"
+    Primary+Enter "undo"
+    "Primary+1" view.frame_selection
+    Home edit.redo
+}
++++ read
+"viewport" "edit.redo" Named(F2) held(s)/held(s)
+"viewport" "view.frame_selection" Character("1") held()/held()
+"viewport" "undo" Named(Enter) held(c)/held(c)
+"viewport" "view.frame_selection" Character("1") held(c)/held(c)
+"viewport" "edit.redo" Named(Home) held()/held()
+=== case 125
+--- table 0
+scope hierarchy {
+    Super+Z "edit.redo"
+    "Super+=" "edit.redo"
+    Alt+. "orbit"
+    Alt+Super++ edit.redo
+    "Alt+Super+F2" "undo"
+}
++++ read
+"hierarchy" "edit.redo" Character("z") held(w)/held(w)
+"hierarchy" "edit.redo" Character("=") held(w)/held(w)
+"hierarchy" "orbit" Character(".") held(a)/held(a)
+"hierarchy" "edit.redo" Character("+") held(aw)/held(aw)
+"hierarchy" "undo" Named(F2) held(aw)/held(aw)
+=== case 126
+--- table 0
+scope "panel-1" {
+    Delete file.save
+}
+scope "global" {
+}
++++ read
+"panel-1" "file.save" Named(Delete) held()/held()
+=== case 127
+--- table 0
+scope viewport {
+    Shift+Ctrl+é edit.redo
+    Alt+Shift+Super+Tab file.save
+    "Super+RightButton" file.save
+    "=" undo
+}
+scope "panel-1" {
+    "-" "view.frame_selection"
+    Super+Ctrl+z edit.redo
+    Ctrl+LeftButton undo
+}
+--- table 1
+scope global {
+    "Ctrl+Super+;" undo
+    Shift+Alt+RightButton orbit
+    Ctrl+Shift+Super+RightButton "undo"
+}
++++ read
+"viewport" "edit.redo" Character("é") held(cs)/held(cs)
+"viewport" "file.save" Named(Tab) held(asw)/held(asw)
+"viewport" "file.save" Button(Right) held(w)/held(w)
+"viewport" "undo" Character("=") held()/held()
+"panel-1" "view.frame_selection" Character("-") held()/held()
+"panel-1" "edit.redo" Character("z") held(cw)/held(cw)
+"panel-1" "undo" Button(Left) held(c)/held(c)
+"global" "undo" Character(";") held(cw)/held(cw)
+"global" "orbit" Button(Right) held(as)/held(as)
+"global" "undo" Button(Right) held(csw)/held(csw)
+=== case 128
+--- table 0
+scope "panel-1" {
+    Alt+Super+. "undo"
+    Z view.frame_selection
+    Super+Ctrl+1 file.save
+    "Ctrl+." orbit
+    "Ctrl+Alt+Shift+Super+Tab" undo
+}
+--- table 1
+scope "global" {
+    "Primary+MiddleButton" "file.save"
+    Primary+Home "edit.redo"
+    LeftButton orbit
+    Alt+z undo
+}
++++ read
+"panel-1" "undo" Character(".") held(aw)/held(aw)
+"panel-1" "view.frame_selection" Character("z") held()/held()
+"panel-1" "file.save" Character("1") held(cw)/held(cw)
+"panel-1" "orbit" Character(".") held(c)/held(c)
+"panel-1" "undo" Named(Tab) held(casw)/held(casw)
+"global" "file.save" Button(Middle) held(c)/held(c)
+"global" "edit.redo" Named(Home) held(c)/held(c)
+"global" "orbit" Button(Left) held()/held()
+"global" "undo" Character("z") held(a)/held(a)
+=== case 129
+--- table 0
+scope panel-1 {
+    "=" view.frame_selection
+    Shift+Alt+ж orbit
+    Super++ file.save
+    "Alt+Shift+Super+A" "view.frame_selection"
+    Super+Shift+Ctrl+z "view.frame_selection"
+    "Shift+Z" edit.redo
+}
+scope hierarchy {
+    Alt+Home file.save
+    é "view.frame_selection"
+    Alt+Shift+Delete "view.frame_selection"
+}
+--- table 1
+scope panel-1 {
+    Alt+Shift+ж file.save
+    Alt+q edit.redo
+    Alt+Shift+Tab "orbit"
+}
++++ read
+"panel-1" "view.frame_selection" Character("=") held()/held()
+"panel-1" "orbit" Character("ж") held(as)/held(as)
+"panel-1" "file.save" Character("+") held(w)/held(w)
+"panel-1" "view.frame_selection" Character("a") held(asw)/held(asw)
+"panel-1" "view.frame_selection" Character("z") held(csw)/held(csw)
+"panel-1" "edit.redo" Character("z") held(s)/held(s)
+"hierarchy" "file.save" Named(Home) held(a)/held(a)
+"hierarchy" "view.frame_selection" Character("é") held()/held()
+"hierarchy" "view.frame_selection" Named(Delete) held(as)/held(as)
+"panel-1" "file.save" Character("ж") held(as)/held(as)
+"panel-1" "edit.redo" Character("q") held(a)/held(a)
+"panel-1" "orbit" Named(Tab) held(as)/held(as)
+=== case 130
+--- table 0
+scope viewport {
+    Ctrl+Tab "edit.redo"
+    "Tab" view.frame_selection
+}
+scope "global" {
+    Ctrl+Delete view.frame_selection
+    Z orbit
+    RightButton view.frame_selection
+    Ctrl+. undo
+}
++++ read
+"viewport" "edit.redo" Named(Tab) held(c)/held(c)
+"viewport" "view.frame_selection" Named(Tab) held()/held()
+"global" "view.frame_selection" Named(Delete) held(c)/held(c)
+"global" "orbit" Character("z") held()/held()
+"global" "view.frame_selection" Button(Right) held()/held()
+"global" "undo" Character(".") held(c)/held(c)
+=== case 131
+--- table 0
+scope viewport {
+    RightButton undo
+    ArrowUp edit.redo
+    "Ctrl+-" undo
+    Shift+Ctrl+MiddleButton edit.redo
+    Alt+Super+Tab file.save
+}
++++ read
+"viewport" "undo" Button(Right) held()/held()
+"viewport" "edit.redo" Named(ArrowUp) held()/held()
+"viewport" "undo" Character("-") held(c)/held(c)
+"viewport" "edit.redo" Button(Middle) held(cs)/held(cs)
+"viewport" "file.save" Named(Tab) held(aw)/held(aw)
+=== case 132
+--- table 0
+scope viewport {
+    Delete orbit
+    "Primary+Alt+RightButton" "view.frame_selection"
+    "=" view.frame_selection
+    "+" orbit
+    "Tab" view.frame_selection
+}
+scope "hierarchy" {
+    "Shift+Super+-" edit.redo
+    Super+RightButton orbit
+    "Shift+Alt+z" orbit
+}
+--- table 1
+scope global {
+}
+scope panel-1 {
+}
++++ read
+refused
+=== case 133
+--- table 0
+scope global {
+    "Alt+Shift+Super+q" edit.redo
+    Alt+Super+F2 edit.redo
+    Ctrl+Z orbit
+}
+scope panel-1 {
+}
+--- table 1
+scope viewport {
+}
++++ read
+"global" "edit.redo" Character("q") held(asw)/held(asw)
+"global" "edit.redo" Named(F2) held(aw)/held(aw)
+"global" "orbit" Character("z") held(c)/held(c)
+=== case 134
+--- table 0
+scope "panel-1" {
+}
+scope "viewport" {
+}
+--- table 1
+scope panel-1 {
+    "1" view.frame_selection
+    "Alt+;" file.save
+    "=" undo
+    "Primary+LeftButton" orbit
+}
+scope global {
+    "Alt+Delete" "edit.redo"
+    Shift+Ctrl+RightButton orbit
+}
++++ read
+"panel-1" "view.frame_selection" Character("1") held()/held()
+"panel-1" "file.save" Character(";") held(a)/held(a)
+"panel-1" "undo" Character("=") held()/held()
+"panel-1" "orbit" Button(Left) held(c)/held(c)
+"global" "edit.redo" Named(Delete) held(a)/held(a)
+"global" "orbit" Button(Right) held(cs)/held(cs)
+=== case 135
+--- table 0
+scope hierarchy {
+    "." edit.redo
+    "Primary+Alt+F2" edit.redo
+    Home view.frame_selection
+    Primary+Delete undo
+    "Primary+A" view.frame_selection
+}
+scope viewport {
+    "Primary+A" undo
+}
+--- table 1
+scope panel-1 {
+    Hyper+Shift+ж "file.save"
+    Alt+Super+Home file.save
+    Super+. orbit
+    "Super+Shift+Z" "file.save"
+}
+scope viewport {
+    "Alt+A" "file.save"
+    Alt+Primary+- undo
+    Alt++ orbit
+}
+scope "hierarchy" {
+    "Super+Shift+Home" edit.redo
+}
++++ read
+refused
+=== case 136
+--- table 0
+scope "viewport" {
+}
+--- table 1
+scope hierarchy {
+    Primary+Z "edit.redo"
+    Tab "undo"
+    "Primary+Alt+Shift+ж" undo
+    LeftButton orbit
+    "Primary+Delete" view.frame_selection
+    "Shift+Alt+Primary+A" "edit.redo"
+}
+scope global {
+    Alt+Ctrl+. undo
+    Ctrl+Shift+Z view.frame_selection
+    "Ctrl+;" edit.redo
+    Alt+Super+ArrowUp view.frame_selection
+}
++++ read
+"hierarchy" "edit.redo" Character("z") held(c)/held(c)
+"hierarchy" "undo" Named(Tab) held()/held()
+"hierarchy" "undo" Character("ж") held(cas)/held(cas)
+"hierarchy" "orbit" Button(Left) held()/held()
+"hierarchy" "view.frame_selection" Named(Delete) held(c)/held(c)
+"hierarchy" "edit.redo" Character("a") held(cas)/held(cas)
+"global" "undo" Character(".") held(ca)/held(ca)
+"global" "view.frame_selection" Character("z") held(cs)/held(cs)
+"global" "edit.redo" Character(";") held(c)/held(c)
+"global" "view.frame_selection" Named(ArrowUp) held(aw)/held(aw)
+=== case 137
+--- table 0
+scope hierarchy {
+    "1" "edit.redo"
+    Primary+A file.save
+    "Primary+;" edit.redo
+    Shift+F2 undo
+    "Primary+Foo" file.save
+}
++++ read
+refused
+=== case 138
+--- table 0
+scope panel-1 {
+}
+scope viewport {
+    Super+- orbit
+    Z file.save
+    "Delete" view.frame_selection
+}
+scope "hierarchy" {
+    Shift+q file.save
+    MiddleButton edit.redo
+}
++++ read
+"viewport" "orbit" Character("-") held(w)/held(w)
+"viewport" "file.save" Character("z") held()/held()
+"viewport" "view.frame_selection" Named(Delete) held()/held()
+"hierarchy" "file.save" Character("q") held(s)/held(s)
+"hierarchy" "edit.redo" Button(Middle) held()/held()
+=== case 139
+--- table 0
+scope panel-1 {
+    é file.save
+    "=" orbit
+    Shift+Primary+LeftButton view.frame_selection
+    Alt++ "file.save"
+    ";" edit.redo
+    "Primary+=" view.frame_selection
+}
+scope "hierarchy" {
+    "Alt+;" undo
+    Super+Alt+F2 "undo"
+    Ctrl+Super+Delete orbit
+    Alt+Ctrl+1 orbit
+}
++++ read
+"panel-1" "file.save" Character("é") held()/held()
+"panel-1" "orbit" Character("=") held()/held()
+"panel-1" "view.frame_selection" Button(Left) held(cs)/held(cs)
+"panel-1" "file.save" Character("+") held(a)/held(a)
+"panel-1" "edit.redo" Character(";") held()/held()
+"panel-1" "view.frame_selection" Character("=") held(c)/held(c)
+"hierarchy" "undo" Character(";") held(a)/held(a)
+"hierarchy" "undo" Named(F2) held(aw)/held(aw)
+"hierarchy" "orbit" Named(Delete) held(cw)/held(cw)
+"hierarchy" "orbit" Character("1") held(ca)/held(ca)
+=== case 140
+--- table 0
+scope viewport {
+    "." view.frame_selection
+    Ctrl+é undo
+}
+scope panel-1 {
+    Shift+Primary+Home file.save
+    Alt+Primary+MiddleButton orbit
+    ж orbit
+    "MiddleButton" edit.redo
+    "Primary+Home" undo
+}
+--- table 1
+scope panel-1 {
+    Alt+- "undo"
+    "Shift+Super+Delete" file.save
+}
++++ read
+"viewport" "view.frame_selection" Character(".") held()/held()
+"viewport" "undo" Character("é") held(c)/held(c)
+"panel-1" "file.save" Named(Home) held(cs)/held(cs)
+"panel-1" "orbit" Button(Middle) held(ca)/held(ca)
+"panel-1" "orbit" Character("ж") held()/held()
+"panel-1" "edit.redo" Button(Middle) held()/held()
+"panel-1" "undo" Named(Home) held(c)/held(c)
+"panel-1" "undo" Character("-") held(a)/held(a)
+"panel-1" "file.save" Named(Delete) held(sw)/held(sw)
+=== case 141
+--- table 0
+scope hierarchy {
+    "Primary+=" orbit
+    Alt+RightButton undo
+}
+scope viewport {
+    "z" view.frame_selection
+    Alt+z view.frame_selection
+    Primary+Alt+RightButton undo
+    Primary+q edit.redo
+    Tab undo
+}
+scope global {
+    Alt+Shift+Super+F2 "undo"
+    Ctrl+- file.save
+    Shift+Alt+Ctrl+z edit.redo
+    Ctrl+Alt+Shift+Super+é edit.redo
+}
+--- table 1
+scope "global" {
+    Alt+Ctrl+1 view.frame_selection
+    Super+Delete edit.redo
+}
+scope viewport {
+    Shift+Ctrl+MiddleButton "orbit"
+    Ctrl+Shift+Super+MiddleButton orbit
+}
+scope panel-1 {
+    Primary+. "view.frame_selection"
+    Alt+Primary++ orbit
+}
++++ read
+"hierarchy" "orbit" Character("=") held(c)/held(c)
+"hierarchy" "undo" Button(Right) held(a)/held(a)
+"viewport" "view.frame_selection" Character("z") held()/held()
+"viewport" "view.frame_selection" Character("z") held(a)/held(a)
+"viewport" "undo" Button(Right) held(ca)/held(ca)
+"viewport" "edit.redo" Character("q") held(c)/held(c)
+"viewport" "undo" Named(Tab) held()/held()
+"global" "undo" Named(F2) held(asw)/held(asw)
+"global" "file.save" Character("-") held(c)/held(c)
+"global" "edit.redo" Character("z") held(cas)/held(cas)
+"global" "edit.redo" Character("é") held(casw)/held(casw)
+"global" "view.frame_selection" Character("1") held(ca)/held(ca)
+"global" "edit.redo" Named(Delete) held(w)/held(w)
+"viewport" "orbit" Button(Middle) held(cs)/held(cs)
+"viewport" "orbit" Button(Middle) held(csw)/held(csw)
+"panel-1" "view.frame_selection" Character(".") held(c)/held(c)
+"panel-1" "orbit" Character("+") held(ca)/held(ca)
+=== case 142
+--- table 0
+scope hierarchy {
+    Shift+Delete file.save
+    "Shift+é" view.frame_selection
+    "Super+Shift+Home" view.frame_selection
+}
+scope viewport {
+    Primary+q edit.redo
+    Shift+RightButton "orbit"
+    Shift+Hyper+LeftButton edit.redo
+    Alt+Primary+Tab edit.redo
+    "+" undo
+}
++++ read
+refused
+=== case 143
+--- table 0
+scope hierarchy {
+}
+scope global {
+    "Primary+Hyper+é" "orbit"
+    Shift+Enter file.save
+}
++++ read
+refused
+=== case 144
+--- table 0
+scope viewport {
+    "Ctrl+1" "undo"
+}
++++ read
+"viewport" "undo" Character("1") held(c)/held(c)
+=== case 145
+--- table 0
+scope panel-1 {
+    Super+Shift+Alt+é view.frame_selection
+    Alt+ArrowUp undo
+    Super+Alt+1 edit.redo
+    Ctrl+A "file.save"
+    "Ctrl+ArrowUp" undo
+}
+scope global {
+    "Alt+Primary+=" orbit
+    "-" edit.redo
+    Shift+Alt+Tab undo
+    "q" "edit.redo"
+}
+scope hierarchy {
+    "Primary+;" file.save
+    Shift+Alt+MiddleButton view.frame_selection
+}
++++ read
+"panel-1" "view.frame_selection" Character("é") held(asw)/held(asw)
+"panel-1" "undo" Named(ArrowUp) held(a)/held(a)
+"panel-1" "edit.redo" Character("1") held(aw)/held(aw)
+"panel-1" "file.save" Character("a") held(c)/held(c)
+"panel-1" "undo" Named(ArrowUp) held(c)/held(c)
+"global" "orbit" Character("=") held(ca)/held(ca)
+"global" "edit.redo" Character("-") held()/held()
+"global" "undo" Named(Tab) held(as)/held(as)
+"global" "edit.redo" Character("q") held()/held()
+"hierarchy" "file.save" Character(";") held(c)/held(c)
+"hierarchy" "view.frame_selection" Button(Middle) held(as)/held(as)
+=== case 146
+--- table 0
+scope global {
+}
+scope hierarchy {
+    Primary+Delete undo
+    Alt+Shift+z "edit.redo"
+    "." "view.frame_selection"
+    "Alt+;" view.frame_selection
+    Shift+q view.frame_selection
+    "ArrowUp" "orbit"
+}
+--- table 1
+scope global {
+    Ctrl+1 file.save
+    "Alt+Super++" file.save
+    Alt+Ctrl+q edit.redo
+    "Shift+Alt+Ctrl+Tab" view.frame_selection
+    "Shift+Ctrl+q" orbit
+}
++++ read
+"hierarchy" "undo" Named(Delete) held(c)/held(c)
+"hierarchy" "edit.redo" Character("z") held(as)/held(as)
+"hierarchy" "view.frame_selection" Character(".") held()/held()
+"hierarchy" "view.frame_selection" Character(";") held(a)/held(a)
+"hierarchy" "view.frame_selection" Character("q") held(s)/held(s)
+"hierarchy" "orbit" Named(ArrowUp) held()/held()
+"global" "file.save" Character("1") held(c)/held(c)
+"global" "file.save" Character("+") held(aw)/held(aw)
+"global" "edit.redo" Character("q") held(ca)/held(ca)
+"global" "view.frame_selection" Named(Tab) held(cas)/held(cas)
+"global" "orbit" Character("q") held(cs)/held(cs)
+=== case 147
+--- table 0
+scope "panel-1" {
+    Shift+Alt+Z "undo"
+    Alt+Super+1 file.save
+    "Ctrl++" view.frame_selection
+    "Shift+Alt+Ctrl+z" "file.save"
+    é view.frame_selection
+    "-" edit.redo
+}
++++ read
+"panel-1" "undo" Character("z") held(as)/held(as)
+"panel-1" "file.save" Character("1") held(aw)/held(aw)
+"panel-1" "view.frame_selection" Character("+") held(c)/held(c)
+"panel-1" "file.save" Character("z") held(cas)/held(cas)
+"panel-1" "view.frame_selection" Character("é") held()/held()
+"panel-1" "edit.redo" Character("-") held()/held()
+=== case 148
+--- table 0
+scope "global" {
+    Shift+MiddleButton view.frame_selection
+}
+scope "viewport" {
+    Super+Enter "edit.redo"
+    Alt+A file.save
+    Alt+Ctrl+1 file.save
+    Super+Ctrl+ж orbit
+}
+--- table 1
+scope viewport {
+    Shift+é file.save
+    Ctrl+Alt+Home "undo"
+    LeftButton undo
+    "Alt+Ctrl+=" file.save
+    "ж" "undo"
+}
+scope hierarchy {
+    "Primary+Hyper+F2" "undo"
+    ж edit.redo
+    Primary+F2 undo
+    Primary+Tab orbit
+    z undo
+    "Tab" file.save
+}
++++ read
+refused
+=== case 149
+--- table 0
+scope viewport {
+    Alt+Delete undo
+    Alt+Enter undo
+    ж orbit
+    Alt++ undo
+    Shift+Alt+Primary+z file.save
+}
+scope "hierarchy" {
+    "Ctrl+Alt+=" undo
+    "Alt+-" "file.save"
+    "Alt+Ctrl+;" view.frame_selection
+    "Super+=" file.save
+}
+scope panel-1 {
+    "Alt+Super+-" view.frame_selection
+    Shift+q edit.redo
+    "Ctrl+Alt+Enter" file.save
+    "Super+Shift+Z" undo
+    Ctrl+Home edit.redo
+}
++++ read
+"viewport" "undo" Named(Delete) held(a)/held(a)
+"viewport" "undo" Named(Enter) held(a)/held(a)
+"viewport" "orbit" Character("ж") held()/held()
+"viewport" "undo" Character("+") held(a)/held(a)
+"viewport" "file.save" Character("z") held(cas)/held(cas)
+"hierarchy" "undo" Character("=") held(ca)/held(ca)
+"hierarchy" "file.save" Character("-") held(a)/held(a)
+"hierarchy" "view.frame_selection" Character(";") held(ca)/held(ca)
+"hierarchy" "file.save" Character("=") held(w)/held(w)
+"panel-1" "view.frame_selection" Character("-") held(aw)/held(aw)
+"panel-1" "edit.redo" Character("q") held(s)/held(s)
+"panel-1" "file.save" Named(Enter) held(ca)/held(ca)
+"panel-1" "undo" Character("z") held(sw)/held(sw)
+"panel-1" "edit.redo" Named(Home) held(c)/held(c)

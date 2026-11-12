@@ -16,12 +16,14 @@ use slime_color::LinearColor;
 use slime_reflect::{Problem, Reflect, Registry, Value};
 use slime_serialize::{Document, Mode, ReadError, References};
 
+use super::verdicts_tests::{self, COLORS, DURATIONS, LENGTHS, NUMBERS, TEXTS, tokens_of};
 use super::{
     Erased, KindId, ROLES, Resolved, Rule, Selector, StyleSheet, Styling, TokenValues, call,
     declarations, lighten, mix, reads, srgb,
 };
 use crate::document::{DocumentError, Fault};
 use crate::style::Style;
+use crate::verdicts_tests::{self as fixture, Case};
 
 /// The document of TOML that `text` holds, parsed strictly with the types of `registry`.
 fn parse<'a>(registry: &'a Registry, text: &'a str) -> Result<Document<'a>, ReadError> {
@@ -458,13 +460,6 @@ impl Numbers {
     }
 }
 
-/// The names that random themes give, by kind: a name keeps its kind in every theme of a stack.
-const COLORS: [&str; 6] = ["c0", "c1", "c2", "c3", "c4", "c5"];
-const LENGTHS: [&str; 3] = ["l0", "l1", "l2"];
-const NUMBERS: [&str; 3] = ["n0", "n1", "n2"];
-const DURATIONS: [&str; 2] = ["d0", "d1"];
-const TEXTS: [&str; 2] = ["t0", "t1"];
-
 /// A share, as a colour function writes one: a number, a percentage, or a number's name.
 fn random_share(numbers: &mut Numbers) -> String {
     match numbers.below(3) {
@@ -622,26 +617,6 @@ fn naming_sheet(names: &[&str]) -> (String, String) {
     (toml, kdl)
 }
 
-/// A token of each name in `names`, of its kind, falling back on nothing.
-fn tokens_of(names: &[&'static str]) -> Vec<Erased> {
-    use super::{Color, Duration, Fallback, Length, Number, Token};
-    names
-        .iter()
-        .filter_map(|&name| match &name[..1] {
-            "c" => Some(
-                Token::<Color>::new(name, Fallback::Value(LinearColor::rgba(0.0, 0.0, 0.0, 0.0)))
-                    .erased(),
-            ),
-            "l" => Some(Token::<Length>::new(name, Fallback::Value(0.0)).erased()),
-            "n" => Some(Token::<Number>::new(name, Fallback::Value(0.0)).erased()),
-            "d" => Some(
-                Token::<Duration>::new(name, Fallback::Value(std::time::Duration::ZERO)).erased(),
-            ),
-            _ => None,
-        })
-        .collect()
-}
-
 #[test]
 fn random_stacks_of_themes_read_as_the_reflected_reader_read_them() {
     use crate::style::Same;
@@ -733,14 +708,9 @@ fn random_stacks_of_themes_read_as_the_reflected_reader_read_them() {
     );
 }
 
-/// The theme that random sheets name, in TOML and in KDL: colors, lengths, a number, a whole
-/// number and a duration, each of its group.
-const SHEETS_THEME: (&str, &str) = (
-    "sc0 = \"#204060\"\nsc1 = \"mix($sc0, #FFFFFF, 30%)\"\nsl0 = 6\nsl1 = -2.5\nsn0 = 0.75\n\
-     sn1 = 3\nsd0 = 0.15\n",
-    "color {\n    sc0 \"#204060\"\n    sc1 \"mix($sc0, #FFFFFF, 30%)\"\n}\nlength {\n    sl0 6\n\
-     \x20   sl1 -2.5\n}\nnumber {\n    sn0 0.75\n    sn1 3\n}\nduration {\n    sd0 (s)0.15\n}\n",
-);
+/// The theme that random sheets name, in TOML: `verdicts_tests::SHEETS_THEME` in KDL.
+const SHEETS_THEME_TOML: &str = "sc0 = \"#204060\"\nsc1 = \"mix($sc0, #FFFFFF, 30%)\"\nsl0 = 6\n\
+    sl1 = -2.5\nsn0 = 0.75\nsn1 = 3\nsd0 = 0.15\n";
 
 /// A value written in both notations: as TOML writes it inline, and as KDL writes it as a
 /// property's value or an argument.
@@ -1107,7 +1077,10 @@ fn random_style_sheets_read_as_the_reflected_reader_read_them() {
         });
     let mut numbers = Numbers(seed);
     let registry = super::registry();
-    let theme = [super::Theme::from_text("sheets.theme.kdl", SHEETS_THEME.1)];
+    let theme = [super::Theme::from_text(
+        "sheets.theme.kdl",
+        verdicts_tests::SHEETS_THEME,
+    )];
     let (mut agreed, mut refused, mut declarations) = (0, 0, 0);
     for case in 0..2_000 {
         let (toml, kdl) = random_sheet(&registry, &mut numbers);
@@ -1115,7 +1088,7 @@ fn random_style_sheets_read_as_the_reflected_reader_read_them() {
         let old = read(
             &registry,
             &[("random.style", toml.as_str())],
-            &[("sheets.theme", SHEETS_THEME.0)],
+            &[("sheets.theme", SHEETS_THEME_TOML)],
             &[],
             &mut old_tokens,
         );
@@ -1160,4 +1133,96 @@ fn random_style_sheets_read_as_the_reflected_reader_read_them() {
         agreed > 500 && refused > 100 && declarations > 5_000,
         "{agreed} read, {refused} refused, {declarations} declarations"
     );
+}
+
+/// The reflected reader's verdicts on 100 random stacks of themes from a fixed seed, written in
+/// KDL, each with the sheet that names their values and the names of the tokens declared.
+fn recorded_themes() -> Vec<Case> {
+    let mut numbers = Numbers(0x7e3e_5eed_0000_0003);
+    let registry = super::registry();
+    (0..100)
+        .map(|_| {
+            let (mut toml, mut inputs) = (Vec::new(), Vec::new());
+            let mut given: Vec<&'static str> = Vec::new();
+            for theme in 0..1 + numbers.below(3) {
+                let (toml_text, kdl_text, names) = random_theme(&mut numbers);
+                toml.push(toml_text);
+                inputs.push((format!("theme {theme}"), kdl_text));
+                given.extend(names);
+            }
+            given.sort_unstable();
+            given.dedup();
+            // Some names that no theme gives, which the tokens lack and no rule names.
+            let names = [given.as_slice(), &["c5", "l2", "d1"]].concat();
+            let declared = tokens_of(&names);
+            let (toml_sheet, kdl_sheet) = naming_sheet(&given);
+            inputs.push(("sheet".to_owned(), kdl_sheet));
+            inputs.push((
+                verdicts_tests::DECLARED.to_owned(),
+                format!("{}\n", names.join(" ")),
+            ));
+            let toml_themes: Vec<(&str, &str)> = toml
+                .iter()
+                .map(|text| ("random.theme", text.as_str()))
+                .collect();
+            let mut tokens = TokenValues::default();
+            let read = read(
+                &registry,
+                &[("random.style", toml_sheet.as_str())],
+                &toml_themes,
+                &declared,
+                &mut tokens,
+            );
+            Case {
+                inputs,
+                verdict: verdicts_tests::verdict(read, &declared, &tokens),
+            }
+        })
+        .collect()
+}
+
+/// The reflected reader's verdicts on 120 random style sheets from a fixed seed, written in KDL.
+fn recorded_sheets() -> Vec<Case> {
+    let mut numbers = Numbers(0x54ee_75ee_d000_0004);
+    let registry = super::registry();
+    (0..120)
+        .map(|_| {
+            let (toml, kdl) = random_sheet(&registry, &mut numbers);
+            let mut tokens = TokenValues::default();
+            let read = read(
+                &registry,
+                &[("random.style", toml.as_str())],
+                &[("sheets.theme", SHEETS_THEME_TOML)],
+                &[],
+                &mut tokens,
+            );
+            Case {
+                inputs: vec![("sheet".to_owned(), kdl)],
+                verdict: verdicts_tests::verdict(read, &[], &tokens),
+            }
+        })
+        .collect()
+}
+
+/// The fixtures of verdicts hold the reflected reader's: `SLIME_UPDATE_REFERENCE_IMAGES` writes
+/// them.
+#[test]
+fn the_fixtures_hold_the_reflected_reader_s_verdicts() {
+    for (name, cases) in [
+        (verdicts_tests::THEMES, recorded_themes()),
+        (verdicts_tests::SHEETS, recorded_sheets()),
+    ] {
+        let path = fixture::path(name);
+        if std::env::var_os("SLIME_UPDATE_REFERENCE_IMAGES").is_some() {
+            std::fs::create_dir_all(path.parent().expect("a folder")).expect("its folder is made");
+            std::fs::write(&path, fixture::write(&cases)).expect("the fixture is written");
+            continue;
+        }
+        let recorded = fixture::read(&path);
+        assert_eq!(recorded.len(), cases.len(), "{name}");
+        for (number, (recorded, case)) in recorded.iter().zip(&cases).enumerate() {
+            assert_eq!(recorded.inputs, case.inputs, "{name}, case {number}");
+            assert_eq!(recorded.verdict, case.verdict, "{name}, case {number}");
+        }
+    }
 }

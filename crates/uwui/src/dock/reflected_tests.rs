@@ -9,7 +9,8 @@
 
 use slime_serialize::Mode;
 
-use super::{Floating, Layout, Node, Reading, Share, read, write};
+use super::{Floating, Layout, Node, Reading, Share, read, verdicts_tests, write};
+use crate::verdicts_tests::{self as fixture, Case};
 
 /// A generator of numbers that repeats from its seed: xorshift.
 struct Numbers(u64);
@@ -142,5 +143,47 @@ fn random_layouts_read_as_the_reflected_reader_read_them() {
         assert!(got.warnings.is_none(), "{}", context());
         assert_eq!(bits(&got.layout), bits(&want), "{}", context());
         assert_eq!(bits(&got.layout), bits(&layout), "{}", context());
+    }
+}
+
+/// The reflected reader's verdicts on the first 60 random layouts from a fixed seed whose KDL is
+/// under 4 kB, to keep the fixture small: each written in KDL, and the layout that its TOML read
+/// to. Deeper layouts are read and written back by the random test that stays.
+fn recorded() -> Vec<Case> {
+    let mut numbers = Numbers(0x0d0c_4a11_5eed_0001);
+    std::iter::repeat_with(|| random_layout(&mut numbers))
+        .filter(|layout| write(layout, None).is_ok_and(|text| text.len() < 4_096))
+        .take(60)
+        .map(|layout| {
+            let toml = slime_serialize::write_as(&layout).expect("written as TOML");
+            let (want, _) =
+                slime_serialize::read_as::<Layout>(&toml, Mode::Lenient).expect("TOML read");
+            Case {
+                inputs: vec![(
+                    "layout".to_owned(),
+                    write(&layout, None).expect("written as KDL"),
+                )],
+                verdict: verdicts_tests::verdict(&want),
+            }
+        })
+        .collect()
+}
+
+/// The fixture of verdicts holds the reflected reader's: `SLIME_UPDATE_REFERENCE_IMAGES` writes
+/// it.
+#[test]
+fn the_fixture_holds_the_reflected_reader_s_verdicts() {
+    let path = fixture::path(verdicts_tests::FIXTURE);
+    let cases = recorded();
+    if std::env::var_os("SLIME_UPDATE_REFERENCE_IMAGES").is_some() {
+        std::fs::create_dir_all(path.parent().expect("a folder")).expect("its folder is made");
+        std::fs::write(&path, fixture::write(&cases)).expect("the fixture is written");
+        return;
+    }
+    let recorded = fixture::read(&path);
+    assert_eq!(recorded.len(), cases.len());
+    for (number, (recorded, case)) in recorded.iter().zip(&cases).enumerate() {
+        assert_eq!(recorded.inputs, case.inputs, "case {number}");
+        assert_eq!(recorded.verdict, case.verdict, "case {number}");
     }
 }

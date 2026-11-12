@@ -11,7 +11,8 @@
 use slime_reflect::{Problem, Registry, Value};
 use slime_serialize::{Document, Mode};
 
-use super::{Binding, Chord, ChordKey, Platform, Shortcuts, bindings};
+use super::{Binding, Chord, ChordKey, Platform, Shortcuts, bindings, verdicts_tests};
+use crate::verdicts_tests::{self as fixture, Case};
 
 /// The shortcuts of `tables`, each `(name, TOML)`, as the reflected reader read them: in their
 /// order, a chord as it parsed one, `Ctrl` for the Control key. Its errors as their text.
@@ -310,4 +311,47 @@ fn random_tables_read_as_the_reflected_reader_read_them() {
         agreed > 1_000 && refused > 50,
         "{agreed} read, {refused} refused, from the seed {seed}"
     );
+}
+
+/// The reflected reader's verdicts on 150 random tables from a fixed seed, written in KDL.
+fn recorded() -> Vec<Case> {
+    let mut numbers = Numbers(0x5c07_7c07_5eed_0002);
+    (0..150)
+        .map(|_| {
+            let mut toml = Vec::new();
+            let mut kdl = Vec::new();
+            for table in 0..1 + numbers.below(2) {
+                let (toml_text, kdl_text) = random_table(&mut numbers);
+                toml.push((format!("table {table}"), toml_text));
+                kdl.push((format!("table {table}"), kdl_text));
+            }
+            let toml_tables: Vec<(&str, &str)> = toml
+                .iter()
+                .map(|(name, text)| (name.as_str(), text.as_str()))
+                .collect();
+            Case {
+                inputs: kdl,
+                verdict: verdicts_tests::verdict(reflected(&toml_tables)),
+            }
+        })
+        .collect()
+}
+
+/// The fixture of verdicts holds the reflected reader's: `SLIME_UPDATE_REFERENCE_IMAGES` writes
+/// it.
+#[test]
+fn the_fixture_holds_the_reflected_reader_s_verdicts() {
+    let path = fixture::path(verdicts_tests::FIXTURE);
+    let cases = recorded();
+    if std::env::var_os("SLIME_UPDATE_REFERENCE_IMAGES").is_some() {
+        std::fs::create_dir_all(path.parent().expect("a folder")).expect("its folder is made");
+        std::fs::write(&path, fixture::write(&cases)).expect("the fixture is written");
+        return;
+    }
+    let recorded = fixture::read(&path);
+    assert_eq!(recorded.len(), cases.len());
+    for (number, (recorded, case)) in recorded.iter().zip(&cases).enumerate() {
+        assert_eq!(recorded.inputs, case.inputs, "case {number}");
+        assert_eq!(recorded.verdict, case.verdict, "case {number}");
+    }
 }

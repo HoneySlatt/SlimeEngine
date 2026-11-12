@@ -271,6 +271,8 @@ mod reflected_tests;
 pub(crate) mod sheet;
 mod token;
 pub(crate) mod values;
+#[cfg(test)]
+mod verdicts_tests;
 
 pub use token::{
     AnyToken, Color, Duration, Fallback, Length, Number, Token, TokenError, TokenKind, TokenOr,

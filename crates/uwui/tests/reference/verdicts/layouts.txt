@@ -1,0 +1,991 @@
+=== case 0
+--- layout
+version 1
+Split side_by_side=#false {
+    children share=#-inf {
+        Split side_by_side=#false {
+            children share=-0 {
+                Split side_by_side=#false {
+                    children share=0.25 { Tabs chosen=4031175828 { panels パネル "true" } }
+                }
+            }
+        }
+    }
+    children share=1042002350000000 { Tabs chosen=0 { panels "-1" } }
+    children share=0.25 { Tabs chosen=437301400 { panels "true" "" "back\\slash" "say \"hi\"" } }
+}
+floating panel="a=b" { origin 0.0000000000000000000000003868191 340282350000000000000000000000000000000; size -0.00000000000000000000000007038531 -1238523200000000000000000 }
+closed "a#b"
++++ read
+Layout { root: Split { side_by_side: false, children: [Share { share: -inf, node: Split { side_by_side: false, children: [Share { share: -0.0, node: Split { side_by_side: false, children: [Share { share: 0.25, node: Tabs { panels: ["パネル", "true"], chosen: 4031175828 } }] } }] } }, Share { share: 1042002350000000.0, node: Tabs { panels: ["-1"], chosen: 0 } }, Share { share: 0.25, node: Tabs { panels: ["true", "", "back\\slash", "say \"hi\""], chosen: 437301400 } }] }, floating: [Floating { panel: "a=b", origin: [3.868191e-25, 3.4028235e38], size: [-7.038531e-26, -1.2385232e24] }], closed: ["a#b"] }
+=== case 1
+--- layout
+version 1
+Tabs chosen=117913947 { panels }
+floating panel="" { origin 0.00000000000000000000000000000000000011341257 #inf; size 817352400000000000000000000000000 -0.0000000011674897 }
+closed viewport "back\\slash"
++++ read
+Layout { root: Tabs { panels: [], chosen: 117913947 }, floating: [Floating { panel: "", origin: [1.1341257e-37, inf], size: [8.173524e32, -1.1674897e-9] }], closed: ["viewport", "back\\slash"] }
+=== case 2
+--- layout
+version 1
+Tabs chosen=3 { panels viewport "null" "a#b" "true" }
+floating panel="" { origin -0.0000000000000000000032072971 0.00000000000000000000000007038531; size 340282350000000000000000000000000000000 78271490000000 }
+closed "-1"
++++ read
+Layout { root: Tabs { panels: ["viewport", "null", "a#b", "true"], chosen: 3 }, floating: [Floating { panel: "", origin: [-3.2072971e-21, 7.038531e-26], size: [3.4028235e38, 78271490000000.0] }], closed: ["-1"] }
+=== case 3
+--- layout
+version 1
+Split side_by_side=#true {
+    children share=0.00000000000000000000000000048147107 { Tabs chosen=4 { panels hierarchy } }
+    children share=125948730000000000000000000000000 { Tabs chosen=803010606 { panels "true" パネル "a panel" hierarchy } }
+}
+floating panel="a=b" { origin -0.0000000000067866338 -0.0018118363; size 2413459300000000000000000000000000 -487582500000000 }
+floating panel=viewport { origin #inf 0.00000000000000000000000014619481; size 0.0000000000000000000000000003397591 235.5235 }
++++ read
+Layout { root: Split { side_by_side: true, children: [Share { share: 4.8147107e-28, node: Tabs { panels: ["hierarchy"], chosen: 4 } }, Share { share: 1.2594873e32, node: Tabs { panels: ["true", "パネル", "a panel", "hierarchy"], chosen: 803010606 } }] }, floating: [Floating { panel: "a=b", origin: [-6.7866338e-12, -0.0018118363], size: [2.4134593e33, -487582500000000.0] }, Floating { panel: "viewport", origin: [inf, 1.4619481e-25], size: [3.397591e-28, 235.5235] }], closed: [] }
+=== case 4
+--- layout
+version 1
+Split side_by_side=#false {
+    children share=-0.00000000000000021183242 {
+        Split side_by_side=#false {
+        }
+    }
+}
+floating panel="a=b" { origin -276831910000000000000000000000000000 #nan; size 0.0000000000000000000000000026237718 #-inf }
+floating panel="two\nlines" { origin 0.55 1772660; size 0.00000018888683 0.25 }
+closed "\u{7f}"
++++ read
+Layout { root: Split { side_by_side: false, children: [Share { share: -2.1183242e-16, node: Split { side_by_side: false, children: [] } }] }, floating: [Floating { panel: "a=b", origin: [-2.7683191e35, NaN], size: [2.6237718e-27, -inf] }, Floating { panel: "two\nlines", origin: [0.55, 1772660.0], size: [1.8888683e-7, 0.25] }], closed: ["\u{7f}"] }
+=== case 5
+--- layout
+version 1
+Split side_by_side=#false {
+    children share=0.55 {
+        Split side_by_side=#true {
+        }
+    }
+    children share=0.25 { Tabs chosen=15901128 { panels viewport "a=b" } }
+    children share=26952880000000000000000000000000000 {
+        Split side_by_side=#false {
+        }
+    }
+}
+closed "say \"hi\""
++++ read
+Layout { root: Split { side_by_side: false, children: [Share { share: 0.55, node: Split { side_by_side: true, children: [] } }, Share { share: 0.25, node: Tabs { panels: ["viewport", "a=b"], chosen: 15901128 } }, Share { share: 2.695288e34, node: Split { side_by_side: false, children: [] } }] }, floating: [], closed: ["say \"hi\""] }
+=== case 6
+--- layout
+version 1
+Tabs chosen=2591953157 { panels }
+floating panel=パネル { origin 0.00000000000000000000000007038531 0.000000000000000000000000000000000000011754944; size 0.0000000000000000000000006739353 439136920000000000000 }
+floating panel="a#b" { origin 0.55 490461200000000000000000000; size #-inf 0.0000470323 }
+floating panel=viewport { origin 8092316600000000000000 9.070871; size -0.00000000000000000000000007038531 0.00000000000000000000000007038531 }
+closed "null" viewport "\u{7f}"
++++ read
+Layout { root: Tabs { panels: [], chosen: 2591953157 }, floating: [Floating { panel: "パネル", origin: [7.038531e-26, 1.1754944e-38], size: [6.739353e-25, 4.3913692e20] }, Floating { panel: "a#b", origin: [0.55, 4.904612e26], size: [-inf, 4.70323e-5] }, Floating { panel: "viewport", origin: [8.0923166e21, 9.070871], size: [-7.038531e-26, 7.038531e-26] }], closed: ["null", "viewport", "\u{7f}"] }
+=== case 7
+--- layout
+version 1
+Split side_by_side=#true {
+    children share=-0.00000000000000000000000000000070202747 { Tabs chosen=3179069738 { panels "say \"hi\"" "" "true" } }
+    children share=0.25 { Tabs chosen=535816651 { panels "a panel" パネル "null" } }
+}
+closed ""
++++ read
+Layout { root: Split { side_by_side: true, children: [Share { share: -7.0202747e-31, node: Tabs { panels: ["say \"hi\"", "", "true"], chosen: 3179069738 } }, Share { share: 0.25, node: Tabs { panels: ["a panel", "パネル", "null"], chosen: 535816651 } }] }, floating: [], closed: [""] }
+=== case 8
+--- layout
+version 1
+Split side_by_side=#false {
+    children share=#-inf {
+        Split side_by_side=#false {
+            children share=-0.00000000000000000000000007038531 { Tabs chosen=1 { panels } }
+            children share=0.55 { Tabs chosen=4103060556 { panels "a#b" "a#b" hierarchy viewport } }
+            children share=0.000000000000000000000000000000000000011754944 { Tabs chosen=3333469719 { panels パネル "a panel" "-1" } }
+        }
+    }
+    children share=-0.0000000000000000000000000000000037124103 { Tabs chosen=3 { panels "-1" "say \"hi\"" viewport "two\nlines" } }
+}
+floating panel="true" { origin -0.00000000000000000000000000000000000003512507 0.000000000000000000000000000000000000011754944; size 0.0000000000000000000000055001425 -6270770500000000000000 }
+closed hierarchy hierarchy
++++ read
+Layout { root: Split { side_by_side: false, children: [Share { share: -inf, node: Split { side_by_side: false, children: [Share { share: -7.038531e-26, node: Tabs { panels: [], chosen: 1 } }, Share { share: 0.55, node: Tabs { panels: ["a#b", "a#b", "hierarchy", "viewport"], chosen: 4103060556 } }, Share { share: 1.1754944e-38, node: Tabs { panels: ["パネル", "a panel", "-1"], chosen: 3333469719 } }] } }, Share { share: -3.7124103e-33, node: Tabs { panels: ["-1", "say \"hi\"", "viewport", "two\nlines"], chosen: 3 } }] }, floating: [Floating { panel: "true", origin: [-3.512507e-38, 1.1754944e-38], size: [5.5001425e-24, -6.2707705e21] }], closed: ["hierarchy", "hierarchy"] }
+=== case 9
+--- layout
+version 1
+Tabs chosen=982515893 { panels "a=b" "a#b" viewport }
+closed "" "say \"hi\"" パネル
++++ read
+Layout { root: Tabs { panels: ["a=b", "a#b", "viewport"], chosen: 982515893 }, floating: [], closed: ["", "say \"hi\"", "パネル"] }
+=== case 10
+--- layout
+version 1
+Split side_by_side=#false {
+}
+floating panel="back\\slash" { origin #-inf -0.00000000000000000000000007038531; size 129552400 -0.00000000000000000000000007038531 }
+closed "true"
++++ read
+Layout { root: Split { side_by_side: false, children: [] }, floating: [Floating { panel: "back\\slash", origin: [-inf, -7.038531e-26], size: [129552400.0, -7.038531e-26] }], closed: ["true"] }
+=== case 11
+--- layout
+version 1
+Split side_by_side=#true {
+    children share=#inf {
+        Split side_by_side=#false {
+            children share=-8078686700 {
+                Split side_by_side=#true {
+                    children share=31208262000000000000000000000000000000 {
+                        Split side_by_side=#true {
+                            children share=#nan { Tabs chosen=3 { panels "null" "a#b" "two\nlines" "a#b" } }
+                        }
+                    }
+                    children share=0.55 {
+                        Split side_by_side=#true {
+                            children share=-0 {
+                                Split side_by_side=#false {
+                                    children share=-0 {
+                                        Split side_by_side=#false {
+                                            children share=340282350000000000000000000000000000000 { Tabs chosen=1588921258 { panels } }
+                                        }
+                                    }
+                                    children share=0.000011110659 { Tabs chosen=4 { panels hierarchy } }
+                                    children share=-0 {
+                                        Split side_by_side=#true {
+                                        }
+                                    }
+                                    children share=0.55 { Tabs chosen=1 { panels "-1" } }
+                                }
+                            }
+                            children share=340282350000000000000000000000000000000 { Tabs chosen=0 { panels "true" } }
+                        }
+                    }
+                    children share=0.0000000000000000000000000000016471461 { Tabs chosen=4 { panels "a panel" "-1" } }
+                    children share=-0.00000000000000000000000007038531 {
+                        Split side_by_side=#false {
+                            children share=-0 {
+                                Split side_by_side=#true {
+                                    children share=-0.00000000000000000000000007038531 { Tabs chosen=538303310 { panels } }
+                                    children share=0.000000000000000000000000000000000000011754944 {
+                                        Split side_by_side=#true {
+                                            children share=340282350000000000000000000000000000000 { Tabs chosen=3 { panels "two\nlines" "true" "\u{7f}" "true" } }
+                                        }
+                                    }
+                                    children share=0.25 {
+                                        Split side_by_side=#false {
+                                        }
+                                    }
+                                    children share=0.25 {
+                                        Split side_by_side=#true {
+                                            children share=-10383968000000000000 { Tabs chosen=2 { panels } }
+                                        }
+                                    }
+                                }
+                            }
+                            children share=-0.00000000000000000000000007038531 {
+                                Split side_by_side=#false {
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+floating panel="-1" { origin #nan -234481570; size 340282350000000000000000000000000000000 -0.00000000000000000000000007038531 }
+floating panel="a panel" { origin -0.00000000000000000000000000000000027177652 -0.00000000000000000074944895; size 0.000000000000000000000000000000000000011754944 #nan }
+floating panel="-1" { origin -63111.227 0.55; size 0.00000013944907 0.25 }
++++ read
+Layout { root: Split { side_by_side: true, children: [Share { share: inf, node: Split { side_by_side: false, children: [Share { share: -8078686700.0, node: Split { side_by_side: true, children: [Share { share: 3.1208262e37, node: Split { side_by_side: true, children: [Share { share: NaN, node: Tabs { panels: ["null", "a#b", "two\nlines", "a#b"], chosen: 3 } }] } }, Share { share: 0.55, node: Split { side_by_side: true, children: [Share { share: -0.0, node: Split { side_by_side: false, children: [Share { share: -0.0, node: Split { side_by_side: false, children: [Share { share: 3.4028235e38, node: Tabs { panels: [], chosen: 1588921258 } }] } }, Share { share: 1.1110659e-5, node: Tabs { panels: ["hierarchy"], chosen: 4 } }, Share { share: -0.0, node: Split { side_by_side: true, children: [] } }, Share { share: 0.55, node: Tabs { panels: ["-1"], chosen: 1 } }] } }, Share { share: 3.4028235e38, node: Tabs { panels: ["true"], chosen: 0 } }] } }, Share { share: 1.6471461e-30, node: Tabs { panels: ["a panel", "-1"], chosen: 4 } }, Share { share: -7.038531e-26, node: Split { side_by_side: false, children: [Share { share: -0.0, node: Split { side_by_side: true, children: [Share { share: -7.038531e-26, node: Tabs { panels: [], chosen: 538303310 } }, Share { share: 1.1754944e-38, node: Split { side_by_side: true, children: [Share { share: 3.4028235e38, node: Tabs { panels: ["two\nlines", "true", "\u{7f}", "true"], chosen: 3 } }] } }, Share { share: 0.25, node: Split { side_by_side: false, children: [] } }, Share { share: 0.25, node: Split { side_by_side: true, children: [Share { share: -1.0383968e19, node: Tabs { panels: [], chosen: 2 } }] } }] } }, Share { share: -7.038531e-26, node: Split { side_by_side: false, children: [] } }] } }] } }] } }] }, floating: [Floating { panel: "-1", origin: [NaN, -234481570.0], size: [3.4028235e38, -7.038531e-26] }, Floating { panel: "a panel", origin: [-2.7177652e-34, -7.4944895e-19], size: [1.1754944e-38, NaN] }, Floating { panel: "-1", origin: [-63111.227, 0.55], size: [1.3944907e-7, 0.25] }], closed: [] }
+=== case 12
+--- layout
+version 1
+Split side_by_side=#true {
+    children share=-0.00000000000000000000000007038531 {
+        Split side_by_side=#true {
+        }
+    }
+    children share=#-inf { Tabs chosen=634276087 { panels "a panel" "true" "-1" } }
+    children share=0.55 { Tabs chosen=2985498102 { panels } }
+    children share=6891121000000000 {
+        Split side_by_side=#true {
+            children share=#inf { Tabs chosen=3195656020 { panels viewport "a#b" } }
+            children share=340282350000000000000000000000000000000 {
+                Split side_by_side=#false {
+                    children share=65658.74 { Tabs chosen=1604545773 { panels } }
+                    children share=-0 {
+                        Split side_by_side=#false {
+                            children share=#-inf {
+                                Split side_by_side=#false {
+                                    children share=#-inf { Tabs chosen=4 { panels "back\\slash" viewport "a#b" } }
+                                }
+                            }
+                            children share=#inf { Tabs chosen=1 { panels "" "back\\slash" "null" viewport } }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+closed パネル "-1"
++++ read
+Layout { root: Split { side_by_side: true, children: [Share { share: -7.038531e-26, node: Split { side_by_side: true, children: [] } }, Share { share: -inf, node: Tabs { panels: ["a panel", "true", "-1"], chosen: 634276087 } }, Share { share: 0.55, node: Tabs { panels: [], chosen: 2985498102 } }, Share { share: 6891121000000000.0, node: Split { side_by_side: true, children: [Share { share: inf, node: Tabs { panels: ["viewport", "a#b"], chosen: 3195656020 } }, Share { share: 3.4028235e38, node: Split { side_by_side: false, children: [Share { share: 65658.74, node: Tabs { panels: [], chosen: 1604545773 } }, Share { share: -0.0, node: Split { side_by_side: false, children: [Share { share: -inf, node: Split { side_by_side: false, children: [Share { share: -inf, node: Tabs { panels: ["back\\slash", "viewport", "a#b"], chosen: 4 } }] } }, Share { share: inf, node: Tabs { panels: ["", "back\\slash", "null", "viewport"], chosen: 1 } }] } }] } }] } }] }, floating: [], closed: ["パネル", "-1"] }
+=== case 13
+--- layout
+version 1
+Tabs chosen=1 { panels }
+closed "back\\slash"
++++ read
+Layout { root: Tabs { panels: [], chosen: 1 }, floating: [], closed: ["back\\slash"] }
+=== case 14
+--- layout
+version 1
+Split side_by_side=#false {
+    children share=0.000000000000000000000000000000000000011754944 { Tabs chosen=4 { panels "two\nlines" } }
+    children share=0.000000000000000000000000000000000000011754944 { Tabs chosen=1 { panels } }
+}
+floating panel=hierarchy { origin 0.06324145 -39045644000000000000000000000000; size -0.000000000004723714 -64829440 }
++++ read
+Layout { root: Split { side_by_side: false, children: [Share { share: 1.1754944e-38, node: Tabs { panels: ["two\nlines"], chosen: 4 } }, Share { share: 1.1754944e-38, node: Tabs { panels: [], chosen: 1 } }] }, floating: [Floating { panel: "hierarchy", origin: [0.06324145, -3.9045644e31], size: [-4.723714e-12, -64829440.0] }], closed: [] }
+=== case 15
+--- layout
+version 1
+Tabs chosen=0 { panels "two\nlines" }
+closed "back\\slash" "null" "a panel"
++++ read
+Layout { root: Tabs { panels: ["two\nlines"], chosen: 0 }, floating: [], closed: ["back\\slash", "null", "a panel"] }
+=== case 16
+--- layout
+version 1
+Tabs chosen=2 { panels "back\\slash" "two\nlines" "a=b" }
+closed "\u{7f}" "true"
++++ read
+Layout { root: Tabs { panels: ["back\\slash", "two\nlines", "a=b"], chosen: 2 }, floating: [], closed: ["\u{7f}", "true"] }
+=== case 17
+--- layout
+version 1
+Split side_by_side=#false {
+    children share=-0.00000000000000000000000007038531 { Tabs chosen=0 { panels "say \"hi\"" "a panel" "" } }
+    children share=100571340000000000 {
+        Split side_by_side=#false {
+            children share=-48301534000000000000000 {
+                Split side_by_side=#true {
+                    children share=#inf { Tabs chosen=3 { panels "true" "" "a=b" } }
+                    children share=0.00000000000000000000000007038531 {
+                        Split side_by_side=#false {
+                        }
+                    }
+                }
+            }
+            children share=-694064300000000000000000 {
+                Split side_by_side=#true {
+                    children share=-0.0000000000000000000000057021588 {
+                        Split side_by_side=#false {
+                            children share=-0.0000005029031 {
+                                Split side_by_side=#true {
+                                    children share=-998955300 { Tabs chosen=1 { panels "\u{7f}" } }
+                                }
+                            }
+                        }
+                    }
+                    children share=0.55 {
+                        Split side_by_side=#true {
+                            children share=#-inf {
+                                Split side_by_side=#false {
+                                }
+                            }
+                        }
+                    }
+                    children share=52286.363 { Tabs chosen=2894074583 { panels } }
+                }
+            }
+            children share=#-inf { Tabs chosen=4250322252 { panels } }
+        }
+    }
+    children share=#nan { Tabs chosen=4 { panels } }
+}
+floating panel=パネル { origin 0.000000000000000000000000000000000000011754944 340282350000000000000000000000000000000; size #nan #-inf }
+floating panel=hierarchy { origin 19209601000000000000000000000 -49157430000000000000000000000000000000; size 0.0000000000009188566 340282350000000000000000000000000000000 }
+closed hierarchy "a#b" "a#b"
++++ read
+Layout { root: Split { side_by_side: false, children: [Share { share: -7.038531e-26, node: Tabs { panels: ["say \"hi\"", "a panel", ""], chosen: 0 } }, Share { share: 1.0057134e17, node: Split { side_by_side: false, children: [Share { share: -4.8301534e22, node: Split { side_by_side: true, children: [Share { share: inf, node: Tabs { panels: ["true", "", "a=b"], chosen: 3 } }, Share { share: 7.038531e-26, node: Split { side_by_side: false, children: [] } }] } }, Share { share: -6.940643e23, node: Split { side_by_side: true, children: [Share { share: -5.7021588e-24, node: Split { side_by_side: false, children: [Share { share: -5.029031e-7, node: Split { side_by_side: true, children: [Share { share: -998955300.0, node: Tabs { panels: ["\u{7f}"], chosen: 1 } }] } }] } }, Share { share: 0.55, node: Split { side_by_side: true, children: [Share { share: -inf, node: Split { side_by_side: false, children: [] } }] } }, Share { share: 52286.363, node: Tabs { panels: [], chosen: 2894074583 } }] } }, Share { share: -inf, node: Tabs { panels: [], chosen: 4250322252 } }] } }, Share { share: NaN, node: Tabs { panels: [], chosen: 4 } }] }, floating: [Floating { panel: "パネル", origin: [1.1754944e-38, 3.4028235e38], size: [NaN, -inf] }, Floating { panel: "hierarchy", origin: [1.9209601e28, -4.915743e37], size: [9.188566e-13, 3.4028235e38] }], closed: ["hierarchy", "a#b", "a#b"] }
+=== case 18
+--- layout
+version 1
+Split side_by_side=#false {
+    children share=-0.000000000000000000000003191394 {
+        Split side_by_side=#true {
+            children share=#-inf {
+                Split side_by_side=#true {
+                }
+            }
+            children share=14652.858 {
+                Split side_by_side=#false {
+                    children share=0.00000000000000000000000007038531 {
+                        Split side_by_side=#false {
+                        }
+                    }
+                    children share=-969744500 { Tabs chosen=4 { panels "a=b" } }
+                }
+            }
+            children share=0.000000000000000000000000000000000000011754944 {
+                Split side_by_side=#false {
+                    children share=0.00000000000000000000000007038531 {
+                        Split side_by_side=#true {
+                        }
+                    }
+                    children share=0.000000000000000000000000026304995 { Tabs chosen=1795042427 { panels "a#b" "back\\slash" viewport } }
+                }
+            }
+            children share=-0.000000000106250106 { Tabs chosen=4 { panels パネル "a=b" } }
+        }
+    }
+}
++++ read
+Layout { root: Split { side_by_side: false, children: [Share { share: -3.191394e-24, node: Split { side_by_side: true, children: [Share { share: -inf, node: Split { side_by_side: true, children: [] } }, Share { share: 14652.858, node: Split { side_by_side: false, children: [Share { share: 7.038531e-26, node: Split { side_by_side: false, children: [] } }, Share { share: -969744500.0, node: Tabs { panels: ["a=b"], chosen: 4 } }] } }, Share { share: 1.1754944e-38, node: Split { side_by_side: false, children: [Share { share: 7.038531e-26, node: Split { side_by_side: true, children: [] } }, Share { share: 2.6304995e-26, node: Tabs { panels: ["a#b", "back\\slash", "viewport"], chosen: 1795042427 } }] } }, Share { share: -1.06250106e-10, node: Tabs { panels: ["パネル", "a=b"], chosen: 4 } }] } }] }, floating: [], closed: [] }
+=== case 19
+--- layout
+version 1
+Tabs chosen=4 { panels "a#b" "null" }
+floating panel="\u{7f}" { origin 0.000000000000000000000000000000000000011754944 -0.00000000000000000000020818588; size 220847920 0.000000000000000000000000000000000000011754944 }
++++ read
+Layout { root: Tabs { panels: ["a#b", "null"], chosen: 4 }, floating: [Floating { panel: "\u{7f}", origin: [1.1754944e-38, -2.0818588e-22], size: [220847920.0, 1.1754944e-38] }], closed: [] }
+=== case 20
+--- layout
+version 1
+Tabs chosen=2246582597 { panels viewport "" "two\nlines" }
+floating panel=viewport { origin #nan #nan; size 880481000000000000000000000000 0.25 }
+floating panel="" { origin #-inf -5797868000000; size 0.25 0.33092546 }
+floating panel="-1" { origin -0.0000000000000010778509 -0.00000000000000000000000039289267; size #-inf 0.00000000000000000000000000000000000037909513 }
+closed "a#b" "a panel" "say \"hi\""
++++ read
+Layout { root: Tabs { panels: ["viewport", "", "two\nlines"], chosen: 2246582597 }, floating: [Floating { panel: "viewport", origin: [NaN, NaN], size: [8.80481e29, 0.25] }, Floating { panel: "", origin: [-inf, -5797868000000.0], size: [0.25, 0.33092546] }, Floating { panel: "-1", origin: [-1.0778509e-15, -3.9289267e-25], size: [-inf, 3.7909513e-37] }], closed: ["a#b", "a panel", "say \"hi\""] }
+=== case 21
+--- layout
+version 1
+Split side_by_side=#false {
+    children share=-97491920000000000000000000000000000000 {
+        Split side_by_side=#false {
+        }
+    }
+    children share=#nan { Tabs chosen=2536591716 { panels "a panel" "a#b" viewport } }
+}
+floating panel="null" { origin #nan -3087972400000; size 0.25 0.0010463366 }
+floating panel=viewport { origin -0.00000000000000000000000007038531 76373076000000000000000000000000; size -0.00000017748962 80819495000 }
+closed "two\nlines" "back\\slash"
++++ read
+Layout { root: Split { side_by_side: false, children: [Share { share: -9.749192e37, node: Split { side_by_side: false, children: [] } }, Share { share: NaN, node: Tabs { panels: ["a panel", "a#b", "viewport"], chosen: 2536591716 } }] }, floating: [Floating { panel: "null", origin: [NaN, -3087972400000.0], size: [0.25, 0.0010463366] }, Floating { panel: "viewport", origin: [-7.038531e-26, 7.6373076e31], size: [-1.7748962e-7, 80819495000.0] }], closed: ["two\nlines", "back\\slash"] }
+=== case 22
+--- layout
+version 1
+Split side_by_side=#true {
+}
+floating panel="say \"hi\"" { origin -0.0000000000000000046171075 0.0002188966; size 0.0000070604747 -0.00000000000000000000000007038531 }
+floating panel="a=b" { origin 0.0000000000000000000000000000000002750204 0.55; size #-inf 1022765800 }
+closed "two\nlines"
++++ read
+Layout { root: Split { side_by_side: true, children: [] }, floating: [Floating { panel: "say \"hi\"", origin: [-4.6171075e-18, 0.0002188966], size: [7.0604747e-6, -7.038531e-26] }, Floating { panel: "a=b", origin: [2.750204e-34, 0.55], size: [-inf, 1022765800.0] }], closed: ["two\nlines"] }
+=== case 23
+--- layout
+version 1
+Split side_by_side=#true {
+    children share=-0.00000000000000000000000007038531 {
+        Split side_by_side=#false {
+            children share=340282350000000000000000000000000000000 { Tabs chosen=3 { panels "back\\slash" "two\nlines" } }
+        }
+    }
+    children share=-0.00000000000000000015741939 { Tabs chosen=696350088 { panels } }
+    children share=0.000000000014650297 { Tabs chosen=1 { panels "a#b" "true" viewport hierarchy } }
+    children share=0.00000000000000000000000007038531 { Tabs chosen=2 { panels "a=b" "a panel" "a=b" パネル } }
+}
+floating panel=hierarchy { origin #inf -31979283000000000000000000000000000000; size #nan -0.05842033 }
++++ read
+Layout { root: Split { side_by_side: true, children: [Share { share: -7.038531e-26, node: Split { side_by_side: false, children: [Share { share: 3.4028235e38, node: Tabs { panels: ["back\\slash", "two\nlines"], chosen: 3 } }] } }, Share { share: -1.5741939e-19, node: Tabs { panels: [], chosen: 696350088 } }, Share { share: 1.4650297e-11, node: Tabs { panels: ["a#b", "true", "viewport", "hierarchy"], chosen: 1 } }, Share { share: 7.038531e-26, node: Tabs { panels: ["a=b", "a panel", "a=b", "パネル"], chosen: 2 } }] }, floating: [Floating { panel: "hierarchy", origin: [inf, -3.1979283e37], size: [NaN, -0.05842033] }], closed: [] }
+=== case 24
+--- layout
+version 1
+Split side_by_side=#true {
+    children share=#inf {
+        Split side_by_side=#true {
+            children share=-4279941500000 {
+                Split side_by_side=#false {
+                    children share=0.0000140972115 {
+                        Split side_by_side=#true {
+                            children share=-0.00000000000000000000000000000000000022989525 {
+                                Split side_by_side=#false {
+                                    children share=187494010000000000 {
+                                        Split side_by_side=#true {
+                                            children share=-0.0000029501707 { Tabs chosen=1 { panels viewport } }
+                                        }
+                                    }
+                                }
+                            }
+                            children share=#inf { Tabs chosen=1157786576 { panels } }
+                        }
+                    }
+                    children share=-61464516 {
+                        Split side_by_side=#true {
+                            children share=0.25 {
+                                Split side_by_side=#true {
+                                }
+                            }
+                            children share=#-inf { Tabs chosen=1097284929 { panels "-1" "true" "-1" } }
+                        }
+                    }
+                }
+            }
+            children share=0.0000000000000000000000000000000000002054632 {
+                Split side_by_side=#true {
+                    children share=0.000000000000000000000000000000000077417157 {
+                        Split side_by_side=#false {
+                            children share=-0.000000000034529088 {
+                                Split side_by_side=#false {
+                                    children share=-0.00000000000000000000000007038531 { Tabs chosen=720470215 { panels "-1" "two\nlines" "-1" "say \"hi\"" } }
+                                    children share=0.00000000000000000000000007038531 {
+                                        Split side_by_side=#true {
+                                            children share=0.0011889014 { Tabs chosen=3799581855 { panels "back\\slash" パネル パネル パネル } }
+                                            children share=-0 { Tabs chosen=4 { panels "\u{7f}" "" "-1" } }
+                                            children share=0.000000000000000000000000000000000000011754944 { Tabs chosen=877658687 { panels "a=b" } }
+                                        }
+                                    }
+                                }
+                            }
+                            children share=0.000000000000000000000000000000032885724 { Tabs chosen=1932527874 { panels パネル } }
+                            children share=-0.00000000000000000000000007038531 { Tabs chosen=1 { panels } }
+                            children share=-0 {
+                                Split side_by_side=#false {
+                                    children share=-0 { Tabs chosen=2 { panels } }
+                                    children share=0.55 {
+                                        Split side_by_side=#false {
+                                            children share=0.25 { Tabs chosen=0 { panels "back\\slash" "" viewport "a panel" } }
+                                            children share=#inf { Tabs chosen=0 { panels "true" パネル "a#b" } }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    children share=0.55 {
+                        Split side_by_side=#true {
+                        }
+                    }
+                }
+            }
+        }
+    }
+    children share=0.46642905 { Tabs chosen=4 { panels "true" "say \"hi\"" } }
+}
++++ read
+Layout { root: Split { side_by_side: true, children: [Share { share: inf, node: Split { side_by_side: true, children: [Share { share: -4279941500000.0, node: Split { side_by_side: false, children: [Share { share: 1.40972115e-5, node: Split { side_by_side: true, children: [Share { share: -2.2989525e-37, node: Split { side_by_side: false, children: [Share { share: 1.8749401e17, node: Split { side_by_side: true, children: [Share { share: -2.9501707e-6, node: Tabs { panels: ["viewport"], chosen: 1 } }] } }] } }, Share { share: inf, node: Tabs { panels: [], chosen: 1157786576 } }] } }, Share { share: -61464516.0, node: Split { side_by_side: true, children: [Share { share: 0.25, node: Split { side_by_side: true, children: [] } }, Share { share: -inf, node: Tabs { panels: ["-1", "true", "-1"], chosen: 1097284929 } }] } }] } }, Share { share: 2.054632e-37, node: Split { side_by_side: true, children: [Share { share: 7.7417157e-35, node: Split { side_by_side: false, children: [Share { share: -3.4529088e-11, node: Split { side_by_side: false, children: [Share { share: -7.038531e-26, node: Tabs { panels: ["-1", "two\nlines", "-1", "say \"hi\""], chosen: 720470215 } }, Share { share: 7.038531e-26, node: Split { side_by_side: true, children: [Share { share: 0.0011889014, node: Tabs { panels: ["back\\slash", "パネル", "パネル", "パネル"], chosen: 3799581855 } }, Share { share: -0.0, node: Tabs { panels: ["\u{7f}", "", "-1"], chosen: 4 } }, Share { share: 1.1754944e-38, node: Tabs { panels: ["a=b"], chosen: 877658687 } }] } }] } }, Share { share: 3.2885724e-32, node: Tabs { panels: ["パネル"], chosen: 1932527874 } }, Share { share: -7.038531e-26, node: Tabs { panels: [], chosen: 1 } }, Share { share: -0.0, node: Split { side_by_side: false, children: [Share { share: -0.0, node: Tabs { panels: [], chosen: 2 } }, Share { share: 0.55, node: Split { side_by_side: false, children: [Share { share: 0.25, node: Tabs { panels: ["back\\slash", "", "viewport", "a panel"], chosen: 0 } }, Share { share: inf, node: Tabs { panels: ["true", "パネル", "a#b"], chosen: 0 } }] } }] } }] } }, Share { share: 0.55, node: Split { side_by_side: true, children: [] } }] } }] } }, Share { share: 0.46642905, node: Tabs { panels: ["true", "say \"hi\""], chosen: 4 } }] }, floating: [], closed: [] }
+=== case 25
+--- layout
+version 1
+Tabs chosen=3 { panels "back\\slash" "\u{7f}" }
+floating panel="a panel" { origin #nan 18257610000000000; size 340282350000000000000000000000000000000 -0.00000000000000000000000007038531 }
+floating panel="a#b" { origin 0.25 340282350000000000000000000000000000000; size 0.55 -0.00000000000000000000000007038531 }
+floating panel="" { origin 0.00000000000000000000000007038531 0.55; size -89.77938 -36212688000000000000000 }
+closed "true" "\u{7f}"
++++ read
+Layout { root: Tabs { panels: ["back\\slash", "\u{7f}"], chosen: 3 }, floating: [Floating { panel: "a panel", origin: [NaN, 1.825761e16], size: [3.4028235e38, -7.038531e-26] }, Floating { panel: "a#b", origin: [0.25, 3.4028235e38], size: [0.55, -7.038531e-26] }, Floating { panel: "", origin: [7.038531e-26, 0.55], size: [-89.77938, -3.6212688e22] }], closed: ["true", "\u{7f}"] }
+=== case 26
+--- layout
+version 1
+Split side_by_side=#false {
+    children share=-0.00000000000000000000000007038531 {
+        Split side_by_side=#true {
+            children share=-0 { Tabs chosen=2930658913 { panels "\u{7f}" hierarchy "-1" "-1" } }
+            children share=0.00000000000000000000014064867 { Tabs chosen=1 { panels } }
+        }
+    }
+    children share=-0.000000000000000000000000000016272384 {
+        Split side_by_side=#false {
+            children share=#inf {
+                Split side_by_side=#false {
+                    children share=0.0000000000000000000000036400724 { Tabs chosen=3 { panels "back\\slash" } }
+                    children share=340282350000000000000000000000000000000 {
+                        Split side_by_side=#true {
+                            children share=394438630000000000 {
+                                Split side_by_side=#true {
+                                }
+                            }
+                            children share=0.00000000000000000000000007038531 {
+                                Split side_by_side=#true {
+                                    children share=#inf {
+                                        Split side_by_side=#true {
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    children share=-811683.44 { Tabs chosen=1367701669 { panels } }
+                }
+            }
+            children share=0.00000000000000000000000007038531 { Tabs chosen=4 { panels "" "two\nlines" hierarchy "true" } }
+            children share=0.00000000000000000000000000000000000020954497 {
+                Split side_by_side=#false {
+                    children share=0.000000000000000000000000000000000000011754944 {
+                        Split side_by_side=#true {
+                        }
+                    }
+                }
+            }
+            children share=0.0000000000000000000000000000037303315 {
+                Split side_by_side=#true {
+                }
+            }
+        }
+    }
+    children share=0.0000000000005051548 {
+        Split side_by_side=#false {
+            children share=#-inf { Tabs chosen=944500451 { panels "" "" "two\nlines" } }
+        }
+    }
+}
+floating panel=パネル { origin -0.00000000000000000000000000000000006798141 0.0000014193122; size -0 #inf }
+floating panel=hierarchy { origin #inf -0.000000000000000000000000000008318579; size 4988.2725 0.000000000000000000000000000000000000011754944 }
+closed "true"
++++ read
+Layout { root: Split { side_by_side: false, children: [Share { share: -7.038531e-26, node: Split { side_by_side: true, children: [Share { share: -0.0, node: Tabs { panels: ["\u{7f}", "hierarchy", "-1", "-1"], chosen: 2930658913 } }, Share { share: 1.4064867e-22, node: Tabs { panels: [], chosen: 1 } }] } }, Share { share: -1.6272384e-29, node: Split { side_by_side: false, children: [Share { share: inf, node: Split { side_by_side: false, children: [Share { share: 3.6400724e-24, node: Tabs { panels: ["back\\slash"], chosen: 3 } }, Share { share: 3.4028235e38, node: Split { side_by_side: true, children: [Share { share: 3.9443863e17, node: Split { side_by_side: true, children: [] } }, Share { share: 7.038531e-26, node: Split { side_by_side: true, children: [Share { share: inf, node: Split { side_by_side: true, children: [] } }] } }] } }, Share { share: -811683.44, node: Tabs { panels: [], chosen: 1367701669 } }] } }, Share { share: 7.038531e-26, node: Tabs { panels: ["", "two\nlines", "hierarchy", "true"], chosen: 4 } }, Share { share: 2.0954497e-37, node: Split { side_by_side: false, children: [Share { share: 1.1754944e-38, node: Split { side_by_side: true, children: [] } }] } }, Share { share: 3.7303315e-30, node: Split { side_by_side: true, children: [] } }] } }, Share { share: 5.051548e-13, node: Split { side_by_side: false, children: [Share { share: -inf, node: Tabs { panels: ["", "", "two\nlines"], chosen: 944500451 } }] } }] }, floating: [Floating { panel: "パネル", origin: [-6.798141e-35, 1.4193122e-6], size: [-0.0, inf] }, Floating { panel: "hierarchy", origin: [inf, -8.318579e-30], size: [4988.2725, 1.1754944e-38] }], closed: ["true"] }
+=== case 27
+--- layout
+version 1
+Tabs chosen=1 { panels "-1" "\u{7f}" "a#b" }
+floating panel="true" { origin -4077814.5 -3488.5361; size 1816228100000000000000000 73463845000000000000000000 }
+floating panel="a panel" { origin #inf #inf; size #nan -0.00000000000000000000000007038531 }
+closed "two\nlines" "say \"hi\"" "a panel"
++++ read
+Layout { root: Tabs { panels: ["-1", "\u{7f}", "a#b"], chosen: 1 }, floating: [Floating { panel: "true", origin: [-4077814.5, -3488.5361], size: [1.8162281e24, 7.3463845e25] }, Floating { panel: "a panel", origin: [inf, inf], size: [NaN, -7.038531e-26] }], closed: ["two\nlines", "say \"hi\"", "a panel"] }
+=== case 28
+--- layout
+version 1
+Tabs chosen=747580009 { panels "" }
+floating panel=パネル { origin 0.00000000000000000000000000003231841 -0.000000000000000000000049740406; size -106094570000000000000 0.00000000000000000000000007038531 }
+closed "a=b" viewport "a#b"
++++ read
+Layout { root: Tabs { panels: [""], chosen: 747580009 }, floating: [Floating { panel: "パネル", origin: [3.231841e-29, -4.9740406e-23], size: [-1.0609457e20, 7.038531e-26] }], closed: ["a=b", "viewport", "a#b"] }
+=== case 29
+--- layout
+version 1
+Split side_by_side=#true {
+}
+floating panel=hierarchy { origin -0.00000000000000000000000007038531 #inf; size 340282350000000000000000000000000000000 0.00000000000000000000000007038531 }
+floating panel="back\\slash" { origin -0 -429090900000000000000000000000000; size -0 1610296200 }
+closed パネル パネル "a#b"
++++ read
+Layout { root: Split { side_by_side: true, children: [] }, floating: [Floating { panel: "hierarchy", origin: [-7.038531e-26, inf], size: [3.4028235e38, 7.038531e-26] }, Floating { panel: "back\\slash", origin: [-0.0, -4.290909e32], size: [-0.0, 1610296200.0] }], closed: ["パネル", "パネル", "a#b"] }
+=== case 30
+--- layout
+version 1
+Split side_by_side=#true {
+    children share=0.25 { Tabs chosen=3 { panels "" } }
+    children share=-276052100000000000000000000000000 {
+        Split side_by_side=#false {
+            children share=-162259210000000000000000000000000000000 {
+                Split side_by_side=#false {
+                }
+            }
+        }
+    }
+}
+floating panel="say \"hi\"" { origin 0.0000000000000000000000000000000000035510354 #inf; size 0.000000000000000000000000000000000000011754944 0.00000000000000000000000007038531 }
+closed hierarchy "a=b" "-1"
++++ read
+Layout { root: Split { side_by_side: true, children: [Share { share: 0.25, node: Tabs { panels: [""], chosen: 3 } }, Share { share: -2.760521e32, node: Split { side_by_side: false, children: [Share { share: -1.6225921e38, node: Split { side_by_side: false, children: [] } }] } }] }, floating: [Floating { panel: "say \"hi\"", origin: [3.5510354e-36, inf], size: [1.1754944e-38, 7.038531e-26] }], closed: ["hierarchy", "a=b", "-1"] }
+=== case 31
+--- layout
+version 1
+Tabs chosen=2 { panels "-1" "back\\slash" パネル }
+floating panel="a panel" { origin #-inf 340282350000000000000000000000000000000; size -178659.13 -85996980000000000000 }
+closed viewport
++++ read
+Layout { root: Tabs { panels: ["-1", "back\\slash", "パネル"], chosen: 2 }, floating: [Floating { panel: "a panel", origin: [-inf, 3.4028235e38], size: [-178659.13, -8.599698e19] }], closed: ["viewport"] }
+=== case 32
+--- layout
+version 1
+Tabs chosen=2497846304 { panels "a=b" }
++++ read
+Layout { root: Tabs { panels: ["a=b"], chosen: 2497846304 }, floating: [], closed: [] }
+=== case 33
+--- layout
+version 1
+Split side_by_side=#true {
+    children share=-0.0000000000000002606042 {
+        Split side_by_side=#true {
+            children share=-8163545000000000 { Tabs chosen=4193699600 { panels "two\nlines" } }
+        }
+    }
+    children share=#nan {
+        Split side_by_side=#false {
+            children share=0.000000000000000000000000000000000000011754944 {
+                Split side_by_side=#false {
+                }
+            }
+            children share=0.55 {
+                Split side_by_side=#false {
+                    children share=#nan {
+                        Split side_by_side=#false {
+                            children share=-9420842000000 {
+                                Split side_by_side=#true {
+                                    children share=-101529040000000000000000000000 { Tabs chosen=3648375979 { panels "-1" } }
+                                    children share=-0.00000000000000000000000007038531 {
+                                        Split side_by_side=#true {
+                                            children share=-49156020000000000000000000000000 { Tabs chosen=1 { panels "a=b" } }
+                                            children share=0.25 { Tabs chosen=3 { panels } }
+                                            children share=0.00000000000000000000000007038531 { Tabs chosen=0 { panels "\u{7f}" "back\\slash" "" } }
+                                        }
+                                    }
+                                    children share=#-inf { Tabs chosen=0 { panels hierarchy } }
+                                }
+                            }
+                            children share=-82713680000000000000000000000 {
+                                Split side_by_side=#true {
+                                    children share=-0.00000000000000000000000007038531 {
+                                        Split side_by_side=#true {
+                                            children share=-287840780000000000000000000000 { Tabs chosen=4 { panels "-1" "say \"hi\"" viewport "" } }
+                                        }
+                                    }
+                                }
+                            }
+                            children share=0.00000000000000000000000007038531 { Tabs chosen=2949989887 { panels パネル } }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    children share=0.55 { Tabs chosen=3501673242 { panels "a panel" "-1" } }
+    children share=-0 {
+        Split side_by_side=#false {
+        }
+    }
+}
+floating panel="-1" { origin 340282350000000000000000000000000000000 0.00000000000000000000000007038531; size -1.2346088 #nan }
+floating panel="-1" { origin 0.55 0.55; size -0.00000000000000000000000007038531 -0.00000000000000014217698 }
+floating panel="true" { origin 340282350000000000000000000000000000000 #-inf; size #inf 0.00000000016811506 }
+closed "two\nlines" パネル viewport
++++ read
+Layout { root: Split { side_by_side: true, children: [Share { share: -2.606042e-16, node: Split { side_by_side: true, children: [Share { share: -8163545000000000.0, node: Tabs { panels: ["two\nlines"], chosen: 4193699600 } }] } }, Share { share: NaN, node: Split { side_by_side: false, children: [Share { share: 1.1754944e-38, node: Split { side_by_side: false, children: [] } }, Share { share: 0.55, node: Split { side_by_side: false, children: [Share { share: NaN, node: Split { side_by_side: false, children: [Share { share: -9420842000000.0, node: Split { side_by_side: true, children: [Share { share: -1.0152904e29, node: Tabs { panels: ["-1"], chosen: 3648375979 } }, Share { share: -7.038531e-26, node: Split { side_by_side: true, children: [Share { share: -4.915602e31, node: Tabs { panels: ["a=b"], chosen: 1 } }, Share { share: 0.25, node: Tabs { panels: [], chosen: 3 } }, Share { share: 7.038531e-26, node: Tabs { panels: ["\u{7f}", "back\\slash", ""], chosen: 0 } }] } }, Share { share: -inf, node: Tabs { panels: ["hierarchy"], chosen: 0 } }] } }, Share { share: -8.271368e28, node: Split { side_by_side: true, children: [Share { share: -7.038531e-26, node: Split { side_by_side: true, children: [Share { share: -2.8784078e29, node: Tabs { panels: ["-1", "say \"hi\"", "viewport", ""], chosen: 4 } }] } }] } }, Share { share: 7.038531e-26, node: Tabs { panels: ["パネル"], chosen: 2949989887 } }] } }] } }] } }, Share { share: 0.55, node: Tabs { panels: ["a panel", "-1"], chosen: 3501673242 } }, Share { share: -0.0, node: Split { side_by_side: false, children: [] } }] }, floating: [Floating { panel: "-1", origin: [3.4028235e38, 7.038531e-26], size: [-1.2346088, NaN] }, Floating { panel: "-1", origin: [0.55, 0.55], size: [-7.038531e-26, -1.4217698e-16] }, Floating { panel: "true", origin: [3.4028235e38, -inf], size: [inf, 1.6811506e-10] }], closed: ["two\nlines", "パネル", "viewport"] }
+=== case 34
+--- layout
+version 1
+Split side_by_side=#true {
+}
+floating panel="back\\slash" { origin 0.000000000000000015223669 340282350000000000000000000000000000000; size 0.000000038200827 -0.00000000000000000000000000005849079 }
+floating panel=hierarchy { origin #nan 0.00000000000000000000000007038531; size -0.000000000000000000010342175 0.000000000000000000000000000000000000011754944 }
+floating panel="two\nlines" { origin 0.25 0.25; size 191446630000000000000 #nan }
+closed "null" "say \"hi\"" "\u{7f}"
++++ read
+Layout { root: Split { side_by_side: true, children: [] }, floating: [Floating { panel: "back\\slash", origin: [1.5223669e-17, 3.4028235e38], size: [3.8200827e-8, -5.849079e-29] }, Floating { panel: "hierarchy", origin: [NaN, 7.038531e-26], size: [-1.0342175e-20, 1.1754944e-38] }, Floating { panel: "two\nlines", origin: [0.25, 0.25], size: [1.9144663e20, NaN] }], closed: ["null", "say \"hi\"", "\u{7f}"] }
+=== case 35
+--- layout
+version 1
+Tabs chosen=2 { panels "a panel" "-1" "a=b" }
+closed "back\\slash"
++++ read
+Layout { root: Tabs { panels: ["a panel", "-1", "a=b"], chosen: 2 }, floating: [], closed: ["back\\slash"] }
+=== case 36
+--- layout
+version 1
+Tabs chosen=3679625668 { panels "null" "-1" "a=b" hierarchy }
+floating panel="a panel" { origin -118721630 0.00000000028419586; size -0.0000000000000000000000000011633651 0.0000000000000000036123614 }
+floating panel="null" { origin 0.25 340282350000000000000000000000000000000; size #inf -5667.318 }
+floating panel="a=b" { origin -0.00000000000000000000000007038531 0.000000000000000000000000000000000000011754944; size 0.00000000000000000000000007038531 0.0000000000000000000000000000000007803121 }
+closed "say \"hi\"" パネル "true"
++++ read
+Layout { root: Tabs { panels: ["null", "-1", "a=b", "hierarchy"], chosen: 3679625668 }, floating: [Floating { panel: "a panel", origin: [-118721630.0, 2.8419586e-10], size: [-1.1633651e-27, 3.6123614e-18] }, Floating { panel: "null", origin: [0.25, 3.4028235e38], size: [inf, -5667.318] }, Floating { panel: "a=b", origin: [-7.038531e-26, 1.1754944e-38], size: [7.038531e-26, 7.803121e-34] }], closed: ["say \"hi\"", "パネル", "true"] }
+=== case 37
+--- layout
+version 1
+Split side_by_side=#false {
+}
+floating panel="a panel" { origin #-inf 350632900000000000000; size #nan 0.55 }
+floating panel=hierarchy { origin -0.000000000000000039256665 12061160000000000000000000000; size #inf 0.00000000000118403 }
+closed "say \"hi\"" "\u{7f}" ""
++++ read
+Layout { root: Split { side_by_side: false, children: [] }, floating: [Floating { panel: "a panel", origin: [-inf, 3.506329e20], size: [NaN, 0.55] }, Floating { panel: "hierarchy", origin: [-3.9256665e-17, 1.206116e28], size: [inf, 1.18403e-12] }], closed: ["say \"hi\"", "\u{7f}", ""] }
+=== case 38
+--- layout
+version 1
+Tabs chosen=1 { panels "a=b" }
+floating panel="say \"hi\"" { origin 16964333000000000000000000 0.0000000000000000000016664996; size 0.00000000000000000000000007038531 0.25 }
+closed "two\nlines" "two\nlines"
++++ read
+Layout { root: Tabs { panels: ["a=b"], chosen: 1 }, floating: [Floating { panel: "say \"hi\"", origin: [1.6964333e25, 1.6664996e-21], size: [7.038531e-26, 0.25] }], closed: ["two\nlines", "two\nlines"] }
+=== case 39
+--- layout
+version 1
+Tabs chosen=1 { panels "back\\slash" "two\nlines" }
+closed hierarchy
++++ read
+Layout { root: Tabs { panels: ["back\\slash", "two\nlines"], chosen: 1 }, floating: [], closed: ["hierarchy"] }
+=== case 40
+--- layout
+version 1
+Split side_by_side=#true {
+    children share=1879392100000000000000 { Tabs chosen=0 { panels hierarchy "\u{7f}" "null" } }
+}
+floating panel="say \"hi\"" { origin -0.00000000000000006488604 0.55; size 0.000000000000000000000000000000000000011754944 301593900000000000000 }
+floating panel="a#b" { origin 0.00000000000000000000000007038531 0.55; size #-inf #inf }
+floating panel="two\nlines" { origin 0.000000000000000000000000000000000000011754944 340282350000000000000000000000000000000; size 150804.9 0.00000000000000000000000007038531 }
+closed "say \"hi\""
++++ read
+Layout { root: Split { side_by_side: true, children: [Share { share: 1.8793921e21, node: Tabs { panels: ["hierarchy", "\u{7f}", "null"], chosen: 0 } }] }, floating: [Floating { panel: "say \"hi\"", origin: [-6.488604e-17, 0.55], size: [1.1754944e-38, 3.015939e20] }, Floating { panel: "a#b", origin: [7.038531e-26, 0.55], size: [-inf, inf] }, Floating { panel: "two\nlines", origin: [1.1754944e-38, 3.4028235e38], size: [150804.9, 7.038531e-26] }], closed: ["say \"hi\""] }
+=== case 41
+--- layout
+version 1
+Tabs chosen=368012598 { panels }
++++ read
+Layout { root: Tabs { panels: [], chosen: 368012598 }, floating: [], closed: [] }
+=== case 42
+--- layout
+version 1
+Split side_by_side=#false {
+    children share=9145377400000000000000000000 { Tabs chosen=4 { panels "" } }
+}
+floating panel="say \"hi\"" { origin #-inf -242780400000000000000000000000; size 0.25 -0.00000000000000000000000007038531 }
+closed "" "null" "\u{7f}"
++++ read
+Layout { root: Split { side_by_side: false, children: [Share { share: 9.1453774e27, node: Tabs { panels: [""], chosen: 4 } }] }, floating: [Floating { panel: "say \"hi\"", origin: [-inf, -2.427804e29], size: [0.25, -7.038531e-26] }], closed: ["", "null", "\u{7f}"] }
+=== case 43
+--- layout
+version 1
+Tabs chosen=3 { panels viewport "null" "a=b" "say \"hi\"" }
+floating panel="" { origin 0.55 #inf; size 0.00000000000000000000000007038531 -0.00000000000000000000000007038531 }
+floating panel="true" { origin 340282350000000000000000000000000000000 0.55; size 0.25 -0 }
+floating panel=パネル { origin 0.000000000000000000000000000000000000011754944 0.55; size 0.00000085713054 -100988830000000000000000000000 }
++++ read
+Layout { root: Tabs { panels: ["viewport", "null", "a=b", "say \"hi\""], chosen: 3 }, floating: [Floating { panel: "", origin: [0.55, inf], size: [7.038531e-26, -7.038531e-26] }, Floating { panel: "true", origin: [3.4028235e38, 0.55], size: [0.25, -0.0] }, Floating { panel: "パネル", origin: [1.1754944e-38, 0.55], size: [8.5713054e-7, -1.0098883e29] }], closed: [] }
+=== case 44
+--- layout
+version 1
+Tabs chosen=1 { panels "a#b" hierarchy パネル }
+floating panel=パネル { origin -0.00000000000000000000000000000031460291 0.00000000000000000000000007038531; size 0.00000000000000000000000007038531 -0.0000000000000007714117 }
+closed パネル "\u{7f}" hierarchy
++++ read
+Layout { root: Tabs { panels: ["a#b", "hierarchy", "パネル"], chosen: 1 }, floating: [Floating { panel: "パネル", origin: [-3.1460291e-31, 7.038531e-26], size: [7.038531e-26, -7.714117e-16] }], closed: ["パネル", "\u{7f}", "hierarchy"] }
+=== case 45
+--- layout
+version 1
+Tabs chosen=3 { panels }
++++ read
+Layout { root: Tabs { panels: [], chosen: 3 }, floating: [], closed: [] }
+=== case 46
+--- layout
+version 1
+Tabs chosen=0 { panels }
+closed viewport "true" "say \"hi\""
++++ read
+Layout { root: Tabs { panels: [], chosen: 0 }, floating: [], closed: ["viewport", "true", "say \"hi\""] }
+=== case 47
+--- layout
+version 1
+Split side_by_side=#false {
+    children share=-133044600000 { Tabs chosen=3 { panels "a#b" viewport } }
+    children share=-0.038955744 {
+        Split side_by_side=#true {
+            children share=664500.56 {
+                Split side_by_side=#false {
+                    children share=0.55 {
+                        Split side_by_side=#false {
+                            children share=0.25 { Tabs chosen=2638995404 { panels "true" "a=b" "-1" "null" } }
+                        }
+                    }
+                }
+            }
+            children share=0.00000022790398 { Tabs chosen=861634275 { panels "two\nlines" "two\nlines" } }
+            children share=#inf {
+                Split side_by_side=#false {
+                    children share=5155022500000000000000000000000000000 {
+                        Split side_by_side=#true {
+                            children share=-0.00000000000000000000000007038531 {
+                                Split side_by_side=#false {
+                                    children share=#nan { Tabs chosen=0 { panels viewport "a panel" } }
+                                    children share=0.00000000046318913 {
+                                        Split side_by_side=#true {
+                                            children share=-0.00000027544172 { Tabs chosen=3681196775 { panels } }
+                                            children share=#-inf { Tabs chosen=1 { panels } }
+                                            children share=601775560000000000000 { Tabs chosen=2 { panels "a panel" } }
+                                        }
+                                    }
+                                }
+                            }
+                            children share=-0.000000000000000000000000016142146 {
+                                Split side_by_side=#false {
+                                    children share=#inf { Tabs chosen=3 { panels "-1" "back\\slash" "" "say \"hi\"" } }
+                                    children share=0.000000000000000107146114 {
+                                        Split side_by_side=#true {
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            children share=#-inf {
+                Split side_by_side=#false {
+                }
+            }
+        }
+    }
+}
+floating panel=viewport { origin 138928270000000000000000000000000000000 -1386019300000000000000000; size -0.0000000000000000008496035 -0 }
+floating panel="back\\slash" { origin #nan 0.25; size -0 -0.00000000000000000000000000000000023891126 }
+floating panel="-1" { origin -0.00000000000000000000000007038531 -1177439200000000000; size 6020.933 -2363.5303 }
++++ read
+Layout { root: Split { side_by_side: false, children: [Share { share: -133044600000.0, node: Tabs { panels: ["a#b", "viewport"], chosen: 3 } }, Share { share: -0.038955744, node: Split { side_by_side: true, children: [Share { share: 664500.56, node: Split { side_by_side: false, children: [Share { share: 0.55, node: Split { side_by_side: false, children: [Share { share: 0.25, node: Tabs { panels: ["true", "a=b", "-1", "null"], chosen: 2638995404 } }] } }] } }, Share { share: 2.2790398e-7, node: Tabs { panels: ["two\nlines", "two\nlines"], chosen: 861634275 } }, Share { share: inf, node: Split { side_by_side: false, children: [Share { share: 5.1550225e36, node: Split { side_by_side: true, children: [Share { share: -7.038531e-26, node: Split { side_by_side: false, children: [Share { share: NaN, node: Tabs { panels: ["viewport", "a panel"], chosen: 0 } }, Share { share: 4.6318913e-10, node: Split { side_by_side: true, children: [Share { share: -2.7544172e-7, node: Tabs { panels: [], chosen: 3681196775 } }, Share { share: -inf, node: Tabs { panels: [], chosen: 1 } }, Share { share: 6.0177556e20, node: Tabs { panels: ["a panel"], chosen: 2 } }] } }] } }, Share { share: -1.6142146e-26, node: Split { side_by_side: false, children: [Share { share: inf, node: Tabs { panels: ["-1", "back\\slash", "", "say \"hi\""], chosen: 3 } }, Share { share: 1.07146114e-16, node: Split { side_by_side: true, children: [] } }] } }] } }] } }, Share { share: -inf, node: Split { side_by_side: false, children: [] } }] } }] }, floating: [Floating { panel: "viewport", origin: [1.3892827e38, -1.3860193e24], size: [-8.496035e-19, -0.0] }, Floating { panel: "back\\slash", origin: [NaN, 0.25], size: [-0.0, -2.3891126e-34] }, Floating { panel: "-1", origin: [-7.038531e-26, -1.1774392e18], size: [6020.933, -2363.5303] }], closed: [] }
+=== case 48
+--- layout
+version 1
+Tabs chosen=2200873483 { panels パネル }
+floating panel="" { origin 340282350000000000000000000000000000000 -0.00000000000000000000000007038531; size 4525732400000000000000000000000000 0.000000000000000026726472 }
+floating panel=パネル { origin 7450165000000000000000000000000 -9640052000000000000000000000000000000; size 0.00000000000000000000000007038531 0.00030432278 }
+floating panel="a panel" { origin 0.25 #-inf; size 0.0000000000034531347 0.0000000000000000000000000000000005430165 }
+closed "two\nlines"
++++ read
+Layout { root: Tabs { panels: ["パネル"], chosen: 2200873483 }, floating: [Floating { panel: "", origin: [3.4028235e38, -7.038531e-26], size: [4.5257324e33, 2.6726472e-17] }, Floating { panel: "パネル", origin: [7.450165e30, -9.640052e36], size: [7.038531e-26, 0.00030432278] }, Floating { panel: "a panel", origin: [0.25, -inf], size: [3.4531347e-12, 5.430165e-34] }], closed: ["two\nlines"] }
+=== case 49
+--- layout
+version 1
+Tabs chosen=797327222 { panels "two\nlines" }
+closed "-1"
++++ read
+Layout { root: Tabs { panels: ["two\nlines"], chosen: 797327222 }, floating: [], closed: ["-1"] }
+=== case 50
+--- layout
+version 1
+Split side_by_side=#true {
+    children share=#nan { Tabs chosen=1 { panels パネル } }
+    children share=0.00000000000006014571 {
+        Split side_by_side=#false {
+            children share=0.00000000059962074 { Tabs chosen=2 { panels } }
+        }
+    }
+    children share=-0.00000000000000000000001847068 { Tabs chosen=2648684107 { panels } }
+}
+floating panel="a=b" { origin 2777409000000000000000 52947875000000000000000000000000; size 724434260000000000 -0 }
+floating panel="a panel" { origin -0 #-inf; size 0.00000000079691187 0.0000000933301 }
+floating panel="two\nlines" { origin 0.0000000000000000000010901734 0.55; size -0.00000000017712838 2191043400000000000000000000000000000 }
+closed viewport "true"
++++ read
+Layout { root: Split { side_by_side: true, children: [Share { share: NaN, node: Tabs { panels: ["パネル"], chosen: 1 } }, Share { share: 6.014571e-14, node: Split { side_by_side: false, children: [Share { share: 5.9962074e-10, node: Tabs { panels: [], chosen: 2 } }] } }, Share { share: -1.847068e-23, node: Tabs { panels: [], chosen: 2648684107 } }] }, floating: [Floating { panel: "a=b", origin: [2.777409e21, 5.2947875e31], size: [7.2443426e17, -0.0] }, Floating { panel: "a panel", origin: [-0.0, -inf], size: [7.9691187e-10, 9.33301e-8] }, Floating { panel: "two\nlines", origin: [1.0901734e-21, 0.55], size: [-1.7712838e-10, 2.1910434e36] }], closed: ["viewport", "true"] }
+=== case 51
+--- layout
+version 1
+Split side_by_side=#true {
+}
+floating panel="\u{7f}" { origin 0.00000000000000000000000007038531 -0.00000000000000000000000007038531; size -68223460 0.000000000000000000000000000000000000011754944 }
++++ read
+Layout { root: Split { side_by_side: true, children: [] }, floating: [Floating { panel: "\u{7f}", origin: [7.038531e-26, -7.038531e-26], size: [-68223460.0, 1.1754944e-38] }], closed: [] }
+=== case 52
+--- layout
+version 1
+Split side_by_side=#false {
+}
+floating panel="a#b" { origin 0.000000000000000000000000000000000000011754944 0.25; size 0.00000000000000000000000007038531 37608590000000000000 }
+floating panel="null" { origin 23601375000000000000000000000000 #nan; size -53831447000000000000000000000000000000 540666720000000 }
+closed "true" パネル "a#b"
++++ read
+Layout { root: Split { side_by_side: false, children: [] }, floating: [Floating { panel: "a#b", origin: [1.1754944e-38, 0.25], size: [7.038531e-26, 3.760859e19] }, Floating { panel: "null", origin: [2.3601375e31, NaN], size: [-5.3831447e37, 540666720000000.0] }], closed: ["true", "パネル", "a#b"] }
+=== case 53
+--- layout
+version 1
+Tabs chosen=2 { panels viewport "" "a panel" }
+floating panel="a=b" { origin -12868.593 -4320.0723; size 0.00000000000000000000017290501 -67658720000000000000000000000000 }
+floating panel="two\nlines" { origin -51608.953 -0.0028198306; size -275705320000000000000000000000000 0.00000000000000000000000000000018900751 }
+floating panel="a panel" { origin #-inf -0.00000000000000000000000007038531; size #nan #-inf }
+closed "a#b"
++++ read
+Layout { root: Tabs { panels: ["viewport", "", "a panel"], chosen: 2 }, floating: [Floating { panel: "a=b", origin: [-12868.593, -4320.0723], size: [1.7290501e-22, -6.765872e31] }, Floating { panel: "two\nlines", origin: [-51608.953, -0.0028198306], size: [-2.7570532e32, 1.8900751e-31] }, Floating { panel: "a panel", origin: [-inf, -7.038531e-26], size: [NaN, -inf] }], closed: ["a#b"] }
+=== case 54
+--- layout
+version 1
+Tabs chosen=0 { panels パネル "\u{7f}" "-1" "a=b" }
+floating panel="" { origin -2595.111 -0; size -76510890000000 537209100000 }
+floating panel="a#b" { origin -0.00000000000013825516 #inf; size -0.00000000000000000000000007038531 207464270000000000000000000000000000 }
+floating panel=パネル { origin 0.000000000000000000000000000000000000011754944 #nan; size #-inf -2999588400000000000000000 }
+closed "-1"
++++ read
+Layout { root: Tabs { panels: ["パネル", "\u{7f}", "-1", "a=b"], chosen: 0 }, floating: [Floating { panel: "", origin: [-2595.111, -0.0], size: [-76510890000000.0, 537209100000.0] }, Floating { panel: "a#b", origin: [-1.3825516e-13, inf], size: [-7.038531e-26, 2.0746427e35] }, Floating { panel: "パネル", origin: [1.1754944e-38, NaN], size: [-inf, -2.9995884e24] }], closed: ["-1"] }
+=== case 55
+--- layout
+version 1
+Split side_by_side=#false {
+    children share=0.0000000000000000000000000005972323 {
+        Split side_by_side=#true {
+            children share=0.000000000000000000000000000000000000011754944 {
+                Split side_by_side=#true {
+                }
+            }
+        }
+    }
+    children share=340282350000000000000000000000000000000 { Tabs chosen=3 { panels "a=b" "-1" } }
+}
+closed hierarchy "-1" hierarchy
++++ read
+Layout { root: Split { side_by_side: false, children: [Share { share: 5.972323e-28, node: Split { side_by_side: true, children: [Share { share: 1.1754944e-38, node: Split { side_by_side: true, children: [] } }] } }, Share { share: 3.4028235e38, node: Tabs { panels: ["a=b", "-1"], chosen: 3 } }] }, floating: [], closed: ["hierarchy", "-1", "hierarchy"] }
+=== case 56
+--- layout
+version 1
+Tabs chosen=2142524549 { panels }
+closed "" "\u{7f}"
++++ read
+Layout { root: Tabs { panels: [], chosen: 2142524549 }, floating: [], closed: ["", "\u{7f}"] }
+=== case 57
+--- layout
+version 1
+Split side_by_side=#false {
+    children share=0.55 { Tabs chosen=4 { panels "say \"hi\"" "-1" "-1" } }
+    children share=0.55 { Tabs chosen=1 { panels "true" hierarchy "-1" "two\nlines" } }
+    children share=-0.00000000034072356 { Tabs chosen=4 { panels "true" "say \"hi\"" "back\\slash" "true" } }
+    children share=0.00000000000000000000000000000010432101 {
+        Split side_by_side=#true {
+        }
+    }
+}
+closed "true" "a#b"
++++ read
+Layout { root: Split { side_by_side: false, children: [Share { share: 0.55, node: Tabs { panels: ["say \"hi\"", "-1", "-1"], chosen: 4 } }, Share { share: 0.55, node: Tabs { panels: ["true", "hierarchy", "-1", "two\nlines"], chosen: 1 } }, Share { share: -3.4072356e-10, node: Tabs { panels: ["true", "say \"hi\"", "back\\slash", "true"], chosen: 4 } }, Share { share: 1.0432101e-31, node: Split { side_by_side: true, children: [] } }] }, floating: [], closed: ["true", "a#b"] }
+=== case 58
+--- layout
+version 1
+Tabs chosen=4 { panels }
+floating panel=hierarchy { origin 117327495000 0.000000000000000000000000000000000000011754944; size #-inf -0.0000000000000012091799 }
+floating panel="\u{7f}" { origin 0.00000000000000000000000007038531 0.55; size #-inf -0 }
+closed "a#b"
++++ read
+Layout { root: Tabs { panels: [], chosen: 4 }, floating: [Floating { panel: "hierarchy", origin: [117327495000.0, 1.1754944e-38], size: [-inf, -1.2091799e-15] }, Floating { panel: "\u{7f}", origin: [7.038531e-26, 0.55], size: [-inf, -0.0] }], closed: ["a#b"] }
+=== case 59
+--- layout
+version 1
+Split side_by_side=#false {
+    children share=340282350000000000000000000000000000000 { Tabs chosen=1 { panels "a#b" パネル } }
+    children share=0.0000000000016491991 {
+        Split side_by_side=#false {
+            children share=-0 {
+                Split side_by_side=#false {
+                    children share=-26342888000000000000000000000000 { Tabs chosen=4 { panels } }
+                }
+            }
+        }
+    }
+    children share=7616227000000000000000000000000 { Tabs chosen=494273031 { panels } }
+    children share=-24610170000000000000000000000 {
+        Split side_by_side=#true {
+            children share=0.000000000000000000000000000000000000011754944 { Tabs chosen=1153550519 { panels "-1" } }
+            children share=#nan {
+                Split side_by_side=#true {
+                }
+            }
+            children share=0.000000000000023542017 { Tabs chosen=515100369 { panels hierarchy hierarchy viewport } }
+        }
+    }
+}
+closed "a panel" viewport
++++ read
+Layout { root: Split { side_by_side: false, children: [Share { share: 3.4028235e38, node: Tabs { panels: ["a#b", "パネル"], chosen: 1 } }, Share { share: 1.6491991e-12, node: Split { side_by_side: false, children: [Share { share: -0.0, node: Split { side_by_side: false, children: [Share { share: -2.6342888e31, node: Tabs { panels: [], chosen: 4 } }] } }] } }, Share { share: 7.616227e30, node: Tabs { panels: [], chosen: 494273031 } }, Share { share: -2.461017e28, node: Split { side_by_side: true, children: [Share { share: 1.1754944e-38, node: Tabs { panels: ["-1"], chosen: 1153550519 } }, Share { share: NaN, node: Split { side_by_side: true, children: [] } }, Share { share: 2.3542017e-14, node: Tabs { panels: ["hierarchy", "hierarchy", "viewport"], chosen: 515100369 } }] } }] }, floating: [], closed: ["a panel", "viewport"] }

@@ -15,6 +15,8 @@ pub mod style;
 pub mod text;
 pub mod theme;
 pub mod tree;
+#[cfg(test)]
+mod verdicts_tests;
 
 pub use document::{DocumentError, DocumentErrors, Fault};
 pub use rect::Rect;

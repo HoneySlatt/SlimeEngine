@@ -69,6 +69,8 @@ use crate::theme::values::shown as entry_text;
 
 #[cfg(test)]
 mod reflected_tests;
+#[cfg(test)]
+mod verdicts_tests;
 
 /// A table of shortcuts, read when an interface takes it
 /// ([`Ui::set_shortcuts`](crate::tree::Ui::set_shortcuts)).

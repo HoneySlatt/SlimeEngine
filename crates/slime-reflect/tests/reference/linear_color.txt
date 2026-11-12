@@ -1,0 +1,80 @@
+# type_name
+LinearColor
+# documented
+true
+# type_info
+TypeInfo {
+    name: "LinearColor",
+    aliases: [],
+    version: 1,
+    doc: "",
+    default: None,
+    kind: Struct(
+        [
+            FieldInfo {
+                name: "r",
+                ty: "f32",
+                aliases: [],
+                doc: "Red.",
+                default: None,
+                transient: false,
+                range: None,
+                unit: None,
+            },
+            FieldInfo {
+                name: "g",
+                ty: "f32",
+                aliases: [],
+                doc: "Green.",
+                default: None,
+                transient: false,
+                range: None,
+                unit: None,
+            },
+            FieldInfo {
+                name: "b",
+                ty: "f32",
+                aliases: [],
+                doc: "Blue.",
+                default: None,
+                transient: false,
+                range: None,
+                unit: None,
+            },
+            FieldInfo {
+                name: "a",
+                ty: "f32",
+                aliases: [],
+                doc: "Alpha (opacity), from 0, transparent, to 1, opaque.",
+                default: None,
+                transient: false,
+                range: None,
+                unit: None,
+            },
+        ],
+    ),
+}
+# registered
+["LinearColor", "f32"]
+# default
+None
+# upgrade
+false
+# values
+Struct([("r", F32(0.0)), ("g", F32(0.0)), ("b", F32(0.0)), ("a", F32(0.0))])
+Struct([("r", F32(-0.0)), ("g", F32(1.0)), ("b", F32(0.5)), ("a", F32(1.0))])
+Struct([("r", F32(10000.0)), ("g", F32(0.21404114)), ("b", F32(0.00303527)), ("a", F32(0.25))])
+Struct([("r", F32(NaN)), ("g", F32(0.1)), ("b", F32(0.2)), ("a", F32(0.3))])
+Struct([("r", F32(inf)), ("g", F32(-inf)), ("b", F32(1.1754944e-38)), ("a", F32(3.4028235e38))])
+Struct([("r", F32(1.0)), ("g", F32(1.0)), ("b", F32(1.0)), ("a", F32(1.0))])
+# refused
+F32(1.0)
+  Err(ReflectError { path: Path([]), problem: WrongKind { expected: "LinearColor", found: "an f32" } })
+Struct([("r", F32(1.0)), ("g", F32(1.0)), ("b", F32(1.0))])
+  Err(ReflectError { path: Path([]), problem: MissingField("a") })
+Struct([("r", F32(1.0)), ("g", F32(1.0)), ("b", F32(1.0)), ("a", F32(1.0)), ("x", F32(1.0))])
+  Err(ReflectError { path: Path([]), problem: UnknownField { field: "x", known: ["r", "g", "b", "a"] } })
+Struct([("r", Text("red")), ("g", F32(1.0)), ("b", F32(1.0)), ("a", F32(1.0))])
+  Err(ReflectError { path: Path([Field("r")]), problem: WrongKind { expected: "f32", found: "text" } })
+Struct([("r", F64(0.5)), ("g", F32(1.0)), ("b", F32(1.0)), ("a", F32(1.0))])
+  Err(ReflectError { path: Path([Field("r")]), problem: WrongKind { expected: "f32", found: "an f64" } })
