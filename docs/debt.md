@@ -21,6 +21,10 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   The connections that wait for their hello are few, their first line short, and each later request's line bounded (`listener.rs`'s documentation); but the connections welcomed, and the requests queued for the game's next frame, have no cap, and every request queued is answered in one frame.
   A connection asks one request at a time, so each holds at most one in the queue; a request's line, parsed whole, costs about 17 times its size in memory ([`measurements.md`](measurements.md#m6d9a1a-the-development-channel-on-uwuis-core-for-agents)).
   Followed at [M6d.9a1b](stage-6d.md#m6d9a1b--requests-in-flight-and-events), which bounds the requests in flight; the number of connections welcomed has no milestone yet, and is put to the owner then.
+- **The core for agents writes a float that is not finite as `null`** ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)).
+  JSON holds no other; a family's float reads `null` as a fault, so such a float is refused where it is read, not where it is written, and a family holds no optional float, which would read it as none (`uwui_agent::write`).
+  `slime-mcp` cuts the agent's name and version to 200 characters, so that a hello stays within its limit; no test checks the cut.
+  Followed at [M6d.9a2](stage-6d.md#m6d9a2--uwuis-mcp-library-and-families), whose MCP library names the agent.
 - **The development channel scripts keys only, and captures windowed runs only** ([ADR-0122](adr/0122-the-development-channel.md)).
   A tool presses and releases keys, not the mouse nor text; an agent reaches an interface through its elements' actions ([ADR-0143](adr/0143-what-agents-see-of-the-interface.md)).
   A run without a window has no image to capture.

@@ -3357,7 +3357,7 @@ bytes after its answer, the median of 21, as `slime-channel`'s test
 `a_request_is_answered_in_well_under_the_delay_of_an_acknowledgement` measures it, in a release
 build (`cargo test --release -p slime-channel a_request_is_answered -- --nocapture`). Before is
 `0dbe7e4`, the channel's binary encoding through the engine's reflection, built in a worktree of
-its own; after is M6d.9a1a's commit, JSON-RPC a message a line through `uwui-agent`. Five passes
+its own; after is `b923757`, M6d.9a1a's, JSON-RPC a message a line through `uwui-agent`. Five passes
 each, alternated; the median of the five.
 
 | Measure | Before | After |
@@ -3368,3 +3368,28 @@ each, alternated; the median of the five.
 M6c.0's 0.14 ms came from the same test, its build not recorded, before later changes of the machine
 and the toolchain: it is not compared here. The answer did not grow with JSON; most of it is the
 loopback and the threads that hand a request to the game and its answer back.
+
+GitHub's hosted runners, on 2026-11-12, each run green, on `b923757`:
+
+| Job | Time |
+|---|---|
+| `check (lint)` | 7 min 24 s |
+| `check (headless)` | 14 min 32 s |
+| `check (windowed)` | 9 min 8 s |
+| `check (game)` | 15 min 27 s |
+| `check (gles)` | 4 min 4 s |
+| `windows (tests)` | 15 min 17 s |
+| `windows (render)` | 7 min 4 s |
+| `windows (game)` | 10 min 51 s |
+| `windows-release` | 16 min 20 s |
+| `compositors (weston)` | 13 min 29 s |
+| `compositors (sway)` | 19 min 37 s |
+| `compositors (kwin)` | 11 min 3 s |
+| `compositors (mutter)` | 16 min 59 s |
+| `compositors (x11)` | 13 min 16 s |
+| Docs' `links` | 20 s |
+
+Every job stays within its limit of 20 minutes; `compositors (sway)` has 23 s of margin. Against its
+run on `5291eb1`, 11 min 35 s, each of its builds took about half again as long, a slower runner,
+and the zone was cooked whole, 3 min 2 s against 3 s, where that run found it cooked, its cooker
+changed with `slime-serialize`; the agent's session that drives the game, `drive`, took 2 min 43 s against 1 min 56 s.

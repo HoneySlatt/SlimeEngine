@@ -131,8 +131,8 @@ in git.
   ([ADR-0247](adr/0247-the-canvas-tested-on-opengl-es-through-uwui-renders-feature.md)).
 - In progress on track A: [M6d.9a](#m6d9a--one-core-for-agents-and-its-mcp-server), one core for
   agents and its MCP server, cut in five at its start, on 2026-11-12
-  ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)): in
-  progress, [M6d.9a1a](#m6d9a1a--the-new-wire-under-todays-meaning), the new wire; then
+  ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)): done,
+  [M6d.9a1a](#m6d9a1a--the-new-wire-under-todays-meaning), the new wire, on the same day; then
   [M6d.9a1b](#m6d9a1b--requests-in-flight-and-events),
   [M6d.9a2](#m6d9a2--uwuis-mcp-library-and-families),
   [M6d.9a3a](#m6d9a3a--attaching-and-the-persons-consent) and
@@ -1972,7 +1972,46 @@ One core for agents, in uwui, under MIT OR Apache-2.0, which the engine builds i
 
 ### M6d.9a1a — The new wire, under today's meaning
 
-The first fifth of M6d.9a; in progress, its card in [`PLAN.md`](PLAN.md#m6d9a1a--the-new-wire-under-todays-meaning).
+The first fifth of M6d.9a, its questions decided at its start, on 2026-11-12
+([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)). It
+follows the rules of [every milestone of the stage](#stage-6d--uwui-leaves-the-engine).
+
+- **Goal.** The engine's channel speaks the core's session, each request doing what it does now.
+- **Crates.** `uwui-agent`, new; `slime-channel`, `slime-app`, `slime-editor`, `slime-mcp`, with
+  the owner's go for `slime-app` and `slime-editor`.
+- **Delivers.**
+  - `uwui-agent`: the session without input or output, both ends, JSON-RPC a message a line,
+    bytes announced in an envelope; a first message naming the agent, its client, the carrier's
+    secret and the families with their versions, served or refused one by one.
+  - `slime-channel`: its requests in versioned families, through `serde`; its listener and client
+    the desktop's carrier, with the token; neither `slime-reflect` nor `slime-serialize`.
+  - `slime-mcp` naming its agent as its MCP client names itself; Play naming the editor.
+  - Tests of the session over bytes and over the loopback, which Windows runs.
+- **Done when.** Every MCP session test passes unchanged; a tool of another family's version is
+  served the rest; a program logs the agent that connected; CI is green.
+- **Measured.** At rest, with the owner's go: an answer of the channel, the median of 21 on the
+  loopback, against 0.14 ms before.
+- **Result.** Done on 2026-11-12, CI green on `b923757`
+  ([ADR-0246](adr/0246-one-core-for-agents-cut-in-five-a-session-without-input-or-output.md)):
+  - `uwui-agent`, under MIT OR Apache-2.0, depends on `serde`, `serde_json` and `thiserror` alone,
+    which `scripts/check.sh` checks; its session reads lines within limits and refuses what is not
+    JSON-RPC 2.0; a family's types cross through `call`, `read_call`, `write` and `read`.
+  - The channel's families are `play`, `world`, `editing` and `interface`; a family of another
+    version is refused alone and the rest served, and a request of a family not served is refused
+    by both ends. The game logs the agent and its client as fields; `slime-mcp` names its agent as
+    its MCP client names itself, cut to 200 characters, and Play names the editor.
+  - A request's line is bounded on the game's side, far below an answer's: a line parsed whole
+    costs about 17 times its size in memory. `slime-serialize`'s `read_binary`, which only the
+    channel read, is gone.
+  - Every MCP session test passes, `edit` checking in addition that the editor logs the agent; the
+    session's and the loopback's tests run on Windows in `cargo test --workspace`; each new test
+    fails without the code it tests, checked by mutation.
+  - The answer of the channel, at rest and in a release build, 42.8 µs against 48.2 µs before; CI's
+    jobs within 20 minutes, `compositors (sway)` 23 s from its limit on a slower runner
+    ([`measurements.md`](measurements.md#m6d9a1a-the-development-channel-on-uwuis-core-for-agents)).
+  - Left for later parts: the queue and the connections welcomed, unbounded; non-finite floats
+    written as `null`, refused where they are read; no test of the name's cut
+    ([`debt.md`](debt.md)).
 
 ### M6d.9a1b — Requests in flight and events
 
