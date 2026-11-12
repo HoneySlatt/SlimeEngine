@@ -178,4 +178,4 @@ made after Stage 6e's first milestone runs on `games/open-world` where it names 
 
 ## Known debt
 
-The known debt still open, 179 items, is in [`debt.md`](debt.md).
+The known debt still open, 178 items, is in [`debt.md`](debt.md).

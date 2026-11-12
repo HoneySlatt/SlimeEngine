@@ -805,9 +805,6 @@ Items that a contributor could take on alone are also GitHub issues, linked from
   A probe that lays out and draws a label and a button, built for `wasm32-unknown-unknown` in release, its size optimised, weighs 2.35 MB compressed by brotli, against the provisional budget of 1 MB ([measurements](measurements.md#m6d3b2-style-sheets-in-kdl)).
   1.93 MB of it are the dictionaries of words of Chinese and Japanese, Burmese, Khmer, Lao and Thai that `parley`'s feature `complex-scripts` brings; without them, the core weighs 0.42 MB.
   The owner kept it as debt on 2026-11-11: followed at uwui's milestone of fonts given as bytes, which loads the dictionaries when a text first needs them, as fonts, the budget leaving them out by an amendment of ADR-0181 then; the web's trial confirms or corrects the budget.
-- **`slime-serialize`'s `References::value` serves uwui's tests alone** ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
-  It names a theme's value in a document read through reflection; since uwui reads its style sheets in KDL, only the reflected reader kept as the tests' oracle implements it, and `slime-serialize`'s documentation still names uwui's sheets as its user.
-  Followed at [M6d.3c3](stage-6d.md#m6d3c3--reflection-out-of-uwui), where the oracle goes with reflection: the hook goes too, or a user of the engine's is named.
 - **Shortcuts on macOS are written in part by Apple's rules, and checked by no machine** ([ADR-0241](adr/0241-every-document-of-uwui-in-kdl-read-by-its-own-reader.md)).
   A chord's modifiers, and Escape, Tab, Delete, Return and the arrows, show as Apple's symbols; Apple's pages give none for Forward Delete, Page Up and Down, Home, End, Space and the function keys, which show by their names, `⌘PageUp`.
   A text field reads macOS's keys of ⌘ and Option, not those of Control, as Control and A to a line's start.

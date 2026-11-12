@@ -35,7 +35,8 @@ nothing is promised stable before 1.0 (see [`docs/ROADMAP.md`](docs/ROADMAP.md))
   docks' layouts and their parts no longer implement `slime_reflect::Reflect`, and a style or a
   layout is read and written as KDL alone. `slime-color` depends on nothing: `slime-reflect`
   describes `LinearColor`, under the same name and fields, its type's documentation in reflection
-  a summary of its rustdoc.
+  a summary of its rustdoc. `slime_serialize::References::value`, through which a text stood for a
+  value of another type, is gone: no type of the engine gave one.
 - uwui's styles are typed declarations, applied without reflection (ADR-0229): a rule sets a
   colour whole, and a rule that names a kind and sets what that kind does not read is refused.
   Each kind starts from defaults whose colours are the core's seven roles, `canvas_text`, `accent`
